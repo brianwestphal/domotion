@@ -27,7 +27,10 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
    caller-pinned helper transaction, preserves each pinned Skia SVG byte-for-byte,
    audits exact raw collapsed-border logical geometry, and keeps PDF strictly
    downstream. Selected page ranges retain document page numbers; verified SVGs
-   are staged before an atomic manifest-last commit.
+   are staged before an atomic manifest-last commit. Its terminal gate requires
+   complete logical/page-rule coverage, authenticated helper packaging, exact
+   DPR 1/2 proposal/validation ink, and downstream-only PDF output independently
+   on macOS, Linux, and Windows.
 8. A Domotion Studio project is the versioned durable authoring source. Stable
    narrative/scene/track/layer/review identities survive regeneration; SVG and
    review video are generated artifacts with revision provenance. Static Studio

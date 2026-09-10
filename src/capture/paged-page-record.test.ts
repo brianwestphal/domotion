@@ -13,6 +13,7 @@ import {
   parsePagedPageRecord,
   unavailablePagedPageRecord,
   validateAuthenticatedPagedPageRecord,
+  wrapIsolatedPageStateFingerprintSource,
   type AuthenticatedPagedPageRecord,
 } from "./paged-page-record.js";
 
@@ -86,6 +87,13 @@ function validatedShape(): AuthenticatedPagedPageRecord {
 }
 
 describe("authenticated paged page records", () => {
+  it("carries esbuild's function-name helper into the isolated CDP world", () => {
+    const expression = wrapIsolatedPageStateFingerprintSource(
+      '() => __name(() => "fingerprinted", "inner")()',
+    );
+    expect(Function(`return ${expression}`)()).toBe("fingerprinted");
+  });
+
   it("validates the native-fact-only promoted shape without granting live authority", () => {
     expect(validateAuthenticatedPagedPageRecord(validatedShape())).toEqual([]);
   });

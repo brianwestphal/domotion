@@ -334,6 +334,27 @@ describe("paged collapsed-table private logical record", () => {
     expect(record.provenance.pdfRole).toBe("downstream-integration-evidence-only");
   });
 
+  it("accepts a whole-row table-fragment seam between distinct non-repeated sections", () => {
+    const fixture = input();
+    const table = fixture.pages[0].tableOccurrences[0];
+    table.sectionOccurrences = table.sectionOccurrences.filter((section) =>
+      section.sectionTag !== "tfoot");
+    table.sectionOccurrences[1].endBreak = { kind: "none", globalRowIndex: null };
+    const edge = table.collapsedEdges[2];
+    edge.disposition = "paint-half-at-whole-row-end";
+    edge.paintOrder = 1;
+    edge.logicalRectRaw = {
+      inlineStart: 0,
+      blockStart: 13376,
+      inlineSize: 5120,
+      blockSize: 128,
+    };
+    const record = buildPagedCollapsedTableRecord(fixture);
+    expect(record.status === "unavailable" ? record.reason : []).not.toContain(
+      "whole-row end half-edge lacks its source break",
+    );
+  });
+
   it.each([
     ["wrong page index", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[1].pageIndex = 4; }],
     ["wrong writing progression", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[0].tableOccurrences[0].fragmentationAxis = "physical-x"; }],

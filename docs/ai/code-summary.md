@@ -31,6 +31,8 @@ loading the historical documentation corpus.
   Skia page SVG through byte-for-byte after a live-only logical consistency audit.
   `capture/paged-capture.ts` is the explicit high-level API and atomic
   manifest-last bundle writer; `cli/capture.ts --paged` is its only CLI route.
+  `tools/paged-capture-release-{collector,gate}.ts` and the matching workflow
+  require logical-first, exact proposal/validation evidence on every platform.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
   `animation/animator.ts` is the stable facade; `svg-generator.ts` and

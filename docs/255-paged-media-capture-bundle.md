@@ -6,7 +6,7 @@ status: "partial"
 owners: ["layout", "cli"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2325","DM-2573","DM-2708","DM-2709","DM-2710","DM-2711","DM-2712","DM-2713"]
-code: ["src/capture/paged-capture-bundle.ts","src/capture/paged-capture-bundle-json-schema.ts","schemas/paged-capture-bundle.schema.json","src/capture/paged-capture-helper.ts","src/capture/paged-capture-helper-json-schema.ts","schemas/paged-capture-helper-bundle.schema.json","tools/package-paged-capture-helper.ts","src/capture/paged-collapsed-table-record.ts","tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-renderer-evidence-collector.ts"]
+code: ["src/capture/paged-capture-bundle.ts","src/capture/paged-capture-bundle-json-schema.ts","schemas/paged-capture-bundle.schema.json","src/capture/paged-capture-helper.ts","src/capture/paged-capture-helper-json-schema.ts","schemas/paged-capture-helper-bundle.schema.json","tools/package-paged-capture-helper.ts","src/capture/paged-collapsed-table-record.ts","tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-renderer-evidence-collector.ts","tools/paged-capture-release-gate.ts","tools/paged-capture-release-collector.ts",".github/workflows/paged-capture-release.yml"]
 aliases: ["docs/255-paged-media-capture-bundle.md","doc-255"]
 ---
 
@@ -237,9 +237,9 @@ source delta, invokes `gn desc ... //headless:headless_shell runtime_deps
 --all`, deduplicates that source-owned list, preserves relative paths/modes and
 links, invokes Chromium's `tools/licenses/licenses.py license_file` action,
 retains GN args/build-evidence/runtime-deps/protocol/source/patch receipts, and
-refuses a nonempty destination. The current producer is intentionally limited
-to the reviewed macOS arm64 build and pins the complete 4,923-member executable
-and runtime-dependency closure; DM-2713 owns additional platform receipts. The
+refuses a nonempty destination. DM-2713 replaces the historical macOS-only
+table-helper receipt with a fresh current-source build receipt and supports the
+platform-specific GN closure on macOS, Linux, and Windows. The
 optional smoke gate launches the packaged copy through the public verifier and
 transport handshake. Chromium sandboxing is forced on for this build, and no
 inherited dynamic-loader or Node injection controls reach the child process.
@@ -252,6 +252,9 @@ and an authenticated default-off/active handshake. That immutable receipt does
 not authenticate the later page-SVG/Skia deltas; the combined producer refuses
 it until a separately retained current build receipt is supplied. The temporary
 bundle was removed after the reproducible acceptance run; it is not a hosted installer.
+The current page-SVG packaging and terminal matrix are specified and locally
+exercised in [doc 259](259-paged-capture-release-gate.md); retained Linux and
+Windows workflow reports remain required before an all-platform release claim.
 
 ### DM-2712 public interface
 
@@ -295,9 +298,10 @@ selection indices and their original document page numbers in filenames.
    page, including collapsed-table fragment ownership.
 5. **DM-2712 — public API and CLI.** Atomic bundle writing and paged print
    controls with ordinary-capture isolation.
-6. **DM-2713 — release evidence.** Logical mutations and native page coverage
-   for repeated headers/footers, breaks, continuation, spans, captions, zoom,
-   writing modes, page rules, and all three platforms.
+6. **DM-2713 — release evidence.** The strict six-report workflow, portable
+   helper receipts, logical mutations, bundle/PDF controls, and native page
+   coverage for repeated headers/footers, breaks, continuation, spans,
+   captions, zoom, writing modes, and page rules are implemented in doc 259.
 
 DM-2325 owns the approved product decision and this decomposition. It does not
 claim the final capture feature shipped until the delivery tickets complete.

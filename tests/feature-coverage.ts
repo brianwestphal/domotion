@@ -154,6 +154,15 @@ export const FEATURES: FeatureEntry[] = [
     ],
   },
   {
+    id: "capture.paged-release-gate",
+    behavior: "Require exact logical-first coverage of fragmentation, repeated and oversized table sections, spans, captions, zoom, page names/sizes, and writing modes; authenticate current helper packaging and deterministic self-contained page/DPR/PDF evidence in proposal and validation reports on macOS, Linux, and Windows.",
+    doc: "docs/259-paged-capture-release-gate.md",
+    tests: [
+      "src/capture/paged-collapsed-table-record.test.ts",
+      "tests/paged-capture-release-gate.test.ts",
+    ],
+  },
+  {
     id: "capture.iframe-recursion",
     behavior: "A same-origin <iframe> recurses into native SVG; a cross-origin frame stays raster unless allowlisted.",
     doc: "docs/81-iframe-recursion.md",

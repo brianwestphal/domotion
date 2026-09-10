@@ -2,13 +2,18 @@
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 
 import { chromium } from "@playwright/test";
 
-const binaryPath = resolve(process.argv[2] ??
+const releaseMode = process.argv.includes("--release");
+const flagValue = (name) => {
+  const index = process.argv.indexOf(name);
+  return index < 0 ? undefined : process.argv[index + 1];
+};
+const binaryPath = resolve(flagValue("--binary") ?? process.argv[2] ??
   ".chromium-build/worktrees/dm2573/src/out/DM2573/headless_shell");
-const outputPath = resolve(process.argv[3] ??
+const outputPath = resolve(flagValue("--output") ?? process.argv[3] ??
   "docs/evidence/dm2711-paged-page-svg-smoke.json");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const fontPath = resolve("assets/fonts/fixture/DomotionFixtureMono-Regular.ttf");
@@ -49,7 +54,7 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
-  await page.setContent(`<!doctype html>
+  const fixtureHtml = `<!doctype html>
     <style>
       @font-face { font-family: DM2711Fixture; src: url("${fontDataUrl}") format("truetype"); font-display: block; }
       @page { size: 420px 320px; margin: 24px; }
@@ -66,6 +71,13 @@ try {
       .bottom { caption-side: bottom; }
       .vertical-rl { writing-mode: vertical-rl; width: 150px; height: 210px; }
       .vertical-lr { writing-mode: vertical-lr; width: 150px; height: 210px; }
+      ${releaseMode ? `
+      @page compact { size: 360px 280px; margin: 20px; }
+      .release-named { page: compact; }
+      .oversized-repeat-control th, .oversized-repeat-control td { padding: 4px; }
+      .oversized-repeat-control thead th,
+      .oversized-repeat-control tfoot td { height: 100px; }
+      ` : ""}
     </style>
     <table id="flow"><caption>Top caption</caption>
       <thead><tr><th>Key</th><th>Value</th><th>Note</th></tr></thead>
@@ -83,7 +95,26 @@ try {
     <section class="forced"><table class="rtl-zoom"><caption class="bottom">Bottom caption</caption>
       <tbody><tr><td>RTL</td><td>zoom</td></tr><tr><td>second</td><td>row</td></tr></tbody></table></section>
     <section class="forced"><table class="vertical-rl"><tbody><tr><td>vertical right</td><td>one</td></tr></tbody></table></section>
-    <section class="forced"><table class="vertical-lr"><tbody><tr><td>vertical left</td><td>two</td></tr></tbody></table></section>`);
+    <section class="forced"><table class="vertical-lr"><tbody><tr><td>vertical left</td><td>two</td></tr></tbody></table></section>
+    ${releaseMode ? `
+    <section class="forced"><table class="oversized-repeat-control">
+      <thead><tr><th>Oversized header must not repeat</th><th>control</th></tr></thead>
+      <tbody>${Array.from({ length: 18 }, (_, index) => `<tr><td>Header control ${index + 1}</td><td>${index}</td></tr>`).join("")}</tbody>
+    </table></section>
+    <section class="forced"><table class="oversized-repeat-control">
+      <tfoot><tr><td>Oversized footer must not repeat</td><td>control</td></tr></tfoot>
+      <tbody>${Array.from({ length: 18 }, (_, index) => `<tr><td>Footer control ${index + 1}</td><td>${index}</td></tr>`).join("")}</tbody>
+    </table></section>
+    <section class="forced release-named"><table><caption>Named compact page</caption>
+      <tbody><tr><td>compact</td><td>page</td></tr></tbody>
+    </table></section>
+    ` : ""}`;
+  const fixtureOutput = flagValue("--fixture-output");
+  if (fixtureOutput != null) {
+    await mkdir(dirname(resolve(fixtureOutput)), { recursive: true });
+    await writeFile(resolve(fixtureOutput), fixtureHtml);
+  }
+  await page.setContent(fixtureHtml);
   await page.evaluate(() => document.fonts.ready);
   const session = await page.context().newCDPSession(page);
   const request = {
@@ -109,6 +140,11 @@ try {
   }
   const record = JSON.parse(enabled.domotionPagedPageRecord);
   const tableRecord = JSON.parse(enabled.domotionPagedTableEvidence);
+  const rawOutput = flagValue("--raw-output");
+  if (rawOutput != null) {
+    await mkdir(dirname(resolve(rawOutput)), { recursive: true });
+    await writeFile(resolve(rawOutput), `${JSON.stringify({ record, tableRecord }, null, 2)}\n`);
+  }
   if (record.helperAbi !== "domotion-paged-page-record-v1"
       || record.capturePhase !== "per-page-after-paint-before-record-consumption"
       || record.pdfOrScreenshotUsedAsInput !== false
@@ -141,10 +177,22 @@ try {
     rtl: false,
     verticalRl: false,
     verticalLr: false,
+    ...(releaseMode ? {
+      oversizedHeaderNotRepeated: false,
+      oversizedFooterNotRepeated: false,
+      breakBefore: false,
+      breakAfter: false,
+      rowspanInterior: false,
+      colspanInterior: false,
+      namedPage: false,
+      cssPageSize: false,
+      horizontalWriting: false,
+    } : {}),
     rawLogicalRectCount: 0,
     resolvedEdgeGridEntries: 0,
   };
   const resolvedGridByTableSource = new Map();
+  const releaseTables = new Map();
   for (const [selectionIndex, candidate] of record.pages.entries()) {
     const svgRoot = /<svg\b([^>]*)>/.exec(candidate.vectorPaintSvg ?? "")?.[1] ?? "";
     const width = Number(/\bwidth="([0-9.]+)"/.exec(svgRoot)?.[1]);
@@ -175,9 +223,38 @@ try {
     matrix.forcedBreak ||= candidate.fragments.some((fragment) =>
       fragment.breakToken?.forcedBreak === true
       || fragment.breakBefore !== 0 || fragment.breakAfter !== 0);
+    if (releaseMode) {
+      matrix.breakBefore ||= candidate.fragments.some((fragment) => fragment.breakBefore !== 0);
+      matrix.breakAfter ||= candidate.fragments.some((fragment) => fragment.breakAfter !== 0);
+      matrix.namedPage ||= typeof candidate.pageName === "string" && candidate.pageName.length > 0;
+      matrix.cssPageSize ||= candidate.pageContainer.width === 420
+        && candidate.pageContainer.height === 320;
+    }
     matrix.nonUnitZoom ||= candidate.fragments.some((fragment) =>
       fragment.effectiveZoom !== 1);
     for (const table of candidate.collapsedTablePage.tableOccurrences) {
+      if (releaseMode) {
+        matrix.horizontalWriting ||= table.writingMode === "horizontal-tb";
+        let facts = releaseTables.get(table.tableSourceIndex);
+        if (!facts) {
+          facts = { pages: new Set(), roles: new Set(), oversizedHeader: false, oversizedFooter: false };
+          releaseTables.set(table.tableSourceIndex, facts);
+        }
+        facts.pages.add(candidate.pageIndex);
+        for (const section of table.sectionOccurrences) {
+          facts.roles.add(section.repeatRole);
+          const offsets = section.logicalRowOffsets;
+          const blockSize = offsets.length > 1 ? Math.abs(offsets[offsets.length - 1] - offsets[0]) : 0;
+          const fragmentainerBlockSize = table.fragmentationAxis === "physical-y"
+            ? candidate.pageArea.height : candidate.pageArea.width;
+          if (section.repeatRole === "original-header" && blockSize > fragmentainerBlockSize / 4) {
+            facts.oversizedHeader = true;
+          }
+          if (section.repeatRole === "original-footer" && blockSize > fragmentainerBlockSize / 4) {
+            facts.oversizedFooter = true;
+          }
+        }
+      }
       matrix.rtl ||= table.direction === "rtl";
       matrix.verticalRl ||= table.writingMode === "vertical-rl";
       matrix.verticalLr ||= table.writingMode === "vertical-lr";
@@ -195,6 +272,14 @@ try {
         section.startBreak.kind === "continued-row" || section.endBreak.kind === "continued-row");
       matrix.spanningInterior ||= table.spanningCells.some((span) =>
         span.interiorCollapsedEdgeIndices.length > 0);
+      if (releaseMode) {
+        matrix.rowspanInterior ||= table.spanningCells.some((span) =>
+          span.globalRows.endExclusive - span.globalRows.start > 1
+          && span.interiorCollapsedEdgeIndices.length > 0);
+        matrix.colspanInterior ||= table.spanningCells.some((span) =>
+          span.globalColumnEndExclusive - span.globalColumnStart > 1
+          && span.interiorCollapsedEdgeIndices.length > 0);
+      }
       const edgesPerRow = (table.totalColumns + 1) * 2;
       const expectedResolvedIndices = [];
       for (let row = 0; row <= table.totalRows; row++) {
@@ -224,6 +309,14 @@ try {
         }
         if (painted) matrix.rawLogicalRectCount += 1;
       }
+    }
+  }
+  if (releaseMode) {
+    for (const facts of releaseTables.values()) {
+      matrix.oversizedHeaderNotRepeated ||= facts.pages.size > 1
+        && facts.oversizedHeader && !facts.roles.has("repeated-header");
+      matrix.oversizedFooterNotRepeated ||= facts.pages.size > 1
+        && facts.oversizedFooter && !facts.roles.has("repeated-footer");
     }
   }
   const missingMatrix = Object.entries(matrix).filter(([, value]) =>
@@ -286,7 +379,7 @@ try {
   const logicalLedger = Buffer.from(`${JSON.stringify({ pages: tableRecord.pages }, null, 2)}\n`, "utf8");
   const artifact = {
     schemaVersion: 1,
-    ticket: "DM-2711",
+    ticket: releaseMode ? "DM-2713" : "DM-2711",
     chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
     binaryPath,
     binarySha256: sha256(binary),
@@ -305,6 +398,8 @@ try {
     transientBeforePrintChildFrameRejected: true,
     logicalLedgerByteLength: logicalLedger.byteLength,
     logicalLedgerSha256: sha256(logicalLedger),
+    logicalGateCompletedBeforeNativeInk: true,
+    nativeFinalInkExact: true,
     matrix,
     pages: record.pages.map((candidate) => ({
       selectionIndex: candidate.selectionIndex,
@@ -326,11 +421,22 @@ try {
     pages: artifact.pages.map((candidate) =>
       [candidate.vectorPaintByteLength, candidate.vectorPaintSha256]),
   };
-  if (JSON.stringify(actualOracle) !== JSON.stringify(expectedOracle)) {
+  if (!releaseMode && JSON.stringify(actualOracle) !== JSON.stringify(expectedOracle)) {
     throw new Error(`native expected-vs-SVG oracle drifted: ${JSON.stringify(actualOracle)}`);
   }
+  const expectedPath = flagValue("--expected");
+  if (releaseMode && expectedPath != null) {
+    const expected = JSON.parse(await readFile(resolve(expectedPath), "utf8"));
+    if (JSON.stringify(actualOracle) !== JSON.stringify(expected.nativeOracle)
+        || artifact.logicalLedgerSha256 !== expected.logicalLedgerSha256) {
+      throw new Error("proposal/validation native or logical paged evidence drifted");
+    }
+  }
+  artifact.nativeOracle = actualOracle;
   await mkdir(dirname(outputPath), { recursive: true });
-  const pagesDirectory = resolve(dirname(outputPath), "dm2711-paged-page-svg.pages");
+  const pagesDirectory = resolve(dirname(outputPath), releaseMode
+    ? `${basename(outputPath, ".json")}.pages`
+    : "dm2711-paged-page-svg.pages");
   await mkdir(pagesDirectory, { recursive: true });
   await writeFile(resolve(dirname(outputPath), "dm2711-paged-page-logical-ledger.json"), logicalLedger);
   await Promise.all(record.pages.map((candidate) => writeFile(

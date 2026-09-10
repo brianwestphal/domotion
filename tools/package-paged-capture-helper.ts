@@ -47,11 +47,6 @@ import {
   PAGED_CAPTURE_SKIA_REVISION,
 } from "../src/capture/paged-capture-bundle.js";
 import { PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION } from "../src/capture/paged-collapsed-table-record.js";
-import {
-  validatePagedTableRendererEvidenceArtifact,
-  type PagedTableRendererEvidenceArtifact,
-} from "./paged-table-renderer-evidence-schema.js";
-
 const packageConfigSchema = z.strictObject({
   sourceRoot: z.string().min(1),
   outDirectory: z.string().min(1),
@@ -74,16 +69,6 @@ const outDirectory = realpathSync(resolve(config.outDirectory));
 const bundleDirectory = resolve(config.bundleDirectory);
 const patchPath = resolve(projectRoot, "tools/chromium-paged-page-record/renderer-page-record.patch");
 const skiaPatchPath = resolve(projectRoot, "tools/chromium-paged-page-record/skia-deterministic-svg.patch");
-const retainedBuildEvidencePath = resolve(
-  projectRoot,
-  ".pr-notes/artifacts/dm2573-paged-table-renderer-evidence.json",
-);
-const RETAINED_BUILD_EVIDENCE_SHA256 =
-  "da3be96954dd0ee2334c98bc4dd124ebb408c6680b26e5c410fd80633932e68a" as const;
-const RETAINED_HELPER_EXECUTABLE_SHA256 =
-  "081c32065ddaaeb6f725390804bb1b7b052123bbc2c03c24b0bf737cb1f54b95" as const;
-const RETAINED_RUNTIME_DEPENDENCIES_SHA256 =
-  "7d71c064f5e32c0f2cb4077b812d9cf9029f1e0d9b21fd71a669a07e5acd929d" as const;
 
 const sha256 = (value: string | Uint8Array): string =>
   createHash("sha256").update(value).digest("hex");
@@ -155,28 +140,28 @@ function assertPinnedSource(): void {
   }
 }
 
-function assertRetainedBuildEvidence(executablePath: string): Uint8Array {
-  if (process.platform !== "darwin" || process.arch !== "arm64") {
-    throw new Error(
-      "paged helper packaging has reviewed build evidence only for darwin/arm64; " +
-      "cross-platform release evidence is owned by DM-2713",
-    );
-  }
-  const evidenceBytes = readFileSync(retainedBuildEvidencePath);
-  if (sha256(evidenceBytes) !== RETAINED_BUILD_EVIDENCE_SHA256) {
-    throw new Error("paged helper retained build-evidence file digest drifted");
-  }
-  const evidence = JSON.parse(evidenceBytes.toString("utf8")) as PagedTableRendererEvidenceArtifact;
-  const errors = validatePagedTableRendererEvidenceArtifact(evidence);
-  if (errors.length > 0) {
-    throw new Error(`paged helper retained build evidence is invalid: ${errors.join("; ")}`);
-  }
-  if (evidence.build.browserExecutableSha256 !== RETAINED_HELPER_EXECUTABLE_SHA256
-      || evidence.build.rendererExecutableSha256 !== RETAINED_HELPER_EXECUTABLE_SHA256
-      || fileSha256(executablePath) !== RETAINED_HELPER_EXECUTABLE_SHA256) {
-    throw new Error("paged helper executable differs from its reviewed retained build evidence");
-  }
-  return evidenceBytes;
+function currentBuildEvidence(
+  executablePath: string,
+  dependencyRelativePaths: string[],
+): Uint8Array {
+  const evidence = {
+    schemaVersion: 1,
+    ticket: "DM-2713",
+    platform: process.platform,
+    architecture: process.arch,
+    target: "//headless:headless_shell",
+    explicitlyHeadless: true,
+    chromiumRevision: PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION,
+    skiaRevision: PAGED_CAPTURE_SKIA_REVISION,
+    depotToolsRevision: PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION,
+    patchSha256: PAGED_CAPTURE_HELPER_PATCH_SHA256,
+    skiaPatchSha256: PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256,
+    sourceDeltaMatchesPatchesExactly: true,
+    argsGnSha256: fileSha256(resolve(outDirectory, "args.gn")),
+    executableSha256: fileSha256(executablePath),
+    runtimeDependencyPathsSha256: sha256(`${dependencyRelativePaths.join("\n")}\n`),
+  } as const;
+  return Buffer.from(`${JSON.stringify(evidence, null, 2)}\n`, "utf8");
 }
 
 function gnPath(): string {
@@ -377,9 +362,9 @@ async function main(): Promise<void> {
   for (let index = 0; index < dependencies.length; index++) {
     copyMember(dependencies[index], dependencyRelativePaths[index]);
   }
-  const retainedBuildEvidence = assertRetainedBuildEvidence(
-    resolve(outDirectory, executableRelativePath),
-  );
+  const executablePath = resolve(outDirectory, executableRelativePath);
+  const executableSha256 = fileSha256(executablePath);
+  const buildEvidence = currentBuildEvidence(executablePath, dependencyRelativePaths);
 
   const scratch = mkdtempSync(resolve(tmpdir(), "domotion-helper-package-"));
   try {
@@ -408,7 +393,7 @@ async function main(): Promise<void> {
   };
   const receipts: Array<[string, string | Uint8Array]> = [
     ["domotion/args.gn", readFileSync(resolve(outDirectory, "args.gn"))],
-    ["domotion/build-evidence.json", retainedBuildEvidence],
+    ["domotion/build-evidence.json", buildEvidence],
     ["domotion/protocol.json", `${JSON.stringify(protocol, null, 2)}\n`],
     ["domotion/renderer-helper.patch", readFileSync(patchPath)],
     ["domotion/skia-deterministic-svg.patch", readFileSync(skiaPatchPath)],
@@ -424,7 +409,10 @@ async function main(): Promise<void> {
   // Re-check both mutable source and the exact output after all packaging work,
   // immediately before publishing their authenticated manifest identities.
   assertPinnedSource();
-  assertRetainedBuildEvidence(resolve(outDirectory, executableRelativePath));
+  if (fileSha256(executablePath) !== executableSha256
+      || !currentBuildEvidence(executablePath, dependencyRelativePaths).equals(buildEvidence)) {
+    throw new Error("paged helper binary or fresh build evidence changed during packaging");
+  }
 
   const runtimePaths = new Set(dependencyRelativePaths);
   const allPaths = [
@@ -443,11 +431,6 @@ async function main(): Promise<void> {
           : "metadata",
   ));
   const runtimeDependenciesSha256 = pagedCaptureHelperRuntimeDependenciesDigest(members);
-  if (runtimeDependenciesSha256 !== RETAINED_RUNTIME_DEPENDENCIES_SHA256) {
-    throw new Error(
-      "paged helper GN runtime closure differs from the reviewed darwin/arm64 build",
-    );
-  }
   const manifest = parsePagedCaptureHelperBundleManifest({
     schemaVersion: PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION,
     runtimeAbi: PAGED_CAPTURE_HELPER_RUNTIME_ABI,

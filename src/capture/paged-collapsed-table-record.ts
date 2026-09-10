@@ -664,12 +664,26 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
               : state.globalRowIndex + (side === "end" && kind === "continued-row" ? 1 : 0);
             return state.kind === kind && expectedBoundary === edge.globalRowBoundary;
           });
+        // A non-repeated oversized header/footer can be pushed wholly onto the
+        // next table fragment. Blink then paints a whole-row half edge at the
+        // physical table-fragment boundary, while neither distinct section is
+        // itself fragmented and therefore neither owns a section break token.
+        const matchingWholeRowTableBoundary = (side: "start" | "end") => {
+          const rows = table.sectionOccurrences.map((section) =>
+            side === "start" ? section.globalRows.start : section.globalRows.endExclusive);
+          const boundary = side === "start" ? Math.min(...rows) : Math.max(...rows);
+          return rows.length > 0
+            && (side === "start" ? !table.firstTableBox : !table.lastTableBox)
+            && boundary === edge.globalRowBoundary;
+        };
         if (edge.disposition === "paint-half-at-whole-row-start"
-            && (!matchingBreak("start", "whole-row") || edge.axis !== "inline")) {
+            && ((!matchingBreak("start", "whole-row")
+              && !matchingWholeRowTableBoundary("start")) || edge.axis !== "inline")) {
           errors.push("whole-row start half-edge lacks its source break");
         }
         if (edge.disposition === "paint-half-at-whole-row-end"
-            && (!matchingBreak("end", "whole-row") || edge.axis !== "inline")) {
+            && ((!matchingBreak("end", "whole-row")
+              && !matchingWholeRowTableBoundary("end")) || edge.axis !== "inline")) {
           errors.push("whole-row end half-edge lacks its source break");
         }
         if (edge.disposition === "omit-at-continued-row-start"

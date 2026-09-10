@@ -540,6 +540,11 @@ type RawCdp = {
   send(method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>>;
 };
 
+/** @internal Preserve the esbuild name helper when a callback crosses into CDP. */
+export function wrapIsolatedPageStateFingerprintSource(source: string): string {
+  return `(() => { const __name = (target) => target; return (${source})(); })()`;
+}
+
 async function capturePageState(cdp: RawCdp): Promise<{
   frameId: string;
   loaderId: string;
@@ -670,16 +675,21 @@ async function capturePageState(cdp: RawCdp): Promise<{
     throw new Error("target page isolated source-state world is unavailable");
   }
   const evaluation = await cdp.send("Runtime.evaluate", {
-    expression: `(${fingerprint.toString()})()`,
+    // tsx/esbuild may decorate nested function declarations with its __name
+    // helper. The serialized callback must carry that otherwise-invisible
+    // lexical dependency into the isolated world.
+    expression: wrapIsolatedPageStateFingerprintSource(fingerprint.toString()),
     contextId: isolatedWorld.executionContextId,
     returnByValue: true,
     awaitPromise: true,
   }) as {
     result?: { value?: unknown };
-    exceptionDetails?: unknown;
+    exceptionDetails?: { text?: unknown; exception?: { description?: unknown } };
   };
   if (evaluation.exceptionDetails || !isObject(evaluation.result?.value)) {
-    throw new Error("target page isolated source-state fingerprint failed");
+    const detail = evaluation.exceptionDetails?.exception?.description
+      ?? evaluation.exceptionDetails?.text;
+    throw new Error(`target page isolated source-state fingerprint failed${typeof detail === "string" && detail !== "" ? `: ${detail}` : ""}`);
   }
   const layout = evaluation.result.value as {
     budgetExceeded?: unknown;

@@ -66,6 +66,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtviz9um0acrmm52",
+          "message": {
+            "text": "The first real public paged capture failed because tsx/esbuild's serialized fingerprint callback referenced its out-of-scope __name helper. The isolated CDP expression now supplies only that identity helper locally; a direct regression test evaluates a decorated callback, and the packaged-helper 15-page public capture subsequently passed.",
+            "markdown": "The first real public paged capture failed because tsx/esbuild's serialized fingerprint callback referenced its out-of-scope __name helper. The isolated CDP expression now supplies only that identity helper locally; a direct regression test evaluates a decorated callback, and the packaged-helper 15-page public capture subsequently passed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-page-record.ts"
+                },
+                "region": {
+                  "startLine": 543,
+                  "endLine": 545,
+                  "snippet": {
+                    "text": "/** @internal Preserve the esbuild name helper when a callback crosses into CDP. */\nexport function wrapIsolatedPageStateFingerprintSource(source: string): string {\n  return `(() => { const __name = (target) => target; return (${source})(); })()`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2713"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "563427424c73a492cd36e3ba3ab9106b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ec6e34ec8d18093bdbb3895e5d030c3ca7df8937",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -8290,7 +8290,10 @@
           "tools/package-paged-capture-helper.ts",
           "src/capture/paged-collapsed-table-record.ts",
           "tools/chromium-paged-table-evidence/renderer-helper.patch",
-          "tools/paged-table-renderer-evidence-collector.ts"
+          "tools/paged-table-renderer-evidence-collector.ts",
+          "tools/paged-capture-release-gate.ts",
+          "tools/paged-capture-release-collector.ts",
+          ".github/workflows/paged-capture-release.yml"
         ],
         "aliases": [
           "docs/255-paged-media-capture-bundle.md",
@@ -8390,6 +8393,40 @@
         "aliases": [
           "docs/258-paged-capture-api-cli.md",
           "doc-258"
+        ]
+      }
+    },
+    {
+      "file": "259-paged-capture-release-gate.md",
+      "metadata": {
+        "id": "requirements/paged-capture-release-gate",
+        "title": "Authenticated paged-capture release gate",
+        "kind": "evidence",
+        "status": "current",
+        "owners": [
+          "layout",
+          "platform-release"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2713"
+        ],
+        "code": [
+          ".github/workflows/paged-capture-release.yml",
+          "tools/paged-capture-release-gate.ts",
+          "tools/paged-capture-release-collector.ts",
+          "tools/package-paged-capture-helper.ts",
+          "tools/paged-page-record-smoke.mjs",
+          "src/capture/paged-collapsed-table-record.ts",
+          "src/capture/paged-page-record.ts"
+        ],
+        "aliases": [
+          "docs/259-paged-capture-release-gate.md",
+          "doc-259"
         ]
       }
     },
@@ -9400,6 +9437,9 @@
     ],
     "258": [
       "requirements/paged-capture-api-cli"
+    ],
+    "259": [
+      "requirements/paged-capture-release-gate"
     ],
     "01": [
       "requirements/fidelity"

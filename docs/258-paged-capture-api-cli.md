@@ -74,6 +74,6 @@ Tests cover range normalization, high-level helper orchestration, sparse
 deterministic filenames, manifest/asset agreement, staged asset verification,
 no-overwrite conflicts, cleanup on failure, CLI option mapping, and pre-launch
 CLI incompatibility diagnostics. The page-record suite binds the capture
-browser/renderer/frame facts retained for the manifest. DM-2713 owns packaged
-current-helper and cross-platform release receipts; it does not change this
-opt-in contract.
+browser/renderer/frame facts retained for the manifest. DM-2713 adds portable
+current-helper packaging plus the strict three-platform proposal/validation
+gate in doc 259; it does not change this opt-in contract.

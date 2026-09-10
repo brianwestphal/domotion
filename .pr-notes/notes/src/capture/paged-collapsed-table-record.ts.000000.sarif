@@ -144,6 +144,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtviyqcs13fm6h6b",
+          "message": {
+            "text": "DM-2713's oversized non-repeated footer control exposed whole-row half edges at a physical table-fragment break between distinct sections. Neither section has a break token, so authentication must accept only the exact leading/trailing global-row boundary of a non-first/non-last table fragment; continued-row seams remain token-gated.",
+            "markdown": "DM-2713's oversized non-repeated footer control exposed whole-row half edges at a physical table-fragment break between distinct sections. Neither section has a break token, so authentication must accept only the exact leading/trailing global-row boundary of a non-first/non-last table fragment; continued-row seams remain token-gated."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-collapsed-table-record.ts"
+                },
+                "region": {
+                  "startLine": 667,
+                  "endLine": 687,
+                  "snippet": {
+                    "text": "        // A non-repeated oversized header/footer can be pushed wholly onto the\n        // next table fragment. Blink then paints a whole-row half edge at the\n        // physical table-fragment boundary, while neither distinct section is\n        // itself fragmented and therefore neither owns a section break token.\n        const matchingWholeRowTableBoundary = (side: \"start\" | \"end\") => {\n          const rows = table.sectionOccurrences.map((section) =>\n            side === \"start\" ? section.globalRows.start : section.globalRows.endExclusive);\n          const boundary = side === \"start\" ? Math.min(...rows) : Math.max(...rows);\n          return rows.length > 0\n            && (side === \"start\" ? !table.firstTableBox : !table.lastTableBox)\n            && boundary === edge.globalRowBoundary;\n        };\n        if (edge.disposition === \"paint-half-at-whole-row-start\"\n            && ((!matchingBreak(\"start\", \"whole-row\")\n              && !matchingWholeRowTableBoundary(\"start\")) || edge.axis !== \"inline\")) {\n          errors.push(\"whole-row start half-edge lacks its source break\");\n        }\n        if (edge.disposition === \"paint-half-at-whole-row-end\"\n            && ((!matchingBreak(\"end\", \"whole-row\")\n              && !matchingWholeRowTableBoundary(\"end\")) || edge.axis !== \"inline\")) {\n          errors.push(\"whole-row end half-edge lacks its source break\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2713"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6fd24207b996c3119369bbe73a9d13ca"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ec6e34ec8d18093bdbb3895e5d030c3ca7df8937",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
