@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtv4m3xcnv83jyf7",
+          "message": {
+            "text": "The helper captures the finalized inner PaintRecord before the same record is consumed by the outer print canvas. That boundary preserves page-specific lifecycle, transform, clip, linked-destination, and paint results while the print fragment tree is still alive; neither PDF nor screenshot bytes participate.",
+            "markdown": "The helper captures the finalized inner PaintRecord before the same record is consumed by the outer print canvas. That boundary preserves page-specific lifecycle, transform, clip, linked-destination, and paint results while the print fragment tree is still alive; neither PDF nor screenshot bytes participate."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/chromium-paged-page-record/renderer-page-record.patch"
+                },
+                "region": {
+                  "startLine": 622,
+                  "endLine": 632,
+                  "snippet": {
+                    "text": "+    PaintRecord record =\n+        builder.EndRecording(property_tree_state.Unalias());\n+    if (domotion_paged_page_record_enabled_) {\n+      domotion_paged_page_records_.push_back(\n+          SerializeDomotionPagedPagePaintRecord(\n+              *GetFrame(), domotion_paged_page_records_.size(), page_index,\n+              page_rect, record));\n+    }\n+    context.DrawRecord(std::move(record));\n     context.Restore();\n   }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 99,
+          "workItemUris": [
+            "DM-2710"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "af7903ab77c33f14be9b9f79305503de"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtv4m44ihhide1rh",
+          "message": {
+            "text": "SkSVGCanvas is accepted only behind recursive nested-record preflight. Known lossy constructs, non-SrcOver flags, filters, inverse paths, unsupported clips, and perspective matrices make the page unavailable before replay; extending the allowlist requires a source-level exactness test.",
+            "markdown": "SkSVGCanvas is accepted only behind recursive nested-record preflight. Known lossy constructs, non-SrcOver flags, filters, inverse paths, unsupported clips, and perspective matrices make the page unavailable before replay; extending the allowlist requires a source-level exactness test."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/chromium-paged-page-record/renderer-page-record.patch"
+                },
+                "region": {
+                  "startLine": 1783,
+                  "endLine": 1854,
+                  "snippet": {
+                    "text": "+bool PreflightPaintRecord(const cc::PaintRecord& record,\n+                          base::ListValue* op_types,\n+                          base::ListValue* unsupported) {\n+  bool supported = true;\n+  for (const cc::PaintOp& op : record) {\n+    const cc::PaintOpType type = op.GetType();\n+    const std::string name = cc::PaintOpTypeToString(type);\n+    op_types->Append(name);\n+    if (op.IsPaintOpWithFlags()) {\n+      const cc::PaintFlags& flags =\n+          static_cast<const cc::PaintOpWithFlags&>(op).flags;\n+      if (flags.getBlendMode() != SkBlendMode::kSrcOver ||\n+          flags.getColorFilter() || flags.getImageFilter()) {\n+        unsupported->Append(name + \":unsupported-paint-flags\");\n+        supported = false;\n+        continue;\n+      }\n+    }\n+    switch (type) {\n+      case cc::PaintOpType::kCustomData:\n+      case cc::PaintOpType::kDrawScrollingContents:\n+      case cc::PaintOpType::kDrawSkottie:\n+      case cc::PaintOpType::kDrawSlug:\n+      case cc::PaintOpType::kDrawVertices:\n+      case cc::PaintOpType::kSaveLayerFilters:\n+        unsupported->Append(name);\n+        supported = false;\n+        break;\n+      case cc::PaintOpType::kDrawRecord:\n+        supported &= PreflightPaintRecord(\n+            static_cast<const cc::DrawRecordOp&>(op).record, op_types,\n+            unsupported);\n+        break;\n+      case cc::PaintOpType::kClipPath: {\n+        const auto& clip = static_cast<const cc::ClipPathOp&>(op);\n+        if (clip.op != SkClipOp::kIntersect || clip.path.isInverseFillType()) {\n+          unsupported->Append(name + \":unsupported-clip\");\n+          supported = false;\n+        }\n+        break;\n+      }\n+      case cc::PaintOpType::kDrawPath:\n+        if (static_cast<const cc::DrawPathOp&>(op).path.isInverseFillType()) {\n+          unsupported->Append(name + \":inverse-fill\");\n+          supported = false;\n+        }\n+        break;\n+      case cc::PaintOpType::kConcat:\n+      case cc::PaintOpType::kSetMatrix: {\n+        const SkM44& matrix = type == cc::PaintOpType::kConcat\n+                                  ? static_cast<const cc::ConcatOp&>(op).matrix\n+                                  : static_cast<const cc::SetMatrixOp&>(op).matrix;\n+        const bool is_2d =\n+            matrix.isFinite() && matrix.rc(0, 2) == 0 &&\n+            matrix.rc(1, 2) == 0 && matrix.rc(2, 0) == 0 &&\n+            matrix.rc(2, 1) == 0 && matrix.rc(2, 2) == 1 &&\n+            matrix.rc(2, 3) == 0 && matrix.rc(3, 2) == 0 &&\n+            matrix.rc(3, 3) == 1 && !matrix.asM33().hasPerspective();\n+        if (!is_2d) {\n+          unsupported->Append(name + \":non-affine\");\n+          supported = false;\n+        }\n+        break;\n+      }\n+      default:\n+        break;\n+    }\n+  }\n+  return supported;\n+}\n+\n+}  // namespace"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2710"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6b828ea57fc5d43d0b2feada7ec62341"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtv4m4bcdlzlcj1p",
+          "message": {
+            "text": "Page pseudo-fragment geometry comes from the container-to-border-to-area fragment links, never the CSS-box-only OffsetFromOwnerLayoutBox API. A live four-page helper smoke exposed the invalid call as a DCHECK, and the corrected link-owned offsets now pass with source restoration and authenticated vector paint on every page.",
+            "markdown": "Page pseudo-fragment geometry comes from the container-to-border-to-area fragment links, never the CSS-box-only OffsetFromOwnerLayoutBox API. A live four-page helper smoke exposed the invalid call as a DCHECK, and the corrected link-owned offsets now pass with source restoration and authenticated vector paint on every page."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/chromium-paged-page-record/renderer-page-record.patch"
+                },
+                "region": {
+                  "startLine": 1883,
+                  "endLine": 1896,
+                  "snippet": {
+                    "text": "+  const PhysicalBoxFragment& page_area = GetPageArea(page_border_box);\n+  const PhysicalOffset page_border_box_offset =\n+      GetPageBorderBoxLink(*page_container).offset;\n+  const PhysicalOffset page_area_offset =\n+      page_border_box_offset + page_border_box.Children()[0].offset;\n+  result.Set(\"pageContainer\", PhysicalRectValue(\n+                                  PhysicalRect(PhysicalOffset(),\n+                                               page_container->Size())));\n+  result.Set(\"pageBorderBox\", PhysicalRectValue(\n+                                  PhysicalRect(page_border_box_offset,\n+                                               page_border_box.Size())));\n+  result.Set(\"pageArea\", PhysicalRectValue(\n+                             PhysicalRect(page_area_offset,\n+                                          page_area.Size())));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2710"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b17e57644cbad3dd711d62214cf02252"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "docs/evidence/dm2710-paged-page-record-smoke.json",
+                "properties": {
+                  "ext-sha256": "5bc170b1f8cfaf9849c344819d6ffcab01d435d890f557370983d035ab8e662f"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3003e6bf3af884f171652264d10087fe2ffb10ae",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

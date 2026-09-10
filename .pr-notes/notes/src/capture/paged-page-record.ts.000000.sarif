@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtv4m4ib2n4ziss2",
+          "message": {
+            "text": "The validator cross-authenticates page geometry, fragment occurrence ownership, property state, display-item ranges, exact SVG bytes, and table-part references instead of trusting any one stream. Sparse selected ranges preserve consecutive selection indices while requiring source page indices to remain unique and increasing.",
+            "markdown": "The validator cross-authenticates page geometry, fragment occurrence ownership, property state, display-item ranges, exact SVG bytes, and table-part references instead of trusting any one stream. Sparse selected ranges preserve consecutive selection indices while requiring source page indices to remain unique and increasing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-page-record.ts"
+                },
+                "region": {
+                  "startLine": 289,
+                  "endLine": 448,
+                  "snippet": {
+                    "text": "/** Rejects any record that cannot be replayed without inference. */\nexport function validateAuthenticatedPagedPageRecord(record: AuthenticatedPagedPageRecord): string[] {\n  const errors: string[] = [];\n  if (record.schemaVersion !== PAGED_PAGE_RECORD_VERSION) errors.push(\"wrong page-record schema version\");\n  if (record.helperAbi !== PAGED_PAGE_RECORD_ABI) errors.push(\"wrong page-record helper ABI\");\n  if (record.sourceRevision !== PAGED_PAGE_RECORD_CHROMIUM_REVISION) errors.push(\"wrong Chromium revision\");\n  if (record.capturePhase !== \"per-page-after-paint-before-record-consumption\") errors.push(\"page record was captured at the wrong lifecycle boundary\");\n  if (record.coordinateUnit !== \"Blink-LayoutUnit-1/64-css-px\") errors.push(\"page record has an unsupported coordinate unit\");\n  if (record.paintSource !== \"Blink-PaintArtifact-and-cc-PaintRecord\") errors.push(\"page record lacks source-owned paint\");\n  if (record.pdfOrScreenshotUsedAsInput !== false) errors.push(\"PDF or screenshot input is forbidden\");\n  if (!Number.isSafeInteger(record.serializedByteLength) || record.serializedByteLength <= 0\n      || record.serializedByteLength > PAGED_PAGE_RECORD_MAX_BYTES) errors.push(\"page record exceeds its hard byte bound\");\n  if ([record.document.frameToken, record.document.documentToken, record.document.loaderId,\n    record.document.url, record.document.printEpochId].some((value) => value.trim() === \"\")) {\n    errors.push(\"document or print-epoch identity is incomplete\");\n  }\n  if (!validSha256(record.document.printParametersSha256)) errors.push(\"print parameters are not bound by sha256\");\n  if (!Number.isSafeInteger(record.document.layoutGeneration) || record.document.layoutGeneration < 0) {\n    errors.push(\"invalid layout generation\");\n  }\n  if (record.pages.length === 0) errors.push(\"page record has no pages\");\n\n  const allFragmentIds = new Set<string>();\n  const allPaintClientIds = new Set<string>();\n  for (const [selectionIndex, page] of record.pages.entries()) {\n    if (page.selectionIndex !== selectionIndex) errors.push(\"selected page indices are not consecutive\");\n    if (page.pageIndex < 0 || !Number.isInteger(page.pageIndex)) errors.push(\"invalid page index\");\n    validateRect(page.pageArea, \"page area\", errors);\n    validateRect(page.pageBorderBox, \"page border box\", errors);\n    validateRect(page.contentArea, \"page content area\", errors);\n    validateRect(page.stitchedContentRect, \"stitched content rect\", errors);\n    validateRect(page.contentClip, \"page content clip\", errors);\n    validateMatrix(page.contentTransform, \"page content transform\", errors);\n    if (!(page.targetScale > 0) || !(page.deviceScaleFactor > 0)) errors.push(\"page scales must be positive\");\n\n    const pageFragmentIds = new Set<string>();\n    page.fragments.forEach((fragment, index) => {\n      if (!fragment.occurrenceId || allFragmentIds.has(fragment.occurrenceId)) errors.push(\"duplicate or empty physical fragment occurrence identity\");\n      allFragmentIds.add(fragment.occurrenceId);\n      pageFragmentIds.add(fragment.occurrenceId);\n      if (fragment.parentOccurrenceId != null && !pageFragmentIds.has(fragment.parentOccurrenceId)) {\n        errors.push(\"fragment parent is absent or ordered after its child\");\n      }\n      if (fragment.childPaintOrder !== index) errors.push(\"fragment paint order is not consecutive\");\n      if (!fragment.source.frameToken || !fragment.source.documentToken) errors.push(\"fragment source epoch is incomplete\");\n      if (fragment.source.backendNodeId != null\n          && (!Number.isSafeInteger(fragment.source.backendNodeId) || fragment.source.backendNodeId <= 0)) {\n        errors.push(\"fragment backend DOM node id is invalid\");\n      }\n      if (fragment.source.backendNodeId == null && fragment.source.syntheticRole == null) errors.push(\"fragment lacks DOM or synthetic source identity\");\n      validateRect(fragment.borderBox, \"fragment border box\", errors);\n      if (fragment.overflowClip) validateRect(fragment.overflowClip, \"fragment overflow clip\", errors);\n      validateMatrix(fragment.pageTransform, \"fragment page transform\", errors);\n      if (!(fragment.effectiveZoom > 0)) errors.push(\"fragment effective zoom must be positive\");\n      if (fragment.breakToken != null\n          && (!Number.isSafeInteger(fragment.breakToken.sequence) || fragment.breakToken.sequence < 0\n            || !validLayoutUnit(fragment.breakToken.consumedBlockSize))) {\n        errors.push(\"fragment break token is invalid\");\n      }\n      fragment.paintClientIds.forEach((clientId) => allPaintClientIds.add(clientId));\n    });\n\n    const transforms = new Set(page.propertyTrees.transforms.map((node) => node.id));\n    const clips = new Set(page.propertyTrees.clips.map((node) => node.id));\n    const effects = new Set(page.propertyTrees.effects.map((node) => node.id));\n    if (transforms.size !== page.propertyTrees.transforms.length\n        || clips.size !== page.propertyTrees.clips.length\n        || effects.size !== page.propertyTrees.effects.length) errors.push(\"duplicate paint property node identity\");\n    if (hasParentCycle(page.propertyTrees.transforms)\n        || hasParentCycle(page.propertyTrees.clips)\n        || hasParentCycle(page.propertyTrees.effects)) errors.push(\"paint property tree contains a cycle\");\n    for (const node of page.propertyTrees.transforms) {\n      if (node.parentId != null && !transforms.has(node.parentId)) errors.push(\"transform property parent is missing\");\n      validateMatrix(node.matrix, \"paint transform\", errors);\n    }\n    for (const node of page.propertyTrees.clips) {\n      if (node.parentId != null && !clips.has(node.parentId)) errors.push(\"clip property parent is missing\");\n      if (!transforms.has(node.transformId)) errors.push(\"clip transform is missing\");\n      validateRect(node.rect, \"paint clip\", errors);\n      if (!finite([...node.radii]) || node.radii.some((radius) => radius < 0)) errors.push(\"invalid clip radii\");\n    }\n    for (const node of page.propertyTrees.effects) {\n      if (node.parentId != null && !effects.has(node.parentId)) errors.push(\"effect property parent is missing\");\n      if (!transforms.has(node.transformId) || !clips.has(node.clipId)) errors.push(\"effect property reference is missing\");\n      if (node.opacity < 0 || node.opacity > 1) errors.push(\"effect opacity is outside [0,1]\");\n      if (node.blendMode !== \"normal\" || node.filter !== \"none\") errors.push(\"unsupported effect escaped fail-closed capture\");\n    }\n\n    validateSequence(page.paintChunks, (chunk) => chunk.sequence, \"paint chunk\", errors);\n    let expectedDisplaySequence = 0;\n    const observedPaintClients = new Set<string>();\n    const chunkIds = new Set<string>();\n    const itemIds = new Set<string>();\n    for (const chunk of page.paintChunks) {\n      if (!chunk.id || chunkIds.has(chunk.id)) errors.push(\"duplicate or empty paint chunk identity\");\n      chunkIds.add(chunk.id);\n      if (!transforms.has(chunk.transformId) || !clips.has(chunk.clipId) || !effects.has(chunk.effectId)) {\n        errors.push(\"paint chunk property state is incomplete\");\n      }\n      for (const item of chunk.displayItems) {\n        if (!item.id || itemIds.has(item.id)) errors.push(\"duplicate or empty display-item identity\");\n        itemIds.add(item.id);\n        if (item.sequence !== expectedDisplaySequence++) errors.push(\"display-item sequence is not consecutive\");\n        if (!item.id || !item.clientId\n            || !Number.isSafeInteger(item.flattenedPaintOpStart)\n            || !Number.isSafeInteger(item.flattenedPaintOpEndExclusive)\n            || item.flattenedPaintOpStart < 0\n            || item.flattenedPaintOpEndExclusive <= item.flattenedPaintOpStart\n            || item.flattenedPaintOpEndExclusive > page.vectorPaint.sourcePaintOpCount) {\n          errors.push(\"display item paint-op range is incomplete\");\n        }\n        observedPaintClients.add(item.clientId);\n        if (item.fragmentOccurrenceId != null && !pageFragmentIds.has(item.fragmentOccurrenceId)) {\n          errors.push(\"display item references a missing fragment occurrence\");\n        }\n        if (item.fragmentOccurrenceId != null) {\n          const fragment = page.fragments.find((candidate) => candidate.occurrenceId === item.fragmentOccurrenceId);\n          if (fragment != null && !fragment.paintClientIds.includes(item.clientId)) {\n            errors.push(\"display item client disagrees with its fragment occurrence\");\n          }\n        }\n        validateRect(item.visualRect, \"display-item visual rect\", errors);\n      }\n    }\n    const vector = page.vectorPaint;\n    const vectorBytes = Buffer.from(vector.svg, \"utf8\");\n    if (vector.kind !== \"preflighted-skia-svg-v1\"\n        || !vector.recursivePreflightComplete || !vector.textConvertedToPaths\n        || !vector.embeddedImagesOnly || vector.externalReferences !== false\n        || vector.unsupportedPaintOps.length !== 0) errors.push(\"vector paint did not pass the closed recursive preflight\");\n    if (!Number.isSafeInteger(vector.svgByteLength) || vector.svgByteLength !== vectorBytes.byteLength\n        || !validSha256(vector.svgSha256)\n        || createHash(\"sha256\").update(vectorBytes).digest(\"hex\") !== vector.svgSha256) {\n      errors.push(\"vector paint bytes are not authenticated\");\n    }\n    if (!/^<svg(?:\\s|>)/.test(vector.svg)\n        || /<(?:script|foreignObject)\\b/i.test(vector.svg)\n        || /\\son[a-z]+\\s*=/i.test(vector.svg)\n        || /(?:href|src)\\s*=\\s*[\"'](?!data:|#)/i.test(vector.svg)) {\n      errors.push(\"vector paint is not a self-contained inert SVG\");\n    }\n    if (!Number.isSafeInteger(vector.sourcePaintOpCount) || vector.sourcePaintOpCount <= 0\n        || vector.sourcePaintOpTypes.length !== vector.sourcePaintOpCount\n        || vector.sourcePaintOpTypes.some((type) => !type)) errors.push(\"vector paint operation ledger is incomplete\");\n    for (const fragment of page.fragments) {\n      for (const clientId of fragment.paintClientIds) {\n        if (!observedPaintClients.has(clientId)) errors.push(\"fragment paint client has no display item\");\n      }\n    }\n    for (const geometry of page.tableFragments) {\n      if (geometry.pageIndex !== page.pageIndex) errors.push(\"table fragment belongs to the wrong page\");\n      if (!pageFragmentIds.has(geometry.physicalFragmentId)) errors.push(\"table geometry lacks a physical fragment occurrence\");\n      validateRect(geometry.borderBox, \"table fragment border box\", errors);\n      if (geometry.overflowClip) validateRect(geometry.overflowClip, \"table fragment overflow clip\", errors);\n    }\n  }\n  if (new Set(record.pages.map((page) => page.pageIndex)).size !== record.pages.length\n      || record.pages.some((page, index) => index > 0\n        && page.pageIndex <= record.pages[index - 1].pageIndex)) {\n    errors.push(\"source document page indices are not unique and increasing\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 97,
+          "workItemUris": [
+            "DM-2710"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8f44f0a5237556b857521633fdf8f341"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3003e6bf3af884f171652264d10087fe2ffb10ae",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

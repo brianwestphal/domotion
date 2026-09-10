@@ -8299,6 +8299,38 @@
       }
     },
     {
+      "file": "256-paged-page-print-record.md",
+      "metadata": {
+        "id": "requirements/paged-page-print-record",
+        "title": "Authenticated paged page print records",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "layout",
+          "capture"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2710"
+        ],
+        "code": [
+          "src/capture/paged-page-record.ts",
+          "src/capture/paged-page-record.test.ts",
+          "tools/chromium-paged-page-record/renderer-page-record.patch",
+          "tools/verify-paged-page-record-patch.mjs",
+          "tools/paged-page-record-smoke.mjs"
+        ],
+        "aliases": [
+          "docs/256-paged-page-print-record.md",
+          "doc-256"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9296,6 +9328,9 @@
     ],
     "255": [
       "requirements/paged-media-capture-bundle"
+    ],
+    "256": [
+      "requirements/paged-page-print-record"
     ],
     "01": [
       "requirements/fidelity"

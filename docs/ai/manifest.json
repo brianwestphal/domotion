@@ -5203,6 +5203,29 @@
       "file": "255-paged-media-capture-bundle.md"
     },
     {
+      "id": "requirements/paged-page-print-record",
+      "title": "Authenticated paged page print records",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout",
+        "capture"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/paged-page-record.ts",
+        "src/capture/paged-page-record.test.ts",
+        "tools/chromium-paged-page-record/renderer-page-record.patch",
+        "tools/verify-paged-page-record-patch.mjs",
+        "tools/paged-page-record-smoke.mjs"
+      ],
+      "file": "256-paged-page-print-record.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

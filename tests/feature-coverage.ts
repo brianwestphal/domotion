@@ -116,6 +116,21 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/capture/paged-capture-helper.test.ts"],
   },
   {
+    id: "capture.paged-page-record",
+    behavior: "Authenticate a hard-bounded, page-local Blink fragment and paint record captured after page paint but before PrintEnd, preserving sparse source-page identity and failing closed on incomplete geometry or unsupported Skia paint.",
+    doc: "docs/256-paged-page-print-record.md",
+    exports: [
+      "PAGED_PAGE_RECORD_SOURCE_PINS",
+      "parsePagedPageRecord",
+      "unavailablePagedPageRecord",
+      "validateAuthenticatedPagedPageRecord",
+    ],
+    tests: [
+      "src/capture/paged-page-record.test.ts",
+      "src/capture/paged-page-record-native-patch.test.ts",
+    ],
+  },
+  {
     id: "capture.iframe-recursion",
     behavior: "A same-origin <iframe> recurses into native SVG; a cross-origin frame stays raster unless allowlisted.",
     doc: "docs/81-iframe-recursion.md",

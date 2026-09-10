@@ -79,6 +79,27 @@ export {
   buildPagedCaptureHelperBundleJsonSchema,
   pagedCaptureHelperBundleJsonSchemaText,
 } from "./capture/paged-capture-helper-json-schema.js";
+export {
+  PAGED_PAGE_RECORD_VERSION,
+  PAGED_PAGE_RECORD_ABI,
+  PAGED_PAGE_RECORD_MAX_BYTES,
+  PAGED_PAGE_RECORD_CHROMIUM_REVISION,
+  PAGED_PAGE_RECORD_SOURCE_PINS,
+  validateAuthenticatedPagedPageRecord,
+  unavailablePagedPageRecord,
+  parsePagedPageRecord,
+} from "./capture/paged-page-record.js";
+export type {
+  PagedPageRecord,
+  AuthenticatedPagedPageRecord,
+  UnavailablePagedPageRecord,
+  AuthenticatedPagedPage,
+  PagedFragmentRecord,
+  PagedPaintChunkRecord,
+  PagedDisplayItemRecord,
+  PagedVectorPaintRecord,
+  PagedTableFragmentGeometry,
+} from "./capture/paged-page-record.js";
 export type {
   PagedCaptureHelperBundleManifest,
   PagedCaptureHelperBundleMember,
