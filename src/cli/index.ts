@@ -123,6 +123,9 @@ capture options:
       --title <text>       Accessible name → role="img" + <title> on the root <svg>
                            (for screen readers when the SVG is inlined, not <img>).
       --desc <text>        Accessible long description → <desc> on the root <svg>.
+      --real-text         Add a paintless authored <text> layer for search,
+                           selection, copy, and screen readers in inline SVG.
+                           Opt-in; has no effect through <img> embedding.
       --no-embed-images    Leave <img>/background images as external URL refs
                            instead of embedding them (default: embed so the SVG
                            is self-contained).

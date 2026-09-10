@@ -33,6 +33,7 @@ import {
 } from "./text.js";
 import { localeToScriptCodeForFontSelection } from "./generic-script-families.js";
 import { esc } from "./format.js";
+import { visualTextOnlyHiddenAttr } from "./real-text-layer.js";
 
 /**
  * DM-1054: text-emphasis marks for vertical writing-mode. The horizontal
@@ -87,7 +88,7 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
       const lineRelativeBaseline = charY + segAscent + offset;
       const styleAttr = segStyle != null && segStyle !== "normal"
         ? ` font-style="${esc(segStyle)}"` : "";
-      const inner = `<text x="${r(lineRelativeX - metrics.inkCenterX)}" y="${r(lineRelativeBaseline)}" font-family="${esc(segFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`;
+      const inner = `<text${visualTextOnlyHiddenAttr()} x="${r(lineRelativeX - metrics.inkCenterX)}" y="${r(lineRelativeBaseline)}" font-family="${esc(segFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`;
       const transform = lineRelativeToPhysicalTransform(
         seg.x, charY, seg.width, charH, seg.verticalWritingMode,
       );

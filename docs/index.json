@@ -8431,6 +8431,42 @@
       }
     },
     {
+      "file": "260-inline-svg-real-text-layer.md",
+      "metadata": {
+        "id": "requirements/inline-svg-real-text-layer",
+        "title": "260 — Opt-in real-text layer for inline SVG",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "text-fonts",
+          "rendering"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-1775",
+          "DM-2715"
+        ],
+        "code": [
+          "src/cli/capture.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/render/real-text-layer.ts",
+          "src/render/text-to-path.ts",
+          "src/render/text.ts",
+          "src/render/pseudo-fragments.ts",
+          "src/render/real-text-layer.test.ts",
+          "tests/real-text-layer.e2e.test.ts"
+        ],
+        "aliases": [
+          "docs/260-inline-svg-real-text-layer.md",
+          "doc-260"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -8665,6 +8701,7 @@
           "windows"
         ],
         "tickets": [
+          "DM-1775",
           "DM-2596",
           "DM-2643"
         ],
@@ -8678,6 +8715,7 @@
           "src/render/glyph-helper-transport.ts",
           "src/render/glyph-helper.ts",
           "src/render/linux-target-strike.ts",
+          "src/render/real-text-layer.ts",
           "src/render/text-to-path.ts",
           "src/render/text.ts",
           "tests/feature-coverage.ts"
@@ -9440,6 +9478,9 @@
     ],
     "259": [
       "requirements/paged-capture-release-gate"
+    ],
+    "260": [
+      "requirements/inline-svg-real-text-layer"
     ],
     "01": [
       "requirements/fidelity"

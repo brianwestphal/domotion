@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtvmhley5h1s3qpu",
+          "message": {
+            "text": "The opt-in layer emits authored UTF-16 strings at Chromium-owned run positions with both fill and stroke disabled, while a scoped semantic mode hides only duplicate visual text labels. Current capture source mappings restore parent/child DOM interleave and length-changing text-transform input without deriving text from glyphs; the visible path or embedded-font renderer remains the sole paint owner.",
+            "markdown": "The opt-in layer emits authored UTF-16 strings at Chromium-owned run positions with both fill and stroke disabled, while a scoped semantic mode hides only duplicate visual text labels. Current capture source mappings restore parent/child DOM interleave and length-changing text-transform input without deriving text from glyphs; the visible path or embedded-font renderer remains the sole paint owner."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/real-text-layer.ts"
+                },
+                "region": {
+                  "startLine": 117,
+                  "endLine": 190,
+                  "snippet": {
+                    "text": "function collectRuns(roots: readonly CapturedElement[]): RealTextRun[] {\n  const runs: RealTextRun[] = [];\n  let sequence = 0;\n  const visit = (original: CapturedElement): void => {\n    // With identity as the already-emitted CTM, the residual is Chromium's\n    // complete source-owned paint matrix. This layer lives at SVG root.\n    const prepared = prepareAffineTextPaint(original, IDENTITY_TEXT_AFFINE);\n    const el = prepared.failureReason == null ? prepared.element : original;\n    const transform = prepared.failureReason == null ? prepared.residualMatrix : undefined;\n    const segments = el.textSegments?.filter((segment) =>\n      segment.text !== \"\" && segment.generatedLineClampEllipsis !== true) ?? [];\n    if (segments.length > 0) {\n      for (const segment of segments) runs.push({ element: el, segment, transform, sequence: sequence++ });\n    } else {\n      const input = synthesizedInputSegment(el);\n      if (input != null) runs.push({ element: el, segment: input, transform, sequence: sequence++ });\n    }\n    for (const child of original.children) visit(child);\n  };\n  for (const root of roots) visit(root);\n\n  // Source node indices restore parent/child DOM interleave that the captured\n  // element tree alone cannot express. Sort only the authored slots so\n  // generated/input runs retain stable capture positions and the comparator\n  // cannot become non-transitive across mapped and unmapped runs.\n  const authored = runs.filter((run) => run.segment.sourceMapping != null).sort((left, right) => {\n    const a = left.segment.sourceMapping?.sourceTextNodeIndex;\n    const b = right.segment.sourceMapping?.sourceTextNodeIndex;\n    if (a !== b) return a! - b!;\n    const span = left.segment.sourceMapping!.domUtf16Span[0] - right.segment.sourceMapping!.domUtf16Span[0];\n    if (span !== 0) return span;\n    return left.sequence - right.sequence;\n  });\n  let authoredIndex = 0;\n  return runs.map((run) => run.segment.sourceMapping == null ? run : authored[authoredIndex++]!);\n}\n\nfunction runMarkup(run: RealTextRun, index: number): string {\n  const { element: el, segment } = run;\n  const text = sourceText(segment);\n  if (text === \"\") return \"\";\n  const vertical = segment.verticalWritingMode != null && segment.verticalWritingMode !== \"horizontal-tb\";\n  const parsedFontSize = Number.parseFloat(el.styles.fontSize);\n  const fontSize = segment.fontSize ?? (Number.isFinite(parsedFontSize) ? parsedFontSize : 14);\n  const ascent = segment.fontAscent ?? el.fontAscent ?? fontSize * 0.8;\n  const direction = el.styles.direction === \"rtl\" ? ` direction=\"rtl\"` : \"\";\n  const transform = run.transform != null && !textAffineEquals(run.transform, IDENTITY_TEXT_AFFINE)\n    ? ` transform=\"${serializeTextPaintMatrix(run.transform)}\"`\n    : \"\";\n  const length = vertical ? segment.height : segment.width;\n  const lengthAttrs = Number.isFinite(length) && length > 0\n    // Native SVGTextContentElement owns textLength/lengthAdjust; see Blink's\n    // `core/svg/svg_text_content_element.h:68-73`. This affects only selection\n    // geometry because both paint channels are disabled on the parent layer.\n    ? ` textLength=\"${position(length)}\" lengthAdjust=\"spacingAndGlyphs\"`\n    : \"\";\n  if (vertical) {\n    const positions = authoredPositions(segment, segment.yOffsets);\n    const y = positions?.length ? positions.map(position).join(\" \") : position(segment.y);\n    const x = position(segment.baseline ?? (segment.x + ascent));\n    return `<text data-domotion-real-text-run=\"${index}\" x=\"${x}\" y=\"${y}\" font-size=\"${r(fontSize)}\" writing-mode=\"${esc(segment.verticalWritingMode!)}\"${direction}${lengthAttrs}${transform}>${esc(text)}</text>`;\n  }\n  const positions = authoredPositions(segment, segment.xOffsets);\n  const x = positions?.length ? positions.map(position).join(\" \") : position(segment.x);\n  const baseline = segment.baseline ?? Math.floor(segment.y + ascent + 0.5);\n  return `<text data-domotion-real-text-run=\"${index}\" x=\"${x}\" y=\"${position(baseline)}\" font-size=\"${r(fontSize)}\"${direction}${lengthAttrs}${transform}>${esc(text)}</text>`;\n}\n\n/** Emit an inline-SVG-only real-text layer. Explicit paint-none attributes\n * prevent optimizer/viewer defaults from turning fallback glyphs into ink. */\nexport function renderRealTextLayer(roots: readonly CapturedElement[]): string {\n  const runs = collectRuns(roots).map(runMarkup).filter(Boolean);\n  if (runs.length === 0) return \"\";\n  return `<g data-domotion-real-text-layer=\"true\" fill=\"none\" stroke=\"none\" xml:space=\"preserve\">${runs.join(\"\")}</g>`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-1775"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6cd0423d875c41f9d9e261fa1c1cfa1d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "28292950d2e2ed7807582e789288d2bd69b415b4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

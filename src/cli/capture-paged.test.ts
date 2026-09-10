@@ -21,6 +21,19 @@ describe("capture paged-mode CLI boundary", () => {
     ], "")).rejects.toThrow("--paged is incompatible with ordinary capture flags: --width");
   });
 
+  it("rejects the ordinary real-text layer in authenticated paged mode", async () => {
+    await expect(runCapture([
+      "page.html", "--paged", "--paged-helper-manifest", "helper.json",
+      "--paged-helper-sha256", "a".repeat(64), "--output", "report.domotion-pages.json",
+      "--real-text",
+    ], "")).rejects.toThrow("--paged is incompatible with ordinary capture flags: --real-text");
+  });
+
+  it("rejects real text on multi-frame scroll composition until that contract exists", async () => {
+    await expect(runCapture(["page.html", "--real-text", "--scroll", "100px"], ""))
+      .rejects.toThrow("--real-text currently supports single-frame capture");
+  });
+
   it("rejects an unsafe paged output name before helper authentication", async () => {
     await expect(runCapture([
       "page.html", "--paged", "--paged-helper-manifest", "helper.json",

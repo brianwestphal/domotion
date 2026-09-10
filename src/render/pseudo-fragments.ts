@@ -24,6 +24,7 @@ import type {
   Rect,
 } from "../capture/pseudo-fragment-protocol.js";
 import { esc, r } from "./format.js";
+import { visualTextSemantics } from "./real-text-layer.js";
 import {
   mergeFeatureLists,
   parseFontFeatureSettings,
@@ -573,7 +574,7 @@ export function renderPseudoFragmentRecord(
     record.paint.opacity < 1 ? ` opacity="${r(record.paint.opacity)}"` : "",
     record.paint.filter !== "" && record.paint.filter !== "none" ? ` style="${esc(`filter:${record.paint.filter}`)}"` : "",
   ].join("");
-  const aria = label === "" ? "" : ` role="img" aria-label="${esc(label)}"`;
+  const aria = label === "" ? "" : visualTextSemantics(label, false).attrs;
   const markup = `<g ${attrs} data-domotion-pseudo-owner="source-fragments"${aria}${effectAttrs}>${pieces.join("")}</g>`;
   return compensateEmittedCtm(markup, options.emittedCtm)
     ?? `<g ${attrs} data-domotion-pseudo-boundary="singular-emitted-ctm"/>`;

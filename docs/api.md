@@ -79,8 +79,8 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 
 | Export | Kind | Description |
 | --- | --- | --- |
-| `elementTreeToSvg` | function | Render a captured element tree into a **complete `<svg>` document** (the obvious entry point for "give me a standalone SVG file"). Composes `elementTreeToSvgInner` + `wrapSvg`. |
-| `elementTreeToSvgInner` | function | Render a captured tree into the **inner** body markup (no `<svg>` wrapper) — use this only for multi-frame composition where you emit one outer `<svg>` yourself. Previously called `elementTreeToSvg` (renamed in DM-950 to reflect what it actually emits). |
+| `elementTreeToSvg` | function | Render a captured element tree into a **complete `<svg>` document**. `{ realTextLayer: true }` appends paintless authored `<text>` for inline-SVG search, selection, copy, and accessibility; see docs 260. |
+| `elementTreeToSvgInner` | function | Render a captured tree into inner body markup. Its final optional boolean enables the same real-text layer for callers that own the outer inline `<svg>`; multi-frame formats need their own semantic composition contract. |
 | `wrapSvg` | function | Wrap rendered body markup in a top-level `<svg>` element with viewBox + color-scheme attrs. |
 | `wrapInDeviceChrome` | function | Wrap a finished capture SVG in a device bezel (`phone` / `browser` / `window`) — nests the capture as a child `<svg>` (no re-render) and returns `{ svg, width, height }`. Takes an optional `{ label }` (browser URL / window title). Pure-SVG, cross-platform. See `docs/65-device-chrome.md`. |
 | `isDeviceChrome` | function | Type-guard: is a string one of the supported `--chrome` devices? |

@@ -249,6 +249,14 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/render/text.test.ts", "src/render/text-to-path.test.ts", "src/render/vertical-text.test.ts", "tests/vertical-font-metrics.e2e.test.ts", "tests/generated-pseudo-layout-probe.e2e.test.ts"],
   },
   {
+    id: "render.real-text-layer",
+    behavior: "Opt into paintless authored SVG text for inline search, selection, copy, and accessibility while suppressing duplicate visual-run labels and preserving default bytes.",
+    doc: "docs/260-inline-svg-real-text-layer.md",
+    exports: ["elementTreeToSvg", "elementTreeToSvgInner"],
+    verbs: ["capture"],
+    tests: ["src/render/real-text-layer.test.ts", "tests/real-text-layer.e2e.test.ts"],
+  },
+  {
     id: "capture.input-value-text-geometry",
     behavior: "A single-line input can use Chromium's closed-UA-shadow FragmentItem top only from one finite, positive-area, axis-aligned host/text quad pair whose recorded host dimensions still match the live walk; ambiguous or transformed records retain the metric compatibility path.",
     doc: "docs/171-closed-shadow-control-decorations.md",

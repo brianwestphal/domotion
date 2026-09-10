@@ -28,6 +28,7 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // — the consumer showed a broken-image icon rather than the drawing. Import the
 // one implementation instead of restating it; see `esc` for the disposition.
 import { esc as escAttr } from "./format.js";
+import { visualTextSemantics } from "./real-text-layer.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
 // DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
@@ -3306,7 +3307,8 @@ function renderEmbeddedGlyphRuns(
   // so screen readers + Find-In-Page see the ORIGINAL text. The visible
   // glyph stream is PUA codepoints, which AT would otherwise read as
   // garbage. The aria-label / <title> carry the human-readable form.
-  return { markup: `<g role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${segments.join("")}</g>` };
+  const semantics = visualTextSemantics(text);
+  return { markup: `<g${semantics.attrs}>${semantics.title}${segments.join("")}</g>` };
 }
 
 /** Embedded-mode coordinator; shaping/subsetting/emission lives above. */
@@ -3611,7 +3613,8 @@ export function renderSourceOwnedTextBoundary(
     ? ""
     : ` data-domotion-text-degraded-spans="${escAttr(degraded.map((item) =>
       `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
-  return `<g role="img" aria-label="${escAttr(text)}" data-domotion-text-owner="source-boundary" data-domotion-text-boundary="${reason}"${details}><title>${escAttr(text)}</title></g>`;
+  const semantics = visualTextSemantics(text);
+  return `<g${semantics.attrs} data-domotion-text-owner="source-boundary" data-domotion-text-boundary="${reason}"${details}>${semantics.title}</g>`;
 }
 
 /**
@@ -3795,7 +3798,8 @@ export function renderTextAsPath(
     ? ""
     : ` data-domotion-text-owner="source-partial" data-domotion-text-degraded-spans="${esc(result.ownership.degradedGlyphs.map((item) =>
       `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
-  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}" role="img" aria-label="${esc(text)}"${degradedAttr}><title>${esc(text)}</title>${result.markup}</g>`;
+  const semantics = visualTextSemantics(text);
+  return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${semantics.attrs}${degradedAttr}>${semantics.title}${result.markup}</g>`;
 }
 
 /**

@@ -33,6 +33,9 @@ loading the historical documentation corpus.
   manifest-last bundle writer; `cli/capture.ts --paged` is its only CLI route.
   `tools/paged-capture-release-{collector,gate}.ts` and the matching workflow
   require logical-first, exact proposal/validation evidence on every platform.
+  `render/real-text-layer.ts` owns the single-frame opt-in paintless authored
+  text overlay for inline-SVG search, selection, copy, and accessibility; the
+  visible glyph geometry remains the only paint owner.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
   `animation/animator.ts` is the stable facade; `svg-generator.ts` and

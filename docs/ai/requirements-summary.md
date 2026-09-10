@@ -14,7 +14,9 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
    excused by a pixel tolerance.
 3. SVG-native representation is preferred. Browser-only or unrepresentable
    paint uses a bounded, authenticated raster with explicit ownership and
-   negative activation controls.
+   negative activation controls. Single-frame output may opt into a paintless
+   authored-text layer for inline-SVG search/selection/accessibility; it never
+   replaces visible glyph geometry and never changes default output.
 4. Unsupported, unavailable, or unauthenticated specialized paths fail closed
    with diagnostics. They do not silently guess, normalize evidence, or widen a
    tolerance.

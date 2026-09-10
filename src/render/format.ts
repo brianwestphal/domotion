@@ -64,9 +64,9 @@ export function stopFmt(n: number): string {
  * byte-for-byte unchanged. (When embedded via `<img src alt>` the host `alt`
  * already names it; this covers the inline-`<svg>` case.)
  */
-export function rootSvgA11y(title?: string, desc?: string): { roleAttr: string; markup: string } {
+export function rootSvgA11y(title?: string, desc?: string, preserveTextFlow = false): { roleAttr: string; markup: string } {
   if (title == null || title === "") return { roleAttr: "", markup: "" };
   const titleEl = `<title>${esc(title)}</title>`;
   const descEl = desc != null && desc !== "" ? `<desc>${esc(desc)}</desc>` : "";
-  return { roleAttr: ` role="img"`, markup: titleEl + descEl };
+  return { roleAttr: preserveTextFlow ? "" : ` role="img"`, markup: titleEl + descEl };
 }

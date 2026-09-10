@@ -97,6 +97,7 @@ import {
   prepareAffineTextPaint,
   wrapAffineTextPaint,
 } from "./text-affine.js";
+import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "./real-text-layer.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
@@ -169,7 +170,7 @@ export const _conicTileCache = new Map<string, Map<string, string>>();
  * `<image>` emit is per-element, so a logo used in six places used to serialize
  * its bytes six times. No-op for a document with nothing repeated.
  */
-export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[]; title?: string; desc?: string }): string {
+export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[]; title?: string; desc?: string; realTextLayer?: boolean }): string {
   const schemeAttr = opts?.tree != null ? rootSvgColorSchemeAttr(opts.tree) : "";
   // DM-554: when given the captured tree, emit a transparent-root body-bg
   // rect using the tree's resolved-by-Chromium `rootBgComputed`. Skipped
@@ -181,7 +182,7 @@ export function wrapSvg(inner: string, width: number, height: number, opts?: { t
   // XML parsing fails with "Namespace prefix xlink for href is not defined"
   // and Chrome refuses to render past the first occurrence.
   const xlinkAttr = inner.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
-  const a11y = rootSvgA11y(opts?.title, opts?.desc);
+  const a11y = rootSvgA11y(opts?.title, opts?.desc, opts?.realTextLayer === true);
   return hoistDuplicateImagePayloads(
     `<svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}${a11y.roleAttr}>${a11y.markup}${rootBgRect}${inner}</svg>`,
   );
@@ -3640,20 +3641,23 @@ export function elementTreeToSvgInner(
   includeGlyphDefs: boolean = true,
   hiDPIFactor: number = 2,
   includeEmbeddedFontCss: boolean = includeGlyphDefs,
+  /** DM-1775: append a paintless authored-text layer for inline SVG search,
+   * selection, copy, and accessibility. Default false preserves exact output. */
+  includeRealTextLayer: boolean = false,
 ): string {
   const elements = capturedTreeRoots(input);
   const render = (): string => {
     beginCharacterFallbackDocument();
     try {
-      return elementTreeToSvgInnerImpl(
-        elements,
-        width,
-        height,
-        idPrefix,
-        includeGlyphDefs,
-        hiDPIFactor,
-        includeEmbeddedFontCss,
-      );
+      const visual = includeRealTextLayer
+        ? withRealTextLayerVisualSemantics(() => elementTreeToSvgInnerImpl(
+          elements, width, height, idPrefix, includeGlyphDefs, hiDPIFactor, includeEmbeddedFontCss,
+        ))
+        : elementTreeToSvgInnerImpl(
+          elements, width, height, idPrefix, includeGlyphDefs, hiDPIFactor, includeEmbeddedFontCss,
+        );
+      const realText = includeRealTextLayer ? renderRealTextLayer(elements) : "";
+      return realText === "" ? visual : `${visual}\n${realText}`;
     } finally {
       endCharacterFallbackDocument();
     }
@@ -6181,6 +6185,9 @@ export function elementTreeToSvg(
     hiDPIFactor?: number;
     /** Forwarded to `elementTreeToSvgInner`. */
     includeEmbeddedFontCss?: boolean;
+    /** DM-1775: append paintless authored `<text>` runs. Effective only when
+     * the returned SVG is embedded inline, not loaded through `<img>`. */
+    realTextLayer?: boolean;
     /** DM-1488: accessible name → `role="img"` + `<title>` on the root `<svg>`
      *  (for inline-`<svg>` embedding). Omit to leave the output unchanged. */
     title?: string;
@@ -6195,8 +6202,14 @@ export function elementTreeToSvg(
     opts?.includeGlyphDefs ?? true,
     opts?.hiDPIFactor ?? 2,
     opts?.includeEmbeddedFontCss ?? (opts?.includeGlyphDefs ?? true),
+    opts?.realTextLayer ?? false,
   );
-  return wrapSvg(inner, width, height, { tree: elements, title: opts?.title, desc: opts?.desc });
+  return wrapSvg(inner, width, height, {
+    tree: elements,
+    title: opts?.title,
+    desc: opts?.desc,
+    realTextLayer: opts?.realTextLayer,
+  });
 }
 
 

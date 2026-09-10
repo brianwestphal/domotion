@@ -15,6 +15,7 @@ import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { capturedFontFamilyCss, parseCssFontFamilyEntries } from "../font-family-stack.js";
 import { bidiLevelsFor, type BidiParagraphContext } from "./script-segmentation.js";
 import { selectDecorationFragment, type DecorationFragmentCarrier } from "./decoration-fragment-ownership.js";
+import { visualTextOnlyHiddenAttr, visualTextSemantics } from "./real-text-layer.js";
 
 // ── Rendering helpers ──
 
@@ -184,7 +185,7 @@ export function renderTextEmphasisMarks(
       const xCenter = (xStart + xEnd) / 2;
       const styleAttr = segFontStyle != null && segFontStyle !== "normal"
         ? ` font-style="${esc(segFontStyle)}"` : "";
-      out.push(`<text x="${r(xCenter - metrics.inkCenterX)}" y="${r(markBaselineY)}" font-family="${esc(segFontFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segFontWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`);
+      out.push(`<text${visualTextOnlyHiddenAttr()} x="${r(xCenter - metrics.inkCenterX)}" y="${r(markBaselineY)}" font-family="${esc(segFontFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segFontWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`);
     }
   }
   return out.join("");
@@ -1909,10 +1910,9 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   const lineHeight = (lhStr !== "normal" && !isNaN(lhParsed) && lhParsed > 0) ? lhParsed : fontSize * 1.2;
   const startX = el.textLeft ?? el.x + 4;
   const startY = el.textTop ?? el.y + 4;
-  const outerEsc = esc;
-
   const parts: string[] = [];
-  parts.push(`<g clip-path="url(#${clipId})" role="img" aria-label="${outerEsc(el.text)}"><title>${outerEsc(el.text)}</title>`);
+  const semantics = visualTextSemantics(el.text);
+  parts.push(`<g clip-path="url(#${clipId})"${semantics.attrs}>${semantics.title}`);
 
   // SK-1235: prefer captured text segments — each carries Chromium-measured
   // per-char xOffsets that close the same fontkit-vs-HarfBuzz drift SK-1234

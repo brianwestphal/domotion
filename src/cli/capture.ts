@@ -71,6 +71,7 @@ interface CaptureFlags {
   mobile: boolean;
   colorScheme?: "light" | "dark" | "no-preference";
   crossOriginFrames?: string;
+  realTextLayer: boolean;
 }
 
 /** The subset of parsed `capture` flags the cross-flag validation inspects.
@@ -130,6 +131,9 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   if (!har && (values.url != null || values["har-fallback"] === true)) {
     throw new Error("capture: --url / --har-fallback only apply to a .har input");
   }
+  if (values["real-text"] === true && values.scroll != null) {
+    throw new Error("capture: --real-text currently supports single-frame capture, not --scroll composition");
+  }
   const pagedOnly = ["paged-helper-manifest", "paged-helper-sha256", "page-width", "page-height",
     "page-margin-top", "page-margin-right", "page-margin-bottom", "page-margin-left",
     "page-ranges", "page-scale", "landscape", "print-background", "no-print-background",
@@ -148,7 +152,7 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
     const incompatible = ["width", "height", "format", "safe-guide", "clip", "scroll-to", "optimize",
       "no-optimize", "warnings", "mobile", "chrome", "chrome-label", "chrome-theme", "color-scheme",
       "title", "desc", "no-embed-images", "cross-origin-frames", "brand", "scroll", "scroll-speed",
-      "scroll-selector", "no-prescroll", "debug", "debug-dir"]
+      "scroll-selector", "no-prescroll", "debug", "debug-dir", "real-text"]
       .filter((name) => values[name] != null);
     if (incompatible.length > 0) {
       throw new Error(`capture: --paged is incompatible with ordinary capture flags: ${incompatible.map((name) => `--${name}`).join(", ")}`);
@@ -211,6 +215,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "print-background": { type: "boolean" },
       "no-print-background": { type: "boolean" },
       "prefer-css-page-size": { type: "boolean" },
+      "real-text":         { type: "boolean" },
       help:               { type: "boolean", short: "h" },
     },
   });
@@ -299,6 +304,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     mobile:      values.mobile === true,
     colorScheme: parseColorScheme(values["color-scheme"]),
     crossOriginFrames: values["cross-origin-frames"],
+    realTextLayer: values["real-text"] === true,
   };
 
   const log = makeLogger(values.quiet === true);
@@ -455,8 +461,12 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       }
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
       clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle
-      const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);
-      svg = wrapSvg(inner, clip[2], clip[3], { title: values.title, desc: values.desc });
+      const inner = elementTreeToSvgInner(tree, clip[2], clip[3], "", true, 2, true, flags.realTextLayer);
+      svg = wrapSvg(inner, clip[2], clip[3], {
+        title: values.title,
+        desc: values.desc,
+        realTextLayer: flags.realTextLayer,
+      });
     }
     // DM-1538: overlay the resolved safe-area guide in the capture's own
     // coordinate space (before any bezel wrap, so it sits over the content, not

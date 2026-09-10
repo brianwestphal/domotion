@@ -27,6 +27,13 @@ describe("rootSvgA11y (DM-1488)", () => {
     expect(markup).toContain("<title>A &amp; B &lt;c&gt; &quot;d&quot;</title>");
     expect(markup).toContain("<desc>x &lt; y &amp; z</desc>");
   });
+
+  it("keeps a title but does not flatten real text under role=img", () => {
+    expect(rootSvgA11y("Searchable demo", undefined, true)).toEqual({
+      roleAttr: "",
+      markup: "<title>Searchable demo</title>",
+    });
+  });
 });
 
 describe("wrapSvg accessible name (DM-1488)", () => {
@@ -44,5 +51,11 @@ describe("wrapSvg accessible name (DM-1488)", () => {
     const svg = wrapSvg(inner, 100, 50);
     expect(svg).not.toContain('role="img"');
     expect(svg).not.toContain("<title>");
+  });
+
+  it("does not collapse an enabled real-text layer into one image role", () => {
+    const svg = wrapSvg(inner, 100, 50, { title: "Searchable demo", realTextLayer: true });
+    expect(svg).not.toMatch(/<svg [^>]*\brole="img"/);
+    expect(svg).toContain("<title>Searchable demo</title>");
   });
 });

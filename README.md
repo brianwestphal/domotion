@@ -200,7 +200,11 @@ const page = await browser.newPage();
 await page.setContent(`<div style="padding:20px;color:white;background:#0d1117">Hello</div>`);
 
 const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 200 });
-const svg = elementTreeToSvg(tree, 800, 200);
+const svg = elementTreeToSvg(tree, 800, 200, {
+  // Optional: searchable/selectable text when this SVG is embedded inline.
+  // This cannot expose text through <img src="…">.
+  realTextLayer: true,
+});
 
 console.log(svg);
 await browser.close();
