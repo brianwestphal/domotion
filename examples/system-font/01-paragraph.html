@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><style>
+  html, body { margin: 0; }
+  main {
+    width: 640px;
+    padding: 32px;
+    background: #ffffff;
+    color: #1f2328;
+    font: 17px/1.6 -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  h1 { margin: 0 0 16px; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+  p { margin: 0 0 14px; }
+  a { color: #0969da; }
+</style></head>
+<body>
+  <main>
+    <h1>System-font text mode</h1>
+    <p>This paragraph is emitted as ordinary <code>&lt;text&gt;</code> carrying the
+      authored font-family stack. On a machine that has these fonts installed, the
+      viewer's browser paints it with the very same faces Chromium used.</p>
+    <p>It trades pixel-fidelity for a much smaller SVG — there is no embedded
+      font subset and no glyph outline data, just the words and where each run
+      begins. Read more at <a href="https://example.com">example.com</a>.</p>
+  </main>
+</body>
+</html>
