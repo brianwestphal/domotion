@@ -79,7 +79,7 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 
 | Export | Kind | Description |
 | --- | --- | --- |
-| `elementTreeToSvg` | function | Render a captured element tree into a **complete `<svg>` document**. `{ realTextLayer: true }` appends paintless authored `<text>` for inline-SVG search, selection, copy, and accessibility; see docs 260. |
+| `elementTreeToSvg` | function | Render a captured element tree into a **complete `<svg>` document**. `{ realTextLayer: true }` appends paintless authored `<text>` for inline-SVG search, selection, copy, and accessibility; see docs 260. `{ renderTextMode: "system-font" }` selects the text-emit strategy for this call via `withRenderTextMode` (restored afterward); see docs 261. |
 | `elementTreeToSvgInner` | function | Render a captured tree into inner body markup. Its final optional boolean enables the same real-text layer for callers that own the outer inline `<svg>`; multi-frame formats need their own semantic composition contract. |
 | `wrapSvg` | function | Wrap rendered body markup in a top-level `<svg>` element with viewBox + color-scheme attrs. |
 | `wrapInDeviceChrome` | function | Wrap a finished capture SVG in a device bezel (`phone` / `browser` / `window`) — nests the capture as a child `<svg>` (no re-render) and returns `{ svg, width, height }`. Takes an optional `{ label }` (browser URL / window title). Pure-SVG, cross-platform. See `docs/65-device-chrome.md`. |
@@ -92,7 +92,7 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `clearWebfonts` | function | Clear the global webfont registry. Useful between independent captures in the same process. |
 | `getGlyphDefs` | function | Read the accumulated `<defs>` (glyph paths) the renderer collected across calls. Used by frame-by-frame composers to share a single `<defs>` block. |
 | `clearGlyphDefs` | function | Reset the glyph-defs accumulator. Pair with `getGlyphDefs` when rendering an independent sequence. |
-| `setRenderTextMode` / `getRenderTextMode` | function | Set / read how text is emitted — `"embedded-font"` (subset `@font-face` + `<text>`, the default) or `"paths"` (glyph outlines, per-pixel-faithful). `RenderTextMode` is the value type. |
+| `setRenderTextMode` / `getRenderTextMode` | function | Set / read how text is emitted — `"embedded-font"` (subset `@font-face` + `<text>`, the default), `"paths"` (glyph outlines, per-pixel-faithful), or `"system-font"` (authored `<text>` painted by the CONSUMER's installed fonts — smaller output, **not** pixel-faithful, requires the fonts to be present; run-anchor-only positioning, see docs 261). `RenderTextMode` is the value type. The `capture` CLI exposes the same choice as `--text-mode <embedded-font\|paths\|system-font>`. |
 | `withRenderTextMode` | function | `withRenderTextMode(mode, fn)` — run a **synchronous** `fn` with the render-text mode set to `mode`, restoring the prior value afterward (even if `fn` throws). Async callbacks are rejected by TypeScript, and Promise-like results are rejected at runtime, because a process-global mode cannot safely span an `await`. Prefer this scope over a bare `setRenderTextMode` so a temporary value cannot leak into later renders. |
 | `clearEmbeddedFonts` | function | Reset the embedded-font subset builder (used by `"embedded"` mode) between independent captures. |
 | `getEmbeddedFontFaceCss` | function | Read the accumulated base64 `@font-face` CSS for the glyphs rendered in `"embedded"` mode — emit it once into the document's `<style>`. |

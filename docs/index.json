@@ -8469,6 +8469,40 @@
       }
     },
     {
+      "file": "261-system-font-render-text-mode.md",
+      "metadata": {
+        "id": "requirements/system-font-render-text-mode",
+        "title": "261 — system-font render text mode",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "text-fonts",
+          "rendering"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2716"
+        ],
+        "code": [
+          "src/render/font-resolution.ts",
+          "src/render/text-to-path.ts",
+          "src/render/text.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/cli/capture.ts",
+          "src/cli/index.ts",
+          "src/render/system-font-mode.test.ts"
+        ],
+        "aliases": [
+          "docs/261-system-font-render-text-mode.md",
+          "doc-261"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9483,6 +9517,9 @@
     ],
     "260": [
       "requirements/inline-svg-real-text-layer"
+    ],
+    "261": [
+      "requirements/system-font-render-text-mode"
     ],
     "01": [
       "requirements/fidelity"

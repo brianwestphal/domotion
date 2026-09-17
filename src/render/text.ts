@@ -6,7 +6,7 @@
 
 import bidiFactory from "bidi-js";
 import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureEmphasisMarkMetrics, measureInkMetrics, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
-import type { FontVariantEmojiOverride } from "./font-resolution.js";
+import { getRenderTextMode, type FontVariantEmojiOverride } from "./font-resolution.js";
 import type { FontSynthesisAllowance } from "./text-to-path.js";
 import { r, esc } from "./format.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
@@ -1024,6 +1024,12 @@ function bidiContextFor(el: { styles: { direction?: string; unicodeBidi?: string
  * through unchanged.
  */
 function applyBidi(text: string, xOffsets: number[] | undefined, bidiContext: BidiParagraphContext): { text: string; xOffsets?: number[] } {
+  // DM-2716: `system-font` mode emits authored `<text>` and lets the viewing
+  // browser run the full UBA (reorder AND mirror). Our mirroring here assumes a
+  // logical-order emit with per-char xOffsets doing the visual placement, which
+  // that mode does not use; mirroring now would double-apply against the
+  // browser's own pass. Hand the browser untouched logical text instead.
+  if (getRenderTextMode() === "system-font") return { text, xOffsets };
   const levels = bidiLevelsFor(text, bidiContext);
   if (levels == null) return { text, xOffsets };
   // DM-940: re-confirmed via probe — Chrome's per-char xOffset for a logical
@@ -1065,6 +1071,9 @@ function applyBidi(text: string, xOffsets: number[] | undefined, bidiContext: Bi
  * positions align 1:1 with `levels[base + i]`. xOffsets pass through unchanged.
  */
 function applyBidiAt(text: string, xOffsets: number[] | undefined, levels: ArrayLike<number>, base: number): { text: string; xOffsets?: number[] } {
+  // DM-2716: see applyBidi — `system-font` mode leaves reordering + mirroring to
+  // the viewing browser, so this pre-mirroring is skipped there.
+  if (getRenderTextMode() === "system-font") return { text, xOffsets };
   let out = "";
   let any = false;
   for (let i = 0; i < text.length; i++) {

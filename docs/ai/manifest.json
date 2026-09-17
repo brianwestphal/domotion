@@ -5325,6 +5325,31 @@
       "file": "260-inline-svg-real-text-layer.md"
     },
     {
+      "id": "requirements/system-font-render-text-mode",
+      "title": "261 — system-font render text mode",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/font-resolution.ts",
+        "src/render/text-to-path.ts",
+        "src/render/text.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/cli/capture.ts",
+        "src/cli/index.ts",
+        "src/render/system-font-mode.test.ts"
+      ],
+      "file": "261-system-font-render-text-mode.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

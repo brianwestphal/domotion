@@ -68,8 +68,10 @@ flowchart TD
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
     B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping independently computes bidi/script<br/>(primary Script from Chromium-pinned ICU; helper-absent<br/>unicode-properties is best-effort only) and SymbolsIterator<br/>source-priority ranges, intersects by min end, then per item<br/>hb-shapes queued ranges with full-text context + resolved<br/>features and requeues only .notdef clusters;<br/>font-variant-emoji applies after the source split and declared<br/>families stay before the one-shot priority face.<br/>resolveFontForCodepoint = kSystemFonts, asked for<br/>ChooseHintIndex once per hint (also pinned-ICU Script).<br/>Dotted circles + canonical decomposition belong to the selected<br/>candidate shape; source text is never pre-committed. An<br/>unopenable candidate stays queued (no legacy restart). Assembly<br/>never merges across a shaping item and carries its resolved<br/>direction + ISO script.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
     B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ authored source range preserved through selected shaping<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
+    B1 -->|"system-font (DM-2716, OPT-IN)"| B4["renderTextAsSystemFont()<br/>emit painted &lt;text&gt; with the AUTHORED font-family stack<br/>+ font-size/weight/style/stretch + fill + -webkit-text-stroke<br/>+ direction/unicode-bidi (browser owns bidi; applyBidi mirroring skipped)<br/>run-anchor-only: x = run origin, y = baseline (ascentOverride else size·0.8)<br/>NO font file touched, NO subset, NO glyph &lt;path&gt;.<br/>CONSUMER's installed fonts paint it — not pixel-faithful."]
     B2 --> C0
     B3 --> C0
+    B4 --> D3
     C0["Per run: resolveFont(family) → primary instance<br/>resolveFontKey(family) → primaryKey<br/>resolveFontKeyChain(family) → declared stack"]
     C0 --> C1["Per FAILING CLUSTER (both modes, default) or per codepoint (legacy walk):<br/>resolveFontForCodepoint(cp, primary,<br/>primaryKey, weight, size, slant, fvs, lang, chain)"]
     C1 --> C2["font.layout() shaping →<br/>glyph outline commands<br/>(commandsFor: fontkit, else per-glyph helper)"]
@@ -78,6 +80,7 @@ flowchart TD
   subgraph OUT["Emission"]
     C2 --> D1["paths mode: getGlyphDefs() → &lt;defs&gt;/&lt;use&gt;"]
     C2 --> D2["embedded mode: getEmbeddedFontFaceCss() → &lt;style&gt; @font-face"]
+    D3["system-font mode: &lt;text font-family=…&gt; only<br/>(no defs, no @font-face)"]
   end
 
   A4 -.->|"consulted by resolveFontKey /<br/>getFontInstance / resolveFontForCodepoint"| C0
@@ -87,17 +90,25 @@ flowchart TD
 **Source of truth:** `discoverAndRegisterWebfonts` + `resetGeneration` in
 `src/capture/index.ts`; `renderTextAsPath` / `textToPathMarkup` /
 `splitTextIntoFontRuns` / `splitTextIntoGlyphPathRuns` in
-`src/render/text-to-path.ts`; the shared shaped splitter
+`src/render/text-to-path.ts` (incl. `renderTextAsSystemFont` for the
+`system-font` branch); the shared shaped splitter
 (`splitTextIntoFontRunsShaped`) in `src/render/cluster-fallback.ts`; the mode
 switch (`currentRenderTextMode` / `withRenderTextMode`) in
-`src/render/font-resolution.ts`.
+`src/render/font-resolution.ts`; the `system-font` bidi opt-out in
+`applyBidi` / `applyBidiAt` (`src/render/text.ts`).
 
-### Render-text mode (paths vs embedded-font)
+### Render-text mode (embedded-font vs paths vs system-font)
 
 | Mode | Default? | Output | Fidelity | Generation-scoped state |
 |---|---|---|---|---|
 | `embedded-font` | **yes** (DM-839) | `<text>` against a `@font-face` subset **glyf** TTF (svg2ttf; NOT CFF — DM-1666), addressed by private-use codepoints (consumer browser does zero shaping) | consumer browser rasterizes (its own hinting/AA) — smaller/faster, not byte-identical across browsers | `embeddedFonts` map + `embedded-font-builder` (`clearEmbeddedFonts`) |
 | `paths` | no | `<use href="#gN">` into per-glyph `<path>` defs | per-pixel-faithful to Chromium; used for visual-regression diffing | `glyphDefs` registry (`clearGlyphDefs`) |
+| `system-font` (DM-2716) | no | ordinary painted `<text>` with the AUTHORED `font-family` stack + size/weight/style/stretch/fill/stroke; run-anchor-only position; NO embed, NO paths (`renderTextAsSystemFont`) | **not pixel-faithful** — the CONSUMER's installed fonts paint it; positions drift under font substitution; browser owns bidi (`applyBidi`/`applyBidiAt` skip mirroring). Opt-in departure from the parity contract; see docs 261 | none (touches no font file / registry) |
+
+The two fidelity modes (`embedded-font`, `paths`) share the resolver + splitter
+described below. `system-font` short-circuits BEFORE the run-splitting / shaping
+pipeline entirely — it emits the source text for the browser to shape — so it
+does not consult `resolveFontForCodepoint` or the fallback chains at all.
 
 Both consult the SAME resolver (`resolveFontForCodepoint`) at the SAME
 granularity: per FAILING SHAPED CLUSTER (the Blink shape-then-requeue

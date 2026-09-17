@@ -11,7 +11,7 @@ import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, rend
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
-import { beginCharacterFallbackDocument, endCharacterFallbackDocument, withSessionGenericFamilyOverrides, type SessionGenericFamilyOverrides } from "./font-resolution.js";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument, withRenderTextMode, withSessionGenericFamilyOverrides, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
@@ -6193,23 +6193,35 @@ export function elementTreeToSvg(
     title?: string;
     /** DM-1488: accessible long description → `<desc>` on the root `<svg>`. */
     desc?: string;
+    /** DM-2716: how text is emitted for this render — `"embedded-font"` (subset
+     * `@font-face` + `<text>`, the default), `"paths"` (glyph outlines), or
+     * `"system-font"` (authored `<text>` painted by the CONSUMER's installed
+     * fonts; smaller output, not pixel-faithful). Applied for the duration of
+     * this call via `withRenderTextMode`; the process-global mode is restored
+     * afterward. Omit to use the current process-global mode. */
+    renderTextMode?: RenderTextMode;
   },
 ): string {
-  const elements = capturedTreeRoots(input);
-  const inner = elementTreeToSvgInner(
-    input, width, height,
-    opts?.idPrefix ?? "",
-    opts?.includeGlyphDefs ?? true,
-    opts?.hiDPIFactor ?? 2,
-    opts?.includeEmbeddedFontCss ?? (opts?.includeGlyphDefs ?? true),
-    opts?.realTextLayer ?? false,
-  );
-  return wrapSvg(inner, width, height, {
-    tree: elements,
-    title: opts?.title,
-    desc: opts?.desc,
-    realTextLayer: opts?.realTextLayer,
-  });
+  const render = (): string => {
+    const elements = capturedTreeRoots(input);
+    const inner = elementTreeToSvgInner(
+      input, width, height,
+      opts?.idPrefix ?? "",
+      opts?.includeGlyphDefs ?? true,
+      opts?.hiDPIFactor ?? 2,
+      opts?.includeEmbeddedFontCss ?? (opts?.includeGlyphDefs ?? true),
+      opts?.realTextLayer ?? false,
+    );
+    return wrapSvg(inner, width, height, {
+      tree: elements,
+      title: opts?.title,
+      desc: opts?.desc,
+      realTextLayer: opts?.realTextLayer,
+    });
+  };
+  return opts?.renderTextMode != null
+    ? withRenderTextMode(opts.renderTextMode, render)
+    : render();
 }
 
 

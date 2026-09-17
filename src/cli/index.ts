@@ -126,6 +126,11 @@ capture options:
       --real-text         Add a paintless authored <text> layer for search,
                            selection, copy, and screen readers in inline SVG.
                            Opt-in; has no effect through <img> embedding.
+      --text-mode <mode>   How text is emitted: embedded-font (default; subset
+                           @font-face, self-contained, pixel-faithful), paths
+                           (glyph outlines), or system-font (authored <text>
+                           painted by the VIEWER's installed fonts — smaller,
+                           NOT pixel-faithful, requires the fonts to be present).
       --no-embed-images    Leave <img>/background images as external URL refs
                            instead of embedding them (default: embed so the SVG
                            is self-contained).

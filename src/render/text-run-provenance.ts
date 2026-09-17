@@ -60,7 +60,7 @@ export interface TextRunProvenanceDiagnostic {
 }
 
 export interface TextEmitterTransitionDiagnostic {
-  kind: "embedded-succeeded" | "embedded-declined-to-paths" | "paths-succeeded" | "paths-declined" | "capture-raster" | "source-owned-boundary";
+  kind: "embedded-succeeded" | "embedded-declined-to-paths" | "paths-succeeded" | "paths-declined" | "capture-raster" | "source-owned-boundary" | "system-font-emitted";
   sourceText: string;
   /** Exact decline/boundary classification. Absent on ordinary success rows. */
   reason?: string;

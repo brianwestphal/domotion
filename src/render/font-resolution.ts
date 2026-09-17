@@ -540,7 +540,16 @@ const webfontRegistry = new Map<string, WebfontVariant[]>();
 // alongside `clearEmbeddedFonts()` — otherwise the module-global glyph map
 // accumulates across renders and back-to-back generations emit prior glyphs as
 // dead `<defs>` bloat (DM-1338).
-export type RenderTextMode = "paths" | "embedded-font";
+// `"system-font"` (DM-2716) is an OPT-IN departure from the pixel-faithful
+// contract: text emits as ordinary painted `<text>` carrying the authored
+// `font-family` stack, and the CONSUMER's installed fonts paint it — no
+// embedded `@font-face` subset (`"embedded-font"`) and no glyph outlines
+// (`"paths"`). Positioning is run-anchor-only: the run's captured origin is
+// emitted and the viewing browser reflows with the system font's own metrics,
+// so horizontal positions drift from the capture when the viewer's font differs
+// from the capture host's. Chosen for smaller output where the fonts are known
+// to be present.
+export type RenderTextMode = "paths" | "embedded-font" | "system-font";
 export let currentRenderTextMode: RenderTextMode = "embedded-font";
 export function setRenderTextMode(mode: RenderTextMode): void { currentRenderTextMode = mode; }
 export function getRenderTextMode(): RenderTextMode { return currentRenderTextMode; }

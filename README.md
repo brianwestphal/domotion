@@ -204,6 +204,11 @@ const svg = elementTreeToSvg(tree, 800, 200, {
   // Optional: searchable/selectable text when this SVG is embedded inline.
   // This cannot expose text through <img src="…">.
   realTextLayer: true,
+  // Optional: how text is emitted. Default "embedded-font" is self-contained
+  // and pixel-faithful. "system-font" instead emits authored <text> painted
+  // by the VIEWER's installed fonts — smaller output, but not pixel-faithful
+  // and only correct where the fonts are present (CLI: --text-mode system-font).
+  // renderTextMode: "system-font",
 });
 
 console.log(svg);

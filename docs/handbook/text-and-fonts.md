@@ -41,6 +41,13 @@ upstream source traces, corpora, and retained runs remain in the linked records.
    search, selection, copy, and accessibility. It explicitly owns no paint,
    suppresses duplicate visual-run labels, does not serialize source font
    families, and leaves default output unchanged. See [doc 260](../260-inline-svg-real-text-layer.md).
+7. Text emission has three modes (`RenderTextMode`): the default `embedded-font`
+   and `paths` are both pixel-faithful; the opt-in `system-font` instead paints
+   authored `<text>` with the source `font-family` stack via the CONSUMER's
+   installed fonts (smaller output, **not** pixel-faithful, run-anchor-only
+   positioning, browser-owned bidi). Selected by `--text-mode` /
+   `setRenderTextMode` / `elementTreeToSvg({ renderTextMode })`. See
+   [doc 261](../261-system-font-render-text-mode.md).
 
 ## Verified implementation map
 
@@ -52,6 +59,7 @@ upstream source traces, corpora, and retained runs remain in the linked records.
 | Native outlines | [Glyph extraction](../16-coretext-glyph-extraction.md), [Linux](../45-linux-glyph-extraction.md), [Windows](../41-windows-glyph-extraction.md) | `src/render/glyph-helper-{transport,protocol,outline,font}.ts`, `src/render/linux-target-strike.ts`, native helpers, `src/render/glyph-helper.test.ts` |
 | Paint and decoration | [Text decoration](../207-cross-platform-decoration-geometry.md), [background clip](../18-background-clip-text.md) | `src/render/text.ts`, `src/render/text-to-path.ts`, `src/render/decoration-fragment-ownership.ts`, decoration oracle tests |
 | Inline text semantics | [Opt-in real-text layer](../260-inline-svg-real-text-layer.md) | `src/render/real-text-layer.ts`, `src/render/real-text-layer.test.ts`, `tests/real-text-layer.e2e.test.ts` |
+| Text-emit mode | [system-font render text mode](../261-system-font-render-text-mode.md) | `src/render/text-to-path.ts` (`renderTextAsSystemFont`), `src/render/text.ts`, `src/cli/capture.ts`, `src/render/system-font-mode.test.ts` |
 | Fallback and evidence | [Same-machine contract](../120-same-machine-text-parity-contract.md), [renderer provenance](../143-production-text-run-provenance.md) | `src/render/text-run-provenance.ts`, `tools/renderer-font-route-oracle.ts`, native platform workflows |
 
 ## Boundaries

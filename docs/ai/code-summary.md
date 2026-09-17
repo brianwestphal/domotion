@@ -36,6 +36,13 @@ loading the historical documentation corpus.
   `render/real-text-layer.ts` owns the single-frame opt-in paintless authored
   text overlay for inline-SVG search, selection, copy, and accessibility; the
   visible glyph geometry remains the only paint owner.
+  `RenderTextMode` selects the text-emit strategy: the pixel-faithful defaults
+  `embedded-font` (subset `@font-face`) and `paths` (glyph outlines), plus the
+  opt-in `system-font` (`renderTextAsSystemFont` in `render/text-to-path.ts`) —
+  authored `<text>` painted by the consumer's installed fonts, run-anchor-only,
+  browser-owned bidi, not pixel-faithful. Chosen via `--text-mode`,
+  `setRenderTextMode`/`withRenderTextMode`, or `elementTreeToSvg({ renderTextMode })`;
+  see docs 261.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
   `animation/animator.ts` is the stable facade; `svg-generator.ts` and

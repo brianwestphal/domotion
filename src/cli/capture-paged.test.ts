@@ -41,4 +41,10 @@ describe("capture paged-mode CLI boundary", () => {
       "--quiet",
     ], "")).rejects.toThrow("output manifest must end in .domotion-pages.json");
   });
+
+  // DM-2716: `--text-mode` selects the render text-emit strategy at the CLI.
+  it("rejects an unknown --text-mode value before launch", async () => {
+    await expect(runCapture(["page.html", "--text-mode", "bogus", "--quiet"], ""))
+      .rejects.toThrow('--text-mode expects one of embedded-font, paths, system-font, got "bogus"');
+  });
 });

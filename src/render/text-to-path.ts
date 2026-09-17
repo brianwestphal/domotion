@@ -439,6 +439,74 @@ export function embeddedBaselineY(
   return y + baselineAscent;
 }
 
+/**
+ * DM-2716: emit one painted authored `<text>` for `system-font` render mode.
+ * The CONSUMER's installed fonts paint it — no embedded subset, no outlines.
+ *
+ * Positioning is RUN-ANCHOR-ONLY (maintainer-confirmed): the run's captured
+ * origin `x` and its alphabetic baseline (`y + ascent`) are emitted, and the
+ * viewing browser reflows the text with the system font's own metrics/kerning.
+ * No per-character `x` list is emitted, so horizontal positions drift from the
+ * capture whenever the viewer's font differs from the capture host's — the
+ * accepted cost of not embedding the font.
+ *
+ * `fontFamily` arrives here as the authored CSS family stack
+ * (`capturedFontFamilyCss(...)`), emitted verbatim for the browser to resolve.
+ * Bidi reordering + paired-bracket mirroring are the BROWSER's job in this mode:
+ * `applyBidi`/`applyBidiAt` (text.ts) skip their mirroring under `system-font`,
+ * so the logical source text reaches here unmirrored and the emitted
+ * `direction` / `unicode-bidi` drive Chrome's own UBA. This mode does NOT touch
+ * a font file (no ascent/shaping lookup), so `ascentOverride` — Chrome's
+ * captured `fontBoundingBoxAscent` — is the only baseline source; when it is
+ * absent the size-relative `fontSize * 0.8` fallback keeps us off the font.
+ */
+export function renderTextAsSystemFont(
+  text: string,
+  x: number,
+  y: number,
+  options: RenderTextOptions,
+): string {
+  if (text === "") return "";
+  const { fontSize, fontFamily, fill, fontStyle, ascentOverride, fontStretch,
+    variationSettings, textStrokeWidth, textStrokeColor, paintOrder, bidiOverride } = options;
+  const weight = cssWeightOf(options.fontWeight);
+  const baselineY = y + (ascentOverride != null ? ascentOverride : fontSize * 0.8);
+
+  const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
+  const styleAttr = (fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal")
+    ? ` font-style="${escAttr(fontStyle)}"` : "";
+  // Chrome serializes `font-stretch` as a percentage ("75%"); emit only a
+  // non-default width so ordinary runs stay compact.
+  const stretchAttr = (fontStretch != null && fontStretch !== "" && fontStretch !== "100%"
+      && fontStretch.toLowerCase() !== "normal")
+    ? ` font-stretch="${escAttr(fontStretch)}"` : "";
+  const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
+    ? ` style="font-variation-settings: ${escAttr(Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", "))}"` : "";
+
+  // `-webkit-text-stroke` → stroke + optional paint-order (mirrors the embedded
+  // path's DM-719 handling).
+  const wantsStroke = textStrokeWidth != null && textStrokeWidth > 0
+    && textStrokeColor != null && textStrokeColor !== "";
+  const strokeAttr = wantsStroke
+    ? ` stroke="${escAttr(textStrokeColor!)}" stroke-width="${r2(textStrokeWidth!)}"`
+      + (paintOrder != null && paintOrder !== "" ? ` paint-order="${escAttr(paintOrder)}"` : "")
+    : "";
+
+  // The browser owns reordering in this mode: emit the paragraph direction, and
+  // force it with `unicode-bidi` only for the override values that tell the UBA
+  // to disregard each character's own bidi type.
+  let bidiAttr = "";
+  if (bidiOverride != null) {
+    if (bidiOverride.direction === "rtl") bidiAttr += ` direction="rtl"`;
+    const ub = bidiOverride.unicodeBidi;
+    if (ub === "bidi-override" || ub === "isolate-override") bidiAttr += ` unicode-bidi="${escAttr(ub)}"`;
+  }
+
+  return `<text x="${r2(x)}" y="${r2(baselineY)}" font-family="${escAttr(fontFamily)}"`
+    + ` font-size="${r2(fontSize)}"${weightAttr}${styleAttr}${stretchAttr}`
+    + ` fill="${escAttr(fill)}"${strokeAttr}${bidiAttr}${fvsAttr}>${escAttr(text)}</text>`;
+}
+
 export function synthesizedSmallCapsScale(fontSize: number): number {
   return Math.round(fontSize * 0.7) / fontSize;
 }
@@ -3641,6 +3709,18 @@ export function renderTextAsPath(
     orientation: fontOrientation,
   };
   const esc = escAttr;
+
+  // DM-2716: `system-font` mode emits ordinary painted `<text>` carrying the
+  // authored family stack and lets the CONSUMER's installed fonts paint it —
+  // no embedded subset, no glyph outlines. Branch BEFORE the shaping-specific
+  // mutations below (synthetic dotted-circle insertion, orphan-ignorable
+  // stripping): those reproduce what Chrome's HarfBuzz painted, but here the
+  // viewing browser does its own shaping, so it must receive the untouched
+  // source text.
+  if (currentRenderTextMode === "system-font") {
+    recordTextEmitterTransition({ kind: "system-font-emitted", sourceText: text });
+    return renderTextAsSystemFont(text, x, y, options);
+  }
 
   // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts
   // before an orphaned complex-shaper combining mark — for UNCOVERED marks

@@ -28,7 +28,9 @@ import {
   parseScrollPattern,
   resolveFormat,
   safeAreaGuideSvg,
+  setRenderTextMode,
   formatNames,
+  type RenderTextMode,
   type ResolvedFormat,
   wrapInDeviceChrome,
   wrapSvg,
@@ -104,6 +106,12 @@ interface CaptureFlagValues {
   [key: string]: string | boolean | undefined;
 }
 
+/** DM-2716: the `--text-mode` values, matching `RenderTextMode`. */
+const RENDER_TEXT_MODES: readonly RenderTextMode[] = ["embedded-font", "paths", "system-font"];
+function isRenderTextMode(value: string): value is RenderTextMode {
+  return (RENDER_TEXT_MODES as readonly string[]).includes(value);
+}
+
 /**
  * Cross-flag validation for `capture` (extracted from `runCapture`, DM-1458).
  * Rejects mutually-exclusive / out-of-enum / context-misapplied flag
@@ -133,6 +141,9 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   }
   if (values["real-text"] === true && values.scroll != null) {
     throw new Error("capture: --real-text currently supports single-frame capture, not --scroll composition");
+  }
+  if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
+    throw new Error(`capture: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`);
   }
   const pagedOnly = ["paged-helper-manifest", "paged-helper-sha256", "page-width", "page-height",
     "page-margin-top", "page-margin-right", "page-margin-bottom", "page-margin-left",
@@ -216,6 +227,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "no-print-background": { type: "boolean" },
       "prefer-css-page-size": { type: "boolean" },
       "real-text":         { type: "boolean" },
+      "text-mode":         { type: "string" },
       help:               { type: "boolean", short: "h" },
     },
   });
@@ -228,6 +240,14 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   // by extension, like `.svgz` output).
   const har = isHarPath(input);
   validateCaptureFlags(values, har);
+  // DM-2716: select the text-emit strategy for this one-shot CLI process. The
+  // mode is a render-side process-global; setting it here covers the ordinary,
+  // scroll, and paged render paths below. `--text-mode system-font` emits
+  // authored `<text>` painted by the CONSUMER's installed fonts (smaller output,
+  // not pixel-faithful); `paths` / `embedded-font` are the fidelity modes.
+  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
+    setRenderTextMode(values["text-mode"]);
+  }
   if (values.paged === true) {
     const log = makeLogger(values.quiet === true);
     const { capturePagedSvgBundle } = await import("../capture/paged-capture.js");
