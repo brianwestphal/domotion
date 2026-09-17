@@ -2,6 +2,20 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.29.0] - 2026-09-17
+
+
+**🚀 Features**
+
+- **Authenticated paged capture** (`domotion capture --paged`): render a multi-page, login-gated document to one self-contained SVG per page, written as an atomic `.domotion-pages.json` bundle (manifest last). The print step runs through a pinned, cryptographically authenticated Chromium helper (helper manifest + SHA-256), and each page SVG passes through only after a live logical-consistency audit.
+- **Opt-in real-text layer** (`domotion capture --real-text`, or `elementTreeToSvg(tree, w, h, { realTextLayer: true })`): append a paintless authored `<text>` layer so an inline `<svg>` has searchable, selectable, copyable text and a real accessibility flow — the visible glyph geometry is unchanged. Has no effect through `<img>` embedding.
+- **Selectable text-emit mode** (`--text-mode <embedded-font|paths|system-font>`, or `elementTreeToSvg(…, { renderTextMode })`): the new `system-font` mode emits ordinary `<text>` carrying the authored `font-family` stack and lets the viewer's own installed fonts paint it — much smaller output where the fonts are known to be present (not pixel-faithful, positions reflow with the viewer's font). The flag also newly exposes the two existing fidelity modes — `paths` and the default `embedded-font` — on the CLI.
+
+**⚡ Performance**
+
+- Linux font fallback now memoizes fontconfig matches, cutting repeated per-codepoint match cost on Linux captures.
+- Text-geometry probing during capture is batched, reducing round-trips into the page.
+
 ## [0.28.2] - 2026-09-07
 
 
