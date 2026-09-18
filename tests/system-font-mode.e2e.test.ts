@@ -96,4 +96,36 @@ describe("system-font render mode (DM-2716)", () => {
     }, WIDTH);
     expect(rightEdge.maxRight).toBeGreaterThan(WIDTH / 2);
   });
+
+  // DM-ZDDJAG: a vertical writing-mode run is emitted as ONE authored <text>
+  // with writing-mode + text-orientation (not per-char), so the browser lays out
+  // the column and rotates sideways glyphs itself — a real, selectable vertical run.
+  it("emits a vertical run as one <text> with writing-mode/text-orientation", async () => {
+    await sourcePage.setContent(`<!doctype html><meta charset="utf8"><style>
+      html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;background:#fff;color:#111}
+      .v{writing-mode:vertical-rl;text-orientation:sideways;font:24px/1.4 sans-serif;height:${HEIGHT - 20}px;padding:10px}
+    </style><div class="v">Sideways</div>`);
+    const tree = await captureElementTree(sourcePage, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+    const svg = render(tree, "system-font");
+
+    // One <text> for the run, carrying the vertical writing-mode + orientation.
+    const texts = svg.match(/<text\b/g) ?? [];
+    expect(texts.length).toBe(1);
+    expect(svg).toMatch(/writing-mode:\s*vertical-rl/);
+    expect(svg).toMatch(/text-orientation:\s*sideways/);
+    expect(svg).toContain("Sideways");
+
+    // Rendered, the run is a VERTICAL column: taller than it is wide, and
+    // selectable as one string.
+    await outputPage.setContent(`<!doctype html><body style="margin:0;background:#fff">${svg}</body>`);
+    const info = await outputPage.evaluate(() => {
+      const t = document.querySelector("svg text")!;
+      const r = t.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(t);
+      return { w: r.width, h: r.height, selected: range.toString().trim() };
+    });
+    expect(info.h).toBeGreaterThan(info.w); // a vertical column
+    expect(info.selected).toBe("Sideways"); // one selectable run
+  });
 });

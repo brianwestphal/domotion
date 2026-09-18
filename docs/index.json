@@ -8492,14 +8492,19 @@
           "windows"
         ],
         "tickets": [
-          "DM-2716"
+          "DM-2716",
+          "DM-CAGCSM",
+          "DM-FJZQ34",
+          "DM-ZDDJAG"
         ],
         "code": [
           "src/render/font-resolution.ts",
           "src/render/text-to-path.ts",
           "src/render/text.ts",
+          "src/render/vertical-text.ts",
           "src/render/element-tree-to-svg.ts",
           "src/cli/capture.ts",
+          "src/cli/animate-command.ts",
           "src/cli/index.ts",
           "src/render/system-font-mode.test.ts"
         ],

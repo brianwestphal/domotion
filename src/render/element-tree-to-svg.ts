@@ -8,10 +8,10 @@ import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
-import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
+import { renderVerticalSegments, renderVerticalSystemFontText, hasVerticalSegments } from "./vertical-text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
-import { beginCharacterFallbackDocument, endCharacterFallbackDocument, withRenderTextMode, withSessionGenericFamilyOverrides, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument, getRenderTextMode, withRenderTextMode, withSessionGenericFamilyOverrides, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
@@ -967,7 +967,16 @@ function renderOneText(
     // segments carry their per-char positions in `yOffsets` (not `xOffsets`)
     // and need per-char rotation for text-orientation: mixed / sideways — the
     // horizontal renderers would mis-paint them along the wrong axis.
-    if (hasVerticalSegments(opts.el)) return wrapAffineTextPaint(opts.affineMatrix, renderVerticalSegments(opts.el, opts.fillColor));
+    if (hasVerticalSegments(opts.el)) {
+      // DM-ZDDJAG: in system-font mode, emit ONE authored <text> with
+      // writing-mode/text-orientation and let the browser lay out the column
+      // (correct sideways rotation + a selectable run); the fidelity modes keep
+      // the per-char rotated segments.
+      if (getRenderTextMode() === "system-font") {
+        return wrapAffineTextPaint(opts.affineMatrix, renderVerticalSystemFontText(opts.el, opts.fillColor));
+      }
+      return wrapAffineTextPaint(opts.affineMatrix, renderVerticalSegments(opts.el, opts.fillColor));
+    }
     // DM-2417: clamp-owned source fragments must stay on their captured
     // per-line geometry even when filtering leaves exactly one segment.  The
     // single-line fallback reads the full DOM text and would resurrect hidden

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2716"]
-code: ["src/render/font-resolution.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/element-tree-to-svg.ts","src/cli/capture.ts","src/cli/index.ts","src/render/system-font-mode.test.ts"]
+tickets: ["DM-2716","DM-CAGCSM","DM-FJZQ34","DM-ZDDJAG"]
+code: ["src/render/font-resolution.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/vertical-text.ts","src/render/element-tree-to-svg.ts","src/cli/capture.ts","src/cli/animate-command.ts","src/cli/index.ts","src/render/system-font-mode.test.ts"]
 aliases: ["docs/261-system-font-render-text-mode.md","doc-261"]
 ---
 
@@ -102,15 +102,15 @@ Arabic contextual joining, and paired-bracket mirroring; ltr runs emit no
   from the capture. RTL run *ordering, mirroring, and anchoring* are correct (the
   browser's UBA plus the `text-anchor="end"` fix above); only the inter-run
   horizontal spacing carries the general positional drift, as for ltr.
-- **Vertical writing modes are only partially supported** (DM-CAGCSM →
-  follow-up DM-ZDDJAG). A `writing-mode: vertical-*` run is emitted as
-  individually-positioned, per-character, **upright** `<text>` at each glyph's
-  captured column position — so upright CJK (`text-orientation: mixed`/`upright`)
-  renders about right, but the column is *N separate one-glyph `<text>` elements*
-  (not one selectable/searchable run) and **sideways/rotated orientation**
-  (`text-orientation: sideways`, Latin glyphs in vertical text) is **not**
-  reproduced — every glyph stays upright. `renderTextAsSystemFont` emits no
-  `writing-mode` / `text-orientation`. Proper support is tracked separately.
+- **Vertical writing modes are supported** (DM-ZDDJAG). A `writing-mode:
+  vertical-*` run is emitted as **one** authored `<text>` carrying the captured
+  `writing-mode` and `text-orientation` (`renderVerticalSystemFontText`), so the
+  viewing browser lays out the column itself — upright CJK stays upright and
+  **sideways/rotated glyphs** (`text-orientation: sideways`, Latin in vertical
+  text) are rotated by the browser, matching Chrome. It is one
+  selectable/searchable run, not per-glyph text. Positioning is run-anchored and
+  browser-reflowed, the same best-effort contract as horizontal runs (above), so
+  the column's exact placement can drift when the viewer's font differs.
 - Text **decorations** (underline/line-through/overline) continue to be emitted
   as Domotion's geometric SVG lines, unchanged — they are computed outside the
   text-emit funnel.

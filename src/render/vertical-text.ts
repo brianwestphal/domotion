@@ -26,7 +26,7 @@
  */
 
 import type { CapturedElement, TextSegment } from "../capture/types.js";
-import { measureEmphasisMarkMetrics, renderTextAsPath } from "./text-to-path.js";
+import { measureEmphasisMarkMetrics, renderTextAsPath, cssWeightOf } from "./text-to-path.js";
 import {
   capturedSegmentFontFamily, capturedTextSegmentFontFeatures, decorationLengthScale, emphasisGraphemeSpans,
   parseFontVariationSettings, parseTextEmphasisMark, renderTextDecoration,
@@ -451,6 +451,41 @@ export function blinkFontOrientation(writingMode?: string, textOrientation?: str
  * Detect if an element should dispatch to the vertical renderer:
  * any segment with `verticalWritingMode` set.
  */
+/**
+ * DM-ZDDJAG: emit a vertical writing-mode run as ONE authored `<text>` with
+ * `writing-mode` + `text-orientation` for `system-font` render mode, instead of
+ * the per-char rotated segments the fidelity modes use. The browser then lays
+ * out the column and rotates sideways glyphs itself — which the per-char upright
+ * fallback did not do (`text-orientation: sideways`, Latin in vertical text) —
+ * and the run stays one selectable/searchable string. Positioning is
+ * run-anchored and browser-reflowed, consistent with `system-font` mode's
+ * best-effort positioning contract (doc 261).
+ */
+export function renderVerticalSystemFontText(el: CapturedElement, fillColor: string): string {
+  if (el.textSegments == null || el.textSegments.length === 0) return "";
+  const fullText = el.textSegments.map((s) => s.text).join("");
+  if (fullText === "") return "";
+  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const wm = el.styles.writingMode != null && el.styles.writingMode !== "" ? el.styles.writingMode : "vertical-rl";
+  const to = el.styles.textOrientation;
+  const first = el.textSegments[0];
+  // Best-effort anchor: the block-start of the first captured column, with the
+  // column centred on `x` (upright vertical glyphs sit centred on the x axis).
+  const n2 = (v: number): string => String(Number(v.toFixed(2)));
+  const x = first.x + fontSize / 2;
+  const y = first.y ?? el.y;
+  const family = capturedSegmentFontFamily(el, first);
+  const weight = cssWeightOf(el.styles.fontWeight);
+  const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
+  const fontStyle = el.styles.fontStyle;
+  const styleAttr = fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal"
+    ? ` font-style="${esc(fontStyle)}"` : "";
+  const decls = `writing-mode:${wm}`
+    + (to != null && to !== "" && to !== "mixed" ? `;text-orientation:${to}` : "");
+  return `<text x="${n2(x)}" y="${n2(y)}" font-family="${esc(family)}" font-size="${n2(fontSize)}"`
+    + `${weightAttr}${styleAttr} fill="${esc(fillColor)}" style="${decls}"${visualTextOnlyHiddenAttr()}>${esc(fullText)}</text>`;
+}
+
 export function hasVerticalSegments(el: CapturedElement): boolean {
   if (el.textSegments == null) return false;
   for (const seg of el.textSegments) {
