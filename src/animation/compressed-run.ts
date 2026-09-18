@@ -107,6 +107,7 @@ import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { paintOrderHitSequence } from "../render/paint-order.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
+import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 import { IDENTITY_TEXT_AFFINE, prepareAffineTextPaint, textAffineEquals } from "../render/text-affine.js";
 import { alignLineGlyphs, type AlignGlyph } from "./glyph-align.js";
 import { textTrackMarkup, CARET_BLINK_MS, DEFAULT_SELECTION_COLOR, type ResolvedTextTrack, type ResolvedSelection } from "./caret-track.js";
@@ -128,6 +129,17 @@ export interface CompressedRunOptions {
   /** Paint a root background rect first (e.g. the captured
    *  `styles.rootBgComputed`). Omit for a transparent run. */
   background?: string;
+  /**
+   * DM-6SQXGF: append the paintless real-text layer (doc 260) to the run. A
+   * compressed run flattens N states into ONE emission (shared content once,
+   * step-end birth/shift/recolor tracks) — there are no per-frame visibility
+   * groups to gate per-state text, and the glyph births use `opacity` (still
+   * find-in-page-visible). So the run emits ONE layer from the FINAL state's
+   * tree (the completed content — a stable deduplicated story flow), and the
+   * visible chrome+glyph runs are `aria-hidden` while it owns semantics.
+   * Intermediate typing prefixes are deliberately not exposed. Default off.
+   */
+  realText?: boolean;
   /** Emit the auto-caret track derived from the per-state edit points
    *  (docs/101 machinery). Default false — the config surface decides
    *  defaults later. */
@@ -1521,8 +1533,22 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   // Render the two layers through the production pipeline. Chrome first
   // (below), glyphs above — the occlusion guard demoted anything a later
   // box-painting element overlaps, so this flattening is paint-safe.
-  const chromeInner = elementTreeToSvgInner(chromeTree, width, height, `${uid}c-`, true, 2, false);
-  const glyphInner = glyphEls.length > 0 ? elementTreeToSvgInner(glyphEls, width, height, `${uid}g-`, true, 2, false) : "";
+  // DM-6SQXGF: when the run owns a real-text layer, render the two VISIBLE
+  // layers inside `withRealTextLayerVisualSemantics` so their glyph runs emit
+  // `aria-hidden="true"` (the paintless layer owns the readable flow). The two
+  // renders pass `includeRealTextLayer=false` — the run emits ONE layer from the
+  // final state below, not one per layer.
+  let chromeInner = "";
+  let glyphInner = "";
+  const renderVisibleLayers = (): void => {
+    chromeInner = elementTreeToSvgInner(chromeTree, width, height, `${uid}c-`, true, 2, false);
+    glyphInner = glyphEls.length > 0 ? elementTreeToSvgInner(glyphEls, width, height, `${uid}g-`, true, 2, false) : "";
+  };
+  if (opts.realText === true) withRealTextLayerVisualSemantics(renderVisibleLayers);
+  else renderVisibleLayers();
+  const realTextLayer = opts.realText === true
+    ? renderRealTextLayer(structuredClone(states[stateCount - 1].tree))
+    : "";
 
   // Behind-glyph selection: docs/101 selection rects resolved against each
   // selection's appear-state captured tree, emitted into the chrome↔glyph gap
@@ -1589,7 +1615,7 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${trackCss}`;
   const bgRect = opts.background != null ? `<rect width="${width}" height="${height}" fill="${esc(opts.background)}"/>` : "";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${styleCss}</style>${bgRect}${chromeInner}${selectionMarkup}${glyphInner}${caretMarkup}</svg>`;
+    + `<style>${styleCss}</style>${bgRect}${chromeInner}${selectionMarkup}${glyphInner}${caretMarkup}${realTextLayer}</svg>`;
 
   const pairingStats: CompressedRunPairingStats = {
     states: stateCount,

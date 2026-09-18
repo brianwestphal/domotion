@@ -220,6 +220,9 @@
     "autoCompress": {
       "type": "boolean"
     },
+    "realText": {
+      "type": "boolean"
+    },
     "frames": {
       "minItems": 1,
       "type": "array",

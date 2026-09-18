@@ -297,6 +297,10 @@ animate options:
                            faithful), paths (glyph outlines), or system-font
                            (authored <text> painted by the VIEWER's fonts —
                            smaller, NOT pixel-faithful, requires the fonts).
+      --real-text          Append a paintless authored-<text> layer to each
+                           frame for search/selection/accessibility. Only the
+                           active (visible) frame's text is exposed to Find-in-
+                           Page / AT; the visible paint is unchanged. See docs/260.
       --debug              Write a reproduction bundle next to the output:
                            capture.har, final actual.svg, and
                            frames/NNN/{expected.png,captured-tree.json}.

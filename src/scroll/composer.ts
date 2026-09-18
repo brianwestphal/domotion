@@ -76,6 +76,16 @@ export interface ScrollComposerOptions {
   /** DM-1488: accessible long description → `<desc>` on the root `<svg>`. */
   desc?: string;
   /**
+   * DM-6SQXGF: append the paintless real-text layer (doc 260) to each
+   * visibility-gated content region (scroll segments + hoisted sticky/fixed/
+   * static layers). Hoisting places each element's content in exactly one region,
+   * so there is no cross-region duplication, and each region's `visibility`
+   * keyframe (DM-641) gates its nested real text — only the on-screen scroll
+   * position's authored text is exposed to Find-in-Page / AT. Paintless, so it
+   * adds zero visual regions. Default off.
+   */
+  realText?: boolean;
+  /**
    * Background color painted behind the captures (a full-viewport rect, visible
    * at seams). When omitted it defaults to the captured page's root background
    * (`rootBgComputed`), so a transparent page yields a transparent SVG and a
@@ -422,6 +432,7 @@ function buildStickyOverlays(
   W: number,
   VH: number,
   hiDPIFactor: number,
+  realText: boolean,
 ): { markup: string[]; cullCss: string[] } {
   const totalSec = totalMs / 1000;
   const markup: string[] = [];
@@ -431,7 +442,7 @@ function buildStickyOverlays(
     const visStartPct = (segments[o.firstSegmentIdx].segmentStartMs / totalMs) * 100;
     const visEndPct = (segments[o.lastSegmentIdx].segmentEndMs / totalMs) * 100;
     const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
-    const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, false, hiDPIFactor, false);
+    const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, false, hiDPIFactor, false, realText);
     if (alwaysVisible) {
       markup.push(
         `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
@@ -586,6 +597,8 @@ function composeScrollSvgBody(
     axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
     staticUnderlay, staticForegroundLayers, elementOwnerClips,
   } = ctx;
+  // DM-6SQXGF: whether each content region carries the paintless real-text layer.
+  const realText = opts.realText === true;
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -663,7 +676,7 @@ function composeScrollSvgBody(
   for (let paintIndex = 0; paintIndex < paintSegments.length; paintIndex++) {
     const { segment: seg, index: segmentIndex } = paintSegments[paintIndex];
     const offset = segOffsets[segmentIndex];
-    const inner = elementTreeToSvgInner(strippedTrees[paintIndex], W, VH, `seg${segmentIndex}-`, false, hiDPIFactor, false);
+    const inner = elementTreeToSvgInner(strippedTrees[paintIndex], W, VH, `seg${segmentIndex}-`, false, hiDPIFactor, false, realText);
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
     // Visibility window: visible while scroll-y is in the rasterisation
@@ -717,14 +730,14 @@ function composeScrollSvgBody(
   }
   // ── Sticky overlay markup + visibility keyframes (DM-647) ──
   const { markup: stickyMarkup, cullCss: stickyCullCss } = buildStickyOverlays(
-    stickyOverlays, paintSegments.map(({ segment }) => segment), totalMs, animClass, W, VH, hiDPIFactor,
+    stickyOverlays, paintSegments.map(({ segment }) => segment), totalMs, animClass, W, VH, hiDPIFactor, realText,
   );
 
   const fixedMarkup = fixedOverlay.length === 0
     ? ""
     : `\n  <g>` +
         `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-          elementTreeToSvgInner(fixedOverlay, W, VH, "fix-", false, hiDPIFactor, false) +
+          elementTreeToSvgInner(fixedOverlay, W, VH, "fix-", false, hiDPIFactor, false, realText) +
         `</svg>` +
       `</g>`;
   const overlayMarkup = fixedMarkup + stickyMarkup.join("");
@@ -786,7 +799,7 @@ function composeScrollSvgBody(
   const staticMarkup = staticUnderlay == null
     ? ""
     : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-        elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false) +
+        elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false, realText) +
       `</svg></g>`;
   const staticForegroundMarkup = (staticForegroundLayers ?? []).map((layer, layerIndex) => {
     const clipOpen = layer.clips.map((_clip, clipIndex) =>
@@ -794,7 +807,7 @@ function composeScrollSvgBody(
     ).join("\n");
     const clipClose = layer.clips.map(() => "    </g>").join("\n");
     const markup = `<g data-scroll-static-foreground="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-      elementTreeToSvgInner(layer.elements, W, VH, `static-foreground-${layerIndex}-`, false, hiDPIFactor, false) +
+      elementTreeToSvgInner(layer.elements, W, VH, `static-foreground-${layerIndex}-`, false, hiDPIFactor, false, realText) +
       `</svg></g>`;
     return `${clipOpen === "" ? "" : clipOpen + "\n"}    ${markup}\n${clipClose}`;
   }).join("\n");

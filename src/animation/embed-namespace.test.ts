@@ -129,3 +129,24 @@ describe("namespaceEmbeddedAnimatedSvg", () => {
     expect(b).not.toContain("tf0_");
   });
 });
+
+// DM-6SQXGF: composite consumes pre-rendered layer SVGs and namespaces them via
+// namespaceEmbeddedAnimatedSvg. A layer's paintless real-text layer (doc 260)
+// must survive that re-nesting untouched — it carries no id/class and (per doc
+// 260) no authored font-family, so the namespacer has nothing to rewrite in it.
+// This is why the composite path needs NO real-text-specific code.
+describe("namespaceEmbeddedAnimatedSvg — real-text layer is preserved (DM-6SQXGF)", () => {
+  it("leaves the data-domotion-real-text-layer group and its <text> content intact", () => {
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">` +
+      `<style>.c{fill:red}@keyframes k{to{opacity:1}}</style>` +
+      `<g class="c" style="animation:k 1s"><path d="M0 0h1v1z"/></g>` +
+      `<g data-domotion-real-text-layer="true" fill="none" stroke="none" xml:space="preserve">` +
+      `<text x="1" y="9" font-size="8">SearchMeAcrossLayers</text></g></svg>`;
+    const out = namespaceEmbeddedAnimatedSvg(svg, "L1_");
+    // The visible group's class/keyframe WERE namespaced (sanity: namespacer ran).
+    expect(out).toContain("L1_k");
+    // The real-text group + its authored text are byte-for-byte preserved.
+    expect(out).toContain(`<g data-domotion-real-text-layer="true" fill="none" stroke="none" xml:space="preserve"><text x="1" y="9" font-size="8">SearchMeAcrossLayers</text></g>`);
+  });
+});

@@ -8450,17 +8450,24 @@
         ],
         "tickets": [
           "DM-1775",
-          "DM-2715"
+          "DM-2715",
+          "DM-6SQXGF"
         ],
         "code": [
           "src/cli/capture.ts",
+          "src/cli/animate-command.ts",
+          "src/cli/animate-orchestrator.ts",
+          "src/cli/animate-frame-capture.ts",
+          "src/scroll/composer.ts",
+          "src/animation/compressed-run.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/real-text-layer.ts",
           "src/render/text-to-path.ts",
           "src/render/text.ts",
           "src/render/pseudo-fragments.ts",
           "src/render/real-text-layer.test.ts",
-          "tests/real-text-layer.e2e.test.ts"
+          "tests/real-text-layer.e2e.test.ts",
+          "tests/animate-real-text.e2e.test.ts"
         ],
         "aliases": [
           "docs/260-inline-svg-real-text-layer.md",

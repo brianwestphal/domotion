@@ -724,3 +724,36 @@ describe("composeScrollSvg: per-action easing", () => {
     expect(svg).not.toMatch(/translate3d\([^)]*\);[^}]*animation-timing-function/);
   });
 });
+
+// DM-6SQXGF: --real-text composes with --scroll. Each visibility-gated content
+// region (here, each scroll segment) carries its own paintless real-text layer,
+// so only the on-screen scroll position's authored text is exposed to Find-in-
+// Page / AT. Default off preserves exact output.
+describe("composeScrollSvg — real-text layer (DM-6SQXGF)", () => {
+  const ADV = 8;
+  const textEl = (word: string): CapturedElement => el({
+    tag: "div", x: 10, y: 30, width: word.length * ADV, height: 19,
+    text: word, fontAscent: 11.5, fontDescent: 3,
+    textSegments: [{
+      text: word, x: 10, y: 30, width: word.length * ADV, height: 19,
+      xOffsets: [...word].map((_, i) => 10 + i * ADV),
+    }],
+  } as Partial<CapturedElement> & { tag: string; x: number; y: number });
+  const segs = (): ScrollSegmentCapture[] => [
+    makeSeg(0, 0, 300, [textEl("ScrollWordA")]),
+    makeSeg(200, 300, 600, [textEl("ScrollWordB")]),
+  ];
+
+  it("emits no real-text layer by default", () => {
+    const svg = composeScrollSvg(segs(), { viewportW: 400, viewportH: 200 });
+    expect(svg).not.toContain("data-domotion-real-text-layer");
+  });
+
+  it("emits a per-segment real-text layer carrying that segment's text when on", () => {
+    const svg = composeScrollSvg(segs(), { viewportW: 400, viewportH: 200, realText: true });
+    const layers = svg.match(/data-domotion-real-text-layer="true"/g) ?? [];
+    expect(layers.length).toBeGreaterThanOrEqual(2); // one per visibility-gated segment
+    expect(svg).toContain("ScrollWordA");
+    expect(svg).toContain("ScrollWordB");
+  });
+});

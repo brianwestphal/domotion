@@ -65,6 +65,7 @@ import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 // Speculative composition (kept off the package barrel — import direct, as the
 // animator does). Brackets each per-region trial compose so its PUA / dmfN
 // addressing leaves no trace in the real output.
@@ -868,6 +869,16 @@ export const animateConfigSchema = z
      * with a logged reason regardless.
      */
     autoCompress: z.boolean().optional(),
+    /**
+     * DM-6SQXGF: append the opt-in paintless real-text layer (doc 260) to each
+     * frame, so the composed animated SVG has searchable/selectable/accessible
+     * authored text. The layer is emitted INSIDE each frame group, which the
+     * animator toggles with a `visibility` keyframe (DM-641), so only the active
+     * frame's text is exposed to Find-in-Page / AT — hidden frames' text is
+     * `visibility:hidden` and skipped by both. Paintless (`fill=none stroke=none`),
+     * so it adds zero visual regions. Defaults off; `--real-text` on the CLI.
+     */
+    realText: z.boolean().optional(),
     frames: z.array(frameSchema).min(1, "must be a non-empty array"),
   })
   .superRefine((cfg, ctx) => {
@@ -1675,7 +1686,7 @@ async function buildCapturedFrame(
     const outerGeneration = snapshotGeneration();
     let composed: string;
     try {
-      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3] });
+      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3], realText: cfg.realText === true });
     } finally {
       restoreGeneration(outerGeneration);
     }
@@ -1708,6 +1719,7 @@ async function buildCapturedFrame(
       animations: resolvedAnimations,
       frameStartMs,
       totalDurationMs: ctx.timeline.totalDurationMs,
+      realText: cfg.realText === true,
     });
     frameCullCss = captured.cullCss;
     rootBg = captured.rootBackground;
@@ -2140,6 +2152,9 @@ async function buildStatesRunContent(
     // inside them (the hybrid contract — auto-detection stays the default
     // everywhere the author declared nothing).
     ...(regionIds.length > 0 ? { regionRootIds: regionIds } : {}),
+    // DM-6SQXGF: propagate the whole-config real-text opt-in into the run (it
+    // emits one paintless layer from the final state).
+    ...(cfg.realText === true ? { realText: true } : {}),
     // Defer @font-face to the outer run's shared embedded-font builder (one
     // scene-wide block, collected after the loop) — the cast pattern.
     manageFonts: false,
@@ -2202,7 +2217,7 @@ async function buildStatesRunContent(
         restoreGeneration(marker);
       }
       const fbMarker = snapshotGeneration();
-      const flipbookLen = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg).svg.length;
+      const flipbookLen = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg, cfg.realText === true).svg.length;
       restoreGeneration(fbMarker);
 
       // Pick the smallest; keep-all wins ties (never rewrite when nothing helps),
@@ -2216,7 +2231,7 @@ async function buildStatesRunContent(
         periodMs = chosen.durationMs;
       } else if (flipbookLen < run.svg.length) {
         restoreGeneration(preRun);
-        const fb = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg);
+        const fb = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg, cfg.realText === true);
         log(`  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); uncompressed is ${toKb(fb.svg.length)} KB`);
         svg = fb.svg;
         periodMs = fb.durationMs;
@@ -2291,6 +2306,11 @@ export function composeStatesFlipbook(
   height: number,
   idPrefix: string,
   background?: string,
+  // DM-6SQXGF: append one paintless real-text layer from the FINAL state, and
+  // aria-hide the per-state visible glyph runs — matching the compressed run's
+  // ownership (this is that run's uncompressed fallback), so a states run keeps
+  // the same searchable/AT text whether or not auto-compress reverted it.
+  realText: boolean = false,
 ): { svg: string; durationMs: number } {
   const totalMs = holdMs.reduce((a, b) => a + b, 0);
   const starts: number[] = [];
@@ -2310,11 +2330,14 @@ export function composeStatesFlipbook(
     stops.push(`100%{display:${j === last ? "inline" : "none"}}`);
     kf.push(`@keyframes ${idPrefix}fb${j}{${stops.join("")}}`);
     rules.push(`#${idPrefix}fb${j}{animation:${idPrefix}fb${j} ${(totalMs / 1000).toFixed(3)}s step-end infinite}`);
-    groups.push(`<g id="${idPrefix}fb${j}">${elementTreeToSvgInner(trees[j], width, height, `${idPrefix}s${j}-`, true, 2, false)}</g>`);
+    const renderState = (): string => elementTreeToSvgInner(trees[j], width, height, `${idPrefix}s${j}-`, true, 2, false);
+    const stateInner = realText ? withRealTextLayerVisualSemantics(renderState) : renderState();
+    groups.push(`<g id="${idPrefix}fb${j}">${stateInner}</g>`);
   }
+  const realTextLayer = realText && trees.length > 0 ? renderRealTextLayer(trees[last]) : "";
   const bgRect = background != null ? `<rect width="${width}" height="${height}" fill="${escapeAttr(background)}"/>` : "";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${kf.join("")}${rules.join("")}</style>${bgRect}${groups.join("")}</svg>`;
+    + `<style>${kf.join("")}${rules.join("")}</style>${bgRect}${groups.join("")}${realTextLayer}</svg>`;
   return { svg, durationMs: totalMs };
 }
 

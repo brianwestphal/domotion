@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1775","DM-2715"]
-code: ["src/cli/capture.ts","src/render/element-tree-to-svg.ts","src/render/real-text-layer.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/pseudo-fragments.ts","src/render/real-text-layer.test.ts","tests/real-text-layer.e2e.test.ts"]
+tickets: ["DM-1775","DM-2715","DM-6SQXGF"]
+code: ["src/cli/capture.ts","src/cli/animate-command.ts","src/cli/animate-orchestrator.ts","src/cli/animate-frame-capture.ts","src/scroll/composer.ts","src/animation/compressed-run.ts","src/render/element-tree-to-svg.ts","src/render/real-text-layer.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/pseudo-fragments.ts","src/render/real-text-layer.test.ts","tests/real-text-layer.e2e.test.ts","tests/animate-real-text.e2e.test.ts"]
 aliases: ["docs/260-inline-svg-real-text-layer.md","doc-260"]
 ---
 
@@ -76,14 +76,56 @@ flatten the descendant text flow.
   `fill="none"` and `stroke="none"`.
 - Default rendering must emit no layer and retain its previous run labels.
 
+## Multi-frame composition (DM-6SQXGF)
+
+`--real-text` composes with multi-frame outputs — animated flipbooks
+(`animate --real-text` / config `realText: true`), `capture --scroll`, compressed
+editing runs, and Studio/composite layers. The contract is **active-frame
+ownership**: only the currently on-screen frame's authored text is exposed to
+Find-in-Page and assistive technology; other frames' text is not.
+
+This falls out of the existing hide mechanism rather than any per-frame
+bookkeeping. The animator and scroll composer hide inactive frames/segments with
+a **`visibility: hidden` keyframe** (DM-641), and Chrome's Find-in-Page and the
+accessibility tree both **exclude `visibility:hidden` text** (`opacity:0` text is
+still found — so relying on the visibility track, not opacity, is load-bearing).
+So the layer is emitted **inside each visibility-gated group**, inheriting its
+window:
+
+- **Animated flipbook**: one layer per frame, inside its `<g class="f f-N">`
+  (`animate-frame-capture.ts`). Frame hoisting/culling is per-frame, so no
+  cross-frame duplication.
+- **`--scroll`**: one layer per visibility-gated content region — each scroll
+  segment plus the hoisted sticky/fixed/static layers (`scroll/composer.ts`).
+  Hoisting places each element's content in exactly one region.
+- **Compressed run**: a run flattens N states into one emission with `opacity`
+  birth tracks (which stay find-in-page-visible) and synthetic glyph elements
+  (no `TextSegment`s), so per-state gating is impossible. Instead it emits **one**
+  layer from the **final state's** tree — a stable deduplicated story flow;
+  intermediate typing prefixes are deliberately not exposed
+  (`animation/compressed-run.ts`, and the uncompressed `composeStatesFlipbook`
+  fallback matches it).
+- **Composite**: needs no real-text-specific code. Layers are pre-rendered with
+  their own real text; `namespaceEmbeddedAnimatedSvg` rewrites ids/classes/fonts/
+  keyframes only and leaves the paintless `data-domotion-real-text-layer` group
+  and its `<text>` untouched. Stacked layers are simultaneously visible, so each
+  contributing its own active-frame text is correct (no cross-layer dedup).
+
+In every path the visible glyph runs switch to `aria-hidden="true"` while a layer
+owns their readable string (`withRealTextLayerVisualSemantics`, scoped per
+frame/state/layer), and the layer stays paintless, so the composed paint is
+byte-identical — **zero visual regions**.
+
 ## Honest limits
 
 - `<img src="capture.svg">` remains an image: its inner SVG DOM is neither
   searchable nor selectable and is not exposed as document text. Inline
   `<svg>` is required. The same caveat applies to image-only preview surfaces.
-- DM-1775 covers single-frame capture. `--real-text` rejects paged capture and
-  animated `--scroll` composition rather than silently claiming semantics for
-  multiple simultaneous frame trees. DM-2715 owns those formats.
+- `--real-text` still **rejects paged capture** (its authenticated native SVG
+  bytes have a separate contract). Multi-frame animation/scroll/compressed/
+  composite are supported (DM-6SQXGF, above); the niche animate frame *types*
+  built from non-DOM sources — terminal (`tr`), jsReveal (`jr`), and pre-rendered
+  embedded frames — do not yet inject a layer and are tracked separately.
 - Text selection geometry is anchored to captured run positions, but native
   selection highlight details and accessibility presentation remain properties
   of the consuming browser and assistive technology.

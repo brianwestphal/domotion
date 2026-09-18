@@ -134,9 +134,8 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   if (!har && (values.url != null || values["har-fallback"] === true)) {
     throw new Error("capture: --url / --har-fallback only apply to a .har input");
   }
-  if (values["real-text"] === true && values.scroll != null) {
-    throw new Error("capture: --real-text currently supports single-frame capture, not --scroll composition");
-  }
+  // DM-6SQXGF: --real-text now composes with --scroll (the composer emits a
+  // paintless real-text layer per visibility-gated scroll region).
   if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
     throw new Error(`capture: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`);
   }
@@ -439,7 +438,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         });
       }
       svg = await timed(log, `  composed scroll SVG`, () =>
-        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc })),
+        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc, realText: flags.realTextLayer })),
       );
     } else {
       log(`Capturing element tree…`);

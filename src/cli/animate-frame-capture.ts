@@ -16,6 +16,11 @@ export interface AnimateFrameCaptureRequest {
   animations: IntraFrameAnimation[];
   frameStartMs: number;
   totalDurationMs: number;
+  /** DM-6SQXGF: append the paintless real-text layer to this frame's content.
+   *  The frame's `<g class="f f-N">` wrapper carries a `visibility` keyframe, so
+   *  the nested layer is only exposed to Find-in-Page / AT while the frame is the
+   *  active (visible) one. Default false preserves exact output. */
+  realText?: boolean;
 }
 
 export interface AnimateFrameCaptureResult {
@@ -46,7 +51,7 @@ export async function captureAnimateFrame(
   );
   return {
     tree,
-    svgContent: elementTreeToSvgInner(tree, request.width, request.height, request.framePrefix, true, 2, false),
+    svgContent: elementTreeToSvgInner(tree, request.width, request.height, request.framePrefix, true, 2, false, request.realText === true),
     cullCss: cull.css,
     rootBackground: tree[0]?.styles?.rootBgComputed,
   };

@@ -929,3 +929,39 @@ describe("composeCompressedRun — composed output", () => {
     expect(res.svg).toContain('<rect width="640" height="240" fill="rgb(232, 234, 238)"/>');
   });
 });
+
+// DM-6SQXGF: the compressed run owns ONE paintless real-text layer from the
+// FINAL state (a stable deduplicated story flow — intermediate typing prefixes
+// are deliberately not exposed), and aria-hides the visible glyph/chrome runs.
+describe("composeCompressedRun — real-text layer (DM-6SQXGF)", () => {
+  const seq = (): CompressedRunState[] => [
+    state([box([lineEl("InterWord")])], 150),
+    state([box([lineEl("FinalWord")])], 700),
+  ];
+
+  it("is off by default and byte-identical to an explicit realText:false run", () => {
+    const plain = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "rt0" });
+    expect(plain.svg).not.toContain("data-domotion-real-text-layer");
+    const off = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "rt0", realText: false });
+    expect(off.svg).toBe(plain.svg);
+  });
+
+  it("emits exactly ONE layer carrying the FINAL state's text, not the intermediate one", () => {
+    const res = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "rt1", realText: true });
+    const layers = res.svg.match(/data-domotion-real-text-layer="true"/g) ?? [];
+    expect(layers.length).toBe(1);
+    const layerStart = res.svg.indexOf("<g data-domotion-real-text-layer");
+    const layer = res.svg.slice(layerStart, res.svg.lastIndexOf("</svg>"));
+    expect(layer).toContain("FinalWord");     // final state owns the readable flow
+    expect(layer).not.toContain("InterWord"); // intermediate typing prefix not exposed
+  });
+
+  it("aria-hides the visible runs when the real-text layer owns semantics", () => {
+    const withRt = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "rt2", realText: true });
+    const without = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "rt2" });
+    expect(withRt.svg).toContain('aria-hidden="true"');
+    // The visible glyph geometry itself is unchanged — only its a11y annotation
+    // and the appended paintless layer differ.
+    expect(without.svg).not.toContain("data-domotion-real-text-layer");
+  });
+});

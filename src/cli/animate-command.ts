@@ -34,6 +34,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       "no-auto-compress": { type: "boolean" },
       brand: { type: "string" },
       "text-mode": { type: "string" },
+      "real-text": { type: "boolean" },
       quiet: { type: "boolean" },
       debug: { type: "boolean" },
       "debug-dir": { type: "string" },
@@ -68,6 +69,8 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const configDir = dirname(configPath);
   if (values["auto-compress"] === true) cfg.autoCompress = true;
   if (values["no-auto-compress"] === true) cfg.autoCompress = false;
+  // DM-6SQXGF: append the paintless real-text layer to every frame (doc 260).
+  if (values["real-text"] === true) cfg.realText = true;
 
   let safeInset: SafeInset | undefined;
   if (values.format != null) {
