@@ -22,6 +22,7 @@
  */
 
 import { r } from "./format.js";
+import { computeViewportMatrix, parsePreserveAspectRatio, type ViewBox } from "./svg-viewport-matrix.js";
 
 /**
  * Prefix every `id="…"`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` in an
@@ -210,4 +211,154 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
     ` x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"` +
     ` viewBox="${viewBox}" preserveAspectRatio="${p.par}">`;
   return open + body;
+}
+
+// ── DM-K0S6ZS: opt-in nested-SVG FLATTENING ────────────────────────────────
+//
+// Some consuming tools (e.g. Sketch) do not import a nested `<svg>` element
+// cleanly. `flattenImgSvg` replaces the nested `<svg>` wrapper with a
+// `<g transform="matrix(...)">` (from the viewport→viewBox matrix, DM-DQXZ6K),
+// plus a rect clip when the source's overflow is hidden. It is opt-in and
+// defaults OFF — a nested `<svg>` is the spec-correct, robust default; flattening
+// is a compatibility mode. It also GATES: any source that isn't safely
+// flattenable (viewport-relative `%` in user space, an inner `<style>` with
+// non-id/class selectors, `<symbol>` / a further nested `<svg>` / a `<use>`, or
+// `vector-effect="non-scaling-stroke"`) returns null so the caller keeps the
+// nested `<svg>`.
+
+let flattenNestedSvgEnabled = false;
+/** Enable/disable opt-in nested-SVG flattening for the process (DM-K0S6ZS). */
+export function setFlattenNestedSvg(enabled: boolean): void { flattenNestedSvgEnabled = enabled; }
+export function getFlattenNestedSvg(): boolean { return flattenNestedSvgEnabled; }
+
+/** Resolve the source SVG's numeric viewBox (own viewBox, else synthesized from
+ *  absolute width/height, else the `<img>` intrinsic size), or null. */
+function resolveViewBoxRect(attrs: string, intrinsic?: { w: number; h: number } | null): ViewBox | null {
+  const vbStr = extractViewBox(attrs);
+  if (vbStr != null) {
+    const nums = vbStr.split(/[\s,]+/).map(Number);
+    if (nums.length === 4 && nums.every((n) => Number.isFinite(n)) && nums[2] > 0 && nums[3] > 0) {
+      return { minX: nums[0], minY: nums[1], width: nums[2], height: nums[3] };
+    }
+    return null;
+  }
+  let vw = readLengthAttr(attrs, "width");
+  let vh = readLengthAttr(attrs, "height");
+  if ((vw == null || vh == null) && intrinsic != null && intrinsic.w > 0 && intrinsic.h > 0) {
+    vw = intrinsic.w;
+    vh = intrinsic.h;
+  }
+  if (vw == null || vh == null) return null;
+  return { minX: 0, minY: 0, width: vw, height: vh };
+}
+
+/** Does the source use a `%` on a viewport-relative geometry attribute? Gradient
+ *  / pattern / clipPath / mask / filter def blocks (whose `%` is objectBoundingBox-
+ *  relative by default, unaffected by the group transform) are removed first;
+ *  a `userSpaceOnUse` block with any `%` is treated as unsafe. */
+function hasViewportRelativePercent(body: string): boolean {
+  const DEF_BLOCK = /<(linearGradient|radialGradient|pattern|clipPath|mask|filter)\b[\s\S]*?<\/\1>/gi;
+  const defs: string[] = [];
+  const painted = body.replace(DEF_BLOCK, (m) => { defs.push(m); return " "; });
+  // Painted (non-def) geometry with any `%` resolves against the viewport.
+  if (/=\s*"(?:[^"]*\s)?[-\d.]+%/.test(painted) || /=\s*'(?:[^']*\s)?[-\d.]+%/.test(painted)) return true;
+  // A def in user space with any `%` is viewport-relative too.
+  for (const d of defs) {
+    if (/userSpaceOnUse/i.test(d) && /[-\d.]+%/.test(d)) return true;
+  }
+  return false;
+}
+
+/** A `<style>` selector that isn't purely `.class` / `#id` (an element,
+ *  universal, attribute, or pseudo selector) leaks into the outer document once
+ *  the SVG is merged, so such a source is not safely flattenable. */
+function hasUnscopableStyleSelector(body: string): boolean {
+  const styleBlocks = body.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi);
+  if (styleBlocks == null) return false;
+  for (const block of styleBlocks) {
+    const css = block.replace(/<style\b[^>]*>/i, "").replace(/<\/style>/i, "");
+    for (const rule of css.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+      for (const selector of rule[1].split(",")) {
+        // Strip class/id tokens and combinators/whitespace; anything left over
+        // (a bare element name, `*`, `[attr]`, `:pseudo`) is unscopable.
+        const remainder = selector
+          .replace(/[.#][-_a-zA-Z0-9]+/g, "")
+          .replace(/[\s>+~]+/g, "")
+          .trim();
+        if (remainder !== "") return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** Whether the source SVG can be flattened to a `<g transform>` without changing
+ *  its rendered result. Conservative: a false negative only costs a fallback to
+ *  the (correct) nested `<svg>`; a false positive would mis-render. */
+export function isSvgSafeToFlatten(body: string): boolean {
+  // Nested viewports / references / embedded HTML — each would need its own
+  // viewport expansion (tracked separately, DM-6NT73F).
+  if (/<(?:svg|symbol|use|foreignObject|image)\b/i.test(body)) return false;
+  // Non-scaling stroke is defined relative to the viewport in effect.
+  if (/vector-effect\s*=\s*["']?\s*non-scaling-stroke/i.test(body)) return false;
+  if (hasViewportRelativePercent(body)) return false;
+  if (hasUnscopableStyleSelector(body)) return false;
+  return true;
+}
+
+/**
+ * DM-K0S6ZS: rewrite an SVG file's source into a positioned, id-namespaced
+ * `<g transform="matrix(...)">` (the flattened counterpart of {@link inlineImgSvg})
+ * instead of a nested `<svg>`. Returns null — so the caller falls back to
+ * `inlineImgSvg` — when the source has no `<svg>` root, no usable coordinate
+ * system, or any feature that isn't safely flattenable (see
+ * {@link isSvgSafeToFlatten}). Emits a rect clip at the placement rect unless the
+ * source sets `overflow: visible`, since a `<g>` (unlike a viewport) does not clip.
+ */
+export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | null {
+  const tag = /<svg\b([^>]*)>/i.exec(svgText);
+  if (tag == null) return null;
+  const attrs = tag[1];
+  const rawBody = svgText.slice(tag.index + tag[0].length);
+  // Drop a trailing `</svg>` (and anything after) so we emit only the children.
+  const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
+  const bodySource = closeIdx >= 0 ? rawBody.slice(0, closeIdx) : rawBody;
+
+  if (!isSvgSafeToFlatten(bodySource)) return null;
+
+  const viewBox = resolveViewBoxRect(attrs, p.intrinsic);
+  if (viewBox == null) return null;
+  const matrix = computeViewportMatrix(
+    { x: p.x, y: p.y, w: p.w, h: p.h },
+    viewBox,
+    parsePreserveAspectRatio(p.par),
+  );
+  if (matrix == null) return null;
+
+  // Namespace ids/classes exactly as the nested path does (DM-1588 / DM-1593).
+  let body = prefixSvgIds(bodySource, p.idPrefix);
+  if (/<style[\s>]/i.test(svgText)) body = prefixSvgClasses(body, p.idPrefix);
+  // Inheritable presentation properties + currentColor context on the root svg
+  // must survive: carry a root `color`/`fill`/… by keeping the source svg's
+  // presentation attrs on the group (strip layout attrs it must not carry).
+  const groupAttrs = prefixSvgIds(
+    stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio", "xmlns", "xmlns:xlink", "version", "overflow"]),
+    p.idPrefix,
+  ).replace(/\s+$/, "");
+
+  // The `r()` px formatter rounds to 1 decimal — fine for coordinates but far
+  // too coarse for the scale/skew components (0.6667 would round to 0.7, a ~5%
+  // scale error). Use 6-decimal precision for the whole matrix.
+  const mf = (n: number): string => Number(n.toFixed(6)).toString();
+  const m = `matrix(${mf(matrix.a)} ${mf(matrix.b)} ${mf(matrix.c)} ${mf(matrix.d)} ${mf(matrix.e)} ${mf(matrix.f)})`;
+  const group = `<g${groupAttrs} transform="${m}">${body}</g>`;
+
+  // A nested `<svg>` clips to its viewport (overflow:hidden default); a `<g>`
+  // does not. Add a rect clip at the placement rect unless overflow is visible.
+  const overflowVisible = /\boverflow\s*=\s*["']?\s*visible/i.test(attrs)
+    || /\boverflow\s*:\s*visible/i.test(attrs);
+  if (overflowVisible) return group;
+  const clipId = `${p.idPrefix}vclip`;
+  return `<clipPath id="${clipId}"><rect x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"/></clipPath>`
+    + `<g clip-path="url(#${clipId})">${group}</g>`;
 }

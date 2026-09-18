@@ -131,6 +131,11 @@ capture options:
                            (glyph outlines), or system-font (authored <text>
                            painted by the VIEWER's installed fonts — smaller,
                            NOT pixel-faithful, requires the fonts to be present).
+      --flatten-nested-svg Merge an inlined <img src=*.svg> into the output as a
+                           <g transform> instead of a nested <svg> element (for
+                           tools like Sketch that mishandle nested <svg>). Opt-in;
+                           renders identically, and falls back to the nested <svg>
+                           for sources that aren't safely flattenable.
       --no-embed-images    Leave <img>/background images as external URL refs
                            instead of embedding them (default: embed so the SVG
                            is self-contained).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inlineImgSvg, prefixSvgIds, prefixSvgClasses } from "./svg-inline.js";
+import { inlineImgSvg, flattenImgSvg, isSvgSafeToFlatten, prefixSvgIds, prefixSvgClasses } from "./svg-inline.js";
 import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -269,5 +269,68 @@ describe("prefixSvgIds scope-complete references", () => {
     expect(out).toContain(`id="svgscope1-shared"`);
     expect(out.match(/href="#svgscope0-shared"/g)).toHaveLength(2);
     expect(out).toContain(`href="#svgscope1-shared"`);
+  });
+});
+
+// DM-K0S6ZS: opt-in nested-SVG flattening (isSvgSafeToFlatten + flattenImgSvg).
+describe("isSvgSafeToFlatten — the gate (DM-K0S6ZS)", () => {
+  it("accepts a plain presentation-attribute icon", () => {
+    expect(isSvgSafeToFlatten(`<path d="M0 0h10v10z" fill="red"/><circle cx="5" cy="5" r="2"/>`)).toBe(true);
+  });
+  it("accepts a gradient icon with objectBoundingBox (default) % offsets", () => {
+    expect(isSvgSafeToFlatten(
+      `<defs><linearGradient id="g"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient></defs>` +
+      `<rect width="10" height="10" fill="url(#g)"/>`,
+    )).toBe(true);
+  });
+  it("rejects viewport-relative % on painted geometry", () => {
+    expect(isSvgSafeToFlatten(`<rect x="0" y="0" width="50%" height="100%" fill="red"/>`)).toBe(false);
+  });
+  it("rejects a userSpaceOnUse gradient with %", () => {
+    expect(isSvgSafeToFlatten(
+      `<defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0%" x2="100%"><stop offset="0"/></linearGradient></defs><rect width="10" height="10"/>`,
+    )).toBe(false);
+  });
+  it("rejects <use>, <symbol>, a nested <svg>, <foreignObject>, and <image>", () => {
+    expect(isSvgSafeToFlatten(`<symbol id="s"><path d="M0 0h1v1z"/></symbol><use href="#s"/>`)).toBe(false);
+    expect(isSvgSafeToFlatten(`<svg viewBox="0 0 5 5"><rect width="5" height="5"/></svg>`)).toBe(false);
+    expect(isSvgSafeToFlatten(`<foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject>`)).toBe(false);
+    expect(isSvgSafeToFlatten(`<image href="x.png" width="10" height="10"/>`)).toBe(false);
+  });
+  it("rejects non-scaling-stroke", () => {
+    expect(isSvgSafeToFlatten(`<path d="M0 0h10" stroke="red" vector-effect="non-scaling-stroke"/>`)).toBe(false);
+  });
+  it("accepts a <style> with only class/id selectors, rejects an element/universal selector", () => {
+    expect(isSvgSafeToFlatten(`<style>.a{fill:red}#b{fill:blue}</style><path class="a" d="M0 0h1v1z"/>`)).toBe(true);
+    expect(isSvgSafeToFlatten(`<style>path{fill:red}</style><path d="M0 0h1v1z"/>`)).toBe(false);
+    expect(isSvgSafeToFlatten(`<style>*{fill:red}</style><path d="M0 0h1v1z"/>`)).toBe(false);
+  });
+});
+
+describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
+  const place = { x: 4, y: 8, w: 16, h: 16, par: "xMidYMid meet", idPrefix: "svgimg0" };
+
+  it("emits a matrix-transformed group with a viewport clip for a safe icon", () => {
+    const out = flattenImgSvg(`<svg viewBox="0 0 24 24"><path d="M2 2h20v20H2z" fill="red"/></svg>`, place);
+    expect(out).not.toBeNull();
+    expect(out).not.toContain("<svg"); // the nested <svg> wrapper is gone
+    expect(out).toMatch(/<g[^>]* transform="matrix\(0\.666667 0 0 0\.666667 4 8\)"/); // 16/24 scale, placed at (4,8)
+    expect(out).toContain(`<clipPath id="svgimg0vclip">`); // overflow-hidden default → rect clip
+    expect(out).toContain(`d="M2 2h20v20H2z"`);
+  });
+
+  it("omits the clip when the source sets overflow:visible", () => {
+    const out = flattenImgSvg(`<svg viewBox="0 0 24 24" overflow="visible"><path d="M0 0h1v1z"/></svg>`, place);
+    expect(out).not.toBeNull();
+    expect(out).not.toContain("clipPath");
+  });
+
+  it("returns null (→ caller keeps the nested <svg>) for an unsafe source", () => {
+    expect(flattenImgSvg(`<svg viewBox="0 0 24 24"><rect width="50%" height="50%"/></svg>`, place)).toBeNull();
+    expect(flattenImgSvg(`<svg viewBox="0 0 24 24"><use href="#x"/></svg>`, place)).toBeNull();
+  });
+
+  it("returns null when there is no usable coordinate system", () => {
+    expect(flattenImgSvg(`<svg><path d="M0 0h1v1z"/></svg>`, place)).toBeNull();
   });
 });

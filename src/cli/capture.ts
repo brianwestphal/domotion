@@ -37,6 +37,7 @@ import {
   wrapInDeviceChrome,
   wrapSvg,
 } from "../index.js";
+import { setFlattenNestedSvg } from "../render/svg-inline.js";
 import { attachWebfontTracker, crossOriginFramesLaunchArgs, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
 import { parseCrossOriginAllowlist } from "../capture/script/cross-origin.js";
 import { loadBrand } from "../templates/brand.js";
@@ -223,6 +224,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "prefer-css-page-size": { type: "boolean" },
       "real-text":         { type: "boolean" },
       "text-mode":         { type: "string" },
+      "flatten-nested-svg": { type: "boolean" },
       help:               { type: "boolean", short: "h" },
     },
   });
@@ -243,6 +245,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
     setRenderTextMode(values["text-mode"]);
   }
+  // DM-K0S6ZS: opt-in — flatten inlined `<img src=*.svg>` nested `<svg>`s into a
+  // `<g transform>` (falls back to the nested `<svg>` for unsafe sources).
+  if (values["flatten-nested-svg"] === true) setFlattenNestedSvg(true);
   if (values.paged === true) {
     const log = makeLogger(values.quiet === true);
     const { capturePagedSvgBundle } = await import("../capture/paged-capture.js");

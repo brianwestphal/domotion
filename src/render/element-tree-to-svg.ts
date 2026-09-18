@@ -81,7 +81,7 @@ import {
   setActiveHiDPIFactor,
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
-import { inlineImgSvg, prefixSvgClasses, prefixSvgIds } from "./svg-inline.js";
+import { inlineImgSvg, flattenImgSvg, getFlattenNestedSvg, prefixSvgClasses, prefixSvgIds } from "./svg-inline.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
@@ -511,12 +511,13 @@ function paintImage(
     // exact with no distortion. Falls back to the raster `<image>` when the
     // source isn't SVG or has no usable coordinate system.
     const svgTextNone = resolveSvgSource(el.imageSrc);
-    const inlinedNone = svgTextNone != null
-      ? inlineImgSvg(svgTextNone, {
-          x: ix, y: iy, w: iw, h: ih,
-          par: "none", intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg"),
-        })
-      : null;
+    let inlinedNone: string | null = null;
+    if (svgTextNone != null) {
+      // DM-K0S6ZS: opt-in flatten to `<g transform>` (falls back to the nested
+      // `<svg>` for sources that aren't safely flattenable).
+      const placement = { x: ix, y: iy, w: iw, h: ih, par: "none", intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg") };
+      inlinedNone = (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
+    }
     if (inlinedNone != null) {
       ctx.svgParts.push(`${indent}<g clip-path="url(#${clipId})">${inlinedNone}</g>`);
     } else {
@@ -535,10 +536,10 @@ function paintImage(
     // A source with no usable coordinate system returns null → raster fallback.
     const svgText = resolveSvgSource(el.imageSrc);
     if (svgText != null) {
-      const inlined = inlineImgSvg(svgText, {
-        x: contentX, y: contentY, w: contentW, h: contentH,
-        par, intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg"),
-      });
+      // DM-K0S6ZS: opt-in flatten to `<g transform>` (falls back to the nested
+      // `<svg>` for sources that aren't safely flattenable).
+      const placement = { x: contentX, y: contentY, w: contentW, h: contentH, par, intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg") };
+      const inlined = (getFlattenNestedSvg() ? flattenImgSvg(svgText, placement) : null) ?? inlineImgSvg(svgText, placement);
       if (inlined != null) {
         ctx.svgParts.push(
           roundedClipId != null
