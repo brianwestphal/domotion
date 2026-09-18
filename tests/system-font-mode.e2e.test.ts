@@ -65,4 +65,35 @@ describe("system-font render mode (DM-2716)", () => {
     expect(info!.family).toContain("Helvetica Neue");
     expect(info!.selectable).toBe(true);
   });
+
+  // DM-CAGCSM: an rtl run's captured origin x is its visual-LEFT edge, so the
+  // emitted `<text>` must pair `direction="rtl"` with `text-anchor="end"` — the
+  // default start-anchor would place the run's RIGHT edge at its left edge and
+  // shift the whole run left by its width (overlapping its neighbour). This pins
+  // the anchor and checks the run renders on the right side of an rtl paragraph.
+  it("anchors an rtl run with text-anchor=end so it does not shift left off its origin", async () => {
+    await sourcePage.setContent(`<!doctype html><style>
+      html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;background:#fff;color:#111}
+      p{font:24px/1.4 Arial,sans-serif;padding:20px}
+    </style><p dir="rtl">שלום עולם ABC</p>`);
+    const tree = await captureElementTree(sourcePage, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+    const svg = render(tree, "system-font");
+
+    // Every emitted rtl <text> pairs direction=rtl with text-anchor=end.
+    const rtlTexts = [...svg.matchAll(/<text\b([^>]*)>/g)].map((m) => m[1]).filter((a) => /direction="rtl"/.test(a));
+    expect(rtlTexts.length).toBeGreaterThan(0);
+    for (const attrs of rtlTexts) expect(attrs).toMatch(/text-anchor="end"/);
+
+    // Rendered, the rtl run sits on the RIGHT of the paragraph (its rightmost
+    // glyph is well past centre), not collapsed onto the left edge.
+    await outputPage.setContent(`<!doctype html><body style="margin:0;background:#fff">${svg}</body>`);
+    const rightEdge = await outputPage.evaluate((w) => {
+      let maxRight = 0;
+      for (const t of document.querySelectorAll("svg text")) {
+        maxRight = Math.max(maxRight, t.getBoundingClientRect().right);
+      }
+      return { maxRight, w };
+    }, WIDTH);
+    expect(rightEdge.maxRight).toBeGreaterThan(WIDTH / 2);
+  });
 });

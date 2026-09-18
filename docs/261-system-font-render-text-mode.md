@@ -81,6 +81,16 @@ per-character offsets, so those functions skip their mirroring and hand the
 browser untouched logical text; the emitted `direction` / `unicode-bidi` drive
 the browser's own UAX #9 reordering and mirroring.
 
+An rtl run additionally emits **`text-anchor="end"`** (DM-CAGCSM). The run's
+captured origin `x` is its visual-*left* edge, but SVG's default
+`text-anchor: start` anchors the text's *start* — which, under `direction: rtl`,
+is the *right* edge. Left unset it would place the run's right edge at its left
+edge, shifting the whole run left by its width and overlapping its neighbour;
+`text-anchor="end"` anchors the run's visual-left (the end, in rtl inline order)
+where it was captured. Verified by rasterization against Chrome for Hebrew+Latin,
+Arabic contextual joining, and paired-bracket mirroring; ltr runs emit no
+`direction` and are unaffected.
+
 ## Limitations (accepted for this mode)
 
 - **Fonts must be present on the viewer.** Absent fonts fall back to whatever
@@ -89,7 +99,18 @@ the browser's own UAX #9 reordering and mirroring.
 - **Complex-script fidelity depends on the viewer's shaping**, not Domotion's:
   synthetic dotted circles, contextual joining, and mark positioning are
   produced by the viewer's own HarfBuzz over the source text, not reproduced
-  from the capture. RTL/vertical fidelity under browser reflow is best-effort.
+  from the capture. RTL run *ordering, mirroring, and anchoring* are correct (the
+  browser's UBA plus the `text-anchor="end"` fix above); only the inter-run
+  horizontal spacing carries the general positional drift, as for ltr.
+- **Vertical writing modes are only partially supported** (DM-CAGCSM →
+  follow-up DM-ZDDJAG). A `writing-mode: vertical-*` run is emitted as
+  individually-positioned, per-character, **upright** `<text>` at each glyph's
+  captured column position — so upright CJK (`text-orientation: mixed`/`upright`)
+  renders about right, but the column is *N separate one-glyph `<text>` elements*
+  (not one selectable/searchable run) and **sideways/rotated orientation**
+  (`text-orientation: sideways`, Latin glyphs in vertical text) is **not**
+  reproduced — every glyph stays upright. `renderTextAsSystemFont` emits no
+  `writing-mode` / `text-orientation`. Proper support is tracked separately.
 - Text **decorations** (underline/line-through/overline) continue to be emitted
   as Domotion's geometric SVG lines, unchanged — they are computed outside the
   text-emit funnel.

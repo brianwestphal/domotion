@@ -495,9 +495,20 @@ export function renderTextAsSystemFont(
   // The browser owns reordering in this mode: emit the paragraph direction, and
   // force it with `unicode-bidi` only for the override values that tell the UBA
   // to disregard each character's own bidi type.
+  //
+  // DM-CAGCSM: an rtl run ALSO needs `text-anchor="end"`. The run's captured
+  // origin `x` is its visual-LEFT edge (min xOffset). SVG's default
+  // `text-anchor: start` anchors the START of the text at `x`, and for
+  // `direction: rtl` the start is the RIGHT edge — so the default would place
+  // the run's right edge at its left edge, shifting the whole run left by its
+  // width (visibly overlapping the neighbouring run). `text-anchor: end` anchors
+  // the END (the left edge, in rtl inline-progression order) at `x`, landing the
+  // run's visual-left where it was captured. Verified by rasterization against
+  // Chrome for Hebrew+Latin, Arabic (contextual joining), and paired brackets;
+  // ltr runs emit no `direction` and so are unaffected.
   let bidiAttr = "";
   if (bidiOverride != null) {
-    if (bidiOverride.direction === "rtl") bidiAttr += ` direction="rtl"`;
+    if (bidiOverride.direction === "rtl") bidiAttr += ` direction="rtl" text-anchor="end"`;
     const ub = bidiOverride.unicodeBidi;
     if (ub === "bidi-override" || ub === "isolate-override") bidiAttr += ` unicode-bidi="${escAttr(ub)}"`;
   }
