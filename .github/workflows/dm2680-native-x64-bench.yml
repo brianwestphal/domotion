@@ -1,0 +1,110 @@
+name: DM-2680 native x64 text-geometry benchmark
+
+# Throwaway validation workflow for the "batch text geometry probes" change.
+# Runs a before/after wall-time benchmark of captureElementTree()'s
+# prepareTextPaintGeometry phase on a NATIVE x64 runner (ubuntu-latest) — the
+# repo policy rejects arm64/qemu wall time as native-CI performance evidence, so
+# the local arm64 numbers can't close the ticket's acceptance criterion.
+#
+# Triggered by pushing the validation branch (no default-branch registration
+# needed, unlike workflow_dispatch). Both arms build and run the SAME
+# tools/bench-text-paint-geometry.mjs on the SAME runner, sequentially, for
+# comparable timing:
+#   before = 34e05c30 (parent of the change, serial per-row CDP chains)
+#   after  = branch tip (== 1672750d for src/capture; bench+workflow added on top)
+#
+# The Playwright container bundles Node + the Chromium the suite captures with;
+# tracing is never enabled and no profiler is attached (uninstrumented).
+
+on:
+  push:
+    branches:
+      - 'validation/**'
+
+concurrency:
+  group: dm2680-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    env:
+      BEFORE_REF: 34e05c30
+      BENCH_REPS: "11"
+      BENCH_WARMUP: "3"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Record arch (must be x64)
+        run: |
+          echo "runner arch: $(uname -m)"
+          test "$(uname -m)" = "x86_64" || { echo "::error::not a native x64 runner ($(uname -m))"; exit 1; }
+
+      - name: Stash the benchmark script (survives ref checkouts)
+        run: cp tools/bench-text-paint-geometry.mjs "$RUNNER_TEMP/bench.mjs"
+
+      - name: Benchmark BEFORE (parent, serial probe)
+        run: |
+          set -euxo pipefail
+          AFTER_SHA="$(git rev-parse HEAD)"
+          echo "AFTER_SHA=$AFTER_SHA" >> "$GITHUB_ENV"
+          git checkout --quiet "$BEFORE_REF"
+          cp "$RUNNER_TEMP/bench.mjs" tools/bench-text-paint-geometry.mjs
+          npm ci
+          npm run build
+          node tools/bench-text-paint-geometry.mjs | tee "$RUNNER_TEMP/before.json"
+
+      - name: Benchmark AFTER (batched probe)
+        run: |
+          set -euxo pipefail
+          git checkout --quiet --force "$AFTER_SHA"
+          cp "$RUNNER_TEMP/bench.mjs" tools/bench-text-paint-geometry.mjs
+          npm ci
+          npm run build
+          node tools/bench-text-paint-geometry.mjs | tee "$RUNNER_TEMP/after.json"
+
+      - name: Summarize
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/before.json" before.json
+          cp "$RUNNER_TEMP/after.json" after.json
+          node -e '
+            const fs = require("fs");
+            const before = JSON.parse(fs.readFileSync("before.json", "utf8"));
+            const after = JSON.parse(fs.readFileSync("after.json", "utf8"));
+            const b = before.medianMs, a = after.medianMs;
+            const deltaMs = +(b - a).toFixed(1);
+            const pct = +((deltaMs / b) * 100).toFixed(1);
+            const rows = [
+              "# DM-2680 native x64 text-geometry benchmark",
+              "",
+              `- runner arch: **${after.arch}** / ${after.platform} / node ${after.node}`,
+              `- fixture: ${after.rows} text rows, ${after.reps} reps (warmup ${after.warmup})`,
+              "",
+              "| arm | median ms | min ms | mean ms |",
+              "| --- | --- | --- | --- |",
+              `| before (serial, ${before.arch}) | ${b} | ${before.minMs} | ${before.meanMs} |`,
+              `| after (batched, ${after.arch}) | ${a} | ${after.minMs} | ${after.meanMs} |`,
+              "",
+              `**median improvement: ${deltaMs} ms (${pct}%)**`,
+              "",
+              "```json",
+              JSON.stringify({ before, after, deltaMs, pct }, null, 2),
+              "```",
+            ].join("\n");
+            fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, rows);
+            console.log(rows);
+          '
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dm2680-bench-results
+          path: |
+            before.json
+            after.json
