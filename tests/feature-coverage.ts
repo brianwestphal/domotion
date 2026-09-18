@@ -337,10 +337,10 @@ export const FEATURES: FeatureEntry[] = [
   // ── Text-render mode (STATEFUL: process-global save/restore) ────────────
   {
     id: "text.mode",
-    behavior: "Text-render mode is a process-global (embedded-font vs paths); withRenderTextMode is a synchronous save/restore scope guard that rejects Promise-like callbacks.",
+    behavior: "Text-render mode is a process-global (embedded-font vs paths vs system-font); withRenderTextMode is a synchronous save/restore scope guard that rejects Promise-like callbacks. RENDER_TEXT_MODES + isRenderTextMode are the shared accepted-value set and guard the capture/animate CLIs use to validate --text-mode.",
     doc: "docs/ai/code-summary.md",
-    exports: ["getRenderTextMode", "setRenderTextMode", "withRenderTextMode"],
-    tests: ["src/render/render-text-mode-guard.test.ts", "src/render/synchronous-scope.test.ts"],
+    exports: ["getRenderTextMode", "setRenderTextMode", "withRenderTextMode", "RENDER_TEXT_MODES", "isRenderTextMode"],
+    tests: ["src/render/render-text-mode-guard.test.ts", "src/render/synchronous-scope.test.ts", "src/cli/animate.test.ts"],
     transition: "default(embedded-font) → set(paths) → withRenderTextMode(embedded-font, cb) restores paths afterward, EVEN WHEN cb throws or returns a rejected Promise-like result.",
     transitionEvidence: [
       { test: "src/render/render-text-mode-guard.test.ts", title: "sets the mode for the callback and restores the prior value" },

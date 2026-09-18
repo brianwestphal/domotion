@@ -550,6 +550,13 @@ const webfontRegistry = new Map<string, WebfontVariant[]>();
 // from the capture host's. Chosen for smaller output where the fonts are known
 // to be present.
 export type RenderTextMode = "paths" | "embedded-font" | "system-font";
+/** The valid `RenderTextMode` values, in the order shown in CLI help. Shared by
+ *  the `capture` and `animate` CLIs so `--text-mode`'s accepted set lives in one
+ *  place next to the type (DM-2716 / DM-FJZQ34). */
+export const RENDER_TEXT_MODES: readonly RenderTextMode[] = ["embedded-font", "paths", "system-font"];
+export function isRenderTextMode(value: string): value is RenderTextMode {
+  return (RENDER_TEXT_MODES as readonly string[]).includes(value);
+}
 export let currentRenderTextMode: RenderTextMode = "embedded-font";
 export function setRenderTextMode(mode: RenderTextMode): void { currentRenderTextMode = mode; }
 export function getRenderTextMode(): RenderTextMode { return currentRenderTextMode; }

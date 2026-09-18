@@ -9,8 +9,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, planRegionCaptureRounds, assembleRegionStateTrees, type AnimateConfig } from "./animate.js";
-import type { CursorEvent } from "../index.js";
+import { runAnimate, validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, planRegionCaptureRounds, assembleRegionStateTrees, type AnimateConfig } from "./animate.js";
+import { getRenderTextMode, setRenderTextMode, type CursorEvent } from "../index.js";
 import type { CapturedElement } from "../capture/types.js";
 
 const base = { width: 100, height: 100 };
@@ -2018,5 +2018,45 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
     compressMarkedRuns(cfgOf(frames), (m) => logs.push(m));
     expect(logs.some((l) => /^ {2}compress: collapsed frames 1–3 into a states run \(3 states, 300ms\)$/.test(l))).toBe(true);
     expect(logs.some((l) => /auto-compress:/.test(l))).toBe(false);
+  });
+});
+
+// DM-FJZQ34: `--text-mode` arg handling on the `animate` CLI. These stay pure —
+// each case throws (out-of-enum, or a deliberately missing config) BEFORE
+// runAnimate launches Chromium, so no browser is needed. The valid-mode case
+// asserts the render-text process-global was flipped, then restores it.
+describe("animate --text-mode arg handling (DM-FJZQ34)", () => {
+  it("rejects an out-of-enum --text-mode with a clear message", async () => {
+    const prev = getRenderTextMode();
+    try {
+      await expect(runAnimate(["/no/such/config.json", "--text-mode", "bogus"], ""))
+        .rejects.toThrow(/animate: --text-mode expects one of embedded-font, paths, system-font, got "bogus"/);
+    } finally {
+      setRenderTextMode(prev);
+    }
+  });
+
+  it("a valid --text-mode flips the render-text process-global before the pipeline runs", async () => {
+    const prev = getRenderTextMode();
+    try {
+      // Missing config → throws at existsSync, AFTER the mode is applied but
+      // BEFORE launchChromium, so this observes the flag's side effect purely.
+      await expect(runAnimate(["/no/such/config.json", "--text-mode", "system-font"], ""))
+        .rejects.toThrow(/config not found/);
+      expect(getRenderTextMode()).toBe("system-font");
+    } finally {
+      setRenderTextMode(prev);
+    }
+  });
+
+  it("no --text-mode leaves the render-text mode untouched", async () => {
+    const prev = getRenderTextMode();
+    setRenderTextMode("paths");
+    try {
+      await expect(runAnimate(["/no/such/config.json"], "")).rejects.toThrow(/config not found/);
+      expect(getRenderTextMode()).toBe("paths");
+    } finally {
+      setRenderTextMode(prev);
+    }
   });
 });

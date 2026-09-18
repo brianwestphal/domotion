@@ -292,6 +292,11 @@ animate options:
                            properties onto every CAPTURED frame's :root before
                            capture (same var names as capture --brand; see
                            docs/92). Template/cast frames theme themselves.
+      --text-mode <mode>   How text is emitted across every frame: embedded-font
+                           (default; subset @font-face, self-contained, pixel-
+                           faithful), paths (glyph outlines), or system-font
+                           (authored <text> painted by the VIEWER's fonts —
+                           smaller, NOT pixel-faithful, requires the fonts).
       --debug              Write a reproduction bundle next to the output:
                            capture.har, final actual.svg, and
                            frames/NNN/{expected.png,captured-tree.json}.

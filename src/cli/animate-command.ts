@@ -4,6 +4,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { launchChromium } from "../capture/index.js";
+// Import from the RENDER barrel, not the top-level `../index.js` barrel: the top
+// barrel re-exports the studio graph, and pulling it in here creates a
+// circular-import TDZ that breaks the storyboard-schema build. Routing through
+// `../render/index.js` (rather than `../render/font-resolution.js` directly)
+// also keeps to the font-subsystem import boundary (DM-1980 / DM-FJZQ34).
+import { setRenderTextMode, RENDER_TEXT_MODES, isRenderTextMode } from "../render/index.js";
 import { loadBrand, type Brand } from "../templates/brand.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
 import { makeLogger, parseIntFlag } from "./common.js";
@@ -27,6 +33,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       "auto-compress": { type: "boolean" },
       "no-auto-compress": { type: "boolean" },
       brand: { type: "string" },
+      "text-mode": { type: "string" },
       quiet: { type: "boolean" },
       debug: { type: "boolean" },
       "debug-dir": { type: "string" },
@@ -41,6 +48,18 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   }
   if (values["auto-compress"] === true && values["no-auto-compress"] === true) {
     throw new Error("animate: --auto-compress and --no-auto-compress are mutually exclusive");
+  }
+  if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
+    throw new Error(`animate: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`);
+  }
+  // DM-FJZQ34: select the text-emit strategy for this one-shot CLI process,
+  // mirroring `capture` (DM-2716). The mode is a render-side process-global, so
+  // setting it before the animate pipeline runs threads it through every frame's
+  // render and the scroll composer. `system-font` emits authored `<text>` painted
+  // by the CONSUMER's fonts (smaller, not pixel-faithful); `paths` /
+  // `embedded-font` are the fidelity modes.
+  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
+    setRenderTextMode(values["text-mode"]);
   }
 
   const configPath = resolve(positionals[0]);

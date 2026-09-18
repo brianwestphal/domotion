@@ -31,6 +31,8 @@ export {
   clearEmbeddedFonts,
   getEmbeddedFontFaceCss,
   type RenderTextMode,
+  RENDER_TEXT_MODES,
+  isRenderTextMode,
 } from "./text-to-path.js";
 
 // Speculative composition (`snapshotGeneration` / `restoreGeneration` /

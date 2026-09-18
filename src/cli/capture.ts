@@ -29,8 +29,9 @@ import {
   resolveFormat,
   safeAreaGuideSvg,
   setRenderTextMode,
+  RENDER_TEXT_MODES,
+  isRenderTextMode,
   formatNames,
-  type RenderTextMode,
   type ResolvedFormat,
   wrapInDeviceChrome,
   wrapSvg,
@@ -104,12 +105,6 @@ interface CaptureFlagValues {
   "prefer-css-page-size"?: boolean;
   output?: string;
   [key: string]: string | boolean | undefined;
-}
-
-/** DM-2716: the `--text-mode` values, matching `RenderTextMode`. */
-const RENDER_TEXT_MODES: readonly RenderTextMode[] = ["embedded-font", "paths", "system-font"];
-function isRenderTextMode(value: string): value is RenderTextMode {
-  return (RENDER_TEXT_MODES as readonly string[]).includes(value);
 }
 
 /**
