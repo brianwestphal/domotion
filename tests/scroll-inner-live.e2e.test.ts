@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
+import { setRenderTextMode, getRenderTextMode } from "../src/render/index.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -226,4 +227,35 @@ describeBrowser("inner live-scroll capture", () => {
       await page.close();
     }
   }, 60_000);
+
+  // DM-N8QM80: capture --scroll --text-mode system-font. Mirrors capture.ts's
+  // flow — set the render process-global, then compose passing renderText:
+  // getRenderTextMode() (the fix; previously nothing was passed and the
+  // composer's `?? "embedded-font"` default silently overrode the global).
+  it("--scroll honors --text-mode system-font (authored <text>, no @font-face/paths)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 320, height: 220 } });
+    const prevMode = getRenderTextMode();
+    try {
+      await page.setContent(`<!doctype html><style>
+        body{margin:0}#list{width:280px;height:120px;overflow:auto;font:16px/1.4 Arial}
+        .row{height:24px}
+      </style><div id="list">${Array.from({length:20},(_,i)=>`<div class="row">ScrollRow${i}</div>`).join("")}</div>`);
+      const segments = await executeScrollPattern(page, parseScrollPattern("down:60px until 2 times"), {
+        selector: "#list", captureSelector: "#list",
+        captureViewport: { x: 0, y: 0, width: 280, height: 120 },
+        viewportW: 280, viewportH: 120, prescroll: false,
+      });
+      setRenderTextMode("system-font");
+      const svg = composeScrollSvg(segments, { viewportW: 280, viewportH: 120, renderText: getRenderTextMode() });
+      expect(svg).toContain("<text ");
+      expect(svg).toMatch(/font-family=/);
+      expect(svg).not.toContain("@font-face");
+      expect(svg).not.toContain("<path");
+      expect(svg).toContain("ScrollRow0");
+    } finally {
+      setRenderTextMode(prevMode);
+      await page.close();
+    }
+  }, 60_000);
+
 });

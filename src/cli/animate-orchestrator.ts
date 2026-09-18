@@ -64,7 +64,7 @@ import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
-import { elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+import { elementTreeToSvgInner, getEmbeddedFontFaceCss, getRenderTextMode } from "../render/index.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 // Speculative composition (kept off the package barrel — import direct, as the
 // animator does). Brackets each per-region trial compose so its PUA / dmfN
@@ -1686,7 +1686,7 @@ async function buildCapturedFrame(
     const outerGeneration = snapshotGeneration();
     let composed: string;
     try {
-      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3], realText: cfg.realText === true });
+      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3], realText: cfg.realText === true, renderText: getRenderTextMode() });
     } finally {
       restoreGeneration(outerGeneration);
     }

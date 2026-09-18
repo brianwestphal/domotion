@@ -29,6 +29,7 @@ import {
   resolveFormat,
   safeAreaGuideSvg,
   setRenderTextMode,
+  getRenderTextMode,
   RENDER_TEXT_MODES,
   isRenderTextMode,
   formatNames,
@@ -438,7 +439,11 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         });
       }
       svg = await timed(log, `  composed scroll SVG`, () =>
-        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc, realText: flags.realTextLayer })),
+        // DM-N8QM80: pass the CLI's --text-mode through. The composer wraps its
+        // render in `withRenderTextMode(opts.renderText ?? "embedded-font")`,
+        // which would otherwise OVERRIDE the process-global set above — so
+        // `--scroll --text-mode system-font|paths` silently rendered embedded-font.
+        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc, realText: flags.realTextLayer, renderText: getRenderTextMode() })),
       );
     } else {
       log(`Capturing element tree…`);

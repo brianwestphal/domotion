@@ -757,3 +757,36 @@ describe("composeScrollSvg — real-text layer (DM-6SQXGF)", () => {
     expect(svg).toContain("ScrollWordB");
   });
 });
+
+// DM-N8QM80: the composer honors `renderText` (its render wraps in
+// withRenderTextMode). capture.ts / the animate orchestrator now pass
+// getRenderTextMode() so `--scroll --text-mode system-font|paths` is respected —
+// previously they passed nothing and the composer's `?? "embedded-font"` default
+// silently overrode the process-global, rendering embedded-font regardless.
+describe("composeScrollSvg — renderText mode (DM-N8QM80)", () => {
+  const ADV = 8;
+  const sysTextEl = (word: string): CapturedElement => el({
+    tag: "div", x: 10, y: 30, width: word.length * ADV, height: 19,
+    text: word, fontAscent: 11.5, fontDescent: 3,
+    textSegments: [{
+      text: word, x: 10, y: 30, width: word.length * ADV, height: 19,
+      xOffsets: [...word].map((_, i) => 10 + i * ADV),
+    }],
+  } as Partial<CapturedElement> & { tag: string; x: number; y: number });
+
+  it("system-font: emits authored <text font-family>, no @font-face, no glyph <path>", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 300, [sysTextEl("SysFontScroll")])],
+      { viewportW: 400, viewportH: 200, renderText: "system-font" });
+    expect(svg).toContain("<text ");
+    expect(svg).toMatch(/font-family=/);
+    expect(svg).toContain("SysFontScroll");
+    expect(svg).not.toContain("@font-face");
+    expect(svg).not.toContain("<path");
+  });
+
+  it("embedded-font (default): embeds a subset, not authored system <text>", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 300, [sysTextEl("EmbeddedScroll")])],
+      { viewportW: 400, viewportH: 200 });
+    expect(svg).toContain("@font-face");
+  });
+});
