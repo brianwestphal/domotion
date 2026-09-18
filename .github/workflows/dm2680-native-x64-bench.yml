@@ -51,6 +51,12 @@ jobs:
           echo "runner arch: $(uname -m)"
           test "$(uname -m)" = "x86_64" || { echo "::error::not a native x64 runner ($(uname -m))"; exit 1; }
 
+      - name: Mark workspace safe for git
+        # The container runs as root but the checkout is owned by a different
+        # uid, so raw `git` in the run steps below trips "detected dubious
+        # ownership". Add the workspace as a safe directory once for the job.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Stash the benchmark script (survives ref checkouts)
         run: cp tools/bench-text-paint-geometry.mjs "$RUNNER_TEMP/bench.mjs"
 
