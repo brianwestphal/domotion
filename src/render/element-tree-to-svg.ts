@@ -81,7 +81,8 @@ import {
   setActiveHiDPIFactor,
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
-import { inlineImgSvg, flattenImgSvg, getFlattenNestedSvg, prefixSvgClasses, prefixSvgIds } from "./svg-inline.js";
+import { inlineImgSvg, flattenImgSvg, getFlattenNestedSvg, isSvgSafeToFlatten, prefixSvgClasses, prefixSvgIds } from "./svg-inline.js";
+import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
@@ -2555,8 +2556,65 @@ function paintInlineSvg(el: CapturedElement, indent: string, allocClassPrefix?: 
   // up the host's text color. Set the wrapping group's `color` to the captured
   // text color so currentColor resolves to what Chrome painted (DM-279).
   const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
+  // DM-7AN9AH: opt-in flatten this captured DOM inline `<svg>` into a
+  // `<g transform="matrix(...)">` (for tools that mishandle nested `<svg>`). The
+  // `sized` body already carries this path's id/class handling — critically the
+  // DM-499 default of NOT id-namespacing so the consumer `<use href="#id">`
+  // resolver still matches across sibling SVGs — so we flatten it as-is (no
+  // re-namespacing). Falls back to the nested `<svg>` for any source that isn't
+  // safely flattenable (which includes `<use>`/`<symbol>` sprites — those stay
+  // nested and keep the DM-499 contract).
+  if (getFlattenNestedSvg()) {
+    const flat = flattenCapturedInlineSvg(sized, { x: el.x + blW + plW, y: el.y + btW + ptW, w: contentW, h: contentH }, allocClassPrefix);
+    if (flat != null) {
+      svg.push(`${indent}<g color="${iconColor}">${flat}</g>`);
+      return { svg, handled: true };
+    }
+  }
   svg.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
   return { svg, handled: true };
+}
+
+/**
+ * DM-7AN9AH: flatten an already-processed inline `<svg>` string (`sized`, from
+ * paintInlineSvg) into a `<g transform="matrix(...)">` + optional rect clip,
+ * WITHOUT re-namespacing ids (the DM-499 cross-`<use>` contract). Returns null so
+ * the caller keeps the nested `<svg>` when there is no explicit viewBox, the
+ * source isn't safely flattenable, or there is no usable coordinate system.
+ */
+function flattenCapturedInlineSvg(
+  sized: string,
+  place: { x: number; y: number; w: number; h: number },
+  allocClip?: () => string,
+): string | null {
+  const tag = /<svg\b([^>]*)>/i.exec(sized);
+  if (tag == null) return null;
+  const attrs = tag[1];
+  const vbMatch = /\bviewBox\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
+  if (vbMatch == null) return null; // no explicit coordinate system → keep nested
+  const nums = vbMatch[1].slice(1, -1).trim().split(/[\s,]+/).map(Number);
+  if (nums.length !== 4 || !nums.every((n) => Number.isFinite(n)) || nums[2] <= 0 || nums[3] <= 0) return null;
+  const rawBody = sized.slice(tag.index + tag[0].length);
+  const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
+  const body = closeIdx >= 0 ? rawBody.slice(0, closeIdx) : rawBody;
+  if (!isSvgSafeToFlatten(body)) return null;
+
+  const parMatch = /\bpreserveAspectRatio\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
+  const par = parMatch != null ? parMatch[1].slice(1, -1) : "xMidYMid meet";
+  const matrix = computeViewportMatrix(place, { minX: nums[0], minY: nums[1], width: nums[2], height: nums[3] }, parsePreserveAspectRatio(par));
+  if (matrix == null) return null;
+
+  const mf = (n: number): string => Number(n.toFixed(6)).toString();
+  const m = `matrix(${mf(matrix.a)} ${mf(matrix.b)} ${mf(matrix.c)} ${mf(matrix.d)} ${mf(matrix.e)} ${mf(matrix.f)})`;
+  const group = `<g transform="${m}">${body}</g>`;
+  const overflowVisible = /\boverflow\s*=\s*["']?\s*visible/i.test(attrs) || /\boverflow\s*:\s*visible/i.test(attrs);
+  if (overflowVisible) return group;
+  // A `<g>` doesn't clip like a viewport — add a deterministic rect clip. Without
+  // a clip-id allocator (some direct-call test paths) we keep the nested `<svg>`.
+  const clipId = allocClip?.();
+  if (clipId == null) return null;
+  return `<clipPath id="${clipId}"><rect x="${r(place.x)}" y="${r(place.y)}" width="${r(place.w)}" height="${r(place.h)}"/></clipPath>`
+    + `<g clip-path="url(#${clipId})">${group}</g>`;
 }
 
 // Inset box-shadow paint, extracted from renderElement (DM-1306) — the inset
