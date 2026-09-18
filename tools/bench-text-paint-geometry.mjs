@@ -16,10 +16,12 @@
 //     workflow that drives this pins an x64 (ubuntu-latest) runner and this
 //     script records process.arch for the record.
 //
-// Run: `node tools/bench-text-paint-geometry.mjs` after `npm run build`.
+// Run: `npx tsx tools/bench-text-paint-geometry.mjs` (imports src directly via
+// tsx, so no full `npm run build` is needed — and it never touches the terminal
+// module, whose optional `node-pty` dep does not build in the CI container).
 // Env overrides: BENCH_ROWS (193), BENCH_REPS (9), BENCH_WARMUP (2).
 import { chromium } from "@playwright/test";
-import { captureElementTree } from "../dist/capture/index.js";
+import { captureElementTree } from "../src/capture/index.js";
 
 const ROWS = Number(process.env.BENCH_ROWS ?? 193);
 const REPS = Number(process.env.BENCH_REPS ?? 9);

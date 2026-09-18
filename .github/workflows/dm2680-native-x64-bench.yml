@@ -68,8 +68,7 @@ jobs:
           git checkout --quiet "$BEFORE_REF"
           cp "$RUNNER_TEMP/bench.mjs" tools/bench-text-paint-geometry.mjs
           npm ci
-          npm run build
-          node tools/bench-text-paint-geometry.mjs | tee "$RUNNER_TEMP/before.json"
+          npx tsx tools/bench-text-paint-geometry.mjs | tee "$RUNNER_TEMP/before.json"
 
       - name: Benchmark AFTER (batched probe)
         run: |
@@ -77,8 +76,7 @@ jobs:
           git checkout --quiet --force "$AFTER_SHA"
           cp "$RUNNER_TEMP/bench.mjs" tools/bench-text-paint-geometry.mjs
           npm ci
-          npm run build
-          node tools/bench-text-paint-geometry.mjs | tee "$RUNNER_TEMP/after.json"
+          npx tsx tools/bench-text-paint-geometry.mjs | tee "$RUNNER_TEMP/after.json"
 
       - name: Summarize
         run: |
