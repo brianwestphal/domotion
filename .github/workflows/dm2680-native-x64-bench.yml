@@ -30,6 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
+    # The container's default shell for `run:` is dash (`sh -e`), which rejects
+    # `set -o pipefail`; force bash (present in the noble image) so the pipefail
+    # guards in the benchmark steps work.
+    defaults:
+      run:
+        shell: bash
     env:
       BEFORE_REF: 34e05c30
       BENCH_REPS: "11"
