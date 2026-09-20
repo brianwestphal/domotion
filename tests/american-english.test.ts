@@ -14,6 +14,8 @@ describe("American-English prose check", () => {
     expect(isAmericanEnglishCheckPath("src/capture/script.generated.ts")).toBe(false);
     expect(isAmericanEnglishCheckPath("vendor/example.ts")).toBe(false);
     expect(isAmericanEnglishCheckPath(".pr-notes/notes/example.sarif")).toBe(false);
+    expect(isAmericanEnglishCheckPath("scripts/american-english.mjs")).toBe(false);
+    expect(isAmericanEnglishCheckPath("tests/american-english.test.ts")).toBe(false);
     expect(isAmericanEnglishCheckPath("docs/index.json")).toBe(false);
   });
 

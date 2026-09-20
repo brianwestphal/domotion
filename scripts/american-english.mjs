@@ -4,6 +4,8 @@ const EXCLUDED_PATHS = [
   /^(?:AGENTS|CLAUDE)\.md$/,
   /^\.claude\/skills\//,
   /^\.pr-notes\//,
+  /^scripts\/american-english\.mjs$/,
+  /^tests\/american-english\.test\.ts$/,
   /^(?:external|vendor|node_modules|dist)\//,
   /(?:^|\/)package-lock\.json$/,
   /(?:^|\/)[^/]*\.lock$/,
