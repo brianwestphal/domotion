@@ -44,6 +44,28 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
     expect(ln0).toMatch(/100% \{ opacity:1 \} \}$/);
   });
 
+  it("holds generated frame tracks at their pre-wrap paint through an outer crossfade", () => {
+    const doc = [
+      "<svg><style>",
+      ".f-0{animation:fv-0 1s step-end infinite,fd-0 1s step-end infinite}",
+      "@keyframes fv-0{0%,100%{opacity:0}0.001%,99.999%{opacity:1}}",
+      "@keyframes fd-0{0%,100%{visibility:hidden}0.001%,99.999%{visibility:visible}}",
+      "</style><rect class='f-0'/></svg>",
+    ].join("");
+    const out = offsetEmbeddedAnimatedSvgTimeline(doc, {
+      periodMs: 1000,
+      startMs: 0,
+      masterMs: 2400,
+    });
+
+    // Source 100% maps to 41.6667% of the master. It is a loop reset in the
+    // standalone child, not the visual state that hold mode should freeze.
+    expect(out).toMatch(/41\.6667% \{ opacity:1 \}/);
+    expect(out).toMatch(/41\.6667% \{ visibility:visible \}/);
+    expect(out).toMatch(/100% \{ opacity:1 \}/);
+    expect(out).toMatch(/100% \{ visibility:visible \}/);
+  });
+
   it("leaves a keyframe's declaration percentages untouched (only stop selectors move)", () => {
     const doc = "<svg><style>.a{animation:k 4.000s linear infinite}@keyframes k{0%{width:10%}100%{width:90%}}</style></svg>";
     const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 4000, startMs: 2000, masterMs: 10000 });

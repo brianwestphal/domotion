@@ -97,8 +97,8 @@
     :root { --scene-dur-sb0_: 3.50s; }
     .sb0_f { opacity: 0; visibility: hidden; }
 
-    @keyframes sb0_fv-0 { 0% { opacity: 1; } 0% { opacity: 1; } 23.6484% { opacity: 1; } 23.6486% { opacity: 0; } 100% { opacity: 0; } }
-    @keyframes sb0_fd-0 { 0% { visibility: visible; } 0% { visibility: visible; } 23.6486% { visibility: hidden; } 100% { visibility: hidden; } }
+    @keyframes sb0_fv-0 { 0% { opacity: 1; } 0% { opacity: 1; } 23.6484% { opacity: 1; } 23.6486% { opacity: 1; } 100% { opacity: 1; } }
+    @keyframes sb0_fd-0 { 0% { visibility: visible; } 0% { visibility: visible; } 23.6486% { visibility: visible; } 100% { visibility: visible; } }
     .sb0_f-0 { animation:sb0_fv-0 14.8s step-end infinite,sb0_fd-0 14.8s step-end infinite; }
     @keyframes sb0_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 4.0541% { opacity: 1; transform: translateY(0px); } 23.6486% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
     .sb0_anim-f0a0 { animation:sb0_f0-f0a0-0 14.8s cubic-bezier(0.22,1,0.36,1) infinite; }
@@ -149,8 +149,8 @@
     :root { --scene-dur-sb2_: 2.38s; }
     .sb2_f { opacity: 0; visibility: hidden; }
 
-    @keyframes sb2_fv-0 { 0% { opacity: 1; } 45.9459% { opacity: 1; } 62.0269% { opacity: 1; } 62.027% { opacity: 0; } 100% { opacity: 0; } }
-    @keyframes sb2_fd-0 { 0% { visibility: visible; } 45.9459% { visibility: visible; } 62.027% { visibility: hidden; } 100% { visibility: hidden; } }
+    @keyframes sb2_fv-0 { 0% { opacity: 1; } 45.9459% { opacity: 1; } 62.0269% { opacity: 1; } 62.027% { opacity: 1; } 100% { opacity: 1; } }
+    @keyframes sb2_fd-0 { 0% { visibility: visible; } 45.9459% { visibility: visible; } 62.027% { visibility: visible; } 100% { visibility: visible; } }
     .sb2_f-0 { animation:sb2_fv-0 14.8s step-end infinite,sb2_fd-0 14.8s step-end infinite; }
     @keyframes sb2_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(0.55em); } 45.9459% { opacity: 0; transform: translateY(0.55em); } 45.9459% { opacity: 0; transform: translateY(0.55em); } 50% { opacity: 1; transform: translateY(0em); } 62.027% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
     .sb2_anim-f0a0 { animation:sb2_f0-f0a0-0 14.8s cubic-bezier(0.22,1,0.36,1) infinite; }
@@ -189,8 +189,8 @@
     :root { --scene-dur-sb3_: 4.00s; }
     .sb3_f { opacity: 0; visibility: hidden; }
 
-    @keyframes sb3_fv-0 { 0% { opacity: 1; } 72.973% { opacity: 1; } 99.9997% { opacity: 1; } 100% { opacity: 0; } 100% { opacity: 0; } }
-    @keyframes sb3_fd-0 { 0% { visibility: visible; } 72.973% { visibility: visible; } 100% { visibility: hidden; } 100% { visibility: hidden; } }
+    @keyframes sb3_fv-0 { 0% { opacity: 1; } 72.973% { opacity: 1; } 99.9997% { opacity: 1; } 100% { opacity: 1; } 100% { opacity: 1; } }
+    @keyframes sb3_fd-0 { 0% { visibility: visible; } 72.973% { visibility: visible; } 100% { visibility: visible; } 100% { visibility: visible; } }
     .sb3_f-0 { animation:sb3_fv-0 14.8s step-end infinite,sb3_fd-0 14.8s step-end infinite; }
     @keyframes sb3_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(24px); } 72.973% { opacity: 0; transform: translateY(24px); } 72.973% { opacity: 0; transform: translateY(24px); } 77.027% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
     .sb3_anim-f0a0 { animation:sb3_f0-f0a0-0 14.8s cubic-bezier(0.22,1,0.36,1) infinite; }

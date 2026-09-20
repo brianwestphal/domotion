@@ -129,21 +129,29 @@ function tokenizeEntry(entry: string): string[] {
  * add the leading / trailing hold stops. `inner` is the block body (the stops);
  * returns the rewritten body.
  */
-function remapKeyframeBody(inner: string, offsetPct: number, scale: number): string {
+function remapKeyframeBody(
+  inner: string,
+  offsetPct: number,
+  scale: number,
+  freezeBeforeWrap: boolean,
+): string {
   const stopRe = /(from|to|[\d.]+%(?:\s*,\s*[\d.]+%)*)\s*\{([^{}]*)\}/g;
-  const remapped: string[] = [];
+  const rules: { selectors: number[]; decls: string }[] = [];
   let firstDecls: string | null = null;
   let lastDecls: string | null = null;
+  let beforeWrapDecls: string | null = null;
   let minOrig = Infinity;
   let maxOrig = -Infinity;
+  let maxBeforeWrap = -Infinity;
   let m: RegExpExecArray | null;
   while ((m = stopRe.exec(inner)) != null) {
     const selector = m[1];
     const decls = m[2].trim();
-    const newSelectors: string[] = [];
+    const selectors: number[] = [];
     for (const sel of selector.split(",")) {
       const s = sel.trim();
       const orig = s === "from" ? 0 : s === "to" ? 100 : parseFloat(s);
+      selectors.push(orig);
       if (orig < minOrig) {
         minOrig = orig;
         firstDecls = decls;
@@ -152,14 +160,39 @@ function remapKeyframeBody(inner: string, offsetPct: number, scale: number): str
         maxOrig = orig;
         lastDecls = decls;
       }
-      newSelectors.push(`${fmt(clampPct(offsetPct + orig * scale))}%`);
+      if (orig < 100 && orig > maxBeforeWrap) {
+        maxBeforeWrap = orig;
+        beforeWrapDecls = decls;
+      }
     }
-    remapped.push(`${newSelectors.join(", ")} { ${decls} }`);
+    rules.push({ selectors, decls });
   }
   if (firstDecls == null || lastDecls == null) return inner; // nothing parsed — leave as-is
+  // A generated frame's `fv-*` / `fd-*` tracks deliberately reset at 100% so
+  // an infinite standalone SVG can loop. Once that SVG is embedded in a longer
+  // master timeline, `hold` mode must freeze the source cycle's left-limit
+  // instead: carrying the 100% reset into the remapped endpoint makes the
+  // outgoing scene disappear exactly when its crossfade begins.
+  const heldDecls = freezeBeforeWrap && beforeWrapDecls != null ? beforeWrapDecls : lastDecls;
+  const remapped = rules.flatMap(({ selectors, decls }) => {
+    const ordinary = freezeBeforeWrap ? selectors.filter((orig) => orig !== 100) : selectors;
+    const wrap = freezeBeforeWrap ? selectors.filter((orig) => orig === 100) : [];
+    const emit = (selected: number[], selectedDecls: string): string[] => selected.length === 0 ? [] : [
+      `${selected.map((orig) => `${fmt(clampPct(offsetPct + orig * scale))}%`).join(", ")} { ${selectedDecls} }`,
+    ];
+    // A source rule commonly groups `0%, 100%`. Split only that reset selector
+    // so 0% keeps its authored declarations while the remapped 100% endpoint
+    // freezes the last pre-wrap paint.
+    return [...emit(ordinary, decls), ...emit(wrap, heldDecls)];
+  });
   const head = `0% { ${firstDecls} }`;
-  const tail = `100% { ${lastDecls} }`;
+  const tail = `100% { ${heldDecls} }`;
   return `${head} ${remapped.join(" ")} ${tail}`;
+}
+
+/** Generated whole-frame compositing tracks use 100% as their loop reset. */
+function freezesAtSourceCycleLeftLimit(name: string): boolean {
+  return /(?:^|_)(?:fv|fd)-\d+$/.test(name);
 }
 
 /**
@@ -249,7 +282,14 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
   out = out.replace(
     /@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g,
     (full: string, name: string, inner: string) =>
-      retimed.has(name) ? `@keyframes ${name} { ${remapKeyframeBody(inner, contentOffsetMs > 0 ? 0 : offsetPct, scale)} }` : full,
+      retimed.has(name)
+        ? `@keyframes ${name} { ${remapKeyframeBody(
+            inner,
+            contentOffsetMs > 0 ? 0 : offsetPct,
+            scale,
+            mode === "hold" && freezesAtSourceCycleLeftLimit(name),
+          )} }`
+        : full,
   );
   return out;
 }

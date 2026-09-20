@@ -47,6 +47,8 @@ The CSS spec interpolates discrete properties by snapping at 50% of a segment by
 
 Frame compositing tracks (`fv-*` opacity and `fd-*` visibility) and whole-SVG-overlay visibility tracks (`ov-*-vis`) have a stronger emitted-CSS invariant: **each numeric keyframe offset appears exactly once per block**. Independent window segments can otherwise round onto the same 0%, frame boundary, or 100% offset and emit contradictory declarations; engines have disagreed in practice about which frame/overlay remains painted, producing ghost layers. The final composer consolidates only these layer-level tracks, merges properties in CSS source order (later declarations win), and leaves non-conflicting blocks byte-identical. Intra-frame effect tracks retain their independently-authored stops.
 
+When an animated SVG is embedded as a frame on a longer master timeline, its generated `fv-*` / `fd-*` tracks freeze at the source cycle's **left-limit** (the last stop before 100%) after their local period ends. Their standalone 100% declarations are loop resets that hide the frame before the cycle returns to 0%; treating those resets as the held terminal state would blank the outgoing scene at the exact start of an outer crossfade.
+
 **What this doesn't cover yet** (tracked separately):
 - **Element-level intersection inside a frame's hold time** (long-scroll captures where most rows are off-viewBox at any instant). Requires per-element bbox analysis at SVG-string composition time.
 - **Intra-frame animations** (`animations: [...]` declarations) whose `from`/`to` keep elements outside the viewBox. The rule: hide before / after the animation only, never during it (per DM-599 feedback). Requires bbox + transform analysis on the animated element.

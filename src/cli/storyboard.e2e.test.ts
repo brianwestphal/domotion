@@ -2,7 +2,9 @@ import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import sharp from "sharp";
 import { launchChromium } from "../capture/index.js";
+import { htmlWrapper, seekTo } from "./svg-to-video-core.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { composeStoryboardConfig } from "./storyboard.js";
 
@@ -52,6 +54,43 @@ const castOf = (lines: string[]): string =>
 const CAST_A = castOf([`${E}[32malpha bravo${E}[0m`, `${E}[33mcharlie${E}[0m`]);
 const CAST_B = castOf([`${E}[36mdelta echo${E}[0m`, `${E}[1mfoxtrot golf${E}[0m`]);
 const countFontFaces = (svg: string): number => (svg.match(/@font-face/g) ?? []).length;
+
+describeBrowser("storyboard transition boundary (DM-EC0FSE)", () => {
+  it("keeps the outgoing embedded scene painted when its crossfade starts", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(join(tmpdir(), "dm-storyboard-boundary-"));
+    writeFileSync(join(dir, "outgoing.svg"), `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+      <style>:root{--scene-dur:1s}.f-0{animation:fv-0 1s step-end infinite,fd-0 1s step-end infinite}
+      @keyframes fv-0{0%,99.999%{opacity:1}100%{opacity:0}}
+      @keyframes fd-0{0%,99.999%{visibility:visible}100%{visibility:hidden}}</style>
+      <rect class="f-0" width="40" height="40" fill="#ff0000"/>
+    </svg>`);
+    writeFileSync(join(dir, "incoming.svg"), `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+      <rect width="40" height="40" fill="#0000ff"/>
+    </svg>`);
+    const svg = await composeStoryboardConfig(browser, {
+      width: 40,
+      height: 40,
+      background: "#000000",
+      scenes: [
+        { svg: "outgoing.svg", duration: 1000, transition: { type: "crossfade", duration: 400 } },
+        { svg: "incoming.svg", duration: 1000, transition: { type: "cut", duration: 0 } },
+      ],
+    }, dir);
+
+    const page = await browser.newPage({ viewport: { width: 40, height: 40 } });
+    try {
+      await page.setContent(htmlWrapper(svg, "#000000", true), { waitUntil: "load" });
+      await seekTo(page, 1000);
+      const shot = await page.screenshot({ clip: { x: 0, y: 0, width: 40, height: 40 } });
+      const { data, info } = await sharp(shot).raw().toBuffer({ resolveWithObject: true });
+      const at = (20 * info.width + 20) * info.channels;
+      expect([...data.subarray(at, at + 3)]).toEqual([255, 0, 0]);
+    } finally {
+      await page.close();
+    }
+  });
+});
 
 describeBrowser("storyboard cross-scene font dedup (DM-1553)", () => {
   it("two cast scenes with different text share one embedded-font set (shared builder)", async () => {
