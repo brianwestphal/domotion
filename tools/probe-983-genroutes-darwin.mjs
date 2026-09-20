@@ -8,6 +8,16 @@ import { join } from "node:path";
 const SUPPLEMENTAL = "/System/Library/Fonts/Supplemental";
 const SYSTEM_FONTS = "/System/Library/Fonts";
 
+// Fonts known to vary across supported macOS inventories stay optional even
+// when the generator runs on a release that still happens to ship them.
+const OS_VERSION_OPTIONAL_FAMILIES = new Set(["Noto Sans Brahmi"]);
+
+function isOptionalInstall(family, path) {
+  return path.startsWith("/Library/Fonts/")
+    || !existsSync(path)
+    || OS_VERSION_OPTIONAL_FAMILIES.has(family);
+}
+
 // Manual overrides for family names that don't follow the standard
 // "NotoSansFooBar-Regular.ttf" pattern, or for non-Noto fonts where the
 // path / postscriptName is known.
@@ -208,7 +218,8 @@ for (const r of ranges) {
   if (seenKeys.has(r.fontKey)) continue;
   seenKeys.add(r.fontKey);
   const psn = r.resolved.postscriptName != null ? `, postscriptName: ${JSON.stringify(r.resolved.postscriptName)}` : "";
-  const optional = r.resolved.path.startsWith("/Library/Fonts/") ? ", optionalInstall: true" : "";
+  const optional = isOptionalInstall(r.family, r.resolved.path)
+    ? ", optionalInstall: true" : "";
   out += `  ${JSON.stringify(r.fontKey)}: { family: ${JSON.stringify(r.family)}, path: ${JSON.stringify(r.resolved.path)}${psn}${optional} },\n`;
 }
 out += "};\n\n";
@@ -283,7 +294,8 @@ for (const r of ranges) {
   // "Not a fixed size" in fontkit's restructure parser).
   const forceNative = fontkitCrashers.has(r.fontKey) || r.resolved.extractor === "native";
   const ext = forceNative ? `, extractor: "native" as const` : "";
-  const optional = r.resolved.path.startsWith("/Library/Fonts/") ? ", optionalInstall: true" : "";
+  const optional = isOptionalInstall(r.family, r.resolved.path)
+    ? ", optionalInstall: true" : "";
   out += `  ${JSON.stringify(r.fontKey)}: { family: ${JSON.stringify(r.family)}, path: ${JSON.stringify(r.resolved.path)}${psn}${ext}${optional} },\n`;
 }
 out += "};\n\n";

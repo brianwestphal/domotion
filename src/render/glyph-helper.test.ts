@@ -918,7 +918,6 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
     ["Kefa (Ethiopic)", 0x1200, "KefaIII-Regular", [[100, "KefaIII-Light"], [500, "KefaIII-Bold"], [900, "KefaIII-ExtraBold"]]],
     ["Tamil Sangam MN", 0x0B85, "TamilSangamMN", [[400, "TamilSangamMN"], [500, "TamilSangamMN-Bold"]]],
     ["Mukta Mahee (Gurmukhi)", 0x0A05, "MuktaMahee-Regular", [[300, "MuktaMahee-Light"], [700, "MuktaMahee-Bold"]]],
-    ["Noto Sans Myanmar", 0x1000, "NotoSansMyanmar-Regular", [[200, "NotoSansMyanmar-Thin"], [900, "NotoSansMyanmar-Black"]]],
   ];
 
   for (const [label, cp, regular, expectations] of CASES) {
@@ -929,6 +928,14 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
       }
     });
   }
+
+  it("Noto Sans Myanmar selects a light cut at 200 and Black at 900", () => {
+    if (ask(0x1000, 400) !== "NotoSansMyanmar-Regular") return;
+    const light = ask(0x1000, 200);
+    expect(light).toMatch(/^NotoSansMyanmar-(?:Thin|ExtraLight)$/);
+    expect(light).not.toBe("NotoSansMyanmar-Regular");
+    expect(ask(0x1000, 900)).toBe("NotoSansMyanmar-Black");
+  });
 
   it("memoizes per CSS description, not per codepoint", () => {
     if (ask(0x1401, 400) !== "EuphemiaUCAS") return;

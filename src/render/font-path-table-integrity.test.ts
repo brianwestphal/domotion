@@ -69,6 +69,7 @@ describe("font path table integrity (DM-1861)", () => {
       "playfair-display-bold-italic",
       "u-noto-sans",
       "u-noto-sans-kr",
+      "u-noto-sans-brahmi",
     ] as const;
 
     for (const key of optionalKeys) {
@@ -93,9 +94,10 @@ describe("font path table integrity (DM-1861)", () => {
       .toEqual([`helvetica -> ${required?.path}`]);
   });
 
-  it("keeps regenerated /Library font routes optional", () => {
+  it("keeps regenerated author-installed and OS-version-absent routes optional", () => {
     const generator = readFileSync("tools/probe-983-genroutes-darwin.mjs", "utf8");
-    expect(generator).toContain('path.startsWith("/Library/Fonts/") ? ", optionalInstall: true"');
+    expect(generator).toContain('OS_VERSION_OPTIONAL_FAMILIES = new Set(["Noto Sans Brahmi"])');
+    expect(generator).toContain('|| !existsSync(path)');
     expect(generator).toContain("family: string; path: string;");
   });
 });

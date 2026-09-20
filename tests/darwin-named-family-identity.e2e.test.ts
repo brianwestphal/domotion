@@ -4,7 +4,11 @@ import {
   getFontInstance,
   resolveFontKey,
 } from "../src/render/font-resolution.js";
-import { isGlyphHelperAvailable, resolveInstalledFont } from "../src/render/glyph-helper.js";
+import {
+  isGlyphHelperAvailable,
+  resolveInstalledFont,
+  resolveSystemFallbackFonts,
+} from "../src/render/glyph-helper.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // Browser-backed complement to the resolver regression test. Chromium is the
@@ -22,7 +26,9 @@ const env = await setup();
 afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
 const describeMac = env == null ? describe.skip : describe;
 
-async function chromeFaceAndWidths(family: string, text: string) {
+async function chromeFaceAndWidths(
+  family: string, text: string, weight = 400, genericFamily = false,
+) {
   const page = await env!.browser.newPage({ viewport: { width: 400, height: 120 } });
   try {
     await page.setContent("<!doctype html><main></main>");
@@ -30,10 +36,11 @@ async function chromeFaceAndWidths(family: string, text: string) {
       const span = document.createElement("span");
       span.id = "probe";
       span.textContent = input.text;
-      span.style.fontFamily = `"${input.family}", Times`;
+      span.style.fontFamily = input.genericFamily ? input.family : `"${input.family}", Times`;
+      span.style.fontWeight = String(input.weight);
       span.style.fontSize = "32px";
       main.append(span);
-    }, { family, text });
+    }, { family, text, weight, genericFamily });
     // CSS.getPlatformFontsForNode reports only faces used by a completed
     // layout. Force the range through layout before asking CDP; without this,
     // a newly-appended astral-only run can legitimately return an empty list.
@@ -65,9 +72,9 @@ async function chromeFaceAndWidths(family: string, text: string) {
   }
 }
 
-function domotionFaceAndWidths(family: string, cps: number[]) {
+function domotionFaceAndWidths(family: string, cps: number[], weight = 400) {
   const key = resolveFontKey(`"${family}", Times`);
-  const font = getFontInstance(key, 400, 32, 0);
+  const font = getFontInstance(key, weight, 32, 0);
   if (font == null) throw new Error(`Domotion could not open ${family} (${key})`);
   return {
     key,
@@ -94,5 +101,27 @@ describeMac("macOS named-family identity against Chromium", () => {
     expect(ours.key).toBe("sysfb:SFProText-Regular");
     expect(ours.postscriptName).toBe(chrome.postscriptName);
     expect(ours.widths).toEqual(chrome.widths);
+  });
+
+  it("matches Chromium's live Skia face and advance at every calibrated weight", async () => {
+    if (resolveInstalledFont("Skia") == null) return;
+    for (const weight of [300, 400, 700]) {
+      // One isolated glyph compares the face's advance without folding
+      // Chromium's run kerning into a per-glyph metric assertion.
+      const chrome = await chromeFaceAndWidths("Skia", "H", weight);
+      const ours = domotionFaceAndWidths("Skia", [0x48], weight);
+      expect(ours.postscriptName, `face at ${weight}`).toBe(chrome.postscriptName);
+      expect(ours.widths, `advances at ${weight}`).toEqual(chrome.widths);
+    }
+  });
+
+  it("matches Chromium's live Myanmar system-fallback cut at each weight", async () => {
+    for (const weight of [200, 400, 900]) {
+      const chrome = await chromeFaceAndWidths("sans-serif", "က", weight, true);
+      const ours = resolveSystemFallbackFonts([0x1000], "Helvetica", {
+        weight, italic: false, fontSize: 32,
+      }).get(0x1000);
+      expect(ours?.postscriptName ?? null, `face at ${weight}`).toBe(chrome.postscriptName);
+    }
   });
 });

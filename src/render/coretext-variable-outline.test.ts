@@ -67,7 +67,12 @@ describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
         const native = createGlyphHelperFont({ fontPath: SFNS, variations: axes });
         expect(native, `${label} CoreText face`).not.toBeNull();
         const layout = font!.layout(TEXT);
-        expect(layout.glyphs.map((glyph) => glyph.id)).toEqual([969, 815, 815, 795, 1310, 1377]);
+        const nativeLayout = native!.layout(TEXT);
+        expect(layout.glyphs).toHaveLength([...TEXT].length);
+        expect(layout.glyphs.map((glyph) => glyph.id)).toEqual(
+          nativeLayout.glyphs.map((glyph) => glyph.id),
+        );
+        expect(layout.glyphs.every((glyph) => glyph.id !== 0)).toBe(true);
 
         const cold = layout.glyphs.map((glyph, index) => resolveGlyphCommands(
           glyph,

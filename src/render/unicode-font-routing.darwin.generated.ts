@@ -127,7 +127,7 @@ export const UNICODE_FONT_PATHS: Record<string, UnicodeFontEntry> = {
   "u-noto-sans-oldhung": { family: "Noto Sans OldHung", path: "/System/Library/Fonts/Supplemental/NotoSansOldHungarian-Regular.ttf" },
   "u-noto-sans-hanifirohg": { family: "Noto Sans HanifiRohg", path: "/System/Library/Fonts/Supplemental/NotoSansHanifiRohingya-Regular.ttf" },
   "u-noto-serif-yezidi": { family: "Noto Serif Yezidi", path: "/System/Library/Fonts/Supplemental/NotoSerifYezidi-Regular.otf" },
-  "u-noto-sans-brahmi": { family: "Noto Sans Brahmi", path: "/System/Library/Fonts/Supplemental/NotoSansBrahmi-Regular.ttf", extractor: "native" as const },
+  "u-noto-sans-brahmi": { family: "Noto Sans Brahmi", path: "/System/Library/Fonts/Supplemental/NotoSansBrahmi-Regular.ttf", extractor: "native" as const, optionalInstall: true },
   "u-noto-sans-kaithi": { family: "Noto Sans Kaithi", path: "/System/Library/Fonts/Supplemental/NotoSansKaithi-Regular.ttf", extractor: "native" as const },
   "u-noto-sans-sorasomp": { family: "Noto Sans SoraSomp", path: "/System/Library/Fonts/Supplemental/NotoSansSoraSompeng-Regular.ttf" },
   "u-noto-sans-chakma": { family: "Noto Sans Chakma", path: "/System/Library/Fonts/Supplemental/NotoSansChakma-Regular.ttf", extractor: "native" as const },

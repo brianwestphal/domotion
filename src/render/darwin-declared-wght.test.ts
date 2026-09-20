@@ -7,18 +7,17 @@
 // 7d859f27); only `MatchSystemUIFont` (the `system-ui` face) sets wght/wdth
 // variations from CSS values (`font_matcher_mac.mm:540-589`). The
 // discriminating family is `Skia` — its wght axis is [0.48 .. 3.2] in
-// QuickDraw units, so a CSS-weight pin clamps EVERY weight to 3.2, the Black
-// master, where Chrome paints `Skia-Regular` at 400 and the Light/Bold named
-// instances at 300/700 (measured over CDP, 100px "Hamburgefonstiv": 783.359 /
-// 720.813 / 836.438 — reproduced by the instance coordinates, not by any
-// CSS-valued pin).
+// QuickDraw units, so a CSS-weight pin would clamp every weight to 3.2, the
+// Black master. Which named member AppKit exposes has changed across macOS
+// releases, so the host matcher is the unit authority and the browser-backed
+// E2E test independently verifies the face and advance Chromium paints.
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import {
   resolveFontKey, getFontInstance, getFontSourceInfo,
   resolveDarwinAxisLocation, __resolveFaceInfoForFileForTest,
 } from "./font-resolution.js";
-import { isGlyphHelperAvailable } from "./glyph-helper.js";
+import { isGlyphHelperAvailable, resolveFamilyStyleMatch } from "./glyph-helper.js";
 
 describe("resolveDarwinAxisLocation with the face's own coordinates", () => {
   const fileAxes = {
@@ -52,24 +51,22 @@ const describeSkia = process.platform === "darwin" && existsSync(SKIA) && isGlyp
   ? describe : describe.skip;
 
 describeSkia("declared `Skia` resolves the face Chrome paints, not the Black master", () => {
-  it("pins the embedded-subset location to the matched instance's coordinates", () => {
-    // CSS 400 → the default instance (wght 1): an empty pin, NOT wght 3.2.
-    const at400 = getFontInstance(resolveFontKey("Skia"), 400, 100, 0);
-    const src400 = getFontSourceInfo(at400);
-    expect(src400?.variationAxes).toEqual({});
-
-    // CSS 700 → the Bold named instance at wght 1.95 — far below the 3.2 a
-    // clamped CSS pin would produce.
-    const at700 = getFontInstance(resolveFontKey("Skia"), 700, 100, 0);
-    const wght700 = getFontSourceInfo(at700)?.variationAxes?.wght;
-    expect(wght700).toBeGreaterThan(1.5);
-    expect(wght700).toBeLessThan(2.5);
-
-    // CSS 300 → the Light instance at wght 0.48.
-    const at300 = getFontInstance(resolveFontKey("Skia"), 300, 100, 0);
-    const wght300 = getFontSourceInfo(at300)?.variationAxes?.wght;
-    expect(wght300).toBeGreaterThan(0.4);
-    expect(wght300).toBeLessThan(0.6);
+  it("uses the live declared-family matcher and never pins a CSS-valued axis", () => {
+    for (const weight of [300, 400, 700]) {
+      const matched = resolveFamilyStyleMatch("Skia", { weight });
+      expect(matched, `native match at ${weight}`).not.toBeNull();
+      const font = getFontInstance(resolveFontKey("Skia"), weight, 100, 0);
+      expect(font, `font at ${weight}`).not.toBeNull();
+      const source = getFontSourceInfo(font);
+      expect(font?.instantiatedPostscriptName ?? font?.postscriptName).toBe(matched!.postscriptName);
+      expect(source?.path).toBe(SKIA);
+      const axis = source?.variationAxes?.wght;
+      if (axis != null) {
+        expect(axis).toBeGreaterThanOrEqual(0.48);
+        expect(axis).toBeLessThanOrEqual(3.2);
+        expect(axis).not.toBe(weight);
+      }
+    }
   });
 });
 

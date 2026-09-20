@@ -1040,6 +1040,8 @@ The `u-…` table records which family Chrome's CoreText fallback picked **per U
 
 So each entry now carries the `family` it was sampled from, and `fallbackFontChain` uses a route only when `resolveInstalledFont(family)` succeeds here (`generatedRouteUsable`). On a machine without that family Chrome cannot pick it either, and a route to a face Chrome will never choose defeats the table's whole purpose.
 
+The generator also marks author-installed paths and paths absent on the generation host as `optionalInstall`. Apple can remove a Supplemental font between macOS releases (for example Noto Sans Brahmi on macOS 27), so the path-integrity audit must accept that inventory change. This does not make the route authoritative when absent: the live family gate above still rejects it and puts the current CoreText answer at the head of the chain.
+
 **A file-existence check is not sufficient** and was the trap: the Cyrillic route's `/System/Library/Fonts/SFNS.ttf` exists on every macOS. What varies is whether the *family* is installed — which is what decides Chrome's pick. Same rule the family→key map already applies to `"SF Pro Text"`.
 
 When a route is rejected, the **live resolver** supplies the replacement and is placed at the chain HEAD. Merely dropping the route would be worse than the original bug: the static tail ends in `last-resort`, whose LastResort.otf has a block-frame glyph for *every* codepoint, so it would win and paint tofu — and `u-noto-sans` sitting in that tail is itself a non-stock download that gets skipped when absent. If the OS has no answer either, the generated route is kept: a face Chrome might not pick still beats guaranteed tofu.

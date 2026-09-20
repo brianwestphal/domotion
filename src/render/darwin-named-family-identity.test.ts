@@ -11,7 +11,11 @@ import {
   resolveFontKeyChain,
   withFontRendererSession,
 } from "./font-resolution.js";
-import { isGlyphHelperAvailable, resolveInstalledFont } from "./glyph-helper.js";
+import {
+  createGlyphHelperFont,
+  isGlyphHelperAvailable,
+  resolveInstalledFont,
+} from "./glyph-helper.js";
 import {
   clearGlyphDefs,
   getTextRunProvenance,
@@ -52,6 +56,20 @@ function faceIdentity(key: string, cps: number[]): FaceIdentity {
       return { id: glyph.id, advance: glyph.advanceWidth };
     }),
   };
+}
+
+function installedFaceGlyphs(
+  installed: { path: string; postscriptName: string }, cps: number[],
+): FaceIdentity["glyphs"] {
+  const font = createGlyphHelperFont({
+    fontPath: installed.path,
+    postscriptName: installed.postscriptName,
+  });
+  expect(font, installed.postscriptName).not.toBeNull();
+  return cps.map((cp) => {
+    const glyph = font!.glyphForCodePoint(cp);
+    return { id: glyph.id, advance: glyph.advanceWidth };
+  });
 }
 
 function declaredFallbackIdentity(stack: string, cp: number): FaceIdentity {
@@ -142,10 +160,8 @@ describeMac("exact macOS named-family face identity", () => {
     const identity = faceIdentity(key, [0x2c62, 0x2c65]);
     expect(identity.postscriptName).toBe("SFProText-Regular");
     expect(identity.path).toBe(installed.path);
-    expect(identity.glyphs).toEqual([
-      { id: 181, advance: 1308 },
-      { id: 617, advance: 1130 },
-    ]);
+    expect(identity.glyphs).toEqual(installedFaceGlyphs(installed, [0x2c62, 0x2c65]));
+    expect(identity.glyphs.every((glyph) => glyph.id !== 0)).toBe(true);
   });
 
   it("falls through when SF Pro Text is unavailable", () => {
@@ -178,10 +194,7 @@ describeMac("exact macOS named-family face identity", () => {
       const sfWarm = withFontRendererSession(session, () => renderedIdentity('"SF Pro Text", Times', "Ɫⱥ"));
       expect(sfWarm).toEqual(sfCold);
       expect(sfCold.selected.postscriptName).toBe("SFProText-Regular");
-      expect(sfCold.glyphs).toEqual([
-        { id: 181, advance: 1308 },
-        { id: 617, advance: 1130 },
-      ]);
+      expect(sfCold.glyphs).toEqual(installedFaceGlyphs(sfInstalled, [0x2c62, 0x2c65]));
     }
   });
 });
