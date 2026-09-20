@@ -399,6 +399,7 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       writeFileSync(path.join(dir, "session.cast"), cast);
       const rawCfg = {
         width: 320, height: 180,
+        realText: true,
         frames: [
           { input: "intro.html", duration: 600, transition: { type: "crossfade", duration: 200 } },
           { cast: "session.cast", duration: 2000, term: { mode: "full", fontSize: 13 } },
@@ -422,6 +423,11 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       const usedFams = new Set([...svg.matchAll(/font-family="([^"]+)"/g)].map((m) => m[1]));
       const declFams = new Set([...svg.matchAll(/@font-face\s*\{[^}]*?font-family:\s*"([^"]+)"/g)].map((m) => m[1]));
       for (const fam of usedFams) expect(declFams.has(fam)).toBe(true);
+      // The ordinary frame and each full terminal settle frame own real text
+      // inside their existing visibility gates.
+      expect((svg.match(/data-domotion-real-text-layer="true"/g) ?? []).length).toBeGreaterThan(2);
+      expect(svg).toContain("$ build");
+      expect(svg).toContain("done");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

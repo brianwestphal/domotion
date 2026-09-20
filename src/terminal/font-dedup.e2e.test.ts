@@ -48,6 +48,7 @@ describeBrowser("terminal embedded-font dedup (DM-1225)", () => {
     const { browser } = env!;
     const { svg, frameCount } = await castToAnimatedSvg(CAST, browser, { theme: "dark" });
     expect(frameCount).toBeGreaterThan(2); // genuinely multi-frame
+    expect(svg).not.toContain("data-domotion-real-text-layer");
     const faces = countFontFaces(svg);
     // One @font-face per font VARIANT (regular/bold/…), independent of frame
     // count — never frameCount × variants. A tiny monospace run stays in single
@@ -75,6 +76,24 @@ describeBrowser("terminal embedded-font dedup (DM-1225)", () => {
     expect(fontFaceCss).toBe(""); // deferred — host collects it
     for (const f of frames) {
       expect(f.svgContent).not.toContain("@font-face");
+    }
+  });
+
+  it("emits one final-screen real-text layer in incremental mode", async () => {
+    const { browser } = env!;
+    const { svg } = await castToAnimatedSvg(CAST, browser, { theme: "dark", realText: true });
+    expect((svg.match(/data-domotion-real-text-layer="true"/g) ?? []).length).toBe(1);
+    expect(svg).toContain("line four");
+    expect(svg).toContain('aria-hidden="true"');
+  });
+
+  it("emits a visibility-gated real-text layer for every full terminal frame", async () => {
+    const { browser } = env!;
+    const { frames } = await castToTermFrames(CAST, browser, { theme: "dark", realText: true });
+    expect(frames.length).toBeGreaterThan(2);
+    for (const frame of frames) {
+      expect((frame.svgContent.match(/data-domotion-real-text-layer="true"/g) ?? []).length).toBe(1);
+      expect(frame.svgContent).toContain('aria-hidden="true"');
     }
   });
 });

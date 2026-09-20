@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1775","DM-2715","DM-6SQXGF"]
-code: ["src/cli/capture.ts","src/cli/animate-command.ts","src/cli/animate-orchestrator.ts","src/cli/animate-frame-capture.ts","src/scroll/composer.ts","src/animation/compressed-run.ts","src/render/element-tree-to-svg.ts","src/render/real-text-layer.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/pseudo-fragments.ts","src/render/real-text-layer.test.ts","tests/real-text-layer.e2e.test.ts","tests/animate-real-text.e2e.test.ts"]
+code: ["src/cli/capture.ts","src/cli/animate-command.ts","src/cli/animate-orchestrator.ts","src/cli/animate-frame-capture.ts","src/cli/mutation-detect.ts","src/scroll/composer.ts","src/animation/compressed-run.ts","src/terminal/index.ts","src/terminal/incremental.ts","src/render/element-tree-to-svg.ts","src/render/real-text-layer.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/pseudo-fragments.ts","src/render/real-text-layer.test.ts","src/terminal/font-dedup.e2e.test.ts","src/cli/mutation-detect.e2e.test.ts","tests/compose-animate-frames.e2e.test.ts","tests/real-text-layer.e2e.test.ts","tests/animate-real-text.e2e.test.ts"]
 aliases: ["docs/260-inline-svg-real-text-layer.md","doc-260"]
 ---
 
@@ -110,6 +110,19 @@ window:
   keyframes only and leaves the paintless `data-domotion-real-text-layer` group
   and its `<text>` untouched. Stacked layers are simultaneously visible, so each
   contributing its own active-frame text is correct (no cross-layer dedup).
+- **Terminal frames**: full mode emits one layer per settle frame, inheriting
+  that frame's visibility window. Incremental mode's line pool retains
+  opacity-hidden historical lines, so exposing the pool would make inactive
+  transcript text searchable. It instead emits one layer from the final stable
+  terminal screen, matching the compressed-run stable-story rule.
+- **JS reveal**: the rest and settled DOM captures each carry their own layer
+  inside the nested crossfade frame. A no-mutation or motion-tween reveal has
+  one state and therefore one layer.
+- **Pre-rendered embedded SVG**: embedding preserves an existing real-text
+  layer byte-for-byte. Domotion does not synthesize one when the supplied SVG
+  lacks it because opaque path geometry has no trustworthy authored-text
+  source. Produce the embedded SVG with real text before composition when that
+  semantic layer is required.
 
 In every path the visible glyph runs switch to `aria-hidden="true"` while a layer
 owns their readable string (`withRealTextLayerVisualSemantics`, scoped per
@@ -123,9 +136,8 @@ byte-identical — **zero visual regions**.
   `<svg>` is required. The same caveat applies to image-only preview surfaces.
 - `--real-text` still **rejects paged capture** (its authenticated native SVG
   bytes have a separate contract). Multi-frame animation/scroll/compressed/
-  composite are supported (DM-6SQXGF, above); the niche animate frame *types*
-  built from non-DOM sources — terminal (`tr`), jsReveal (`jr`), and pre-rendered
-  embedded frames — do not yet inject a layer and are tracked separately.
+  terminal/JS-reveal/composite paths are supported. Opaque pre-rendered SVGs
+  remain pass-through-only as described above.
 - Text selection geometry is anchored to captured run positions, but native
   selection highlight details and accessibility presentation remain properties
   of the consuming browser and assistive technology.

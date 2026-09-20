@@ -110,6 +110,24 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
       expect(res.svgContent).not.toMatch(/^<\?xml/);
       expect(res.svgContent).toContain("jr0_f-1"); // the after state
       expect(res.svgContent).toMatch(/@keyframes jr0_fv-1/); // rest→after crossfade
+      expect(res.svgContent).not.toContain("data-domotion-real-text-layer");
+    } finally {
+      await ctx.close();
+    }
+  }, 60_000);
+
+  it("emits real text inside each JS-reveal state when requested", async () => {
+    const ctx = await browser!.newContext({ viewport: { width: 400, height: 260 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`file://${htmlPath}`, { waitUntil: "networkidle" });
+      const res = await buildJsRevealAnimation(page, resolveJsRevealSpec({ selector: "#trigger", holdMs: 500, crossfadeMs: 200 }), {
+        width: 400, height: 260, framePrefix: "jr-rt_", log: () => {}, realText: true,
+      });
+      expect((res.svgContent.match(/data-domotion-real-text-layer="true"/g) ?? []).length).toBe(2);
+      expect(res.svgContent).toContain("Account");
+      expect(res.svgContent).toContain("Profile");
+      expect(res.svgContent).toContain('aria-hidden="true"');
     } finally {
       await ctx.close();
     }
@@ -134,6 +152,7 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
   it("the animate config path nests the JS-reveal crossfade in a single frame", async () => {
     const cfg = validateAnimateConfig({
       width: 400,
+      realText: true,
       height: 260,
       frames: [{ input: htmlPath, duration: 2000, jsReveal: { selector: "#trigger", holdMs: 700, crossfadeMs: 300 } }],
     });
@@ -141,5 +160,7 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
     expect((svg.match(/class="f f-\d+"/g) ?? []).length).toBe(1); // one outer frame
     expect((svg.match(/<svg/g) ?? []).length).toBeGreaterThanOrEqual(2);
     expect(svg).toMatch(/@keyframes jr0_fv-1/);
+    expect((svg.match(/data-domotion-real-text-layer="true"/g) ?? []).length).toBe(2);
+    expect(svg).toContain("Profile");
   }, 120_000);
 });

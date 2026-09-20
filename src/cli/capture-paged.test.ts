@@ -29,11 +29,6 @@ describe("capture paged-mode CLI boundary", () => {
     ], "")).rejects.toThrow("--paged is incompatible with ordinary capture flags: --real-text");
   });
 
-  it("rejects real text on multi-frame scroll composition until that contract exists", async () => {
-    await expect(runCapture(["page.html", "--real-text", "--scroll", "100px"], ""))
-      .rejects.toThrow("--real-text currently supports single-frame capture");
-  });
-
   it("rejects an unsafe paged output name before helper authentication", async () => {
     await expect(runCapture([
       "page.html", "--paged", "--paged-helper-manifest", "helper.json",

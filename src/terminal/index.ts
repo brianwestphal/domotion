@@ -60,6 +60,10 @@ export interface TermToSvgOptions extends FrameBuildOptions {
    * `fontFaceCss` (the frames defer to the caller's collection).
    */
   manageFonts?: boolean;
+  /** Append the opt-in paintless authored-text layer. Full mode emits one layer
+   *  per visibility-gated settle frame; incremental mode exposes the final
+   *  stable terminal screen. Default false. */
+  realText?: boolean;
   /** Optional progress log. */
   log?: (msg: string) => void;
 }
@@ -171,7 +175,7 @@ export async function castToTermFrames(
       await embedRemoteImages(tree);
       // includeGlyphDefs=true, includeEmbeddedFontCss=false (DM-1225): defer the
       // font to the single deduped block collected below, not per frame.
-      const svgContent = elementTreeToSvgInner(tree, width, height, `t${i}-`, true, 2, false);
+      const svgContent = elementTreeToSvgInner(tree, width, height, `t${i}-`, true, 2, false, opts.realText === true);
       animFrames.push({
         svgContent,
         duration: frames[i].durationMs,

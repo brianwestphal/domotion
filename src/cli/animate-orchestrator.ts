@@ -1342,6 +1342,7 @@ async function buildCastFrame(
     cols: t.cols, rows: t.rows,
     settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
     manageFonts: false,
+    realText: cfg.realText === true,
     log: (m) => log(`  ${m}`),
   });
   if (fc.duration < totalDurationMs) {
@@ -1623,6 +1624,7 @@ async function buildCapturedFrame(
     const spec = resolveJsRevealSpec(fc.jsReveal);
     const res = await buildJsRevealAnimation(page, spec, {
       width: cfg.width, height: cfg.height, framePrefix: `jr${i}_`, log,
+      realText: cfg.realText === true,
     });
     svgContent = res.svgContent;
     frameCullCss = "";

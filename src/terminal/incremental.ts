@@ -25,10 +25,11 @@
 import type { Browser } from "@playwright/test";
 import { parseCast } from "./cast.js";
 import { TerminalEmulator, type TermCell } from "./emulator.js";
-import { buildFrames, rowInnerHtml, makeReferenceGrid, measureTermCanvas, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
+import { buildFrames, gridToHtml, rowInnerHtml, makeReferenceGrid, measureTermCanvas, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
 import { resolveTheme, type TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
+import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 import type { TermToSvgOptions } from "./index.js";
 
 /** Max rows to search when detecting an inter-frame scroll shift (scroll is normally small). */
@@ -365,6 +366,7 @@ export async function composeIncrementalTermSvg(
   let width = 0;
   let height = 0;
   let inner = "";
+  let realTextLayer = "";
   try {
     const page = await ctx.newPage();
     page.setDefaultTimeout(60_000);
@@ -396,7 +398,21 @@ export async function composeIncrementalTermSvg(
     await page.evaluate(() => document.fonts.ready);
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
     await embedRemoteImages(tree);
-    inner = elementTreeToSvgInner(tree, width, height, "ti-", true, 2, false);
+    const renderVisual = (): string => elementTreeToSvgInner(tree, width, height, "ti-", true, 2, false);
+    inner = opts.realText === true ? withRealTextLayerVisualSemantics(renderVisual) : renderVisual();
+
+    // The incremental line pool contains every line that appears during the
+    // recording, including opacity-hidden historical lines. Exposing that pool
+    // as native text would violate active-frame ownership because opacity does
+    // not remove text from Find-in-Page or the accessibility tree. Capture the
+    // final stable terminal screen separately and expose exactly that story.
+    if (opts.realText === true) {
+      const finalFrame = frames[frames.length - 1];
+      await page.setContent(gridToHtml(finalFrame.grid, htmlOpts), { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const finalTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+      realTextLayer = renderRealTextLayer(finalTree);
+    }
   } finally {
     await ctx.close();
   }
@@ -410,6 +426,6 @@ export async function composeIncrementalTermSvg(
   const fontFaceCss = manageFonts ? getEmbeddedFontFaceCss() : "";
   const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${lineKeyframes(lines, totalMs, yOf)}${cursor != null ? "\n" + cursor.css : ""}`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${styleCss}</style>${inner}${cursor != null ? cursor.markup : ""}</svg>`;
+    + `<style>${styleCss}</style>${inner}${cursor != null ? cursor.markup : ""}${realTextLayer}</svg>`;
   return { svg, width, height, fontFaceCss, totalDurationMs: totalMs, lineCount: lines.length };
 }

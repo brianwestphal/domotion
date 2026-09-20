@@ -234,7 +234,7 @@ export async function detectJsMutations(page: Page, spec: JsRevealSpec): Promise
 export async function buildJsRevealAnimation(
   page: Page,
   spec: JsRevealSpec,
-  opts: { width: number; height: number; framePrefix: string; log: (msg: string) => void },
+  opts: { width: number; height: number; framePrefix: string; log: (msg: string) => void; realText?: boolean },
 ): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined; summary: MutationSummary }> {
   const { width, height, framePrefix, log } = opts;
 
@@ -256,7 +256,9 @@ export async function buildJsRevealAnimation(
   cullElementsOutsideViewBox(restTree, width, height, undefined, 0, 1);
   const rootBg = restTree[0]?.styles?.rootBgComputed;
   const restSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
-  const renderRest = (): string => elementTreeToSvgInner(restTree, width, height, `${framePrefix}s0-`, true, 2, false);
+  const renderRest = (): string => elementTreeToSvgInner(
+    restTree, width, height, `${framePrefix}s0-`, true, 2, false, opts.realText === true,
+  );
 
   // 2. Dispatch + observe + settle.
   const summary = await detectJsMutations(page, spec);
@@ -305,7 +307,9 @@ export async function buildJsRevealAnimation(
       const afterTree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, width, height });
       cullElementsOutsideViewBox(afterTree, width, height, undefined, 0, 1);
       clearAnimIds(afterTree);
-      const afterSvg = elementTreeToSvgInner(afterTree, width, height, `${framePrefix}s1-`, true, 2, false);
+      const afterSvg = elementTreeToSvgInner(
+        afterTree, width, height, `${framePrefix}s1-`, true, 2, false, opts.realText === true,
+      );
       subFrames.push({ svgContent: renderRest(), duration: spec.holdMs, transition: { type: "crossfade", duration: spec.crossfadeMs } });
       subFrames.push({ svgContent: afterSvg, duration: spec.holdMs });
     }
