@@ -50,9 +50,9 @@ reports correct top-level metadata.
 
 ## Package contract
 
-- **`bin`** — `package.json` maps `"domotion": "dist/cli/index.js"` plus four
-  more bins (`svg-to-video`, `svg-to-image`, `svg-review`,
-  `svg-scrubber`). Because there are multiple bins and none matches the
+- **`bin`** — `package.json` maps `"domotion": "dist/cli/index.js"` plus five
+  more bins (`svg-to-video`, `svg-to-image`, `svg-review`, `svg-scrubber`,
+  `domotion-studio`). Because there are multiple bins and none matches the
   package name `domotion-svg`, the bin must be named explicitly
   (`npx -p domotion-svg domotion …`); the bare `npx domotion-svg …` no longer
   auto-resolves (DM-1362).
@@ -60,11 +60,16 @@ reports correct top-level metadata.
   `dist/cli/index.js`) begins with `#!/usr/bin/env node`. npm sets the
   executable bit on bin targets at pack/install time, so the committed file
   mode is irrelevant to consumers.
-- **Build before publish** — `dist/` is gitignored; the published tarball is
-  built by `npm run build` in the release CI (`.github/workflows/release.yml`)
-  immediately before `npm publish`. The `files` allowlist includes `dist`, so
-  the compiled entry point ships. **`package.json` is always included in an npm
-  tarball regardless of `files`**, which the version read below relies on.
+- **Clean build before pack or publish** — `dist/` is gitignored. `npm run
+  build` removes it before compiling, then checks that every emitted `.js` and
+  `.d.ts` maps exactly to one current, publishable source module. The npm
+  `prepack` lifecycle runs that clean build for local `npm pack` and for
+  `npm publish`, in addition to the explicit release-CI build. Compiled tests,
+  test-support modules, deleted-source leftovers, and missing declaration/JS
+  pairs therefore fail before a tarball is accepted. The `files` allowlist
+  includes `dist`, so the compiled entry point ships. **`package.json` is
+  always included in an npm tarball regardless of `files`**, which the version
+  read below relies on.
 - **Version reporting** — `domotion --version` and the `--help` banner read the
   version from `package.json` at runtime via
   `createRequire(import.meta.url)("../../package.json")`, resolved relative to
@@ -103,8 +108,10 @@ itself needs:
   `FEATURES.md` — not `src/`, and not the compiled
   test files: the published build uses `tsconfig.build.json`, which excludes
   `**/*.test.ts(x)` from `dist/` (DM-878). Tests are still type-checked by
-  `npm run typecheck` (base `tsconfig.json`) and run from source by vitest. Net:
-  ~136 files / 1.8 MB unpacked, down from ~361 / 5.3 MB.
+  `npm run typecheck` (base `tsconfig.json`) and run from source by vitest. The
+  v0.29.0 clean dry-run contains 667 entries, about 3.4 MB packed / 12.4 MB
+  unpacked, with no compiled tests, test-support modules, or deleted-source
+  artifacts.
 
 ## Verification
 
