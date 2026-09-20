@@ -6,7 +6,7 @@ status: "current"
 owners: ["images-media","animation"]
 platforms: ["macos","linux"]
 tickets: ["DM-2581","DM-2584","DM-2585"]
-code: []
+code: ["src/capture/authenticated-animated-image-bytes.ts","tests/authenticated-animated-image-bytes.e2e.test.ts","tests/authenticated-animated-image-bytes.test.ts","tools/animated-image-stock-cdp-support.ts"]
 aliases: ["docs/232-opt-in-authenticated-animated-image-byte-collector.md","doc-232"]
 ---
 

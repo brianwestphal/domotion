@@ -6,7 +6,7 @@ status: "current"
 owners: ["images-media","animation"]
 platforms: []
 tickets: ["DM-2364"]
-code: []
+code: ["src/capture/pseudo-fragment-cdp.ts","src/render/element-tree-to-svg.ts","tests/replaced-ownership-transition-gate.test.ts","tools/replaced-ownership-transition-gate.ts","tools/replaced-ownership-transition-oracle.ts"]
 aliases: ["docs/184-replaced-ownership-transition-matrix.md","doc-184"]
 ---
 

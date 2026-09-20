@@ -6,7 +6,7 @@ status: "current"
 owners: ["layout","platform-release"]
 platforms: []
 tickets: []
-code: []
+code: ["src/capture/script/index.ts","src/render/element-tree-to-svg.ts","tools/transform-geometry-oracle.ts","tools/parity-program.json"]
 aliases: ["docs/131-transform-geometry-oracle.md","doc-131"]
 ---
 

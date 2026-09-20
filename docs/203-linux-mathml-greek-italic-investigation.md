@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["linux"]
 tickets: ["DM-2512"]
-code: []
+code: ["tests/linux-mathml-greek-raster-contract.test.ts","tests/linux-mathml-greek-raster-gate.test.ts","tools/linux-mathml-greek-raster-collector.ts","tools/linux-mathml-greek-raster-gate.ts"]
 aliases: ["docs/203-linux-mathml-greek-italic-investigation.md","doc-203"]
 ---
 

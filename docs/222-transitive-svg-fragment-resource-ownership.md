@@ -6,7 +6,7 @@ status: "current"
 owners: ["layout"]
 platforms: []
 tickets: []
-code: []
+code: ["src/capture/script/walker/masks-clips.ts","src/render/element-tree-to-svg.ts","src/render/gradients.ts","src/render/mask.ts","tests/iframe-inner-defs.e2e.test.ts"]
 aliases: ["docs/222-transitive-svg-fragment-resource-ownership.md","doc-222"]
 ---
 

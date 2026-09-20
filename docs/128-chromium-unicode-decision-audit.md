@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2310"]
-code: []
+code: ["src/render/harfbuzz-shaper.ts","src/render/icu-helper.ts","src/render/unicode-classification.ts","tools/icu-conformance.ts","tools/icu-helper/src/main.cpp"]
 aliases: ["docs/128-chromium-unicode-decision-audit.md","doc-128"]
 ---
 

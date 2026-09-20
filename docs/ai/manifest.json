@@ -286,7 +286,12 @@
         "paint-effects"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/render/borders.ts",
+        "src/render/borders.test.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/overflow-clip.ts"
+      ],
       "file": "14-per-corner-border-radius.md"
     },
     {
@@ -2362,7 +2367,12 @@
         "rendering"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "schemas/animate-config.schema.json",
+        "src/animation/animator.ts",
+        "src/animation/animator.test.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
       "file": "114-angled-linear-wipe.md"
     },
     {
@@ -2380,7 +2390,11 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/render/harfbuzz-shaper.ts",
+        "tools/exact-shaping-oracle.ts",
+        "tools/shape-agreement-samples.ts"
+      ],
       "file": "114-exact-shaping-oracle.md"
     },
     {
@@ -2392,7 +2406,12 @@
         "animation"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/animation/animator.ts",
+        "src/animation/transition-schema.ts",
+        "src/animation/transition-schema.test.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
       "file": "115-parameterized-transition-design.md"
     },
     {
@@ -2458,7 +2477,13 @@
         "animation"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/animation/animator.ts",
+        "src/animation/animator-parameterized-transitions.test.ts",
+        "src/animation/transition-schema.ts",
+        "src/animation/transition-schema.test.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
       "file": "117-parameterized-built-in-transitions.md"
     },
     {
@@ -2470,7 +2495,13 @@
         "animation"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/animation/animator.ts",
+        "src/animation/animator-parameterized-transitions.test.ts",
+        "src/animation/transition-schema.ts",
+        "src/animation/transition-schema.test.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
       "file": "118-custom-transition-recipes.md"
     },
     {
@@ -2505,7 +2536,13 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        ".github/workflows/font-conformance-synthetic.yml",
+        "scripts/ci-font-conformance-shard.sh",
+        "tests/font-conformance.test.ts",
+        "tools/cluster-conformance.ts",
+        "tools/font-conformance.ts"
+      ],
       "file": "120-same-machine-text-parity-contract.md"
     },
     {
@@ -2522,7 +2559,12 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/render/character-fallback-document-cache.test.ts",
+        "src/render/font-resolution-cache-reset.test.ts",
+        "src/render/font-resolution.ts",
+        "src/render/glyph-helper.ts"
+      ],
       "file": "121-font-cache-parity.md"
     },
     {
@@ -2538,7 +2580,10 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/render/font-resolution.ts",
+        "src/render/webfont-declaration-order.test.ts"
+      ],
       "file": "122-declared-family-segmented-face-parity.md"
     },
     {
@@ -2602,7 +2647,13 @@
         "paint-effects"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/capture/types.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/stacking-context.test.ts",
+        "tests/html-test-suite.tsx"
+      ],
       "file": "126-backdrop-filter-isolation.md"
     },
     {
@@ -2638,7 +2689,13 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/render/harfbuzz-shaper.ts",
+        "src/render/icu-helper.ts",
+        "src/render/unicode-classification.ts",
+        "tools/icu-conformance.ts",
+        "tools/icu-helper/src/main.cpp"
+      ],
       "file": "128-chromium-unicode-decision-audit.md"
     },
     {
@@ -2685,7 +2742,12 @@
         "platform-release"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/render/element-tree-to-svg.ts",
+        "tools/transform-geometry-oracle.ts",
+        "tools/parity-program.json"
+      ],
       "file": "131-transform-geometry-oracle.md"
     },
     {
@@ -2698,7 +2760,10 @@
         "platform-release"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "tools/paint-order-oracle.ts",
+        "tools/parity-program.json"
+      ],
       "file": "132-paint-order-oracle.md"
     },
     {
@@ -2862,7 +2927,13 @@
         "product-tooling"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "tests/unified-shaping-oracle.test.ts",
+        "tools/collect-stage-evidence.ts",
+        "tools/exact-shaping-oracle.ts",
+        "tools/unified-shaping-oracle.ts",
+        "tools/parity-program.json"
+      ],
       "file": "141-unified-shaping-evidence.md"
     },
     {
@@ -2875,7 +2946,12 @@
         "platform-release"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/render/text-run-provenance.ts",
+        "tools/renderer-font-route-oracle.ts",
+        "tools/parity-program.json",
+        "tools/semantic-coverage.json"
+      ],
       "file": "142-renderer-font-route-audit.md"
     },
     {
@@ -2889,7 +2965,13 @@
       "platforms": [
         "macos"
       ],
-      "code": [],
+      "code": [
+        "src/render/cluster-fallback.ts",
+        "src/render/text-run-provenance.ts",
+        "src/render/text-run-provenance.test.ts",
+        "src/render/text-to-path.ts",
+        "tools/renderer-font-route-oracle.ts"
+      ],
       "file": "143-production-text-run-provenance.md"
     },
     {
@@ -2904,7 +2986,12 @@
       "platforms": [
         "linux"
       ],
-      "code": [],
+      "code": [
+        "src/capture/script/dotted-circle-detect.ts",
+        "src/capture/script/dotted-circle-detect.test.ts",
+        "src/capture/script/walker/text-segments.ts",
+        "src/render/text-to-path.ts"
+      ],
       "file": "144-dotted-circle-shaping-evidence.md"
     },
     {
@@ -2937,7 +3024,11 @@
       "platforms": [
         "macos"
       ],
-      "code": [],
+      "code": [
+        "src/render/character-fallback-document-cache.test.ts",
+        "src/render/font-resolution.ts",
+        "tools/ideograph-fallback-cache-oracle.ts"
+      ],
       "file": "146-macos-ideograph-fallback-cache-audit.md"
     },
     {
@@ -2983,7 +3074,10 @@
       "platforms": [
         "macos"
       ],
-      "code": [],
+      "code": [
+        "tests/macos-terminal-raster-oracle.test.ts",
+        "tools/macos-terminal-raster-oracle.ts"
+      ],
       "file": "149-macos-terminal-raster-evidence.md"
     },
     {
@@ -3018,7 +3112,9 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "tools/shaped-origin-oracle.ts"
+      ],
       "file": "151-shaped-origin-oracle.md"
     },
     {
@@ -3033,7 +3129,11 @@
       "platforms": [
         "linux"
       ],
-      "code": [],
+      "code": [
+        "src/capture/script/walker/text-segments.ts",
+        "src/capture/types.ts",
+        "tests/mathml-italic-token.e2e.test.ts"
+      ],
       "file": "152-mathml-italic-token-oracle.md"
     },
     {
@@ -3217,7 +3317,12 @@
         "platform-release"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/review/roll-differential.ts",
+        "tests/roll-differential.test.ts",
+        "tools/compare-roll-evidence.ts",
+        "tools/parity-environment.ts"
+      ],
       "file": "160-chromium-roll-differential-audit.md"
     },
     {
@@ -3301,7 +3406,11 @@
         "layout"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/cli/capture.ts",
+        "src/scroll/executor.ts",
+        "tests/cross-origin-iframe-recursion.e2e.test.ts"
+      ],
       "file": "164-cross-origin-scroll-frame-capture.md"
     },
     {
@@ -3738,7 +3847,13 @@
         "animation"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/capture/pseudo-fragment-cdp.ts",
+        "src/render/element-tree-to-svg.ts",
+        "tests/replaced-ownership-transition-gate.test.ts",
+        "tools/replaced-ownership-transition-gate.ts",
+        "tools/replaced-ownership-transition-oracle.ts"
+      ],
       "file": "184-replaced-ownership-transition-matrix.md"
     },
     {
@@ -3829,7 +3944,12 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "tests/nested-projective-ownership-audit.e2e.test.ts",
+        "tests/nested-projective-ownership-audit.test.ts",
+        "tools/nested-projective-ownership-audit.ts",
+        "tools/parity-program.json"
+      ],
       "file": "189-nested-projective-context-ownership.md"
     },
     {
@@ -3894,7 +4014,13 @@
         "paint-effects"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/capture/backdrop-effect-space.ts",
+        "src/capture/backdrop-effect-space.test.ts",
+        "src/capture/projective-owner.ts",
+        "src/render/borders.ts",
+        "tools/animated-projective-frame-oracle.ts"
+      ],
       "file": "194-ordinary-backdrop-effect-space.md"
     },
     {
@@ -4075,7 +4201,12 @@
       "platforms": [
         "linux"
       ],
-      "code": [],
+      "code": [
+        "tests/linux-mathml-greek-raster-contract.test.ts",
+        "tests/linux-mathml-greek-raster-gate.test.ts",
+        "tools/linux-mathml-greek-raster-collector.ts",
+        "tools/linux-mathml-greek-raster-gate.ts"
+      ],
       "file": "203-linux-mathml-greek-italic-investigation.md"
     },
     {
@@ -4247,7 +4378,13 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/capture/generic-font-probe.ts",
+        "src/render/glyph-helper.ts",
+        "tests/generic-profile-target-oracle.e2e.test.ts",
+        "tools/generic-profile-target-oracle.ts",
+        "tools/system-ui-preference-route-oracle.ts"
+      ],
       "file": "212-chrome-profile-target-generic-authority.md"
     },
     {
@@ -4448,7 +4585,13 @@
         "layout"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/capture/script/walker/masks-clips.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/gradients.ts",
+        "src/render/mask.ts",
+        "tests/iframe-inner-defs.e2e.test.ts"
+      ],
       "file": "222-transitive-svg-fragment-resource-ownership.md"
     },
     {
@@ -4638,7 +4781,12 @@
         "macos",
         "linux"
       ],
-      "code": [],
+      "code": [
+        "src/capture/authenticated-animated-image-bytes.ts",
+        "tests/authenticated-animated-image-bytes.e2e.test.ts",
+        "tests/authenticated-animated-image-bytes.test.ts",
+        "tools/animated-image-stock-cdp-support.ts"
+      ],
       "file": "232-opt-in-authenticated-animated-image-byte-collector.md"
     },
     {
@@ -4651,7 +4799,11 @@
         "animation"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/capture/animated-image-static-frame.ts",
+        "tests/animated-image-static-frame.e2e.test.ts",
+        "tests/animated-image-static-frame.test.ts"
+      ],
       "file": "233-strict-animated-image-static-frame.md"
     },
     {
@@ -4664,7 +4816,11 @@
         "animation"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/tree-ops/resize-embedded-images.ts",
+        "src/tree-ops/resize-embedded-images.test.ts",
+        "tests/animated-image-static-frame.e2e.test.ts"
+      ],
       "file": "234-frozen-animated-image-downstream-ownership.md"
     },
     {
@@ -4699,7 +4855,12 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/capture/animated-image-static-frame.ts",
+        "src/capture/authenticated-animated-image-bytes.ts",
+        "tests/animated-image-static-frame.e2e.test.ts",
+        "tests/authenticated-animated-image-bytes.e2e.test.ts"
+      ],
       "file": "236-strict-static-frames-for-svg-css-images.md"
     },
     {

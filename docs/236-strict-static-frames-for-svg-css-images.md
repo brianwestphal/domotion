@@ -6,7 +6,7 @@ status: "current"
 owners: ["images-media"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2582"]
-code: []
+code: ["src/capture/animated-image-static-frame.ts","src/capture/authenticated-animated-image-bytes.ts","tests/animated-image-static-frame.e2e.test.ts","tests/authenticated-animated-image-bytes.e2e.test.ts"]
 aliases: ["docs/236-strict-static-frames-for-svg-css-images.md","doc-236"]
 ---
 

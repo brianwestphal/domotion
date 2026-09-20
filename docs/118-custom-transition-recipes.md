@@ -6,7 +6,7 @@ status: "current"
 owners: ["animation"]
 platforms: []
 tickets: ["DM-2072"]
-code: []
+code: ["src/animation/animator.ts","src/animation/animator-parameterized-transitions.test.ts","src/animation/transition-schema.ts","src/animation/transition-schema.test.ts","tests/compose-animate-frames.e2e.test.ts"]
 aliases: ["docs/118-custom-transition-recipes.md","doc-118"]
 ---
 

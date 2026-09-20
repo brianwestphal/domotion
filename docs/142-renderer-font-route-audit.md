@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: []
 tickets: ["DM-2330","DM-2341","DM-2348","DM-2387","DM-2392","DM-2393","DM-2398","DM-2399"]
-code: []
+code: ["src/render/text-run-provenance.ts","tools/renderer-font-route-oracle.ts","tools/parity-program.json","tools/semantic-coverage.json"]
 aliases: ["docs/142-renderer-font-route-audit.md","doc-142"]
 ---
 

@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["macos","linux","windows"]
 tickets: []
-code: []
+code: [".github/workflows/font-conformance-synthetic.yml","scripts/ci-font-conformance-shard.sh","tests/font-conformance.test.ts","tools/cluster-conformance.ts","tools/font-conformance.ts"]
 aliases: ["docs/120-same-machine-text-parity-contract.md","doc-120"]
 ---
 

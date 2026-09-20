@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2329","DM-2444","DM-2445"]
-code: []
+code: ["tools/shaped-origin-oracle.ts"]
 aliases: ["docs/151-shaped-origin-oracle.md","doc-151"]
 ---
 

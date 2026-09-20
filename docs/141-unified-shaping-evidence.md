@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","product-tooling"]
 platforms: []
 tickets: []
-code: []
+code: ["tests/unified-shaping-oracle.test.ts","tools/collect-stage-evidence.ts","tools/exact-shaping-oracle.ts","tools/unified-shaping-oracle.ts","tools/parity-program.json"]
 aliases: ["docs/141-unified-shaping-evidence.md","doc-141"]
 ---
 

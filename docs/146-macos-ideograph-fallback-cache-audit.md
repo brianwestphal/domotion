@@ -6,7 +6,7 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos"]
 tickets: ["DM-1949","DM-2342","DM-2401"]
-code: []
+code: ["src/render/character-fallback-document-cache.test.ts","src/render/font-resolution.ts","tools/ideograph-fallback-cache-oracle.ts"]
 aliases: ["docs/146-macos-ideograph-fallback-cache-audit.md","doc-146"]
 ---
 

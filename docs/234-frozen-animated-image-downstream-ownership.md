@@ -6,7 +6,7 @@ status: "current"
 owners: ["images-media","animation"]
 platforms: []
 tickets: ["DM-2580","DM-2581"]
-code: []
+code: ["src/tree-ops/resize-embedded-images.ts","src/tree-ops/resize-embedded-images.test.ts","tests/animated-image-static-frame.e2e.test.ts"]
 aliases: ["docs/234-frozen-animated-image-downstream-ownership.md","doc-234"]
 ---
 

@@ -6,7 +6,7 @@ status: "current"
 owners: ["paint-effects","platform-release"]
 platforms: []
 tickets: []
-code: []
+code: ["tools/paint-order-oracle.ts","tools/parity-program.json"]
 aliases: ["docs/132-paint-order-oracle.md","doc-132"]
 ---
 

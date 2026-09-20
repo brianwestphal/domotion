@@ -6,7 +6,7 @@ status: "current"
 owners: ["paint-effects"]
 platforms: []
 tickets: ["DM-2487"]
-code: []
+code: ["src/capture/backdrop-effect-space.ts","src/capture/backdrop-effect-space.test.ts","src/capture/projective-owner.ts","src/render/borders.ts","tools/animated-projective-frame-oracle.ts"]
 aliases: ["docs/194-ordinary-backdrop-effect-space.md","doc-194"]
 ---
 

@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2356","DM-2359","DM-2492","DM-2493"]
-code: []
+code: ["tests/nested-projective-ownership-audit.e2e.test.ts","tests/nested-projective-ownership-audit.test.ts","tools/nested-projective-ownership-audit.ts","tools/parity-program.json"]
 aliases: ["docs/189-nested-projective-context-ownership.md","doc-189"]
 ---
 

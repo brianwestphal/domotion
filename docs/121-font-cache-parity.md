@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["macos","linux","windows"]
 tickets: []
-code: []
+code: ["src/render/character-fallback-document-cache.test.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/glyph-helper.ts"]
 aliases: ["docs/121-font-cache-parity.md","doc-121"]
 ---
 

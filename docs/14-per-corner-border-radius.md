@@ -6,7 +6,7 @@ status: "current"
 owners: ["paint-effects"]
 platforms: []
 tickets: ["DM-300"]
-code: []
+code: ["src/render/borders.ts","src/render/borders.test.ts","src/render/element-tree-to-svg.ts","src/render/overflow-clip.ts"]
 aliases: ["docs/14-per-corner-border-radius.md","doc-14"]
 ---
 

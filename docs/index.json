@@ -566,7 +566,12 @@
         "tickets": [
           "DM-300"
         ],
-        "code": [],
+        "code": [
+          "src/render/borders.ts",
+          "src/render/borders.test.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/render/overflow-clip.ts"
+        ],
         "aliases": [
           "docs/14-per-corner-border-radius.md",
           "doc-14"
@@ -4007,7 +4012,12 @@
         "tickets": [
           "DM-2041"
         ],
-        "code": [],
+        "code": [
+          "schemas/animate-config.schema.json",
+          "src/animation/animator.ts",
+          "src/animation/animator.test.ts",
+          "tests/compose-animate-frames.e2e.test.ts"
+        ],
         "aliases": [
           "docs/114-angled-linear-wipe.md",
           "doc-114"
@@ -4032,7 +4042,11 @@
           "windows"
         ],
         "tickets": [],
-        "code": [],
+        "code": [
+          "src/render/harfbuzz-shaper.ts",
+          "tools/exact-shaping-oracle.ts",
+          "tools/shape-agreement-samples.ts"
+        ],
         "aliases": [
           "docs/114-exact-shaping-oracle.md",
           "doc-114"
@@ -4055,7 +4069,12 @@
           "DM-2071",
           "DM-2072"
         ],
-        "code": [],
+        "code": [
+          "src/animation/animator.ts",
+          "src/animation/transition-schema.ts",
+          "src/animation/transition-schema.test.ts",
+          "tests/compose-animate-frames.e2e.test.ts"
+        ],
         "aliases": [
           "docs/115-parameterized-transition-design.md",
           "doc-115"
@@ -4160,7 +4179,13 @@
         "tickets": [
           "DM-2071"
         ],
-        "code": [],
+        "code": [
+          "src/animation/animator.ts",
+          "src/animation/animator-parameterized-transitions.test.ts",
+          "src/animation/transition-schema.ts",
+          "src/animation/transition-schema.test.ts",
+          "tests/compose-animate-frames.e2e.test.ts"
+        ],
         "aliases": [
           "docs/117-parameterized-built-in-transitions.md",
           "doc-117"
@@ -4181,7 +4206,13 @@
         "tickets": [
           "DM-2072"
         ],
-        "code": [],
+        "code": [
+          "src/animation/animator.ts",
+          "src/animation/animator-parameterized-transitions.test.ts",
+          "src/animation/transition-schema.ts",
+          "src/animation/transition-schema.test.ts",
+          "tests/compose-animate-frames.e2e.test.ts"
+        ],
         "aliases": [
           "docs/118-custom-transition-recipes.md",
           "doc-118"
@@ -4230,7 +4261,13 @@
           "windows"
         ],
         "tickets": [],
-        "code": [],
+        "code": [
+          ".github/workflows/font-conformance-synthetic.yml",
+          "scripts/ci-font-conformance-shard.sh",
+          "tests/font-conformance.test.ts",
+          "tools/cluster-conformance.ts",
+          "tools/font-conformance.ts"
+        ],
         "aliases": [
           "docs/120-same-machine-text-parity-contract.md",
           "doc-120"
@@ -4254,7 +4291,12 @@
           "windows"
         ],
         "tickets": [],
-        "code": [],
+        "code": [
+          "src/render/character-fallback-document-cache.test.ts",
+          "src/render/font-resolution-cache-reset.test.ts",
+          "src/render/font-resolution.ts",
+          "src/render/glyph-helper.ts"
+        ],
         "aliases": [
           "docs/121-font-cache-parity.md",
           "doc-121"
@@ -4279,7 +4321,10 @@
         "tickets": [
           "DM-2090"
         ],
-        "code": [],
+        "code": [
+          "src/render/font-resolution.ts",
+          "src/render/webfont-declaration-order.test.ts"
+        ],
         "aliases": [
           "docs/122-declared-family-segmented-face-parity.md",
           "doc-122"
@@ -4379,7 +4424,13 @@
           "DM-2487",
           "DM-2490"
         ],
-        "code": [],
+        "code": [
+          "src/capture/script/index.ts",
+          "src/capture/types.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/stacking-context.test.ts",
+          "tests/html-test-suite.tsx"
+        ],
         "aliases": [
           "docs/126-backdrop-filter-isolation.md",
           "doc-126"
@@ -4435,7 +4486,13 @@
         "tickets": [
           "DM-2310"
         ],
-        "code": [],
+        "code": [
+          "src/render/harfbuzz-shaper.ts",
+          "src/render/icu-helper.ts",
+          "src/render/unicode-classification.ts",
+          "tools/icu-conformance.ts",
+          "tools/icu-helper/src/main.cpp"
+        ],
         "aliases": [
           "docs/128-chromium-unicode-decision-audit.md",
           "doc-128"
@@ -4516,7 +4573,12 @@
         ],
         "platforms": [],
         "tickets": [],
-        "code": [],
+        "code": [
+          "src/capture/script/index.ts",
+          "src/render/element-tree-to-svg.ts",
+          "tools/transform-geometry-oracle.ts",
+          "tools/parity-program.json"
+        ],
         "aliases": [
           "docs/131-transform-geometry-oracle.md",
           "doc-131"
@@ -4536,7 +4598,10 @@
         ],
         "platforms": [],
         "tickets": [],
-        "code": [],
+        "code": [
+          "tools/paint-order-oracle.ts",
+          "tools/parity-program.json"
+        ],
         "aliases": [
           "docs/132-paint-order-oracle.md",
           "doc-132"
@@ -4776,7 +4841,13 @@
         ],
         "platforms": [],
         "tickets": [],
-        "code": [],
+        "code": [
+          "tests/unified-shaping-oracle.test.ts",
+          "tools/collect-stage-evidence.ts",
+          "tools/exact-shaping-oracle.ts",
+          "tools/unified-shaping-oracle.ts",
+          "tools/parity-program.json"
+        ],
         "aliases": [
           "docs/141-unified-shaping-evidence.md",
           "doc-141"
@@ -4805,7 +4876,12 @@
           "DM-2398",
           "DM-2399"
         ],
-        "code": [],
+        "code": [
+          "src/render/text-run-provenance.ts",
+          "tools/renderer-font-route-oracle.ts",
+          "tools/parity-program.json",
+          "tools/semantic-coverage.json"
+        ],
         "aliases": [
           "docs/142-renderer-font-route-audit.md",
           "doc-142"
@@ -4834,7 +4910,13 @@
           "DM-2428",
           "DM-2567"
         ],
-        "code": [],
+        "code": [
+          "src/render/cluster-fallback.ts",
+          "src/render/text-run-provenance.ts",
+          "src/render/text-run-provenance.test.ts",
+          "src/render/text-to-path.ts",
+          "tools/renderer-font-route-oracle.ts"
+        ],
         "aliases": [
           "docs/143-production-text-run-provenance.md",
           "doc-143"
@@ -4858,7 +4940,12 @@
         "tickets": [
           "DM-2522"
         ],
-        "code": [],
+        "code": [
+          "src/capture/script/dotted-circle-detect.ts",
+          "src/capture/script/dotted-circle-detect.test.ts",
+          "src/capture/script/walker/text-segments.ts",
+          "src/render/text-to-path.ts"
+        ],
         "aliases": [
           "docs/144-dotted-circle-shaping-evidence.md",
           "doc-144"
@@ -4917,7 +5004,11 @@
           "DM-2342",
           "DM-2401"
         ],
-        "code": [],
+        "code": [
+          "src/render/character-fallback-document-cache.test.ts",
+          "src/render/font-resolution.ts",
+          "tools/ideograph-fallback-cache-oracle.ts"
+        ],
         "aliases": [
           "docs/146-macos-ideograph-fallback-cache-audit.md",
           "doc-146"
@@ -4992,7 +5083,10 @@
         "tickets": [
           "DM-2440"
         ],
-        "code": [],
+        "code": [
+          "tests/macos-terminal-raster-oracle.test.ts",
+          "tools/macos-terminal-raster-oracle.ts"
+        ],
         "aliases": [
           "docs/149-macos-terminal-raster-evidence.md",
           "doc-149"
@@ -5048,7 +5142,9 @@
           "DM-2444",
           "DM-2445"
         ],
-        "code": [],
+        "code": [
+          "tools/shaped-origin-oracle.ts"
+        ],
         "aliases": [
           "docs/151-shaped-origin-oracle.md",
           "doc-151"
@@ -5074,7 +5170,11 @@
           "DM-2511",
           "DM-2512"
         ],
-        "code": [],
+        "code": [
+          "src/capture/script/walker/text-segments.ts",
+          "src/capture/types.ts",
+          "tests/mathml-italic-token.e2e.test.ts"
+        ],
         "aliases": [
           "docs/152-mathml-italic-token-oracle.md",
           "doc-152"
@@ -5344,7 +5444,12 @@
         ],
         "platforms": [],
         "tickets": [],
-        "code": [],
+        "code": [
+          "src/review/roll-differential.ts",
+          "tests/roll-differential.test.ts",
+          "tools/compare-roll-evidence.ts",
+          "tools/parity-environment.ts"
+        ],
         "aliases": [
           "docs/160-chromium-roll-differential-audit.md",
           "doc-160"
@@ -5471,7 +5576,11 @@
         ],
         "platforms": [],
         "tickets": [],
-        "code": [],
+        "code": [
+          "src/cli/capture.ts",
+          "src/scroll/executor.ts",
+          "tests/cross-origin-iframe-recursion.e2e.test.ts"
+        ],
         "aliases": [
           "docs/164-cross-origin-scroll-frame-capture.md",
           "doc-164"
@@ -6128,7 +6237,13 @@
         "tickets": [
           "DM-2364"
         ],
-        "code": [],
+        "code": [
+          "src/capture/pseudo-fragment-cdp.ts",
+          "src/render/element-tree-to-svg.ts",
+          "tests/replaced-ownership-transition-gate.test.ts",
+          "tools/replaced-ownership-transition-gate.ts",
+          "tools/replaced-ownership-transition-oracle.ts"
+        ],
         "aliases": [
           "docs/184-replaced-ownership-transition-matrix.md",
           "doc-184"
@@ -6273,7 +6388,12 @@
           "DM-2492",
           "DM-2493"
         ],
-        "code": [],
+        "code": [
+          "tests/nested-projective-ownership-audit.e2e.test.ts",
+          "tests/nested-projective-ownership-audit.test.ts",
+          "tools/nested-projective-ownership-audit.ts",
+          "tools/parity-program.json"
+        ],
         "aliases": [
           "docs/189-nested-projective-context-ownership.md",
           "doc-189"
@@ -6379,7 +6499,13 @@
         "tickets": [
           "DM-2487"
         ],
-        "code": [],
+        "code": [
+          "src/capture/backdrop-effect-space.ts",
+          "src/capture/backdrop-effect-space.test.ts",
+          "src/capture/projective-owner.ts",
+          "src/render/borders.ts",
+          "tools/animated-projective-frame-oracle.ts"
+        ],
         "aliases": [
           "docs/194-ordinary-backdrop-effect-space.md",
           "doc-194"
@@ -6650,7 +6776,12 @@
         "tickets": [
           "DM-2512"
         ],
-        "code": [],
+        "code": [
+          "tests/linux-mathml-greek-raster-contract.test.ts",
+          "tests/linux-mathml-greek-raster-gate.test.ts",
+          "tools/linux-mathml-greek-raster-collector.ts",
+          "tools/linux-mathml-greek-raster-gate.ts"
+        ],
         "aliases": [
           "docs/203-linux-mathml-greek-italic-investigation.md",
           "doc-203"
@@ -6909,7 +7040,13 @@
           "DM-2550",
           "DM-2551"
         ],
-        "code": [],
+        "code": [
+          "src/capture/generic-font-probe.ts",
+          "src/render/glyph-helper.ts",
+          "tests/generic-profile-target-oracle.e2e.test.ts",
+          "tools/generic-profile-target-oracle.ts",
+          "tools/system-ui-preference-route-oracle.ts"
+        ],
         "aliases": [
           "docs/212-chrome-profile-target-generic-authority.md",
           "doc-212"
@@ -7207,7 +7344,13 @@
         ],
         "platforms": [],
         "tickets": [],
-        "code": [],
+        "code": [
+          "src/capture/script/walker/masks-clips.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/render/gradients.ts",
+          "src/render/mask.ts",
+          "tests/iframe-inner-defs.e2e.test.ts"
+        ],
         "aliases": [
           "docs/222-transitive-svg-fragment-resource-ownership.md",
           "doc-222"
@@ -7495,7 +7638,12 @@
           "DM-2584",
           "DM-2585"
         ],
-        "code": [],
+        "code": [
+          "src/capture/authenticated-animated-image-bytes.ts",
+          "tests/authenticated-animated-image-bytes.e2e.test.ts",
+          "tests/authenticated-animated-image-bytes.test.ts",
+          "tools/animated-image-stock-cdp-support.ts"
+        ],
         "aliases": [
           "docs/232-opt-in-authenticated-animated-image-byte-collector.md",
           "doc-232"
@@ -7519,7 +7667,11 @@
           "DM-2580",
           "DM-2581"
         ],
-        "code": [],
+        "code": [
+          "src/capture/animated-image-static-frame.ts",
+          "tests/animated-image-static-frame.e2e.test.ts",
+          "tests/animated-image-static-frame.test.ts"
+        ],
         "aliases": [
           "docs/233-strict-animated-image-static-frame.md",
           "doc-233"
@@ -7542,7 +7694,11 @@
           "DM-2580",
           "DM-2581"
         ],
-        "code": [],
+        "code": [
+          "src/tree-ops/resize-embedded-images.ts",
+          "src/tree-ops/resize-embedded-images.test.ts",
+          "tests/animated-image-static-frame.e2e.test.ts"
+        ],
         "aliases": [
           "docs/234-frozen-animated-image-downstream-ownership.md",
           "doc-234"
@@ -7596,7 +7752,12 @@
         "tickets": [
           "DM-2582"
         ],
-        "code": [],
+        "code": [
+          "src/capture/animated-image-static-frame.ts",
+          "src/capture/authenticated-animated-image-bytes.ts",
+          "tests/animated-image-static-frame.e2e.test.ts",
+          "tests/authenticated-animated-image-bytes.e2e.test.ts"
+        ],
         "aliases": [
           "docs/236-strict-static-frames-for-svg-css-images.md",
           "doc-236"

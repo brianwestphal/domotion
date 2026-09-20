@@ -6,7 +6,7 @@ status: "current"
 owners: ["layout"]
 platforms: []
 tickets: []
-code: []
+code: ["src/cli/capture.ts","src/scroll/executor.ts","tests/cross-origin-iframe-recursion.e2e.test.ts"]
 aliases: ["docs/164-cross-origin-scroll-frame-capture.md","doc-164"]
 ---
 
