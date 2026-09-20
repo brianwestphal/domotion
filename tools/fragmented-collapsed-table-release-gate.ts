@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 /** Strict all-platform release gate for fragmented collapsed tables.
  *
- * Screen fragment ownership, public-print fail-closed ownership, and native
- * terminal ink are deliberately independent inputs. A green paint envelope
- * can never excuse an incomplete logical record.
+ * Screen fragment ownership and native terminal ink are deliberately
+ * independent inputs. A green paint envelope can never excuse an incomplete
+ * logical record.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -12,8 +12,6 @@ import { pathToFileURL } from "node:url";
 export const FRAGMENTED_TABLE_PLATFORMS = ["darwin", "linux", "win32"] as const;
 const SCREEN_DISCRIMINATORS = 21;
 const SCREEN_MUTATIONS = 15;
-const PAGED_MATRIX_CELLS = 8;
-const PAGED_MUTATIONS = 15;
 const FINAL_INK_ROWS = 1_152;
 
 type JsonRecord = Record<string, unknown>;
@@ -33,28 +31,20 @@ function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function platformOf(input: JsonRecord, kind: "screen" | "paged" | "ink"): string {
+function platformOf(input: JsonRecord, kind: "screen" | "ink"): string {
   if (kind === "ink") return String(input.platform ?? "");
   return String(record(input.environment)?.os ?? "");
 }
 
-function trueRecord(value: unknown): boolean {
-  const row = record(value);
-  return row != null && Object.values(row).every((entry) => entry === true || entry === false)
-    && Object.entries(row).every(([key, entry]) => key === "pixelsRead" ? entry === false : entry === true);
-}
-
 export function adjudicateFragmentedCollapsedTableRelease(
   screenInputs: readonly unknown[],
-  pagedInputs: readonly unknown[],
   inkInputs: readonly unknown[],
 ): FragmentedTableReleaseResult {
   const blockers: string[] = [];
   const screens = new Map<string, JsonRecord>();
-  const paged = new Map<string, JsonRecord>();
   const ink = new Map<string, JsonRecord>();
 
-  const ingest = (inputs: readonly unknown[], kind: "screen" | "paged" | "ink", target: Map<string, JsonRecord>) => {
+  const ingest = (inputs: readonly unknown[], kind: "screen" | "ink", target: Map<string, JsonRecord>) => {
     for (const input of inputs) {
       const row = record(input);
       if (row == null) {
@@ -71,15 +61,12 @@ export function adjudicateFragmentedCollapsedTableRelease(
     }
   };
   ingest(screenInputs, "screen", screens);
-  ingest(pagedInputs, "paged", paged);
   ingest(inkInputs, "ink", ink);
 
   for (const platform of FRAGMENTED_TABLE_PLATFORMS) {
     const screen = screens.get(platform);
-    const print = paged.get(platform);
     const paint = ink.get(platform);
     if (screen == null) blockers.push(`screen: missing ${platform} report`);
-    if (print == null) blockers.push(`paged: missing ${platform} report`);
     if (paint == null) blockers.push(`ink: missing ${platform} report`);
 
     if (screen != null) {
@@ -95,20 +82,6 @@ export function adjudicateFragmentedCollapsedTableRelease(
         blockers.push(`screen/${platform}: destructive mutation matrix incomplete`);
       if (record(screen.print)?.pixelsRead !== false)
         blockers.push(`screen/${platform}: logical leg read pixels`);
-    }
-
-    if (print != null) {
-      const matrix = array(print.requiredMatrix);
-      const mutations = array(print.mutations).map(record);
-      if (print.schemaVersion !== 1 || print.pass !== true
-          || print.verdict !== "public-print-fragment-transport-unavailable-fail-closed")
-        blockers.push(`paged/${platform}: public print boundary did not fail closed exactly`);
-      if (new Set(matrix.map(String)).size !== PAGED_MATRIX_CELLS)
-        blockers.push(`paged/${platform}: print matrix incomplete`);
-      if (!trueRecord(print.discriminators))
-        blockers.push(`paged/${platform}: print ownership discriminators incomplete`);
-      if (mutations.length !== PAGED_MUTATIONS || mutations.some((row) => row?.moved !== true))
-        blockers.push(`paged/${platform}: print mutation matrix incomplete`);
     }
 
     if (paint != null) {
@@ -156,7 +129,6 @@ if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]
   if (!option(process.argv.slice(2), "--reports")) throw new Error("--reports is required");
   const result = adjudicateFragmentedCollapsedTableRelease(
     findReports(root, "screen-logical.json"),
-    findReports(root, "paged-logical.json"),
     findReports(root, "final-ink.json"),
   );
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

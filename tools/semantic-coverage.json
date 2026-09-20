@@ -848,15 +848,13 @@
         "whole-row break -> continued-row break",
         "single fragment -> repeated header/footer",
         "horizontal -> vertical fragmentation",
-        "screen fragmentation -> paged-media fragmentation",
         "screen logical ownership -> all-platform final ink"
       ],
       "exactStates": [
         "separate -> collapse",
         "whole-row break -> continued-row break",
         "single fragment -> repeated header/footer",
-        "horizontal -> vertical fragmentation",
-        "screen fragmentation -> paged-media fragmentation"
+        "horizontal -> vertical fragmentation"
       ],
       "uncoveredStates": [
         "screen logical ownership -> all-platform final ink"
@@ -875,8 +873,6 @@
       "productionOwners": [
         "src/capture/collapsed-border-fragment-record.ts",
         "src/capture/collapsed-border-fragment-cdp.ts",
-        "src/capture/paged-collapsed-table-record.ts",
-        "src/capture/paged-collapsed-table-cdp.ts",
         "src/capture/script/walker/collapsed-border.ts",
         "src/capture/script/walker/borders-backgrounds.ts",
         "src/render/element-tree-to-svg.ts"
@@ -884,24 +880,20 @@
       "oracles": [
         "tools/paint-geometry-oracle.ts",
         "tools/collapsed-border-fragmentation-oracle.ts",
-        "tools/paged-collapsed-table-ownership-audit.ts",
         "tools/fragmented-collapsed-table-release-gate.ts"
       ],
       "metamorphicTests": [
         "src/capture/collapsed-border-fragment-record.test.ts",
-        "src/capture/paged-collapsed-table-record.test.ts",
         "src/capture/script/walker/collapsed-border.test.ts",
         "tests/collapsed-border-fragmentation-oracle.test.ts",
-        "tests/paged-collapsed-table-ownership-audit.test.ts",
         "tests/fragmented-collapsed-table-release-gate.test.ts"
       ],
       "visualFixtures": [
         "src/capture/collapsed-border-fragment-cdp.e2e.test.ts",
-        "src/capture/paged-collapsed-table-cdp.e2e.test.ts",
         "tests/border-collapse-conflict.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "DM-2557 authenticates ordinary screen physical fragments before vector paint from exactly agreeing transform-neutral CSSOM/CDP LayoutUnit geometry and exact restoration. DM-2558 extends that record to repeated headers/footers without promoting coordinate aliases: the first computed group and complete Blink eligibility path authenticate, alias geometry supplies only the FragmentRepeater prototype, and intrinsic source-cell membership witnesses every physical occurrence. The schema-3 explicit-headless pixel-free screen corpus passes 21 logical discriminators and 15 hostile mutations across header-only/footer-only/both, oversized/non-avoid negatives, first-of-multiple selection, monolithic overflow, caption-only/empty table-box states, and horizontal/vertical writing; rows, roles, occurrence indexes, paint slots, first/last table-box state, and reserved collapsed/table-edge space are exact. DM-2559 pins Chromium's transient PrintBegin/page-fragment/PrintEnd lifetime and Page.printToPDF's PDF-only result; a complete private paged schema names page/table/section/global-row/break/repeat/caption/span/edge/joint/writing ownership, while public CDP stays unavailable across seven live cases, eight matrix cells, fourteen named missing facts, and fifteen active mutations. Screen aliases and PDF/vector/raster output cannot substitute, all source observations restore exactly, pixelsRead is false, and no border tolerance changed. The later all-platform logical/final-ink gate must preserve that state unless a complete private print transport is present.",
+      "boundary": "DM-2557 authenticates ordinary screen physical fragments before vector paint from exactly agreeing transform-neutral CSSOM/CDP LayoutUnit geometry and exact restoration. DM-2558 extends that record to repeated headers/footers without promoting coordinate aliases: the first computed group and complete Blink eligibility path authenticate, alias geometry supplies only the FragmentRepeater prototype, and intrinsic source-cell membership witnesses every physical occurrence. The schema-3 explicit-headless pixel-free screen corpus passes 21 logical discriminators and 15 hostile mutations across header-only/footer-only/both, oversized/non-avoid negatives, first-of-multiple selection, monolithic overflow, caption-only/empty table-box states, and horizontal/vertical writing; rows, roles, occurrence indexes, paint slots, first/last table-box state, and reserved collapsed/table-edge space are exact. Screen aliases cannot substitute, all source observations restore exactly, pixelsRead is false, and no border tolerance changed.",
       "featureIds": [
         "render.tree-to-svg"
       ],

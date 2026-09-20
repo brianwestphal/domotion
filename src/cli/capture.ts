@@ -51,8 +51,6 @@ import {
   makeLogger,
   parseColorScheme,
   parseIntFlag,
-  parseNonNegativeFloat,
-  parsePositiveFloat,
   parseTuple,
   resolveOutputPath,
   timed,
@@ -90,21 +88,6 @@ interface CaptureFlagValues {
   "cross-origin-frames"?: string;
   url?: string;
   "har-fallback"?: boolean;
-  paged?: boolean;
-  "paged-helper-manifest"?: string;
-  "paged-helper-sha256"?: string;
-  "page-width"?: string;
-  "page-height"?: string;
-  "page-margin-top"?: string;
-  "page-margin-right"?: string;
-  "page-margin-bottom"?: string;
-  "page-margin-left"?: string;
-  "page-ranges"?: string;
-  "page-scale"?: string;
-  landscape?: boolean;
-  "print-background"?: boolean;
-  "no-print-background"?: boolean;
-  "prefer-css-page-size"?: boolean;
   output?: string;
   [key: string]: string | boolean | undefined;
 }
@@ -140,30 +123,6 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   // paintless real-text layer per visibility-gated scroll region).
   if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
     throw new Error(`capture: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`);
-  }
-  const pagedOnly = ["paged-helper-manifest", "paged-helper-sha256", "page-width", "page-height",
-    "page-margin-top", "page-margin-right", "page-margin-bottom", "page-margin-left",
-    "page-ranges", "page-scale", "landscape", "print-background", "no-print-background",
-    "prefer-css-page-size"];
-  if (values.paged !== true && pagedOnly.some((name) => values[name] != null)) {
-    throw new Error("capture: paged print flags require explicit --paged mode");
-  }
-  if (values.paged === true) {
-    if (values["paged-helper-manifest"] == null || values["paged-helper-sha256"] == null) {
-      throw new Error("capture: --paged requires --paged-helper-manifest and --paged-helper-sha256");
-    }
-    if (values.output == null) throw new Error("capture: --paged requires --output <name>.domotion-pages.json");
-    if (values["print-background"] === true && values["no-print-background"] === true) {
-      throw new Error("capture: --print-background and --no-print-background are mutually exclusive");
-    }
-    const incompatible = ["width", "height", "format", "safe-guide", "clip", "scroll-to", "optimize",
-      "no-optimize", "warnings", "mobile", "chrome", "chrome-label", "chrome-theme", "color-scheme",
-      "title", "desc", "no-embed-images", "cross-origin-frames", "brand", "scroll", "scroll-speed",
-      "scroll-selector", "no-prescroll", "debug", "debug-dir", "real-text"]
-      .filter((name) => values[name] != null);
-    if (incompatible.length > 0) {
-      throw new Error(`capture: --paged is incompatible with ordinary capture flags: ${incompatible.map((name) => `--${name}`).join(", ")}`);
-    }
   }
 }
 
@@ -207,21 +166,6 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       quiet:              { type: "boolean" },
       debug:              { type: "boolean" },
       "debug-dir":        { type: "string" },
-      paged:              { type: "boolean" },
-      "paged-helper-manifest": { type: "string" },
-      "paged-helper-sha256": { type: "string" },
-      "page-width":       { type: "string" },
-      "page-height":      { type: "string" },
-      "page-margin-top":  { type: "string" },
-      "page-margin-right": { type: "string" },
-      "page-margin-bottom": { type: "string" },
-      "page-margin-left": { type: "string" },
-      "page-ranges":      { type: "string" },
-      "page-scale":       { type: "string" },
-      landscape:           { type: "boolean" },
-      "print-background": { type: "boolean" },
-      "no-print-background": { type: "boolean" },
-      "prefer-css-page-size": { type: "boolean" },
       "real-text":         { type: "boolean" },
       "text-mode":         { type: "string" },
       "flatten-nested-svg": { type: "boolean" },
@@ -238,8 +182,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   const har = isHarPath(input);
   validateCaptureFlags(values, har);
   // DM-2716: select the text-emit strategy for this one-shot CLI process. The
-  // mode is a render-side process-global; setting it here covers the ordinary,
-  // scroll, and paged render paths below. `--text-mode system-font` emits
+  // mode is a render-side process-global; setting it here covers the ordinary
+  // and scroll render paths below. `--text-mode system-font` emits
   // authored `<text>` painted by the CONSUMER's installed fonts (smaller output,
   // not pixel-faithful); `paths` / `embedded-font` are the fidelity modes.
   if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
@@ -248,51 +192,6 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   // DM-K0S6ZS: opt-in — flatten inlined `<img src=*.svg>` nested `<svg>`s into a
   // `<g transform>` (falls back to the nested `<svg>` for unsafe sources).
   if (values["flatten-nested-svg"] === true) setFlattenNestedSvg(true);
-  if (values.paged === true) {
-    const log = makeLogger(values.quiet === true);
-    const { capturePagedSvgBundle } = await import("../capture/paged-capture.js");
-    const wait = parseIntFlag(values.wait, "wait", 200);
-    const waitFor = values["wait-for"];
-    const fontsReady = values["no-fonts-ready"] !== true;
-    const networkIdle = values["network-idle"] === true;
-    log("Launching authenticated paged-capture helper…");
-    const manifest = await capturePagedSvgBundle({
-      helperManifestPath: values["paged-helper-manifest"]!,
-      expectedHelperManifestSha256: values["paged-helper-sha256"]!,
-      outputManifestPath: values.output!,
-      sourceSelector: values.selector ?? "html",
-      print: {
-        paperWidthInches: parsePositiveFloat(values["page-width"], "page-width"),
-        paperHeightInches: parsePositiveFloat(values["page-height"], "page-height"),
-        marginTopInches: parseNonNegativeFloat(values["page-margin-top"], "page-margin-top"),
-        marginRightInches: parseNonNegativeFloat(values["page-margin-right"], "page-margin-right"),
-        marginBottomInches: parseNonNegativeFloat(values["page-margin-bottom"], "page-margin-bottom"),
-        marginLeftInches: parseNonNegativeFloat(values["page-margin-left"], "page-margin-left"),
-        pageRanges: values["page-ranges"],
-        scale: parsePositiveFloat(values["page-scale"], "page-scale"),
-        landscape: values.landscape === true,
-        printBackground: values["no-print-background"] !== true,
-        preferCSSPageSize: values["prefer-css-page-size"] === true,
-      },
-      preparePage: async (page) => {
-        page.setDefaultTimeout(90_000);
-        page.setDefaultNavigationTimeout(90_000);
-        if (har) {
-          const harUrl = values.url ?? inferHarPageUrl(input);
-          await page.context().routeFromHAR(input, {
-            url: "**/*",
-            notFound: values["har-fallback"] === true ? "fallback" : "abort",
-          });
-          await page.goto(harUrl, { waitUntil: networkIdle ? "networkidle" : "load" });
-        } else {
-          await loadInputIntoPage(page, input, { networkIdle });
-        }
-        await applyReadyWaits(page, { wait, waitFor, fontsReady });
-      },
-    });
-    log(`Paged bundle written: ${values.output} (${manifest.pages.length} pages)`);
-    return;
-  }
   // DM-1538: `--format <name|WxH>` sizes the capture VIEWPORT via the shared
   // format machinery (docs/87, docs/90). Precedence stays explicit `--width` /
   // `--height` > format > default 800×600 — so `parseIntFlag`'s default becomes

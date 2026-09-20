@@ -134,9 +134,8 @@ byte-identical — **zero visual regions**.
 - `<img src="capture.svg">` remains an image: its inner SVG DOM is neither
   searchable nor selectable and is not exposed as document text. Inline
   `<svg>` is required. The same caveat applies to image-only preview surfaces.
-- `--real-text` still **rejects paged capture** (its authenticated native SVG
-  bytes have a separate contract). Multi-frame animation/scroll/compressed/
-  terminal/JS-reveal/composite paths are supported. Opaque pre-rendered SVGs
+- Multi-frame animation/scroll/compressed/terminal/JS-reveal/composite paths
+  are supported. Opaque pre-rendered SVGs
   remain pass-through-only as described above.
 - Text selection geometry is anchored to captured run positions, but native
   selection highlight details and accessibility presentation remain properties

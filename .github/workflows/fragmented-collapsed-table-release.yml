@@ -9,7 +9,7 @@ env:
 
 jobs:
   collect:
-    name: ${{ matrix.label }} logical and final-ink evidence
+    name: ${{ matrix.label }} screen-logical and final-ink evidence
     strategy:
       fail-fast: false
       matrix:
@@ -45,8 +45,6 @@ jobs:
           git -C external/chromium symbolic-ref HEAD refs/heads/pinned
       - name: Collect exact screen logical record (headless, no pixels)
         run: npm run borders:collapsed-fragmentation-audit -- --json tests/output/fragmented-table/screen-logical.json
-      - name: Collect exact public-print fail-closed record (headless, no pixels)
-        run: npm run borders:paged-collapsed-ownership-audit -- --json tests/output/fragmented-table/paged-logical.json
       - name: Collect native final ink independently (headless)
         run: npm run borders:phase-oracle -- --dsf 1,2,4 --zoom 0.8,1,1.25 --report-only --json tests/output/fragmented-table/border-phase.json --keep tests/output/fragmented-table/artifacts
       - name: Record runner environment
@@ -74,7 +72,7 @@ jobs:
         with:
           pattern: fragmented-collapsed-table-*
           path: tests/output/fragmented-table-release
-      - name: Require all logical, print, and native-ink legs
+      - name: Require all screen-logical and native-ink legs
         run: npm run borders:fragmented-release-gate -- --reports tests/output/fragmented-table-release
       - name: Retain the complete Cartesian evidence
         if: always()

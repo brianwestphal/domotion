@@ -26,13 +26,6 @@ loading the historical documentation corpus.
   strikes live in `glyph-helper-transport.ts`, `glyph-helper-protocol.ts`,
   `glyph-helper-outline.ts`, `glyph-helper-font.ts`, and
   `linux-target-strike.ts`, respectively.
-  Authenticated paged capture lives in `capture/paged-capture-helper.ts` and
-  `capture/paged-page-record.ts`; `render/paged-page-svg.ts` passes the pinned
-  Skia page SVG through byte-for-byte after a live-only logical consistency audit.
-  `capture/paged-capture.ts` is the explicit high-level API and atomic
-  manifest-last bundle writer; `cli/capture.ts --paged` is its only CLI route.
-  `tools/paged-capture-release-{collector,gate}.ts` and the matching workflow
-  require logical-first, exact proposal/validation evidence on every platform.
   `render/real-text-layer.ts` owns the single-frame opt-in paintless authored
   text overlay for inline-SVG search, selection, copy, and accessibility; the
   visible glyph geometry remains the only paint owner.

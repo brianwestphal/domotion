@@ -247,23 +247,12 @@ oversize/non-avoid negatives, multiple groups, monolithic overflow,
 caption-only/empty table-box states, and horizontal/vertical writing. Each
 record carries global rows, original/repeated role, occurrence index,
 first/last table-box state, paint slot, and reserved collapsed/table edge;
-drop/duplicate/reorder/wrong-source/wrong-edge evidence fails closed. The
-independent paged-media
-audit now pins Chromium's transient `PrintBegin`/anonymous-page-fragment/
-`PrintEnd` lifetime and the `Page.printToPDF` protocol result. Public CDP returns
-only PDF bytes or a stream, so the paged collapsed-table record explicitly
-withholds all fourteen page/table/section/row/break/repeat/caption/span/edge/
-joint/writing facts. Its seven-case, eight-cell, fifteen-mutation headless audit
-passes only when every route stays unavailable, screen state restores exactly,
-and no PDF/vector/raster fact is promoted. `@page` output therefore remains
-outside vector ownership until a pinned private fragment transport supplies the
-complete logical record; this is a bounded fail-closed result, not inferred
-geometry.
+drop/duplicate/reorder/wrong-source/wrong-edge evidence fails closed.
 
-The fragmented-table release workflow keeps three evidence layers independent
+The fragmented-table release workflow keeps two evidence layers independent
 on macOS, Linux, and Windows. It requires the complete screen logical
-discriminator/mutation set, the complete public-print fail-closed matrix, and
-the existing reviewed native border-phase envelope as nine separate reports.
+discriminator/mutation set and the existing reviewed native border-phase
+envelope as six separate reports.
 Its aggregate rejects a missing platform, logical drift, pixel use in a logical
 leg, incomplete mutations, changed native scenarios, or missing artifact
 identity; terminal ink cannot excuse a logical failure.

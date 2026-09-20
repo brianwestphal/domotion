@@ -152,28 +152,6 @@ capture options:
                            file render-fidelity bug reports.
       --debug-dir <path>   Override the .debug/ folder location.
 
-  Authenticated paged mode (explicit opt-in; writes a manifest plus page SVGs):
-      --paged              Capture physical print pages instead of the ordinary viewport.
-      --paged-helper-manifest <path>
-                           Caller-supplied pinned helper bundle manifest.
-      --paged-helper-sha256 <sha256>
-                           External trust-anchor digest for those manifest bytes.
-      --page-width <in>    Paper width in inches (default 8.5).
-      --page-height <in>   Paper height in inches (default 11).
-      --page-margin-top <in> / --page-margin-right <in>
-      --page-margin-bottom <in> / --page-margin-left <in>
-                           Print margins in inches (default 0.4 each).
-      --page-ranges <list> Closed one-based ranges such as "1-3,7" (default all).
-      --page-scale <n>     Positive print scale (default 1).
-      --landscape          Request landscape paper orientation.
-      --print-background / --no-print-background
-                           Include or omit CSS backgrounds (default include).
-      --prefer-css-page-size
-                           Prefer authored @page size over the supplied paper size.
-                           --output must end in .domotion-pages.json. Paged mode
-                           rejects viewport, crop, scrolling, chrome, optimization,
-                           debug, and other ordinary-screen-capture flags.
-
   HAR replay (when <input> ends in .har): the archive is replayed offline —
   every request is served from the HAR, so the capture is deterministic and
   needs no network. The main-document URL is inferred from the HAR; override

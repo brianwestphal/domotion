@@ -7272,7 +7272,7 @@
       "file": "225-fragmented-collapsed-table-ownership.md",
       "metadata": {
         "id": "requirements/fragmented-collapsed-table-ownership",
-        "title": "Fragmented collapsed-table physical ownership",
+        "title": "Fragmented collapsed-table ownership",
         "kind": "contract",
         "status": "current",
         "owners": [
@@ -7284,25 +7284,20 @@
           "windows"
         ],
         "tickets": [
-          "DM-2526",
           "DM-2557",
           "DM-2558",
-          "DM-2559",
           "DM-2560",
-          "DM-2571"
+          "DM-48MFKS"
         ],
         "code": [
           ".github/workflows/fragmented-collapsed-table-release.yml",
           "src/capture/collapsed-border-fragment-cdp.e2e.test.ts",
           "src/capture/collapsed-border-fragment-cdp.ts",
           "src/capture/collapsed-border-fragment-record.ts",
-          "src/capture/paged-collapsed-table-cdp.ts",
-          "src/capture/paged-collapsed-table-record.ts",
           "src/capture/script/walker/borders-backgrounds.ts",
           "tests/border-collapse-conflict.e2e.test.ts",
           "tools/collapsed-border-fragmentation-oracle.ts",
-          "tools/fragmented-collapsed-table-release-gate.ts",
-          "tools/paged-collapsed-table-ownership-audit.ts"
+          "tools/fragmented-collapsed-table-release-gate.ts"
         ],
         "aliases": [
           "docs/225-fragmented-collapsed-table-ownership.md",
@@ -7443,39 +7438,6 @@
         "aliases": [
           "docs/229-live-replaced-media-frame-ownership.md",
           "doc-229"
-        ]
-      }
-    },
-    {
-      "file": "230-paged-table-private-fragment-transport.md",
-      "metadata": {
-        "id": "requirements/paged-table-private-fragment-transport",
-        "title": "Paged-table private fragment transport",
-        "kind": "contract",
-        "status": "current",
-        "owners": [
-          "layout"
-        ],
-        "platforms": [
-          "macos",
-          "linux",
-          "windows"
-        ],
-        "tickets": [
-          "DM-2571",
-          "DM-2573",
-          "DM-2574",
-          "DM-2575",
-          "DM-2594",
-          "DM-2709"
-        ],
-        "code": [
-          "tools/chromium-paged-table-evidence/renderer-helper.patch",
-          "tools/paged-table-evidence-fixtures.ts"
-        ],
-        "aliases": [
-          "docs/230-paged-table-private-fragment-transport.md",
-          "doc-230"
         ]
       }
     },
@@ -8253,182 +8215,6 @@
         "aliases": [
           "docs/254-glassbox-studio-acceptance-benchmark.md",
           "doc-254"
-        ]
-      }
-    },
-    {
-      "file": "255-paged-media-capture-bundle.md",
-      "metadata": {
-        "id": "requirements/paged-media-capture-bundle",
-        "title": "Paged-media capture bundles",
-        "kind": "contract",
-        "status": "partial",
-        "owners": [
-          "layout",
-          "cli"
-        ],
-        "platforms": [
-          "macos",
-          "linux",
-          "windows"
-        ],
-        "tickets": [
-          "DM-2325",
-          "DM-2573",
-          "DM-2708",
-          "DM-2709",
-          "DM-2710",
-          "DM-2711",
-          "DM-2712",
-          "DM-2713"
-        ],
-        "code": [
-          "src/capture/paged-capture-bundle.ts",
-          "src/capture/paged-capture-bundle-json-schema.ts",
-          "schemas/paged-capture-bundle.schema.json",
-          "src/capture/paged-capture-helper.ts",
-          "src/capture/paged-capture-helper-json-schema.ts",
-          "schemas/paged-capture-helper-bundle.schema.json",
-          "tools/package-paged-capture-helper.ts",
-          "src/capture/paged-collapsed-table-record.ts",
-          "tools/chromium-paged-table-evidence/renderer-helper.patch",
-          "tools/paged-table-renderer-evidence-collector.ts",
-          "tools/paged-capture-release-gate.ts",
-          "tools/paged-capture-release-collector.ts",
-          ".github/workflows/paged-capture-release.yml"
-        ],
-        "aliases": [
-          "docs/255-paged-media-capture-bundle.md",
-          "doc-255"
-        ]
-      }
-    },
-    {
-      "file": "256-paged-page-print-record.md",
-      "metadata": {
-        "id": "requirements/paged-page-print-record",
-        "title": "Authenticated paged page print records",
-        "kind": "contract",
-        "status": "current",
-        "owners": [
-          "layout",
-          "capture"
-        ],
-        "platforms": [
-          "macos",
-          "linux",
-          "windows"
-        ],
-        "tickets": [
-          "DM-2710",
-          "DM-2711"
-        ],
-        "code": [
-          "src/capture/paged-page-record.ts",
-          "src/capture/paged-page-record.test.ts",
-          "tools/chromium-paged-page-record/renderer-page-record.patch",
-          "tools/chromium-paged-page-record/skia-deterministic-svg.patch",
-          "tools/verify-paged-page-record-patch.mjs",
-          "tools/paged-page-record-smoke.mjs"
-        ],
-        "aliases": [
-          "docs/256-paged-page-print-record.md",
-          "doc-256"
-        ]
-      }
-    },
-    {
-      "file": "257-authenticated-paged-page-svg.md",
-      "metadata": {
-        "id": "requirements/authenticated-paged-page-svg",
-        "title": "Authenticated per-page SVG rendering",
-        "kind": "contract",
-        "status": "current",
-        "owners": [
-          "layout",
-          "render"
-        ],
-        "platforms": [
-          "macos",
-          "linux",
-          "windows"
-        ],
-        "tickets": [
-          "DM-2711"
-        ],
-        "code": [
-          "src/render/paged-page-svg.ts",
-          "src/render/paged-page-svg.test.ts",
-          "src/capture/script/walker/collapsed-border.ts",
-          "src/capture/paged-page-record.ts"
-        ],
-        "aliases": [
-          "docs/257-authenticated-paged-page-svg.md",
-          "doc-257"
-        ]
-      }
-    },
-    {
-      "file": "258-paged-capture-api-cli.md",
-      "metadata": {
-        "id": "requirements/paged-capture-api-cli",
-        "title": "Opt-in paged capture API and CLI",
-        "kind": "contract",
-        "status": "current",
-        "owners": [
-          "layout",
-          "cli"
-        ],
-        "platforms": [
-          "macos",
-          "linux",
-          "windows"
-        ],
-        "tickets": [
-          "DM-2712"
-        ],
-        "code": [
-          "src/capture/paged-capture.ts",
-          "src/cli/capture.ts",
-          "src/capture/paged-page-record.ts"
-        ],
-        "aliases": [
-          "docs/258-paged-capture-api-cli.md",
-          "doc-258"
-        ]
-      }
-    },
-    {
-      "file": "259-paged-capture-release-gate.md",
-      "metadata": {
-        "id": "requirements/paged-capture-release-gate",
-        "title": "Authenticated paged-capture release gate",
-        "kind": "evidence",
-        "status": "current",
-        "owners": [
-          "layout",
-          "platform-release"
-        ],
-        "platforms": [
-          "macos",
-          "linux",
-          "windows"
-        ],
-        "tickets": [
-          "DM-2713"
-        ],
-        "code": [
-          ".github/workflows/paged-capture-release.yml",
-          "tools/paged-capture-release-gate.ts",
-          "tools/paged-capture-release-collector.ts",
-          "tools/package-paged-capture-helper.ts",
-          "tools/paged-page-record-smoke.mjs",
-          "src/capture/paged-collapsed-table-record.ts",
-          "src/capture/paged-page-record.ts"
-        ],
-        "aliases": [
-          "docs/259-paged-capture-release-gate.md",
-          "doc-259"
         ]
       }
     },
@@ -9443,9 +9229,6 @@
     "229": [
       "requirements/live-replaced-media-frame-ownership"
     ],
-    "230": [
-      "requirements/paged-table-private-fragment-transport"
-    ],
     "231": [
       "requirements/authenticated-animated-image-byte-ownership"
     ],
@@ -9517,21 +9300,6 @@
     ],
     "254": [
       "requirements/glassbox-studio-acceptance-benchmark"
-    ],
-    "255": [
-      "requirements/paged-media-capture-bundle"
-    ],
-    "256": [
-      "requirements/paged-page-print-record"
-    ],
-    "257": [
-      "requirements/authenticated-paged-page-svg"
-    ],
-    "258": [
-      "requirements/paged-capture-api-cli"
-    ],
-    "259": [
-      "requirements/paged-capture-release-gate"
     ],
     "260": [
       "requirements/inline-svg-real-text-layer"

@@ -2,6 +2,12 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## Unreleased
+
+**Removed**
+
+- Removed the authenticated paged-capture API and CLI mode, including its separately built Chromium helper and release workflow. Ordinary viewport and animated-scroll SVG capture are unchanged.
+
 ## [0.29.0] - 2026-09-17
 
 
@@ -732,4 +738,3 @@ Linux CI test fix
 
 
 - Initial release
-

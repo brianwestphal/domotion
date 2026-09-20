@@ -13,13 +13,6 @@ const screen = (os: string) => ({
   discriminators: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`d${i}`, true])),
   mutations: Array.from({ length: 15 }, (_, i) => ({ id: `m${i}`, moved: true })),
 });
-const paged = (os: string) => ({
-  schemaVersion: 1, pass: true,
-  verdict: "public-print-fragment-transport-unavailable-fail-closed",
-  environment: { os }, requiredMatrix: Array.from({ length: 8 }, (_, i) => `p${i}`),
-  discriminators: { exact: true, pixelsRead: false },
-  mutations: Array.from({ length: 15 }, (_, i) => ({ id: `m${i}`, moved: true })),
-});
 const ink = (platform: string) => ({
   schemaVersion: 1, platform, verdict: "ratified-source-exact",
   artifactSetSha256: "a".repeat(64), ratifiedRows: 1152, unratifiedRows: 0,
@@ -28,26 +21,22 @@ const ink = (platform: string) => ({
 });
 
 describe("fragmented collapsed-table release gate", () => {
-  it("requires all three independent logical/print/ink legs", () => {
+  it("requires all independent screen-logical and final-ink legs", () => {
     const result = adjudicateFragmentedCollapsedTableRelease(
       FRAGMENTED_TABLE_PLATFORMS.map(screen),
-      FRAGMENTED_TABLE_PLATFORMS.map(paged),
       FRAGMENTED_TABLE_PLATFORMS.map(ink),
     );
     expect(result).toEqual({ ready: true, blockers: [], summary: "READY: 0 fragmented-table release blocker(s)" });
   });
 
-  it("does not let native ink excuse logical or print ownership drift", () => {
+  it("does not let native ink excuse logical ownership drift", () => {
     const badScreen = FRAGMENTED_TABLE_PLATFORMS.map(screen);
     badScreen[0].mutations[0].moved = false;
-    const badPaged = FRAGMENTED_TABLE_PLATFORMS.map(paged);
-    badPaged[1].verdict = "paged-print-boundary-incomplete";
     const result = adjudicateFragmentedCollapsedTableRelease(
-      badScreen, badPaged, FRAGMENTED_TABLE_PLATFORMS.map(ink),
+      badScreen, FRAGMENTED_TABLE_PLATFORMS.map(ink),
     );
     expect(result.ready).toBe(false);
     expect(result.blockers).toContain("screen/darwin: destructive mutation matrix incomplete");
-    expect(result.blockers).toContain("paged/linux: public print boundary did not fail closed exactly");
   });
 
   it("pins a headless three-platform retained-artifact workflow", () => {
@@ -58,7 +47,7 @@ describe("fragmented collapsed-table release gate", () => {
     expect(workflow).toContain("headless");
     expect(workflow).toContain("npm run build:capture-script");
     expect(workflow).toContain("borders:collapsed-fragmentation-audit");
-    expect(workflow).toContain("borders:paged-collapsed-ownership-audit");
+    expect(workflow).not.toContain("paged");
     expect(workflow).toContain("borders:phase-ratify");
     expect(workflow).toContain("borders:fragmented-release-gate");
     expect(workflow).toContain("fragmented-collapsed-table-release-evidence");
