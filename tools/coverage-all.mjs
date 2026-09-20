@@ -33,6 +33,7 @@ import { rmSync, mkdirSync, existsSync, readFileSync, writeFileSync } from "node
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { summarizeCoverage, formatCoverageSummary } from "./coverage-summary.mjs";
+import { coverageCommandExitStatus, normalizeCoverageExitStatus } from "./coverage-exit-status.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TMP = resolve(ROOT, "coverage/.v8-all");
@@ -106,8 +107,12 @@ const REPORT_ARGS = [
 function run(label, cmd, args, env) {
   process.stdout.write(`\n▶ ${label}\n`);
   const r = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", env, shell: process.platform === "win32" });
-  if (r.status !== 0) process.stdout.write(`  (${label} exited ${r.status} — coverage still collected)\n`);
-  return r.status;
+  const status = normalizeCoverageExitStatus(r.status);
+  if (status !== 0) {
+    const reason = r.status == null ? (r.error?.message ?? `terminated by ${r.signal ?? "an unknown signal"}`) : `exited ${r.status}`;
+    process.stdout.write(`  (${label} ${reason} — coverage still collected, final command will fail)\n`);
+  }
+  return status;
 }
 
 const runs = [...RUNS];
@@ -128,9 +133,10 @@ mkdirSync(TMP, { recursive: true });
 // process non-interactive even if an individual command forgets `--no-open`.
 const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP, DOMOTION_NO_OPEN: "1" };
 
-for (const r of runs) {
-  run(r.label, r.cmd, r.args, r.env != null ? { ...baseEnv, ...r.env } : baseEnv);
-}
+const suiteResults = runs.map((r) => ({
+  label: r.label,
+  status: run(r.label, r.cmd, r.args, r.env != null ? { ...baseEnv, ...r.env } : baseEnv),
+}));
 
 process.stdout.write(`\n▶ merging coverage → ${REPORTS}\n`);
 // Report without NODE_V8_COVERAGE in env (don't instrument the reporter itself).
@@ -146,4 +152,8 @@ if (status === 0 && existsSync(coverageJson)) {
   process.stdout.write(`${formatCoverageSummary(summary)}\n`);
 }
 process.stdout.write(`\nHTML report: ${REPORTS}/index.html\n`);
-process.exit(status ?? 0);
+const failedSuites = suiteResults.filter((result) => result.status !== 0);
+if (failedSuites.length > 0) {
+  process.stdout.write(`\nRequired coverage suites failed:\n${failedSuites.map((result) => `  - ${result.label} (exit ${result.status})`).join("\n")}\n`);
+}
+process.exit(coverageCommandExitStatus(suiteResults.map((result) => result.status), status));
