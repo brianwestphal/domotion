@@ -5,8 +5,8 @@ kind: "contract"
 status: "partial"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-2615","DM-262","DM-2623","DM-2626","DM-2627","DM-2628","DM-2632","DM-2634","DM-2640","DM-2652","DM-2662","DM-300","DM-457","DM-462","DM-984","DM-987","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
-code: ["src/animation/animator.ts","src/capture/input-value-geometry.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/linux-target-strike-small-caps.e2e.test.ts","tests/textarea-line-baseline.e2e.test.ts","tools/linux-terminal-mask-oracle.ts"]
+tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-2615","DM-262","DM-2623","DM-2626","DM-2627","DM-2628","DM-2632","DM-2634","DM-2640","DM-2652","DM-2662","DM-300","DM-457","DM-462","DM-984","DM-987","DM-MYC908","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
+code: ["src/animation/animator.ts","src/capture/input-value-geometry.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/capture/warnings.test.ts","src/capture/warnings.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tests/capture-warnings-lifecycle.e2e.test.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/linux-target-strike-small-caps.e2e.test.ts","tests/textarea-line-baseline.e2e.test.ts","tools/linux-terminal-mask-oracle.ts"]
 aliases: ["docs/01-fidelity.md","doc-01"]
 ---
 
@@ -213,6 +213,13 @@ for (const w of getLastCaptureWarnings()) {
   console.log(w.selector, w.feature, w.status, w.detail);
 }
 ```
+
+`getLastCaptureWarnings()` returns a deeply frozen snapshot of the most recently
+completed capture. Repeated reads and `logCaptureWarnings()` cannot be changed
+by mutating a prior result. Concurrent captures must use
+`captureElementTreeWithWarnings()` and thread its explicit warnings array into
+later embed passes; the module-global snapshot deliberately does not identify
+which overlapping capture finished first.
 
 Each warning has:
 - `selector`: a short CSS-selectorish path (up to 5 ancestors) identifying the element.

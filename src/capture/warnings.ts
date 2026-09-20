@@ -1,8 +1,7 @@
 /**
  * Module-global buffer of `CaptureWarning`s produced by the most recent
- * `captureElementTree()` call. The buffer is reset (via `_resetLastCaptureWarnings`)
- * at the start of every capture so single-capture callers can inspect the
- * latest run with `getLastCaptureWarnings()` / `logCaptureWarnings()`.
+ * completed `captureElementTree()` call. Single-capture callers can inspect a
+ * frozen snapshot with `getLastCaptureWarnings()` / `logCaptureWarnings()`.
  *
  * Concurrent captures should pass their own array to
  * `captureElementTreeWithWarnings` / `embedRemoteImages` rather than relying
@@ -13,8 +12,8 @@ import type { CaptureWarning } from "./types.js";
 
 let _lastCaptureWarnings: CaptureWarning[] = [];
 
-export function getLastCaptureWarnings(): CaptureWarning[] {
-  return _lastCaptureWarnings;
+export function getLastCaptureWarnings(): ReadonlyArray<Readonly<CaptureWarning>> {
+  return Object.freeze(_lastCaptureWarnings.map((warning) => Object.freeze({ ...warning })));
 }
 
 /**
@@ -30,10 +29,15 @@ export function logCaptureWarnings(label: string = ""): void {
 }
 
 /**
- * @internal — replace the buffer reference. Used by
- * `captureElementTreeWithWarnings` at the end of each capture to point the
- * global at the new run's warnings array.
+ * @internal — replace the global buffer with a detached copy of one completed
+ * capture. Neither the returned capture result nor a prior public snapshot can
+ * mutate later global inspection state.
  */
 export function _resetLastCaptureWarnings(w: CaptureWarning[]): void {
-  _lastCaptureWarnings = w;
+  _lastCaptureWarnings = w.map((warning) => ({ ...warning }));
+}
+
+/** @internal — mutable sink for capture internals; never export from the package root. */
+export function _captureWarningSink(explicit?: CaptureWarning[]): CaptureWarning[] {
+  return explicit ?? _lastCaptureWarnings;
 }

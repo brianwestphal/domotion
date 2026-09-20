@@ -20,7 +20,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { CapturedElement, CaptureWarning } from "./types.js";
-import { getLastCaptureWarnings } from "./warnings.js";
+import { _captureWarningSink } from "./warnings.js";
 
 /** True for an absolute http(s) URL — the ones `embedRemoteImages` fetches and
  *  the data-URI pass-through leaves untouched. */
@@ -255,13 +255,14 @@ const DEFAULT_FETCH_RETRY_BACKOFF_MS = 500;
  * failure is surfaced as a `CaptureWarning` (feature: `remote-image`) carrying
  * the URL and the HTTP status / error class, so callers can trace which images
  * didn't inline. The warning is appended to `options.warnings` if supplied,
- * otherwise to `getLastCaptureWarnings()`.
+ * otherwise to the module-global warning sink exposed as an immutable
+ * snapshot by `getLastCaptureWarnings()`.
  */
 export async function embedRemoteImages(
   tree: CapturedElement[],
   options: EmbedRemoteImagesOptions = {},
 ): Promise<void> {
-  const warnings = options.warnings ?? getLastCaptureWarnings();
+  const warnings = _captureWarningSink(options.warnings);
   const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_FETCH_RETRIES;
   const retryBackoffMs = options.retryBackoffMs ?? DEFAULT_FETCH_RETRY_BACKOFF_MS;

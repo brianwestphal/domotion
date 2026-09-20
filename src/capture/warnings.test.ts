@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "./warnings.js";
+import {
+  _captureWarningSink,
+  getLastCaptureWarnings,
+  logCaptureWarnings,
+  _resetLastCaptureWarnings,
+} from "./warnings.js";
 import type { CaptureWarning } from "./types.js";
 
 const W: CaptureWarning[] = [
@@ -13,11 +18,50 @@ afterEach(() => {
 });
 
 describe("capture warnings buffer", () => {
-  it("round-trips the buffer reference set by _resetLastCaptureWarnings", () => {
+  it("returns a deeply frozen snapshot detached from the reset source", () => {
     _resetLastCaptureWarnings(W);
-    expect(getLastCaptureWarnings()).toBe(W);
+    const snapshot = getLastCaptureWarnings();
+    expect(snapshot).toEqual(W);
+    expect(snapshot).not.toBe(W);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot[0])).toBe(true);
+
+    W[0].detail = "source mutation";
+    W.push({ selector: "#c", feature: "source", detail: "late" });
+    expect(getLastCaptureWarnings()).toEqual([
+      { selector: ".a", feature: "conic-gradient", detail: "rasterized" },
+      { selector: "#b", feature: "vertical-text", detail: "raster fallback" },
+    ]);
+    W.splice(2, 1);
+    W[0].detail = "rasterized";
+  });
+
+  it("keeps repeated reads and old snapshots stable under external mutation attempts", () => {
+    _resetLastCaptureWarnings(W);
+    const first = getLastCaptureWarnings();
+    const second = getLastCaptureWarnings();
+    expect(second).toEqual(first);
+    expect(second).not.toBe(first);
+    expect(() => (first as CaptureWarning[]).push(W[0])).toThrow(TypeError);
+    expect(() => { (first[0] as CaptureWarning).detail = "mutated"; }).toThrow(TypeError);
+    expect(getLastCaptureWarnings()).toEqual(second);
+  });
+
+  it("handles reset and explicit/global sink transitions without cross-mutation", () => {
     _resetLastCaptureWarnings([]);
+    const empty = getLastCaptureWarnings();
+    const explicit: CaptureWarning[] = [];
+    _captureWarningSink(explicit).push(W[0]);
+    expect(explicit).toEqual([W[0]]);
     expect(getLastCaptureWarnings()).toEqual([]);
+
+    _captureWarningSink().push(W[1]);
+    expect(getLastCaptureWarnings()).toEqual([W[1]]);
+    expect(empty).toEqual([]);
+    expect(explicit).toEqual([W[0]]);
+
+    _resetLastCaptureWarnings([W[0]]);
+    expect(getLastCaptureWarnings()).toEqual([W[0]]);
   });
 
   it("logCaptureWarnings prints one stderr line per warning with the feature/selector/detail", () => {

@@ -33,7 +33,7 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `sampleCaptureRafClock` / `reverifyCaptureRafClock` | function | Drain one bounded callback batch at the caller-owned time, authenticate main/OOPIF target identities, force a logical rendering commit, and reject callback/target drift between prepasses. |
 | `CaptureRafClockHandle`, `CaptureRafTargetState`, `StableCaptureRafState` | type | Serializable authority and evidence records for the pre-navigation main/OOPIF rAF protocol. |
 | `ReplacedMediaKind`, `ReplacedMediaDimensions`, `ReplacedMediaFrameOwner`, `StableReplacedMediaFrameState` | type | Exact per-owner and global evidence for the clock-paired finite-video/origin-clean-canvas preflight/freeze/capture/reverify transaction, including presented/surface epochs and captured PNG SHA-256 digests. |
-| `getLastCaptureWarnings` | function | Read the warnings buffer populated by `captureElementTree`. Use when you can't switch to the `WithWarnings` form. |
+| `getLastCaptureWarnings` | function | Read a deeply frozen snapshot of the warnings from the most recently completed `captureElementTree` call. Use when you can't switch to the concurrency-safe `WithWarnings` form; mutating a returned snapshot cannot alter later logging or reads. |
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
 | `embedRemoteImages` | function | Walk a captured tree and inline any `<img>` / `<image>` data into `data:` URIs so the SVG is self-contained. |
 | `createCapturedTreeEnvelope` | function | Move equivalent legacy top-level `sessionGenericFamilies` annotations into one non-mutating, serializable ownership envelope; mixed or conflicting root authority throws. |

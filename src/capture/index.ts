@@ -1856,8 +1856,10 @@ export async function captureElementTreeSelfContained(
 /**
  * Same capture as `captureElementTree` but returns the warnings inline so
  * callers running multiple captures concurrently don't race on the
- * `lastCaptureWarnings` module global. The global is still updated so
- * single-capture callers using `getLastCaptureWarnings()` keep working.
+ * `lastCaptureWarnings` module global. The global receives a detached copy when
+ * the capture completes, so mutating the returned warnings cannot alter later
+ * global inspection state. Single-capture callers can still use
+ * `getLastCaptureWarnings()`.
  */
 export async function captureElementTreeWithWarnings(
   page: Page,
@@ -2090,7 +2092,6 @@ async function captureElementTreeWithWarningsInternal(
   const frameScrollState = await frameScrollCapture.snapshot();
   warnings.push(...frameScrollCapture.warnings);
   finalizeScrollbarResizerOverlap(typed.tree);
-  _resetLastCaptureWarnings(warnings);
   try {
     // DM-2455: structural hosts keep their vector box/text while one separate
     // transparent Chromium atlas supplies only the closed-shadow/native
@@ -2171,6 +2172,7 @@ async function captureElementTreeWithWarningsInternal(
     const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
     for (const root of typed.tree) root.sessionGenericFamilies = captured;
   }
+  _resetLastCaptureWarnings(warnings);
   return {
     tree: typed.tree,
     warnings,

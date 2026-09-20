@@ -85,7 +85,7 @@ import { inlineImgSvg, flattenImgSvg, getFlattenNestedSvg, isSvgSafeToFlatten, p
 import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
-import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
+import { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 import { blinkPlatformResizerStrokes } from "./resize-handle.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
