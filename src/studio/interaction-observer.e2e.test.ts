@@ -1,6 +1,11 @@
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { observeStudioInteraction, observeStudioSemanticStep, type StudioInteractionEvidence } from "./interaction-observer.js";
+import {
+  observeStudioInteraction,
+  observeStudioSemanticStep,
+  StudioInteractionObservationError,
+  type StudioInteractionEvidence,
+} from "./interaction-observer.js";
 import { runStudioSemanticStep, type StudioSemanticStep } from "./interactions.js";
 
 const fixture = `<!doctype html><style>
@@ -111,6 +116,27 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     expect(evidence.meaningful).toBe(false);
     expect(evidence.mutations.filter((mutation) => mutation.attribute === "data-domotion-studio-target")).toEqual([]);
     expect(await page!.content()).toBe(before);
+    expect(await page!.evaluate(() => "__domotionStudioInteractionObserverV1" in globalThis)).toBe(false);
+  });
+
+  it("returns captured evidence with an action failure and still removes instrumentation", async () => {
+    if (!available) return;
+    let thrown: unknown;
+    try {
+      await observe("#async", async (testPage) => {
+        await testPage.locator("#async").evaluate((element) => { element.textContent = "Failed after feedback"; });
+        throw new Error("controlled action failure");
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(StudioInteractionObservationError);
+    const observationError = thrown as StudioInteractionObservationError;
+    expect(observationError.cause).toEqual(new Error("controlled action failure"));
+    expect(observationError.evidence.meaningful).toBe(true);
+    expect(observationError.evidence.changes.find((change) => change.relation === "target")?.reasons)
+      .toEqual(expect.arrayContaining(["text", "dom-mutation"]));
     expect(await page!.evaluate(() => "__domotionStudioInteractionObserverV1" in globalThis)).toBe(false);
   });
 
