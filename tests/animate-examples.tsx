@@ -11,9 +11,10 @@
  *   1. Byte-diff against the committed golden — but only on the platform that
  *      produced it (macOS today). The text→glyph-path renderer is calibrated to
  *      the host's system fonts; on Linux the same config falls back to <text>,
- *      so a committed macOS golden can't byte-match there. The ONLY source of
- *      same-platform nondeterminism is the embedded-font base64 payload (subset
- *      timestamp/checksum), which we normalize out before comparing.
+ *      so a committed macOS golden can't byte-match there. Embedded-font
+ *      payloads and random scroll namespaces are normalized; embedded Chromium
+ *      rasters retain exact markup/geometry and allow only the measured floor
+ *      of two pixels changing by one channel step.
  *   2. Structural assertions — run on EVERY platform (incl. Linux CI). These
  *      assert the shape of the output (frame groups, transition keyframes,
  *      overlay markup, scroll composite, viewBox, no malformed `%%` stops) so
@@ -30,6 +31,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChromium } from "../src/capture/index.js";
 import { composeAnimateConfig, validateAnimateConfig } from "../src/cli/animate.js";
+import { animateGoldensEquivalent } from "./animate-golden-compare.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -612,18 +614,6 @@ const EXAMPLES: Example[] = [
   },
 ];
 
-/**
- * Canonicalize the two same-platform nondeterministic bits before comparing:
- *   - embedded-font base64 payloads (subset timestamp/checksum vary per run)
- *   - the scroll composer's random `scrl-<rand>` id namespace
- * With both collapsed, the rest of the output is byte-stable run-to-run.
- */
-function normalize(svg: string): string {
-  return svg
-    .replace(/data:font\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+/gi, "data:font/ttf;base64,__FONT__")
-    .replace(/scrl-[a-z0-9]+/g, "scrl-XX");
-}
-
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const update = args.includes("--update");
@@ -667,9 +657,8 @@ async function main(): Promise<void> {
       if (!existsSync(goldenPath)) {
         problems.push(`golden missing (${goldenPath}) — run with --update`);
       } else if (isDarwin) {
-        const golden = normalize(readFileSync(goldenPath, "utf8"));
-        const actual = normalize(svg);
-        if (actual !== golden) {
+        const golden = readFileSync(goldenPath, "utf8");
+        if (!await animateGoldensEquivalent(golden, svg)) {
           const outPath = resolve(OUT_DIR, `animate-${ex.name}-actual.svg`);
           writeFileSync(outPath, svg);
           problems.push(`output drifted from committed golden (wrote actual → ${outPath}; regenerate with --update if intended)`);
