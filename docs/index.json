@@ -7880,7 +7880,8 @@
           "windows"
         ],
         "tickets": [
-          "DM-2687"
+          "DM-2687",
+          "DM-S31XF3"
         ],
         "code": [
           "src/cli/studio.ts",
@@ -7915,7 +7916,8 @@
         ],
         "tickets": [
           "DM-2683",
-          "DM-2698"
+          "DM-2698",
+          "DM-S31XF3"
         ],
         "code": [
           "src/studio/interactions.ts",
@@ -8257,7 +8259,8 @@
           "windows"
         ],
         "tickets": [
-          "DM-2688"
+          "DM-2688",
+          "DM-S31XF3"
         ],
         "code": [
           "src/studio/authoring.ts",
@@ -8328,7 +8331,8 @@
           "windows"
         ],
         "tickets": [
-          "DM-2692"
+          "DM-2692",
+          "DM-S31XF3"
         ],
         "code": [
           "src/studio/timeline.ts",

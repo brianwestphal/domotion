@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio","animation"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2683","DM-2698"]
+tickets: ["DM-2683","DM-2698","DM-S31XF3"]
 code: ["src/studio/interactions.ts","src/studio/interactions.test.ts","src/studio/interactions.e2e.test.ts","src/studio/project-schema.ts"]
 aliases: ["docs/241-studio-semantic-interactions.md","doc-241"]
 ---
@@ -59,7 +59,9 @@ cleaned in a `finally` block. DOM/CSS observation must treat this short-lived
 attribute as Studio instrumentation, not application state. Action-specific
 Playwright APIs preserve authored options that the older action shape cannot
 carry, including click button/count, timed typing, semantic waits, smooth target
-scrolling, and drag destinations.
+scrolling, and drag destinations. The targeted executor delegates each event
+kind to a bounded action helper; source and destination markers retain separate
+`finally` cleanup boundaries, including when Playwright throws.
 
 `runStudioSemanticStep(page, step, options)` executes one compiled step
 immediately without timeline waiting. It is the integration boundary used by

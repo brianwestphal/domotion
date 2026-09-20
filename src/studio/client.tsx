@@ -767,134 +767,182 @@ async function run(action: () => Promise<void>): Promise<void> {
   }
 }
 
-void delegate(app, "click", "[data-action]", (_event, target) => {
-  const action = (target as HTMLElement).dataset.action;
-  const sceneCard = (target as HTMLElement).closest<HTMLElement>("[data-scene-id]");
-  const sceneId = sceneCard?.dataset.sceneId;
-  const sceneIndex = project.value?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
-  const beatId = (target as HTMLElement).closest<HTMLElement>("[data-beat-id]")?.dataset.beatId;
+interface ClickActionContext {
+  action: string;
+  target: HTMLElement;
+  sceneId?: string;
+  sceneIndex: number;
+  beatId?: string;
+}
+
+function handleTimelineClick({ action }: ClickActionContext): boolean {
   if (action === "timeline-earlier" || action === "timeline-later" || action === "timeline-shorter" || action === "timeline-longer") {
     const resize = action === "timeline-shorter" || action === "timeline-longer";
     const delta = (action === "timeline-earlier" || action === "timeline-shorter" ? -1 : 1) * timelineSnapMs.value;
     void run(() => applyTimeline(selectedTimelineCommand(resize ? "resize" : "move", delta)));
-  } else if (action === "timeline-undo") {
-    const command = timelineUndo.value.at(-1);
-    if (command != null) void run(() => applyTimeline(command, "undo"));
-  } else if (action === "timeline-redo") {
-    const command = timelineRedo.value.at(-1);
-    if (command != null) void run(() => applyTimeline(command, "redo"));
-  } else if (action === "undo") {
-    const previous = undoStack.value.at(-1);
-    if (previous != null) {
-      project.value = structuredClone(previous);
-      undoStack.value = undoStack.value.slice(0, -1);
-      dirty.value = true;
-      generation.value = { artifactCount: previous.artifacts.length, scenes: previous.scenes.map((scene) => ({ id: scene.id, generated: false })) };
-    }
-  } else if (action === "scene-add") {
-    applyAuthoring({ kind: "scene.add" });
-  } else if (action === "scene-duplicate" && sceneId != null) {
-    applyAuthoring({ kind: "scene.duplicate", sceneId });
-  } else if (action === "scene-up" && sceneId != null) {
-    applyAuthoring({ kind: "scene.move", sceneId, toIndex: sceneIndex - 1 });
-  } else if (action === "scene-down" && sceneId != null) {
-    applyAuthoring({ kind: "scene.move", sceneId, toIndex: sceneIndex + 1 });
-  } else if (action === "scene-remove" && sceneId != null && window.confirm("Remove this scene? Generated scene artifacts will no longer belong to the story.")) {
-    applyAuthoring({ kind: "scene.remove", sceneId });
-  } else if (action === "beat-add") {
-    applyAuthoring({ kind: "beat.add" });
-  } else if (action === "beat-remove" && beatId != null) {
-    applyAuthoring({ kind: "beat.remove", beatId });
-  } else if (action === "generate-story") {
-    void run(() => generate({ kind: "story" }));
-  } else if (action === "generate-scene" && sceneId != null) {
-    void run(() => generate({ kind: "scene", sceneId }));
-  } else if (action === "import-recording") {
-    void run(importRecording);
-  } else if (action === "preview-story") {
-    void loadPreview({ kind: "story" });
-  } else if (action === "preview-scene") {
-    const previewSceneId = (target as HTMLElement).dataset.previewScene;
-    if (previewSceneId != null) void loadPreview({ kind: "scene", sceneId: previewSceneId });
-  } else if (action === "preview-refresh" && previewSelection.value != null) {
-    void loadPreview(previewSelection.value);
-  } else if (action === "create") {
-    void run(async () => acceptLoaded(await post("/api/create", { path: projectPath.value, title: newTitle.value }), "Created"));
-  } else if (action === "open" || action === "reopen") {
-    void run(async () => acceptLoaded(await post("/api/open", { path: projectPath.value }), action === "reopen" ? "Reopened" : "Opened"));
-  } else if (action === "save" && project.value != null) {
-    void run(async () => acceptLoaded(await post("/api/save", { path: projectPath.value, expectedHeadRevisionId: project.value!.review.headRevisionId, project: project.value }), "Saved"));
-  } else if (action === "annotation-create" && project.value != null) {
-    const current = project.value;
-    void run(async () => {
-      const body = annotationBody.value.trim();
-      if (body === "") throw new Error("A review note is required.");
-      const numberOrUndefined = (value: string, label: string): number | undefined => {
-        if (value.trim() === "") return undefined;
-        const parsed = Number(value);
-        if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${label} must be a non-negative number.`);
-        return parsed;
-      };
-      const atMs = numberOrUndefined(annotationStartMs.value, "Start time");
-      const endMs = numberOrUndefined(annotationEndMs.value, "End time");
-      if (endMs != null && atMs == null) throw new Error("End time requires a start time.");
-      if (endMs != null && endMs < atMs!) throw new Error("End time must not be before start time.");
-      const regionValues = [annotationRegionX.value, annotationRegionY.value, annotationRegionWidth.value, annotationRegionHeight.value];
-      const hasAnyRegion = regionValues.some((value) => value.trim() !== "");
-      if (hasAnyRegion && regionValues.some((value) => value.trim() === "")) throw new Error("A region requires x, y, width, and height.");
-      const region = hasAnyRegion ? regionValues.map(Number) : [];
-      if (region.some((value) => !Number.isFinite(value)) || (hasAnyRegion && (!(region[2] > 0) || !(region[3] > 0)))) {
-        throw new Error("Region coordinates must be numbers and width/height must be positive.");
-      }
-      const target = {
-        scope: annotationScene.value === "" ? { kind: "project" as const } : { kind: "scene" as const, sceneId: annotationScene.value },
-        ...(atMs == null ? {} : { time: { pointMs: atMs, ...(endMs == null ? {} : { range: { startMs: atMs, endMs } }) } }),
-        ...(hasAnyRegion ? { regions: [{ x: region[0], y: region[1], width: region[2], height: region[3], coordinateSpace: "scene" as const }] } : {}),
-      };
-      const result = await post("/api/annotation", {
-        path: projectPath.value,
-        expectedHeadRevisionId: current.review.headRevisionId,
-        command: {
-          kind: "create",
-          body,
-          author: { kind: "human", ...(annotationAuthor.value.trim() === "" ? {} : { name: annotationAuthor.value.trim() }) },
-          ...(Object.keys(target).length === 0 ? {} : { target }),
-          origin: { kind: "studio" },
-        },
-      });
-      annotationBody.value = "";
-      acceptLoaded(result, "Added annotation to");
-    });
-  } else if ((action === "annotation-save" || action === "annotation-resolve" || action === "annotation-reopen") && project.value != null) {
-    const current = project.value;
-    const card = (target as HTMLElement).closest<HTMLElement>("[data-annotation-id]");
-    const annotationId = card?.dataset.annotationId;
-    if (annotationId == null || card == null) return;
-    void run(async () => {
-      const author = { kind: "human" as const, ...(annotationAuthor.value.trim() === "" ? {} : { name: annotationAuthor.value.trim() }) };
-      const draftBody = (card.querySelector<HTMLTextAreaElement>('[data-field="annotation-existing-body"]')?.value ?? "").trim();
-      const persistedBody = current.review.annotations.find((annotation) => annotation.id === annotationId)?.body;
-      let expectedHeadRevisionId = current.review.headRevisionId;
-      if (action === "annotation-save" || (action === "annotation-resolve" && draftBody !== persistedBody)) {
-        const edited = await post("/api/annotation", {
-          path: projectPath.value,
-          expectedHeadRevisionId,
-          command: { kind: "edit", annotationId, author, body: draftBody },
-        });
-        if (action === "annotation-save") {
-          acceptLoaded(edited, "Updated annotation in");
-          return;
-        }
-        expectedHeadRevisionId = edited.project.review.headRevisionId;
-      }
-      const status = action === "annotation-resolve" ? "resolved" as const : "open" as const;
-      acceptLoaded(await post("/api/annotation", {
-        path: projectPath.value,
-        expectedHeadRevisionId,
-        command: { kind: "set-status", annotationId, author, status },
-      }), action === "annotation-resolve" ? "Resolved annotation in" : "Reopened annotation in");
-    });
+    return true;
   }
+  if (action === "timeline-undo" || action === "timeline-redo") {
+    const command = (action === "timeline-undo" ? timelineUndo : timelineRedo).value.at(-1);
+    if (command != null) void run(() => applyTimeline(command, action === "timeline-undo" ? "undo" : "redo"));
+    return true;
+  }
+  return false;
+}
+
+function handleAuthoringClick({ action, sceneId, sceneIndex, beatId }: ClickActionContext): boolean {
+  switch (action) {
+    case "undo": {
+      const previous = undoStack.value.at(-1);
+      if (previous != null) {
+        project.value = structuredClone(previous);
+        undoStack.value = undoStack.value.slice(0, -1);
+        dirty.value = true;
+        generation.value = { artifactCount: previous.artifacts.length, scenes: previous.scenes.map((scene) => ({ id: scene.id, generated: false })) };
+      }
+      return true;
+    }
+    case "scene-add": applyAuthoring({ kind: "scene.add" }); return true;
+    case "scene-duplicate": if (sceneId != null) applyAuthoring({ kind: "scene.duplicate", sceneId }); return true;
+    case "scene-up": if (sceneId != null) applyAuthoring({ kind: "scene.move", sceneId, toIndex: sceneIndex - 1 }); return true;
+    case "scene-down": if (sceneId != null) applyAuthoring({ kind: "scene.move", sceneId, toIndex: sceneIndex + 1 }); return true;
+    case "scene-remove":
+      if (sceneId != null && window.confirm("Remove this scene? Generated scene artifacts will no longer belong to the story.")) {
+        applyAuthoring({ kind: "scene.remove", sceneId });
+      }
+      return true;
+    case "beat-add": applyAuthoring({ kind: "beat.add" }); return true;
+    case "beat-remove": if (beatId != null) applyAuthoring({ kind: "beat.remove", beatId }); return true;
+    default: return false;
+  }
+}
+
+function handlePreviewClick({ action, target, sceneId }: ClickActionContext): boolean {
+  switch (action) {
+    case "generate-story": void run(() => generate({ kind: "story" })); return true;
+    case "generate-scene": if (sceneId != null) void run(() => generate({ kind: "scene", sceneId })); return true;
+    case "import-recording": void run(importRecording); return true;
+    case "preview-story": void loadPreview({ kind: "story" }); return true;
+    case "preview-scene": {
+      const previewSceneId = target.dataset.previewScene;
+      if (previewSceneId != null) void loadPreview({ kind: "scene", sceneId: previewSceneId });
+      return true;
+    }
+    case "preview-refresh": if (previewSelection.value != null) void loadPreview(previewSelection.value); return true;
+    default: return false;
+  }
+}
+
+function handleProjectClick({ action }: ClickActionContext): boolean {
+  if (action === "create") {
+    void run(async () => acceptLoaded(await post("/api/create", { path: projectPath.value, title: newTitle.value }), "Created"));
+    return true;
+  }
+  if (action === "open" || action === "reopen") {
+    void run(async () => acceptLoaded(await post("/api/open", { path: projectPath.value }), action === "reopen" ? "Reopened" : "Opened"));
+    return true;
+  }
+  if (action === "save") {
+    if (project.value != null) {
+      void run(async () => acceptLoaded(await post("/api/save", { path: projectPath.value, expectedHeadRevisionId: project.value!.review.headRevisionId, project: project.value }), "Saved"));
+    }
+    return true;
+  }
+  return false;
+}
+
+function annotationNumber(value: string, label: string): number | undefined {
+  if (value.trim() === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${label} must be a non-negative number.`);
+  return parsed;
+}
+
+async function createAnnotation(current: StudioProject): Promise<void> {
+  const body = annotationBody.value.trim();
+  if (body === "") throw new Error("A review note is required.");
+  const atMs = annotationNumber(annotationStartMs.value, "Start time");
+  const endMs = annotationNumber(annotationEndMs.value, "End time");
+  if (endMs != null && atMs == null) throw new Error("End time requires a start time.");
+  if (endMs != null && endMs < atMs!) throw new Error("End time must not be before start time.");
+  const regionValues = [annotationRegionX.value, annotationRegionY.value, annotationRegionWidth.value, annotationRegionHeight.value];
+  const hasAnyRegion = regionValues.some((value) => value.trim() !== "");
+  if (hasAnyRegion && regionValues.some((value) => value.trim() === "")) throw new Error("A region requires x, y, width, and height.");
+  const region = hasAnyRegion ? regionValues.map(Number) : [];
+  if (region.some((value) => !Number.isFinite(value)) || (hasAnyRegion && (!(region[2] > 0) || !(region[3] > 0)))) {
+    throw new Error("Region coordinates must be numbers and width/height must be positive.");
+  }
+  const target = {
+    scope: annotationScene.value === "" ? { kind: "project" as const } : { kind: "scene" as const, sceneId: annotationScene.value },
+    ...(atMs == null ? {} : { time: { pointMs: atMs, ...(endMs == null ? {} : { range: { startMs: atMs, endMs } }) } }),
+    ...(hasAnyRegion ? { regions: [{ x: region[0], y: region[1], width: region[2], height: region[3], coordinateSpace: "scene" as const }] } : {}),
+  };
+  const result = await post("/api/annotation", {
+    path: projectPath.value,
+    expectedHeadRevisionId: current.review.headRevisionId,
+    command: {
+      kind: "create",
+      body,
+      author: { kind: "human", ...(annotationAuthor.value.trim() === "" ? {} : { name: annotationAuthor.value.trim() }) },
+      target,
+      origin: { kind: "studio" },
+    },
+  });
+  annotationBody.value = "";
+  acceptLoaded(result, "Added annotation to");
+}
+
+async function updateAnnotation(action: string, current: StudioProject, card: HTMLElement, annotationId: string): Promise<void> {
+  const author = { kind: "human" as const, ...(annotationAuthor.value.trim() === "" ? {} : { name: annotationAuthor.value.trim() }) };
+  const draftBody = (card.querySelector<HTMLTextAreaElement>('[data-field="annotation-existing-body"]')?.value ?? "").trim();
+  const persistedBody = current.review.annotations.find((annotation) => annotation.id === annotationId)?.body;
+  let expectedHeadRevisionId = current.review.headRevisionId;
+  if (action === "annotation-save" || (action === "annotation-resolve" && draftBody !== persistedBody)) {
+    const edited = await post("/api/annotation", {
+      path: projectPath.value,
+      expectedHeadRevisionId,
+      command: { kind: "edit", annotationId, author, body: draftBody },
+    });
+    if (action === "annotation-save") {
+      acceptLoaded(edited, "Updated annotation in");
+      return;
+    }
+    expectedHeadRevisionId = edited.project.review.headRevisionId;
+  }
+  const status = action === "annotation-resolve" ? "resolved" as const : "open" as const;
+  acceptLoaded(await post("/api/annotation", {
+    path: projectPath.value,
+    expectedHeadRevisionId,
+    command: { kind: "set-status", annotationId, author, status },
+  }), action === "annotation-resolve" ? "Resolved annotation in" : "Reopened annotation in");
+}
+
+function handleAnnotationClick({ action, target }: ClickActionContext): boolean {
+  const current = project.value;
+  if (action === "annotation-create") {
+    if (current != null) void run(() => createAnnotation(current));
+    return true;
+  }
+  if (action !== "annotation-save" && action !== "annotation-resolve" && action !== "annotation-reopen") return false;
+  const card = target.closest<HTMLElement>("[data-annotation-id]");
+  const annotationId = card?.dataset.annotationId;
+  if (current != null && card != null && annotationId != null) void run(() => updateAnnotation(action, current, card, annotationId));
+  return true;
+}
+
+void delegate(app, "click", "[data-action]", (_event, target) => {
+  const element = target as HTMLElement;
+  const action = element.dataset.action;
+  if (action == null) return;
+  const sceneCard = element.closest<HTMLElement>("[data-scene-id]");
+  const sceneId = sceneCard?.dataset.sceneId;
+  const sceneIndex = project.value?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
+  const context = { action, target: element, sceneId, sceneIndex, beatId: element.closest<HTMLElement>("[data-beat-id]")?.dataset.beatId };
+  handleTimelineClick(context)
+    || handleAuthoringClick(context)
+    || handlePreviewClick(context)
+    || handleProjectClick(context)
+    || handleAnnotationClick(context);
 });
 
 void delegate(app, "input", "[data-field]", (_event, target) => {

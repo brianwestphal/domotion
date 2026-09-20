@@ -308,26 +308,38 @@ function setSceneTransition(scene: StudioScene, duration: number): void {
   else scene.render.transition = transition;
 }
 
-function applyOne(project: StudioProject, before: StudioTimelineItem, change: z.infer<typeof studioTimelineTimingChangeSchema>, revisionId: string, now: string): void {
-  const scene = before.sceneId == null ? undefined : project.scenes.find((candidate) => candidate.id === before.sceneId);
-  const sceneStart = scene == null ? 0 : windows(project).find((entry) => entry.scene.id === scene.id)?.startMs ?? 0;
-  if (scene != null && before.kind !== "scene" && before.kind !== "transition" && change.startMs < sceneStart) {
-    throw new StudioTimelineError(`${before.kind} timing cannot move before its scene`);
-  }
-  if (before.kind === "scene") {
+type TimelineTimingChange = z.infer<typeof studioTimelineTimingChangeSchema>;
+
+interface TimelineExecutionContext {
+  project: StudioProject;
+  before: StudioTimelineItem;
+  change: TimelineTimingChange;
+  scene?: StudioScene;
+  sceneStart: number;
+  revisionId: string;
+  now: string;
+}
+
+type TimelineExecutor = (context: TimelineExecutionContext) => void;
+
+const timelineExecutors: Record<StudioTimelineKind, TimelineExecutor> = {
+  scene: ({ before, change, scene }) => {
     if (change.startMs !== before.startMs) throw new StudioTimelineError("scene blocks cannot move; reorder scenes in the storyboard editor");
     setSceneDuration(scene!, requireDuration(change, before.kind));
-  } else if (before.kind === "transition") {
+  },
+  transition: ({ before, change, scene }) => {
     if (change.startMs !== before.startMs) throw new StudioTimelineError("transition blocks cannot move; resize their duration");
     setSceneTransition(scene!, requireDuration(change, before.kind, true));
-  } else if (before.kind === "semantic-action") {
+  },
+  "semantic-action": ({ before, change, scene, sceneStart }) => {
     const [, trackId, eventId] = splitId(before.id, before.kind);
     const event = scene?.tracks?.find((track) => track.id === trackId)?.events.find((candidate) => candidate.id === eventId);
     if (event == null) throw new StudioTimelineError(`semantic action no longer exists: ${before.id}`);
     event.atMs = change.startMs - sceneStart;
     const duration = requireDuration(change, before.kind);
     event.durationMs = duration === 1 && before.endMs - before.startMs === 1 && event.durationMs == null ? undefined : duration;
-  } else if (before.kind === "cursor") {
+  },
+  cursor: ({ project, before, change, scene, sceneStart }) => {
     const [indexText] = splitId(before.id, before.kind);
     const event = project.playback?.cursor?.events[Number(indexText)];
     if (event == null || scene == null) throw new StudioTimelineError(`cursor event no longer exists: ${before.id}`);
@@ -335,14 +347,16 @@ function applyOne(project: StudioProject, before: StudioTimelineItem, change: z.
     event.at = change.startMs - sceneStart;
     const duration = requireDuration(change, before.kind);
     event.duration = duration === 1 && before.endMs - before.startMs === 1 && event.duration == null ? undefined : duration;
-  } else if (before.kind === "overlay") {
+  },
+  overlay: ({ before, change, scene, sceneStart }) => {
     const [, indexText] = splitId(before.id, before.kind);
     const overlay = scene == null ? undefined : scenePresentation(scene).overlays?.[Number(indexText)];
     if (overlay == null) throw new StudioTimelineError(`overlay no longer exists: ${before.id}`);
     requireDuration(change, before.kind);
     overlay.delay = change.startMs - sceneStart;
     overlay.endAt = change.endMs - sceneStart;
-  } else if (before.kind === "treatment") {
+  },
+  treatment: ({ before, change, scene, sceneStart }) => {
     const [, indexText] = splitId(before.id, before.kind);
     const treatment = scene?.treatments?.[Number(indexText)];
     if (treatment == null || !("timing" in treatment)) throw new StudioTimelineError(`timed treatment no longer exists: ${before.id}`);
@@ -352,7 +366,8 @@ function applyOne(project: StudioProject, before: StudioTimelineItem, change: z.
       durationMs: requireDuration(change, before.kind),
       easing: previous?.easing ?? "cubic-bezier(0.22,1,0.36,1)",
     };
-  } else if (before.kind === "annotation") {
+  },
+  annotation: ({ project, before, change, sceneStart, revisionId, now }) => {
     const [annotationId] = splitId(before.id, before.kind);
     const annotation = project.review.annotations.find((candidate) => candidate.id === annotationId);
     if (annotation?.target == null) throw new StudioTimelineError(`timed annotation no longer exists: ${before.id}`);
@@ -363,7 +378,8 @@ function applyOne(project: StudioProject, before: StudioTimelineItem, change: z.
     delete annotation.target.endMs;
     annotation.updatedAt = now;
     annotation.updatedRevisionId = revisionId;
-  } else if (before.kind === "animation") {
+  },
+  animation: ({ before, change, scene, sceneStart }) => {
     const parts = splitId(before.id, before.kind);
     const animationIndex = Number(parts.at(-1));
     const indices = parts.slice(1, -1).join(":").split(".").map(Number);
@@ -373,7 +389,16 @@ function applyOne(project: StudioProject, before: StudioTimelineItem, change: z.
     if (change.startMs < sceneStart + (layer.source.start ?? 0)) throw new StudioTimelineError("animation timing cannot move before its layer starts");
     animation.start = change.startMs - sceneStart - (layer.source.start ?? 0);
     animation.duration = requireDuration(change, before.kind);
+  },
+};
+
+function applyOne(project: StudioProject, before: StudioTimelineItem, change: TimelineTimingChange, revisionId: string, now: string): void {
+  const scene = before.sceneId == null ? undefined : project.scenes.find((candidate) => candidate.id === before.sceneId);
+  const sceneStart = scene == null ? 0 : windows(project).find((entry) => entry.scene.id === scene.id)?.startMs ?? 0;
+  if (scene != null && before.kind !== "scene" && before.kind !== "transition" && change.startMs < sceneStart) {
+    throw new StudioTimelineError(`${before.kind} timing cannot move before its scene`);
   }
+  timelineExecutors[before.kind]({ project, before, change, scene, sceneStart, revisionId, now });
 }
 
 /** Apply explicit timing overrides atomically, append provenance, and return an exact inverse. */

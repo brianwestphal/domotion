@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio","ui","ai"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2688"]
+tickets: ["DM-2688","DM-S31XF3"]
 code: ["src/studio/authoring.ts","src/studio/authoring.test.ts","src/studio/client.tsx","src/studio/server.ts","src/studio/server.e2e.test.ts","src/cli/storyboard.ts","src/animation/embed-timeline.ts"]
 aliases: ["docs/251-studio-high-level-authoring.md","doc-251"]
 ---
@@ -34,7 +34,10 @@ a storyboard recipe.
 command, and returns the complete prior snapshot as an undo command. Scene
 duplication remaps scene, track, event, and recursive layer identities. Removal
 keeps at least one scene and refuses to orphan a scene-grounded annotation.
-Beat membership is maintained on both the beat and scene sides.
+Beat membership is maintained on both the beat and scene sides. Scene and beat
+command families have separate typed executors, while restore remains a direct
+snapshot operation; this keeps command routing independent from revision
+commit policy.
 
 Browser saves use optimistic concurrency. `commitStudioAuthoringRevision`
 rejects review or artifact changes through the generic save route and appends a

@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio","ui"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2687"]
+tickets: ["DM-2687","DM-S31XF3"]
 code: ["src/cli/studio.ts","src/studio/app-projects.ts","src/studio/server.ts","src/studio/client.tsx","scripts/build-studio-client.mjs","src/studio/app-projects.test.ts","src/studio/server.e2e.test.ts"]
 aliases: ["docs/240-studio-application-shell.md","doc-240"]
 ---
@@ -105,7 +105,10 @@ The responsive two-column layout collapses to one column below 800 CSS pixels,
 all controls retain visible keyboard focus, status/errors use live regions, and
 the complete workflow has a real Chromium E2E assertion. The client is authored
 in `src/studio/client.tsx`, bundled to a checked-in generated TypeScript string,
-and served without a separate frontend toolchain at runtime.
+and served without a separate frontend toolchain at runtime. Its delegated
+button entry point routes through cohesive timeline, authoring, preview,
+project, and annotation handlers; each handler owns one workflow while the
+shared busy/error wrapper remains the single async boundary.
 
 ## Verification
 

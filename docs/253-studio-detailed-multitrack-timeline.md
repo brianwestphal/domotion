@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio","ui","scrubber","ai"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2692"]
+tickets: ["DM-2692","DM-S31XF3"]
 code: ["src/studio/timeline.ts","src/studio/timeline.test.ts","src/studio/timeline.e2e.test.ts","src/studio/client.tsx","src/studio/server.ts","src/scrubber/embed.ts","src/scrubber/client.tsx"]
 aliases: ["docs/253-studio-detailed-multitrack-timeline.md","doc-253"]
 ---
@@ -36,7 +36,9 @@ buttons, keyboard shortcuts, undo, redo, and AI callers all converge on
 `applyStudioTimelineCommand`; there is no UI-only patch format. The function
 clones its input, checks optimistic concurrency, materializes explicit local
 timings in the appropriate source field, appends human or AI revision
-provenance, and returns the exact inverse command.
+provenance, and returns the exact inverse command. A typed executor table owns
+the source-field mutation for every timeline item kind, leaving validation,
+absolute scene-clock calculation, and revision creation shared.
 
 Content timings append a content revision and invalidate older generated media.
 An annotation-only edit appends a review revision and updates that annotation's

@@ -198,6 +198,71 @@ async function runWaitForState(
   );
 }
 
+type TargetedStudioEvent = Exclude<StudioSemanticEvent, { kind: "scriptHook" }>;
+
+async function runDragEvent(
+  page: Page,
+  step: StudioSemanticStep,
+  target: MarkedTarget,
+  event: Extract<TargetedStudioEvent, { kind: "drag" }>,
+): Promise<void> {
+  if ("target" in event.to) {
+    const destination = await markTarget(page, event.to.target, `${step.path}.to.target`, event.id);
+    try {
+      await target.locator.dragTo(destination.locator);
+    } finally {
+      await destination.cleanup();
+    }
+    return;
+  }
+  const box = await target.locator.boundingBox();
+  if (box == null) throw new StudioInteractionError(`${step.path}.target`, "drag source has no visible bounding box", event.id);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(event.to.point.x, event.to.point.y, { steps: 12 });
+  await page.mouse.up();
+}
+
+async function executeTargetedEvent(
+  page: Page,
+  step: StudioSemanticStep,
+  target: MarkedTarget,
+  event: TargetedStudioEvent,
+  log: (message: string) => void,
+): Promise<void> {
+  let action: AnimateAction | null = null;
+  switch (event.kind) {
+    case "click":
+      if (event.button == null && event.clickCount == null) action = { type: "click", selector: target.selector };
+      else await target.locator.click({ button: event.button, clickCount: event.clickCount });
+      break;
+    case "hover":
+      action = { type: "hover", selector: target.selector };
+      break;
+    case "scrollTo":
+      if (event.behavior !== "smooth") action = { type: "scrollIntoView", selector: target.selector };
+      else await target.locator.evaluate((element) => element.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+      break;
+    case "type":
+      if (event.durationMs == null) {
+        const prefix = event.replace === false ? await target.locator.inputValue() : "";
+        action = { type: "fill", selector: target.selector, value: `${prefix}${event.text}` };
+      } else {
+        if (event.replace !== false) await target.locator.fill("");
+        const characters = Array.from(event.text).length;
+        await target.locator.pressSequentially(event.text, { delay: characters === 0 ? 0 : event.durationMs / characters });
+      }
+      break;
+    case "waitForState":
+      await runWaitForState(page, target, event);
+      break;
+    case "drag":
+      await runDragEvent(page, step, target, event);
+      break;
+  }
+  if (action != null) await runActions(page, [action], log);
+}
+
 async function runTargetedEvent(
   page: Page,
   step: StudioSemanticStep,
@@ -221,44 +286,7 @@ async function runTargetedEvent(
   }
   const target = await markTarget(page, eventTarget, `${step.path}.target`, event.id);
   try {
-    let action: AnimateAction | null = null;
-    if (event.kind === "click" && event.button == null && event.clickCount == null) {
-      action = { type: "click", selector: target.selector };
-    } else if (event.kind === "click") {
-      await target.locator.click({ button: event.button, clickCount: event.clickCount });
-    }
-    else if (event.kind === "hover") action = { type: "hover", selector: target.selector };
-    else if (event.kind === "scrollTo" && event.behavior !== "smooth") action = { type: "scrollIntoView", selector: target.selector };
-    else if (event.kind === "scrollTo") {
-      await target.locator.evaluate((element) => element.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-    }
-    else if (event.kind === "type" && event.durationMs == null) {
-      const prefix = event.replace === false ? await target.locator.inputValue() : "";
-      action = { type: "fill", selector: target.selector, value: `${prefix}${event.text}` };
-    } else if (event.kind === "type") {
-      if (event.replace !== false) await target.locator.fill("");
-      const characters = Array.from(event.text).length;
-      await target.locator.pressSequentially(event.text, { delay: characters === 0 ? 0 : event.durationMs! / characters });
-    } else if (event.kind === "waitForState") {
-      await runWaitForState(page, target, event);
-    } else if (event.kind === "drag") {
-      if ("target" in event.to) {
-        const destination = await markTarget(page, event.to.target, `${step.path}.to.target`, event.id);
-        try {
-          await target.locator.dragTo(destination.locator);
-        } finally {
-          await destination.cleanup();
-        }
-      } else {
-        const box = await target.locator.boundingBox();
-        if (box == null) throw new StudioInteractionError(`${step.path}.target`, "drag source has no visible bounding box", event.id);
-        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(event.to.point.x, event.to.point.y, { steps: 12 });
-        await page.mouse.up();
-      }
-    }
-    if (action != null) await runActions(page, [action], log);
+    await executeTargetedEvent(page, step, target, event, log);
   } finally {
     await target.cleanup();
   }

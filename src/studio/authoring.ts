@@ -171,6 +171,96 @@ function defaultScene(project: StudioProject, id: (prefix: string) => string): S
   };
 }
 
+type SceneCommand = Exclude<StudioAuthoringCommand, { kind: `beat.${string}` } | { kind: "restore" }>;
+type BeatCommand = Extract<StudioAuthoringCommand, { kind: `beat.${string}` }>;
+
+function applySceneCommand(next: StudioProject, command: SceneCommand, id: (prefix: string) => string): void {
+  switch (command.kind) {
+    case "scene.add": {
+      const scene = command.scene == null ? defaultScene(next, id) : structuredClone(command.scene);
+      if (next.scenes.some((candidate) => candidate.id === scene.id)) throw new StudioAuthoringError(`scene id already exists: ${scene.id}`);
+      const after = command.afterSceneId == null ? next.scenes.length - 1 : next.scenes.findIndex((candidate) => candidate.id === command.afterSceneId);
+      if (after < 0) throw new StudioAuthoringError(`unknown scene id: ${command.afterSceneId}`);
+      next.scenes.splice(after + 1, 0, scene);
+      for (const beatId of scene.narrativeBeatIds ?? []) {
+        const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);
+        if (beat != null && !beat.sceneIds.includes(scene.id)) beat.sceneIds.push(scene.id);
+      }
+      return;
+    }
+    case "scene.duplicate": {
+      const sourceIndex = next.scenes.findIndex((candidate) => candidate.id === command.sceneId);
+      if (sourceIndex < 0) throw new StudioAuthoringError(`unknown scene id: ${command.sceneId}`);
+      const copy = duplicateScene(next, next.scenes[sourceIndex], id);
+      next.scenes.splice(sourceIndex + 1, 0, copy);
+      next.narrative.beats.forEach((beat) => {
+        const at = beat.sceneIds.indexOf(command.sceneId);
+        if (at >= 0) beat.sceneIds.splice(at + 1, 0, copy.id);
+      });
+      return;
+    }
+    case "scene.remove": {
+      if (next.scenes.length === 1) throw new StudioAuthoringError("a Studio project must keep at least one scene");
+      const scene = sceneById(next, command.sceneId);
+      if (next.review.annotations.some((annotation) => annotationReferencesScene(annotation, scene))) {
+        throw new StudioAuthoringError(`scene ${scene.id} has review annotations; move or resolve their scope before removing it`);
+      }
+      next.scenes = next.scenes.filter((candidate) => candidate.id !== scene.id);
+      next.narrative.beats.forEach((beat) => { beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== scene.id); });
+      next.artifacts = next.artifacts.filter((artifact) => artifact.sceneIds?.includes(scene.id) !== true);
+      return;
+    }
+    case "scene.move": {
+      const from = next.scenes.findIndex((candidate) => candidate.id === command.sceneId);
+      if (from < 0) throw new StudioAuthoringError(`unknown scene id: ${command.sceneId}`);
+      const to = Math.max(0, Math.min(next.scenes.length - 1, command.toIndex));
+      const [scene] = next.scenes.splice(from, 1);
+      next.scenes.splice(to, 0, scene);
+      next.narrative.beats.forEach((beat) => {
+        beat.sceneIds = next.scenes.filter((candidate) => beat.sceneIds.includes(candidate.id)).map((candidate) => candidate.id);
+      });
+      return;
+    }
+    case "scene.update":
+      Object.assign(sceneById(next, command.sceneId), structuredClone(command.patch));
+      next.narrative.beats.forEach((beat) => {
+        beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== command.sceneId);
+        if (command.patch.narrativeBeatIds?.includes(beat.id)) beat.sceneIds.push(command.sceneId);
+        beat.sceneIds = next.scenes.filter((scene) => beat.sceneIds.includes(scene.id)).map((scene) => scene.id);
+      });
+  }
+}
+
+function applyBeatCommand(next: StudioProject, command: BeatCommand, id: (prefix: string) => string): void {
+  switch (command.kind) {
+    case "beat.add": {
+      const beat = { id: uniqueId(next, "beat", id), title: command.title?.trim() || "New beat", sceneIds: [] as string[] };
+      const after = command.afterBeatId == null ? next.narrative.beats.length - 1 : next.narrative.beats.findIndex((candidate) => candidate.id === command.afterBeatId);
+      if (command.afterBeatId != null && after < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.afterBeatId}`);
+      next.narrative.beats.splice(after + 1, 0, beat);
+      return;
+    }
+    case "beat.update": {
+      const beat = next.narrative.beats.find((candidate) => candidate.id === command.beatId);
+      if (beat == null) throw new StudioAuthoringError(`unknown narrative beat id: ${command.beatId}`);
+      if (command.title != null) beat.title = command.title;
+      if (command.summary === null) delete beat.summary;
+      else if (command.summary !== undefined) beat.summary = command.summary;
+      return;
+    }
+    case "beat.remove": {
+      const index = next.narrative.beats.findIndex((candidate) => candidate.id === command.beatId);
+      if (index < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.beatId}`);
+      next.narrative.beats.splice(index, 1);
+      next.scenes.forEach((scene) => {
+        if (scene.narrativeBeatIds == null) return;
+        scene.narrativeBeatIds = scene.narrativeBeatIds.filter((beatId) => beatId !== command.beatId);
+        if (scene.narrativeBeatIds.length === 0) delete scene.narrativeBeatIds;
+      });
+    }
+  }
+}
+
 /** Apply one validated authoring operation without mutating its input. */
 export function applyStudioAuthoringCommand(
   rawProject: StudioProject,
@@ -182,71 +272,21 @@ export function applyStudioAuthoringCommand(
     ? structuredClone(command.project)
     : structuredClone(before);
   const id = options.id ?? defaultId;
-
-  if (command.kind === "scene.add") {
-    const scene = command.scene == null ? defaultScene(next, id) : structuredClone(command.scene);
-    if (next.scenes.some((candidate) => candidate.id === scene.id)) throw new StudioAuthoringError(`scene id already exists: ${scene.id}`);
-    const after = command.afterSceneId == null ? next.scenes.length - 1 : next.scenes.findIndex((candidate) => candidate.id === command.afterSceneId);
-    if (after < 0) throw new StudioAuthoringError(`unknown scene id: ${command.afterSceneId}`);
-    next.scenes.splice(after + 1, 0, scene);
-    for (const beatId of scene.narrativeBeatIds ?? []) {
-      const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);
-      if (beat != null && !beat.sceneIds.includes(scene.id)) beat.sceneIds.push(scene.id);
-    }
-  } else if (command.kind === "scene.duplicate") {
-    const sourceIndex = next.scenes.findIndex((candidate) => candidate.id === command.sceneId);
-    if (sourceIndex < 0) throw new StudioAuthoringError(`unknown scene id: ${command.sceneId}`);
-    const copy = duplicateScene(next, next.scenes[sourceIndex], id);
-    next.scenes.splice(sourceIndex + 1, 0, copy);
-    next.narrative.beats.forEach((beat) => {
-      const at = beat.sceneIds.indexOf(command.sceneId);
-      if (at >= 0) beat.sceneIds.splice(at + 1, 0, copy.id);
-    });
-  } else if (command.kind === "scene.remove") {
-    if (next.scenes.length === 1) throw new StudioAuthoringError("a Studio project must keep at least one scene");
-    const scene = sceneById(next, command.sceneId);
-    if (next.review.annotations.some((annotation) => annotationReferencesScene(annotation, scene))) {
-      throw new StudioAuthoringError(`scene ${scene.id} has review annotations; move or resolve their scope before removing it`);
-    }
-    next.scenes = next.scenes.filter((candidate) => candidate.id !== scene.id);
-    next.narrative.beats.forEach((beat) => { beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== scene.id); });
-    next.artifacts = next.artifacts.filter((artifact) => artifact.sceneIds?.includes(scene.id) !== true);
-  } else if (command.kind === "scene.move") {
-    const from = next.scenes.findIndex((candidate) => candidate.id === command.sceneId);
-    if (from < 0) throw new StudioAuthoringError(`unknown scene id: ${command.sceneId}`);
-    const to = Math.max(0, Math.min(next.scenes.length - 1, command.toIndex));
-    const [scene] = next.scenes.splice(from, 1);
-    next.scenes.splice(to, 0, scene);
-    next.narrative.beats.forEach((beat) => {
-      beat.sceneIds = next.scenes.filter((candidate) => beat.sceneIds.includes(candidate.id)).map((candidate) => candidate.id);
-    });
-  } else if (command.kind === "scene.update") {
-    Object.assign(sceneById(next, command.sceneId), structuredClone(command.patch));
-    next.narrative.beats.forEach((beat) => {
-      beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== command.sceneId);
-      if (command.patch.narrativeBeatIds?.includes(beat.id)) beat.sceneIds.push(command.sceneId);
-      beat.sceneIds = next.scenes.filter((scene) => beat.sceneIds.includes(scene.id)).map((scene) => scene.id);
-    });
-  } else if (command.kind === "beat.add") {
-    const beat = { id: uniqueId(next, "beat", id), title: command.title?.trim() || "New beat", sceneIds: [] as string[] };
-    const after = command.afterBeatId == null ? next.narrative.beats.length - 1 : next.narrative.beats.findIndex((candidate) => candidate.id === command.afterBeatId);
-    if (command.afterBeatId != null && after < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.afterBeatId}`);
-    next.narrative.beats.splice(after + 1, 0, beat);
-  } else if (command.kind === "beat.update") {
-    const beat = next.narrative.beats.find((candidate) => candidate.id === command.beatId);
-    if (beat == null) throw new StudioAuthoringError(`unknown narrative beat id: ${command.beatId}`);
-    if (command.title != null) beat.title = command.title;
-    if (command.summary === null) delete beat.summary;
-    else if (command.summary !== undefined) beat.summary = command.summary;
-  } else if (command.kind === "beat.remove") {
-    const index = next.narrative.beats.findIndex((candidate) => candidate.id === command.beatId);
-    if (index < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.beatId}`);
-    next.narrative.beats.splice(index, 1);
-    next.scenes.forEach((scene) => {
-      if (scene.narrativeBeatIds == null) return;
-      scene.narrativeBeatIds = scene.narrativeBeatIds.filter((beatId) => beatId !== command.beatId);
-      if (scene.narrativeBeatIds.length === 0) delete scene.narrativeBeatIds;
-    });
+  switch (command.kind) {
+    case "scene.add":
+    case "scene.duplicate":
+    case "scene.remove":
+    case "scene.move":
+    case "scene.update":
+      applySceneCommand(next, command, id);
+      break;
+    case "beat.add":
+    case "beat.update":
+    case "beat.remove":
+      applyBeatCommand(next, command, id);
+      break;
+    case "restore":
+      break;
   }
 
   if (JSON.stringify(before) === JSON.stringify(next)) throw new StudioAuthoringError("the authoring command did not change the project");
