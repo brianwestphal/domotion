@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["animation","platform-release"]
 platforms: ["windows"]
-tickets: ["DM-1767","DM-1796","DM-1799","DM-2641"]
+tickets: ["DM-1767","DM-1796","DM-1799","DM-2641","DM-S9HCAT"]
 code: ["examples/animate/editor-session/","examples/animate/form-fill/","examples/animate/overlay-window/","src/animation/animator.test.ts","src/animation/animator.ts","src/animation/overlay-schema.ts","src/animation/svg-generator.ts","src/cli/animate-orchestrator.ts","src/cli/animate.test.ts","src/cli/animate.ts","tests/overlay-window.e2e.test.ts"]
 aliases: ["docs/104-overlay-windows.md","doc-104"]
 ---
@@ -18,6 +18,12 @@ Status: **shipped** (DM-1767; the window's closing edge reworked in DM-1796 — 
 2. **per-state overlays** on a compressed run (`states:`, [docs/43 §11](43-declarative-animate-config.md)) — anchor-resolved against the state they belong to and bounded to that state's hold.
 
 Together they remove the last reason a frame carrying an overlay had to stay *outside* an automatic compressed run, so `autoCompress` ([docs/43 §13.1](43-declarative-animate-config.md)) now collapses those runs whole.
+
+SVG generation computes the shared window and exit policy once, then dispatches
+through an exhaustive per-overlay-kind emitter. Run-collapse planning and its
+automatic-versus-authored provenance live separately in
+`src/cli/animate-compression.ts`; orchestration consumes the resulting typed
+config without owning that state machine.
 
 ---
 

@@ -10,6 +10,8 @@ describe("declarative animation module boundaries", () => {
     const artifact = source("animate-artifact.ts");
     const session = source("animate-capture-session.ts");
     const frameCapture = source("animate-frame-capture.ts");
+    const compression = source("animate-compression.ts");
+    const orchestrator = source("animate-orchestrator.ts");
     const animatorFacade = source("../animation/animator.ts");
     const generator = source("../animation/svg-generator.ts");
 
@@ -20,6 +22,8 @@ describe("declarative animation module boundaries", () => {
     expect(artifact).toContain("writeAnimateArtifact");
     expect(session).toContain("openAnimateCaptureSession");
     expect(frameCapture).toContain("captureAnimateFrame");
+    expect(compression).toContain("function collapseCompressibleRuns");
+    expect(orchestrator).not.toContain("function collapseCompressibleRuns");
 
     expect(animatorFacade).not.toContain("function generateAnimatedSvgBody");
     expect(generator).toContain("function generateAnimatedSvgBody");

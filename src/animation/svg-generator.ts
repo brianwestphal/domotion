@@ -1223,6 +1223,36 @@ export function overlayWindowEndMs(overlay: AnimationOverlay, frameDurationMs: n
   return Math.min(frameDurationMs, Math.max(1, endAt));
 }
 
+interface FrameOverlayEmissionContext {
+  idBase: string;
+  timeOffset: number;
+  windowMs: number;
+  totalDuration: number;
+  totalSec: number;
+  exit: OverlayExit;
+}
+
+function emitOneFrameOverlay(
+  overlay: AnimationOverlay,
+  context: FrameOverlayEmissionContext,
+): { svgMarkup: string; css: string } {
+  const { idBase, timeOffset, windowMs, totalDuration, totalSec, exit } = context;
+  switch (overlay.kind) {
+    case "typing":
+      return renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + windowMs, exit, totalDuration, totalSec);
+    case "tap":
+      return renderTapOverlay(overlay, idBase, timeOffset, overlay.endAt != null ? timeOffset + windowMs : null, totalDuration, totalSec);
+    case "svg":
+      return renderSvgOverlay(overlay, idBase, timeOffset, windowMs, totalDuration, totalSec);
+    case "blink":
+      return renderBlinkOverlay(overlay, idBase, timeOffset, timeOffset + windowMs, totalDuration, totalSec);
+    case "shine":
+      return renderShineOverlay(overlay, idBase, timeOffset, windowMs, totalDuration, totalSec);
+    case "interact":
+      return renderInteractOverlay(overlay, idBase, timeOffset, timeOffset + windowMs, totalDuration, totalSec);
+  }
+}
+
 /**
  * Render a frame's overlays (typing / tap / svg / blink), in declaration order,
  * to parallel group-markup + keyframe-css arrays. The cursor overlay is global
@@ -1263,32 +1293,11 @@ function emitFrameOverlays(
         : isLastFrame
         ? { kind: "loop-out" }
         : transDur > 0 ? { kind: "dissolve", ms: transDur } : { kind: "cut" };
-      if (overlay.kind === "typing") {
-        const { svgMarkup, css } = renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + winMs, exit, totalDuration, totalSec);
-        groups.push(svgMarkup);
-        keyframes.push(css);
-      } else if (overlay.kind === "tap") {
-        // A tap is self-timed, so it only clamps when an explicit window is set.
-        const { svgMarkup, css } = renderTapOverlay(overlay, idBase, timeOffset, overlay.endAt != null ? timeOffset + winMs : null, totalDuration, totalSec);
-        groups.push(svgMarkup);
-        keyframes.push(css);
-      } else if (overlay.kind === "svg") {
-        const { svgMarkup, css } = renderSvgOverlay(overlay, idBase, timeOffset, winMs, totalDuration, totalSec);
-        groups.push(svgMarkup);
-        keyframes.push(css);
-      } else if (overlay.kind === "blink") {
-        const { svgMarkup, css } = renderBlinkOverlay(overlay, idBase, timeOffset, timeOffset + winMs, totalDuration, totalSec);
-        groups.push(svgMarkup);
-        keyframes.push(css);
-      } else if (overlay.kind === "shine") {
-        const { svgMarkup, css } = renderShineOverlay(overlay, idBase, timeOffset, winMs, totalDuration, totalSec);
-        groups.push(svgMarkup);
-        keyframes.push(css);
-      } else if (overlay.kind === "interact") {
-        const { svgMarkup, css } = renderInteractOverlay(overlay, idBase, timeOffset, timeOffset + winMs, totalDuration, totalSec);
-        groups.push(svgMarkup);
-        keyframes.push(css);
-      }
+      const { svgMarkup, css } = emitOneFrameOverlay(overlay, {
+        idBase, timeOffset, windowMs: winMs, totalDuration, totalSec, exit,
+      });
+      groups.push(svgMarkup);
+      keyframes.push(css);
     }
   }
   return { groups, keyframes };

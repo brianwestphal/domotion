@@ -2022,6 +2022,7 @@
         "src/animation/glyph-align.ts",
         "src/animation/magic-move.ts",
         "src/animation/text-address.ts",
+        "src/cli/animate-compression.ts",
         "src/cli/animate.ts",
         "src/cli/type-resample.ts",
         "src/terminal/incremental.ts",
