@@ -1,6 +1,7 @@
 {
   "ticket": "DM-2648",
-  "capturedAt": "2026-09-02",
+  "refreshTicket": "DM-03JJVJ",
+  "capturedAt": "2026-09-20",
   "automation": {
     "headless": true,
     "browserPolicy": "DOMOTION_NO_OPEN=1; no desktop browser launches",
@@ -9,8 +10,9 @@
   "sourceApps": [
     {
       "name": "Glassbox",
-      "commit": "0f2fd17891511441538204dcf832d51b0f4e2e6c",
-      "artifactCommit": "59ef9def6ab93e221f82d8c57529fad505a63f4f",
+      "commit": "e6a418288144cf0b73511c2279c4d03036f3442c",
+      "artifactCommit": "2ea045769b09baa24207056eedcad8bc07dc587b",
+      "artifactCommitMeaning": "Latest external commit containing the selected asset paths; refreshed bytes were regenerated from commit e6a418288144cf0b73511c2279c4d03036f3442c and are pinned by SHA-256 below.",
       "commands": [
         "npm run demo:capture",
         "npm run demo:capture-stills -- --only risk-mode"
@@ -18,8 +20,9 @@
     },
     {
       "name": "Hot Sheet",
-      "commit": "5e7835e4c373f110345b798bb9cc05b66326af27",
-      "artifactCommit": "97305f0b092d5ecadb540babdd55195ec2ee437c",
+      "commit": "7788b8365369670d34ed555b3c0d7119904b8aaf",
+      "artifactCommit": "d26c09b81309a61489904bc00f93225f74d143d4",
+      "artifactCommitMeaning": "Latest external commit containing the selected asset paths; refreshed bytes were regenerated from commit 7788b8365369670d34ed555b3c0d7119904b8aaf and are pinned by SHA-256 below.",
       "commands": [
         "npx tsx scripts/capture-demos.ts 1 4 8"
       ],
@@ -27,20 +30,24 @@
     }
   ],
   "assetDigestsSha256": {
-    "site/demo-assets/apps/glassbox-review.svg": "7efdf53fa96e316a9b84faf65f0ec0a6f2b0405103e72c4d26da86465802c0ca",
-    "site/demo-assets/apps/glassbox-risk-mode.svg": "c66cc7591af083675c18acc0846eca051d32036c9ecaf55c0be31bfc09486258",
-    "site/demo-assets/apps/hotsheet-board.svg": "851430b92be54104d20addaf5fe0933e02492e3a0c1c11db783bee64d5e47a44",
-    "site/demo-assets/apps/hotsheet-up-next.svg": "27b97500929109b7d30777487e53e875f833f9e6e359b06645cb713186c3470b",
-    "site/demo-assets/apps/hotsheet-dashboard.svg": "cc30818a8fc9693060d565bf56a872c984d9d5fce24bf18c61d3456567d5113c",
+    "site/demo-assets/apps/glassbox-review.svg": "b0a0933c83a600c1d4a6aaeae61c21309a1a86aa50cbd08e1c0c3e6b2793516e",
+    "site/demo-assets/apps/glassbox-risk-mode.svg": "0717f2b3764d0d3ff65a2412760d99797b72bd5d7d4d229a83f813885fbe680a",
+    "site/demo-assets/apps/hotsheet-board.svg": "9fc7fc28368d8329320e32559efaad592413a133bce2b0a4735ceb839d4b3cde",
+    "site/demo-assets/apps/hotsheet-up-next.svg": "5464de2c6ce0e90c826462024efc4f16c1502044eed0ff20b0c944906238586d",
+    "site/demo-assets/apps/hotsheet-dashboard.svg": "f2a570433cfe64250974cf098d130c591957797f2d13b1a5c7edf64a3d7b199f",
     "site/demo-assets/fidelity/wikipedia-fidelity.png": "1b56c52c13e364dc70ebe7e2bff8c8098afb9c2dddb7b15c182e089ed8672b5f"
+  },
+  "canonicalAssetDigestsSha256": {
+    "examples/output/hero-product-demo.svg": "d7281739374b9f5c712597a6ddb94ea2270cba0bab3132619e0aeba12ba2d3d8",
+    "examples/output/storyboard-demo.svg": "aca7db6967e7ed57b969f29bdccf618074c1df7a678c2131e9924bb0d7a43f03"
   },
   "sampleTimesMs": {
     "wordmark": [0, 1420, 2130, 2790],
-    "hero": [0, 3350, 5025, 6650],
+    "hero": [0, 3200, 6390],
     "showcase": [0, 6750, 10125, 13450],
     "transitionTour": [0, 4825, 7237, 9600],
     "transitionMixed": [0, 5800, 8700, 11550],
-    "storyboard": [0, 7400, 11100, 14750],
+    "storyboard": [0, 1200, 3500, 3700, 5900, 14750],
     "terminalOnboarding": [0, 7500, 11250, 14950],
     "terminalScroll": [0, 6500, 9750, 12950],
     "templateChart": [0, 1550, 2325, 3050],
@@ -56,38 +63,54 @@
   },
   "fullLoopExports": {
     "fps": {
-      "domotion": 20,
+      "hero": 30,
+      "storyboard": 20,
       "sourceApps": 15
     },
-    "count": 18,
+    "count": 6,
+    "exports": [
+      "hero-product-demo (6.7s)",
+      "storyboard-demo (14.8s authored loop)",
+      "glassbox-review (30.0s)",
+      "hotsheet-board (4.53s)",
+      "hotsheet-up-next (4.73s)",
+      "hotsheet-dashboard (4.53s)"
+    ],
     "decodeStatus": "passed",
     "maintainerWatchStatus": "pending"
   },
   "automatedReview": {
     "stillScales": [1, 2],
     "findings": [
-      "The release pass exposed a blank cross-dissolve loop boundary in transition-tour and transition-mixed; DM-2648 now paints frame zero back in during the final fade.",
-      "The fidelity proof's absolute pixel-identical wording was narrowed to the recorded macOS Chromium environment and now states the consumer antialiasing/hinting caveat.",
-      "The storyboard's time-zero title-card entrance begins on the dark canvas by design; its later sampled frames and exported loop contain the complete four-scene narrative."
+      "The hero's time-zero skeleton, 3200ms interaction state, 6390ms final hold, native-size stills, 2x stills, and complete 6.7s loop are legible and unclipped.",
+      "The storyboard's time-zero title-card entrance begins on the dark canvas by design; 1200ms shows the complete opening, 5900ms the live-capture interaction, and 14750ms the final payoff.",
+      "The exact 3500ms storyboard crossfade boundary is fully dark while 3700ms is healthy; follow-up DM-EC0FSE tracks preserving visible content across that boundary.",
+      "Refreshed Glassbox and Hot Sheet assets contain only seeded demo projects/content, show the expected product names, and passed first-frame, sampled-frame, contact-sheet, full-loop export, and decode review.",
+      "The fidelity proof retains its recorded macOS Chromium scope and consumer antialiasing/hinting caveat."
     ]
   },
   "siteRoutes": {
     "desktop": [
       "/domotion/",
-      "/domotion/showcase/"
+      "/domotion/showcase/",
+      "/domotion/usage/studio/"
     ],
     "narrow": [
       "/domotion/",
-      "/domotion/showcase/"
+      "/domotion/showcase/",
+      "/domotion/usage/studio/"
     ],
     "status": "passed",
-    "builtDemoAssetCount": 107,
+    "builtDemoAssetCount": 109,
     "resolvedReferenceCount": 69,
     "checks": [
-      "No horizontal overflow at 1440×1000 or 390×844",
-      "All referenced demo images loaded with nonzero intrinsic and rendered dimensions",
+      "No horizontal overflow at 1440×900 or 390×844",
+      "All 4 homepage and 39 showcase demo images loaded after a complete lazy-load scroll with nonzero intrinsic and rendered dimensions",
       "All referenced demo images had nonempty alt text",
-      "Rendered aspect ratios matched intrinsic aspect ratios"
+      "Rendered aspect ratios matched intrinsic aspect ratios",
+      "Homepage wordmark, install/showcase actions, Studio card, and hero demo were present at both widths",
+      "Studio release fixture showed 3 scenes, a 10-track/18-item timeline, whole-story preview paused at 5900ms, one open region/time-grounded annotation, zero client errors, and no local absolute paths",
+      "A second complete canonical demo regeneration produced the identical examples/output aggregate SHA-256 fba77e4494e644b295ca05a8f31dba3ffe2dcdd6764cf3b6836c538b7e190818"
     ]
   },
   "maintainerApproval": {

@@ -27,24 +27,30 @@ Then copy the chosen files into this directory and rebuild the site
 (`npm run build` runs `scripts/build-demos.mjs`, which copies them to
 `public/demos/apps/`).
 
-## Current provenance (DM-2648)
+## Current provenance (DM-03JJVJ refresh)
 
-Captured headlessly on 2026-09-02 with `DOMOTION_NO_OPEN=1`:
+Captured headlessly on 2026-09-20 with `DOMOTION_NO_OPEN=1`:
 
 | App | Application source commit | Generated-artifact commit | Capture command |
 |---|---|---|---|
-| Glassbox | `0f2fd17891511441538204dcf832d51b0f4e2e6c` | `59ef9def6ab93e221f82d8c57529fad505a63f4f` | `npm run demo:capture`; `npm run demo:capture-stills -- --only risk-mode` |
-| Hot Sheet | `5e7835e4c373f110345b798bb9cc05b66326af27` | `97305f0b092d5ecadb540babdd55195ec2ee437c` | `npx tsx scripts/capture-demos.ts 1 4 8` |
+| Glassbox | `e6a418288144cf0b73511c2279c4d03036f3442c` | `2ea045769b09baa24207056eedcad8bc07dc587b` | `npm run demo:capture`; `npm run demo:capture-stills -- --only risk-mode` |
+| Hot Sheet | `7788b8365369670d34ed555b3c0d7119904b8aaf` | `d26c09b81309a61489904bc00f93225f74d143d4` | `npx tsx scripts/capture-demos.ts 1 4 8` |
+
+The source commit is the checkout used for this headless regeneration. The
+generated-artifact commit is the latest commit in that source repository which
+already contains the selected asset paths; the refreshed bytes copied here were
+regenerated from the newer source commit and are identified exactly by the
+digests below.
 
 Committed asset SHA-256 digests:
 
 | File | SHA-256 |
 |---|---|
-| `glassbox-review.svg` | `7efdf53fa96e316a9b84faf65f0ec0a6f2b0405103e72c4d26da86465802c0ca` |
-| `glassbox-risk-mode.svg` | `c66cc7591af083675c18acc0846eca051d32036c9ecaf55c0be31bfc09486258` |
-| `hotsheet-board.svg` | `851430b92be54104d20addaf5fe0933e02492e3a0c1c11db783bee64d5e47a44` |
-| `hotsheet-up-next.svg` | `27b97500929109b7d30777487e53e875f833f9e6e359b06645cb713186c3470b` |
-| `hotsheet-dashboard.svg` | `cc30818a8fc9693060d565bf56a872c984d9d5fce24bf18c61d3456567d5113c` |
+| `glassbox-review.svg` | `b0a0933c83a600c1d4a6aaeae61c21309a1a86aa50cbd08e1c0c3e6b2793516e` |
+| `glassbox-risk-mode.svg` | `0717f2b3764d0d3ff65a2412760d99797b72bd5d7d4d229a83f813885fbe680a` |
+| `hotsheet-board.svg` | `9fc7fc28368d8329320e32559efaad592413a133bce2b0a4735ceb839d4b3cde` |
+| `hotsheet-up-next.svg` | `5464de2c6ce0e90c826462024efc4f16c1502044eed0ff20b0c944906238586d` |
+| `hotsheet-dashboard.svg` | `f2a570433cfe64250974cf098d130c591957797f2d13b1a5c7edf64a3d7b199f` |
 
 The Hot Sheet copies normalize trailing whitespace after capture; SVG markup and
 rendered content are otherwise unchanged from the source artifacts.
