@@ -15,6 +15,16 @@ as a tool**: the CLIs, the config schema, the template library, the API, the
 gotchas, and a full **design playbook**. It's distinct from contributor docs.
 Point Claude / Cursor / your agent at it.
 
+## Use Studio for durable, reviewed projects
+
+For work that outgrows one capture or animation config, [Domotion
+Studio](/domotion/usage/studio/) provides a versioned project model shared by
+human and AI review. Its generation and review adapters preserve the authored
+story and scenes, while findings enter the same project-, scene-, time-, or
+region-scoped annotation history as human feedback. Run `domotion-studio
+--no-open` in automation and drive the printed loopback URL; the project remains
+portable JSON inside the explicitly scoped workspace.
+
 ## You don't have to hand-write the markup
 
 Because Domotion renders whatever markup it's given and an agent can *look at the
@@ -46,11 +56,11 @@ previews and times actually inspected—or disclose that a browser, ffmpeg, imag
 viewer, or video player was unavailable. A successful command alone is not a
 visual review. The shipped `llms.txt` contains the complete gate and checklist.
 
-Capture, rasterization, and export already use headless Chromium. `svg-review`
-and `svg-scrubber` are interactive local servers that otherwise open the system
-browser, so agents must pass `--no-open` (or set `DOMOTION_NO_OPEN=1`) and drive
-the printed local URL through headless browser automation. Do not open a desktop
-browser unless the user asks.
+Capture, rasterization, and export already use headless Chromium.
+`domotion-studio`, `svg-review`, and `svg-scrubber` are interactive local servers
+that otherwise open the system browser, so agents must pass `--no-open` and
+drive the printed local URL through headless browser automation. All three also
+honor `DOMOTION_NO_OPEN=1`. Do not open a desktop browser unless the user asks.
 
 ## The playbook in one breath
 

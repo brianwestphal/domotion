@@ -2,12 +2,12 @@
 
 > Domotion (`domotion-svg` on npm) turns HTML/CSS into a **self-contained, animated SVG** by faithfully reproducing how a browser paints it. The output embeds with a plain `<img src="out.svg">`, scales crisply at any size, needs no external assets, and carries the captured glyph data and positioning instead of falling back to fonts on the viewer's machine. Reach for it to produce marketing/docs demos, UI screenshots, animated diagrams, terminal recordings, or charts as one portable file.
 
-This doc teaches an AI agent (Claude, Cursor, etc.) to **use** Domotion. It is not about editing Domotion's source. When unsure of a flag, run `domotion --help` or `domotion <verb> --help` — that's the source of truth.
+This doc teaches an AI agent (Claude, Cursor, etc.) to **use** Domotion. It is not about editing Domotion's source. When unsure of a flag, run `domotion --help` or `domotion <verb> --help`; for Studio options, run `domotion-studio --help`.
 
 ## Install
 
 ```bash
-npm install domotion-svg          # library + the `domotion` CLI (+ svg-to-video, svg-to-image, svg-review, svg-scrubber)
+npm install domotion-svg          # library + domotion, domotion-studio, svg-to-video, svg-to-image, svg-review, svg-scrubber
 # or one-off:  npx -p domotion-svg domotion capture https://example.com -o out.svg
 ```
 
@@ -15,13 +15,14 @@ First run auto-installs Playwright's Chromium (`npx playwright install chromium`
 
 **Platform note:** output is pixel-faithful to the browser's paint *on the host OS*. macOS, Linux, and Windows are all calibrated — macOS is held pixel-exact; Linux/Windows match the browser's glyph selection and metrics within a small native-hinting margin.
 
-**Automation note:** capture, rendering, and export use headless Chromium. The interactive `svg-review` and `svg-scrubber` servers open the system browser by default; an agent or CI job must pass `--no-open` (or set `DOMOTION_NO_OPEN=1`) and drive the printed local URL headlessly. Never open a desktop browser unless the user explicitly asks.
+**Automation note:** capture, rendering, and export use headless Chromium. The interactive `domotion-studio`, `svg-review`, and `svg-scrubber` servers open the system browser by default; an agent or CI job must pass `--no-open` (or set `DOMOTION_NO_OPEN=1`) and drive the printed local URL headlessly. Never open a desktop browser unless the user explicitly asks.
 
-## The CLIs (5 bins)
+## The CLIs (6 bins)
 
 | CLI | Purpose |
 |---|---|
-| `domotion` | The main tool: `capture`, `animate`, `template`, `term`, `composite`, `storyboard`. |
+| `domotion` | The main tool: `capture`, `animate`, `template`, `term`, `composite`, `storyboard`, `studio`. |
+| `domotion-studio` | Open the local visual workspace for creating, editing, validating, previewing, reviewing, and saving versioned Studio project JSON. |
 | `svg-to-video` | Render an animated SVG to MP4/WebM/MOV. |
 | `svg-to-image` | Rasterize a still (or one frame of an animated) SVG to PNG/JPEG/PDF/WebP/AVIF/TIFF — your "look at the pixels" tool. |
 | `svg-review` | Diff a capture against the Chromium screenshot (for filing fidelity bugs). |
@@ -38,6 +39,8 @@ cat page.html | domotion capture - -o page.svg
 ```
 
 Useful flags: `--width N` / `--height N` (viewport, default 800×600) · `--selector <css>` (capture one element, default `body`) · `--clip x,y,w,h` · `--wait-for <css>` (wait for a selector) · `--wait <ms>` · `--color-scheme light|dark` · `--mobile` · `--optimize` (SVGO) · `--chrome phone|browser|window` (wrap in a device bezel, with `--chrome-label`) · `--format <preset|WxH>` (size the viewport to a social preset — `reel` 1080×1920, `square` 1080×1080, `portrait` 1080×1350, `landscape` 1920×1080 — with `--safe-guide` to overlay the safe-area) · `--brand <file.json>` (theme the page by injecting the brand's CSS custom properties — `--brand-primary`, etc. — onto `:root` before it paints) · `--cross-origin-frames "<hosts>"` (recurse cross-origin `<iframe>`s from trusted hosts, or `"*"`; disables web security, so only for pages you trust — same-origin frames recurse automatically) · `--debug` (write a reproduction bundle for `svg-review`).
+
+Text flags: `--real-text` adds a paintless authored `<text>` layer for search, selection, copy, and assistive technology when the SVG is embedded inline (it has no effect through `<img>`). `--text-mode embedded-font|paths|system-font` chooses the painted representation. The default `embedded-font` mode is self-contained and pixel-faithful; `system-font` can be smaller but is not pixel-faithful and requires the viewer to have the authored fonts. `animate` accepts the same two flags across its frames.
 
 **Animated scroll demo** of a long page, in one capture: `--scroll "<pattern>"` captures at successive scroll offsets and composes one scrolling SVG. Patterns: `down:bottom/8s`, `720px,2s until bottom`, `(720px,2s until bottom), (200px,3s)`. Tune with `--scroll-speed <px/s>` and `--scroll-selector <css>` (an inner scroller). See the scroll-pattern docs for the grammar.
 
@@ -118,6 +121,18 @@ Stacks **layers** — each a `cast`, a `template`, or a pre-rendered `svg` (any 
 ```
 
 Per layer: one source (`svg` / `cast` / `template`), placement (`x`/`y`/`width`/`height`/`clip`), timeline (`start`, `mode: hold|stretch|loop`, `duration`), optional `chrome`, and `animations`. Layer animations: `translateX`/`translateY`/`scale`/`transform`/`opacity`, plus `clipScaleX`/`clipScaleY` to **resize a layer's box** (e.g. shrink a window so its content reflows while its buttons keep size) — not scale its contents. Programmatic equivalent: `composeAnimatedLayers(layers, opts)` (named export). See the runnable `examples/composite/` + `examples/composite-desktop.ts` (a desktop with a terminal window that resizes mid-run, reflowing the terminal) and `docs/77-nested-animated-compositing.md`.
+
+## `domotion-studio [project.json]` — local visual project workspace
+
+Studio is the visual authoring and review surface for durable, versioned Domotion project JSON. It supports story and scene editing, a shared multitrack timeline, embedded SVG playback, unified human/AI annotations, real browser interaction import, and generation/review adapters. Files remain portable JSON; the local server may read and write only `.json` files beneath the configured workspace.
+
+```bash
+domotion-studio --workspace ./demo-project
+domotion-studio ./demo-project/product-tour.json
+domotion-studio ./demo-project/product-tour.json --no-open
+```
+
+Use `--no-open` in automation and drive the printed loopback URL. The equivalent main-CLI entry point is `domotion studio`; use `domotion-studio --help` for the authoritative options.
 
 ## `svg-to-video <input.svg> -o out.mp4` — animated SVG → video
 
@@ -274,7 +289,8 @@ Before returning a result, verify:
 
 ## Going deeper
 
-- `domotion --help` and `domotion <verb> --help` — authoritative flag reference.
+- `domotion --help` and `domotion <verb> --help` — authoritative flag reference;
+  use `domotion-studio --help` for Studio options.
 - Hosted docs + demo gallery: https://brianwestphal.github.io/domotion/
 - `FEATURES.md` (shipped) — per-feature support checklist.
 - Issues / fidelity bugs: capture with `--debug`, review with `svg-review --no-open` through headless browser automation, file at https://github.com/brianwestphal/domotion/issues

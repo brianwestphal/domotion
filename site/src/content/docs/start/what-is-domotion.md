@@ -30,6 +30,9 @@ the viewer's font inventory. See
 - **Web app demos** — capture a whole running app and drive it like a user
   (click, type, navigate), then ship the flow as one looping SVG.
   [→ Web app demos](/domotion/usage/web-app-demos/)
+- **Visual projects** — author and review a durable, versioned project in
+  Domotion Studio, with scenes, a multitrack timeline, embedded playback, and
+  annotations. [→ Domotion Studio](/domotion/usage/studio/)
 - **Scroll-throughs** — pan down a long page or article as one smooth animation.
   [→ Capture](/domotion/usage/capture/)
 - **Scalable screen captures** — a faithful snapshot of any page or component

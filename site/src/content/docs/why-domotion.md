@@ -95,6 +95,10 @@ OS you commit from. That makes a captured demo a usable **golden fixture** for
 catching unintended rendering drift, though Domotion itself doesn't ship a
 pass/fail visual-diff for your own app.
 
+For larger productions, [Domotion Studio](/domotion/usage/studio/) keeps the
+story, scenes, timeline, annotations, and revision history in one validated,
+versioned project file while generated media remains replaceable.
+
 ## Themeable and composable
 
 Transparent backgrounds round-trip, so a demo drops onto any host background.

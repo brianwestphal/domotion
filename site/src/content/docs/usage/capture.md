@@ -61,6 +61,12 @@ svg-to-image card.svg -o card.png
 - `--color-scheme light|dark` · `--mobile`
 - `--format <preset|WxH>` — size the viewport to a social preset: `reel` (1080×1920), `square` (1080×1080), `portrait` (1080×1350), or `landscape` (1920×1080) — or a literal `WIDTHxHEIGHT`. Add `--safe-guide` to overlay the safe-area margins.
 - `--brand <file.json>` — theme the captured page by injecting the brand kit's CSS custom properties (`--brand-primary`, `--brand-background`, `--brand-font-family`, …) onto `:root` before it paints, so a page authored against `var(--brand-*)` picks up the brand at capture time.
+- `--real-text` — add a paintless authored-text layer for search, selection,
+  copy, and assistive technology in inline SVG; it has no effect through `<img>`
+- `--text-mode embedded-font|paths|system-font` — choose the painted text
+  representation; the default embedded-font mode is self-contained and
+  pixel-faithful, while system-font is smaller but depends on the viewer's fonts
+  and is not pixel-faithful
 - `--optimize` / `--no-optimize` — the SVGO pass (`.svgz` output implies `--optimize`)
 - `--chrome phone|browser|window` — wrap in a device bezel (`--chrome-label`, `--chrome-theme light|dark`)
 - `--cross-origin-frames <hosts>` — recurse cross-origin `<iframe>`s into native SVG (see below)

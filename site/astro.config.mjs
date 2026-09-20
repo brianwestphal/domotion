@@ -63,6 +63,7 @@ export default defineConfig({
           label: "Usage",
           items: [
             { label: "Web app demos", slug: "usage/web-app-demos" },
+            { label: "Domotion Studio", slug: "usage/studio" },
             { label: "Capture a page", slug: "usage/capture" },
             { label: "Animate (multi-frame)", slug: "usage/animate" },
             { label: "Templates", slug: "usage/templates" },

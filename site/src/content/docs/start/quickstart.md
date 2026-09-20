@@ -19,7 +19,10 @@ The package ships several command-line tools:
 
 - **`domotion`** — the main CLI: `capture` a page, `animate` multi-frame flows,
   `template` polished graphics, `term` terminal recordings, `composite`
-  layered SVGs, and `storyboard` multi-scene narratives.
+  layered SVGs, `storyboard` multi-scene narratives, and `studio` visual project
+  authoring.
+- **`domotion-studio`** — the standalone entry point for the local visual Studio
+  workspace. [→ Domotion Studio](/domotion/usage/studio/)
 - **`svg-to-video`** — render an animated SVG to MP4 / WebM / GIF (and more).
   [→ Export](/domotion/usage/export/)
 - **`svg-to-image`** — render any frame of an SVG to a PNG / JPEG still.
@@ -44,6 +47,11 @@ domotion capture ./demo.html --width 1200 --height 600 --selector ".hero" --opti
 ```
 
 Open `example.svg` in a browser — it's a complete, self-contained SVG.
+
+For searchable/selectable text in an inline SVG, add `--real-text`. If smaller
+output matters more than pixel fidelity and the viewer is guaranteed to have
+the authored fonts, choose `--text-mode system-font`; the default
+`embedded-font` mode remains the self-contained, faithful choice.
 
 ## Make it move
 

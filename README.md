@@ -14,7 +14,7 @@
 
 **Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. It embeds the exact captured glyph data and positioning, so playback never falls back to a viewer's system fonts; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
-Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with parameterized and custom transitions, overlays, and simulated interaction, **scene storyboarding** (sequence distinct scenes end-to-end), **brand kits** and **social-format presets** (reel / square / portrait / landscape), **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
+Beyond raw capture it ships **Domotion Studio**, a local visual workspace for authoring and reviewing versioned projects; a **template library** that turns a few flags into a polished animated SVG; **terminal-session capture** (a recording → an animated terminal); **scroll capture** (a long page replayed as one self-contained scrolling SVG); multi-frame **animation** with parameterized and custom transitions, overlays, and simulated interaction; **scene storyboarding** (sequence distinct scenes end-to-end); **brand kits** and **social-format presets** (reel / square / portrait / landscape); **device-chrome** framing; **nested compositing** (animated layers inside animated layers); one-command **SVG → MP4/WebM**; and fidelity **review** tools.
 
 <p align="center">
   <img src="examples/output/hero-product-demo.svg" alt="An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG" width="760">
@@ -65,6 +65,8 @@ predictable. For a zero-install trial, run
   [animation guide](https://brianwestphal.github.io/domotion/usage/animate/).
 - **Generate a polished asset from flags:** use `domotion template`; browse the
   [template guide](https://brianwestphal.github.io/domotion/usage/templates/).
+- **Author and review a versioned project visually:** use `domotion-studio`; see
+  the [Studio guide](https://brianwestphal.github.io/domotion/usage/studio/).
 
 The [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/)
 walks through the first capture and animation end to end.
@@ -97,6 +99,12 @@ never become idle.
 
 Same-origin `<iframe>` content is recursed into the capture as native SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
 
+Text defaults to self-contained, pixel-faithful embedded fonts. For inline SVG,
+`--real-text` adds a paintless authored-text layer for search, selection, copy,
+and assistive technology. `--text-mode system-font` instead paints authored
+`<text>` using the viewer's installed fonts; it can be smaller, but it is not
+pixel-faithful and should be used only when those fonts are guaranteed.
+
 For a multi-frame animated SVG, write a JSON config and run:
 
 ```bash
@@ -125,6 +133,24 @@ domotion template kinetic-text --text "Ship it" --variant pop --by char -o title
 ```
 
 Built-ins (14): **lower-third** (broadcast banner) · **kinetic-text** (animated typography) · **chart** (column / bar / line / pie / donut) · **chat** (message thread) · **subscribe** (follow pop-up) · **background-loop** (seamless looping background) · **device-mockup** (wrap a page in a phone / browser / window bezel) · and a **creative-template pack** of full-bleed text/number cards: **title-card**, **quote**, **caption**, **cta**, **counter**, **stat**, **compare**. Every template adapts to a `--format` social preset (reel / square / portrait / landscape) and a `--brand` kit (palette / type / logo). Third-party templates are npm packages named `domotion-template-<name>`.
+
+### Domotion Studio — visual project authoring
+
+Domotion Studio is a local, browser-based workspace for building and reviewing
+versioned Domotion projects. It provides story and scene authoring, a detailed
+multitrack timeline, embedded playback and review annotations, real-interaction
+import, and generation/review hooks while keeping project files as portable,
+validated JSON inside an explicitly scoped workspace.
+
+```bash
+# Open a workspace, or pass an existing Studio project JSON file.
+domotion-studio --workspace ./demo-project
+domotion-studio ./demo-project/product-tour.json
+```
+
+Studio opens locally by default. In automation, pass `--no-open` and use the
+printed loopback URL. Run `domotion-studio --help` or read the
+[Studio guide](https://brianwestphal.github.io/domotion/usage/studio/).
 
 ### Terminal sessions
 
