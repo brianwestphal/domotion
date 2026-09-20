@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { thinDottedEndpointPlan } from "./element-tree-to-svg.js";
+import { thinDottedEndpointPlan } from "./outline-paint.js";
 
 describe("thinDottedEndpointPlan (DM-2324)", () => {
   it("grows the first dot for even 1px paths", () => {

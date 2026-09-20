@@ -2674,7 +2674,9 @@
         "windows"
       ],
       "code": [
-        ".github/workflows/border-phase-oracle.yml"
+        ".github/workflows/border-phase-oracle.yml",
+        "src/render/outline-paint.ts",
+        "src/render/thin-dotted-endpoints.test.ts"
       ],
       "file": "127-border-outline-phase-oracle.md"
     },

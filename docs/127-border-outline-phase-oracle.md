@@ -5,8 +5,8 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects","platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2184","DM-2323","DM-2355"]
-code: [".github/workflows/border-phase-oracle.yml"]
+tickets: ["DM-2184","DM-2323","DM-2355","DM-CMKF35"]
+code: [".github/workflows/border-phase-oracle.yml","src/render/outline-paint.ts","src/render/thin-dotted-endpoints.test.ts"]
 aliases: ["docs/127-border-outline-phase-oracle.md","doc-127"]
 ---
 
@@ -71,6 +71,12 @@ review found the remaining DSF=1 dotted-outline coverage profile byte-stable
 across runners. The later uniform-double snap correction left those maxima and
 their ceilings unchanged; doc 191 records the exact geometry, ceilings, and
 evidence fingerprints.
+
+Outline emission and its shared dashed/dotted side geometry live in
+`src/render/outline-paint.ts`. The element-tree renderer remains the paint-order
+orchestrator and calls this state-independent owner at the existing outline
+phase; the public endpoint-plan export remains available through the legacy
+element-tree module.
 
 Collapsed table borders have a separate exact logical gate. The capture-side
 model mirrors Chromium's `TableBorders`: one logical edge grid, source merges

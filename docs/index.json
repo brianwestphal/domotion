@@ -4462,10 +4462,13 @@
         "tickets": [
           "DM-2184",
           "DM-2323",
-          "DM-2355"
+          "DM-2355",
+          "DM-CMKF35"
         ],
         "code": [
-          ".github/workflows/border-phase-oracle.yml"
+          ".github/workflows/border-phase-oracle.yml",
+          "src/render/outline-paint.ts",
+          "src/render/thin-dotted-endpoints.test.ts"
         ],
         "aliases": [
           "docs/127-border-outline-phase-oracle.md",
