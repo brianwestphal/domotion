@@ -78,7 +78,7 @@ import {
   embedResizedDataUri,
   embedRemoteImages,
   resolveSvgSource,
-  setActiveHiDPIFactor,
+  withActiveHiDPIFactor,
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
 import { inlineImgSvg, flattenImgSvg, getFlattenNestedSvg, isSvgSafeToFlatten, prefixSvgClasses, prefixSvgIds } from "./svg-inline.js";
@@ -3136,7 +3136,6 @@ function buildRenderState(
   idPrefix: string,
   hiDPIFactor: number,
 ): { state: RenderState; fragmentFilterDefs: Map<string, { id: string; outerHTML: string }> } {
-  setActiveHiDPIFactor(hiDPIFactor);
   // DM-1723: annotate in-flow descendants of decorating boxes with their
   // ancestor's propagated text-decoration (CSS Text Decoration 3 §2 —
   // decoration propagates without inheriting, so a <strong> inside an
@@ -3519,10 +3518,12 @@ export function elementTreeToSvgInner(
       endCharacterFallbackDocument();
     }
   };
-  const captured = capturedSessionGenericFamilies(input);
-  return captured == null
-    ? render()
-    : withSessionGenericFamilyOverrides(captured, render);
+  return withActiveHiDPIFactor(hiDPIFactor, () => {
+    const captured = capturedSessionGenericFamilies(input);
+    return captured == null
+      ? render()
+      : withSessionGenericFamilyOverrides(captured, render);
+  });
 }
 
 export function capturedSessionGenericFamilies(

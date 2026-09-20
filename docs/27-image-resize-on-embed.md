@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["linux"]
-tickets: ["DM-2477","DM-258","DM-260","DM-512","DM-526","DM-542"]
-code: ["src/capture/embed.ts","src/tree-ops/resize-embedded-images.test.ts","tests/real-world.tsx"]
+tickets: ["DM-2477","DM-258","DM-260","DM-512","DM-526","DM-542","DM-FZ5734"]
+code: ["src/capture/embed-hidpi-scope.test.ts","src/capture/embed.ts","src/tree-ops/resize-embedded-images.test.ts","tests/real-world.tsx"]
 aliases: ["docs/27-image-resize-on-embed.md","doc-27"]
 ---
 
@@ -62,6 +62,11 @@ Otherwise the source bytes are kept untouched. Two reasons:
 ### HiDPI factor
 
 `embedRemoteImagesHiDPIFactor` (default `2.0`) multiplies the target render rect to leave headroom for users viewing the SVG on retina displays or zoomed in. `1.0` produces the smallest output (and matches Chromium's painted resolution at `devicePixelRatio: 1`); `3.0` covers iPhone-Pro-class density. Fractional values are allowed. Values < `1.0` are clamped to `1.0` — going below render rect would produce a visibly blurry SVG even at default zoom.
+
+Renderer lookups run inside a synchronous `withActiveHiDPIFactor` scope. The
+scope validates that its factor is finite and positive, supports nesting, and
+restores the previous factor in `finally`; a successful or failed render
+therefore cannot change the lookup factor used by the next render.
 
 ### Output format
 

@@ -111,26 +111,38 @@ export function embedOriginalDataUri(url: string): string {
 
 /**
  * DM-540 — active hiDPI multiplier used by `embedResizedDataUri` lookups
- * during a single `elementTreeToSvg` invocation. `elementTreeToSvgInner` sets it
- * (via `setActiveHiDPIFactor`) as the FIRST thing it does on EVERY call, so each
- * render reads its own value and a stale value can't leak across renders — it's
- * only ever read (as the `embedResizedDataUri` default) inside the render that
- * just set it. Must match the value passed to `resizeEmbeddedImages` for the
- * same tree, otherwise the lookup misses and the renderer falls back to the
+ * during a single `elementTreeToSvg` invocation. `elementTreeToSvgInner` owns a
+ * `withActiveHiDPIFactor` scope, so every success or throw restores the prior
+ * factor. It must match the value passed to `resizeEmbeddedImages` for the same
+ * tree, otherwise the lookup misses and the renderer falls back to the
  * source-resolution data URI.
  *
  * Module-scoped because the resize lookup is buried in a dozen helper
  * functions (border-image, repeat-pattern, list marker, pseudo-image,
  * background-layer); threading the factor through every signature would
  * touch every call site and grow the renderer surface area for no
- * functional benefit. Captures run sequentially per Node event loop so
- * there's no concurrency hazard. (DM-1435: considered a save/restore scope
- * guard like `withRenderTextMode`, but set-at-entry already prevents the leak.)
+ * functional benefit. The scope is deliberately synchronous: asynchronous
+ * pre-pass work must finish before rendering begins and must not retain this
+ * module-owned setting.
  */
 let _activeHiDPIFactor = 2;
 
-export function setActiveHiDPIFactor(n: number): void {
+function validateHiDPIFactor(n: number): void {
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new RangeError(`hiDPI factor must be a finite positive number; got ${String(n)}`);
+  }
+}
+
+/** Run one synchronous render lookup scope and restore the previous factor. */
+export function withActiveHiDPIFactor<T>(n: number, render: () => T): T {
+  validateHiDPIFactor(n);
+  const previous = _activeHiDPIFactor;
   _activeHiDPIFactor = n;
+  try {
+    return render();
+  } finally {
+    _activeHiDPIFactor = previous;
+  }
 }
 
 /**

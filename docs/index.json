@@ -1006,9 +1006,11 @@
           "DM-260",
           "DM-512",
           "DM-526",
-          "DM-542"
+          "DM-542",
+          "DM-FZ5734"
         ],
         "code": [
+          "src/capture/embed-hidpi-scope.test.ts",
           "src/capture/embed.ts",
           "src/tree-ops/resize-embedded-images.test.ts",
           "tests/real-world.tsx"
