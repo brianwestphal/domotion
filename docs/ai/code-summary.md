@@ -19,8 +19,8 @@ loading the historical documentation corpus.
   function, so no module boundary leaks into the captured page (DM-2639).
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page. Native font work keeps
-  `font-resolution.ts` owns the process-scoped exact-pattern Linux `fc-match`
-  memo alongside the logical font caches, while `glyph-helper.ts` remains the
+  the process-scoped exact-pattern Linux `fc-match` memo alongside the logical
+  font caches in `font-resolution.ts`, while `glyph-helper.ts` remains the
   public fallback/cache facade. Native transport,
   protocol, outline conversion, font-adapter construction, and Linux target
   strikes live in `glyph-helper-transport.ts`, `glyph-helper-protocol.ts`,
@@ -87,6 +87,7 @@ loading the historical documentation corpus.
 - `domotion` — capture, animate, terminal, template, composite, and storyboard
 - `svg-to-video` and `svg-to-image` — export animated or static SVG output
 - `svg-review` and `svg-scrubber` — inspect static diffs or animated timelines
+- `domotion-studio` — launch the standalone local Studio application
 
 The `npm run benchmark:glassbox` workflow exercises the complete Studio pipeline
 against Glassbox and publishes the accepted baseline asset;
