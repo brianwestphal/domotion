@@ -3,9 +3,10 @@
  * Merged coverage (DM-1343). `npm run test:coverage` reflects only the vitest
  * unit suite, so the big render modules read as under-covered even though the
  * browser E2Es and bespoke VISUAL suites exercise them hard. This script runs
- * the unit suite, browser E2Es, AND visual suites under one shared
- * `NODE_V8_COVERAGE` dir, then merges them into a single report with `c8` — the
- * one true number per CLAUDE.md's "merge all coverage" convention.
+ * the unit suite, browser E2Es, AND visual suites. Vitest emits Istanbul maps
+ * for its Vite-transformed modules, while direct tsx runners accumulate raw
+ * profiles under `NODE_V8_COVERAGE` for c8. The maps are merged into the one
+ * true number per CLAUDE.md's "merge all coverage" convention.
  *
  *   node tools/coverage-all.mjs            # FAST: unit + browser E2E + features +
  *                                          #   showcase + snapshot-isolation +
@@ -34,9 +35,14 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { summarizeCoverage, formatCoverageSummary } from "./coverage-summary.mjs";
 import { coverageCommandExitStatus, normalizeCoverageExitStatus } from "./coverage-exit-status.mjs";
+import { mergeCoverageFiles, writeCoverageReports } from "./coverage-map.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const TMP = resolve(ROOT, "coverage/.v8-all");
+const PARTS = resolve(ROOT, "coverage/.all-parts");
+const TMP = resolve(PARTS, "direct-v8");
+const DIRECT_REPORTS = resolve(PARTS, "direct");
+const UNIT_REPORTS = resolve(PARTS, "vitest-unit");
+const E2E_REPORTS = resolve(PARTS, "vitest-e2e");
 const REPORTS = resolve(ROOT, "coverage/all");
 const FULL = process.argv.includes("--full");
 const BROWSER_INSTRUMENTATION_OMISSIONS = {
@@ -45,12 +51,22 @@ const BROWSER_INSTRUMENTATION_OMISSIONS = {
   // but browser JS coverage needs a separate CDP-to-Istanbul bridge.
   "src/review/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
   "src/scrubber/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
+  "src/studio/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
 };
 
-// Fast suites — always run. Each runs under NODE_V8_COVERAGE=TMP, accumulating
-// raw V8 profiles that c8 merges at the end.
+// Fast suites — always run. Vitest lanes produce their own remapped Istanbul
+// JSON; direct tsx lanes run under NODE_V8_COVERAGE and are converted by c8.
 const RUNS = [
-  { label: "unit (vitest, forks)", cmd: "npx", args: ["vitest", "run", "--pool=forks"] },
+  {
+    label: "unit (vitest, forks)",
+    cmd: "npx",
+    args: [
+      "vitest", "run", "--pool=forks", "--coverage",
+      "--coverage.reporter=json", "--coverage.reportOnFailure",
+      `--coverage.reportsDirectory=${UNIT_REPORTS}`,
+    ],
+    vitestCoverage: true,
+  },
   {
     label: "browser E2E (vitest, forks, headless)",
     cmd: "npx",
@@ -61,8 +77,11 @@ const RUNS = [
       // npm script remain authoritative; a coverage run must not open a user's
       // real browser.
       "--exclude", "tests/generic-profile-target-oracle.e2e.test.ts",
+      "--coverage", "--coverage.reporter=json", "--coverage.reportOnFailure",
+      `--coverage.reportsDirectory=${E2E_REPORTS}`,
     ],
     env: { DOMOTION_HELPER_NO_SERVE: "1", REVIEW_NO_OPEN: "1" },
+    vitestCoverage: true,
   },
   { label: "visual: features", cmd: "npx", args: ["tsx", "tests/features.ts"] },
   { label: "visual: showcase", cmd: "npx", args: ["tsx", "tests/showcase.tsx"] },
@@ -88,8 +107,7 @@ const SLOW_RUNS = [
 const REPORT_ARGS = [
   "c8", "report",
   `--temp-directory=${TMP}`,
-  `--reports-dir=${REPORTS}`,
-  "--all",
+  `--reports-dir=${DIRECT_REPORTS}`,
   "--src=src",
   "--include=src/**/*.ts",
   "--include=src/**/*.tsx",
@@ -99,9 +117,7 @@ const REPORT_ARGS = [
   "--exclude=src/capture/script/**",
   "--exclude=src/test-support/**",
   "--exclude=**/*.d.ts",
-  "--reporter=text-summary",
   "--reporter=json",
-  "--reporter=html",
 ];
 
 function run(label, cmd, args, env) {
@@ -127,7 +143,8 @@ if (FULL) {
   process.stdout.write("fast mode (default). Use --full to also run the html-test + unicode + real-world sweeps.\n");
 }
 
-rmSync(TMP, { recursive: true, force: true });
+rmSync(PARTS, { recursive: true, force: true });
+rmSync(REPORTS, { recursive: true, force: true });
 mkdirSync(TMP, { recursive: true });
 // Coverage includes browser E2Es plus several visual runners. Keep every child
 // process non-interactive even if an individual command forgets `--no-open`.
@@ -135,14 +152,33 @@ const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP, DOMOTION_NO_OPEN: "1" }
 
 const suiteResults = runs.map((r) => ({
   label: r.label,
-  status: run(r.label, r.cmd, r.args, r.env != null ? { ...baseEnv, ...r.env } : baseEnv),
+  status: run(
+    r.label,
+    r.cmd,
+    r.args,
+    r.vitestCoverage
+      ? { ...process.env, ...r.env, DOMOTION_NO_OPEN: "1" }
+      : (r.env != null ? { ...baseEnv, ...r.env } : baseEnv),
+  ),
 }));
 
-process.stdout.write(`\n▶ merging coverage → ${REPORTS}\n`);
+process.stdout.write(`\n▶ converting direct V8 coverage → ${DIRECT_REPORTS}\n`);
 // Report without NODE_V8_COVERAGE in env (don't instrument the reporter itself).
-const status = run("c8 report", "npx", REPORT_ARGS, process.env);
+const c8Status = run("c8 report", "npx", REPORT_ARGS, process.env);
+let mergeStatus = 1;
+try {
+  const inputs = [UNIT_REPORTS, E2E_REPORTS, DIRECT_REPORTS]
+    .map((directory) => resolve(directory, "coverage-final.json"))
+    .filter((path) => existsSync(path));
+  if (inputs.length === 0) throw new Error("no constituent coverage maps were produced");
+  process.stdout.write(`\n▶ merging ${inputs.length} Istanbul coverage maps → ${REPORTS}\n`);
+  writeCoverageReports(mergeCoverageFiles(inputs), REPORTS);
+  mergeStatus = 0;
+} catch (error) {
+  process.stdout.write(`  (coverage merge failed: ${error instanceof Error ? error.message : String(error)})\n`);
+}
 const coverageJson = resolve(REPORTS, "coverage-final.json");
-if (status === 0 && existsSync(coverageJson)) {
+if (mergeStatus === 0 && existsSync(coverageJson)) {
   const summary = summarizeCoverage(
     JSON.parse(readFileSync(coverageJson, "utf8")),
     ROOT,
@@ -156,4 +192,7 @@ const failedSuites = suiteResults.filter((result) => result.status !== 0);
 if (failedSuites.length > 0) {
   process.stdout.write(`\nRequired coverage suites failed:\n${failedSuites.map((result) => `  - ${result.label} (exit ${result.status})`).join("\n")}\n`);
 }
-process.exit(coverageCommandExitStatus(suiteResults.map((result) => result.status), status));
+process.exit(coverageCommandExitStatus(
+  suiteResults.map((result) => result.status),
+  c8Status !== 0 ? c8Status : mergeStatus,
+));

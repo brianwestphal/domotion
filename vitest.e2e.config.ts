@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
+import { coverageConfig } from "./vitest.coverage.js";
 
 const lane = resolveE2ELane(process.env["DOMOTION_E2E_LANE"]);
 const laneConfig = e2eLaneConfig(lane);
@@ -38,5 +39,8 @@ export default defineConfig({
     testTimeout: 60_000,
     include: laneConfig.include,
     exclude: laneConfig.exclude,
+    // The merged all-suite report asks this lane for JSON only. Sharing the
+    // unit lane's source boundary keeps the two Istanbul maps compatible.
+    coverage: coverageConfig,
   },
 });

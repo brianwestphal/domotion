@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { coverageConfig } from "./vitest.coverage.js";
 
 // Unit-test config (DM-1075). The default `vitest run` (= `npm test`) runs the
 // fast, browser-free unit suite — every `*.test.ts` EXCEPT the browser-launching
@@ -52,19 +53,10 @@ export default defineConfig({
       "**/*e2e.test.ts",
     ],
     coverage: {
-      provider: "v8",
       // Coverage reflects the unit suite (the fast gate). Generated bundles, the
       // page-eval CAPTURE_SCRIPT subtree (untyped, can't be instrumented here),
       // test-only support, and the test files themselves don't count.
-      include: ["src/**/*.ts", "src/**/*.tsx"],
-      exclude: [
-        "**/*.test.ts",
-        "**/*.test.tsx",
-        "**/*.generated.ts",
-        "src/capture/script/**",
-        "src/test-support/**",
-        "src/**/*.d.ts",
-      ],
+      ...coverageConfig,
       reporter: ["text-summary", "html"],
     },
   },
