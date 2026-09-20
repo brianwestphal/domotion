@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1184","DM-2193","DM-2514","SK-1090","SK-1104","SK-1123"]
+tickets: ["DM-1184","DM-2193","DM-2514","DM-K6YQBK","SK-1090","SK-1104","SK-1123"]
 code: ["src/capture/script/walker/text-segments.ts","src/render/text-to-path.ts","src/render/vertical-text.test.ts","src/render/vertical-text.ts"]
 aliases: ["docs/02-writing-mode.md","doc-02"]
 ---
@@ -36,6 +36,11 @@ Asian-language layouts (Japanese vertical novels, Chinese signage), Western maga
 - `textOrientation: string` (computed value: `mixed` | `upright` | `sideways`).
 
 The per-char `Range.getBoundingClientRect()` loop in CAPTURE_SCRIPT already reports the painted positions Chrome chose, including those produced by vertical writing-mode. Each char's `cr` already encodes its viewport position correctly. What changes is the **interpretation** of those rects when we group them into "lines" — vertical mode groups by `cr.left` rather than `cr.top`, and `xOffsets` becomes `yOffsets` semantically.
+
+Vertical-column capture, styled first-letter construction, and DOM-text source
+mapping are separate importable helpers with explicit dependencies. They remain
+bundled into the self-contained capture script, so decomposition does not add a
+runtime module boundary inside the inspected page.
 
 To minimize disruption: keep the existing `xOffsets` field name but record the **inline-axis** position (top in vertical, left in horizontal). Add a `block-axis` analogue if needed later. The renderer reads both writingMode and the offsets and lays the text out accordingly.
 

@@ -126,6 +126,7 @@
           "DM-1184",
           "DM-2193",
           "DM-2514",
+          "DM-K6YQBK",
           "SK-1090",
           "SK-1104",
           "SK-1123"
@@ -1326,7 +1327,8 @@
           "DM-1177",
           "DM-1234",
           "DM-2192",
-          "DM-770"
+          "DM-770",
+          "DM-K6YQBK"
         ],
         "code": [
           "src/capture/script/index.ts",

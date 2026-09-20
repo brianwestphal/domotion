@@ -207,58 +207,35 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
 // controls and other Cf scalars are removed/itemized by different stages.
 export const isShapingTransparentControl = (ch) => ch === "\u200C" || ch === "\u200D";
 
-const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor, sourceTextNodeIndexFor }) => {
-  const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
-    ? result
-    : finalizeLineClampText(el, cs, result);
-  const sourceMappingForChars = (chars, role) => {
-    if (chars.length === 0) return undefined;
-    const sourceTextNodeIndex = chars[0].sourceTextNodeIndex;
-    const domText = chars[0].domText;
-    if (!Number.isInteger(sourceTextNodeIndex) || sourceTextNodeIndex < 0 || typeof domText !== 'string'
-      || chars.some((char) => char.sourceTextNodeIndex !== sourceTextNodeIndex || char.domText !== domText)) return undefined;
-    let renderedOffset = 0;
-    let sourceStart = Infinity;
-    let sourceEnd = -Infinity;
-    const renderedChunks = chars.map((char) => {
-      const renderedUtf16Span = [renderedOffset, renderedOffset + char.ch.length];
-      renderedOffset += char.ch.length;
-      sourceStart = Math.min(sourceStart, char.sourceStart);
-      sourceEnd = Math.max(sourceEnd, char.sourceEnd);
-      return { renderedUtf16Span, domUtf16Span: [char.sourceStart, char.sourceEnd] };
-    });
-    return {
-      source: 'dom-text-utf16-v1',
-      sourceTextNodeIndex,
-      domText,
-      domUtf16Span: [sourceStart, sourceEnd],
-      renderedChunks,
-      role,
-    };
+/** Build a stable DOM-text mapping for one homogeneous captured character run. */
+export const sourceMappingForTextChars = (chars, role) => {
+  if (chars.length === 0) return undefined;
+  const sourceTextNodeIndex = chars[0].sourceTextNodeIndex;
+  const domText = chars[0].domText;
+  if (!Number.isInteger(sourceTextNodeIndex) || sourceTextNodeIndex < 0 || typeof domText !== 'string'
+    || chars.some((char) => char.sourceTextNodeIndex !== sourceTextNodeIndex || char.domText !== domText)) return undefined;
+  let renderedOffset = 0;
+  let sourceStart = Infinity;
+  let sourceEnd = -Infinity;
+  const renderedChunks = chars.map((char) => {
+    const renderedUtf16Span = [renderedOffset, renderedOffset + char.ch.length];
+    renderedOffset += char.ch.length;
+    sourceStart = Math.min(sourceStart, char.sourceStart);
+    sourceEnd = Math.max(sourceEnd, char.sourceEnd);
+    return { renderedUtf16Span, domUtf16Span: [char.sourceStart, char.sourceEnd] };
+  });
+  return {
+    source: 'dom-text-utf16-v1',
+    sourceTextNodeIndex,
+    domText,
+    domUtf16Span: [sourceStart, sourceEnd],
+    renderedChunks,
+    role,
   };
-  // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
-  // `text-orientation: mixed`. Hardcoded table covering the codepoint
-  // ranges that paint upright in vertical text: CJK ideographs, CJK
-  // symbols/punctuation, kana, Hangul, fullwidth/halfwidth forms,
-  // bopomofo, lisu, hexagrams, mahjong/domino tiles, vertical-form
-  // punctuation, vertical-presentation forms. Everything else (Latin,
-  // Greek, Cyrillic, Arabic, Hebrew, common ASCII punctuation, …)
-  // defaults to ROTATED in vertical text. Derived from the UAX #50
-  // VerticalOrientation.txt table (Unicode 16, 2024).
-  // Resolve per-char orientation given the parent's text-orientation
-  // computed value. Per CSS Writing Modes 3:
-  //   - upright  → all chars upright
-  //   - mixed    → use UAX #50 (upright for CJK / kana / Hangul; rotated for others)
-  //   - sideways → all chars rotated 90°CW
-  // DM-990: vertical writing-mode capture. Returns the same shape as
-  // `captureTextSegments` ({applied, text, textSegments, ...}) but each
-  // segment represents ONE COLUMN of vertical text (grouped by matching
-  // `left` ±1 px, since chars in a vertical column share x). Each
-  // segment carries `verticalWritingMode`, `verticalOrientations[]`, and
-  // `yOffsets[]` (per char) so the renderer can emit each char at its
-  // captured position, wrapping rotated chars in a `<g transform=
-  // "rotate(90, …)">`.
-  const captureVerticalTextSegments = (el, cs) => {
+};
+
+/** Capture vertical text columns using browser Range geometry. */
+export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs) => {
     const wm = cs.writingMode;
     const textOrientation = cs.textOrientation || 'mixed';
     // Sideways-* modes are equivalent to text-orientation: sideways
@@ -354,7 +331,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       const xOffsets = allChars.map((c) => c.x - minX);
       textSegments.push({
         text: combinedText,
-        sourceMapping: sourceMappingForChars(allChars, 'ordinary'),
+        sourceMapping: sourceMappingForTextChars(allChars, 'ordinary'),
         x: minX - vp.x,
         y: cellTop - vp.y,
         width: maxX - minX,
@@ -419,7 +396,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       }
       textSegments.push({
         text: visualText,
-        sourceMapping: sourceMappingForChars(col.chars, 'ordinary'),
+        sourceMapping: sourceMappingForTextChars(col.chars, 'ordinary'),
         x: colLeft - vp.x,
         y: colTop - vp.y,
         width: colRight - colLeft,
@@ -449,13 +426,8 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     };
   };
 
-  // DM-989: build the styled ::first-letter TextSegment from the chars selected
-  // during the per-character loop (firstLetterChars) — pseudo font / color /
-  // pseudoBox, with `initial-letter` cap-height equalisation when present.
-  // Returns the segment plus its bounding box; the caller unshifts the segment,
-  // sets the emit flag, and folds the box into the host's text envelope. Closes
-  // over the factory's vp / measureFontMetrics / normColor. From captureTextSegments (DM-1093).
-  const buildFirstLetterSegment = (firstLetterChars, flStyle, hasInitialLetter, el, cs) => {
+/** Build the styled first-letter segment and its captured paint box. */
+export const buildFirstLetterTextSegment = ({ vp, measureFontMetrics, normColor, fontFamilyStackFor }, firstLetterChars, flStyle, hasInitialLetter, el, cs) => {
       const styledText = firstLetterChars.map((c) => c.ch).join('');
       const minL = Math.min(...firstLetterChars.map((c) => c.left));
       const maxR = Math.max(...firstLetterChars.map((c) => c.right));
@@ -673,7 +645,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         : undefined;
       const styledSeg = {
         text: styledText,
-        sourceMapping: sourceMappingForChars(firstLetterChars, 'first-letter'),
+        sourceMapping: sourceMappingForTextChars(firstLetterChars, 'first-letter'),
         x: flGlyphX,
         y: styledSegY,
         width: maxR - minL,
@@ -693,6 +665,45 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     return { seg: styledSeg, minL, maxR, minT, maxB };
   };
 
+const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor, sourceTextNodeIndexFor }) => {
+  const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
+    ? result
+    : finalizeLineClampText(el, cs, result);
+  const sourceMappingForChars = sourceMappingForTextChars;
+  // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
+  // `text-orientation: mixed`. Hardcoded table covering the codepoint
+  // ranges that paint upright in vertical text: CJK ideographs, CJK
+  // symbols/punctuation, kana, Hangul, fullwidth/halfwidth forms,
+  // bopomofo, lisu, hexagrams, mahjong/domino tiles, vertical-form
+  // punctuation, vertical-presentation forms. Everything else (Latin,
+  // Greek, Cyrillic, Arabic, Hebrew, common ASCII punctuation, …)
+  // defaults to ROTATED in vertical text. Derived from the UAX #50
+  // VerticalOrientation.txt table (Unicode 16, 2024).
+  // Resolve per-char orientation given the parent's text-orientation
+  // computed value. Per CSS Writing Modes 3:
+  //   - upright  → all chars upright
+  //   - mixed    → use UAX #50 (upright for CJK / kana / Hangul; rotated for others)
+  //   - sideways → all chars rotated 90°CW
+  // DM-990: vertical writing-mode capture. Returns the same shape as
+  // `captureTextSegments` ({applied, text, textSegments, ...}) but each
+  // segment represents ONE COLUMN of vertical text (grouped by matching
+  // `left` ±1 px, since chars in a vertical column share x). Each
+  // segment carries `verticalWritingMode`, `verticalOrientations[]`, and
+  // `yOffsets[]` (per char) so the renderer can emit each char at its
+  // captured position, wrapping rotated chars in a `<g transform=
+  // "rotate(90, …)">`.
+  const captureVertical = (el, cs) => captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs);
+
+  // DM-989: build the styled ::first-letter TextSegment from the chars selected
+  // during the per-character loop (firstLetterChars) — pseudo font / color /
+  // pseudoBox, with `initial-letter` cap-height equalisation when present.
+  // Returns the segment plus its bounding box; the caller unshifts the segment,
+  // sets the emit flag, and folds the box into the host's text envelope. Closes
+  // over the factory's vp / measureFontMetrics / normColor. From captureTextSegments (DM-1093).
+  const buildFirstLetterSegment = (firstLetterChars, flStyle, hasInitialLetter, el, cs) => buildFirstLetterTextSegment(
+    { vp, measureFontMetrics, normColor, fontFamilyStackFor }, firstLetterChars, flStyle, hasInitialLetter, el, cs,
+  );
+
   const captureTextSegments = (el, cs) => {
     // DM-990: dispatch vertical writing-mode elements to the column-
     // grouping capture path. The horizontal walker below groups chars
@@ -700,7 +711,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // separate "line" — wrong shape entirely for the renderer.
     const wm = cs.writingMode;
     if (wm === 'vertical-rl' || wm === 'vertical-lr' || wm === 'sideways-rl' || wm === 'sideways-lr') {
-      return finishLineClamp(el, cs, captureVerticalTextSegments(el, cs));
+      return finishLineClamp(el, cs, captureVertical(el, cs));
     }
     const textSegments = [];
     let text = '';

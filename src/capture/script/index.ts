@@ -254,7 +254,6 @@ const captureDocumentTree =
     measureFontMetrics: _measureFontMetrics,
     textNeedsRaster,
     resolveCounterValue,
-    isCustomCounterStyle,
     composeEffectiveTransform,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedCssPixelTerms,

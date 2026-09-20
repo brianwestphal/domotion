@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capitalizeCss, transformTextWithSourceSpans } from "./text-segments.js";
+import { capitalizeCss, sourceMappingForTextChars, transformTextWithSourceSpans } from "./text-segments.js";
 
 // DM-1237: CSS `text-transform: capitalize`, Unicode-aware. Expected values were
 // confirmed against Chrome's painted output (pixel-matched).
@@ -55,5 +55,19 @@ describe("transformTextWithSourceSpans (DM-2158)", () => {
       { sourceStart: 0, sourceEnd: 2, sourceText: "😀", rendered: "😀" },
       { sourceStart: 2, sourceEnd: 3, sourceText: "a", rendered: "A" },
     ]);
+  });
+
+  it("maps length-changing rendered chunks back to one DOM text node", () => {
+    expect(sourceMappingForTextChars([
+      { ch: "A", sourceStart: 0, sourceEnd: 1, sourceTextNodeIndex: 2, domText: "aß" },
+      { ch: "SS", sourceStart: 1, sourceEnd: 2, sourceTextNodeIndex: 2, domText: "aß" },
+    ], "ordinary")).toMatchObject({
+      sourceTextNodeIndex: 2,
+      domUtf16Span: [0, 2],
+      renderedChunks: [
+        { renderedUtf16Span: [0, 1], domUtf16Span: [0, 1] },
+        { renderedUtf16Span: [1, 3], domUtf16Span: [1, 2] },
+      ],
+    });
   });
 });

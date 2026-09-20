@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-1152","DM-1177","DM-1234","DM-2192","DM-770"]
+tickets: ["DM-1152","DM-1177","DM-1234","DM-2192","DM-770","DM-K6YQBK"]
 code: ["src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","src/capture/types.ts","src/render/element-tree-to-svg.ts","src/render/form-controls.ts","src/render/pseudo-filter.ts","src/render/text.ts"]
 aliases: ["docs/38-pseudo-element-paint.md","doc-38"]
 ---
@@ -45,6 +45,11 @@ text, and reads its text and border-box rects. This keeps variables, `calc()`,
 intrinsic sizing, logical properties, writing mode, and the complete pseudo
 font in Blink's own layout path. Arithmetic reconstruction remains only as a
 compatibility fallback for older captured trees.
+
+The capture factory delegates content-token parsing, quote selection, physical
+transform normalization, and empty decorative-box capture to importable helpers
+with explicit browser services. The production build still bundles those
+helpers into the same self-contained page-evaluate script.
 
 ## Per-surface paint coverage
 

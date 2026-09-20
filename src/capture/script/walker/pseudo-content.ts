@@ -61,348 +61,154 @@ export const pseudoCanvasFont = (pcs) =>
   (pcs.fontStyle || 'normal') + ' ' + (pcs.fontWeight || 'normal') + ' '
   + (pcs.fontSize || '16px') + ' ' + (pcs.fontFamily || 'sans-serif');
 
-const buildPseudoContentHandler = ({
-  vp,
-  normColor,
-  measureFontMetrics,
-  textNeedsRaster,
-  resolveCounterValue,
-  isCustomCounterStyle,
-  composeEffectiveTransform,
-  effectiveZoomFor = () => 1,
-  physicalComputedCssPixelTerms = (value) => value,
-  physicalComputedGradientImage = (value) => value,
-  fontFamilyStackFor,
-  pseudoImageSizingKey,
-}) => {
-  // CSSOM serializes filter lengths before effective zoom, while every box
-  // captured below is already in physical viewport coordinates. Scale only
-  // computed px terms once so blur/drop-shadow use the same coordinate space.
-  const physicalFilter = (el, value) => value && value !== 'none'
+export const physicalPseudoFilter = (el, value, effectiveZoomFor, physicalComputedCssPixelTerms) =>
+  value && value !== 'none'
     ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el))
     : undefined;
-  const physicalNumber = (el, value) => {
-    const number = parseFloat(value);
-    return Number.isFinite(number) ? number * effectiveZoomFor(el) : 0;
-  };
-  const physicalTransform = (el, value) => {
-    const zoom = effectiveZoomFor(el);
-    if (!value || value === 'none' || zoom === 1) return value;
-    const m2 = /^matrix\(([^)]+)\)$/.exec(value);
-    if (m2 != null) {
-      const parts = m2[1].split(',').map((part) => parseFloat(part));
-      if (parts.length === 6 && parts.every(Number.isFinite)) {
-        parts[4] *= zoom;
-        parts[5] *= zoom;
-        return `matrix(${parts.join(', ')})`;
-      }
-    }
-    const m3 = /^matrix3d\(([^)]+)\)$/.exec(value);
-    if (m3 != null) {
-      const parts = m3[1].split(',').map((part) => parseFloat(part));
-      if (parts.length === 16 && parts.every(Number.isFinite)) {
-        parts[12] *= zoom;
-        parts[13] *= zoom;
-        parts[14] *= zoom;
-        return `matrix3d(${parts.join(', ')})`;
-      }
-    }
-    return value;
-  };
-  // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
-  // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
-  // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
-  // a span measures the bare glyph outline (~18.8px) and misses it. Used only to
-  // size the color-emoji raster square, where the in-flow advance is what matters.
-  let _emojiAdvCv = null;
-  let _emojiAdvCtx = null;
-  const measureGlyphAdvance = (s, pcs) => {
-    if (_emojiAdvCtx == null) {
-      _emojiAdvCv = document.createElement('canvas');
-      _emojiAdvCtx = _emojiAdvCv.getContext('2d');
-    }
-    _emojiAdvCtx.font = pseudoCanvasFont(pcs);
-    return _emojiAdvCtx.measureText(s).width;
-  };
-  // DM-2191: DOM APIs expose a pseudo's computed style, but not its layout
-  // object or rect. Materialize that resolved style on a real child and let
-  // Blink lay out the generated content. Copying every computed property (not
-  // a hand-picked font/box subset) preserves the resolved cascade, variables,
-  // calc(), writing mode, font features, intrinsic sizing, and logical props.
-  const probeGeneratedPseudoLayout = (el, pseudo, text, pcs) => {
-    const span = document.createElement('span');
-    for (let i = 0; i < pcs.length; i++) {
-      const name = pcs.item(i);
-      span.style.setProperty(name, pcs.getPropertyValue(name));
-    }
-    // Generated `content` has no effect on a real element; materialize it as a
-    // text node. Visibility keeps the probe non-painting while retaining layout.
-    span.style.setProperty('content', 'normal');
-    span.style.setProperty('visibility', 'hidden');
-    span.style.setProperty('pointer-events', 'none');
-    // Transforms affect only paint and turn getBoundingClientRect into an AABB;
-    // renderer applies them later around the untransformed layout box.
-    span.style.setProperty('transform', 'none');
-    span.style.setProperty('translate', 'none');
-    span.style.setProperty('rotate', 'none');
-    span.style.setProperty('scale', 'none');
-    span.textContent = text;
-    if (pseudo === '::before') el.insertBefore(span, el.firstChild);
-    else el.appendChild(span);
-    const borderRect = span.getBoundingClientRect();
-    const range = document.createRange();
-    range.selectNodeContents(span);
-    const textRect = range.getBoundingClientRect();
-    const result = {
-      borderRect: { left: borderRect.left, top: borderRect.top, width: borderRect.width, height: borderRect.height },
-      textRect: { left: textRect.left, top: textRect.top, width: textRect.width, height: textRect.height },
-    };
-    span.remove();
-    return result;
-  };
 
-  // DM-768: when a static-flow pseudo declares `display: inline-block` (or
-  // inline-flex / inline-grid / inline-table) the box participates in Chrome's
-  // inline vertical-align math — `vertical-align: middle` aligns the pseudo's
-  // mid-point with the parent's baseline + 0.5 × x-height, `baseline` aligns
-  // the pseudo's bottom to the parent baseline, etc. The earlier formula
-  // (`rect.top + hostBorT + hostPadT + pMarT`) ignores that and places the
-  // pseudo at the host's content-area top — i.e. the line-box top — so an
-  // inline-block down-caret with `border-top: 5px solid` paints 6-7 px too
-  // high inside its parent button. Probe instead: insert a real sentinel
-  // mirroring the pseudo's box (display / size / borders / padding / margin /
-  // vertical-align) at the pseudo's logical position in the host and read its
-  // `getBoundingClientRect()`. Chrome lays out the sentinel exactly where the
-  // pseudo would have gone, so we get the correct x/y without re-deriving
-  // font metrics + vertical-align semantics ourselves.
-  const probePseudoStaticBoxRect = (el, pseudo, pcs) => {
-    const probe = document.createElement('span');
-    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box';
-    probe.style.display = pcs.display;
-    probe.style.width = pcs.width;
-    probe.style.height = pcs.height;
-    probe.style.paddingTop = pcs.paddingTop;
-    probe.style.paddingRight = pcs.paddingRight;
-    probe.style.paddingBottom = pcs.paddingBottom;
-    probe.style.paddingLeft = pcs.paddingLeft;
-    probe.style.borderTopWidth = pcs.borderTopWidth;
-    probe.style.borderRightWidth = pcs.borderRightWidth;
-    probe.style.borderBottomWidth = pcs.borderBottomWidth;
-    probe.style.borderLeftWidth = pcs.borderLeftWidth;
-    probe.style.borderStyle = 'solid';
-    probe.style.borderColor = 'transparent';
-    probe.style.marginTop = pcs.marginTop;
-    probe.style.marginRight = pcs.marginRight;
-    probe.style.marginBottom = pcs.marginBottom;
-    probe.style.marginLeft = pcs.marginLeft;
-    probe.style.verticalAlign = pcs.verticalAlign;
-    probe.style.font = ''; // inherit so line-box metrics match the pseudo's parent
-    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
-    else el.appendChild(probe);
-    const r = probe.getBoundingClientRect();
-    probe.remove();
-    return r;
-  };
+export const physicalPseudoNumber = (el, value, effectiveZoomFor) => {
+  const number = parseFloat(value);
+  return Number.isFinite(number) ? number * effectiveZoomFor(el) : 0;
+};
 
-  // For `position: absolute` / `position: fixed` pseudos, the containing block
-  // is the nearest positioned ancestor of the host (NOT the host itself when
-  // the host is `position: static`). NYT's mobile nav `.css-sdhjrl::after`
-  // fade-out is `position: absolute; right: 0; top:0; width: 24px; height: 40px`
-  // on a `position: static; display: flex; overflow: scroll` NAV — the pseudo's
-  // computed `top` / `left` resolve against a far-up ancestor, so naïvely adding
-  // them to the host's padding-box origin places the gradient ~3088px below the
-  // NAV (where there's no NAV to fade over). Instead, inject a real absolutely-
-  // positioned sentinel as a child of the host: it inherits the same containing
-  // block the pseudo would have, and Chrome lays it out at the exact rect the
-  // pseudo paints to. Read its `getBoundingClientRect` directly.
-  const probePseudoAbsoluteBoxRect = (el, pseudo, pcs) => {
-    const probe = document.createElement('div');
-    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0';
-    probe.style.position = pcs.position;
-    probe.style.top = pcs.top;
-    probe.style.right = pcs.right;
-    probe.style.bottom = pcs.bottom;
-    probe.style.left = pcs.left;
-    probe.style.width = pcs.width;
-    probe.style.height = pcs.height;
-    probe.style.paddingTop = pcs.paddingTop;
-    probe.style.paddingRight = pcs.paddingRight;
-    probe.style.paddingBottom = pcs.paddingBottom;
-    probe.style.paddingLeft = pcs.paddingLeft;
-    probe.style.borderTopWidth = pcs.borderTopWidth;
-    probe.style.borderRightWidth = pcs.borderRightWidth;
-    probe.style.borderBottomWidth = pcs.borderBottomWidth;
-    probe.style.borderLeftWidth = pcs.borderLeftWidth;
-    probe.style.borderStyle = 'solid';
-    probe.style.borderColor = 'transparent';
-    probe.style.marginTop = pcs.marginTop;
-    probe.style.marginRight = pcs.marginRight;
-    probe.style.marginBottom = pcs.marginBottom;
-    probe.style.marginLeft = pcs.marginLeft;
-    // DM-928: deliberately DO NOT apply the pseudo's `transform` to the
-    // probe. CSS transforms only affect paint, not layout; the probe's
-    // `getBoundingClientRect()` returns the AXIS-ALIGNED bounding box of
-    // whatever box it currently paints. With a 45° rotation, that AABB is
-    // ~√2 × larger than the actual border-box and its top-left sits
-    // ~(diagonal-extra)/2 to the upper-left of the true border-box origin
-    // — re-rotating that AABB later via the `<g transform>` wrapper
-    // places the painted strokes at the wrong position (pricing-table
-    // checkmarks drift ~4 px left / 1 px up). Strip the transform here
-    // and let the unrotated probe report the actual border-box rect; the
-    // transform is re-applied at render time inside `flushPbTransformWrap`.
-    probe.style.transform = '';
-    probe.style.transformOrigin = '';
-    // Pseudo lives logically inside the host; an absolute child of the host
-    // inherits the same containing-block lookup.
-    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
-    else el.appendChild(probe);
-    const r = probe.getBoundingClientRect();
-    probe.remove();
-    return r;
-  };
+export const physicalPseudoTransform = (el, value, effectiveZoomFor) => {
+  const zoom = effectiveZoomFor(el);
+  if (!value || value === 'none' || zoom === 1) return value;
+  const m2 = /^matrix\(([^)]+)\)$/.exec(value);
+  if (m2 != null) {
+    const parts = m2[1].split(',').map((part) => parseFloat(part));
+    if (parts.length === 6 && parts.every(Number.isFinite)) {
+      parts[4] *= zoom;
+      parts[5] *= zoom;
+      return `matrix(${parts.join(', ')})`;
+    }
+  }
+  const m3 = /^matrix3d\(([^)]+)\)$/.exec(value);
+  if (m3 != null) {
+    const parts = m3[1].split(',').map((part) => parseFloat(part));
+    if (parts.length === 16 && parts.every(Number.isFinite)) {
+      parts[12] *= zoom;
+      parts[13] *= zoom;
+      parts[14] *= zoom;
+      return `matrix3d(${parts.join(', ')})`;
+    }
+  }
+  return value;
+};
 
-  const pickQuoteChar = (forEl, isOpen) => {
-    // Count q-element ancestors above this element (depth=0 = the first q
-    // not inside another q). The pseudo lives ON forEl so when forEl IS a
-    // q, its own depth = ancestorQ count. When forEl is some other element
-    // with a manual `::before { content: open-quote }`, depth is ancestorQ
-    // count too (manual content treated as outer-level text).
-    let depth = 0;
-    let p = forEl.parentElement;
-    while (p != null) {
-      if (p.tagName === 'Q') depth++;
-      p = p.parentElement;
+export const pickPseudoQuoteChar = (forEl, isOpen) => {
+  let depth = 0;
+  let parent = forEl.parentElement;
+  while (parent != null) {
+    if (parent.tagName === 'Q') depth++;
+    parent = parent.parentElement;
+  }
+  const quotes = window.getComputedStyle(forEl).quotes;
+  if (quotes == null || quotes === '' || quotes === 'none' || quotes === 'auto') {
+    const pairs = [['“', '”'], ['‘', '’']];
+    const pair = pairs[Math.min(depth, pairs.length - 1)];
+    return isOpen ? pair[0] : pair[1];
+  }
+  const tokens = [];
+  let index = 0;
+  while (index < quotes.length) {
+    if (quotes[index] !== '"') {
+      index++;
+      continue;
     }
-    const cs = window.getComputedStyle(forEl).quotes;
-    if (cs == null || cs === '' || cs === 'none' || cs === 'auto') {
-      const pairs = [['“', '”'], ['‘', '’']];
-      const pair = pairs[Math.min(depth, pairs.length - 1)];
-      return isOpen ? pair[0] : pair[1];
-    }
-    // Parse the CSS quotes string: a sequence of double-quoted strings
-    // (CSS escapes any quote char). Example: `"« " " »" "“ " " ”"`. Walk
-    // and extract one string per token, alternating open/close.
-    const tokens = [];
-    let i = 0;
-    while (i < cs.length) {
-      if (cs[i] === '"') {
-        let j = i + 1;
-        let s = '';
-        while (j < cs.length && cs[j] !== '"') {
-          if (cs[j] === '\\') { s += cs[j + 1]; j += 2; } else { s += cs[j]; j++; }
-        }
-        tokens.push(s);
-        i = j + 1;
+    let end = index + 1;
+    let token = '';
+    while (end < quotes.length && quotes[end] !== '"') {
+      if (quotes[end] === '\\') {
+        token += quotes[end + 1];
+        end += 2;
       } else {
-        i++;
+        token += quotes[end];
+        end++;
       }
     }
-    if (tokens.length < 2) {
-      const pair = ['“', '”'];
-      return isOpen ? pair[0] : pair[1];
-    }
-    const pairIdx = Math.min(depth, Math.floor((tokens.length - 1) / 2));
-    return isOpen ? tokens[pairIdx * 2] : tokens[pairIdx * 2 + 1];
-  };
+    tokens.push(token);
+    index = end + 1;
+  }
+  if (tokens.length < 2) return isOpen ? '“' : '”';
+  const pairIndex = Math.min(depth, Math.floor((tokens.length - 1) / 2));
+  return isOpen ? tokens[pairIndex * 2] : tokens[pairIndex * 2 + 1];
+};
 
-  // Parse a pseudo-element's computed `content` string into the resolved text +
-  // image-url it paints. Walks the token list: quoted strings, attr(name),
-  // url(...), counter()/counters() (resolved against the captured counter
-  // snapshot, with custom @counter-style formatting — DM-788), and the
-  // open-quote / close-quote / no-*-quote keywords (DM-602). Closes over the
-  // handler's pickQuoteChar / isCustomCounterStyle / resolveCounterValue.
-  // Extracted from capturePseudoContent (DM-1088).
-  const parsePseudoContent = (content, el, counterSnapshot, pseudo) => {
-    let text = '';
-    let imageUrl = '';
-    let i = 0;
-    while (i < content.length) {
-      const c = content[i];
-      if (c === '"' || c === "'") {
-        const end = content.indexOf(c, i + 1);
-        if (end < 0) break;
-        text += content.slice(i + 1, end);
-        i = end + 1;
-      } else if (content.startsWith('attr(', i)) {
-        const end = content.indexOf(')', i);
-        if (end < 0) break;
-        const attrName = content.slice(i + 5, end).trim();
-        text += el.getAttribute(attrName) || '';
-        i = end + 1;
-      } else if (content.startsWith('url(', i)) {
-        const end = content.indexOf(')', i);
-        if (end < 0) break;
-        let url = content.slice(i + 4, end).trim();
-        if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) {
-          url = url.slice(1, -1);
-        }
-        imageUrl = url;
-        i = end + 1;
-      } else if (content.startsWith('counter(', i) || content.startsWith('counters(', i)) {
-        const isCounters = content.startsWith('counters(', i);
-        const openIdx = i + (isCounters ? 'counters('.length : 'counter('.length);
-        const closeIdx = content.indexOf(')', openIdx);
-        if (closeIdx < 0) { i++; continue; }
-        const args = content.slice(openIdx, closeIdx).split(',').map((s) => {
-          const t = s.trim();
-          if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
-            return t.slice(1, -1);
-          }
-          return t;
-        });
-        const cname = args[0];
-        const sep = isCounters ? (args[1] ?? '') : '';
-        // DM-788: third arg of counters() / second arg of counter() is a
-        // `<counter-style>` name. Run each value through the resolver so the
-        // style applies — both custom `@counter-style` rules (prefix / suffix
-        // / pad / negative / range / fallback descriptors, e.g.
-        // `counter(step, prefixed)` → "Step 01:  ") AND the built-in styles
-        // (`upper-roman`, `lower-alpha`, `decimal-leading-zero`, …). The
-        // resolver handles BUILTINS internally; the earlier `isCustomCounterStyle`
-        // gate wrongly excluded them, so `counters(outline, " · ", upper-roman)`
-        // rendered decimal `1 · 1` instead of `I · I` (DM-1274). Bare
-        // `counter(name)` with no style stays plain decimal.
-        const styleArg = isCounters ? args[2] : args[1];
-        const useStyle = styleArg != null && styleArg !== '' && resolveCounterValue != null;
-        const format = (v) => {
-          if (!useStyle) return String(v);
-          const out = resolveCounterValue(styleArg, v);
-          return out != null ? out : String(v);
-        };
-        const captured = counterSnapshot.get(el);
-        const snapshot = captured?.[pseudo] ?? captured?.element ?? captured ?? [];
-        const matches = snapshot.filter((s) => s.name === cname).map((s) => format(s.value));
-        if (isCounters) {
-          text += matches.length > 0 ? matches.join(sep) : format(0);
-        } else {
-          text += matches.length > 0 ? matches[matches.length - 1] : format(0);
-        }
-        i = closeIdx + 1;
-      } else if (content.startsWith('open-quote', i)) {
-        text += pickQuoteChar(el, true);
-        i += 'open-quote'.length;
-      } else if (content.startsWith('close-quote', i)) {
-        text += pickQuoteChar(el, false);
-        i += 'close-quote'.length;
-      } else if (content.startsWith('no-open-quote', i)) {
-        i += 'no-open-quote'.length;
-      } else if (content.startsWith('no-close-quote', i)) {
-        i += 'no-close-quote'.length;
-      } else {
-        i++;
-      }
+export const parsePseudoContentValue = ({ content, el, counterSnapshot, pseudo, resolveCounterValue, pickQuoteChar = pickPseudoQuoteChar }) => {
+  let text = '';
+  let imageUrl = '';
+  let index = 0;
+  while (index < content.length) {
+    const token = content[index];
+    if (token === '"' || token === "'") {
+      const end = content.indexOf(token, index + 1);
+      if (end < 0) break;
+      text += content.slice(index + 1, end);
+      index = end + 1;
+    } else if (content.startsWith('attr(', index)) {
+      const end = content.indexOf(')', index);
+      if (end < 0) break;
+      text += el.getAttribute(content.slice(index + 5, end).trim()) || '';
+      index = end + 1;
+    } else if (content.startsWith('url(', index)) {
+      const end = content.indexOf(')', index);
+      if (end < 0) break;
+      let url = content.slice(index + 4, end).trim();
+      if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) url = url.slice(1, -1);
+      imageUrl = url;
+      index = end + 1;
+    } else if (content.startsWith('counter(', index) || content.startsWith('counters(', index)) {
+      const plural = content.startsWith('counters(', index);
+      const open = index + (plural ? 'counters('.length : 'counter('.length);
+      const close = content.indexOf(')', open);
+      if (close < 0) { index++; continue; }
+      const args = content.slice(open, close).split(',').map((value) => {
+        const trimmed = value.trim();
+        return ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
+          ? trimmed.slice(1, -1)
+          : trimmed;
+      });
+      const style = plural ? args[2] : args[1];
+      const format = (value) => {
+        if (style == null || style === '' || resolveCounterValue == null) return String(value);
+        return resolveCounterValue(style, value) ?? String(value);
+      };
+      const captured = counterSnapshot.get(el);
+      const snapshot = captured?.[pseudo] ?? captured?.element ?? captured ?? [];
+      const matches = snapshot.filter((entry) => entry.name === args[0]).map((entry) => format(entry.value));
+      text += plural ? (matches.length > 0 ? matches.join(args[1] ?? '') : format(0)) : (matches.at(-1) ?? format(0));
+      index = close + 1;
+    } else if (content.startsWith('open-quote', index)) {
+      text += pickQuoteChar(el, true);
+      index += 'open-quote'.length;
+    } else if (content.startsWith('close-quote', index)) {
+      text += pickQuoteChar(el, false);
+      index += 'close-quote'.length;
+    } else if (content.startsWith('no-open-quote', index)) {
+      index += 'no-open-quote'.length;
+    } else if (content.startsWith('no-close-quote', index)) {
+      index += 'no-close-quote'.length;
+    } else {
+      index++;
     }
-    return { text, imageUrl };
-  };
+  }
+  return { text, imageUrl };
+};
 
-  // Capture an empty-content pseudo (no text, no image) that's being used as a
-  // decorative box — a block-like `::before`/`::after` with a visible
-  // background, background-image, or border (DM-579 hairlines, DM-767 accent
-  // stripes, DM-594 speech-bubble tails). Returns the pseudoBox descriptor (rect
-  // + per-side border + background + the pseudo's own transform), or null when
-  // it paints nothing visible. Closes over the handler's probe helpers + vp +
-  // normColor. Extracted from capturePseudoContent (DM-1088).
-  const captureEmptyContentBox = (el, cs, pseudo, pcs, rect) => {
+/** Capture one visible empty-content pseudo through explicit geometry/paint services. */
+export const captureEmptyPseudoBox = ({
+  effectiveZoomFor,
+  physicalNumber,
+  probePseudoStaticBoxRect,
+  probePseudoAbsoluteBoxRect,
+  vp,
+  normColor,
+  physicalTransform,
+  composeEffectiveTransform,
+  physicalFilter,
+  physicalComputedGradientImage,
+}, el, cs, pseudo, pcs, rect) => {
         const bgRaw = pcs.backgroundColor;
         const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
         // DM-767: capture background-image (linear-gradient / radial-gradient /
@@ -605,6 +411,195 @@ const buildPseudoContentHandler = ({
     return null;
   };
 
+
+const buildPseudoContentHandler = ({
+  vp,
+  normColor,
+  measureFontMetrics,
+  textNeedsRaster,
+  resolveCounterValue,
+  composeEffectiveTransform,
+  effectiveZoomFor = () => 1,
+  physicalComputedCssPixelTerms = (value) => value,
+  physicalComputedGradientImage = (value) => value,
+  fontFamilyStackFor,
+  pseudoImageSizingKey,
+}) => {
+  // CSSOM serializes filter lengths before effective zoom, while every box
+  // captured below is already in physical viewport coordinates. Scale only
+  // computed px terms once so blur/drop-shadow use the same coordinate space.
+  const physicalFilter = (el, value) => physicalPseudoFilter(el, value, effectiveZoomFor, physicalComputedCssPixelTerms);
+  const physicalNumber = (el, value) => physicalPseudoNumber(el, value, effectiveZoomFor);
+  const physicalTransform = (el, value) => physicalPseudoTransform(el, value, effectiveZoomFor);
+  // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
+  // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
+  // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
+  // a span measures the bare glyph outline (~18.8px) and misses it. Used only to
+  // size the color-emoji raster square, where the in-flow advance is what matters.
+  let _emojiAdvCv = null;
+  let _emojiAdvCtx = null;
+  const measureGlyphAdvance = (s, pcs) => {
+    if (_emojiAdvCtx == null) {
+      _emojiAdvCv = document.createElement('canvas');
+      _emojiAdvCtx = _emojiAdvCv.getContext('2d');
+    }
+    _emojiAdvCtx.font = pseudoCanvasFont(pcs);
+    return _emojiAdvCtx.measureText(s).width;
+  };
+  // DM-2191: DOM APIs expose a pseudo's computed style, but not its layout
+  // object or rect. Materialize that resolved style on a real child and let
+  // Blink lay out the generated content. Copying every computed property (not
+  // a hand-picked font/box subset) preserves the resolved cascade, variables,
+  // calc(), writing mode, font features, intrinsic sizing, and logical props.
+  const probeGeneratedPseudoLayout = (el, pseudo, text, pcs) => {
+    const span = document.createElement('span');
+    for (let i = 0; i < pcs.length; i++) {
+      const name = pcs.item(i);
+      span.style.setProperty(name, pcs.getPropertyValue(name));
+    }
+    // Generated `content` has no effect on a real element; materialize it as a
+    // text node. Visibility keeps the probe non-painting while retaining layout.
+    span.style.setProperty('content', 'normal');
+    span.style.setProperty('visibility', 'hidden');
+    span.style.setProperty('pointer-events', 'none');
+    // Transforms affect only paint and turn getBoundingClientRect into an AABB;
+    // renderer applies them later around the untransformed layout box.
+    span.style.setProperty('transform', 'none');
+    span.style.setProperty('translate', 'none');
+    span.style.setProperty('rotate', 'none');
+    span.style.setProperty('scale', 'none');
+    span.textContent = text;
+    if (pseudo === '::before') el.insertBefore(span, el.firstChild);
+    else el.appendChild(span);
+    const borderRect = span.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const textRect = range.getBoundingClientRect();
+    const result = {
+      borderRect: { left: borderRect.left, top: borderRect.top, width: borderRect.width, height: borderRect.height },
+      textRect: { left: textRect.left, top: textRect.top, width: textRect.width, height: textRect.height },
+    };
+    span.remove();
+    return result;
+  };
+
+  // DM-768: when a static-flow pseudo declares `display: inline-block` (or
+  // inline-flex / inline-grid / inline-table) the box participates in Chrome's
+  // inline vertical-align math — `vertical-align: middle` aligns the pseudo's
+  // mid-point with the parent's baseline + 0.5 × x-height, `baseline` aligns
+  // the pseudo's bottom to the parent baseline, etc. The earlier formula
+  // (`rect.top + hostBorT + hostPadT + pMarT`) ignores that and places the
+  // pseudo at the host's content-area top — i.e. the line-box top — so an
+  // inline-block down-caret with `border-top: 5px solid` paints 6-7 px too
+  // high inside its parent button. Probe instead: insert a real sentinel
+  // mirroring the pseudo's box (display / size / borders / padding / margin /
+  // vertical-align) at the pseudo's logical position in the host and read its
+  // `getBoundingClientRect()`. Chrome lays out the sentinel exactly where the
+  // pseudo would have gone, so we get the correct x/y without re-deriving
+  // font metrics + vertical-align semantics ourselves.
+  const probePseudoStaticBoxRect = (el, pseudo, pcs) => {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box';
+    probe.style.display = pcs.display;
+    probe.style.width = pcs.width;
+    probe.style.height = pcs.height;
+    probe.style.paddingTop = pcs.paddingTop;
+    probe.style.paddingRight = pcs.paddingRight;
+    probe.style.paddingBottom = pcs.paddingBottom;
+    probe.style.paddingLeft = pcs.paddingLeft;
+    probe.style.borderTopWidth = pcs.borderTopWidth;
+    probe.style.borderRightWidth = pcs.borderRightWidth;
+    probe.style.borderBottomWidth = pcs.borderBottomWidth;
+    probe.style.borderLeftWidth = pcs.borderLeftWidth;
+    probe.style.borderStyle = 'solid';
+    probe.style.borderColor = 'transparent';
+    probe.style.marginTop = pcs.marginTop;
+    probe.style.marginRight = pcs.marginRight;
+    probe.style.marginBottom = pcs.marginBottom;
+    probe.style.marginLeft = pcs.marginLeft;
+    probe.style.verticalAlign = pcs.verticalAlign;
+    probe.style.font = ''; // inherit so line-box metrics match the pseudo's parent
+    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
+    else el.appendChild(probe);
+    const r = probe.getBoundingClientRect();
+    probe.remove();
+    return r;
+  };
+
+  // For `position: absolute` / `position: fixed` pseudos, the containing block
+  // is the nearest positioned ancestor of the host (NOT the host itself when
+  // the host is `position: static`). NYT's mobile nav `.css-sdhjrl::after`
+  // fade-out is `position: absolute; right: 0; top:0; width: 24px; height: 40px`
+  // on a `position: static; display: flex; overflow: scroll` NAV — the pseudo's
+  // computed `top` / `left` resolve against a far-up ancestor, so naïvely adding
+  // them to the host's padding-box origin places the gradient ~3088px below the
+  // NAV (where there's no NAV to fade over). Instead, inject a real absolutely-
+  // positioned sentinel as a child of the host: it inherits the same containing
+  // block the pseudo would have, and Chrome lays it out at the exact rect the
+  // pseudo paints to. Read its `getBoundingClientRect` directly.
+  const probePseudoAbsoluteBoxRect = (el, pseudo, pcs) => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0';
+    probe.style.position = pcs.position;
+    probe.style.top = pcs.top;
+    probe.style.right = pcs.right;
+    probe.style.bottom = pcs.bottom;
+    probe.style.left = pcs.left;
+    probe.style.width = pcs.width;
+    probe.style.height = pcs.height;
+    probe.style.paddingTop = pcs.paddingTop;
+    probe.style.paddingRight = pcs.paddingRight;
+    probe.style.paddingBottom = pcs.paddingBottom;
+    probe.style.paddingLeft = pcs.paddingLeft;
+    probe.style.borderTopWidth = pcs.borderTopWidth;
+    probe.style.borderRightWidth = pcs.borderRightWidth;
+    probe.style.borderBottomWidth = pcs.borderBottomWidth;
+    probe.style.borderLeftWidth = pcs.borderLeftWidth;
+    probe.style.borderStyle = 'solid';
+    probe.style.borderColor = 'transparent';
+    probe.style.marginTop = pcs.marginTop;
+    probe.style.marginRight = pcs.marginRight;
+    probe.style.marginBottom = pcs.marginBottom;
+    probe.style.marginLeft = pcs.marginLeft;
+    // DM-928: deliberately DO NOT apply the pseudo's `transform` to the
+    // probe. CSS transforms only affect paint, not layout; the probe's
+    // `getBoundingClientRect()` returns the AXIS-ALIGNED bounding box of
+    // whatever box it currently paints. With a 45° rotation, that AABB is
+    // ~√2 × larger than the actual border-box and its top-left sits
+    // ~(diagonal-extra)/2 to the upper-left of the true border-box origin
+    // — re-rotating that AABB later via the `<g transform>` wrapper
+    // places the painted strokes at the wrong position (pricing-table
+    // checkmarks drift ~4 px left / 1 px up). Strip the transform here
+    // and let the unrotated probe report the actual border-box rect; the
+    // transform is re-applied at render time inside `flushPbTransformWrap`.
+    probe.style.transform = '';
+    probe.style.transformOrigin = '';
+    // Pseudo lives logically inside the host; an absolute child of the host
+    // inherits the same containing-block lookup.
+    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
+    else el.appendChild(probe);
+    const r = probe.getBoundingClientRect();
+    probe.remove();
+    return r;
+  };
+
+  const pickQuoteChar = pickPseudoQuoteChar;
+  const parsePseudoContent = (content, el, counterSnapshot, pseudo) => parsePseudoContentValue({
+    content, el, counterSnapshot, pseudo, resolveCounterValue, pickQuoteChar,
+  });
+
+  // Capture an empty-content pseudo (no text, no image) that's being used as a
+  // decorative box — a block-like `::before`/`::after` with a visible
+  // background, background-image, or border (DM-579 hairlines, DM-767 accent
+  // stripes, DM-594 speech-bubble tails). Returns the pseudoBox descriptor (rect
+  // + per-side border + background + the pseudo's own transform), or null when
+  // it paints nothing visible. Closes over the handler's probe helpers + vp +
+  // normColor. Extracted from capturePseudoContent (DM-1088).
+  const captureEmptyContentBox = (el, cs, pseudo, pcs, rect) => captureEmptyPseudoBox({
+    effectiveZoomFor, physicalNumber, probePseudoStaticBoxRect, probePseudoAbsoluteBoxRect,
+    vp, normColor, physicalTransform, composeEffectiveTransform, physicalFilter,
+    physicalComputedGradientImage,
+  }, el, cs, pseudo, pcs, rect);
 
   const capturePseudoContent = (el, cs, rect, counterSnapshot) => {
     const pseudoSegments = [];
