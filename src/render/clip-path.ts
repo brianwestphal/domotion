@@ -187,8 +187,8 @@ export function translateClipPath(value: string, x: number, y: number, w: number
     const cy = resolvePx(atTokens[1] ?? "50%", h);
     let radius: number;
     if (radiusPart === "" || /^closest-side$/i.test(radiusPart)) {
-      // CSS default radius is closest-side (which for a centred circle equals
-      // Math.min(w, h) / 2 but differs once the centre moves).
+      // CSS default radius is closest-side (which for a centered circle equals
+      // Math.min(w, h) / 2 but differs once the center moves).
       radius = Math.min(cx, cy, w - cx, h - cy);
     } else if (/^farthest-side$/i.test(radiusPart)) {
       radius = Math.max(cx, cy, w - cx, h - cy);

@@ -1650,7 +1650,7 @@ async function main(): Promise<number> {
         //
         // It was missing until a `font-variant-emoji` divergence read as
         // Windows-specific for a week and turned out to be a version
-        // difference: ©/™/‼/☺ move to the colour font under the CSS property in
+        // difference: ©/™/‼/☺ move to the color font under the CSS property in
         // 147.0.7727.15 and stay on the primary in 148.0.7778.96, measured on
         // ONE host with the platform held constant. Nothing recorded here could
         // have shown that, while `image`, `fontInventory` and `icu` all matched.

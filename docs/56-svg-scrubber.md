@@ -111,7 +111,7 @@ selected `[in, out]` window** — for both CSS and SMIL. `src/scrubber/trim.ts`
    period — the master cursor / content cycle) are **window-sliced**: their
    `@keyframes` (CSS) or `values`/`keyTimes` (SMIL) are sliced to
    `[f0, f1] = [in/period, out/period]` (interior stops remapped to `[0%, 100%]`,
-   boundary stops synthesised at the window edges), and their duration set to the
+   boundary stops synthesized at the window edges), and their duration set to the
    window length. So the output loops the window. Boundary interpolation is
    linear for continuous channels (opacity, transform, multi-component SMIL
    values) and **snaps** discrete ones (`step-end` `visibility`, SMIL

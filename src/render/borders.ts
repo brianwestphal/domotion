@@ -711,8 +711,8 @@ export function parseSide(widthCss: string | undefined, styleCss: string | undef
  * box — which happens for wide-or-tall boxes whenever the box aspect ratio
  * doesn't match the adjacent widths' ratio — the triangle would extend
  * across to the OPPOSITE edge, and after intersection with the annular ring
- * the side bleeds its colour into the opposite side's strip. (Visible as
- * "circle, mixed sides" painting the whole ellipse one colour, or as a
+ * the side bleeds its color into the opposite side's strip. (Visible as
+ * "circle, mixed sides" painting the whole ellipse one color, or as a
  * solid bottom border's red dash showing through the gaps of a dashed
  * top border — DM-917 / DM-918.)
  *
@@ -855,9 +855,9 @@ export function wedgePolygonPoints(
    *  zero width, Chrome's BoxBorderPainter computes NO miter (`ComputeMiter`
    *  returns `kNoMiter` when `!adjacent_edge.UsedWidth()`) — the bordered side
    *  paints its FULL rounded corner arc rather than tapering at a diagonal
-   *  miter line. The same-side apex degenerates to the box centre in that case
+   *  miter line. The same-side apex degenerates to the box center in that case
    *  (`computeWedgeApexes` divides by a zero adjacent-sum), which would cut the
-   *  corner with a centre-converging triangle. Passing the widths lets the wedge
+   *  corner with a center-converging triangle. Passing the widths lets the wedge
    *  span the full box edge (the perpendicular-apex quad) so both corners are
    *  covered, matching Chrome. Omit (undefined) to keep the legacy triangle. */
   widths?: { tw: number; rw: number; bw: number; lw: number },
@@ -1241,7 +1241,7 @@ export function renderBorderImage(
   // along all four sides — exactly what painting the whole area with the
   // gradient and clipping to the border donut produces. Slice values other
   // than `1` or `1 fill` (with non-degenerate edge tiling) fall through
-  // unsupported for gradient sources; the rasterise-during-capture path is
+  // unsupported for gradient sources; the rasterize-during-capture path is
   // tracked separately for that.
   const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(src);
   if (urlMatch == null) {

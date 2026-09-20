@@ -631,7 +631,7 @@ export function resolveSystemUiFamily(): string | null {
     }
   } catch {
     // An older helper answers "unknown query type"; keep null and let the
-    // caller degrade to the table, which is the pre-DM-1881 behaviour.
+    // caller degrade to the table, which is the pre-DM-1881 behavior.
   }
   return _systemUiFamily;
 }
@@ -995,7 +995,7 @@ export function __helperMetaForTest(postscriptName: string): MetaResponse | null
  * `.HiraKakuInterface-W7` or `.PingFangUITextSC-Regular` returns Times New
  * Roman's metrics under Times New Roman's name, with `traitBold: false`. Taking
  * that at face value would report 17 genuinely-bold system faces as not-bold and
- * synthesise bold over them — the same defect this function exists to fix, just
+ * synthesize bold over them — the same defect this function exists to fix, just
  * pointed at a different set of faces. So an answer is only accepted when the
  * helper hands back the face that was asked for.
  */

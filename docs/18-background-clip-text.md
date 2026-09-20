@@ -50,7 +50,7 @@ In `src/render/element-tree-to-svg.ts` the bg-image layer loop checks each layer
 
 In the text-rendering block, whenever a text-clipped stack is present:
 
-1. Render the text glyphs via `renderOneText` with opaque fill/stroke colours — this is the mask source, not visible output. Stroke width is retained because Blink's `PaintPhase::kTextClip` includes author stroke geometry.
+1. Render the text glyphs via `renderOneText` with opaque fill/stroke colors — this is the mask source, not visible output. Stroke width is retained because Blink's `PaintPhase::kTextClip` includes author stroke geometry.
 2. Wrap that markup in an SVG `<mask>` def with `maskUnits="userSpaceOnUse"` and `mask-type:alpha`, matching Blink's `SkBlendMode::kDstIn` alpha mask.
 3. Emit the background entries bottom→top through the mask. The bottom entry can be a non-transparent `background-color`; URL images remain capture-selected SVG patterns with exact tile geometry.
 4. Paint foreground text after the background. Transparent fill omits its invisible fill pass while a visible author stroke remains; opaque/semitransparent fill paints normally above the clipped background.

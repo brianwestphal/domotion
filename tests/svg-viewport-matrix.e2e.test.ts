@@ -5,7 +5,7 @@ import { computeViewportMatrix, parsePreserveAspectRatio } from "../src/render/s
 // DM-DQXZ6K: confirm the transcribed viewport→viewBox matrix against what Chrome
 // actually paints. For each case we render a nested `<svg>` with a 2×2 marker
 // rect at a known viewBox coordinate, read Chrome's client rect for that rect,
-// and compare its centre to `computeViewportMatrix` applied to the same viewBox
+// and compare its center to `computeViewportMatrix` applied to the same viewBox
 // point. Agreement means our matrix reproduces Blink's viewport transform.
 let browser: Browser;
 let page: Page;
@@ -51,7 +51,7 @@ describe("computeViewportMatrix vs Chrome-painted nested <svg> (DM-DQXZ6K)", () 
         return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
       });
       const m = computeViewportMatrix(c.place, { minX: vx, minY: vy, width: vw, height: vh }, parsePreserveAspectRatio(c.par))!;
-      // Marker centre in viewBox coords, mapped through our matrix.
+      // Marker center in viewBox coords, mapped through our matrix.
       const px = rx + 1;
       const py = ry + 1;
       const ourX = m.a * px + m.c * py + m.e;

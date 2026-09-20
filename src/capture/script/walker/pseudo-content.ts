@@ -943,7 +943,7 @@ const buildPseudoContentHandler = ({
       // "\f303"; font-family: "SF Pro Icons" }` chevron — the font isn't
       // available to fontkit, so path emission produces notdef which the
       // renderer suppresses (DM-490 / DM-500). Without a raster fallback
-      // these icons disappear. Always rasterise PUA content so the post-
+      // these icons disappear. Always rasterize PUA content so the post-
       // capture screenshot pass stamps the exact pixels Chromium paints.
       // (For fonts we DO have fontkit access to, like slashdot's sdicon,
       // raster output is also pixel-faithful — slight payload cost vs.

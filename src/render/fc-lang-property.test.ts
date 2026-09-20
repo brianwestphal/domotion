@@ -21,7 +21,7 @@
  * assumption that a region-qualified tag matches nothing. That assumption was
  * wrong and silently threw away the only part of the tag that discriminates —
  * the probe showed zero movement across every locale, which looked exactly like
- * "the plumbing does not work". These tests pin the corrected behaviour.
+ * "the plumbing does not work". These tests pin the corrected behavior.
  */
 import { describe, it, expect } from "vitest";
 import { fcLangProperty } from "./font-resolution.js";

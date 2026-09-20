@@ -10,7 +10,7 @@
  *   - one fixture per server, not a grid of suites
  *   - no Hot Sheet integration (consumers can't authenticate to a
  *     maintainer's project)
- *   - no live-SVG side-by-side toggle; the SVG is already rasterised
+ *   - no live-SVG side-by-side toggle; the SVG is already rasterized
  *     before the server starts so what the user sees is the rendered
  *     PNG, matching the diff the in-repo regression suites use
  *
@@ -107,7 +107,7 @@ function renderShell(label: string): string {
 <div class="card">
   <div class="imgs">
     <figure data-src="/expected.png" data-role="expected" role="button" tabindex="0" aria-label="Open expected Chromium rendering"><img data-src="/expected.png" src="/expected.png" alt="Expected Chromium rendering"><figcaption>expected.png</figcaption></figure>
-    <figure data-src="/actual.png" data-role="actual" role="button" tabindex="0" aria-label="Open actual Domotion rendering"><img data-src="/actual.png" src="/actual.png" alt="Actual Domotion rendering"><figcaption>actual.svg (rasterised)</figcaption></figure>
+    <figure data-src="/actual.png" data-role="actual" role="button" tabindex="0" aria-label="Open actual Domotion rendering"><img data-src="/actual.png" src="/actual.png" alt="Actual Domotion rendering"><figcaption>actual.svg (rasterized)</figcaption></figure>
     <figure data-src="/diff.png" data-role="diff" role="button" tabindex="0" aria-label="Open rendering difference image"><img data-src="/diff.png" src="/diff.png" alt="Difference between expected and actual renderings"><figcaption>diff.png</figcaption></figure>
   </div>
 </div>

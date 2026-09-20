@@ -1512,7 +1512,7 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
         // It is not cosmetic: the base family is what lets that family's own font
         // linking participate in DirectWrite's answer, so passing null asks a
         // different question than Chrome asks. Absent field keeps the previous
-        // nullptr behaviour, so an older Node side degrades rather than mismatches.
+        // nullptr behavior, so an older Node side degrades rather than mismatches.
         hr = fallback->MapCharacters(
             source, 0, static_cast<UINT32>(s.size()), systemFonts,
             baseFamilyW.empty() ? nullptr : baseFamilyW.c_str(),

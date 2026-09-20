@@ -204,7 +204,7 @@ describe("comparability", () => {
     // baseline captured under a different one is not a baseline for this run.
     //
     // Not hypothetical: `font-variant-emoji: emoji` moves U+00A9 / U+2122 /
-    // U+203C / U+263A to the colour font in 147.0.7727.15 and leaves them on
+    // U+203C / U+263A to the color font in 147.0.7727.15 and leaves them on
     // the primary in 148.0.7778.96 — measured on ONE host with the platform
     // held constant, after that difference had read as Windows-specific for a
     // week. Every other field here matched throughout.

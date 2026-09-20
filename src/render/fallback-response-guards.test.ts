@@ -24,14 +24,14 @@ let dir: string;
 let modeFile: string;
 
 /**
- * ONE fake helper for the whole file, reading its behaviour from a file on
+ * ONE fake helper for the whole file, reading its behavior from a file on
  * every request.
  *
  * Not a convenience. The caller keeps a PERSISTENT helper process, and it
  * outlives `clearGlyphHelperCache()` — which resets the resolved path, not the
  * running child. A second fake written to a second path is therefore never
  * spoken to: the first process keeps answering, and the test silently measures
- * the previous test's behaviour. That produced three off-by-one failures whose
+ * the previous test's behavior. That produced three off-by-one failures whose
  * numbers looked exactly like a bug in the code under test.
  *
  * It also speaks BOTH transports. A fake handling only one-shot stdin/EOF hangs

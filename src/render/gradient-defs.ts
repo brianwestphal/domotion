@@ -210,8 +210,8 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
  *  card gradient overlays (nytimes mobile etc., DM-913).
  *
  *  Fix: rewrite any stop with alpha == 0 to inherit the nearest non-zero-
- *  alpha neighbour's RGB. Walk forward then back so first/last stops can
- *  inherit from whichever side has a real colour. */
+ *  alpha neighbor's RGB. Walk forward then back so first/last stops can
+ *  inherit from whichever side has a real color. */
 function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): Array<{ pos: number; color: RGBA }> {
   if (stops.length < 2) return stops;
   const transparentIdx: number[] = [];
@@ -226,25 +226,25 @@ function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): 
     // Prefer the NEXT non-transparent stop's RGB (a CSS `transparent` stop
     // at the start of `linear-gradient(transparent, red)` should fade IN
     // from rgba(red, 0)). If none ahead, fall back to the previous one.
-    let neighbour: RGBA | null = null;
+    let neighbor: RGBA | null = null;
     for (let j = i + 1; j < out.length; j++) {
       if (!(out[j].color.a < 1e-4 && out[j].color.r === 0 && out[j].color.g === 0 && out[j].color.b === 0)) {
-        neighbour = out[j].color;
+        neighbor = out[j].color;
         break;
       }
     }
-    if (neighbour == null) {
+    if (neighbor == null) {
       for (let j = i - 1; j >= 0; j--) {
         if (!(out[j].color.a < 1e-4 && out[j].color.r === 0 && out[j].color.g === 0 && out[j].color.b === 0)) {
-          neighbour = out[j].color;
+          neighbor = out[j].color;
           break;
         }
       }
     }
-    if (neighbour != null) {
-      out[i].color.r = neighbour.r;
-      out[i].color.g = neighbour.g;
-      out[i].color.b = neighbour.b;
+    if (neighbor != null) {
+      out[i].color.r = neighbor.r;
+      out[i].color.g = neighbor.g;
+      out[i].color.b = neighbor.b;
       // alpha stays 0
     }
   }

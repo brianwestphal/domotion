@@ -685,7 +685,7 @@ function composeScrollSvgBody(
     // exactly that triggers a Chromium compositor pop: the segment is
     // `visibility: hidden` until the moment its content first enters the
     // viewport, then `visible` snaps it on — but the GPU has zero time to
-    // rasterise the segment before its first frame of "should be visible"
+    // rasterize the segment before its first frame of "should be visible"
     // content is displayed, so for one or two frames the segment paints
     // empty while raster catches up. Users see "content pops in at the
     // viewport bottom" (DM-668 — reproducible on the NYT-desktop-scroll
@@ -693,8 +693,8 @@ function composeScrollSvgBody(
     //
     // Fix: make each segment visible one extra `dim` (viewport-height /
     // -width) earlier on enter and later on leave. Browsers get a full
-    // viewport-height of scroll time to rasterise before the segment's
-    // content actually needs to paint, and the segment stays rasterised
+    // viewport-height of scroll time to rasterize before the segment's
+    // content actually needs to paint, and the segment stays rasterized
     // a viewport longer after it leaves so a rapid scroll reversal also
     // hits a warm GPU layer. Peak segments-visible-at-once roughly
     // doubles (2 → ~4 worst case), which doesn't materially affect file

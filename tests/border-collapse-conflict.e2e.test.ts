@@ -95,7 +95,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     }
   }, 60_000);
 
-  it("segments a rowspan edge at each neighbouring cell (DM-2246)", async () => {
+  it("segments a rowspan edge at each neighboring cell (DM-2246)", async () => {
     const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       await page.setContent(`<style>table{border-collapse:collapse}td{width:60px;height:30px;border:2px solid blue}.r{border-right:6px solid red}.b{border-left:8px dashed green}</style><table><tr><td class="r" rowspan="2">R</td><td>A</td></tr><tr><td class="b">B</td></tr></table>`, { waitUntil: "load" });

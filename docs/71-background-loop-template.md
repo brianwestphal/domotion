@@ -101,8 +101,8 @@ Every variant keeps to the same two-constraint, `alternate`-looped contract abov
 |---|---|---|
 | `aurora` | Large soft mesh-gradient blobs | blob (radial-gradient) |
 | `orbs` | Smaller, more opaque floating circles | blob |
-| `stars` | A twinkling night-sky field — sharp points (white-hot core → coloured glow) of varied size that twinkle (opacity) and sparkle (center-origin scale) fast on their own clocks (`count` is a density level, scaled ~16×) | positioned points |
-| `gradient-pan` | A colour wash that pans **continuously** in one direction — a `repeating-linear-gradient` translated by exactly one period, so the palette tiles into itself seamlessly (never backs out) | single panning layer |
+| `stars` | A twinkling night-sky field — sharp points (white-hot core → colored glow) of varied size that twinkle (opacity) and sparkle (center-origin scale) fast on their own clocks (`count` is a density level, scaled ~16×) | positioned points |
+| `gradient-pan` | A color wash that pans **continuously** in one direction — a `repeating-linear-gradient` translated by exactly one period, so the palette tiles into itself seamlessly (never backs out) | single panning layer |
 | `grid` | A dot grid that drifts **continuously** by exactly one cell — periodic, so the one-cell shift wraps seamlessly and reads as an endless drift | dot grid |
 | `wave` | Layered **parallax** sine waves — `count` filled inline-`<svg>` sine `<path>`s stacked back→front, each panning one canvas width at a different speed (front fast/opaque/busy, back slow/faint/gentle); the period divides the canvas so the pan wraps seamlessly | sine-wave fills |
 

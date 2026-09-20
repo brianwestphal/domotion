@@ -1328,7 +1328,7 @@ async function resetWorkerPages(worker: HtmlTestWorker): Promise<void> {
 // owning-their-own-comparePage approach burned ~80 MB of Chromium memory
 // per worker for a resource that's idle most of the time (each comparePngs
 // call takes ~100 ms; with 2 workers, the page sits unused 99% of the
-// time). Serialise the compare calls with a simple chain-promise mutex —
+// time). Serialize the compare calls with a simple chain-promise mutex —
 // throughput stays within 10% of the prior parallel-compare setup since
 // the per-worker render work (the actual bottleneck) keeps running while
 // one worker holds the compare lock.
@@ -1616,7 +1616,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       // Populate the cache for next time (DM-1002 + DM-1013). Best-effort
       // — a cache write failure doesn't fail the test, the next run just
       // re-renders. Write happens BEFORE embedRemoteImages /
-      // rasterizeConicGradients so the serialised tree stays small (those
+      // rasterizeConicGradients so the serialized tree stays small (those
       // passes mutate cap.tree in place with Buffer / dataURI data).
       try {
         mkdirSync(EXPECTED_CACHE_DIR, { recursive: true });
@@ -1902,7 +1902,7 @@ async function main(): Promise<void> {
 
   // DM-1006: one shared comparePage for all workers (was per-worker before).
   // Set up once here, torn down after the pool finishes; the per-call mutex
-  // (`withCompareLock`) serialises access so workers don't race on it.
+  // (`withCompareLock`) serializes access so workers don't race on it.
   const sharedCompareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
   sharedComparePage = await sharedCompareContext.newPage();
   sharedComparePage.setDefaultTimeout(90_000);

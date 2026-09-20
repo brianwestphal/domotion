@@ -71,7 +71,7 @@ describe("family-match baseline sets", () => {
     // The other half, and the one that makes the leniency above safe: as soon
     // as a baseline is recorded with a browser version, a run under a different
     // one stops matching it. Measured reason it belongs in the fingerprint —
-    // `font-variant-emoji: emoji` moves U+00A9 to the colour font in Chromium
+    // `font-variant-emoji: emoji` moves U+00A9 to the color font in Chromium
     // 147 and leaves it on the primary in 148, platform held constant.
     const recorded = report({ ...ARM, chromium: "147.0.7727.15" });
     const KEYS_WITH_BROWSER = [...KEYS, "chromium"] as const;
@@ -167,7 +167,7 @@ describe.each(COMMITTED)("committed $os family-match baseline", ({ file, keys })
     //
     // `chromium` joined the fingerprint after these files were recorded. The
     // measured reason it belongs there: `font-variant-emoji: emoji` moves
-    // U+00A9 to the colour font in Chromium 147 and leaves it on the primary in
+    // U+00A9 to the color font in Chromium 147 and leaves it on the primary in
     // 148, platform held constant — so two runs under different browsers are
     // two different oracles. Until each environment is re-seeded, its entry
     // lacks the field and the browser axis is simply not being checked for it.

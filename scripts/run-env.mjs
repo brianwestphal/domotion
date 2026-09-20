@@ -31,7 +31,7 @@
 //                  into `actual.png` — so a build change moves both, and not
 //                  necessarily by the same amount. Measured on one macOS host
 //                  with the platform held constant: `font-variant-emoji: emoji`
-//                  moves U+00A9 U+2122 U+203C U+263A to the colour emoji font in
+//                  moves U+00A9 U+2122 U+203C U+263A to the color emoji font in
 //                  147.0.7727.15 and leaves them on the run's primary in
 //                  148.0.7778.96. A fixture containing any of those would flip
 //                  between the two builds while every other field here stayed

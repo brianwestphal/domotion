@@ -18,7 +18,7 @@ describe('Blink generated line-clamp ellipsis primitives (DM-2417)', () => {
     }
   });
 
-  it('requires vertical WebKit box orientation and behavioural activation', () => {
+  it('requires vertical WebKit box orientation and behavioral activation', () => {
     const base = {
       webkitLineClamp: '3',
       webkitBoxOrient: 'vertical',

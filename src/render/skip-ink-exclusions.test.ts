@@ -35,7 +35,7 @@ describe("canTextDecorationSkipInk — clause 1: the three shredded ASCII glyphs
     expect(canTextDecorationSkipInk(c)).toBe(false);
   });
 
-  it("leaves neighbouring ASCII alone — the exclusion is three characters, not a range", () => {
+  it("leaves neighboring ASCII alone — the exclusion is three characters, not a range", () => {
     // U+002E and U+0030 bracket SOLIDUS; U+005B and U+005D bracket REVERSE
     // SOLIDUS; U+005E and U+0060 bracket LOW LINE. A range-shaped mistake
     // would take at least one of these with it.

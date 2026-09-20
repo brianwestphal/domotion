@@ -34,7 +34,7 @@ export function computeRunnerImage(inputs = {}) {
   }
   // Off a runner entirely — a developer Mac or the Windows VM — there is no
   // ImageOS and no /etc/os-release. Falling through to the container branch
-  // below labelled a macOS baseline `playwright-v1.59.1-linux-unknown`, which
+  // below labeled a macOS baseline `playwright-v1.59.1-linux-unknown`, which
   // is not merely untidy: the image id is what tells a comparator that two
   // measurements were taken in the same environment, so a wrong one lets a
   // macOS run and a Linux run look comparable.

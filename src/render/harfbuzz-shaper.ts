@@ -281,7 +281,7 @@ export function harfbuzzShapeRun(
    *
    * with `direction` supplied by the caller from the resolved bidi level
    * (`:1147`). Inference is exactly what CSS `unicode-bidi: bidi-override`
-   * exists to suppress, so a shaper that guesses cannot honour it — which is
+   * exists to suppress, so a shaper that guesses cannot honor it — which is
    * the defect this parameter closes. Omitted means "infer", which stays
    * correct for every run whose direction the content already implies.
    */

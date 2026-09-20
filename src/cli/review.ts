@@ -9,7 +9,7 @@
  * Usage:
  *   svg-review --expected expected.png --actual actual.svg [--port 3839]
  *
- * The actual argument can be a `.svg` (rasterised here via Playwright at 1×
+ * The actual argument can be a `.svg` (rasterized here via Playwright at 1×
  * before comparison) or a pre-rendered `.png`. The diff image is computed
  * on the fly using the same pixel-diff routine the in-repo regression
  * suites use (`src/review/compare-pngs.ts`), so what a consumer sees lines
@@ -34,7 +34,7 @@ Usage:
 
 Required:
       --expected <path>    PNG of what Chromium painted on the source page.
-      --actual <path>      Domotion's captured SVG (rasterised here via
+      --actual <path>      Domotion's captured SVG (rasterized here via
                            Playwright at 1×) or its pre-rendered PNG.
 
 Options:
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
     if (ext === ".svg") {
       actualSvg = flags.actual;
       actualPng = resolve(tmp, "actual.png");
-      process.stderr.write(`svg-review: rasterising ${basename(flags.actual)}…\n`);
+      process.stderr.write(`svg-review: rasterizing ${basename(flags.actual)}…\n`);
       await rasteriseSvg(browser, flags.actual, actualPng);
     } else if (ext === ".png") {
       actualPng = flags.actual;

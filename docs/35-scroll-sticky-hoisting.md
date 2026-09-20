@@ -51,7 +51,7 @@ Alternative considered: `(tag, rounded(x), rounded(width), rounded(height))` —
 For each sticky candidate matched across N segments:
 
 1. Read its viewport-y in every segment it appears in: `ys = [y₀, y₁, …, y_{N-1}]`.
-2. Find runs of consecutive segments where `|ys[i+1] − ys[i]| < ε` (say `ε = 1 px`) — those are "stuck windows". A stuck window of length 1 (a single segment with one neighbour) is *not* stuck (the element happens to have momentarily zero motion between two snapshot moments); require at least 2 consecutive segments at the same `y` to call it stuck.
+2. Find runs of consecutive segments where `|ys[i+1] − ys[i]| < ε` (say `ε = 1 px`) — those are "stuck windows". A stuck window of length 1 (a single segment with one neighbor) is *not* stuck (the element happens to have momentarily zero motion between two snapshot moments); require at least 2 consecutive segments at the same `y` to call it stuck.
 
 Other constraints for a window to qualify as a stuck window:
 
@@ -88,7 +88,7 @@ Path-in-tree identity needs to be carried on `CapturedElement`. Either:
 1. Add a `path?: number[]` field at capture time. Cheap (index-per-level walk).
 2. Compute on-the-fly inside the composer by walking each tree in pre-order and remembering the path. Avoids touching the capture types but means walking each tree twice per compose pass.
 
-Option 2 is preferred — keeps `CapturedElement` lean and doesn't bake a new field into the serialised tree. Implementation lives in `src/scroll/hoist-sticky.ts` alongside the existing hoist-fixed module.
+Option 2 is preferred — keeps `CapturedElement` lean and doesn't bake a new field into the serialized tree. Implementation lives in `src/scroll/hoist-sticky.ts` alongside the existing hoist-fixed module.
 
 ## Acceptance criteria
 

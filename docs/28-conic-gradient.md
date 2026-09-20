@@ -46,7 +46,7 @@ Rejected alternatives:
 - `conic-gradient(...)` and `repeating-conic-gradient(...)`.
 - `from <angle>` clause (defaults to `from 0deg`, which is the top per CSS spec).
 - `at <position>` clause (single keyword, two-token keyword/length pairs, percent positions). Same position grammar already supported in `parseRadialGradient`.
-- Color stops with all forms supported by linear/radial: `<color>`, `<color> <pct>`, `<color> <pct> <pct>` (range), `<color> <angle>`, hard stops (two stops at the same offset), `currentColor`, full `color()` / `color-mix()` / `oklch()` etc. (resolved through Chromium's serialised computed value, identical to the linear/radial path).
+- Color stops with all forms supported by linear/radial: `<color>`, `<color> <pct>`, `<color> <pct> <pct>` (range), `<color> <angle>`, hard stops (two stops at the same offset), `currentColor`, full `color()` / `color-mix()` / `oklch()` etc. (resolved through Chromium's serialized computed value, identical to the linear/radial path).
 - Multi-layer composition — conic-gradient as one of several `background-image` layers, alongside linear, radial, and `url(...)` images. Already wired: the layer-iterating loop at `src/render/element-tree-to-svg.ts` calls `buildBackgroundLayerDef` per layer; conic just adds a branch.
 
 **Out of scope (deferred):**

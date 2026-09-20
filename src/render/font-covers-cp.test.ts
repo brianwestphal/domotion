@@ -2,7 +2,7 @@
  * Coverage is a CMAP question, not an outline question (DM-1986).
  *
  * `glyphIdForCp(font, cp) !== 0` was standing in for "does this font cover the
- * codepoint", and the two come apart on a bitmap-only colour font: fontkit maps
+ * codepoint", and the two come apart on a bitmap-only color font: fontkit maps
  * the character but cannot construct a Glyph, so the id test answers "not
  * covered" for the one font on the system that does cover it.
  *
@@ -36,7 +36,7 @@ const stub = (o: { hasGlyph?: boolean | (() => never); glyphId?: number | null }
 
 describe("fontCoversCp asks the cmap, not the outline tables (DM-1986)", () => {
   it("covers a codepoint the cmap maps but no Glyph can be built for", () => {
-    // The bitmap-colour-font shape, which is the whole reason this exists.
+    // The bitmap-color-font shape, which is the whole reason this exists.
     const bitmapColour = stub({ hasGlyph: true, glyphId: null });
     expect(glyphIdForCp(bitmapColour, 0x1f600), "precondition: the id test says uncovered").toBe(0);
     expect(fontCoversCp(bitmapColour, 0x1f600)).toBe(true);
@@ -50,7 +50,7 @@ describe("fontCoversCp asks the cmap, not the outline tables (DM-1986)", () => {
 
   it("falls back to the id test when the instance has no cmap accessor", () => {
     // The native-helper instances (CoreText / DirectWrite) expose no
-    // `hasGlyphForCodePoint`, so they must keep their existing behaviour
+    // `hasGlyphForCodePoint`, so they must keep their existing behavior
     // exactly — in BOTH directions.
     expect(fontCoversCp(stub({ glyphId: 42 }), 0x41)).toBe(true);
     expect(fontCoversCp(stub({ glyphId: null }), 0x41)).toBe(false);
@@ -79,7 +79,7 @@ const NOTO_COLOR_EMOJI = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf";
 const describeLinuxEmoji = process.platform === "linux" && existsSync(NOTO_COLOR_EMOJI)
   ? describe : describe.skip;
 
-describeLinuxEmoji("the real bitmap colour font (Linux)", () => {
+describeLinuxEmoji("the real bitmap color font (Linux)", () => {
   it("maps U+1F600 in its cmap while yielding no Glyph object", async () => {
     const fontkit = await import("fontkit");
     const f = (fontkit as unknown as { openSync(p: string): FontInstance })
@@ -88,7 +88,7 @@ describeLinuxEmoji("the real bitmap colour font (Linux)", () => {
     // Stated through `glyphIdForCp` rather than through the raw return, because
     // this IS the test the production code was making. (The raw return is
     // `null`, not `undefined` — asserting the exact falsy value pins a fontkit
-    // implementation detail instead of the behaviour that matters.)
+    // implementation detail instead of the behavior that matters.)
     expect(glyphIdForCp(f, 0x1f600), "and no Glyph must be constructible").toBe(0);
     expect(fontCoversCp(f, 0x1f600)).toBe(true);
   });

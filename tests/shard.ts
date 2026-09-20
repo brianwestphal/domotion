@@ -6,7 +6,7 @@
 // We slice by STRIDE (round-robin), not contiguous chunks: per-fixture cost
 // varies wildly (a clean CJK ideograph block finishes in ~1 fixture-time while a
 // complex-shaper block is many times slower), and a contiguous split would pile
-// the slow neighbours into one shard. Stride interleaves them so every shard
+// the slow neighbors into one shard. Stride interleaves them so every shard
 // gets a balanced mix and the shards finish at roughly the same wall-clock.
 //
 // `spec` is 1-indexed `"<i>/<N>"` (e.g. "2/5" = the 2nd of 5 shards). Empty /

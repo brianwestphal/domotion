@@ -9,7 +9,7 @@
 // run's own emoji is deliberate over-asking — a font covering FAMILY is a real
 // emoji font, where a font covering some individual emoji may be an ordinary
 // text face that happens to carry a few. `und-Zsye` is what steers fontconfig
-// toward a colour font instead of toward the page's language.
+// toward a color font instead of toward the page's language.
 //
 // These test the SUBSTITUTION rather than the resolver, on purpose. The resolver
 // is platform-gated and needs fontconfig, so a test of it runs only on Linux —
@@ -32,7 +32,7 @@ describe("Blink's emoji-presentation predicate", () => {
     // U+2600 SUN and U+2764 HEAVY BLACK HEART are `Emoji` but NOT
     // `Emoji_Presentation` — they default to text and need a VS16 to become
     // emoji. Treating them as emoji here would send ordinary dingbats down the
-    // colour-font path.
+    // color-font path.
     for (const cp of [0x2600, 0x2764, 0x203c, 0x2122]) {
       expect(isEmojiPresentationCp(cp)).toBe(false);
     }
@@ -65,7 +65,7 @@ describe("the query Blink actually sends fontconfig", () => {
 
   it("overrides the content locale rather than deferring to it", () => {
     // The page's language losing is the point: a `lang="ja"` page must still get
-    // a colour emoji font, not Hiragino.
+    // a color emoji font, not Hiragino.
     for (const lang of ["ja", "zh-Hans", "ar", "en-GB"]) {
       expect(blinkEmojiFallbackQuery(0x1f46a, lang).lang).toBe(ZSYE);
     }

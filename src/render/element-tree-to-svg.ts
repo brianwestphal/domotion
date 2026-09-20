@@ -574,7 +574,7 @@ function paintImage(
 // as inline fragments the per-fragment renderer owns the background, so this
 // no-ops. Reads only el + corners + indent + the resolved bgColor + the two
 // gating flags; appends to no shared accumulator, so it returns its <rect>
-// markup for the caller to push. Behaviour-identical.
+// markup for the caller to push. Behavior-identical.
 function paintBackgroundColor(
   el: CapturedElement,
   corners: ReturnType<typeof parseCornerRadii>,
@@ -633,7 +633,7 @@ function backgroundColorClipsToText(el: CapturedElement): boolean {
 // render-side check protects against any other future path that sets both.
 //
 // Reads only el + indent and appends no shared state, so it returns its
-// <image> markup for the caller to push. Behaviour-identical.
+// <image> markup for the caller to push. Behavior-identical.
 function paintRasterSnapshot(el: CapturedElement, indent: string): string[] {
   const out: string[] = [];
   // Caller guards the same condition; restate it so this stays a standalone
@@ -663,7 +663,7 @@ function paintRasterSnapshot(el: CapturedElement, indent: string): string[] {
 // content), with baseline + inline-size geometry calibrated against Chromium's
 // list_marker.cc. Reads only el + the resolved textColor + indent; appends to no
 // shared accumulator (no clipIdx, no defs) and does not recurse, so it returns
-// its marker markup for the caller to push. Behaviour-identical.
+// its marker markup for the caller to push. Behavior-identical.
 /**
  * Synthesize + emit a list-item marker for a non-image `list-style-type`
  * (extracted from `paintListMarker`, DM-1458). Handles a custom `::marker`
@@ -1058,7 +1058,7 @@ function resolveTextFill(
     // element that set `background-clip: text`), not this child's
     // bbox. Falling back to (el.x, el.y, el.width, el.height) for
     // legacy captures missing the new field would produce the
-    // pre-fix behaviour where each child re-runs the gradient over
+    // pre-fix behavior where each child re-runs the gradient over
     // its own (smaller) area.
     const gradRect = el.styles.inheritedTextFillGradientRect;
     const gx = gradRect != null ? gradRect.x : el.x;
@@ -1290,7 +1290,7 @@ function paintText(
       // The mask-with-rect approach keeps the gradient in document
       // coordinates on a straight rect.
       // Blink's PaintPhase::kTextClip keeps TextStrokeWidth and replaces all
-      // paint colours with an opaque colour because the DstIn operation reads
+      // paint colors with an opaque color because the DstIn operation reads
       // ALPHA, not luminance. Preserve that geometry here—including author
       // stroke ink—and opt the SVG mask into alpha semantics. The old
       // luminance mask made a black stroke disappear and consequently dropped
@@ -1581,7 +1581,7 @@ function paintUniformDashedDottedBorder(
   //     lines so the round endcap fits inside the line. Matching
   //     that is necessary for `adjustedDashAttrs` (which assumes a
   //     post-move sideLength) to compute Chrome-equivalent dot
-  //     centres. The adjacent sides' first dots overlap at the
+  //     centers. The adjacent sides' first dots overlap at the
   //     corner, producing one visible corner dot. (DM-805.)
   //   • Dashed thick (≥ 8 px): legacy corner-overlap prevention so
   //     butt-cap dashes don't double-paint the corner pixel as a
@@ -1971,7 +1971,7 @@ function emitBorderSide(
   }
   // The gap is selected from the full side, but Skia starts the dash phase at
   // DrawLineWithStyle's already-inset endpoint. Rewinding by `endpointInset`
-  // invents a corner-centred dot and shifts every interior dot left/up; the
+  // invents a corner-centered dot and shifts every interior dot left/up; the
   // mixed 6px bottom border visibly demonstrates that error. Keep only an
   // explicit style-owned phase (currently zero for this branch).
   const phaseOffset = offset;
@@ -3196,7 +3196,7 @@ function paintThinDottedLine(
 
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
-// returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
+// returns its <rect>/<line> markup for the caller to push. Behavior-identical.
 function paintOutline(el: CapturedElement, borderRadius: number, indent: string): string[] {
   const out: string[] = [];
   const ow = parseFloat(el.styles.outlineWidth ?? "0") || 0;
@@ -4734,7 +4734,7 @@ function computeGroupWrapperAttrs(
   if (blendCss !== "" && !filterInsideBlend) styleParts.push(`mix-blend-mode:${blendCss}`);
   if (needsIsolation && !filterInsideBlend) styleParts.push("isolation:isolate");
   if (el.displayNone === true) styleParts.push("display:none");
-  // DM-486: HTML-escape the style attribute value. Chromium normalises
+  // DM-486: HTML-escape the style attribute value. Chromium normalizes
   // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
   // produced `style="filter:url("#id")"` and broke the SVG parser.
   if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
@@ -5836,7 +5836,7 @@ function paintElementOverlayPhase(
   }
 
   // DM-809 / DM-897: MathML `<msqrt>` / `<mroot>` need their radical sign +
-  // overbar synthesised — Chrome's MathML layout paints them from internal
+  // overbar synthesized — Chrome's MathML layout paints them from internal
   // layout (no border / glyph capture). Preferred path (DM-897): render the
   // actual √ (U+221A) font glyph fitted to the captured radical box, so the
   // checkmark inherits the font's stroke-weight contrast and hook shape that
@@ -5845,7 +5845,7 @@ function paintElementOverlayPhase(
   // 3-segment path when the √ glyph can't be resolved (e.g. a platform whose
   // fallback chain lacks it). For `<mroot>` the structure is `<mroot>
   // <radicand><index></mroot>` — the index renders normally as a child
-  // glyph; only the radical + overbar are synthesised here.
+  // glyph; only the radical + overbar are synthesized here.
   if ((el.tag === "msqrt" || el.tag === "mroot") && el.children.length >= 1) {
     const radicand = el.children[0];
     const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
@@ -5926,7 +5926,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
   // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
   // "50px 20px" for elliptical corners). Each corner can independently be
-  // round or elliptical and have a different radius from its neighbours
+  // round or elliptical and have a different radius from its neighbors
   // (CSS `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50,
   // BL=70). When all four corners are equal-and-circular, the renderer
   // emits `<rect rx>`; otherwise it emits an SVG `<path>` with explicit
@@ -6869,7 +6869,7 @@ function adjustedClosedDashArray(style: string, width: number, pathLength: numbe
  * needed to center the dash pattern within the side so it visually matches
  * Chromium's BoxBorderPainter (DM-318).
  *
- * For dotted: Chromium centres each dot in its half-period slot — i.e. dots
+ * For dotted: Chromium centers each dot in its half-period slot — i.e. dots
  *   are inset from each corner by half a period rather than starting flush.
  *   In SVG terms, the dasharray is `0.01 period` with linecap=round (so each
  *   "dash" renders as a single dot), and stroke-dashoffset is set to half a

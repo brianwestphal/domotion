@@ -128,7 +128,7 @@ describe("envComparability", () => {
     // field here stays identical while it does.
     //
     // Measured, one macOS host, platform held constant: `font-variant-emoji:
-    // emoji` moves U+00A9 U+2122 U+203C U+263A to the colour emoji font in
+    // emoji` moves U+00A9 U+2122 U+203C U+263A to the color emoji font in
     // 147.0.7727.15 and leaves them on the run's primary in 148.0.7778.96.
     const on147 = computeRunEnv({ ...MACOS_26_5, chromium: "147.0.7727.15" });
     const on148 = computeRunEnv({ ...MACOS_26_5, chromium: "148.0.7778.96" });

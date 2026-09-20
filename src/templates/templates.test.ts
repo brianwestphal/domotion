@@ -325,18 +325,18 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
     expect(anims[0].alternate).toBeUndefined(); // continuous one-direction drift
   });
 
-  // DM-1299: grid colours are diagonal, so a dot and its down-right neighbour
-  // share a colour — invariant under the one-cell drift, so the loop seam doesn't
-  // flicker (a dot sliding in carries the colour of the dot it replaces).
-  it("grid colours are invariant under the one-cell diagonal shift (no seam flicker)", () => {
+  // DM-1299: grid colors are diagonal, so a dot and its down-right neighbor
+  // share a color — invariant under the one-cell drift, so the loop seam doesn't
+  // flicker (a dot sliding in carries the color of the dot it replaces).
+  it("grid colors are invariant under the one-cell diagonal shift (no seam flicker)", () => {
     const p = parse({ variant: "grid", width: 800, height: 450, colors: ["#a", "#b", "#c"] });
     const { dots, cell } = planGridDots(p);
     const colorAt = (col: number, row: number) =>
       dots.find((d) => d.cx === col * cell && d.cy === row * cell)?.color;
-    // Down-right diagonal neighbours share a colour (the shift maps each onto the next).
+    // Down-right diagonal neighbors share a color (the shift maps each onto the next).
     expect(colorAt(1, 1)).toBe(colorAt(2, 2));
     expect(colorAt(2, 1)).toBe(colorAt(3, 2));
-    // Still multi-colour: neighbours along a row differ.
+    // Still multi-color: neighbors along a row differ.
     expect(colorAt(1, 1)).not.toBe(colorAt(2, 1));
   });
 

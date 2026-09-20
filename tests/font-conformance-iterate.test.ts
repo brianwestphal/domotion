@@ -8,7 +8,7 @@
  * never recorded, on the other hand, is a new KIND of disagreement however much
  * of the universe you swept.
  *
- * These pin the comparison itself. The driver's exit behaviour (stop on the
+ * These pin the comparison itself. The driver's exit behavior (stop on the
  * first chunk with a finding, refuse without a baseline, treat a dead chunk as
  * no-verdict) lives in `main()` and is exercised by running it.
  */

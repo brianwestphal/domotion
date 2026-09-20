@@ -228,7 +228,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // + immediate pointerup (no movement, so the overlay's drag
       // threshold isn't crossed and the click routes to "delete this
       // rect"). Rect 2 spans displayed (40%, 40%) → (55%, 50%); click
-      // its centre.
+      // its center.
       await page.evaluate(({ x, y }) => {
         const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
         if (svg == null) throw new Error("no overlay");

@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { attributeMovement, attributeMovementWithBytes, compareDigest, compareSideEvidence, perceptualDigest } from "./side-digest.js";
 
-/** RGBA buffer of `w`×`h`, filled by a per-pixel callback returning grey 0..255. */
+/** RGBA buffer of `w`×`h`, filled by a per-pixel callback returning gray 0..255. */
 function img(w: number, h: number, f: (x: number, y: number) => number): Uint8Array {
   const d = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) {

@@ -709,7 +709,7 @@ async function runJob(
       });
       // Per-segment post-processing: every tree needs the same passes the
       // single-capture path runs above (embed images, optional resize,
-      // conic-gradient rasterise, viewBox cull). embedRemoteImages uses a
+      // conic-gradient rasterize, viewBox cull). embedRemoteImages uses a
       // shared cache across calls, so repeated invocations on overlapping
       // image sets are cheap.
       for (const seg of segments) {
@@ -759,7 +759,7 @@ async function runJob(
     writeFileSync(wrapperPath, wrapperHtml);
     // DM-518: rendering the SVG wrapper on the same context that did the
     // production-site capture (routeFromHAR active, etc.) empirically
-    // produces actuals where some glyph paths render as background-coloured
+    // produces actuals where some glyph paths render as background-colored
     // no-ops — even though the SVG renders correctly in librsvg and in a
     // fresh isolated Chromium load of the same wrapper. Bypass that
     // residual state by using a fresh disposable context just for the

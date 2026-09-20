@@ -835,7 +835,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         // cr.top, the char gets bucketed into the previous line and the
         // wrapped line silently loses its first character. Detect the
         // anomaly (height significantly larger than the current line's
-        // chars) and synthesise the correct per-glyph top/left/right from
+        // chars) and synthesize the correct per-glyph top/left/right from
         // the next char (peek ahead) — or, when no next char exists, use
         // cr.bottom minus a normal char height.
         let topForGroup = cr.top;

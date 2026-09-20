@@ -18,8 +18,8 @@ export const parseBlinkLineClampCount = (value) => {
 };
 
 /**
- * CSSOM candidate gate.  Chromium serialises a legacy `display:-webkit-box`
- * clamp as `flow-root`, so capture additionally supplies the behavioural
+ * CSSOM candidate gate.  Chromium serializes a legacy `display:-webkit-box`
+ * clamp as `flow-root`, so capture additionally supplies the behavioral
  * result from its isolated clone probe.  `behaviorallyClamps` is deliberately
  * mandatory: an authored `display:flow-root` with the two WebKit properties is
  * not a line-clamp formatting context.
@@ -145,10 +145,10 @@ const groupLogicalLines = (chars, writingMode) => {
   return groups;
 };
 
-// `display:-webkit-box` and authored `display:flow-root` both serialise as
+// `display:-webkit-box` and authored `display:flow-root` both serialize as
 // flow-root.  Re-layout an inert clone with auto block-size: the former still
 // has a clamp-owned scroll extent while the latter expands to all lines.  The
-// clone keeps the real subtree/styles/font fallback, so this is a behavioural
+// clone keeps the real subtree/styles/font fallback, so this is a behavioral
 // platform query rather than a fixture-derived dimension threshold.
 const behaviorallyClampsInClone = (el, cs, writingMode) => {
   const parent = el.parentNode;

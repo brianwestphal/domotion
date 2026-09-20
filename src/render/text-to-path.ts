@@ -501,7 +501,7 @@ export function renderTextAsSystemFont(
   // `text-anchor: start` anchors the START of the text at `x`, and for
   // `direction: rtl` the start is the RIGHT edge — so the default would place
   // the run's right edge at its left edge, shifting the whole run left by its
-  // width (visibly overlapping the neighbouring run). `text-anchor: end` anchors
+  // width (visibly overlapping the neighboring run). `text-anchor: end` anchors
   // the END (the left edge, in rtl inline-progression order) at `x`, landing the
   // run's visual-left where it was captured. Verified by rasterization against
   // Chrome for Hebrew+Latin, Arabic (contextual joining), and paired brackets;
@@ -576,8 +576,8 @@ function ownedCommandsFor(
   return resolution.commands;
 }
 
-/** Concrete CSS colours plus local-space author-stroke geometry. The
- * source-derived fake-bold planner deliberately uses colour roles, so the same
+/** Concrete CSS colors plus local-space author-stroke geometry. The
+ * source-derived fake-bold planner deliberately uses color roles, so the same
  * plan can lower to outlined paths or generated embedded-font text. */
 interface TextRunPaintOptions {
   fill: string;
@@ -672,7 +672,7 @@ function renderTextPathRuns(
   // face can have a real bold cut while the primary needs synthesis (or vice
   // versa), and each face can have a different units-per-em scale. Repeating
   // the same <use> stream is necessary only for opaque `stroke fill`: Skia's
-  // author-stroke pass and frame-and-fill pass have different colours.
+  // author-stroke pass and frame-and-fill pass have different colors.
   const paintPathGroup = (
     runFont: FontInstance,
     groupScale: number,
@@ -1005,7 +1005,7 @@ function renderTextPathRuns(
         // HarfBuzz, the one shaper that can be TOLD a direction. That fixed the
         // Hebrew cases and left Arabic worse than before (0.526% -> 0.701%).
         //
-        // The reason is below, at the segment: HarfBuzz does not honour a
+        // The reason is below, at the segment: HarfBuzz does not honor a
         // contrary direction by shaping the text as-is under it. It reverses the
         // characters into the script's native order first. So the question was
         // never "which shaper can be told LTR" — it was "which buffer would
@@ -1566,7 +1566,7 @@ function singleFontMarkup(
   //
   // There used to be a private-use exception here that suppressed the `.notdef`
   // and drew a synthetic hollow rect (~0.7 × advance × 0.65 em) in its place.
-  // It was a workaround for a defect one layer up, not a behaviour of Chrome's:
+  // It was a workaround for a defect one layer up, not a behavior of Chrome's:
   // the terminal used to pin to the fallback chain's LAST entry, i.e. LastResort,
   // whose glyph is a rounded box with a `?` measuring 2253/2048 em — so it
   // overhung the following character, and suppressing it was the visible cure.
@@ -2581,7 +2581,7 @@ function renderEmbeddedGlyphRuns(
   // where Chrome's text-shaper measured the glyph run a few pixels
   // wider than fontkit (pseudo-element auto-sized pill labels) end up
   // left-anchored in their captured content rect with the leftover
-  // padding stacking on the right — visibly off-centre.
+  // padding stacking on the right — visibly off-center.
   // DM-938: per-glyph scale carries the synthesized small-caps multiplier
   // (1.0 for native-size glyphs, 0.7 for synthesized cap-shrunk lowercase).
   // Pending segments group consecutive glyphs that share scale, embedded
@@ -2780,7 +2780,7 @@ function renderEmbeddedGlyphRuns(
     // into FrameAndFill(extra) and widens an author stroke to `w + extra`.
     // Preserve those ordered stages explicitly: opaque `stroke fill` needs two
     // generated `<text>` passes because the author stroke and fill frame have
-    // different colours. The shared predicate still owns WHETHER synthesis is
+    // different colors. The shared predicate still owns WHETHER synthesis is
     // active, including real/static cuts, variable wght instances and vetoes.
     const faceLacksWeight = faceNeedsSyntheticBold(run.font, weight, fontSynthesis);
     const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
@@ -3782,7 +3782,7 @@ export function renderTextAsPath(
   }
 
   // DM-2390: author stroke and synthetic bold are one source-owned per-run
-  // paint plan. Keeping the concrete colours here lets the path emitter repeat
+  // paint plan. Keeping the concrete colors here lets the path emitter repeat
   // an unchanged outline for the two Skia passes required by opaque
   // `paint-order: stroke fill`; every other case safely coalesces to one pass.
   const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0

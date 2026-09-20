@@ -399,8 +399,8 @@ describe("roundedRectSvg: rect-or-path branching", () => {
 
 describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", () => {
   // For a uniform-width SQUARE box, every same-side apex lands at the box
-  // centre — all four wedges degenerate to triangles meeting at the centre.
-  it("square box with uniform widths gives triangles meeting at the centre", () => {
+  // center — all four wedges degenerate to triangles meeting at the center.
+  it("square box with uniform widths gives triangles meeting at the center", () => {
     const apexes = computeWedgeApexes(0, 0, 100, 100, 6, 6, 6, 6);
     expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
     expect(apexes.apexBottomX).toBe(50); expect(apexes.apexBottomY).toBe(50);
@@ -475,8 +475,8 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
       .toBe("0,0 240,0 220,40 20,40");
   });
 
-  // Edge case: all-zero widths → fall back to box centre (no division by 0).
-  it("falls back to the box centre when the adjacent-pair widths sum to zero", () => {
+  // Edge case: all-zero widths → fall back to box center (no division by 0).
+  it("falls back to the box center when the adjacent-pair widths sum to zero", () => {
     const apexes = computeWedgeApexes(0, 0, 100, 100, 0, 0, 0, 0);
     expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
     expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
@@ -486,12 +486,12 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
   // border-radius: 8px`, left+right = 0). Blink's BoxBorderPainter computes NO
   // miter when the adjacent side is zero-width (`ComputeMiter` → `kNoMiter`), so
   // the top border paints its FULL rounded corner arc. The same-side apex
-  // degenerates to the box centre here; without the widths the wedge would be a
-  // centre-converging TRIANGLE that cuts each corner off mid-arc. Passing the
+  // degenerates to the box center here; without the widths the wedge would be a
+  // center-converging TRIANGLE that cuts each corner off mid-arc. Passing the
   // widths makes the top wedge span the full box edge so both corners are covered.
   it("spans the full box edge for a single-side border (both adjacent sides zero-width)", () => {
     const apexes = computeWedgeApexes(0, 0, 240, 100, 6, 0, 0, 0); // top-only
-    // Legacy (no widths): centre-converging triangle — cuts the corners.
+    // Legacy (no widths): center-converging triangle — cuts the corners.
     expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
       .toBe("0,0 240,0 120,50");
     // DM-1150 (widths passed): box-spanning quad — covers BOTH top corners.

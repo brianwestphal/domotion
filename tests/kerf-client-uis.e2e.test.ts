@@ -77,7 +77,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
   // That is the same shape of gap the file was created to close: a kerfjs
   // upgrade breaking every interactive path while the suite stayed green.
   //
-  // So the manifest is SYNTHESISED. The review server already honours
+  // So the manifest is SYNTHESIZED. The review server already honors
   // `REVIEW_OUTPUT_DIR`, so a temp root plus a hand-written manifest makes this
   // self-contained and fast — no dependency on an ~8-minute visual suite having
   // been run first, and no production code touched.

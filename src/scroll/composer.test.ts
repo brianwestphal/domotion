@@ -278,7 +278,7 @@ describe("composeScrollSvg: non-painting pause anchors (DM-2702)", () => {
 // ── Min-offset normalisation ───────────────────────────────────────────────
 
 describe("composeScrollSvg: min-offset normalisation", () => {
-  it("non-zero start scroll-y is normalised to composite y=0", () => {
+  it("non-zero start scroll-y is normalized to composite y=0", () => {
     // Captures start at scrollY=500 (e.g. user passed `--scroll-start 500px`).
     const segs: ScrollSegmentCapture[] = [
       makeSeg(500,  0,    1000),
@@ -569,9 +569,9 @@ describe("composeScrollSvg: position:sticky hoisting", () => {
   });
 });
 
-// ── Background colour override ─────────────────────────────────────────────
+// ── Background color override ─────────────────────────────────────────────
 
-describe("composeScrollSvg: background colour", () => {
+describe("composeScrollSvg: background color", () => {
   // Build a segment whose captured root carries `rootBgComputed` (the value the
   // capture script stamps from getComputedStyle(documentElement).backgroundColor).
   const segWithRootBg = (rootBgComputed: string): ScrollSegmentCapture =>

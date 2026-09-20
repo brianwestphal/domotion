@@ -2066,7 +2066,7 @@ Three consequences worth holding onto:
   google/emoji-segmenter `955936be…` (`DEPS:378`), where the rule reads
   `… | TAG_BASE | EMOJI_MODIFIER_BASE | …`. Upstream later split the category
   into `_TEXT` / `_EMOJI` halves and narrowed the rule to `_EMOJI` — the
-  opposite answer for exactly these codepoints. This behaviour tracks Chromium's
+  opposite answer for exactly these codepoints. This behavior tracks Chromium's
   pin and changes when Chromium rolls it. `scanEmojiPresentation()` is the
   shared grammar port; capture categories come from the page Chromium and Node
   categories from the pinned ICU companion. Raster ownership is decided later
@@ -2096,9 +2096,9 @@ Three consequences worth holding onto:
   a 5M-comparison slice, now 1).
 - **A TEXT-presentation emoji DOES reach the cascade, and Blink re-asks it from a
   monochrome base** — `GetSubstituteFont`'s replacement (`mac/font_cache_mac.mm:163-184`).
-  When the cascade answers with an Apple colour emoji face and the character is
+  When the cascade answers with an Apple color emoji face and the character is
   `Character::IsEmoji`, Blink rebuilds the ask from an `"Apple Symbols"` base
-  carrying **that colour font's own cascade list** and asks again. There is no
+  carrying **that color font's own cascade list** and asks again. There is no
   priority term in the condition; the priority acts as the early return above.
 
   So the gate is `isEmojiCharCp(cp)` alone, and a DEFAULT run over a
@@ -2117,7 +2117,7 @@ Three consequences worth holding onto:
   in `kIgnoreVariationSelector` mode (`shaping/harfbuzz_face.cc:127-206`;
   `shaping/harfbuzz_shaper.cc:1008-1019`, rev `7d859f27`). The older
   per-codepoint replacement seam still preserves one consequence: **if the
-  re-ask lands back on an Apple colour emoji face, keep the pre-replacement
+  re-ask lands back on an Apple color emoji face, keep the pre-replacement
   answer.** Measured on a `system-ui` stack, U+1F321 🌡 re-asks to plain
   `AppleColorEmoji` while Chrome paints `.Apple Color Emoji UI` — precisely the
   substitute the replacement started from, so keeping the original is the only

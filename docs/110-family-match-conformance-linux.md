@@ -211,7 +211,7 @@ environment's entry, preserving the others.
 **The browser is part of the fingerprint**, and it is the field the set went
 without longest. Chrome's answers are what this oracle grades, so two runs under
 different builds are two different oracles — measured: `font-variant-emoji:
-emoji` moves U+00A9 to the colour font in Chromium 147.0.7727.15 and leaves it on
+emoji` moves U+00A9 to the color font in Chromium 147.0.7727.15 and leaves it on
 the run's primary in 148.0.7778.96, on one host with the platform held constant.
 Read it from `browser.version()`, never from the Playwright revision directory: a
 local VM launched a 148 build out of a folder named `chromium-1217`.

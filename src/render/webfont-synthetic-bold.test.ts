@@ -250,7 +250,7 @@ describeWithSerif("the emitted run carries the synthetic bold (DM-1970)", () => 
    * DM-1970 moved the observation point. Synthetic bold used to be baked into
    * the subset's outlines, so two renders of the same face differed in their
    * base64 payload if and only if the synthesis fired. It is now Skia's own
-   * operation — fill plus a centred frame of `textSize * fakeBoldScale`
+   * operation — fill plus a centered frame of `textSize * fakeBoldScale`
    * (`useStrokeForFakeBold`, Skia src/core/SkScalerContext.cpp:1019-1041) — so
    * the subset carries the face's plain outlines and the `<text>` carries the
    * frame.

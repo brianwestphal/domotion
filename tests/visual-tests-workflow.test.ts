@@ -211,7 +211,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
   // DM-1859: every renderer A/B flag must be dispatchable AND reach all three
   // sweep jobs. A flag with a workflow input but no `env:` wiring in some job
   // produces the worst possible result: that job silently runs the RENDERER
-  // DEFAULT while the run is labelled as the other arm, and its report looks
+  // DEFAULT while the run is labeled as the other arm, and its report looks
   // like a legitimate measurement. The A/B then "shows no difference" for a
   // reason that has nothing to do with the code under test.
   //

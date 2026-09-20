@@ -957,7 +957,7 @@ async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
  *
  * Not a full CSS parser — comment-stripping handles `/* … *​/`, but exotic
  * inputs (custom properties holding @font-face strings, CSSOM-injected rules
- * that never serialised back to text) aren't covered. Adequate for the
+ * that never serialized back to text) aren't covered. Adequate for the
  * mainstream marketing-site case that motivated the change.
  */
 export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string): FaceRule[] {
@@ -2596,7 +2596,7 @@ export async function rasterizeUrlFilterSurfaces(
 
 
 /**
- * DM-494: Rasterise each element referenced by `mask-image: element(#id)`.
+ * DM-494: Rasterize each element referenced by `mask-image: element(#id)`.
  * Mirrors `rasterizeReplacedElements` (doc 17): hide-everything-else
  * stylesheet → screenshot the target's painted box → encode as a data URI →
  * stash on `tree[0].maskRasters[i].dataUri`. The renderer's `buildMaskDef`

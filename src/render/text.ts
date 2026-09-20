@@ -47,10 +47,10 @@ export function capturedSegmentFontFamily(el: CapturedElement, seg: TextSegment)
  */
 function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>): string {
   const lines: string[] = [];
-  // Stroke at the centre of the border-side, so half-width insets are
+  // Stroke at the center of the border-side, so half-width insets are
   // applied to the rect's edges to keep the stroke pixel-aligned with what
   // CSS paints (CSS paints borders inset to the box's outer edges, with the
-  // stroke centre offset by half the border width from the rect edge).
+  // stroke center offset by half the border width from the rect edge).
   const x2 = pb.x + pb.width;
   const y2 = pb.y + pb.height;
   if (pb.borT != null && pb.borT > 0 && pb.borderTopColor != null) {

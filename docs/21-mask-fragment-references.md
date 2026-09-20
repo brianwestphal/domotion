@@ -32,7 +32,7 @@ Doc 20 covers the gradient + raster `url()` cases that already round-trip cleanl
 DM-493 implemented same-document fragment refs (`url("#id")`); DM-496 added external-file refs (`url("./shapes.svg#id")`) by inlining the fetched `<mask>` as a same-document def before the walk (see §2). DM-2520 extends the local path to every fragment in a comma-separated layer list. A capture-time warning now only fires when resolution fails (fetch error / non-http / missing fragment).
 
 For local refs, CAPTURE_SCRIPT resolves the inline `<mask>` in the consumer's
-originating TreeScope and serialises `(layerIndex,scope,id)` on the consumer,
+originating TreeScope and serializes `(layerIndex,scope,id)` on the consumer,
 plus `outerHTML`, SVG unit/region facts, and computed `mask-type` in the root
 `maskDefs` payload. The renderer copies each selected definition into output
 `<defs>` with collision-free id rewriting, materializes its region/content map
@@ -50,7 +50,7 @@ At capture time, when CAPTURE_SCRIPT sees one or more local fragment layers:
 
 1. Resolve the fragment through the consumer's `getRootNode()` TreeScope; a
    shadow-root miss does not fall through to the owner document.
-2. If the element exists and is `<mask>`, serialise its `outerHTML`, scope,
+2. If the element exists and is `<mask>`, serialize its `outerHTML`, scope,
    units, source-resolved region, and computed channel.
 3. Emit it as a `MaskFragmentDef` and put its exact layer index and scope, plus
    the shared effective zoom, on the consuming element. Shorter mode and
@@ -73,7 +73,7 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
 
 ## Implementation notes (DM-493)
 
-- **Serialisation scope**: capture serialises the `<mask>` element's `outerHTML` verbatim. Descendants of the `<mask>` (nested gradients, clipPaths, paths, etc.) ride along as part of that string. References from *inside* the mask to *outside* defs (e.g. a `<filter>` defined elsewhere in the document) are NOT followed today — the rewriter leaves those `url(#…)` refs untouched and the renderer relies on the normal output-side `<defs>`. If a real-world fixture surfaces a mask that depends on an external filter or clipPath, file a follow-up to do a transitive collection.
+- **Serialisation scope**: capture serializes the `<mask>` element's `outerHTML` verbatim. Descendants of the `<mask>` (nested gradients, clipPaths, paths, etc.) ride along as part of that string. References from *inside* the mask to *outside* defs (e.g. a `<filter>` defined elsewhere in the document) are NOT followed today — the rewriter leaves those `url(#…)` refs untouched and the renderer relies on the normal output-side `<defs>`. If a real-world fixture surfaces a mask that depends on an external filter or clipPath, file a follow-up to do a transitive collection.
 - **Id rewriting**: `rewriteFragmentMaskDef()` discovers every `id="…"` defined inside the mask subtree, mints a definition-local alias for each (the outer mask gets `${idPrefix}mkfragN`; descendants use that output id as their namespace), and rewrites `id`, `url(#…)`, and `href`/`xlink:href` references consistently. Refs that point at ids not defined inside the mask subtree pass through unchanged.
 - **Scoped identity**: author ids are unique only inside an originating
   TreeScope. Capture definitions, consumer records, renderer lookup, and output

@@ -17,7 +17,7 @@
 // eight PingFang cuts.
 //
 // These tests are macOS-only because they need a real `trak` + `STAT` face and
-// synthesising one is not tractable: `trak` is a per-size interpolated table
+// synthesizing one is not tractable: `trak` is a per-size interpolated table
 // and `STAT` has to be well-formed enough for HarfBuzz's sanitizer, so a
 // hand-built pair would be testing the builder rather than the shaper.
 import { describe, expect, it, beforeEach } from "vitest";

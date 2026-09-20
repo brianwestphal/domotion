@@ -28,7 +28,7 @@ describe("synthetic-bold text-stroke paint ordering", () => {
     }
   });
 
-  it("keeps both paint colours visible for opaque stroke-first", () => {
+  it("keeps both paint colors visible for opaque stroke-first", () => {
     const record = resolveFakeBoldTextPaint({
       strokeWidthPx: 3,
       strokeFirst: true,
@@ -55,7 +55,7 @@ describe("synthetic-bold text-stroke paint ordering", () => {
 // visible transparent-fill stroke pass painted AFTER the masked rect. The
 // `20-deep-text-stroke` html-test fixture is the visual gate for the same
 // behavior. Pinned Blink source: TextPainter::TextPaintingStyle keeps
-// TextStrokeWidth during PaintPhase::kTextClip and replaces colours because
+// TextStrokeWidth during PaintPhase::kTextClip and replaces colors because
 // BoxPainterBase applies the mask with SkBlendMode::kDstIn (alpha).
 
 const BASE_STYLES = {

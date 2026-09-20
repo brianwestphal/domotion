@@ -44,7 +44,7 @@
 //
 // DM-991: `<textarea>` text shaping now ALSO probes per-character Range
 // rects, but on a hidden `<div>` mirror sized + styled like the textarea's
-// content box (white-space: pre-wrap to honour author newlines and let
+// content box (white-space: pre-wrap to honor author newlines and let
 // the browser do its soft-wrap). The probe's wrap points and per-char x
 // positions match Chrome's painted positions in the real textarea because
 // both run the same inline-layout algorithm given the same constraints.
@@ -107,11 +107,11 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // DM-666: `<input type="submit" | "button" | "reset">` are button-type
     // inputs whose value text Chrome ALWAYS centers vertically inside the
     // content box — this is the UA-stylesheet `appearance: button`
-    // behaviour, independent of `display` / `align-items`. Google's
+    // behavior, independent of `display` / `align-items`. Google's
     // homepage "Google Search" / "I'm Feeling Lucky" inputs are exactly
     // this case: `display: inline-block`, no flex, 36-px tall with 14-px
-    // text — the value sits dead-centre in Chrome but anchored to
-    // content-top in the captured tree pre-fix. Extending the centring to
+    // text — the value sits dead-center in Chrome but anchored to
+    // content-top in the captured tree pre-fix. Extending the centering to
     // these button types here keeps the renderer's textTop = line-box-top
     // contract intact.
     const display = cs.display;
@@ -257,7 +257,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // the page, but it must sit at a non-zero device coordinate (otherwise
     // some browsers short-circuit Range.getBoundingClientRect for
     // visually-clipped subtrees). `left: 0; top: -100000px` keeps the
-    // probe at width-honouring layout while keeping it visually offscreen.
+    // probe at width-honoring layout while keeping it visually offscreen.
     if (text.length > 0 && tag === 'textarea') {
       const contentBoxW = rect.width - bl - br - pl - pr;
       const contentBoxH = rect.height - bt - bb - pt - pb;

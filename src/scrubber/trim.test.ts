@@ -28,7 +28,7 @@ describe("trimAnimatedSvg — window-slice + re-base (DM-1041)", () => {
     expect(r.svg).toMatch(/animation:\s*fv-0 2s infinite, fd-0 2s infinite step-end/);
   });
 
-  it("slices the @keyframes to the window with synthesised boundary stops", () => {
+  it("slices the @keyframes to the window with synthesized boundary stops", () => {
     // fv-0 over [0.25,0.75]: at 0.25 → opacity 0.5 (lerp 0→1), 0.5→ remapped to
     // 50% (opacity 1), at 0.75 → opacity 0.5. opacity interpolates linearly.
     const fv = r.svg.match(/@keyframes fv-0 \{((?:[^{}]|\{[^{}]*\})*)\}/)![1];

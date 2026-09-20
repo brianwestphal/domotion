@@ -76,17 +76,17 @@ describe("resolveWorkerCount", () => {
     expect(resolveWorkerCount(7)).toBe(7);
   });
 
-  it("honours --workers N", () => {
+  it("honors --workers N", () => {
     process.argv = ["node", "script", "--workers", "3"];
     expect(resolveWorkerCount(7)).toBe(3);
   });
 
-  it("honours --workers=N", () => {
+  it("honors --workers=N", () => {
     process.argv = ["node", "script", "--workers=4"];
     expect(resolveWorkerCount(7)).toBe(4);
   });
 
-  it("honours DOMOTION_TEST_WORKERS env var", () => {
+  it("honors DOMOTION_TEST_WORKERS env var", () => {
     process.env["DOMOTION_TEST_WORKERS"] = "5";
     expect(resolveWorkerCount(7)).toBe(5);
   });

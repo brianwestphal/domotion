@@ -8,7 +8,7 @@ The fallback cases group into three buckets:
 
 - **Glyph-level fallbacks** stamp an `<image>` over an individual character or sub-element. The rest of the surrounding text still emits as `<path>`.
 - **Element-level fallbacks** screenshot a whole element's painted rect and emit one `<image>` in its place.
-- **CSS-feature fallbacks** synthesise a raster PNG for a CSS effect SVG has no equivalent for (conic gradient, mask-image element() ref).
+- **CSS-feature fallbacks** synthesize a raster PNG for a CSS effect SVG has no equivalent for (conic gradient, mask-image element() ref).
 
 Each entry below lists the trigger condition, the code path that captures the raster, the code path that emits the `<image>`, and the canonical doc that explains the design rationale.
 
@@ -286,7 +286,7 @@ be promoted to a screenshot merely because the list contains `blur` or
 
 Trigger: any background layer whose CSS value parses as a conic or repeating-conic gradient.
 
-Why: SVG has no native conic-gradient primitive. The cleanest fallback is to rasterise the conic into a PNG tile and embed it as a `<pattern><image href="..."/></pattern>`, which works in every static-SVG viewer (Preview, librsvg, GitHub previews, browsers).
+Why: SVG has no native conic-gradient primitive. The cleanest fallback is to rasterize the conic into a PNG tile and embed it as a `<pattern><image href="..."/></pattern>`, which works in every static-SVG viewer (Preview, librsvg, GitHub previews, browsers).
 
 Capture: `rasterizeAdvancedGradients(tree, page)` asks the same live Chromium
 page to paint every conic tile, including form-control pseudo backgrounds

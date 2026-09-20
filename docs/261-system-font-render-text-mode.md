@@ -85,7 +85,7 @@ An rtl run additionally emits **`text-anchor="end"`** (DM-CAGCSM). The run's
 captured origin `x` is its visual-*left* edge, but SVG's default
 `text-anchor: start` anchors the text's *start* — which, under `direction: rtl`,
 is the *right* edge. Left unset it would place the run's right edge at its left
-edge, shifting the whole run left by its width and overlapping its neighbour;
+edge, shifting the whole run left by its width and overlapping its neighbor;
 `text-anchor="end"` anchors the run's visual-left (the end, in rtl inline order)
 where it was captured. Verified by rasterization against Chrome for Hebrew+Latin,
 Arabic contextual joining, and paired-bracket mirroring; ltr runs emit no

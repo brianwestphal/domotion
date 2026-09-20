@@ -2,7 +2,7 @@
  * E2E guard for the shift-inclusive ("strict") region aggregates and the
  * no-motion bar built on them. The pixel pipeline runs inside a browser canvas,
  * so the only way to pin its semantics is to feed it real PNGs; these are
- * synthesised so each case isolates ONE behavior.
+ * synthesized so each case isolates ONE behavior.
  *
  * The behavior under test is the blind spot the aggregates exist to close: the
  * default `regionCount` gate suppresses connected components whose pixels are

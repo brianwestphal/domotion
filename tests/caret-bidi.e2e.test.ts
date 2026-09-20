@@ -119,7 +119,7 @@ async function selectionSpans(page: Page, png: Buffer): Promise<Array<[number, n
  *
  * A column counts as selected if any pixel in it is blue-dominant, and on Linux
  * the browser paints text with subpixel (LCD) antialiasing — so glyph edges
- * carry coloured fringes that satisfy that predicate on their own. Measured:
+ * carry colored fringes that satisfy that predicate on their own. Measured:
  * rendering this page with no selection and no tracks still yields
  * `[[23,25],[50,52],[57,59],[78,80],[98,100],[115,118],[128,130],[141,143],[149,151]]`.
  *

@@ -212,7 +212,7 @@ const GRADIENT_PAN_ANGLE_DEG = 60;
  * gradient` with period `period` px along its 60° line; advancing the element
  * horizontally by `shift = period / sin(60°)` moves the pattern by exactly one
  * period, so a CONTINUOUS (non-`alternate`) translate of `-shift` loops with no
- * seam — the colour scheme tiles into itself (DM-1298). The layer is widened by
+ * seam — the color scheme tiles into itself (DM-1298). The layer is widened by
  * `shift` so the canvas stays covered throughout.
  */
 function gradientPanGeometry(p: BackgroundLoopParams): { period: number; shift: number; layerWidth: number } {
@@ -222,7 +222,7 @@ function gradientPanGeometry(p: BackgroundLoopParams): { period: number; shift: 
 }
 
 /** Repeating-gradient stops over one `period`: the palette evenly spaced, wrapping
- *  the first colour back in at `period` so the tile joins itself seamlessly. */
+ *  the first color back in at `period` so the tile joins itself seamlessly. */
 function repeatingStops(colors: string[], period: number): string {
   const n = colors.length;
   const stops = colors.map((c, k) => `${c} ${Math.round((k * period) / n)}px`);
@@ -231,7 +231,7 @@ function repeatingStops(colors: string[], period: number): string {
 }
 
 /**
- * DM-1285/DM-1298 "panning linear-gradient": an angled, repeating colour band on a
+ * DM-1285/DM-1298 "panning linear-gradient": an angled, repeating color band on a
  * layer wider than the canvas that pans CONTINUOUSLY in one direction. Pure.
  */
 export function buildGradientPanHtml(p: BackgroundLoopParams): string {
@@ -275,9 +275,9 @@ interface GridDot { cx: number; cy: number; r: number; color: string; }
  * were CULLED by the capture's outside-viewport pass, leaving nothing to slide in
  * from the top-left as the grid drifted down-right — a growing empty margin.)
  *
- * Colours run along the DIAGONAL `(col - row)`, invariant under the one-cell
+ * Colors run along the DIAGONAL `(col - row)`, invariant under the one-cell
  * down-right drift (`(col-1) - (row-1) === col - row`), so a dot sliding into a
- * position carries the same colour as the one it replaced (no seam flicker).
+ * position carries the same color as the one it replaced (no seam flicker).
  */
 export function planGridDots(p: BackgroundLoopParams): { dots: GridDot[]; cell: number; layerW: number; layerH: number } {
   const minDim = Math.min(p.width, p.height);
@@ -319,7 +319,7 @@ export function buildGridHtml(p: BackgroundLoopParams, grid: { dots: GridDot[]; 
 
 /** Drift the whole grid CONTINUOUSLY by exactly one cell diagonally (linear,
  *  NON-`alternate`, DM-1298). The grid is periodic with period `cell`, so after a
- *  one-cell shift every dot sits where its neighbour was — the loop is seamless and
+ *  one-cell shift every dot sits where its neighbor was — the loop is seamless and
  *  the motion never backs out, reading as an endless drift. */
 export function buildGridAnimations(p: BackgroundLoopParams, cell: number): Anims {
   return [{
@@ -343,7 +343,7 @@ interface Star {
 
 /**
  * DM-1298 "star field": many small SHARP points (a white-hot core fading to a
- * coloured glow), each twinkling fast on its own clock. `count` is a density level
+ * colored glow), each twinkling fast on its own clock. `count` is a density level
  * (× ~16, so the default 5 → ~80 stars). Pure + deterministic from the seed.
  */
 export function planStars(p: BackgroundLoopParams): Star[] {
@@ -375,7 +375,7 @@ export function planStars(p: BackgroundLoopParams): Star[] {
 }
 
 /** Standalone HTML for the star field. Each star is a sharp radial-gradient point
- *  (white core → coloured glow → transparent) in a positioned wrapper. Pure. */
+ *  (white core → colored glow → transparent) in a positioned wrapper. Pure. */
 export function buildStarsHtml(p: BackgroundLoopParams, stars: Star[]): string {
   const markup = stars
     .map(

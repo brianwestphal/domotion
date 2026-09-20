@@ -176,7 +176,7 @@ jobs:
           name: v${{ needs.detect.outputs.version }}
           body_path: release-notes.md
           prerelease: true
-          make_latest: 'false'  # defence-in-depth
+          make_latest: 'false'  # defense-in-depth
 
   # Native assets start only after the release exists. The reusable workflow
   # retains every staged binary as an Actions artifact before its one attach

@@ -569,7 +569,7 @@ Blink does not ask the platform about an emoji-presentation run the way it asks 
 | character | the run's codepoint | **U+1F46A FAMILY** (`uchar::kFamily`) |
 | locale | `font_description.LocaleOrDefault()` | **`und-Zsye`** (`kColorEmojiLocale`, `fonts/font_cache.cc:82`) |
 
-Both matter, for different reasons. Asking about FAMILY is deliberate over-asking — Chromium's own comment says it is "in the hope to find a suitable emoji font", because a font covering FAMILY is a real emoji font where a font covering some *individual* emoji may be an ordinary text face that happens to carry a few. `und-Zsye` is what steers fontconfig toward a colour font instead of toward the page's language.
+Both matter, for different reasons. Asking about FAMILY is deliberate over-asking — Chromium's own comment says it is "in the hope to find a suitable emoji font", because a font covering FAMILY is a real emoji font where a font covering some *individual* emoji may be an ordinary text face that happens to carry a few. `und-Zsye` is what steers fontconfig toward a color font instead of toward the page's language.
 
 Measured in the Playwright `noble` image, with and without the substitution:
 

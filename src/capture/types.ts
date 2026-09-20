@@ -75,7 +75,7 @@ export interface CapturedBackdropCompositeRaster {
  * - `MaskFragmentDef`    — inline `<mask>` defs lifted from author-supplied
  *                          SVG `mask-image: url(#id)` references.
  * - `MaskRasterRef`      — capture-time placeholder for a mask image whose
- *                          contents must be rasterised by Node after the page
+ *                          contents must be rasterized by Node after the page
  *                          has been screenshotted.
  * - `CaptureWarning`     — warnings the capture pass surfaces about features
  *                          it couldn't represent faithfully.
@@ -2557,7 +2557,7 @@ export interface CapturedElement {
    * Top-level (root only) collection of `<mask>` definitions referenced by
    * fragment URLs (`mask-image: url("#id")`) anywhere in the captured tree.
    * CAPTURE_SCRIPT resolves each fragment in its originating document or
-   * shadow-root TreeScope and serialises both that scope and the `<mask>`'s
+   * shadow-root TreeScope and serializes both that scope and the `<mask>`'s
    * geometry/channel facts. The renderer copies these into output `<defs>`
    * with per-output id rewriting. External `.svg#fragment` refs first become
    * hidden local definitions in the consumer document (DM-496).
@@ -2568,7 +2568,7 @@ export interface CapturedElement {
    * DM-826: Top-level (root only) collection of `<clipPath>` definitions
    * referenced by fragment URLs (`clip-path: url("#id")`) anywhere in the
    * captured tree. CAPTURE_SCRIPT resolves each fragment in the consumer's
-   * originating TreeScope and serialises its scope plus the `<clipPath>`
+   * originating TreeScope and serializes its scope plus the `<clipPath>`
    * element's `outerHTML`. The renderer copies these into the output `<defs>`
    * with id rewriting so a captured `<clipPath id="hex">` becomes a
    * domotion-prefixed clip-path def referenced by elements that point at

@@ -11,7 +11,7 @@
 // code, by classifying the resolved key:
 //
 //   declared   the key is in the run's declared family chain
-//   sysfb      `sysfb:` — the LIVE platform resolver (or the colour-emoji
+//   sysfb      `sysfb:` — the LIVE platform resolver (or the color-emoji
 //              by-name short-circuit, which is also a Blink stage)
 //   static     the key appears in `fallbackFontChain(cp, …)` — the interposed
 //              table, the stage Blink does not have
@@ -35,7 +35,7 @@
 // One answer in ~14,600, on every stack. So on macOS with the live resolver
 // default-on, the interposed table is effectively inert AS A DECIDER — which is
 // not the same as unused: a separate profile found it WALKED for ~28% of
-// codepoints, where it is the second-largest cost centre in the resolver.
+// codepoints, where it is the second-largest cost center in the resolver.
 //
 // Read the platform caveat before quoting any of this. `fallbackFontChain`
 // dispatches per platform, and on WINDOWS it returns `win32FallbackChain` — the

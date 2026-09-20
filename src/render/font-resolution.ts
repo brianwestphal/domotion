@@ -5,7 +5,7 @@
  * fallback chains (darwin/linux/win32 + dispatcher), the webfont + embedded-font
  * registries, glyph-command extraction, and the render-text-mode switch. This is
  * the lower layer; text-to-path.ts (shaping/markup) imports from here. Verbatim
- * lift -- behaviour-identical; the broad html-test/unicode CI sweep is the proof.
+ * lift -- behavior-identical; the broad html-test/unicode CI sweep is the proof.
  */
 /**
  * Text-to-Path Converter
@@ -343,10 +343,10 @@ export function glyphIdForCp(font: FontInstance, cp: number): number {
  * one font on the system that actually covers it, and the resolver discarded a
  * correct answer — Chrome paints Noto Color Emoji, we fell through to the
  * primary. The check was accidentally testing "can fontkit build an outline",
- * which for a colour bitmap font is always no.
+ * which for a color bitmap font is always no.
  *
  * Falls back to the id test when the instance exposes no `hasGlyphForCodePoint`
- * (the native-helper instances), so nothing that works today changes behaviour.
+ * (the native-helper instances), so nothing that works today changes behavior.
  */
 export function fontCoversCp(font: FontInstance, cp: number): boolean {
   const has = font.hasGlyphForCodePoint;
@@ -1943,7 +1943,7 @@ const FONT_PATHS: Record<string, FontPath> = {
   //
   // Weight 400 only. Chrome answers `NotoSansMyanmar-Bold` at 700, so this family
   // has a ladder inside the container that one pinned member cannot serve; at 700
-  // the renderer now synthesises bold over Regular instead of taking the Bold
+  // the renderer now synthesizes bold over Regular instead of taking the Bold
   // member. Still strictly better than Black at every weight, and the ladder
   // belongs with the per-family weight-ladder work.
   //
@@ -2773,7 +2773,7 @@ const COLOR_EMOJI_FONT_MAC = "Apple Color Emoji";
  *
  * The hidden `.Apple Color Emoji UI` arm is not incidental: it is the face a
  * `system-ui` run's cascade reaches, so a predicate carrying only the public
- * name would answer "not colour emoji" for every system-ui run and silently
+ * name would answer "not color emoji" for every system-ui run and silently
  * disable everything gated on it.
  */
 function isAppleColorEmojiFamily(familyName: string | undefined): boolean {
@@ -3225,7 +3225,7 @@ export function resolveSystemFallbackKeyForCp(
   // platform-blind key then serves whichever platform asked first to every
   // later caller. Measured: replaying a Linux cassette under an override and
   // then asking again WITHOUT the override returned the Linux face, so a
-  // cross-platform test could assert Linux behaviour and be reading a poisoned
+  // cross-platform test could assert Linux behavior and be reading a poisoned
   // memo. That is the same hazard the base and locale components already carry,
   // one axis over, and it is invisible in production precisely because nothing
   // in production varies it.
@@ -3376,14 +3376,14 @@ export function resolveSystemFallbackKeyForCp(
       // as the mechanism. Blink asks this question with the full VS-aware
       // fallback walk: under a forced/derived text presentation each candidate
       // is tested for the SEQUENCE rather than the bare codepoint, a candidate
-      // whose colour-ness contradicts the request is reported as
+      // whose color-ness contradicts the request is reported as
       // `kUnmatchedVSGlyphId` and skipped (`shaping/harfbuzz_face.cc:191-204`),
       // and an exhausted walk restarts once with `kIgnoreVariationSelector`
       // (`shaping/harfbuzz_shaper.cc:1008-1019`). We model none of that; the
       // full mirror is tracked separately.
       //
       // What we model is the one consequence that reaches this seam: when the
-      // re-ask lands back on an Apple colour emoji face, the replacement found
+      // re-ask lands back on an Apple color emoji face, the replacement found
       // nothing monochrome, and Chrome does not paint that answer — it paints
       // the face it had BEFORE the replacement. Measured on a system-ui stack:
       // U+1F321 🌡 re-asks to plain `AppleColorEmoji` while Chrome paints
@@ -3442,7 +3442,7 @@ export function resolveSystemFallbackKeyForCp(
       // Why it matters: a family's BOLD cut can lack a glyph its regular cut
       // has. Without this stage such a codepoint leaves the family entirely and
       // lands on whatever fontconfig prefers, where Chrome stays in the
-      // requested family and synthesises the bold. That is a family change, not
+      // requested family and synthesizes the bold. That is a family change, not
       // a weight change — far more visible than the thing it is standing in for.
       //
       // Emoji-presentation runs are excluded exactly as Blink excludes them:
@@ -3691,7 +3691,7 @@ export function isEmojiPresentationCp(cp: number): boolean {
   // (U+261D U+26F9 U+270C U+270D U+1F3CB U+1F3CC U+1F574 U+1F575 U+1F590)
   // account for ~6,038 disagreeing rows in the full-corpus Linux sweep, where
   // Chrome paints Noto Color Emoji and a property-only reading paints FreeSans
-  // or Unifont. Chrome reaches the colour face only because emoji presentation
+  // or Unifont. Chrome reaches the color face only because emoji presentation
   // sends the query down the substituted-codepoint/`und-Zsye` branch — Noto
   // Color Emoji is LAST in the `:lang=en` fontconfig order, so no walk of that
   // order could ever have found it.
@@ -3809,7 +3809,7 @@ export function resolveColorEmojiKeyForCp(
   // reset. The keycap bases are the measured example of covered-but-unexpected:
   // Apple Color Emoji's cmap really does map a plain digit.
   const inst = getFontInstance(key, weight, fontSize, slant);
-  // DM-1986: the CMAP question, not the outline one. A bitmap-only colour font
+  // DM-1986: the CMAP question, not the outline one. A bitmap-only color font
   // (Linux's `NotoColorEmoji.ttf`) maps the codepoint but yields no Glyph
   // object, so an id test rejected the only font on the system that covers it.
   if (inst == null || !fontCoversCp(inst, cp)) return null;
@@ -3871,7 +3871,7 @@ function resolveLinuxSystemFallbackKeyForCp(
   // run's own emoji is deliberate over-asking: a font covering FAMILY is a real
   // emoji font, where a font covering some INDIVIDUAL emoji may be an ordinary
   // text face that happens to carry a few. And `und-Zsye` is what steers
-  // fontconfig toward a colour font instead of toward the page's language.
+  // fontconfig toward a color font instead of toward the page's language.
   //
   // We asked about the literal codepoint with the content locale, so both
   // substitutions were missing. macOS has had its own emoji short-circuit since
@@ -5164,7 +5164,7 @@ export function win32FallbackChain(
     // codepoint never arrives as `kText` — the shaper's segmentation hands it
     // `EMOJI_EMOJI_PRESENTATION` (`platform/text/
     // emoji_segmentation_category_inline_header.h:63-65`), i.e. `kEmojiEmoji` —
-    // so it reaches `GetFallbackFamily`'s colour arm. Applying the promotion to
+    // so it reaches `GetFallbackFamily`'s color arm. Applying the promotion to
     // every `\p{Emoji}` codepoint inverted exactly that set: 😀🚀⭐ and U+1F46A
     // resolved Segoe UI Symbol where Chrome paints Segoe UI Emoji.
     //
@@ -5174,7 +5174,7 @@ export function win32FallbackChain(
     //
     // `font-variant-emoji` sits ABOVE all of it: Blink runs
     // `ApplyFontVariantEmojiOnFallbackPriority` before this stage reads the
-    // priority, so `text` forces the mono arm and `emoji` the colour one
+    // priority, so `text` forces the mono arm and `emoji` the color one
     // whatever the codepoint's own presentation says.
     priority: winFallbackPriority(codepoint, css?.fontVariantEmoji),
   }, (family) => win32FamilyKey(family) != null);
@@ -5867,7 +5867,7 @@ export function darwinFallbackChain(
   // — Apple Symbols' slash sits higher and farther right than Chrome's painted
   // glyph. Returning [] here drops it through to the CoreText system fallback
   // (`resolveSystemFallbackKeyForCp`), which runs the same CTFontCreateForString
-  // and lands on the identical Helvetica Neue glyph. (The neighbouring division
+  // and lands on the identical Helvetica Neue glyph. (The neighboring division
   // operators ∕-adjacent that Apple Symbols DOES match stay on the symbols rule.)
   if (codepoint === 0x2215) return [];
   if (isLetterlikeBlock(codepoint)
@@ -5880,7 +5880,7 @@ export function darwinFallbackChain(
   // DM-983: per-Unicode-block fallback derived from a Chrome CDP sweep —
   // `CSS.getPlatformFontsForNode` for every block in the html-test/unicode
   // fixture set. Probed family names are mapped to on-disk macOS font paths
-  // by `tools/probe-983-genroutes.mjs` and serialised into
+  // by `tools/probe-983-genroutes.mjs` and serialized into
   // `unicode-font-routing.generated.ts`. Consulted as a LAST resort so all
   // the hand-tuned routes above (which carry per-codepoint width / shape
   // calibration) win for the blocks where Chrome's font choice is already
@@ -6318,7 +6318,7 @@ function resolveEffectiveCutKey(
   // The visible cost of the sampled half: `sf-pro` mapped to `segoeui.ttf` with
   // no bold sibling, so a weight-700 run took Segoe UI **Regular** and our
   // synthetic-bold gate then dilated the outline. Chrome takes real Segoe UI
-  // Bold and synthesises nothing (`win/font_cache_skia_win.cc:481-489`), and a
+  // Bold and synthesizes nothing (`win/font_cache_skia_win.cc:481-489`), and a
   // dilated Regular is not Bold — different stem contrast and different
   // ADVANCES, so it shifts the line. That single route was 157,663 of 166,557
   // rows on the Windows conformance baseline: 94.7% of the platform's mismatch
@@ -6552,7 +6552,7 @@ function instantiateResolvedFont(
   //   1. The font has no outline tables fontkit can read (PingFang uses the
   //      Apple-private `hvgl` table — `fontkit.openSync` succeeds and the
   //      cmap/metrics are visible, but every glyph path is empty). Pre-DM-983
-  //      behaviour: open the font, see no outlines, fall through to the helper.
+  //      behavior: open the font, see no outlines, fall through to the helper.
   //   2. (DM-983) The font HAS outlines fontkit can read for SOME codepoints,
   //      but its GSUB tables crash fontkit's parser on others — verified by
   //      the per-codepoint sweep in `tools/probe-983-genroutes.mjs`. macOS

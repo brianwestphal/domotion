@@ -735,7 +735,7 @@ export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[]
 }
 
 /**
- * Serialise every tracked custom font as `@font-face` rules with embedded
+ * Serialize every tracked custom font as `@font-face` rules with embedded
  * TTF bytes. Returns the joined CSS ready to drop into the SVG's `<style>`
  * block. Empty string when no glyphs were registered.
  */

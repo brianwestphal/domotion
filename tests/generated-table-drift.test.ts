@@ -30,7 +30,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  * checkout without the upstream source red for a reason that has nothing to do
  * with drift.
  *
- * Skipping is the honest behaviour: the gate's whole claim is "the committed
+ * Skipping is the honest behavior: the gate's whole claim is "the committed
  * table still matches what the generator derives from upstream", and with no
  * upstream present there is nothing to compare against. A skip says that; a
  * failure would assert drift that was never measured.

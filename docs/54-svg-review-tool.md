@@ -37,7 +37,7 @@ svg-review --expected expected.png --actual actual.svg [--port <n>]
 
 - `--expected` — PNG of what Chromium painted on the source page. Required.
 - `--actual` — Domotion's captured SVG (`.svg`) or its rendered PNG (`.png`).
-  When given an SVG, the tool rasterises it via Playwright at 1×, matching
+  When given an SVG, the tool rasterizes it via Playwright at 1×, matching
   the same rendering pipeline the in-repo pixel-regression tests use, so what
   the user is comparing is the same byte-for-byte image Domotion's consumers
   would see. Required.
@@ -63,7 +63,7 @@ A single review card, similar in layout to one card in `tests/review-server
     the same patch.
   - `Esc` closes the lightbox.
 - **Draw issue boxes**: in either the grid or the lightbox, mousedown-drag
-  draws a coloured rectangle pinned to a region of the image. Pointer
+  draws a colored rectangle pinned to a region of the image. Pointer
   interactions reuse `src/review/region-overlay.ts`'s `enableRegionOverlays
   ()` API: drag empty to draw, drag a handle to resize, click the interior
   to delete. Rects sync across the three figures because they share the
@@ -110,7 +110,7 @@ two source files when filing:
 ## Implementation outline
 
 - `src/cli/review.ts` — the CLI entry point. Parses `--expected` / `--actual`
-  / `--port`. Reads both files, rasterises the SVG via Playwright (the only
+  / `--port`. Reads both files, rasterizes the SVG via Playwright (the only
   hard dependency we already have for accurate diffs), computes the diff PNG
   via the same `tests/runner.tsx` helpers the regression suites use (factored
   out into a small reusable module under `src/review/` so it's bundle-safe

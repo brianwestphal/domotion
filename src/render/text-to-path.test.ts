@@ -695,7 +695,7 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
     // assertion made a wrong range list look self-consistent. Note the filter
     // itself has no HarfBuzz analogue — HarfBuzz decomposes pairwise and
     // recursively with a per-level `has_glyph` test — so this expectation
-    // documents our current gate, not Chrome's behaviour.
+    // documents our current gate, not Chrome's behavior.
     expect(/\p{M}/u.test("ෙ")).toBe(true);
     expect(complexShaperBaseMarkDecomposition(0x0DDC)).toBeNull();
   });
@@ -4132,7 +4132,7 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     expect(isNonCharacterCodepoint(0x110000)).toBe(false);
   });
 
-  // The behavioural half: the resolver must not hand these codepoints to a
+  // The behavioral half: the resolver must not hand these codepoints to a
   // system-fallback face. Pinned with the exact codepoints upstream's own
   // `FontCacheTest.NoFallbackForPrivateUseArea` asserts null for
   // (`font_cache_test.cc:44-61`), so a future change to our fallback ordering

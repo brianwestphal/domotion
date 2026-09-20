@@ -1362,7 +1362,7 @@ async function main(): Promise<number> {
         platform: process.platform, runs: total, corpusRuns: corpus.runs.length,
         // The build that produced Chrome's side of every comparison. Recorded
         // for the same reason the face oracle records it (doc 107): Blink's
-        // behaviour is what is being graded, so two runs under different
+        // behavior is what is being graded, so two runs under different
         // browsers are two different oracles, and every other field here can
         // match while that is true. Read from the launched binary — Playwright's
         // declared revision is not a promise about what runs.

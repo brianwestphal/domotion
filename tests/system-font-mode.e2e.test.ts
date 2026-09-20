@@ -69,7 +69,7 @@ describe("system-font render mode (DM-2716)", () => {
   // DM-CAGCSM: an rtl run's captured origin x is its visual-LEFT edge, so the
   // emitted `<text>` must pair `direction="rtl"` with `text-anchor="end"` — the
   // default start-anchor would place the run's RIGHT edge at its left edge and
-  // shift the whole run left by its width (overlapping its neighbour). This pins
+  // shift the whole run left by its width (overlapping its neighbor). This pins
   // the anchor and checks the run renders on the right side of an rtl paragraph.
   it("anchors an rtl run with text-anchor=end so it does not shift left off its origin", async () => {
     await sourcePage.setContent(`<!doctype html><style>
@@ -85,7 +85,7 @@ describe("system-font render mode (DM-2716)", () => {
     for (const attrs of rtlTexts) expect(attrs).toMatch(/text-anchor="end"/);
 
     // Rendered, the rtl run sits on the RIGHT of the paragraph (its rightmost
-    // glyph is well past centre), not collapsed onto the left edge.
+    // glyph is well past center), not collapsed onto the left edge.
     await outputPage.setContent(`<!doctype html><body style="margin:0;background:#fff">${svg}</body>`);
     const rightEdge = await outputPage.evaluate((w) => {
       let maxRight = 0;

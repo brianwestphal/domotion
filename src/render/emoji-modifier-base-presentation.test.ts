@@ -29,9 +29,9 @@
  *
  * Why a unit test and not just the sweeps: this predicate is consumed by all
  * three platforms' emoji stages, and the consequence is only visible where a
- * colour-emoji face exists to be reached. It was already wrong at a SECOND call
+ * color-emoji face exists to be reached. It was already wrong at a SECOND call
  * site that had inlined its own copy of the property test — the shared predicate
- * was corrected and the duplicate silently kept the old behaviour, which is
+ * was corrected and the duplicate silently kept the old behavior, which is
  * precisely the failure a per-platform fixture cannot catch.
  */
 import { describe, expect, it } from "vitest";

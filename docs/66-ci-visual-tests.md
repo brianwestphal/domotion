@@ -63,7 +63,7 @@ node tools/run-ci-visual-tests.mjs --suite unicode --update-baseline  # (re)writ
 
 `--only` takes one or more fixture-name **prefixes**, comma-separated; the union is run. It matches the flattened
 name, so `--only niche-foo` and `--only niche/foo` are equivalent. A filter that matches nothing now **exits 2**
-rather than reporting an empty success — the previous behaviour let a mistyped or comma-separated filter produce
+rather than reporting an empty success — the previous behavior let a mistyped or comma-separated filter produce
 five "successful" shards with no work and a confusing `no results.json found under shard-artifacts` failure in
 the aggregate step several minutes later.
 
@@ -176,7 +176,7 @@ This mirrors the guard the font-conformance oracle already had (`comparability()
 
 The record above covers the machine. It did not, until 2026-08, cover **Chromium** — which for a visual sweep is the sharpest omission available, because Chromium is on *both* sides of the diff: it paints `expected.png` and it rasterizes our SVG into `actual.png`. A build change moves both, and not necessarily by the same amount.
 
-Measured on one macOS host with the platform held constant: `font-variant-emoji: emoji` moves U+00A9 U+2122 U+203C U+263A to the colour emoji font in **147.0.7727.15** and leaves them on the run's primary in **148.0.7778.96**. A fixture containing any of those flips between the two builds while `image`, `imageVersion`, `osRelease` and the font digest all stay identical — the same shape as the image rotation above, one layer down.
+Measured on one macOS host with the platform held constant: `font-variant-emoji: emoji` moves U+00A9 U+2122 U+203C U+263A to the color emoji font in **147.0.7727.15** and leaves them on the run's primary in **148.0.7778.96**. A fixture containing any of those flips between the two builds while `image`, `imageVersion`, `osRelease` and the font digest all stay identical — the same shape as the image rotation above, one layer down.
 
 `run-env.mjs` now records `chromium`, and three properties of how are load-bearing:
 

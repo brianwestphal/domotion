@@ -348,7 +348,7 @@ describe("parseScrollPattern: flat-segment sequences", () => {
     expect(seg.actions.map((a) => a.kind)).toEqual(["scroll", "scroll", "pause", "scroll"]);
   });
 
-  it("normalised example with directions, durations, pauses", () => {
+  it("normalized example with directions, durations, pauses", () => {
     const seg = flatSeg("down:720px/3s,pause:2s,up:top + 200px/2s,pause:4s");
     expect(seg.actions).toHaveLength(4);
     const s1 = seg.actions[0] as ScrollAction;

@@ -53,7 +53,7 @@ export function extractFixedSubtrees(tree: CapturedElement[]): {
  * tweak) doesn't get emitted twice.
  *
  * v1 keeps the FIRST occurrence's subtree. Future work could pick the
- * occurrence whose neighbours match the largest fraction of segments, or
+ * occurrence whose neighbors match the largest fraction of segments, or
  * crossfade subtle variants — but for fixed site chrome the first occurrence
  * is already what consumers see at scrollY=0.
  */

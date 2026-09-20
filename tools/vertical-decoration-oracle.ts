@@ -8,7 +8,7 @@
  * `line_relative_rect.cc`, rev 7d859f27) with the shipped resolver, metric
  * engine, line-bit flip, and physical transform. DPR is crossed coherently at
  * 1 and 4 but never enters a geometry formula; Chrome raster coverage is a
- * separately labelled browser observation, not a reason to tune constants.
+ * separately labeled browser observation, not a reason to tune constants.
  */
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

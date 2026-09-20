@@ -14,7 +14,7 @@
  * The contextual forms are right either way — joining is applied. What breaks is
  * ORDER: the mixed run hands the Arabic back in logical order under an LTR run,
  * and the caller lays glyphs out left-to-right, so the word paints mirrored and
- * its connecting strokes point away from their neighbours. At normal sizes that
+ * its connecting strokes point away from their neighbors. At normal sizes that
  * reads as "isolated letterforms", which is how it was first misdiagnosed.
  *
  * Note this was LATENT on macOS rather than absent: there Arabic resolves to a
@@ -97,7 +97,7 @@
  * Not ported: Blink's paired-bracket tracking (`OpenBracket`/`CloseBracket`,
  * `script_run_iterator.cc:431-450`), which reuses an opening bracket's resolved
  * script for its match. Bracket mirroring for RTL is already handled upstream by
- * `applyBidi`, and a bracket that merely lands in a neighbouring segment shapes
+ * `applyBidi`, and a bracket that merely lands in a neighboring segment shapes
  * identically in practice. Stated rather than left implicit, since it is a known
  * gap against the transcription.
  */
@@ -317,7 +317,7 @@ export function bidiLevelsFor(
    * — i.e. U+202D LRO (or U+202E RLO when `direction: rtl`) before, U+202C PDF
    * after. Nothing downstream knows about `unicode-bidi` at all; the ordinary
    * algorithm sees the controls and does the rest. `normal` / `embed` /
-   * `isolate` inject nothing (they are the algorithm's default behaviour, and
+   * `isolate` inject nothing (they are the algorithm's default behavior, and
    * the block direction is carried as the paragraph level instead).
    *
    * So we do the same, rather than flattening the level array by hand. The

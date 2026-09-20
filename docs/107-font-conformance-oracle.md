@@ -635,7 +635,7 @@ Three consequences, and the second is the load-bearing one:
 
 Everything above describes *our* environment. The Chrome side of every comparison comes out of a browser build, and until 2026-08 that build was not recorded anywhere: `image`, `fontInventory`, `unicode` and `icu` could all match while the two runs asked a different Blink.
 
-What that hid: four `font-variant-emoji: emoji` codepoints — U+00A9 © U+2122 ™ U+203C ‼ U+263A ☺ — where Chrome keeps the run on its primary font while an explicit VS16 moves it to the colour emoji face. That read as a **Windows-specific** divergence for a week, and three separate hypotheses were built and refuted against that framing. It is not platform-specific. Measured on one macOS host, platform held constant, only the browser changed:
+What that hid: four `font-variant-emoji: emoji` codepoints — U+00A9 © U+2122 ™ U+203C ‼ U+263A ☺ — where Chrome keeps the run on its primary font while an explicit VS16 moves it to the color emoji face. That read as a **Windows-specific** divergence for a week, and three separate hypotheses were built and refuted against that framing. It is not platform-specific. Measured on one macOS host, platform held constant, only the browser changed:
 
 | Chromium | divergent codepoints |
 | --- | --- |
@@ -648,7 +648,7 @@ The Windows VM was simply running 148 while the Mac ran 147. Reproduce with `too
 So `meta.chromium` is now recorded from `browser.version()`, checked for agreement across a run's shards, and compared against the baseline — a run under a different browser is **refused, not judged**. Two consequences worth carrying:
 
 - **Read the version from the launched browser, never from the Playwright revision directory.** Both hosts above resolved `chromium-1217` and launched builds a milestone apart, which is precisely where the confusion started.
-- **Chromium drift is a first-class explanation for a moved conformance number**, alongside a rotated runner image and a changed font inventory. The standing advice to suspect drift when a transcribed constant disagrees with measured paint applies to *behaviour* too, and the local `external/chromium` checkout (rev `7d859f27`, 2026-06-27) can be older than the browser being measured.
+- **Chromium drift is a first-class explanation for a moved conformance number**, alongside a rotated runner image and a changed font inventory. The standing advice to suspect drift when a transcribed constant disagrees with measured paint applies to *behavior* too, and the local `external/chromium` checkout (rev `7d859f27`, 2026-06-27) can be older than the browser being measured.
 
 ### Memory: why the sweep resets its own caches
 

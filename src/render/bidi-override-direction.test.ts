@@ -69,7 +69,7 @@ describe("unicode-bidi: bidi-override forces the embedding direction", () => {
   });
 
   // `normal` / `embed` / `isolate` inject nothing in Blink — they are the
-  // algorithm's default behaviour, carried as the paragraph level instead. So
+  // algorithm's default behavior, carried as the paragraph level instead. So
   // they must not change the answer here.
   it("does not disturb the non-override values", () => {
     const plain = [...bidiLevelsFor(HEB)!];

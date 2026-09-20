@@ -43,7 +43,7 @@ describe("resolveFakeBoldTextPaint", () => {
     }]);
   });
 
-  it("preserves opaque stroke-first as two differently coloured passes", () => {
+  it("preserves opaque stroke-first as two differently colored passes", () => {
     const plan = resolveFakeBoldTextPaint({ ...base, strokeFirst: true });
     expect(plan.stages).toEqual([
       { paint: "stroke", frameWidthPx: 4.25, frameAndFill: false, visible: true },

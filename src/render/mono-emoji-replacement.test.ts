@@ -2,7 +2,7 @@
  * Blink's monochrome-emoji replacement, and the guard on its OUTPUT.
  *
  * `GetSubstituteFont` (`mac/font_cache_mac.mm:156-184`, rev 7d859f27) re-asks a
- * colour-emoji cascade answer from an "Apple Symbols" base carrying the colour
+ * color-emoji cascade answer from an "Apple Symbols" base carrying the color
  * font's own cascade list. Its condition is `IsAppleColorEmojiFont(substitute)
  * && Character::IsEmoji(character)` — there is no term for the run's priority.
  * The priority acts one level up, as an early return for emoji-presentation
@@ -83,11 +83,11 @@ describeMac("the monochrome-emoji replacement and the guard on its result", () =
 
   it("still takes the replacement when a monochrome face DOES exist", () => {
     // The control, and the reason the guard is phrased as "was the result still
-    // a colour emoji face" rather than "did the result change". U+2744 ❄ is
+    // a color emoji face" rather than "did the result change". U+2744 ❄ is
     // text-presentation-default and Apple ships monochrome coverage for it, so
     // a guard that discarded every replacement would show up here.
     //
-    // Asserted as "not a colour emoji face" rather than as a specific name: the
+    // Asserted as "not a color emoji face" rather than as a specific name: the
     // face the cascade lands on is a property of the host's font set, and
     // pinning it would make this a test of this Mac's inventory.
     clearFontResolutionCaches();
@@ -96,7 +96,7 @@ describeMac("the monochrome-emoji replacement and the guard on its result", () =
     expect(["AppleColorEmoji", ".AppleColorEmojiUI"]).not.toContain(face);
   });
 
-  it("leaves emoji-presentation codepoints on the PLAIN colour face", () => {
+  it("leaves emoji-presentation codepoints on the PLAIN color face", () => {
     // These never reach the replacement in Blink — the priority early return
     // answers first — and must not reach it here either. If the widened gate
     // ever started catching them, this is where it would show.
@@ -116,7 +116,7 @@ describeMac("the monochrome-emoji replacement and the guard on its result", () =
     // The `Helvetica` calibration recorded on `resolveSystemFallbackKeyForCp`
     // — U+26A1 ⚡ resolves to Apple Symbols — was measured against Chrome and
     // must survive both the widened gate and the guard. Apple Symbols is not a
-    // colour emoji face, so the guard must not fire.
+    // color emoji face, so the guard must not fire.
     //
     // It needs `font-variant-emoji: text` to be reachable at all: U+26A1 is
     // emoji-presentation-default, so a DEFAULT run takes the early return above

@@ -7,7 +7,7 @@
  *      whole loop period — the master cursor / content cycle) are WINDOW-SLICED:
  *      their `@keyframes` (CSS) or `values`/`keyTimes` (SMIL) are sliced to
  *      `[f0, f1] = [t0/period, t1/period]` — interior stops kept + remapped to
- *      `[0%, 100%]`, boundary stops synthesised at the window edges — and their
+ *      `[0%, 100%]`, boundary stops synthesized at the window edges — and their
  *      duration set to the window length. So the output LOOPS exactly the
  *      selected window (DM-1041).
  *   2. SCHEDULED animations (a short `<animate begin="1.85s" dur="0.5s">` ripple,

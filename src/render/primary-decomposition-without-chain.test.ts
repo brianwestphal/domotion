@@ -57,7 +57,7 @@ const isMac = process.platform === "darwin";
 
   const resolve = (cp: number, chain: string[]) => {
     // A fresh instance per arm: the resolver may attach an override to the one
-    // it is handed, so sharing would let the first arm colour the second.
+    // it is handed, so sharing would let the first arm color the second.
     const inst = getFontInstance(timesKey!, 400, 16, 0)!;
     const r = resolveFontForCodepoint(cp, inst, timesKey!, 400, 16, 0, undefined, undefined, chain);
     return { key: r.key, decomposed: r.decomposed, covered: r.covered };

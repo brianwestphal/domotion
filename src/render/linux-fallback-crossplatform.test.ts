@@ -59,7 +59,7 @@ const CASES: Array<{ cp: number; name: string; why: string }> = [
   { cp: 0x4e2d, name: "CJK ideograph 中", why: "the Han branch — locale-keyed, and the largest block by far" },
   { cp: 0x0905, name: "Devanagari अ", why: "an Indic script with its own Noto face" },
   { cp: 0x05d0, name: "Hebrew א", why: "an RTL script, a different fontconfig family" },
-  { cp: 0x1f600, name: "emoji 😀", why: "the bitmap colour font — the cmap-vs-outline coverage fix" },
+  { cp: 0x1f600, name: "emoji 😀", why: "the bitmap color font — the cmap-vs-outline coverage fix" },
 ];
 
 // Replay needs the cassette; the recording pass creates it.
@@ -87,7 +87,7 @@ describeIf("Linux per-codepoint fallback, replayed on any host (DM-1980)", () =>
       .toBeGreaterThan(1);
   });
 
-  it("gives the emoji codepoint a COLOUR face, not the text primary", () => {
+  it("gives the emoji codepoint a COLOR face, not the text primary", () => {
     // The Linux-specific coverage fix: `NotoColorEmoji.ttf` is bitmap-only, so
     // fontkit maps U+1F600 in its cmap but can build no Glyph for it. A coverage
     // check phrased as "can an outline be built" answered "not covered" for the

@@ -142,13 +142,13 @@ export const tests: FeatureTest[] = [
     // loudly (97% of image) rather than subtly if that is ever undone.
     //
     // Row 3 avoids the letter `G` deliberately, and NOT to flatter the result:
-    // `G` beside a notdef box is the one Latin neighbour that trips the region
+    // `G` beside a notdef box is the one Latin neighbor that trips the region
     // detector on the paths-mode hinting floor (measured: `G`\u21921 region, while
     // `A/B/C`, `D/E/F`, `J/K/L` \u2192 0, and the PUA sibling fixture shows the same
     // 1 region when given `G`). That floor is real but unrelated to what this
     // fixture asserts: Chrome's Skia HINTS Helvetica's `.notdef`, snapping its
     // 2.875px strokes to whole pixels, where the unhinted outline anti-aliases
-    // both edges (scanline through the box: identical centres at 237, but edge
+    // both edges (scanline through the box: identical centers at 237, but edge
     // pixels 153 vs Chrome's 235 \u2014 0.834 of the ink). Embedded-subset mode, the
     // production default, preserves the hinting program and is pixel-exact here
     // (0.000%, 0 regions); only `paths` mode, which the visual harness pins,
@@ -1162,11 +1162,11 @@ export const tests: FeatureTest[] = [
   },
   {
     // DM-783: CSS check-mark idiom — empty `::before` with a right + bottom
-    // border, sized 6×12, rotated 45° around its centre. Before the pseudo's
+    // border, sized 6×12, rotated 45° around its center. Before the pseudo's
     // own `transform` was captured + emitted as a `<g transform="…">` wrapper,
     // the L-shape painted axis-aligned, reading as a backwards-L instead of a
     // tick. Verifies (a) the per-side border emit for the empty-content
-    // pseudoBox, (b) transform-origin centring on the pseudo's own box (not
+    // pseudoBox, (b) transform-origin centering on the pseudo's own box (not
     // the host's origin), (c) z-stacking — text + box wrap together so the
     // tick lands inside the green circle.
     name: "pseudo-before-checkmark-rotated",
@@ -1424,7 +1424,7 @@ export const tests: FeatureTest[] = [
     // DM-506: CSS sprite icon image-replacement idiom — `text-indent: -9999px`
     // hides the accessible label off-screen and the visible icon is a slice of
     // a sprite sheet selected via `background-position`. Capture detects the
-    // pattern and rasterises the painted box (sprite slice) instead of trying
+    // pattern and rasterizes the painted box (sprite slice) instead of trying
     // to slice the bg-image declaratively (which doesn't work because the
     // sync naturalWidth read in CAPTURE_SCRIPT often returns 0 for url()
     // backgrounds whose <img> cache hasn't loaded). See docs/23.
@@ -1599,7 +1599,7 @@ export const tests: FeatureTest[] = [
   },
   {
     // DM-493: mask-image: url("#id") referencing an inline <mask> defined in
-    // the same document. Capture resolves the fragment, serialises the mask's
+    // the same document. Capture resolves the fragment, serializes the mask's
     // outerHTML, and the renderer copies it into the output <defs> with id
     // rewriting. Two boxes share one mask def to exercise dedupe.
     name: "mask-fragment-url",

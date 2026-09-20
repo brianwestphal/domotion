@@ -33,7 +33,7 @@ export function parseColor(css: string): RGBA | null {
       a,
     };
   }
-  // CSS named colors. Chromium's computed-style serializer normalises these to
+  // CSS named colors. Chromium's computed-style serializer normalizes these to
   // rgb()/rgba(), so this branch only fires for raw author input reaching
   // `parseColor` (e.g. gradient color stops parsed before computed-style
   // resolution, conic-gradient parsing, or any non-computed-style code path) —

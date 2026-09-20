@@ -1,5 +1,5 @@
 /**
- * DM-1884: an emoji-presentation codepoint resolves to the STANDARD colour-emoji
+ * DM-1884: an emoji-presentation codepoint resolves to the STANDARD color-emoji
  * face, without walking the CoreText cascade at all.
  *
  * Blink short-circuits at the very top of `PlatformFallbackFontForCharacter`
@@ -48,7 +48,7 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   ];
 
   for (const [cp, label] of EMOJI_PRESENTATION) {
-    it(`${label} resolves to the standard colour-emoji face, not the UI variant`, () => {
+    it(`${label} resolves to the standard color-emoji face, not the UI variant`, () => {
       const key = __resolveSystemFallbackKeyForCpForTest(cp);
       expect(key).toBe("sysfb:AppleColorEmoji");
       // The specific failure being guarded against: CoreText's UI-font cascade
@@ -72,7 +72,7 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   ];
 
   for (const [cp, label] of TEXT_PRESENTATION) {
-    it(`${label} is NOT routed to the colour-emoji font`, () => {
+    it(`${label} is NOT routed to the color-emoji font`, () => {
       expect(__resolveSystemFallbackKeyForCpForTest(cp)).not.toBe("sysfb:AppleColorEmoji");
     });
   }
@@ -101,14 +101,14 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   //
   // An assertion written against the mechanism I *assumed* passed for the wrong
   // reason, so it is deliberately absent rather than weakened into something
-  // vacuous. The guard for that behaviour is the conformance slice:
+  // vacuous. The guard for that behavior is the conformance slice:
   //   npx tsx tools/font-conformance.ts --max-stacks 8 \
   //     --range 2300-23FF --range 2B00-2BFF --range 1F300-1F5FF
   // Tracking the unexplained path is left to the ticket.
 
   it("is stable across weights, since Blink's early return ignores the description", () => {
     // The short-circuit happens before any weight-dependent work, so a bold run
-    // must not drift to a different face — there is no bold colour-emoji cut.
+    // must not drift to a different face — there is no bold color-emoji cut.
     for (const weight of [100, 400, 700, 900]) {
       expect(__resolveSystemFallbackKeyForCpForTest(0x231A, weight)).toBe("sysfb:AppleColorEmoji");
     }

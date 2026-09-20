@@ -74,7 +74,7 @@ At capture time, when CAPTURE_SCRIPT sees `clip-path: url("#clip-id")`:
 
 1. Resolve the fragment through the consumer's originating `getRootNode()`
    TreeScope; a shadow-root miss does not fall through to the owner document.
-2. If the element exists and is `<clipPath>`, serialise its `outerHTML`, scope,
+2. If the element exists and is `<clipPath>`, serialize its `outerHTML`, scope,
    and resolved `clipPathUnits`.
 3. Emit it as a top-level `ClipPathFragmentDef` and carry the same scope plus
    EffectiveZoom on its consumer.
@@ -112,7 +112,7 @@ Caveats: this only works over **http(s)** — Chrome doesn't resolve external cl
 
 ## Implementation notes
 
-- **Serialisation scope**: capture serialises the `<clipPath>` element's `outerHTML` verbatim. Descendants (nested `<polygon>` / `<path>` / `<use>`) ride along as part of that string. References from inside the clipPath subtree to outside defs (`url(#filter)` etc.) are not chased today — that's defensible because real `<clipPath>` content is overwhelmingly self-contained geometry. File a follow-up if a fixture surfaces a clipPath with transitive defs.
+- **Serialisation scope**: capture serializes the `<clipPath>` element's `outerHTML` verbatim. Descendants (nested `<polygon>` / `<path>` / `<use>`) ride along as part of that string. References from inside the clipPath subtree to outside defs (`url(#filter)` etc.) are not chased today — that's defensible because real `<clipPath>` content is overwhelmingly self-contained geometry. File a follow-up if a fixture surfaces a clipPath with transitive defs.
 - **Id rewriting**: reuse the existing `rewriteFragmentMaskDef()` machinery — it discovers every `id="…"` in the subtree, gives each output definition its own descendant namespace, and rewrites `id`, `href`/`xlink:href`, and `url(#…)` references consistently. The helper is element-name-agnostic.
 - **Scoped identity**: capture definitions, consumer records, renderer lookups,
   and output caches use `(TreeScope,id)`. An outer document and iframe can

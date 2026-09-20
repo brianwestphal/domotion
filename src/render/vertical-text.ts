@@ -470,7 +470,7 @@ export function renderVerticalSystemFontText(el: CapturedElement, fillColor: str
   const to = el.styles.textOrientation;
   const first = el.textSegments[0];
   // Best-effort anchor: the block-start of the first captured column, with the
-  // column centred on `x` (upright vertical glyphs sit centred on the x axis).
+  // column centered on `x` (upright vertical glyphs sit centered on the x axis).
   const n2 = (v: number): string => String(Number(v.toFixed(2)));
   const x = first.x + fontSize / 2;
   const y = first.y ?? el.y;

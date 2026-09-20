@@ -685,7 +685,7 @@ export function buildMaskBorder9Slice(
   //     a half-spacing gap at each end and full spacing between tiles. (NOT
   //     "flush with edges" as the spec text suggests; Chrome's impl is the
   //     spec it ships.)
-  //   - `repeat` centres the pattern with phase = (dst - tile) / 2.
+  //   - `repeat` centers the pattern with phase = (dst - tile) / 2.
   //   - `round` rescales the tile so a whole number fits exactly.
   //   - `stretch` collapses to a single tile spanning the full slot — fall
   //     through to the existing `emitStretched`.
@@ -1359,7 +1359,7 @@ export function buildMaskDef(
   // all layers or a comma-separated list. Chromium's `mask-composite`
   // standard property maps to the same keyword names; the legacy
   // `-webkit-mask-composite` form uses source-over / source-in / source-
-  // out / xor. We accept both by normalising via `normaliseComposite()`
+  // out / xor. We accept both by normalizing via `normaliseComposite()`
   // because Chromium's getComputedStyle reports whichever longhand the
   // author last set, and the capture falls back to the webkit alias when
   // the standard property is empty (e.g. on older Chromium builds that

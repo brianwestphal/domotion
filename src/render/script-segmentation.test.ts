@@ -6,7 +6,7 @@
  * as one unit does NOT lose contextual forms — the glyphs come back correct. It
  * loses ORDER: an RTL stretch inside an otherwise-LTR run is returned in logical
  * order, and laying it out left-to-right paints the word mirrored, with its
- * connecting strokes pointing away from their neighbours. That looks like
+ * connecting strokes pointing away from their neighbors. That looks like
  * "isolated letterforms" at normal sizes, which is how it was first misread.
  *
  * It was also LATENT on macOS rather than absent: there Arabic resolves to a

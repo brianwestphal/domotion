@@ -1,7 +1,7 @@
 // Probe Chrome's actual wavy-underline geometry at multiple font sizes by
 // rendering a known string with `text-decoration: underline wavy`, taking a
-// high-DPR screenshot of the underline region, and analysing the dark
-// pixels to back out wave centre-y, amplitude, and wavelength.
+// high-DPR screenshot of the underline region, and analyzing the dark
+// pixels to back out wave center-y, amplitude, and wavelength.
 import { chromium } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import sharp from 'sharp';
@@ -44,7 +44,7 @@ for (const s of samples) {
   const png = await sharp(buf).raw().toBuffer({ resolveWithObject: true });
   const { width: pxW, height: pxH, channels } = png.info;
   const data = png.data;
-  // Find RED pixels (the wavy underline colour is rgb(255, 0, 0)).
+  // Find RED pixels (the wavy underline color is rgb(255, 0, 0)).
   // Map: for each x column, find the topmost and bottommost red-ish y.
   const tops = new Array(pxW).fill(-1);
   const bots = new Array(pxW).fill(-1);
@@ -58,7 +58,7 @@ for (const s of samples) {
       }
     }
   }
-  // Wave centre at each x = midpoint of top+bot. Amplitude in px = (bot-top)/2.
+  // Wave center at each x = midpoint of top+bot. Amplitude in px = (bot-top)/2.
   let yCenterSum = 0, ampSum = 0, n = 0;
   for (let x = 0; x < pxW; x++) {
     if (tops[x] < 0) continue;
