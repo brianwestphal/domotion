@@ -1,4 +1,8 @@
 import { defineConfig } from "vitest/config";
+import { e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
+
+const lane = resolveE2ELane(process.env["DOMOTION_E2E_LANE"]);
+const laneConfig = e2eLaneConfig(lane);
 
 // E2E-test config (DM-1075). Runs ONLY the browser-launching `*e2e.test.ts`
 // files (Chromium-bound, slower, env-sensitive) — separate from the fast unit
@@ -13,6 +17,13 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    // Browser files are much heavier than ordinary unit-test forks: most own
+    // a Chromium process tree and several also rasterize every animation
+    // state. The default command runs the ordinary files with two workers,
+    // then the three measured heavy files alone with one worker. Direct config
+    // use defaults to the complete suite at one worker. This keeps resource
+    // contention from turning correctness and cleanup timeouts into flakes.
+    maxWorkers: laneConfig.maxWorkers,
     // Restore the product render mode after every browser test. Tests that
     // inspect paths-mode structure opt into it explicitly in their own scope.
     // The setup also closes the persistent native glyph helper after each file;
@@ -25,7 +36,7 @@ export default defineConfig({
       REVIEW_NO_OPEN: "1",
     },
     testTimeout: 60_000,
-    include: ["src/**/*e2e.test.ts", "tests/**/*e2e.test.ts"],
-    exclude: ["**/node_modules/**", "**/dist/**", "**/tests/output/**"],
+    include: laneConfig.include,
+    exclude: laneConfig.exclude,
   },
 });

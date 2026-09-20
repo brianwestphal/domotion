@@ -8505,20 +8505,24 @@
           "DM-2604",
           "DM-2635",
           "DM-2636",
-          "DM-2664"
+          "DM-2664",
+          "DM-0MAZSK"
         ],
         "code": [
           ".github/workflows/",
           "scripts/materialize-source-authorities.mjs",
           "scripts/install-windows-profile-fixture-fonts.ps1",
+          "scripts/run-e2e-tests.mjs",
           "src/capture/debug-bundle.ts",
           "tests/animate-debug.e2e.test.ts",
           "tests/capture-debug-api.e2e.test.ts",
+          "tests/e2e-lanes.ts",
           "tests/feature-coverage.ts",
           "tests/release-helpers-workflow.test.ts",
           "tests/release-workflow.test.ts",
           "tools/parity-program.json",
-          "scripts/ci-run-fast-visuals.mjs"
+          "scripts/ci-run-fast-visuals.mjs",
+          "vitest.e2e.config.ts"
         ],
         "aliases": [
           "docs/handbook/platforms-testing-and-release.md"

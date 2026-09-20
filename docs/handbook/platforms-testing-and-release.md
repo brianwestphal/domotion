@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2596","DM-2604","DM-2635","DM-2636","DM-2664"]
-code: [".github/workflows/","scripts/materialize-source-authorities.mjs","scripts/install-windows-profile-fixture-fonts.ps1","src/capture/debug-bundle.ts","tests/animate-debug.e2e.test.ts","tests/capture-debug-api.e2e.test.ts","tests/feature-coverage.ts","tests/release-helpers-workflow.test.ts","tests/release-workflow.test.ts","tools/parity-program.json","scripts/ci-run-fast-visuals.mjs"]
+tickets: ["DM-2596","DM-2604","DM-2635","DM-2636","DM-2664","DM-0MAZSK"]
+code: [".github/workflows/","scripts/materialize-source-authorities.mjs","scripts/install-windows-profile-fixture-fonts.ps1","scripts/run-e2e-tests.mjs","src/capture/debug-bundle.ts","tests/animate-debug.e2e.test.ts","tests/capture-debug-api.e2e.test.ts","tests/e2e-lanes.ts","tests/feature-coverage.ts","tests/release-helpers-workflow.test.ts","tests/release-workflow.test.ts","tools/parity-program.json","scripts/ci-run-fast-visuals.mjs","vitest.e2e.config.ts"]
 aliases: ["docs/handbook/platforms-testing-and-release.md"]
 ---
 
@@ -45,6 +45,11 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
 8. Native helper publication is downstream of GitHub Release creation. Staged
    binaries and checksums are retained before one fan-in upload, making an
    attach retry independent of expensive native rebuild/sign/notarize work.
+9. The complete browser E2E gate is resource-partitioned rather than timeout-
+   inflated: ordinary files run with bounded two-fork concurrency, while the
+   measured heavy raster/oracle files run serially. A targeted file selection
+   runs once in the safe serial lane, and every lane keeps the production
+   persistent native-helper lifecycle enabled.
 
 ## Verified implementation map
 
