@@ -30,23 +30,17 @@ const fixture = `<!doctype html><style>
 </script>`;
 
 describe("Studio proactive interaction observation (DM-2684)", () => {
-  let browser: Browser | null = null;
-  let page: Page | null = null;
-  let available = true;
+  let browser: Browser;
+  let page: Page;
 
   beforeAll(async () => {
-    try {
-      browser = await chromium.launch({ headless: true });
-      page = await browser.newPage({ viewport: { width: 800, height: 500 }, reducedMotion: "no-preference" });
-    } catch {
-      available = false;
-    }
+    browser = await chromium.launch({ headless: true });
+    page = await browser.newPage({ viewport: { width: 800, height: 500 }, reducedMotion: "no-preference" });
   }, 60_000);
-  beforeEach(async () => { if (page != null) await page.setContent(fixture); });
+  beforeEach(async () => page.setContent(fixture));
   afterAll(async () => browser?.close(), 15_000);
 
   const observe = async (target: string, action: (testPage: Page) => Promise<void>, extra: Partial<Parameters<typeof observeStudioInteraction>[1]> = {}): Promise<StudioInteractionEvidence> => {
-    if (page == null) throw new Error("browser page unavailable");
     const testPage = page;
     return observeStudioInteraction(testPage, {
       eventId: target.slice(1), path: `$.events.${target.slice(1)}`, target: testPage.locator(target),
@@ -55,7 +49,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   };
 
   it("captures CSS-only hover, pseudo content, transition lifecycle, and transient state samples", async () => {
-    if (!available) return;
     const evidence = await observe("#css", (testPage) => testPage.locator("#css").hover());
     expect(evidence.summary.addedNodes + evidence.summary.attributes).toBe(0);
     expect(evidence.meaningful).toBe(true);
@@ -66,7 +59,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("correlates synchronous and async JS mutations with stable target/related references", async () => {
-    if (!available) return;
     const jsEvidence = await observe("#js", (testPage) => testPage.locator("#js").click(), { relatedTargets: [page!.locator("#menu")] });
     expect(jsEvidence.summary.addedNodes).toBeGreaterThan(0);
     expect(jsEvidence.summary.attributes).toBeGreaterThanOrEqual(2);
@@ -80,7 +72,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("captures viewport scrolling and layout shifts without inventing a second action", async () => {
-    if (!available) return;
     const scrollEvidence = await observe("#bottom", (testPage) => testPage.locator("#bottom").scrollIntoViewIfNeeded());
     expect(scrollEvidence.signals.some((signal) => signal.type === "scroll")).toBe(true);
     expect(scrollEvidence.changes.some((change) => change.scrollChanged || change.geometryChanged)).toBe(true);
@@ -94,7 +85,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("classifies pre-existing ambient churn separately and keeps a no-op a no-op", async () => {
-    if (!available) return;
     await page!.evaluate(() => { (window as unknown as { ambientTimer?: number }).ambientTimer = window.setInterval(() => { const node = document.querySelector("#ambient"); if (node != null) node.textContent = String(Number(node.textContent ?? "0") + 1); }, 10); });
     const evidence = await observe("#noop", (testPage) => testPage.locator("#noop").click(), { baselineMs: 35, debounceMs: 60 });
     await page!.evaluate(() => clearInterval((window as unknown as { ambientTimer?: number }).ambientTimer));
@@ -105,7 +95,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("filters its known action-runner marker and leaves no DOM/global instrumentation", async () => {
-    if (!available) return;
     const before = await page!.content();
     const evidence = await observe("#noop", async (testPage) => {
       await testPage.locator("#noop").evaluate((element) => {
@@ -120,7 +109,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("returns captured evidence with an action failure and still removes instrumentation", async () => {
-    if (!available) return;
     let thrown: unknown;
     try {
       await observe("#async", async (testPage) => {
@@ -141,7 +129,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("preserves page-observed behavior and emits canonical stable references across runs", async () => {
-    if (!available) return;
     const run = async (observed: boolean): Promise<{ audit: string[]; evidence?: StudioInteractionEvidence }> => {
       // Canonical evidence assumes the same browser input state. Replacing the
       // document under a stationary pointer can defer its synthetic mouseover
@@ -181,7 +168,6 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   });
 
   it("observes initially missing attachment targets and existing targets that detach", async () => {
-    if (!available || page == null) return;
     const observeLifecycle = async (step: StudioSemanticStep): Promise<StudioInteractionEvidence> => observeStudioSemanticStep(
       page!,
       step,

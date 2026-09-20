@@ -18,6 +18,9 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    // Browser E2Es are authoritative: a missing or unlaunchable Chromium must
+    // fail the lane before individual legacy suites can downgrade to skips.
+    globalSetup: ["./tests/e2e-browser-required.global.ts"],
     // Browser files are much heavier than ordinary unit-test forks: most own
     // a Chromium process tree and several also rasterize every animation
     // state. The default command runs the ordinary files with two workers,
