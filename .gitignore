@@ -59,3 +59,5 @@ tools/font-conformance-stacks.synthetic.json
 !/.hotsheet/settings.json
 /.glassbox/*
 !/.glassbox/settings.json
+.hotsheet2/settings.local.json
+.hotsheet2/store

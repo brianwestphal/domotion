@@ -1,0 +1,54 @@
+{
+  "$hotsheetSchema": 1,
+  "aiReviewNotes": true,
+  "auto_context": [
+    {
+      "key": "feature",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nAdd a new requirements document.\n\nAsk clarifying questions as needed.\n\nBe sure to create follow up tickets as needed as well.\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution",
+      "type": "category"
+    },
+    {
+      "key": "requirement_change",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nUpdate requirements documents as appropriate.\n\nAsk clarifying questions as needed.\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution",
+      "type": "category"
+    },
+    {
+      "key": "bug",
+      "text": "Read docs/ai/code-summary.md and docs/ai/requirements-summary.md if you haven't yet or if you feel you might be out-of-date.\n\nEvaluate current tests and add unit tests or test automation to protected against this kind of bug going forward, if applicable.\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution",
+      "type": "category"
+    },
+    {
+      "key": "html test",
+      "text": "For this change to be accepted, if I've specified crop regions: make sure the same cropped regions match, after your changes, at least with a significant improvement.  Attach the updated comparable region images.",
+      "type": "tag"
+    },
+    {
+      "key": "fable",
+      "text": "Use a subagent running the Fable model for this ticket. (ONLY APPLICABLE WHEN USING CLAUDE)\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution",
+      "type": "tag"
+    },
+    {
+      "key": "issue",
+      "text": "Clarify the problem and its impact before acting. If it turns out to be a defect, add a test that guards against regressions; if it needs a larger change, file follow-up tickets for the work.",
+      "type": "category"
+    },
+    {
+      "key": "deep thought",
+      "text": "IF USING CLAUDE: Use a subagent running the Fable model for this ticket.\nIF USING CODEX: Use a subagent using Max reasoning level / effort for this ticket.\n\nMake sure to reference the Chromium, Harfbuzz, and/or Skia source in the external folder as you work, to make sure our logic matches.  This is especially critical for font / glyph resolution",
+      "type": "tag"
+    },
+    {
+      "key": "investigation",
+      "text": "Investigate and write up your findings; recommend concrete next steps. Don't implement the change yet — file follow-up tickets for the work you'd propose.",
+      "type": "category"
+    }
+  ],
+  "terminals": [
+    {
+      "command": "{{aiCommand}}",
+      "id": "t-mogdhedd-kh3g",
+      "lazy": false,
+      "name": "AI"
+    }
+  ]
+}

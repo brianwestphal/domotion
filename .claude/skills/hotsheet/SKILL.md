@@ -1,39 +1,122 @@
 ---
 name: hotsheet
-description: Read the Hot Sheet worklist and work through the current priority items
+description: Plan and work through the complete Hot Sheet Up Next queue using priority, overlap, dependencies, and safe parallelism. Works headless, with or without a server.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 ---
-<!-- hotsheet-skill-version: 28 -->
 
-Read `.hotsheet/worklist.md` and work through the tickets in priority order.
+<!-- hotsheet-skill-version: 47 -->
 
-For each ticket:
-1. Read the ticket details carefully
-2. Implement the work described
-3. When complete, mark it done via the Hot Sheet UI
+Work the project's complete Hot Sheet Up Next queue. An invocation normally drains every
+actionable Up Next ticket; completing one ticket is not a stopping condition.
 
-Work through them in order of priority, where reasonable.
+1. **Read and plan the whole queue.** List Up Next, read every queued ticket in full, and
+   inspect relevant code before choosing execution order. Build a short working plan that
+   identifies dependencies, implementation overlap or duplicates, independent work,
+   safe parallelization opportunities, verification needs, and commit boundaries.
+   Priority is an important guidance signal, not an absolute ordering rule. Prefer higher
+   priority when other factors are equal, but reorder when dependencies, shared context,
+   risk reduction, or avoiding duplicated work makes another order clearly better.
+2. **Use available parallelism deliberately.** When sub-agents are available and the
+   environment and user authorize delegation, assign concrete independent tickets or
+   bounded investigations in parallel. Do not parallelize tickets that edit the same
+   surfaces or depend on unresolved decisions. The primary agent owns integration,
+   ticket status, verification, and publishing.
+3. **Work each ticket end to end under an exact claim lease.** Choose one stable,
+   session-specific worker id. Immediately before active work, claim the assigned ticket
+   with the atomic CLI form
+   `hotsheet-cli claim <id> --worker <worker> [--label <label>] [--lease-minutes N]`,
+   which acquires the claim and changes Not Started to Started in one durable write.
+   Do not issue separate claim and status commands. Renew
+   before the lease expires and before lengthy work with `hotsheet_renew` or
+   `hotsheet-cli renew`; release with `hotsheet_release` or `hotsheet-cli release` when
+   work stops for completion, handoff, error, or feedback. If another worker holds the
+   live lease, do not work concurrently; replan around other tickets. Then implement and
+   verify scope, run the completion checklist, and mark completed with a result and
+   verification note. Delegated workers claim their own exact assigned ticket and use a
+   distinct worker id; the primary agent remains responsible for integration.
+4. **Create every follow-up immediately, without asking.** As soon as you identify an
+   unfinished step, open question, known gap, out-of-scope task, or designed-but-unbuilt
+   behavior, create its ticket. Do not ask permission, wait, promise to file it later, or
+   leave it only in a comment/TODO/note. Reference every follow-up slug in the current
+   ticket's completing note, then continue.
+5. **Publish at ticket boundaries.** Run required gates, review the diff, make one commit
+   for that ticket, include its ticket slug in the commit message, and push before
+   beginning the next sequential ticket. Combine tickets only when their implementations
+   overlap so strongly that separation would be unsafe or misleading, or when they are
+   duplicates; a combined commit message must reference every ticket slug it addresses.
+   Integrate parallel tickets separately.
+6. **Re-read the queue after every completion.** Concurrent work and new findings can
+   change the plan. Continue until no actionable Up Next ticket remains.
 
-If the worklist says "Auto-Prioritize", follow those instructions to choose and mark tickets as Up Next before working on them.
+**Completion checklist:** finish and verify scope; update required tests, coverage, and
+docs; scan for placeholders, TODO/FIXME comments, stubs/mock returns, documented-but-
+unimplemented behavior, open questions, and known gaps; immediately create tickets for
+every incomplete item; include result, verification, and all follow-up slugs in the
+completing note.
 
-While creating or prioritizing tickets, apply the `Deep Thought` tag when the
-work genuinely requires Max reasoning effort: ambiguous upstream-source
-reconstruction, multi-subsystem architectural judgment, competing logical
-hypotheses that resist cheap discrimination, or a high-risk parity audit. The
-tag activates the project's automatic deeper-reasoning context. Do not apply it
-merely because work is large, slow, or test-heavy. Add it before starting a
-qualifying ticket, including newly discovered follow-ups.
+Write durable ticket text, notes, completion summaries, and documentation so another
+developer can understand them from a different clone. Never copy a developer-specific
+home directory, username, Desktop/Documents path, or absolute clone location when a
+repository-relative path, stable repository name/URL, or placeholder such as
+`<repo-root>/path` will work. Keep an exact local path only when the path itself is
+indispensable machine-local diagnostic evidence, and label it as local context.
 
-If API calls fail (connection refused or 403), re-read `.hotsheet/settings.json` for the current `port` and `secret` values — you may be connecting to the wrong Hot Sheet instance.
+For user-visible UI work, liberally capture and attach a representative set of real-browser
+screenshots covering the changed components, screens, states, and meaningful wide/narrow
+layouts. **If the ticket already has an image demonstrating the problem or requested
+design, treat a corresponding after screenshot as a required pre-close deliverable:**
+reproduce the same component, state, and viewport as closely as practical, attach the new
+capture to the ticket, and reference it by name (`attachment:filename`) in the completion
+note. Also attach other useful wide/narrow or focused captures; prefer a crop when it
+communicates the change more clearly. Do not silently substitute a local-only screenshot
+for a ticket attachment. If capture or attachment is genuinely impossible after exhausting
+safe alternatives, state the specific reason in the completion note. Screenshots supplement
+behavioral assertions; they do not replace them.
 
-**MCP tools (`hotsheet_*`) are preferred over curl when the channel is connected** — see the worklist for per-operation guidance. The 14-tool surface covers ticket lifecycle (`hotsheet_update_ticket`, `hotsheet_create_ticket`, `hotsheet_get_ticket`, `hotsheet_delete_ticket`, `hotsheet_restore_ticket`, `hotsheet_toggle_up_next`, `hotsheet_duplicate_tickets`), bulk operations (`hotsheet_batch`), notes (`hotsheet_edit_note`, `hotsheet_delete_note`), attachments (`hotsheet_add_attachment`), channel signaling (`hotsheet_signal_done`), feedback sugar (`hotsheet_request_feedback`), and query (`hotsheet_query_tickets`). Curl stays supported as the universal fallback for non-Claude AI agents and human terminal callers.
+Before attaching correctness evidence, apply `CLAUDE.md`'s visual-QA policy to the actual
+capture, not just its assertions: critically inspect readability, usability, contextual
+aesthetic fit and flow/order, clipping or truncation, icon-label alignment, spacing,
+responsive behavior, and any other obvious defect. Fix every defect found, rerun affected
+checks, and recapture; attach only evidence fit to hand off. An imperfect screenshot may be
+attached only as explicit `problem_evidence` in a `FEEDBACK NEEDED` blocker that names the
+real tradeoff or question—never as completion proof.
 
-## Git: keep the target current + integrate ready branches
+When attaching AI-generated evidence files from one verification operation, pass
+them in one command (`hotsheet-cli attach <ticket> --actor-role ai --actor-id <worker-id> --purpose correctness_evidence <files…>`)
+so they receive one durable batch identity and AI attribution. Use `problem_evidence` for
+captures demonstrating a defect, `reference` for supporting material, and `other` only
+when none of the semantic purposes fit. Do not run one attach command per file in a set.
 
-You run on the **target branch** (usually `main`) in the main worktree, so you are the **integrator**: a self-claim worker (`/hotsheet-worker`, working in its own git worktree) commits its work on its own branch and marks its ticket `pending_integration` with the `integration_branch` it landed on — you merge those into the target (a worker never writes the target itself). When no such workers are in play this section is simply unused.
+Stop early only for an explicit user ticket/time/budget limit, an empty queue, or a
+genuine blocker requiring user input or unavailable external state. For that current-
+ticket blocker, leave the ticket started and add a `FEEDBACK NEEDED:` note naming the
+specific decision or state required. FEEDBACK NEEDED is not deferred-work tracking:
+create follow-ups first for independently describable gaps, exhaust safe alternatives,
+and continue other independent Up Next work before stopping.
 
-- **Stay current** — `git fetch` then `git pull --rebase` (when the repo has a remote) before integrating; commit or stash your own in-progress changes first so a merge doesn't tangle with them.
-- **Integrate ready branches** — for each ticket marked `pending_integration` (its `integration_branch` names the branch to merge), in ticket-priority order, `git merge` that branch into the target from committed state. Auto-resolve trivial/mechanical conflicts; if a conflict is non-trivial or ambiguous, **stop and ask the maintainer** rather than force it.
-- **Run the gates after each merge** — type-check, lint, and the relevant tests — before moving on; if they fail in a way you can't quickly and safely fix, stop and ask.
-- **Clear the marker** — for each ticket you integrated, `hotsheet_update_ticket` with `{ "id": <id>, "pending_integration": false }`.
-- **NEVER `git push`** without the maintainer's explicit permission — local integration only.
+Notes:
+- The CLI (`hotsheet-cli …`) and `hotsheet_*` MCP tools use the same engine and work
+  without a server.
+- Confirm HS2 generation before using connected MCP: `hotsheet-store.json` (directly
+  or through `.hotsheet2/store`, with read-only legacy `.hotsheet/store` fallback)
+  identifies HS2; `.hotsheet/db/PG_VERSION` identifies
+  HS1. If uncertain, use `hotsheet-cli -C <HS2-store>`.
+- If a ticket is unclear, do not guess. Record the needed decision, continue independent
+  tickets, and return if the answer becomes available.
+- When a genuine user decision can be narrowed to concise, distinct options, a
+  `FEEDBACK NEEDED` note may include an uppercase `CHOICE` or `CHOICE:` line immediately
+  followed by a Markdown list. Options may include attachment references. Use choices
+  to make a decision easier, not to offload ordinary implementation judgment or replace
+  an open-ended question. Users may select zero or multiple options and may always add a
+  freeform response, so do not describe the list as exhaustive or require a selection.
+- AI-authored `activity` notes include `--note-summary "Concise outcome"` (or MCP
+  `note_summary`) in the same update. Keep it plain-text, one line, outcome-oriented,
+  preferably at most 80 characters, and leave implementation/verification detail in
+  the full Markdown note body. Activity is timeline history, not the primary result:
+  write investigation conclusions, decisions, and important recommendations as `regular`
+  Markdown notes, with an optional short activity entry pointing to them.
+- Notes support Markdown. For multiline CLI notes, pass real line breaks with
+  `hotsheet-cli edit <slug> --note-file <path>` or stdin via `--note-file -`; do not put
+  JSON-escaped `\\n` sequences in `--note`. The CLI rejects likely escaped line breaks
+  outside inline/fenced backtick code; use `--allow-literal-backslash-n` only when prose
+  containing literal `\\n` text is intentional.
