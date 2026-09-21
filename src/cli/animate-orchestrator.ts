@@ -85,6 +85,10 @@ import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resa
 import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
 import { openAnimateCaptureSession } from "./animate-capture-session.js";
 import { captureAnimateFrame } from "./animate-frame-capture.js";
+import {
+  buildCapturedFrame,
+  type LiveFrameNavigation,
+} from "./animate-captured-frame-stage.js";
 import { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
 export { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
 import { prepareAnimateDebugBundle, writeEmbeddedAnimateDebugFrame, writeLiveAnimateDebugFrame } from "./animate-debug.js";
@@ -1412,7 +1416,7 @@ function buildTemplateFrame(
 }
 
 /**
- * Per-frame loop state threaded into `buildCapturedFrame` (DM-1379). These are
+ * Per-frame loop state threaded into `buildLiveCapturedFrame` (DM-1379). These are
  * the slices of `composeAnimateFrames`' shared state the captured/default frame
  * body reads or appends to: the live `page`, the run config + paths + logger,
  * the shared webfont tracker, and the cursor-recording accumulators (`auto`
@@ -1452,9 +1456,10 @@ interface CapturedFrameContext {
  * The cursor-recording paths (`autoCursorTargets.push` / `explicitCursorBoxes
  * .set`) are byte-gated by the `cursor-auto` / `cursor-events` examples.
  */
-async function buildCapturedFrame(
+async function buildLiveCapturedFrame(
   fc: AnimateFrameCfg,
   i: number,
+  navigation: LiveFrameNavigation,
   ctx: CapturedFrameContext,
 ): Promise<{ frame: AnimationFrame; frameTree: CapturedElement[] | null; rootBg: string | undefined }> {
   const { page, cfg, configDir, log, tracker, cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes } = ctx;
@@ -1466,13 +1471,10 @@ async function buildCapturedFrame(
   // frame that omits `input`) captures the previous frame's live page after
   // running its own actions, instead of reloading. The page persists across
   // the whole loop, so "continue" simply means "don't navigate".
-  const isContinue = i > 0 && (fc.continue === true || fc.input == null);
-  if (isContinue) {
+  if (navigation.kind === "continue") {
     log(`Frame ${i + 1}/${cfg.frames.length}: continuing live page…`);
   } else {
-    const inputStr = fc.input;
-    if (inputStr == null) throw new Error(`animate: frames[${i}] has no input and is not a continue frame`);
-    const input = resolveFrameInput(inputStr, configDir);
+    const input = resolveFrameInput(navigation.input, configDir);
     log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
     await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
   }
@@ -2577,50 +2579,31 @@ export async function composeAnimateFrames(
 
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
-      // DM-1225 (doc 67): a `cast` frame embeds a recorded terminal session as
-      // this frame's content — a self-contained animated terminal SVG nested
-      // like a `scroll` block. It bypasses the page-load/capture path entirely.
-      if (fc.cast != null) {
-        const frame = await buildCastFrame(fc, i, cfg, configDir, browser, log);
-        frames.push(frame);
+      // DM-84TS9P: source selection is a typed stage boundary. Embedded frames
+      // bypass the live page; live frames receive an explicit load/continue
+      // decision while this loop retains browser-session and transition state.
+      const built = await buildCapturedFrame(fc, i, {
+        cast: () => buildCastFrame(fc, i, cfg, configDir, browser, log),
+        template: () => buildTemplateFrame(fc, i, cfg, configDir, templateRenders, log),
+        live: (navigation) => buildLiveCapturedFrame(fc, i, navigation, capturedCtx),
+      });
+      if (built.kind === "embedded") {
+        frames.push(built.frame);
         if (debugDir != null) {
           await writeEmbeddedAnimateDebugFrame({
             debugDir, index: i, frameCount: cfg.frames.length,
             width: cfg.width, height: cfg.height, tree: null, log,
-            sessionPage: page, svgContent: frame.svgContent,
+            sessionPage: page, svgContent: built.frame.svgContent,
             fontFaceCss: getEmbeddedFontFaceCss(),
           });
         }
-        // A cast frame has no single captured tree; magic-move to/from it falls
-        // back to crossfade, and the cursor/overlay machinery is skipped.
+        // Embedded frames have no captured tree; magic-move to/from one falls
+        // back to crossfade and the cursor/overlay machinery is skipped.
         prevFrameTree = null;
         frameTrees.push(null);
         continue;
       }
-      // DM-1287 (doc 73): a `template` frame embeds a named template's output,
-      // pre-rendered above into a finished (self-contained, possibly animated)
-      // SVG string. Nest it exactly like a `cast` frame.
-      if (fc.template != null) {
-        const frame = buildTemplateFrame(fc, i, cfg, configDir, templateRenders, log);
-        frames.push(frame);
-        if (debugDir != null) {
-          await writeEmbeddedAnimateDebugFrame({
-            debugDir, index: i, frameCount: cfg.frames.length,
-            width: cfg.width, height: cfg.height, tree: null, log,
-            sessionPage: page, svgContent: frame.svgContent,
-            fontFaceCss: getEmbeddedFontFaceCss(),
-          });
-        }
-        prevFrameTree = null;
-        frameTrees.push(null);
-        continue;
-      }
-      // DM-1379: the captured/default frame body (continue-vs-load →
-      // readyWaits → webfont discovery → scrollTo → cursor recording → actions
-      // → intra-frame animations → scroll-block-vs-capture → overlays) lives in
-      // `buildCapturedFrame`. It appends to the shared cursor accumulators via
-      // `capturedCtx`; we keep the cross-frame after-build orchestration here.
-      const { frame, frameTree, rootBg } = await buildCapturedFrame(fc, i, capturedCtx);
+      const { frame, frameTree, rootBg } = built;
       if (i === 0) canvasBg = rootBg;
       frames.push(frame);
 
