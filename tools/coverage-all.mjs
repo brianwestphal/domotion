@@ -4,9 +4,10 @@
  * unit suite, so the big render modules read as under-covered even though the
  * browser E2Es and bespoke VISUAL suites exercise them hard. This script runs
  * the unit suite, browser E2Es, AND visual suites. Vitest emits Istanbul maps
- * for its Vite-transformed modules, while direct tsx runners accumulate raw
- * profiles under `NODE_V8_COVERAGE` for c8. The maps are merged into the one
- * true number per CLAUDE.md's "merge all coverage" convention.
+ * for its Vite-transformed modules, direct tsx runners accumulate raw profiles
+ * under `NODE_V8_COVERAGE` for c8, and Playwright's V8 ranges are remapped to
+ * the source-mapped browser client entry points. The four maps are merged into
+ * the one true number per CLAUDE.md's "merge all coverage" convention.
  *
  *   node tools/coverage-all.mjs            # FAST: unit + browser E2E + features +
  *                                          #   showcase + snapshot-isolation +
