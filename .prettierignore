@@ -30,6 +30,7 @@ tools/sfns-terminal-mask-manifest.ts
 .glassbox/
 .pr-notes/
 .agents/skills/
+.agents/mcp_config.json
 .claude/skills/
 .claude/worktrees/
 .gemini/

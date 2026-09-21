@@ -297,21 +297,9 @@ step_update_changelog() {
 
   info "Updating CHANGELOG.md..."
 
-  local entry="## [${version}] - ${date}\n\n${notes}"
-
-  node -e "
-    const fs = require('fs');
-    const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
-    const marker = changelog.indexOf('\n## [');
-    if (marker === -1) {
-      const headerEnd = changelog.lastIndexOf('\n\n') + 2;
-      const updated = changelog.slice(0, headerEnd) + process.argv[1] + '\n\n';
-      fs.writeFileSync('CHANGELOG.md', updated);
-    } else {
-      const updated = changelog.slice(0, marker) + '\n' + process.argv[1] + '\n' + changelog.slice(marker);
-      fs.writeFileSync('CHANGELOG.md', updated);
-    }
-  " "$(echo -e "$entry")"
+  local entry
+  printf -v entry '## [%s] - %s\n\n%s' "$version" "$date" "$notes"
+  node scripts/update-changelog.mjs CHANGELOG.md "$entry"
 
   success "CHANGELOG.md updated"
 }

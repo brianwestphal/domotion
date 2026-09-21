@@ -10,7 +10,6 @@ All notable changes to **Domotion** are documented in this file.
 
 ## [0.30.0] - 2026-09-21
 
-
 **Features**
 
 - **render:** vertical writing-mode support in system-font text mode (DM-ZDDJAG) (`b55feac`)
