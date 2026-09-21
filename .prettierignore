@@ -15,6 +15,7 @@ site/.astro/
 **/*.generated.ts
 src/generated/
 schemas/
+site/src/content/docs/developer/reference/
 
 # Authenticated source bytes referenced by retained native-render evidence
 tools/build-sfns-pinned-ots-sanitizer.mjs

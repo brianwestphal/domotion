@@ -31,9 +31,12 @@ const PATH_ON_SITE = "/domotion/";
 const CENTER_TOLERANCE_PX = 2; // a centered block's center should match the hero's
 const WIDTH_TOLERANCE_PX = 1; // two "equal width" pills should match this closely
 
-/** Start `astro dev` and resolve once it prints its Local URL. */
+/** Start `astro dev` in foreground mode and resolve once it prints its Local URL. */
 async function startDevServer() {
-  const proc = spawn("npx", ["astro", "dev", "--port", "0"], {
+  // Astro 7 manages a background dev server by default, which makes the CLI
+  // process exit successfully as soon as the daemon is ready. This harness owns
+  // the server lifecycle, so bypass the lock/daemon and retain the child process.
+  const proc = spawn("npx", ["astro", "dev", "--port", "0", "--host", "127.0.0.1", "--ignore-lock"], {
     cwd: new URL("..", import.meta.url).pathname,
     env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
   });
@@ -52,7 +55,10 @@ async function startDevServer() {
     };
     const onData = (chunk) => {
       buf += chunk.toString();
-      const m = stripAnsi(buf).match(/Local\s+(https?:\/\/\S+)/);
+      // Astro 7 emits JSON log lines when stdout is not a TTY. Stop the URL at
+      // JSON delimiters as well as whitespace so both formatted and JSON logs
+      // are accepted.
+      const m = stripAnsi(buf).match(/Local\s+(https?:\/\/[^\s"',]+)/);
       // The printed Local URL already carries the /domotion base path; keep only
       // the origin so appending PATH_ON_SITE doesn't double it.
       if (m) finish(resolve, new URL(m[1]).origin);

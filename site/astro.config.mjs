@@ -12,7 +12,6 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Domotion",
-      tagline: "Turn HTML/CSS into a self-contained, animated SVG.",
       description:
         "Domotion turns real HTML/CSS into a single self-contained animated SVG — accurate, scalable, and embeddable anywhere, with animation and simulated interaction built in.",
       logo: { src: "./src/assets/logo.svg", replacesTitle: false },
