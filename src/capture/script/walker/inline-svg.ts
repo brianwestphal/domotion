@@ -16,6 +16,15 @@ import {
   serializeSvgAffine,
   svgAffineMaxPointError,
 } from "../../svg-affine-freeze.js";
+import {
+  composeUseTransform,
+  isActiveSvgTransformValue,
+  isConcreteSvgAttributeValue,
+  isSvgTransformAnimation,
+  normalizeComputedSvgGeometry,
+  shouldBakeSvgGeometry,
+  shouldStripPromotedViewportDimension,
+} from "./inline-svg-decisions.js";
 
 export const captureInlineSvg = (el, cs, warn, sel) => {
       // Inline SVG icons styled by external CSS (e.g. '.icon-btn svg { fill:none;
@@ -56,14 +65,13 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       const _hasTransformSignal = (node, style) => {
         if (node.hasAttribute && node.hasAttribute('transform')) return true;
         for (const prop of ['transform', 'translate', 'rotate', 'scale', 'offset-path']) {
-          const value = style.getPropertyValue(prop).trim();
-          if (value !== '' && value !== 'none') return true;
+          if (isActiveSvgTransformValue(style.getPropertyValue(prop))) return true;
         }
         for (const child of node.children || []) {
-          const name = (child.localName || '').toLowerCase();
-          const attribute = (child.getAttribute && child.getAttribute('attributeName') || '').toLowerCase();
-          if (name === 'animatemotion' || name === 'animatetransform'
-              || (name === 'animate' || name === 'set') && attribute === 'transform') return true;
+          if (isSvgTransformAnimation(
+            child.localName,
+            child.getAttribute && child.getAttribute('attributeName'),
+          )) return true;
         }
         return false;
       };
@@ -150,12 +158,8 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       // currentColor), not the intended HDS palette color. Treat such
       // unresolved CSS-function values as "no concrete attribute" so we bake
       // the resolved computed value over them.
-      const _unresolvedCssExprRe = /\b(?:var|calc|env|attr)\s*\(/;
-      function _isUnresolvedCssExpr(v) {
-        return v != null && _unresolvedCssExprRe.test(v);
-      }
       function _hasConcreteAttr(node, attr) {
-        return node.hasAttribute(attr) && !_isUnresolvedCssExpr(node.getAttribute(attr));
+        return node.hasAttribute(attr) && isConcreteSvgAttributeValue(node.getAttribute(attr));
       }
       if (svgFill && svgFill !== '' && !_hasConcreteAttr(el, 'fill')) clone.setAttribute('fill', svgFill);
       if (svgStroke && svgStroke !== '' && svgStroke !== 'none' && !_hasConcreteAttr(el, 'stroke')) clone.setAttribute('stroke', svgStroke);
@@ -287,20 +291,9 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
               }
             }
             if (smilOwnsValue) continue;
-            let gval = ocs.getPropertyValue(gattr);
-            if (gval == null) continue;
-            gval = gval.trim();
-            if (gval === '' || gval === 'auto' || gval === 'none' || gval === 'normal') continue;
-            if (gattr === 'd') {
-              // Computed `d` is wrapped as `path("M …")`. Unwrap to bare data.
-              const m = /^path\(\s*(?:"([^"]*)"|'([^']*)')\s*\)$/.exec(gval);
-              if (m) gval = m[1] != null ? m[1] : m[2];
-              else continue; // not a recognized path() form
-            } else if (/^-?\d+(?:\.\d+)?px$/.test(gval)) {
-              gval = gval.slice(0, -2);
-            }
+            const gval = normalizeComputedSvgGeometry(gattr, ocs.getPropertyValue(gattr));
             const sourceVal = origNode.getAttribute(gattr);
-            if (sourceVal != null && !_isUnresolvedCssExpr(sourceVal) && sourceVal.trim() === gval) continue;
+            if (!shouldBakeSvgGeometry(sourceVal, gval, smilOwnsValue)) continue;
             cloneNode.setAttribute(gattr, gval);
           }
           const computedClipPath = ocs.getPropertyValue('clip-path').trim();
@@ -449,8 +442,7 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
             // silently disappear (DM-675).
             replacement = document.createElementNS(_svgNS, 'g');
             var useTransformAttr = useEl.getAttribute('transform') || '';
-            var translatePart = (ux !== 0 || uy !== 0) ? ('translate(' + ux + ',' + uy + ')') : '';
-            var composedTransform = (useTransformAttr + ' ' + translatePart).trim();
+            var composedTransform = composeUseTransform(useTransformAttr, ux, uy);
             if (composedTransform !== '') {
               replacement.setAttribute('transform', composedTransform);
             }
@@ -478,10 +470,10 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
             // zero baked values — those came from a legitimately-sized source
             // and reflect Chrome's intent.
             if (clonedTarget.tagName && clonedTarget.tagName.toLowerCase() === 'svg' && clonedTarget.removeAttribute) {
-              if (!_hasConcreteAttr(target, 'width') && /^0(?:\.0+)?$/.test(clonedTarget.getAttribute('width') || '')) {
+              if (shouldStripPromotedViewportDimension(target.getAttribute('width'), clonedTarget.getAttribute('width'))) {
                 clonedTarget.removeAttribute('width');
               }
-              if (!_hasConcreteAttr(target, 'height') && /^0(?:\.0+)?$/.test(clonedTarget.getAttribute('height') || '')) {
+              if (shouldStripPromotedViewportDimension(target.getAttribute('height'), clonedTarget.getAttribute('height'))) {
                 clonedTarget.removeAttribute('height');
               }
             }
@@ -534,9 +526,7 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       // child during _walkBake would shift sibling indexes and corrupt node
       // correlation. Geometry/paint animations remain untouched.
       for (const animation of Array.from(clone.querySelectorAll ? clone.querySelectorAll('animateMotion, animateTransform, animate[attributeName], set[attributeName]') : [])) {
-        const name = (animation.localName || '').toLowerCase();
-        const attribute = (animation.getAttribute('attributeName') || '').toLowerCase();
-        if (name === 'animatemotion' || name === 'animatetransform' || attribute === 'transform') animation.remove();
+        if (isSvgTransformAnimation(animation.localName, animation.getAttribute('attributeName'))) animation.remove();
       }
       const _sanitizeClonedTransformCss = () => {
         for (const styleNode of Array.from(clone.querySelectorAll ? clone.querySelectorAll('style') : [])) {
