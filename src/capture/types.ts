@@ -4,10 +4,7 @@ import type {
   PseudoContentItem as CapturedPseudoContentItem,
   PseudoFragment as CapturedPseudoFragment,
 } from "./pseudo-fragment-protocol.js";
-import type {
-  BackdropEffectNeutralization,
-  BackdropRootReason,
-} from "./backdrop-effect-space.js";
+import type { BackdropEffectNeutralization, BackdropRootReason } from "./backdrop-effect-space.js";
 import type { CapturedFontFamilyStack } from "../font-family-stack.js";
 import type { CollapsedBorderFragmentRecord } from "./collapsed-border-fragment-record.js";
 
@@ -50,8 +47,8 @@ export interface CapturedBackdropCompositeRaster {
   width: number;
   height: number;
   dataUri?: string;
-  source: "chromium-isolated-backdrop-root-v1" | "chromium-target-filter-chain-v1"
-    | "chromium-relative-effect-layer-v1";
+  source:
+    "chromium-isolated-backdrop-root-v1" | "chromium-target-filter-chain-v1" | "chromium-relative-effect-layer-v1";
   /** Effects already present in `dataUri`; the SVG wrapper must not repeat them. */
   consumedEffects: BackdropCompositeConsumedEffect[];
   /** Outward effects removed for capture and intentionally re-applied by SVG. */
@@ -182,7 +179,7 @@ export interface TextSegment {
    * Writing Modes 4 `text-orientation: mixed` rules from UAX #50).
    * One entry per UTF-16 code unit in `text`.
    */
-  verticalOrientations?: Array<'upright' | 'rotated'>;
+  verticalOrientations?: Array<"upright" | "rotated">;
   /**
    * DM-990: per-char advance along the vertical axis (= `Range.height`
    * the capture script measured for each char) for vertical segments.
@@ -367,12 +364,7 @@ export interface TextSegment {
 }
 
 /** One Chromium physical text-fragment plane, in capture-viewport pixels. */
-export type CapturedTextPaintQuad = [
-  number, number,
-  number, number,
-  number, number,
-  number, number,
-];
+export type CapturedTextPaintQuad = [number, number, number, number, number, number, number, number];
 
 /** Complete signed 2D mapping `x' = ax + cy + e`, `y' = bx + dy + f`. */
 export type CapturedTextPaintAffine = [number, number, number, number, number, number];
@@ -1386,14 +1378,17 @@ export interface CapturedStyles {
   /** Computed font-variant-alternates syntax. */
   fontVariantAlternates?: string;
   /** Effective Blink-fused @font-feature-values aliases, keyed by normalized family name. */
-  fontFeatureValues?: Record<string, {
-    annotation?: Record<string, number[]>;
-    ornaments?: Record<string, number[]>;
-    stylistic?: Record<string, number[]>;
-    swash?: Record<string, number[]>;
-    characterVariant?: Record<string, number[]>;
-    styleset?: Record<string, number[]>;
-  }>;
+  fontFeatureValues?: Record<
+    string,
+    {
+      annotation?: Record<string, number[]>;
+      ornaments?: Record<string, number[]>;
+      stylistic?: Record<string, number[]>;
+      swash?: Record<string, number[]>;
+      characterVariant?: Record<string, number[]>;
+      styleset?: Record<string, number[]>;
+    }
+  >;
   /** CSS font-variant-caps — 'normal' | 'small-caps' | 'all-small-caps' |
    *  'petite-caps' | 'all-petite-caps' | 'unicase' | 'titling-caps'.
    *  Renderer applies the matching OpenType feature (smcp / c2sc / etc.).
@@ -1597,14 +1592,7 @@ export interface CapturedScrollbarRect {
 }
 
 export type CapturedScrollbarPartKind =
-  | "background"
-  | "back-button"
-  | "forward-button"
-  | "track"
-  | "back-track"
-  | "forward-track"
-  | "thumb"
-  | "corner";
+  "background" | "back-button" | "forward-button" | "track" | "back-track" | "forward-track" | "thumb" | "corner";
 
 /**
  * Blink's final computed box/paint values for an author scrollbar pseudo.
@@ -1768,12 +1756,7 @@ export interface CapturedScrollbarSet {
 }
 
 export type CapturedFrameAccess =
-  | "top"
-  | "same-origin"
-  | "cross-origin-allowlisted"
-  | "cross-origin-denied"
-  | "inaccessible"
-  | "identity-unavailable";
+  "top" | "same-origin" | "cross-origin-allowlisted" | "cross-origin-denied" | "inaccessible" | "identity-unavailable";
 
 /** One live Blink scroll owner sampled in its owning document. */
 export interface CapturedFrameScrollOwner {
@@ -1828,16 +1811,9 @@ export interface CapturedFrameScrollState {
 }
 
 export type BrokenImageFallbackDisposition =
-  | "primary"
-  | "loading"
-  | "collapsed"
-  | "empty-inline"
-  | "non-replaced-fallback"
-  | "replaced-flow-root-fallback";
+  "primary" | "loading" | "collapsed" | "empty-inline" | "non-replaced-fallback" | "replaced-flow-root-fallback";
 
-export type CapturedBrokenImageQuad = [
-  number, number, number, number, number, number, number, number,
-];
+export type CapturedBrokenImageQuad = [number, number, number, number, number, number, number, number];
 
 /** Blink physical box-model quads, localized to the requested capture viewport. */
 export interface CapturedBrokenImagePhysicalBox {
@@ -1887,9 +1863,18 @@ export interface CapturedBrokenImageFallback {
     writingMode: string;
     effectiveZoom: number;
     border: {
-      top: number; right: number; bottom: number; left: number;
-      topStyle: string; rightStyle: string; bottomStyle: string; leftStyle: string;
-      topColor: string; rightColor: string; bottomColor: string; leftColor: string;
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+      topStyle: string;
+      rightStyle: string;
+      bottomStyle: string;
+      leftStyle: string;
+      topColor: string;
+      rightColor: string;
+      bottomColor: string;
+      leftColor: string;
     };
     padding: { top: number; right: number; bottom: number; left: number };
   };
@@ -1963,14 +1948,16 @@ export interface CapturedBrokenImageFallback {
       glyphCount: number;
     }>;
   };
-  accessibility: {
-    ignored: boolean;
-    role: string | null;
-    name: string | null;
-    description: string | null;
-  } | {
-    unavailableReason: string;
-  };
+  accessibility:
+    | {
+        ignored: boolean;
+        role: string | null;
+        name: string | null;
+        description: string | null;
+      }
+    | {
+        unavailableReason: string;
+      };
   terminalRaster?: {
     rect: { x: number; y: number; width: number; height: number };
     reason: string;
@@ -2387,7 +2374,7 @@ export interface CapturedElement {
     width: number;
     height: number;
     kinds: Array<
-      "menulist-button-arrow"
+      | "menulist-button-arrow"
       | "calendar-picker-indicator"
       | "search-cancel-button"
       | "inner-spin-button"
@@ -2405,8 +2392,13 @@ export interface CapturedElement {
     exactPartBox?: boolean;
     /** Private pierced-UA-node identities and used geometry. */
     parts?: Array<{
-      kind: "calendar-picker-indicator" | "search-cancel-button" | "inner-spin-button"
-        | "select-inner" | "file-selector-button" | "file-selector-status";
+      kind:
+        | "calendar-picker-indicator"
+        | "search-cancel-button"
+        | "inner-spin-button"
+        | "select-inner"
+        | "file-selector-button"
+        | "file-selector-status";
       index: number;
       x: number;
       y: number;
@@ -2471,7 +2463,15 @@ export interface CapturedElement {
    * reconstructed vector subtree cannot reproduce. `empty` distinguishes a
    * successfully captured transparent result from a failed screenshot.
    */
-  urlFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string; empty?: boolean };
+  urlFilterRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    token?: string;
+    dataUri?: string;
+    empty?: boolean;
+  };
   /**
    * For <canvas> / <video> / <iframe> / <object> / <embed>: a viewport-relative
    * content-box rect (border-box minus border + padding) that
@@ -2681,10 +2681,18 @@ export interface PseudoBox {
    *  for the default `1`. Fully-transparent pseudos (`opacity: 0`) are dropped at
    *  capture time and never produce a box. */
   opacity?: number;
-  borderTopWidth?: number; borderTopColor?: string; borderTopStyle?: string;
-  borderRightWidth?: number; borderRightColor?: string; borderRightStyle?: string;
-  borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;
-  borderLeftWidth?: number; borderLeftColor?: string; borderLeftStyle?: string;
+  borderTopWidth?: number;
+  borderTopColor?: string;
+  borderTopStyle?: string;
+  borderRightWidth?: number;
+  borderRightColor?: string;
+  borderRightStyle?: string;
+  borderBottomWidth?: number;
+  borderBottomColor?: string;
+  borderBottomStyle?: string;
+  borderLeftWidth?: number;
+  borderLeftColor?: string;
+  borderLeftStyle?: string;
   borderRadius?: number;
   transform?: string;
   transformOrigin?: string;

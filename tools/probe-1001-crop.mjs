@@ -18,7 +18,7 @@ for (const kind of ["expected", "actual", "diff"]) {
   await page.goto(`file://${process.cwd()}/tests/output/real-world/nytimes-mobile-entire-page-${kind}.png`);
   for (const reg of regions) {
     const buf = await page.screenshot({
-      clip: { x: reg.x, y: reg.y, width: reg.w, height: reg.h }
+      clip: { x: reg.x, y: reg.y, width: reg.w, height: reg.h },
     });
     writeFileSync(`/tmp/dm1001-r${reg.i}-${kind}.png`, buf);
   }

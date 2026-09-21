@@ -24,16 +24,22 @@
 // degrades the seam to the two-slot table by design.
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { blinkAlternateFamilyName, getFontInstance, resolveFontKey, withSystemFallbackResolution } from "./font-resolution.js";
+import {
+  blinkAlternateFamilyName,
+  getFontInstance,
+  resolveFontKey,
+  withSystemFallbackResolution,
+} from "./font-resolution.js";
 import { isGlyphHelperAvailable, resolveLinuxFamilyMatch } from "./glyph-helper.js";
 
 const LIBERATION = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
-const available = process.platform === "linux"
-  && existsSync(LIBERATION)
-  && isGlyphHelperAvailable()
+const available =
+  process.platform === "linux" &&
+  existsSync(LIBERATION) &&
+  isGlyphHelperAvailable() &&
   // An older helper answers "unknown query type" → null; the seam then
   // legitimately degrades, and there is nothing to pin.
-  && resolveLinuxFamilyMatch("Liberation Sans", { weight: 700 }) != null;
+  resolveLinuxFamilyMatch("Liberation Sans", { weight: 700 }) != null;
 const describeLinux = available ? describe : describe.skip;
 
 const psName = (key: string, weight: number, slant = 0): string | undefined =>
@@ -73,8 +79,10 @@ describeLinux("Linux declared-family cut selection in the render path", () => {
 
   it("keeps the cuts distinct when weights interleave through the cache", () => {
     const seq: Array<[number, string]> = [
-      [700, "LiberationSans-Bold"], [400, "LiberationSans"],
-      [550, "LiberationSans-Bold"], [400, "LiberationSans"],
+      [700, "LiberationSans-Bold"],
+      [400, "LiberationSans"],
+      [550, "LiberationSans-Bold"],
+      [400, "LiberationSans"],
       [700, "LiberationSans-Bold"],
     ];
     for (const [w, want] of seq) expect(psName("arial", w), `weight ${w}`).toBe(want);

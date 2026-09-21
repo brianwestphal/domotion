@@ -101,16 +101,34 @@ export interface CursorOverlay {
 }
 
 /** Optional resolver for `selector`-based move events. */
-export type SelectorResolver = (sel: string, frameIndex: number) => { x: number; y: number; w: number; h: number } | null;
+export type SelectorResolver = (
+  sel: string,
+  frameIndex: number,
+) => { x: number; y: number; w: number; h: number } | null;
 
 /** DM-1106: hit-tester for the cursor TYPE at a viewport point in a given frame. */
 export type CursorAtResolver = (x: number, y: number, frameIndex: number) => string;
 
-interface KeyframePoint { t: number; x: number; y: number; visible: boolean; cursor?: string }
-interface ResolvedClick { t: number; x: number; y: number; button: "primary" | "secondary" | "middle"; style: CursorStyle }
+interface KeyframePoint {
+  t: number;
+  x: number;
+  y: number;
+  visible: boolean;
+  cursor?: string;
+}
+interface ResolvedClick {
+  t: number;
+  x: number;
+  y: number;
+  button: "primary" | "secondary" | "middle";
+  style: CursorStyle;
+}
 /** A cursor-keyword timeline entry: from time `t` the active glyph is `cursor`
  *  (or null = cursor hidden). DM-1106. */
-export interface CursorTimelineEntry { t: number; cursor: string | null }
+export interface CursorTimelineEntry {
+  t: number;
+  cursor: string | null;
+}
 
 /**
  * DM-1106: the effective cursor keyword at viewport point (x, y) for a captured
@@ -155,7 +173,12 @@ export function resolveCursorScript(
    *  `cursorTimeline` driving per-glyph switching; when null, the overlay paints
    *  the single arrow (back-compat). */
   resolveCursorAt: CursorAtResolver | null = null,
-): { positions: KeyframePoint[]; clicks: ResolvedClick[]; style: CursorStyle; cursorTimeline: CursorTimelineEntry[] | null } {
+): {
+  positions: KeyframePoint[];
+  clicks: ResolvedClick[];
+  style: CursorStyle;
+  cursorTimeline: CursorTimelineEntry[] | null;
+} {
   const baseStyle: CursorStyle = { ...DEFAULT_STYLE, ...overlay.style };
   const events = [...overlay.events].sort((a, b) => a.t - b.t);
 
@@ -166,7 +189,8 @@ export function resolveCursorScript(
 
   const pushKey = (t: number, x: number, y: number, vis: boolean, cursor?: string): void => {
     positions.push({ t, x, y, visible: vis, cursor });
-    curX = x; curY = y;
+    curX = x;
+    curY = y;
   };
 
   const frameForT = (t: number): number => {
@@ -218,9 +242,8 @@ export function resolveCursorScript(
     positions.push({ t: totalDurationMs, x: last.x, y: last.y, visible: last.visible, cursor: last.cursor });
   }
 
-  const cursorTimeline = resolveCursorAt != null
-    ? buildCursorTimeline(positions, totalDurationMs, frameForT, resolveCursorAt)
-    : null;
+  const cursorTimeline =
+    resolveCursorAt != null ? buildCursorTimeline(positions, totalDurationMs, frameForT, resolveCursorAt) : null;
 
   return { positions, clicks, style: baseStyle, cursorTimeline };
 }
@@ -228,11 +251,15 @@ export function resolveCursorScript(
 /** Interpolated cursor state at time `t` from the position keyframes. Position
  *  lerps within a keyframe interval; visibility + the per-segment cursor
  *  override are step-held from the interval's start keyframe. */
-function stateAtTime(positions: KeyframePoint[], t: number): { x: number; y: number; visible: boolean; cursor?: string } {
+function stateAtTime(
+  positions: KeyframePoint[],
+  t: number,
+): { x: number; y: number; visible: boolean; cursor?: string } {
   if (t <= positions[0].t) return positions[0];
   const n = positions.length;
   for (let i = 0; i < n - 1; i++) {
-    const a = positions[i], b = positions[i + 1];
+    const a = positions[i],
+      b = positions[i + 1];
     if (t >= a.t && t <= b.t) {
       const span = b.t - a.t;
       const f = span > 0 ? (t - a.t) / span : 0;
@@ -269,10 +296,12 @@ function buildCursorTimeline(
     if (c !== prev) {
       // Refine the crossing time in (t-step, t] so the switch lands on the
       // boundary, not the sample grid.
-      let lo = t - step, hi = t;
+      let lo = t - step,
+        hi = t;
       for (let k = 0; k < 14; k++) {
         const mid = (lo + hi) / 2;
-        if (cursorAtTime(mid) === prev) lo = mid; else hi = mid;
+        if (cursorAtTime(mid) === prev) lo = mid;
+        else hi = mid;
       }
       timeline.push({ t: Math.min(totalDurationMs, hi), cursor: c });
       prev = c;
@@ -363,7 +392,9 @@ export function cursorOverlayMarkup(
   // Position track — linear translate along the keyframes (holds are duplicate
   // consecutive values, exactly as under SMIL). keyTimes start at 0 and end at 1.
   const posName = `co-pos-${uid}`;
-  kf.push(`@keyframes ${posName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{transform:translate(${num(p.x)}px,${num(p.y)}px)}`).join("")}}`);
+  kf.push(
+    `@keyframes ${posName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{transform:translate(${num(p.x)}px,${num(p.y)}px)}`).join("")}}`,
+  );
   const posAnim = `${posName} ${totalSec}s linear infinite`;
 
   // Pulse fragments — one per click; each pushes its own keyframes into `kf`.
@@ -376,21 +407,27 @@ export function cursorOverlayMarkup(
     // until the next keyframe). The parent carries the position animation.
     const size = 22 * (style.cursorScale || 1);
     const kinds = Array.from(new Set(cursorTimeline.map((e) => e.cursor).filter((c): c is string => c != null)));
-    const glyphLayers = kinds.map((kind, gi) => {
-      const glyph = cursorGlyphSvg(kind, 0, 0, size, style.cursorStroke);
-      const gName = `co-glyph-${uid}-${gi}`;
-      kf.push(`@keyframes ${gName}{${cursorTimeline.map((e) => `${pct(e.t / totalDurationMs)}{opacity:${e.cursor === kind ? "1" : "0"}}`).join("")}}`);
-      return `      <g opacity="0" style="animation:${gName} ${totalSec}s step-end infinite">
+    const glyphLayers = kinds
+      .map((kind, gi) => {
+        const glyph = cursorGlyphSvg(kind, 0, 0, size, style.cursorStroke);
+        const gName = `co-glyph-${uid}-${gi}`;
+        kf.push(
+          `@keyframes ${gName}{${cursorTimeline.map((e) => `${pct(e.t / totalDurationMs)}{opacity:${e.cursor === kind ? "1" : "0"}}`).join("")}}`,
+        );
+        return `      <g opacity="0" style="animation:${gName} ${totalSec}s step-end infinite">
         ${glyph}
       </g>`;
-    }).join("\n");
+      })
+      .join("\n");
     pointerGroup = `    <g class="cursor-pointer" style="animation:${posAnim}">
 ${glyphLayers}
     </g>`;
   } else {
     // Legacy single-arrow path (no auto cursor-type resolver supplied).
     const visName = `co-vis-${uid}`;
-    kf.push(`@keyframes ${visName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{opacity:${p.visible ? "1" : "0"}}`).join("")}}`);
+    kf.push(
+      `@keyframes ${visName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{opacity:${p.visible ? "1" : "0"}}`).join("")}}`,
+    );
     pointerGroup = `    <g class="cursor-arrow" opacity="0" style="animation:${posAnim},${visName} ${totalSec}s step-end infinite">
       ${macosCursorPath(style.cursorScale)}
     </g>`;
@@ -434,8 +471,12 @@ function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: stri
   const lead = fStart > 0 ? `${pct(fStart)}{transform:scale(1);opacity:0}` : "";
   const tail = fEnd < 1 ? `100%{transform:scale(1);opacity:0}` : "";
   const peak = (op: number): string => (fPeak < fEnd ? `${pct(fPeak)}{opacity:${op}}` : "");
-  kf.push(`@keyframes ${outerName}{0%{transform:scale(1);opacity:0}${lead}${peak(0.9)}${pct(fEnd)}{transform:scale(${num(r1 / r0)});opacity:0}${tail}}`);
-  kf.push(`@keyframes ${innerName}{0%{transform:scale(1);opacity:0}${lead}${peak(0.95)}${pct(fEnd)}{transform:scale(${num((r1 - 1) / r0)});opacity:0}${tail}}`);
+  kf.push(
+    `@keyframes ${outerName}{0%{transform:scale(1);opacity:0}${lead}${peak(0.9)}${pct(fEnd)}{transform:scale(${num(r1 / r0)});opacity:0}${tail}}`,
+  );
+  kf.push(
+    `@keyframes ${innerName}{0%{transform:scale(1);opacity:0}${lead}${peak(0.95)}${pct(fEnd)}{transform:scale(${num((r1 - 1) / r0)});opacity:0}${tail}}`,
+  );
   const ringStyle = (name: string): string =>
     `transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:${name} ${totalSec}s linear infinite`;
   // Right-half-disc fill for secondary clicks.
@@ -443,7 +484,7 @@ function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: stri
   if (c.button === "secondary") {
     const halfPath = `M ${num(c.x)} ${num(c.y - innerR)} A ${num(innerR)} ${num(innerR)} 0 0 1 ${num(c.x)} ${num(c.y + innerR)} Z`;
     const halfName = `co-pulse-${uid}-${idx}h`;
-    const fHalfPeak = Math.min(1, (c.t + 0.20 * durMs) / totalDurationMs);
+    const fHalfPeak = Math.min(1, (c.t + 0.2 * durMs) / totalDurationMs);
     const leadH = fStart > 0 ? `${pct(fStart)}{opacity:0}` : "";
     const tailH = fEnd < 1 ? `100%{opacity:0}` : "";
     const peakH = fHalfPeak < fEnd ? `${pct(fHalfPeak)}{opacity:1}` : "";

@@ -7,7 +7,7 @@ owners: ["platform-release"]
 platforms: ["linux"]
 tickets: ["DM-2087"]
 code: ["tests/fontconfig/alternate-system-ui.conf"]
-aliases: ["docs/123-linux-system-ui-alternate-inventory.md","doc-123"]
+aliases: ["docs/123-linux-system-ui-alternate-inventory.md", "doc-123"]
 ---
 
 # Linux system-ui parity across font inventories

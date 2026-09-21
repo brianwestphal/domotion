@@ -15,9 +15,14 @@ function walk(n: CapturedElement, pred: (n: CapturedElement) => boolean, out: Ca
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1,
+    viewport: { width: 1280, height: 800 },
+    deviceScaleFactor: 1,
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "framer-desktop.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "framer-desktop.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   await page.goto("https://www.framer.com/", { waitUntil: "domcontentloaded" });
@@ -28,7 +33,14 @@ async function main() {
 
   // Same freeze pattern real-world.tsx applies
   await page.evaluate(() => {
-    try { if (typeof document.getAnimations === "function") for (const a of document.getAnimations()) { try { a.pause(); } catch {} } } catch {}
+    try {
+      if (typeof document.getAnimations === "function")
+        for (const a of document.getAnimations()) {
+          try {
+            a.pause();
+          } catch {}
+        }
+    } catch {}
   });
 
   // Capture the tree the test would capture
@@ -36,7 +48,7 @@ async function main() {
 
   // Find all captured svg elements and check their svgContent
   const svgs: CapturedElement[] = [];
-  walk(tree[0]!, (n) => n.tag === 'svg', svgs);
+  walk(tree[0]!, (n) => n.tag === "svg", svgs);
   console.log(`Total captured <svg> elements: ${svgs.length}`);
 
   // Region [3] is (922, 3868, 312, 66) — find svgs near this region
@@ -47,10 +59,10 @@ async function main() {
   for (const s of svgsNearToolbar) {
     console.log(`  svg at (${Math.round(s.x)},${Math.round(s.y)},${Math.round(s.width)},${Math.round(s.height)})`);
     const sc = (s as any).svgContent as string | undefined;
-    console.log(`    svgContent: ${sc ? sc.slice(0, 200) + '...' : 'NONE'}`);
+    console.log(`    svgContent: ${sc ? sc.slice(0, 200) + "..." : "NONE"}`);
     console.log(`    svgContent length: ${sc?.length ?? 0}`);
-    console.log(`    has <use:`, sc?.includes('<use'));
-    console.log(`    has <path:`, sc?.includes('<path'));
+    console.log(`    has <use:`, sc?.includes("<use"));
+    console.log(`    has <path:`, sc?.includes("<path"));
     console.log(`    children count:`, s.children?.length ?? 0);
   }
 
@@ -58,15 +70,15 @@ async function main() {
   const domStructure = await page.evaluate(() => {
     // Find toolbar
     const tb = document.querySelector('[class*="framer-17fh9ce"]');
-    if (!tb) return { error: 'no toolbar' };
+    if (!tb) return { error: "no toolbar" };
     const r = (tb as Element).getBoundingClientRect();
     // Get children that are svgContainers
-    const containers = tb.querySelectorAll('.svgContainer');
+    const containers = tb.querySelectorAll(".svgContainer");
     const out: any = { tbRect: { x: r.left, y: r.top, w: r.width, h: r.height }, containers: [] };
     for (let i = 0; i < containers.length && i < 6; i++) {
       const c = containers[i];
       const cr = c.getBoundingClientRect();
-      const innerSvg = c.querySelector('svg');
+      const innerSvg = c.querySelector("svg");
       const isr = innerSvg?.getBoundingClientRect();
       out.containers.push({
         containerRect: cr.width === 0 ? null : { x: cr.left, y: cr.top, w: cr.width, h: cr.height },
@@ -77,9 +89,12 @@ async function main() {
     }
     return out;
   });
-  console.log('\nDOM structure of toolbar:');
+  console.log("\nDOM structure of toolbar:");
   console.log(JSON.stringify(domStructure, null, 2));
 
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

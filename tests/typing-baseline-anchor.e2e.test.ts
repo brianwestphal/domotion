@@ -54,12 +54,17 @@ async function rawPixels(buf: Buffer): Promise<{ data: Buffer; n: number }> {
 /** Ink (darker-than-mid-gray) pixel count + bounding box within the crop. */
 async function ink(buf: Buffer): Promise<{ count: number; minX: number; minY: number; maxX: number; maxY: number }> {
   const { data, n } = await rawPixels(buf);
-  let count = 0, minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+  let count = 0,
+    minX = Infinity,
+    minY = Infinity,
+    maxX = -1,
+    maxY = -1;
   for (let i = 0; i < n; i++) {
     const o = i * 4;
     if ((data[o] + data[o + 1] + data[o + 2]) / 3 < 128) {
       count++;
-      const x = i % CROP.width, y = Math.floor(i / CROP.width);
+      const x = i % CROP.width,
+        y = Math.floor(i / CROP.width);
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -82,11 +87,13 @@ async function inkMask(buf: Buffer): Promise<{ m: Uint8Array; w: number; h: numb
 
 /** Ink intersection-over-union with `b` displaced by (dx, dy). */
 function inkIoU(a: Uint8Array, b: Uint8Array, w: number, h: number, dx: number, dy: number): number {
-  let inter = 0, union = 0;
+  let inter = 0,
+    union = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const av = a[y * w + x];
-      const sx = x - dx, sy = y - dy;
+      const sx = x - dx,
+        sy = y - dy;
       const bv = sx >= 0 && sx < w && sy >= 0 && sy < h ? b[sy * w + sx] : 0;
       if (av || bv) union++;
       if (av && bv) inter++;
@@ -151,7 +158,17 @@ describeBrowser("typing anchor.baseline rasterized alignment (DM-1750)", () => {
     // 2. Resolve a typing overlay against the LIVE page: baseline anchor with
     //    dy: 0 (no hand-tuned ascent constant), font adopted from the field.
     const [withBaseline] = await resolveOverlays(page, [
-      { kind: "typing", text: TEXT, x: 0, y: 0, fontFamily: "anchor", mode: "paste", delay: 100, color: "#111111", anchor: { selector: "#code", at: "top-left", baseline: true } },
+      {
+        kind: "typing",
+        text: TEXT,
+        x: 0,
+        y: 0,
+        fontFamily: "anchor",
+        mode: "paste",
+        delay: 100,
+        color: "#111111",
+        anchor: { selector: "#code", at: "top-left", baseline: true },
+      },
     ]);
     // Control: the same anchor WITHOUT baseline still resolves to the border-box
     // top — the pre-existing behavior stays unchanged.
@@ -169,8 +186,11 @@ describeBrowser("typing anchor.baseline rasterized alignment (DM-1750)", () => {
     // 3. Rasterize the ACTUAL animated SVG: the overlay alone on a white field
     //    (no page text underneath), fully pasted and held.
     const svg = generateAnimatedSvg({
-      width: W, height: H,
-      frames: [{ svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/>`, duration: 2000, overlays: [withBaseline] }],
+      width: W,
+      height: H,
+      frames: [
+        { svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/>`, duration: 2000, overlays: [withBaseline] },
+      ],
     });
     await page.setContent(htmlWrapper(svg, "#ffffff"), { waitUntil: "load" });
     await seekTo(page, 1500);
@@ -217,11 +237,24 @@ describeBrowser("typing anchor.baseline rasterized alignment (DM-1750)", () => {
     const expected = await page.screenshot({ type: "png", clip: CROP });
     const expInk = await ink(expected);
     const [overlay] = await resolveOverlays(page, [
-      { kind: "typing", text: TEXT, x: 0, y: 0, fontFamily: "anchor", mode: "paste", delay: 100, color: "#111111", anchor: { selector: "#code", at: "top-left" } },
+      {
+        kind: "typing",
+        text: TEXT,
+        x: 0,
+        y: 0,
+        fontFamily: "anchor",
+        mode: "paste",
+        delay: 100,
+        color: "#111111",
+        anchor: { selector: "#code", at: "top-left" },
+      },
     ]);
     const svg = generateAnimatedSvg({
-      width: W, height: H,
-      frames: [{ svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/>`, duration: 2000, overlays: [overlay] }],
+      width: W,
+      height: H,
+      frames: [
+        { svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/>`, duration: 2000, overlays: [overlay] },
+      ],
     });
     await page.setContent(htmlWrapper(svg, "#ffffff"), { waitUntil: "load" });
     await seekTo(page, 1500);

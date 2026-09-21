@@ -83,8 +83,10 @@ export const createPseudoInjectHandler = () => {
         }
         pseudoImages.push({
           url: p.imageUrl,
-          x: p.seg.x, y: p.seg.y,
-          width: p.renderWidth, height: p.renderHeight,
+          x: p.seg.x,
+          y: p.seg.y,
+          width: p.renderWidth,
+          height: p.renderHeight,
           filter: p.filter,
           opacity: p.opacity,
           transform: p.transform,
@@ -105,7 +107,7 @@ export const createPseudoInjectHandler = () => {
         // so subtract the right-side outer-box advance from the anchor.
         const firstSeg = textSegments[0];
         const bs = p.boxStyles || {};
-        const mRb = parseFloat(window.getComputedStyle(el, '::before').marginRight) || 0;
+        const mRb = parseFloat(window.getComputedStyle(el, "::before").marginRight) || 0;
         // Flush the ::before just left of the host's first OWN text segment.
         const flushX = firstSeg.x - p.seg.width - (bs.padR || 0) - (bs.borR || 0) - mRb;
         // DM-1105: `firstSeg` is the host's first OWN-text run, which is NOT the
@@ -132,7 +134,7 @@ export const createPseudoInjectHandler = () => {
         // border-left + padding-left from the parent's text right edge.
         const lastSeg = textSegments[textSegments.length - 1];
         const bs = p.boxStyles || {};
-        const mLa = parseFloat(window.getComputedStyle(el, '::after').marginLeft) || 0;
+        const mLa = parseFloat(window.getComputedStyle(el, "::after").marginLeft) || 0;
         // DM-926: when the host is a flex container with a non-default
         // `justify-content` (e.g. `summary { display: flex;
         // justify-content: space-between }` for a `<details>` accordion
@@ -143,10 +145,15 @@ export const createPseudoInjectHandler = () => {
         // right-edge position; KEEP it instead of overwriting with the
         // adjacent-to-text anchor that's wrong here.
         const hcs = window.getComputedStyle(el);
-        const hostIsFlex = hcs.display === 'flex' || hcs.display === 'inline-flex';
+        const hostIsFlex = hcs.display === "flex" || hcs.display === "inline-flex";
         const hostJc = hcs.justifyContent;
-        const flexSpread = hostIsFlex && hostJc != null && hostJc !== ''
-          && hostJc !== 'flex-start' && hostJc !== 'start' && hostJc !== 'normal';
+        const flexSpread =
+          hostIsFlex &&
+          hostJc != null &&
+          hostJc !== "" &&
+          hostJc !== "flex-start" &&
+          hostJc !== "start" &&
+          hostJc !== "normal";
         if (flexSpread) {
           // Keep p.seg.x as computed by pseudo-content.ts; re-anchor y.
           // DM-1153: when the flex host centers its cross axis
@@ -159,16 +166,15 @@ export const createPseudoInjectHandler = () => {
           // pseudo's LINE box on the content-box center, so the baseline sits
           // at centerY − lineH/2 + ascent. The renderer computes baseline as
           // seg.y + ascent, so set seg.y = centerY − lineH/2.
-          if (hcs.alignItems === 'center') {
+          if (hcs.alignItems === "center") {
             const elRect = el.getBoundingClientRect();
             const padT = parseFloat(hcs.paddingTop) || 0;
             const padB = parseFloat(hcs.paddingBottom) || 0;
             const borT = parseFloat(hcs.borderTopWidth) || 0;
             const borB = parseFloat(hcs.borderBottomWidth) || 0;
-            const contentCenterY = elRect.top + borT + padT
-              + (elRect.height - borT - borB - padT - padB) / 2;
+            const contentCenterY = elRect.top + borT + padT + (elRect.height - borT - borB - padT - padB) / 2;
             const pseudoFs = p.seg.fontSize || lastSeg.height;
-            let lineH = parseFloat(window.getComputedStyle(el, '::after').lineHeight);
+            let lineH = parseFloat(window.getComputedStyle(el, "::after").lineHeight);
             if (isNaN(lineH) || lineH <= 0) lineH = pseudoFs * 1.2; // 'normal'
             p.seg.y = contentCenterY - lineH / 2;
             p.seg.height = pseudoFs;
@@ -177,9 +183,9 @@ export const createPseudoInjectHandler = () => {
             p.seg.height = lastSeg.height;
           }
         } else {
-        p.seg.x = lastSeg.x + lastSeg.width + mLa + (bs.borL || 0) + (bs.padL || 0);
-        p.seg.y = lastSeg.y;
-        p.seg.height = lastSeg.height;
+          p.seg.x = lastSeg.x + lastSeg.width + mLa + (bs.borL || 0) + (bs.padL || 0);
+          p.seg.y = lastSeg.y;
+          p.seg.height = lastSeg.height;
         }
         // DM-944: when the host element's painted box extends BELOW the
         // last main-text line by more than one line-height, Chrome wrapped
@@ -196,7 +202,8 @@ export const createPseudoInjectHandler = () => {
         const pdL = parseFloat(ecs.paddingLeft) || 0;
         const bdL = parseFloat(ecs.borderLeftWidth) || 0;
         const lastBottom = lastSeg.y + lastSeg.height;
-        const elBottom = elRect.bottom - (parseFloat(ecs.paddingBottom) || 0) - (parseFloat(ecs.borderBottomWidth) || 0);
+        const elBottom =
+          elRect.bottom - (parseFloat(ecs.paddingBottom) || 0) - (parseFloat(ecs.borderBottomWidth) || 0);
         const wrapThreshold = lastSeg.height * 0.8;
         if (elBottom - lastBottom >= wrapThreshold) {
           p.seg.x = elRect.x + bdL + pdL;
@@ -210,11 +217,12 @@ export const createPseudoInjectHandler = () => {
           // width to match) so the renderer doesn't shove the wrapped badge
           // right by one space. Only applies on wrap; the inline case keeps
           // its space via the un-trimmed seg above.
-          const trimmedText = p.seg.text.replace(/^\s+/, '');
-          if (trimmedText !== p.seg.text && trimmedText !== '') {
-            const aps = window.getComputedStyle(el, '::after');
-            const sp = document.createElement('span');
-            sp.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;left:-99999px;top:-99999px;margin:0;padding:0;border:0';
+          const trimmedText = p.seg.text.replace(/^\s+/, "");
+          if (trimmedText !== p.seg.text && trimmedText !== "") {
+            const aps = window.getComputedStyle(el, "::after");
+            const sp = document.createElement("span");
+            sp.style.cssText =
+              "position:absolute;visibility:hidden;white-space:pre;left:-99999px;top:-99999px;margin:0;padding:0;border:0";
             sp.style.fontFamily = aps.fontFamily;
             sp.style.fontSize = aps.fontSize;
             sp.style.fontWeight = aps.fontWeight;
@@ -242,9 +250,9 @@ export const createPseudoInjectHandler = () => {
         // last child, and read its painted rect. (Coords are raw
         // getBoundingClientRect, matching the DM-944 wrap-detection block
         // above — these captures clip at the page origin so vp = 0,0.)
-        const ps = window.getComputedStyle(el, '::after');
-        const sentinel = document.createElement('span');
-        sentinel.style.cssText = 'visibility:hidden;pointer-events:none;white-space:pre';
+        const ps = window.getComputedStyle(el, "::after");
+        const sentinel = document.createElement("span");
+        sentinel.style.cssText = "visibility:hidden;pointer-events:none;white-space:pre";
         sentinel.style.fontFamily = ps.fontFamily;
         sentinel.style.fontSize = ps.fontSize;
         sentinel.style.fontWeight = ps.fontWeight;
@@ -316,11 +324,14 @@ export const createPseudoInjectHandler = () => {
         const bx = p.seg.x - bs.padL - bs.borL;
         // DM-2191: prefer Blink's measured generated-content border box. The
         // arithmetic fallback exists only for older captured trees.
-        const bw = bs.measuredWidth || (p.seg.width + bs.padL + bs.padR + bs.borL + bs.borR);
-        const bh = bs.measuredHeight || (bs.lineH + bs.padT + bs.padB + bs.borT + bs.borB);
+        const bw = bs.measuredWidth || p.seg.width + bs.padL + bs.padR + bs.borL + bs.borR;
+        const bh = bs.measuredHeight || bs.lineH + bs.padT + bs.padB + bs.borT + bs.borB;
         if (bw > 0 && bh > 0) {
           p.seg.pseudoBox = {
-            x: bx, y: boxTop, width: bw, height: bh,
+            x: bx,
+            y: boxTop,
+            width: bw,
+            height: bh,
             backgroundColor: bs.backgroundColor,
             // DM-782: gradient/url() bg-image plumbing — renderer threads
             // each comma-separated layer through `buildBackgroundLayerDef`
@@ -334,7 +345,10 @@ export const createPseudoInjectHandler = () => {
             // bare `border-bottom` on a pseudo). Width fields are always
             // emitted so the renderer doesn't have to fall back to zero
             // when a `borderWidth` (uniform) shorthand is absent.
-            borL: bs.borL, borR: bs.borR, borT: bs.borT, borB: bs.borB,
+            borL: bs.borL,
+            borR: bs.borR,
+            borT: bs.borT,
+            borB: bs.borB,
             borderTopColor: bs.borderTopColor,
             borderRightColor: bs.borderRightColor,
             borderBottomColor: bs.borderBottomColor,
@@ -355,7 +369,7 @@ export const createPseudoInjectHandler = () => {
       // the accessibility/search string.) `text` starts as the host text, so
       // prepend for before-pseudos and append for after-pseudos — yielding
       // `before + host + after` regardless of pseudo iteration order.
-      text = p.isBefore ? p.seg.text + ' ' + text : text + ' ' + p.seg.text;
+      text = p.isBefore ? p.seg.text + " " + text : text + " " + p.seg.text;
     }
 
     return { pseudoImages, text, textLeft, textTop, textWidth, textHeight, fontAscent };

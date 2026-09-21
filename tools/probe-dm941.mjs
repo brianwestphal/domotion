@@ -15,7 +15,7 @@ const out = await page.evaluate(() => {
   const positions = [];
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === ' ') continue;
+    if (ch === " ") continue;
     const r = document.createRange();
     r.setStart(node, i);
     r.setEnd(node, i + 1);

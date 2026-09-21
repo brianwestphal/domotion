@@ -4,10 +4,10 @@ title: "129 — Chromium parity verification program"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2315","DM-2316","DM-2317","DM-2355","DM-2557","DM-2558","DM-2568","DM-2575","DM-2586"]
-code: ["src/capture/table-geometry.e2e.test.ts","tools/parity-program.json","tools/semantic-coverage.json"]
-aliases: ["docs/129-chromium-parity-verification-program.md","doc-129"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2315", "DM-2316", "DM-2317", "DM-2355", "DM-2557", "DM-2558", "DM-2568", "DM-2575", "DM-2586"]
+code: ["src/capture/table-geometry.e2e.test.ts", "tools/parity-program.json", "tools/semantic-coverage.json"]
+aliases: ["docs/129-chromium-parity-verification-program.md", "doc-129"]
 ---
 
 # 129 — Chromium parity verification program
@@ -178,11 +178,11 @@ fingerprints, and mutations for reference-box selection, ancestor composition,
 function-first interpolation, fixed sampling, and fail-closed retention.
 
 The border oracle separately records Chromium's paint-path decision before it
-compares pixels.  At Chromium revision `7d859f271c`,
+compares pixels. At Chromium revision `7d859f271c`,
 `BoxBorderPainter::PaintBorderFastPath` selects rectangular, double-rounded,
 solid rounded, and partial-transparent fast paths; the complex path then splits
 rounded sides between `ClipBorderSidePolygonCloseToEdges` and the general
-quad/pentagon hull in `ClipBorderSidePolygon`.  Domotion's current annular-wedge
+quad/pentagon hull in `ClipBorderSidePolygon`. Domotion's current annular-wedge
 SVG now transcribes the ordinary round-curvature branch: each corner miter is
 bounded by the opposite `UnionInnerCornersAndEdge()` extent derived from the
 captured inner radii. A required negative control moves when the former

@@ -42,15 +42,22 @@ console.log(`diverge total=${diverge.length}  of which static-MISSES (resolver f
 console.log(`resolverTofu total=${resolverTofu.length}  of which static-MISSES (resolver fires)=${tofuFires.length}`);
 
 console.log("\n--- Divergences where the static chain MISSES (resolver fires; genuine) ---");
-for (const d of divergeFires) console.log(`  U+${d.hex.toUpperCase().padStart(4,"0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  mapChars=${d.mapChars}  static=[]`);
+for (const d of divergeFires)
+  console.log(
+    `  U+${d.hex.toUpperCase().padStart(4, "0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  mapChars=${d.mapChars}  static=[]`,
+  );
 if (!divergeFires.length) console.log("  (none)");
 
 console.log("\n--- Resolver-tofu where the static chain MISSES (resolver fires; potential regression) ---");
-for (const d of tofuFires) console.log(`  U+${d.hex.toUpperCase().padStart(4,"0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  static=[]`);
+for (const d of tofuFires)
+  console.log(`  U+${d.hex.toUpperCase().padStart(4, "0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  static=[]`);
 if (!tofuFires.length) console.log("  (none)");
 
 // Divergences where the static table OWNS the cp — resolver never fires, harmless.
 console.log("\n--- Divergences where the static chain OWNS the cp (resolver never fires; harmless) ---");
 const ownedByFam = new Map<string, number>();
-for (const d of diverge) if (!d.staticMisses) ownedByFam.set(`${d.chromium}=>${d.mapChars}`, (ownedByFam.get(`${d.chromium}=>${d.mapChars}`) ?? 0) + 1);
-for (const [k, c] of [...ownedByFam.entries()].sort((a,b)=>b[1]-a[1])) console.log(`  ${String(c).padStart(4)}  ${k}`);
+for (const d of diverge)
+  if (!d.staticMisses)
+    ownedByFam.set(`${d.chromium}=>${d.mapChars}`, (ownedByFam.get(`${d.chromium}=>${d.mapChars}`) ?? 0) + 1);
+for (const [k, c] of [...ownedByFam.entries()].sort((a, b) => b[1] - a[1]))
+  console.log(`  ${String(c).padStart(4)}  ${k}`);

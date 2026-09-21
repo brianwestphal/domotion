@@ -101,8 +101,10 @@ function quadDelta(a: readonly number[], b: readonly number[]): number {
 }
 
 function computedEqual(a: ProjectiveComputedFrame, b: ProjectiveComputedFrame | undefined): boolean {
-  return b != null && Object.keys(a).every((key) =>
-    a[key as keyof ProjectiveComputedFrame] === b[key as keyof ProjectiveComputedFrame]);
+  return (
+    b != null &&
+    Object.keys(a).every((key) => a[key as keyof ProjectiveComputedFrame] === b[key as keyof ProjectiveComputedFrame])
+  );
 }
 
 export function adjudicateAnimatedProjectiveFrame(
@@ -110,19 +112,19 @@ export function adjudicateAnimatedProjectiveFrame(
   actual: AnimatedProjectiveFrameObservation,
 ): AnimatedProjectiveFrameAdjudication {
   const state = actual.state;
-  const maxQuadDeltaCssPx = state?.contentQuad == null
-    ? null
-    : quadDelta(expected.sourceQuad, state.contentQuad);
+  const maxQuadDeltaCssPx = state?.contentQuad == null ? null : quadDelta(expected.sourceQuad, state.contentQuad);
   const checks = {
     stateActivation: expected.stateRequired ? state != null : state == null,
     sampleTime: !expected.stateRequired || state?.sampleTimeMs === expected.sampleTimeMs,
     animationCount: !expected.stateRequired || state?.animationCount === expected.animationCount,
     computedComposition: !expected.stateRequired || computedEqual(expected.sourceComputed, state?.computed),
-    sourceQuad: !expected.stateRequired
-      || (maxQuadDeltaCssPx != null && maxQuadDeltaCssPx <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX),
-    residual: !expected.stateRequired
-      || (state?.residual != null
-        && Math.abs(state.residual - expected.sourceResidual) <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX),
+    sourceQuad:
+      !expected.stateRequired ||
+      (maxQuadDeltaCssPx != null && maxQuadDeltaCssPx <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX),
+    residual:
+      !expected.stateRequired ||
+      (state?.residual != null &&
+        Math.abs(state.residual - expected.sourceResidual) <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX),
     owner: actual.ownerCount === (expected.ownerId == null ? 0 : 1) && actual.ownerId === expected.ownerId,
     rasterMaterialized: expected.ownerId == null ? !actual.rasterMaterialized : actual.rasterMaterialized,
     noProjective2dApproximation: actual.noProjective2dApproximation,
@@ -168,9 +170,11 @@ function fixture(): string {
     @keyframes composition-rotate{from{transform:rotate3d(1,0,0,5deg)}to{transform:rotate3d(1,1,0,55deg)}}
     @keyframes composition-translate{from{transform:translate3d(0,0,0)}to{transform:translate3d(18px,10px,70px)}}
   </style></head><body><main id="stage">
-    ${CASES.map(({ id, family }) => id === "grouping"
-      ? `<section id="${id}-host" class="case timeline" data-family="${family}" data-domotion-anim="${id}-host"><div id="grouping-middle" data-domotion-anim="grouping-middle"><div id="${id}-plane" class="plane" data-domotion-anim="${id}-plane"></div></div></section>`
-      : `<section id="${id}-host" class="case${["perspective", "preserve"].includes(id) ? " timeline" : ""}" data-family="${family}" data-domotion-anim="${id}-host"><div id="${id}-plane" class="plane${["rotate3d", "translate3d", "matrix3d", "origin"].includes(id) ? " timeline" : ""}" data-domotion-anim="${id}-plane"></div></section>`).join("")}
+    ${CASES.map(({ id, family }) =>
+      id === "grouping"
+        ? `<section id="${id}-host" class="case timeline" data-family="${family}" data-domotion-anim="${id}-host"><div id="grouping-middle" data-domotion-anim="grouping-middle"><div id="${id}-plane" class="plane" data-domotion-anim="${id}-plane"></div></div></section>`
+        : `<section id="${id}-host" class="case${["perspective", "preserve"].includes(id) ? " timeline" : ""}" data-family="${family}" data-domotion-anim="${id}-host"><div id="${id}-plane" class="plane${["rotate3d", "translate3d", "matrix3d", "origin"].includes(id) ? " timeline" : ""}" data-domotion-anim="${id}-plane"></div></section>`,
+    ).join("")}
   </main></body></html>`;
 }
 
@@ -184,24 +188,35 @@ function flatten(elements: CapturedElement[]): CapturedElement[] {
   return out;
 }
 
-async function measureDirectNodes(page: Page): Promise<Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>> {
+async function measureDirectNodes(
+  page: Page,
+): Promise<Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>> {
   const ids = [...CASES.flatMap(({ id }) => [`${id}-host`, `${id}-plane`]), "grouping-middle"];
-  const computed = await page.evaluate((nodeIds) => Object.fromEntries(nodeIds.map((id) => {
-    const element = document.querySelector(`[data-domotion-anim="${id}"]`)!;
-    const style = getComputedStyle(element);
-    return [id, {
-      transform: style.transform ?? "none",
-      translate: style.translate ?? "none",
-      rotate: style.rotate ?? "none",
-      scale: style.scale ?? "none",
-      transformOrigin: style.transformOrigin ?? "",
-      transformStyle: style.transformStyle ?? "flat",
-      perspective: style.perspective ?? "none",
-      perspectiveOrigin: style.perspectiveOrigin ?? "",
-      overflowX: style.overflowX ?? "visible",
-      overflowY: style.overflowY ?? "visible",
-    }];
-  })), ids) as Record<string, ProjectiveComputedFrame>;
+  const computed = (await page.evaluate(
+    (nodeIds) =>
+      Object.fromEntries(
+        nodeIds.map((id) => {
+          const element = document.querySelector(`[data-domotion-anim="${id}"]`)!;
+          const style = getComputedStyle(element);
+          return [
+            id,
+            {
+              transform: style.transform ?? "none",
+              translate: style.translate ?? "none",
+              rotate: style.rotate ?? "none",
+              scale: style.scale ?? "none",
+              transformOrigin: style.transformOrigin ?? "",
+              transformStyle: style.transformStyle ?? "flat",
+              perspective: style.perspective ?? "none",
+              perspectiveOrigin: style.perspectiveOrigin ?? "",
+              overflowX: style.overflowX ?? "visible",
+              overflowY: style.overflowY ?? "visible",
+            },
+          ];
+        }),
+      ),
+    ids,
+  )) as Record<string, ProjectiveComputedFrame>;
 
   const cdp = await page.context().newCDPSession(page);
   const result = new Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>();
@@ -234,7 +249,10 @@ async function measureDirectNodes(page: Page): Promise<Map<string, { quad: Quad;
   return result;
 }
 
-function expectedOwnerId(caseId: string, direct: Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>): string | null {
+function expectedOwnerId(
+  caseId: string,
+  direct: Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>,
+): string | null {
   const plane = direct.get(`${caseId}-plane`)!;
   if (plane.residual <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX) return null;
   // Perspective projects descendants but does not create a preserve-3d
@@ -242,9 +260,7 @@ function expectedOwnerId(caseId: string, direct: Map<string, { quad: Quad; resid
   // transform-style flat; the preserving child then starts a fresh context.
   if (caseId === "perspective") return `${caseId}-plane`;
   if (caseId === "grouping") {
-    return direct.get("grouping-host")!.computed.overflowX === "visible"
-      ? "grouping-host"
-      : "grouping-middle";
+    return direct.get("grouping-host")!.computed.overflowX === "visible" ? "grouping-host" : "grouping-middle";
   }
   if (caseId === "preserve" && direct.get("preserve-host")!.computed.transformStyle === "preserve-3d") {
     return "preserve-host";
@@ -265,7 +281,10 @@ function runMutationControls(
   actual: AnimatedProjectiveFrameObservation,
 ): AnimatedProjectiveMutationResult[] {
   if (actual.state == null || expected.ownerId == null) return [];
-  const mutate = (id: AnimatedProjectiveMutationResult["id"], observation: AnimatedProjectiveFrameObservation): AnimatedProjectiveMutationResult => ({
+  const mutate = (
+    id: AnimatedProjectiveMutationResult["id"],
+    observation: AnimatedProjectiveFrameObservation,
+  ): AnimatedProjectiveMutationResult => ({
     id,
     killed: !adjudicateAnimatedProjectiveFrame(expected, observation).pass,
   });
@@ -283,10 +302,12 @@ function runMutationControls(
   ];
 }
 
-export async function runAnimatedProjectiveFrameOracle(options: {
-  dprs?: number[];
-  sampleTimesMs?: number[];
-} = {}): Promise<AnimatedProjectiveOracleReport> {
+export async function runAnimatedProjectiveFrameOracle(
+  options: {
+    dprs?: number[];
+    sampleTimesMs?: number[];
+  } = {},
+): Promise<AnimatedProjectiveOracleReport> {
   const dprs = options.dprs ?? [1, 2];
   const sampleTimesMs = options.sampleTimesMs ?? [...ANIMATED_PROJECTIVE_SAMPLE_TIMES_MS];
   const browser = await chromium.launch({ headless: true });
@@ -309,8 +330,15 @@ export async function runAnimatedProjectiveFrameOracle(options: {
             { animationTimeMs: sampleTimeMs },
           );
           const elements = flatten(captured.tree);
-          const byAnimId = new Map(elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]));
-          const svg = elementTreeToSvgInner(captured.tree, VIEWPORT.width, VIEWPORT.height, `dm2359-${dpr}-${sampleTimeMs}-`);
+          const byAnimId = new Map(
+            elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]),
+          );
+          const svg = elementTreeToSvgInner(
+            captured.tree,
+            VIEWPORT.width,
+            VIEWPORT.height,
+            `dm2359-${dpr}-${sampleTimeMs}-`,
+          );
           const owners = elements.filter((element) => element.projectiveFrameState?.ownsRasterBoundary === true);
 
           for (const testCase of CASES) {
@@ -321,9 +349,10 @@ export async function runAnimatedProjectiveFrameOracle(options: {
             if (testCase.id === "grouping") caseOwnerIds.add("grouping-middle");
             const caseOwners = owners.filter((element) => element.animId != null && caseOwnerIds.has(element.animId));
             const actualOwner = caseOwners.length === 1 ? caseOwners[0] : undefined;
-            const ownerMarkupExact = ownerId == null
-              ? true
-              : new RegExp(`class="anim-${ownerId}"[^>]*>\\s*<image\\b`).test(svg) && !svg.includes("matrix3d(");
+            const ownerMarkupExact =
+              ownerId == null
+                ? true
+                : new RegExp(`class="anim-${ownerId}"[^>]*>\\s*<image\\b`).test(svg) && !svg.includes("matrix3d(");
             const expected: AnimatedProjectiveFrameExpectation = {
               sampleTimeMs,
               stateRequired: stateRequired(testCase.id, sampleTimeMs),
@@ -353,7 +382,14 @@ export async function runAnimatedProjectiveFrameOracle(options: {
               sourceQuad: source.quad,
               capturedQuad: actual.state?.contentQuad ?? null,
               computedTransform: source.computed.transform,
-              fingerprint: fingerprint({ dpr, sampleTimeMs, case: testCase.id, quad: source.quad, computed: source.computed, ownerId }),
+              fingerprint: fingerprint({
+                dpr,
+                sampleTimeMs,
+                case: testCase.id,
+                quad: source.quad,
+                computed: source.computed,
+                ownerId,
+              }),
               ...adjudication,
             };
             rows.push(row);
@@ -369,10 +405,11 @@ export async function runAnimatedProjectiveFrameOracle(options: {
   } finally {
     await browser.close();
   }
-  const pass = rows.length === dprs.length * sampleTimesMs.length * CASES.length
-    && rows.every((row) => row.pass)
-    && mutations.length === 5
-    && mutations.every((mutation) => mutation.killed);
+  const pass =
+    rows.length === dprs.length * sampleTimesMs.length * CASES.length &&
+    rows.every((row) => row.pass) &&
+    mutations.length === 5 &&
+    mutations.every((mutation) => mutation.killed);
   return {
     schemaVersion: 1,
     chromiumVersion,
@@ -408,9 +445,16 @@ async function main(): Promise<void> {
     writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
   }
   const passed = report.rows.filter((row) => row.pass).length;
-  console.log(`animated projective frame oracle: ${passed}/${report.rows.length}; mutations ${report.mutations.filter((m) => m.killed).length}/${report.mutations.length}; ${report.verdict}`);
+  console.log(
+    `animated projective frame oracle: ${passed}/${report.rows.length}; mutations ${report.mutations.filter((m) => m.killed).length}/${report.mutations.length}; ${report.verdict}`,
+  );
   for (const row of report.rows.filter((candidate) => !candidate.pass)) {
-    console.log(`FAIL ${row.id}: ${Object.entries(row.checks).filter(([, ok]) => !ok).map(([check]) => check).join(", ")}`);
+    console.log(
+      `FAIL ${row.id}: ${Object.entries(row.checks)
+        .filter(([, ok]) => !ok)
+        .map(([check]) => check)
+        .join(", ")}`,
+    );
   }
   if (report.verdict !== "source-exact") process.exitCode = 1;
 }

@@ -57,14 +57,23 @@ const ACME_BRAND: Brand = loadBrand(resolve("examples/templates/acme-brand.json"
 // One entry per unique concept we want a committed example SVG for. An optional
 // `format` mirrors the CLI's `--format` (DM-1534): it sizes the canvas (unless
 // params already pin width/height) and passes a safe-area inset to the render.
-const EXAMPLES: Array<{ file: string; template: Template; params: Record<string, unknown>; format?: string; brand?: Brand }> = [
+const EXAMPLES: Array<{
+  file: string;
+  template: Template;
+  params: Record<string, unknown>;
+  format?: string;
+  brand?: Brand;
+}> = [
   // lower-third — the banner concept, shown in both themes / corners.
   {
     file: "lower-third-dark",
     template: lowerThirdTemplate,
     params: {
-      title: "Ada Lovelace", subtitle: "First Programmer · 1843", accent: "#22d3ee",
-      theme: "dark", position: "bottom-left",
+      title: "Ada Lovelace",
+      subtitle: "First Programmer · 1843",
+      accent: "#22d3ee",
+      theme: "dark",
+      position: "bottom-left",
       background: "linear-gradient(135deg, #1e293b, #0f172a)",
     },
   },
@@ -72,8 +81,11 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "lower-third-light",
     template: lowerThirdTemplate,
     params: {
-      title: "Live from London", subtitle: "Acme News Network", accent: "#ef4444",
-      theme: "light", position: "bottom-right",
+      title: "Live from London",
+      subtitle: "Acme News Network",
+      accent: "#ef4444",
+      theme: "light",
+      position: "bottom-right",
       background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)",
     },
   },
@@ -109,7 +121,14 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "background-loop-stars",
     template: backgroundLoopTemplate,
-    params: { variant: "stars", colors: ["#ffffff", "#bcd2ff", "#a5b4fc", "#fde68a"], background: "#05060f", width: 1280, height: 720, seed: 5 },
+    params: {
+      variant: "stars",
+      colors: ["#ffffff", "#bcd2ff", "#a5b4fc", "#fde68a"],
+      background: "#05060f",
+      width: 1280,
+      height: 720,
+      seed: 5,
+    },
   },
   {
     file: "background-loop-gradient-pan",
@@ -124,7 +143,14 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "background-loop-wave",
     template: backgroundLoopTemplate,
-    params: { variant: "wave", colors: ["#1e3a8a", "#0e7490", "#0891b2", "#22d3ee", "#67e8f9"], background: "#041020", width: 1280, height: 720, seed: 7 },
+    params: {
+      variant: "wave",
+      colors: ["#1e3a8a", "#0e7490", "#0891b2", "#22d3ee", "#67e8f9"],
+      background: "#041020",
+      width: 1280,
+      height: 720,
+      seed: 7,
+    },
   },
 
   // kinetic-text — the three reveal styles (slide shown per-character).
@@ -154,7 +180,9 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     template: kineticTextTemplate,
     params: {
       text: 'Build <font color="#22d3ee">motion</font>\\nright in the <i>browser</i>',
-      variant: "rise", width: 1280, height: 720,
+      variant: "rise",
+      width: 1280,
+      height: 720,
     },
   },
   {
@@ -168,35 +196,88 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "chart-column",
     template: chartTemplate,
-    params: { type: "column", data: [42, 68, 55, 90, 34, 76], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], title: "Monthly signups", width: 1100, height: 640 },
+    params: {
+      type: "column",
+      data: [42, 68, 55, 90, 34, 76],
+      labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+      title: "Monthly signups",
+      width: 1100,
+      height: 640,
+    },
   },
   {
     file: "chart-bar",
     template: chartTemplate,
-    params: { type: "bar", data: [120, 88, 64, 40], labels: ["Search", "Direct", "Social", "Email"], title: "Traffic by source", width: 1100, height: 560 },
+    params: {
+      type: "bar",
+      data: [120, 88, 64, 40],
+      labels: ["Search", "Direct", "Social", "Email"],
+      title: "Traffic by source",
+      width: 1100,
+      height: 560,
+    },
   },
   {
     file: "chart-line",
     template: chartTemplate,
-    params: { type: "line", data: [12, 18, 15, 28, 24, 38, 44], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], title: "Daily active users", width: 1100, height: 600 },
+    params: {
+      type: "line",
+      data: [12, 18, 15, 28, 24, 38, 44],
+      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      title: "Daily active users",
+      width: 1100,
+      height: 600,
+    },
   },
   {
     // grouped multi-series + legend + y-axis scale (DM-1301).
     file: "chart-grouped",
     template: chartTemplate,
-    params: { type: "column", data: [[42, 68, 55], [30, 52, 71]], labels: ["Q1", "Q2", "Q3"], seriesNames: ["2024", "2025"], layout: "grouped", title: "Revenue by quarter", width: 1100, height: 620 },
+    params: {
+      type: "column",
+      data: [
+        [42, 68, 55],
+        [30, 52, 71],
+      ],
+      labels: ["Q1", "Q2", "Q3"],
+      seriesNames: ["2024", "2025"],
+      layout: "grouped",
+      title: "Revenue by quarter",
+      width: 1100,
+      height: 620,
+    },
   },
   {
     // stacked multi-series (DM-1301).
     file: "chart-stacked",
     template: chartTemplate,
-    params: { type: "column", data: [[20, 35, 30, 28], [15, 25, 40, 22], [10, 15, 20, 30]], labels: ["Mon", "Tue", "Wed", "Thu"], seriesNames: ["Email", "Social", "Direct"], layout: "stacked", title: "Traffic by channel", width: 1100, height: 620 },
+    params: {
+      type: "column",
+      data: [
+        [20, 35, 30, 28],
+        [15, 25, 40, 22],
+        [10, 15, 20, 30],
+      ],
+      labels: ["Mon", "Tue", "Wed", "Thu"],
+      seriesNames: ["Email", "Social", "Direct"],
+      layout: "stacked",
+      title: "Traffic by channel",
+      width: 1100,
+      height: 620,
+    },
   },
   {
     // donut with a legend of label + percentage (DM-1300).
     file: "chart-donut",
     template: chartTemplate,
-    params: { type: "donut", data: [42, 28, 18, 12], labels: ["Search", "Direct", "Social", "Email"], title: "Traffic sources", width: 1100, height: 620 },
+    params: {
+      type: "donut",
+      data: [42, 28, 18, 12],
+      labels: ["Search", "Direct", "Social", "Email"],
+      title: "Traffic sources",
+      width: 1100,
+      height: 620,
+    },
   },
 
   // chat — a message thread whose bubbles pop in one at a time (DM-1278).
@@ -212,7 +293,8 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
         { from: "me", text: "Half what it was. Self-contained too" },
         { from: "them", text: "Amazing 🙌" },
       ],
-      width: 560, height: 760,
+      width: 560,
+      height: 760,
     },
   },
 
@@ -220,24 +302,50 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "subscribe-youtube",
     template: subscribeTemplate,
-    params: { name: "Domotion", subtitle: "1.2M subscribers", action: "Subscribe", accent: "#ff0000", width: 760, height: 360 },
+    params: {
+      name: "Domotion",
+      subtitle: "1.2M subscribers",
+      action: "Subscribe",
+      accent: "#ff0000",
+      width: 760,
+      height: 360,
+    },
   },
   {
     file: "subscribe-follow-dark",
     template: subscribeTemplate,
-    params: { name: "Ada Lovelace", subtitle: "@ada · 89.4K followers", action: "Follow", accent: "#1d9bf0", theme: "dark", width: 760, height: 360 },
+    params: {
+      name: "Ada Lovelace",
+      subtitle: "@ada · 89.4K followers",
+      action: "Follow",
+      accent: "#1d9bf0",
+      theme: "dark",
+      width: 760,
+      height: 360,
+    },
   },
 
   // creative pack — Batch A text cards (DM-1531).
   {
     file: "title-card",
     template: titleCardTemplate,
-    params: { eyebrow: "Introducing", title: "Domotion", subtitle: "DOM → animated SVG, pixel-faithful to Chromium", accent: "#22d3ee", background: "linear-gradient(135deg,#0f172a,#1e293b)" },
+    params: {
+      eyebrow: "Introducing",
+      title: "Domotion",
+      subtitle: "DOM → animated SVG, pixel-faithful to Chromium",
+      accent: "#22d3ee",
+      background: "linear-gradient(135deg,#0f172a,#1e293b)",
+    },
   },
   {
     file: "quote",
     template: quoteTemplate,
-    params: { quote: "It dropped our demo payload to a fraction and it looks identical across browsers.", author: "Ada Lovelace", role: "Staff Engineer", accent: "#8b5cf6" },
+    params: {
+      quote: "It dropped our demo payload to a fraction and it looks identical across browsers.",
+      author: "Ada Lovelace",
+      role: "Staff Engineer",
+      accent: "#8b5cf6",
+    },
   },
   {
     file: "caption",
@@ -247,7 +355,13 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "cta",
     template: ctaTemplate,
-    params: { headline: "Ship your first demo today", cta: "Get started", handles: ["@domotion", "github.com/brianwestphal"], ctaColor: "#3b82f6", background: "linear-gradient(135deg,#111827,#0b1020)" },
+    params: {
+      headline: "Ship your first demo today",
+      cta: "Get started",
+      handles: ["@domotion", "github.com/brianwestphal"],
+      ctaColor: "#3b82f6",
+      background: "linear-gradient(135deg,#111827,#0b1020)",
+    },
   },
 
   // creative pack — Batch B number animation (DM-1532).
@@ -264,7 +378,14 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "stat",
     template: statTemplate,
-    params: { value: 1240000, grouping: true, suffix: "", label: "Monthly active users", delta: "12.4%", deltaDir: "up" },
+    params: {
+      value: 1240000,
+      grouping: true,
+      suffix: "",
+      label: "Monthly active users",
+      delta: "12.4%",
+      deltaDir: "up",
+    },
   },
 
   // creative pack — Batch C before/after compare (DM-1533).
@@ -274,7 +395,10 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     params: {
       before: resolve("examples/templates/compare-before.html"),
       after: resolve("examples/templates/compare-after.html"),
-      mode: "slide", direction: "right", beforeLabel: "Before", afterLabel: "After",
+      mode: "slide",
+      direction: "right",
+      beforeLabel: "Before",
+      afterLabel: "After",
     },
   },
 
@@ -338,7 +462,12 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "brand-acme-chart",
     template: chartTemplate,
-    params: { type: "column", data: [42, 68, 55, 90, 34, 76], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], title: "Signups" },
+    params: {
+      type: "column",
+      data: [42, 68, 55, 90, 34, 76],
+      labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+      title: "Signups",
+    },
     brand: ACME_BRAND,
   },
   {
@@ -347,7 +476,12 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     // the landscape chart. `brand` + `format` compose (adaptive type scaling, DM-1560).
     file: "brand-acme-chart-reel",
     template: chartTemplate,
-    params: { type: "column", data: [42, 68, 55, 90, 34, 76], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], title: "Signups" },
+    params: {
+      type: "column",
+      data: [42, 68, 55, 90, 34, 76],
+      labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+      title: "Signups",
+    },
     brand: ACME_BRAND,
     format: "reel",
   },

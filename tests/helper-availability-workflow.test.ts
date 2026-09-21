@@ -7,7 +7,7 @@ describe("helper availability all-platform gate", () => {
   it("runs enabled and explicitly disabled logical arms on every supported OS", () => {
     expect(workflow).toContain("os: [macos-latest, ubuntu-latest, windows-latest]");
     expect(workflow).toContain("helper-present.json");
-    expect(workflow).toContain("DOMOTION_DISABLE_HELPER: \"1\"");
+    expect(workflow).toContain('DOMOTION_DISABLE_HELPER: "1"');
     expect(workflow).toContain("helper-absent.json");
     expect(workflow).toContain("--compare helper-present.json,helper-absent.json");
   });

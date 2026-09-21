@@ -1,13 +1,21 @@
 ---
 id: "requirements/mask-fragment-references"
-title: "21 — mask-image: url(\"#fragment\") inline-SVG mask references"
+title: '21 — mask-image: url("#fragment") inline-SVG mask references'
 kind: "reference"
 status: "current"
-owners: ["paint-effects","layout"]
+owners: ["paint-effects", "layout"]
 platforms: []
-tickets: ["DM-2520","DM-470","DM-477","DM-493","DM-496","DM-829"]
-code: ["src/capture/index.ts","src/mask.test.ts","tests/external-svg-refs.e2e.test.ts","tests/features.ts","tests/iframe-inner-defs.e2e.test.ts","tests/multi-layer-fragment-mask.e2e.test.ts"]
-aliases: ["docs/21-mask-fragment-references.md","doc-21"]
+tickets: ["DM-2520", "DM-470", "DM-477", "DM-493", "DM-496", "DM-829"]
+code:
+  [
+    "src/capture/index.ts",
+    "src/mask.test.ts",
+    "tests/external-svg-refs.e2e.test.ts",
+    "tests/features.ts",
+    "tests/iframe-inner-defs.e2e.test.ts",
+    "tests/multi-layer-fragment-mask.e2e.test.ts",
+  ]
+aliases: ["docs/21-mask-fragment-references.md", "doc-21"]
 ---
 
 # 21 — `mask-image: url("#fragment")` inline-SVG mask references
@@ -18,7 +26,7 @@ CSS allows authors to point `mask-image` at a `<mask>` element defined inline in
 
 ```css
 .element {
-  mask-image: url("#my-mask");          /* same-document inline mask */
+  mask-image: url("#my-mask"); /* same-document inline mask */
   mask-image: url("./shapes.svg#blob"); /* external SVG file fragment */
 }
 ```
@@ -73,7 +81,7 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
 
 ## Implementation notes (DM-493)
 
-- **Serialisation scope**: capture serializes the `<mask>` element's `outerHTML` verbatim. Descendants of the `<mask>` (nested gradients, clipPaths, paths, etc.) ride along as part of that string. References from *inside* the mask to *outside* defs (e.g. a `<filter>` defined elsewhere in the document) are NOT followed today — the rewriter leaves those `url(#…)` refs untouched and the renderer relies on the normal output-side `<defs>`. If a real-world fixture surfaces a mask that depends on an external filter or clipPath, file a follow-up to do a transitive collection.
+- **Serialisation scope**: capture serializes the `<mask>` element's `outerHTML` verbatim. Descendants of the `<mask>` (nested gradients, clipPaths, paths, etc.) ride along as part of that string. References from _inside_ the mask to _outside_ defs (e.g. a `<filter>` defined elsewhere in the document) are NOT followed today — the rewriter leaves those `url(#…)` refs untouched and the renderer relies on the normal output-side `<defs>`. If a real-world fixture surfaces a mask that depends on an external filter or clipPath, file a follow-up to do a transitive collection.
 - **Id rewriting**: `rewriteFragmentMaskDef()` discovers every `id="…"` defined inside the mask subtree, mints a definition-local alias for each (the outer mask gets `${idPrefix}mkfragN`; descendants use that output id as their namespace), and rewrites `id`, `url(#…)`, and `href`/`xlink:href` references consistently. Refs that point at ids not defined inside the mask subtree pass through unchanged.
 - **Scoped identity**: author ids are unique only inside an originating
   TreeScope. Capture definitions, consumer records, renderer lookup, and output
@@ -89,7 +97,7 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
   sources ignore the layer's ordinary origin/clip/size/position/repeat image
   geometry, as locked by the hostile-longhand discriminator in doc 208.
 - **Ordered composition**: every local URL layer keeps `(layerIndex,scope,id)`.
-  Blink clips an SVG mask draw to that resource's resolved region *before*
+  Blink clips an SVG mask draw to that resource's resolved region _before_
   opening its Porter-Duff layer, so accumulated destination alpha outside the
   current resource region survives. The generated recurrence preserves that
   clipped operation; treating a three-layer `exclude, intersect, add` list as
@@ -105,6 +113,7 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
 ## Test fixture
 
 `tests/features.ts` has a `mask-fragment-url` fixture (DM-493):
+
 - An inline `<svg><defs><mask id="diag-mask" maskUnits="userSpaceOnUse" …></mask></defs></svg>` defined inside the captured DOM.
 - Two elements using `mask-image: url(#diag-mask)` at different positions to exercise per-element repositioning + dedupe.
 

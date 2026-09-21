@@ -1,10 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  __resolveDarwinFontSpecForTest,
-  platformFontKeys,
-  resolveFontSpec,
-} from "./font-resolution.js";
+import { __resolveDarwinFontSpecForTest, platformFontKeys, resolveFontSpec } from "./font-resolution.js";
 
 interface AuditedFontSpec {
   path: string;
@@ -90,14 +86,15 @@ describe("font path table integrity (DM-1861)", () => {
 
     const required = __resolveDarwinFontSpecForTest("helvetica");
     expect(required?.optionalInstall).not.toBe(true);
-    expect(missingRequiredPaths(["helvetica"], __resolveDarwinFontSpecForTest, () => false))
-      .toEqual([`helvetica -> ${required?.path}`]);
+    expect(missingRequiredPaths(["helvetica"], __resolveDarwinFontSpecForTest, () => false)).toEqual([
+      `helvetica -> ${required?.path}`,
+    ]);
   });
 
   it("keeps regenerated author-installed and OS-version-absent routes optional", () => {
     const generator = readFileSync("tools/probe-983-genroutes-darwin.mjs", "utf8");
     expect(generator).toContain('OS_VERSION_OPTIONAL_FAMILIES = new Set(["Noto Sans Brahmi"])');
-    expect(generator).toContain('|| !existsSync(path)');
+    expect(generator).toContain("|| !existsSync(path)");
     expect(generator).toContain("family: string; path: string;");
   });
 });

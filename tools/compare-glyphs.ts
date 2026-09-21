@@ -67,14 +67,14 @@ async function main(): Promise<void> {
     for (const r of result.reasons) console.log(`  • ${r}`);
     for (const w of result.warnings) console.log(`  ⚠ ${w}`);
     console.log(
-      `  ink ${m.inkWidthA}×${m.inkHeightA} vs ${m.inkWidthB}×${m.inkHeightB}`
-      + ` · ncc ${m.ncc.toFixed(4)} · d95 ${m.d95.toFixed(2)}px`
-      + ` · unexplained ${(Math.max(m.unexplainedA, m.unexplainedB) * 100).toFixed(2)}%`
-      + ` · mass ×${Math.exp(Math.abs(m.inkLogRatio)).toFixed(3)}`
-      + ` · hotspot ${m.hotspotMax.toFixed(2)}`
-      + ` · stroke ${m.strokeWidthA.toFixed(2)}/${m.strokeWidthB.toFixed(2)}px`
-      + ` · orient ${m.orientL1.toFixed(3)} · holes ${m.holesA}/${m.holesB}`
-      + ` · zoning ${m.zoningL2.toFixed(4)}`,
+      `  ink ${m.inkWidthA}×${m.inkHeightA} vs ${m.inkWidthB}×${m.inkHeightB}` +
+        ` · ncc ${m.ncc.toFixed(4)} · d95 ${m.d95.toFixed(2)}px` +
+        ` · unexplained ${(Math.max(m.unexplainedA, m.unexplainedB) * 100).toFixed(2)}%` +
+        ` · mass ×${Math.exp(Math.abs(m.inkLogRatio)).toFixed(3)}` +
+        ` · hotspot ${m.hotspotMax.toFixed(2)}` +
+        ` · stroke ${m.strokeWidthA.toFixed(2)}/${m.strokeWidthB.toFixed(2)}px` +
+        ` · orient ${m.orientL1.toFixed(3)} · holes ${m.holesA}/${m.holesB}` +
+        ` · zoning ${m.zoningL2.toFixed(4)}`,
     );
   }
   process.exit(result.verdict === "match" ? 0 : 1);

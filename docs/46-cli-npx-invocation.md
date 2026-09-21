@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1362","DM-262","DM-877","DM-878"]
-code: [".github/workflows/release.yml","src/capture/index.ts","src/cli/index.ts"]
-aliases: ["docs/46-cli-npx-invocation.md","doc-46"]
+tickets: ["DM-1362", "DM-262", "DM-877", "DM-878"]
+code: [".github/workflows/release.yml", "src/capture/index.ts", "src/cli/index.ts"]
+aliases: ["docs/46-cli-npx-invocation.md", "doc-46"]
 ---
 
 # Domotion: CLI invocation as an npm bin (`npx -p domotion-svg domotion`)
@@ -37,12 +37,12 @@ npx only auto-runs a package's bin when the package declares exactly one, or one
 whose name matches the requested command — neither holds here — so the bin to
 run must be named explicitly:
 
-| Form | Notes |
-| --- | --- |
-| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` to run the other bins. |
-| `npx domotion-svg <cmd> …` | **Does NOT work** — with five bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding the other four bins broke the bare form — DM-1362.) |
-| `domotion <cmd> …` | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all five bins by name. |
-| `npx tsx src/cli/index.ts <cmd> …` | Local dev from a clone (the `npm run capture` script). |
+| Form                                   | Notes                                                                                                                                                                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` to run the other bins.                                                                       |
+| `npx domotion-svg <cmd> …`             | **Does NOT work** — with five bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding the other four bins broke the bare form — DM-1362.) |
+| `domotion <cmd> …`                     | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all five bins by name.                                                                                                                                       |
+| `npx tsx src/cli/index.ts <cmd> …`     | Local dev from a clone (the `npm run capture` script).                                                                                                                                                                                                                   |
 
 Subcommands and their flags are documented by `domotion --help`; they are out
 of scope here. This doc covers only that the bin resolves, executes, and
@@ -61,7 +61,7 @@ reports correct top-level metadata.
   executable bit on bin targets at pack/install time, so the committed file
   mode is irrelevant to consumers.
 - **Clean build before pack or publish** — `dist/` is gitignored. `npm run
-  build` removes it before compiling, then checks that every emitted `.js` and
+build` removes it before compiling, then checks that every emitted `.js` and
   `.d.ts` maps exactly to one current, publishable source module. The npm
   `prepack` lifecycle runs that clean build for local `npm pack` and for
   `npm publish`, in addition to the explicit release-CI build. Compiled tests,

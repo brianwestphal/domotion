@@ -1,8 +1,4 @@
-import {
-  insetCornerRadii,
-  outsetCornerRadiiWithCoverageCorrection,
-  type CornerRadii,
-} from "./borders.js";
+import { insetCornerRadii, outsetCornerRadiiWithCoverageCorrection, type CornerRadii } from "./borders.js";
 
 export type OverflowClipReferenceBox = "border-box" | "padding-box" | "content-box";
 
@@ -92,8 +88,9 @@ export function shouldApplyOverflowClipMargin(
   const overflowX = (activation.overflowX ?? "visible").toLowerCase();
   const overflowY = (activation.overflowY ?? "visible").toLowerCase();
   const isReplaced = activation.isReplaced === true;
-  const isScrollContainer = activation.isScrollContainer
-    ?? (!isReplaced && (SCROLLABLE_OVERFLOW.has(overflowX) || SCROLLABLE_OVERFLOW.has(overflowY)));
+  const isScrollContainer =
+    activation.isScrollContainer ??
+    (!isReplaced && (SCROLLABLE_OVERFLOW.has(overflowX) || SCROLLABLE_OVERFLOW.has(overflowY)));
   if (isScrollContainer) return false;
   const isOverflowClip = isReplaced
     ? overflowX !== "visible" && overflowY !== "visible"
@@ -105,15 +102,23 @@ export function shouldApplyOverflowClipMargin(
 /** Replaced boxes for which Blink lets CSS overflow govern the content. */
 export function isOverflowRespectingReplacedElement(tag: string): boolean {
   const normalized = tag.toLowerCase();
-  return normalized === "img" || normalized === "video" || normalized === "canvas"
-    || normalized === "svg" || normalized === "iframe" || normalized === "frame"
-    || normalized === "embed" || normalized === "object";
+  return (
+    normalized === "img" ||
+    normalized === "video" ||
+    normalized === "canvas" ||
+    normalized === "svg" ||
+    normalized === "iframe" ||
+    normalized === "frame" ||
+    normalized === "embed" ||
+    normalized === "object"
+  );
 }
 
 /** Captured tags that take LayoutObject's replaced-element activation branch. */
 export function isOverflowReplacedElement(tag: string, inputType?: string): boolean {
-  return isOverflowRespectingReplacedElement(tag)
-    || (tag.toLowerCase() === "input" && inputType?.toLowerCase() === "image");
+  return (
+    isOverflowRespectingReplacedElement(tag) || (tag.toLowerCase() === "input" && inputType?.toLowerCase() === "image")
+  );
 }
 
 /** Resolve the source `RespectsCSSOverflow()` virtual from captured layout identity. */
@@ -127,18 +132,29 @@ export function capturedBoxRespectsCssOverflow(
   const normalizedDisplay = (display ?? "").toLowerCase();
   // These layout objects override the LayoutBlock true path. Inline/contents
   // objects do not supply a principal box on which overflow can act.
-  if (normalizedTag === "fieldset" || normalizedTag === "tr" || normalizedTag === "thead"
-    || normalizedTag === "tbody" || normalizedTag === "tfoot" || normalizedTag === "col"
-    || normalizedTag === "colgroup" || normalizedDisplay === "inline"
-    || normalizedDisplay === "contents" || normalizedDisplay === "table-row"
-    || normalizedDisplay === "table-row-group" || normalizedDisplay === "table-header-group"
-    || normalizedDisplay === "table-footer-group" || normalizedDisplay === "table-column"
-    || normalizedDisplay === "table-column-group") return false;
+  if (
+    normalizedTag === "fieldset" ||
+    normalizedTag === "tr" ||
+    normalizedTag === "thead" ||
+    normalizedTag === "tbody" ||
+    normalizedTag === "tfoot" ||
+    normalizedTag === "col" ||
+    normalizedTag === "colgroup" ||
+    normalizedDisplay === "inline" ||
+    normalizedDisplay === "contents" ||
+    normalizedDisplay === "table-row" ||
+    normalizedDisplay === "table-row-group" ||
+    normalizedDisplay === "table-header-group" ||
+    normalizedDisplay === "table-footer-group" ||
+    normalizedDisplay === "table-column" ||
+    normalizedDisplay === "table-column-group"
+  )
+    return false;
   // LayoutBlock rejects whichever element defines the viewport overflow.
   if (normalizedTag === "html") return false;
   if (normalizedTag === "body") {
-    const htmlOverflowVisible = (rootOverflowX == null || rootOverflowX === "visible")
-      && (rootOverflowY == null || rootOverflowY === "visible");
+    const htmlOverflowVisible =
+      (rootOverflowX == null || rootOverflowX === "visible") && (rootOverflowY == null || rootOverflowY === "visible");
     if (htmlOverflowVisible) return false;
   }
   return true;

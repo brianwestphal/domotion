@@ -25,12 +25,20 @@ P(`platform=${process.platform} arch=${process.arch} release=${os.release()}`);
 // the standalone SF-Pro-*.otf, so this should be NULL there and non-null on a
 // dev Mac.)
 for (const n of [
-  "SF Pro Text", "SF Pro Display", "SF Pro",
+  "SF Pro Text",
+  "SF Pro Display",
+  "SF Pro",
   // Other author-named fonts the unicode fixtures request via hardcoded-path
   // keys: does Chrome resolve them on THIS machine? (If NULL but Domotion uses
   // them unconditionally, that's a fall-through divergence like SF Pro Text.)
-  "Arial Unicode MS", "Hiragino Kaku Gothic ProN", "Arial", "Helvetica",
-  "Times New Roman", "Noto Sans", "Noto Serif", "Noto Sans KR",
+  "Arial Unicode MS",
+  "Hiragino Kaku Gothic ProN",
+  "Arial",
+  "Helvetica",
+  "Times New Roman",
+  "Noto Sans",
+  "Noto Serif",
+  "Noto Sans KR",
 ]) {
   const r = resolveInstalledFont(n);
   P(`resolveInstalledFont("${n}") = ${r ? `${r.postscriptName} @ ${r.path.split("/").pop()}` : "NULL"}`);
@@ -55,7 +63,9 @@ P(`fixture key chain = ${JSON.stringify(chain)}`);
 for (const key of chain) {
   const spec = resolveFontSpec(key);
   const inst = getFontInstance(key, 400, 32);
-  P(`  chain key ${key}: path=${spec?.path?.split("/").pop() ?? "(dynamic)"} exists=${spec?.path ? existsSync(spec.path) : "?"} loaded=${!!inst} covers','=${inst ? inst.glyphForCodePoint(0x2c).id !== 0 : "?"}`);
+  P(
+    `  chain key ${key}: path=${spec?.path?.split("/").pop() ?? "(dynamic)"} exists=${spec?.path ? existsSync(spec.path) : "?"} loaded=${!!inst} covers','=${inst ? inst.glyphForCodePoint(0x2c).id !== 0 : "?"}`,
+  );
 }
 
 // 3. What does CoreText (what Chromium paints) cascade the comma / letters to?
@@ -68,5 +78,7 @@ for (const dir of ["/System/Library/Fonts", "/Library/Fonts", "/System/Library/F
   try {
     const sf = readdirSync(dir).filter((f) => /SF|SFNS|Helvetica|\.ttc$|SFPro/i.test(f) && /SF|Helvetica/i.test(f));
     P(`${dir}: ${sf.join(", ") || "(no SF/Helvetica files)"}`);
-  } catch { P(`${dir}: (unreadable)`); }
+  } catch {
+    P(`${dir}: (unreadable)`);
+  }
 }

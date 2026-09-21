@@ -6,12 +6,15 @@ const DEFAULT_TIMEOUT_MS = 90 * 60_000;
  * can return as soon as a failing matrix job determines the eventual result,
  * while an `if: always()` aggregate is still queued or publishing artifacts.
  */
-export async function waitForRunCompletion(inspect, {
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  pollMs = DEFAULT_POLL_MS,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
-  onProgress = () => {},
-} = {}) {
+export async function waitForRunCompletion(
+  inspect,
+  {
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    pollMs = DEFAULT_POLL_MS,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    onProgress = () => {},
+  } = {},
+) {
   const started = Date.now();
   let last = null;
   while (Date.now() - started < timeoutMs) {

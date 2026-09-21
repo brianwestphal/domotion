@@ -6,14 +6,17 @@ const page = await ctx.newPage();
 await page.setContent(readFileSync("external/html-test/20-deep-tab-size.html", "utf-8"));
 await page.waitForLoadState("networkidle");
 const info = await page.evaluate(() => {
-  const tas = document.querySelectorAll('textarea');
-  return Array.from(tas).map(ta => {
+  const tas = document.querySelectorAll("textarea");
+  return Array.from(tas).map((ta) => {
     const cs = getComputedStyle(ta);
     const r = ta.getBoundingClientRect();
     return {
       cls: ta.className,
-      bl: cs.borderLeftWidth, bt: cs.borderTopWidth,
-      pl: cs.paddingLeft, pt: cs.paddingTop, pb: cs.paddingBottom,
+      bl: cs.borderLeftWidth,
+      bt: cs.borderTopWidth,
+      pl: cs.paddingLeft,
+      pt: cs.paddingTop,
+      pb: cs.paddingBottom,
       rect: { x: r.x, y: r.y, w: r.width, h: r.height },
       scrollH: ta.scrollHeight,
       clientH: ta.clientHeight,

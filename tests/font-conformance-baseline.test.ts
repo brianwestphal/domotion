@@ -15,16 +15,34 @@
  */
 import { describe, expect, it } from "vitest";
 import { environmentConflicts, mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
-import { comparability, oracleMovement, resolverAnswersMatch, stackDelta } from "../scripts/diff-font-conformance-baseline.mjs";
+import {
+  comparability,
+  oracleMovement,
+  resolverAnswersMatch,
+  stackDelta,
+} from "../scripts/diff-font-conformance-baseline.mjs";
 
 const report = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   meta: {
-    platform: "linux", arch: "x64", node: "v22.21.0", unicode: "16.0", icu: "76.1",
+    platform: "linux",
+    arch: "x64",
+    node: "v22.21.0",
+    unicode: "16.0",
+    icu: "76.1",
     stacksFile: "tools/font-conformance-stacks.linux.json",
     stackCorpusGeneratedAt: "2026-07-29T23:19:22.108Z",
     stackCorpusPlatform: "linux",
-    parityEnvironment: { contract: "docs/120-same-machine-text-parity-contract.md", layout: { deviceScaleFactor: 1, zoom: 1 } },
-    codepoints: 292466, stacks: 1, includePua: true, ranges: null, sampleByte: null, strictAlias: false, lang: "en",
+    parityEnvironment: {
+      contract: "docs/120-same-machine-text-parity-contract.md",
+      layout: { deviceScaleFactor: 1, zoom: 1 },
+    },
+    codepoints: 292466,
+    stacks: 1,
+    includePua: true,
+    ranges: null,
+    sampleByte: null,
+    strictAlias: false,
+    lang: "en",
   },
   summary: { comparisons: 100, mismatchTotal: 10, "agree-exact": 90 },
   mismatchesByStack: [{ stack: "Times", count: 10 }],
@@ -97,10 +115,13 @@ describe("mergeShards", () => {
   });
 
   it("sums the numeric summary fields across shards", () => {
-    const m = mergeShards([
-      { name: "s1", report: report() },
-      { name: "s2", report: report() },
-    ], { os: "linux", expected: 2 });
+    const m = mergeShards(
+      [
+        { name: "s1", report: report() },
+        { name: "s2", report: report() },
+      ],
+      { os: "linux", expected: 2 },
+    );
     expect(m.summary.comparisons).toBe(200);
     expect(m.summary.mismatchTotal).toBe(20);
     expect(m.byStack).toEqual({ Times: 20 });
@@ -113,18 +134,32 @@ describe("mergeShards", () => {
     // Two shards that each hit the same route must not report two routes: the
     // route count measures how many decisions are wrong, and double-counting it
     // makes a single defect look like several.
-    const m = mergeShards([
-      { name: "s1", report: report() },
-      { name: "s2", report: report({ topMismatchPairs: [{ pair: "A → B", count: 4 }, { pair: "C → D", count: 1 }] }) },
-    ], { expected: 2 });
+    const m = mergeShards(
+      [
+        { name: "s1", report: report() },
+        {
+          name: "s2",
+          report: report({
+            topMismatchPairs: [
+              { pair: "A → B", count: 4 },
+              { pair: "C → D", count: 1 },
+            ],
+          }),
+        },
+      ],
+      { expected: 2 },
+    );
     expect(m.summary.distinctMismatchPairs).toBe(2);
   });
 
   it("records an absent shard rather than silently merging the survivors", () => {
-    const m = mergeShards([
-      { name: "s1", report: report() },
-      { name: "s2", report: null },
-    ], { expected: 2 });
+    const m = mergeShards(
+      [
+        { name: "s1", report: report() },
+        { name: "s2", report: null },
+      ],
+      { expected: 2 },
+    );
     expect(m.meta.missingShards).toEqual(["s2"]);
     expect(m.meta.shardsMerged).toBe(1);
     expect(m.meta.complete).toBe(false);
@@ -152,13 +187,29 @@ describe("mergeShards", () => {
 
 describe("sliceOf", () => {
   it("keeps exactly the fields that make two runs comparable", () => {
-    expect(sliceOf({ codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], strictAlias: true, lang: "ja", oracleIsolation: "renderer-per-locale" }))
-      .toEqual({
-        codepoints: 5, stacks: 2, includePua: false, ranges: [[0, 9]], sampleByte: null,
-        stackShardTotal: 1, codepointShardTotal: 1, strictAlias: true, lang: "ja",
+    expect(
+      sliceOf({
+        codepoints: 5,
+        stacks: 2,
+        includePua: false,
+        ranges: [[0, 9]],
+        strictAlias: true,
+        lang: "ja",
         oracleIsolation: "renderer-per-locale",
-        stackFilter: null,
-      });
+      }),
+    ).toEqual({
+      codepoints: 5,
+      stacks: 2,
+      includePua: false,
+      ranges: [[0, 9]],
+      sampleByte: null,
+      stackShardTotal: 1,
+      codepointShardTotal: 1,
+      strictAlias: true,
+      lang: "ja",
+      oracleIsolation: "renderer-per-locale",
+      stackFilter: null,
+    });
   });
 });
 
@@ -169,12 +220,22 @@ describe("comparability", () => {
     unicode: "16.0",
     corpus: { generatedAt: "2026-07-29T23:19:22.108Z" },
     fontInventory: { digest: "abc123" },
-    parityEnvironment: { contract: "docs/120-same-machine-text-parity-contract.md", layout: { deviceScaleFactor: 1, zoom: 1 } },
+    parityEnvironment: {
+      contract: "docs/120-same-machine-text-parity-contract.md",
+      layout: { deviceScaleFactor: 1, zoom: 1 },
+    },
     slice: {
-      codepoints: 292466, stacks: 6, includePua: true, ranges: null, sampleByte: null,
-      stackShardTotal: 1, codepointShardTotal: 1, strictAlias: false, lang: "en",
-        oracleIsolation: "renderer-per-locale",
-        stackFilter: null,
+      codepoints: 292466,
+      stacks: 6,
+      includePua: true,
+      ranges: null,
+      sampleByte: null,
+      stackShardTotal: 1,
+      codepointShardTotal: 1,
+      strictAlias: false,
+      lang: "en",
+      oracleIsolation: "renderer-per-locale",
+      stackFilter: null,
     },
   };
 
@@ -231,9 +292,12 @@ describe("comparability", () => {
   it("refuses a run that swept a different slice", () => {
     expect(comparability({ ...meta, slice: { ...meta.slice, stacks: 12 } }, meta)[0]).toMatch(/slice\.stacks/);
     const byteZero = { ...meta, slice: { ...meta.slice, sampleByte: 0 } };
-    expect(comparability({ ...meta, slice: { ...meta.slice, sampleByte: 1 } }, byteZero)[0]).toMatch(/slice\.sampleByte/);
-    expect(comparability({ ...meta, slice: { ...meta.slice, stackShardTotal: 8 } }, meta)[0])
-      .toMatch(/slice\.stackShardTotal/);
+    expect(comparability({ ...meta, slice: { ...meta.slice, sampleByte: 1 } }, byteZero)[0]).toMatch(
+      /slice\.sampleByte/,
+    );
+    expect(comparability({ ...meta, slice: { ...meta.slice, stackShardTotal: 8 } }, meta)[0]).toMatch(
+      /slice\.stackShardTotal/,
+    );
   });
 
   it("stays silent about a field either side never recorded", () => {
@@ -296,9 +360,7 @@ describe("environment agreement across shards (DM-1898)", () => {
   it("catches an ICU split — the one that changes the codepoint DENOMINATOR", () => {
     // `meta.icu` decides which codepoints exist at all, so the merged totals of a
     // run whose shards disagree on it are quoted against two different universes.
-    const conflicts = environmentConflicts([
-      shard("s1"), shard("s2"), shard("s3", { icu: "77.1" }),
-    ]);
+    const conflicts = environmentConflicts([shard("s1"), shard("s2"), shard("s3", { icu: "77.1" })]);
     const icu = conflicts.find((c) => c.field === "ICU version");
     expect(icu).toBeDefined();
     expect(icu!.values[0]).toEqual({ value: "76.1", shards: ["s1", "s2"] });
@@ -314,28 +376,24 @@ describe("environment agreement across shards (DM-1898)", () => {
   });
 
   it("catches shards that accidentally mixed rotating sample buckets", () => {
-    const conflicts = environmentConflicts([
-      shard("s1", { sampleByte: 0x00 }),
-      shard("s2", { sampleByte: 0x01 }),
-    ]);
+    const conflicts = environmentConflicts([shard("s1", { sampleByte: 0x00 }), shard("s2", { sampleByte: 0x01 })]);
     expect(conflicts.map((c) => c.field)).toContain("sample low byte");
   });
 
   it("catches shards that disagree about cache/document topology", () => {
-    const conflicts = environmentConflicts([
-      shard("s1", { stackShard: [1, 2] }),
-      shard("s2", { stackShard: [2, 3] }),
-    ]);
+    const conflicts = environmentConflicts([shard("s1", { stackShard: [1, 2] }), shard("s2", { stackShard: [2, 3] })]);
     expect(conflicts.map((c) => c.field)).toContain("stack-shard total");
   });
 
   it("ignores a field absent on one shard rather than crying wolf", () => {
     // An older shard artifact predates a field. That is "cannot tell", not
     // "different" — and a warning that fires spuriously gets ignored.
-    expect(environmentConflicts([
-      shard("s1", {}, { image: "macos26-arm64", fontInventory: { digest: "aaaa" } }),
-      shard("s2", {}, { image: null, fontInventory: null }),
-    ])).toEqual([]);
+    expect(
+      environmentConflicts([
+        shard("s1", {}, { image: "macos26-arm64", fontInventory: { digest: "aaaa" } }),
+        shard("s2", {}, { image: null, fontInventory: null }),
+      ]),
+    ).toEqual([]);
   });
 
   it("skips shards whose report is missing entirely", () => {
@@ -354,11 +412,17 @@ describe("environment agreement across shards (DM-1898)", () => {
     const clean = report().meta as Record<string, unknown>;
     const blended = {
       ...clean,
-      envConflicts: [{ field: "ICU version", values: [
-        { value: "76.1", shards: ["s1"] }, { value: "77.1", shards: ["s2"] },
-      ] }],
+      envConflicts: [
+        {
+          field: "ICU version",
+          values: [
+            { value: "76.1", shards: ["s1"] },
+            { value: "77.1", shards: ["s2"] },
+          ],
+        },
+      ],
     };
-    expect(comparability(clean, clean)).toEqual([]);           // identical, comparable
+    expect(comparability(clean, clean)).toEqual([]); // identical, comparable
     const reasons = comparability(blended, clean);
     expect(reasons.join(" ")).toMatch(/run's shards disagree on ICU version/);
     expect(reasons.join(" ")).toContain("s2");
@@ -366,9 +430,18 @@ describe("environment agreement across shards (DM-1898)", () => {
 
   it("comparability also refuses when the BASELINE was a blend", () => {
     const clean = report().meta as Record<string, unknown>;
-    const blended = { ...clean, envConflicts: [{ field: "runner image", values: [
-      { value: "a", shards: ["s1"] }, { value: "b", shards: ["s2"] },
-    ] }] };
+    const blended = {
+      ...clean,
+      envConflicts: [
+        {
+          field: "runner image",
+          values: [
+            { value: "a", shards: ["s1"] },
+            { value: "b", shards: ["s2"] },
+          ],
+        },
+      ],
+    };
     expect(comparability(clean, blended).join(" ")).toMatch(/baseline's shards disagree/);
   });
 
@@ -397,7 +470,10 @@ describe("environment agreement across shards (DM-1898)", () => {
  */
 describe("oracle movement (DM-1903)", () => {
   it("reports nothing when Chrome answered identically", () => {
-    const r = oracleMovement({ "Helvetica-Bold": 100, "Arial-BoldMT": 5 }, { "Helvetica-Bold": 100, "Arial-BoldMT": 5 });
+    const r = oracleMovement(
+      { "Helvetica-Bold": 100, "Arial-BoldMT": 5 },
+      { "Helvetica-Bold": 100, "Arial-BoldMT": 5 },
+    );
     expect(r).toEqual({ comparable: true, total: 0, moved: [] });
   });
 
@@ -406,10 +482,10 @@ describe("oracle movement (DM-1903)", () => {
     // set of names is unchanged — only the distribution moved.
     const before = { "Helvetica-Bold": 222883, "Arial-BoldMT": 110 };
     const after = { "Helvetica-Bold": 114417, "Arial-BoldMT": 108576 };
-    expect(Object.keys(before).sort()).toEqual(Object.keys(after).sort());   // name list: blind
+    expect(Object.keys(before).sort()).toEqual(Object.keys(after).sort()); // name list: blind
     const r = oracleMovement(after, before);
     expect(r.comparable).toBe(true);
-    expect(r.total).toBe(108466 + 108466);   // |−108,466| + |+108,466|
+    expect(r.total).toBe(108466 + 108466); // |−108,466| + |+108,466|
     expect(r.moved[0].face).toBe("Helvetica-Bold");
     expect(r.moved[0].delta).toBe(-108466);
   });
@@ -447,8 +523,10 @@ describe("oracle movement (DM-1903)", () => {
 
 describe("resolverAnswersMatch", () => {
   it("proves Domotion stayed unchanged independently of Chrome", () => {
-    expect(resolverAnswersMatch({ "stack-0/1:codepoint-0/1": "abc" }, { "stack-0/1:codepoint-0/1": "abc" }))
-      .toEqual({ comparable: true, same: true });
+    expect(resolverAnswersMatch({ "stack-0/1:codepoint-0/1": "abc" }, { "stack-0/1:codepoint-0/1": "abc" })).toEqual({
+      comparable: true,
+      same: true,
+    });
   });
 
   it("detects a changed answer or changed shard key", () => {

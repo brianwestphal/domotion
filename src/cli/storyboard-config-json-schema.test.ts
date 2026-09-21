@@ -47,8 +47,10 @@ describe("storyboard-config JSON Schema", () => {
     }
     // The inter-scene transition enum is the opaque-scene-safe subset.
     const variants = (scene.transition as { anyOf: Array<{ properties: { type: { const: string } } }> }).anyOf;
-    const types = variants.map(variant => variant.properties.type.const);
-    expect(types).toEqual(expect.arrayContaining(["crossfade", "cut", "push-left", "scroll", "push", "reveal", "zoom", "shine"]));
+    const types = variants.map((variant) => variant.properties.type.const);
+    expect(types).toEqual(
+      expect.arrayContaining(["crossfade", "cut", "push-left", "scroll", "push", "reveal", "zoom", "shine"]),
+    );
     expect(types).not.toContain("magic-move");
   });
 });

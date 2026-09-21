@@ -3,11 +3,19 @@ id: "requirements/studio-real-interaction-import"
 title: "Real browser interaction recording and semantic Studio import"
 kind: "contract"
 status: "current"
-owners: ["studio","capture","ai","security"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "capture", "ai", "security"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2696"]
-code: ["src/studio/recording.ts","src/studio/recording.test.ts","src/studio/recording.e2e.test.ts","src/studio/client.tsx","src/studio/server.ts","src/studio/interactive-compile.ts"]
-aliases: ["docs/252-studio-real-interaction-import.md","doc-252"]
+code:
+  [
+    "src/studio/recording.ts",
+    "src/studio/recording.test.ts",
+    "src/studio/recording.e2e.test.ts",
+    "src/studio/client.tsx",
+    "src/studio/server.ts",
+    "src/studio/interactive-compile.ts",
+  ]
+aliases: ["docs/252-studio-real-interaction-import.md", "doc-252"]
 ---
 
 # Real browser interaction recording and semantic Studio import

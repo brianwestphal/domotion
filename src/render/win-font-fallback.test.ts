@@ -1,13 +1,25 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  HANS, HANT, HRKT, UNMAPPED_SCRIPT, ZSYM,
-  WIN_MATH_FONTS, WIN_MONO_EMOJI_FONTS, WIN_COLOR_EMOJI_FONTS,
-  WIN_PAN_UNICODE_CJK_FONTS, WIN_PAN_UNICODE_COMMON_FONTS,
+  HANS,
+  HANT,
+  HRKT,
+  UNMAPPED_SCRIPT,
+  ZSYM,
+  WIN_MATH_FONTS,
+  WIN_MONO_EMOJI_FONTS,
+  WIN_COLOR_EMOJI_FONTS,
+  WIN_PAN_UNICODE_CJK_FONTS,
+  WIN_PAN_UNICODE_COMMON_FONTS,
   WIN_SCRIPT_FONT_FAMILIES,
   __clearWinScriptCacheForTest,
-  blinkWinHardcodedFamilies, getFallbackFamily, getScript,
-  getScriptBasedOnUnicodeBlock, hanScriptForLocale, uscriptGetScript,
-  winFallbackPriorityForTextRun, winScriptCandidates,
+  blinkWinHardcodedFamilies,
+  getFallbackFamily,
+  getScript,
+  getScriptBasedOnUnicodeBlock,
+  hanScriptForLocale,
+  uscriptGetScript,
+  winFallbackPriorityForTextRun,
+  winScriptCandidates,
 } from "./win-font-fallback.js";
 
 /**
@@ -42,15 +54,40 @@ import {
  * case-insensitive Windows family matching verbatim.
  */
 const MEASURED_WIN11 = new Set([
-  "cambria math", "courier new", "ebrima", "gadugi", "javanese text",
-  "leelawadee ui", "lucida sans unicode", "malgun gothic", "microsoft himalaya",
-  "microsoft jhenghei", "microsoft new tai lue", "microsoft phagspa",
-  "microsoft sans serif", "microsoft tai le", "microsoft yahei",
-  "microsoft yi baiti", "mongolian baiti", "ms pgothic", "mv boli",
-  "myanmar text", "nirmala ui", "palatino linotype", "pmingliu-extb",
-  "segoe ui", "segoe ui emoji", "segoe ui historic", "segoe ui symbol",
-  "simsun", "simsun-extb", "simsun-extg", "sylfaen", "tahoma",
-  "times new roman", "yu gothic",
+  "cambria math",
+  "courier new",
+  "ebrima",
+  "gadugi",
+  "javanese text",
+  "leelawadee ui",
+  "lucida sans unicode",
+  "malgun gothic",
+  "microsoft himalaya",
+  "microsoft jhenghei",
+  "microsoft new tai lue",
+  "microsoft phagspa",
+  "microsoft sans serif",
+  "microsoft tai le",
+  "microsoft yahei",
+  "microsoft yi baiti",
+  "mongolian baiti",
+  "ms pgothic",
+  "mv boli",
+  "myanmar text",
+  "nirmala ui",
+  "palatino linotype",
+  "pmingliu-extb",
+  "segoe ui",
+  "segoe ui emoji",
+  "segoe ui historic",
+  "segoe ui symbol",
+  "simsun",
+  "simsun-extb",
+  "simsun-extg",
+  "sylfaen",
+  "tahoma",
+  "times new roman",
+  "yu gothic",
 ]);
 
 /** The same host with the Hebrew supplemental pack, which brings David. This is
@@ -75,21 +112,31 @@ describe("InitializeScriptFontMap: the table itself", () => {
     expect(WIN_SCRIPT_FONT_FAMILIES.Hebrew).toEqual(["David", "Segoe UI"]);
     expect(WIN_SCRIPT_FONT_FAMILIES.Thai).toEqual(["Tahoma", "Leelawadee UI", "Leelawadee"]);
     expect(WIN_SCRIPT_FONT_FAMILIES.Devanagari).toEqual(["Nirmala UI", "Mangal"]);
-    expect(WIN_SCRIPT_FONT_FAMILIES.Hangul)
-      .toEqual(["Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Gulim"]);
+    expect(WIN_SCRIPT_FONT_FAMILIES.Hangul).toEqual(["Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Gulim"]);
     expect(WIN_SCRIPT_FONT_FAMILIES.Ethiopic).toEqual([
-      "Nyala", "Abyssinica SIL", "Ethiopia Jiret", "Visual Geez Unicode",
-      "GF Zemen Unicode", "Ebrima",
+      "Nyala",
+      "Abyssinica SIL",
+      "Ethiopia Jiret",
+      "Visual Geez Unicode",
+      "GF Zemen Unicode",
+      "Ebrima",
     ]);
-    expect(WIN_SCRIPT_FONT_FAMILIES[HANS])
-      .toEqual(["Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "simsun"]);
+    expect(WIN_SCRIPT_FONT_FAMILIES[HANS]).toEqual(["Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "simsun"]);
     // `pmingli` is Chromium's own truncation of "pmingliu" — a transcription that
     // repaired it would stop being one.
-    expect(WIN_SCRIPT_FONT_FAMILIES[HANT])
-      .toEqual(["Noto Sans TC", "Noto Sans CJK TC", "Microsoft JhengHei", "pmingli"]);
+    expect(WIN_SCRIPT_FONT_FAMILIES[HANT]).toEqual([
+      "Noto Sans TC",
+      "Noto Sans CJK TC",
+      "Microsoft JhengHei",
+      "pmingli",
+    ]);
     expect(WIN_SCRIPT_FONT_FAMILIES[HRKT]).toEqual([
-      "Noto Sans JP", "Noto Sans CJK JP", "Meiryo",
-      "Yu Gothic", "MS PGothic", "Microsoft YaHei",
+      "Noto Sans JP",
+      "Noto Sans CJK JP",
+      "Meiryo",
+      "Yu Gothic",
+      "MS PGothic",
+      "Microsoft YaHei",
     ]);
   });
 
@@ -129,23 +176,23 @@ describe("uscript_getScript / GetScript", () => {
   it("answers the UCD Script property", () => {
     expect(uscriptGetScript(0x0041)).toBe("Latin");
     expect(uscriptGetScript(0x0628)).toBe("Arabic");
-    expect(uscriptGetScript(0x05D0)).toBe("Hebrew");
-    expect(uscriptGetScript(0x4E00)).toBe("Han");
+    expect(uscriptGetScript(0x05d0)).toBe("Hebrew");
+    expect(uscriptGetScript(0x4e00)).toBe("Han");
     expect(uscriptGetScript(0x3042)).toBe("Hiragana");
-    expect(uscriptGetScript(0x30A2)).toBe("Katakana");
-    expect(uscriptGetScript(0x10C00)).toBe("Old_Turkic"); // USCRIPT_ORKHON's alias
-    expect(uscriptGetScript(0xABC0)).toBe("Meetei_Mayek");
+    expect(uscriptGetScript(0x30a2)).toBe("Katakana");
+    expect(uscriptGetScript(0x10c00)).toBe("Old_Turkic"); // USCRIPT_ORKHON's alias
+    expect(uscriptGetScript(0xabc0)).toBe("Meetei_Mayek");
   });
 
   it("reports Common / Inherited, which is what triggers block inference", () => {
-    expect(uscriptGetScript(0x2211)).toBe("Common");    // ∑
+    expect(uscriptGetScript(0x2211)).toBe("Common"); // ∑
     expect(uscriptGetScript(0x0300)).toBe("Inherited"); // combining grave
   });
 
   it("infers a script from the block for Common / Inherited codepoints", () => {
     // Character::GetScriptBasedOnUnicodeBlock (character.cc:321-351).
-    expect(getScript(0x3001)).toBe("Han");   // CJK Symbols & Punctuation, Script=Common
-    expect(getScript(0x30FC)).toBe(HRKT);    // Katakana block, Script=Common
+    expect(getScript(0x3001)).toBe("Han"); // CJK Symbols & Punctuation, Script=Common
+    expect(getScript(0x30fc)).toBe(HRKT); // Katakana block, Script=Common
     expect(getScript(0x0964)).toBe("Devanagari"); // Danda, Script=Common
     expect(getScript(0x0374)).toBe("Greek"); // Greek numeral sign, Script=Common
     expect(getScript(0x10341)).toBe("Gothic"); // Gothic block
@@ -165,69 +212,67 @@ describe("uscript_getScript / GetScript", () => {
     expect(uscriptGetScript(0x0628)).toBe(first);
     // Interleave two codepoints that must not share an entry.
     expect(uscriptGetScript(0x0627)).toBe("Arabic");
-    expect(uscriptGetScript(0x05D0)).toBe("Hebrew");
+    expect(uscriptGetScript(0x05d0)).toBe("Hebrew");
     expect(uscriptGetScript(0x0627)).toBe("Arabic");
   });
 });
 
 describe("GetFallbackFamily: stage order", () => {
   it("puts the color emoji font first for an emoji-presentation run", () => {
-    expect(getFallbackFamily(0x1F600, { priority: "emoji-emoji" }, stock).family)
-      .toBe("Segoe UI Emoji");
+    expect(getFallbackFamily(0x1f600, { priority: "emoji-emoji" }, stock).family).toBe("Segoe UI Emoji");
   });
 
   it("puts the MONO emoji font first for a text-presentation run", () => {
-    expect(getFallbackFamily(0x1F600, { priority: "emoji-text" }, stock).family)
-      .toBe("Segoe UI Symbol");
+    expect(getFallbackFamily(0x1f600, { priority: "emoji-text" }, stock).family).toBe("Segoe UI Symbol");
   });
 
   it("falls to the next emoji slot when the preferred one is absent", () => {
     const noEmojiFont = new Set(MEASURED_WIN11);
     noEmojiFont.delete("segoe ui emoji");
-    expect(getFallbackFamily(0x1F600, { priority: "emoji-emoji" }, present(noEmojiFont)).family)
-      .toBe("Segoe UI Symbol");
+    expect(getFallbackFamily(0x1f600, { priority: "emoji-emoji" }, present(noEmojiFont)).family).toBe(
+      "Segoe UI Symbol",
+    );
   });
 
   it("consults the unicode-block specials before the per-script table", () => {
     // Math blocks → FirstAvailableMathFont; symbol blocks → the Segoe UI Symbol
     // literal (font_fallback_win.cc:404-440). All of these are Script=Common, so
     // the script table would otherwise have nothing to say.
-    for (const cp of [0x2190, 0x2211, 0x2300, 0x25A0, 0x27C0, 0x27F0, 0x2900,
-      0x2980, 0x2A00, 0x1D400, 0x1EE00, 0x1F780]) {
-      expect(getFallbackFamily(cp, {}, stock).family, `U+${cp.toString(16)}`)
-        .toBe("Cambria Math");
+    for (const cp of [
+      0x2190, 0x2211, 0x2300, 0x25a0, 0x27c0, 0x27f0, 0x2900, 0x2980, 0x2a00, 0x1d400, 0x1ee00, 0x1f780,
+    ]) {
+      expect(getFallbackFamily(cp, {}, stock).family, `U+${cp.toString(16)}`).toBe("Cambria Math");
     }
-    for (const cp of [0x1F0A0, 0x2600, 0x2B00, 0x1F300, 0x1F680, 0x1F700, 0x2702, 0x10330]) {
-      expect(getFallbackFamily(cp, {}, stock).family, `U+${cp.toString(16)}`)
-        .toBe("Segoe UI Symbol");
+    for (const cp of [0x1f0a0, 0x2600, 0x2b00, 0x1f300, 0x1f680, 0x1f700, 0x2702, 0x10330]) {
+      expect(getFallbackFamily(cp, {}, stock).family, `U+${cp.toString(16)}`).toBe("Segoe UI Symbol");
     }
     // Emoticons / Enclosed Alphanumeric Supplement route through the MONO emoji
     // list even at plain-text priority.
-    expect(getFallbackFamily(0x1F100, {}, stock).family).toBe("Segoe UI Symbol");
+    expect(getFallbackFamily(0x1f100, {}, stock).family).toBe("Segoe UI Symbol");
   });
 
   it("assigns USCRIPT_INVALID_CODE (null script) in the emoji + block stages", () => {
     // `script_out` selects the pan-Unicode probe list downstream, and the early
     // stages deliberately leave it invalid.
     expect(getFallbackFamily(0x2211, {}, stock).script).toBeNull();
-    expect(getFallbackFamily(0x1F600, { priority: "emoji-text" }, stock).script).toBeNull();
+    expect(getFallbackFamily(0x1f600, { priority: "emoji-text" }, stock).script).toBeNull();
     expect(getFallbackFamily(0x0628, {}, stock).script).toBe("Arabic");
   });
 
   it("routes full-width ASCII (U+FF01–U+FF5E) through the Han font", () => {
     // font_fallback_win.cc:529-534. U+FF00 and U+FF5F are excluded by the strict
     // comparison, which the transcription must not widen.
-    expect(getFallbackFamily(0xFF01, {}, stock).family).toBe("Microsoft YaHei");
-    expect(getFallbackFamily(0xFF5E, {}, stock).family).toBe("Microsoft YaHei");
-    expect(getFallbackFamily(0xFF00, {}, stock).family).not.toBe("Microsoft YaHei");
-    expect(getFallbackFamily(0xFF5F, {}, stock).family).not.toBe("Microsoft YaHei");
+    expect(getFallbackFamily(0xff01, {}, stock).family).toBe("Microsoft YaHei");
+    expect(getFallbackFamily(0xff5e, {}, stock).family).toBe("Microsoft YaHei");
+    expect(getFallbackFamily(0xff00, {}, stock).family).not.toBe("Microsoft YaHei");
+    expect(getFallbackFamily(0xff5f, {}, stock).family).not.toBe("Microsoft YaHei");
   });
 
   it("applies FindMonospaceFontForScript to Arabic and Hebrew only", () => {
     expect(getFallbackFamily(0x0628, { generic: "monospace" }, stock).family).toBe("courier new");
-    expect(getFallbackFamily(0x05D0, { generic: "monospace" }, stock).family).toBe("courier new");
+    expect(getFallbackFamily(0x05d0, { generic: "monospace" }, stock).family).toBe("courier new");
     // Any other script ignores the generic.
-    expect(getFallbackFamily(0x0E01, { generic: "monospace" }, stock).family).toBe("Tahoma");
+    expect(getFallbackFamily(0x0e01, { generic: "monospace" }, stock).family).toBe("Tahoma");
     expect(getFallbackFamily(0x0628, { generic: "standard" }, stock).family).toBe("Tahoma");
   });
 
@@ -241,13 +286,13 @@ describe("GetFallbackFamily: stage order", () => {
   });
 
   it("routes the supplementary planes exactly as GB18030-2022 requires", () => {
-    expect(getFallbackFamily(0x1D2C0, {}, everything).family).toBe("code2001"); // plane 1
+    expect(getFallbackFamily(0x1d2c0, {}, everything).family).toBe("code2001"); // plane 1
     expect(getFallbackFamily(0x20000, {}, everything).family).toBe("simsun-extb"); // plane 2
-    expect(getFallbackFamily(0x2EBF0, {}, everything).family).toBe("simsun-extg"); // Ext I
-    expect(getFallbackFamily(0x2EE5F, {}, everything).family).toBe("simsun-extg");
-    expect(getFallbackFamily(0x2EBEF, {}, everything).family).toBe("simsun-extb"); // just below
+    expect(getFallbackFamily(0x2ebf0, {}, everything).family).toBe("simsun-extg"); // Ext I
+    expect(getFallbackFamily(0x2ee5f, {}, everything).family).toBe("simsun-extg");
+    expect(getFallbackFamily(0x2ebef, {}, everything).family).toBe("simsun-extb"); // just below
     expect(getFallbackFamily(0x30000, {}, everything).family).toBe("simsun-extg"); // plane 3
-    expect(getFallbackFamily(0x323AF, {}, everything).family).toBe("simsun-extg");
+    expect(getFallbackFamily(0x323af, {}, everything).family).toBe("simsun-extg");
   });
 
   it("lands on lucida sans unicode when nothing else applies", () => {
@@ -263,7 +308,7 @@ describe("GetFallbackFamily: stage order", () => {
     // `FirstAvailableFont` returns null → `GetFontFamilyForScript` null → the
     // last resort. Not the script list's first slot regardless of installation.
     expect(getFallbackFamily(0x0628, {}, nothing).family).toBe("lucida sans unicode");
-    expect(getFallbackFamily(0x0E01, {}, nothing).family).toBe("lucida sans unicode");
+    expect(getFallbackFamily(0x0e01, {}, nothing).family).toBe("lucida sans unicode");
   });
 });
 
@@ -273,9 +318,9 @@ describe("GetFallbackFamily: font inventory changes the answer", () => {
     // therefore gets a different face than a stock one — which is exactly why
     // baking an inventory into source is the defect being removed here.
     const withNoto = new Set([...MEASURED_WIN11, "noto sans kr", "noto sans sc", "noto sans jp"]);
-    expect(getFallbackFamily(0xAC00, {}, stock).family).toBe("Malgun Gothic");
-    expect(getFallbackFamily(0xAC00, {}, present(withNoto)).family).toBe("Noto Sans KR");
-    expect(getFallbackFamily(0x4E00, {}, present(withNoto)).family).toBe("Noto Sans SC");
+    expect(getFallbackFamily(0xac00, {}, stock).family).toBe("Malgun Gothic");
+    expect(getFallbackFamily(0xac00, {}, present(withNoto)).family).toBe("Noto Sans KR");
+    expect(getFallbackFamily(0x4e00, {}, present(withNoto)).family).toBe("Noto Sans SC");
     expect(getFallbackFamily(0x3042, {}, present(withNoto)).family).toBe("Noto Sans JP");
   });
 
@@ -295,8 +340,8 @@ describe("GetFallbackFamily: font inventory changes the answer", () => {
     // recorded, and it happened to agree only because the probe host lacked the
     // pack. Install the pack and the two answers diverge, with no font-set
     // explanation available from a frozen table.
-    expect(getFallbackFamily(0x05D0, {}, stock).family).toBe("Segoe UI");
-    expect(getFallbackFamily(0x05D0, {}, present(WITH_HEBREW_PACK)).family).toBe("David");
+    expect(getFallbackFamily(0x05d0, {}, stock).family).toBe("Segoe UI");
+    expect(getFallbackFamily(0x05d0, {}, present(WITH_HEBREW_PACK)).family).toBe("David");
   });
 
   it("prefers Khmer OS over the Vista fonts, per Blink's own comment", () => {
@@ -348,10 +393,10 @@ describe("Han locale disambiguation", () => {
   it("routes Han to the lang-derived list when the content locale says so", () => {
     // Meiryo leads the Japanese list but is absent from the measured inventory, so
     // the walk lands on Yu Gothic.
-    expect(getFallbackFamily(0x4E00, { lang: "ja" }, stock).family).toBe("Yu Gothic");
-    expect(getFallbackFamily(0x4E00, { lang: "ko" }, stock).family).toBe("Malgun Gothic");
-    expect(getFallbackFamily(0x4E00, { lang: "zh-TW" }, stock).family).toBe("Microsoft JhengHei");
-    expect(getFallbackFamily(0x4E00, { lang: "zh-CN" }, stock).family).toBe("Microsoft YaHei");
+    expect(getFallbackFamily(0x4e00, { lang: "ja" }, stock).family).toBe("Yu Gothic");
+    expect(getFallbackFamily(0x4e00, { lang: "ko" }, stock).family).toBe("Malgun Gothic");
+    expect(getFallbackFamily(0x4e00, { lang: "zh-TW" }, stock).family).toBe("Microsoft JhengHei");
+    expect(getFallbackFamily(0x4e00, { lang: "zh-CN" }, stock).family).toBe("Microsoft YaHei");
   });
 
   it("fills the USCRIPT_HAN slot from the system locale", () => {
@@ -368,7 +413,7 @@ describe("GetFallbackFamilyNameFromHardcodedChoices: the candidate list", () => 
     // Hebrew on a host WITH David: the first installed slot is David, and the
     // script list's SECOND slot (Segoe UI) must not appear — Blink goes to the
     // pan-Unicode list on a coverage miss, not to the next script slot.
-    const chain = blinkWinHardcodedFamilies(0x05D0, {}, present(WITH_HEBREW_PACK));
+    const chain = blinkWinHardcodedFamilies(0x05d0, {}, present(WITH_HEBREW_PACK));
     expect(chain[0]).toBe("David");
     expect(chain).not.toContain("Segoe UI");
     expect(chain.slice(1)).toEqual(WIN_PAN_UNICODE_COMMON_FONTS);
@@ -376,12 +421,12 @@ describe("GetFallbackFamilyNameFromHardcodedChoices: the candidate list", () => 
 
   it("selects the CJK probe list only while the script is still unified Han", () => {
     // No locale disambiguates → script stays Han → kCjkFonts.
-    const han = blinkWinHardcodedFamilies(0x4E00, {}, stock);
+    const han = blinkWinHardcodedFamilies(0x4e00, {}, stock);
     expect(han[0]).toBe("Microsoft YaHei");
     expect(han).toContain("wenquanyi zen hei"); // CJK-list marker
     expect(han).not.toContain("palatino linotype"); // common-list marker
     // A locale that disambiguates replaces the script → kCommonFonts.
-    const ja = blinkWinHardcodedFamilies(0x4E00, { lang: "ja" }, stock);
+    const ja = blinkWinHardcodedFamilies(0x4e00, { lang: "ja" }, stock);
     expect(ja[0]).toBe("Yu Gothic");
     expect(ja).toContain("palatino linotype");
     expect(ja).not.toContain("wenquanyi zen hei");
@@ -390,7 +435,7 @@ describe("GetFallbackFamilyNameFromHardcodedChoices: the candidate list", () => 
   it("does not repeat the nominated family inside the probe list", () => {
     // Thai nominates Tahoma, which also heads kCommonFonts. Re-probing it would
     // get the same non-covering answer, so it appears once.
-    const thai = blinkWinHardcodedFamilies(0x0E01, {}, stock);
+    const thai = blinkWinHardcodedFamilies(0x0e01, {}, stock);
     expect(thai[0]).toBe("Tahoma");
     expect(thai.filter((f) => f.toLowerCase() === "tahoma").length).toBe(1);
   });
@@ -406,14 +451,14 @@ describe("FontFallbackPriority for a plain-text run", () => {
   it("escalates any Emoji codepoint to text-presentation emoji", () => {
     // SystemFallbackEmojiVSSupport is status:"stable" in
     // runtime_enabled_features.json5, so this branch is on by default.
-    expect(winFallbackPriorityForTextRun(0x1F600)).toBe("emoji-text");
+    expect(winFallbackPriorityForTextRun(0x1f600)).toBe("emoji-text");
     expect(winFallbackPriorityForTextRun(0x2600)).toBe("emoji-text"); // ☀ has Emoji=Yes
     expect(winFallbackPriorityForTextRun(0x0023)).toBe("emoji-text"); // # keycap base
   });
 
   it("leaves a non-emoji codepoint at plain text", () => {
     expect(winFallbackPriorityForTextRun(0x0041)).toBe("text");
-    expect(winFallbackPriorityForTextRun(0x4E00)).toBe("text");
+    expect(winFallbackPriorityForTextRun(0x4e00)).toBe("text");
     expect(winFallbackPriorityForTextRun(0x2211)).toBe("text");
   });
 
@@ -425,12 +470,10 @@ describe("FontFallbackPriority for a plain-text run", () => {
     // stages diverge as soon as Segoe UI Symbol is absent.
     const noSymbol = new Set(MEASURED_WIN11);
     noSymbol.delete("segoe ui symbol");
-    expect(winFallbackPriorityForTextRun(0x1F0A0)).toBe("text");
-    expect(getFallbackFamily(0x1F0A0, { priority: "text" }, present(noSymbol)).family)
-      .toBe("Segoe UI Symbol"); // the block stage returns the literal unconditionally
-    expect(winFallbackPriorityForTextRun(0x1F3B4)).toBe("emoji-text");
-    expect(getFallbackFamily(0x1F3B4, { priority: "emoji-text" }, present(noSymbol)).family)
-      .toBe("Segoe UI Emoji"); // FirstAvailableFont walks to the second slot
+    expect(winFallbackPriorityForTextRun(0x1f0a0)).toBe("text");
+    expect(getFallbackFamily(0x1f0a0, { priority: "text" }, present(noSymbol)).family).toBe("Segoe UI Symbol"); // the block stage returns the literal unconditionally
+    expect(winFallbackPriorityForTextRun(0x1f3b4)).toBe("emoji-text");
+    expect(getFallbackFamily(0x1f3b4, { priority: "emoji-text" }, present(noSymbol)).family).toBe("Segoe UI Emoji"); // FirstAvailableFont walks to the second slot
   });
 });
 

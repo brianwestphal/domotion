@@ -23,7 +23,11 @@
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass, type SkiaFakeBoldPaintStage } from "../src/render/embolden-outline.js";
+import {
+  resolveFakeBoldTextPaint,
+  type FakeBoldSvgPaintPass,
+  type SkiaFakeBoldPaintStage,
+} from "../src/render/embolden-outline.js";
 
 type Platform = "darwin" | "linux" | "win32";
 type Hinting = "unhinted" | "light" | "native-full";
@@ -110,29 +114,37 @@ function sourceRule(opts: {
     frameAndFill: extraPx > 0,
     visible: !opts.fillIsTransparent,
   };
-  const stroke: SkiaFakeBoldPaintStage | null = opts.strokeWidthPx > 0
-    ? { paint: "stroke", frameWidthPx: opts.strokeWidthPx + extraPx, frameAndFill: false, visible: true }
-    : null;
+  const stroke: SkiaFakeBoldPaintStage | null =
+    opts.strokeWidthPx > 0
+      ? { paint: "stroke", frameWidthPx: opts.strokeWidthPx + extraPx, frameAndFill: false, visible: true }
+      : null;
   const stages = stroke == null ? [fill] : opts.strokeFirst ? [stroke, fill] : [fill, stroke];
 
   let svgPasses: FakeBoldSvgPaintPass[];
   if (stroke == null) {
-    svgPasses = [{
-      kind: "combined", fill: "source", stroke: extraPx > 0 ? "source-fill" : "none", strokeWidthPx: extraPx,
-    }];
+    svgPasses = [
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: extraPx > 0 ? "source-fill" : "none",
+        strokeWidthPx: extraPx,
+      },
+    ];
   } else if (opts.strokeFirst && fill.visible && extraPx > 0) {
     svgPasses = [
       { kind: "author-stroke", fill: "none", stroke: "author", strokeWidthPx: stroke.frameWidthPx },
       { kind: "synthetic-fill", fill: "source", stroke: "source-fill", strokeWidthPx: extraPx },
     ];
   } else {
-    svgPasses = [{
-      kind: "combined",
-      fill: "source",
-      stroke: "author",
-      strokeWidthPx: stroke.frameWidthPx,
-      ...(opts.strokeFirst ? { paintOrder: "stroke fill" as const } : {}),
-    }];
+    svgPasses = [
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: "author",
+        strokeWidthPx: stroke.frameWidthPx,
+        ...(opts.strokeFirst ? { paintOrder: "stroke fill" as const } : {}),
+      },
+    ];
   }
   return { outline: "source", extraPx, stages, svgPasses };
 }
@@ -179,7 +191,10 @@ export function runSyntheticBoldPaintOracle(): {
               for (const fillIsTransparent of BOOLEANS) {
                 for (const transform of TRANSFORMS) {
                   const input = {
-                    fontSizePx, strokeWidthPx, strokeFirst, fillIsTransparent,
+                    fontSizePx,
+                    strokeWidthPx,
+                    strokeFirst,
+                    fillIsTransparent,
                     faceLacksWeight: face.faceLacksWeight,
                   };
                   const source = sourceRule(input);
@@ -195,19 +210,32 @@ export function runSyntheticBoldPaintOracle(): {
                     svgPasses: production.svgPasses,
                     deviceFrameBasis: deviceFrameBasis(production.stages, transform.matrix),
                   };
-                  const mutationTarget = face.faceLacksWeight && strokeWidthPx > 0
-                    && strokeFirst && !fillIsTransparent;
+                  const mutationTarget = face.faceLacksWeight && strokeWidthPx > 0 && strokeFirst && !fillIsTransparent;
                   const retiredMutation = mutationTarget
                     ? { ...actual, outline: "derived-outline", svgPasses: [actual.svgPasses[0]] }
                     : actual;
                   rows.push({
-                    id: [platform, face.id, hinting, fontSizePx, `sw${strokeWidthPx}`,
+                    id: [
+                      platform,
+                      face.id,
+                      hinting,
+                      fontSizePx,
+                      `sw${strokeWidthPx}`,
                       strokeFirst ? "stroke-first" : "fill-first",
-                      fillIsTransparent ? "transparent" : "opaque", transform.id].join("/"),
-                    platform, face, hinting, fontSizePx, strokeWidthPx,
-                    strokeFirst, fillIsTransparent, transform,
+                      fillIsTransparent ? "transparent" : "opaque",
+                      transform.id,
+                    ].join("/"),
+                    platform,
+                    face,
+                    hinting,
+                    fontSizePx,
+                    strokeWidthPx,
+                    strokeFirst,
+                    fillIsTransparent,
+                    transform,
                     sourceOutlineRecord: { owner: "selected-face-glyph", hinting, mutation: "none" },
-                    expected, actual,
+                    expected,
+                    actual,
                     pass: same(expected, actual),
                     retiredMutationMoved: mutationTarget ? !same(expected, retiredMutation) : false,
                   });
@@ -227,8 +255,9 @@ export function runSyntheticBoldPaintOracle(): {
   ];
   const retiredSymbol = /(?:0\.73|emboldenStrengthForFont|emboldenPathCommands|emboldenStrengthFU)/;
   const retiredProductionSymbolsGone = sourceFiles.every((file) => !retiredSymbol.test(readFileSync(file, "utf8")));
-  const mutationRows = rows.filter((row) => row.face.faceLacksWeight && row.strokeWidthPx > 0
-    && row.strokeFirst && !row.fillIsTransparent);
+  const mutationRows = rows.filter(
+    (row) => row.face.faceLacksWeight && row.strokeWidthPx > 0 && row.strokeFirst && !row.fillIsTransparent,
+  );
   return {
     rows,
     failures: rows.filter((row) => !row.pass).length,
@@ -243,9 +272,12 @@ function main(): void {
   console.log(`synthetic-bold paint oracle: ${report.rows.length - report.failures}/${report.rows.length}`);
   console.log(`retired outline mutation: ${report.retiredMutationMoved}/${report.retiredMutationRows} moved`);
   console.log(`retired production symbols: ${report.retiredProductionSymbolsGone ? "gone" : "PRESENT"}`);
-  if (report.failures > 0
-    || report.retiredMutationMoved !== report.retiredMutationRows
-    || !report.retiredProductionSymbolsGone) process.exitCode = 1;
+  if (
+    report.failures > 0 ||
+    report.retiredMutationMoved !== report.retiredMutationRows ||
+    !report.retiredProductionSymbolsGone
+  )
+    process.exitCode = 1;
 }
 
 if (import.meta.url === new URL(`file://${process.argv[1]}`).href) main();

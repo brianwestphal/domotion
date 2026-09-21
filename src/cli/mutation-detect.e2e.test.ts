@@ -39,7 +39,11 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
 </body></html>`;
 
 async function canLaunch(): Promise<Browser | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await canLaunch();
 
@@ -103,9 +107,16 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
     try {
       const page = await ctx.newPage();
       await page.goto(`file://${htmlPath}`, { waitUntil: "networkidle" });
-      const res = await buildJsRevealAnimation(page, resolveJsRevealSpec({ selector: "#trigger", holdMs: 500, crossfadeMs: 200 }), {
-        width: 400, height: 260, framePrefix: "jr0_", log: () => {},
-      });
+      const res = await buildJsRevealAnimation(
+        page,
+        resolveJsRevealSpec({ selector: "#trigger", holdMs: 500, crossfadeMs: 200 }),
+        {
+          width: 400,
+          height: 260,
+          framePrefix: "jr0_",
+          log: () => {},
+        },
+      );
       expect(res.summary.structural).toBe(true);
       expect(res.svgContent).not.toMatch(/^<\?xml/);
       expect(res.svgContent).toContain("jr0_f-1"); // the after state
@@ -121,9 +132,17 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
     try {
       const page = await ctx.newPage();
       await page.goto(`file://${htmlPath}`, { waitUntil: "networkidle" });
-      const res = await buildJsRevealAnimation(page, resolveJsRevealSpec({ selector: "#trigger", holdMs: 500, crossfadeMs: 200 }), {
-        width: 400, height: 260, framePrefix: "jr-rt_", log: () => {}, realText: true,
-      });
+      const res = await buildJsRevealAnimation(
+        page,
+        resolveJsRevealSpec({ selector: "#trigger", holdMs: 500, crossfadeMs: 200 }),
+        {
+          width: 400,
+          height: 260,
+          framePrefix: "jr-rt_",
+          log: () => {},
+          realText: true,
+        },
+      );
       expect((res.svgContent.match(/data-domotion-real-text-layer="true"/g) ?? []).length).toBe(2);
       expect(res.svgContent).toContain("Account");
       expect(res.svgContent).toContain("Profile");
@@ -138,9 +157,16 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
     try {
       const page = await ctx.newPage();
       await page.goto(`file://${htmlPath}`, { waitUntil: "networkidle" });
-      const res = await buildJsRevealAnimation(page, resolveJsRevealSpec({ selector: "#inert", settleMs: 250, holdMs: 500 }), {
-        width: 400, height: 260, framePrefix: "jr0_", log: () => {},
-      });
+      const res = await buildJsRevealAnimation(
+        page,
+        resolveJsRevealSpec({ selector: "#inert", settleMs: 250, holdMs: 500 }),
+        {
+          width: 400,
+          height: 260,
+          framePrefix: "jr0_",
+          log: () => {},
+        },
+      );
       expect(res.summary.changed).toBe(false);
       expect(res.svgContent).not.toContain("jr0_f-1"); // only the rest state, no after
       expect(res.periodMs).toBe(500); // just holdMs

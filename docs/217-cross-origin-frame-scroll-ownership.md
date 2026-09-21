@@ -4,10 +4,16 @@ title: "Cross-origin frame scroll ownership"
 kind: "contract"
 status: "current"
 owners: ["layout"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2537"]
-code: [".github/workflows/cross-origin-frame-scroll-ownership.yml","src/capture/frame-scroll-state.ts","src/scroll/frame-scroll-ownership.test.ts","tests/cross-origin-iframe-recursion.e2e.test.ts"]
-aliases: ["docs/217-cross-origin-frame-scroll-ownership.md","doc-217"]
+code:
+  [
+    ".github/workflows/cross-origin-frame-scroll-ownership.yml",
+    "src/capture/frame-scroll-state.ts",
+    "src/scroll/frame-scroll-ownership.test.ts",
+    "tests/cross-origin-iframe-recursion.e2e.test.ts",
+  ]
+aliases: ["docs/217-cross-origin-frame-scroll-ownership.md", "doc-217"]
 ---
 
 # Cross-origin frame scroll ownership

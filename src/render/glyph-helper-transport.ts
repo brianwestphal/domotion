@@ -28,7 +28,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HELPER_BINARIES: Partial<Record<NodeJS.Platform, string>> = {
   darwin: path.resolve(HERE, "..", "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths"),
   linux: path.resolve(HERE, "..", "..", "tools", "linux-glyph-extractor", "domotion-glyph-paths"),
-  win32: path.resolve(HERE, "..", "..", "tools", "win32-glyph-extractor", "domotion-glyph-paths.exe")
+  win32: path.resolve(HERE, "..", "..", "tools", "win32-glyph-extractor", "domotion-glyph-paths.exe"),
 };
 
 // Resolve the helper binary for the running platform, in order:
@@ -55,10 +55,7 @@ export function __helperBinaryForPlatform(platform: NodeJS.Platform): string | u
  * protocol adapter. Windows cannot execute a `.js`/`.mjs` path directly, even
  * when it has a Unix shebang; route those explicit adapters through the same
  * Node executable that is running Domotion. */
-export function __helperInvocationForTest(
-  helper: string,
-  args: string[] = [],
-): { command: string; args: string[] } {
+export function __helperInvocationForTest(helper: string, args: string[] = []): { command: string; args: string[] } {
   return /\.(?:cjs|mjs|js)$/i.test(helper)
     ? { command: process.execPath, args: [helper, ...args] }
     : { command: helper, args };
@@ -74,7 +71,10 @@ let helperAvailable: boolean | null = null;
 let helperPath: string | undefined;
 export function isGlyphHelperAvailable(): boolean {
   if (helperAvailable != null) return helperAvailable;
-  if (process.env.DOMOTION_DISABLE_HELPER) { helperAvailable = false; return false; }
+  if (process.env.DOMOTION_DISABLE_HELPER) {
+    helperAvailable = false;
+    return false;
+  }
   helperPath = resolveHelperPath();
   helperAvailable = helperPath != null && existsSync(helperPath);
   return helperAvailable;
@@ -84,7 +84,6 @@ export function isGlyphHelperAvailable(): boolean {
 export function resolvedGlyphHelperPathForEvidence(): string | null {
   return isGlyphHelperAvailable() ? (helperPath ?? null) : null;
 }
-
 
 // DM-1031: persistent-helper channel. Spawning the binary fresh for each call
 // costs ~16 ms (process spawn + CoreText init + font open) and was ~93% of the
@@ -96,8 +95,8 @@ export function resolvedGlyphHelperPathForEvidence(): string | null {
 let serverProc: ChildProcess | null = null;
 let serverInFd: number | undefined;
 let serverOutFd: number | undefined;
-let serverLeftover = "";          // bytes read past one response (normally "")
-let persistentDisabled = false;   // set once we know the binary can't serve
+let serverLeftover = ""; // bytes read past one response (normally "")
+let persistentDisabled = false; // set once we know the binary can't serve
 let persistentEverWorked = false; // distinguishes "broken binary" from a transient crash
 
 function fdOf(stream: unknown): number | undefined {
@@ -179,9 +178,15 @@ function startPersistentViaPipe(bin: string): boolean {
       try {
         if (proc.pid != null) process.kill(proc.pid, 0);
         else alive = false;
-      } catch { alive = false; }
+      } catch {
+        alive = false;
+      }
       if (!alive || Date.now() > deadline) {
-        try { proc.kill(); } catch { /* ignore */ }
+        try {
+          proc.kill();
+        } catch {
+          /* ignore */
+        }
         // The binary cannot serve this way. Don't retry per call.
         persistentDisabled = true;
         return false;
@@ -195,11 +200,21 @@ function startPersistentViaPipe(bin: string): boolean {
   serverInFd = fd;
   serverOutFd = fd;
   serverLeftover = "";
-  proc.on("error", () => { serverProc = null; });
-  proc.on("exit", () => { serverProc = null; });
+  proc.on("error", () => {
+    serverProc = null;
+  });
+  proc.on("exit", () => {
+    serverProc = null;
+  });
   if (!_persistentExitHookInstalled) {
     _persistentExitHookInstalled = true;
-    process.once("exit", () => { try { serverProc?.kill(); } catch { /* ignore */ } });
+    process.once("exit", () => {
+      try {
+        serverProc?.kill();
+      } catch {
+        /* ignore */
+      }
+    });
   }
   return true;
 }
@@ -254,7 +269,11 @@ function startPersistent(bin: string): boolean {
     // child every call). macOS/Linux expose real (>=0) fds and keep serve.
     // Retained as a guard for any platform whose pipes behave the same way.
     if (inFd == null || outFd == null || inFd < 0 || outFd < 0) {
-      try { proc.kill(); } catch { /* ignore */ }
+      try {
+        proc.kill();
+      } catch {
+        /* ignore */
+      }
       persistentDisabled = true;
       return false;
     }
@@ -270,11 +289,21 @@ function startPersistent(bin: string): boolean {
     serverInFd = inFd;
     serverOutFd = outFd;
     serverLeftover = "";
-    proc.on("error", () => { serverProc = null; });
-    proc.on("exit", () => { serverProc = null; });
+    proc.on("error", () => {
+      serverProc = null;
+    });
+    proc.on("exit", () => {
+      serverProc = null;
+    });
     if (!_persistentExitHookInstalled) {
       _persistentExitHookInstalled = true;
-      process.once("exit", () => { try { serverProc?.kill(); } catch { /* ignore */ } });
+      process.once("exit", () => {
+        try {
+          serverProc?.kill();
+        } catch {
+          /* ignore */
+        }
+      });
     }
     return true;
   } catch {
@@ -332,8 +361,10 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
         }
         throw e;
       }
-      if (n > 0) { serverLeftover += tmp.toString("utf-8", 0, n); bytesIn += n; }
-      else if (n === 0) throw new Error("helper closed stdout"); // EOF
+      if (n > 0) {
+        serverLeftover += tmp.toString("utf-8", 0, n);
+        bytesIn += n;
+      } else if (n === 0) throw new Error("helper closed stdout"); // EOF
     }
     if (renderProfileEnabled) {
       profAccum("helperenv:roundtrip", profNow() - _r0);
@@ -352,7 +383,11 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
     // certainly doesn't support `--serve` (old release) — disable for the
     // session so we don't keep paying a failed spawn. If it had worked before,
     // this was a transient crash; leave it enabled so the next call respawns.
-    try { serverProc?.kill(); } catch { /* ignore */ }
+    try {
+      serverProc?.kill();
+    } catch {
+      /* ignore */
+    }
     serverProc = null;
     serverLeftover = "";
     if (!persistentEverWorked) persistentDisabled = true;
@@ -398,7 +433,7 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
   const proc = spawnSync(invocation.command, invocation.args, {
     input: JSON.stringify(request),
     encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024
+    maxBuffer: 64 * 1024 * 1024,
   });
   profAccum("helper-spawnSync", profNow() - _t0);
   if (proc.status !== 0) {
@@ -415,7 +450,11 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
 export function clearGlyphHelperTransport(): void {
   helperAvailable = null;
   helperPath = undefined;
-  try { serverProc?.kill(); } catch { /* already gone */ }
+  try {
+    serverProc?.kill();
+  } catch {
+    /* already gone */
+  }
   serverProc = null;
   serverInFd = undefined;
   serverOutFd = undefined;

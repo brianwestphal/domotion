@@ -5,14 +5,20 @@ import type { CapturedElement, CapturedPseudoFragmentSet } from "./types.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 
 const env = await setup();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
-function findBackdropRaster(nodes: CapturedElement[]): NonNullable<CapturedElement["backdropFilterRaster"]> | undefined {
+function findBackdropRaster(
+  nodes: CapturedElement[],
+): NonNullable<CapturedElement["backdropFilterRaster"]> | undefined {
   for (const node of nodes) {
     if (node.backdropFilterRaster != null) return node.backdropFilterRaster;
     const nested = findBackdropRaster(node.children ?? []);
@@ -46,11 +52,12 @@ describeBrowser("backdrop-filter paint-order isolation", () => {
         #later { position: absolute; left: 80px; top: 55px; width: 100px; height: 90px; background: #ef2350 }
       </style><div id="glass"><span>sampled backdrop</span></div><div id="later"><span>later paint</span></div>`);
 
-      const { tree, warnings } = await captureElementTreeWithWarnings(
-        page,
-        "body",
-        { x: 0, y: 0, width: 240, height: 180 },
-      );
+      const { tree, warnings } = await captureElementTreeWithWarnings(page, "body", {
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 180,
+      });
       const raster = findBackdropRaster(tree);
       expect(raster?.dataUri).toMatch(/^data:image\/png;base64,/);
       expect(warnings.filter((warning) => warning.feature === "backdrop-filter")).toEqual([]);
@@ -59,12 +66,18 @@ describeBrowser("backdrop-filter paint-order isolation", () => {
 
       const clip = { x: raster!.x, y: raster!.y, width: raster!.width, height: raster!.height };
       const withLaterPaint = await page.screenshot({ clip, omitBackground: true, type: "png" });
-      await page.locator("#later").evaluate((el) => { (el as HTMLElement).style.visibility = "hidden"; });
-      await page.locator("#glass > span").evaluate((el) => { (el as HTMLElement).style.visibility = "hidden"; });
+      await page.locator("#later").evaluate((el) => {
+        (el as HTMLElement).style.visibility = "hidden";
+      });
+      await page.locator("#glass > span").evaluate((el) => {
+        (el as HTMLElement).style.visibility = "hidden";
+      });
       const expected = await page.screenshot({ clip, omitBackground: true, type: "png" });
       const actual = Buffer.from(raster!.dataUri!.slice("data:image/png;base64,".length), "base64");
       const [actualRaw, expectedRaw, paintedRaw] = await Promise.all([
-        sharp(actual).raw().toBuffer(), sharp(expected).raw().toBuffer(), sharp(withLaterPaint).raw().toBuffer(),
+        sharp(actual).raw().toBuffer(),
+        sharp(expected).raw().toBuffer(),
+        sharp(withLaterPaint).raw().toBuffer(),
       ]);
       const meanDiff = (a: Buffer, b: Buffer) => {
         let sum = 0;
@@ -89,11 +102,12 @@ describeBrowser("backdrop-filter paint-order isolation", () => {
           background: rgba(255,255,255,.16); backdrop-filter: blur(6px) saturate(1.3) }
       </style><div id="host">host vectors</div>`);
 
-      const { tree, warnings } = await captureElementTreeWithWarnings(
-        page,
-        "body",
-        { x: 0, y: 0, width: 240, height: 180 },
-      );
+      const { tree, warnings } = await captureElementTreeWithWarnings(page, "body", {
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 180,
+      });
       const pseudoRaster = findPseudoBackdropRaster(tree);
       expect(pseudoRaster).toMatchObject({
         isolated: true,
@@ -101,8 +115,11 @@ describeBrowser("backdrop-filter paint-order isolation", () => {
       });
       expect(pseudoRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
       expect(findBackdropRaster(tree)).toBeUndefined();
-      expect(warnings.filter((warning) => warning.feature === "backdrop-filter"
-        || warning.feature === "generated-pseudo-backdrop-filter")).toEqual([]);
+      expect(
+        warnings.filter(
+          (warning) => warning.feature === "backdrop-filter" || warning.feature === "generated-pseudo-backdrop-filter",
+        ),
+      ).toEqual([]);
     } finally {
       await page.close();
     }

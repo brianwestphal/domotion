@@ -154,17 +154,17 @@ function parseParamsJson(text: string, where: string): Record<string, unknown> {
 
 function overviewHelp(): string {
   return (
-    "domotion template — render a parameterized template to a self-contained SVG\n\n"
-    + "Usage:\n"
-    + "  domotion template list                          List the built-in templates.\n"
-    + "  domotion template <name> --help                 Show a template's parameters.\n"
-    + "  domotion template <name> [--param …] -o out.svg Render it.\n\n"
-    + "Params are passed as flags derived from the template (e.g. --title \"…\"), or as\n"
-    + "JSON via --params '<json>' / --params-file <file.json>. Third-party templates are\n"
-    + "npm packages named domotion-template-<name>; install one and use it by <name>\n"
-    + "(search npm for the 'domotion-template' keyword). Write your own: see\n"
-    + "docs/74-template-authoring.md + examples/template-package/.\n\n"
-    + listHelp()
+    "domotion template — render a parameterized template to a self-contained SVG\n\n" +
+    "Usage:\n" +
+    "  domotion template list                          List the built-in templates.\n" +
+    "  domotion template <name> --help                 Show a template's parameters.\n" +
+    "  domotion template <name> [--param …] -o out.svg Render it.\n\n" +
+    'Params are passed as flags derived from the template (e.g. --title "…"), or as\n' +
+    "JSON via --params '<json>' / --params-file <file.json>. Third-party templates are\n" +
+    "npm packages named domotion-template-<name>; install one and use it by <name>\n" +
+    "(search npm for the 'domotion-template' keyword). Write your own: see\n" +
+    "docs/74-template-authoring.md + examples/template-package/.\n\n" +
+    listHelp()
   );
 }
 

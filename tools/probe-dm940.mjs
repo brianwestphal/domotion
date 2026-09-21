@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test';
+import { chromium } from "@playwright/test";
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 760, height: 800 } });
@@ -19,9 +19,16 @@ const info = await page.evaluate(() => {
     range.setStart(tn, i);
     range.setEnd(tn, i + 1);
     const r = range.getBoundingClientRect();
-    out.push({ i, ch: text[i], code: text.charCodeAt(i).toString(16).toUpperCase(), x: +r.x.toFixed(2), w: +r.width.toFixed(2) });
+    out.push({
+      i,
+      ch: text[i],
+      code: text.charCodeAt(i).toString(16).toUpperCase(),
+      x: +r.x.toFixed(2),
+      w: +r.width.toFixed(2),
+    });
   }
   return out;
 });
-for (const r of info) console.log(`logical ${r.i.toString().padStart(2)} "${r.ch}" U+${r.code.padStart(4, '0')} → x=${r.x} w=${r.w}`);
+for (const r of info)
+  console.log(`logical ${r.i.toString().padStart(2)} "${r.ch}" U+${r.code.padStart(4, "0")} → x=${r.x} w=${r.w}`);
 await browser.close();

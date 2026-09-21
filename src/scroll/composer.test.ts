@@ -15,50 +15,127 @@ import type { Easing } from "./pattern.js";
 function el(opts: Partial<CapturedElement> & { tag: string; x: number; y: number }): CapturedElement {
   return {
     text: "",
-    width: 100, height: 20,
+    width: 100,
+    height: 20,
     children: [],
     ...opts,
     styles: {
       backgroundColor: "rgba(0,0,0,0)",
-      borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-      borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-      borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-      borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-      borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
+      borderColor: "rgb(0,0,0)",
+      borderWidth: "0",
+      borderRadius: "0",
+      borderTopLeftRadius: "0",
+      borderTopRightRadius: "0",
+      borderBottomRightRadius: "0",
+      borderBottomLeftRadius: "0",
+      borderTopWidth: "0",
+      borderRightWidth: "0",
+      borderBottomWidth: "0",
+      borderLeftWidth: "0",
+      borderTopColor: "rgb(0,0,0)",
+      borderRightColor: "rgb(0,0,0)",
+      borderBottomColor: "rgb(0,0,0)",
+      borderLeftColor: "rgb(0,0,0)",
+      borderTopStyle: "none",
+      borderRightStyle: "none",
+      borderBottomStyle: "none",
+      borderLeftStyle: "none",
       color: "rgb(0,0,0)",
-      fontSize: "16px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
-      lineHeight: "20px", letterSpacing: "normal",
-      textAlign: "left", textTransform: "none", textDecoration: "none",
-      textDecorationLine: "none", textDecorationStyle: "solid",
-      textDecorationColor: "rgb(0,0,0)", textDecorationThickness: "auto", textUnderlineOffset: "auto",
-      whiteSpace: "normal", wordSpacing: "0", verticalAlign: "baseline",
-      direction: "ltr", writingMode: "horizontal-tb", textOverflow: "clip",
-      cursor: "auto", caretColor: "auto",
-      outlineColor: "rgb(0,0,0)", outlineWidth: "0", outlineStyle: "none", outlineOffset: "0",
+      fontSize: "16px",
+      fontFamily: "sans-serif",
+      fontWeight: "400",
+      fontStyle: "normal",
+      lineHeight: "20px",
+      letterSpacing: "normal",
+      textAlign: "left",
+      textTransform: "none",
+      textDecoration: "none",
+      textDecorationLine: "none",
+      textDecorationStyle: "solid",
+      textDecorationColor: "rgb(0,0,0)",
+      textDecorationThickness: "auto",
+      textUnderlineOffset: "auto",
+      whiteSpace: "normal",
+      wordSpacing: "0",
+      verticalAlign: "baseline",
+      direction: "ltr",
+      writingMode: "horizontal-tb",
+      textOverflow: "clip",
+      cursor: "auto",
+      caretColor: "auto",
+      outlineColor: "rgb(0,0,0)",
+      outlineWidth: "0",
+      outlineStyle: "none",
+      outlineOffset: "0",
       boxShadow: "none",
-      opacity: "1", transform: "none", transformOrigin: "50% 50%", visibility: "visible",
+      opacity: "1",
+      transform: "none",
+      transformOrigin: "50% 50%",
+      visibility: "visible",
       borderCollapse: "separate",
-      overflowX: "visible", overflowY: "visible", scrollbarGutter: "auto",
-      scrollWidth: 100, scrollHeight: 100, clientWidth: 100, clientHeight: 100, scrollTop: 0, scrollLeft: 0,
-      objectFit: "fill", objectPosition: "50% 50%",
-      filter: "none", backdropFilter: "none", mixBlendMode: "normal",
-      clipPath: "none", mask: "none", maskImage: "none", maskMode: "match-source",
-      maskSize: "auto", maskPosition: "0% 0%", maskRepeat: "repeat", maskComposite: "add",
-      listStyleType: "disc", listStyleImage: "none", display: "block", listStylePosition: "outside",
-      backgroundImage: "none", backgroundSize: "auto", backgroundPosition: "0% 0%",
-      backgroundRepeat: "repeat", backgroundClip: "border-box", backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
-      paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
-      borderImageSource: "none", borderImageSlice: "100%", borderImageWidth: "1", borderImageOutset: "0", borderImageRepeat: "stretch",
-      zIndex: "auto", position: "static", float: "none", order: "0", flexDirection: "row",
+      overflowX: "visible",
+      overflowY: "visible",
+      scrollbarGutter: "auto",
+      scrollWidth: 100,
+      scrollHeight: 100,
+      clientWidth: 100,
+      clientHeight: 100,
+      scrollTop: 0,
+      scrollLeft: 0,
+      objectFit: "fill",
+      objectPosition: "50% 50%",
+      filter: "none",
+      backdropFilter: "none",
+      mixBlendMode: "normal",
+      clipPath: "none",
+      mask: "none",
+      maskImage: "none",
+      maskMode: "match-source",
+      maskSize: "auto",
+      maskPosition: "0% 0%",
+      maskRepeat: "repeat",
+      maskComposite: "add",
+      listStyleType: "disc",
+      listStyleImage: "none",
+      display: "block",
+      listStylePosition: "outside",
+      backgroundImage: "none",
+      backgroundSize: "auto",
+      backgroundPosition: "0% 0%",
+      backgroundRepeat: "repeat",
+      backgroundClip: "border-box",
+      backgroundOrigin: "padding-box",
+      backgroundAttachment: "scroll",
+      paddingTop: "0",
+      paddingRight: "0",
+      paddingBottom: "0",
+      paddingLeft: "0",
+      borderImageSource: "none",
+      borderImageSlice: "100%",
+      borderImageWidth: "1",
+      borderImageOutset: "0",
+      borderImageRepeat: "stretch",
+      zIndex: "auto",
+      position: "static",
+      float: "none",
+      order: "0",
+      flexDirection: "row",
       ...(opts.styles ?? {}),
     } as CapturedElement["styles"],
   };
 }
 
-function makeSeg(scrollY: number, segStartMs: number, segEndMs: number, content?: CapturedElement[]): ScrollSegmentCapture {
+function makeSeg(
+  scrollY: number,
+  segStartMs: number,
+  segEndMs: number,
+  content?: CapturedElement[],
+): ScrollSegmentCapture {
   return {
-    scrollX: 0, scrollY,
-    segmentStartMs: segStartMs, segmentEndMs: segEndMs,
+    scrollX: 0,
+    scrollY,
+    segmentStartMs: segStartMs,
+    segmentEndMs: segEndMs,
     tree: content ?? [el({ tag: "div", x: 0, y: 0 })],
     diffFromPrev: null,
   };
@@ -67,42 +144,64 @@ function makeSeg(scrollY: number, segStartMs: number, segEndMs: number, content?
 describe("splitElementScrollStaticLayers", () => {
   it("keeps later-painted siblings above the owner across ancestor boundaries", () => {
     const below = el({
-      tag: "div", x: 20, y: 20, text: "BELOW",
+      tag: "div",
+      x: 20,
+      y: 20,
+      text: "BELOW",
       styles: { position: "absolute", zIndex: "-1" } as CapturedElement["styles"],
     });
     const foreground = el({
-      tag: "div", x: 80, y: 60, text: "FOREGROUND",
+      tag: "div",
+      x: 80,
+      y: 60,
+      text: "FOREGROUND",
       styles: { position: "absolute", zIndex: "20" } as CapturedElement["styles"],
     });
     const owner = el({
-      tag: "div", x: 20, y: 40, text: "OWNER",
+      tag: "div",
+      x: 20,
+      y: 40,
+      text: "OWNER",
       styles: { overflowX: "auto", overflowY: "auto" } as CapturedElement["styles"],
       scrollbars: { owner: { frameId: "frame-1", ownerId: "frame-1:3" } } as CapturedElement["scrollbars"],
     });
     const parent = el({
-      tag: "section", x: 10, y: 10, width: 240, height: 180,
+      tag: "section",
+      x: 10,
+      y: 10,
+      width: 240,
+      height: 180,
       children: [foreground, below, owner],
       styles: {
-        position: "relative", zIndex: "1", overflowX: "hidden", overflowY: "hidden",
+        position: "relative",
+        zIndex: "1",
+        overflowX: "hidden",
+        overflowY: "hidden",
       } as CapturedElement["styles"],
     });
     const outerForeground = el({
-      tag: "aside", x: 160, y: 70, text: "OUTER FOREGROUND",
+      tag: "aside",
+      x: 160,
+      y: 70,
+      text: "OUTER FOREGROUND",
       styles: { position: "absolute", zIndex: "30" } as CapturedElement["styles"],
     });
-    const tree = [el({
-      tag: "main", x: 0, y: 0, width: 320, height: 220,
-      children: [outerForeground, parent],
-      styles: { position: "relative", isolation: "isolate" } as CapturedElement["styles"],
-    })];
+    const tree = [
+      el({
+        tag: "main",
+        x: 0,
+        y: 0,
+        width: 320,
+        height: 220,
+        children: [outerForeground, parent],
+        styles: { position: "relative", isolation: "isolate" } as CapturedElement["styles"],
+      }),
+    ];
 
     const layers = splitElementScrollStaticLayers(tree, "frame-1:3");
 
     expect(layers).not.toBeNull();
-    expect(layers!.foregroundLayers.map((layer) => layer.elements)).toEqual([
-      [foreground],
-      [outerForeground],
-    ]);
+    expect(layers!.foregroundLayers.map((layer) => layer.elements)).toEqual([[foreground], [outerForeground]]);
     expect(layers!.underlay[0].children[0].children).toEqual([below]);
     expect(layers!.underlay[0].children).toHaveLength(1);
     expect(layers!.foregroundLayers[0].clips).toHaveLength(1);
@@ -125,11 +224,7 @@ describe("composeScrollSvg: basic", () => {
   });
 
   it("multi-segment input includes a keyframes block", () => {
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,     0,    1000),
-      makeSeg(600,   1000, 3000),
-      makeSeg(1200,  3000, 5000),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 1000), makeSeg(600, 1000, 3000), makeSeg(1200, 3000, 5000)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     expect(svg).toMatch(/@keyframes/);
     // Three stops at 20% (1000/5000), 60% (3000/5000), 100%.
@@ -143,11 +238,7 @@ describe("composeScrollSvg: basic", () => {
 
 describe("composeScrollSvg: reduced motion (DM-1487)", () => {
   it("emits a prefers-reduced-motion block that pauses the scroll at the first frame", () => {
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000),
-      makeSeg(600,  1000, 3000),
-      makeSeg(1200, 3000, 5000),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 1000), makeSeg(600, 1000, 3000), makeSeg(1200, 3000, 5000)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // Unlike the animator (which can use `animation: none`), the scroll pipeline
     // uses per-segment visibility culling, so reduced motion must PAUSE the
@@ -168,7 +259,10 @@ describe("composeScrollSvg: reduced motion (DM-1487)", () => {
 describe("composeScrollSvg: accessible name (DM-1488)", () => {
   it("adds role=img + <title>/<desc> to the root svg when an accessible name is given", () => {
     const svg = composeScrollSvg([makeSeg(0, 0, 1000), makeSeg(600, 1000, 3000)], {
-      viewportW: 800, viewportH: 600, title: "Scrolling feed", desc: "A social feed scrolling",
+      viewportW: 800,
+      viewportH: 600,
+      title: "Scrolling feed",
+      desc: "A social feed scrolling",
     });
     expect(svg).toMatch(/<svg [^>]*\brole="img"/);
     expect(svg).toContain("<title>Scrolling feed</title><desc>A social feed scrolling</desc>");
@@ -184,10 +278,7 @@ describe("composeScrollSvg: accessible name (DM-1488)", () => {
 
 describe("composeScrollSvg: composite dimensions", () => {
   it("composite height = scroll-range + viewport-height for y-axis", () => {
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0, 1000),
-      makeSeg(2400, 1000, 5000),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 1000), makeSeg(2400, 1000, 5000)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // Composite inner-SVG height = 2400 (scroll range) + 600 (viewport) = 3000.
     expect(svg).toMatch(/<svg [^>]*viewBox="0 0 800 3000"/);
@@ -195,11 +286,25 @@ describe("composeScrollSvg: composite dimensions", () => {
 
   it("axis=x produces a wide composite", () => {
     const segs: ScrollSegmentCapture[] = [
-      { scrollX: 0,    scrollY: 0, segmentStartMs: 0,    segmentEndMs: 1000, tree: [el({ tag: "div", x: 0, y: 0 })], diffFromPrev: null },
-      { scrollX: 1200, scrollY: 0, segmentStartMs: 1000, segmentEndMs: 3000, tree: [el({ tag: "div", x: 0, y: 0 })], diffFromPrev: null },
+      {
+        scrollX: 0,
+        scrollY: 0,
+        segmentStartMs: 0,
+        segmentEndMs: 1000,
+        tree: [el({ tag: "div", x: 0, y: 0 })],
+        diffFromPrev: null,
+      },
+      {
+        scrollX: 1200,
+        scrollY: 0,
+        segmentStartMs: 1000,
+        segmentEndMs: 3000,
+        tree: [el({ tag: "div", x: 0, y: 0 })],
+        diffFromPrev: null,
+      },
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600, axis: "x" });
-    expect(svg).toMatch(/<svg [^>]*viewBox="0 0 2000 600"/);   // 1200 + 800 = 2000
+    expect(svg).toMatch(/<svg [^>]*viewBox="0 0 2000 600"/); // 1200 + 800 = 2000
     expect(svg).toMatch(/transform: translate3d\(-/);
   });
 });
@@ -209,8 +314,8 @@ describe("composeScrollSvg: composite dimensions", () => {
 describe("composeScrollSvg: capture stacking", () => {
   it("each capture gets a transform(translate) wrapper at its scroll offset", () => {
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000, [el({ tag: "p", x: 0, y: 0, text: "first" })]),
-      makeSeg(800,  1000, 3000, [el({ tag: "p", x: 0, y: 0, text: "second" })]),
+      makeSeg(0, 0, 1000, [el({ tag: "p", x: 0, y: 0, text: "first" })]),
+      makeSeg(800, 1000, 3000, [el({ tag: "p", x: 0, y: 0, text: "second" })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // Each segment may carry a `class="<animClass>-sN"` for DM-642
@@ -222,8 +327,22 @@ describe("composeScrollSvg: capture stacking", () => {
 
   it("axis=x stacks horizontally", () => {
     const segs: ScrollSegmentCapture[] = [
-      { scrollX: 0,    scrollY: 0, segmentStartMs: 0,    segmentEndMs: 1000, tree: [el({ tag: "div", x: 0, y: 0 })], diffFromPrev: null },
-      { scrollX: 400,  scrollY: 0, segmentStartMs: 1000, segmentEndMs: 3000, tree: [el({ tag: "div", x: 0, y: 0 })], diffFromPrev: null },
+      {
+        scrollX: 0,
+        scrollY: 0,
+        segmentStartMs: 0,
+        segmentEndMs: 1000,
+        tree: [el({ tag: "div", x: 0, y: 0 })],
+        diffFromPrev: null,
+      },
+      {
+        scrollX: 400,
+        scrollY: 0,
+        segmentStartMs: 1000,
+        segmentEndMs: 3000,
+        tree: [el({ tag: "div", x: 0, y: 0 })],
+        diffFromPrev: null,
+      },
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600, axis: "x" });
     expect(svg).toMatch(/<g (?:class="[^"]+" )?transform="translate\(0 0\)">/);
@@ -235,11 +354,7 @@ describe("composeScrollSvg: capture stacking", () => {
 
 describe("composeScrollSvg: keyframe timing", () => {
   it("stops appear at each segment's endMs as a percentage of total", () => {
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000),
-      makeSeg(600,  1000, 4000),
-      makeSeg(1200, 4000, 5000),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 1000), makeSeg(600, 1000, 4000), makeSeg(1200, 4000, 5000)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // 1000/5000 = 20%, 4000/5000 = 80%, 5000/5000 = 100%.
     expect(svg).toMatch(/20\.000% \{ transform: translate3d\(0, -0\.000px, 0\);/);
@@ -248,10 +363,7 @@ describe("composeScrollSvg: keyframe timing", () => {
   });
 
   it("animation-duration matches the total scene time", () => {
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,   0,    2500),
-      makeSeg(800, 2500, 7500),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 2500), makeSeg(800, 2500, 7500)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     expect(svg).toMatch(/animation: scrl-\w+ 7\.500s linear infinite/);
   });
@@ -280,10 +392,7 @@ describe("composeScrollSvg: non-painting pause anchors (DM-2702)", () => {
 describe("composeScrollSvg: min-offset normalisation", () => {
   it("non-zero start scroll-y is normalized to composite y=0", () => {
     // Captures start at scrollY=500 (e.g. user passed `--scroll-start 500px`).
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(500,  0,    1000),
-      makeSeg(1500, 1000, 3000),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(500, 0, 1000), makeSeg(1500, 1000, 3000)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // First capture sits at composite y=0; second at y=1000. Per-segment
     // wrappers may carry a DM-642 cull class — the transform attr survives.
@@ -299,10 +408,7 @@ describe("composeScrollSvg: min-offset normalisation", () => {
 
 describe("composeScrollSvg: runtime-perf optimisations", () => {
   it("hints GPU compositing via translate3d + will-change", () => {
-    const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,   0,    1000),
-      makeSeg(800, 1000, 2000),
-    ];
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 1000), makeSeg(800, 1000, 2000)];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // The animated transform must use translate3d so Chromium promotes the
     // group to a compositing layer.
@@ -317,8 +423,8 @@ describe("composeScrollSvg: runtime-perf optimisations", () => {
     // visible for at most ~2 segment-windows; the others are visibility:
     // hidden (DM-641 — was `display: none`, broke infinite anims).
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000),
-      makeSeg(600,  1000, 2000),
+      makeSeg(0, 0, 1000),
+      makeSeg(600, 1000, 2000),
       makeSeg(1200, 2000, 3000),
       makeSeg(1800, 3000, 4000),
       makeSeg(2400, 4000, 5000),
@@ -339,7 +445,7 @@ describe("composeScrollSvg: runtime-perf optimisations", () => {
     // each segment stays in the viewport across the whole cycle. No cull
     // class should be emitted in that case.
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,   0,    1000),
+      makeSeg(0, 0, 1000),
       makeSeg(100, 1000, 2000), // 100 < VH (600) so segment 0 never leaves viewport
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
@@ -402,17 +508,23 @@ describe("composeScrollSvg: chunked composite layers", () => {
     const segs = manySegs(2);
     expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: 0 })).toThrow(/positive integer/);
     expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: -1 })).toThrow(/positive integer/);
-    expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: 1.5 })).toThrow(/positive integer/);
+    expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: 1.5 })).toThrow(
+      /positive integer/,
+    );
   });
 
   it("fixed overlay is emitted OUTSIDE chunk wrappers (after the scrolling composite)", () => {
     const headerFixed = el({
-      tag: "header", x: 0, y: 0, width: 800, height: 60,
+      tag: "header",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 60,
       text: "BRAND",
       styles: { position: "fixed" } as CapturedElement["styles"],
     });
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,   0,    1000, [headerFixed, el({ tag: "section", x: 0, y: 100 })]),
+      makeSeg(0, 0, 1000, [headerFixed, el({ tag: "section", x: 0, y: 100 })]),
       makeSeg(600, 1000, 2000, [headerFixed, el({ tag: "section", x: 0, y: 100 })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
@@ -430,7 +542,11 @@ describe("composeScrollSvg: chunked composite layers", () => {
 describe("composeScrollSvg: position:fixed hoisting", () => {
   function headerEl(): CapturedElement {
     return el({
-      tag: "header", x: 0, y: 0, width: 800, height: 60,
+      tag: "header",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 60,
       text: "BRAND",
       styles: { position: "fixed" } as CapturedElement["styles"],
     });
@@ -443,8 +559,8 @@ describe("composeScrollSvg: position:fixed hoisting", () => {
     // composite-y offset — and the consumer would see the header re-appear
     // every viewport height during scroll.
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "alpha" })]),
-      makeSeg(600,  1000, 2000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "beta"  })]),
+      makeSeg(0, 0, 1000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "alpha" })]),
+      makeSeg(600, 1000, 2000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "beta" })]),
       makeSeg(1200, 2000, 3000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "gamma" })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
@@ -475,8 +591,8 @@ describe("composeScrollSvg: position:fixed hoisting", () => {
     // The fixed overlay should appear in the SVG source AFTER the scrolling
     // `<g class="${animClass}">` block — that's the consumer's z-order.
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000, [headerEl(), el({ tag: "section", x: 0, y: 100 })]),
-      makeSeg(600,  1000, 2000, [headerEl(), el({ tag: "section", x: 0, y: 100 })]),
+      makeSeg(0, 0, 1000, [headerEl(), el({ tag: "section", x: 0, y: 100 })]),
+      makeSeg(600, 1000, 2000, [headerEl(), el({ tag: "section", x: 0, y: 100 })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     const scrollOpenIdx = svg.indexOf('class="scrl-');
@@ -487,7 +603,7 @@ describe("composeScrollSvg: position:fixed hoisting", () => {
 
   it("is a no-op when no segment contains a position:fixed element", () => {
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,   0,    1000, [el({ tag: "section", x: 0, y: 100 })]),
+      makeSeg(0, 0, 1000, [el({ tag: "section", x: 0, y: 100 })]),
       makeSeg(600, 1000, 2000, [el({ tag: "section", x: 0, y: 100 })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
@@ -501,18 +617,28 @@ describe("composeScrollSvg: position:fixed hoisting", () => {
 describe("composeScrollSvg: position:sticky hoisting", () => {
   it("mid-scroll sticky: element renders inline for in-flow segs AND on overlay for stuck segs (with visibility class)", () => {
     // Seg 0–1: nav is in flow (y decreases). Seg 2–3: stuck at y=0.
-    const stickyNav = (y: number): CapturedElement => el({
-      tag: "nav", x: 0, y, width: 800, height: 50, text: "STICKY-NAV",
-      styles: { position: "sticky" } as CapturedElement["styles"],
-    });
-    const body = (y: number): CapturedElement => el({
-      tag: "section", x: 0, y: 60, text: "main",
-    });
+    const stickyNav = (y: number): CapturedElement =>
+      el({
+        tag: "nav",
+        x: 0,
+        y,
+        width: 800,
+        height: 50,
+        text: "STICKY-NAV",
+        styles: { position: "sticky" } as CapturedElement["styles"],
+      });
+    const body = (y: number): CapturedElement =>
+      el({
+        tag: "section",
+        x: 0,
+        y: 60,
+        text: "main",
+      });
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000, [stickyNav(300), body(0)]),
-      makeSeg(600,  1000, 2000, [stickyNav(150), body(0)]),
-      makeSeg(1200, 2000, 3000, [stickyNav(0),   body(0)]),
-      makeSeg(1800, 3000, 4000, [stickyNav(0),   body(0)]),
+      makeSeg(0, 0, 1000, [stickyNav(300), body(0)]),
+      makeSeg(600, 1000, 2000, [stickyNav(150), body(0)]),
+      makeSeg(1200, 2000, 3000, [stickyNav(0), body(0)]),
+      makeSeg(1800, 3000, 4000, [stickyNav(0), body(0)]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // The nav text appears at MOST twice from segs 0–1 (inline inside the
@@ -528,19 +654,31 @@ describe("composeScrollSvg: position:sticky hoisting", () => {
   });
 
   it("mixed fixed + sticky in one fixture: both overlays emit, no regression on DM-643", () => {
-    const fixedHeader = (): CapturedElement => el({
-      tag: "header", x: 0, y: 0, width: 800, height: 60, text: "FIXED-HEADER",
-      styles: { position: "fixed" } as CapturedElement["styles"],
-    });
-    const stickyNav = (y: number): CapturedElement => el({
-      tag: "nav", x: 0, y, width: 800, height: 50, text: "STICKY-NAV",
-      styles: { position: "sticky" } as CapturedElement["styles"],
-    });
+    const fixedHeader = (): CapturedElement =>
+      el({
+        tag: "header",
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 60,
+        text: "FIXED-HEADER",
+        styles: { position: "fixed" } as CapturedElement["styles"],
+      });
+    const stickyNav = (y: number): CapturedElement =>
+      el({
+        tag: "nav",
+        x: 0,
+        y,
+        width: 800,
+        height: 50,
+        text: "STICKY-NAV",
+        styles: { position: "sticky" } as CapturedElement["styles"],
+      });
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,    0,    1000, [fixedHeader(), stickyNav(300), el({ tag: "main", x: 0, y: 100 })]),
-      makeSeg(600,  1000, 2000, [fixedHeader(), stickyNav(150), el({ tag: "main", x: 0, y: 100 })]),
-      makeSeg(1200, 2000, 3000, [fixedHeader(), stickyNav(60),  el({ tag: "main", x: 0, y: 100 })]),
-      makeSeg(1800, 3000, 4000, [fixedHeader(), stickyNav(60),  el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(0, 0, 1000, [fixedHeader(), stickyNav(300), el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(600, 1000, 2000, [fixedHeader(), stickyNav(150), el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(1200, 2000, 3000, [fixedHeader(), stickyNav(60), el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(1800, 3000, 4000, [fixedHeader(), stickyNav(60), el({ tag: "main", x: 0, y: 100 })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // DM-643 fixed-header path: present once.
@@ -560,7 +698,7 @@ describe("composeScrollSvg: position:sticky hoisting", () => {
 
   it("no sticky elements: no `scrl-…-k` keyframes, no `stk0-` markup", () => {
     const segs: ScrollSegmentCapture[] = [
-      makeSeg(0,   0,    1000, [el({ tag: "main", x: 0, y: 0 })]),
+      makeSeg(0, 0, 1000, [el({ tag: "main", x: 0, y: 0 })]),
       makeSeg(600, 1000, 2000, [el({ tag: "main", x: 0, y: 0 })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
@@ -595,8 +733,13 @@ describe("composeScrollSvg: background color", () => {
     // DM-1457: every transparent CSS form, not just the two the inline check
     // recognized. "none" / zero-alpha hex / unspaced rgba used to paint a rect.
     for (const transparent of [
-      "rgba(0, 0, 0, 0)", "transparent",
-      "none", "#0000", "#00000000", "rgba(0,0,0,0)", "hsla(0, 0%, 0%, 0)",
+      "rgba(0, 0, 0, 0)",
+      "transparent",
+      "none",
+      "#0000",
+      "#00000000",
+      "rgba(0,0,0,0)",
+      "hsla(0, 0%, 0%, 0)",
     ]) {
       const svg = composeScrollSvg([segWithRootBg(transparent)], { viewportW: 800, viewportH: 600 });
       expect(svg, transparent).not.toMatch(/<rect width="800" height="600" fill=/);
@@ -606,19 +749,31 @@ describe("composeScrollSvg: background color", () => {
 
   it("an explicit transparent bgColor in any form paints no background rect (DM-1457)", () => {
     for (const transparent of ["none", "#0000", "#00000000", "rgba(0,0,0,0)"]) {
-      const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600, bgColor: transparent });
+      const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], {
+        viewportW: 800,
+        viewportH: 600,
+        bgColor: transparent,
+      });
       expect(svg, transparent).not.toMatch(/<rect width="800" height="600" fill=/);
     }
   });
 
   it("explicit bgColor is honored and wins over the captured root bg", () => {
-    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600, bgColor: "#ff8800" });
+    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], {
+      viewportW: 800,
+      viewportH: 600,
+      bgColor: "#ff8800",
+    });
     expect(svg).toContain('fill="#ff8800"');
     expect(svg).not.toContain('fill="rgb(255, 255, 255)"');
   });
 
   it("explicit transparent bgColor paints no background rect", () => {
-    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600, bgColor: "transparent" });
+    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], {
+      viewportW: 800,
+      viewportH: 600,
+      bgColor: "transparent",
+    });
     expect(svg).not.toMatch(/<rect width="800" height="600" fill=/);
   });
 });
@@ -651,23 +806,24 @@ describe("composeScrollSvg: renderText option", () => {
   });
 
   it("emits each shared glyph definition once across multiple segments", () => {
-    const text = (value: string): CapturedElement => el({
-      tag: "div",
-      x: 10,
-      y: 10,
-      width: 120,
-      height: 24,
-      text: value,
-      textLeft: 10,
-      textTop: 10,
-      textWidth: 120,
-      textHeight: 24,
-      fontAscent: 18,
-    });
-    const svg = composeScrollSvg([
-      makeSeg(0, 0, 100, [text("FIRST ABCD")]),
-      makeSeg(80, 100, 200, [text("SCROLL ZYXW")]),
-    ], { viewportW: 320, viewportH: 200, renderText: "paths" });
+    const text = (value: string): CapturedElement =>
+      el({
+        tag: "div",
+        x: 10,
+        y: 10,
+        width: 120,
+        height: 24,
+        text: value,
+        textLeft: 10,
+        textTop: 10,
+        textWidth: 120,
+        textHeight: 24,
+        fontAscent: 18,
+      });
+    const svg = composeScrollSvg(
+      [makeSeg(0, 0, 100, [text("FIRST ABCD")]), makeSeg(80, 100, 200, [text("SCROLL ZYXW")])],
+      { viewportW: 320, viewportH: 200, renderText: "paths" },
+    );
     const glyphIds = [...svg.matchAll(/\sid="(g\d+)"/g)].map((match) => match[1]);
 
     expect(glyphIds.length, "fixture should exercise glyph-path definitions").toBeGreaterThan(0);
@@ -691,9 +847,13 @@ describe("composeScrollSvg: per-action easing", () => {
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // segments[1].easing (ease-in) governs the 20%→80% interval → emitted at 20%.
-    expect(svg).toMatch(/20\.000% \{ transform: translate3d\(0, -0\.000px, 0\); animation-timing-function: ease-in; \}/);
+    expect(svg).toMatch(
+      /20\.000% \{ transform: translate3d\(0, -0\.000px, 0\); animation-timing-function: ease-in; \}/,
+    );
     // segments[2].easing (cubic-bezier) governs the 80%→100% interval → at 80%.
-    expect(svg).toMatch(/80\.000% \{ transform: translate3d\(0, -600\.000px, 0\); animation-timing-function: cubic-bezier\(0\.2, 0, 0\.3, 1\); \}/);
+    expect(svg).toMatch(
+      /80\.000% \{ transform: translate3d\(0, -600\.000px, 0\); animation-timing-function: cubic-bezier\(0\.2, 0, 0\.3, 1\); \}/,
+    );
     // The final stop has no following eased transition.
     expect(svg).toMatch(/100\.000% \{ transform: translate3d\(0, -1200\.000px, 0\); \}/);
   });
@@ -731,14 +891,27 @@ describe("composeScrollSvg: per-action easing", () => {
 // Page / AT. Default off preserves exact output.
 describe("composeScrollSvg — real-text layer (DM-6SQXGF)", () => {
   const ADV = 8;
-  const textEl = (word: string): CapturedElement => el({
-    tag: "div", x: 10, y: 30, width: word.length * ADV, height: 19,
-    text: word, fontAscent: 11.5, fontDescent: 3,
-    textSegments: [{
-      text: word, x: 10, y: 30, width: word.length * ADV, height: 19,
-      xOffsets: [...word].map((_, i) => 10 + i * ADV),
-    }],
-  } as Partial<CapturedElement> & { tag: string; x: number; y: number });
+  const textEl = (word: string): CapturedElement =>
+    el({
+      tag: "div",
+      x: 10,
+      y: 30,
+      width: word.length * ADV,
+      height: 19,
+      text: word,
+      fontAscent: 11.5,
+      fontDescent: 3,
+      textSegments: [
+        {
+          text: word,
+          x: 10,
+          y: 30,
+          width: word.length * ADV,
+          height: 19,
+          xOffsets: [...word].map((_, i) => 10 + i * ADV),
+        },
+      ],
+    } as Partial<CapturedElement> & { tag: string; x: number; y: number });
   const segs = (): ScrollSegmentCapture[] => [
     makeSeg(0, 0, 300, [textEl("ScrollWordA")]),
     makeSeg(200, 300, 600, [textEl("ScrollWordB")]),
@@ -765,18 +938,34 @@ describe("composeScrollSvg — real-text layer (DM-6SQXGF)", () => {
 // silently overrode the process-global, rendering embedded-font regardless.
 describe("composeScrollSvg — renderText mode (DM-N8QM80)", () => {
   const ADV = 8;
-  const sysTextEl = (word: string): CapturedElement => el({
-    tag: "div", x: 10, y: 30, width: word.length * ADV, height: 19,
-    text: word, fontAscent: 11.5, fontDescent: 3,
-    textSegments: [{
-      text: word, x: 10, y: 30, width: word.length * ADV, height: 19,
-      xOffsets: [...word].map((_, i) => 10 + i * ADV),
-    }],
-  } as Partial<CapturedElement> & { tag: string; x: number; y: number });
+  const sysTextEl = (word: string): CapturedElement =>
+    el({
+      tag: "div",
+      x: 10,
+      y: 30,
+      width: word.length * ADV,
+      height: 19,
+      text: word,
+      fontAscent: 11.5,
+      fontDescent: 3,
+      textSegments: [
+        {
+          text: word,
+          x: 10,
+          y: 30,
+          width: word.length * ADV,
+          height: 19,
+          xOffsets: [...word].map((_, i) => 10 + i * ADV),
+        },
+      ],
+    } as Partial<CapturedElement> & { tag: string; x: number; y: number });
 
   it("system-font: emits authored <text font-family>, no @font-face, no glyph <path>", () => {
-    const svg = composeScrollSvg([makeSeg(0, 0, 300, [sysTextEl("SysFontScroll")])],
-      { viewportW: 400, viewportH: 200, renderText: "system-font" });
+    const svg = composeScrollSvg([makeSeg(0, 0, 300, [sysTextEl("SysFontScroll")])], {
+      viewportW: 400,
+      viewportH: 200,
+      renderText: "system-font",
+    });
     expect(svg).toContain("<text ");
     expect(svg).toMatch(/font-family=/);
     expect(svg).toContain("SysFontScroll");
@@ -785,8 +974,10 @@ describe("composeScrollSvg — renderText mode (DM-N8QM80)", () => {
   });
 
   it("embedded-font (default): embeds a subset, not authored system <text>", () => {
-    const svg = composeScrollSvg([makeSeg(0, 0, 300, [sysTextEl("EmbeddedScroll")])],
-      { viewportW: 400, viewportH: 200 });
+    const svg = composeScrollSvg([makeSeg(0, 0, 300, [sysTextEl("EmbeddedScroll")])], {
+      viewportW: 400,
+      viewportH: 200,
+    });
     expect(svg).toContain("@font-face");
   });
 });

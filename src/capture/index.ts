@@ -7,8 +7,21 @@
 
 import { spawnSync } from "node:child_process";
 import sharp from "sharp";
-import { chromium, type Browser, type BrowserContext, type CDPSession, type ElementHandle, type LaunchOptions, type Page } from "@playwright/test";
-import { _dataUriCache, elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type CDPSession,
+  type ElementHandle,
+  type LaunchOptions,
+  type Page,
+} from "@playwright/test";
+import {
+  _dataUriCache,
+  elementTreeToSvgInner,
+  wrapSvg,
+  rootSvgColorSchemeAttr,
+} from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
@@ -24,7 +37,11 @@ import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
 import { prepareFrameScrollCapture } from "./frame-scroll-state.js";
-import { assertGenericFamilyTargetConsistency, ensureSessionGenericFamilyOverrides, serializeSessionGenericFamilyProbe } from "./generic-font-probe.js";
+import {
+  assertGenericFamilyTargetConsistency,
+  ensureSessionGenericFamilyOverrides,
+  serializeSessionGenericFamilyProbe,
+} from "./generic-font-probe.js";
 import { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./tree-envelope.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
@@ -57,7 +74,11 @@ import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CapturedFrameScrollState, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
-import { createFontRendererSession, withFontRendererSession, type FontRendererSession } from "../render/font-resolution.js";
+import {
+  createFontRendererSession,
+  withFontRendererSession,
+  type FontRendererSession,
+} from "../render/font-resolution.js";
 import {
   AuthenticatedAnimatedImageByteCollector,
   type AuthenticatedAnimatedImageBytes,
@@ -206,7 +227,7 @@ export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
     if (result.status !== 0) {
       throw new Error(
         "[domotion] Failed to auto-install Playwright Chromium. " +
-        "Run 'npx playwright install chromium' manually and try again.",
+          "Run 'npx playwright install chromium' manually and try again.",
       );
     }
     return chromium.launch(launchOptions);
@@ -312,9 +333,8 @@ export class DemoRecorder {
     this.embedRemoteImagesResize = opts.embedRemoteImagesResize ?? false;
     this.embedRemoteImagesHiDPIFactor = opts.embedRemoteImagesHiDPIFactor;
     this.captureCrossOriginFrames = opts.captureCrossOriginFrames;
-    this.animatedImageFrames = opts.animatedImageFrames == null
-      ? []
-      : opts.animatedImageFrames.map((request) => ({ ...request }));
+    this.animatedImageFrames =
+      opts.animatedImageFrames == null ? [] : opts.animatedImageFrames.map((request) => ({ ...request }));
   }
 
   async init(opts: CaptureOptions): Promise<void> {
@@ -337,16 +357,18 @@ export class DemoRecorder {
         redirect: "manual",
       });
       if (res.ok) {
-        const json = await res.json() as { data: { token: string } };
+        const json = (await res.json()) as { data: { token: string } };
         const setCookie = res.headers.get("set-cookie") ?? "";
         if (setCookie !== "") {
           const parts = setCookie.split(";")[0].split("=");
-          await this.context.addCookies([{
-            name: parts[0],
-            value: parts.slice(1).join("="),
-            domain: new URL(this.baseUrl).hostname,
-            path: "/",
-          }]);
+          await this.context.addCookies([
+            {
+              name: parts[0],
+              value: parts.slice(1).join("="),
+              domain: new URL(this.baseUrl).hostname,
+              path: "/",
+            },
+          ]);
         }
         // Set localStorage for client-side auth
         await this.context.addInitScript((token: string) => {
@@ -375,7 +397,8 @@ export class DemoRecorder {
     if (this.animatedImageByteCollector != null) {
       this.authenticatedAnimatedImageBytes = await this.animatedImageByteCollector.collect(this.animatedImageFrames);
       this.animatedImageStaticFrameRecords = await freezeAuthenticatedAnimatedImageFrames(
-        this.page, this.authenticatedAnimatedImageBytes,
+        this.page,
+        this.authenticatedAnimatedImageBytes,
       );
     }
     return this.captureCurrent(idPrefix);
@@ -405,11 +428,12 @@ export class DemoRecorder {
    * the height, so they both funnel through here.
    */
   private async renderCapturedTree(tree: CapturedElement[], height: number, idPrefix: string): Promise<string> {
-    if (this.selfContained) await embedRemoteImages(tree, {
-      timeoutMs: this.embedRemoteImagesTimeoutMs,
-      retries: this.embedRemoteImagesRetries,
-      retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
-    });
+    if (this.selfContained)
+      await embedRemoteImages(tree, {
+        timeoutMs: this.embedRemoteImagesTimeoutMs,
+        retries: this.embedRemoteImagesRetries,
+        retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
+      });
     if (this.selfContained && this.embedRemoteImagesResize) {
       for (const record of this.animatedImageStaticFrameRecords) {
         _dataUriCache.set(record.pngDataUrl, record.pngDataUrl);
@@ -429,15 +453,24 @@ export class DemoRecorder {
     // during elementTreeToSvg, emitting into this frame's <defs>).
     resetGeneration();
     return withFontRendererSession(this.fontRendererSession, () =>
-      elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2));
+      elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2),
+    );
   }
 
   /** Capture the current page state as SVG content. */
   async captureCurrent(idPrefix = ""): Promise<string> {
     if (this.page == null) throw new Error("Call init() first");
-    const tree = await captureElementTree(this.page, "body", {
-      x: 0, y: 0, width: this.width, height: this.height,
-    }, { crossOriginFrames: this.captureCrossOriginFrames });
+    const tree = await captureElementTree(
+      this.page,
+      "body",
+      {
+        x: 0,
+        y: 0,
+        width: this.width,
+        height: this.height,
+      },
+      { crossOriginFrames: this.captureCrossOriginFrames },
+    );
     return this.renderCapturedTree(tree, this.height, idPrefix);
   }
 
@@ -448,9 +481,17 @@ export class DemoRecorder {
   async captureFullPage(idPrefix = ""): Promise<{ svgContent: string; pageHeight: number }> {
     if (this.page == null) throw new Error("Call init() first");
     const pageHeight = await this.page.evaluate(() => document.body.scrollHeight);
-    const tree = await captureElementTree(this.page, "body", {
-      x: 0, y: 0, width: this.width, height: pageHeight,
-    }, { crossOriginFrames: this.captureCrossOriginFrames });
+    const tree = await captureElementTree(
+      this.page,
+      "body",
+      {
+        x: 0,
+        y: 0,
+        width: this.width,
+        height: pageHeight,
+      },
+      { crossOriginFrames: this.captureCrossOriginFrames },
+    );
     const svgContent = await this.renderCapturedTree(tree, pageHeight, idPrefix);
     return { svgContent, pageHeight };
   }
@@ -515,12 +556,37 @@ export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: (
  */
 // Node-side discovered-font item shapes (the page.evaluate body declares its
 // own structurally-identical inline copies; these are the Node-side types).
-type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; styleDesc: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string };
+type FaceRule = {
+  kind: "font-face";
+  family: string;
+  weight: string;
+  style: string;
+  styleDesc: string;
+  url: string;
+  urls?: string[];
+  unicodeRange?: Array<[number, number]>;
+  stretch?: string;
+};
 type ResourceUrl = { kind: "resource"; url: string };
-type LocalFace = { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null };
+type LocalFace = {
+  kind: "local";
+  family: string;
+  localNames: string[];
+  weight: string;
+  style: string;
+  resolvedLocalName: string | null;
+};
 type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
 /** One row of the report returned by discoverAndRegisterWebfonts. */
-type WebfontRegisterReport = { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string };
+type WebfontRegisterReport = {
+  family: string;
+  weight: number;
+  style: string;
+  url: string;
+  source: "font-face" | "resource";
+  ok: boolean;
+  error?: string;
+};
 
 /**
  * Register ONE discovered font item: a local() alias, or a fetched
@@ -528,7 +594,11 @@ type WebfontRegisterReport = { family: string; weight: number; style: string; ur
  * fontkit parses). Pushes a report row. Extracted verbatim from
  * discoverAndRegisterWebfonts' Node-side loop (DM-1373).
  */
-async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: WebfontRegisterReport[]): Promise<void> {
+async function registerDiscoveredFont(
+  item: DiscoveredItem,
+  page: Page,
+  report: WebfontRegisterReport[],
+): Promise<void> {
   if (item.kind === "local") {
     // The page-side probe identified which local() candidate Chrome
     // actually resolved the alias to (by comparing rendered widths). We
@@ -563,9 +633,8 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
   // until one fetches AND fontkit can parse the bytes. Falls through eot/svg-
   // first cascades like Slashdot's sdicon font where the woff is the 3rd or
   // 4th `url()` in `src:`.
-  const candidates: string[] = item.kind === "font-face" && Array.isArray(item.urls) && item.urls.length > 0
-    ? item.urls
-    : [item.url];
+  const candidates: string[] =
+    item.kind === "font-face" && Array.isArray(item.urls) && item.urls.length > 0 ? item.urls : [item.url];
   let lastError: string | undefined;
   let registered = false;
   for (const candidateUrl of candidates) {
@@ -598,8 +667,24 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
         // — a real distinction for the webfont synthetic-italic rule's
         // variable-`slnt`-axis exemption (`webfontSyntheticItalic`), which
         // only reaches an AUTO descriptor.
-        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch, item.weight, item.styleDesc);
-        report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
+        registerWebfont(
+          item.family,
+          weightNum,
+          item.style,
+          buf,
+          item.unicodeRange,
+          item.stretch,
+          item.weight,
+          item.styleDesc,
+        );
+        report.push({
+          family: item.family,
+          weight: weightNum,
+          style: item.style,
+          url: candidateUrl,
+          source: "font-face",
+          ok: true,
+        });
       } else {
         const meta = await readFontMetadata(buf);
         if (meta == null) {
@@ -607,7 +692,14 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
           continue;
         }
         registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
-        report.push({ family: meta.family, weight: meta.weight, style: meta.italic ? "italic" : "normal", url: candidateUrl, source: "resource", ok: true });
+        report.push({
+          family: meta.family,
+          weight: meta.weight,
+          style: meta.italic ? "italic" : "normal",
+          url: candidateUrl,
+          source: "resource",
+          ok: true,
+        });
       }
       registered = true;
       break;
@@ -616,10 +708,21 @@ async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: 
     }
   }
   if (!registered) {
-    report.push({ family: item.kind === "font-face" ? item.family : "", weight: item.kind === "font-face" ? parseWeightDescriptor(item.weight) : 400, style: item.kind === "font-face" ? item.style : "normal", url: item.url, source: item.kind, ok: false, error: lastError ?? "no candidates" });
+    report.push({
+      family: item.kind === "font-face" ? item.family : "",
+      weight: item.kind === "font-face" ? parseWeightDescriptor(item.weight) : 400,
+      style: item.kind === "font-face" ? item.style : "normal",
+      url: item.url,
+      source: item.kind,
+      ok: false,
+      error: lastError ?? "no candidates",
+    });
   }
 }
-export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: Iterable<string> = []): Promise<WebfontRegisterReport[]> {
+export async function discoverAndRegisterWebfonts(
+  page: Page,
+  observedFontUrls: Iterable<string> = [],
+): Promise<WebfontRegisterReport[]> {
   // Two-pass discovery:
   //
   //   1. Same-origin `@font-face` rules — gives us the CSS-declared family
@@ -644,11 +747,33 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     // serialized scope, so we polyfill it here. Without this, our local
     // helpers below throw "__name is not defined" at construction time.
     if (typeof (window as any).__name === "undefined") {
-      (window as any).__name = function (fn: any) { return fn; };
+      (window as any).__name = function (fn: any) {
+        return fn;
+      };
     }
-    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; styleDesc: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]>; stretch?: string }
-    interface ResourceUrl { kind: "resource"; url: string }
-    interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
+    interface FaceRule {
+      kind: "font-face";
+      family: string;
+      weight: string;
+      style: string;
+      styleDesc: string;
+      url: string;
+      urls?: string[];
+      unicodeRange?: Array<[number, number]>;
+      stretch?: string;
+    }
+    interface ResourceUrl {
+      kind: "resource";
+      url: string;
+    }
+    interface LocalFace {
+      kind: "local";
+      family: string;
+      localNames: string[];
+      weight: string;
+      style: string;
+      resolvedLocalName: string | null;
+    }
     // Parse a CSS `unicode-range` descriptor value into inclusive [from, to]
     // intervals. Accepts the three forms in CSS Fonts 4 §4.5: single codepoint
     // (`U+26`), interval (`U+0-7F`), and wildcard (`U+4??`). Returns `null`
@@ -695,7 +820,8 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     // entire discovery throws "ReferenceError: __name is not defined".)
     const probeWidthInline = function (familyExpr: string, weight: string, style: string, sample: string): number {
       const span = document.createElement("span");
-      span.style.cssText = "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
+      span.style.cssText =
+        "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
       span.style.fontFamily = familyExpr;
       span.style.fontWeight = weight;
       span.style.fontStyle = style;
@@ -711,11 +837,15 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     // alias rule already set the right variant, so the probe gets the same
     // face Chrome's local() lookup would reach.
     const stripVariantSuffixInline = function (n: string): string {
-      return n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "").trim();
+      return n
+        .replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "")
+        .trim();
     };
     for (const sheet of Array.from(document.styleSheets)) {
       let cssRules: CSSRuleList;
-      try { cssRules = sheet.cssRules; } catch {
+      try {
+        cssRules = sheet.cssRules;
+      } catch {
         // Cross-origin sheet — record its URL so the Node side can fetch and
         // parse it for @font-face rules. (DM-545)
         if (sheet.href) crossOriginSheetUrls.push(sheet.href);
@@ -724,7 +854,10 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
       for (const rule of Array.from(cssRules)) {
         if (rule.constructor.name !== "CSSFontFaceRule") continue;
         const r = rule as CSSFontFaceRule;
-        const family = r.style.getPropertyValue("font-family").trim().replace(/^["']|["']$/g, "");
+        const family = r.style
+          .getPropertyValue("font-family")
+          .trim()
+          .replace(/^["']|["']$/g, "");
         // The RAW `font-weight` DESCRIPTOR. Empty string = auto/absent — kept
         // distinct from a declared "400": an auto descriptor lets a variable
         // face's own wght range bound the instancing, while a declared value
@@ -746,8 +879,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         // registry then treats the face's selection capabilities as normal
         // width and lets a variable face's own wdth range bound the instancing
         // (Blink's RangeSetFromAuto branch).
-        const stretchDesc = r.style.getPropertyValue("font-stretch")
-          || r.style.getPropertyValue("font-width") || "";
+        const stretchDesc = r.style.getPropertyValue("font-stretch") || r.style.getPropertyValue("font-width") || "";
         const src = r.style.getPropertyValue("src");
         // DM-513: parse ALL `url(...) format(...)` pairs and return them in
         // priority order (woff2 > woff > ttf/otf > unknown). Sites like
@@ -783,7 +915,9 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
           // where Foo is declared via @font-face { src: local("Georgia") }
           // falls through the family chain to the next name and renders in
           // the wrong face.
-          const locals = Array.from(src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g)).map((mm) => mm[1].trim()).filter((n) => n !== "");
+          const locals = Array.from(src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g))
+            .map((mm) => mm[1].trim())
+            .filter((n) => n !== "");
           if (locals.length > 0) {
             // Probe to identify which local() candidate Chrome actually
             // resolved this alias to. A sample of common monospace + serif
@@ -802,7 +936,10 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
             for (const cand of locals) {
               const candW = probeWidthInline(`"${stripVariantSuffixInline(cand)}"`, weight, style, sample);
               // Tolerate sub-px FP noise; match if widths agree within 0.05px.
-              if (Math.abs(candW - aliasW) < 0.05) { resolved = cand; break; }
+              if (Math.abs(candW - aliasW) < 0.05) {
+                resolved = cand;
+                break;
+              }
             }
             out.push({ kind: "local", family, localNames: locals, weight, style, resolvedLocalName: resolved });
           }
@@ -810,18 +947,36 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         }
         const base = sheet.href ?? document.baseURI;
         let absUrl: string;
-        try { absUrl = new URL(m[1], base).href; } catch { continue; }
+        try {
+          absUrl = new URL(m[1], base).href;
+        } catch {
+          continue;
+        }
         // Resolve the full ranked URL list to absolute URLs for the Node-side
         // iterator (DM-513). The first entry IS `absUrl`; the rest are
         // fallback candidates the Node side tries if fontkit rejects a
         // higher-priority URL's bytes.
         const absUrls: string[] = [];
         for (const ru of rankedUrls) {
-          try { absUrls.push(new URL(ru, base).href); } catch { /* skip */ }
+          try {
+            absUrls.push(new URL(ru, base).href);
+          } catch {
+            /* skip */
+          }
         }
         for (const u of absUrls) seenUrls.add(u);
         const unicodeRange = parseUnicodeRangeInline(r.style.getPropertyValue("unicode-range") || "");
-        out.push({ kind: "font-face", family, weight, style, styleDesc, url: absUrl, urls: absUrls, unicodeRange, ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}) });
+        out.push({
+          kind: "font-face",
+          family,
+          weight,
+          style,
+          styleDesc,
+          url: absUrl,
+          urls: absUrls,
+          unicodeRange,
+          ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}),
+        });
       }
     }
 
@@ -850,7 +1005,9 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
       const resp = await page.context().request.get(sheetUrl);
       if (!resp.ok()) continue;
       cssText = await resp.text();
-    } catch { continue; }
+    } catch {
+      continue;
+    }
     for (const face of parseFontFaceRulesFromCssText(cssText, sheetUrl)) {
       // De-dupe by all URLs in the ranked list — we may have already seen
       // this src via the resource-fallback (whose entry registers under the
@@ -883,7 +1040,10 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
  * chain (e.g. `, serif`) will catch the gap.
  */
 function systemFontKeyForLocalName(localName: string): string | null {
-  const n = localName.toLowerCase().replace(/^["']|["']$/g, "").trim();
+  const n = localName
+    .toLowerCase()
+    .replace(/^["']|["']$/g, "")
+    .trim();
   // Strip a trailing weight/style suffix so "Georgia Bold" / "Georgia Italic"
   // / "Georgia Bold Italic" all collapse to "georgia" — `getFontInstance`
   // dispatches to the right sibling file based on the requested CSS weight
@@ -912,8 +1072,8 @@ async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: 
     if (f == null) return null;
     const family = f.familyName ?? "";
     if (family === "") return null;
-    const weight = (f["OS/2"]?.usWeightClass) ?? 400;
-    const italic = !!(f["OS/2"]?.fsSelection?.italic);
+    const weight = f["OS/2"]?.usWeightClass ?? 400;
+    const italic = !!f["OS/2"]?.fsSelection?.italic;
     return { family, weight, italic };
   } catch {
     return null;
@@ -935,11 +1095,13 @@ async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: 
  */
 async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
   if (buf.length < 4) return buf;
-  const isWoff2 = buf[0] === 0x77 && buf[1] === 0x4F && buf[2] === 0x46 && buf[3] === 0x32;
+  const isWoff2 = buf[0] === 0x77 && buf[1] === 0x4f && buf[2] === 0x46 && buf[3] === 0x32;
   if (!isWoff2) return buf;
   try {
     // wawoff2 ships no .d.ts; the runtime export is `{ compress, decompress }`.
-    const wawoff = await (import("wawoff2" as string) as Promise<{ decompress: (b: Uint8Array) => Promise<Uint8Array> }>);
+    const wawoff = await (import("wawoff2" as string) as Promise<{
+      decompress: (b: Uint8Array) => Promise<Uint8Array>;
+    }>);
     const ttf = await wawoff.decompress(new Uint8Array(buf));
     return Buffer.from(ttf);
   } catch {
@@ -986,11 +1148,14 @@ export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string):
 function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   const familyMatch = /font-family\s*:\s*([^;}]+)/i.exec(body);
   if (familyMatch == null) return null;
-  const family = familyMatch[1].trim().replace(/^["']|["']$/g, "").trim();
+  const family = familyMatch[1]
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
   if (family === "") return null;
   // The raw `font-weight` descriptor; "" = auto/absent (kept distinct from a
   // declared "400" — only a declared value pins a variable face's wght axis).
-  const weight = (/font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "";
+  const weight = /font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim() ?? "";
   const styleMatch = /font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim();
   const style = styleMatch ?? "normal";
   // The RAW `font-style` descriptor, kept separate from `style` above for the
@@ -1001,7 +1166,7 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   // Undefined = auto/absent; the registry then treats the face's selection
   // capabilities as normal width and instancing clamps to the font's own
   // wdth axis range (Blink's RangeSetFromAuto branch).
-  const stretch = (/font-(?:stretch|width)\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) || undefined;
+  const stretch = /font-(?:stretch|width)\s*:\s*([^;}]+)/i.exec(body)?.[1].trim() || undefined;
   const urMatch = /unicode-range\s*:\s*([^;}]+)/i.exec(body);
   const unicodeRange = urMatch != null ? parseUnicodeRangeDescriptor(urMatch[1]) : undefined;
   const srcMatch = /src\s*:\s*([\s\S]+?)(?:;|$)/i.exec(body);
@@ -1035,10 +1200,24 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   if (ranked.length === 0) return null;
   const absUrls: string[] = [];
   for (const u of ranked) {
-    try { absUrls.push(new URL(u, baseUrl).href); } catch { /* skip */ }
+    try {
+      absUrls.push(new URL(u, baseUrl).href);
+    } catch {
+      /* skip */
+    }
   }
   if (absUrls.length === 0) return null;
-  return { kind: "font-face", family, weight, style, styleDesc, url: absUrls[0], urls: absUrls, unicodeRange, ...(stretch != null ? { stretch } : {}) };
+  return {
+    kind: "font-face",
+    family,
+    weight,
+    style,
+    styleDesc,
+    url: absUrls[0],
+    urls: absUrls,
+    unicodeRange,
+    ...(stretch != null ? { stretch } : {}),
+  };
 }
 
 /**
@@ -1136,175 +1315,193 @@ async function measureProjectivePaintQuads(
     preserve3dLayoutApplicable: boolean;
   }
 
-  const prepared = await page.evaluate(({ sel, key, includeComputed }): Promise<PreparedNode[]> | PreparedNode[] => {
-    const root = document.querySelector(sel);
-    if (root == null) {
-      (globalThis as typeof globalThis & Record<string, unknown>)[key] = [];
-      return [];
-    }
-
-    const nodes = [root, ...Array.from(root.querySelectorAll("*"))];
-    const indexByNode = new Map<Element, number>();
-    for (let index = 0; index < nodes.length; index++) indexByNode.set(nodes[index], index);
-    const influenced = new Set<Element>();
-    const measure = new Set<Element>();
-    const activationPlanes = new Set<Element>();
-    const computedByElement = new Map<Element, ProjectiveComputedState>();
-    const SVG_NS = "http://www.w3.org/2000/svg";
-
-    for (const element of nodes) {
-      const style = getComputedStyle(element);
-      const transform = style.transform ?? "none";
-      let has3dMatrix = transform.startsWith("matrix3d(");
-      if (transform !== "" && transform !== "none") {
-        try { has3dMatrix = !new DOMMatrixReadOnly(transform).is2D; } catch { /* serialized fallback above */ }
-      }
-      const translate = style.translate ?? "none";
-      const rotate = style.rotate ?? "none";
-      const scale = style.scale ?? "none";
-      const hasIndependent3d = /\s/.test(translate.trim()) && translate.trim().split(/\s+/).length >= 3
-        || /^(?:x|y)\b/i.test(rotate.trim())
-        || rotate.trim().split(/\s+/).length >= 4
-        || scale.trim().split(/\s+/).length >= 3;
-      const hasPerspective = style.perspective != null
-        && style.perspective !== ""
-        && style.perspective !== "none";
-      const signal = has3dMatrix || hasIndependent3d
-        || style.transformStyle === "preserve-3d"
-        || hasPerspective;
-      if (!signal) continue;
-
-      if (includeComputed) {
-        computedByElement.set(element, {
-          transform,
-          translate,
-          rotate,
-          scale,
-          transformOrigin: style.transformOrigin ?? "",
-          transformStyle: style.transformStyle ?? "flat",
-          perspective: style.perspective ?? "none",
-          perspectiveOrigin: style.perspectiveOrigin ?? "",
-          overflowX: style.overflowX ?? "visible",
-          overflowY: style.overflowY ?? "visible",
-        });
+  const prepared = await page.evaluate(
+    ({ sel, key, includeComputed }): Promise<PreparedNode[]> | PreparedNode[] => {
+      const root = document.querySelector(sel);
+      if (root == null) {
+        (globalThis as typeof globalThis & Record<string, unknown>)[key] = [];
+        return [];
       }
 
-      influenced.add(element);
-      for (const descendant of Array.from(element.querySelectorAll("*"))) {
-        influenced.add(descendant);
-        if (includeComputed && !computedByElement.has(descendant)) {
-          const descendantStyle = getComputedStyle(descendant);
-          computedByElement.set(descendant, {
-            transform: descendantStyle.transform ?? "none",
-            translate: descendantStyle.translate ?? "none",
-            rotate: descendantStyle.rotate ?? "none",
-            scale: descendantStyle.scale ?? "none",
-            transformOrigin: descendantStyle.transformOrigin ?? "",
-            transformStyle: descendantStyle.transformStyle ?? "flat",
-            perspective: descendantStyle.perspective ?? "none",
-            perspectiveOrigin: descendantStyle.perspectiveOrigin ?? "",
-            overflowX: descendantStyle.overflowX ?? "visible",
-            overflowY: descendantStyle.overflowY ?? "visible",
-          });
-        }
-      }
-    }
+      const nodes = [root, ...Array.from(root.querySelectorAll("*"))];
+      const indexByNode = new Map<Element, number>();
+      for (let index = 0; index < nodes.length; index++) indexByNode.set(nodes[index], index);
+      const influenced = new Set<Element>();
+      const measure = new Set<Element>();
+      const activationPlanes = new Set<Element>();
+      const computedByElement = new Map<Element, ProjectiveComputedState>();
+      const SVG_NS = "http://www.w3.org/2000/svg";
 
-    for (const element of nodes) {
-      if (!influenced.has(element)) continue;
-      const style = getComputedStyle(element);
-      const hasTransform = (style.transform != null && style.transform !== "" && style.transform !== "none")
-        || (style.translate != null && style.translate !== "" && style.translate !== "none")
-        || (style.rotate != null && style.rotate !== "" && style.rotate !== "none")
-        || (style.scale != null && style.scale !== "" && style.scale !== "none")
-        || style.backfaceVisibility === "hidden";
-      const rect = element.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) measure.add(element);
-      if (hasTransform && rect.width > 0 && rect.height > 0) activationPlanes.add(element);
-    }
-
-    (globalThis as typeof globalThis & Record<string, unknown>)[key] = nodes;
-    const result: PreparedNode[] = [];
-    for (const element of nodes) {
-      const parent = element === root ? null : (indexByNode.get(element.parentElement!) ?? null);
-      const isSvg = element.namespaceURI === SVG_NS;
-      const role: ProjectiveSvgRole = !isSvg
-        ? "html-box"
-        : element.localName === "svg" && (element as SVGSVGElement).ownerSVGElement == null
-          ? "svg-root-box"
-          : "svg-graphics";
-      const style = getComputedStyle(element);
-      const tag = element.localName;
-      const replaced = !isSvg && /^(?:img|input|textarea|select|video|canvas|iframe|object|embed)$/.test(tag);
-      const preserve3dLayoutApplicable = role !== "svg-graphics"
-        && style.display !== "contents"
-        && (style.display !== "inline" || replaced);
-      const groupingReasons: string[] = [];
-      const willChange = new Set((style.willChange ?? "").split(",").map((v) => v.trim()));
-      let animatedOpacity = false;
-      let animatedFilter = false;
-      let animatedBackdrop = false;
-      try {
-        for (const animation of element.getAnimations()) {
-          if (animation.playState === "idle" || animation.playState === "finished") continue;
-          const effect = animation.effect;
-          if (!(effect instanceof KeyframeEffect) || effect.target !== element) continue;
-          for (const frame of effect.getKeyframes()) {
-            animatedOpacity ||= Object.prototype.hasOwnProperty.call(frame, "opacity");
-            animatedFilter ||= Object.prototype.hasOwnProperty.call(frame, "filter");
-            animatedBackdrop ||= Object.prototype.hasOwnProperty.call(frame, "backdropFilter");
+      for (const element of nodes) {
+        const style = getComputedStyle(element);
+        const transform = style.transform ?? "none";
+        let has3dMatrix = transform.startsWith("matrix3d(");
+        if (transform !== "" && transform !== "none") {
+          try {
+            has3dMatrix = !new DOMMatrixReadOnly(transform).is2D;
+          } catch {
+            /* serialized fallback above */
           }
         }
-      } catch { /* Animation inspection unavailable: static used values remain authoritative. */ }
-      const extended = style as CSSStyleDeclaration & {
-        webkitBoxReflect?: string;
-        webkitMaskBoxImageSource?: string;
-        backdropFilter?: string;
-        webkitBackdropFilter?: string;
-        viewTransitionName?: string;
-      };
-      if (Number.parseFloat(style.opacity || "1") < 1 || willChange.has("opacity") || animatedOpacity) groupingReasons.push("opacity");
-      if (style.filter !== "none" || willChange.has("filter") || animatedFilter) groupingReasons.push("filter");
-      if ((extended.webkitBoxReflect ?? "none") !== "none") groupingReasons.push("reflection");
-      if (style.clipPath !== "none") groupingReasons.push("clip-path");
-      if (style.isolation !== "auto") groupingReasons.push("isolation");
-      if (style.maskImage !== "none" || (extended.webkitMaskBoxImageSource ?? "none") !== "none") groupingReasons.push("mask");
-      if (style.mixBlendMode !== "normal") groupingReasons.push("blend");
-      if ((extended.backdropFilter ?? extended.webkitBackdropFilter ?? "none") !== "none"
-        || willChange.has("backdrop-filter") || animatedBackdrop) groupingReasons.push("backdrop-filter");
-      if ((extended.viewTransitionName ?? "none") !== "none") groupingReasons.push("view-transition");
-      if ((style.position === "absolute" || style.position === "fixed") && style.clip !== "auto") groupingReasons.push("css-clip");
-      if (style.overflowX !== "visible" || style.overflowY !== "visible") groupingReasons.push("overflow");
-      let activeViewTransition: boolean | null = null;
-      try { activeViewTransition = document.documentElement.matches(":active-view-transition"); } catch { /* unsupported selector */ }
-      const usedPreserve3d = style.transformStyle !== "preserve-3d" || !preserve3dLayoutApplicable
-        ? false
-        : activeViewTransition == null || (activeViewTransition && !groupingReasons.includes("view-transition"))
-          ? null
-          : groupingReasons.length === 0;
-      let inlineSvgRoot: number | null = null;
-      let cursor: Element | null = element;
-      while (cursor != null) {
-        if (cursor.namespaceURI === SVG_NS && cursor.localName === "svg") {
-          inlineSvgRoot = indexByNode.get(cursor) ?? null;
+        const translate = style.translate ?? "none";
+        const rotate = style.rotate ?? "none";
+        const scale = style.scale ?? "none";
+        const hasIndependent3d =
+          (/\s/.test(translate.trim()) && translate.trim().split(/\s+/).length >= 3) ||
+          /^(?:x|y)\b/i.test(rotate.trim()) ||
+          rotate.trim().split(/\s+/).length >= 4 ||
+          scale.trim().split(/\s+/).length >= 3;
+        const hasPerspective = style.perspective != null && style.perspective !== "" && style.perspective !== "none";
+        const signal = has3dMatrix || hasIndependent3d || style.transformStyle === "preserve-3d" || hasPerspective;
+        if (!signal) continue;
+
+        if (includeComputed) {
+          computedByElement.set(element, {
+            transform,
+            translate,
+            rotate,
+            scale,
+            transformOrigin: style.transformOrigin ?? "",
+            transformStyle: style.transformStyle ?? "flat",
+            perspective: style.perspective ?? "none",
+            perspectiveOrigin: style.perspectiveOrigin ?? "",
+            overflowX: style.overflowX ?? "visible",
+            overflowY: style.overflowY ?? "visible",
+          });
         }
-        cursor = cursor.parentElement;
+
+        influenced.add(element);
+        for (const descendant of Array.from(element.querySelectorAll("*"))) {
+          influenced.add(descendant);
+          if (includeComputed && !computedByElement.has(descendant)) {
+            const descendantStyle = getComputedStyle(descendant);
+            computedByElement.set(descendant, {
+              transform: descendantStyle.transform ?? "none",
+              translate: descendantStyle.translate ?? "none",
+              rotate: descendantStyle.rotate ?? "none",
+              scale: descendantStyle.scale ?? "none",
+              transformOrigin: descendantStyle.transformOrigin ?? "",
+              transformStyle: descendantStyle.transformStyle ?? "flat",
+              perspective: descendantStyle.perspective ?? "none",
+              perspectiveOrigin: descendantStyle.perspectiveOrigin ?? "",
+              overflowX: descendantStyle.overflowX ?? "visible",
+              overflowY: descendantStyle.overflowY ?? "visible",
+            });
+          }
+        }
       }
-      result.push({
-        parent,
-        influenced: influenced.has(element),
-        measure: measure.has(element),
-        activationPlane: activationPlanes.has(element),
-        inlineSvgRoot,
-        role,
-        computed: computedByElement.get(element) ?? null,
-        usedPreserve3d,
-        groupingReasons,
-        preserve3dLayoutApplicable,
-      });
-    }
-    return result;
-  }, { sel: selector, key, includeComputed: includeComputedFrameState });
+
+      for (const element of nodes) {
+        if (!influenced.has(element)) continue;
+        const style = getComputedStyle(element);
+        const hasTransform =
+          (style.transform != null && style.transform !== "" && style.transform !== "none") ||
+          (style.translate != null && style.translate !== "" && style.translate !== "none") ||
+          (style.rotate != null && style.rotate !== "" && style.rotate !== "none") ||
+          (style.scale != null && style.scale !== "" && style.scale !== "none") ||
+          style.backfaceVisibility === "hidden";
+        const rect = element.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) measure.add(element);
+        if (hasTransform && rect.width > 0 && rect.height > 0) activationPlanes.add(element);
+      }
+
+      (globalThis as typeof globalThis & Record<string, unknown>)[key] = nodes;
+      const result: PreparedNode[] = [];
+      for (const element of nodes) {
+        const parent = element === root ? null : (indexByNode.get(element.parentElement!) ?? null);
+        const isSvg = element.namespaceURI === SVG_NS;
+        const role: ProjectiveSvgRole = !isSvg
+          ? "html-box"
+          : element.localName === "svg" && (element as SVGSVGElement).ownerSVGElement == null
+            ? "svg-root-box"
+            : "svg-graphics";
+        const style = getComputedStyle(element);
+        const tag = element.localName;
+        const replaced = !isSvg && /^(?:img|input|textarea|select|video|canvas|iframe|object|embed)$/.test(tag);
+        const preserve3dLayoutApplicable =
+          role !== "svg-graphics" && style.display !== "contents" && (style.display !== "inline" || replaced);
+        const groupingReasons: string[] = [];
+        const willChange = new Set((style.willChange ?? "").split(",").map((v) => v.trim()));
+        let animatedOpacity = false;
+        let animatedFilter = false;
+        let animatedBackdrop = false;
+        try {
+          for (const animation of element.getAnimations()) {
+            if (animation.playState === "idle" || animation.playState === "finished") continue;
+            const effect = animation.effect;
+            if (!(effect instanceof KeyframeEffect) || effect.target !== element) continue;
+            for (const frame of effect.getKeyframes()) {
+              animatedOpacity ||= Object.prototype.hasOwnProperty.call(frame, "opacity");
+              animatedFilter ||= Object.prototype.hasOwnProperty.call(frame, "filter");
+              animatedBackdrop ||= Object.prototype.hasOwnProperty.call(frame, "backdropFilter");
+            }
+          }
+        } catch {
+          /* Animation inspection unavailable: static used values remain authoritative. */
+        }
+        const extended = style as CSSStyleDeclaration & {
+          webkitBoxReflect?: string;
+          webkitMaskBoxImageSource?: string;
+          backdropFilter?: string;
+          webkitBackdropFilter?: string;
+          viewTransitionName?: string;
+        };
+        if (Number.parseFloat(style.opacity || "1") < 1 || willChange.has("opacity") || animatedOpacity)
+          groupingReasons.push("opacity");
+        if (style.filter !== "none" || willChange.has("filter") || animatedFilter) groupingReasons.push("filter");
+        if ((extended.webkitBoxReflect ?? "none") !== "none") groupingReasons.push("reflection");
+        if (style.clipPath !== "none") groupingReasons.push("clip-path");
+        if (style.isolation !== "auto") groupingReasons.push("isolation");
+        if (style.maskImage !== "none" || (extended.webkitMaskBoxImageSource ?? "none") !== "none")
+          groupingReasons.push("mask");
+        if (style.mixBlendMode !== "normal") groupingReasons.push("blend");
+        if (
+          (extended.backdropFilter ?? extended.webkitBackdropFilter ?? "none") !== "none" ||
+          willChange.has("backdrop-filter") ||
+          animatedBackdrop
+        )
+          groupingReasons.push("backdrop-filter");
+        if ((extended.viewTransitionName ?? "none") !== "none") groupingReasons.push("view-transition");
+        if ((style.position === "absolute" || style.position === "fixed") && style.clip !== "auto")
+          groupingReasons.push("css-clip");
+        if (style.overflowX !== "visible" || style.overflowY !== "visible") groupingReasons.push("overflow");
+        let activeViewTransition: boolean | null = null;
+        try {
+          activeViewTransition = document.documentElement.matches(":active-view-transition");
+        } catch {
+          /* unsupported selector */
+        }
+        const usedPreserve3d =
+          style.transformStyle !== "preserve-3d" || !preserve3dLayoutApplicable
+            ? false
+            : activeViewTransition == null || (activeViewTransition && !groupingReasons.includes("view-transition"))
+              ? null
+              : groupingReasons.length === 0;
+        let inlineSvgRoot: number | null = null;
+        let cursor: Element | null = element;
+        while (cursor != null) {
+          if (cursor.namespaceURI === SVG_NS && cursor.localName === "svg") {
+            inlineSvgRoot = indexByNode.get(cursor) ?? null;
+          }
+          cursor = cursor.parentElement;
+        }
+        result.push({
+          parent,
+          influenced: influenced.has(element),
+          measure: measure.has(element),
+          activationPlane: activationPlanes.has(element),
+          inlineSvgRoot,
+          role,
+          computed: computedByElement.get(element) ?? null,
+          usedPreserve3d,
+          groupingReasons,
+          preserve3dLayoutApplicable,
+        });
+      }
+      return result;
+    },
+    { sel: selector, key, includeComputed: includeComputedFrameState },
+  );
 
   const quadByIndex = new Map<number, { quad: ProjectivePaintQuad | null; borderQuad: ProjectivePaintQuad | null }>();
   let cdp: CDPSession | undefined;
@@ -1325,10 +1522,10 @@ async function measureProjectivePaintQuads(
         const described = await cdp.send("DOM.describeNode", { objectId });
         const backendNodeId = described.node.backendNodeId;
         const content = await cdp.send("DOM.getContentQuads", { backendNodeId });
-        const contentQuad = content.quads.length === 1 && content.quads[0].length === 8
-          && content.quads[0].every(Number.isFinite)
-          ? content.quads[0] as unknown as ProjectivePaintQuad
-          : null;
+        const contentQuad =
+          content.quads.length === 1 && content.quads[0].length === 8 && content.quads[0].every(Number.isFinite)
+            ? (content.quads[0] as unknown as ProjectivePaintQuad)
+            : null;
         let borderQuad: ProjectivePaintQuad | null = null;
         try {
           const box = await cdp.send("DOM.getBoxModel", { backendNodeId });
@@ -1336,13 +1533,22 @@ async function measureProjectivePaintQuads(
           if (border.length === 8 && border.every(Number.isFinite)) {
             borderQuad = border as unknown as ProjectivePaintQuad;
           }
-        } catch { /* SVG graphics nodes need not expose a CSS box model. */ }
-        const localize = (quad: ProjectivePaintQuad | null): ProjectivePaintQuad | null => quad == null ? null : [
-          quad[0] - viewport.x, quad[1] - viewport.y,
-          quad[2] - viewport.x, quad[3] - viewport.y,
-          quad[4] - viewport.x, quad[5] - viewport.y,
-          quad[6] - viewport.x, quad[7] - viewport.y,
-        ];
+        } catch {
+          /* SVG graphics nodes need not expose a CSS box model. */
+        }
+        const localize = (quad: ProjectivePaintQuad | null): ProjectivePaintQuad | null =>
+          quad == null
+            ? null
+            : [
+                quad[0] - viewport.x,
+                quad[1] - viewport.y,
+                quad[2] - viewport.x,
+                quad[3] - viewport.y,
+                quad[4] - viewport.x,
+                quad[5] - viewport.y,
+                quad[6] - viewport.x,
+                quad[7] - viewport.y,
+              ];
         quadByIndex.set(index, { quad: localize(contentQuad), borderQuad: localize(borderQuad) });
       } catch {
         quadByIndex.set(index, { quad: null, borderQuad: null });
@@ -1380,9 +1586,11 @@ async function measureProjectivePaintQuads(
     key,
     facts,
     dispose: async () => {
-      await page.evaluate((probeKey) => {
-        delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
-      }, key).catch(() => undefined);
+      await page
+        .evaluate((probeKey) => {
+          delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
+        }, key)
+        .catch(() => undefined);
     },
   };
 }
@@ -1410,21 +1618,24 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
   const runProbe = async (probePage: Page): Promise<BlinkPlatformResizerMetrics> => {
     const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const probeSize = 64;
-    const position = await probePage.evaluate(({ token, probeSize }) => {
-      const style = document.createElement("style");
-      style.dataset.domotionResizerProbe = token;
-      style.textContent = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
-      const probe = document.createElement("div");
-      probe.dataset.domotionResizerProbe = token;
-      probe.setAttribute("aria-hidden", "true");
-      probe.style.cssText = `all:initial;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
-      document.documentElement.append(style, probe);
-      return {
-        x: window.scrollX,
-        y: window.scrollY,
-        scaleFromDIP: window.visualViewport?.scale ?? 1,
-      };
-    }, { token, probeSize });
+    const position = await probePage.evaluate(
+      ({ token, probeSize }) => {
+        const style = document.createElement("style");
+        style.dataset.domotionResizerProbe = token;
+        style.textContent = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
+        const probe = document.createElement("div");
+        probe.dataset.domotionResizerProbe = token;
+        probe.setAttribute("aria-hidden", "true");
+        probe.style.cssText = `all:initial;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
+        document.documentElement.append(style, probe);
+        return {
+          x: window.scrollX,
+          y: window.scrollY,
+          scaleFromDIP: window.visualViewport?.scale ?? 1,
+        };
+      },
+      { token, probeSize },
+    );
 
     try {
       const png = await probePage.screenshot({
@@ -1439,9 +1650,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
       for (let y = 0; y < info.height; y++) {
         for (let x = 0; x < info.width; x++) {
           const i = (y * info.width + x) * info.channels;
-          if (Math.abs(data[i] - 1) <= 1
-              && Math.abs(data[i + 1] - 254) <= 1
-              && Math.abs(data[i + 2] - 2) <= 1) {
+          if (Math.abs(data[i] - 1) <= 1 && Math.abs(data[i + 1] - 254) <= 1 && Math.abs(data[i + 2] - 2) <= 1) {
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
             maxX = Math.max(maxX, x);
@@ -1461,14 +1670,14 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
       }
       return {
         themeThickness: Math.round((width + height) / 2),
-        scaleFromDIP: Number.isFinite(position.scaleFromDIP) && position.scaleFromDIP > 0
-          ? position.scaleFromDIP
-          : 1,
+        scaleFromDIP: Number.isFinite(position.scaleFromDIP) && position.scaleFromDIP > 0 ? position.scaleFromDIP : 1,
       };
     } finally {
-      await probePage.evaluate((token) => {
-        document.querySelectorAll(`[data-domotion-resizer-probe="${token}"]`).forEach((node) => node.remove());
-      }, token).catch(() => {});
+      await probePage
+        .evaluate((token) => {
+          document.querySelectorAll(`[data-domotion-resizer-probe="${token}"]`).forEach((node) => node.remove());
+        }, token)
+        .catch(() => {});
     }
   };
   const pending = (async (): Promise<BlinkPlatformResizerMetrics> => {
@@ -1492,9 +1701,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         const deviceScaleFactor = await page.evaluate(() => window.devicePixelRatio).catch(() => 1);
         isolated = await browser.newPage({
           viewport: page.viewportSize() ?? { width: 64, height: 64 },
-          deviceScaleFactor: Number.isFinite(deviceScaleFactor) && deviceScaleFactor > 0
-            ? deviceScaleFactor
-            : 1,
+          deviceScaleFactor: Number.isFinite(deviceScaleFactor) && deviceScaleFactor > 0 ? deviceScaleFactor : 1,
         });
       }
       try {
@@ -1608,77 +1815,93 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
 }> {
   const frames = page.frames();
   const propertyKey = `__domotionPseudoImageIntrinsic_${Math.random().toString(36).slice(2)}`;
-  await Promise.all(frames.map(async (frame) => {
-    try {
-      await frame.evaluate(async (key) => {
-        type PseudoImageIntrinsic = { url: string; width: number; height: number };
-        type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
-        const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
-        for (const prior of host.__domotionPseudoImageIntrinsicTargets ?? []) {
-          try { delete (prior as unknown as Record<string, unknown>)[key]; } catch {}
-        }
-        const targets: Element[] = [];
-        host.__domotionPseudoImageIntrinsicTargets = targets;
-        const cssUrl = (content: string): string | null => {
-          const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
-          const raw = match?.[1] ?? match?.[2] ?? match?.[3];
-          if (raw == null) return null;
-          try { return new URL(raw.replace(/\\(.)/g, "$1"), document.baseURI).href; } catch { return null; }
-        };
-        const cache = new Map<string, Promise<PseudoImageIntrinsic | null>>();
-        const dimensions = (url: string): Promise<PseudoImageIntrinsic | null> => {
-          const hit = cache.get(url);
-          if (hit != null) return hit;
-          const pending = (async () => {
-            const image = new Image();
-            image.src = url;
-            if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
-              await Promise.race([
-                image.decode().catch(() => undefined),
-                new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-              ]);
+  await Promise.all(
+    frames.map(async (frame) => {
+      try {
+        await frame.evaluate(async (key) => {
+          type PseudoImageIntrinsic = { url: string; width: number; height: number };
+          type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
+          const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
+          for (const prior of host.__domotionPseudoImageIntrinsicTargets ?? []) {
+            try {
+              delete (prior as unknown as Record<string, unknown>)[key];
+            } catch {}
+          }
+          const targets: Element[] = [];
+          host.__domotionPseudoImageIntrinsicTargets = targets;
+          const cssUrl = (content: string): string | null => {
+            const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
+            const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+            if (raw == null) return null;
+            try {
+              return new URL(raw.replace(/\\(.)/g, "$1"), document.baseURI).href;
+            } catch {
+              return null;
             }
-            return image.naturalWidth > 0 && image.naturalHeight > 0
-              ? { url, width: image.naturalWidth, height: image.naturalHeight }
-              : null;
-          })();
-          cache.set(url, pending);
-          return pending;
-        };
-        const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
-        await Promise.all(elements.map(async (element) => {
-          const records: PseudoImageRecords = {};
-          await Promise.all((["::before", "::after"] as const).map(async (pseudo) => {
-            const content = getComputedStyle(element, pseudo).content;
-            if (content == null || content === "none" || content === "normal") return;
-            const url = cssUrl(content);
-            if (url == null) return;
-            const intrinsic = await dimensions(url);
-            if (intrinsic != null) records[pseudo] = intrinsic;
-          }));
-          if (records["::before"] == null && records["::after"] == null) return;
-          Object.defineProperty(element, key, { configurable: true, value: records });
-          targets.push(element);
-        }));
-      }, propertyKey);
-    } catch {
-      // Detached/cross-origin frames are already handled as raster boundaries.
-    }
-  }));
+          };
+          const cache = new Map<string, Promise<PseudoImageIntrinsic | null>>();
+          const dimensions = (url: string): Promise<PseudoImageIntrinsic | null> => {
+            const hit = cache.get(url);
+            if (hit != null) return hit;
+            const pending = (async () => {
+              const image = new Image();
+              image.src = url;
+              if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
+                await Promise.race([
+                  image.decode().catch(() => undefined),
+                  new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+                ]);
+              }
+              return image.naturalWidth > 0 && image.naturalHeight > 0
+                ? { url, width: image.naturalWidth, height: image.naturalHeight }
+                : null;
+            })();
+            cache.set(url, pending);
+            return pending;
+          };
+          const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
+          await Promise.all(
+            elements.map(async (element) => {
+              const records: PseudoImageRecords = {};
+              await Promise.all(
+                (["::before", "::after"] as const).map(async (pseudo) => {
+                  const content = getComputedStyle(element, pseudo).content;
+                  if (content == null || content === "none" || content === "normal") return;
+                  const url = cssUrl(content);
+                  if (url == null) return;
+                  const intrinsic = await dimensions(url);
+                  if (intrinsic != null) records[pseudo] = intrinsic;
+                }),
+              );
+              if (records["::before"] == null && records["::after"] == null) return;
+              Object.defineProperty(element, key, { configurable: true, value: records });
+              targets.push(element);
+            }),
+          );
+        }, propertyKey);
+      } catch {
+        // Detached/cross-origin frames are already handled as raster boundaries.
+      }
+    }),
+  );
   return {
     propertyKey,
     async dispose(): Promise<void> {
-      await Promise.all(frames.map(async (frame) => {
-        try {
-          await frame.evaluate((key) => {
-            const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
-            for (const target of host.__domotionPseudoImageIntrinsicTargets ?? []) {
-              try { delete (target as unknown as Record<string, unknown>)[key]; } catch {}
-            }
-            delete host.__domotionPseudoImageIntrinsicTargets;
-          }, propertyKey);
-        } catch {}
-      }));
+      await Promise.all(
+        frames.map(async (frame) => {
+          try {
+            await frame.evaluate((key) => {
+              const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
+              for (const target of host.__domotionPseudoImageIntrinsicTargets ?? []) {
+                try {
+                  delete (target as unknown as Record<string, unknown>)[key];
+                } catch {}
+              }
+              delete host.__domotionPseudoImageIntrinsicTargets;
+            }, propertyKey);
+          } catch {}
+        }),
+      );
     },
   };
 }
@@ -1692,123 +1915,139 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
  */
 async function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promise<void> }> {
   const frames = page.frames();
-  await Promise.all(frames.map(async (frame) => {
-    try {
-      await frame.evaluate(async () => {
-        const host = globalThis as unknown as {
-          __domotionMaskIntrinsicTargets?: Element[];
-        };
-        for (const prior of host.__domotionMaskIntrinsicTargets ?? []) {
-          try { delete (prior as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic; } catch {}
-        }
-        const targets: Element[] = [];
-        host.__domotionMaskIntrinsicTargets = targets;
-
-        const splitLayers = (value: string): string[] => {
-          const out: string[] = [];
-          let depth = 0;
-          let start = 0;
-          for (let i = 0; i < value.length; i++) {
-            const ch = value[i];
-            if (ch === "(") depth++;
-            else if (ch === ")") depth--;
-            else if (ch === "," && depth === 0) {
-              out.push(value.slice(start, i));
-              start = i + 1;
-            }
-          }
-          out.push(value.slice(start));
-          return out;
-        };
-        const cssUrl = (layer: string): string | null => {
-          const match = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)\s*$/i.exec(layer);
-          const raw = match?.[1] ?? match?.[2] ?? match?.[3];
-          return raw == null ? null : raw.replace(/\\(.)/g, "$1");
-        };
-        const cache = new Map<string, Promise<{ w: number; h: number; ratio: number } | null>>();
-        const dimensions = (url: string): Promise<{ w: number; h: number; ratio: number } | null> => {
-          const hit = cache.get(url);
-          if (hit != null) return hit;
-          const pending = (async () => {
-            const image = new Image();
-            image.src = url;
-            if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
-              await Promise.race([
-                image.decode().catch(() => undefined),
-                new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-              ]);
-            }
-            if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
-            let ratio = image.naturalWidth / image.naturalHeight;
-            // HTMLImageElement naturalWidth/Height are integers. That loses a
-            // fractional SVG viewBox ratio (e.g. 3/7 reports 64x150). Ask the
-            // same Chromium image layout for a large-width auto-height box so
-            // the aspect survives at LayoutUnit precision.
+  await Promise.all(
+    frames.map(async (frame) => {
+      try {
+        await frame.evaluate(async () => {
+          const host = globalThis as unknown as {
+            __domotionMaskIntrinsicTargets?: Element[];
+          };
+          for (const prior of host.__domotionMaskIntrinsicTargets ?? []) {
             try {
-              image.style.cssText = "all:initial;position:fixed;left:-100000px;top:0;display:block;width:4096px;height:auto;max-width:none;max-height:none;visibility:hidden;pointer-events:none";
-              (document.body || document.documentElement).appendChild(image);
-              const measured = getComputedStyle(image);
-              const measuredWidth = Number.parseFloat(measured.width);
-              const measuredHeight = Number.parseFloat(measured.height);
-              if (measuredWidth > 0 && measuredHeight > 0
-                  && Number.isFinite(measuredWidth) && Number.isFinite(measuredHeight)) {
-                ratio = measuredWidth / measuredHeight;
-              }
-            } finally {
-              image.remove();
-            }
-            return { w: image.naturalWidth, h: image.naturalHeight, ratio };
-          })();
-          cache.set(url, pending);
-          return pending;
-        };
+              delete (prior as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic;
+            } catch {}
+          }
+          const targets: Element[] = [];
+          host.__domotionMaskIntrinsicTargets = targets;
 
-        const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
-        await Promise.all(elements.map(async (element) => {
-          const style = getComputedStyle(element);
-          const maskImage = style.maskImage
-            || (style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage
-            || "";
-          if (maskImage === "" || maskImage === "none") return;
-          const sizes = splitLayers(style.maskSize
-            || (style as CSSStyleDeclaration & { webkitMaskSize?: string }).webkitMaskSize
-            || "auto");
-          const resolved = await Promise.all(splitLayers(maskImage).map(async (layer, index) => {
-            // The DM-2379 route activates only for contain/cover. Explicit and
-            // auto sizing retain their established geometry and must not add a
-            // decoder wait merely because the element happens to have a mask.
-            const size = (sizes[index % sizes.length] ?? "auto").trim().toLowerCase();
-            if (size !== "contain" && size !== "cover") return null;
-            const url = cssUrl(layer);
-            return url == null ? null : dimensions(url);
-          }));
-          Object.defineProperty(element, "__domotionMaskIntrinsic", {
-            configurable: true,
-            value: resolved,
-          });
-          targets.push(element);
-        }));
-      });
-    } catch {
-      // Detached/cross-origin frames are already handled as raster boundaries.
-    }
-  }));
+          const splitLayers = (value: string): string[] => {
+            const out: string[] = [];
+            let depth = 0;
+            let start = 0;
+            for (let i = 0; i < value.length; i++) {
+              const ch = value[i];
+              if (ch === "(") depth++;
+              else if (ch === ")") depth--;
+              else if (ch === "," && depth === 0) {
+                out.push(value.slice(start, i));
+                start = i + 1;
+              }
+            }
+            out.push(value.slice(start));
+            return out;
+          };
+          const cssUrl = (layer: string): string | null => {
+            const match = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)\s*$/i.exec(layer);
+            const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+            return raw == null ? null : raw.replace(/\\(.)/g, "$1");
+          };
+          const cache = new Map<string, Promise<{ w: number; h: number; ratio: number } | null>>();
+          const dimensions = (url: string): Promise<{ w: number; h: number; ratio: number } | null> => {
+            const hit = cache.get(url);
+            if (hit != null) return hit;
+            const pending = (async () => {
+              const image = new Image();
+              image.src = url;
+              if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
+                await Promise.race([
+                  image.decode().catch(() => undefined),
+                  new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+                ]);
+              }
+              if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
+              let ratio = image.naturalWidth / image.naturalHeight;
+              // HTMLImageElement naturalWidth/Height are integers. That loses a
+              // fractional SVG viewBox ratio (e.g. 3/7 reports 64x150). Ask the
+              // same Chromium image layout for a large-width auto-height box so
+              // the aspect survives at LayoutUnit precision.
+              try {
+                image.style.cssText =
+                  "all:initial;position:fixed;left:-100000px;top:0;display:block;width:4096px;height:auto;max-width:none;max-height:none;visibility:hidden;pointer-events:none";
+                (document.body || document.documentElement).appendChild(image);
+                const measured = getComputedStyle(image);
+                const measuredWidth = Number.parseFloat(measured.width);
+                const measuredHeight = Number.parseFloat(measured.height);
+                if (
+                  measuredWidth > 0 &&
+                  measuredHeight > 0 &&
+                  Number.isFinite(measuredWidth) &&
+                  Number.isFinite(measuredHeight)
+                ) {
+                  ratio = measuredWidth / measuredHeight;
+                }
+              } finally {
+                image.remove();
+              }
+              return { w: image.naturalWidth, h: image.naturalHeight, ratio };
+            })();
+            cache.set(url, pending);
+            return pending;
+          };
+
+          const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
+          await Promise.all(
+            elements.map(async (element) => {
+              const style = getComputedStyle(element);
+              const maskImage =
+                style.maskImage || (style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage || "";
+              if (maskImage === "" || maskImage === "none") return;
+              const sizes = splitLayers(
+                style.maskSize || (style as CSSStyleDeclaration & { webkitMaskSize?: string }).webkitMaskSize || "auto",
+              );
+              const resolved = await Promise.all(
+                splitLayers(maskImage).map(async (layer, index) => {
+                  // The DM-2379 route activates only for contain/cover. Explicit and
+                  // auto sizing retain their established geometry and must not add a
+                  // decoder wait merely because the element happens to have a mask.
+                  const size = (sizes[index % sizes.length] ?? "auto").trim().toLowerCase();
+                  if (size !== "contain" && size !== "cover") return null;
+                  const url = cssUrl(layer);
+                  return url == null ? null : dimensions(url);
+                }),
+              );
+              Object.defineProperty(element, "__domotionMaskIntrinsic", {
+                configurable: true,
+                value: resolved,
+              });
+              targets.push(element);
+            }),
+          );
+        });
+      } catch {
+        // Detached/cross-origin frames are already handled as raster boundaries.
+      }
+    }),
+  );
 
   return {
     async dispose(): Promise<void> {
-      await Promise.all(frames.map(async (frame) => {
-        try {
-          await frame.evaluate(() => {
-            const host = globalThis as unknown as {
-              __domotionMaskIntrinsicTargets?: Element[];
-            };
-            for (const target of host.__domotionMaskIntrinsicTargets ?? []) {
-              try { delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic; } catch {}
-            }
-            delete host.__domotionMaskIntrinsicTargets;
-          });
-        } catch {}
-      }));
+      await Promise.all(
+        frames.map(async (frame) => {
+          try {
+            await frame.evaluate(() => {
+              const host = globalThis as unknown as {
+                __domotionMaskIntrinsicTargets?: Element[];
+              };
+              for (const target of host.__domotionMaskIntrinsicTargets ?? []) {
+                try {
+                  delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic;
+                } catch {}
+              }
+              delete host.__domotionMaskIntrinsicTargets;
+            });
+          } catch {}
+        }),
+      );
     },
   };
 }
@@ -1882,19 +2121,13 @@ export async function captureElementTreeWithDebug(
   opts?: CaptureElementTreeOptions,
 ): Promise<CaptureElementTreeDebugResult> {
   let expectedPng: Uint8Array | undefined;
-  const result = await captureElementTreeWithWarningsInternal(
-    page,
-    selector,
-    viewport,
-    opts,
-    async () => {
-      expectedPng = await page.screenshot({
-        clip: viewport,
-        omitBackground: false,
-        type: "png",
-      });
-    },
-  );
+  const result = await captureElementTreeWithWarningsInternal(page, selector, viewport, opts, async () => {
+    expectedPng = await page.screenshot({
+      clip: viewport,
+      omitBackground: false,
+      type: "png",
+    });
+  });
   if (expectedPng == null) throw new Error("debug capture did not produce a Chromium screenshot");
   return {
     ...result,
@@ -1948,245 +2181,229 @@ async function captureElementTreeWithWarningsInternal(
         rafClockState,
       );
     }
-  await captureStableFrame?.();
-  // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
-  // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
-  // walk (it can't fetch). Run an async pre-pass that fetches the external
-  // `.svg`, inlines its `<clipPath>` / `<mask>` as a same-document def, and
-  // rewrites the element's ref to `url(#localId)` — so the existing
-  // same-document paths (clip-path: DM-826/DM-828; mask: DM-493) handle it
-  // unchanged. A no-op (one getComputedStyle sweep, no fetches) when no
-  // external refs exist; a fetch failure leaves the ref intact so the walk
-  // warns as before.
-  await inlineExternalSvgRefs(page);
-  await reverifyAnimationFrame();
+    await captureStableFrame?.();
+    // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
+    // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
+    // walk (it can't fetch). Run an async pre-pass that fetches the external
+    // `.svg`, inlines its `<clipPath>` / `<mask>` as a same-document def, and
+    // rewrites the element's ref to `url(#localId)` — so the existing
+    // same-document paths (clip-path: DM-826/DM-828; mask: DM-493) handle it
+    // unchanged. A no-op (one getComputedStyle sweep, no fetches) when no
+    // external refs exist; a fetch failure leaves the ref intact so the walk
+    // warns as before.
+    await inlineExternalSvgRefs(page);
+    await reverifyAnimationFrame();
 
-  // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture Page's
-  // painted generic families and serialize them on its captured root(s) — the
-  // concrete family
-  // behind `serif` / `monospace` / ... is a property of the launched session
-  // (Playwright applies its own table via CDP `Page.setFontFamilies`), so the
-  // Page is the only authority. Legacy arrays retain top-level annotations;
-  // captureElementTreeEnvelope moves them into one JSON-stable Page envelope.
-  // The renderer scopes either form to this tree, so independently captured
-  // pages cannot contaminate one another. See `generic-font-probe.ts`.
-  const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page);
-  await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
-  await reverifyAnimationFrame();
+    // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture Page's
+    // painted generic families and serialize them on its captured root(s) — the
+    // concrete family
+    // behind `serif` / `monospace` / ... is a property of the launched session
+    // (Playwright applies its own table via CDP `Page.setFontFamilies`), so the
+    // Page is the only authority. Legacy arrays retain top-level annotations;
+    // captureElementTreeEnvelope moves them into one JSON-stable Page envelope.
+    // The renderer scopes either form to this tree, so independently captured
+    // pages cannot contaminate one another. See `generic-font-probe.ts`.
+    const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page);
+    await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
+    await reverifyAnimationFrame();
 
-  const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime] = await Promise.all([
-    primeMaskImageIntrinsics(page),
-    primeBackgroundImageSizing(page),
-    primePseudoImageIntrinsics(page),
-  ]);
-  const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
-    await Promise.all([
-      maskIntrinsicPrime.dispose().catch(() => undefined),
-      backgroundImagePrime.dispose().catch(() => undefined),
-      pseudoImagePrime.dispose().catch(() => undefined),
+    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime] = await Promise.all([
+      primeMaskImageIntrinsics(page),
+      primeBackgroundImageSizing(page),
+      primePseudoImageIntrinsics(page),
     ]);
-    throw error;
-  });
-  await reverifyAnimationFrame();
-  let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
-  let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
-  let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
-  let projectiveProbe: ProjectivePaintProbe | undefined;
-  let collapsedBorderFragmentProbe: Awaited<ReturnType<typeof prepareCollapsedBorderFragmentRecords>> | undefined;
-  let pseudoFragmentProbe: Awaited<ReturnType<typeof preparePseudoFragmentGeometry>> | undefined;
-  let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
-  let result: unknown;
-  try {
-    const resizerMetrics = await measureBlinkPlatformResizer(page);
-    await reverifyAnimationFrame();
-    pseudoStyles = await captureResolvedControlPseudoStyles(page);
-    await reverifyAnimationFrame();
-    effectiveAppearance = await captureEffectiveAppearanceFacts(page);
-    await reverifyAnimationFrame();
-    scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
-      sourceImagePath: opts?.rasterizeFromImagePath,
-      frameScrollCapture,
+    const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
+      await Promise.all([
+        maskIntrinsicPrime.dispose().catch(() => undefined),
+        backgroundImagePrime.dispose().catch(() => undefined),
+        pseudoImagePrime.dispose().catch(() => undefined),
+      ]);
+      throw error;
     });
     await reverifyAnimationFrame();
-    projectiveProbe = await measureProjectivePaintQuads(
-      page,
-      selector,
-      viewport,
-      animationFrameState != null,
-    );
-    await reverifyAnimationFrame();
-    collapsedBorderFragmentProbe = await prepareCollapsedBorderFragmentRecords(page, selector);
-    await reverifyAnimationFrame();
-    pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
-    await reverifyAnimationFrame();
-    const captureArgs = {
-      sel: selector,
-      vp: viewport,
-      cof: opts?.crossOriginFrames ?? "",
-      rt: resizerMetrics.themeThickness,
-      rs: resizerMetrics.scaleFromDIP,
-      pk: pseudoStyles.propertyKey,
-      ps: pseudoStyles.stylesByHost,
-      ndk: pseudoStyles.decorationPropertyKey,
-      ivk: pseudoStyles.inputValuePropertyKey,
-      eak: effectiveAppearance.propertyKey,
-      ear: effectiveAppearance.setupFailure,
-      sk: scrollbarCapture.propertyKey,
-      fk: frameScrollCapture.propertyKey,
-      pq: projectiveProbe.facts,
-      pqk: projectiveProbe.key,
-      pqt: animationFrameState?.requestedTimeMs,
-      pqa: animationFrameState?.animationCount,
-      cbfk: collapsedBorderFragmentProbe.key,
-      pgk: pseudoFragmentProbe.key,
-      pik: pseudoImagePrime.propertyKey,
-    };
-    textPaintProbe = await prepareTextPaintGeometry(
-      page,
-      selector,
-      viewport,
-      async (textPaintKey) => {
+    let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
+    let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
+    let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
+    let projectiveProbe: ProjectivePaintProbe | undefined;
+    let collapsedBorderFragmentProbe: Awaited<ReturnType<typeof prepareCollapsedBorderFragmentRecords>> | undefined;
+    let pseudoFragmentProbe: Awaited<ReturnType<typeof preparePseudoFragmentGeometry>> | undefined;
+    let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
+    let result: unknown;
+    try {
+      const resizerMetrics = await measureBlinkPlatformResizer(page);
+      await reverifyAnimationFrame();
+      pseudoStyles = await captureResolvedControlPseudoStyles(page);
+      await reverifyAnimationFrame();
+      effectiveAppearance = await captureEffectiveAppearanceFacts(page);
+      await reverifyAnimationFrame();
+      scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
+        sourceImagePath: opts?.rasterizeFromImagePath,
+        frameScrollCapture,
+      });
+      await reverifyAnimationFrame();
+      projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport, animationFrameState != null);
+      await reverifyAnimationFrame();
+      collapsedBorderFragmentProbe = await prepareCollapsedBorderFragmentRecords(page, selector);
+      await reverifyAnimationFrame();
+      pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
+      await reverifyAnimationFrame();
+      const captureArgs = {
+        sel: selector,
+        vp: viewport,
+        cof: opts?.crossOriginFrames ?? "",
+        rt: resizerMetrics.themeThickness,
+        rs: resizerMetrics.scaleFromDIP,
+        pk: pseudoStyles.propertyKey,
+        ps: pseudoStyles.stylesByHost,
+        ndk: pseudoStyles.decorationPropertyKey,
+        ivk: pseudoStyles.inputValuePropertyKey,
+        eak: effectiveAppearance.propertyKey,
+        ear: effectiveAppearance.setupFailure,
+        sk: scrollbarCapture.propertyKey,
+        fk: frameScrollCapture.propertyKey,
+        pq: projectiveProbe.facts,
+        pqk: projectiveProbe.key,
+        pqt: animationFrameState?.requestedTimeMs,
+        pqa: animationFrameState?.animationCount,
+        cbfk: collapsedBorderFragmentProbe.key,
+        pgk: pseudoFragmentProbe.key,
+        pik: pseudoImagePrime.propertyKey,
+      };
+      textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, async (textPaintKey) => {
         const neutralResult = await page.evaluate(
           `(${CAPTURE_SCRIPT})(${JSON.stringify({ ...captureArgs, tgk: textPaintKey, tgp: true })})`,
         );
         return neutralResult as { tree: CapturedElement[] };
-      },
-    );
-    await reverifyAnimationFrame();
-    result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify({
-      ...captureArgs,
-      tgk: textPaintProbe.key,
-    })})`);
-  } finally {
-    if (result == null) await frameScrollCapture.dispose();
-    await collapsedBorderFragmentProbe?.dispose();
-    await pseudoFragmentProbe?.dispose();
-    await scrollbarCapture?.dispose();
-    await effectiveAppearance?.dispose();
-    await maskIntrinsicPrime.dispose();
-    await backgroundImagePrime.dispose();
-    await pseudoImagePrime.dispose();
-    if (result == null) {
+      });
+      await reverifyAnimationFrame();
+      result = await page.evaluate(
+        `(${CAPTURE_SCRIPT})(${JSON.stringify({
+          ...captureArgs,
+          tgk: textPaintProbe.key,
+        })})`,
+      );
+    } finally {
+      if (result == null) await frameScrollCapture.dispose();
+      await collapsedBorderFragmentProbe?.dispose();
+      await pseudoFragmentProbe?.dispose();
+      await scrollbarCapture?.dispose();
+      await effectiveAppearance?.dispose();
+      await maskIntrinsicPrime.dispose();
+      await backgroundImagePrime.dispose();
+      await pseudoImagePrime.dispose();
+      if (result == null) {
+        await pseudoStyles?.dispose();
+        await projectiveProbe?.dispose();
+      }
+    }
+    try {
+      const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
+      await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
+      const warnings = typed.warnings ?? [];
+      for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
+        const fact = projectiveProbe!.facts[index];
+        if (fact.usedPreserve3d !== null) continue;
+        warnings.push({
+          selector: `${selector} projective-node[${index}]`,
+          feature: "transform-style: preserve-3d",
+          detail:
+            "Blink used rendering-context grouping state was not observable in the paused source frame; retained the conservative outer Chromium surface.",
+          status: "partial",
+        });
+      }
+      warnings.push(...(scrollbarCapture?.warnings ?? []));
+      warnings.push(...(collapsedBorderFragmentProbe?.warnings ?? []));
+      warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
+      warnings.push(...(textPaintProbe?.warnings ?? []));
+      const frameScrollState = await frameScrollCapture.snapshot();
+      warnings.push(...frameScrollCapture.warnings);
+      finalizeScrollbarResizerOverlap(typed.tree);
+      try {
+        // DM-2455: structural hosts keep their vector box/text while one separate
+        // transparent Chromium atlas supplies only the closed-shadow/native
+        // decoration layer. The CDP-retained part references remain alive until
+        // this pass validates and consumes them.
+        await reverifyAnimationFrame();
+        await rasterizeNativeControlDecorations(page, typed.tree, viewport, {
+          warnings,
+          sourceNodeKey: projectiveProbe?.key,
+          decorationNodeKey: pseudoStyles?.decorationPropertyKey,
+        });
+        // DM-2456: materialize native controls first, while their platform state is
+        // nearest to the synchronous DOM capture. One authoritative source frame
+        // plus one atomic alpha-isolation frame replace the old per-control
+        // screenshots; failures append to this capture's own warnings array.
+        await reverifyAnimationFrame();
+        await rasterizeNativeControlSurfaces(page, typed.tree, viewport, {
+          warnings,
+          sourceNodeKey: projectiveProbe?.key,
+          sourceImagePath: opts?.rasterizeFromImagePath,
+        });
+        // DM-2463: closed broken-image UA shadow roots are only available through
+        // Chromium CDP. Consume their geometry/text/AX facts while the same private
+        // live-node registry used by the projective/control passes is still alive.
+        await reverifyAnimationFrame();
+        await captureBrokenImageFallbackFacts(page, typed.tree, viewport, warnings, projectiveProbe?.key);
+        await reverifyAnimationFrame();
+        await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
+        await reverifyAnimationFrame();
+        await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
+      } finally {
+        await pseudoStyles?.dispose();
+        pseudoStyles = undefined;
+        await projectiveProbe?.dispose();
+        projectiveProbe = undefined;
+      }
+      await reverifyAnimationFrame();
+      await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
+      await reverifyAnimationFrame();
+      await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
+      if (textPaintProbe != null) {
+        // Bitmap glyphs and pseudo fallbacks belong to the same pre-transform
+        // plane as vector glyphs. Materialize only affine-owned candidates while
+        // the source DOM is neutral, then let the live pass handle everything
+        // without an authoritative text geometry record.
+        await reverifyAnimationFrame();
+        await textPaintProbe.withNeutralTransforms(() =>
+          rasterizeBitmapGlyphs(page, typed.tree, viewport, {
+            skipBackdropFilters: true,
+            includeElement: (element) => element.textPaintGeometry?.neutral?.textSegments != null,
+            textSegmentsFor: (element) => element.textPaintGeometry?.neutral?.textSegments,
+          }),
+        );
+      }
+      await rasterizeBitmapGlyphs(page, typed.tree, viewport, {
+        includeElement: (element) => element.textPaintGeometry?.neutral == null,
+        warnings,
+      });
+      await reverifyAnimationFrame();
+      await rasterizeReplacedElements(page, typed.tree, viewport, {
+        sourceImagePath: opts?.rasterizeFromImagePath,
+        warnings,
+      });
+      await reverifyAnimationFrame();
+      const replacedMediaFrameState = await replacedMediaTransaction?.finalize(typed.tree);
+      await rasterizeMaskSources(page, typed.tree, viewport);
+      await rasterizeAdvancedGradients(typed.tree, page);
+      if (sessionGenericFamilies != null) {
+        const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
+        for (const root of typed.tree) root.sessionGenericFamilies = captured;
+      }
+      _resetLastCaptureWarnings(warnings);
+      return {
+        tree: typed.tree,
+        warnings,
+        frameScrollState,
+        ...(animationFrameState == null ? {} : { animationFrameState }),
+        ...(rafClockState == null ? {} : { rafClockState }),
+        ...(replacedMediaFrameState == null ? {} : { replacedMediaFrameState }),
+      };
+    } finally {
+      await frameScrollCapture.dispose();
       await pseudoStyles?.dispose();
       await projectiveProbe?.dispose();
+      await textPaintProbe?.dispose();
     }
-  }
-  try {
-  const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
-  await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
-  const warnings = typed.warnings ?? [];
-  for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
-    const fact = projectiveProbe!.facts[index];
-    if (fact.usedPreserve3d !== null) continue;
-    warnings.push({
-      selector: `${selector} projective-node[${index}]`,
-      feature: "transform-style: preserve-3d",
-      detail: "Blink used rendering-context grouping state was not observable in the paused source frame; retained the conservative outer Chromium surface.",
-      status: "partial",
-    });
-  }
-  warnings.push(...(scrollbarCapture?.warnings ?? []));
-  warnings.push(...(collapsedBorderFragmentProbe?.warnings ?? []));
-  warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
-  warnings.push(...(textPaintProbe?.warnings ?? []));
-  const frameScrollState = await frameScrollCapture.snapshot();
-  warnings.push(...frameScrollCapture.warnings);
-  finalizeScrollbarResizerOverlap(typed.tree);
-  try {
-    // DM-2455: structural hosts keep their vector box/text while one separate
-    // transparent Chromium atlas supplies only the closed-shadow/native
-    // decoration layer. The CDP-retained part references remain alive until
-    // this pass validates and consumes them.
-    await reverifyAnimationFrame();
-    await rasterizeNativeControlDecorations(page, typed.tree, viewport, {
-      warnings,
-      sourceNodeKey: projectiveProbe?.key,
-      decorationNodeKey: pseudoStyles?.decorationPropertyKey,
-    });
-    // DM-2456: materialize native controls first, while their platform state is
-    // nearest to the synchronous DOM capture. One authoritative source frame
-    // plus one atomic alpha-isolation frame replace the old per-control
-    // screenshots; failures append to this capture's own warnings array.
-    await reverifyAnimationFrame();
-    await rasterizeNativeControlSurfaces(page, typed.tree, viewport, {
-      warnings,
-      sourceNodeKey: projectiveProbe?.key,
-      sourceImagePath: opts?.rasterizeFromImagePath,
-    });
-    // DM-2463: closed broken-image UA shadow roots are only available through
-    // Chromium CDP. Consume their geometry/text/AX facts while the same private
-    // live-node registry used by the projective/control passes is still alive.
-    await reverifyAnimationFrame();
-    await captureBrokenImageFallbackFacts(
-      page,
-      typed.tree,
-      viewport,
-      warnings,
-      projectiveProbe?.key,
-    );
-    await reverifyAnimationFrame();
-    await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
-    await reverifyAnimationFrame();
-    await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
-  } finally {
-    await pseudoStyles?.dispose();
-    pseudoStyles = undefined;
-    await projectiveProbe?.dispose();
-    projectiveProbe = undefined;
-  }
-  await reverifyAnimationFrame();
-  await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
-  await reverifyAnimationFrame();
-  await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
-  if (textPaintProbe != null) {
-    // Bitmap glyphs and pseudo fallbacks belong to the same pre-transform
-    // plane as vector glyphs. Materialize only affine-owned candidates while
-    // the source DOM is neutral, then let the live pass handle everything
-    // without an authoritative text geometry record.
-    await reverifyAnimationFrame();
-    await textPaintProbe.withNeutralTransforms(() => rasterizeBitmapGlyphs(
-      page,
-      typed.tree,
-      viewport,
-      {
-        skipBackdropFilters: true,
-        includeElement: (element) => element.textPaintGeometry?.neutral?.textSegments != null,
-        textSegmentsFor: (element) => element.textPaintGeometry?.neutral?.textSegments,
-      },
-    ));
-  }
-  await rasterizeBitmapGlyphs(page, typed.tree, viewport, {
-    includeElement: (element) => element.textPaintGeometry?.neutral == null,
-    warnings,
-  });
-  await reverifyAnimationFrame();
-  await rasterizeReplacedElements(page, typed.tree, viewport, {
-    sourceImagePath: opts?.rasterizeFromImagePath,
-    warnings,
-  });
-  await reverifyAnimationFrame();
-  const replacedMediaFrameState = await replacedMediaTransaction?.finalize(typed.tree);
-  await rasterizeMaskSources(page, typed.tree, viewport);
-  await rasterizeAdvancedGradients(typed.tree, page);
-  if (sessionGenericFamilies != null) {
-    const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
-    for (const root of typed.tree) root.sessionGenericFamilies = captured;
-  }
-  _resetLastCaptureWarnings(warnings);
-  return {
-    tree: typed.tree,
-    warnings,
-    frameScrollState,
-    ...(animationFrameState == null ? {} : { animationFrameState }),
-    ...(rafClockState == null ? {} : { rafClockState }),
-    ...(replacedMediaFrameState == null ? {} : { replacedMediaFrameState }),
-  };
-  } finally {
-    await frameScrollCapture.dispose();
-    await pseudoStyles?.dispose();
-    await projectiveProbe?.dispose();
-    await textPaintProbe?.dispose();
-  }
   } finally {
     await replacedMediaTransaction?.dispose();
   }
@@ -2228,21 +2445,29 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
       if (cp != null && cp !== "none" && cp !== "") {
         const m = EXT.exec(cp);
         if (m != null) {
-          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "clip" }); } catch { /* bad URL */ }
+          try {
+            hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "clip" });
+          } catch {
+            /* bad URL */
+          }
         }
       }
       const mi = cs.maskImage || (cs as unknown as { webkitMaskImage?: string }).webkitMaskImage || "";
       if (mi !== "" && mi !== "none") {
         const m = EXT.exec(mi);
         if (m != null) {
-          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "mask" }); } catch { /* bad URL */ }
+          try {
+            hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "mask" });
+          } catch {
+            /* bad URL */
+          }
         }
       }
     }
     if (hits.length === 0) return;
 
     const fileCache = new Map<string, Document | null>(); // absUrl → parsed doc (null = failed)
-    const localIdFor = new Map<string, string>();         // `${kind}|${absUrl}#${fragId}` → injected local id
+    const localIdFor = new Map<string, string>(); // `${kind}|${absUrl}#${fragId}` → injected local id
     let host: SVGSVGElement | null = null;
     let counter = 0;
 
@@ -2256,7 +2481,9 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
           try {
             const res = await fetch(hit.absUrl);
             doc = res.ok ? new DOMParser().parseFromString(await res.text(), "image/svg+xml") : null;
-          } catch { doc = null; }
+          } catch {
+            doc = null;
+          }
           fileCache.set(hit.absUrl, doc);
         }
         if (doc == null) continue; // fetch/parse failed → leave ref intact (walk warns)
@@ -2288,7 +2515,6 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
   });
 }
 
-
 /**
  * Snapshot each selected CSS-3D owner as one isolated Chromium surface.
  *
@@ -2315,31 +2541,8 @@ export async function rasterizeProjectiveSurfaces(
   }
 
   const restoreVisibility = async (): Promise<void> => {
-    await page.evaluate(() => {
-      const host = globalThis as typeof globalThis & {
-        __domotionProjectiveVisibilityRestore?: Array<{
-          element: Element;
-          property: string;
-          value: string;
-          priority: string;
-        }>;
-      };
-      for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {
-        const html = item.element as HTMLElement;
-        if (item.value === "") html.style.removeProperty(item.property);
-        else html.style.setProperty(item.property, item.value, item.priority);
-      }
-      delete host.__domotionProjectiveVisibilityRestore;
-    }).catch(() => undefined);
-  };
-
-  for (const target of targets) {
-    const sourceNodeIndex = target.sourceNodeIndex;
-    if (sourceNodeIndex == null) {
-      throw new Error("projective raster owner is missing its Chromium source-node correlation");
-    }
-    try {
-      const prepared = await page.evaluate(({ index, sourceNodeKey }) => {
+    await page
+      .evaluate(() => {
         const host = globalThis as typeof globalThis & {
           __domotionProjectiveVisibilityRestore?: Array<{
             element: Element;
@@ -2348,115 +2551,139 @@ export async function rasterizeProjectiveSurfaces(
             priority: string;
           }>;
         };
-        const sourceNodes = (host as typeof host & Record<string, unknown>)[sourceNodeKey] as Element[] | undefined;
-        const sourceOwner = sourceNodes?.[index];
-        if (sourceOwner == null || !sourceOwner.isConnected) return false;
-        const restore: NonNullable<typeof host.__domotionProjectiveVisibilityRestore> = [];
-        // Publish before the first mutation so a mid-preparation exception can
-        // still restore every declaration already recorded by the finally path.
-        host.__domotionProjectiveVisibilityRestore = restore;
-        const ownerVisibility = getComputedStyle(sourceOwner).visibility;
-        for (const element of Array.from(document.querySelectorAll("*"))) {
-          if (element === sourceOwner || sourceOwner.contains(element)) continue;
-          const html = element as HTMLElement;
-          restore.push({
-            element,
-            property: "visibility",
-            value: html.style.getPropertyValue("visibility"),
-            priority: html.style.getPropertyPriority("visibility"),
-          });
-          html.style.setProperty("visibility", "hidden", "important");
+        for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {
+          const html = item.element as HTMLElement;
+          if (item.value === "") html.style.removeProperty(item.property);
+          else html.style.setProperty(item.property, item.value, item.priority);
         }
-        // A hidden ancestor's visibility is inherited. Reassert only the
-        // owner's original used value; authored hidden descendants remain hidden.
-        const ownerHtml = sourceOwner as HTMLElement;
-        restore.push({
-          element: sourceOwner,
-          property: "visibility",
-          value: ownerHtml.style.getPropertyValue("visibility"),
-          priority: ownerHtml.style.getPropertyPriority("visibility"),
-        });
-        ownerHtml.style.setProperty("visibility", ownerVisibility, "important");
+        delete host.__domotionProjectiveVisibilityRestore;
+      })
+      .catch(() => undefined);
+  };
 
-        // The document canvas background is propagated from html/body even
-        // when those ancestor boxes have visibility:hidden. It is backdrop,
-        // not paint owned by a nested projective surface, and would otherwise
-        // turn an empty/backface-hidden owner into a viewport-sized opaque PNG.
-        // Preserve it only when html/body is itself inside the selected owner.
-        for (const canvasElement of [document.documentElement, document.body]) {
-          if (canvasElement == null
-              || canvasElement === sourceOwner
-              || sourceOwner.contains(canvasElement)) continue;
-          restore.push({
-            element: canvasElement,
-            property: "background",
-            value: canvasElement.style.getPropertyValue("background"),
-            priority: canvasElement.style.getPropertyPriority("background"),
-          });
-          canvasElement.style.setProperty("background", "transparent", "important");
-        }
-
-        // Ancestor effects represented by SVG wrappers must not be baked into
-        // this already-global bitmap and then applied a second time. Rotation /
-        // skew is likewise serialized by the capture walk; pure scale/translate
-        // stays live-baked and is intentionally left in place.
-        let ancestor = sourceOwner.parentElement;
-        while (ancestor != null) {
-          const html = ancestor as HTMLElement;
-          const style = getComputedStyle(ancestor);
-          const neutral: Array<[string, string]> = [];
-          if (style.opacity !== "1") neutral.push(["opacity", "1"]);
-          if (style.filter != null && style.filter !== "" && style.filter !== "none") {
-            neutral.push(["filter", "none"]);
-          }
-          const mask = style.mask || (style as CSSStyleDeclaration & { webkitMask?: string }).webkitMask || "";
-          if (mask !== "" && mask !== "none") {
-            neutral.push(["mask", "none"], ["-webkit-mask", "none"]);
-          }
-          if (style.mixBlendMode !== "normal") neutral.push(["mix-blend-mode", "normal"]);
-
-          const transform = style.transform ?? "none";
-          const matrix2d = /^matrix\(\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)/.exec(transform);
-          const matrix3d = /^matrix3d\(([^)]+)\)/.exec(transform);
-          const rotatesOrSkews = matrix2d != null
-            ? Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6 || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6
-            : matrix3d != null
-              ? (() => {
-                  const values = matrix3d[1].split(",").map(Number.parseFloat);
-                  return Math.abs(values[1] ?? 0) > 1e-6 || Math.abs(values[4] ?? 0) > 1e-6;
-                })()
-              : false;
-          const independentRotate = style.rotate != null && style.rotate !== "" && style.rotate !== "none";
-          if (rotatesOrSkews || independentRotate) {
-            neutral.push(
-              ["transform", "none"],
-              ["translate", "none"],
-              ["rotate", "none"],
-              ["scale", "none"],
-            );
-          }
-          const neutralSnapshots = neutral.map(([property, value]) => ({
-            property,
-            value,
-            originalValue: html.style.getPropertyValue(property),
-            originalPriority: html.style.getPropertyPriority(property),
-          }));
-          // Snapshot the entire alias set before mutating it: `mask` and
-          // `-webkit-mask` share CSSOM storage, so recording the second alias
-          // after setting the first would falsely restore `none !important`.
-          for (const { property, value, originalValue, originalPriority } of neutralSnapshots) {
+  for (const target of targets) {
+    const sourceNodeIndex = target.sourceNodeIndex;
+    if (sourceNodeIndex == null) {
+      throw new Error("projective raster owner is missing its Chromium source-node correlation");
+    }
+    try {
+      const prepared = await page.evaluate(
+        ({ index, sourceNodeKey }) => {
+          const host = globalThis as typeof globalThis & {
+            __domotionProjectiveVisibilityRestore?: Array<{
+              element: Element;
+              property: string;
+              value: string;
+              priority: string;
+            }>;
+          };
+          const sourceNodes = (host as typeof host & Record<string, unknown>)[sourceNodeKey] as Element[] | undefined;
+          const sourceOwner = sourceNodes?.[index];
+          if (sourceOwner == null || !sourceOwner.isConnected) return false;
+          const restore: NonNullable<typeof host.__domotionProjectiveVisibilityRestore> = [];
+          // Publish before the first mutation so a mid-preparation exception can
+          // still restore every declaration already recorded by the finally path.
+          host.__domotionProjectiveVisibilityRestore = restore;
+          const ownerVisibility = getComputedStyle(sourceOwner).visibility;
+          for (const element of Array.from(document.querySelectorAll("*"))) {
+            if (element === sourceOwner || sourceOwner.contains(element)) continue;
+            const html = element as HTMLElement;
             restore.push({
-              element: ancestor,
-              property,
-              value: originalValue,
-              priority: originalPriority,
+              element,
+              property: "visibility",
+              value: html.style.getPropertyValue("visibility"),
+              priority: html.style.getPropertyPriority("visibility"),
             });
-            html.style.setProperty(property, value, "important");
+            html.style.setProperty("visibility", "hidden", "important");
           }
-          ancestor = ancestor.parentElement;
-        }
-        return true;
-      }, { index: sourceNodeIndex, sourceNodeKey });
+          // A hidden ancestor's visibility is inherited. Reassert only the
+          // owner's original used value; authored hidden descendants remain hidden.
+          const ownerHtml = sourceOwner as HTMLElement;
+          restore.push({
+            element: sourceOwner,
+            property: "visibility",
+            value: ownerHtml.style.getPropertyValue("visibility"),
+            priority: ownerHtml.style.getPropertyPriority("visibility"),
+          });
+          ownerHtml.style.setProperty("visibility", ownerVisibility, "important");
+
+          // The document canvas background is propagated from html/body even
+          // when those ancestor boxes have visibility:hidden. It is backdrop,
+          // not paint owned by a nested projective surface, and would otherwise
+          // turn an empty/backface-hidden owner into a viewport-sized opaque PNG.
+          // Preserve it only when html/body is itself inside the selected owner.
+          for (const canvasElement of [document.documentElement, document.body]) {
+            if (canvasElement == null || canvasElement === sourceOwner || sourceOwner.contains(canvasElement)) continue;
+            restore.push({
+              element: canvasElement,
+              property: "background",
+              value: canvasElement.style.getPropertyValue("background"),
+              priority: canvasElement.style.getPropertyPriority("background"),
+            });
+            canvasElement.style.setProperty("background", "transparent", "important");
+          }
+
+          // Ancestor effects represented by SVG wrappers must not be baked into
+          // this already-global bitmap and then applied a second time. Rotation /
+          // skew is likewise serialized by the capture walk; pure scale/translate
+          // stays live-baked and is intentionally left in place.
+          let ancestor = sourceOwner.parentElement;
+          while (ancestor != null) {
+            const html = ancestor as HTMLElement;
+            const style = getComputedStyle(ancestor);
+            const neutral: Array<[string, string]> = [];
+            if (style.opacity !== "1") neutral.push(["opacity", "1"]);
+            if (style.filter != null && style.filter !== "" && style.filter !== "none") {
+              neutral.push(["filter", "none"]);
+            }
+            const mask = style.mask || (style as CSSStyleDeclaration & { webkitMask?: string }).webkitMask || "";
+            if (mask !== "" && mask !== "none") {
+              neutral.push(["mask", "none"], ["-webkit-mask", "none"]);
+            }
+            if (style.mixBlendMode !== "normal") neutral.push(["mix-blend-mode", "normal"]);
+
+            const transform = style.transform ?? "none";
+            const matrix2d = /^matrix\(\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)/.exec(
+              transform,
+            );
+            const matrix3d = /^matrix3d\(([^)]+)\)/.exec(transform);
+            const rotatesOrSkews =
+              matrix2d != null
+                ? Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6 || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6
+                : matrix3d != null
+                  ? (() => {
+                      const values = matrix3d[1].split(",").map(Number.parseFloat);
+                      return Math.abs(values[1] ?? 0) > 1e-6 || Math.abs(values[4] ?? 0) > 1e-6;
+                    })()
+                  : false;
+            const independentRotate = style.rotate != null && style.rotate !== "" && style.rotate !== "none";
+            if (rotatesOrSkews || independentRotate) {
+              neutral.push(["transform", "none"], ["translate", "none"], ["rotate", "none"], ["scale", "none"]);
+            }
+            const neutralSnapshots = neutral.map(([property, value]) => ({
+              property,
+              value,
+              originalValue: html.style.getPropertyValue(property),
+              originalPriority: html.style.getPropertyPriority(property),
+            }));
+            // Snapshot the entire alias set before mutating it: `mask` and
+            // `-webkit-mask` share CSSOM storage, so recording the second alias
+            // after setting the first would falsely restore `none !important`.
+            for (const { property, value, originalValue, originalPriority } of neutralSnapshots) {
+              restore.push({
+                element: ancestor,
+                property,
+                value: originalValue,
+                priority: originalPriority,
+              });
+              html.style.setProperty(property, value, "important");
+            }
+            ancestor = ancestor.parentElement;
+          }
+          return true;
+        },
+        { index: sourceNodeIndex, sourceNodeKey },
+      );
       if (!prepared) throw new Error("projective raster owner detached before Chromium snapshot");
 
       const shot = await page.screenshot({
@@ -2533,9 +2760,9 @@ export async function rasterizeUrlFilterSurfaces(
     styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const target of targets) {
       const found = await page.evaluate((token) => {
-        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
-          (el) => el.removeAttribute("data-domotion-snapshot-target"),
-        );
+        document
+          .querySelectorAll("[data-domotion-snapshot-target]")
+          .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
         const el = document.querySelector(`[data-domotion-url-filter-raster="${token}"]`);
         if (el == null) return false;
         el.setAttribute("data-domotion-snapshot-target", "");
@@ -2550,7 +2777,10 @@ export async function rasterizeUrlFilterSurfaces(
         });
         const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
         const { data, info } = decoded;
-        let minX = info.width, minY = info.height, maxX = -1, maxY = -1;
+        let minX = info.width,
+          minY = info.height,
+          maxX = -1,
+          maxY = -1;
         for (let y = 0; y < info.height; y++) {
           for (let x = 0; x < info.width; x++) {
             if (data[(y * info.width + x) * 4 + 3] === 0) continue;
@@ -2566,7 +2796,10 @@ export async function rasterizeUrlFilterSurfaces(
         }
         const pixelWidth = maxX - minX + 1;
         const pixelHeight = maxY - minY + 1;
-        const cropped = await sharp(shot).extract({ left: minX, top: minY, width: pixelWidth, height: pixelHeight }).png().toBuffer();
+        const cropped = await sharp(shot)
+          .extract({ left: minX, top: minY, width: pixelWidth, height: pixelHeight })
+          .png()
+          .toBuffer();
         const scaleX = info.width / viewport.width;
         const scaleY = info.height / viewport.height;
         target.x = minX / scaleX;
@@ -2581,21 +2814,23 @@ export async function rasterizeUrlFilterSurfaces(
   } finally {
     try {
       await page.evaluate(() => {
-        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
-          (el) => el.removeAttribute("data-domotion-snapshot-target"),
-        );
-        document.querySelectorAll("[data-domotion-url-filter-raster]").forEach(
-          (el) => el.removeAttribute("data-domotion-url-filter-raster"),
-        );
+        document
+          .querySelectorAll("[data-domotion-snapshot-target]")
+          .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+        document
+          .querySelectorAll("[data-domotion-url-filter-raster]")
+          .forEach((el) => el.removeAttribute("data-domotion-url-filter-raster"));
       });
     } catch {}
     if (styleHandle != null) {
-      try { await styleHandle.evaluate((node: Element) => { node.remove(); }); } catch {}
+      try {
+        await styleHandle.evaluate((node: Element) => {
+          node.remove();
+        });
+      } catch {}
     }
   }
 }
-
-
 
 /**
  * DM-494: Rasterize each element referenced by `mask-image: element(#id)`.
@@ -2634,13 +2869,23 @@ export async function rasterizeMaskSources(
   const clearMarkers = async (): Promise<void> => {
     for (const f of frames) {
       try {
-        await f.evaluate(() => document.querySelectorAll("[data-domotion-snapshot-target]").forEach((el) => el.removeAttribute("data-domotion-snapshot-target")));
-      } catch { /* cross-origin / detached frame */ }
+        await f.evaluate(() =>
+          document
+            .querySelectorAll("[data-domotion-snapshot-target]")
+            .forEach((el) => el.removeAttribute("data-domotion-snapshot-target")),
+        );
+      } catch {
+        /* cross-origin / detached frame */
+      }
     }
   };
   try {
     for (const f of frames) {
-      try { styleHandles.push(await f.addStyleTag({ content: SNAPSHOT_HIDE_CSS })); } catch { /* cross-origin / detached */ }
+      try {
+        styleHandles.push(await f.addStyleTag({ content: SNAPSHOT_HIDE_CSS }));
+      } catch {
+        /* cross-origin / detached */
+      }
     }
     for (const mr of rasters) {
       await clearMarkers();
@@ -2648,8 +2893,13 @@ export async function rasterizeMaskSources(
       let owner: typeof main | null = null;
       for (const f of frames) {
         try {
-          if (await f.evaluate((rid) => document.querySelector(`[data-domotion-rid="${rid}"]`) != null, mr.rid)) { owner = f; break; }
-        } catch { /* cross-origin / detached */ }
+          if (await f.evaluate((rid) => document.querySelector(`[data-domotion-rid="${rid}"]`) != null, mr.rid)) {
+            owner = f;
+            break;
+          }
+        } catch {
+          /* cross-origin / detached */
+        }
       }
       if (owner == null) continue;
       try {
@@ -2666,7 +2916,9 @@ export async function rasterizeMaskSources(
           await iframeEl.evaluate((el: Element) => el.setAttribute("data-domotion-snapshot-target", ""));
           f = f.parentFrame();
         }
-      } catch { continue; }
+      } catch {
+        continue;
+      }
       const clip = clipRectForScreenshot(mr.rect, viewport);
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
@@ -2677,7 +2929,13 @@ export async function rasterizeMaskSources(
     }
   } finally {
     await clearMarkers();
-    for (const h of styleHandles) { try { await h.evaluate((node: Element) => { node.remove(); }); } catch {} }
+    for (const h of styleHandles) {
+      try {
+        await h.evaluate((node: Element) => {
+          node.remove();
+        });
+      } catch {}
+    }
   }
 }
 
@@ -2707,7 +2965,15 @@ export async function calibrateBaselines(
   const flat: Array<{ key: string; el: CapturedElement }> = [];
   let counter = 0;
   forEachElement(elements, (e) => {
-    if ((e.text != null && e.text !== "") && e.textTop != null && e.textWidth != null && e.textWidth > 0 && e.textHeight != null && e.textHeight > 0) {
+    if (
+      e.text != null &&
+      e.text !== "" &&
+      e.textTop != null &&
+      e.textWidth != null &&
+      e.textWidth > 0 &&
+      e.textHeight != null &&
+      e.textHeight > 0
+    ) {
       flat.push({ key: `c${counter++}`, el: e });
     }
   });
@@ -2734,54 +3000,70 @@ export async function calibrateBaselines(
   // (notably `__name` for class metadata). Plain function expressions and
   // var/let work; arrow functions are also fine, but explicit `function`
   // declarations avoid edge-cases in the transpiler output.
-  const adjustments = await page.evaluate(async function (args: { b64: string; items: typeof items }) {
-    var img = new Image();
-    img.src = args.b64;
-    await img.decode();
-    var c = document.createElement("canvas");
-    c.width = img.width;
-    c.height = img.height;
-    var ctx = c.getContext("2d");
-    if (ctx == null) return [];
-    ctx.drawImage(img, 0, 0);
-    var pix = ctx.getImageData(0, 0, img.width, img.height).data;
-    var W = img.width;
-    var bgLum = 0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2];
+  const adjustments = await page.evaluate(
+    async function (args: { b64: string; items: typeof items }) {
+      var img = new Image();
+      img.src = args.b64;
+      await img.decode();
+      var c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      var ctx = c.getContext("2d");
+      if (ctx == null) return [];
+      ctx.drawImage(img, 0, 0);
+      var pix = ctx.getImageData(0, 0, img.width, img.height).data;
+      var W = img.width;
+      var bgLum = 0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2];
 
-    var measureCv = document.createElement("canvas").getContext("2d");
-    var out: Array<{ key: string; ascent: number | null }> = [];
+      var measureCv = document.createElement("canvas").getContext("2d");
+      var out: Array<{ key: string; ascent: number | null }> = [];
 
-    for (var ii = 0; ii < args.items.length; ii++) {
-      var it = args.items[ii];
-      var x0 = Math.max(0, Math.floor(it.textLeft));
-      var x1 = Math.min(W, Math.ceil(it.textLeft + it.textWidth));
-      var y0 = Math.max(0, Math.floor(it.textTop) - 2);
-      var y1 = Math.min(img.height, Math.ceil(it.textTop + it.textHeight) + 2);
-      var inkTop = -1;
-      for (var y = y0; y < y1 && inkTop < 0; y++) {
-        for (var x = x0; x < x1; x++) {
-          var i = (y * W + x) * 4;
-          var lum = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
-          if (Math.abs(lum - bgLum) > 30) { inkTop = y; break; }
+      for (var ii = 0; ii < args.items.length; ii++) {
+        var it = args.items[ii];
+        var x0 = Math.max(0, Math.floor(it.textLeft));
+        var x1 = Math.min(W, Math.ceil(it.textLeft + it.textWidth));
+        var y0 = Math.max(0, Math.floor(it.textTop) - 2);
+        var y1 = Math.min(img.height, Math.ceil(it.textTop + it.textHeight) + 2);
+        var inkTop = -1;
+        for (var y = y0; y < y1 && inkTop < 0; y++) {
+          for (var x = x0; x < x1; x++) {
+            var i = (y * W + x) * 4;
+            var lum = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+            if (Math.abs(lum - bgLum) > 30) {
+              inkTop = y;
+              break;
+            }
+          }
         }
-      }
-      if (inkTop < 0) { out.push({ key: it.key, ascent: null }); continue; }
+        if (inkTop < 0) {
+          out.push({ key: it.key, ascent: null });
+          continue;
+        }
 
-      if (measureCv == null) { out.push({ key: it.key, ascent: null }); continue; }
-      measureCv.font = (it.fontStyle || "normal") + " " + (it.fontWeight || "400") + " " + it.fontSize + "px " + it.fontFamily;
-      var tm = measureCv.measureText(it.text);
-      var subPixelAscent = tm.actualBoundingBoxAscent;
-      if (!isFinite(subPixelAscent) || subPixelAscent <= 0) { out.push({ key: it.key, ascent: null }); continue; }
+        if (measureCv == null) {
+          out.push({ key: it.key, ascent: null });
+          continue;
+        }
+        measureCv.font =
+          (it.fontStyle || "normal") + " " + (it.fontWeight || "400") + " " + it.fontSize + "px " + it.fontFamily;
+        var tm = measureCv.measureText(it.text);
+        var subPixelAscent = tm.actualBoundingBoxAscent;
+        if (!isFinite(subPixelAscent) || subPixelAscent <= 0) {
+          out.push({ key: it.key, ascent: null });
+          continue;
+        }
 
-      var correctedAscent = (inkTop - it.textTop) + subPixelAscent;
-      if (correctedAscent < it.fontSize * 0.3 || correctedAscent > it.fontSize * 1.5) {
-        out.push({ key: it.key, ascent: null });
-        continue;
+        var correctedAscent = inkTop - it.textTop + subPixelAscent;
+        if (correctedAscent < it.fontSize * 0.3 || correctedAscent > it.fontSize * 1.5) {
+          out.push({ key: it.key, ascent: null });
+          continue;
+        }
+        out.push({ key: it.key, ascent: correctedAscent });
       }
-      out.push({ key: it.key, ascent: correctedAscent });
-    }
-    return out;
-  }, { b64, items });
+      return out;
+    },
+    { b64, items },
+  );
 
   for (let i = 0; i < adjustments.length; i++) {
     const adj = adjustments[i];

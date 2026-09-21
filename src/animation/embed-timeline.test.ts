@@ -67,14 +67,15 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
   });
 
   it("leaves a keyframe's declaration percentages untouched (only stop selectors move)", () => {
-    const doc = "<svg><style>.a{animation:k 4.000s linear infinite}@keyframes k{0%{width:10%}100%{width:90%}}</style></svg>";
+    const doc =
+      "<svg><style>.a{animation:k 4.000s linear infinite}@keyframes k{0%{width:10%}100%{width:90%}}</style></svg>";
     const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 4000, startMs: 2000, masterMs: 10000 });
     // The declaration values (width:10% / width:90%) must survive verbatim.
     expect(out).toContain("width:10%");
     expect(out).toContain("width:90%");
   });
 
-  it("retimes inline style=\"animation:…\" declarations and remaps their <style>-block keyframes", () => {
+  it('retimes inline style="animation:…" declarations and remaps their <style>-block keyframes', () => {
     // The caret/selection track (docs/101) declares its animations INLINE on
     // its rects/groups while its @keyframes live in a local <style> — the
     // compressed run's auto-caret embeds exactly this shape. Both halves must
@@ -103,9 +104,14 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
     expect(blink).toContain("50%{opacity:0}");
   });
 
-  it("loop mode also delays inline style=\"animation:…\" declarations", () => {
+  it('loop mode also delays inline style="animation:…" declarations', () => {
     const doc = `<svg><style>@keyframes w{0%{opacity:0}100%{opacity:1}}</style><g style="animation:w 4.00s linear infinite"/></svg>`;
-    const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 4000, startMs: 2000, masterMs: 10000, mode: "loop" });
+    const out = offsetEmbeddedAnimatedSvgTimeline(doc, {
+      periodMs: 4000,
+      startMs: 2000,
+      masterMs: 10000,
+      mode: "loop",
+    });
     expect(out).toContain(`style="animation:w 4.00s linear infinite;animation-delay:2s;animation-fill-mode:backwards"`);
   });
 
@@ -127,7 +133,13 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
   it("stretch mode time-scales the content to fill windowMs", () => {
     // period 4s, but stretch to a 6s window starting at 2s in a 12s master.
     // scale = window/master = 6/12 = 0.5; offset = 2/12 = 16.667%.
-    const out = offsetEmbeddedAnimatedSvgTimeline(castDoc(4), { periodMs: 4000, startMs: 2000, masterMs: 12000, mode: "stretch", windowMs: 6000 });
+    const out = offsetEmbeddedAnimatedSvgTimeline(castDoc(4), {
+      periodMs: 4000,
+      startMs: 2000,
+      masterMs: 12000,
+      mode: "stretch",
+      windowMs: 6000,
+    });
     expect(out).toContain("animation:ln0o 12s step-end infinite");
     const ln0 = /@keyframes ln0o \{([^@]*)\}\s*(?:@|<)/.exec(out + "<")?.[0] ?? "";
     // original 100% → 16.667 + 100*0.5 = 66.667%
@@ -135,7 +147,12 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
   });
 
   it("loop mode keeps the content's own period and just delays its start", () => {
-    const out = offsetEmbeddedAnimatedSvgTimeline(castDoc(4), { periodMs: 4000, startMs: 2000, masterMs: 12000, mode: "loop" });
+    const out = offsetEmbeddedAnimatedSvgTimeline(castDoc(4), {
+      periodMs: 4000,
+      startMs: 2000,
+      masterMs: 12000,
+      mode: "loop",
+    });
     // Period unchanged (4.000s), with a start delay + backwards fill so it holds
     // frame 0 until 2s and then repeats.
     expect(out).toContain("animation:ln0o 4.000s step-end infinite;animation-delay:2s;animation-fill-mode:backwards");
@@ -146,7 +163,8 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
   });
 
   it("ignores documents with no embedded animation period match", () => {
-    const doc = "<svg><style>.a{animation:k 1.06s linear infinite}@keyframes k{0%{opacity:0}100%{opacity:1}}</style></svg>";
+    const doc =
+      "<svg><style>.a{animation:k 1.06s linear infinite}@keyframes k{0%{opacity:0}100%{opacity:1}}</style></svg>";
     const out = offsetEmbeddedAnimatedSvgTimeline(doc, { periodMs: 4000, startMs: 2000, masterMs: 10000 });
     // The 1.06s animation doesn't match the 4s period — keyframe left intact.
     expect(out).toContain("@keyframes k{0%{opacity:0}100%{opacity:1}}");

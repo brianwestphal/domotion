@@ -22,11 +22,19 @@ const ROOT = "tests/output";
 function findCaches(dir) {
   const out = [];
   let entries;
-  try { entries = readdirSync(dir); } catch { return out; }
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return out;
+  }
   for (const name of entries) {
     const p = join(dir, name);
     let st;
-    try { st = statSync(p); } catch { continue; }
+    try {
+      st = statSync(p);
+    } catch {
+      continue;
+    }
     if (st.isDirectory()) {
       if (name === ".expected-cache") {
         for (const f of readdirSync(p)) if (f.endsWith(".json")) out.push(join(p, f));
@@ -40,12 +48,21 @@ function findCaches(dir) {
 
 const files = findCaches(ROOT).sort();
 const manifest = {};
-let ok = 0, skip = 0;
+let ok = 0,
+  skip = 0;
 for (const f of files) {
   let data;
-  try { data = JSON.parse(readFileSync(f, "utf8")); } catch { skip++; continue; }
+  try {
+    data = JSON.parse(readFileSync(f, "utf8"));
+  } catch {
+    skip++;
+    continue;
+  }
   const tree = data.tree;
-  if (!Array.isArray(tree)) { skip++; continue; }
+  if (!Array.isArray(tree)) {
+    skip++;
+    continue;
+  }
   try {
     resetGeneration();
     const svg = elementTreeToSvgInner(tree, 1024, 768);

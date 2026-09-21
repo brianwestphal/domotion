@@ -42,7 +42,11 @@ function find(nodes: CapturedElement[], tag: string): CapturedElement | undefine
 }
 
 async function setup(): Promise<Awaited<ReturnType<typeof launchChromium>> | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await setup();
 afterAll(async () => closeBrowserSafely(browser), 15_000);
@@ -57,10 +61,14 @@ describeBrowser("DM-2160: @font-feature-values capture", () => {
       const target = find(tree, "div")!;
       expect(target.styles.fontVariantAlternates).toContain("stylistic(fancy)");
       expect(target.styles.fontFeatureValues?.["feature oracle"]).toMatchObject({
-        stylistic: { fancy: [2] }, styleset: { display: [1, 3] },
-        characterVariant: { open: [4, 7] }, swash: { ornate: [5] },
+        stylistic: { fancy: [2] },
+        styleset: { display: [1, 3] },
+        characterVariant: { open: [4, 7] },
+        swash: { ornate: [5] },
       });
-    } finally { await page.close(); }
+    } finally {
+      await page.close();
+    }
   });
 
   it("captures Blink layer priority and document-only TreeScope ownership", async () => {
@@ -73,11 +81,11 @@ describeBrowser("DM-2160: @font-feature-values capture", () => {
         fancy: [1],
         unioned: [3],
       });
-      expect(target.styles.fontFeatureValues?.["outer winner"]?.stylistic)
-        .toEqual({ fancy: [1] });
-      expect(target.styles.fontFeatureValues?.["shadow winner"]?.stylistic)
-        .toEqual({ fancy: [1] });
+      expect(target.styles.fontFeatureValues?.["outer winner"]?.stylistic).toEqual({ fancy: [1] });
+      expect(target.styles.fontFeatureValues?.["shadow winner"]?.stylistic).toEqual({ fancy: [1] });
       expect(target.styles.fontFeatureValues?.["shadow only"]).toBeUndefined();
-    } finally { await page.close(); }
+    } finally {
+      await page.close();
+    }
   });
 });

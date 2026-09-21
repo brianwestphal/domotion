@@ -96,22 +96,21 @@ function fallbackTextElement(el: CapturedElement): CapturedElement | null {
   };
 }
 
-function renderFallbackText(
-  el: CapturedElement,
-  idPrefix: string,
-  clipId: string,
-): string {
+function renderFallbackText(el: CapturedElement, idPrefix: string, clipId: string): string {
   const textEl = fallbackTextElement(el);
   if (textEl == null || textEl.textSegments == null) return "";
   const fillColor = el.brokenImageFallback!.text!.style.color;
   if (hasVerticalSegments(textEl)) return renderVerticalSegments(textEl, fillColor);
-  return renderMultiSegmentText({
-    el: textEl,
-    idPrefix,
-    clipId,
-    fillColor,
-    overflowClip: false,
-  }, textEl.textSegments);
+  return renderMultiSegmentText(
+    {
+      el: textEl,
+      idPrefix,
+      clipId,
+      fillColor,
+      overflowClip: false,
+    },
+    textEl.textSegments,
+  );
 }
 
 /**
@@ -141,7 +140,9 @@ export function renderBrokenImageFallback(
     // synthesis rather than resurrecting the fixed mountain/raw-text guess.
     const raster = record.terminalRaster;
     if (raster?.dataUri != null) {
-      svg.push(`${prefix}<image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none"/>${suffix}`);
+      svg.push(
+        `${prefix}<image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none"/>${suffix}`,
+      );
     }
     return { handled: true, defs, svg };
   }
@@ -154,8 +155,7 @@ export function renderBrokenImageFallback(
     return { handled: true, defs, svg };
   }
 
-  if (record.disposition === "loading" || record.disposition === "collapsed"
-      || record.disposition === "primary") {
+  if (record.disposition === "loading" || record.disposition === "collapsed" || record.disposition === "primary") {
     return { handled: true, defs, svg };
   }
 
@@ -167,7 +167,9 @@ export function renderBrokenImageFallback(
       const width = container.border[side];
       const style = container.border[`${side}Style`];
       if (!(width > 0) || style === "none" || style === "hidden") continue;
-      body.push(`<path d="${quadPath(sidePolygon(container.box.border, container.box.padding, side))}" fill="${esc(container.border[`${side}Color`])}"/>`);
+      body.push(
+        `<path d="${quadPath(sidePolygon(container.box.border, container.box.padding, side))}" fill="${esc(container.border[`${side}Color`])}"/>`,
+      );
     }
   }
 
@@ -188,7 +190,9 @@ export function renderBrokenImageFallback(
   const content: string[] = [];
   const raster = record.icon?.raster;
   if (record.icon?.visible === true && raster != null) {
-    content.push(`<image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none" data-broken-image-icon="${record.icon.resourceScale}x"/>`);
+    content.push(
+      `<image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none" data-broken-image-icon="${record.icon.resourceScale}x"/>`,
+    );
   }
   const text = renderFallbackText(el, options.idPrefix, textClipId);
   // The captured AX node is authoritative for the replacement. Normal text

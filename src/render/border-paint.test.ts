@@ -14,23 +14,42 @@ import type { PaintCtx } from "./element-tree-to-svg.js";
 function context(): PaintCtx {
   let index = 0;
   return {
-    svgParts: [], defsParts: [], idPrefix: "t-",
+    svgParts: [],
+    defsParts: [],
+    idPrefix: "t-",
     nextClipId: (prefix) => `t-${prefix}${index++}`,
     peekClipIdx: () => index,
-    advanceClipIdx: (count) => { index += count; },
+    advanceClipIdx: (count) => {
+      index += count;
+    },
     emittedTextCtm: new Map(),
   };
 }
 
 function element(styles: Record<string, unknown>): CapturedElement {
   return {
-    tag: "div", x: 10, y: 20, width: 100, height: 40,
+    tag: "div",
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 40,
     styles: {
-      borderTopWidth: "2", borderRightWidth: "2", borderBottomWidth: "2", borderLeftWidth: "2",
-      borderTopStyle: "solid", borderRightStyle: "solid", borderBottomStyle: "solid", borderLeftStyle: "solid",
-      borderTopColor: "rgb(255, 0, 0)", borderRightColor: "rgb(255, 0, 0)",
-      borderBottomColor: "rgb(255, 0, 0)", borderLeftColor: "rgb(255, 0, 0)",
-      borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
+      borderTopWidth: "2",
+      borderRightWidth: "2",
+      borderBottomWidth: "2",
+      borderLeftWidth: "2",
+      borderTopStyle: "solid",
+      borderRightStyle: "solid",
+      borderBottomStyle: "solid",
+      borderLeftStyle: "solid",
+      borderTopColor: "rgb(255, 0, 0)",
+      borderRightColor: "rgb(255, 0, 0)",
+      borderBottomColor: "rgb(255, 0, 0)",
+      borderLeftColor: "rgb(255, 0, 0)",
+      borderTopLeftRadius: "0",
+      borderTopRightRadius: "0",
+      borderBottomRightRadius: "0",
+      borderBottomLeftRadius: "0",
       borderCollapse: "separate",
       ...styles,
     },
@@ -47,10 +66,16 @@ describe("SVG border paint owner", () => {
 
   it("measures rounded contours from straight edges and quarter ellipses", () => {
     const square = parseCornerRadii(element({}).styles, 100, 40);
-    const rounded = parseCornerRadii(element({
-      borderTopLeftRadius: "10", borderTopRightRadius: "10",
-      borderBottomRightRadius: "10", borderBottomLeftRadius: "10",
-    }).styles, 100, 40);
+    const rounded = parseCornerRadii(
+      element({
+        borderTopLeftRadius: "10",
+        borderTopRightRadius: "10",
+        borderBottomRightRadius: "10",
+        borderBottomLeftRadius: "10",
+      }).styles,
+      100,
+      40,
+    );
     expect(roundedRectPerimeter(100, 40, square)).toBe(280);
     expect(roundedRectPerimeter(100, 40, rounded)).toBeLessThan(280);
   });

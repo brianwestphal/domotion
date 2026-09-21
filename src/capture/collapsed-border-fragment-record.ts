@@ -11,15 +11,10 @@
  */
 
 export const COLLAPSED_BORDER_FRAGMENT_RECORD_VERSION = 2 as const;
-export const COLLAPSED_BORDER_FRAGMENT_CHROMIUM_REVISION =
-  "7d859f271cbda744098ac69f44978d4edfa62be3" as const;
+export const COLLAPSED_BORDER_FRAGMENT_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3" as const;
 
 export type CollapsedBorderFragmentWritingMode =
-  | "horizontal-tb"
-  | "vertical-rl"
-  | "vertical-lr"
-  | "sideways-rl"
-  | "sideways-lr";
+  "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr";
 export type CollapsedBorderFragmentDirection = "ltr" | "rtl";
 
 export interface CollapsedBorderPhysicalRect {
@@ -118,11 +113,7 @@ export interface CollapsedBorderFragmentRecordInput {
 }
 
 export type CollapsedBorderSectionRepeatRole =
-  | "non-repeated"
-  | "original-header"
-  | "repeated-header"
-  | "original-footer"
-  | "repeated-footer";
+  "non-repeated" | "original-header" | "repeated-header" | "original-footer" | "repeated-footer";
 
 export interface CollapsedBorderReservedEdgeSpace {
   side: "block-start" | "block-end";
@@ -154,9 +145,7 @@ export interface CollapsedBorderSectionFragmentRecord {
   lastTableBox: boolean;
   repeatEligibility: CollapsedBorderRepeatEligibilityEvidence | null;
   reservedCollapsedEdgeSpace: CollapsedBorderReservedEdgeSpace | null;
-  occurrenceOwnership:
-    | "ordered-neutral-cssom-cdp"
-    | "source-clone-plus-per-fragment-hit-test";
+  occurrenceOwnership: "ordered-neutral-cssom-cdp" | "source-clone-plus-per-fragment-hit-test";
 }
 
 export interface CollapsedBorderPhysicalTableFragmentRecord {
@@ -217,8 +206,7 @@ export interface UnavailableCollapsedBorderFragmentRecord {
 }
 
 export type CollapsedBorderFragmentRecord =
-  | AuthenticatedCollapsedBorderFragmentRecord
-  | UnavailableCollapsedBorderFragmentRecord;
+  AuthenticatedCollapsedBorderFragmentRecord | UnavailableCollapsedBorderFragmentRecord;
 
 const LAYOUT_UNIT_SCALE = 64;
 
@@ -269,8 +257,10 @@ export function authenticateCollapsedBorderGeometry(
 }
 
 function overlapArea(left: CollapsedBorderPhysicalRect, right: CollapsedBorderPhysicalRect): number {
-  return Math.max(0, Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x))
-    * Math.max(0, Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y));
+  return (
+    Math.max(0, Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x)) *
+    Math.max(0, Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y))
+  );
 }
 
 function fragmentIndexFor(
@@ -308,18 +298,30 @@ function logicalRect(
   const fragmentRight = tableFragment.x + tableFragment.width;
   const fragmentBottom = tableFragment.y + tableFragment.height;
   return {
-    inlineStart: canonicalCollapsedBorderLayoutUnit(horizontal
-      ? (inlineReverse ? fragmentRight - rectRight : rect.x - tableFragment.x)
-      : (inlineReverse ? fragmentBottom - rectBottom : rect.y - tableFragment.y)),
-    inlineEnd: canonicalCollapsedBorderLayoutUnit(horizontal
-      ? (inlineReverse ? fragmentRight - rect.x : rectRight - tableFragment.x)
-      : (inlineReverse ? fragmentBottom - rect.y : rectBottom - tableFragment.y)),
-    blockStart: canonicalCollapsedBorderLayoutUnit(horizontal
-      ? rect.y - tableFragment.y
-      : (blockReverse ? fragmentRight - rectRight : rect.x - tableFragment.x)),
-    blockEnd: canonicalCollapsedBorderLayoutUnit(horizontal
-      ? rectBottom - tableFragment.y
-      : (blockReverse ? fragmentRight - rect.x : rectRight - tableFragment.x)),
+    inlineStart: canonicalCollapsedBorderLayoutUnit(
+      horizontal
+        ? inlineReverse
+          ? fragmentRight - rectRight
+          : rect.x - tableFragment.x
+        : inlineReverse
+          ? fragmentBottom - rectBottom
+          : rect.y - tableFragment.y,
+    ),
+    inlineEnd: canonicalCollapsedBorderLayoutUnit(
+      horizontal
+        ? inlineReverse
+          ? fragmentRight - rect.x
+          : rectRight - tableFragment.x
+        : inlineReverse
+          ? fragmentBottom - rect.y
+          : rectBottom - tableFragment.y,
+    ),
+    blockStart: canonicalCollapsedBorderLayoutUnit(
+      horizontal ? rect.y - tableFragment.y : blockReverse ? fragmentRight - rectRight : rect.x - tableFragment.x,
+    ),
+    blockEnd: canonicalCollapsedBorderLayoutUnit(
+      horizontal ? rectBottom - tableFragment.y : blockReverse ? fragmentRight - rect.x : rectRight - tableFragment.x,
+    ),
   };
 }
 
@@ -360,10 +362,7 @@ function sameNumbers(left: readonly number[], right: readonly number[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function blockSize(
-  rect: CollapsedBorderPhysicalRect,
-  writingMode: CollapsedBorderFragmentWritingMode,
-): number {
+function blockSize(rect: CollapsedBorderPhysicalRect, writingMode: CollapsedBorderFragmentWritingMode): number {
   return writingMode === "horizontal-tb" ? rect.height : rect.width;
 }
 
@@ -430,18 +429,21 @@ function requireRepeatEligibility(evidence: CollapsedBorderRepeatEligibilityEvid
   if (!(evidence.fragmentainerBlockSize > 0) || !(evidence.sectionBlockSize > 0)) {
     throw new Error("repeat evidence has an unknown fragmentainer or section block size");
   }
-  const arithmeticQuarter = canonicalCollapsedBorderLayoutUnit(evidence.sectionBlockSize * 4)
-    <= canonicalCollapsedBorderLayoutUnit(evidence.fragmentainerBlockSize);
+  const arithmeticQuarter =
+    canonicalCollapsedBorderLayoutUnit(evidence.sectionBlockSize * 4) <=
+    canonicalCollapsedBorderLayoutUnit(evidence.fragmentainerBlockSize);
   if (evidence.atMostQuarterFragmentainer !== arithmeticQuarter) {
     throw new Error("repeat quarter-fragmentainer evidence disagrees with exact LayoutUnit arithmetic");
   }
-  if (!evidence.knownFragmentainerBlockSize
-      || !evidence.atMostQuarterFragmentainer
-      || !evidence.applicableBreakInsideAvoid
-      || !evidence.noBreakInside
-      || !evidence.noLateStart
-      || !evidence.outsideNestedRepeatableContent
-      || !evidence.layoutSideEffectsEnabled) {
+  if (
+    !evidence.knownFragmentainerBlockSize ||
+    !evidence.atMostQuarterFragmentainer ||
+    !evidence.applicableBreakInsideAvoid ||
+    !evidence.noBreakInside ||
+    !evidence.noLateStart ||
+    !evidence.outsideNestedRepeatableContent ||
+    !evidence.layoutSideEffectsEnabled
+  ) {
     throw new Error("repeat source eligibility is not completely authenticated");
   }
 }
@@ -457,7 +459,8 @@ export function buildCollapsedBorderFragmentRecord(
   try {
     if (!input.sourceRestoredExactly) throw new Error("neutral probe did not restore the source frame exactly");
     if (!Number.isInteger(input.totalRows) || input.totalRows <= 0) throw new Error("invalid global row count");
-    if (!Number.isInteger(input.totalColumns) || input.totalColumns <= 0) throw new Error("invalid global column count");
+    if (!Number.isInteger(input.totalColumns) || input.totalColumns <= 0)
+      throw new Error("invalid global column count");
     const tableFragments = authenticateCollapsedBorderGeometry(input.table);
     if (tableFragments.length <= 1) throw new Error("table is not physically fragmented");
     if (new Set(tableFragments.map(rectToken)).size !== tableFragments.length) {
@@ -481,36 +484,50 @@ export function buildCollapsedBorderFragmentRecord(
         throw new Error(`repeat section ${section.sourceIndex} is not one exact CSSOM/CDP prototype alias set`);
       }
       if (repeat.occurrences.length !== aliases.length) {
-        throw new Error(`repeat section ${section.sourceIndex} alias/occurrence count differs (${aliases.length} != ${repeat.occurrences.length}; fragments ${repeat.occurrences.map((occurrence) => occurrence.fragmentIndex).join(",")})`);
+        throw new Error(
+          `repeat section ${section.sourceIndex} alias/occurrence count differs (${aliases.length} != ${repeat.occurrences.length}; fragments ${repeat.occurrences.map((occurrence) => occurrence.fragmentIndex).join(",")})`,
+        );
       }
       const prototype = aliases[0];
       const prototypeFragmentIndex = fragmentIndexFor(prototype, tableFragments);
-      if (canonicalCollapsedBorderLayoutUnit(blockSize(prototype, input.writingMode))
-          !== canonicalCollapsedBorderLayoutUnit(repeat.eligibility.sectionBlockSize)) {
+      if (
+        canonicalCollapsedBorderLayoutUnit(blockSize(prototype, input.writingMode)) !==
+        canonicalCollapsedBorderLayoutUnit(repeat.eligibility.sectionBlockSize)
+      ) {
         throw new Error(`repeat section ${section.sourceIndex} block size disagrees with its prototype`);
       }
       const expectedCellSources = input.cells
-        .filter((cell) => cell.globalRowIndex >= section.globalStartRowIndex
-          && cell.globalRowIndex < section.globalStartRowIndex + section.globalRowCount)
+        .filter(
+          (cell) =>
+            cell.globalRowIndex >= section.globalStartRowIndex &&
+            cell.globalRowIndex < section.globalStartRowIndex + section.globalRowCount,
+        )
         .map((cell) => cell.sourceIndex);
-      if (expectedCellSources.length === 0) throw new Error(`repeat section ${section.sourceIndex} has no source cells`);
+      if (expectedCellSources.length === 0)
+        throw new Error(`repeat section ${section.sourceIndex} has no source cells`);
       const seenFragments = new Set<number>();
       for (let occurrenceIndex = 0; occurrenceIndex < repeat.occurrences.length; occurrenceIndex++) {
         const occurrence = repeat.occurrences[occurrenceIndex];
         if (occurrence.occurrenceIndex !== occurrenceIndex) throw new Error("repeat occurrence order changed");
-        if (!Number.isInteger(occurrence.fragmentIndex)
-            || occurrence.fragmentIndex < 0
-            || occurrence.fragmentIndex >= tableFragments.length) {
+        if (
+          !Number.isInteger(occurrence.fragmentIndex) ||
+          occurrence.fragmentIndex < 0 ||
+          occurrence.fragmentIndex >= tableFragments.length
+        ) {
           throw new Error("repeat occurrence points at an invalid physical fragment");
         }
         if (seenFragments.has(occurrence.fragmentIndex)) throw new Error("duplicate repeat occurrence fragment");
         seenFragments.add(occurrence.fragmentIndex);
-        if (occurrenceIndex > 0
-            && occurrence.fragmentIndex !== repeat.occurrences[occurrenceIndex - 1].fragmentIndex + 1) {
+        if (
+          occurrenceIndex > 0 &&
+          occurrence.fragmentIndex !== repeat.occurrences[occurrenceIndex - 1].fragmentIndex + 1
+        ) {
           throw new Error("repeat occurrences do not cover consecutive table-box fragments");
         }
-        if (!sameNumbers(occurrence.expectedCellSourceIndices, expectedCellSources)
-            || !sameNumbers(occurrence.witnessedCellSourceIndices, expectedCellSources)) {
+        if (
+          !sameNumbers(occurrence.expectedCellSourceIndices, expectedCellSources) ||
+          !sameNumbers(occurrence.witnessedCellSourceIndices, expectedCellSources)
+        ) {
           throw new Error("repeat occurrence source-cell witness set is incomplete or reordered");
         }
         if (occurrence.hitTest !== "Document.elementsFromPoint-intrinsic-source-cell-membership") {
@@ -550,14 +567,19 @@ export function buildCollapsedBorderFragmentRecord(
       }
       const pieces = mappedPieces(section.geometry, tableFragments);
       if (new Set(pieces.map((piece) => piece.fragmentIndex)).size !== pieces.length) {
-        throw new Error(`section ${section.sourceIndex} exposes aliased/repeated rectangles without occurrence ownership`);
+        throw new Error(
+          `section ${section.sourceIndex} exposes aliased/repeated rectangles without occurrence ownership`,
+        );
       }
-      sectionOccurrences.set(section.sourceIndex, pieces.map((piece) => ({
-        fragmentIndex: piece.fragmentIndex,
-        rect: piece.rect,
-        repeat: null,
-        occurrenceIndex: null,
-      })));
+      sectionOccurrences.set(
+        section.sourceIndex,
+        pieces.map((piece) => ({
+          fragmentIndex: piece.fragmentIndex,
+          rect: piece.rect,
+          repeat: null,
+          occurrenceIndex: null,
+        })),
+      );
     }
 
     const rowPieces = new Map<number, MappedPiece[]>();
@@ -566,8 +588,10 @@ export function buildCollapsedBorderFragmentRecord(
       const repeat = repeatBySection.get(row.sectionSourceIndex);
       if (repeat != null) {
         const aliases = authenticateCollapsedBorderGeometry(row.geometry);
-        if (aliases.length !== repeat.occurrences.length
-            || aliases.some((rect) => rectToken(rect) !== rectToken(aliases[0]))) {
+        if (
+          aliases.length !== repeat.occurrences.length ||
+          aliases.some((rect) => rectToken(rect) !== rectToken(aliases[0]))
+        ) {
           throw new Error(`repeat row ${row.globalRowIndex} is not one exact prototype alias set`);
         }
         repeatRowPrototype.set(row.sourceIndex, aliases[0]);
@@ -583,13 +607,18 @@ export function buildCollapsedBorderFragmentRecord(
 
     const repeatCellPrototype = new Map<number, CollapsedBorderPhysicalRect>();
     for (const cell of input.cells) {
-      const section = input.sections.find((candidate) => cell.globalRowIndex >= candidate.globalStartRowIndex
-        && cell.globalRowIndex < candidate.globalStartRowIndex + candidate.globalRowCount);
+      const section = input.sections.find(
+        (candidate) =>
+          cell.globalRowIndex >= candidate.globalStartRowIndex &&
+          cell.globalRowIndex < candidate.globalStartRowIndex + candidate.globalRowCount,
+      );
       const repeat = section == null ? undefined : repeatBySection.get(section.sourceIndex);
       if (repeat == null) continue;
       const aliases = authenticateCollapsedBorderGeometry(cell.geometry);
-      if (aliases.length !== repeat.occurrences.length
-          || aliases.some((rect) => rectToken(rect) !== rectToken(aliases[0]))) {
+      if (
+        aliases.length !== repeat.occurrences.length ||
+        aliases.some((rect) => rectToken(rect) !== rectToken(aliases[0]))
+      ) {
         throw new Error(`repeat cell ${cell.sourceIndex} is not one exact prototype alias set`);
       }
       repeatCellPrototype.set(cell.sourceIndex, aliases[0]);
@@ -606,19 +635,32 @@ export function buildCollapsedBorderFragmentRecord(
         throw new Error(`cell ${cell.sourceIndex} has an invalid global column span`);
       }
       const repeatRect = repeatCellPrototype.get(cell.sourceIndex);
-      const repeatSection = repeatRect == null ? undefined : input.sections.find((candidate) =>
-        cell.globalRowIndex >= candidate.globalStartRowIndex
-        && cell.globalRowIndex < candidate.globalStartRowIndex + candidate.globalRowCount);
+      const repeatSection =
+        repeatRect == null
+          ? undefined
+          : input.sections.find(
+              (candidate) =>
+                cell.globalRowIndex >= candidate.globalStartRowIndex &&
+                cell.globalRowIndex < candidate.globalStartRowIndex + candidate.globalRowCount,
+            );
       const repeat = repeatSection == null ? undefined : repeatBySection.get(repeatSection.sourceIndex);
-      const pieces = repeatRect == null || repeat == null
-        ? mappedPieces(cell.geometry, tableFragments)
-        : [{
-          rect: repeatRect,
-          pieceIndex: 0,
-          fragmentIndex: repeat.occurrences[0].fragmentIndex,
-        }];
+      const pieces =
+        repeatRect == null || repeat == null
+          ? mappedPieces(cell.geometry, tableFragments)
+          : [
+              {
+                rect: repeatRect,
+                pieceIndex: 0,
+                fragmentIndex: repeat.occurrences[0].fragmentIndex,
+              },
+            ];
       for (const piece of pieces) {
-        const logical = logicalRect(piece.rect, tableFragments[piece.fragmentIndex], input.writingMode, input.direction);
+        const logical = logicalRect(
+          piece.rect,
+          tableFragments[piece.fragmentIndex],
+          input.writingMode,
+          input.direction,
+        );
         columnCandidates[cell.globalColumnIndex].add(logical.inlineStart);
         columnCandidates[cell.globalColumnIndex + cell.columnSpan].add(logical.inlineEnd);
       }
@@ -646,8 +688,10 @@ export function buildCollapsedBorderFragmentRecord(
       if (!tableBoxFragmentIndexes.has(index)) throw new Error("table-box fragment sequence has an unexplained hole");
     }
     for (const repeat of repeatBySection.values()) {
-      if (repeat.occurrences[0]?.fragmentIndex !== firstTableBoxIndex
-          || repeat.occurrences.at(-1)?.fragmentIndex !== lastTableBoxIndex) {
+      if (
+        repeat.occurrences[0]?.fragmentIndex !== firstTableBoxIndex ||
+        repeat.occurrences.at(-1)?.fragmentIndex !== lastTableBoxIndex
+      ) {
         throw new Error("repeat occurrence sequence does not cover every table-box fragment");
       }
     }
@@ -664,8 +708,9 @@ export function buildCollapsedBorderFragmentRecord(
         occurrence?: SectionOccurrence;
       }> = [];
       for (const section of input.sections) {
-        const occurrence = sectionOccurrences.get(section.sourceIndex)?.find((candidate) =>
-          candidate.fragmentIndex === fragmentIndex);
+        const occurrence = sectionOccurrences
+          .get(section.sourceIndex)
+          ?.find((candidate) => candidate.fragmentIndex === fragmentIndex);
         if (occurrence == null) continue;
         const logical = logicalRect(occurrence.rect, physicalRect, input.writingMode, input.direction);
         children.push({
@@ -690,8 +735,12 @@ export function buildCollapsedBorderFragmentRecord(
           });
         }
       }
-      children.sort((left, right) => left.blockStart - right.blockStart
-        || left.tableChildIndex - right.tableChildIndex || left.sourceIndex - right.sourceIndex);
+      children.sort(
+        (left, right) =>
+          left.blockStart - right.blockStart ||
+          left.tableChildIndex - right.tableChildIndex ||
+          left.sourceIndex - right.sourceIndex,
+      );
 
       const sectionChildren = children.filter((child) => child.kind === "section");
       const records: CollapsedBorderSectionFragmentRecord[] = [];
@@ -708,24 +757,36 @@ export function buildCollapsedBorderFragmentRecord(
             if (repeat != null) {
               const prototype = repeatRowPrototype.get(row.sourceIndex);
               if (prototype == null || prototypeSection == null) return [];
-              return [{ row, piece: {
-                fragmentIndex,
-                pieceIndex: 0,
-                rect: cloneIntoOccurrence(
-                  prototype,
-                  prototypeSection,
-                  occurrence.rect,
-                  input.writingMode,
-                  input.direction,
-                ),
-              } }];
+              return [
+                {
+                  row,
+                  piece: {
+                    fragmentIndex,
+                    pieceIndex: 0,
+                    rect: cloneIntoOccurrence(
+                      prototype,
+                      prototypeSection,
+                      occurrence.rect,
+                      input.writingMode,
+                      input.direction,
+                    ),
+                  },
+                },
+              ];
             }
-            const piece = rowPieces.get(row.sourceIndex)?.find((candidate) => candidate.fragmentIndex === fragmentIndex);
+            const piece = rowPieces
+              .get(row.sourceIndex)
+              ?.find((candidate) => candidate.fragmentIndex === fragmentIndex);
             return piece == null ? [] : [{ row, piece }];
           })
           .sort((left, right) => {
             const leftBlock = logicalRect(left.piece.rect, physicalRect, input.writingMode, input.direction).blockStart;
-            const rightBlock = logicalRect(right.piece.rect, physicalRect, input.writingMode, input.direction).blockStart;
+            const rightBlock = logicalRect(
+              right.piece.rect,
+              physicalRect,
+              input.writingMode,
+              input.direction,
+            ).blockStart;
             return leftBlock - rightBlock || left.row.globalRowIndex - right.row.globalRowIndex;
           });
         if (rows.length === 0) throw new Error(`section ${section.sourceIndex} fragment has no row fragments`);
@@ -734,8 +795,9 @@ export function buildCollapsedBorderFragmentRecord(
             throw new Error(`section ${section.sourceIndex} fragment rows are not globally consecutive`);
           }
         }
-        const logicalRowOffsets = rows.map(({ piece }) =>
-          logicalRect(piece.rect, physicalRect, input.writingMode, input.direction).blockStart);
+        const logicalRowOffsets = rows.map(
+          ({ piece }) => logicalRect(piece.rect, physicalRect, input.writingMode, input.direction).blockStart,
+        );
         logicalRowOffsets.push(logicalRect(occurrence.rect, physicalRect, input.writingMode, input.direction).blockEnd);
         for (let index = 1; index < logicalRowOffsets.length; index++) {
           if (!(logicalRowOffsets[index] > logicalRowOffsets[index - 1])) {
@@ -748,22 +810,29 @@ export function buildCollapsedBorderFragmentRecord(
         const startContinuedRow = repeat == null && first.piece.pieceIndex > 0;
         const endContinuedRow = repeat == null && last.piece.pieceIndex < lastPieces.length - 1;
         const globalStartRowIndex = first.row.globalRowIndex;
-        const repeatRole: CollapsedBorderSectionRepeatRole = repeat == null
-          ? "non-repeated"
-          : `${occurrence.occurrenceIndex === 0 ? "original" : "repeated"}-${repeat.repeatKind}`;
+        const repeatRole: CollapsedBorderSectionRepeatRole =
+          repeat == null
+            ? "non-repeated"
+            : `${occurrence.occurrenceIndex === 0 ? "original" : "repeated"}-${repeat.repeatKind}`;
         const tableChildPaintSlot = children.indexOf(child);
         const previousChild = tableChildPaintSlot > 0 ? children[tableChildPaintSlot - 1] : null;
         const nextChild = tableChildPaintSlot + 1 < children.length ? children[tableChildPaintSlot + 1] : null;
-        const reservedCollapsedEdgeSpace: CollapsedBorderReservedEdgeSpace | null = repeat == null ? null : {
-          side: repeat.repeatKind === "header" ? "block-start" : "block-end",
-          amount: canonicalCollapsedBorderLayoutUnit(repeat.repeatKind === "header"
-            ? child.blockStart - (previousChild?.blockEnd ?? 0)
-            : (nextChild?.blockStart ?? blockSize(physicalRect, input.writingMode)) - child.blockEnd),
-          globalRowEdgeIndex: repeat.repeatKind === "header" ? 0 : input.totalRows,
-          tableEdgeIncludedInThisFragment: repeat.repeatKind === "header"
-            ? fragmentIndex === firstTableBoxIndex
-            : fragmentIndex === lastTableBoxIndex,
-        };
+        const reservedCollapsedEdgeSpace: CollapsedBorderReservedEdgeSpace | null =
+          repeat == null
+            ? null
+            : {
+                side: repeat.repeatKind === "header" ? "block-start" : "block-end",
+                amount: canonicalCollapsedBorderLayoutUnit(
+                  repeat.repeatKind === "header"
+                    ? child.blockStart - (previousChild?.blockEnd ?? 0)
+                    : (nextChild?.blockStart ?? blockSize(physicalRect, input.writingMode)) - child.blockEnd,
+                ),
+                globalRowEdgeIndex: repeat.repeatKind === "header" ? 0 : input.totalRows,
+                tableEdgeIncludedInThisFragment:
+                  repeat.repeatKind === "header"
+                    ? fragmentIndex === firstTableBoxIndex
+                    : fragmentIndex === lastTableBoxIndex,
+              };
         if (reservedCollapsedEdgeSpace != null && reservedCollapsedEdgeSpace.amount < 0) {
           throw new Error("repeat section has negative reserved collapsed-edge space");
         }
@@ -778,8 +847,9 @@ export function buildCollapsedBorderFragmentRecord(
           globalStartRowIndex,
           logicalRowOffsets,
           hasContentBefore: sectionPaintSlot === 0 && globalStartRowIndex > 0,
-          hasContentAfter: sectionPaintSlot === sectionChildren.length - 1
-            && globalStartRowIndex + logicalRowOffsets.length < input.totalRows + 1,
+          hasContentAfter:
+            sectionPaintSlot === sectionChildren.length - 1 &&
+            globalStartRowIndex + logicalRowOffsets.length < input.totalRows + 1,
           startContinuedRow,
           endContinuedRow,
           firstGlobalRowIndex: first.row.globalRowIndex,
@@ -791,33 +861,38 @@ export function buildCollapsedBorderFragmentRecord(
           lastTableBox: fragmentIndex === lastTableBoxIndex,
           repeatEligibility: repeat?.eligibility ?? null,
           reservedCollapsedEdgeSpace,
-          occurrenceOwnership: repeat == null
-            ? "ordered-neutral-cssom-cdp"
-            : "source-clone-plus-per-fragment-hit-test",
+          occurrenceOwnership: repeat == null ? "ordered-neutral-cssom-cdp" : "source-clone-plus-per-fragment-hit-test",
         });
       }
-      const tableBoxState: CollapsedBorderPhysicalTableFragmentRecord["tableBoxState"] = fragmentIndex < firstTableBoxIndex
-        ? "caption-only-before-table-box"
-        : fragmentIndex > lastTableBoxIndex
-          ? "empty-after-table-box"
-          : firstTableBoxIndex === lastTableBoxIndex
-            ? "only-table-box"
-            : fragmentIndex === firstTableBoxIndex
-              ? "first-table-box"
-              : fragmentIndex === lastTableBoxIndex
-                ? "last-table-box"
-                : "middle-table-box";
+      const tableBoxState: CollapsedBorderPhysicalTableFragmentRecord["tableBoxState"] =
+        fragmentIndex < firstTableBoxIndex
+          ? "caption-only-before-table-box"
+          : fragmentIndex > lastTableBoxIndex
+            ? "empty-after-table-box"
+            : firstTableBoxIndex === lastTableBoxIndex
+              ? "only-table-box"
+              : fragmentIndex === firstTableBoxIndex
+                ? "first-table-box"
+                : fragmentIndex === lastTableBoxIndex
+                  ? "last-table-box"
+                  : "middle-table-box";
       physicalFragments.push({
         fragmentIndex,
         physicalTableFragmentId: `table-fragment:${fragmentIndex}`,
         physicalRect,
         tableBoxState,
         sectionFragments: records,
-        captionPaintSlots: children.flatMap((child, tableChildPaintSlot) => child.kind === "caption" ? [{
-          captionSourceIndex: child.sourceIndex,
-          captionTableChildIndex: child.tableChildIndex,
-          tableChildPaintSlot,
-        }] : []),
+        captionPaintSlots: children.flatMap((child, tableChildPaintSlot) =>
+          child.kind === "caption"
+            ? [
+                {
+                  captionSourceIndex: child.sourceIndex,
+                  captionTableChildIndex: child.tableChildIndex,
+                  tableChildPaintSlot,
+                },
+              ]
+            : [],
+        ),
       });
     }
 
@@ -858,12 +933,11 @@ export function buildCollapsedBorderFragmentRecord(
   }
 }
 
-export function validateCollapsedBorderFragmentRecord(
-  record: AuthenticatedCollapsedBorderFragmentRecord,
-): string[] {
+export function validateCollapsedBorderFragmentRecord(record: AuthenticatedCollapsedBorderFragmentRecord): string[] {
   const errors: string[] = [];
   if (record.schemaVersion !== COLLAPSED_BORDER_FRAGMENT_RECORD_VERSION) errors.push("wrong record schema version");
-  if (record.sourceRevision !== COLLAPSED_BORDER_FRAGMENT_CHROMIUM_REVISION) errors.push("wrong Chromium source revision");
+  if (record.sourceRevision !== COLLAPSED_BORDER_FRAGMENT_CHROMIUM_REVISION)
+    errors.push("wrong Chromium source revision");
   if (record.globalColumnOffsets.length !== record.totalColumns + 1) errors.push("incomplete global column offsets");
   for (let index = 1; index < record.globalColumnOffsets.length; index++) {
     if (!(record.globalColumnOffsets[index] > record.globalColumnOffsets[index - 1])) {
@@ -871,12 +945,14 @@ export function validateCollapsedBorderFragmentRecord(
     }
   }
   if (record.tableFragments.length <= 1) errors.push("record has no physical fragmentation");
-  if (record.provenance.plane !== "all-css-transforms-neutralized"
-      || record.provenance.cssom !== "Element.getClientRects"
-      || record.provenance.protocol !== "DOM.getContentQuads"
-      || record.provenance.correlation !== "ordered-exact-rect-set"
-      || record.provenance.repeatOccurrence !== "prototype-deep-clone-plus-intrinsic-source-cell-hit-test"
-      || record.provenance.sourceRestoredExactly !== true) {
+  if (
+    record.provenance.plane !== "all-css-transforms-neutralized" ||
+    record.provenance.cssom !== "Element.getClientRects" ||
+    record.provenance.protocol !== "DOM.getContentQuads" ||
+    record.provenance.correlation !== "ordered-exact-rect-set" ||
+    record.provenance.repeatOccurrence !== "prototype-deep-clone-plus-intrinsic-source-cell-hit-test" ||
+    record.provenance.sourceRestoredExactly !== true
+  ) {
     errors.push("record provenance is not the authenticated neutral CSSOM/CDP contract");
   }
   const fragmentIds = new Set<string>();
@@ -892,30 +968,35 @@ export function validateCollapsedBorderFragmentRecord(
     if (fragment.fragmentIndex !== fragmentIndex) errors.push("physical table fragment order changed");
     if (fragmentIds.has(fragment.physicalTableFragmentId)) errors.push("duplicate physical table fragment identity");
     fragmentIds.add(fragment.physicalTableFragmentId);
-    const expectedState: CollapsedBorderPhysicalTableFragmentRecord["tableBoxState"] = fragmentIndex < firstTableBoxIndex
-      ? "caption-only-before-table-box"
-      : fragmentIndex > lastTableBoxIndex
-        ? "empty-after-table-box"
-        : firstTableBoxIndex === lastTableBoxIndex
-          ? "only-table-box"
-          : fragmentIndex === firstTableBoxIndex
-            ? "first-table-box"
-            : fragmentIndex === lastTableBoxIndex
-              ? "last-table-box"
-              : "middle-table-box";
-    if (fragment.tableBoxState !== expectedState) errors.push("physical table-box state disagrees with section occurrence ownership");
+    const expectedState: CollapsedBorderPhysicalTableFragmentRecord["tableBoxState"] =
+      fragmentIndex < firstTableBoxIndex
+        ? "caption-only-before-table-box"
+        : fragmentIndex > lastTableBoxIndex
+          ? "empty-after-table-box"
+          : firstTableBoxIndex === lastTableBoxIndex
+            ? "only-table-box"
+            : fragmentIndex === firstTableBoxIndex
+              ? "first-table-box"
+              : fragmentIndex === lastTableBoxIndex
+                ? "last-table-box"
+                : "middle-table-box";
+    if (fragment.tableBoxState !== expectedState)
+      errors.push("physical table-box state disagrees with section occurrence ownership");
     let priorPaintSlot = -1;
     let priorTableSlot = -1;
     for (const section of fragment.sectionFragments) {
       if (section.fragmentIndex !== fragmentIndex) errors.push("section belongs to the wrong physical table fragment");
-      if (sectionFragmentIds.has(section.physicalSectionFragmentId)) errors.push("duplicate physical section fragment identity");
+      if (sectionFragmentIds.has(section.physicalSectionFragmentId))
+        errors.push("duplicate physical section fragment identity");
       sectionFragmentIds.add(section.physicalSectionFragmentId);
       if (section.sectionPaintSlot !== priorPaintSlot + 1) errors.push("section paint slots are not consecutive");
       if (section.tableChildPaintSlot <= priorTableSlot) errors.push("table child paint slots are not increasing");
       priorPaintSlot = section.sectionPaintSlot;
       priorTableSlot = section.tableChildPaintSlot;
-      if (section.globalStartRowIndex !== section.firstGlobalRowIndex) errors.push("section global start row disagrees with its first row");
-      if (section.lastGlobalRowIndex < section.firstGlobalRowIndex) errors.push("section global row interval is reversed");
+      if (section.globalStartRowIndex !== section.firstGlobalRowIndex)
+        errors.push("section global start row disagrees with its first row");
+      if (section.lastGlobalRowIndex < section.firstGlobalRowIndex)
+        errors.push("section global row interval is reversed");
       if (section.logicalRowOffsets.length !== section.lastGlobalRowIndex - section.firstGlobalRowIndex + 2) {
         errors.push("section row-offset count does not match its global row interval");
       }
@@ -932,15 +1013,19 @@ export function validateCollapsedBorderFragmentRecord(
       } catch {
         errors.push("section physical rectangle is invalid");
       }
-      if (section.firstTableBox !== (fragmentIndex === firstTableBoxIndex)
-          || section.lastTableBox !== (fragmentIndex === lastTableBoxIndex)) {
+      if (
+        section.firstTableBox !== (fragmentIndex === firstTableBoxIndex) ||
+        section.lastTableBox !== (fragmentIndex === lastTableBoxIndex)
+      ) {
         errors.push("section first/last table-box ownership is wrong");
       }
       if (section.repeatRole === "non-repeated") {
-        if (section.repeatOccurrenceIndex !== null
-            || section.repeatEligibility !== null
-            || section.reservedCollapsedEdgeSpace !== null
-            || section.occurrenceOwnership !== "ordered-neutral-cssom-cdp") {
+        if (
+          section.repeatOccurrenceIndex !== null ||
+          section.repeatEligibility !== null ||
+          section.reservedCollapsedEdgeSpace !== null ||
+          section.occurrenceOwnership !== "ordered-neutral-cssom-cdp"
+        ) {
           errors.push("ordinary section carries repeat occurrence state");
         }
       } else {
@@ -950,8 +1035,11 @@ export function validateCollapsedBorderFragmentRecord(
         if (section.repeatEligibility == null) {
           errors.push("repeat occurrence has no source eligibility evidence");
         } else {
-          try { requireRepeatEligibility(section.repeatEligibility); }
-          catch { errors.push("repeat occurrence source eligibility is invalid"); }
+          try {
+            requireRepeatEligibility(section.repeatEligibility);
+          } catch {
+            errors.push("repeat occurrence source eligibility is invalid");
+          }
         }
         if (section.occurrenceOwnership !== "source-clone-plus-per-fragment-hit-test") {
           errors.push("repeat occurrence has the wrong ownership route");
@@ -962,31 +1050,43 @@ export function validateCollapsedBorderFragmentRecord(
           errors.push("repeat occurrence role disagrees with its sequence index");
         }
         if (header) {
-          if (section.globalStartRowIndex !== 0) errors.push("selected repeat header does not own global row start zero");
-          if (section.sectionPaintSlot !== 0) errors.push("selected repeat header is not in the first section paint slot");
+          if (section.globalStartRowIndex !== 0)
+            errors.push("selected repeat header does not own global row start zero");
+          if (section.sectionPaintSlot !== 0)
+            errors.push("selected repeat header is not in the first section paint slot");
         } else {
-          if (section.lastGlobalRowIndex !== record.totalRows - 1) errors.push("selected repeat footer does not own the global final row");
+          if (section.lastGlobalRowIndex !== record.totalRows - 1)
+            errors.push("selected repeat footer does not own the global final row");
           if (section.sectionPaintSlot !== fragment.sectionFragments.length - 1) {
             errors.push("selected repeat footer is not in the final section paint slot");
           }
         }
         const reserved = section.reservedCollapsedEdgeSpace;
-        if (reserved == null
-            || reserved.side !== (header ? "block-start" : "block-end")
-            || reserved.globalRowEdgeIndex !== (header ? 0 : record.totalRows)
-            || reserved.tableEdgeIncludedInThisFragment !== (header ? section.firstTableBox : section.lastTableBox)
-            || !Number.isFinite(reserved.amount)
-            || reserved.amount < 0) {
+        if (
+          reserved == null ||
+          reserved.side !== (header ? "block-start" : "block-end") ||
+          reserved.globalRowEdgeIndex !== (header ? 0 : record.totalRows) ||
+          reserved.tableEdgeIncludedInThisFragment !== (header ? section.firstTableBox : section.lastTableBox) ||
+          !Number.isFinite(reserved.amount) ||
+          reserved.amount < 0
+        ) {
           errors.push("repeat reserved collapsed-edge ownership is wrong");
         } else {
-          const logical = logicalRect(section.physicalRect, fragment.physicalRect, record.writingMode, record.direction);
-          const adjacentCaption = fragment.captionPaintSlots.some((caption) => header
-            ? caption.tableChildPaintSlot < section.tableChildPaintSlot
-            : caption.tableChildPaintSlot > section.tableChildPaintSlot);
+          const logical = logicalRect(
+            section.physicalRect,
+            fragment.physicalRect,
+            record.writingMode,
+            record.direction,
+          );
+          const adjacentCaption = fragment.captionPaintSlots.some((caption) =>
+            header
+              ? caption.tableChildPaintSlot < section.tableChildPaintSlot
+              : caption.tableChildPaintSlot > section.tableChildPaintSlot,
+          );
           if (!adjacentCaption) {
-            const expectedAmount = canonicalCollapsedBorderLayoutUnit(header
-              ? logical.blockStart
-              : blockSize(fragment.physicalRect, record.writingMode) - logical.blockEnd);
+            const expectedAmount = canonicalCollapsedBorderLayoutUnit(
+              header ? logical.blockStart : blockSize(fragment.physicalRect, record.writingMode) - logical.blockEnd,
+            );
             if (reserved.amount !== expectedAmount) errors.push("repeat reserved collapsed-edge amount changed");
           }
         }
@@ -1004,18 +1104,23 @@ export function validateCollapsedBorderFragmentRecord(
   for (const [sourceIndex, series] of repeatSeries) {
     series.sort((left, right) => (left.repeatOccurrenceIndex ?? -1) - (right.repeatOccurrenceIndex ?? -1));
     const kind = series[0].repeatRole.endsWith("header") ? "header" : "footer";
-    if (repeatKinds.has(kind) && repeatKinds.get(kind) !== sourceIndex) errors.push(`more than one selected repeat ${kind}`);
+    if (repeatKinds.has(kind) && repeatKinds.get(kind) !== sourceIndex)
+      errors.push(`more than one selected repeat ${kind}`);
     repeatKinds.set(kind, sourceIndex);
     const prototypeOffsets = series[0].logicalRowOffsets.map((value) =>
-      canonicalCollapsedBorderLayoutUnit(value - series[0].logicalRowOffsets[0]));
+      canonicalCollapsedBorderLayoutUnit(value - series[0].logicalRowOffsets[0]),
+    );
     for (let index = 0; index < series.length; index++) {
       const section = series[index];
       if (section.repeatOccurrenceIndex !== index) errors.push("repeat occurrence indexes are not consecutive");
-      if (section.fragmentIndex !== firstTableBoxIndex + index) errors.push("repeat occurrence physical fragments are dropped or reordered");
+      if (section.fragmentIndex !== firstTableBoxIndex + index)
+        errors.push("repeat occurrence physical fragments are dropped or reordered");
       if (!section.repeatRole.endsWith(kind)) errors.push("repeat occurrence kind changed within one source series");
       const normalized = section.logicalRowOffsets.map((value) =>
-        canonicalCollapsedBorderLayoutUnit(value - section.logicalRowOffsets[0]));
-      if (!sameNumbers(normalized, prototypeOffsets)) errors.push("repeat occurrence row geometry is not an exact prototype clone");
+        canonicalCollapsedBorderLayoutUnit(value - section.logicalRowOffsets[0]),
+      );
+      if (!sameNumbers(normalized, prototypeOffsets))
+        errors.push("repeat occurrence row geometry is not an exact prototype clone");
     }
     if (series.length !== lastTableBoxIndex - firstTableBoxIndex + 1) {
       errors.push("repeat occurrence series does not cover every table-box fragment");

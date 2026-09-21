@@ -18,7 +18,7 @@ describe("escapeHtml", () => {
 
 describe("escapeAttr", () => {
   it("also escapes single quotes (for single-quoted attribute values)", () => {
-    expect(escapeAttr("it's a \"test\" <x>")).toBe("it&#39;s a &quot;test&quot; &lt;x&gt;");
+    expect(escapeAttr('it\'s a "test" <x>')).toBe("it&#39;s a &quot;test&quot; &lt;x&gt;");
   });
 
   it("escapes the ampersand first", () => {

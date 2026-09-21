@@ -31,7 +31,12 @@ const HTML = `<!doctype html><style>
 <div id="avoid"><p class="lead">lead-fragment</p><p id="kept" class="keep">kept-fragment</p></div>
 <div id="spanned"><p id="before">before-spanner</p><div class="span">full-width-spanner</div><p id="after">after-spanner</p></div>`;
 
-interface Rect { x: number; y: number; width: number; height: number }
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 function findByText(nodes: CapturedElement[], text: string): CapturedElement | null {
   for (const node of nodes) {
@@ -49,7 +54,11 @@ function segmentRect(node: CapturedElement): Rect {
 }
 
 async function setup(): Promise<{ browser: Awaited<ReturnType<typeof launchChromium>> } | null> {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 
 const env = await setup();
@@ -62,18 +71,28 @@ describeBrowser("DM-2161: multicol text keeps LayoutNG physical fragment coordin
     try {
       await page.setContent(HTML, { waitUntil: "load" });
       const ids = ["first", "second", "third", "kept", "before", "after"];
-      const chrome = await page.evaluate((wanted) => Object.fromEntries(wanted.map((id) => {
-        const element = document.getElementById(id)!;
-        const range = document.createRange();
-        range.selectNodeContents(element);
-        const rect = range.getClientRects()[0];
-        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
-      })), ids) as Record<string, Rect>;
+      const chrome = (await page.evaluate(
+        (wanted) =>
+          Object.fromEntries(
+            wanted.map((id) => {
+              const element = document.getElementById(id)!;
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              const rect = range.getClientRects()[0];
+              return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+            }),
+          ),
+        ids,
+      )) as Record<string, Rect>;
 
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const labels: Record<string, string> = {
-        first: "first-column", second: "second-column", third: "third-column",
-        kept: "kept-fragment", before: "before-spanner", after: "after-spanner",
+        first: "first-column",
+        second: "second-column",
+        third: "third-column",
+        kept: "kept-fragment",
+        before: "before-spanner",
+        after: "after-spanner",
       };
       for (const id of ids) {
         const captured = findByText(tree, labels[id]);
@@ -100,9 +119,11 @@ describeBrowser("DM-2161: multicol text keeps LayoutNG physical fragment coordin
       expect(output).toMatch(/aria-label="third-column"[\s\S]*?<text x="420(?:\s|\")/);
       expect(output).toMatch(/aria-label="kept-fragment"[\s\S]*?<text x="310(?:\s|\")/);
 
-      const spanned = tree.flatMap(function walk(node): CapturedElement[] {
-        return [node, ...node.children.flatMap(walk)];
-      }).find((node) => node.columnRules != null);
+      const spanned = tree
+        .flatMap(function walk(node): CapturedElement[] {
+          return [node, ...node.children.flatMap(walk)];
+        })
+        .find((node) => node.columnRules != null);
       expect(spanned?.columnRules).toHaveLength(2);
       expect(spanned!.columnRules![0].x).toBeCloseTo(300, 4);
       expect(spanned!.columnRules![0].y2).toBeLessThan(spanned!.columnRules![1].y1);

@@ -119,8 +119,10 @@ export async function resizeEmbeddedImages(
     const sourceBytes = decodeDataUri(sourceDataUri);
     if (sourceBytes == null) return;
     const frozenSource = provenanceByPng.get(url);
-    if (frozenSource != null && createHash("sha256").update(sourceBytes).digest("hex") !==
-        frozenSource.observation.pngSha256) {
+    if (
+      frozenSource != null &&
+      createHash("sha256").update(sourceBytes).digest("hex") !== frozenSource.observation.pngSha256
+    ) {
       throw new Error("strict animated-image frozen PNG digest mismatch");
     }
     try {
@@ -173,8 +175,12 @@ export async function resizeEmbeddedImages(
     }
   });
   await Promise.all(tasks);
-  return frozenRecords.sort((a, b) => a.requestedFrameIndex - b.requestedFrameIndex ||
-    a.target.width - b.target.width || a.target.height - b.target.height);
+  return frozenRecords.sort(
+    (a, b) =>
+      a.requestedFrameIndex - b.requestedFrameIndex ||
+      a.target.width - b.target.width ||
+      a.target.height - b.target.height,
+  );
 }
 
 function rememberFrozenResize(
@@ -194,8 +200,13 @@ function rememberFrozenResize(
     requestedFrameIndex: source.requestedFrameIndex,
     frozenPngSha256: source.observation.pngSha256,
     target: { width: targetWidth, height: targetHeight },
-    output: { width, height, byteLength: output.byteLength,
-      sha256: createHash("sha256").update(output).digest("hex"), resized },
+    output: {
+      width,
+      height,
+      byteLength: output.byteLength,
+      sha256: createHash("sha256").update(output).digest("hex"),
+      resized,
+    },
   });
 }
 

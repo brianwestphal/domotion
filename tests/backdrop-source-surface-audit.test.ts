@@ -44,8 +44,8 @@ describe("DM-2357 backdrop source-surface model", () => {
       skiaPinnedByChromium: "62efacd37737505732dbe3d8daa62abd679626a1",
     });
     expect(BACKDROP_PIXEL_CHANNEL_TOLERANCE).toBe(4);
-    expect(BACKDROP_EQUIVALENT_CHANGED_FRACTION).toBe(.01);
-    expect(BACKDROP_MUTATION_MIN_CHANGED_FRACTION).toBe(.002);
+    expect(BACKDROP_EQUIVALENT_CHANGED_FRACTION).toBe(0.01);
+    expect(BACKDROP_MUTATION_MIN_CHANGED_FRACTION).toBe(0.002);
   });
 
   it("classifies every effect-tree Backdrop Root trigger", () => {
@@ -87,9 +87,33 @@ describe("DM-2357 backdrop source-surface model", () => {
   });
 
   it("requires both spatial movement and a material channel delta from mutations", () => {
-    expect(mutationDiscriminates({ pixels: 1000, changedPixels: 3, changedFraction: .003, meanAbsoluteChannelDelta: .1, maxChannelDelta: 12 })).toBe(true);
-    expect(mutationDiscriminates({ pixels: 1000, changedPixels: 1, changedFraction: .001, meanAbsoluteChannelDelta: 8, maxChannelDelta: 255 })).toBe(false);
-    expect(mutationDiscriminates({ pixels: 1000, changedPixels: 500, changedFraction: .5, meanAbsoluteChannelDelta: 2, maxChannelDelta: 11 })).toBe(false);
+    expect(
+      mutationDiscriminates({
+        pixels: 1000,
+        changedPixels: 3,
+        changedFraction: 0.003,
+        meanAbsoluteChannelDelta: 0.1,
+        maxChannelDelta: 12,
+      }),
+    ).toBe(true);
+    expect(
+      mutationDiscriminates({
+        pixels: 1000,
+        changedPixels: 1,
+        changedFraction: 0.001,
+        meanAbsoluteChannelDelta: 8,
+        maxChannelDelta: 255,
+      }),
+    ).toBe(false);
+    expect(
+      mutationDiscriminates({
+        pixels: 1000,
+        changedPixels: 500,
+        changedFraction: 0.5,
+        meanAbsoluteChannelDelta: 2,
+        maxChannelDelta: 11,
+      }),
+    ).toBe(false);
   });
 
   it("classifies only Chromium-owned paint-edge deltas as consumer raster phase", () => {
@@ -110,24 +134,32 @@ describe("DM-2357 backdrop source-surface model", () => {
 
     const flatSource = image([20, 20, 20, 20, 20]);
     const inventedInterior = image([20, 20, 30, 20, 20]);
-    expect(classifySourceEdgeResidual(flatSource, inventedInterior, { x: 0, y: 0, width: 5, height: 1 }, 1)).toMatchObject({
+    expect(
+      classifySourceEdgeResidual(flatSource, inventedInterior, { x: 0, y: 0, width: 5, height: 1 }, 1),
+    ).toMatchObject({
       logicalInteriorChangedPixels: 1,
       sourceEdgeOnly: false,
     });
   });
 
   it("requires screenshot geometry to be the exact outward host clip", () => {
-    expect(rasterOwnerGeometryMatchesHost(
-      { x: 10, y: 20, width: 101, height: 81 },
-      { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },
-    )).toBe(true);
-    expect(rasterOwnerGeometryMatchesHost(
-      { x: 11, y: 20, width: 101, height: 81 },
-      { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },
-    )).toBe(false);
-    expect(unionRects([
-      { x: 2, y: 4, width: 8, height: 5 },
-      { x: 7, y: 1, width: 6, height: 10 },
-    ])).toEqual({ x: 2, y: 1, width: 11, height: 10 });
+    expect(
+      rasterOwnerGeometryMatchesHost(
+        { x: 10, y: 20, width: 101, height: 81 },
+        { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },
+      ),
+    ).toBe(true);
+    expect(
+      rasterOwnerGeometryMatchesHost(
+        { x: 11, y: 20, width: 101, height: 81 },
+        { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },
+      ),
+    ).toBe(false);
+    expect(
+      unionRects([
+        { x: 2, y: 4, width: 8, height: 5 },
+        { x: 7, y: 1, width: 6, height: 10 },
+      ]),
+    ).toEqual({ x: 2, y: 1, width: 11, height: 10 });
   });
 });

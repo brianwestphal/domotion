@@ -3,8 +3,10 @@ import * as fontkit from "fontkit";
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 800, height: 600 } });
 const page = await ctx.newPage();
-await page.setContent("<html><body><span id='c' style='font-family:system-ui,sans-serif;font-size:18px'></span></body></html>");
-const cps = [0x25C6, 0x25C7, 0x25C8, 0x25C9, 0x25CE];
+await page.setContent(
+  "<html><body><span id='c' style='font-family:system-ui,sans-serif;font-size:18px'></span></body></html>",
+);
+const cps = [0x25c6, 0x25c7, 0x25c8, 0x25c9, 0x25ce];
 for (const cp of cps) {
   const ch = String.fromCodePoint(cp);
   const w = await page.evaluate((ch) => {
@@ -22,11 +24,11 @@ for (const cp of cps) {
   for (const [name, path, ps] of fonts) {
     try {
       const file = fontkit.openSync(path);
-      const font = ps && file.fonts ? file.getFont(ps) : (file.fonts ? file.fonts[0] : file);
+      const font = ps && file.fonts ? file.getFont(ps) : file.fonts ? file.fonts[0] : file;
       if (!font) continue;
       const glyph = font.glyphForCodePoint(cp);
       if (!glyph || glyph.id === 0) continue;
-      const adv = glyph.advanceWidth * 18 / font.unitsPerEm;
+      const adv = (glyph.advanceWidth * 18) / font.unitsPerEm;
       console.log(`    ${name}: ${adv.toFixed(2)}px${Math.abs(adv - w) < 0.1 ? " ← MATCH" : ""}`);
     } catch {}
   }

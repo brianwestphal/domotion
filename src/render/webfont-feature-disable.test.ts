@@ -47,9 +47,12 @@ const CANDIDATES = [
 /** Forms `ffi` / `ffl` / `fi` / `fl` in any face that carries `liga`. */
 const TEXT = "office waffle affix flight";
 const DISABLES = ["-liga", "-clig", "-calt"];
-const SIZE = 24, WEIGHT = 400;
+const SIZE = 24,
+  WEIGHT = 400;
 
-afterEach(() => { clearWebfonts(); });
+afterEach(() => {
+  clearWebfonts();
+});
 
 /** The first candidate that both parses AND actually ligates on this host. */
 function pickLigatingFont(): { path: string; buffer: Buffer } | null {
@@ -88,20 +91,19 @@ describe("a feature disable on a webfont-buffer run is expressed (DM-1964)", () 
   itIf("shapes MORE glyphs with the ligature features disabled", () => {
     const base = register();
     const ligated = base.layout(TEXT).glyphs.length;
-    const disabled = fontFeatureValueShapingOverride(
-      base, "dm1964", WEIGHT, SIZE, 0, undefined, DISABLES).layout(TEXT).glyphs.length;
+    const disabled = fontFeatureValueShapingOverride(base, "dm1964", WEIGHT, SIZE, 0, undefined, DISABLES).layout(TEXT)
+      .glyphs.length;
 
     // The claim. Measured on macOS with BigCaslon: 19 ligated, 26 disabled —
     // 26 being one glyph per character, i.e. every ligature broken up.
-    expect(disabled, `${fixture!.path}: ligated ${ligated}, disabled ${disabled}`)
-      .toBeGreaterThan(ligated);
+    expect(disabled, `${fixture!.path}: ligated ${ligated}, disabled ${disabled}`).toBeGreaterThan(ligated);
     expect(disabled).toBe(TEXT.length);
 
     // …and the control, so a reroute that disabled ligatures unconditionally
     // (or one that simply shaped differently) fails here rather than looking
     // like the fix.
-    const enabled = fontFeatureValueShapingOverride(
-      base, "dm1964", WEIGHT, SIZE, 0, undefined, ["+liga"]).layout(TEXT).glyphs.length;
+    const enabled = fontFeatureValueShapingOverride(base, "dm1964", WEIGHT, SIZE, 0, undefined, ["+liga"]).layout(TEXT)
+      .glyphs.length;
     expect(enabled).toBe(ligated);
   });
 

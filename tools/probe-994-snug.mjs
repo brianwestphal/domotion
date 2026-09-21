@@ -28,13 +28,14 @@ const data = await page.evaluate(() => {
     r.setStart(firstNode, offset);
     r.setEnd(firstNode, offset + 1);
     const cr = r.getBoundingClientRect();
-    const c = document.createElement('canvas');
-    const cc = c.getContext('2d');
+    const c = document.createElement("canvas");
+    const cc = c.getContext("2d");
     cc.font = `${fl.fontStyle} ${fl.fontWeight} 100px ${fl.fontFamily}`;
-    const m = cc.measureText('H');
+    const m = cc.measureText("H");
     const probe = cc.measureText(ch);
     out.push({
-      cls, ch,
+      cls,
+      ch,
       pRectX: +pRect.x.toFixed(2),
       pRectY: +pRect.y.toFixed(2),
       pseudoIL: fl.initialLetter || fl.webkitInitialLetter,
@@ -42,7 +43,7 @@ const data = await page.evaluate(() => {
       cRecY: +cr.y.toFixed(2),
       cRecW: +cr.width.toFixed(2),
       cRecH: +cr.height.toFixed(2),
-      effectiveFs: +(100 * parseFloat(fl.width) / probe.width).toFixed(2),
+      effectiveFs: +((100 * parseFloat(fl.width)) / probe.width).toFixed(2),
       pseudoComputedW: parseFloat(fl.width),
       pseudoComputedH: parseFloat(fl.height),
       capHeightRatio: +(m.actualBoundingBoxAscent / 100).toFixed(4),
@@ -83,7 +84,10 @@ for (const d of data) {
   const rows = await inkRows("tests/output/html-test/24-deep-initial-letter-expected.png", region);
   // Heavy-ink rows = those with > 8 dark pixels (drop cap is thick).
   const heavyRows = rows.filter((r) => r.dark > 8);
-  if (heavyRows.length === 0) { console.log(`${d.cls} ${d.ch}: NO HEAVY INK in region`); continue; }
+  if (heavyRows.length === 0) {
+    console.log(`${d.cls} ${d.ch}: NO HEAVY INK in region`);
+    continue;
+  }
   const inkTop = top + heavyRows[0].y;
   const inkBot = top + heavyRows[heavyRows.length - 1].y;
   // Apply Blink's formula
@@ -105,7 +109,9 @@ for (const d of data) {
   console.log(`${d.cls} ${d.ch} IL=${d.pseudoIL} effectiveFs=${d.effectiveFs}`);
   console.log(`  Range.top=${d.cRecY} Range.h=${d.cRecH} pRectY=${d.pRectY}`);
   console.log(`  empirical ink-top=${inkTop} ink-bot=${inkBot} ink-h=${inkBot - inkTop}`);
-  console.log(`  blink box-top=${blinkBoxTop.toFixed(2)} baseline=${baseline.toFixed(2)} cap-top=${blinkCapTop.toFixed(2)}`);
+  console.log(
+    `  blink box-top=${blinkBoxTop.toFixed(2)} baseline=${baseline.toFixed(2)} cap-top=${blinkCapTop.toFixed(2)}`,
+  );
   console.log(`  shift(empirical ink-top - Range.top) = ${(inkTop - d.cRecY).toFixed(2)}`);
   console.log(`  shift(blink cap-top - Range.top)     = ${(blinkCapTop - d.cRecY).toFixed(2)}`);
 }

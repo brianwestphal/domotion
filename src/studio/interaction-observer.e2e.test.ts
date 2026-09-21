@@ -40,12 +40,25 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   beforeEach(async () => page.setContent(fixture));
   afterAll(async () => browser?.close(), 15_000);
 
-  const observe = async (target: string, action: (testPage: Page) => Promise<void>, extra: Partial<Parameters<typeof observeStudioInteraction>[1]> = {}): Promise<StudioInteractionEvidence> => {
+  const observe = async (
+    target: string,
+    action: (testPage: Page) => Promise<void>,
+    extra: Partial<Parameters<typeof observeStudioInteraction>[1]> = {},
+  ): Promise<StudioInteractionEvidence> => {
     const testPage = page;
-    return observeStudioInteraction(testPage, {
-      eventId: target.slice(1), path: `$.events.${target.slice(1)}`, target: testPage.locator(target),
-      settleMs: 500, debounceMs: 100, baselineMs: 0, ...extra,
-    }, () => action(testPage));
+    return observeStudioInteraction(
+      testPage,
+      {
+        eventId: target.slice(1),
+        path: `$.events.${target.slice(1)}`,
+        target: testPage.locator(target),
+        settleMs: 500,
+        debounceMs: 100,
+        baselineMs: 0,
+        ...extra,
+      },
+      () => action(testPage),
+    );
   };
 
   it("captures CSS-only hover, pseudo content, transition lifecycle, and transient state samples", async () => {
@@ -53,22 +66,34 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     expect(evidence.summary.addedNodes + evidence.summary.attributes).toBe(0);
     expect(evidence.meaningful).toBe(true);
     expect(evidence.suggestedSynthesis).toBe("paint");
-    expect(evidence.changes.find((change) => change.relation === "target")?.pseudoDeltas.some((delta) => delta.property === "content")).toBe(true);
+    expect(
+      evidence.changes
+        .find((change) => change.relation === "target")
+        ?.pseudoDeltas.some((delta) => delta.property === "content"),
+    ).toBe(true);
     expect(evidence.signals.some((signal) => signal.type.startsWith("transition"))).toBe(true);
     expect(evidence.signals.some((signal) => signal.sample?.state.hover === true)).toBe(true);
   });
 
   it("correlates synchronous and async JS mutations with stable target/related references", async () => {
-    const jsEvidence = await observe("#js", (testPage) => testPage.locator("#js").click(), { relatedTargets: [page!.locator("#menu")] });
+    const jsEvidence = await observe("#js", (testPage) => testPage.locator("#js").click(), {
+      relatedTargets: [page!.locator("#menu")],
+    });
     expect(jsEvidence.summary.addedNodes).toBeGreaterThan(0);
     expect(jsEvidence.summary.attributes).toBeGreaterThanOrEqual(2);
-    expect(jsEvidence.changes.some((change) => change.relation === "related" && change.classification === "direct-feedback")).toBe(true);
-    expect(jsEvidence.mutations.map((item) => item.sequence)).toEqual([...jsEvidence.mutations.map((item) => item.sequence)].sort((a, b) => a - b));
+    expect(
+      jsEvidence.changes.some((change) => change.relation === "related" && change.classification === "direct-feedback"),
+    ).toBe(true);
+    expect(jsEvidence.mutations.map((item) => item.sequence)).toEqual(
+      [...jsEvidence.mutations.map((item) => item.sequence)].sort((a, b) => a - b),
+    );
 
     await page!.setContent(fixture);
     const asyncEvidence = await observe("#async", (testPage) => testPage.locator("#async").click());
     expect(asyncEvidence.settleReason).toBe("settled");
-    expect(asyncEvidence.changes.find((change) => change.relation === "target")?.reasons).toEqual(expect.arrayContaining(["text", "dom-mutation"]));
+    expect(asyncEvidence.changes.find((change) => change.relation === "target")?.reasons).toEqual(
+      expect.arrayContaining(["text", "dom-mutation"]),
+    );
   });
 
   it("captures viewport scrolling and layout shifts without inventing a second action", async () => {
@@ -81,12 +106,22 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     const layoutEvidence = await observe("#grow", (testPage) => testPage.locator("#grow").click());
     const afterX = await page!.locator("#sibling").evaluate((element) => element.getBoundingClientRect().x);
     expect(afterX).toBeGreaterThan(beforeX);
-    expect(layoutEvidence.changes.some((change) => change.ref.includes("#sibling") && change.geometryChanged)).toBe(true);
+    expect(layoutEvidence.changes.some((change) => change.ref.includes("#sibling") && change.geometryChanged)).toBe(
+      true,
+    );
   });
 
   it("classifies pre-existing ambient churn separately and keeps a no-op a no-op", async () => {
-    await page!.evaluate(() => { (window as unknown as { ambientTimer?: number }).ambientTimer = window.setInterval(() => { const node = document.querySelector("#ambient"); if (node != null) node.textContent = String(Number(node.textContent ?? "0") + 1); }, 10); });
-    const evidence = await observe("#noop", (testPage) => testPage.locator("#noop").click(), { baselineMs: 35, debounceMs: 60 });
+    await page!.evaluate(() => {
+      (window as unknown as { ambientTimer?: number }).ambientTimer = window.setInterval(() => {
+        const node = document.querySelector("#ambient");
+        if (node != null) node.textContent = String(Number(node.textContent ?? "0") + 1);
+      }, 10);
+    });
+    const evidence = await observe("#noop", (testPage) => testPage.locator("#noop").click(), {
+      baselineMs: 35,
+      debounceMs: 60,
+    });
     await page!.evaluate(() => clearInterval((window as unknown as { ambientTimer?: number }).ambientTimer));
     expect(evidence.changes.some((change) => change.classification === "incidental-churn")).toBe(true);
     const nonIncidental = evidence.changes.filter((change) => change.classification !== "incidental-churn");
@@ -112,7 +147,9 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     let thrown: unknown;
     try {
       await observe("#async", async (testPage) => {
-        await testPage.locator("#async").evaluate((element) => { element.textContent = "Failed after feedback"; });
+        await testPage.locator("#async").evaluate((element) => {
+          element.textContent = "Failed after feedback";
+        });
         throw new Error("controlled action failure");
       });
     } catch (error) {
@@ -123,8 +160,9 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     const observationError = thrown as StudioInteractionObservationError;
     expect(observationError.cause).toEqual(new Error("controlled action failure"));
     expect(observationError.evidence.meaningful).toBe(true);
-    expect(observationError.evidence.changes.find((change) => change.relation === "target")?.reasons)
-      .toEqual(expect.arrayContaining(["text", "dom-mutation"]));
+    expect(observationError.evidence.changes.find((change) => change.relation === "target")?.reasons).toEqual(
+      expect.arrayContaining(["text", "dom-mutation"]),
+    );
     expect(await page!.evaluate(() => "__domotionStudioInteractionObserverV1" in globalThis)).toBe(false);
   });
 
@@ -142,12 +180,16 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
         const state = window as unknown as { audit: string[] };
         state.audit = [];
         const target = document.querySelector("#js")!;
-        for (const type of ["pointerdown", "pointerup", "click"]) target.addEventListener(type, () => state.audit.push(type));
-        new MutationObserver((records) => records.forEach((record) => state.audit.push(`${record.type}:${record.attributeName ?? ""}`)))
-          .observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+        for (const type of ["pointerdown", "pointerup", "click"])
+          target.addEventListener(type, () => state.audit.push(type));
+        new MutationObserver((records) =>
+          records.forEach((record) => state.audit.push(`${record.type}:${record.attributeName ?? ""}`)),
+        ).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
       });
       const evidence = observed
-        ? await observe("#js", (testPage) => testPage.locator("#js").click(), { relatedTargets: [page!.locator("#menu")] })
+        ? await observe("#js", (testPage) => testPage.locator("#js").click(), {
+            relatedTargets: [page!.locator("#menu")],
+          })
         : undefined;
       if (!observed) await page!.locator("#js").click();
       await page!.waitForTimeout(0);
@@ -160,20 +202,36 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     expect(second.audit).toEqual(plain.audit);
     const canonical = (evidence: StudioInteractionEvidence | undefined): unknown => ({
       targetRef: evidence?.targetRef,
-      changes: evidence?.changes.map(({ ref, relation, classification, reasons }) => ({ ref, relation, classification, reasons })),
-      mutations: evidence?.mutations.map(({ phase, kind, targetRef, attribute, oldValue, newValue, addedRefs, removedRefs }) => ({ phase, kind, targetRef, attribute, oldValue, newValue, addedRefs, removedRefs })),
+      changes: evidence?.changes.map(({ ref, relation, classification, reasons }) => ({
+        ref,
+        relation,
+        classification,
+        reasons,
+      })),
+      mutations: evidence?.mutations.map(
+        ({ phase, kind, targetRef, attribute, oldValue, newValue, addedRefs, removedRefs }) => ({
+          phase,
+          kind,
+          targetRef,
+          attribute,
+          oldValue,
+          newValue,
+          addedRefs,
+          removedRefs,
+        }),
+      ),
       signals: evidence?.signals.map(({ phase, type, targetRef }) => ({ phase, type, targetRef })),
     });
     expect(canonical(first.evidence)).toEqual(canonical(second.evidence));
   });
 
   it("observes initially missing attachment targets and existing targets that detach", async () => {
-    const observeLifecycle = async (step: StudioSemanticStep): Promise<StudioInteractionEvidence> => observeStudioSemanticStep(
-      page!,
-      step,
-      () => runStudioSemanticStep(page!, step),
-      { baselineMs: 0, debounceMs: 20, settleMs: 300 },
-    );
+    const observeLifecycle = async (step: StudioSemanticStep): Promise<StudioInteractionEvidence> =>
+      observeStudioSemanticStep(page!, step, () => runStudioSemanticStep(page!, step), {
+        baselineMs: 0,
+        debounceMs: 20,
+        settleMs: 300,
+      });
 
     await page.setContent(`<!doctype html><script>
       setTimeout(() => {
@@ -186,11 +244,20 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     const attachStep: StudioSemanticStep = {
       path: "$.scenes[0].tracks[0].events[0]",
       trackId: "lifecycle",
-      event: { id: "attach", atMs: 0, kind: "waitForState", target: { domId: "late" }, state: "attached", timeoutMs: 1_000 },
+      event: {
+        id: "attach",
+        atMs: 0,
+        kind: "waitForState",
+        target: { domId: "late" },
+        state: "attached",
+        timeoutMs: 1_000,
+      },
     };
     const attached = await observeLifecycle(attachStep);
     expect(attached.summary.addedNodes).toBeGreaterThan(0);
-    expect(attached.changes.some((change) => change.ref.includes("#late") && change.reasons.includes("added"))).toBe(true);
+    expect(attached.changes.some((change) => change.ref.includes("#late") && change.reasons.includes("added"))).toBe(
+      true,
+    );
 
     await page.setContent(`<!doctype html><div id="departing">Remove me</div><script>
       setTimeout(() => document.querySelector("#departing")?.remove(), 40);
@@ -198,11 +265,20 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     const detachStep: StudioSemanticStep = {
       path: "$.scenes[0].tracks[0].events[1]",
       trackId: "lifecycle",
-      event: { id: "detach", atMs: 0, kind: "waitForState", target: { domId: "departing" }, state: "detached", timeoutMs: 1_000 },
+      event: {
+        id: "detach",
+        atMs: 0,
+        kind: "waitForState",
+        target: { domId: "departing" },
+        state: "detached",
+        timeoutMs: 1_000,
+      },
     };
     const detached = await observeLifecycle(detachStep);
     expect(detached.summary.removedNodes).toBeGreaterThan(0);
-    expect(detached.changes.some((change) => change.ref.includes("#departing") && change.reasons.includes("removed"))).toBe(true);
+    expect(
+      detached.changes.some((change) => change.ref.includes("#departing") && change.reasons.includes("removed")),
+    ).toBe(true);
     expect(await page.locator("[data-domotion-studio-target]").count()).toBe(0);
     expect(await page.evaluate(() => "__domotionStudioInteractionObserverV1" in globalThis)).toBe(false);
   });

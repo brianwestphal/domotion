@@ -12,7 +12,9 @@ import {
   isGlyphHelperAvailable,
   measureOutlineOffsetY,
   OFFSET_PROBE_GLYPHS,
-  resolveSystemFallbackFonts, __helperMetaForTest } from "./glyph-helper.js";
+  resolveSystemFallbackFonts,
+  __helperMetaForTest,
+} from "./glyph-helper.js";
 import { __helperInvocationForTest } from "./glyph-helper-transport.js";
 
 describe("glyph-helper font-open envelope", () => {
@@ -22,14 +24,14 @@ describe("glyph-helper font-open envelope", () => {
       fontPath: "/System/Library/Fonts/SFNS.ttf",
     });
     expect(hidden.fonts.map((font) => font.ref)).toEqual(["f"]);
-    expect(hidden.queries.map((query) => "fontRef" in query ? query.fontRef : undefined)).toEqual(["f"]);
+    expect(hidden.queries.map((query) => ("fontRef" in query ? query.fontRef : undefined))).toEqual(["f"]);
 
     const ordinary = buildGlyphHelperFontProbeEnvelope({
       postscriptName: "AppleColorEmoji",
       fontPath: "/System/Library/Fonts/Apple Color Emoji.ttc",
     });
     expect(ordinary.fonts.map((font) => font.ref)).toEqual(["f", "n"]);
-    expect(ordinary.queries.map((query) => "fontRef" in query ? query.fontRef : undefined)).toEqual(["f", "n", "n"]);
+    expect(ordinary.queries.map((query) => ("fontRef" in query ? query.fontRef : undefined))).toEqual(["f", "n", "n"]);
   });
 });
 
@@ -45,7 +47,7 @@ const HELPER = path.resolve(
   "..",
   "tools",
   "macos-glyph-extractor",
-  "domotion-glyph-paths"
+  "domotion-glyph-paths",
 );
 
 const helperAvailable = process.platform === "darwin" && existsSync(HELPER);
@@ -70,7 +72,7 @@ interface MetaResult {
 function callHelper(request: unknown): { results: any[] } {
   const proc = spawnSync(HELPER, [], {
     input: JSON.stringify(request),
-    encoding: "utf-8"
+    encoding: "utf-8",
   });
   if (proc.status !== 0) {
     throw new Error(`helper exit ${proc.status}: ${proc.stderr}`);
@@ -102,14 +104,10 @@ describe("platform-aware helper resolution", () => {
   it("maps each supported platform to its in-tree extractor binary", () => {
     // Separator-agnostic: path.resolve emits `\` on a Windows host even for the
     // darwin/linux entries, so match either separator.
-    expect(__helperBinaryForPlatform("darwin")).toMatch(
-      /tools[/\\]macos-glyph-extractor[/\\]domotion-glyph-paths$/
-    );
-    expect(__helperBinaryForPlatform("linux")).toMatch(
-      /tools[/\\]linux-glyph-extractor[/\\]domotion-glyph-paths$/
-    );
+    expect(__helperBinaryForPlatform("darwin")).toMatch(/tools[/\\]macos-glyph-extractor[/\\]domotion-glyph-paths$/);
+    expect(__helperBinaryForPlatform("linux")).toMatch(/tools[/\\]linux-glyph-extractor[/\\]domotion-glyph-paths$/);
     expect(__helperBinaryForPlatform("win32")).toMatch(
-      /tools[/\\]win32-glyph-extractor[/\\]domotion-glyph-paths\.exe$/
+      /tools[/\\]win32-glyph-extractor[/\\]domotion-glyph-paths\.exe$/,
     );
   });
 
@@ -120,9 +118,7 @@ describe("platform-aware helper resolution", () => {
     const darwinBin = __helperBinaryForPlatform("darwin")!;
     const moduleDir = path.dirname(fileURLToPath(import.meta.url)); // src/render
     const repoRoot = path.resolve(moduleDir, "..", "..");
-    expect(darwinBin).toBe(
-      path.join(repoRoot, "tools", "macos-glyph-extractor", "domotion-glyph-paths")
-    );
+    expect(darwinBin).toBe(path.join(repoRoot, "tools", "macos-glyph-extractor", "domotion-glyph-paths"));
   });
 
   it("returns no binary for a platform without a helper", () => {
@@ -131,13 +127,14 @@ describe("platform-aware helper resolution", () => {
   });
 
   it("runs JavaScript protocol adapters through Node on every platform", () => {
-    expect(__helperInvocationForTest("C:\\repo\\font-env-cassette.mjs", ["--serve"]))
-      .toEqual({
-        command: process.execPath,
-        args: ["C:\\repo\\font-env-cassette.mjs", "--serve"],
-      });
-    expect(__helperInvocationForTest("C:\\repo\\domotion-glyph-paths.exe"))
-      .toEqual({ command: "C:\\repo\\domotion-glyph-paths.exe", args: [] });
+    expect(__helperInvocationForTest("C:\\repo\\font-env-cassette.mjs", ["--serve"])).toEqual({
+      command: process.execPath,
+      args: ["C:\\repo\\font-env-cassette.mjs", "--serve"],
+    });
+    expect(__helperInvocationForTest("C:\\repo\\domotion-glyph-paths.exe")).toEqual({
+      command: "C:\\repo\\domotion-glyph-paths.exe",
+      args: [],
+    });
   });
 
   it("honors DOMOTION_HELPER_PATH as an override on any platform", () => {
@@ -166,8 +163,7 @@ describe("platform-aware helper resolution", () => {
 // macOS/Windows CI). The binary-level FreeType parity is covered separately by
 // tests/linux-glyph-extractor.test.ts; this asserts the JS dispatch path.
 const LINUX_HELPER = __helperBinaryForPlatform("linux");
-const linuxDispatchAvailable =
-  process.platform === "linux" && LINUX_HELPER != null && existsSync(LINUX_HELPER);
+const linuxDispatchAvailable = process.platform === "linux" && LINUX_HELPER != null && existsSync(LINUX_HELPER);
 const describeLinux = linuxDispatchAvailable ? describe : describe.skip;
 
 function resolveFontFile(candidates: string[]): string | null {
@@ -185,7 +181,7 @@ describeLinux("native helper dispatch on Linux (createGlyphHelperFont)", () => {
       "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
       "/usr/share/fonts/liberation-fonts/LiberationSans-Regular.ttf",
       "/usr/share/fonts/TTF/LiberationSans-Regular.ttf",
-      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]);
     if (fontPath == null) return; // no usable font on this runner — skip the body
 
@@ -215,19 +211,20 @@ describeLinux("persistent --serve protocol on Linux (DM-1034)", () => {
       "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
       "/usr/share/fonts/liberation-fonts/LiberationSans-Regular.ttf",
       "/usr/share/fonts/TTF/LiberationSans-Regular.ttf",
-      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]);
     if (fontPath == null) return; // no usable font on this runner — skip the body
 
     const FONT = { ref: "f", fontPath, size: 2048 };
-    const envA = { fonts: [FONT], queries: [
-      { type: "meta", fontRef: "f" },
-      { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }, { cp: 0x65 }, { cp: 0x21 }] }
-    ] };
+    const envA = {
+      fonts: [FONT],
+      queries: [
+        { type: "meta", fontRef: "f" },
+        { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }, { cp: 0x65 }, { cp: 0x21 }] },
+      ],
+    };
     // Second envelope reuses the SAME font ref to exercise the face cache.
-    const envB = { fonts: [FONT], queries: [
-      { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x57 }, { cp: 0x6F }] }
-    ] };
+    const envB = { fonts: [FONT], queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x57 }, { cp: 0x6f }] }] };
 
     // One-shot reference outputs (raw stdout, trailing newline trimmed).
     const oneShot = (req: unknown): string => {
@@ -239,10 +236,12 @@ describeLinux("persistent --serve protocol on Linux (DM-1034)", () => {
     const refB = oneShot(envB);
 
     const child = spawn(LINUX_HELPER!, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
-    const inFd = (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd
-      ?? (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
-    const outFd = (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd
-      ?? (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
+    const inFd =
+      (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd ??
+      (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
+    const outFd =
+      (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd ??
+      (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
     expect(inFd).toBeTypeOf("number");
     expect(outFd).toBeTypeOf("number");
     let leftover = "";
@@ -250,13 +249,22 @@ describeLinux("persistent --serve protocol on Linux (DM-1034)", () => {
       const line = Buffer.from(JSON.stringify(req) + "\n", "utf-8");
       let off = 0;
       while (off < line.length) {
-        try { off += writeSync(inFd!, line, off, line.length - off); }
-        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+        try {
+          off += writeSync(inFd!, line, off, line.length - off);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue;
+          throw e;
+        }
       }
       const tmp = Buffer.allocUnsafe(1 << 20);
       while (!leftover.includes("\n")) {
-        try { const n = readSync(outFd!, tmp, 0, tmp.length, null); if (n > 0) leftover += tmp.toString("utf-8", 0, n); }
-        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+        try {
+          const n = readSync(outFd!, tmp, 0, tmp.length, null);
+          if (n > 0) leftover += tmp.toString("utf-8", 0, n);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue;
+          throw e;
+        }
       }
       const nl = leftover.indexOf("\n");
       const resp = leftover.slice(0, nl);
@@ -279,8 +287,8 @@ describeHelper("CoreText glyph extractor", () => {
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: 100 }],
       queries: [
         { type: "meta", fontRef: "h" },
-        { type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x48 }] }
-      ]
+        { type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x48 }] },
+      ],
     });
 
     const meta = response.results[0] as MetaResult;
@@ -298,7 +306,7 @@ describeHelper("CoreText glyph extractor", () => {
   it("extracts PingFang 漢 (U+6F22) where fontkit can't (DM-382)", () => {
     const response = callHelper({
       fonts: [{ ref: "p", postscriptName: "PingFangSC-Regular", size: 22 }],
-      queries: [{ type: "glyphs", fontRef: "p", glyphs: [{ cp: 0x6F22 }] }]
+      queries: [{ type: "glyphs", fontRef: "p", glyphs: [{ cp: 0x6f22 }] }],
     });
     const result = response.results[0] as { glyphs: GlyphResult[] };
     const han = result.glyphs[0];
@@ -313,8 +321,8 @@ describeHelper("CoreText glyph extractor", () => {
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: SIZE }],
       queries: [
         { type: "meta", fontRef: "h" },
-        { type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x48 }] }
-      ]
+        { type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x48 }] },
+      ],
     });
     const meta = response.results[0] as MetaResult;
     const ctH = (response.results[1] as { glyphs: GlyphResult[] }).glyphs[0];
@@ -330,7 +338,7 @@ describeHelper("CoreText glyph extractor", () => {
   it("returns id=0 (uncovered) for codepoints the font lacks, with the font's .notdef outline (DM-1018)", () => {
     const response = callHelper({
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: 16 }],
-      queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x6F22 }] }] // Han ideograph in Helvetica
+      queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x6f22 }] }], // Han ideograph in Helvetica
     });
     const result = response.results[0] as { glyphs: GlyphResult[] };
     // id 0 is the coverage signal — the codepoint is NOT in the font. Callers
@@ -345,7 +353,7 @@ describeHelper("CoreText glyph extractor", () => {
   it("notdef query returns the font's glyph-0 outline (DM-1018)", () => {
     const response = callHelper({
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: 1000 }],
-      queries: [{ type: "notdef", fontRef: "h" }]
+      queries: [{ type: "notdef", fontRef: "h" }],
     });
     const r = response.results[0] as { type: string; id: number; d: string };
     expect(r.type).toBe("notdef");
@@ -371,13 +379,13 @@ describeHelper("CoreText glyph extractor", () => {
   it("accepts pre-resolved glyph ids in addition to codepoints", () => {
     const probe = callHelper({
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: 16 }],
-      queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x48 }] }]
+      queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x48 }] }],
     });
     const id = (probe.results[0] as { glyphs: GlyphResult[] }).glyphs[0].id;
 
     const byId = callHelper({
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: 16 }],
-      queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ id }] }]
+      queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ id }] }],
     });
     const byIdGlyph = (byId.results[0] as { glyphs: GlyphResult[] }).glyphs[0];
     expect(byIdGlyph.id).toBe(id);
@@ -395,9 +403,12 @@ describeHelper("CoreText glyph extractor", () => {
   itJavanese("shape query inserts the dotted circle for an orphaned Javanese vowel sign (U+A9B8)", () => {
     const resp = callHelper({
       fonts: [{ ref: "j", postscriptName: "NotoSansJavanese-Regular", fontPath: javanesePath, size: 1000 }],
-      queries: [{ type: "shape", fontRef: "j", text: "\u{A9B8}" }]
+      queries: [{ type: "shape", fontRef: "j", text: "\u{A9B8}" }],
     });
-    const r = resp.results[0] as { type: string; glyphs?: Array<{ id: number; cluster: number; ax: number; d: string }> };
+    const r = resp.results[0] as {
+      type: string;
+      glyphs?: Array<{ id: number; cluster: number; ax: number; d: string }>;
+    };
     expect(r.type).toBe("shape");
     expect(r.glyphs).toBeDefined();
     // The mark shapes to TWO glyphs: an inserted dotted circle + the vowel
@@ -413,7 +424,7 @@ describeHelper("CoreText glyph extractor", () => {
     clearGlyphHelperCache();
     const font = createGlyphHelperFont({
       postscriptName: "NotoSansJavanese-Regular",
-      fontPath: javanesePath
+      fontPath: javanesePath,
     });
     expect(font).not.toBeNull();
     const laid = font!.layout("\u{A9B8}");
@@ -500,7 +511,7 @@ describeHelper("CoreText glyph extractor", () => {
   // fetched, not WHAT comes back) — the property that lets the renderer pre-warm
   // before `splitTextIntoFontRuns` without altering output.
   it("warmGlyphs primes the cache identically to lazy per-codepoint resolution (DM-1033)", () => {
-    const cps = [0x6F22, 0x4E00, 0x4E8C, 0x4E09, 0x65E5, 0x672C]; // 漢 一 二 三 日 本
+    const cps = [0x6f22, 0x4e00, 0x4e8c, 0x4e09, 0x65e5, 0x672c]; // 漢 一 二 三 日 本
 
     // Lazy path: resolve each codepoint on demand.
     const lazy = createGlyphHelperFont({ postscriptName: "PingFangSC-Regular" });
@@ -523,7 +534,7 @@ describeHelper("CoreText glyph extractor", () => {
     // A second warm of the now-cached set is a no-op (nothing left to fetch),
     // and re-looking-up still returns the same glyph.
     warmed!.warmGlyphs(cps);
-    expect(warmed!.glyphForCodePoint(0x6F22).id).toBe(lazyGlyphs[0].id);
+    expect(warmed!.glyphForCodePoint(0x6f22).id).toBe(lazyGlyphs[0].id);
   });
 
   // DM-1037: `warmShapes(texts)` folds the per-run `shape` round-trips into one
@@ -602,8 +613,11 @@ describeHelper("font-resolution reporting", () => {
       queries: [{ type: "meta", fontRef: "f" }],
     });
     return resp.results[0] as {
-      type: string; error?: string; nameMatched?: boolean;
-      resolution?: string; postscriptName?: string;
+      type: string;
+      error?: string;
+      nameMatched?: boolean;
+      resolution?: string;
+      postscriptName?: string;
     };
   }
 
@@ -682,7 +696,10 @@ describeHelper("font-resolution reporting", () => {
     for (const postscriptName of names) {
       const resp = callHelper({
         fonts: [{ ref: "f", postscriptName, fontPath: HELVETICA_TTC, size: 100 }],
-        queries: [{ type: "meta", fontRef: "f" }, { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }] }],
+        queries: [
+          { type: "meta", fontRef: "f" },
+          { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }] },
+        ],
       });
       const m = resp.results[0] as { nameMatched: boolean; resolution: string; postscriptName: string };
       expect(m.nameMatched, postscriptName).toBe(true);
@@ -732,10 +749,12 @@ describeHelper("font-resolution reporting", () => {
 describeHelper("persistent --serve protocol (DM-1031)", () => {
   it("handles multiple sequential requests over one long-lived process, reusing fonts", () => {
     const child = spawn(HELPER, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
-    const inFd = (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd
-      ?? (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
-    const outFd = (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd
-      ?? (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
+    const inFd =
+      (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd ??
+      (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
+    const outFd =
+      (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd ??
+      (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
     expect(inFd).toBeTypeOf("number");
     expect(outFd).toBeTypeOf("number");
     let leftover = "";
@@ -743,13 +762,22 @@ describeHelper("persistent --serve protocol (DM-1031)", () => {
       const line = Buffer.from(JSON.stringify(req) + "\n", "utf-8");
       let off = 0;
       while (off < line.length) {
-        try { off += writeSync(inFd!, line, off, line.length - off); }
-        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+        try {
+          off += writeSync(inFd!, line, off, line.length - off);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue;
+          throw e;
+        }
       }
       const tmp = Buffer.allocUnsafe(1 << 20);
       while (!leftover.includes("\n")) {
-        try { const n = readSync(outFd!, tmp, 0, tmp.length, null); if (n > 0) leftover += tmp.toString("utf-8", 0, n); }
-        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+        try {
+          const n = readSync(outFd!, tmp, 0, tmp.length, null);
+          if (n > 0) leftover += tmp.toString("utf-8", 0, n);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue;
+          throw e;
+        }
       }
       const nl = leftover.indexOf("\n");
       const resp = leftover.slice(0, nl);
@@ -757,9 +785,14 @@ describeHelper("persistent --serve protocol (DM-1031)", () => {
       return JSON.parse(resp);
     };
     try {
-      const FONT = { ref: "p", postscriptName: "PingFangSC-Regular", fontPath: "/System/Library/Fonts/PingFang.ttc", size: 1000 };
+      const FONT = {
+        ref: "p",
+        postscriptName: "PingFangSC-Regular",
+        fontPath: "/System/Library/Fonts/PingFang.ttc",
+        size: 1000,
+      };
       // First request opens the font + resolves a glyph.
-      const r1 = syncCall({ fonts: [FONT], queries: [{ type: "glyphs", fontRef: "p", glyphs: [{ cp: 0x6F22 }] }] });
+      const r1 = syncCall({ fonts: [FONT], queries: [{ type: "glyphs", fontRef: "p", glyphs: [{ cp: 0x6f22 }] }] });
       const g1 = (r1.results[0] as { glyphs: Array<{ id: number; d: string }> }).glyphs[0];
       expect(g1.id).toBeGreaterThan(0);
       expect(g1.d.length).toBeGreaterThan(0);
@@ -782,8 +815,12 @@ describeHelper("persistent --serve protocol (DM-1031)", () => {
 // assertion below pins the actual system behavior.
 describe("measureOutlineOffsetY (DM-1831)", () => {
   // A unit box from (0,0) to (100,100); `bbox.y` is what CoreText claims.
-  const g = (bboxY: number, d = "M 0 0 L 0 100 L 100 100 L 100 0 Z") =>
-    ({ id: 1, advance: 100, bbox: { x: 0, y: bboxY, w: 100, h: 100 }, d });
+  const g = (bboxY: number, d = "M 0 0 L 0 100 L 100 100 L 100 0 Z") => ({
+    id: 1,
+    advance: 100,
+    bbox: { x: 0, y: bboxY, w: 100, h: 100 },
+    d,
+  });
 
   it("returns 0 when CoreText's rect agrees with the outline", () => {
     expect(measureOutlineOffsetY([g(0), g(0), g(0)], 1000, 1000)).toBe(0);
@@ -851,11 +888,11 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
     const stale = meta!.nameMatched === undefined || meta!.resolution === undefined;
     expect(
       stale,
-      "STALE HELPER BINARY — it resolved and answered, but its `meta` response is "
-      + "missing fields this Node side reads (nameMatched / resolution). This is "
-      + "an out-of-date build artifact, NOT a font regression; the suites below will "
-      + "fail on missing data if you keep going.\n"
-      + "Fix: bash tools/macos-glyph-extractor/build.sh",
+      "STALE HELPER BINARY — it resolved and answered, but its `meta` response is " +
+        "missing fields this Node side reads (nameMatched / resolution). This is " +
+        "an out-of-date build artifact, NOT a font regression; the suites below will " +
+        "fail on missing data if you keep going.\n" +
+        "Fix: bash tools/macos-glyph-extractor/build.sh",
     ).toBe(false);
   });
 
@@ -871,10 +908,10 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   it("moves the U+20E3 keycap outline down to where Chrome paints it", () => {
     const font = createGlyphHelperFont({
       postscriptName: "AppleColorEmoji",
-      fontPath: "/System/Library/Fonts/Apple Color Emoji.ttc"
+      fontPath: "/System/Library/Fonts/Apple Color Emoji.ttc",
     });
     if (font == null) return; // face absent on this machine
-    const glyph = font.glyphForCodePoint(0x20E3);
+    const glyph = font.glyphForCodePoint(0x20e3);
     if (glyph.id === 0 || glyph.path.commands.length === 0) return;
     const ys: number[] = [];
     for (const c of glyph.path.commands) for (let i = 1; i < c.args.length; i += 2) ys.push(c.args[i]);
@@ -886,7 +923,7 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   it("leaves an ordinary face's outlines untouched", () => {
     const font = createGlyphHelperFont({
       postscriptName: "Helvetica",
-      fontPath: "/System/Library/Fonts/Helvetica.ttc"
+      fontPath: "/System/Library/Fonts/Helvetica.ttc",
     });
     if (font == null) return;
     const glyph = font.glyphForCodePoint(0x48); // 'H' sits on the baseline
@@ -914,10 +951,44 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   // codepoint somewhere else entirely, and the case is skipped rather than
   // asserted against a font that isn't there.
   const CASES: Array<[string, number, string, Array<[number, string]>]> = [
-    ["Euphemia UCAS (Canadian Aboriginal)", 0x1401, "EuphemiaUCAS", [[100, "EuphemiaUCAS"], [500, "EuphemiaUCAS-Bold"], [900, "EuphemiaUCAS-Bold"]]],
-    ["Kefa (Ethiopic)", 0x1200, "KefaIII-Regular", [[100, "KefaIII-Light"], [500, "KefaIII-Bold"], [900, "KefaIII-ExtraBold"]]],
-    ["Tamil Sangam MN", 0x0B85, "TamilSangamMN", [[400, "TamilSangamMN"], [500, "TamilSangamMN-Bold"]]],
-    ["Mukta Mahee (Gurmukhi)", 0x0A05, "MuktaMahee-Regular", [[300, "MuktaMahee-Light"], [700, "MuktaMahee-Bold"]]],
+    [
+      "Euphemia UCAS (Canadian Aboriginal)",
+      0x1401,
+      "EuphemiaUCAS",
+      [
+        [100, "EuphemiaUCAS"],
+        [500, "EuphemiaUCAS-Bold"],
+        [900, "EuphemiaUCAS-Bold"],
+      ],
+    ],
+    [
+      "Kefa (Ethiopic)",
+      0x1200,
+      "KefaIII-Regular",
+      [
+        [100, "KefaIII-Light"],
+        [500, "KefaIII-Bold"],
+        [900, "KefaIII-ExtraBold"],
+      ],
+    ],
+    [
+      "Tamil Sangam MN",
+      0x0b85,
+      "TamilSangamMN",
+      [
+        [400, "TamilSangamMN"],
+        [500, "TamilSangamMN-Bold"],
+      ],
+    ],
+    [
+      "Mukta Mahee (Gurmukhi)",
+      0x0a05,
+      "MuktaMahee-Regular",
+      [
+        [300, "MuktaMahee-Light"],
+        [700, "MuktaMahee-Bold"],
+      ],
+    ],
   ];
 
   for (const [label, cp, regular, expectations] of CASES) {
@@ -992,8 +1063,10 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
     const id = someGlyphId();
     const preferred = stubShaper(id);
     const on = createGlyphHelperFont({
-      postscriptName: "Helvetica", fontPath: HELVETICA,
-      shapeFallback: preferred.shape, preferShapeFallback: true,
+      postscriptName: "Helvetica",
+      fontPath: HELVETICA,
+      shapeFallback: preferred.shape,
+      preferShapeFallback: true,
     })!;
     const runOn = on.layout(TEXT);
     expect(preferred.seen.calls).toBe(1);
@@ -1001,11 +1074,12 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
 
     const notPreferred = stubShaper(id);
     const off = createGlyphHelperFont({
-      postscriptName: "Helvetica", fontPath: HELVETICA,
+      postscriptName: "Helvetica",
+      fontPath: HELVETICA,
       shapeFallback: notPreferred.shape,
     })!;
     const runOff = off.layout(TEXT);
-    expect(notPreferred.seen.calls).toBe(0);   // CoreText shaped it, so the seam was never reached
+    expect(notPreferred.seen.calls).toBe(0); // CoreText shaped it, so the seam was never reached
     expect(runOff.glyphs.length).toBeGreaterThan(1);
   });
 
@@ -1017,8 +1091,10 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
     // that made the Thai fixture worse.
     const id = someGlyphId();
     const font = createGlyphHelperFont({
-      postscriptName: "Helvetica", fontPath: HELVETICA,
-      shapeFallback: stubShaper(id).shape, preferShapeFallback: true,
+      postscriptName: "Helvetica",
+      fontPath: HELVETICA,
+      shapeFallback: stubShaper(id).shape,
+      preferShapeFallback: true,
     })!;
     const run = font.layout(TEXT);
     const direct = font.getGlyph(id);
@@ -1030,7 +1106,8 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
     const id = someGlyphId();
     let seen: unknown[] | null = null;
     const font = createGlyphHelperFont({
-      postscriptName: "Helvetica", fontPath: HELVETICA,
+      postscriptName: "Helvetica",
+      fontPath: HELVETICA,
       preferShapeFallback: true,
       shapeFallback: (text, direction, features, script, language) => {
         seen = [text, direction, features, script, language];
@@ -1049,17 +1126,24 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
     // A shaper is an optimisation of correctness, never a correctness
     // requirement. Declining (or throwing) must land on CoreText's shaping,
     // not on the naive one-glyph-per-codepoint path.
-    for (const decline of [() => null, () => { throw new Error("no"); }]) {
+    for (const decline of [
+      () => null,
+      () => {
+        throw new Error("no");
+      },
+    ]) {
       const font = createGlyphHelperFont({
-        postscriptName: "Helvetica", fontPath: HELVETICA,
-        shapeFallback: decline as never, preferShapeFallback: true,
+        postscriptName: "Helvetica",
+        fontPath: HELVETICA,
+        shapeFallback: decline as never,
+        preferShapeFallback: true,
       })!;
       const run = font.layout(TEXT);
       // CoreText ligates the "fi" in "office", which the naive path cannot do —
       // so a glyph count BELOW the character count is what says which of the
       // two remaining paths ran, more precisely than the count matching would.
       expect(run.glyphs.length).toBeLessThan(TEXT.length);
-      expect(run.clusters).toBeDefined();   // CoreText shaped it — the naive path reports none
+      expect(run.clusters).toBeDefined(); // CoreText shaped it — the naive path reports none
       expect(run.positions.every((p) => p.xAdvance > 0)).toBe(true);
     }
   });
@@ -1070,10 +1154,12 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
     // substitute a different tofu.
     const shaper = stubShaper(someGlyphId());
     const font = createGlyphHelperFont({
-      postscriptName: "Helvetica", fontPath: HELVETICA,
-      shapeFallback: shaper.shape, preferShapeFallback: true,
+      postscriptName: "Helvetica",
+      fontPath: HELVETICA,
+      shapeFallback: shaper.shape,
+      preferShapeFallback: true,
     })!;
-    const run = font.layout("\u{11000}");   // Brahmi, absent from Helvetica
+    const run = font.layout("\u{11000}"); // Brahmi, absent from Helvetica
     expect(shaper.seen.calls).toBe(0);
     expect(run.clusters).toBeUndefined();
   });

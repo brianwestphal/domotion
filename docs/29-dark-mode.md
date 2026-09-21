@@ -4,10 +4,32 @@ title: "29 — Dark-mode rendering"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2368","DM-2458","DM-258","DM-454","DM-455","DM-510","DM-552","DM-553","DM-554","DM-555","DM-556","SK-468"]
-code: ["src/animation/animator.ts","src/capture/index.ts","src/dark-mode-capture.test.ts","src/render/form-controls.ts","tests/real-world.tsx","tests/runner.tsx"]
-aliases: ["docs/29-dark-mode.md","doc-29"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  [
+    "DM-2368",
+    "DM-2458",
+    "DM-258",
+    "DM-454",
+    "DM-455",
+    "DM-510",
+    "DM-552",
+    "DM-553",
+    "DM-554",
+    "DM-555",
+    "DM-556",
+    "SK-468",
+  ]
+code:
+  [
+    "src/animation/animator.ts",
+    "src/capture/index.ts",
+    "src/dark-mode-capture.test.ts",
+    "src/render/form-controls.ts",
+    "tests/real-world.tsx",
+    "tests/runner.tsx",
+  ]
+aliases: ["docs/29-dark-mode.md", "doc-29"]
 ---
 
 # 29 — Dark-mode rendering
@@ -147,7 +169,7 @@ Add a dark-mode counterpart to the existing form-control suite — a single page
   that native route, while author `::-webkit-scrollbar*` parts are CSS boxes.
   DM-2368's [ownership audit](165-native-scrollbar-layout-paint-ownership-audit.md)
   defines the narrow stock raster and custom-vector boundary. Out of scope here.
-- **`accent-color` CSS interaction**: when an author sets `accent-color: …` on a control, that color drives the checked-state fill in both schemes. The dark palette only governs the *background* / border / focus ring of the chrome around an unstyled control.
+- **`accent-color` CSS interaction**: when an author sets `accent-color: …` on a control, that color drives the checked-state fill in both schemes. The dark palette only governs the _background_ / border / focus ring of the chrome around an unstyled control.
 - **Color emoji + dark mode**: emoji bitmap rendering is unchanged — emoji are full-color glyphs that don't recolor based on scheme.
 
 ## Implementation slices

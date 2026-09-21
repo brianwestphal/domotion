@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { resolveHarnessFlags, captureFlagsCacheToken, harnessBrowserNote, expectedCachePlatformDir, __resetFontDigestForTest } from "./harness-browsers.js";
+import {
+  resolveHarnessFlags,
+  captureFlagsCacheToken,
+  harnessBrowserNote,
+  expectedCachePlatformDir,
+  __resetFontDigestForTest,
+} from "./harness-browsers.js";
 
 // DM-1790 (docs/105): the visual harnesses drive ONE Chromium for both the
 // expected paint and the candidate SVG's rasterization, so a `chromium.launch`
@@ -32,16 +38,20 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
     });
 
     it("same flags in a DIFFERENT order still split the browser (conservative)", () => {
-      expect(resolveHarnessFlags({
-        DOMOTION_CAPTURE_FLAGS: "--a --b",
-        DOMOTION_RASTER_FLAGS: "--b --a",
-      }).asymmetric).toBe(true);
+      expect(
+        resolveHarnessFlags({
+          DOMOTION_CAPTURE_FLAGS: "--a --b",
+          DOMOTION_RASTER_FLAGS: "--b --a",
+        }).asymmetric,
+      ).toBe(true);
     });
 
     it("blank / whitespace-only is the same as unset", () => {
-      expect(resolveHarnessFlags({ DOMOTION_CAPTURE_FLAGS: "   " })).toEqual(
-        { captureFlags: [], rasterFlags: [], asymmetric: false },
-      );
+      expect(resolveHarnessFlags({ DOMOTION_CAPTURE_FLAGS: "   " })).toEqual({
+        captureFlags: [],
+        rasterFlags: [],
+        asymmetric: false,
+      });
     });
 
     it("collapses runs of whitespace between flags", () => {
@@ -142,7 +152,9 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
         if (v == null) delete process.env.DOMOTION_FONT_FINGERPRINT;
         else process.env.DOMOTION_FONT_FINGERPRINT = v;
         __resetFontDigestForTest();
-        try { return fn(); } finally {
+        try {
+          return fn();
+        } finally {
           if (prev == null) delete process.env.DOMOTION_FONT_FINGERPRINT;
           else process.env.DOMOTION_FONT_FINGERPRINT = prev;
           __resetFontDigestForTest();

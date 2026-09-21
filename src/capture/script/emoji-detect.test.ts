@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createEmojiDetect, scanEmojiPresentation } from "./emoji-detect.js";
 
 function rows(text: string): Array<[string, string, boolean]> {
-  return scanEmojiPresentation(text).map((span) => [
-    text.slice(span.start, span.end), span.presentation, span.hasVs,
-  ]);
+  return scanEmojiPresentation(text).map((span) => [text.slice(span.start, span.end), span.presentation, span.hasVs]);
 }
 
 describe("Blink emoji presentation scanner port", () => {
@@ -12,7 +10,10 @@ describe("Blink emoji presentation scanner port", () => {
     expect(rows("🇵")).toEqual([]);
     expect(rows("🇵🇭")).toEqual([["🇵🇭", "emoji", false]]);
     expect(rows("🇵🇭🇺")).toEqual([["🇵🇭", "emoji", false]]);
-    expect(rows("🇵🇭🇺🇸")).toEqual([["🇵🇭", "emoji", false], ["🇺🇸", "emoji", false]]);
+    expect(rows("🇵🇭🇺🇸")).toEqual([
+      ["🇵🇭", "emoji", false],
+      ["🇺🇸", "emoji", false],
+    ]);
   });
 
   it("gives VS15 priority and recognizes only the VS16 keycap grammar", () => {
@@ -59,7 +60,7 @@ describe("Blink emoji presentation scanner port", () => {
 
   it("contains no named glyph or block exceptions", () => {
     const { rasterCandidates } = createEmojiDetect();
-    for (const cp of [0x2705, 0x2728, 0x2B50, 0x303D, 0x3297, 0x1F18E, 0x1F201, 0x1F600]) {
+    for (const cp of [0x2705, 0x2728, 0x2b50, 0x303d, 0x3297, 0x1f18e, 0x1f201, 0x1f600]) {
       expect(rasterCandidates(String.fromCodePoint(cp)).length, `U+${cp.toString(16)}`).toBeGreaterThan(0);
     }
   });

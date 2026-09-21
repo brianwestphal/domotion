@@ -2,7 +2,12 @@
   "name": "domotion-template-quote-card",
   "version": "0.1.0",
   "description": "A Domotion template: an animated pull-quote card that rises and fades into place.",
-  "keywords": ["domotion", "domotion-template", "svg", "animation"],
+  "keywords": [
+    "domotion",
+    "domotion-template",
+    "svg",
+    "animation"
+  ],
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,7 +18,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run"

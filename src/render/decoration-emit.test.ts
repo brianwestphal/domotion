@@ -97,7 +97,10 @@ describe("emitDecorationLine: dashed/dotted midpoint snap (decoration_line_paint
 /** Ctx spanning x ∈ [0, 100] whose computeGapsAt returns `gaps` and whose
  *  subSegments splits the span around them (the real renderTextDecoration
  *  shape), recording the (yRel, thick, pad) computeGapsAt was asked for. */
-function gapCtx(style: string | undefined, gaps: Array<[number, number]>): DecorationLineCtx & { asked: Array<{ yRel: number; thick: number; pad: number }> } {
+function gapCtx(
+  style: string | undefined,
+  gaps: Array<[number, number]>,
+): DecorationLineCtx & { asked: Array<{ yRel: number; thick: number; pad: number }> } {
   const asked: Array<{ yRel: number; thick: number; pad: number }> = [];
   return {
     style,
@@ -105,7 +108,10 @@ function gapCtx(style: string | undefined, gaps: Array<[number, number]>): Decor
     segX: 0,
     decorationColor: "#f00",
     asked,
-    computeGapsAt: (yRel, thick, pad) => { asked.push({ yRel, thick, pad }); return gaps; },
+    computeGapsAt: (yRel, thick, pad) => {
+      asked.push({ yRel, thick, pad });
+      return gaps;
+    },
     subSegments: (g) => {
       const out: Array<{ x0: number; x1: number }> = [];
       let cursor = 0;
@@ -132,7 +138,7 @@ describe("emitDecorationLine: dashed/dotted skip-ink — ONE dash pattern across
     // The gap is carried by a clip path over the surviving sub-segments.
     expect([...out.matchAll(/<clipPath /g)]).toHaveLength(1);
     expect([...out.matchAll(/<rect [^>]*width="([^"]+)"/g)].map((m) => m[1])).toEqual(["40", "40"]); // [0,40] and [60,100]
-    expect(out).toContain("clip-path=\"url(#");
+    expect(out).toContain('clip-path="url(#');
   });
 
   it("dashed and dotted are no longer excluded from skip-ink — computeGapsAt IS consulted, with Bounds' snapped rounded-thickness band and the unrounded dilation", () => {

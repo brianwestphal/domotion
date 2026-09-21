@@ -8,7 +8,16 @@
  */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { createReadStream, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  createReadStream,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { arch, platform, release, tmpdir } from "node:os";
@@ -22,8 +31,8 @@ const require = createRequire(import.meta.url);
 
 export const GENERICS = ["standard", "fixed", "serif", "sansserif", "cursive", "fantasy", "math"] as const;
 export const SCRIPTS = ["Zyyy", "Jpan", "Deva"] as const;
-type Generic = typeof GENERICS[number];
-type Script = typeof SCRIPTS[number];
+type Generic = (typeof GENERICS)[number];
+type Script = (typeof SCRIPTS)[number];
 type ProtocolFamilyKey = "standard" | "fixed" | "serif" | "sansSerif" | "cursive" | "fantasy" | "math";
 type ProtocolFontFamilies = Partial<Record<ProtocolFamilyKey, string>>;
 type LaunchOrder = "headed-headless" | "headless-headed";
@@ -95,7 +104,13 @@ export interface OverlayAdjudication {
   maskedRowsExact: number;
   profileRetainedRows: number;
   profileRetainedRowsExact: number;
-  mismatches: Array<{ script: Script; generic: Generic; owner: "playwright-overlay" | "profile"; expected: string; actual: string }>;
+  mismatches: Array<{
+    script: Script;
+    generic: Generic;
+    owner: "playwright-overlay" | "profile";
+    expected: string;
+    actual: string;
+  }>;
   pass: boolean;
 }
 
@@ -262,7 +277,8 @@ interface PlaywrightSources {
 let probeSequence = 0;
 const key = (row: Pick<ProfileFaceRow, "script" | "generic">): string => `${row.script}/${row.generic}`;
 const systemKey = (row: Pick<SystemUiFaceRow, "script">): string => row.script;
-const face = (row: Pick<ProfileFaceRow | SystemUiFaceRow, "familyName" | "postScriptName">): string => row.postScriptName ?? row.familyName;
+const face = (row: Pick<ProfileFaceRow | SystemUiFaceRow, "familyName" | "postScriptName">): string =>
+  row.postScriptName ?? row.familyName;
 const norm = (value: string | null | undefined): string => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const nativePath = (value: string): string => {
   const canonical = realpathSync.native(value);
@@ -309,7 +325,10 @@ function asObject(value: unknown, label: string): Record<string, unknown> {
 }
 
 /** Derives the relevant 21-field mask from Playwright's live source table. */
-export function derivePlaywrightOverlayMask(platformKey: PlaywrightOverlayMask["platformKey"], sourceTable: Record<string, unknown>): PlaywrightOverlayMask {
+export function derivePlaywrightOverlayMask(
+  platformKey: PlaywrightOverlayMask["platformKey"],
+  sourceTable: Record<string, unknown>,
+): PlaywrightOverlayMask {
   const entry = asObject(sourceTable[platformKey], `Playwright platformToFontFamilies.${platformKey}`);
   const fields: PlaywrightOverlayField[] = [];
   const add = (script: Script, familiesValue: unknown): void => {
@@ -338,7 +357,8 @@ function playwrightSources(): PlaywrightSources {
   const packageRoot = dirname(packagePath);
   const overlayPath = join(packageRoot, "lib/server/chromium/defaultFontFamilies.js");
   const loaded = require(overlayPath) as { platformToFontFamilies?: Record<string, unknown> };
-  if (loaded.platformToFontFamilies == null) throw new Error("Playwright font overlay source did not export platformToFontFamilies");
+  if (loaded.platformToFontFamilies == null)
+    throw new Error("Playwright font overlay source did not export platformToFontFamilies");
   const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as { version?: string };
   return {
     version: packageJson.version ?? "unknown",
@@ -352,13 +372,20 @@ async function chromeBinaryIdentity(): Promise<ChromeBinaryIdentity> {
   const packagePath = require.resolve("playwright-core/package.json");
   const registryPath = join(dirname(packagePath), "lib/server/registry/index.js");
   const loaded = require(registryPath) as {
-    registry?: { findExecutable(name: string): { name?: string; browserName?: string; executablePath(): string | undefined } | undefined };
+    registry?: {
+      findExecutable(
+        name: string,
+      ): { name?: string; browserName?: string; executablePath(): string | undefined } | undefined;
+    };
   };
   const executable = loaded.registry?.findExecutable("chrome");
   const executablePath = executable?.executablePath();
-  if (executable == null || executablePath == null) throw new Error("Playwright registry cannot resolve installed full Chrome channel");
+  if (executable == null || executablePath == null)
+    throw new Error("Playwright registry cannot resolve installed full Chrome channel");
   if (executable.name !== "chrome" || executable.browserName !== "chromium") {
-    throw new Error(`unexpected Playwright registry identity: ${String(executable.name)}/${String(executable.browserName)}`);
+    throw new Error(
+      `unexpected Playwright registry identity: ${String(executable.name)}/${String(executable.browserName)}`,
+    );
   }
   return {
     requestedChannel: "chrome",
@@ -372,7 +399,10 @@ async function chromeBinaryIdentity(): Promise<ChromeBinaryIdentity> {
 
 async function readFace(cdp: CDPSession, nodeId: number): Promise<Omit<ProfileFaceRow, "script" | "generic">> {
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-  const painted = fonts.reduce((best, item) => best == null || item.glyphCount > best.glyphCount ? item : best, null as typeof fonts[number] | null);
+  const painted = fonts.reduce(
+    (best, item) => (best == null || item.glyphCount > best.glyphCount ? item : best),
+    null as (typeof fonts)[number] | null,
+  );
   if (painted == null) throw new Error("probe node has no painted platform face");
   return {
     familyName: painted.familyName,
@@ -383,42 +413,54 @@ async function readFace(cdp: CDPSession, nodeId: number): Promise<Omit<ProfileFa
 }
 
 async function paintBarrier(owner: Page | Frame): Promise<void> {
-  await owner.evaluate(() => new Promise<void>((resolvePaint) => requestAnimationFrame(() => requestAnimationFrame(() => resolvePaint()))));
+  await owner.evaluate(
+    () => new Promise<void>((resolvePaint) => requestAnimationFrame(() => requestAnimationFrame(() => resolvePaint()))),
+  );
 }
 
 async function readRows(owner: Page | Frame, cdp: CDPSession): Promise<ProfileFaceRow[]> {
   const id = `__domotion_profile_${++probeSequence}`;
-  await owner.evaluate(({ id: rootId, generics, scripts }) => {
-    const root = document.createElement("div");
-    root.id = rootId;
-    root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
-    for (const script of scripts) for (const generic of generics) {
-      const span = document.createElement("span");
-      span.id = `${rootId}_${script}_${generic}`;
-      span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
-      if (generic !== "standard") span.style.fontFamily = generic === "fixed" ? "monospace" : generic === "sansserif" ? "sans-serif" : generic;
-      if (script === "Jpan") {
-        span.lang = "ja";
-        span.style.setProperty("-webkit-locale", '"ja"');
-      }
-      if (script === "Deva") {
-        span.lang = "hi";
-        span.style.setProperty("-webkit-locale", '"hi"');
-      }
-      span.textContent = script === "Jpan" ? "日" : script === "Deva" ? "अ" : "A";
-      root.appendChild(span);
-    }
-    document.documentElement.appendChild(root);
-  }, { id, generics: GENERICS, scripts: SCRIPTS });
+  await owner.evaluate(
+    ({ id: rootId, generics, scripts }) => {
+      const root = document.createElement("div");
+      root.id = rootId;
+      root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
+      for (const script of scripts)
+        for (const generic of generics) {
+          const span = document.createElement("span");
+          span.id = `${rootId}_${script}_${generic}`;
+          span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
+          if (generic !== "standard")
+            span.style.fontFamily =
+              generic === "fixed" ? "monospace" : generic === "sansserif" ? "sans-serif" : generic;
+          if (script === "Jpan") {
+            span.lang = "ja";
+            span.style.setProperty("-webkit-locale", '"ja"');
+          }
+          if (script === "Deva") {
+            span.lang = "hi";
+            span.style.setProperty("-webkit-locale", '"hi"');
+          }
+          span.textContent = script === "Jpan" ? "日" : script === "Deva" ? "अ" : "A";
+          root.appendChild(span);
+        }
+      document.documentElement.appendChild(root);
+    },
+    { id, generics: GENERICS, scripts: SCRIPTS },
+  );
   await paintBarrier(owner);
   try {
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const rows: ProfileFaceRow[] = [];
-    for (const script of SCRIPTS) for (const generic of GENERICS) {
-      const found = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${id}_${script}_${generic}` });
-      if (found.nodeId === 0) throw new Error(`lost generic probe ${script}/${generic}`);
-      rows.push({ script, generic, ...await readFace(cdp, found.nodeId) });
-    }
+    for (const script of SCRIPTS)
+      for (const generic of GENERICS) {
+        const found = await cdp.send("DOM.querySelector", {
+          nodeId: root.nodeId,
+          selector: `#${id}_${script}_${generic}`,
+        });
+        if (found.nodeId === 0) throw new Error(`lost generic probe ${script}/${generic}`);
+        rows.push({ script, generic, ...(await readFace(cdp, found.nodeId)) });
+      }
     return rows;
   } finally {
     await owner.evaluate((probeId) => document.getElementById(probeId)?.remove(), id).catch(() => undefined);
@@ -448,35 +490,40 @@ const WINDOWS_DEVANAGARI_CANDIDATES = [
  * simply paint as Nirmala and disappear during face-identity deduplication.
  */
 async function readMutationCandidateRows(owner: Page | Frame, cdp: CDPSession): Promise<MutationCandidateFaceRow[]> {
-  const requested = platform() === "win32"
-    ? WINDOWS_DEVANAGARI_CANDIDATES.map((requestedFamily) => ({ script: "Deva" as const, requestedFamily }))
-    : [];
+  const requested =
+    platform() === "win32"
+      ? WINDOWS_DEVANAGARI_CANDIDATES.map((requestedFamily) => ({ script: "Deva" as const, requestedFamily }))
+      : [];
   if (requested.length === 0) return [];
   const id = `__domotion_mutation_candidates_${++probeSequence}`;
-  await owner.evaluate(({ id: rootId, rows }) => {
-    const root = document.createElement("div");
-    root.id = rootId;
-    root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
-    for (const [index, row] of rows.entries()) {
-      const span = document.createElement("span");
-      span.id = `${rootId}_${index}`;
-      span.lang = "hi";
-      span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
-      span.style.fontFamily = row.requestedFamily;
-      span.style.setProperty("-webkit-locale", '"hi"');
-      span.textContent = "अ";
-      root.appendChild(span);
-    }
-    document.documentElement.appendChild(root);
-  }, { id, rows: requested });
+  await owner.evaluate(
+    ({ id: rootId, rows }) => {
+      const root = document.createElement("div");
+      root.id = rootId;
+      root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
+      for (const [index, row] of rows.entries()) {
+        const span = document.createElement("span");
+        span.id = `${rootId}_${index}`;
+        span.lang = "hi";
+        span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
+        span.style.fontFamily = row.requestedFamily;
+        span.style.setProperty("-webkit-locale", '"hi"');
+        span.textContent = "अ";
+        root.appendChild(span);
+      }
+      document.documentElement.appendChild(root);
+    },
+    { id, rows: requested },
+  );
   await paintBarrier(owner);
   try {
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const rows: MutationCandidateFaceRow[] = [];
     for (const [index, request] of requested.entries()) {
       const found = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${id}_${index}` });
-      if (found.nodeId === 0) throw new Error(`lost mutation candidate probe ${request.script}/${request.requestedFamily}`);
-      rows.push({ ...request, ...await readFace(cdp, found.nodeId) });
+      if (found.nodeId === 0)
+        throw new Error(`lost mutation candidate probe ${request.script}/${request.requestedFamily}`);
+      rows.push({ ...request, ...(await readFace(cdp, found.nodeId)) });
     }
     return rows;
   } finally {
@@ -486,31 +533,34 @@ async function readMutationCandidateRows(owner: Page | Frame, cdp: CDPSession): 
 
 async function readSystemUiRows(owner: Page | Frame, cdp: CDPSession): Promise<SystemUiFaceRow[]> {
   const id = `__domotion_system_ui_${++probeSequence}`;
-  await owner.evaluate(({ id: rootId, scripts }) => {
-    const root = document.createElement("div");
-    root.id = rootId;
-    root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
-    for (const script of scripts) {
-      const span = document.createElement("span");
-      span.id = `${rootId}_${script}`;
-      span.style.cssText = "all:initial;display:block;font-family:system-ui;font-size:32px;line-height:normal";
-      if (script === "Jpan") {
-        span.lang = "ja";
-        span.style.setProperty("-webkit-locale", '"ja"');
+  await owner.evaluate(
+    ({ id: rootId, scripts }) => {
+      const root = document.createElement("div");
+      root.id = rootId;
+      root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
+      for (const script of scripts) {
+        const span = document.createElement("span");
+        span.id = `${rootId}_${script}`;
+        span.style.cssText = "all:initial;display:block;font-family:system-ui;font-size:32px;line-height:normal";
+        if (script === "Jpan") {
+          span.lang = "ja";
+          span.style.setProperty("-webkit-locale", '"ja"');
+        }
+        if (script === "Deva") {
+          span.lang = "hi";
+          span.style.setProperty("-webkit-locale", '"hi"');
+        }
+        // Keep the separation control on a glyph owned by every platform UI
+        // face. Han/Devanagari glyph fallback can legitimately consult other
+        // fallback routes after system-ui and would no longer isolate whether
+        // Page.setFontFamilies itself owns system-ui.
+        span.textContent = "A";
+        root.appendChild(span);
       }
-      if (script === "Deva") {
-        span.lang = "hi";
-        span.style.setProperty("-webkit-locale", '"hi"');
-      }
-      // Keep the separation control on a glyph owned by every platform UI
-      // face. Han/Devanagari glyph fallback can legitimately consult other
-      // fallback routes after system-ui and would no longer isolate whether
-      // Page.setFontFamilies itself owns system-ui.
-      span.textContent = "A";
-      root.appendChild(span);
-    }
-    document.documentElement.appendChild(root);
-  }, { id, scripts: SCRIPTS });
+      document.documentElement.appendChild(root);
+    },
+    { id, scripts: SCRIPTS },
+  );
   await paintBarrier(owner);
   try {
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
@@ -518,7 +568,7 @@ async function readSystemUiRows(owner: Page | Frame, cdp: CDPSession): Promise<S
     for (const script of SCRIPTS) {
       const found = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${id}_${script}` });
       if (found.nodeId === 0) throw new Error(`lost system-ui probe ${script}`);
-      rows.push({ script, ...await readFace(cdp, found.nodeId) });
+      rows.push({ script, ...(await readFace(cdp, found.nodeId)) });
     }
     return rows;
   } finally {
@@ -535,16 +585,24 @@ function userDataDirFromArguments(args: string[]): string | null {
   return args.find((argument) => argument.startsWith(prefix))?.slice(prefix.length) ?? null;
 }
 
-async function authenticateLaunch(cdp: CDPSession, binary: ChromeBinaryIdentity, dir: string, role: string, headless: boolean): Promise<ChromeLaunchAuthentication> {
+async function authenticateLaunch(
+  cdp: CDPSession,
+  binary: ChromeBinaryIdentity,
+  dir: string,
+  role: string,
+  headless: boolean,
+): Promise<ChromeLaunchAuthentication> {
   const [version, command] = await Promise.all([
     cdp.send("Browser.getVersion"),
     cdp.send("Browser.getBrowserCommandLine"),
   ]);
   const commandExecutable = command.arguments[0] ?? null;
   const commandUserDataDir = userDataDirFromArguments(command.arguments);
-  const executablePathExact = commandExecutable != null && nativePath(commandExecutable) === nativePath(binary.executablePath);
+  const executablePathExact =
+    commandExecutable != null && nativePath(commandExecutable) === nativePath(binary.executablePath);
   const userDataDirExact = commandUserDataDir != null && nativePath(commandUserDataDir) === nativePath(dir);
-  const fullChromeChannelExact = /^Chrome\//.test(version.product) && binary.requestedChannel === "chrome" && binary.registryName === "chrome";
+  const fullChromeChannelExact =
+    /^Chrome\//.test(version.product) && binary.requestedChannel === "chrome" && binary.registryName === "chrome";
   return {
     role,
     headless,
@@ -560,8 +618,18 @@ async function authenticateLaunch(cdp: CDPSession, binary: ChromeBinaryIdentity,
   };
 }
 
-async function collectPersistent(dir: string, headless: boolean, role: string, binary: ChromeBinaryIdentity, opened: Set<BrowserContext>): Promise<CollectedLaunch> {
-  const context = await chromium.launchPersistentContext(dir, { channel: "chrome", headless, args: ["--site-per-process"] });
+async function collectPersistent(
+  dir: string,
+  headless: boolean,
+  role: string,
+  binary: ChromeBinaryIdentity,
+  opened: Set<BrowserContext>,
+): Promise<CollectedLaunch> {
+  const context = await chromium.launchPersistentContext(dir, {
+    channel: "chrome",
+    headless,
+    args: ["--site-per-process"],
+  });
   opened.add(context);
   // Persistent Chrome creates an initial target while Playwright is attaching.
   // Exercise an explicitly created target so its source-owned initialization
@@ -594,9 +662,10 @@ function validateRows(rows: ProfileFaceRow[], label: string): void {
   if (rows.length !== REQUIRED_FIELDS || found.size !== REQUIRED_FIELDS) {
     throw new Error(`${label} requires ${REQUIRED_FIELDS} unique rows, found ${rows.length}/${found.size}`);
   }
-  for (const script of SCRIPTS) for (const generic of GENERICS) {
-    if (!found.has(`${script}/${generic}`)) throw new Error(`${label} is missing ${script}/${generic}`);
-  }
+  for (const script of SCRIPTS)
+    for (const generic of GENERICS) {
+      if (!found.has(`${script}/${generic}`)) throw new Error(`${label} is missing ${script}/${generic}`);
+    }
 }
 
 export function deriveNonInertProfile(
@@ -611,13 +680,16 @@ export function deriveNonInertProfile(
     const scriptRows = rows.filter((row) => row.script === script);
     const candidateRows = [
       ...scriptRows,
-      ...mutationCandidates.filter((row) => row.script === script).map((row) => ({
-        ...row,
-        generic: scriptRows[0].generic,
-      })),
+      ...mutationCandidates
+        .filter((row) => row.script === script)
+        .map((row) => ({
+          ...row,
+          generic: scriptRows[0].generic,
+        })),
     ];
-    const candidates = candidateRows.filter((row, index) =>
-      candidateRows.findIndex((other) => norm(face(other)) === norm(face(row))) === index);
+    const candidates = candidateRows.filter(
+      (row, index) => candidateRows.findIndex((other) => norm(face(other)) === norm(face(row))) === index,
+    );
     if (candidates.length < 2) throw new Error(`non-inert mutation needs two painted ${script} families`);
     for (const [index, generic] of GENERICS.entries()) {
       const before = scriptRows.find((row) => row.generic === generic)!;
@@ -625,15 +697,28 @@ export function deriveNonInertProfile(
       if (eligible.length === 0) throw new Error(`no non-inert candidate for ${script}/${generic}`);
       const requested = eligible[index % eligible.length].familyName;
       profile[generic][script] = requested;
-      fields.push({ script, generic, before: before.familyName, requested, nonInert: norm(face(before)) !== norm(face(eligible[index % eligible.length])) });
+      fields.push({
+        script,
+        generic,
+        before: before.familyName,
+        requested,
+        nonInert: norm(face(before)) !== norm(face(eligible[index % eligible.length])),
+      });
     }
     distinctRequestedFamiliesByScript[script] = new Set(GENERICS.map((generic) => norm(profile[generic][script]))).size;
   }
   const nonInertFieldCount = fields.filter((field) => field.nonInert).length;
-  const pass = nonInertFieldCount === REQUIRED_FIELDS && SCRIPTS.every((script) => distinctRequestedFamiliesByScript[script] >= 2);
+  const pass =
+    nonInertFieldCount === REQUIRED_FIELDS && SCRIPTS.every((script) => distinctRequestedFamiliesByScript[script] >= 2);
   return {
     profile,
-    mutation: { fields, requiredFieldCount: REQUIRED_FIELDS, nonInertFieldCount, distinctRequestedFamiliesByScript, pass },
+    mutation: {
+      fields,
+      requiredFieldCount: REQUIRED_FIELDS,
+      nonInertFieldCount,
+      distinctRequestedFamiliesByScript,
+      pass,
+    },
   };
 }
 
@@ -643,19 +728,40 @@ function writeProfile(dir: string, fonts: ProfileFonts): PersistedProfileReport 
   return readPersistedProfile(dir, fonts, "written");
 }
 
-function readPersistedProfile(dir: string, expected: ProfileFonts, checkpoint: PersistedProfileReport["checkpoint"]): PersistedProfileReport {
+function readPersistedProfile(
+  dir: string,
+  expected: ProfileFonts,
+  checkpoint: PersistedProfileReport["checkpoint"],
+): PersistedProfileReport {
   const preferencesPath = join(dir, "Default", "Preferences");
   const raw = readFileSync(preferencesPath);
-  const parsed = JSON.parse(raw.toString("utf8")) as { webkit?: { webprefs?: { fonts?: Record<string, Record<string, unknown>> } } };
+  const parsed = JSON.parse(raw.toString("utf8")) as {
+    webkit?: { webprefs?: { fonts?: Record<string, Record<string, unknown>> } };
+  };
   const fonts = parsed.webkit?.webprefs?.fonts;
   const fields: PersistedProfileField[] = [];
-  for (const script of SCRIPTS) for (const generic of GENERICS) {
-    const value = fonts?.[generic]?.[script];
-    const persisted = typeof value === "string" ? value : null;
-    fields.push({ script, generic, requested: expected[generic][script], persisted, exact: persisted != null && norm(persisted) === norm(expected[generic][script]) });
-  }
+  for (const script of SCRIPTS)
+    for (const generic of GENERICS) {
+      const value = fonts?.[generic]?.[script];
+      const persisted = typeof value === "string" ? value : null;
+      fields.push({
+        script,
+        generic,
+        requested: expected[generic][script],
+        persisted,
+        exact: persisted != null && norm(persisted) === norm(expected[generic][script]),
+      });
+    }
   const exactFields = fields.filter((field) => field.exact).length;
-  return { checkpoint, preferencesPath, rawSha256: sha(raw), fields, requiredFields: REQUIRED_FIELDS, exactFields, pass: exactFields === REQUIRED_FIELDS };
+  return {
+    checkpoint,
+    preferencesPath,
+    rawSha256: sha(raw),
+    fields,
+    requiredFields: REQUIRED_FIELDS,
+    exactFields,
+    pass: exactFields === REQUIRED_FIELDS,
+  };
 }
 
 function expectedProfileExact(rows: ProfileFaceRow[], expected: ProfileFonts): number {
@@ -675,7 +781,12 @@ function systemRowsExact(actual: SystemUiFaceRow[], expected: SystemUiFaceRow[])
   return actual.filter((row) => norm(face(row)) === norm(face(expectedMap.get(systemKey(row))))).length;
 }
 
-export function adjudicateOverlay(profileRows: ProfileFaceRow[], cleanHeadless: ProfileFaceRow[], actual: ProfileFaceRow[], mask: PlaywrightOverlayMask): OverlayAdjudication {
+export function adjudicateOverlay(
+  profileRows: ProfileFaceRow[],
+  cleanHeadless: ProfileFaceRow[],
+  actual: ProfileFaceRow[],
+  mask: PlaywrightOverlayMask,
+): OverlayAdjudication {
   validateRows(profileRows, "profile overlay baseline");
   validateRows(cleanHeadless, "clean headless overlay baseline");
   validateRows(actual, "headless overlay observation");
@@ -691,7 +802,14 @@ export function adjudicateOverlay(profileRows: ProfileFaceRow[], cleanHeadless: 
     const exact = norm(face(row)) === norm(face(expected));
     if (ownedByOverlay && exact) maskedRowsExact++;
     if (!ownedByOverlay && exact) profileRetainedRowsExact++;
-    if (!exact) mismatches.push({ script: row.script, generic: row.generic, owner: ownedByOverlay ? "playwright-overlay" : "profile", expected: face(expected), actual: face(row) });
+    if (!exact)
+      mismatches.push({
+        script: row.script,
+        generic: row.generic,
+        owner: ownedByOverlay ? "playwright-overlay" : "profile",
+        expected: face(expected),
+        actual: face(row),
+      });
   }
   const profileRetainedRows = REQUIRED_FIELDS - maskKeys.size;
   const exactRows = maskedRowsExact + profileRetainedRowsExact;
@@ -711,13 +829,18 @@ function modeReport(mode: ProfileModeReport["mode"], launch: CollectedLaunch, ex
   return { mode, rows: launch.rows, expectedRows: REQUIRED_FIELDS, exactRows, pass: exactRows === REQUIRED_FIELDS };
 }
 
-function protocolProfile(profile: ProfileFonts): { fontFamilies: ProtocolFontFamilies; forScripts: Array<{ script: string; fontFamilies: ProtocolFontFamilies }> } {
-  const forScript = (script: Script): ProtocolFontFamilies => Object.fromEntries(
-    GENERICS.map((generic) => [PROTOCOL_KEY[generic], profile[generic][script]]),
-  );
+function protocolProfile(profile: ProfileFonts): {
+  fontFamilies: ProtocolFontFamilies;
+  forScripts: Array<{ script: string; fontFamilies: ProtocolFontFamilies }>;
+} {
+  const forScript = (script: Script): ProtocolFontFamilies =>
+    Object.fromEntries(GENERICS.map((generic) => [PROTOCOL_KEY[generic], profile[generic][script]]));
   return {
     fontFamilies: forScript("Zyyy"),
-    forScripts: SCRIPTS.filter((script) => script !== "Zyyy").map((script) => ({ script: script.toLowerCase(), fontFamilies: forScript(script) })),
+    forScripts: SCRIPTS.filter((script) => script !== "Zyyy").map((script) => ({
+      script: script.toLowerCase(),
+      fontFamilies: forScript(script),
+    })),
   };
 }
 
@@ -755,10 +878,11 @@ async function runTargetOrder(args: {
     childCdp = await launch.context.newCDPSession(child);
     await enable(childCdp);
     const [mainIdentity, childIdentity] = await Promise.all([targetInfo(launch.cdp), targetInfo(childCdp)]);
-    const distinctOopifTargets = mainIdentity.targetId !== childIdentity.targetId
-      && mainIdentity.type === "page"
-      && childIdentity.type === "iframe"
-      && new URL(mainIdentity.url).hostname !== new URL(childIdentity.url).hostname;
+    const distinctOopifTargets =
+      mainIdentity.targetId !== childIdentity.targetId &&
+      mainIdentity.type === "page" &&
+      childIdentity.type === "iframe" &&
+      new URL(mainIdentity.url).hostname !== new URL(childIdentity.url).hostname;
     const baseline = {
       main: await targetSnapshot(launch.page, launch.cdp),
       child: await targetSnapshot(child, childCdp),
@@ -768,7 +892,9 @@ async function runTargetOrder(args: {
     const payload = protocolProfile(mutationProfile);
     const current = { main: baseline.main, child: baseline.child };
     const steps: TargetStepReport[] = [];
-    for (const mutatedTarget of args.id === "child-main" ? ["child", "main"] as const : ["main", "child"] as const) {
+    for (const mutatedTarget of args.id === "child-main"
+      ? (["child", "main"] as const)
+      : (["main", "child"] as const)) {
       const otherTarget = mutatedTarget === "main" ? "child" : "main";
       const cdp = mutatedTarget === "main" ? launch.cdp : childCdp;
       await cdp.send("Page.setFontFamilies", payload);
@@ -780,21 +906,30 @@ async function runTargetOrder(args: {
       const otherTargetStableFields = rowsExact(next[otherTarget].genericRows, current[otherTarget].genericRows);
       const mainSystemUiStableRows = systemRowsExact(next.main.systemUiRows, baseline.main.systemUiRows);
       const childSystemUiStableRows = systemRowsExact(next.child.systemUiRows, baseline.child.systemUiRows);
-      const pass = mutatedTargetExactFields === REQUIRED_FIELDS
-        && otherTargetStableFields === REQUIRED_FIELDS
-        && mainSystemUiStableRows === SCRIPTS.length
-        && childSystemUiStableRows === SCRIPTS.length;
-      steps.push({ mutatedTarget, mutatedTargetExactFields, otherTargetStableFields, mainSystemUiStableRows, childSystemUiStableRows, pass });
+      const pass =
+        mutatedTargetExactFields === REQUIRED_FIELDS &&
+        otherTargetStableFields === REQUIRED_FIELDS &&
+        mainSystemUiStableRows === SCRIPTS.length &&
+        childSystemUiStableRows === SCRIPTS.length;
+      steps.push({
+        mutatedTarget,
+        mutatedTargetExactFields,
+        otherTargetStableFields,
+        mainSystemUiStableRows,
+        childSystemUiStableRows,
+        pass,
+      });
       current.main = next.main;
       current.child = next.child;
     }
-    const pass = distinctOopifTargets
-      && baselineMainChildExactFields === REQUIRED_FIELDS
-      && mutation.pass
-      && steps.length === 2
-      && steps.every((step) => step.pass)
-      && profileExactSnapshot(current.main, mutationProfile) === REQUIRED_FIELDS
-      && profileExactSnapshot(current.child, mutationProfile) === REQUIRED_FIELDS;
+    const pass =
+      distinctOopifTargets &&
+      baselineMainChildExactFields === REQUIRED_FIELDS &&
+      mutation.pass &&
+      steps.length === 2 &&
+      steps.every((step) => step.pass) &&
+      profileExactSnapshot(current.main, mutationProfile) === REQUIRED_FIELDS &&
+      profileExactSnapshot(current.child, mutationProfile) === REQUIRED_FIELDS;
     return {
       id: args.id,
       targetIdentity: { main: mainIdentity, child: childIdentity, distinctOopifTargets },
@@ -811,17 +946,25 @@ async function runTargetOrder(args: {
 }
 
 function targetOrdersEquivalent(first: TargetOrderReport, second: TargetOrderReport): boolean {
-  return rowsExact(first.final.main.genericRows, second.final.main.genericRows) === REQUIRED_FIELDS
-    && rowsExact(first.final.child.genericRows, second.final.child.genericRows) === REQUIRED_FIELDS
-    && systemRowsExact(first.final.main.systemUiRows, second.final.main.systemUiRows) === SCRIPTS.length
-    && systemRowsExact(first.final.child.systemUiRows, second.final.child.systemUiRows) === SCRIPTS.length;
+  return (
+    rowsExact(first.final.main.genericRows, second.final.main.genericRows) === REQUIRED_FIELDS &&
+    rowsExact(first.final.child.genericRows, second.final.child.genericRows) === REQUIRED_FIELDS &&
+    systemRowsExact(first.final.main.systemUiRows, second.final.main.systemUiRows) === SCRIPTS.length &&
+    systemRowsExact(first.final.child.systemUiRows, second.final.child.systemUiRows) === SCRIPTS.length
+  );
 }
 
 function emptyProfile(): ProfileFonts {
-  return Object.fromEntries(GENERICS.map((generic) => [generic, Object.fromEntries(SCRIPTS.map((script) => [script, ""]))])) as ProfileFonts;
+  return Object.fromEntries(
+    GENERICS.map((generic) => [generic, Object.fromEntries(SCRIPTS.map((script) => [script, ""]))]),
+  ) as ProfileFonts;
 }
 
-function unavailableReport(errors: string[], sources: PlaywrightSources | null, overlay: PlaywrightOverlayMask | null): GenericProfileTargetReport {
+function unavailableReport(
+  errors: string[],
+  sources: PlaywrightSources | null,
+  overlay: PlaywrightOverlayMask | null,
+): GenericProfileTargetReport {
   return {
     schemaVersion: 2,
     ticket: "DM-2539",
@@ -844,12 +987,25 @@ function unavailableReport(errors: string[], sources: PlaywrightSources | null, 
       fontInventorySha256: "unavailable",
     },
     requestedProfile: emptyProfile(),
-    mutation: { fields: [], requiredFieldCount: REQUIRED_FIELDS, nonInertFieldCount: 0, distinctRequestedFamiliesByScript: { Zyyy: 0, Jpan: 0, Deva: 0 }, pass: false },
+    mutation: {
+      fields: [],
+      requiredFieldCount: REQUIRED_FIELDS,
+      nonInertFieldCount: 0,
+      distinctRequestedFamiliesByScript: { Zyyy: 0, Jpan: 0, Deva: 0 },
+      pass: false,
+    },
     mutationCandidates: [],
     clean: { headed: [], headless: [] },
     playwrightOverlay: overlay ?? { platformKey: sourcePlatformKey(platform()), fields: [], sourceFieldCount: 0 },
     profileOrders: [],
-    target: { orders: [], forwardReverseEquivalent: false, requiredGenericFieldsPerTarget: REQUIRED_FIELDS, requiredSystemUiRowsPerTarget: SCRIPTS.length, supportedContract: "target-local-settings-authenticated-system-ui-separate", pass: false },
+    target: {
+      orders: [],
+      forwardReverseEquivalent: false,
+      requiredGenericFieldsPerTarget: REQUIRED_FIELDS,
+      requiredSystemUiRowsPerTarget: SCRIPTS.length,
+      supportedContract: "target-local-settings-authenticated-system-ui-separate",
+      pass: false,
+    },
     verdict: "unavailable",
     errors,
   };
@@ -859,9 +1015,11 @@ export async function runGenericProfileTargetOracle(
   options: { allowHeadedBrowser?: boolean } = {},
 ): Promise<GenericProfileTargetReport> {
   if (options.allowHeadedBrowser !== true) {
-    return unavailableReport([
-      "Error: headed Chrome is disabled; pass --allow-headed-browser only on an isolated validation host",
-    ], null, null);
+    return unavailableReport(
+      ["Error: headed Chrome is disabled; pass --allow-headed-browser only on an isolated validation host"],
+      null,
+      null,
+    );
   }
   const dirs = Array.from({ length: 6 }, () => mkdtempSync(join(tmpdir(), "domotion-profile-authority-")));
   const opened = new Set<BrowserContext>();
@@ -892,40 +1050,77 @@ export async function runGenericProfileTargetOracle(
       const dir = dirs[index + 2];
       const persisted: PersistedProfileReport[] = [writeProfile(dir, derived.profile)];
       const modes = new Map<"headed" | "headless", CollectedLaunch>();
-      const order: Array<"headed" | "headless"> = id === "headed-headless" ? ["headed", "headless"] : ["headless", "headed"];
+      const order: Array<"headed" | "headless"> =
+        id === "headed-headless" ? ["headed", "headless"] : ["headless", "headed"];
       for (const mode of order) {
         const launch = await collectPersistent(dir, mode === "headless", `profile-${id}-${mode}`, binary, opened);
         launches.push(launch.authentication);
         modes.set(mode, launch);
         await closeCollected(launch, opened);
-        persisted.push(readPersistedProfile(dir, derived.profile, mode === "headed" ? "after-headed" : "after-headless"));
+        persisted.push(
+          readPersistedProfile(dir, derived.profile, mode === "headed" ? "after-headed" : "after-headless"),
+        );
       }
       const headed = modes.get("headed")!;
       const headless = modes.get("headless")!;
       const headedReport = modeReport("headed", headed, expectedProfileExact(headed.rows, derived.profile));
       const overlayReport = adjudicateOverlay(headed.rows, cleanHeadless.rows, headless.rows, overlay);
       const headlessReport = modeReport("headless", headless, overlayReport.exactRows);
-      const pass = persisted.every((checkpoint) => checkpoint.pass) && headedReport.pass && headlessReport.pass && overlayReport.pass;
-      profileOrders.push({ id, launchOrder: order, persisted, headed: headedReport, headless: headlessReport, overlay: overlayReport, pass });
+      const pass =
+        persisted.every((checkpoint) => checkpoint.pass) &&
+        headedReport.pass &&
+        headlessReport.pass &&
+        overlayReport.pass;
+      profileOrders.push({
+        id,
+        launchOrder: order,
+        persisted,
+        headed: headedReport,
+        headless: headlessReport,
+        overlay: overlayReport,
+        pass,
+      });
     }
 
-    const server = targetServer = createServer((request, response) => {
+    const server = (targetServer = createServer((request, response) => {
       response.setHeader("content-type", "text/html; charset=utf-8");
-      response.end(request.url === "/child"
-        ? "<!doctype html><meta charset=utf-8><body>DM-2539 child</body>"
-        : `<!doctype html><meta charset=utf-8><body><iframe src="http://localhost:${(server.address() as { port: number }).port}/child"></iframe></body>`);
-    });
-    await new Promise<void>((resolveListen, rejectListen) => server.once("error", rejectListen).listen(0, "127.0.0.1", resolveListen));
+      response.end(
+        request.url === "/child"
+          ? "<!doctype html><meta charset=utf-8><body>DM-2539 child</body>"
+          : `<!doctype html><meta charset=utf-8><body><iframe src="http://localhost:${(server.address() as { port: number }).port}/child"></iframe></body>`,
+      );
+    }));
+    await new Promise<void>((resolveListen, rejectListen) =>
+      server.once("error", rejectListen).listen(0, "127.0.0.1", resolveListen),
+    );
     const targetUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}/main`;
     const targetOrders = [
-      await runTargetOrder({ id: "child-main", dir: dirs[4], profile: derived.profile, binary, opened, launches, targetUrl }),
-      await runTargetOrder({ id: "main-child", dir: dirs[5], profile: derived.profile, binary, opened, launches, targetUrl }),
+      await runTargetOrder({
+        id: "child-main",
+        dir: dirs[4],
+        profile: derived.profile,
+        binary,
+        opened,
+        launches,
+        targetUrl,
+      }),
+      await runTargetOrder({
+        id: "main-child",
+        dir: dirs[5],
+        profile: derived.profile,
+        binary,
+        opened,
+        launches,
+        targetUrl,
+      }),
     ];
     const forwardReverseEquivalent = targetOrdersEquivalent(targetOrders[0], targetOrders[1]);
     const targetPass = targetOrders.every((order) => order.pass) && forwardReverseEquivalent;
     const binaryPass = launches.length === 8 && launches.every((launch) => launch.pass);
     const pass = binaryPass && derived.mutation.pass && profileOrders.every((order) => order.pass) && targetPass;
-    const fontInventory = execFileSync(process.execPath, [resolve(ROOT, "tools/font-inventory.mjs")], { encoding: "utf8" });
+    const fontInventory = execFileSync(process.execPath, [resolve(ROOT, "tools/font-inventory.mjs")], {
+      encoding: "utf8",
+    });
     return {
       schemaVersion: 2,
       ticket: "DM-2539",

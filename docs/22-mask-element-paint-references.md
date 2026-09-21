@@ -5,9 +5,9 @@ kind: "reference"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-1450","DM-494"]
-code: ["src/mask.test.ts","tests/features.ts","tests/iframe-inner-element-mask.e2e.test.ts"]
-aliases: ["docs/22-mask-element-paint-references.md","doc-22"]
+tickets: ["DM-1450", "DM-494"]
+code: ["src/mask.test.ts", "tests/features.ts", "tests/iframe-inner-element-mask.e2e.test.ts"]
+aliases: ["docs/22-mask-element-paint-references.md", "doc-22"]
 ---
 
 # 22 — `mask-image: element(#id)` paint references
@@ -33,9 +33,10 @@ aliases: ["docs/22-mask-element-paint-references.md","doc-22"]
 
 ## Context
 
-CSS `mask-image: element(#some-id)` references the *painted output* of another DOM element as the mask source. Unlike `url("#fragment")` (doc 21), the target need not be a `<mask>` — it can be any visible DOM node (`<div>`, `<canvas>`, `<img>`, an `<svg>` icon, etc.). Chromium rasterizes the target's paint and uses that bitmap as the mask.
+CSS `mask-image: element(#some-id)` references the _painted output_ of another DOM element as the mask source. Unlike `url("#fragment")` (doc 21), the target need not be a `<mask>` — it can be any visible DOM node (`<div>`, `<canvas>`, `<img>`, an `<svg>` icon, etc.). Chromium rasterizes the target's paint and uses that bitmap as the mask.
 
 Common patterns:
+
 - A spinning `<div>` with a CSS gradient as a "scanlines" mask source.
 - A `<canvas>` whose JS-driven contents drive a dynamic mask.
 - An icon `<svg>` reused as both decoration and mask source for a partner element.
@@ -72,17 +73,19 @@ This is fundamentally a rasterisation problem: we need a bitmap of how Chromium 
 ## Cost notes
 
 Each `element()` mask costs one extra `page.screenshot` call (~50–200 ms each on real-world fixtures). For pages that use `element()` heavily, capture time may double. Implementation should:
+
 - Dedupe by referenced id (one raster per unique target, regardless of how many consumers reference it).
 - Skip rasterisation when the target has `display: none` / `visibility: hidden` (the painted output is empty anyway).
 
 ## What's deferred
 
-- `<canvas>` referenced via `element()` *while* JS is animating it. The rasterized snapshot is whatever was painted at capture time; for most marketing demos this is acceptable.
+- `<canvas>` referenced via `element()` _while_ JS is animating it. The rasterized snapshot is whatever was painted at capture time; for most marketing demos this is acceptable.
 - `element()` references that recursively reference other `element()`-masked elements. Resolve in topological order; if a cycle is detected, emit no mask and warn.
 
 ## Test fixture
 
 `tests/features.ts` gains a `mask-element-ref` fixture:
+
 - A hidden `<div id="src">` with a CSS radial gradient.
 - A consumer `<div>` with `mask-image: element(#src)`.
 - Asserts the consumer renders with the gradient cutout applied.

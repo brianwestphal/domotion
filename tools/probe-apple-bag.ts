@@ -8,7 +8,8 @@ const HAR = resolve(process.cwd(), "tests/cache/real-world/apple-desktop.har");
   const browser = await chromium.launch();
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 800 },
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
   await ctx.routeFromHAR(HAR, { update: false });
   const page = await ctx.newPage();
@@ -18,9 +19,10 @@ const HAR = resolve(process.cwd(), "tests/cache/real-world/apple-desktop.har");
 
   // What's at the extraneous-dot location (around 1145, 100)?
   const dot = await page.evaluate(() => {
-    const x = 1145, y = 100;
+    const x = 1145,
+      y = 100;
     const stack = (document as any).elementsFromPoint(x, y) as Element[];
-    return stack.map(el => {
+    return stack.map((el) => {
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       return {
@@ -31,9 +33,9 @@ const HAR = resolve(process.cwd(), "tests/cache/real-world/apple-desktop.har");
         bg: cs.backgroundColor,
         bgImage: cs.backgroundImage,
         radius: cs.borderRadius,
-        before: getComputedStyle(el, '::before').content,
-        after: getComputedStyle(el, '::after').content,
-        beforeBg: getComputedStyle(el, '::before').backgroundColor,
+        before: getComputedStyle(el, "::before").content,
+        after: getComputedStyle(el, "::after").content,
+        beforeBg: getComputedStyle(el, "::before").backgroundColor,
       };
     });
   });

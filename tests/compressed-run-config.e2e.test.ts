@@ -62,43 +62,53 @@ async function scanInk(
   rect?: { x: number; y: number; w: number; h: number },
 ): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return page.evaluate(async (args: { dataUri: string; mode: string; rect?: { x: number; y: number; w: number; h: number } }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const r0 = args.rect ?? { x: 0, y: 0, w: img.width, h: img.height };
-    const d = ctx.getImageData(r0.x, r0.y, r0.w, r0.h).data;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, count = 0;
-    for (let y = 0; y < r0.h; y++) {
-      for (let x = 0; x < r0.w; x++) {
-        const i = (y * r0.w + x) * 4;
-        const r = d[i], g = d[i + 1], b = d[i + 2];
-        let hit = false;
-        if (args.mode === "light") hit = r > 170 && g > 170 && b > 170;
-        else if (args.mode === "amber") hit = r > 200 && g > 150 && g < 220 && b < 100;
-        else if (args.mode === "red") hit = r > 180 && g < 100 && b < 100;
-        // #3b82f6 at ~2/3 alpha over white — strongly blue-dominant.
-        else hit = b > 200 && b - r > 60 && b - g > 30;
-        if (hit) {
-          const ax = r0.x + x, ay = r0.y + y;
-          if (ax < minX) minX = ax;
-          if (ax > maxX) maxX = ax;
-          if (ay < minY) minY = ay;
-          if (ay > maxY) maxY = ay;
-          count++;
+  return page.evaluate(
+    async (args: { dataUri: string; mode: string; rect?: { x: number; y: number; w: number; h: number } }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const r0 = args.rect ?? { x: 0, y: 0, w: img.width, h: img.height };
+      const d = ctx.getImageData(r0.x, r0.y, r0.w, r0.h).data;
+      let minX = Infinity,
+        maxX = -Infinity,
+        minY = Infinity,
+        maxY = -Infinity,
+        count = 0;
+      for (let y = 0; y < r0.h; y++) {
+        for (let x = 0; x < r0.w; x++) {
+          const i = (y * r0.w + x) * 4;
+          const r = d[i],
+            g = d[i + 1],
+            b = d[i + 2];
+          let hit = false;
+          if (args.mode === "light") hit = r > 170 && g > 170 && b > 170;
+          else if (args.mode === "amber") hit = r > 200 && g > 150 && g < 220 && b < 100;
+          else if (args.mode === "red") hit = r > 180 && g < 100 && b < 100;
+          // #3b82f6 at ~2/3 alpha over white — strongly blue-dominant.
+          else hit = b > 200 && b - r > 60 && b - g > 30;
+          if (hit) {
+            const ax = r0.x + x,
+              ay = r0.y + y;
+            if (ax < minX) minX = ax;
+            if (ax > maxX) maxX = ax;
+            if (ay < minY) minY = ay;
+            if (ay > maxY) maxY = ay;
+            count++;
+          }
         }
       }
-    }
-    return { minX, maxX, minY, maxY, count };
-  }, { dataUri, mode, rect });
+      return { minX, maxX, minY, maxY, count };
+    },
+    { dataUri, mode, rect },
+  );
 }
 
 async function setup() {
@@ -127,18 +137,20 @@ describeBrowser("`states` compressed-run config (docs/100 stage 4)", () => {
     const cfg = validateAnimateConfig({
       width: W,
       height: H,
-      frames: [{
-        input: "./editor.html",
-        duration: HOLDS.reduce((a, b) => a + b, 0),
-        transition: { type: "cut", duration: 0 },
-        caret: true,
-        states: [
-          { duration: HOLDS[0] },
-          { actions: [{ type: "evaluate", script: "ins(1)" }], duration: HOLDS[1] },
-          { actions: [{ type: "evaluate", script: "ins(2)" }], duration: HOLDS[2] },
-          { actions: [{ type: "evaluate", script: "colorize()" }], duration: HOLDS[3] },
-        ],
-      }],
+      frames: [
+        {
+          input: "./editor.html",
+          duration: HOLDS.reduce((a, b) => a + b, 0),
+          transition: { type: "cut", duration: 0 },
+          caret: true,
+          states: [
+            { duration: HOLDS[0] },
+            { actions: [{ type: "evaluate", script: "ins(1)" }], duration: HOLDS[1] },
+            { actions: [{ type: "evaluate", script: "ins(2)" }], duration: HOLDS[2] },
+            { actions: [{ type: "evaluate", script: "colorize()" }], duration: HOLDS[3] },
+          ],
+        },
+      ],
     });
     const logs: string[] = [];
     const config = await composeAnimateFrames(browser, cfg, { configDir: dir, log: (m) => logs.push(m) });
@@ -205,18 +217,22 @@ describeBrowser("`textTracks` caret/selection config (docs/101 config surface)",
     const cfg = validateAnimateConfig({
       width: W,
       height: H,
-      frames: [{
-        input: "./page.html",
-        duration: 4000,
-        textTracks: [{
-          selector: "#line",
-          color: "#ff0000",
-          events: [
-            { type: "park", at: 200, charOffset: 0 },
-            { type: "select", at: 1500, charStart: 0, charEnd: 5, sweepMs: 600 },
+      frames: [
+        {
+          input: "./page.html",
+          duration: 4000,
+          textTracks: [
+            {
+              selector: "#line",
+              color: "#ff0000",
+              events: [
+                { type: "park", at: 200, charOffset: 0 },
+                { type: "select", at: 1500, charStart: 0, charEnd: 5, sweepMs: 600 },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     const config = await composeAnimateFrames(browser, cfg, { configDir: dir });
     expect(config.textTracks).toHaveLength(1);
@@ -274,12 +290,14 @@ describeBrowser("`textTracks` caret/selection config (docs/101 config surface)",
             input: "./page.html",
             duration: 1000,
             transition: { type: "cut", duration: 0 },
-            textTracks: [{
-              selector: "#line",
-              color: "#ff0000",
-              ...(persist ? { persist: true } : {}),
-              events: [{ type: "park", at: 100, charOffset: 0 }],
-            }],
+            textTracks: [
+              {
+                selector: "#line",
+                color: "#ff0000",
+                ...(persist ? { persist: true } : {}),
+                events: [{ type: "park", at: 100, charOffset: 0 }],
+              },
+            ],
           },
           { continue: true, duration: 1000, transition: { type: "cut", duration: 0 } },
         ],
@@ -314,11 +332,13 @@ describeBrowser("`textTracks` caret/selection config (docs/101 config surface)",
     const cfg = validateAnimateConfig({
       width: W,
       height: H,
-      frames: [{
-        input: "./page.html",
-        duration: 1000,
-        textTracks: [{ selector: "#nope", events: [{ type: "park", at: 0, charOffset: 0 }] }],
-      }],
+      frames: [
+        {
+          input: "./page.html",
+          duration: 1000,
+          textTracks: [{ selector: "#nope", events: [{ type: "park", at: 0, charOffset: 0 }] }],
+        },
+      ],
     });
     await expect(composeAnimateFrames(browser, cfg, { configDir: dir })).rejects.toThrow(
       /frames\[0\]\.textTracks\[0\] selector "#nope" matched no element in frame 0/,

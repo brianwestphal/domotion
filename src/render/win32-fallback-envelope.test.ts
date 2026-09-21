@@ -38,7 +38,10 @@ describe("system-fallback envelope: Windows declares no base font (DM-1889)", ()
     const env = buildFallbackEnvelope("HelveticaNeue", [0x4e00], REQ, "darwin");
     expect(env.fonts).toHaveLength(1);
     expect(env.fonts[0]).toMatchObject({
-      ref: "base", postscriptName: "HelveticaNeue", size: 16, requestScoped: true,
+      ref: "base",
+      postscriptName: "HelveticaNeue",
+      size: 16,
+      requestScoped: true,
     });
   });
 
@@ -52,12 +55,13 @@ describe("system-fallback envelope: Windows declares no base font (DM-1889)", ()
     // The query is what carries the actual question; only the `fonts` array
     // differs. Divergence here would mean three platforms asking three different
     // questions, which is what the conformance oracle exists to prevent.
-    const forPlatform = (p: NodeJS.Platform) =>
-      buildFallbackEnvelope("Helvetica", [0x4e00, 0x0600], REQ, p).queries;
+    const forPlatform = (p: NodeJS.Platform) => buildFallbackEnvelope("Helvetica", [0x4e00, 0x0600], REQ, p).queries;
     expect(forPlatform("win32")).toEqual(forPlatform("darwin"));
     expect(forPlatform("linux")).toEqual(forPlatform("darwin"));
     expect(forPlatform("win32")[0]).toMatchObject({
-      type: "fallback", fontRef: "base", cps: [0x4e00, 0x0600],
+      type: "fallback",
+      fontRef: "base",
+      cps: [0x4e00, 0x0600],
     });
   });
 
@@ -68,14 +72,18 @@ describe("system-fallback envelope: Windows declares no base font (DM-1889)", ()
     const q = buildFallbackEnvelope("Helvetica", [0x41], { weight: 700, italic: true, fontSize: 16 }, "win32")
       .queries[0] as Record<string, unknown>;
     expect(q.cssWeight).toBe(700);
-    expect(q.bold).toBe(true);   // Blink's kBoldThreshold is 600
+    expect(q.bold).toBe(true); // Blink's kBoldThreshold is 600
     expect(q.italic).toBe(true);
   });
 
   it("treats weight 600 as bold and 599 as not (Blink's kBoldThreshold)", () => {
     const boldOf = (w: number) =>
-      (buildFallbackEnvelope("H", [0x41], { weight: w, italic: false, fontSize: 16 }, "win32")
-        .queries[0] as Record<string, unknown>).bold;
+      (
+        buildFallbackEnvelope("H", [0x41], { weight: w, italic: false, fontSize: 16 }, "win32").queries[0] as Record<
+          string,
+          unknown
+        >
+      ).bold;
     expect(boldOf(599)).toBe(false);
     expect(boldOf(600)).toBe(true);
   });
@@ -86,11 +94,19 @@ describe("system-fallback envelope: Windows declares no base font (DM-1889)", ()
   });
 
   it("passes in-memory webfont bytes through as the darwin cascade base", () => {
-    const env = buildFallbackEnvelope("DMPartialDeva", [0x0937], {
-      ...REQ, baseData: Buffer.from([0, 1, 2, 3]),
-    }, "darwin");
+    const env = buildFallbackEnvelope(
+      "DMPartialDeva",
+      [0x0937],
+      {
+        ...REQ,
+        baseData: Buffer.from([0, 1, 2, 3]),
+      },
+      "darwin",
+    );
     expect(env.fonts[0]).toMatchObject({
-      postscriptName: "DMPartialDeva", fontData: "AAECAw==", requestScoped: true,
+      postscriptName: "DMPartialDeva",
+      fontData: "AAECAw==",
+      requestScoped: true,
     });
   });
 

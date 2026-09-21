@@ -14,7 +14,7 @@ import { CJK_IDEOGRAPH_OR_SYMBOL_RANGES as GENERATED_CJK_IDEOGRAPH_OR_SYMBOL_RAN
 import {
   BLINK_MATHML_COMPACT_DICTIONARY,
   BLINK_MATHML_INLINE_AXIS_STRETCHY,
-} from '../generated/mathml-operator-dictionary.js';
+} from "../generated/mathml-operator-dictionary.js";
 
 /** True when `cp` is in HarfBuzz's `is_default_ignorable` set — see
  *  `harfbuzz-default-ignorable-ranges.generated.ts` for the transcription +
@@ -36,10 +36,7 @@ export function isHarfbuzzDefaultIgnorable(cp: number): boolean {
  * 7d859f27) and lets font fallback continue.
  */
 export function isHarfbuzzSameFontSpaceFallback(cp: number): boolean {
-  return cp === 0x00A0
-    || (cp >= 0x2000 && cp <= 0x200A)
-    || cp === 0x202F
-    || cp === 0x205F;
+  return cp === 0x00a0 || (cp >= 0x2000 && cp <= 0x200a) || cp === 0x202f || cp === 0x205f;
 }
 
 /**
@@ -81,18 +78,18 @@ export function mathAlphaToBase(cp: number): { base: number; bold: boolean; ital
   // except the styles flagged below that borrow letters from the Letterlike
   // Symbols block (script / fraktur / double-struck) — those are skipped.
   const latin: Array<{ start: number; bold: boolean; italic: boolean } | null> = [
-    { start: 0x1d400, bold: true,  italic: false }, // Bold
-    { start: 0x1d434, bold: false, italic: true  }, // Italic (small-h hole → U+210E, handled above)
-    { start: 0x1d468, bold: true,  italic: true  }, // Bold Italic
-    null,                                           // Script
-    null,                                           // Bold Script
-    null,                                           // Fraktur
-    null,                                           // Double-struck
-    null,                                           // Bold Fraktur
+    { start: 0x1d400, bold: true, italic: false }, // Bold
+    { start: 0x1d434, bold: false, italic: true }, // Italic (small-h hole → U+210E, handled above)
+    { start: 0x1d468, bold: true, italic: true }, // Bold Italic
+    null, // Script
+    null, // Bold Script
+    null, // Fraktur
+    null, // Double-struck
+    null, // Bold Fraktur
     { start: 0x1d5a0, bold: false, italic: false }, // Sans-serif
-    { start: 0x1d5d4, bold: true,  italic: false }, // Sans-serif Bold
-    { start: 0x1d608, bold: false, italic: true  }, // Sans-serif Italic
-    { start: 0x1d63c, bold: true,  italic: true  }, // Sans-serif Bold Italic
+    { start: 0x1d5d4, bold: true, italic: false }, // Sans-serif Bold
+    { start: 0x1d608, bold: false, italic: true }, // Sans-serif Italic
+    { start: 0x1d63c, bold: true, italic: true }, // Sans-serif Bold Italic
     { start: 0x1d670, bold: false, italic: false }, // Monospace
   ];
   for (const style of latin) {
@@ -109,31 +106,34 @@ export function mathAlphaToBase(cp: number): { base: number; bold: boolean; ital
   // capture's mathvariant=italic mapping for the italic block, applied to all
   // five bold/italic/sans Greek styles.
   const greek: Array<{ start: number; bold: boolean; italic: boolean }> = [
-    { start: 0x1d6a8, bold: true,  italic: false }, // Bold
-    { start: 0x1d6e2, bold: false, italic: true  }, // Italic
-    { start: 0x1d71c, bold: true,  italic: true  }, // Bold Italic
-    { start: 0x1d756, bold: true,  italic: false }, // Sans-serif Bold
-    { start: 0x1d790, bold: true,  italic: true  }, // Sans-serif Bold Italic
+    { start: 0x1d6a8, bold: true, italic: false }, // Bold
+    { start: 0x1d6e2, bold: false, italic: true }, // Italic
+    { start: 0x1d71c, bold: true, italic: true }, // Bold Italic
+    { start: 0x1d756, bold: true, italic: false }, // Sans-serif Bold
+    { start: 0x1d790, bold: true, italic: true }, // Sans-serif Bold Italic
   ];
   const greekSymbols = [0x2202, 0x3f5, 0x3d1, 0x3f0, 0x3d5, 0x3f1, 0x3d6]; // ∂ ϵ ϑ ϰ ϕ ϱ ϖ
   for (const style of greek) {
     const off = cp - style.start;
     if (off < 0 || off > 57) continue;
     let base: number;
-    if (off <= 24) base = 0x391 + off;            // uppercase Α…Ω
-    else if (off === 25) base = 0x2207;            // ∇ nabla
-    else if (off <= 50) base = 0x3b1 + (off - 26); // lowercase α…ω
-    else base = greekSymbols[off - 51];            // symbol variants
+    if (off <= 24)
+      base = 0x391 + off; // uppercase Α…Ω
+    else if (off === 25)
+      base = 0x2207; // ∇ nabla
+    else if (off <= 50)
+      base = 0x3b1 + (off - 26); // lowercase α…ω
+    else base = greekSymbols[off - 51]; // symbol variants
     return { base, bold: style.bold, italic: style.italic };
   }
 
   // Digit styles (U+1D7CE–U+1D7FF). Double-struck (1D7D8) is a distinct
   // typeface → skipped; the rest reduce to a bold/normal toggle of 0–9.
   const digits: Array<{ start: number; bold: boolean } | null> = [
-    { start: 0x1d7ce, bold: true  }, // Bold
-    null,                            // Double-struck
+    { start: 0x1d7ce, bold: true }, // Bold
+    null, // Double-struck
     { start: 0x1d7e2, bold: false }, // Sans-serif
-    { start: 0x1d7ec, bold: true  }, // Sans-serif Bold
+    { start: 0x1d7ec, bold: true }, // Sans-serif Bold
     { start: 0x1d7f6, bold: false }, // Monospace
   ];
   for (const style of digits) {
@@ -173,10 +173,14 @@ export function isLegitimatelyInklessCodepoint(cp: number): boolean {
   const icu = icuCodepointProperties(cp);
   // U_CONTROL_CHAR, U_SPACE_SEPARATOR, U_LINE_SEPARATOR,
   // U_PARAGRAPH_SEPARATOR from the Chromium-pinned ICU headers.
-  if (icu != null && (icu.generalCategory === 15 ||
-      (icu.generalCategory >= 12 && icu.generalCategory <= 14))) return true;
+  if (icu != null && (icu.generalCategory === 15 || (icu.generalCategory >= 12 && icu.generalCategory <= 14)))
+    return true;
   let s: string;
-  try { s = String.fromCodePoint(cp); } catch { return false; }
+  try {
+    s = String.fromCodePoint(cp);
+  } catch {
+    return false;
+  }
   if (INKLESS_CATEGORY_RE.test(s)) return true;
   return isHarfbuzzDefaultIgnorable(cp);
 }
@@ -193,7 +197,11 @@ export function isIdeographicCp(cp: number): boolean {
   const icu = icuCodepointProperties(cp);
   if (icu != null) return (icu.binaryProperties & ICU_BINARY.IDEOGRAPHIC) !== 0;
   let s: string;
-  try { s = String.fromCodePoint(cp); } catch { return false; }
+  try {
+    s = String.fromCodePoint(cp);
+  } catch {
+    return false;
+  }
   return IDEOGRAPHIC_RE.test(s);
 }
 
@@ -221,29 +229,79 @@ export function isIdeographicCp(cp: number): boolean {
 // membership was making Domotion draw a circle Chrome never draws.
 const COMPLEX_SHAPER_MARK_RANGES: ReadonlyArray<readonly [number, number]> = [
   // BMP Indic / SE-Asian
-  [0x0900, 0x097F], [0x0980, 0x09FF], [0x0A00, 0x0A7F], [0x0A80, 0x0AFF],
-  [0x0B00, 0x0B7F], [0x0B80, 0x0BFF], [0x0C00, 0x0C7F], [0x0C80, 0x0CFF],
-  [0x0D00, 0x0D7F], [0x0D80, 0x0DFF],
-  [0x0F00, 0x0FFF], [0x1000, 0x109F], [0x1700, 0x171F], [0x1720, 0x173F],
-  [0x1740, 0x175F], [0x1760, 0x177F], [0x1780, 0x17FF], [0x1900, 0x194F],
-  [0x1980, 0x19DF], [0x1A00, 0x1A1F], [0x1A20, 0x1AAF], [0x1B00, 0x1B7F],
-  [0x1B80, 0x1BBF], [0x1BC0, 0x1BFF], [0x1C00, 0x1C4F], [0x1CD0, 0x1CFF],
-  [0xA800, 0xA82F], [0xA880, 0xA8DF], [0xA8E0, 0xA8FF], [0xA900, 0xA92F],
-  [0xA930, 0xA95F], [0xA980, 0xA9DF], [0xA9E0, 0xA9FF], [0xAA00, 0xAA5F],
-  [0xAA60, 0xAA7F], [0xAA80, 0xAADF], [0xAAE0, 0xAAFF], [0xABC0, 0xABFF],
+  [0x0900, 0x097f],
+  [0x0980, 0x09ff],
+  [0x0a00, 0x0a7f],
+  [0x0a80, 0x0aff],
+  [0x0b00, 0x0b7f],
+  [0x0b80, 0x0bff],
+  [0x0c00, 0x0c7f],
+  [0x0c80, 0x0cff],
+  [0x0d00, 0x0d7f],
+  [0x0d80, 0x0dff],
+  [0x0f00, 0x0fff],
+  [0x1000, 0x109f],
+  [0x1700, 0x171f],
+  [0x1720, 0x173f],
+  [0x1740, 0x175f],
+  [0x1760, 0x177f],
+  [0x1780, 0x17ff],
+  [0x1900, 0x194f],
+  [0x1980, 0x19df],
+  [0x1a00, 0x1a1f],
+  [0x1a20, 0x1aaf],
+  [0x1b00, 0x1b7f],
+  [0x1b80, 0x1bbf],
+  [0x1bc0, 0x1bff],
+  [0x1c00, 0x1c4f],
+  [0x1cd0, 0x1cff],
+  [0xa800, 0xa82f],
+  [0xa880, 0xa8df],
+  [0xa8e0, 0xa8ff],
+  [0xa900, 0xa92f],
+  [0xa930, 0xa95f],
+  [0xa980, 0xa9df],
+  [0xa9e0, 0xa9ff],
+  [0xaa00, 0xaa5f],
+  [0xaa60, 0xaa7f],
+  [0xaa80, 0xaadf],
+  [0xaae0, 0xaaff],
+  [0xabc0, 0xabff],
   // SMP Brahmic (all USE)
-  [0x10A00, 0x10A5F], [0x11000, 0x1107F], [0x11080, 0x110CF], [0x110D0, 0x110FF],
-  [0x11100, 0x1114F], [0x11150, 0x1117F], [0x11180, 0x111DF], [0x11200, 0x1124F],
-  [0x11280, 0x112AF], [0x112B0, 0x112FF], [0x11300, 0x1137F], [0x11380, 0x113FF], [0x11400, 0x1147F],
-  [0x11480, 0x114DF], [0x11580, 0x115FF], [0x11600, 0x1165F], [0x11680, 0x116CF],
-  [0x11700, 0x1174F], [0x11800, 0x1184F], [0x11900, 0x1195F], [0x119A0, 0x119FF],
-  [0x11A00, 0x11A4F], [0x11A50, 0x11AAF], [0x11C00, 0x11C6F], [0x11C70, 0x11CBF],
-  [0x11D00, 0x11D5F], [0x11D60, 0x11DAF], [0x11EE0, 0x11EFF], [0x11F00, 0x11F5F],
+  [0x10a00, 0x10a5f],
+  [0x11000, 0x1107f],
+  [0x11080, 0x110cf],
+  [0x110d0, 0x110ff],
+  [0x11100, 0x1114f],
+  [0x11150, 0x1117f],
+  [0x11180, 0x111df],
+  [0x11200, 0x1124f],
+  [0x11280, 0x112af],
+  [0x112b0, 0x112ff],
+  [0x11300, 0x1137f],
+  [0x11380, 0x113ff],
+  [0x11400, 0x1147f],
+  [0x11480, 0x114df],
+  [0x11580, 0x115ff],
+  [0x11600, 0x1165f],
+  [0x11680, 0x116cf],
+  [0x11700, 0x1174f],
+  [0x11800, 0x1184f],
+  [0x11900, 0x1195f],
+  [0x119a0, 0x119ff],
+  [0x11a00, 0x11a4f],
+  [0x11a50, 0x11aaf],
+  [0x11c00, 0x11c6f],
+  [0x11c70, 0x11cbf],
+  [0x11d00, 0x11d5f],
+  [0x11d60, 0x11daf],
+  [0x11ee0, 0x11eff],
+  [0x11f00, 0x11f5f],
   // Gurung Khema (16100–1613F) shapes through the Universal Shaping Engine, so
   // Chrome inserts U+25CC before an orphaned mark in this no-font block just as
   // it does for the others above. (Was previously omitted, so its mark cells
   // painted a bare tofu with no leading dotted circle — DM-1100.)
-  [0x16100, 0x1613F],
+  [0x16100, 0x1613f],
 ];
 
 export function usesComplexShaperDottedCircle(cp: number): boolean {
@@ -297,15 +355,18 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
 // listed in `HARFBUZZ_SHAPED_RANGES` below, and stay in this list too.
 // Inclusive [lo, hi].
 const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
-  [0x0590, 0x05FF], // Hebrew
-  [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF], // Arabic + supplements
+  [0x0590, 0x05ff], // Hebrew
+  [0x0600, 0x06ff],
+  [0x0750, 0x077f],
+  [0x0870, 0x089f],
+  [0x08a0, 0x08ff], // Arabic + supplements
   // Indic: Devanagari … Malayalam. ENDS AT 0x0D7F, not 0x0DFF — HarfBuzz's
   // Indic group is exactly nine scripts (Bengali, Devanagari, Gujarati,
   // Gurmukhi, Kannada, Malayalam, Oriya, Tamil, Telugu — `hb-ot-shaper.hh:224-232`)
   // and **Sinhala is not one of them**. `HB_SCRIPT_SINHALA` (`:280`) sits in the
   // block that returns `_hb_ot_shaper_use` (`:414`), so Sinhala 0x0D80-0x0DFF
   // is listed separately below, on the USE side of that split.
-  [0x0900, 0x0D7F],
+  [0x0900, 0x0d7f],
   // Sinhala. USE-shaped (`hb-ot-shaper.hh:280,414`), not Indic-shaped — see the
   // comment on the Indic range above. DM-2033: measured fontkit-vs-harfbuzzjs
   // shaping agreement on the block's actual darwin production face (Sinhala
@@ -315,8 +376,8 @@ const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   // entry's effect today is purely "isShapingRequired becomes true, contextual
   // joining reaches the block" — `HARFBUZZ_SHAPED_RANGES` stays un-touched for
   // it because nothing measured diverges yet.
-  [0x0D80, 0x0DFF],
-  [0x0E00, 0x0EFF], // Thai + Lao
+  [0x0d80, 0x0dff],
+  [0x0e00, 0x0eff], // Thai + Lao
   // Tibetan is NOT here: there is no `hb-ot-shaper-tibetan.cc`, and
   // `HB_SCRIPT_TIBETAN` (`hb-ot-shaper.hh:276`) falls through to the same USE
   // return as Sinhala. Listing it excluded exactly the scripts USE's
@@ -324,11 +385,19 @@ const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   // rerouting hook exists to serve — and made `resolveDottedCircleHbRun` bail.
   // Unlike Sinhala/the DM-2033/DM-2054 additions above and below, Tibetan's
   // `isShapingRequired` gap has not been measured, so it stays out for now.
-  [0x1000, 0x109F], // Myanmar
-  [0x1780, 0x17FF], [0x19E0, 0x19FF], // Khmer
-  [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF], // Hangul (Jamo / Compat / Ext-B / Syllables)
-  [0xAA60, 0xAA7F], [0xA9E0, 0xA9FF], [0x116D0, 0x116FF], // Myanmar Extended A/B/C
-  [0xFB1D, 0xFB4F], [0xFB50, 0xFDFF], [0xFE70, 0xFEFF], // Hebrew/Arabic presentation forms
+  [0x1000, 0x109f], // Myanmar
+  [0x1780, 0x17ff],
+  [0x19e0, 0x19ff], // Khmer
+  [0x1100, 0x11ff],
+  [0x3130, 0x318f],
+  [0xa960, 0xa97f],
+  [0xac00, 0xd7ff], // Hangul (Jamo / Compat / Ext-B / Syllables)
+  [0xaa60, 0xaa7f],
+  [0xa9e0, 0xa9ff],
+  [0x116d0, 0x116ff], // Myanmar Extended A/B/C
+  [0xfb1d, 0xfb4f],
+  [0xfb50, 0xfdff],
+  [0xfe70, 0xfeff], // Hebrew/Arabic presentation forms
 
   // DM-2033: the "Arabic-misrouted" set — fontkit's own internal shaper
   // dispatch sends these to its `ArabicShaper` (a generic RTL-joining
@@ -353,11 +422,11 @@ const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   // gap (a native-extractor font still only gets per-character `.layout(ch)`
   // calls today, one glyph at a time, when not listed here) is worth closing
   // is unmeasured and out of scope for this pair of tickets.
-  [0x07C0, 0x07FF], // N'Ko
-  [0x0840, 0x085F], // Mandaic
-  [0xA840, 0xA87F], // Phags-pa
-  [0x10AC0, 0x10AFF], // Manichaean
-  [0x10B80, 0x10BAF], // Psalter Pahlavi
+  [0x07c0, 0x07ff], // N'Ko
+  [0x0840, 0x085f], // Mandaic
+  [0xa840, 0xa87f], // Phags-pa
+  [0x10ac0, 0x10aff], // Manichaean
+  [0x10b80, 0x10baf], // Psalter Pahlavi
 
   // DM-2054: SMP scripts HarfBuzz dispatches to USE
   // (`hb-ot-shaper.hh:294,300...414` for Kharoshthi;
@@ -393,9 +462,9 @@ const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
   // script with no verified covering face anywhere is exactly the "routing to
   // tofu" the per-script check exists to catch, so they stay out until a real
   // covering face is confirmed on a calibrated platform.
-  [0x1E900, 0x1E95F], // Adlam
-  [0x10A00, 0x10A5F], // Kharoshthi
-  [0x10D00, 0x10D3F], // Hanifi Rohingya
+  [0x1e900, 0x1e95f], // Adlam
+  [0x10a00, 0x10a5f], // Kharoshthi
+  [0x10d00, 0x10d3f], // Hanifi Rohingya
 ];
 export function usesDedicatedShaper(cp: number): boolean {
   for (const [lo, hi] of DEDICATED_SHAPER_RANGES) {
@@ -453,7 +522,7 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   //
   // Lao (0E80–0EFF) is deliberately NOT included: it is a separate script with
   // its own samples, and nothing has been measured for it.
-  [0x0E00, 0x0E7F],
+  [0x0e00, 0x0e7f],
 
   // Telugu. Measured: 10 engine disagreements over 3 faces on the conjunct
   // క్ష (KA + VIRAMA + SSA) — 6 `cluster`, 2 `advance`, 2 `offset`.
@@ -477,7 +546,7 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   //
   // This is the case the ticket flagged as weaker evidence than a glyph
   // difference — correctly, and it is not zero evidence.
-  [0x0C00, 0x0C7F],
+  [0x0c00, 0x0c7f],
 
   // Gurmukhi, Gujarati, Oriya, and Kannada. DM-2058 measured the production
   // Linux faces (FreeSans / FreeSerif): fontkit emits the invalid base+vowel
@@ -487,7 +556,10 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // the HB_SCRIPT_GURMUKHI / GUJARATI / ORIYA / KANNADA cases. Native-extractor
   // faces retain their platform shaper; this override only changes fontkit
   // shaping, so the already-correct macOS CoreText route remains untouched.
-  [0x0A00, 0x0A7F], [0x0A80, 0x0AFF], [0x0B00, 0x0B7F], [0x0C80, 0x0CFF],
+  [0x0a00, 0x0a7f],
+  [0x0a80, 0x0aff],
+  [0x0b00, 0x0b7f],
+  [0x0c80, 0x0cff],
 
   // Hangul: syllables, both Jamo blocks, and the compatibility block. Measured:
   // 2 engine disagreements, both `glyph-count`, both on the terminal LastResort
@@ -506,7 +578,10 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // Every OTHER face that covers `한글` already agrees, so the reroute changes
   // nothing for real Korean faces (Apple SD Gothic Neo, PingFang, Arial Unicode)
   // and only corrects the terminal-fallback case.
-  [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF],
+  [0x1100, 0x11ff],
+  [0x3130, 0x318f],
+  [0xa960, 0xa97f],
+  [0xac00, 0xd7ff],
 
   // Devanagari. Measured: 44 engine disagreements over 5 faces (`devanagari`,
   // `u-noto-sans`, `u-arial-unicode-ms`, `u-itf-devanagari`, `last-resort`) —
@@ -533,7 +608,7 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // deliberately excluded: it is not in `DEDICATED_SHAPER_RANGES` at all, so it
   // currently takes the USE / base+mark path, and nothing has been measured for
   // it. Vedic Extensions (1CD0–1CFF) likewise stay where DM-1160 put them.
-  [0x0900, 0x097F],
+  [0x0900, 0x097f],
 
   // Hebrew, plus the Alphabetic Presentation Forms block that is its other half.
   // Measured: 76 engine disagreements — the largest of the ten — over 14 faces
@@ -567,7 +642,8 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // (`external/harfbuzz/src/hb-ot-shaper-hebrew.cc` rev 4de187d, :35-72). Text
   // mixing the two would otherwise split into two runs on the routing key and be
   // shaped as two units, which is the failure mode this exercise exists to avoid.
-  [0x0590, 0x05FF], [0xFB1D, 0xFB4F],
+  [0x0590, 0x05ff],
+  [0xfb1d, 0xfb4f],
 
   // Arabic — the last of the six, and with it every script the measurement
   // found a glyph or position difference in. 75 disagreements over 10 faces
@@ -607,8 +683,12 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // Extended-B are joining letters, and the two presentation-form blocks carry
   // joining types too, so routing a subset would split a word across two
   // shapers mid-join. That is the same reasoning as Hebrew's FB1D-FB4F.
-  [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF],
-  [0xFB50, 0xFDFF], [0xFE70, 0xFEFF],
+  [0x0600, 0x06ff],
+  [0x0750, 0x077f],
+  [0x0870, 0x089f],
+  [0x08a0, 0x08ff],
+  [0xfb50, 0xfdff],
+  [0xfe70, 0xfeff],
 
   // Myanmar + its three Extended blocks, and Khmer + Khmer Symbols. Unlike the
   // six entries above, the measurement behind these two is fontkit-vs-HarfBuzz,
@@ -634,9 +714,12 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // — an approximation that currently scores well is still the defect — and
   // because the reroute is then provably a no-op for present output (measured
   // inert = zero regression risk), not a speculative one.
-  [0x1000, 0x109F],                                             // Myanmar
-  [0xAA60, 0xAA7F], [0xA9E0, 0xA9FF], [0x116D0, 0x116FF],        // Myanmar Extended A/B/C
-  [0x1780, 0x17FF], [0x19E0, 0x19FF],                            // Khmer + Khmer Symbols
+  [0x1000, 0x109f], // Myanmar
+  [0xaa60, 0xaa7f],
+  [0xa9e0, 0xa9ff],
+  [0x116d0, 0x116ff], // Myanmar Extended A/B/C
+  [0x1780, 0x17ff],
+  [0x19e0, 0x19ff], // Khmer + Khmer Symbols
 
   // Bengali. UNLIKE Myanmar/Khmer above, this one is NOT measured inert:
   // fontkit's `IndicShaper` IS the shaper HarfBuzz's Indic group would also
@@ -655,7 +738,7 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // and the vowel sign. This is the concrete case the ticket investigation
   // named, and it is a real, visible glyph-COUNT divergence, not a cluster-map
   // nuance: Domotion previously never drew the circle.
-  [0x0980, 0x09FF],                                              // Bengali
+  [0x0980, 0x09ff], // Bengali
 
   // Adlam and Hanifi Rohingya (DM-2054). UNLIKE the rest of the DM-2033/DM-2054
   // `DEDICATED_SHAPER_RANGES` additions above, these two are NOT measured inert:
@@ -688,8 +771,8 @@ const HARFBUZZ_SHAPED_RANGES: ReadonlyArray<readonly [number, number]> = [
   // / Kharoshthi entries above were checked the same way and did NOT diverge —
   // this is not "reroute everything DM-2033/DM-2054 touched", it is the two
   // scripts that measurably need it.
-  [0x1E900, 0x1E95F], // Adlam
-  [0x10D00, 0x10D3F], // Hanifi Rohingya
+  [0x1e900, 0x1e95f], // Adlam
+  [0x10d00, 0x10d3f], // Hanifi Rohingya
 ];
 
 /** True when this codepoint's script has been rerouted to HarfBuzz shaping.
@@ -759,11 +842,11 @@ export function complexShaperBaseMarkDecomposition(cp: number): string | null {
 export function nfdBaseMarkDecomposition(cp: number): string | null {
   const ch = String.fromCodePoint(cp);
   const nfd = ch.normalize("NFD");
-  if (nfd === ch) return null;                           // no canonical decomposition
+  if (nfd === ch) return null; // no canonical decomposition
   const cps = [...nfd];
-  if (cps.length < 2) return null;                       // singleton — not a base+mark case
-  if (/\p{M}/u.test(cps[0])) return null;                // first element must be a base
-  if (!/\p{M}/u.test(cps[cps.length - 1])) return null;  // last element must be a combining mark
+  if (cps.length < 2) return null; // singleton — not a base+mark case
+  if (/\p{M}/u.test(cps[0])) return null; // first element must be a base
+  if (!/\p{M}/u.test(cps[cps.length - 1])) return null; // last element must be a combining mark
   return nfd;
 }
 
@@ -791,8 +874,11 @@ export function harfbuzzCanonicalDecompositionCandidates(cp: number): number[][]
     remaining = [...prefix.normalize("NFD")];
   }
   const fullCps = full.map((char) => char.codePointAt(0)!);
-  if (!candidates.some((candidate) => candidate.length === fullCps.length
-    && candidate.every((value, index) => value === fullCps[index]))) {
+  if (
+    !candidates.some(
+      (candidate) => candidate.length === fullCps.length && candidate.every((value, index) => value === fullCps[index]),
+    )
+  ) {
     candidates.push(fullCps);
   }
   return candidates;
@@ -889,37 +975,37 @@ export function isLeftReorderingMatra(cp: number): boolean {
 // the additions above, both blocks have ZERO combining-mark codepoints, so
 // this correction cannot change any currently-emitted SVG either.
 const RTL_SMP_SCRIPT_RANGES: ReadonlyArray<readonly [number, number]> = [
-  [0x10800, 0x1083F], // Cypriot
-  [0x10840, 0x1085F], // Imperial Aramaic
-  [0x10860, 0x1087F], // Palmyrene
-  [0x10880, 0x108AF], // Nabataean
-  [0x108E0, 0x108FF], // Hatran
-  [0x10900, 0x1091F], // Phoenician
-  [0x10920, 0x1093F], // Lydian
-  [0x10980, 0x1099F], // Meroitic Hieroglyphs
-  [0x109A0, 0x109FF], // Meroitic Cursive
-  [0x10A00, 0x10A5F], // Kharoshthi
-  [0x10A60, 0x10A7F], // Old South Arabian
-  [0x10A80, 0x10A9F], // Old North Arabian
-  [0x10AC0, 0x10AFF], // Manichaean
-  [0x10B00, 0x10B3F], // Avestan
-  [0x10B40, 0x10B5F], // Inscriptional Parthian
-  [0x10B60, 0x10B7F], // Inscriptional Pahlavi
-  [0x10B80, 0x10BAF], // Psalter Pahlavi
-  [0x10C00, 0x10C4F], // Old Turkic
-  [0x10D00, 0x10D3F], // Hanifi Rohingya
-  [0x10D40, 0x10D8F], // Garay
-  [0x10E60, 0x10E7F], // Rumi Numeral Symbols (Script=Arabic)
-  [0x10E80, 0x10EBF], // Yezidi
-  [0x10EC0, 0x10EFF], // Arabic Extended-C
-  [0x10F00, 0x10F2F], // Old Sogdian
-  [0x10F30, 0x10F6F], // Sogdian
-  [0x10F70, 0x10FAF], // Old Uyghur
-  [0x10FB0, 0x10FDF], // Chorasmian
-  [0x10FE0, 0x10FFF], // Elymaic
-  [0x1E800, 0x1E8DF], // Mende Kikakui
-  [0x1E900, 0x1E95F], // Adlam
-  [0x1EE00, 0x1EEFF], // Arabic Mathematical Alphabetic Symbols
+  [0x10800, 0x1083f], // Cypriot
+  [0x10840, 0x1085f], // Imperial Aramaic
+  [0x10860, 0x1087f], // Palmyrene
+  [0x10880, 0x108af], // Nabataean
+  [0x108e0, 0x108ff], // Hatran
+  [0x10900, 0x1091f], // Phoenician
+  [0x10920, 0x1093f], // Lydian
+  [0x10980, 0x1099f], // Meroitic Hieroglyphs
+  [0x109a0, 0x109ff], // Meroitic Cursive
+  [0x10a00, 0x10a5f], // Kharoshthi
+  [0x10a60, 0x10a7f], // Old South Arabian
+  [0x10a80, 0x10a9f], // Old North Arabian
+  [0x10ac0, 0x10aff], // Manichaean
+  [0x10b00, 0x10b3f], // Avestan
+  [0x10b40, 0x10b5f], // Inscriptional Parthian
+  [0x10b60, 0x10b7f], // Inscriptional Pahlavi
+  [0x10b80, 0x10baf], // Psalter Pahlavi
+  [0x10c00, 0x10c4f], // Old Turkic
+  [0x10d00, 0x10d3f], // Hanifi Rohingya
+  [0x10d40, 0x10d8f], // Garay
+  [0x10e60, 0x10e7f], // Rumi Numeral Symbols (Script=Arabic)
+  [0x10e80, 0x10ebf], // Yezidi
+  [0x10ec0, 0x10eff], // Arabic Extended-C
+  [0x10f00, 0x10f2f], // Old Sogdian
+  [0x10f30, 0x10f6f], // Sogdian
+  [0x10f70, 0x10faf], // Old Uyghur
+  [0x10fb0, 0x10fdf], // Chorasmian
+  [0x10fe0, 0x10fff], // Elymaic
+  [0x1e800, 0x1e8df], // Mende Kikakui
+  [0x1e900, 0x1e95f], // Adlam
+  [0x1ee00, 0x1eeff], // Arabic Mathematical Alphabetic Symbols
 ];
 
 export function isRtlScriptCodepoint(cp: number): boolean {
@@ -966,13 +1052,13 @@ export function isRtlScriptCodepoint(cp: number): boolean {
 // for it to join without a base), so the carve-out changes nothing
 // observable while keeping the predicate's stated contract explicit.
 export function isStrippableOrphanIgnorable(cp: number): boolean {
-  if (cp === 0x200C || cp === 0x200D) return false; // ZWNJ / ZWJ: shaping meaning
+  if (cp === 0x200c || cp === 0x200d) return false; // ZWNJ / ZWJ: shaping meaning
   return isHarfbuzzDefaultIgnorable(cp);
 }
 
-export type MathMLOperatorForm = 'infix' | 'prefix' | 'postfix';
-export type MathMLOperatorCategory = 'none' | 'force-default' | 'A' | 'B' | 'C'
-  | 'D/E/K' | 'F/G' | 'H' | 'I' | 'J' | 'L' | 'M';
+export type MathMLOperatorForm = "infix" | "prefix" | "postfix";
+export type MathMLOperatorCategory =
+  "none" | "force-default" | "A" | "B" | "C" | "D/E/K" | "F/G" | "H" | "I" | "J" | "L" | "M";
 
 export interface MathMLOperatorDictionaryEntry {
   form: MathMLOperatorForm;
@@ -989,23 +1075,147 @@ export interface MathMLOperatorDictionaryEntry {
 }
 
 const TWO_ASCII_OPERATORS = [
-  '!!', '!=', '&&', '**', '*=', '++', '+=', '--', '-=', '->', '//', '/=',
-  ':=', '<=', '<>', '==', '>=', '||',
+  "!!",
+  "!=",
+  "&&",
+  "**",
+  "*=",
+  "++",
+  "+=",
+  "--",
+  "-=",
+  "->",
+  "//",
+  "/=",
+  ":=",
+  "<=",
+  "<>",
+  "==",
+  ">=",
+  "||",
 ] as const;
 
-const CATEGORY_PROPERTIES: Record<MathMLOperatorCategory, Omit<MathMLOperatorDictionaryEntry, 'form' | 'category'>> = {
-  none: { leadingSpaceMathUnits: 5, trailingSpaceMathUnits: 5, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  'force-default': { leadingSpaceMathUnits: 5, trailingSpaceMathUnits: 5, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  A: { leadingSpaceMathUnits: 5, trailingSpaceMathUnits: 5, stretchy: true, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  B: { leadingSpaceMathUnits: 4, trailingSpaceMathUnits: 4, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  C: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 3, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  'D/E/K': { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 0, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  'F/G': { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 0, stretchy: true, symmetric: true, largeOp: false, movableLimits: false, fence: false, separator: false },
-  H: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 3, stretchy: false, symmetric: true, largeOp: true, movableLimits: false, fence: false, separator: false },
-  I: { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 0, stretchy: true, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  J: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 3, stretchy: false, symmetric: true, largeOp: true, movableLimits: true, fence: false, separator: false },
-  L: { leadingSpaceMathUnits: 3, trailingSpaceMathUnits: 0, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
-  M: { leadingSpaceMathUnits: 0, trailingSpaceMathUnits: 3, stretchy: false, symmetric: false, largeOp: false, movableLimits: false, fence: false, separator: false },
+const CATEGORY_PROPERTIES: Record<MathMLOperatorCategory, Omit<MathMLOperatorDictionaryEntry, "form" | "category">> = {
+  none: {
+    leadingSpaceMathUnits: 5,
+    trailingSpaceMathUnits: 5,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  "force-default": {
+    leadingSpaceMathUnits: 5,
+    trailingSpaceMathUnits: 5,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  A: {
+    leadingSpaceMathUnits: 5,
+    trailingSpaceMathUnits: 5,
+    stretchy: true,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  B: {
+    leadingSpaceMathUnits: 4,
+    trailingSpaceMathUnits: 4,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  C: {
+    leadingSpaceMathUnits: 3,
+    trailingSpaceMathUnits: 3,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  "D/E/K": {
+    leadingSpaceMathUnits: 0,
+    trailingSpaceMathUnits: 0,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  "F/G": {
+    leadingSpaceMathUnits: 0,
+    trailingSpaceMathUnits: 0,
+    stretchy: true,
+    symmetric: true,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  H: {
+    leadingSpaceMathUnits: 3,
+    trailingSpaceMathUnits: 3,
+    stretchy: false,
+    symmetric: true,
+    largeOp: true,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  I: {
+    leadingSpaceMathUnits: 0,
+    trailingSpaceMathUnits: 0,
+    stretchy: true,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  J: {
+    leadingSpaceMathUnits: 3,
+    trailingSpaceMathUnits: 3,
+    stretchy: false,
+    symmetric: true,
+    largeOp: true,
+    movableLimits: true,
+    fence: false,
+    separator: false,
+  },
+  L: {
+    leadingSpaceMathUnits: 3,
+    trailingSpaceMathUnits: 0,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
+  M: {
+    leadingSpaceMathUnits: 0,
+    trailingSpaceMathUnits: 3,
+    stretchy: false,
+    symmetric: false,
+    largeOp: false,
+    movableLimits: false,
+    fence: false,
+    separator: false,
+  },
 };
 
 function blinkMathMLOperatorCategory(content: string, form: MathMLOperatorForm): MathMLOperatorCategory {
@@ -1016,40 +1226,44 @@ function blinkMathMLOperatorCategory(content: string, form: MathMLOperatorForm):
     if (cp < 0x0320 || cp > 0x03ff) key = cp;
   } else if (content.length === 2) {
     const cp = content.codePointAt(0)!;
-    if (cp === 0x1eef0 || cp === 0x1eef1) return form === 'postfix' ? 'I' : 'none';
+    if (cp === 0x1eef0 || cp === 0x1eef1) return form === "postfix" ? "I" : "none";
     if (content.charCodeAt(1) === 0x0338 || content.charCodeAt(1) === 0x20d2) key = content.charCodeAt(0);
     else if (scalars.length === 2) {
-      const index = TWO_ASCII_OPERATORS.indexOf(content as typeof TWO_ASCII_OPERATORS[number]);
+      const index = TWO_ASCII_OPERATORS.indexOf(content as (typeof TWO_ASCII_OPERATORS)[number]);
       if (index >= 0) key = 0x0320 + index;
     }
   }
-  if (key === 0) return 'none';
-  if (form === 'infix' && (key === 0x7c || key === 0x223c)) return 'force-default';
-  if (form === 'prefix' && ((key >= 0x2145 && key <= 0x2146) || key === 0x2202 || (key >= 0x221a && key <= 0x221c))) return 'L';
-  if (form === 'infix' && (key === 0x2c || key === 0x3a || key === 0x3b)) return 'M';
+  if (key === 0) return "none";
+  if (form === "infix" && (key === 0x7c || key === 0x223c)) return "force-default";
+  if (form === "prefix" && ((key >= 0x2145 && key <= 0x2146) || key === 0x2202 || (key >= 0x221a && key <= 0x221c)))
+    return "L";
+  if (form === "infix" && (key === 0x2c || key === 0x3a || key === 0x3b)) return "M";
   if (key >= 0x2000 && key <= 0x2bff) key -= 0x1c00;
-  else if (key > 0x03ff) return 'none';
-  if (form === 'prefix') key |= 0x1000;
-  else if (form === 'postfix') key |= 0x2000;
+  else if (key > 0x03ff) return "none";
+  if (form === "prefix") key |= 0x1000;
+  else if (form === "postfix") key |= 0x2000;
   let found: readonly [number, number] | undefined;
   for (const range of BLINK_MATHML_COMPACT_DICTIONARY) {
     if ((range[0] & 0x3fff) > key) break;
     found = range;
   }
-  if (found == null || key > ((found[0] & 0x3fff) + found[1])) return 'none';
+  if (found == null || key > (found[0] & 0x3fff) + found[1]) return "none";
   const encoded = found[0] >>> 12;
-  if (encoded === 0) return 'A';
-  if (encoded === 4) return 'B';
-  if (encoded === 8) return 'C';
-  if (encoded === 1 || encoded === 2 || encoded === 12) return 'D/E/K';
-  if (encoded === 5 || encoded === 6) return 'F/G';
-  if (encoded === 9) return 'H';
-  if (encoded === 10) return 'I';
-  return 'J';
+  if (encoded === 0) return "A";
+  if (encoded === 4) return "B";
+  if (encoded === 8) return "C";
+  if (encoded === 1 || encoded === 2 || encoded === 12) return "D/E/K";
+  if (encoded === 5 || encoded === 6) return "F/G";
+  if (encoded === 9) return "H";
+  if (encoded === 10) return "I";
+  return "J";
 }
 
 /** Exact transcription of Blink's compact MathML operator dictionary lookup. */
-export function mathMLOperatorDictionaryEntry(content: string, form: MathMLOperatorForm): MathMLOperatorDictionaryEntry {
+export function mathMLOperatorDictionaryEntry(
+  content: string,
+  form: MathMLOperatorForm,
+): MathMLOperatorDictionaryEntry {
   const category = blinkMathMLOperatorCategory(content, form);
   return { form, category, ...CATEGORY_PROPERTIES[category] };
 }
@@ -1061,8 +1275,9 @@ export function isStretchyFenceChar(text: string): boolean {
   if (scalars.length !== 1) return false;
   const cp = scalars[0].codePointAt(0)!;
   if (BLINK_MATHML_INLINE_AXIS_STRETCHY.has(cp) || cp === 0x1eef0 || cp === 0x1eef1) return false;
-  return (['infix', 'prefix', 'postfix'] as const)
-    .some((form) => mathMLOperatorDictionaryEntry(content, form).stretchy);
+  return (["infix", "prefix", "postfix"] as const).some(
+    (form) => mathMLOperatorDictionaryEntry(content, form).stretchy,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1108,11 +1323,11 @@ export function isCjkIdeographOrSymbol(cp: number): boolean {
  * `ublock_getCode` equivalent; the block boundaries are Unicode's and fixed.
  */
 const SKIP_INK_EXCLUDED_BLOCKS: ReadonlyArray<readonly [number, number]> = [
-  [0x1100, 0x11ff],   // Hangul Jamo
-  [0x3130, 0x318f],   // Hangul Compatibility Jamo
-  [0xac00, 0xd7af],   // Hangul Syllables
-  [0xa960, 0xa97f],   // Hangul Jamo Extended-A
-  [0xd7b0, 0xd7ff],   // Hangul Jamo Extended-B
+  [0x1100, 0x11ff], // Hangul Jamo
+  [0x3130, 0x318f], // Hangul Compatibility Jamo
+  [0xac00, 0xd7af], // Hangul Syllables
+  [0xa960, 0xa97f], // Hangul Jamo Extended-A
+  [0xd7b0, 0xd7ff], // Hangul Jamo Extended-B
   [0x10080, 0x100ff], // Linear B Ideograms
 ];
 
@@ -1140,10 +1355,17 @@ export function canTextDecorationSkipInk(cp: number): boolean {
   if (isCjkIdeographOrSymbol(cp)) return false;
   const icuBlock = icuCodepointProperties(cp)?.blockName;
   if (icuBlock != null) {
-    if ([
-      "Hangul_Jamo", "Hangul_Compatibility_Jamo", "Hangul_Syllables",
-      "Hangul_Jamo_Extended_A", "Hangul_Jamo_Extended_B", "Linear_B_Ideograms",
-    ].includes(icuBlock)) return false;
+    if (
+      [
+        "Hangul_Jamo",
+        "Hangul_Compatibility_Jamo",
+        "Hangul_Syllables",
+        "Hangul_Jamo_Extended_A",
+        "Hangul_Jamo_Extended_B",
+        "Linear_B_Ideograms",
+      ].includes(icuBlock)
+    )
+      return false;
   } else {
     for (const [lo, hi] of SKIP_INK_EXCLUDED_BLOCKS) {
       if (cp >= lo && cp <= hi) return false;

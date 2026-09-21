@@ -2,7 +2,14 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadBrand, brandSeriesColors, brandBackground, brandCustomProperties, brandRootCss, type Brand } from "./brand.js";
+import {
+  loadBrand,
+  brandSeriesColors,
+  brandBackground,
+  brandCustomProperties,
+  brandRootCss,
+  type Brand,
+} from "./brand.js";
 import { applyBrandDefaults, validateTemplateParams } from "./render.js";
 import { lowerThirdTemplate } from "./builtin/lower-third.js";
 import { chartTemplate } from "./builtin/chart.js";
@@ -112,9 +119,7 @@ describe("brandCustomProperties / brandRootCss — capture/animate CSS vars (DM-
   });
 
   it("--brand-background falls back to the flat palette.background when no richer background", () => {
-    expect(brandCustomProperties({ palette: { background: "#101317" } })).toEqual([
-      ["--brand-background", "#101317"],
-    ]);
+    expect(brandCustomProperties({ palette: { background: "#101317" } })).toEqual([["--brand-background", "#101317"]]);
   });
 
   it("brandRootCss wraps the pairs in a :root{} block, and is '' when nothing is set", () => {
@@ -182,21 +187,21 @@ describe("brand precedence: explicit > brand > default (DM-1530)", () => {
   it("brand fills what the caller left unset (brand > template default)", () => {
     const merged = applyBrandDefaults(lowerThirdTemplate, { title: "Hi" }, ACME);
     const params = validateTemplateParams(lowerThirdTemplate, merged);
-    expect(params.accent).toBe("#22d3ee");                 // from brand, not the #3b82f6 default
-    expect(params.fontFamily).toBe("Inter, sans-serif");   // from brand
+    expect(params.accent).toBe("#22d3ee"); // from brand, not the #3b82f6 default
+    expect(params.fontFamily).toBe("Inter, sans-serif"); // from brand
   });
 
   it("an explicit param overrides the brand", () => {
     const merged = applyBrandDefaults(lowerThirdTemplate, { title: "Hi", accent: "#ff0000" }, ACME);
     const params = validateTemplateParams(lowerThirdTemplate, merged);
-    expect(params.accent).toBe("#ff0000");                 // explicit wins over brand
-    expect(params.fontFamily).toBe("Inter, sans-serif");   // brand still fills the unset one
+    expect(params.accent).toBe("#ff0000"); // explicit wins over brand
+    expect(params.fontFamily).toBe("Inter, sans-serif"); // brand still fills the unset one
   });
 
   it("with no brand, the template's own defaults apply", () => {
     const merged = applyBrandDefaults(lowerThirdTemplate, { title: "Hi" }, undefined);
     const params = validateTemplateParams(lowerThirdTemplate, merged);
-    expect(params.accent).toBe("#3b82f6");                 // built-in default
+    expect(params.accent).toBe("#3b82f6"); // built-in default
   });
 
   it("palette fills a chart's multi-color series when the caller passes none", () => {

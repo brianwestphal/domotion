@@ -5,7 +5,10 @@ await ctx.routeFromHAR("tests/cache/real-world/resend-mobile.har", { notFound: "
 const page = await ctx.newPage();
 await page.goto("https://resend.com/", { waitUntil: "networkidle" }).catch(() => {});
 await page.evaluate(async () => {
-  for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 20)); }
+  for (let y = 0; y < document.body.scrollHeight; y += 600) {
+    window.scrollTo(0, y);
+    await new Promise((r) => setTimeout(r, 20));
+  }
   window.scrollTo(0, 0);
 });
 const info = await page.evaluate(() => {
@@ -22,7 +25,9 @@ const info = await page.evaluate(() => {
       if (/transform|filter|perspective/.test(cs.willChange)) flags.push("wc:" + cs.willChange);
       if (cs.display === "flex" || cs.display === "grid") flags.push(cs.display);
       if (/(paint|content|strict|layout)/.test(cs.contain)) flags.push("contain");
-      out.push(`${n.tagName}[${(n.getAttribute("class") || "").slice(0, 28)}]${flags.length ? " {" + flags.join(",") + "}" : ""}`);
+      out.push(
+        `${n.tagName}[${(n.getAttribute("class") || "").slice(0, 28)}]${flags.length ? " {" + flags.join(",") + "}" : ""}`,
+      );
       n = n.parentElement;
     }
     return out;

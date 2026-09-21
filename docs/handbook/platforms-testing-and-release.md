@@ -4,9 +4,25 @@ title: "Platforms, testing, and release handbook"
 kind: "contract"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2596","DM-2604","DM-2635","DM-2636","DM-2664","DM-0MAZSK"]
-code: [".github/workflows/","scripts/materialize-source-authorities.mjs","scripts/install-windows-profile-fixture-fonts.ps1","scripts/run-e2e-tests.mjs","src/capture/debug-bundle.ts","tests/animate-debug.e2e.test.ts","tests/capture-debug-api.e2e.test.ts","tests/e2e-lanes.ts","tests/feature-coverage.ts","tests/release-helpers-workflow.test.ts","tests/release-workflow.test.ts","tools/parity-program.json","scripts/ci-run-fast-visuals.mjs","vitest.e2e.config.ts"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2596", "DM-2604", "DM-2635", "DM-2636", "DM-2664", "DM-0MAZSK"]
+code:
+  [
+    ".github/workflows/",
+    "scripts/materialize-source-authorities.mjs",
+    "scripts/install-windows-profile-fixture-fonts.ps1",
+    "scripts/run-e2e-tests.mjs",
+    "src/capture/debug-bundle.ts",
+    "tests/animate-debug.e2e.test.ts",
+    "tests/capture-debug-api.e2e.test.ts",
+    "tests/e2e-lanes.ts",
+    "tests/feature-coverage.ts",
+    "tests/release-helpers-workflow.test.ts",
+    "tests/release-workflow.test.ts",
+    "tools/parity-program.json",
+    "scripts/ci-run-fast-visuals.mjs",
+    "vitest.e2e.config.ts",
+  ]
 aliases: ["docs/handbook/platforms-testing-and-release.md"]
 ---
 
@@ -53,13 +69,13 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
 
 ## Verified implementation map
 
-| Area | Requirements | Code and tests |
-| --- | --- | --- |
-| Feature coverage | [Behavior coverage](../83-feature-coverage.md), [semantic inventory](../136-semantic-coverage-inventory.md), [activation ledger](../137-specialized-path-activation-ledger.md) | `tests/feature-coverage.ts`, coverage check scripts |
-| Parity stages | [Parity program](../129-chromium-parity-verification-program.md), [demo evidence](../140-demo-review-stage-evidence.md), [composed corpus](../183-composed-metamorphic-parity-corpus.md) | `tools/parity-program.json`, evidence collectors/gates |
-| Platform calibration | [Fallback calibration](../42-cross-platform-fallback-calibration.md), macOS/Linux/Windows family oracles [109](../109-family-match-conformance.md), [110](../110-family-match-conformance-linux.md), [111](../111-family-match-conformance-windows.md) | native helpers and platform workflows |
-| Release | [Visual CI](../66-ci-visual-tests.md), [release parity gate](../138-parity-release-gate.md), [Linux arm64](../196-linux-arm64-release-parity.md), [helper acquisition](../50-glyph-helper-acquisition.md) | clean-checkout source materializer, primary-host validation, deterministic helper fan-in, release/check scripts, retained artifacts |
-| Reproduction bundles | [Single capture](../55-debug-mode-capture.md), [animation frames](../237-animate-debug-reproduction-bundles.md), [programmatic capture](../238-programmatic-debug-capture-bundles.md) | CLI filesystem helpers, in-memory capture artifacts, and headless E2E coverage |
+| Area                 | Requirements                                                                                                                                                                                                                                           | Code and tests                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Feature coverage     | [Behavior coverage](../83-feature-coverage.md), [semantic inventory](../136-semantic-coverage-inventory.md), [activation ledger](../137-specialized-path-activation-ledger.md)                                                                         | `tests/feature-coverage.ts`, coverage check scripts                                                                                 |
+| Parity stages        | [Parity program](../129-chromium-parity-verification-program.md), [demo evidence](../140-demo-review-stage-evidence.md), [composed corpus](../183-composed-metamorphic-parity-corpus.md)                                                               | `tools/parity-program.json`, evidence collectors/gates                                                                              |
+| Platform calibration | [Fallback calibration](../42-cross-platform-fallback-calibration.md), macOS/Linux/Windows family oracles [109](../109-family-match-conformance.md), [110](../110-family-match-conformance-linux.md), [111](../111-family-match-conformance-windows.md) | native helpers and platform workflows                                                                                               |
+| Release              | [Visual CI](../66-ci-visual-tests.md), [release parity gate](../138-parity-release-gate.md), [Linux arm64](../196-linux-arm64-release-parity.md), [helper acquisition](../50-glyph-helper-acquisition.md)                                              | clean-checkout source materializer, primary-host validation, deterministic helper fan-in, release/check scripts, retained artifacts |
+| Reproduction bundles | [Single capture](../55-debug-mode-capture.md), [animation frames](../237-animate-debug-reproduction-bundles.md), [programmatic capture](../238-programmatic-debug-capture-bundles.md)                                                                  | CLI filesystem helpers, in-memory capture artifacts, and headless E2E coverage                                                      |
 
 The macOS-only SFNS exact terminal-mask comparison remains retained partial
 evidence. It is not a Windows, production-platform, or release requirement;

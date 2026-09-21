@@ -13,32 +13,32 @@ const FONT_SIZE = 64;
 
 // block label, sample text, primary generic family
 const CASES = [
-  ["latin-sans",   "Hamburgefonts", "sans-serif"],
-  ["latin-serif",  "Hamburgefonts", "serif"],
-  ["latin-mono",   "Hamburgefonts", "monospace"],
-  ["hebrew",       "שלום", "sans-serif"],          // שלום
-  ["arabic",       "بحرم", "sans-serif"],          // بحرم
-  ["devanagari",   "नमस्ते", "sans-serif"], // नमस्ते
-  ["thai",         "สวัสดี", "sans-serif"], // สวัสดี
-  ["cjk-han",      "漢字", "sans-serif"],                       // 漢字
-  ["cjk-han-serif","漢字", "serif"],
-  ["hiragana",     "あ", "sans-serif"],                            // あ
-  ["katakana",     "ア", "sans-serif"],                            // ア
-  ["hangul",       "한글", "sans-serif"],                      // 한글
-  ["box-drawing",  "─│┌┼", "monospace"],           // ─│┌┼
+  ["latin-sans", "Hamburgefonts", "sans-serif"],
+  ["latin-serif", "Hamburgefonts", "serif"],
+  ["latin-mono", "Hamburgefonts", "monospace"],
+  ["hebrew", "שלום", "sans-serif"], // שלום
+  ["arabic", "بحرم", "sans-serif"], // بحرم
+  ["devanagari", "नमस्ते", "sans-serif"], // नमस्ते
+  ["thai", "สวัสดี", "sans-serif"], // สวัสดี
+  ["cjk-han", "漢字", "sans-serif"], // 漢字
+  ["cjk-han-serif", "漢字", "serif"],
+  ["hiragana", "あ", "sans-serif"], // あ
+  ["katakana", "ア", "sans-serif"], // ア
+  ["hangul", "한글", "sans-serif"], // 한글
+  ["box-drawing", "─│┌┼", "monospace"], // ─│┌┼
   ["box-drawing-sans", "─│┌┼", "sans-serif"],
-  ["geometric",    "▲●◆■□○", "sans-serif"], // ▲●◆■□○
-  ["misc-symbols", "☀☂♠♥♦", "sans-serif"],     // ☀☂♠♥♦
-  ["math-ops",     "∑∫≠≤≥", "sans-serif"],     // ∑∫≠≤≥
-  ["letterlike",   "ℝ™ℕℤ", "sans-serif"],           // ℝ™ℕℤ
-  ["arrows",       "←→↑↓↔", "sans-serif"],     // ←→↑↓↔
-  ["arrows-diag",  "↗↙", "sans-serif"],                       // ↗↙
-  ["math-alpha",   "\u{1D400}\u{1D49C}\u{1D54A}", "sans-serif"],        // 𝐀𝒜𝕊
-  ["dingbats",     "✂✈❤", "sans-serif"],                 // ✂✈❤
-  ["chess",        "♔♚", "sans-serif"],                       // ♔♚
-  ["pictographs",  "\u{1F600}", "sans-serif"],                          // 😀
-  ["transport",    "\u{1F680}", "sans-serif"],                          // 🚀
-  ["superscript",  "aₙ₁", "sans-serif"],                      // aₙ₁
+  ["geometric", "▲●◆■□○", "sans-serif"], // ▲●◆■□○
+  ["misc-symbols", "☀☂♠♥♦", "sans-serif"], // ☀☂♠♥♦
+  ["math-ops", "∑∫≠≤≥", "sans-serif"], // ∑∫≠≤≥
+  ["letterlike", "ℝ™ℕℤ", "sans-serif"], // ℝ™ℕℤ
+  ["arrows", "←→↑↓↔", "sans-serif"], // ←→↑↓↔
+  ["arrows-diag", "↗↙", "sans-serif"], // ↗↙
+  ["math-alpha", "\u{1D400}\u{1D49C}\u{1D54A}", "sans-serif"], // 𝐀𝒜𝕊
+  ["dingbats", "✂✈❤", "sans-serif"], // ✂✈❤
+  ["chess", "♔♚", "sans-serif"], // ♔♚
+  ["pictographs", "\u{1F600}", "sans-serif"], // 😀
+  ["transport", "\u{1F680}", "sans-serif"], // 🚀
+  ["superscript", "aₙ₁", "sans-serif"], // aₙ₁
 ];
 
 const browser = await chromium.launch();
@@ -53,7 +53,7 @@ console.log("-".repeat(100));
 for (const [label, text, primary] of CASES) {
   await page.setContent(
     `<!doctype html><meta charset=utf-8>` +
-    `<body style="margin:0"><span id="probe" style="font-family:${primary};font-size:${FONT_SIZE}px;white-space:nowrap">${text.replace(/</g, "&lt;")}</span></body>`,
+      `<body style="margin:0"><span id="probe" style="font-family:${primary};font-size:${FONT_SIZE}px;white-space:nowrap">${text.replace(/</g, "&lt;")}</span></body>`,
   );
   await page.evaluate(() => document.fonts.ready);
   const width = await page.evaluate(() => {

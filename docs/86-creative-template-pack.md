@@ -5,9 +5,24 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1512","DM-1519","DM-1521","DM-1522","DM-1523","DM-1524","DM-1526","DM-1529","DM-1531","DM-1532","DM-1533","DM-1539","DM-1575"]
-code: ["examples/templates-demo.ts","src/capture/script/index.ts","src/templates/builtin/odometer.ts"]
-aliases: ["docs/86-creative-template-pack.md","doc-86"]
+tickets:
+  [
+    "DM-1512",
+    "DM-1519",
+    "DM-1521",
+    "DM-1522",
+    "DM-1523",
+    "DM-1524",
+    "DM-1526",
+    "DM-1529",
+    "DM-1531",
+    "DM-1532",
+    "DM-1533",
+    "DM-1539",
+    "DM-1575",
+  ]
+code: ["examples/templates-demo.ts", "src/capture/script/index.ts", "src/templates/builtin/odometer.ts"]
+aliases: ["docs/86-creative-template-pack.md", "doc-86"]
 ---
 
 # 86 — Creative template pack
@@ -31,6 +46,7 @@ They compose with the **brand kit** (DM-1522 — each gets a `brandDefaults`) an
 ## The templates
 
 ### 1. `title-card` (intro)
+
 A full-bleed opening card: an optional eyebrow/kicker, a large headline, an
 optional subtitle, on a brand background. Staggered fade-up/`pop` reveal (reuse
 the kinetic-text motion vocabulary), then hold.
@@ -40,12 +56,14 @@ Params: `title` (req), `subtitle`, `eyebrow`, `align` (left/center), `background
 renders above the title; `logoPosition` places it.
 
 ### 2. `quote` (testimonial)
+
 A pull-quote block + attribution (name, role/handle, optional avatar
 initial/color). Quote fades/slides in; a large decorative quotation mark and an
 accent rule animate in. Params: `quote` (req), `author`, `role`, `avatarColor`,
 `avatarInitial`, `accent`, theme, sizing.
 
 ### 3. `caption` (subtitle strip)
+
 A single caption line for **pairing over other content** — transparent
 background, anchored bottom-center within safe margins, with an explicit in/out
 (fade or slide). Distinct from `lower-third` (a titled panel with accent bar):
@@ -54,6 +72,7 @@ Params: `text` (req), `position`, `maxWidthPct`, `bgOpacity`, `in`/`out` preset,
 `holdMs`, sizing.
 
 ### 4. `counter` (countdown / number-ticker)
+
 Animate a number `from → to` (count-up, count-down, or a timer), with prefix/
 suffix and grouping. **Technique — odometer digit reels (CSS-transform, no
 per-frame text):** render each digit column as a vertical strip `0..9` (or the
@@ -64,12 +83,14 @@ stagger + easing gives the satisfying "roll." Params: `from`, `to`, `duration`,
 `prefix`, `suffix`, `grouping` (thousands sep), `decimals`, `easing`.
 
 ### 5. `stat` (big-stat / KPI callout)
+
 A large headline value + label + optional delta/trend chip (`▲ 8.1%`). The value
 reuses the `counter` odometer; the delta chip fades in after. Params: `value`,
 `label`, `delta`, `deltaDir` (up/down), `accent`, `animateValue` (bool → odometer
 from 0), sizing. (Shares the digit-reel module with `counter`.)
 
 ### 6. `compare` (before / after)
+
 Two visuals (image, captured page, or an existing SVG) with the "after" revealed
 over the "before" via a **clip-path wipe or slider** (linear/vertical), plus
 optional before/after labels. The wipe is the same clip-path animation family as
@@ -78,6 +99,7 @@ Params: `before` (req), `after` (req), `mode` (wipe/slide), `direction`, `labels
 sizing. (Static inputs nest as images/SVG; a captured page uses `captureToSvg`.)
 
 ### 7. `cta` (end-card)
+
 A closing card: headline + a call-to-action button + optional logo + social
 handles/URL. Elements stagger in; the button can pulse (repeat animation).
 Params: `headline`, `cta` (label), `ctaColor`, `logo`, `handles` (array), `url`,
@@ -128,6 +150,7 @@ shared code):
   `counter` does count up/down + a `timer` clock with grouping/decimals/prefix/
   suffix/stagger; `stat` adds a label + a trend chip (▲/▼) that fades in after the
   roll. Both have `brandDefaults` + honor format `safeInset`.
+
 - **Batch C — comparison:** `compare`. ✅ shipped (DM-1533). Reveals the "after"
   over the "before" with a clip wipe (mode `slide` adds a divider line locked to
   the reveal edge) in any of four directions, plus before/after label badges. Each
@@ -136,7 +159,7 @@ shared code):
   `composeAnimatedLayers` — whose `clipScale` reveal is the SAME Firefox-safe
   clip-path animation as the window-resize composite (DM-1529), so the wipe is one
   implementation shared with the transition family. **Follow-up:** none blocking —
-  a between-frame `wipe`/directional-slide *transition* (vs this intra-scene
+  a between-frame `wipe`/directional-slide _transition_ (vs this intra-scene
   reveal) is the remaining DM-1524 animator work.
 
 Each batch: the template(s) + params schema + `brandDefaults` + unit tests

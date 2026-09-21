@@ -11,10 +11,7 @@ import {
   type RunCorpus,
   type RunSpec,
 } from "../tools/shaping-conformance.js";
-import {
-  exactFeatureValueSignature,
-  exactWebfontFeatureRecord,
-} from "../tools/shaping-font-feature-values.js";
+import { exactFeatureValueSignature, exactWebfontFeatureRecord } from "../tools/shaping-font-feature-values.js";
 
 const FAMILY = "DM2349 Fancy";
 const FAMILY_KEY = FAMILY.toLowerCase();
@@ -33,10 +30,7 @@ const CASES = [
   ["annotation(circled)", ["nalt=1"]],
 ] as const;
 
-const base64 = readFileSync(
-  "tests/fixtures/shaping/FontWithFancyFeatures.otf.base64",
-  "utf8",
-).replace(/\s/g, "");
+const base64 = readFileSync("tests/fixtures/shaping/FontWithFancyFeatures.otf.base64", "utf8").replace(/\s/g, "");
 const bytes = Buffer.from(base64, "base64");
 
 const fixture = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>
@@ -105,11 +99,13 @@ ${CASES.map((_, index) => `<p class="probe v${index}">${TEXT}</p>`).join("\n")}
 </body></html>`;
 
 function featureSettings(features: readonly string[]): string {
-  return features.map((feature) => {
-    const disabled = feature.startsWith("-");
-    const [rawTag, rawValue] = (disabled ? feature.slice(1) : feature).split("=");
-    return `"${rawTag}" ${disabled ? 0 : rawValue ?? 1}`;
-  }).join(", ");
+  return features
+    .map((feature) => {
+      const disabled = feature.startsWith("-");
+      const [rawTag, rawValue] = (disabled ? feature.slice(1) : feature).split("=");
+      return `"${rawTag}" ${disabled ? 0 : (rawValue ?? 1)}`;
+    })
+    .join(", ");
 }
 
 function directSpec(spec: RunSpec, features: readonly string[]): RunSpec {
@@ -178,8 +174,8 @@ describe("doc 204 shaping conformance harvests named feature values", () => {
   });
 
   it("uses Blink layer postorder, same-layer source order, and implicit-outer priority", () => {
-    const named = (family: string) => corpus.runs.find((row) =>
-      row.fontFamily.includes(family) && row.fontVariantAlternates === "stylistic(fancy)");
+    const named = (family: string) =>
+      corpus.runs.find((row) => row.fontFamily.includes(family) && row.fontVariantAlternates === "stylistic(fancy)");
     expect(named(LAYERED_FAMILY)?.resolvedFontFeatures).toEqual(["salt=1"]);
     expect(named(LAYERED_FAMILY)?.fontFeatureValues?.[LAYERED_FAMILY.toLowerCase()]).toEqual({
       stylistic: { fancy: [1], unioned: [3] },
@@ -189,33 +185,42 @@ describe("doc 204 shaping conformance harvests named feature values", () => {
   });
 
   it("applies only document storage to shadow text and keeps a shadow-only alias inert", () => {
-    const named = (family: string) => corpus.runs.find((row) =>
-      row.fontFamily.includes(family) && row.fontVariantAlternates === "stylistic(fancy)");
+    const named = (family: string) =>
+      corpus.runs.find((row) => row.fontFamily.includes(family) && row.fontVariantAlternates === "stylistic(fancy)");
     expect(named(SHADOW_FAMILY)?.resolvedFontFeatures).toEqual(["salt=1"]);
-    expect(named(SHADOW_FAMILY)?.fontFeatureValues?.[SHADOW_FAMILY.toLowerCase()]?.stylistic)
-      .toEqual({ fancy: [1] });
+    expect(named(SHADOW_FAMILY)?.fontFeatureValues?.[SHADOW_FAMILY.toLowerCase()]?.stylistic).toEqual({ fancy: [1] });
     expect(named(SHADOW_ONLY_FAMILY)?.fontFeatureValues).toBeUndefined();
     expect(named(SHADOW_ONLY_FAMILY)?.resolvedFontFeatures).toEqual([]);
   });
 
   it("makes wrong source-order and shadow-scope fusion fail the stale-table gate", () => {
-    const layered = corpus.runs.find((row) =>
-      row.fontFamily.includes(LAYERED_FAMILY) && row.fontVariantAlternates === "stylistic(fancy)")!;
-    expect(() => shapingProbePageHtml([{
-      ...layered,
-      fontFeatureValues: {
-        [LAYERED_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },
-      },
-    }])).toThrow(/stale font-feature-values row/);
+    const layered = corpus.runs.find(
+      (row) => row.fontFamily.includes(LAYERED_FAMILY) && row.fontVariantAlternates === "stylistic(fancy)",
+    )!;
+    expect(() =>
+      shapingProbePageHtml([
+        {
+          ...layered,
+          fontFeatureValues: {
+            [LAYERED_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },
+          },
+        },
+      ]),
+    ).toThrow(/stale font-feature-values row/);
 
-    const shadow = corpus.runs.find((row) =>
-      row.fontFamily.includes(SHADOW_FAMILY) && row.fontVariantAlternates === "stylistic(fancy)")!;
-    expect(() => shapingProbePageHtml([{
-      ...shadow,
-      fontFeatureValues: {
-        [SHADOW_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },
-      },
-    }])).toThrow(/stale font-feature-values row/);
+    const shadow = corpus.runs.find(
+      (row) => row.fontFamily.includes(SHADOW_FAMILY) && row.fontVariantAlternates === "stylistic(fancy)",
+    )!;
+    expect(() =>
+      shapingProbePageHtml([
+        {
+          ...shadow,
+          fontFeatureValues: {
+            [SHADOW_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },
+          },
+        },
+      ]),
+    ).toThrow(/stale font-feature-values row/);
   });
 
   it("matches Chromium's live layered winner and rejects the source-order mutation", async () => {
@@ -268,14 +273,17 @@ describe("doc 204 shaping conformance harvests named feature values", () => {
     const directShaping = ourShaping(direct);
     // HarfBuzz accepts both `salt` and `salt=1`; retain Blink's explicit
     // alias-derived value in evidence while comparing the painted result.
-    expect({ glyphCount: aliasShaping.glyphCount, xs: aliasShaping.xs, ok: aliasShaping.ok })
-      .toEqual({ glyphCount: directShaping.glyphCount, xs: directShaping.xs, ok: directShaping.ok });
+    expect({ glyphCount: aliasShaping.glyphCount, xs: aliasShaping.xs, ok: aliasShaping.ok }).toEqual({
+      glyphCount: directShaping.glyphCount,
+      xs: directShaping.xs,
+      ok: directShaping.ok,
+    });
     expect(aliasShaping.featureList).toEqual(features);
     expect(aliasShaping.logicalRecord?.features).toEqual(features);
-    expect(aliasShaping.logicalRecord?.clusters)
-      .toEqual(Array.from({ length: TEXT.length }, (_, index) => index));
-    expect(exactFeatureValueSignature(aliasShaping.logicalRecord!))
-      .toBe(exactFeatureValueSignature(directShaping.logicalRecord!));
+    expect(aliasShaping.logicalRecord?.clusters).toEqual(Array.from({ length: TEXT.length }, (_, index) => index));
+    expect(exactFeatureValueSignature(aliasShaping.logicalRecord!)).toBe(
+      exactFeatureValueSignature(directShaping.logicalRecord!),
+    );
 
     const aliasRecord = exactWebfontFeatureRecord(bytes, TEXT, [...spec.resolvedFontFeatures!]);
     const directRecord = exactWebfontFeatureRecord(bytes, TEXT, [...features]);
@@ -288,7 +296,8 @@ describe("doc 204 shaping conformance harvests named feature values", () => {
 
   it("rejects a stale exact feature list instead of silently reinterpreting the corpus", () => {
     const spec = corpus.runs.find((row) => row.fontVariantAlternates === "stylistic(fancy)")!;
-    expect(() => shapingProbePageHtml([{ ...spec, resolvedFontFeatures: ["salt=2"] }]))
-      .toThrow(/stale font-feature-values row/);
+    expect(() => shapingProbePageHtml([{ ...spec, resolvedFontFeatures: ["salt=2"] }])).toThrow(
+      /stale font-feature-values row/,
+    );
   });
 });

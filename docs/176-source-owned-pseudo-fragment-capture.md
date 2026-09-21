@@ -4,10 +4,17 @@ title: "176 — Source-owned generated-pseudo fragment capture"
 kind: "contract"
 status: "current"
 owners: ["layout"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2459","DM-2466","DM-2467","DM-2468"]
-code: ["src/capture/pseudo-fragment-cdp.ts","src/capture/pseudo-fragment-protocol.ts","src/capture/script/index.ts","src/render/pseudo-fragments.ts","tools/pseudo-fragment-protocol.ts"]
-aliases: ["docs/176-source-owned-pseudo-fragment-capture.md","doc-176"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2459", "DM-2466", "DM-2467", "DM-2468"]
+code:
+  [
+    "src/capture/pseudo-fragment-cdp.ts",
+    "src/capture/pseudo-fragment-protocol.ts",
+    "src/capture/script/index.ts",
+    "src/render/pseudo-fragments.ts",
+    "tools/pseudo-fragment-protocol.ts",
+  ]
+aliases: ["docs/176-source-owned-pseudo-fragment-capture.md", "doc-176"]
 ---
 
 # 176 — Source-owned generated-pseudo fragment capture
@@ -17,6 +24,7 @@ aliases: ["docs/176-source-owned-pseudo-fragment-capture.md","doc-176"]
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and Chromium-pinned
 Skia `62efacd37737505732dbe3d8daa62abd679626a1`
+
 ## Outcome
 
 Live `::before`, `::after`, and checkable `::checkmark` capture no longer obtains normal-path geometry

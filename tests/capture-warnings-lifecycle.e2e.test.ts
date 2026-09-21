@@ -1,10 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  captureElementTreeWithWarnings,
-  getLastCaptureWarnings,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTreeWithWarnings, getLastCaptureWarnings, launchChromium } from "../src/index.js";
 import type { CaptureWarning } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 

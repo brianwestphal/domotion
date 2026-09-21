@@ -47,25 +47,28 @@ describe("border phase oracle corpus", () => {
 describe("Blink border paint decision transcription (DM-2313)", () => {
   it("covers every fast, straight, and rounded clipping branch", () => {
     const decisions = new Set(buildBorderPaintDecisionCases().map(classifyBorderPaintDecision));
-    expect(decisions).toEqual(new Set([
-      "solid-rect-fast-path",
-      "solid-drrect-fast-path",
-      "double-drrect-fast-path",
-      "partial-transparent-path-fast-path",
-      "complex-rounded-close-edge-clips",
-      "complex-rounded-hull-clips",
-      "complex-straight-sides",
-    ]));
+    expect(decisions).toEqual(
+      new Set([
+        "solid-rect-fast-path",
+        "solid-drrect-fast-path",
+        "double-drrect-fast-path",
+        "partial-transparent-path-fast-path",
+        "complex-rounded-close-edge-clips",
+        "complex-rounded-hull-clips",
+        "complex-straight-sides",
+      ]),
+    );
   });
 
   it("uses the complex path when any fast-path prerequisite is absent", () => {
     const base = buildBorderPaintDecisionCases()[0];
-    expect(classifyBorderPaintDecision({ ...base, id: "color", uniformColor: false }))
-      .toBe("complex-straight-sides");
-    expect(classifyBorderPaintDecision({ ...base, id: "style", uniformStyle: false, outerRounded: true }))
-      .toBe("complex-rounded-close-edge-clips");
-    expect(classifyBorderPaintDecision({ ...base, id: "inner", innerRenderable: false, outerRounded: true }))
-      .toBe("complex-rounded-hull-clips");
+    expect(classifyBorderPaintDecision({ ...base, id: "color", uniformColor: false })).toBe("complex-straight-sides");
+    expect(classifyBorderPaintDecision({ ...base, id: "style", uniformStyle: false, outerRounded: true })).toBe(
+      "complex-rounded-close-edge-clips",
+    );
+    expect(classifyBorderPaintDecision({ ...base, id: "inner", innerRenderable: false, outerRounded: true })).toBe(
+      "complex-rounded-hull-clips",
+    );
   });
 });
 
@@ -84,7 +87,11 @@ describe("edge alpha profiles", () => {
 
 describe("shared snap-rule fit", () => {
   it("selects CSS-edge rounding when observations follow it", () => {
-    const samples = [0.2, 0.45, 0.7].map((edge) => ({ nominalCenter: edge + 1.5, observedCenter: Math.round(edge) + 1.5, width: 3 }));
+    const samples = [0.2, 0.45, 0.7].map((edge) => ({
+      nominalCenter: edge + 1.5,
+      observedCenter: Math.round(edge) + 1.5,
+      width: 3,
+    }));
     expect(deriveSnapRule(samples)[0]).toMatchObject({ rule: "css-edge-round", mae: 0 });
   });
 });

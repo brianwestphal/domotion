@@ -87,10 +87,7 @@ function parseCli(): CliOptions {
 }
 
 async function loadFixtureBytes(chromiumRoot: string): Promise<FixtureBytes> {
-  const resourceRoot = resolve(
-    chromiumRoot,
-    "third_party/blink/web_tests/images/resources",
-  );
+  const resourceRoot = resolve(chromiumRoot, "third_party/blink/web_tests/images/resources");
   return {
     gifA: await readFile(resolve(resourceRoot, "animated.gif")),
     gifB: await readFile(resolve(resourceRoot, "animated2.gif")),
@@ -105,11 +102,7 @@ function applyCommonHeaders(response: ServerResponse): void {
   response.setHeader("X-Content-Type-Options", "nosniff");
 }
 
-function applyCors(
-  request: IncomingMessage,
-  response: ServerResponse,
-  mode: string | null,
-): void {
+function applyCors(request: IncomingMessage, response: ServerResponse, mode: string | null): void {
   if (mode === "anonymous") {
     response.setHeader("Access-Control-Allow-Origin", request.headers.origin ?? "*");
   } else if (mode === "credentials") {
@@ -478,10 +471,7 @@ self.addEventListener("fetch", (event) => {
 function buildPlan(port: number): { schemaVersion: 1; ticket: "DM-2583"; rows: PlanRow[] } {
   const base = `http://localhost:${port}`;
   const requirements = new Map(
-    ANIMATED_IMAGE_TRUTH_PROBE_REQUIREMENTS.map((requirement) => [
-      requirement.probeId,
-      requirement,
-    ]),
+    ANIMATED_IMAGE_TRUTH_PROBE_REQUIREMENTS.map((requirement) => [requirement.probeId, requirement]),
   );
   const row = (
     probeId: AnimatedImageTruthProbeId,
@@ -541,9 +531,15 @@ function buildPlan(port: number): { schemaVersion: 1; ticket: "DM-2583"; rows: P
     row("css-mask-layer-reorder", "mask-one", "mask", "stable-authorized", "mask-image", [], {
       index: 1,
     }),
-    row("generated-content-item-reorder", "before-item-zero", "content", "reject-drift", "content", [
-      evaluate("await globalThis.__domotionMutateContent()"),
-    ], { pseudoType: "before" }),
+    row(
+      "generated-content-item-reorder",
+      "before-item-zero",
+      "content",
+      "reject-drift",
+      "content",
+      [evaluate("await globalThis.__domotionMutateContent()")],
+      { pseudoType: "before" },
+    ),
     row("generated-content-item-reorder", "before-item-one", "content", "stable-authorized", "content", [], {
       index: 1,
       pseudoType: "before",
@@ -557,12 +553,26 @@ function buildPlan(port: number): { schemaVersion: 1; ticket: "DM-2583"; rows: P
     row("redirect-response-mime-drift", "stable-redirect", "redirect", "stable-authorized", "html-current"),
     row("settled-304", "settled-cache-entry", "cache", "stable-authorized", "html-current"),
     row("active-revalidation", "in-flight-validator", "active", "stable-denied", "html-current"),
-    row("service-worker-router-cache-replacement", "stable-cache-route", "service-worker", "stable-authorized", "html-current", [], {
-      url: `${base}/sw/probe.html?setup=service-worker`,
-    }),
-    row("service-worker-router-cache-replacement", "controller-version", "service-worker", "reject-drift", "html-current", [
-      evaluate("await globalThis.__domotionReplaceWorker()"),
-    ], { url: `${base}/sw/probe.html?setup=service-worker` }),
+    row(
+      "service-worker-router-cache-replacement",
+      "stable-cache-route",
+      "service-worker",
+      "stable-authorized",
+      "html-current",
+      [],
+      {
+        url: `${base}/sw/probe.html?setup=service-worker`,
+      },
+    ),
+    row(
+      "service-worker-router-cache-replacement",
+      "controller-version",
+      "service-worker",
+      "reject-drift",
+      "html-current",
+      [evaluate("await globalThis.__domotionReplaceWorker()")],
+      { url: `${base}/sw/probe.html?setup=service-worker` },
+    ),
     row("cors-anonymous-success", "anonymous", "cors-anonymous", "stable-authorized", "html-current"),
     row("cors-credentials-success", "credentials", "cors-credentials", "stable-authorized", "html-current"),
     row("cors-failure", "missing-acao", "cors-failure", "stable-denied", "html-current", [], {
@@ -580,12 +590,26 @@ function buildPlan(port: number): { schemaVersion: 1; ticket: "DM-2583"; rows: P
       evaluate("await globalThis.__domotionReplaceBlob()"),
     ]),
     row("multipart-rejection", "two-parts", "multipart", "stable-denied", "html-current"),
-    row("shadow-pseudo-slot-collision", "stable-closed-shadow-before", "shadow-pseudo", "stable-authorized", "content", [], {
-      pseudoType: "before",
-    }),
-    row("shadow-pseudo-slot-collision", "closed-shadow-before", "shadow-pseudo", "reject-drift", "content", [
-      evaluate("await globalThis.__domotionMutateShadow()"),
-    ], { pseudoType: "before" }),
+    row(
+      "shadow-pseudo-slot-collision",
+      "stable-closed-shadow-before",
+      "shadow-pseudo",
+      "stable-authorized",
+      "content",
+      [],
+      {
+        pseudoType: "before",
+      },
+    ),
+    row(
+      "shadow-pseudo-slot-collision",
+      "closed-shadow-before",
+      "shadow-pseudo",
+      "reject-drift",
+      "content",
+      [evaluate("await globalThis.__domotionMutateShadow()")],
+      { pseudoType: "before" },
+    ),
     row("owner-adoption-detachment", "stable-svg", "svg", "stable-authorized", "svg-href"),
     row("owner-adoption-detachment", "svg-adopt", "svg", "reject-drift", "svg-href", [
       evaluate("await globalThis.__domotionAdoptOwner()"),
@@ -606,16 +630,20 @@ function buildPlan(port: number): { schemaVersion: 1; ticket: "DM-2583"; rows: P
       },
     ]),
   ];
-  const requiredCases = new Map(ANIMATED_IMAGE_TRUTH_CASES.map((entry) => [
-    `${entry.probeId}/${entry.caseId}`,
-    entry,
-  ]));
-  if (rows.length !== requiredCases.size || rows.some((entry) => {
-    const required = requiredCases.get(`${entry.probeId}/${entry.caseId}`);
-    return !required || required.expected !== entry.expected ||
-      required.property !== entry.property || required.index !== entry.index ||
-      (required.pseudoType ?? null) !== (entry.pseudoType ?? null);
-  })) {
+  const requiredCases = new Map(ANIMATED_IMAGE_TRUTH_CASES.map((entry) => [`${entry.probeId}/${entry.caseId}`, entry]));
+  if (
+    rows.length !== requiredCases.size ||
+    rows.some((entry) => {
+      const required = requiredCases.get(`${entry.probeId}/${entry.caseId}`);
+      return (
+        !required ||
+        required.expected !== entry.expected ||
+        required.property !== entry.property ||
+        required.index !== entry.index ||
+        (required.pseudoType ?? null) !== (entry.pseudoType ?? null)
+      );
+    })
+  ) {
     throw new Error("fixture plan drifted from the exact schema case corpus");
   }
   return {
@@ -651,12 +679,7 @@ async function main(): Promise<void> {
     if (url.pathname === "/redirect.gif") {
       applyCommonHeaders(response);
       response.statusCode = redirectVariant === "b" ? 307 : 302;
-      response.setHeader(
-        "Location",
-        redirectVariant === "b"
-          ? "/asset/a.webp?redirect=b"
-          : "/asset/a.gif?redirect=a",
-      );
+      response.setHeader("Location", redirectVariant === "b" ? "/asset/a.webp?redirect=b" : "/asset/a.gif?redirect=a");
       response.end();
       return;
     }

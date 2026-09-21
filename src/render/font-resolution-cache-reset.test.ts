@@ -16,14 +16,8 @@ import {
   resolveFontSpec,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
-import {
-  __seedSystemUiFamilyForTest,
-  __systemUiFamilyCacheForTest,
-} from "./glyph-helper.js";
-import {
-  _clusterVerdictCacheSizeForTest,
-  _seedClusterVerdictCacheForTest,
-} from "./cluster-fallback.js";
+import { __seedSystemUiFamilyForTest, __systemUiFamilyCacheForTest } from "./glyph-helper.js";
+import { _clusterVerdictCacheSizeForTest, _seedClusterVerdictCacheForTest } from "./cluster-fallback.js";
 
 /**
  * `clearFontResolutionCaches()` exists so a long sweep over a large codepoint
@@ -109,10 +103,7 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
     clearFontResolutionCaches();
     withHostPlatform("darwin", () => __authorFamilyAvailableForTest("Menlo"));
     withHostPlatform("linux", () => __authorFamilyAvailableForTest("Menlo"));
-    expect(__familyAvailabilityCacheKeysForTest()).toEqual([
-      "darwin\u0000Menlo",
-      "linux\u0000Menlo",
-    ]);
+    expect(__familyAvailabilityCacheKeysForTest()).toEqual(["darwin\u0000Menlo", "linux\u0000Menlo"]);
   });
 
   it("does NOT drop the webfont registry — that is caller state, not a memo", () => {
@@ -171,7 +162,9 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
     for (let i = 0; i < 5; i++) {
       clearFontResolutionCaches();
       const primary = getFontInstance(primaryKey, 400, 16, 0)!;
-      seen.add(resolveFontForCodepoint(0x4e00, primary, primaryKey, 400, 16, 0, undefined, undefined, [primaryKey]).key);
+      seen.add(
+        resolveFontForCodepoint(0x4e00, primary, primaryKey, 400, 16, 0, undefined, undefined, [primaryKey]).key,
+      );
     }
     // Every cycle agreed — a clear does not walk the answer somewhere new.
     expect(seen.size).toBe(1);

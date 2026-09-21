@@ -83,9 +83,13 @@ for (const [cp] of CPS) {
   for (const col of COLUMNS) cells.push({ cp, col });
 }
 await page.setContent(
-  `<!doctype html><meta charset="utf-8"><style>span{font-family:${STACK};font-size:${SIZE}px}</style>`
-  + cells.map((c, i) =>
-    `<div><span id="c${i}" style="${c.col.css}">${String.fromCodePoint(c.cp)}${c.col.suffix}</span></div>`).join(""),
+  `<!doctype html><meta charset="utf-8"><style>span{font-family:${STACK};font-size:${SIZE}px}</style>` +
+    cells
+      .map(
+        (c, i) =>
+          `<div><span id="c${i}" style="${c.col.css}">${String.fromCodePoint(c.cp)}${c.col.suffix}</span></div>`,
+      )
+      .join(""),
   { waitUntil: "load" },
 );
 
@@ -101,8 +105,7 @@ for (let i = 0; i < cells.length; i++) {
   faces.push(best == null ? "(none)" : best.familyName);
 }
 
-const at = (cpIdx, colLabel) =>
-  faces[cpIdx * COLUMNS.length + COLUMNS.findIndex((c) => c.label === colLabel)];
+const at = (cpIdx, colLabel) => faces[cpIdx * COLUMNS.length + COLUMNS.findIndex((c) => c.label === colLabel)];
 
 // The browser version is part of the answer, not decoration. Chrome's VS-aware
 // fallback (`SystemFallbackEmojiVSSupport`) shipped at a particular milestone,
@@ -117,11 +120,12 @@ for (const [i, [cp, name, kind]] of CPS.entries()) {
   const textDiv = at(i, "+VS15") !== at(i, "fve:text");
   const emojiDiv = at(i, "+VS16") !== at(i, "fve:emoji");
   if (textDiv || emojiDiv) divergent++;
-  const verdict = [textDiv ? "TEXT-DIVERGES" : "", emojiDiv ? "EMOJI-DIVERGES" : ""].filter(Boolean).join(" ") || "agree";
+  const verdict =
+    [textDiv ? "TEXT-DIVERGES" : "", emojiDiv ? "EMOJI-DIVERGES" : ""].filter(Boolean).join(" ") || "agree";
   console.log(
-    `U+${cp.toString(16).toUpperCase().padStart(4, "0")}   `
-    + row.map((f) => f.slice(0, 15).padEnd(16)).join("")
-    + `${verdict}   (${name}, ${kind})`,
+    `U+${cp.toString(16).toUpperCase().padStart(4, "0")}   ` +
+      row.map((f) => f.slice(0, 15).padEnd(16)).join("") +
+      `${verdict}   (${name}, ${kind})`,
   );
 }
 console.log(`\n${divergent} of ${CPS.length} codepoints diverge between the CSS property and its explicit selector.`);

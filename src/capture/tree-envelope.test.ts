@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  CapturedElement,
-  CapturedSessionGenericFamilies,
-  CapturedTreeEnvelope,
-} from "./types.js";
+import type { CapturedElement, CapturedSessionGenericFamilies, CapturedTreeEnvelope } from "./types.js";
 import {
   capturedTreeSessionGenericFamilies,
   createCapturedTreeEnvelope,
@@ -20,17 +16,18 @@ const element = (
   text: string,
   children: CapturedElement[] = [],
   sessionGenericFamilies?: CapturedSessionGenericFamilies,
-): CapturedElement => ({
-  tag: "div",
-  text,
-  x: 0,
-  y: 0,
-  width: 100,
-  height: 20,
-  children,
-  styles: {},
-  sessionGenericFamilies,
-} as unknown as CapturedElement);
+): CapturedElement =>
+  ({
+    tag: "div",
+    text,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 20,
+    children,
+    styles: {},
+    sessionGenericFamilies,
+  }) as unknown as CapturedElement;
 
 describe("captured-tree Page authority envelope", () => {
   it("survives JSON round-trip and descendant promotion without per-node copies", () => {
@@ -58,18 +55,19 @@ describe("captured-tree Page authority envelope", () => {
   it("fails closed for mixed, conflicting, malformed, and unrelated authority", () => {
     const a = element("a", [], authority("Page A"));
     const b = element("b");
-    expect(() => createCapturedTreeEnvelope([a, b]))
-      .toThrow("with and without generic-family preference authority");
-    expect(() => createCapturedTreeEnvelope([a, element("b", [], authority("Page B"))]))
-      .toThrow("different generic-family preference sessions");
+    expect(() => createCapturedTreeEnvelope([a, b])).toThrow("with and without generic-family preference authority");
+    expect(() => createCapturedTreeEnvelope([a, element("b", [], authority("Page B"))])).toThrow(
+      "different generic-family preference sessions",
+    );
 
     const conflicting: CapturedTreeEnvelope = {
       schema: "domotion-captured-tree-v1",
       tree: [a],
       sessionGenericFamilies: authority("Page B"),
     };
-    expect(() => capturedTreeSessionGenericFamilies(conflicting))
-      .toThrow("envelope conflicts with root generic-family preference authority");
+    expect(() => capturedTreeSessionGenericFamilies(conflicting)).toThrow(
+      "envelope conflicts with root generic-family preference authority",
+    );
     const malformed = {
       schema: "domotion-captured-tree-v1",
       tree: [element("root")],
@@ -79,12 +77,15 @@ describe("captured-tree Page authority envelope", () => {
         byScript: {},
       },
     } as unknown as CapturedTreeEnvelope;
-    expect(() => capturedTreeSessionGenericFamilies(malformed))
-      .toThrow("malformed generic-family preference authority");
-    expect(() => promoteCapturedSubtree(createCapturedTreeEnvelope([a]), element("foreign")))
-      .toThrow("does not belong to the captured tree");
-    expect(() => promoteCapturedSubtree(createCapturedTreeEnvelope([a]), []))
-      .toThrow("empty captured subtree selection");
+    expect(() => capturedTreeSessionGenericFamilies(malformed)).toThrow(
+      "malformed generic-family preference authority",
+    );
+    expect(() => promoteCapturedSubtree(createCapturedTreeEnvelope([a]), element("foreign"))).toThrow(
+      "does not belong to the captured tree",
+    );
+    expect(() => promoteCapturedSubtree(createCapturedTreeEnvelope([a]), [])).toThrow(
+      "empty captured subtree selection",
+    );
   });
 
   it("preserves an authority-free legacy route without inventing a profile", () => {

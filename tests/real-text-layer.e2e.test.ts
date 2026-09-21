@@ -30,12 +30,9 @@ afterAll(async () => {
 function render(tree: Awaited<ReturnType<typeof captureElementTree>>, realTextLayer?: boolean): string {
   clearGlyphDefs();
   clearEmbeddedFonts();
-  return withRenderTextMode("paths", () => elementTreeToSvg(
-    tree,
-    WIDTH,
-    HEIGHT,
-    realTextLayer == null ? undefined : { realTextLayer },
-  ));
+  return withRenderTextMode("paths", () =>
+    elementTreeToSvg(tree, WIDTH, HEIGHT, realTextLayer == null ? undefined : { realTextLayer }),
+  );
 }
 
 describe("inline SVG real-text layer (DM-1775)", () => {
@@ -103,14 +100,7 @@ describe("inline SVG real-text layer (DM-1775)", () => {
     const input = join(tempRoot, "cli-input.html");
     const output = join(tempRoot, "cli-output.svg");
     writeFileSync(input, `<!doctype html><style>body{font:20px Arial}</style><p>CLI searchable source</p>`);
-    await runCapture([
-      input,
-      "--real-text",
-      "--no-fonts-ready",
-      "--wait", "1",
-      "--quiet",
-      "--output", output,
-    ], "");
+    await runCapture([input, "--real-text", "--no-fonts-ready", "--wait", "1", "--quiet", "--output", output], "");
     const svg = readFileSync(output, "utf8");
     expect(svg).toContain('data-domotion-real-text-layer="true"');
     expect(svg).toContain("CLI searchable source");

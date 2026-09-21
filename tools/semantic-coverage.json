@@ -4,10 +4,7 @@
   "transitions": [
     {
       "id": "text.family-fallback",
-      "parityAreas": [
-        "font-selection",
-        "shaping-clusters-glyphs"
-      ],
+      "parityAreas": ["font-selection", "shaping-clusters-glyphs"],
       "subjects": [
         "font-family",
         "font-weight",
@@ -43,9 +40,7 @@
         "family/settings exhaustion -> descriptor-selected common-Skia initial family",
         "computed CSS family list -> decoded typed Blink stack across all text owners"
       ],
-      "uncoveredStates": [
-        "helper available -> helper absent"
-      ],
+      "uncoveredStates": ["helper available -> helper absent"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/platform/fonts",
         "external/harfbuzz/src",
@@ -111,33 +106,64 @@
         "tests/linux-arm64-release-parity-workflow.test.ts",
         ".github/workflows/linux-arm64-release-parity.yml"
       ],
-      "visualFixtures": [
-        "tests/features.ts#text-system-ui-cjk-fallback",
-        "tests/html-test-suite.tsx"
-      ],
+      "visualFixtures": ["tests/features.ts#text-system-ui-cjk-fallback", "tests/html-test-suite.tsx"],
       "coverage": "partial",
       "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, versioned JSON envelopes preserve authority through identity-checked descendant promotion, and DOMSnapshot supplies response-header plus closed-shadow language facts. That Settings workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. A separate exact system-ui workflow now owns the platform path: CoreText UI handles, Linux renderer system-family preferences, and Windows menu-font metrics are joined to Domotion's live native answer under dynamically derived mutations, inventory/source fingerprints, and a stale-before/fresh-after cache discriminator, without pixels or answer snapshots. The pinned source audit and production carrier now agree before shaping: Windows hardcoded fallback and the common-Skia terminal consume the descriptor generic derived once from the unresolved stack, independently of concrete face keys. OS/terminal memos distinguish only their generic-sensitive inputs; selected face/style caches remain generic-agnostic. Capture now retains one decoded typed Blink family-list record across ordinary, generated, first-letter/first-line, line-clamp, placeholder, listbox, and file text; exact quoted-comma, escape, quoted-generic, kStandard, authored-same-face, raw-string, and node-type mutations prove that no selected key or naive comma split reconstructs it. The strict 52-record forward/reverse logical gate covers 13 rightmost-generic, quoted-literal, and system-ui/math non-occupying stack cases per script without resetting between orders. It independently fingerprints Chromium's source enum, Windows candidates, and raw macOS/Linux/Windows terminal questions, then compares production routing, normalized terminal owners/activation, and semantic cache identity under 17 hostile/evidence controls. A repository-owned exact family-exhaustion suite separately covers named Courier/monospace/serif terminal selection, the description-blind mutation, and reverse terminal cache order without host snapshots or raster assertions. Isolated profile-to-WebPreferences propagation and authenticated per-target OOPIF divergence remain explicit separate boundaries; the first retained all-platform DM-2504 artifact is still required. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
-      "featureIds": [
-        "render.text",
-        "fonts.glyph-helper"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.text", "fonts.glyph-helper"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "capture.generic-profile-target-authority",
       "parityAreas": ["font-selection", "generic-profile-target-authority"],
-      "subjects": ["authenticated full-Chrome process", "raw Chrome profile generic preferences", "source-derived Playwright headless overlay", "Page Settings", "OOPIF target authority", "system-ui separation"],
-      "states": ["registry chrome channel -> hashed command executable", "requested 21 fields -> raw persisted preferences", "isolated headed profile -> exact 21-field painted state", "profile state -> source-derived headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary inheritance -> child-first divergent target Settings", "ordinary inheritance -> main-first divergent target Settings", "generic Page mutation -> stable system-ui", "divergent target Settings -> fail-closed capture"],
-      "exactStates": ["registry chrome channel -> hashed command executable", "requested 21 fields -> raw persisted preferences", "isolated headed profile -> exact 21-field painted state", "profile state -> source-derived headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary inheritance -> child-first divergent target Settings", "ordinary inheritance -> main-first divergent target Settings", "generic Page mutation -> stable system-ui", "divergent target Settings -> fail-closed capture"],
+      "subjects": [
+        "authenticated full-Chrome process",
+        "raw Chrome profile generic preferences",
+        "source-derived Playwright headless overlay",
+        "Page Settings",
+        "OOPIF target authority",
+        "system-ui separation"
+      ],
+      "states": [
+        "registry chrome channel -> hashed command executable",
+        "requested 21 fields -> raw persisted preferences",
+        "isolated headed profile -> exact 21-field painted state",
+        "profile state -> source-derived headless Settings overlay",
+        "main Page Settings -> ordinary child inheritance",
+        "ordinary inheritance -> child-first divergent target Settings",
+        "ordinary inheritance -> main-first divergent target Settings",
+        "generic Page mutation -> stable system-ui",
+        "divergent target Settings -> fail-closed capture"
+      ],
+      "exactStates": [
+        "registry chrome channel -> hashed command executable",
+        "requested 21 fields -> raw persisted preferences",
+        "isolated headed profile -> exact 21-field painted state",
+        "profile state -> source-derived headless Settings overlay",
+        "main Page Settings -> ordinary child inheritance",
+        "ordinary inheritance -> child-first divergent target Settings",
+        "ordinary inheritance -> main-first divergent target Settings",
+        "generic Page mutation -> stable system-ui",
+        "divergent target Settings -> fail-closed capture"
+      ],
       "uncoveredStates": [],
-      "upstreamSources": ["external/chromium/chrome/browser/chrome_content_browser_client.cc", "external/chromium/chrome/browser/font_family_cache.cc", "external/chromium/chrome/browser/ui/prefs/prefs_tab_helper.cc", "external/chromium/third_party/blink/renderer/platform/fonts/generic_font_family_settings.cc", "external/chromium/third_party/blink/renderer/platform/fonts/font_selector.cc", "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc", "node_modules/playwright-core/lib/server/chromium/crPage.js", "node_modules/playwright-core/lib/server/chromium/defaultFontFamilies.js"],
+      "upstreamSources": [
+        "external/chromium/chrome/browser/chrome_content_browser_client.cc",
+        "external/chromium/chrome/browser/font_family_cache.cc",
+        "external/chromium/chrome/browser/ui/prefs/prefs_tab_helper.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/generic_font_family_settings.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font_selector.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc",
+        "node_modules/playwright-core/lib/server/chromium/crPage.js",
+        "node_modules/playwright-core/lib/server/chromium/defaultFontFamilies.js"
+      ],
       "productionOwners": ["src/capture/generic-font-probe.ts", "src/capture/index.ts"],
       "oracles": ["tools/generic-profile-target-oracle.ts"],
-      "metamorphicTests": ["tests/generic-profile-target-oracle.test.ts", "tests/generic-profile-target-oracle.e2e.test.ts", "tests/generic-profile-target-workflow.test.ts", ".github/workflows/generic-profile-target-parity.yml"],
+      "metamorphicTests": [
+        "tests/generic-profile-target-oracle.test.ts",
+        "tests/generic-profile-target-oracle.e2e.test.ts",
+        "tests/generic-profile-target-workflow.test.ts",
+        ".github/workflows/generic-profile-target-parity.yml"
+      ],
       "visualFixtures": ["tests/generic-profile-target-oracle.e2e.test.ts"],
       "coverage": "exact",
       "featureIds": ["render.text"],
@@ -147,10 +173,25 @@
       "id": "text.unicode-shaping-corpus",
       "parityAreas": ["shaping-clusters-glyphs"],
       "subjects": ["Unicode shaping corpus", "deterministic sharding", "resumable evidence", "mismatch reduction"],
-      "states": ["representative profile -> exhaustive profile", "fresh shard -> digest-identical resume", "raw mismatches -> logical signature reductions", "darwin profile -> linux profile", "linux profile -> win32 profile"],
-      "exactStates": ["representative profile -> exhaustive profile", "fresh shard -> digest-identical resume", "raw mismatches -> logical signature reductions", "darwin profile -> linux profile", "linux profile -> win32 profile"],
+      "states": [
+        "representative profile -> exhaustive profile",
+        "fresh shard -> digest-identical resume",
+        "raw mismatches -> logical signature reductions",
+        "darwin profile -> linux profile",
+        "linux profile -> win32 profile"
+      ],
+      "exactStates": [
+        "representative profile -> exhaustive profile",
+        "fresh shard -> digest-identical resume",
+        "raw mismatches -> logical signature reductions",
+        "darwin profile -> linux profile",
+        "linux profile -> win32 profile"
+      ],
       "uncoveredStates": [],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src"],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/platform/fonts/shaping",
+        "external/harfbuzz/src"
+      ],
       "productionOwners": ["tools/shaping-conformance.ts", "tools/shaping-unicode-corpus.ts"],
       "oracles": ["tools/shaping-conformance.ts"],
       "metamorphicTests": ["tests/shaping-unicode-corpus.test.ts", "tests/shaping-unicode-workflow.test.ts"],
@@ -161,9 +202,7 @@
     },
     {
       "id": "text.font-feature-values-shaping",
-      "parityAreas": [
-        "shaping-clusters-glyphs"
-      ],
+      "parityAreas": ["shaping-clusters-glyphs"],
       "subjects": [
         "font-variant-alternates",
         "@font-feature-values",
@@ -186,9 +225,7 @@
         "retained data-URL webfont -> exact custom face",
         "unretained font source -> excluded run"
       ],
-      "uncoveredStates": [
-        "ordinary document rule -> layered or shadow-scoped rule"
-      ],
+      "uncoveredStates": ["ordinary document rule -> layered or shadow-scoped rule"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css",
         "external/chromium/third_party/blink/renderer/platform/fonts",
@@ -199,39 +236,90 @@
         "src/render/text.ts",
         "src/render/harfbuzz-shaper.ts"
       ],
-      "oracles": [
-        "tools/shaping-conformance.ts",
-        "tools/shaping-font-feature-values.ts"
-      ],
+      "oracles": ["tools/shaping-conformance.ts", "tools/shaping-font-feature-values.ts"],
       "metamorphicTests": [
         "tests/shaping-font-feature-values.test.ts",
         "tests/shaping-font-feature-values.e2e.test.ts",
         "tests/shaping-corpus-fontface-exclusion.e2e.test.ts"
       ],
-      "visualFixtures": [
-        "tests/fixtures/shaping/FontWithFancyFeatures.otf.base64"
-      ],
+      "visualFixtures": ["tests/fixtures/shaping/FontWithFancyFeatures.otf.base64"],
       "coverage": "partial",
       "boundary": "Ordinary document-scoped stylistic, styleset, character-variant, swash, ornaments, and annotation aliases are exact: one pinned WPT webfont, CDP custom-face ownership, resolved feature lists, complete HarfBuzz logical records, direct-feature equivalence, missing-rule movement, and stale-record rejection. No tolerance changed. Cascade-layer fusion and shadow-tree rule scoping are refused rather than approximated; local/remote/file and multiple-face source environments remain excluded unless their exact bytes and descriptor selection can travel with the run.",
-      "featureIds": [
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin"
-      ]
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin"]
     },
     {
       "id": "text.paths-native-raster-floor",
       "parityAreas": ["paths-native-raster-floor"],
-      "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope", "browser HarfBuzz substitution stream"],
-      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "MathML math-auto Greek token -> authenticated Linux FreeSans supplement", "substitution-free source-table stream -> browser HarfBuzz substitution stream", "implemented substitution gate -> retained six-artifact native ratification", "retained substitution logic -> substitution raster grading"],
-      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "MathML math-auto Greek token -> authenticated Linux FreeSans supplement", "substitution-free source-table stream -> browser HarfBuzz substitution stream", "implemented substitution gate -> retained six-artifact native ratification"],
+      "subjects": [
+        "paths mode",
+        "native Skia mask",
+        "face/glyph/layout identity",
+        "platform raster envelope",
+        "browser HarfBuzz substitution stream"
+      ],
+      "states": [
+        "declared source-owned cell -> authenticated native/paths observation",
+        "logical mismatch -> gate failure",
+        "logical exact -> unratified envelope",
+        "unratified envelope -> reviewed platform envelope",
+        "MathML math-auto Greek token -> authenticated Linux FreeSans supplement",
+        "substitution-free source-table stream -> browser HarfBuzz substitution stream",
+        "implemented substitution gate -> retained six-artifact native ratification",
+        "retained substitution logic -> substitution raster grading"
+      ],
+      "exactStates": [
+        "declared source-owned cell -> authenticated native/paths observation",
+        "logical mismatch -> gate failure",
+        "logical exact -> unratified envelope",
+        "unratified envelope -> reviewed platform envelope",
+        "MathML math-auto Greek token -> authenticated Linux FreeSans supplement",
+        "substitution-free source-table stream -> browser HarfBuzz substitution stream",
+        "implemented substitution gate -> retained six-artifact native ratification"
+      ],
       "uncoveredStates": ["retained substitution logic -> substitution raster grading"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core", "external/skia/src/ports/SkFontHost_FreeType.cpp", "external/skia/src/ports/SkScalerContext_mac_ct.cpp", "external/skia/src/ports/SkScalerContext_win_dw.cpp"],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/inline",
+        "external/chromium/third_party/blink/renderer/platform/fonts/shaping",
+        "external/harfbuzz/src",
+        "external/skia/src/core",
+        "external/skia/src/ports/SkFontHost_FreeType.cpp",
+        "external/skia/src/ports/SkScalerContext_mac_ct.cpp",
+        "external/skia/src/ports/SkScalerContext_win_dw.cpp"
+      ],
       "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
-      "oracles": ["tools/paths-native-raster-collector.ts", "tools/paths-native-raster-corpus.ts", "tools/paths-native-raster-metrics.ts", "tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts", "tools/linux-mathml-greek-raster-contract.ts", "tools/linux-mathml-greek-raster-collector.ts", "tools/linux-mathml-greek-raster-gate.ts", "tools/browser-harfbuzz-substitution-oracle.ts"],
-      "metamorphicTests": ["tests/paths-native-raster-collector.test.ts", "tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts", "tests/linux-mathml-greek-raster-contract.test.ts", "tests/linux-mathml-greek-raster-gate.test.ts", "tests/linux-mathml-greek-raster-workflow.test.ts", "tests/browser-harfbuzz-substitution-oracle.test.ts", "tests/browser-harfbuzz-substitution-oracle.e2e.test.ts", "tests/browser-harfbuzz-substitution-workflow.test.ts"],
-      "visualFixtures": [".github/workflows/paths-native-raster-floor.yml", ".github/workflows/linux-mathml-greek-raster-floor.yml", ".github/workflows/browser-harfbuzz-substitution-streams.yml", "tests/fixtures/variable-axis/variable-axis.html", "tests/fixtures/exact-shaping/ArabicRligTest.ttf.base64", "tests/fixtures/exact-shaping/ArabicMarkTest.ttf.base64", "tests/fixtures/exact-shaping/LOCLTest.ttf.base64"],
+      "oracles": [
+        "tools/paths-native-raster-collector.ts",
+        "tools/paths-native-raster-corpus.ts",
+        "tools/paths-native-raster-metrics.ts",
+        "tools/paths-native-raster-gate.ts",
+        "tools/paths-native-raster-producer.ts",
+        "tools/paths-native-raster-aggregate.ts",
+        "tools/linux-mathml-greek-raster-contract.ts",
+        "tools/linux-mathml-greek-raster-collector.ts",
+        "tools/linux-mathml-greek-raster-gate.ts",
+        "tools/browser-harfbuzz-substitution-oracle.ts"
+      ],
+      "metamorphicTests": [
+        "tests/paths-native-raster-collector.test.ts",
+        "tests/paths-native-raster-gate.test.ts",
+        "tests/paths-native-raster-workflow.test.ts",
+        "tests/linux-mathml-greek-raster-contract.test.ts",
+        "tests/linux-mathml-greek-raster-gate.test.ts",
+        "tests/linux-mathml-greek-raster-workflow.test.ts",
+        "tests/browser-harfbuzz-substitution-oracle.test.ts",
+        "tests/browser-harfbuzz-substitution-oracle.e2e.test.ts",
+        "tests/browser-harfbuzz-substitution-workflow.test.ts"
+      ],
+      "visualFixtures": [
+        ".github/workflows/paths-native-raster-floor.yml",
+        ".github/workflows/linux-mathml-greek-raster-floor.yml",
+        ".github/workflows/browser-harfbuzz-substitution-streams.yml",
+        "tests/fixtures/variable-axis/variable-axis.html",
+        "tests/fixtures/exact-shaping/ArabicRligTest.ttf.base64",
+        "tests/fixtures/exact-shaping/ArabicMarkTest.ttf.base64",
+        "tests/fixtures/exact-shaping/LOCLTest.ttf.base64"
+      ],
       "coverage": "partial",
       "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Run 32621780121 reviewed and ratified 2,088 rows across macOS/Linux/Windows at DPR1/2 with exact logical identity, zero warnings, active arms, and every independent validation residual inside its proposal value. A separate Linux-only Noble FreeSans supplement authenticates four MathML math-auto Greek tokens, capture-owned baselines, and native/paths/no-hint PNGs without changing the 348-cell schema or scalar caps; workflow run 32628749740 independently ratified its terminal mask envelope. DM-2532/doc 220 covers the declared portable browser-HarfBuzz substitution transition with sole CDP custom-face/glyph-count ownership, pinned-HarfBuzz and production gid/cluster/span/advance/offset agreement, and thirteen active mutations. Run 32683947350 retained all six macOS/Linux/Windows proposal/validation reports and returned proposal-validation-agreement with exact corpus/logical digests. Rasterization remains not-started; the ratified 348-cell core and scalar caps are unchanged.",
       "featureIds": ["render.text"],
@@ -239,15 +327,8 @@
     },
     {
       "id": "text.macos-sfns-mask-baseline",
-      "parityAreas": [
-        "macos-sfns-mask-baseline"
-      ],
-      "subjects": [
-        "SFNS glyph path",
-        "Skia mask raster",
-        "CoreText baseline metrics",
-        "opsz variation"
-      ],
+      "parityAreas": ["macos-sfns-mask-baseline"],
+      "subjects": ["SFNS glyph path", "Skia mask raster", "CoreText baseline metrics", "opsz variation"],
       "states": [
         "default optical size -> explicit opsz 26",
         "cold glyph lookup -> warm glyph lookup",
@@ -275,11 +356,7 @@
         "external/skia/src/core/SkStrikeSpec.cpp",
         "external/skia/src/ports"
       ],
-      "productionOwners": [
-        "src/render/font-resolution.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/text-to-path.ts"
-      ],
+      "productionOwners": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts", "src/render/text-to-path.ts"],
       "oracles": [
         "tools/sfns-mask-baseline-oracle.ts",
         "tools/sfns-mask-baseline.swift",
@@ -317,21 +394,12 @@
       ],
       "coverage": "partial",
       "boundary": "DM-2452/doc 168 pins exact SFNS bytes, axes, gids, metrics, uniform matrix candidates, x/y quarter phases, and cold/warm lifecycle across Chromium, CoreText mask/path, and production paths. DM-2567 closes the bounded file-backed macOS variable-outline seam: the exact selected face/axes route through CoreText, helper absence fails closed, cache identity includes axes and commands, and two explicitly headless independent arms require authenticated helper bytes plus exact command topology/count/digest equality for all 30 gid observations per arm with maxDesignUnitDelta=0 and a moving opsz control. DM-2568 pins browser font globals, scaler-record construction, live draw-matrix-to-strike and phase ownership, macOS record filtering, runtime smoothing, RGB-to-A8/LCD conversion, gamma, and preblend. The private-Skia proposal collector retains 26 isolated native observations with exact raw/filtered recs, `[26,26]` and cancellation `[13,13]` matrices, runtime `some` smoothing, gamma/preblend, embedded A8 masks, lifecycle equality, and six active controls without launching a browser. DM-2575 adds the independent false-default pinned-Chromium validation hook and 26 one-process-per-observation explicitly headless traces, retaining the same browser-constructed record, typeface/axes, phases, surfaces, gamma/preblend, and exact post-conversion bytes with fail-closed lifecycle and mutation checks. DM-2576 implements the exact 26-pair cross-arm adjudicator and confirms `[13,13]` in all cancellation observations. DM-2586 aligns proposal v2 through a shared input-only manifest and independently executed Chromium-exact OTS wrapper, then retains arm-qualified IDs, exact white paint/surface/live matrices, separate shaped/strike placement, normalized CoreText metrics, full gamma/preblend buffers, records, phases, and every mask. Validation v2 independently retains direct Blink shaped advances/offsets, normalized CoreText metrics, complete gamma/preblend buffers, records, phases, and masks across 26 explicitly headless processes. The v3 report has zero integrity errors and exact `[13,13]` cancellation but remains partial on 498 literal cross-arm mismatches. DM-2604 retains that comparison as an optional diagnostic rather than a release gate; three-platform functional and visual evidence owns release readiness, and observed SFNS variations are traced individually through these stages.",
-      "featureIds": [
-        "render.text",
-        "fonts.glyph-helper"
-      ],
-      "verifiedPlatforms": [
-        "darwin"
-      ]
+      "featureIds": ["render.text", "fonts.glyph-helper"],
+      "verifiedPlatforms": ["darwin"]
     },
     {
       "id": "text.emoji-presentation",
-      "parityAreas": [
-        "font-selection",
-        "shaping-clusters-glyphs",
-        "raster-fallback-boundary"
-      ],
+      "parityAreas": ["font-selection", "shaping-clusters-glyphs", "raster-fallback-boundary"],
       "subjects": [
         "font-variant-emoji",
         "variation selectors",
@@ -394,22 +462,12 @@
         ".github/workflows/emoji-presentation-ownership-audit.yml"
       ],
       "coverage": "exact",
-      "featureIds": [
-        "capture.emoji-detect",
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.emoji-detect", "render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.font-palette-selection",
-      "parityAreas": [
-        "font-selection",
-        "raster-fallback-boundary"
-      ],
+      "parityAreas": ["font-selection", "raster-fallback-boundary"],
       "subjects": [
         "font-palette",
         "@font-palette-values",
@@ -480,26 +538,13 @@
       ],
       "coverage": "exact",
       "boundary": "",
-      "featureIds": [
-        "capture.emoji-detect",
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.emoji-detect", "render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.bidi-runs",
-      "parityAreas": [
-        "shaping-clusters-glyphs",
-        "text-layout-placement"
-      ],
-      "subjects": [
-        "direction",
-        "unicode-bidi"
-      ],
+      "parityAreas": ["shaping-clusters-glyphs", "text-layout-placement"],
+      "subjects": ["direction", "unicode-bidi"],
       "states": [
         "LTR -> RTL embedding",
         "RTL -> LTR embedding",
@@ -507,57 +552,22 @@
         "normal -> override",
         "single script -> adjacent mixed scripts"
       ],
-      "exactStates": [
-        "LTR -> RTL embedding",
-        "RTL -> LTR embedding",
-        "normal -> isolate",
-        "normal -> override"
-      ],
-      "uncoveredStates": [
-        "single script -> adjacent mixed scripts"
-      ],
-      "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/layout/inline",
-        "external/harfbuzz/src"
-      ],
-      "productionOwners": [
-        "src/render/script-segmentation.ts",
-        "src/render/text.ts",
-        "src/render/text-to-path.ts"
-      ],
-      "oracles": [
-        "tools/layout-stage-oracle.ts",
-        "tools/unified-shaping-oracle.ts"
-      ],
-      "metamorphicTests": [
-        "src/render/cluster-fallback-bidi-override.test.ts",
-        "src/render/rtl-smp-bidi.test.ts"
-      ],
-      "visualFixtures": [
-        "tests/features.ts#text-rtl-in-ltr-line"
-      ],
+      "exactStates": ["LTR -> RTL embedding", "RTL -> LTR embedding", "normal -> isolate", "normal -> override"],
+      "uncoveredStates": ["single script -> adjacent mixed scripts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/harfbuzz/src"],
+      "productionOwners": ["src/render/script-segmentation.ts", "src/render/text.ts", "src/render/text-to-path.ts"],
+      "oracles": ["tools/layout-stage-oracle.ts", "tools/unified-shaping-oracle.ts"],
+      "metamorphicTests": ["src/render/cluster-fallback-bidi-override.test.ts", "src/render/rtl-smp-bidi.test.ts"],
+      "visualFixtures": ["tests/features.ts#text-rtl-in-ltr-line"],
       "coverage": "partial",
       "boundary": "Mixed pointed-Hebrew, Arabic, and digit runs retain an unexplained visual residual.",
-      "featureIds": [
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.vertical-orientation",
-      "parityAreas": [
-        "unicode-decisions",
-        "text-layout-placement"
-      ],
-      "subjects": [
-        "writing-mode",
-        "text-orientation",
-        "text-combine-upright"
-      ],
+      "parityAreas": ["unicode-decisions", "text-layout-placement"],
+      "subjects": ["writing-mode", "text-orientation", "text-combine-upright"],
       "states": [
         "horizontal -> vertical-rl",
         "vertical-rl -> vertical-lr",
@@ -597,42 +607,21 @@
         "src/render/pseudo-fragments.ts",
         "src/render/vertical-text.ts"
       ],
-      "oracles": [
-        "tools/vertical-orientation-oracle.ts",
-        "tests/vertical-orientation-capture.e2e.test.ts"
-      ],
+      "oracles": ["tools/vertical-orientation-oracle.ts", "tests/vertical-orientation-capture.e2e.test.ts"],
       "metamorphicTests": [
         "src/vertical-orientation.test.ts",
         "src/capture/script/vertical-orientation.generated.test.ts",
         "tests/vertical-orientation-workflow.test.ts"
       ],
-      "visualFixtures": [
-        "tests/vertical-font-metrics.e2e.test.ts",
-        "tests/vertical-orientation-capture.e2e.test.ts"
-      ],
+      "visualFixtures": ["tests/vertical-font-metrics.e2e.test.ts", "tests/vertical-orientation-capture.e2e.test.ts"],
       "coverage": "exact",
-      "featureIds": [
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.wrapping-fragmentation",
-      "parityAreas": [
-        "text-layout-placement"
-      ],
-      "subjects": [
-        "white-space",
-        "overflow-wrap",
-        "word-break",
-        "line-break",
-        "hyphens",
-        "columns"
-      ],
+      "parityAreas": ["text-layout-placement"],
+      "subjects": ["white-space", "overflow-wrap", "word-break", "line-break", "hyphens", "columns"],
       "states": [
         "unwrapped -> soft wrap",
         "ordinary break -> emergency break",
@@ -646,37 +635,18 @@
         "single fragment -> multiple fragments"
       ],
       "uncoveredStates": [],
-      "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/layout/inline"
-      ],
-      "productionOwners": [
-        "src/capture/script/walker/text-segments.ts",
-        "src/render/text.ts"
-      ],
-      "oracles": [
-        "tools/layout-stage-oracle.ts"
-      ],
-      "metamorphicTests": [
-        "src/render/text.test.ts"
-      ],
-      "visualFixtures": [
-        "tests/features.ts#text-multiline"
-      ],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline"],
+      "productionOwners": ["src/capture/script/walker/text-segments.ts", "src/render/text.ts"],
+      "oracles": ["tools/layout-stage-oracle.ts"],
+      "metamorphicTests": ["src/render/text.test.ts"],
+      "visualFixtures": ["tests/features.ts#text-multiline"],
       "coverage": "exact",
-      "featureIds": [
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.decoration",
-      "parityAreas": [
-        "text-decoration"
-      ],
+      "parityAreas": ["text-decoration"],
       "subjects": [
         "text-decoration-line",
         "text-decoration-style",
@@ -753,32 +723,15 @@
         "src/render/skip-ink-geometry.test.ts",
         "src/tree-ops/decoration-propagation.test.ts"
       ],
-      "visualFixtures": [
-        "tests/features.ts#text-decorations"
-      ],
+      "visualFixtures": ["tests/features.ts#text-decorations"],
       "coverage": "exact",
-      "featureIds": [
-        "render.text"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "box.border-outline",
-      "parityAreas": [
-        "borders-outlines"
-      ],
-      "subjects": [
-        "border-style",
-        "border-width",
-        "border-radius",
-        "corner-shape",
-        "outline",
-        "zoom"
-      ],
+      "parityAreas": ["borders-outlines"],
+      "subjects": ["border-style", "border-width", "border-radius", "corner-shape", "outline", "zoom"],
       "states": [
         "solid -> dotted/dashed",
         "solid -> double",
@@ -794,55 +747,30 @@
         "uniform -> mixed sides",
         "unzoomed -> effective zoom"
       ],
-      "uncoveredStates": [
-        "unfragmented -> fragmented"
-      ],
-      "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint",
-        "external/skia/src/core"
-      ],
+      "uncoveredStates": ["unfragmented -> fragmented"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
       "productionOwners": [
         "src/render/borders.ts",
         "src/render/element-tree-to-svg.ts",
         "src/capture/script/walker/borders-backgrounds.ts"
       ],
-      "oracles": [
-        "tools/border-phase-oracle.ts",
-        "tools/border-phase-ratifier.ts",
-        "tools/paint-geometry-oracle.ts"
-      ],
+      "oracles": ["tools/border-phase-oracle.ts", "tools/border-phase-ratifier.ts", "tools/paint-geometry-oracle.ts"],
       "metamorphicTests": [
         "src/render/borders.test.ts",
         "tests/border-phase-oracle.test.ts",
         "tests/border-phase-ratifier.test.ts",
         "tests/border-phase-ratification-workflow.test.ts"
       ],
-      "visualFixtures": [
-        "tests/features.ts#border-styles-variants"
-      ],
+      "visualFixtures": ["tests/features.ts#border-styles-variants"],
       "coverage": "partial",
       "boundary": "The fixed macOS/Linux/Windows phase envelopes cover all 128 source-exact rows per scenario. Uniform border.double derives both stripe boxes from one CSS-edge-snapped reference rect, has explicit unsnapped mutation coverage across four widths and four quarter-pixel phases, and does not alter outline.double ownership. Fragmented-table coverage remains separate.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "table.collapsed-fragmentation",
-      "parityAreas": [
-        "borders-outlines"
-      ],
-      "subjects": [
-        "border-collapse",
-        "break-inside",
-        "thead repetition",
-        "tfoot repetition",
-        "writing-mode"
-      ],
+      "parityAreas": ["borders-outlines"],
+      "subjects": ["border-collapse", "break-inside", "thead repetition", "tfoot repetition", "writing-mode"],
       "states": [
         "separate -> collapse",
         "whole-row break -> continued-row break",
@@ -856,9 +784,7 @@
         "single fragment -> repeated header/footer",
         "horizontal -> vertical fragmentation"
       ],
-      "uncoveredStates": [
-        "screen logical ownership -> all-platform final ink"
-      ],
+      "uncoveredStates": ["screen logical ownership -> all-platform final ink"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/table",
         "external/chromium/third_party/blink/renderer/core/layout/paginated_root_layout_algorithm.cc",
@@ -894,21 +820,12 @@
       ],
       "coverage": "partial",
       "boundary": "DM-2557 authenticates ordinary screen physical fragments before vector paint from exactly agreeing transform-neutral CSSOM/CDP LayoutUnit geometry and exact restoration. DM-2558 extends that record to repeated headers/footers without promoting coordinate aliases: the first computed group and complete Blink eligibility path authenticate, alias geometry supplies only the FragmentRepeater prototype, and intrinsic source-cell membership witnesses every physical occurrence. The schema-3 explicit-headless pixel-free screen corpus passes 21 logical discriminators and 15 hostile mutations across header-only/footer-only/both, oversized/non-avoid negatives, first-of-multiple selection, monolithic overflow, caption-only/empty table-box states, and horizontal/vertical writing; rows, roles, occurrence indexes, paint slots, first/last table-box state, and reserved collapsed/table-edge space are exact. Screen aliases cannot substitute, all source observations restore exactly, pixelsRead is false, and no border tolerance changed.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "paint.gradients",
-      "parityAreas": [
-        "gradients-masks-clips",
-        "raster-fallback-boundary"
-      ],
+      "parityAreas": ["gradients-masks-clips", "raster-fallback-boundary"],
       "subjects": [
         "background-image",
         "mask-image",
@@ -967,32 +884,24 @@
         "src/render/color-table-lookup.test.ts",
         "tests/svg-effect-combination-corpus.test.ts",
         "src/render/gradients.test.ts",
-        "src/capture/script/walker/borders-backgrounds.test.ts"
-        ,"tests/repeating-linear-px-stop-workflow.test.ts"
+        "src/capture/script/walker/borders-backgrounds.test.ts",
+        "tests/repeating-linear-px-stop-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#gradient-radial-negative-domain",
         "tests/features.ts#bg-conic-chromium-zoom-tile",
-        "tests/svg-effect-combination-oracle.e2e.test.ts"
-        ,"tests/legacy-webkit-gradient.e2e.test.ts"
-        ,"tests/repeating-linear-px-stops.e2e.test.ts"
-        ,"tests/repeating-linear-legacy-consumers.e2e.test.ts"
+        "tests/svg-effect-combination-oracle.e2e.test.ts",
+        "tests/legacy-webkit-gradient.e2e.test.ts",
+        "tests/repeating-linear-px-stops.e2e.test.ts",
+        "tests/repeating-linear-legacy-consumers.e2e.test.ts"
       ],
       "coverage": "exact",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "paint.masks-clips",
-      "parityAreas": [
-        "gradients-masks-clips"
-      ],
+      "parityAreas": ["gradients-masks-clips"],
       "subjects": [
         "mask-image",
         "mask-size",
@@ -1037,9 +946,7 @@
         "single fragment URL -> multiple fragment URL layers",
         "curated SVG rows -> generated 18-axis pairwise combinations"
       ],
-      "uncoveredStates": [
-        "pairwise-covered SVG effects -> higher-order/future combinations"
-      ],
+      "uncoveredStates": ["pairwise-covered SVG effects -> higher-order/future combinations"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc",
         "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc",
@@ -1096,20 +1003,12 @@
       ],
       "coverage": "partial",
       "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 119-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. Local mask/clip fragments preserve originating TreeScope identity, definition-local descendant ids, HTML border-box object/user-space region/content mapping, source-viewport resolution, EffectiveZoom, ignored SVG-mask image geometry, and effective alpha/luminance. DM-2520 extends this exactly to ordered two-/three-layer fragment lists, cyclic per-layer modes/operators, and Blink's resource-region-clipped bottom-up composition. DM-2529 closes local transitive href/url dependency graphs with per-edge TreeScope identity, computed paint, deterministic graph namespacing, cycle evidence, and stale/external fail-closed controls. Remote/blob lifetimes and higher-order/future generated SVG effect combinations remain explicit partial boundaries.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "paint.url-background-image-geometry",
-      "parityAreas": [
-        "url-background-image-geometry"
-      ],
+      "parityAreas": ["url-background-image-geometry"],
       "subjects": [
         "background-image URL",
         "background-size",
@@ -1189,26 +1088,15 @@
         "src/render/image-pattern.test.ts",
         "src/render/background-attachment.test.ts"
       ],
-      "visualFixtures": [
-        "tests/features.ts#url-background-fragment-slice-continuation"
-      ],
+      "visualFixtures": ["tests/features.ts#url-background-fragment-slice-continuation"],
       "coverage": "exact",
       "boundary": "",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "paint.background-clip-text",
-      "parityAreas": [
-        "background-clip-text-paint",
-        "url-background-image-geometry"
-      ],
+      "parityAreas": ["background-clip-text-paint", "url-background-image-geometry"],
       "subjects": [
         "background-clip:text",
         "background-image URL",
@@ -1239,9 +1127,7 @@
         "single box -> sliced/cloned fragments",
         "DPR 1 -> DPR 2"
       ],
-      "uncoveredStates": [
-        "darwin local evidence -> linux/win32 native evidence"
-      ],
+      "uncoveredStates": ["darwin local evidence -> linux/win32 native evidence"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint/box_painter_base.cc",
         "external/chromium/third_party/blink/renderer/core/paint/box_fragment_painter.cc",
@@ -1261,22 +1147,15 @@
         "tests/background-clip-text-native-gate.test.ts",
         ".github/workflows/background-clip-text-native-parity.yml"
       ],
-      "metamorphicTests": [
-        "src/render/background-clip-text.test.ts",
-        "src/render/text-stroke-synthesis.test.ts"
-      ],
+      "metamorphicTests": ["src/render/background-clip-text.test.ts", "src/render/text-stroke-synthesis.test.ts"],
       "visualFixtures": [
         "tests/features.ts#background-clip-text-url-color-stack",
         "tests/features.ts#background-clip-text-url-inherited-stroke"
       ],
       "coverage": "partial",
       "boundary": "The authenticated native Linux/Windows DPR 1/2 workflow is defined but its first retained run is still required. Final channel values remain a Skia-versus-consumer SVG raster boundary; no platform envelope is inferred.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin"]
     },
     {
       "id": "geometry.transforms",
@@ -1326,9 +1205,7 @@
         "document timeline -> scroll/view progress timeline",
         "document/progress timeline -> rAF callback queues"
       ],
-      "uncoveredStates": [
-        "descendant-union owner -> used rendering-context root"
-      ],
+      "uncoveredStates": ["descendant-union owner -> used rendering-context root"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
         "external/chromium/third_party/blink/renderer/core/paint",
@@ -1384,9 +1261,9 @@
         "tests/nested-projective-ownership-audit.e2e.test.ts",
         "tools/animated-culling-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
-        "tests/viewbox-culling-geometry.e2e.test.ts"
-        ,"tests/transformed-flex-geometry.e2e.test.ts"
-        ,".github/workflows/transformed-flex-geometry-parity.yml"
+        "tests/viewbox-culling-geometry.e2e.test.ts",
+        "tests/transformed-flex-geometry.e2e.test.ts",
+        ".github/workflows/transformed-flex-geometry-parity.yml"
       ],
       "metamorphicTests": [
         "src/capture/text-fragment-geometry.test.ts",
@@ -1409,8 +1286,8 @@
         "src/render/culling-atomic-raster.test.ts",
         "src/tree-ops/viewbox-culling.test.ts",
         "src/tree-ops/swept-transform-bounds.test.ts",
-        "tests/animated-culling-geometry-oracle.test.ts"
-        ,"tests/transformed-flex-geometry-workflow.test.ts"
+        "tests/animated-culling-geometry-oracle.test.ts",
+        "tests/transformed-flex-geometry-workflow.test.ts"
       ],
       "visualFixtures": [
         "external/html-test/21-deep-anisotropic-scale.html",
@@ -1421,22 +1298,12 @@
       ],
       "coverage": "partial",
       "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. DM-2531 source-traces scroll/view time to post-layout snapshots and the compositor scroll tree, and rAF to PageAnimator callbacks outside WAAPI enumeration. DM-2553 now prevalidates Document/open-shadow progress participants, fails closed on hidden/closed/unresolved scopes before mutation, holds exact CSS percentages, distinguishes HTML stitched-size from SVG mapped-bounds subjects, records logical-axis/source/target facts, and revalidates the same state between capture prepasses. DM-2554 owns or rejects every Window/worker callback queue and supplies the final controlled-rendering barrier. DM-2547 promotes DM-2544's pixel-free Blink baseline protocol into a source-pinned structured record consumed once before affine paint, with all horizontal/vertical/sideways planes and eight mutations required on macOS/Linux/Windows. DM-2546 now recovers exact ordered Range FragmentItem DOM UTF-16 spans in the same neutral frame, joins ordinary items one-to-one with CDP quads, preserves first-letter ownership, splits segments and shaped records before correlation, retains cluster/gid/advance/offset/origin evidence, and rejects collapse/reorder/wrong-span mutations in the same native workflow without visual-tolerance changes.",
-      "featureIds": [
-        "capture.animated-projective-frame",
-        "render.tree-to-svg",
-        "render.cull"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.animated-projective-frame", "render.tree-to-svg", "render.cull"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "paint.stacking-compositing",
-      "parityAreas": [
-        "compositing-effects-paint-order"
-      ],
+      "parityAreas": ["compositing-effects-paint-order"],
       "subjects": [
         "position",
         "z-index",
@@ -1469,9 +1336,7 @@
         "non-atomic -> atomic",
         "viewport fixed -> trapped fixed"
       ],
-      "uncoveredStates": [
-        "normal -> blend/backdrop"
-      ],
+      "uncoveredStates": ["normal -> blend/backdrop"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc",
         "external/chromium/third_party/blink/renderer/core/paint/paint_layer.cc",
@@ -1543,20 +1408,12 @@
       ],
       "coverage": "partial",
       "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. DM-2535/doc 218 pins Blink's current missing reference-linearRGB to shorthand-sRGB compositor transition, records exact straight and premultiplied stages, and proves all nine filter-only native-terminal rows exact at DPR 1/2 without local transition emulation. DM-2548 matches Blink's outer Effect/blend and inner localized Filter order; all blend/isolation rows are source-exact at DPR 1/2 and hostile mutations remain active. DM-2549 retained strict source-exact macOS/Linux/Windows evidence in run 32684579069; the fixed four-code channel bound and eight-code mutation floor did not change. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms. Docs 187/194/195 close ordinary backdrop ownership with atomic opacity/blend/mask roots, target-filter grouping, a rotate/skew-only terminal surface, and document-root scroll/sticky boundaries. The schema-v2 native DPR-1/2 gate requires exact source clips/pass counts/order, both destructive mutations, no backdrop warning, and zero logical-interior residual pixels; source-edge consumer phase cannot excuse a new or shifted rendered edge, and none of the four-code/1%/mutation thresholds changed. DM-2488/doc 193 separately closes generated-pseudo ownership, DM-2489/doc 192 closes fixed sibling order, and DM-2490 keeps retained partial/unavailable output explicit.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "generated.pseudo-fragment-geometry",
-      "parityAreas": [
-        "replaced-elements-controls-generated-content"
-      ],
+      "parityAreas": ["replaced-elements-controls-generated-content"],
       "subjects": [
         "generated content items",
         "inline line fragments",
@@ -1672,22 +1529,12 @@
         "external/html-test/08-deep-details-accordion.html"
       ],
       "coverage": "exact",
-      "featureIds": [
-        "render.text",
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.text", "render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "replaced.object-sizing",
-      "parityAreas": [
-        "replaced-elements-controls-generated-content",
-        "raster-fallback-boundary"
-      ],
+      "parityAreas": ["replaced-elements-controls-generated-content", "raster-fallback-boundary"],
       "subjects": [
         "object-fit",
         "object-position",
@@ -1797,22 +1644,12 @@
       ],
       "coverage": "partial",
       "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 ships an atomic finite-video/origin-clean-canvas epoch whenever exact animation time is paired with the pre-navigation rAF owner: decode/seek/presented-frame readiness, every owner screenshot digest, and post-capture navigation/decoder/seek/surface/compositor facts are exact. DM-2566 separately proves that authenticated exact GIF/APNG/WebP bytes can select any bounded complete static frame through WebCodecs with fresh forward/reverse exact controls. DM-2578/doc 231 now defines the exact owner/slot, content/resource, request/loader, redirect/response, CORS/credentials, cache/service-worker, byte and document/revalidation record for element, SVG, input, CSS, pseudo and shadow consumers. `Network.getResponseBody` can transport the selected `ResourceBuffer` without refetch after an authenticated request join, but public CDP alone neither proves that owner relation nor authorizes cross-origin bytes. Pinned truth/public-equivalence oracles, production byte collection, frozen-PNG replacement, native gates, animated-image continuation, and live playback remain unsupported.",
-      "featureIds": [
-        "capture.atomic-replaced-media-frame",
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.atomic-replaced-media-frame", "render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "replaced.broken-image-fallback",
-      "parityAreas": [
-        "replaced-elements-controls-generated-content",
-        "raster-fallback-boundary"
-      ],
+      "parityAreas": ["replaced-elements-controls-generated-content", "raster-fallback-boundary"],
       "subjects": [
         "broken image disposition",
         "alternative text",
@@ -1884,19 +1721,11 @@
         "tests/broken-image-fallback-render.e2e.test.ts",
         "tests/broken-image-fallback-parity-workflow.test.ts"
       ],
-      "visualFixtures": [
-        "tests/broken-image-fallback-render.e2e.test.ts"
-      ],
+      "visualFixtures": ["tests/broken-image-fallback-render.e2e.test.ts"],
       "coverage": "exact",
       "boundary": "",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "controls.native-ownership",
@@ -1943,10 +1772,7 @@
         "native stock scrollbar -> author-custom vector scrollbar",
         "not resizable -> resizable"
       ],
-      "uncoveredStates": [
-        "no scrollbar -> classic/overlay scrollbar",
-        "overlay visible -> overlay faded"
-      ],
+      "uncoveredStates": ["no scrollbar -> classic/overlay scrollbar", "overlay visible -> overlay faded"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/resolver/style_resolver.cc",
         "external/chromium/third_party/blink/renderer/core/css/resolver/style_cascade.cc",
@@ -1997,21 +1823,12 @@
       ],
       "coverage": "partial",
       "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2364 adds paired native/author/split ownership plus accent, scheme, DPR, zoom, direction, and writing-mode source-frame rows on macOS/Linux/Windows. DM-2368/doc 165 source-audits scrollbar ownership; DM-2481/doc 169 captures marker-owned geometry/state and deletes the 7px synthesis. DM-2482 paints supported custom parts as ordered vector boxes and confines dynamic/unsupported effects to owner-part crops. DM-2483 losslessly materializes same-frame platform-native horizontal/vertical/corner crops. DM-2563 makes the source-run producer exact under an explicit-headless 24-row audit, including authenticated native rasters, RTL, both-axis corner/resizer order, and six destructive mutations. Doc 173 now defines six independent role-bound native jobs, runner/image/boot/workflow provenance, canonical logical/row/artifact hashes and lossless reauthentication over the full Cartesian matrix; a fresh retained aggregate is still required, and overlay fade remains a separate platform-terminal state.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "controls.sampled-native-fallback-retirement",
-      "parityAreas": [
-        "replaced-elements-controls-generated-content",
-        "raster-fallback-boundary"
-      ],
+      "parityAreas": ["replaced-elements-controls-generated-content", "raster-fallback-boundary"],
       "subjects": [
         "Blink EffectiveAppearance host ownership",
         "required native-control surface failure",
@@ -2081,33 +1898,15 @@
         "src/capture/native-control-raster.test.ts",
         "src/capture/native-control-decoration.test.ts"
       ],
-      "visualFixtures": [
-        "tests/native-control-fallback-activation.e2e.test.ts",
-        "tests/features.ts#form-controls"
-      ],
+      "visualFixtures": ["tests/native-control-fallback-activation.e2e.test.ts", "tests/features.ts#form-controls"],
       "coverage": "exact",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "frames.iframe-recursion",
-      "parityAreas": [
-        "replaced-elements-controls-generated-content",
-        "raster-fallback-boundary"
-      ],
-      "subjects": [
-        "iframe origin",
-        "allowlist",
-        "scroll capture",
-        "clip-path",
-        "mask"
-      ],
+      "parityAreas": ["replaced-elements-controls-generated-content", "raster-fallback-boundary"],
+      "subjects": ["iframe origin", "allowlist", "scroll capture", "clip-path", "mask"],
       "states": [
         "same-origin -> recursive vector",
         "cross-origin denied -> raster",
@@ -2167,21 +1966,12 @@
         ".github/workflows/cross-origin-frame-scroll-ownership.yml"
       ],
       "coverage": "exact",
-      "featureIds": [
-        "capture.iframe-recursion"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.iframe-recursion"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "svg.effect-reference-boxes",
-      "parityAreas": [
-        "gradients-masks-clips",
-        "transforms-projection-reflection"
-      ],
+      "parityAreas": ["gradients-masks-clips", "transforms-projection-reflection"],
       "subjects": [
         "fill-box",
         "stroke-box",
@@ -2212,9 +2002,7 @@
         "curated rows -> generated pairwise native-SVG combinations",
         "pairwise-covered classes -> source-selected triples/projective ownership"
       ],
-      "uncoveredStates": [
-        "selected triples -> unselected higher-order/future combinations"
-      ],
+      "uncoveredStates": ["selected triples -> unselected higher-order/future combinations"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/svg",
         "external/chromium/third_party/blink/renderer/core/paint"
@@ -2231,39 +2019,20 @@
         "tools/svg-effect-combination-oracle.ts",
         "tests/svg-native-paint-properties.e2e.test.ts"
       ],
-      "metamorphicTests": [
-        "src/render/svg-inline.test.ts",
-        "tests/svg-effect-combination-corpus.test.ts"
-      ],
+      "metamorphicTests": ["src/render/svg-inline.test.ts", "tests/svg-effect-combination-corpus.test.ts"],
       "visualFixtures": [
         "tests/features.ts#inline-svg-effect-geometry-boxes",
         "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
       "boundary": "The generated gate covers all 1,088 pairs among 19 enumerated native-SVG effect axes and all 83 values of six source-selected Blink dependency triples. Exact resource/reference graphs and native-inline versus Chromium-projective owner/transform identity reject four logical mutations before fixed DPR-1/2 paint evidence. This is not exhaustive CSS Cartesian coverage; unselected higher-order combinations and future effect classes remain explicit boundaries.",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "svg.inline-3d-transform-ownership",
-      "parityAreas": [
-        "transforms-projection-reflection",
-        "raster-fallback-boundary"
-      ],
-      "subjects": [
-        "matrix3d",
-        "transform-box",
-        "transform-origin",
-        "perspective",
-        "transform-style",
-        "foreignObject"
-      ],
+      "parityAreas": ["transforms-projection-reflection", "raster-fallback-boundary"],
+      "subjects": ["matrix3d", "transform-box", "transform-origin", "perspective", "transform-style", "foreignObject"],
       "states": [
         "planar matrix3d -> affine vector clone",
         "SVG-child true 3D -> source-flattened affine vector clone",
@@ -2308,72 +2077,38 @@
         "tests/inline-svg-3d-gate.test.ts",
         "tests/inline-svg-3d-workflow.test.ts"
       ],
-      "visualFixtures": [
-        "tests/features.ts#inline-svg-effect-geometry-boxes"
-      ],
+      "visualFixtures": ["tests/features.ts#inline-svg-effect-geometry-boxes"],
       "coverage": "exact",
-      "featureIds": [
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "raster.boundary-activation",
-      "parityAreas": [
-        "raster-fallback-boundary"
-      ],
-      "subjects": [
-        "unsupported vector content",
-        "raster fallback ownership"
-      ],
-      "states": [
-        "vector-representable -> vector-owned",
-        "vector-unrepresentable -> raster-owned"
-      ],
-      "exactStates": [
-        "vector-representable -> vector-owned",
-        "vector-unrepresentable -> raster-owned"
-      ],
+      "parityAreas": ["raster-fallback-boundary"],
+      "subjects": ["unsupported vector content", "raster fallback ownership"],
+      "states": ["vector-representable -> vector-owned", "vector-unrepresentable -> raster-owned"],
+      "exactStates": ["vector-representable -> vector-owned", "vector-unrepresentable -> raster-owned"],
       "uncoveredStates": [],
-      "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint"
-      ],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint"],
       "productionOwners": [
         "src/capture/index.ts",
         "src/render/advanced-gradient-raster.ts",
         "src/render/element-tree-to-svg.ts"
       ],
-      "oracles": [
-        "tools/raster-boundary-oracle.ts"
-      ],
+      "oracles": ["tools/raster-boundary-oracle.ts"],
       "metamorphicTests": [
         "src/render/advanced-gradient-raster.test.ts",
         "src/render/projective-transform.test.ts",
         "src/capture/emoji.test.ts"
       ],
-      "visualFixtures": [
-        "tests/features.ts#replaced-canvas-overlay"
-      ],
+      "visualFixtures": ["tests/features.ts#replaced-canvas-overlay"],
       "coverage": "exact",
-      "featureIds": [
-        "capture.emoji-detect",
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.emoji-detect", "render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "integration.composed-metamorphic-corpus",
-      "parityAreas": [
-        "end-to-end-visual-integration"
-      ],
+      "parityAreas": ["end-to-end-visual-integration"],
       "subjects": [
         "multilingual flex/grid layout",
         "responsive fragmented controls",
@@ -2402,22 +2137,13 @@
         "back-to-front DOM -> reversed DOM with explicit z-index",
         "live canvas frame A with captured frame A -> live frame B with capture unchanged"
       ],
-      "uncoveredStates": [
-        "seven sampled crossings -> exhaustive CSS Cartesian product"
-      ],
+      "uncoveredStates": ["seven sampled crossings -> exhaustive CSS Cartesian product"],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
         "external/chromium/third_party/blink/renderer/core/paint"
       ],
-      "productionOwners": [
-        "src/capture/index.ts",
-        "src/render/element-tree-to-svg.ts",
-        "tests/runner.tsx"
-      ],
-      "oracles": [
-        "tests/composed-parity-corpus.e2e.test.ts",
-        ".github/workflows/composed-parity-corpus.yml"
-      ],
+      "productionOwners": ["src/capture/index.ts", "src/render/element-tree-to-svg.ts", "tests/runner.tsx"],
+      "oracles": ["tests/composed-parity-corpus.e2e.test.ts", ".github/workflows/composed-parity-corpus.yml"],
       "metamorphicTests": [
         "tests/composed-parity-corpus.test.ts",
         "tests/composed-parity-corpus.e2e.test.ts",
@@ -2429,22 +2155,12 @@
       ],
       "coverage": "partial",
       "boundary": "The seven deliberate families each carry a named dependency-driven three-decision crossing plus destructive completeness control; six behavioral relations are live-activation checked and hard-wired to native macOS/Linux/Windows source-versus-SVG producers. This remains a high-value covering array, not an exhaustive Cartesian product; a residual still requires reduction to its owning stage oracle.",
-      "featureIds": [
-        "capture.iframe-recursion",
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.iframe-recursion", "render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "raster.boundary-content",
-      "parityAreas": [
-        "raster-fallback-boundary",
-        "end-to-end-visual-integration"
-      ],
+      "parityAreas": ["raster-fallback-boundary", "end-to-end-visual-integration"],
       "subjects": [
         "color glyph",
         "replaced media",
@@ -2453,33 +2169,13 @@
         "advanced gradient",
         "backdrop-filter"
       ],
-      "states": [
-        "current frame -> changed frame",
-        "unclipped -> clipped",
-        "1x -> scaled"
-      ],
-      "exactStates": [
-        "current frame -> changed frame",
-        "unclipped -> clipped",
-        "1x -> scaled"
-      ],
+      "states": ["current frame -> changed frame", "unclipped -> clipped", "1x -> scaled"],
+      "exactStates": ["current frame -> changed frame", "unclipped -> clipped", "1x -> scaled"],
       "uncoveredStates": [],
-      "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint",
-        "external/skia/src/core"
-      ],
-      "productionOwners": [
-        "src/capture",
-        "src/render/element-tree-to-svg.ts",
-        "src/render/text.ts"
-      ],
-      "oracles": [
-        "tools/raster-boundary-oracle.ts"
-      ],
-      "metamorphicTests": [
-        "src/render/projective-transform.test.ts",
-        "src/capture/emoji.test.ts"
-      ],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
+      "productionOwners": ["src/capture", "src/render/element-tree-to-svg.ts", "src/render/text.ts"],
+      "oracles": ["tools/raster-boundary-oracle.ts"],
+      "metamorphicTests": ["src/render/projective-transform.test.ts", "src/capture/emoji.test.ts"],
       "visualFixtures": [
         "tests/raster-fallback-content.e2e.test.ts",
         "src/capture/backdrop-isolation.e2e.test.ts",
@@ -2488,15 +2184,8 @@
         "tests/features.ts#bg-conic-chromium-zoom-tile"
       ],
       "coverage": "exact",
-      "featureIds": [
-        "capture.emoji-detect",
-        "render.tree-to-svg"
-      ],
-      "verifiedPlatforms": [
-        "darwin",
-        "linux",
-        "win32"
-      ]
+      "featureIds": ["capture.emoji-detect", "render.tree-to-svg"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     }
   ],
   "excludedFeatureTransitions": [

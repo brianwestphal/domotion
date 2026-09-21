@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1276","DM-1280","DM-1285","DM-1295","DM-1298"]
-code: ["src/templates/builtin/background-loop.ts","src/templates/registry.ts"]
-aliases: ["docs/71-background-loop-template.md","doc-71"]
+tickets: ["DM-1276", "DM-1280", "DM-1285", "DM-1295", "DM-1298"]
+code: ["src/templates/builtin/background-loop.ts", "src/templates/registry.ts"]
+aliases: ["docs/71-background-loop-template.md", "doc-71"]
 ---
 
 # 71 — `background-loop` template
@@ -40,15 +40,15 @@ domotion template background-loop --variant stars --colors "#7aa2f7,#bb9af7,#7dc
 
 ## Parameters
 
-| Param | Type | Default | Meaning |
-|---|---|---|---|
-| `variant` | `aurora` \| `orbs` \| `stars` \| `gradient-pan` \| `grid` \| `wave` | `aurora` | See *Variants* below. |
-| `colors` | string[] **or** comma-separated string | indigo/pink/cyan/amber | Colors, cycled across the elements. Pass a JSON array via `--params`, or the comma-separated **`--colors`** convenience flag (DM-1285). |
-| `background` | string | `#0b1020` | Base fill behind the blobs. |
-| `count` | int 1–24 | `5` | Number of blobs. |
-| `width` / `height` | int | `1280` / `720` | Output size in px. |
-| `durationMs` | int | `9000` | Base loop period; each blob's drift/breathe period varies around it. |
-| `seed` | int | `1` | PRNG seed — **same seed ⇒ identical layout** (deterministic, reproducible). |
+| Param              | Type                                                                | Default                | Meaning                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `variant`          | `aurora` \| `orbs` \| `stars` \| `gradient-pan` \| `grid` \| `wave` | `aurora`               | See _Variants_ below.                                                                                                                   |
+| `colors`           | string[] **or** comma-separated string                              | indigo/pink/cyan/amber | Colors, cycled across the elements. Pass a JSON array via `--params`, or the comma-separated **`--colors`** convenience flag (DM-1285). |
+| `background`       | string                                                              | `#0b1020`              | Base fill behind the blobs.                                                                                                             |
+| `count`            | int 1–24                                                            | `5`                    | Number of blobs.                                                                                                                        |
+| `width` / `height` | int                                                                 | `1280` / `720`         | Output size in px.                                                                                                                      |
+| `durationMs`       | int                                                                 | `9000`                 | Base loop period; each blob's drift/breathe period varies around it.                                                                    |
+| `seed`             | int                                                                 | `1`                    | PRNG seed — **same seed ⇒ identical layout** (deterministic, reproducible).                                                             |
 
 ## How it works (design rules)
 
@@ -69,7 +69,7 @@ the markup — both learned from the DM-1276 spike:
 3. **Phase offsets are NEGATIVE delays, not positive waits.** Each blob's drift
    and breathe carry a negative `delay` (a random fraction of its own period) so
    the infinite `alternate` loop starts already mid-cycle — every blob is moving
-   from the first frame. A *positive* delay would instead freeze the blob at its
+   from the first frame. A _positive_ delay would instead freeze the blob at its
    `from` state until the delay elapsed, then snap into motion (visible as a blob
    abruptly appearing/disappearing rather than fading). The animator also emits
    the per-blob `timing-function` / `delay` / `fill-mode` inside the one
@@ -97,14 +97,14 @@ browser, unlike `Math.random`).
 
 Every variant keeps to the same two-constraint, `alternate`-looped contract above.
 
-| `variant` | Look | Layout |
-|---|---|---|
-| `aurora` | Large soft mesh-gradient blobs | blob (radial-gradient) |
-| `orbs` | Smaller, more opaque floating circles | blob |
-| `stars` | A twinkling night-sky field — sharp points (white-hot core → colored glow) of varied size that twinkle (opacity) and sparkle (center-origin scale) fast on their own clocks (`count` is a density level, scaled ~16×) | positioned points |
-| `gradient-pan` | A color wash that pans **continuously** in one direction — a `repeating-linear-gradient` translated by exactly one period, so the palette tiles into itself seamlessly (never backs out) | single panning layer |
-| `grid` | A dot grid that drifts **continuously** by exactly one cell — periodic, so the one-cell shift wraps seamlessly and reads as an endless drift | dot grid |
-| `wave` | Layered **parallax** sine waves — `count` filled inline-`<svg>` sine `<path>`s stacked back→front, each panning one canvas width at a different speed (front fast/opaque/busy, back slow/faint/gentle); the period divides the canvas so the pan wraps seamlessly | sine-wave fills |
+| `variant`      | Look                                                                                                                                                                                                                                                              | Layout                 |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `aurora`       | Large soft mesh-gradient blobs                                                                                                                                                                                                                                    | blob (radial-gradient) |
+| `orbs`         | Smaller, more opaque floating circles                                                                                                                                                                                                                             | blob                   |
+| `stars`        | A twinkling night-sky field — sharp points (white-hot core → colored glow) of varied size that twinkle (opacity) and sparkle (center-origin scale) fast on their own clocks (`count` is a density level, scaled ~16×)                                             | positioned points      |
+| `gradient-pan` | A color wash that pans **continuously** in one direction — a `repeating-linear-gradient` translated by exactly one period, so the palette tiles into itself seamlessly (never backs out)                                                                          | single panning layer   |
+| `grid`         | A dot grid that drifts **continuously** by exactly one cell — periodic, so the one-cell shift wraps seamlessly and reads as an endless drift                                                                                                                      | dot grid               |
+| `wave`         | Layered **parallax** sine waves — `count` filled inline-`<svg>` sine `<path>`s stacked back→front, each panning one canvas width at a different speed (front fast/opaque/busy, back slow/faint/gentle); the period divides the canvas so the pan wraps seamlessly | sine-wave fills        |
 
 The continuous variants (DM-1298: `gradient-pan`, `grid`, `wave`) pan in a single
 direction (`linear`, non-`alternate`) and stay seamless because each translates by

@@ -6,18 +6,20 @@ console.log("postscriptName:", f.postscriptName);
 
 const tests = [
   { name: "Egyptian Hieroglyph", cp: 0x13668 },
-  { name: "SignWriting",         cp: 0x1D800 },
-  { name: "CJK Ext-G",           cp: 0x305D6 },
-  { name: "BMP / Latin A",       cp: 0x41 },
-  { name: "BMP / Hebrew",        cp: 0x05D0 },
-  { name: "BMP / CJK",           cp: 0x4E00 },
-  { name: "Surrogate-area-mid",  cp: 0xDC00 }, // private
-  { name: "SMP Mahjong",         cp: 0x1F000 },
-  { name: "SIP",                 cp: 0x2A700 },
+  { name: "SignWriting", cp: 0x1d800 },
+  { name: "CJK Ext-G", cp: 0x305d6 },
+  { name: "BMP / Latin A", cp: 0x41 },
+  { name: "BMP / Hebrew", cp: 0x05d0 },
+  { name: "BMP / CJK", cp: 0x4e00 },
+  { name: "Surrogate-area-mid", cp: 0xdc00 }, // private
+  { name: "SMP Mahjong", cp: 0x1f000 },
+  { name: "SIP", cp: 0x2a700 },
 ];
 for (const t of tests) {
   const g = f.glyphForCodePoint(t.cp);
-  console.log(`  ${t.name} U+${t.cp.toString(16).padStart(4, "0").toUpperCase()}: glyphId=${g.id} advance=${g.advanceWidth}`);
+  console.log(
+    `  ${t.name} U+${t.cp.toString(16).padStart(4, "0").toUpperCase()}: glyphId=${g.id} advance=${g.advanceWidth}`,
+  );
 }
 
 // Inspect glyph 4 path
@@ -35,6 +37,8 @@ console.log("\nlayout() results:");
 for (const t of layoutTests) {
   try {
     const r = f.layout(t);
-    console.log(`  ${JSON.stringify(t)}: ids=${r.glyphs.map(g => g.id).join(",")}`);
-  } catch (e) { console.log(`  ${JSON.stringify(t)}: error ${e.message}`); }
+    console.log(`  ${JSON.stringify(t)}: ids=${r.glyphs.map((g) => g.id).join(",")}`);
+  } catch (e) {
+    console.log(`  ${JSON.stringify(t)}: error ${e.message}`);
+  }
 }

@@ -8,7 +8,7 @@ outlines. It is an opt-in, non-pixel-faithful mode for consumers who know the
 referenced fonts are present; the payoff is much smaller output.
 
 > `--text-mode system-font` is the flag that turns off font embedding.
-> `--real-text` is a *different* feature — it adds a paintless selectable/
+> `--real-text` is a _different_ feature — it adds a paintless selectable/
 > searchable layer while the visible text stays in the default `embedded-font`
 > mode, so it does **not** stop embedding on its own.
 

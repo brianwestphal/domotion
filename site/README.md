@@ -51,8 +51,8 @@ SVGs, and real initial content on every page.
     categorize + prioritize → mark Up Next → export worklist.
   - **Glassbox** (AI code review): open a diff → annotate a line → region note →
     export feedback.
-  Both captured via the `domotion animate` continuous-session pipeline (real
-  clicks + typing), composited into a browser bezel, committed as gallery SVGs.
+    Both captured via the `domotion animate` continuous-session pipeline (real
+    clicks + typing), composited into a browser bezel, committed as gallery SVGs.
 - **Docs sync** (`scripts/sync-docs.mjs`): pull the canonical animate-config
   grammar + API surface out of the repo's `docs/` so the Developer pages can't
   drift from source.

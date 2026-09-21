@@ -34,11 +34,17 @@ describe("svgEffectReferenceBox (DM-2328)", () => {
   };
 
   it.each([
-    ["content-box", boxes.fillBox], ["padding-box", boxes.fillBox], ["fill-box", boxes.fillBox],
-    ["border-box", boxes.strokeBox], ["margin-box", boxes.strokeBox], ["stroke-box", boxes.strokeBox],
+    ["content-box", boxes.fillBox],
+    ["padding-box", boxes.fillBox],
+    ["fill-box", boxes.fillBox],
+    ["border-box", boxes.strokeBox],
+    ["margin-box", boxes.strokeBox],
+    ["stroke-box", boxes.strokeBox],
     ["view-box", { x: 0, y: 0, width: 200, height: 120 }],
-  ] as Array<[SvgEffectGeometryBox, { x: number; y: number; width: number; height: number }]>)
-  ("maps %s through Blink's SVG effect reference-box classes", (geometryBox, expected) => {
-    expect(svgEffectReferenceBox(boxes, geometryBox)).toEqual(expected);
-  });
+  ] as Array<[SvgEffectGeometryBox, { x: number; y: number; width: number; height: number }]>)(
+    "maps %s through Blink's SVG effect reference-box classes",
+    (geometryBox, expected) => {
+      expect(svgEffectReferenceBox(boxes, geometryBox)).toEqual(expected);
+    },
+  );
 });

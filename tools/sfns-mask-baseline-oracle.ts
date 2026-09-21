@@ -8,31 +8,34 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  mkdirSync, mkdtempSync, readFileSync, writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, tmpdir, version as osVersion } from "node:os";
 import { join, resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { clearFontResolutionCaches, clearGlyphDefs, setRenderTextMode } from "../src/render/font-resolution.js";
+import { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "../src/render/glyph-helper.js";
 import {
-  clearFontResolutionCaches, clearGlyphDefs, setRenderTextMode,
-} from "../src/render/font-resolution.js";
-import {
-  isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence,
-} from "../src/render/glyph-helper.js";
-import {
-  getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
   type TextRunProvenanceDiagnostic,
 } from "../src/render/text-run-provenance.js";
 import {
-  SFNS_BASE_AXES, SFNS_MUTATION_AXES, classifySfnsOracleRow,
-  quantizeQuarter, sfnsOutlineLogicalDigest, validateSfnsExactOutlineArtifact,
+  SFNS_BASE_AXES,
+  SFNS_MUTATION_AXES,
+  classifySfnsOracleRow,
+  quantizeQuarter,
+  sfnsOutlineLogicalDigest,
+  validateSfnsExactOutlineArtifact,
   validateSfnsOracleArtifact,
-  type CoverageDiff, type SfnsAxes, type SfnsOracleArtifact,
-  type SfnsOracleRow, type SfnsScenarioId,
+  type CoverageDiff,
+  type SfnsAxes,
+  type SfnsOracleArtifact,
+  type SfnsOracleRow,
+  type SfnsScenarioId,
 } from "./sfns-mask-baseline-schema.js";
 
 const FONT_PATH = "/System/Library/Fonts/SFNS.ttf" as const;
@@ -53,8 +56,18 @@ interface Scenario {
 
 const scenarios: Scenario[] = [
   { id: "zoom-2", css: "zoom:2", axes: { ...SFNS_BASE_AXES }, mutation: false },
-  { id: "transform-scale-2", css: "transform:scale(2);transform-origin:0 0", axes: { ...SFNS_BASE_AXES }, mutation: false },
-  { id: "zoom-2-transform-half", css: "zoom:2;transform:scale(.5);transform-origin:0 0", axes: { ...SFNS_BASE_AXES }, mutation: false },
+  {
+    id: "transform-scale-2",
+    css: "transform:scale(2);transform-origin:0 0",
+    axes: { ...SFNS_BASE_AXES },
+    mutation: false,
+  },
+  {
+    id: "zoom-2-transform-half",
+    css: "zoom:2;transform:scale(.5);transform-origin:0 0",
+    axes: { ...SFNS_BASE_AXES },
+    mutation: false,
+  },
   { id: "optical-sizing-none", css: "zoom:2;font-optical-sizing:none", axes: { ...SFNS_BASE_AXES }, mutation: false },
   { id: "opsz-26-mutation", css: "zoom:2", axes: { ...SFNS_MUTATION_AXES }, mutation: true },
 ];
@@ -142,7 +155,8 @@ const exactGateMode = armValue != null;
 
 function scenarioHtml(scenario: Scenario, fontUrl: string): string {
   const axisCss = Object.entries(scenario.axes)
-    .map(([tag, coordinate]) => `"${tag}" ${coordinate}`).join(",");
+    .map(([tag, coordinate]) => `"${tag}" ${coordinate}`)
+    .join(",");
   return `<!doctype html><style>
     @font-face{font-family:"${BROWSER_FONT_FAMILY}";src:url("${fontUrl}") format("truetype");font-weight:100 900;font-stretch:50% 200%}
     *{box-sizing:border-box}html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;background:#000;overflow:hidden}
@@ -158,7 +172,11 @@ function sha256(value: string | Buffer): string {
 function findText(nodes: CapturedElement[]): CapturedElement {
   for (const node of nodes) {
     if (node.text === TEXT) return node;
-    try { return findText(node.children ?? []); } catch { /* continue */ }
+    try {
+      return findText(node.children ?? []);
+    } catch {
+      /* continue */
+    }
   }
   throw new Error(`captured text ${JSON.stringify(TEXT)} missing`);
 }
@@ -205,7 +223,7 @@ function routeDomotionSystemFace(target: CapturedElement): void {
 function svgPlacement(svg: string): { origins: number[]; baseline: number; scale: number } {
   const labelIndex = svg.indexOf(`aria-label="${TEXT}"`);
   if (labelIndex < 0) throw new Error("Domotion SVG text group missing");
-  const groupStart = svg.lastIndexOf("<g transform=\"translate(", labelIndex);
+  const groupStart = svg.lastIndexOf('<g transform="translate(', labelIndex);
   const groupEnd = svg.indexOf("</g></g>", labelIndex);
   if (groupStart < 0 || groupEnd < 0) throw new Error("Domotion SVG placement group missing");
   const group = svg.slice(groupStart, groupEnd + 8);
@@ -215,18 +233,25 @@ function svgPlacement(svg: string): { origins: number[]; baseline: number; scale
   const origin = Number(translation[1]);
   const baseline = Number(translation[2]);
   const scalar = Math.abs(Number(scale[1]));
-  const origins = [...group.matchAll(/<use\s+href="#[^"]+"\s+x="([-0-9.]+)"/g)]
-    .map((match) => origin + Number(match[1]) * scalar);
+  const origins = [...group.matchAll(/<use\s+href="#[^"]+"\s+x="([-0-9.]+)"/g)].map(
+    (match) => origin + Number(match[1]) * scalar,
+  );
   return { origins, baseline, scale: scalar };
 }
 
-interface CanonicalPathCommand { command: "M" | "L" | "Q" | "C" | "Z"; coordinates: number[] }
+interface CanonicalPathCommand {
+  command: "M" | "L" | "Q" | "C" | "Z";
+  coordinates: number[];
+}
 
 function canonicalPath(path: string): CanonicalPathCommand[] {
-  const tokens = [...path.matchAll(/[MLHVQCZ]|-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?/gi)]
-    .map((match) => match[0]);
+  const tokens = [...path.matchAll(/[MLHVQCZ]|-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?/gi)].map((match) => match[0]);
   const result: CanonicalPathCommand[] = [];
-  let index = 0; let x = 0; let y = 0; let subpathX = 0; let subpathY = 0;
+  let index = 0;
+  let x = 0;
+  let y = 0;
+  let subpathX = 0;
+  let subpathY = 0;
   const coordinate = (): number => {
     const token = tokens[index++];
     if (token == null || /^[A-Z]$/i.test(token)) throw new Error(`malformed SVG path ${path}`);
@@ -235,21 +260,36 @@ function canonicalPath(path: string): CanonicalPathCommand[] {
   while (index < tokens.length) {
     const command = tokens[index++]?.toUpperCase();
     if (command === "Z") {
-      result.push({ command: "Z", coordinates: [] }); x = subpathX; y = subpathY;
+      result.push({ command: "Z", coordinates: [] });
+      x = subpathX;
+      y = subpathY;
     } else if (command === "M" || command === "L") {
-      x = coordinate(); y = coordinate();
-      if (command === "M") { subpathX = x; subpathY = y; }
+      x = coordinate();
+      y = coordinate();
+      if (command === "M") {
+        subpathX = x;
+        subpathY = y;
+      }
       result.push({ command, coordinates: [x, y] });
     } else if (command === "H") {
-      x = coordinate(); result.push({ command: "L", coordinates: [x, y] });
+      x = coordinate();
+      result.push({ command: "L", coordinates: [x, y] });
     } else if (command === "V") {
-      y = coordinate(); result.push({ command: "L", coordinates: [x, y] });
+      y = coordinate();
+      result.push({ command: "L", coordinates: [x, y] });
     } else if (command === "Q") {
-      const cx = coordinate(); const cy = coordinate(); x = coordinate(); y = coordinate();
+      const cx = coordinate();
+      const cy = coordinate();
+      x = coordinate();
+      y = coordinate();
       result.push({ command: "Q", coordinates: [cx, cy, x, y] });
     } else if (command === "C") {
-      const c1x = coordinate(); const c1y = coordinate();
-      const c2x = coordinate(); const c2y = coordinate(); x = coordinate(); y = coordinate();
+      const c1x = coordinate();
+      const c1y = coordinate();
+      const c2x = coordinate();
+      const c2y = coordinate();
+      x = coordinate();
+      y = coordinate();
       result.push({ command: "C", coordinates: [c1x, c1y, c2x, c2y, x, y] });
     } else {
       throw new Error(`unsupported SVG path command ${command ?? "<end>"}`);
@@ -264,10 +304,12 @@ function canonicalDesignUnit(value: number): number {
 }
 
 function canonicalDesignPaths(paths: string[]): CanonicalPathCommand[][] {
-  return paths.map((path) => canonicalPath(path).map((command) => ({
-    command: command.command,
-    coordinates: command.coordinates.map(canonicalDesignUnit),
-  })));
+  return paths.map((path) =>
+    canonicalPath(path).map((command) => ({
+      command: command.command,
+      coordinates: command.coordinates.map(canonicalDesignUnit),
+    })),
+  );
 }
 
 function designCommandDigest(paths: string[]): string {
@@ -275,8 +317,9 @@ function designCommandDigest(paths: string[]): string {
 }
 
 function domotionUsePaths(svg: string): string[] {
-  const definitions = new Map([...svg.matchAll(/<path id="([^"]+)" d="([^"]*)"/g)]
-    .map((match) => [match[1], match[2]]));
+  const definitions = new Map(
+    [...svg.matchAll(/<path id="([^"]+)" d="([^"]*)"/g)].map((match) => [match[1], match[2]]),
+  );
   return [...svg.matchAll(/<use\s+href="#([^"]+)"/g)].map((match) => {
     const path = definitions.get(match[1]);
     if (path == null) throw new Error(`Domotion glyph definition ${match[1]} missing`);
@@ -289,21 +332,27 @@ function domotionPathDigest(svg: string): string {
 }
 
 function comparePathGeometry(
-  native: NativeSample, domotionSvg: string, serializedScale: number,
+  native: NativeSample,
+  domotionSvg: string,
+  serializedScale: number,
 ): SfnsOracleRow["pathGeometry"] {
   const domotion = domotionUsePaths(domotionSvg);
   const nativeInk = native.glyphPaths.filter((glyph) => glyph.designSvgPath !== "");
   const exactScale = native.metrics.pointSize / native.metrics.unitsPerEm;
   let topologyMatches = nativeInk.length === domotion.length;
-  let maxDesignUnitDelta = 0; let sumPaintPixelDelta = 0; let coordinateCount = 0;
+  let maxDesignUnitDelta = 0;
+  let sumPaintPixelDelta = 0;
+  let coordinateCount = 0;
   for (let glyphIndex = 0; glyphIndex < Math.min(nativeInk.length, domotion.length); glyphIndex++) {
     const left = canonicalPath(nativeInk[glyphIndex].designSvgPath);
     const right = canonicalPath(domotion[glyphIndex]);
     if (left.length !== right.length) topologyMatches = false;
     for (let commandIndex = 0; commandIndex < Math.min(left.length, right.length); commandIndex++) {
-      const a = left[commandIndex]; const b = right[commandIndex];
+      const a = left[commandIndex];
+      const b = right[commandIndex];
       if (a.command !== b.command || a.coordinates.length !== b.coordinates.length) {
-        topologyMatches = false; continue;
+        topologyMatches = false;
+        continue;
       }
       for (let coordinateIndex = 0; coordinateIndex < a.coordinates.length; coordinateIndex++) {
         // The production helper's Swift protocol serializes design coordinates
@@ -311,8 +360,7 @@ function comparePathGeometry(
         // to that same declared representation before exact equality; this is
         // neither a paint-pixel tolerance nor an inferred fit.
         const designUnitDelta = Math.abs(
-          canonicalDesignUnit(a.coordinates[coordinateIndex])
-          - canonicalDesignUnit(b.coordinates[coordinateIndex]),
+          canonicalDesignUnit(a.coordinates[coordinateIndex]) - canonicalDesignUnit(b.coordinates[coordinateIndex]),
         );
         maxDesignUnitDelta = Math.max(maxDesignUnitDelta, designUnitDelta);
         sumPaintPixelDelta += designUnitDelta * exactScale;
@@ -332,14 +380,21 @@ function comparePathGeometry(
 }
 
 function coreTextPathSvg(sample: NativeSample): string {
-  const body = sample.glyphPaths.map((glyph, index) => glyph.svgPath === "" ? ""
-    : `<path d="${glyph.svgPath}" transform="translate(${sample.positions[index].x},${sample.positions[index].baselineY}) scale(1,-1)"/>`).join("");
+  const body = sample.glyphPaths
+    .map((glyph, index) =>
+      glyph.svgPath === ""
+        ? ""
+        : `<path d="${glyph.svgPath}" transform="translate(${sample.positions[index].x},${sample.positions[index].baselineY}) scale(1,-1)"/>`,
+    )
+    .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}"><rect width="${WIDTH}" height="${HEIGHT}" fill="#000"/><g fill="#fff">${body}</g></svg>`;
 }
 
 async function rasterSvg(page: Page, svg: string, output: string): Promise<void> {
   const url = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-  await page.setContent(`<style>*{margin:0}</style><img src="${url}" width="${WIDTH}" height="${HEIGHT}">`, { waitUntil: "load" });
+  await page.setContent(`<style>*{margin:0}</style><img src="${url}" width="${WIDTH}" height="${HEIGHT}">`, {
+    waitUntil: "load",
+  });
   await page.screenshot({ path: output, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
 }
 
@@ -349,66 +404,76 @@ async function compareCoverage(page: Page, aPath: string, bPath: string): Promis
   // helper. `page.evaluate` serializes only this callback, so provide the
   // no-op helper explicitly inside the isolated browser world.
   await page.evaluate("globalThis.__name = (value) => value");
-  return page.evaluate(async ({ aUrl, bUrl, width, height }) => {
-    const load = async (url: string): Promise<HTMLImageElement> => {
-      const image = new Image();
-      image.src = url;
-      await image.decode();
-      return image;
-    };
-    const coverage = async (url: string): Promise<number[]> => {
-      const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
-      const context = canvas.getContext("2d", { willReadFrequently: true })!;
-      context.drawImage(await load(url), 0, 0, width, height);
-      const rgba = context.getImageData(0, 0, width, height).data;
-      const result = new Array<number>(width * height);
-      for (let i = 0; i < result.length; i++) {
-        result[i] = Math.max(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]);
-      }
-      return result;
-    };
-    const [aa, bb] = await Promise.all([coverage(aUrl), coverage(bUrl)]);
-    const score = (offsetY: number) => {
-      let absolute = 0;
-      let changed = 0;
-      let max = 0;
-      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-        const by = y - offsetY;
-        const bv = by < 0 || by >= height ? 0 : bb[by * width + x];
-        const delta = Math.abs(aa[y * width + x] - bv);
-        absolute += delta;
-        if (delta > 0) changed++;
-        max = Math.max(max, delta);
-      }
-      return { mean: absolute / (width * height * 255), changed, max: max / 255 };
-    };
-    const centroid = (pixels: number[]) => {
-      let mass = 0; let yMass = 0; let ink = 0;
-      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-        const value = pixels[y * width + x];
-        if (value > 0) ink++;
-        mass += value; yMass += value * y;
-      }
-      return { ink, y: mass === 0 ? null : yMass / mass };
-    };
-    const fixed = score(0);
-    const candidates = [-2, -1, 0, 1, 2].map((offsetY) => ({ offsetY, ...score(offsetY) }));
-    candidates.sort((left, right) => left.mean - right.mean || Math.abs(left.offsetY) - Math.abs(right.offsetY));
-    const ca = centroid(aa); const cb = centroid(bb);
-    return {
-      changedPixels: fixed.changed,
-      meanAbsoluteCoverage: fixed.mean,
-      maxAbsoluteCoverage: fixed.max,
-      inkPixelsA: ca.ink,
-      inkPixelsB: cb.ink,
-      centroidYA: ca.y,
-      centroidYB: cb.y,
-      fixedYOffset: 0 as const,
-      bestIntegerYOffset: candidates[0].offsetY,
-      bestMeanAbsoluteCoverage: candidates[0].mean,
-    };
-  }, { aUrl: a, bUrl: b, width: WIDTH, height: HEIGHT });
+  return page.evaluate(
+    async ({ aUrl, bUrl, width, height }) => {
+      const load = async (url: string): Promise<HTMLImageElement> => {
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        return image;
+      };
+      const coverage = async (url: string): Promise<number[]> => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+        context.drawImage(await load(url), 0, 0, width, height);
+        const rgba = context.getImageData(0, 0, width, height).data;
+        const result = new Array<number>(width * height);
+        for (let i = 0; i < result.length; i++) {
+          result[i] = Math.max(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]);
+        }
+        return result;
+      };
+      const [aa, bb] = await Promise.all([coverage(aUrl), coverage(bUrl)]);
+      const score = (offsetY: number) => {
+        let absolute = 0;
+        let changed = 0;
+        let max = 0;
+        for (let y = 0; y < height; y++)
+          for (let x = 0; x < width; x++) {
+            const by = y - offsetY;
+            const bv = by < 0 || by >= height ? 0 : bb[by * width + x];
+            const delta = Math.abs(aa[y * width + x] - bv);
+            absolute += delta;
+            if (delta > 0) changed++;
+            max = Math.max(max, delta);
+          }
+        return { mean: absolute / (width * height * 255), changed, max: max / 255 };
+      };
+      const centroid = (pixels: number[]) => {
+        let mass = 0;
+        let yMass = 0;
+        let ink = 0;
+        for (let y = 0; y < height; y++)
+          for (let x = 0; x < width; x++) {
+            const value = pixels[y * width + x];
+            if (value > 0) ink++;
+            mass += value;
+            yMass += value * y;
+          }
+        return { ink, y: mass === 0 ? null : yMass / mass };
+      };
+      const fixed = score(0);
+      const candidates = [-2, -1, 0, 1, 2].map((offsetY) => ({ offsetY, ...score(offsetY) }));
+      candidates.sort((left, right) => left.mean - right.mean || Math.abs(left.offsetY) - Math.abs(right.offsetY));
+      const ca = centroid(aa);
+      const cb = centroid(bb);
+      return {
+        changedPixels: fixed.changed,
+        meanAbsoluteCoverage: fixed.mean,
+        maxAbsoluteCoverage: fixed.max,
+        inkPixelsA: ca.ink,
+        inkPixelsB: cb.ink,
+        centroidYA: ca.y,
+        centroidYB: cb.y,
+        fixedYOffset: 0 as const,
+        bestIntegerYOffset: candidates[0].offsetY,
+        bestMeanAbsoluteCoverage: candidates[0].mean,
+      };
+    },
+    { aUrl: a, bUrl: b, width: WIDTH, height: HEIGHT },
+  );
 }
 
 function nativeSample(output: NativeOutput, iteration: number, id: SfnsScenarioId): NativeSample {
@@ -418,20 +483,33 @@ function nativeSample(output: NativeOutput, iteration: number, id: SfnsScenarioI
 }
 
 function nativePathDigest(sample: NativeSample): string {
-  return sha256(JSON.stringify(sample.glyphPaths.map(({ gid, svgPath, designSvgPath, commandCount }) => ({
-    gid, svgPath, designSvgPath, commandCount,
-  }))));
+  return sha256(
+    JSON.stringify(
+      sample.glyphPaths.map(({ gid, svgPath, designSvgPath, commandCount }) => ({
+        gid,
+        svgPath,
+        designSvgPath,
+        commandCount,
+      })),
+    ),
+  );
 }
 
 function runNative(binary: string, input: string, output: string): NativeOutput {
   mkdirSync(output, { recursive: true });
-  return JSON.parse(execFileSync(binary, [input, output], {
-    encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
-  })) as NativeOutput;
+  return JSON.parse(
+    execFileSync(binary, [input, output], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    }),
+  ) as NativeOutput;
 }
 
 async function renderDomotion(
-  tree: CapturedElement[], id: SfnsScenarioId, output: string, cold: boolean,
+  tree: CapturedElement[],
+  id: SfnsScenarioId,
+  output: string,
+  cold: boolean,
 ): Promise<{ svg: string; provenance: TextRunProvenanceDiagnostic }> {
   if (cold) clearFontResolutionCaches();
   clearGlyphDefs();
@@ -467,9 +545,13 @@ execFileSync("swiftc", ["-O", swiftSource, "-o", nativeBinary], { stdio: "inheri
 // local parity work cannot interrupt an operator's live browser session.
 const browser = await launchChromium({ headless: true });
 const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
-await context.route(`${BROWSER_FONT_ORIGIN}/**`, (route) => route.fulfill({
-  status: 200, contentType: "font/ttf", body: fontBytes,
-}));
+await context.route(`${BROWSER_FONT_ORIGIN}/**`, (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: "font/ttf",
+    body: fontBytes,
+  }),
+);
 const page = await context.newPage();
 const lifecyclePage = await context.newPage();
 const rasterPage = await context.newPage();
@@ -488,7 +570,8 @@ try {
     await page.evaluate(() => document.fonts.ready);
     const expectedPath = join(outputDirectory, `${scenario.id}-chromium.png`);
     const chromiumColdA = await page.screenshot({
-      path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },
+      path: expectedPath,
+      clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },
     });
     const chromiumWarmA = await page.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
 
@@ -501,9 +584,11 @@ try {
     const cssom = await page.evaluate(() => {
       const element = document.querySelector<HTMLElement>("#target")!;
       const style = getComputedStyle(element);
-      const range = document.createRange(); range.selectNodeContents(element);
+      const range = document.createRange();
+      range.selectNodeContents(element);
       const rangeRect = range.getBoundingClientRect();
-      let zoom = 1; let transform = 1;
+      let zoom = 1;
+      let transform = 1;
       for (let node: Element | null = element; node != null; node = node.parentElement) {
         const current = getComputedStyle(node);
         const currentZoom = Number.parseFloat(current.zoom);
@@ -525,7 +610,9 @@ try {
       }
       return {
         rangeTop: rangeRect.top,
-        logicalSize, computedSize, paintSize,
+        logicalSize,
+        computedSize,
+        paintSize,
         canvasAscent: measured.fontBoundingBoxAscent * transform,
         canvasDescent: measured.fontBoundingBoxDescent * transform,
         chromiumAxes,
@@ -555,17 +642,36 @@ try {
 
     const coldSvgPath = join(outputDirectory, `${scenario.id}-domotion.svg`);
     const coldA = await renderDomotion(routedTree, scenario.id, coldSvgPath, true);
-    const warmA = await renderDomotion(routedTree, scenario.id, join(outputDirectory, `${scenario.id}-domotion-warm-a.svg`), false);
-    const coldB = await renderDomotion(routedTree, scenario.id, join(outputDirectory, `${scenario.id}-domotion-cold-b.svg`), true);
-    const warmB = await renderDomotion(routedTree, scenario.id, join(outputDirectory, `${scenario.id}-domotion-warm-b.svg`), false);
+    const warmA = await renderDomotion(
+      routedTree,
+      scenario.id,
+      join(outputDirectory, `${scenario.id}-domotion-warm-a.svg`),
+      false,
+    );
+    const coldB = await renderDomotion(
+      routedTree,
+      scenario.id,
+      join(outputDirectory, `${scenario.id}-domotion-cold-b.svg`),
+      true,
+    );
+    const warmB = await renderDomotion(
+      routedTree,
+      scenario.id,
+      join(outputDirectory, `${scenario.id}-domotion-warm-b.svg`),
+      false,
+    );
     const placement = svgPlacement(coldA.svg);
     const coldPngPath = join(outputDirectory, `${scenario.id}-domotion.png`);
     await rasterSvg(rasterPage, coldA.svg, coldPngPath);
     pending.push({
-      scenario, expectedPath, target: routedTarget,
-      rawOrigins: [...rawOrigins], quarterOrigins,
+      scenario,
+      expectedPath,
+      target: routedTarget,
+      rawOrigins: [...rawOrigins],
+      quarterOrigins,
       cssom: { ...cssom, chromiumAxes: cssom.chromiumAxes as Partial<SfnsAxes> },
-      chromiumPostscriptName, chromiumCustomFont,
+      chromiumPostscriptName,
+      chromiumCustomFont,
       chromiumLifecycle: {
         coldSha256: [sha256(chromiumColdA), sha256(chromiumColdB)],
         warmSha256: [sha256(chromiumWarmA), sha256(chromiumWarmB)],
@@ -574,7 +680,8 @@ try {
         coldSvg: coldA.svg,
         coldSha256: [sha256(coldA.svg), sha256(coldB.svg)],
         warmSha256: [sha256(warmA.svg), sha256(warmB.svg)],
-        coldSvgPath, coldPngPath,
+        coldSvgPath,
+        coldPngPath,
         provenance: coldA.provenance,
         emittedOriginsRaw: placement.origins,
         emittedBaseline: placement.baseline,
@@ -653,9 +760,9 @@ try {
         domotion: item.domotion.provenance.glyphs.map((glyph) => glyph.sourceOutline?.commandCount ?? null),
       },
       designCommandDigests: {
-        native: designCommandDigest(native.glyphPaths
-          .filter((glyph) => glyph.designSvgPath !== "")
-          .map((glyph) => glyph.designSvgPath)),
+        native: designCommandDigest(
+          native.glyphPaths.filter((glyph) => glyph.designSvgPath !== "").map((glyph) => glyph.designSvgPath),
+        ),
         domotion: designCommandDigest(domotionUsePaths(item.domotion.coldSvg)),
       },
       outlineDispositions: item.domotion.provenance.glyphs.map(
@@ -711,10 +818,11 @@ try {
   const classifications = rows.map((row) => ({ id: row.id, ...classifySfnsOracleRow(row) }));
   const base = rows.find((row) => row.id === "zoom-2")!;
   const mutation = rows.find((row) => row.id === "opsz-26-mutation")!;
-  const mutationControlMoved = base.stageDigests.chromium !== mutation.stageDigests.chromium
-    && base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask
-    && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath
-    && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
+  const mutationControlMoved =
+    base.stageDigests.chromium !== mutation.stageDigests.chromium &&
+    base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask &&
+    base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath &&
+    base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
   const artifact: SfnsOracleArtifact = {
     schemaVersion: 2,
     authority: "diagnostic-only",
@@ -738,15 +846,15 @@ try {
     mutationControlMoved,
   };
   artifact.logicalDigest = sfnsOutlineLogicalDigest(artifact);
-  const errors = exactGateMode
-    ? validateSfnsExactOutlineArtifact(artifact)
-    : validateSfnsOracleArtifact(artifact);
+  const errors = exactGateMode ? validateSfnsExactOutlineArtifact(artifact) : validateSfnsOracleArtifact(artifact);
   const reportPath = join(outputDirectory, "report.json");
   writeFileSync(reportPath, `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(`SFNS mask/baseline oracle: ${rows.length} rows; mutation moved=${mutationControlMoved}`);
   for (const result of classifications) {
     const row = rows.find((candidate) => candidate.id === result.id)!;
-    console.log(`${result.id}: ${result.classification}; closest=${result.closestRepresentation}; baseline shifts mask/path/domotion=${result.baselineResidual.nativeMaskBestIntegerYOffset}/${result.baselineResidual.coreTextPathBestIntegerYOffset}/${result.baselineResidual.domotionPathBestIntegerYOffset}; CT-path↔Domotion changed=${row.comparisons.coreTextPathVsDomotionPath.changedPixels}; max path delta=${row.pathGeometry.maxPaintPixelDelta.toFixed(6)}px`);
+    console.log(
+      `${result.id}: ${result.classification}; closest=${result.closestRepresentation}; baseline shifts mask/path/domotion=${result.baselineResidual.nativeMaskBestIntegerYOffset}/${result.baselineResidual.coreTextPathBestIntegerYOffset}/${result.baselineResidual.domotionPathBestIntegerYOffset}; CT-path↔Domotion changed=${row.comparisons.coreTextPathVsDomotionPath.changedPixels}; max path delta=${row.pathGeometry.maxPaintPixelDelta.toFixed(6)}px`,
+    );
   }
   console.log(`wrote ${reportPath}`);
   if (errors.length > 0) {

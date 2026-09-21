@@ -1,16 +1,18 @@
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  launchChromium,
-  type CapturedElement,
-} from "../src/index.js";
+import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
 import { captureResolvedControlPseudoStyles } from "../src/capture/pseudo-style-cdp.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null {
@@ -257,11 +259,8 @@ describeBrowser("DM-2382: Blink-authoritative control pseudo cascade", () => {
         document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
         (window as typeof window & { dm2382Sheet?: CSSStyleSheet }).dm2382Sheet = sheet;
       });
-      const capture = async (): Promise<CapturedElement[]> => captureElementTree(
-        page,
-        "body",
-        { x: 0, y: 0, width: 500, height: 220 },
-      );
+      const capture = async (): Promise<CapturedElement[]> =>
+        captureElementTree(page, "body", { x: 0, y: 0, width: 500, height: 220 });
 
       const initial = await capture();
       expect(byAnimId(initial, "dynamic")?.styles.rangeThumbBg).toBe("rgb(81, 1, 82)");
@@ -274,8 +273,9 @@ describeBrowser("DM-2382: Blink-authoritative control pseudo cascade", () => {
 
       await page.locator("#dynamic").hover();
       await page.evaluate(() => {
-        (window as typeof window & { dm2382Sheet: CSSStyleSheet }).dm2382Sheet
-          .replaceSync("#mutated::-webkit-slider-thumb{background-color:rgb(11,91,12)}");
+        (window as typeof window & { dm2382Sheet: CSSStyleSheet }).dm2382Sheet.replaceSync(
+          "#mutated::-webkit-slider-thumb{background-color:rgb(11,91,12)}",
+        );
       });
       const hoveredAndMutated = await capture();
       expect(byAnimId(hoveredAndMutated, "dynamic")?.styles.rangeThumbBg).toBe("rgb(85, 5, 86)");

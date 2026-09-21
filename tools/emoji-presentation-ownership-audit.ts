@@ -14,10 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  _clusterFallbackCounters,
-  splitTextIntoFontRunsShaped,
-} from "../src/render/cluster-fallback.js";
+import { _clusterFallbackCounters, splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.js";
 import {
   fontHasSupportedColorTable,
   getFontSourceInfo,
@@ -28,10 +25,7 @@ import {
   type FontRun,
   type FontVariantEmojiOverride,
 } from "../src/render/font-resolution.js";
-import {
-  sourcePriorityItems,
-  type SourcePriorityItem,
-} from "../src/render/emoji-presentation-priority.js";
+import { sourcePriorityItems, type SourcePriorityItem } from "../src/render/emoji-presentation-priority.js";
 import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
 import { ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "../src/render/icu-helper.js";
 import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
@@ -70,13 +64,17 @@ export function structuralOwnershipEvidence(text = EMOJI_OWNERSHIP_FIXTURE): Str
   const currentBoundaries = new Set(currentSegments.flatMap((segment) => [segment.start, segment.end]));
   const missingSourceBoundaries = sourceItems
     .flatMap((item) => [item.start, item.end])
-    .filter((boundary, index, all) => boundary > 0 && boundary < text.length
-      && all.indexOf(boundary) === index && !currentBoundaries.has(boundary));
+    .filter(
+      (boundary, index, all) =>
+        boundary > 0 && boundary < text.length && all.indexOf(boundary) === index && !currentBoundaries.has(boundary),
+    );
   const priorityMismatches = currentSegments.flatMap((segment) => {
     const source = sourceItems.find((item) => segment.start >= item.start && segment.end <= item.end);
     return source != null && source.priority === segment.sourcePriority
       ? []
-      : [`[${segment.start},${segment.end}) expected ${source?.priority ?? "one source item"}, got ${segment.sourcePriority}`];
+      : [
+          `[${segment.start},${segment.end}) expected ${source?.priority ?? "one source item"}, got ${segment.sourcePriority}`,
+        ];
   });
   const rootCauseClosed = missingSourceBoundaries.length === 0 && priorityMismatches.length === 0;
   return {
@@ -142,9 +140,19 @@ function runRouteCase(spec: RouteCase): RouteEvidence {
   const targetEnd = targetStart + spec.target.length;
   const before = _clusterFallbackCounters();
   const runs = splitTextIntoFontRunsShaped(
-    spec.text, primary, primaryKey, weight, fontSize, slant, undefined, lang,
-    resolveFontKeyChain(fontFamily, lang), stackPrimaryIsSystemUi(fontFamily, lang),
-    stretch, spec.fontVariantEmoji, fontFamily,
+    spec.text,
+    primary,
+    primaryKey,
+    weight,
+    fontSize,
+    slant,
+    undefined,
+    lang,
+    resolveFontKeyChain(fontFamily, lang),
+    stackPrimaryIsSystemUi(fontFamily, lang),
+    stretch,
+    spec.fontVariantEmoji,
+    fontFamily,
   );
   const after = _clusterFallbackCounters();
   const targetRun = runs.find((run) => targetStart >= run.startIdx && targetStart < run.endIdx) ?? null;
@@ -170,8 +178,7 @@ function runRouteCase(spec: RouteCase): RouteEvidence {
     targetPath: source?.path ?? null,
     routeMechanism: targetRun?.routeMechanism ?? null,
     representation: raster?.representation ?? null,
-    selectedFaceHasColorTables: targetRun != null
-      && fontHasSupportedColorTable(targetRun.font, targetRun.fontKey),
+    selectedFaceHasColorTables: targetRun != null && fontHasSupportedColorTable(targetRun.font, targetRun.fontKey),
     priorityAsked: after.priorityAsked - before.priorityAsked,
     priorityAnswered: after.priorityAnswered - before.priorityAnswered,
     runs: runs.map((run) => ({
@@ -243,61 +250,59 @@ export function buildEmojiOwnershipAudit(options: { requireLinuxArm64?: boolean 
   const checks = {
     sourceMarksU2757EmojiPresentation: u2757.emoji && u2757.emojiPresentation,
     currentItemizerCarriesExactSourcePriorities: structural.rootCauseClosed,
-    nativeEnvironmentExact: !nativeApplicable || (
-      glyphHelperAvailable
-      && icuHelperAvailable
-      && glyphHelperSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.glyph
-      && icuHelperSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.icuExecutable
-      && icuDataSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.icuData
-    ),
-    fixturePromotesU2757ToEmojiBitmap: !nativeApplicable || (
-      isRaster("fixture-order")
-      && isEmojiFace("fixture-order")
-      && byId.get("fixture-order")?.routeMechanism === "priority-emoji"
-      && (byId.get("fixture-order")?.priorityAsked ?? 0) > 0
-    ),
-    orderMutationIsInvariant: !nativeApplicable || (
-      isRaster("text-before-emoji")
-      && isRaster("emoji-before-text")
-      && isEmojiFace("text-before-emoji")
-      && isEmojiFace("emoji-before-text")
-      && byId.get("text-before-emoji")?.routeMechanism === "priority-emoji"
-      && byId.get("emoji-before-text")?.routeMechanism === "priority-emoji"
-      && (byId.get("text-before-emoji")?.priorityAsked ?? 0) > 0
-      && (byId.get("emoji-before-text")?.priorityAsked ?? 0) > 0
-    ),
-    explicitVs16BeatsCssText: !nativeApplicable || (
-      isRaster("explicit-vs16")
-      && isEmojiFace("explicit-vs16")
-      && (byId.get("explicit-vs16")?.priorityAsked ?? 0) > 0
-    ),
-    explicitVs15BeatsCssEmoji: !nativeApplicable || (
-      !isRaster("explicit-vs15")
-      && isFreeSans("explicit-vs15")
-      && (byId.get("explicit-vs15")?.priorityAsked ?? 0) > 0
-    ),
-    textSymbolNegativeStillOutline: !nativeApplicable || (
-      !isRaster("text-negative")
-      && isFreeSans("text-negative")
-      && byId.get("text-negative")?.priorityAsked === 0
-    ),
-    cssTextNegativeStillOutline: !nativeApplicable || (
-      !isRaster("css-text-negative")
-      && isFreeSans("css-text-negative")
-      && byId.get("css-text-negative")?.priorityAsked === 0
-    ),
-    declaredFacePrecedesPriority: !nativeApplicable || (
-      !isRaster("declared-face-precedes-priority")
-      && isFreeSans("declared-face-precedes-priority")
-      && byId.get("declared-face-precedes-priority")?.routeMechanism === "declared-family"
-      && byId.get("declared-face-precedes-priority")?.priorityAsked === 0
-    ),
-    declaredFaceCssEmojiRequeuesToColor: !nativeApplicable || (
-      isRaster("declared-face-css-emoji")
-      && isEmojiFace("declared-face-css-emoji")
-      && byId.get("declared-face-css-emoji")?.routeMechanism === "priority-emoji"
-      && (byId.get("declared-face-css-emoji")?.priorityAsked ?? 0) > 0
-    ),
+    nativeEnvironmentExact:
+      !nativeApplicable ||
+      (glyphHelperAvailable &&
+        icuHelperAvailable &&
+        glyphHelperSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.glyph &&
+        icuHelperSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.icuExecutable &&
+        icuDataSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.icuData),
+    fixturePromotesU2757ToEmojiBitmap:
+      !nativeApplicable ||
+      (isRaster("fixture-order") &&
+        isEmojiFace("fixture-order") &&
+        byId.get("fixture-order")?.routeMechanism === "priority-emoji" &&
+        (byId.get("fixture-order")?.priorityAsked ?? 0) > 0),
+    orderMutationIsInvariant:
+      !nativeApplicable ||
+      (isRaster("text-before-emoji") &&
+        isRaster("emoji-before-text") &&
+        isEmojiFace("text-before-emoji") &&
+        isEmojiFace("emoji-before-text") &&
+        byId.get("text-before-emoji")?.routeMechanism === "priority-emoji" &&
+        byId.get("emoji-before-text")?.routeMechanism === "priority-emoji" &&
+        (byId.get("text-before-emoji")?.priorityAsked ?? 0) > 0 &&
+        (byId.get("emoji-before-text")?.priorityAsked ?? 0) > 0),
+    explicitVs16BeatsCssText:
+      !nativeApplicable ||
+      (isRaster("explicit-vs16") &&
+        isEmojiFace("explicit-vs16") &&
+        (byId.get("explicit-vs16")?.priorityAsked ?? 0) > 0),
+    explicitVs15BeatsCssEmoji:
+      !nativeApplicable ||
+      (!isRaster("explicit-vs15") &&
+        isFreeSans("explicit-vs15") &&
+        (byId.get("explicit-vs15")?.priorityAsked ?? 0) > 0),
+    textSymbolNegativeStillOutline:
+      !nativeApplicable ||
+      (!isRaster("text-negative") && isFreeSans("text-negative") && byId.get("text-negative")?.priorityAsked === 0),
+    cssTextNegativeStillOutline:
+      !nativeApplicable ||
+      (!isRaster("css-text-negative") &&
+        isFreeSans("css-text-negative") &&
+        byId.get("css-text-negative")?.priorityAsked === 0),
+    declaredFacePrecedesPriority:
+      !nativeApplicable ||
+      (!isRaster("declared-face-precedes-priority") &&
+        isFreeSans("declared-face-precedes-priority") &&
+        byId.get("declared-face-precedes-priority")?.routeMechanism === "declared-family" &&
+        byId.get("declared-face-precedes-priority")?.priorityAsked === 0),
+    declaredFaceCssEmojiRequeuesToColor:
+      !nativeApplicable ||
+      (isRaster("declared-face-css-emoji") &&
+        isEmojiFace("declared-face-css-emoji") &&
+        byId.get("declared-face-css-emoji")?.routeMechanism === "priority-emoji" &&
+        (byId.get("declared-face-css-emoji")?.priorityAsked ?? 0) > 0),
   };
   const allChecksPass = Object.values(checks).every(Boolean);
   return {
@@ -305,7 +310,9 @@ export function buildEmojiOwnershipAudit(options: { requireLinuxArm64?: boolean 
     ticket: "DM-2507",
     originTicket: "DM-2502",
     verdict: allChecksPass
-      ? (nativeApplicable ? "resolved-symbols-item-boundary" : "source-boundary-resolved-native-inapplicable")
+      ? nativeApplicable
+        ? "resolved-symbols-item-boundary"
+        : "source-boundary-resolved-native-inapplicable"
       : "discriminator-failed",
     sourcePins: EMOJI_OWNERSHIP_SOURCE_PINS,
     environment: {
@@ -349,6 +356,5 @@ async function main(): Promise<void> {
   if (report.verdict === "discriminator-failed") process.exitCode = 1;
 }
 
-const isCli = process.argv[1] != null
-  && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const isCli = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 if (isCli) void main();

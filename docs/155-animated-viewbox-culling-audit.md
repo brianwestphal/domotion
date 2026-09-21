@@ -3,11 +3,11 @@ id: "requirements/animated-viewbox-culling-audit"
 title: "Animated viewBox culling geometry audit"
 kind: "evidence"
 status: "current"
-owners: ["layout","animation","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2386","DM-2460","DM-2461"]
-code: ["src/render/culling-geometry.ts","src/tree-ops/swept-transform-bounds.ts","src/tree-ops/viewbox-culling.ts"]
-aliases: ["docs/155-animated-viewbox-culling-audit.md","doc-155"]
+owners: ["layout", "animation", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2386", "DM-2460", "DM-2461"]
+code: ["src/render/culling-geometry.ts", "src/tree-ops/swept-transform-bounds.ts", "src/tree-ops/viewbox-culling.ts"]
+aliases: ["docs/155-animated-viewbox-culling-audit.md", "doc-155"]
 ---
 
 # Animated viewBox culling geometry audit
@@ -138,14 +138,14 @@ persists the browser/OS/arch/Node/scenario fingerprint with every result.
 
 ## Pre-DM-2461 implementation boundary (audit baseline)
 
-| Stage | Current decision | Audit result |
-| --- | --- | --- |
-| Static element | Intersect `CapturedElement.{x,y,width,height}` directly | Unsafe when a frozen author transform is emitted later; insufficient for visual effects |
-| Transform reference box | Resolve a declared origin against the animation carrier's captured border box | Not the SVG wrapper's used `fill-box`, `stroke-box`, or `view-box` |
-| Transform list | Parse translate/scale endpoints, compose each endpoint, then linearly blend the four composed affine components | Wrong for non-commuting matching functions such as scale plus translate |
-| Time | Test both endpoints and progress `i / 50`, `i=1..49` | Samples cannot prove exclusion over a continuous interval |
-| Tree | Replace inherited animation context when a child carries an `animId` | Drops ancestor transforms instead of composing the nested `<g>` wrappers the renderer emits |
-| Unknowns | Retain rotate/skew/matrix/3D/percent and fused own-timing tracks | Correct conservative fallback, but it needs a recorded reason and activation controls |
+| Stage                   | Current decision                                                                                                | Audit result                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Static element          | Intersect `CapturedElement.{x,y,width,height}` directly                                                         | Unsafe when a frozen author transform is emitted later; insufficient for visual effects     |
+| Transform reference box | Resolve a declared origin against the animation carrier's captured border box                                   | Not the SVG wrapper's used `fill-box`, `stroke-box`, or `view-box`                          |
+| Transform list          | Parse translate/scale endpoints, compose each endpoint, then linearly blend the four composed affine components | Wrong for non-commuting matching functions such as scale plus translate                     |
+| Time                    | Test both endpoints and progress `i / 50`, `i=1..49`                                                            | Samples cannot prove exclusion over a continuous interval                                   |
+| Tree                    | Replace inherited animation context when a child carries an `animId`                                            | Drops ancestor transforms instead of composing the nested `<g>` wrappers the renderer emits |
+| Unknowns                | Retain rotate/skew/matrix/3D/percent and fused own-timing tracks                                                | Correct conservative fallback, but it needs a recorded reason and activation controls       |
 
 The renderer makes the composition requirement observable. A cull class is on
 an outer group, each animation class is on a separate inner group, and child
@@ -218,15 +218,15 @@ obtained by calling the exported `decideCull` or
 `cullElementsOutsideViewBox`, while the compared rectangle came independently
 from Chromium layout/paint state.
 
-| Discriminator | Chromium observation | Current production decision | Consequence |
-| --- | --- | --- | --- |
-| SVG fill box vs border-box proxy | A `<g>` containing `x=300,y=100,w=20,h=20` reports that exact `getBBox()`. `scale(.5)` about `100% 100%` paints `x=310..320,y=110..120`. | With a synthetic carrier border box `0,0,400,200`, the model predicts `x=350..360,y=150..160` and emits `{visStartPct:0,visEndPct:50}` for a 330-wide viewBox. | The visible final state is hidden after 50%. |
-| Nested independent timing | At global 700 ms, an outer 0-to-400 translate over 1000 ms is `+280`; an inner 0-to--400 translate over 200 ms after a 400 ms delay is `-400`. Their child paints `x=80..100`. | The child `animId` replaces the parent context and receives `cull-40_000-60_000`. | The child is suppressed at 70% while it intersects the viewBox. |
-| Matching transform functions | `scale(-1) translateX(-100px)` to `scale(1) translateX(100px)` has computed `matrix(-0.1,0,0,-0.1,1,0)` at 45%; the rect paints `x=-1..1`. | Blending the two already-composed endpoint matrices returns `{alwaysHidden:true}` for a 50-wide viewBox. | A mid-animation entry is deleted. |
-| Narrow interval between samples | `translateX(-101000px)` to `translateX(99000px)` paints `x=0..10` at 50.5%. The adjacent production probes at 50% and 52% are far outside. | `{alwaysHidden:true}`. | A valid continuous-time entry is missed by the fixed grid. |
-| Frozen static author transform | A box captured as `x=900..1100` and later painted with `rotate(180deg)` about its top-left reaches `x=700..900`. | The static decision tests only `x=900..1100` and returns `{alwaysHidden:true}` for an 800-wide viewBox. | The in-view transformed portion is deleted. |
-| Motion path channel | At `offset-distance:50%`, Chromium paints `x=110..130` while computed `transform` remains `none`. | No `IntraFrameAnimation` field carries offset path/distance/rotate/anchor. | Motion cannot be reconstructed from the transform string. |
-| Projective near-plane geometry | `perspective(100px)` with `translateZ(40px) rotateY(60deg)` paints the nominal 200 by 120 box at `x=654.106..807.952`, `y=94.458..545.542`. | Projective animation is rejected; static culling still lacks a projective visual bound. | Retention is required until exact `w`-plane handling exists. |
+| Discriminator                    | Chromium observation                                                                                                                                                           | Current production decision                                                                                                                                    | Consequence                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| SVG fill box vs border-box proxy | A `<g>` containing `x=300,y=100,w=20,h=20` reports that exact `getBBox()`. `scale(.5)` about `100% 100%` paints `x=310..320,y=110..120`.                                       | With a synthetic carrier border box `0,0,400,200`, the model predicts `x=350..360,y=150..160` and emits `{visStartPct:0,visEndPct:50}` for a 330-wide viewBox. | The visible final state is hidden after 50%.                    |
+| Nested independent timing        | At global 700 ms, an outer 0-to-400 translate over 1000 ms is `+280`; an inner 0-to--400 translate over 200 ms after a 400 ms delay is `-400`. Their child paints `x=80..100`. | The child `animId` replaces the parent context and receives `cull-40_000-60_000`.                                                                              | The child is suppressed at 70% while it intersects the viewBox. |
+| Matching transform functions     | `scale(-1) translateX(-100px)` to `scale(1) translateX(100px)` has computed `matrix(-0.1,0,0,-0.1,1,0)` at 45%; the rect paints `x=-1..1`.                                     | Blending the two already-composed endpoint matrices returns `{alwaysHidden:true}` for a 50-wide viewBox.                                                       | A mid-animation entry is deleted.                               |
+| Narrow interval between samples  | `translateX(-101000px)` to `translateX(99000px)` paints `x=0..10` at 50.5%. The adjacent production probes at 50% and 52% are far outside.                                     | `{alwaysHidden:true}`.                                                                                                                                         | A valid continuous-time entry is missed by the fixed grid.      |
+| Frozen static author transform   | A box captured as `x=900..1100` and later painted with `rotate(180deg)` about its top-left reaches `x=700..900`.                                                               | The static decision tests only `x=900..1100` and returns `{alwaysHidden:true}` for an 800-wide viewBox.                                                        | The in-view transformed portion is deleted.                     |
+| Motion path channel              | At `offset-distance:50%`, Chromium paints `x=110..130` while computed `transform` remains `none`.                                                                              | No `IntraFrameAnimation` field carries offset path/distance/rotate/anchor.                                                                                     | Motion cannot be reconstructed from the transform string.       |
+| Projective near-plane geometry   | `perspective(100px)` with `translateZ(40px) rotateY(60deg)` paints the nominal 200 by 120 box at `x=654.106..807.952`, `y=94.458..545.542`.                                    | Projective animation is rejected; static culling still lacks a projective visual bound.                                                                        | Retention is required until exact `w`-plane handling exists.    |
 
 A static nested-transform control also confirmed wrapper composition:
 `translate(1000)` outside `translate(-1000)` leaves the child at `x=100..120`.

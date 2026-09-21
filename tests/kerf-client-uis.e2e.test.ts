@@ -30,23 +30,35 @@ const ROOT = resolve(HERE, "..");
 
 /** Spawn a server via tsx and resolve the URL it prints. */
 async function startServer(
-  script: string, args: string[], env?: NodeJS.ProcessEnv,
+  script: string,
+  args: string[],
+  env?: NodeJS.ProcessEnv,
 ): Promise<{ proc: ChildProcess; url: string } | null> {
   const proc = spawn("npx", ["tsx", script, ...args], {
-    cwd: ROOT, stdio: ["ignore", "pipe", "pipe"],
+    cwd: ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
     ...(env != null ? { env: { ...process.env, ...env } } : {}),
   });
   const url = await new Promise<string | null>((res) => {
     const timer = setTimeout(() => res(null), 60_000);
     const scan = (b: Buffer): void => {
       const m = /https?:\/\/(?:localhost|127\.0\.0\.1):\d+/.exec(b.toString());
-      if (m != null) { clearTimeout(timer); res(m[0]); }
+      if (m != null) {
+        clearTimeout(timer);
+        res(m[0]);
+      }
     };
     proc.stdout?.on("data", scan);
     proc.stderr?.on("data", scan);
-    proc.on("exit", () => { clearTimeout(timer); res(null); });
+    proc.on("exit", () => {
+      clearTimeout(timer);
+      res(null);
+    });
   });
-  if (url == null) { proc.kill(); return null; }
+  if (url == null) {
+    proc.kill();
+    return null;
+  }
   return { proc, url };
 }
 
@@ -54,7 +66,9 @@ async function startServer(
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(`console.error: ${m.text()}`);
+  });
   return errors;
 }
 
@@ -65,7 +79,11 @@ afterAll(async () => {
   await browser?.close();
 }, 20_000);
 
-try { browser = await chromium.launch({ headless: true }); } catch { browser = null; }
+try {
+  browser = await chromium.launch({ headless: true });
+} catch {
+  browser = null;
+}
 const describeBrowser = browser ? describe : describe.skip;
 
 describeBrowser("kerf-driven client UIs (DM-1798)", () => {
@@ -103,29 +121,35 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       writeFileSync(join(fixtureRoot, `${n}-${kind}.png`), PNG_1X1);
     }
   }
-  writeFileSync(join(fixtureRoot, "alpha-fixture.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+  writeFileSync(
+    join(fixtureRoot, "alpha-fixture.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+  );
   writeFileSync(
     join(fixtureRoot, "features-results.json"),
     JSON.stringify({
       suite: "features",
       generatedAt: new Date(0).toISOString(),
       results: [
-        { name: "alpha-fixture",   pass: true,  diffPct: 0.01, worstTilePct: 0.1, regionCount: 0, verdict: "clean" },
-        { name: "bravo-fixture",   pass: false, diffPct: 1.20, worstTilePct: 4.0, regionCount: 3, verdict: "major" },
-        { name: "charlie-fixture", pass: true,  diffPct: 0.05, worstTilePct: 0.3, regionCount: 0, verdict: "clean" },
-        { name: "delta-fixture",   pass: false, diffPct: 0.40, worstTilePct: 1.1, regionCount: 1, verdict: "minor" },
+        { name: "alpha-fixture", pass: true, diffPct: 0.01, worstTilePct: 0.1, regionCount: 0, verdict: "clean" },
+        { name: "bravo-fixture", pass: false, diffPct: 1.2, worstTilePct: 4.0, regionCount: 3, verdict: "major" },
+        { name: "charlie-fixture", pass: true, diffPct: 0.05, worstTilePct: 0.3, regionCount: 0, verdict: "clean" },
+        { name: "delta-fixture", pass: false, diffPct: 0.4, worstTilePct: 1.1, regionCount: 1, verdict: "minor" },
       ],
     }),
   );
-  writeFileSync(join(fixtureRoot, "stage-evidence.json"), JSON.stringify({
-    schemaVersion: 1,
-    generatedAt: new Date(0).toISOString(),
-    sourceRevision: "fixture-revision",
-    platform: process.platform,
-    environmentFingerprint: { platform: process.platform, fingerprint: "fixture-fingerprint" },
-    reports: [{ area: "paint", oracle: "tools/paint-oracle.ts", status: "passed", passedRows: 4, totalRows: 4 }],
-    rules: [{ suites: ["features"], fixture: "bravo-fixture", transitionIds: ["box.paint"], areas: ["paint"] }],
-  }));
+  writeFileSync(
+    join(fixtureRoot, "stage-evidence.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      generatedAt: new Date(0).toISOString(),
+      sourceRevision: "fixture-revision",
+      platform: process.platform,
+      environmentFingerprint: { platform: process.platform, fingerprint: "fixture-fingerprint" },
+      reports: [{ area: "paint", oracle: "tools/paint-oracle.ts", status: "passed", passedRows: 4, totalRows: 4 }],
+      rules: [{ suites: ["features"], fixture: "bravo-fixture", transitionIds: ["box.paint"], areas: ["paint"] }],
+    }),
+  );
 
   it("review UI: each() reconciles across reorder and filter, preserving row identity", async () => {
     const started = await startServer("tests/review-server.tsx", [], {
@@ -140,7 +164,8 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     try {
       await page.goto(started!.url, { waitUntil: "networkidle" });
       await page.waitForSelector("[data-key]", { timeout: 20_000 });
-      const keys = (): Promise<string[]> => page.$$eval("[data-key]", (ns) => ns.map((n) => (n as HTMLElement).dataset.key!));
+      const keys = (): Promise<string[]> =>
+        page.$$eval("[data-key]", (ns) => ns.map((n) => (n as HTMLElement).dataset.key!));
       const pick = async (id: string, i: number): Promise<void> => {
         const opts = await page.$$eval(`#${id} option`, (os) => os.map((o) => (o as HTMLOptionElement).value));
         await page.selectOption(`#${id}`, opts[i]);
@@ -157,14 +182,14 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       // the same contract.
       const firstCard = page.locator(".card").first();
       await firstCard.locator(".file-btn").click();
-      await expect.poll(() => firstCard.locator(".status-msg").textContent()).toContain(
-        "Choose a logical-stage classification",
-      );
+      await expect
+        .poll(() => firstCard.locator(".status-msg").textContent())
+        .toContain("Choose a logical-stage classification");
       const rejected = await page.request.post(`${started!.url}/api/file-ticket`, {
         data: { source: "local", suite: "features", name: "bravo-fixture", comment: "evidence", regions: [] },
       });
       expect(rejected.status()).toBe(400);
-      expect((await rejected.json() as { error: string }).error).toContain("Invalid logical-stage classification");
+      expect(((await rejected.json()) as { error: string }).error).toContain("Invalid logical-stage classification");
 
       await firstCard.locator(".logical-classification").selectOption("logical-defect");
       expect(await firstCard.locator(".logical-classification").inputValue()).toBe("logical-defect");
@@ -172,7 +197,9 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await expect.poll(() => bravoCard.locator(".stage-evidence").textContent()).toContain("box.paint");
       await bravoCard.locator(".logical-classification").selectOption("paint-compositing");
       await page.reload({ waitUntil: "networkidle" });
-      await expect.poll(() => page.locator('.card[data-name="bravo-fixture"] .logical-classification').inputValue()).toBe("paint-compositing");
+      await expect
+        .poll(() => page.locator('.card[data-name="bravo-fixture"] .logical-classification').inputValue())
+        .toBe("paint-compositing");
 
       // A card that survives a REORDER must keep its DOM node AND still be
       // showing its own data. We stamp the node, sort, then look for the stamp
@@ -197,13 +224,14 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await pick("sort", 1);
       const reordered = await keys();
       expect(reordered.length).toBe(before.length);
-      const stampedKey = await page.evaluate(() =>
-        (document.querySelector('[data-probe="kept"]') as HTMLElement | null)?.dataset.key ?? null);
+      const stampedKey = await page.evaluate(
+        () => (document.querySelector('[data-probe="kept"]') as HTMLElement | null)?.dataset.key ?? null,
+      );
       expect(
         stampedKey,
-        "the stamped row did not survive the reorder intact: `null` means the list REBUILT its rows "
-        + "(row focus/scroll/IME state is discarded); a different key means it reconciled by POSITION "
-        + "(rows swapped contents under their own DOM)",
+        "the stamped row did not survive the reorder intact: `null` means the list REBUILT its rows " +
+          "(row focus/scroll/IME state is discarded); a different key means it reconciled by POSITION " +
+          "(rows swapped contents under their own DOM)",
       ).toBe(survivor);
 
       // Widen then restore the filter: the list must round-trip to the same set.
@@ -273,7 +301,9 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await page.locator('[data-action="setin"]').click();
       await page.waitForTimeout(400);
       const inAfter = await page.locator('[data-action="inn"]').inputValue();
-      expect(Number(inAfter), "marking In did not propagate to the bound range-start input").toBeGreaterThan(Number(inBefore));
+      expect(Number(inAfter), "marking In did not propagate to the bound range-start input").toBeGreaterThan(
+        Number(inBefore),
+      );
 
       await page.locator('[data-action="resetrange"]').click();
       await page.waitForTimeout(400);

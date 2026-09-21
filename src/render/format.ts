@@ -39,7 +39,8 @@ export function r(n: number): string {
  * private-use codepoint anyway), and a screen reader has nothing to say about a
  * codepoint permanently guaranteed never to be a character.
  */
-const XML_ILLEGAL = /[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const XML_ILLEGAL =
+  /[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
 export function esc(s: string): string {
   return s
@@ -64,7 +65,11 @@ export function stopFmt(n: number): string {
  * byte-for-byte unchanged. (When embedded via `<img src alt>` the host `alt`
  * already names it; this covers the inline-`<svg>` case.)
  */
-export function rootSvgA11y(title?: string, desc?: string, preserveTextFlow = false): { roleAttr: string; markup: string } {
+export function rootSvgA11y(
+  title?: string,
+  desc?: string,
+  preserveTextFlow = false,
+): { roleAttr: string; markup: string } {
   if (title == null || title === "") return { roleAttr: "", markup: "" };
   const titleEl = `<title>${esc(title)}</title>`;
   const descEl = desc != null && desc !== "" ? `<desc>${esc(desc)}</desc>` : "";

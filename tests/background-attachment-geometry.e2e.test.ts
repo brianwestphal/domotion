@@ -1,18 +1,14 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 
-import {
-  captureElementTreeWithWarnings,
-  elementTreeToSvg,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const TILE = `data:image/svg+xml;base64,${Buffer.from(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8">'
-  + '<path fill="#e5212c" d="M0 0h4v4H0z"/><path fill="#12a66a" d="M4 0h4v4H4z"/>'
-  + '<path fill="#1955d1" d="M0 4h4v4H0z"/><path fill="#f2bd1d" d="M4 4h4v4H4z"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8">' +
+    '<path fill="#e5212c" d="M0 0h4v4H0z"/><path fill="#12a66a" d="M4 0h4v4H4z"/>' +
+    '<path fill="#1955d1" d="M0 4h4v4H0z"/><path fill="#f2bd1d" d="M4 4h4v4H4z"/></svg>',
 ).toString("base64")}`;
 
 function flatten(elements: CapturedElement[]): CapturedElement[] {
@@ -43,7 +39,11 @@ async function meanAbsoluteError(left: Buffer, right: Buffer): Promise<number> {
 }
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -69,13 +69,16 @@ describeBrowser("Blink URL background attachment geometry (DM-2479)", () => {
           element.scrollLeft = 37;
           element.scrollTop = 29;
         });
-        await source.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        await source.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
         const expected = await source.screenshot();
         const capture = await captureElementTreeWithWarnings(source, "#stage", { x: 0, y: 0, width: 320, height: 220 });
         const fixed = withPosition(capture.tree, "3px 5px");
         const local = withPosition(capture.tree, "2px 3px");
-        const transformed = flatten(capture.tree).find((element) =>
-          element !== fixed && element.styles.backgroundAttachment === "fixed");
+        const transformed = flatten(capture.tree).find(
+          (element) => element !== fixed && element.styles.backgroundAttachment === "fixed",
+        );
         expect(fixed.styles.backgroundAttachmentGeometry?.fixedToViewport).toBe(true);
         expect(transformed?.styles.backgroundAttachmentGeometry?.fixedToViewport).toBe(false);
         expect(local.styles.backgroundAttachmentGeometry?.local).toMatchObject({
@@ -114,9 +117,17 @@ describeBrowser("Blink URL background attachment geometry (DM-2479)", () => {
         #affineLocal{position:static;width:90px;height:70px;overflow:scroll;scrollbar-width:none;background-image:url("${TILE}");background-size:8px 8px;background-repeat:repeat;background-position:7px 8px;background-attachment:local}
         #affineLocal::-webkit-scrollbar{display:none}#affineLocal>i{display:block;width:230px;height:170px}
       </style><div id="plain" class="bg"></div><div id="translated"><div class="bg"></div></div><div id="will"><div class="bg"></div></div><div id="perspective"><div class="bg"></div></div><span id="inert"><div class="bg"></div></span><div id="local" class="bg" data-domotion-anim="local"><i></i></div><div id="affine"><div id="affineLocal" data-domotion-anim="affine-local"><i></i></div></div>`);
-      await page.locator("#local").evaluate((element) => { element.scrollLeft = 41; element.scrollTop = 23; });
-      await page.locator("#affineLocal").evaluate((element) => { element.scrollLeft = 83; element.scrollTop = 47; });
-      await page.evaluate(() => { scrollTo(0, 121); });
+      await page.locator("#local").evaluate((element) => {
+        element.scrollLeft = 41;
+        element.scrollTop = 23;
+      });
+      await page.locator("#affineLocal").evaluate((element) => {
+        element.scrollLeft = 83;
+        element.scrollTop = 47;
+      });
+      await page.evaluate(() => {
+        scrollTo(0, 121);
+      });
       const live = await page.evaluate(() => ({
         viewport: {
           width: Math.min(innerWidth, document.documentElement.clientWidth),
@@ -155,7 +166,10 @@ describeBrowser("Blink URL background attachment geometry (DM-2479)", () => {
         positioningRect: { y: -121 },
       });
 
-      await page.locator("#local").evaluate((element) => { element.scrollLeft = 73; element.scrollTop = 59; });
+      await page.locator("#local").evaluate((element) => {
+        element.scrollLeft = 73;
+        element.scrollTop = 59;
+      });
       const second = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
       const localSecond = withAnimId(second.tree, "local").styles.backgroundAttachmentGeometry?.local;
       expect(localSecond?.scrollOffsetX).not.toBe(localFirst?.scrollOffsetX);

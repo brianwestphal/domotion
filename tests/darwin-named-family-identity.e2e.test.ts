@@ -1,9 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/index.js";
-import {
-  getFontInstance,
-  resolveFontKey,
-} from "../src/render/font-resolution.js";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
 import {
   isGlyphHelperAvailable,
   resolveInstalledFont,
@@ -19,28 +16,35 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // `mac/font_matcher_mac.mm:591-705`, Chromium 7d859f271c).
 async function setup() {
   if (process.platform !== "darwin" || !isGlyphHelperAvailable()) return null;
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeMac = env == null ? describe.skip : describe;
 
-async function chromeFaceAndWidths(
-  family: string, text: string, weight = 400, genericFamily = false,
-) {
+async function chromeFaceAndWidths(family: string, text: string, weight = 400, genericFamily = false) {
   const page = await env!.browser.newPage({ viewport: { width: 400, height: 120 } });
   try {
     await page.setContent("<!doctype html><main></main>");
-    await page.locator("main").evaluate((main, input) => {
-      const span = document.createElement("span");
-      span.id = "probe";
-      span.textContent = input.text;
-      span.style.fontFamily = input.genericFamily ? input.family : `"${input.family}", Times`;
-      span.style.fontWeight = String(input.weight);
-      span.style.fontSize = "32px";
-      main.append(span);
-    }, { family, text, weight, genericFamily });
+    await page.locator("main").evaluate(
+      (main, input) => {
+        const span = document.createElement("span");
+        span.id = "probe";
+        span.textContent = input.text;
+        span.style.fontFamily = input.genericFamily ? input.family : `"${input.family}", Times`;
+        span.style.fontWeight = String(input.weight);
+        span.style.fontSize = "32px";
+        main.append(span);
+      },
+      { family, text, weight, genericFamily },
+    );
     // CSS.getPlatformFontsForNode reports only faces used by a completed
     // layout. Force the range through layout before asking CDP; without this,
     // a newly-appended astral-only run can legitimately return an empty list.
@@ -50,7 +54,8 @@ async function chromeFaceAndWidths(
     await cdp.send("CSS.enable");
     const { root } = await cdp.send("DOM.getDocument");
     const { nodeId } = await cdp.send("DOM.querySelector", {
-      nodeId: root.nodeId, selector: "#probe",
+      nodeId: root.nodeId,
+      selector: "#probe",
     });
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
     const widths = await page.locator("#probe").evaluate((span) => {
@@ -79,7 +84,7 @@ function domotionFaceAndWidths(family: string, cps: number[], weight = 400) {
   return {
     key,
     postscriptName: font.instantiatedPostscriptName ?? font.postscriptName ?? null,
-    widths: cps.map((cp) => (font.glyphForCodePoint(cp).advanceWidth ?? 0) / font.unitsPerEm * 32),
+    widths: cps.map((cp) => ((font.glyphForCodePoint(cp).advanceWidth ?? 0) / font.unitsPerEm) * 32),
   };
 }
 
@@ -119,7 +124,9 @@ describeMac("macOS named-family identity against Chromium", () => {
     for (const weight of [200, 400, 900]) {
       const chrome = await chromeFaceAndWidths("sans-serif", "က", weight, true);
       const ours = resolveSystemFallbackFonts([0x1000], "Helvetica", {
-        weight, italic: false, fontSize: 32,
+        weight,
+        italic: false,
+        fontSize: 32,
       }).get(0x1000);
       expect(ours?.postscriptName ?? null, `face at ${weight}`).toBe(chrome.postscriptName);
     }

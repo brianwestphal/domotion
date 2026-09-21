@@ -40,11 +40,19 @@ const summaryTarget = arg("--summary", process.env.GITHUB_STEP_SUMMARY ?? null);
 function findResultsJson(dir) {
   const found = [];
   let entries;
-  try { entries = readdirSync(dir); } catch { return found; }
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return found;
+  }
   for (const name of entries) {
     const full = join(dir, name);
     let isDir = false;
-    try { isDir = statSync(full).isDirectory(); } catch { continue; }
+    try {
+      isDir = statSync(full).isDirectory();
+    } catch {
+      continue;
+    }
     if (isDir) found.push(...findResultsJson(full));
     else if (name === "results.json") found.push(full);
   }
@@ -87,7 +95,11 @@ if (files.length === 0) {
 function envBesideResults(resultsPath) {
   const p = join(dirname(resultsPath), "run-env.json");
   if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+  try {
+    return JSON.parse(readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 // Group fixtures by OS, deduping by fixture name (a shard never overlaps, but be
@@ -98,14 +110,17 @@ const stageEvidenceByOs = new Map();
 for (const f of files) {
   const os = osFromPath(f);
   let arr;
-  try { arr = JSON.parse(readFileSync(f, "utf8")); } catch (e) {
+  try {
+    arr = JSON.parse(readFileSync(f, "utf8"));
+  } catch (e) {
     console.error(`merge-shard-results: skipping unparseable ${f}: ${e.message}`);
     continue;
   }
   if (!Array.isArray(arr)) continue;
   const shard = shardFromPath(f);
   const stageEvidencePath = join(dirname(f), "stage-evidence.json");
-  if (shard === 1 && existsSync(stageEvidencePath) && !stageEvidenceByOs.has(os)) stageEvidenceByOs.set(os, stageEvidencePath);
+  if (shard === 1 && existsSync(stageEvidencePath) && !stageEvidenceByOs.has(os))
+    stageEvidenceByOs.set(os, stageEvidencePath);
   const env = envBesideResults(f);
   if (env != null) {
     if (!envsByOs.has(os)) envsByOs.set(os, []);
@@ -173,11 +188,15 @@ for (const os of [...byOs.keys()].sort()) {
         "",
       );
       for (const c of conflicts) {
-        const parts = c.values.map((v) => `\`${v.value}\` (shard${v.shards.length === 1 ? "" : "s"} ${v.shards.join(", ") || "?"})`);
+        const parts = c.values.map(
+          (v) => `\`${v.value}\` (shard${v.shards.length === 1 ? "" : "s"} ${v.shards.join(", ") || "?"})`,
+        );
         lines.push(`> - **${c.field}**: ${parts.join(" vs ")}`);
       }
       lines.push("");
-      console.error(`merge-shard-results: WARNING ${os} shards disagree on: ${conflicts.map((c) => c.field).join(", ")}`);
+      console.error(
+        `merge-shard-results: WARNING ${os} shards disagree on: ${conflicts.map((c) => c.field).join(", ")}`,
+      );
     } else {
       const bits = [];
       if (combined.image) bits.push(`image \`${combined.image}\``);
@@ -188,9 +207,7 @@ for (const os of [...byOs.keys()].sort()) {
     }
   }
 
-  const fails = results
-    .filter((r) => !r.pass && !r.skipped)
-    .sort((a, b) => (b.diffPct ?? 0) - (a.diffPct ?? 0));
+  const fails = results.filter((r) => !r.pass && !r.skipped).sort((a, b) => (b.diffPct ?? 0) - (a.diffPct ?? 0));
   if (fails.length > 0) {
     lines.push("| fixture | diff% | worstTile% | regions |", "|---|---|---|---|");
     for (const r of fails) {
@@ -212,17 +229,32 @@ for (const os of [...byOs.keys()].sort()) {
   //
   // `--expect` is how the caller states the matrix size. Absent (a local run,
   // or a single unsharded run) the check is skipped rather than guessed at.
-  const observed = [...new Set((envsByOs.get(os) ?? []).map((e) => e.shard).filter((s) => s != null))].sort((a, b) => a - b);
-  const shardsSeen = new Set((byOs.get(os) ? [...byOs.get(os).values()] : []).map((r) => r.shard).filter((s) => s != null));
+  const observed = [...new Set((envsByOs.get(os) ?? []).map((e) => e.shard).filter((s) => s != null))].sort(
+    (a, b) => a - b,
+  );
+  const shardsSeen = new Set(
+    (byOs.get(os) ? [...byOs.get(os).values()] : []).map((r) => r.shard).filter((s) => s != null),
+  );
   for (const s of shardsSeen) observed.includes(s) || observed.push(s);
   observed.sort((a, b) => a - b);
   const expected = expectByOs.get(os) ?? null;
-  const missing = expected == null ? [] : Array.from({ length: expected }, (_, i) => i + 1).filter((s) => !observed.includes(s));
-  writeFileSync(resolve(outDir, `shard-completeness-${os}.json`), `${JSON.stringify({
-    os, expectedShards: expected, observedShards: observed, missingShards: missing,
-    complete: expected == null ? null : missing.length === 0,
-    fixtures: results.length,
-  }, null, 2)}\n`);
+  const missing =
+    expected == null ? [] : Array.from({ length: expected }, (_, i) => i + 1).filter((s) => !observed.includes(s));
+  writeFileSync(
+    resolve(outDir, `shard-completeness-${os}.json`),
+    `${JSON.stringify(
+      {
+        os,
+        expectedShards: expected,
+        observedShards: observed,
+        missingShards: missing,
+        complete: expected == null ? null : missing.length === 0,
+        fixtures: results.length,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 
   if (missing.length > 0) {
     anyIncomplete = true;
@@ -237,8 +269,10 @@ for (const os of [...byOs.keys()].sort()) {
     console.error(`merge-shard-results: INCOMPLETE ${os} — missing shard(s) ${missing.join(", ")} of ${expected}`);
   }
 
-  console.log(`merged ${os}: ${passed} passed, ${failed} failed, ${skipped} skipped (${results.length} fixtures`
-    + `${expected != null ? `, shards ${observed.length}/${expected}` : ""}) -> ${outPath}`);
+  console.log(
+    `merged ${os}: ${passed} passed, ${failed} failed, ${skipped} skipped (${results.length} fixtures` +
+      `${expected != null ? `, shards ${observed.length}/${expected}` : ""}) -> ${outPath}`,
+  );
 }
 
 // An OS that was dispatched but produced NO results at all never enters the loop
@@ -248,15 +282,26 @@ for (const [os, expected] of expectByOs) {
   if (byOs.has(os)) continue;
   anyIncomplete = true;
   lines.push(
-    `### ${os}`, "",
+    `### ${os}`,
+    "",
     `> 🔴 **NO RESULTS AT ALL.** ${expected} shard(s) were dispatched and none reached the merge.`,
     "",
   );
-  writeFileSync(resolve(outDir, `shard-completeness-${os}.json`), `${JSON.stringify({
-    os, expectedShards: expected, observedShards: [],
-    missingShards: Array.from({ length: expected }, (_, i) => i + 1),
-    complete: false, fixtures: 0,
-  }, null, 2)}\n`);
+  writeFileSync(
+    resolve(outDir, `shard-completeness-${os}.json`),
+    `${JSON.stringify(
+      {
+        os,
+        expectedShards: expected,
+        observedShards: [],
+        missingShards: Array.from({ length: expected }, (_, i) => i + 1),
+        complete: false,
+        fixtures: 0,
+      },
+      null,
+      2,
+    )}\n`,
+  );
   console.error(`merge-shard-results: INCOMPLETE ${os} — no results at all (expected ${expected} shard(s))`);
 }
 

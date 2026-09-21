@@ -16,7 +16,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // in features.ts is too lenient on a thin green marker to catch the ~110px shift
 // reliably, so we assert the captured segment x directly.
 
-const W = 320, H = 80;
+const W = 320,
+  H = 80;
 const PAD = 20;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>` +
@@ -63,8 +64,12 @@ describeBrowser("DM-1105: in-flow ::before marker before a child-first line", ()
       // source-owned generated-fragment record.
       let host: CapturedElement | null = null;
       walk(tree, (n) => {
-        if (host == null && n.text.includes("run")
-          && n.pseudoFragments?.some((fragment) => fragment.pseudo === "::before")) host = n;
+        if (
+          host == null &&
+          n.text.includes("run") &&
+          n.pseudoFragments?.some((fragment) => fragment.pseudo === "::before")
+        )
+          host = n;
       });
       expect(host, "found the .code host with a source-owned ::before").not.toBeNull();
       const h = host!;

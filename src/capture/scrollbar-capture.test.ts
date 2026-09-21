@@ -39,25 +39,30 @@ describe("Blink live scrollbar marker classification", () => {
       borderBottom: 4,
       borderLeft: 4,
     };
-    expect(classicNativeScrollbarFrame(candidate, "vertical"))
-      .toEqual({ x: 171, y: 31, width: 15, height: 110 });
-    expect(classicNativeScrollbarFrame(candidate, "horizontal"))
-      .toEqual({ x: 38, y: 126, width: 148, height: 15 });
-    expect(classicNativeScrollbarFrame({ ...candidate, direction: "rtl" }, "vertical"))
-      .toEqual({ x: 38, y: 31, width: 15, height: 110 });
-    expect(classicNativeScrollbarFrame({ ...candidate, layoutGutterHorizontal: 0 }, "horizontal"))
-      .toBeNull();
+    expect(classicNativeScrollbarFrame(candidate, "vertical")).toEqual({ x: 171, y: 31, width: 15, height: 110 });
+    expect(classicNativeScrollbarFrame(candidate, "horizontal")).toEqual({ x: 38, y: 126, width: 148, height: 15 });
+    expect(classicNativeScrollbarFrame({ ...candidate, direction: "rtl" }, "vertical")).toEqual({
+      x: 38,
+      y: 31,
+      width: 15,
+      height: 110,
+    });
+    expect(classicNativeScrollbarFrame({ ...candidate, layoutGutterHorizontal: 0 }, "horizontal")).toBeNull();
   });
 
   it("derives the native corner from the physical horizontal/vertical frame overlap", () => {
-    expect(nativeScrollbarCornerRect(
-      { frameRect: { x: 12, y: 90, width: 78, height: 10 } },
-      { frameRect: { x: 90, y: 10, width: 10, height: 80 }, logicalSide: "right" },
-    )).toEqual({ x: 90, y: 90, width: 10, height: 10 });
-    expect(nativeScrollbarCornerRect(
-      { frameRect: { x: 10, y: 90, width: 80, height: 10 } },
-      { frameRect: { x: 0, y: 10, width: 10, height: 80 }, logicalSide: "left" },
-    )).toEqual({ x: 0, y: 90, width: 10, height: 10 });
+    expect(
+      nativeScrollbarCornerRect(
+        { frameRect: { x: 12, y: 90, width: 78, height: 10 } },
+        { frameRect: { x: 90, y: 10, width: 10, height: 80 }, logicalSide: "right" },
+      ),
+    ).toEqual({ x: 90, y: 90, width: 10, height: 10 });
+    expect(
+      nativeScrollbarCornerRect(
+        { frameRect: { x: 10, y: 90, width: 80, height: 10 } },
+        { frameRect: { x: 0, y: 10, width: 10, height: 80 }, logicalSide: "left" },
+      ),
+    ).toEqual({ x: 0, y: 90, width: 10, height: 10 });
     expect(nativeScrollbarCornerRect(null, undefined)).toBeNull();
   });
 
@@ -79,13 +84,15 @@ describe("Blink live scrollbar marker classification", () => {
     paint(rgba, width, { x: 3, y: 19, width: 19, height: 3 }, marker("track"));
     paint(rgba, width, { x: 22, y: 21, width: 5, height: 3 }, marker("corner"));
 
-    expect(scrollbarMarkerComponents(rgba, width, height)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "back-track", pixelRect: { x: 22, y: 2, width: 5, height: 7 } }),
-      expect.objectContaining({ kind: "thumb", pixelRect: { x: 22, y: 9, width: 5, height: 6 } }),
-      expect.objectContaining({ kind: "forward-track", pixelRect: { x: 22, y: 15, width: 5, height: 6 } }),
-      expect.objectContaining({ kind: "track", pixelRect: { x: 3, y: 19, width: 19, height: 3 } }),
-      expect.objectContaining({ kind: "corner", pixelRect: { x: 22, y: 21, width: 5, height: 3 } }),
-    ]));
+    expect(scrollbarMarkerComponents(rgba, width, height)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "back-track", pixelRect: { x: 22, y: 2, width: 5, height: 7 } }),
+        expect.objectContaining({ kind: "thumb", pixelRect: { x: 22, y: 9, width: 5, height: 6 } }),
+        expect.objectContaining({ kind: "forward-track", pixelRect: { x: 22, y: 15, width: 5, height: 6 } }),
+        expect.objectContaining({ kind: "track", pixelRect: { x: 3, y: 19, width: 19, height: 3 } }),
+        expect.objectContaining({ kind: "corner", pixelRect: { x: 22, y: 21, width: 5, height: 3 } }),
+      ]),
+    );
   });
 
   it("ignores coincidental marker pixels outside the source-owner crop and isolated noise", () => {
@@ -96,10 +103,9 @@ describe("Blink live scrollbar marker classification", () => {
     paint(rgba, width, { x: 15, y: 15, width: 1, height: 1 }, marker("thumb"));
     paint(rgba, width, { x: 12, y: 4, width: 4, height: 8 }, marker("thumb"));
 
-    expect(scrollbarMarkerComponents(rgba, width, height, { x: 10, y: 2, width: 8, height: 12 }))
-      .toEqual([
-        expect.objectContaining({ kind: "thumb", pixelRect: { x: 12, y: 4, width: 4, height: 8 }, pixels: 32 }),
-      ]);
+    expect(scrollbarMarkerComponents(rgba, width, height, { x: 10, y: 2, width: 8, height: 12 })).toEqual([
+      expect.objectContaining({ kind: "thumb", pixelRect: { x: 12, y: 4, width: 4, height: 8 }, pixels: 32 }),
+    ]);
   });
 
   it("subtracts matching baseline pixels before classifying reserved marker colors", () => {

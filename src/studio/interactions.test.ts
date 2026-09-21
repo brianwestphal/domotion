@@ -1,6 +1,11 @@
 import type { Locator, Page } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
-import { compileStudioSemanticTracks, runStudioSemanticStep, StudioInteractionError, type StudioSemanticStep } from "./interactions.js";
+import {
+  compileStudioSemanticTracks,
+  runStudioSemanticStep,
+  StudioInteractionError,
+  type StudioSemanticStep,
+} from "./interactions.js";
 
 const click = (id: string, atMs: number) => ({
   id,
@@ -13,7 +18,11 @@ describe("Studio semantic interaction compilation (DM-2683)", () => {
   it("validates tracks and stably merges scene-relative events", () => {
     const plan = compileStudioSemanticTracks([
       { id: "primary", kind: "semantic-interactions", events: [click("first", 10), click("tie-a", 30)] },
-      { id: "secondary", kind: "semantic-interactions", events: [click("tie-b", 30), { ...click("last", 50), durationMs: 25 }] },
+      {
+        id: "secondary",
+        kind: "semantic-interactions",
+        events: [click("tie-b", 30), { ...click("last", 50), durationMs: 25 }],
+      },
     ]);
 
     expect(plan.steps.map((step) => [step.trackId, step.event.id])).toEqual([
@@ -49,12 +58,24 @@ describe("Studio semantic interaction compilation (DM-2683)", () => {
     },
     {
       name: "overlap",
-      tracks: [{ id: "a", kind: "semantic-interactions", events: [{ ...click("long", 0), durationMs: 30 }, click("overlap", 20)] }],
+      tracks: [
+        {
+          id: "a",
+          kind: "semantic-interactions",
+          events: [{ ...click("long", 0), durationMs: 30 }, click("overlap", 20)],
+        },
+      ],
       message: "$.scenes[2].tracks[0].events[1].atMs: overlaps the previous event, which ends at 30ms",
     },
     {
       name: "text wait without value",
-      tracks: [{ id: "a", kind: "semantic-interactions", events: [{ id: "wait", atMs: 0, kind: "waitForState", target: { text: "Ready" }, state: "text" }] }],
+      tracks: [
+        {
+          id: "a",
+          kind: "semantic-interactions",
+          events: [{ id: "wait", atMs: 0, kind: "waitForState", target: { text: "Ready" }, state: "text" }],
+        },
+      ],
       message: "$.scenes[2].tracks[0].events[0].value: a text wait requires `value`",
     },
   ])("reports the exact authored path for $name", ({ tracks, message }) => {
@@ -101,7 +122,13 @@ describe("Studio semantic interaction compilation (DM-2683)", () => {
     const step: StudioSemanticStep = {
       path: "$.scenes[4].tracks[1].events[2]",
       trackId: "lifecycle",
-      event: { id: "ambiguous-attach", atMs: 0, kind: "waitForState", target: { selector: ".duplicate" }, state: "attached" },
+      event: {
+        id: "ambiguous-attach",
+        atMs: 0,
+        kind: "waitForState",
+        target: { selector: ".duplicate" },
+        state: "attached",
+      },
     };
 
     await expect(runStudioSemanticStep(page, step)).rejects.toMatchObject({

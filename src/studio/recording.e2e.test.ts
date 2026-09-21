@@ -68,26 +68,34 @@ describe("Studio real browser recording and semantic replay (DM-2696)", () => {
     try {
       writeFileSync(appPath, appHtml(1), "utf8");
       await page.goto(pathToFileURL(appPath).href);
-      const recording = await recordStudioInteractions(page, async (recordedPage) => {
-        const password = recordedPage.getByLabel("Password");
-        await password.click();
-        await password.pressSequentially(SECRET, { delay: 1 });
-        await recordedPage.getByTestId("create-action").hover();
-        await recordedPage.getByTestId("create-action").click();
-        await recordedPage.getByTestId("activity").evaluate((element) => {
-          element.scrollTop = 64;
-          element.dispatchEvent(new Event("scroll", { bubbles: true }));
-        });
-      }, { id: "recording-real-flow", settleMs: 120 });
+      const recording = await recordStudioInteractions(
+        page,
+        async (recordedPage) => {
+          const password = recordedPage.getByLabel("Password");
+          await password.click();
+          await password.pressSequentially(SECRET, { delay: 1 });
+          await recordedPage.getByTestId("create-action").hover();
+          await recordedPage.getByTestId("create-action").click();
+          await recordedPage.getByTestId("activity").evaluate((element) => {
+            element.scrollTop = 64;
+            element.dispatchEvent(new Event("scroll", { bubbles: true }));
+          });
+        },
+        { id: "recording-real-flow", settleMs: 120 },
+      );
 
       const rawJson = JSON.stringify(recording);
       expect(rawJson).not.toContain(SECRET);
       expect(rawJson).not.toContain(URL_SECRET);
       expect(recording.redactions).toBeGreaterThan(0);
-      expect(recording.events.some((event) => event.kind === "input" && event.value === STUDIO_REDACTED_VALUE)).toBe(true);
+      expect(recording.events.some((event) => event.kind === "input" && event.value === STUDIO_REDACTED_VALUE)).toBe(
+        true,
+      );
       expect(recording.events.some((event) => event.kind === "pointer" && event.phase === "click")).toBe(true);
       expect(recording.events.some((event) => event.kind === "scroll")).toBe(true);
-      expect(recording.events.some((event) => event.kind === "navigation" && event.navigationKind === "push-state")).toBe(true);
+      expect(
+        recording.events.some((event) => event.kind === "navigation" && event.navigationKind === "push-state"),
+      ).toBe(true);
       const feedback = recording.events.find((event) => event.kind === "dom-feedback");
       expect(feedback).toBeDefined();
       if (feedback?.kind === "dom-feedback") {
@@ -95,37 +103,60 @@ describe("Studio real browser recording and semantic replay (DM-2696)", () => {
         expect(feedback.snapshots.some((snapshot) => Object.hasOwn(snapshot.styles, "backgroundColor"))).toBe(true);
       }
 
-      const project = createStudioProjectDocument({ title: "Recorded story", width: 800, height: 520, createdAt: "2026-09-06T06:00:00.000Z" });
+      const project = createStudioProjectDocument({
+        title: "Recorded story",
+        width: 800,
+        height: 520,
+        createdAt: "2026-09-06T06:00:00.000Z",
+      });
       let requiredPolicyObserved = false;
       const imported = await importStudioInteractionRecording(project, recording, {
         ai: {
           heal: async (request) => {
-            requiredPolicyObserved = JSON.stringify(request.aiPolicy) === JSON.stringify({ healing: "required", review: "required" });
+            requiredPolicyObserved =
+              JSON.stringify(request.aiPolicy) === JSON.stringify({ healing: "required", review: "required" });
             return {
               kind: "candidate",
-              summary: "Removed pointer travel, key noise, feedback mutations, and navigation bookkeeping while retaining two intentional actions.",
-              evidence: { summary: "Selected the label for the field and data-testid for the action after reviewing live DOM, geometry, and computed CSS evidence." },
+              summary:
+                "Removed pointer travel, key noise, feedback mutations, and navigation bookkeeping while retaining two intentional actions.",
+              evidence: {
+                summary:
+                  "Selected the label for the field and data-testid for the action after reviewing live DOM, geometry, and computed CSS evidence.",
+              },
               scene: {
                 id: "scene-recorded-flow",
                 title: "Recorded flow",
                 description: "Editable semantic actions inferred from a real interaction.",
                 narrativeBeatIds: ["beat-opening"],
                 render: { kind: "storyboard", recipe: { capture: { file: basename(appPath) }, duration: 1800 } },
-                tracks: [{
-                  id: "track-recorded-flow",
-                  kind: "semantic-interactions",
-                  events: [
-                    { id: "event-enter-secret", kind: "type", atMs: 180, durationMs: 300, target: { label: "Password" }, text: STUDIO_REDACTED_VALUE },
-                    { id: "event-create", kind: "click", atMs: 760, target: { testId: "create-action" } },
-                  ],
-                }],
+                tracks: [
+                  {
+                    id: "track-recorded-flow",
+                    kind: "semantic-interactions",
+                    events: [
+                      {
+                        id: "event-enter-secret",
+                        kind: "type",
+                        atMs: 180,
+                        durationMs: 300,
+                        target: { label: "Password" },
+                        text: STUDIO_REDACTED_VALUE,
+                      },
+                      { id: "event-create", kind: "click", atMs: 760, target: { testId: "create-action" } },
+                    ],
+                  },
+                ],
               },
             };
           },
           review: async ({ candidate, aiPolicy }) => {
             expect(aiPolicy).toEqual({ healing: "required", review: "required" });
             expect(candidate.tracks?.[0].events).toHaveLength(2);
-            return { kind: "accept", summary: "Accepted the stable targets, redaction, simplification, and naturalized pacing.", evidence: { summary: "The candidate is schema-valid and keeps editable intent." } };
+            return {
+              kind: "accept",
+              summary: "Accepted the stable targets, redaction, simplification, and naturalized pacing.",
+              evidence: { summary: "The candidate is schema-valid and keeps editable intent." },
+            };
           },
         },
         now: "2026-09-06T06:01:00.000Z",
@@ -159,7 +190,9 @@ describe("Studio real browser recording and semantic replay (DM-2696)", () => {
       expect(segment?.evidence.map((item) => item.eventId)).toEqual(["event-enter-secret", "event-create"]);
       expect(segment?.durationMs).toBeGreaterThanOrEqual(1800);
       expect(compiled.svg).toContain("Recorded result v2");
-      expect(compiled.project.scenes.find((scene) => scene.id === imported.scene.id)?.title).toBe("Edited recorded flow");
+      expect(compiled.project.scenes.find((scene) => scene.id === imported.scene.id)?.title).toBe(
+        "Edited recorded flow",
+      );
     } finally {
       await page.close().catch(() => {});
       rmSync(root, { recursive: true, force: true });

@@ -82,8 +82,12 @@ export function planNativeControlClip(
   rect: { x: number; y: number; width: number; height: number },
   viewport: NativeControlViewport,
 ): NativeControlClipPlan | null {
-  if (![rect.x, rect.y, rect.width, rect.height, viewport.x, viewport.y,
-    viewport.width, viewport.height].every(Number.isFinite)) return null;
+  if (
+    ![rect.x, rect.y, rect.width, rect.height, viewport.x, viewport.y, viewport.width, viewport.height].every(
+      Number.isFinite,
+    )
+  )
+    return null;
   if (rect.width <= 0 || rect.height <= 0 || viewport.width <= 0 || viewport.height <= 0) return null;
 
   const left = Math.max(0, Math.floor(rect.x));
@@ -112,10 +116,28 @@ export function nativeControlPixelCrop(
   viewport: Pick<NativeControlViewport, "width" | "height">,
   frame: { width: number; height: number },
 ): NativeControlPixelCrop | null {
-  if (![output.x, output.y, output.width, output.height, viewport.width,
-    viewport.height, frame.width, frame.height].every(Number.isFinite)) return null;
-  if (output.width <= 0 || output.height <= 0 || viewport.width <= 0
-      || viewport.height <= 0 || frame.width <= 0 || frame.height <= 0) return null;
+  if (
+    ![
+      output.x,
+      output.y,
+      output.width,
+      output.height,
+      viewport.width,
+      viewport.height,
+      frame.width,
+      frame.height,
+    ].every(Number.isFinite)
+  )
+    return null;
+  if (
+    output.width <= 0 ||
+    output.height <= 0 ||
+    viewport.width <= 0 ||
+    viewport.height <= 0 ||
+    frame.width <= 0 ||
+    frame.height <= 0
+  )
+    return null;
   const scaleX = frame.width / viewport.width;
   const scaleY = frame.height / viewport.height;
   // Page screenshots use one device scale.  A mismatched aspect ratio means a
@@ -137,9 +159,16 @@ export function cropNativeControlRgba(
   frame: { data: Uint8Array; width: number; height: number },
   crop: NativeControlPixelCrop,
 ): Uint8Array | null {
-  if (crop.left < 0 || crop.top < 0 || crop.width <= 0 || crop.height <= 0
-      || crop.left + crop.width > frame.width || crop.top + crop.height > frame.height
-      || frame.data.length !== frame.width * frame.height * 4) return null;
+  if (
+    crop.left < 0 ||
+    crop.top < 0 ||
+    crop.width <= 0 ||
+    crop.height <= 0 ||
+    crop.left + crop.width > frame.width ||
+    crop.top + crop.height > frame.height ||
+    frame.data.length !== frame.width * frame.height * 4
+  )
+    return null;
   const result = new Uint8Array(crop.width * crop.height * 4);
   for (let y = 0; y < crop.height; y++) {
     const sourceStart = ((crop.top + y) * frame.width + crop.left) * 4;
@@ -205,12 +234,10 @@ function collectNativeControlTargets(tree: CapturedElement[]): NativeControlTarg
   return targets;
 }
 
-function pushRequiredRasterWarning(
-  warnings: CaptureWarning[],
-  target: NativeControlTarget,
-  reason: string,
-): void {
-  const selector = target.raster.selector ?? `${target.element.tag}${target.element.styles.inputType == null ? "" : `[type=${target.element.styles.inputType}]`}`;
+function pushRequiredRasterWarning(warnings: CaptureWarning[], target: NativeControlTarget, reason: string): void {
+  const selector =
+    target.raster.selector ??
+    `${target.element.tag}${target.element.styles.inputType == null ? "" : `[type=${target.element.styles.inputType}]`}`;
   if (warnings.some((warning) => warning.selector === selector && warning.feature === REQUIRED_RASTER_FEATURE)) return;
   warnings.push({
     selector,
@@ -229,10 +256,7 @@ async function decodeFrame(input: Buffer | string): Promise<DecodedFrame | null>
   }
 }
 
-async function takeAtomicFrame(
-  page: Page,
-  viewport: NativeControlViewport,
-): Promise<DecodedFrame | null> {
+async function takeAtomicFrame(page: Page, viewport: NativeControlViewport): Promise<DecodedFrame | null> {
   try {
     const png = await page.screenshot({
       clip: {
@@ -291,15 +315,17 @@ export async function rasterizeNativeControlSurfaces(
 
   const plans = targets.map((target) => planNativeControlClip(target.raster, viewport));
   for (let index = 0; index < targets.length; index++) {
-    if (plans[index] == null) pushRequiredRasterWarning(options.warnings, targets[index], "invalid or fully viewport-clipped paint rectangle");
+    if (plans[index] == null)
+      pushRequiredRasterWarning(options.warnings, targets[index], "invalid or fully viewport-clipped paint rectangle");
   }
 
   let sourceFrame = options.sourceImagePath == null ? null : await decodeFrame(options.sourceImagePath);
-  if (sourceFrame != null && nativeControlPixelCrop(
-    { x: 0, y: 0, width: viewport.width, height: viewport.height },
-    viewport,
-    sourceFrame,
-  ) == null) sourceFrame = null;
+  if (
+    sourceFrame != null &&
+    nativeControlPixelCrop({ x: 0, y: 0, width: viewport.width, height: viewport.height }, viewport, sourceFrame) ==
+      null
+  )
+    sourceFrame = null;
   // A supplied expected/source image is preferred.  If it does not cover this
   // capture coordinate space, one unmodified compositor readback is the exact
   // atomic fallback; never take one screenshot per control.
@@ -315,7 +341,157 @@ export async function rasterizeNativeControlSurfaces(
   let isolationFailure: string | undefined;
   try {
     if (options.sourceNodeKey != null) {
-      isolationFacts = await page.evaluate(({ sourceNodeKey, restoreKey, rows }) => {
+      isolationFacts = await page.evaluate(
+        ({ sourceNodeKey, restoreKey, rows }) => {
+          type RestoreEntry = {
+            element: HTMLElement;
+            property: string;
+            value: string;
+            priority: string;
+          };
+          const host = globalThis as typeof globalThis & Record<string, unknown>;
+          const sourceNodes = host[sourceNodeKey] as Element[] | undefined;
+          const targets = rows.map((row) => (row.index == null ? null : (sourceNodes?.[row.index] ?? null)));
+          const targetSet = new Set(
+            targets.filter((target): target is Element => target != null && target.isConnected),
+          );
+          const targetVisibility = new Map<Element, string>();
+          for (const target of targetSet) targetVisibility.set(target, getComputedStyle(target).visibility);
+          const elements = Array.from(document.querySelectorAll("*"));
+          const facts = targets.map((target, targetIndex) => {
+            if (target == null || !target.isConnected) {
+              return { connected: false, sourceOccluded: false, overlapsNativeOwner: false };
+            }
+            const row = rows[targetIndex];
+            const bounds = {
+              left: row.x,
+              top: row.y,
+              right: row.x + row.width,
+              bottom: row.y + row.height,
+            };
+            let sourceOccluded = false;
+            let overlapsNativeOwner = false;
+            for (const other of elements) {
+              if (other === target || target.contains(other) || other.contains(target)) continue;
+              let hit = false;
+              for (const rect of Array.from(other.getClientRects())) {
+                if (
+                  rect.right > bounds.left &&
+                  rect.left < bounds.right &&
+                  rect.bottom > bounds.top &&
+                  rect.top < bounds.bottom
+                ) {
+                  hit = true;
+                  break;
+                }
+              }
+              if (!hit) continue;
+              const style = getComputedStyle(other);
+              if (style.display === "none" || style.visibility !== "visible" || Number.parseFloat(style.opacity) === 0)
+                continue;
+              let hasOwnPaint =
+                style.backgroundImage !== "none" ||
+                style.boxShadow !== "none" ||
+                style.textShadow !== "none" ||
+                (style.backgroundColor !== "transparent" && style.backgroundColor !== "rgba(0, 0, 0, 0)") ||
+                [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].some(
+                  (width) => Number.parseFloat(width) > 0,
+                ) ||
+                other.namespaceURI === "http://www.w3.org/2000/svg" ||
+                /^(?:CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO|BUTTON)$/.test(
+                  other.tagName,
+                );
+              if (!hasOwnPaint) {
+                for (const child of Array.from(other.childNodes)) {
+                  if (child.nodeType === Node.TEXT_NODE && (child.textContent ?? "").trim() !== "") {
+                    hasOwnPaint = true;
+                    break;
+                  }
+                }
+              }
+              if (!hasOwnPaint) {
+                for (const pseudo of ["::before", "::after"]) {
+                  const content = getComputedStyle(other, pseudo).content;
+                  if (content !== "none" && content !== "normal" && content !== "") {
+                    hasOwnPaint = true;
+                    break;
+                  }
+                }
+              }
+              if (!hasOwnPaint) continue;
+              if (targetSet.has(other)) overlapsNativeOwner = true;
+              else sourceOccluded = true;
+            }
+            return { connected: true, sourceOccluded, overlapsNativeOwner };
+          });
+
+          const restore: RestoreEntry[] = [];
+          host[restoreKey] = restore;
+          for (const element of elements) {
+            let retained = false;
+            for (const target of targetSet) {
+              if (element === target || target.contains(element)) {
+                retained = true;
+                break;
+              }
+            }
+            if (!retained) {
+              const html = element as HTMLElement;
+              restore.push({
+                element: html,
+                property: "visibility",
+                value: html.style.getPropertyValue("visibility"),
+                priority: html.style.getPropertyPriority("visibility"),
+              });
+              html.style.setProperty("visibility", "hidden", "important");
+            }
+          }
+          // A hidden ancestor's visibility is inherited. Reassert the used value
+          // on each owner; authored hidden descendants remain untouched.
+          for (const target of targetSet) {
+            const html = target as HTMLElement;
+            restore.push({
+              element: html,
+              property: "visibility",
+              value: html.style.getPropertyValue("visibility"),
+              priority: html.style.getPropertyPriority("visibility"),
+            });
+            html.style.setProperty("visibility", targetVisibility.get(target) ?? "visible", "important");
+          }
+          for (const canvas of [document.documentElement, document.body]) {
+            if (canvas != null && !targetSet.has(canvas)) {
+              restore.push({
+                element: canvas,
+                property: "background",
+                value: canvas.style.getPropertyValue("background"),
+                priority: canvas.style.getPropertyPriority("background"),
+              });
+              canvas.style.setProperty("background", "transparent", "important");
+            }
+          }
+          void document.documentElement.getBoundingClientRect();
+          return facts;
+        },
+        {
+          sourceNodeKey: options.sourceNodeKey,
+          restoreKey,
+          rows: targets.map((target, index) => ({
+            index: target.raster.sourceNodeIndex,
+            x: viewport.x + (plans[index]?.output.x ?? 0),
+            y: viewport.y + (plans[index]?.output.y ?? 0),
+            width: plans[index]?.output.width ?? 0,
+            height: plans[index]?.output.height ?? 0,
+          })),
+        },
+      );
+      isolatedFrame = await takeAtomicFrame(page, viewport);
+    }
+  } catch (error) {
+    isolationFailure = error instanceof Error ? error.message : "isolation preparation failed";
+    isolatedFrame = null;
+  } finally {
+    await page
+      .evaluate((restoreKey) => {
         type RestoreEntry = {
           element: HTMLElement;
           property: string;
@@ -323,141 +499,15 @@ export async function rasterizeNativeControlSurfaces(
           priority: string;
         };
         const host = globalThis as typeof globalThis & Record<string, unknown>;
-        const sourceNodes = host[sourceNodeKey] as Element[] | undefined;
-        const targets = rows.map((row) => row.index == null ? null : sourceNodes?.[row.index] ?? null);
-        const targetSet = new Set(targets.filter((target): target is Element => target != null && target.isConnected));
-        const targetVisibility = new Map<Element, string>();
-        for (const target of targetSet) targetVisibility.set(target, getComputedStyle(target).visibility);
-        const elements = Array.from(document.querySelectorAll("*"));
-        const facts = targets.map((target, targetIndex) => {
-          if (target == null || !target.isConnected) {
-            return { connected: false, sourceOccluded: false, overlapsNativeOwner: false };
-          }
-          const row = rows[targetIndex];
-          const bounds = {
-            left: row.x,
-            top: row.y,
-            right: row.x + row.width,
-            bottom: row.y + row.height,
-          };
-          let sourceOccluded = false;
-          let overlapsNativeOwner = false;
-          for (const other of elements) {
-            if (other === target || target.contains(other) || other.contains(target)) continue;
-            let hit = false;
-            for (const rect of Array.from(other.getClientRects())) {
-              if (rect.right > bounds.left && rect.left < bounds.right
-                  && rect.bottom > bounds.top && rect.top < bounds.bottom) { hit = true; break; }
-            }
-            if (!hit) continue;
-            const style = getComputedStyle(other);
-            if (style.display === "none" || style.visibility !== "visible" || Number.parseFloat(style.opacity) === 0) continue;
-            let hasOwnPaint = style.backgroundImage !== "none" || style.boxShadow !== "none" || style.textShadow !== "none"
-              || style.backgroundColor !== "transparent" && style.backgroundColor !== "rgba(0, 0, 0, 0)"
-              || [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth]
-                .some((width) => Number.parseFloat(width) > 0)
-              || other.namespaceURI === "http://www.w3.org/2000/svg"
-              || /^(?:CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO|BUTTON)$/.test(other.tagName);
-            if (!hasOwnPaint) {
-              for (const child of Array.from(other.childNodes)) {
-                if (child.nodeType === Node.TEXT_NODE && (child.textContent ?? "").trim() !== "") {
-                  hasOwnPaint = true;
-                  break;
-                }
-              }
-            }
-            if (!hasOwnPaint) {
-              for (const pseudo of ["::before", "::after"]) {
-                const content = getComputedStyle(other, pseudo).content;
-                if (content !== "none" && content !== "normal" && content !== "") {
-                  hasOwnPaint = true;
-                  break;
-                }
-              }
-            }
-            if (!hasOwnPaint) continue;
-            if (targetSet.has(other)) overlapsNativeOwner = true;
-            else sourceOccluded = true;
-          }
-          return { connected: true, sourceOccluded, overlapsNativeOwner };
-        });
-
-        const restore: RestoreEntry[] = [];
-        host[restoreKey] = restore;
-        for (const element of elements) {
-          let retained = false;
-          for (const target of targetSet) {
-            if (element === target || target.contains(element)) { retained = true; break; }
-          }
-          if (!retained) {
-            const html = element as HTMLElement;
-            restore.push({
-              element: html,
-              property: "visibility",
-              value: html.style.getPropertyValue("visibility"),
-              priority: html.style.getPropertyPriority("visibility"),
-            });
-            html.style.setProperty("visibility", "hidden", "important");
-          }
+        const restore = host[restoreKey] as RestoreEntry[] | undefined;
+        for (let index = (restore?.length ?? 0) - 1; index >= 0; index--) {
+          const entry = restore![index];
+          if (entry.value === "") entry.element.style.removeProperty(entry.property);
+          else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
         }
-        // A hidden ancestor's visibility is inherited. Reassert the used value
-        // on each owner; authored hidden descendants remain untouched.
-        for (const target of targetSet) {
-          const html = target as HTMLElement;
-          restore.push({
-            element: html,
-            property: "visibility",
-            value: html.style.getPropertyValue("visibility"),
-            priority: html.style.getPropertyPriority("visibility"),
-          });
-          html.style.setProperty("visibility", targetVisibility.get(target) ?? "visible", "important");
-        }
-        for (const canvas of [document.documentElement, document.body]) {
-          if (canvas != null && !targetSet.has(canvas)) {
-            restore.push({
-              element: canvas,
-              property: "background",
-              value: canvas.style.getPropertyValue("background"),
-              priority: canvas.style.getPropertyPriority("background"),
-            });
-            canvas.style.setProperty("background", "transparent", "important");
-          }
-        }
-        void document.documentElement.getBoundingClientRect();
-        return facts;
-      }, {
-        sourceNodeKey: options.sourceNodeKey,
-        restoreKey,
-        rows: targets.map((target, index) => ({
-          index: target.raster.sourceNodeIndex,
-          x: viewport.x + (plans[index]?.output.x ?? 0),
-          y: viewport.y + (plans[index]?.output.y ?? 0),
-          width: plans[index]?.output.width ?? 0,
-          height: plans[index]?.output.height ?? 0,
-        })),
-      });
-      isolatedFrame = await takeAtomicFrame(page, viewport);
-    }
-  } catch (error) {
-    isolationFailure = error instanceof Error ? error.message : "isolation preparation failed";
-    isolatedFrame = null;
-  } finally {
-    await page.evaluate((restoreKey) => {
-      type RestoreEntry = {
-        element: HTMLElement;
-        property: string;
-        value: string;
-        priority: string;
-      };
-      const host = globalThis as typeof globalThis & Record<string, unknown>;
-      const restore = host[restoreKey] as RestoreEntry[] | undefined;
-      for (let index = (restore?.length ?? 0) - 1; index >= 0; index--) {
-        const entry = restore![index];
-        if (entry.value === "") entry.element.style.removeProperty(entry.property);
-        else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
-      }
-      delete host[restoreKey];
-    }, restoreKey).catch(() => undefined);
+        delete host[restoreKey];
+      }, restoreKey)
+      .catch(() => undefined);
   }
 
   try {
@@ -475,7 +525,11 @@ export async function rasterizeNativeControlSurfaces(
         continue;
       }
       if (fact.overlapsNativeOwner) {
-        pushRequiredRasterWarning(options.warnings, target, "overlapping native owners cannot be separated by one atomic alpha frame");
+        pushRequiredRasterWarning(
+          options.warnings,
+          target,
+          "overlapping native owners cannot be separated by one atomic alpha frame",
+        );
         continue;
       }
 
@@ -487,7 +541,11 @@ export async function rasterizeNativeControlSurfaces(
       }
       if (target.raster.frameSensitive === true) {
         if (source == null || sourceCrop == null || fact.sourceOccluded) {
-          pushRequiredRasterWarning(options.warnings, target, "time-dependent paint could not retain one overlap-free source frame");
+          pushRequiredRasterWarning(
+            options.warnings,
+            target,
+            "time-dependent paint could not retain one overlap-free source frame",
+          );
           continue;
         }
         // Alpha from the isolation screenshot belongs to a later compositor
@@ -497,7 +555,9 @@ export async function rasterizeNativeControlSurfaces(
         // is already the same paint the structural renderer emits underneath.
         const png = await sharp(Buffer.from(source), {
           raw: { width: sourceCrop.width, height: sourceCrop.height, channels: 4 },
-        }).png().toBuffer();
+        })
+          .png()
+          .toBuffer();
         target.raster.dataUri = `data:image/png;base64,${png.toString("base64")}`;
         target.raster.x = plan.output.x;
         target.raster.y = plan.output.y;
@@ -531,7 +591,11 @@ export async function rasterizeNativeControlSurfaces(
         continue;
       }
 
-      if (sourceCrop == null || sourceCrop.width !== isolatedCrop!.width || sourceCrop.height !== isolatedCrop!.height) {
+      if (
+        sourceCrop == null ||
+        sourceCrop.width !== isolatedCrop!.width ||
+        sourceCrop.height !== isolatedCrop!.height
+      ) {
         source = null;
       }
       const composed = composeNativeControlFrames(isolated, source, fact.sourceOccluded);
@@ -541,7 +605,9 @@ export async function rasterizeNativeControlSurfaces(
       }
       const png = await sharp(Buffer.from(composed), {
         raw: { width: isolatedCrop!.width, height: isolatedCrop!.height, channels: 4 },
-      }).png().toBuffer();
+      })
+        .png()
+        .toBuffer();
       target.raster.dataUri = `data:image/png;base64,${png.toString("base64")}`;
       target.raster.x = plan.output.x;
       target.raster.y = plan.output.y;

@@ -3,11 +3,11 @@ id: "requirements/animated-3d-frame-state-parity"
 title: "186 — Animated CSS 3D frame-state parity"
 kind: "evidence"
 status: "partial"
-owners: ["animation","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2356","DM-2359","DM-2492","DM-2531","DM-2553","DM-2554"]
-code: [".github/workflows/animated-projective-frame-parity.yml","src/capture/animation-frame.ts"]
-aliases: ["docs/186-animated-3d-frame-state-parity.md","doc-186"]
+owners: ["animation", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2531", "DM-2553", "DM-2554"]
+code: [".github/workflows/animated-projective-frame-parity.yml", "src/capture/animation-frame.ts"]
+aliases: ["docs/186-animated-3d-frame-state-parity.md", "doc-186"]
 ---
 
 # 186 — Animated CSS 3D frame-state parity
@@ -45,11 +45,11 @@ The pinned Chromium checkout is
   boundary and verifies the committed result.
 - `core/style/computed_style.h:2210-2267` makes opacity, filter, clip-path,
   mask, isolation, blending, backdrop filtering, and non-visible overflow
-  grouping properties that force the *used* 3D style flat. The computed
+  grouping properties that force the _used_ 3D style flat. The computed
   `preserve-3d` token remains independently relevant to stacking and fixed
   containment.
 - `core/paint/paint_property_tree_builder.cc:1458-1466,1634-1651` assigns a
-  rendering-context ID only through direct parents whose *used* style preserves
+  rendering-context ID only through direct parents whose _used_ style preserves
   3D. Perspective contributes a projection node but does not establish that
   context (`paint_property_tree_builder_test.cc:3495-3523`). DM-2492 replaces
   the invalid outer-host expectation with that exact used-context rule.
@@ -104,16 +104,16 @@ atomic `<image>` and never emits `matrix3d()` or fits the apparent 2D entries.
 `npm run transform:animated-3d-frame-gate` runs one fixture at 0, 250, 500,
 and 750ms for DPR 1 and 2:
 
-| Family | Required discriminator |
-| --- | --- |
-| `rotate3d` | non-affine residual and child-owned atomic surface |
-| `translate3d` | perspective-composed uniform scale remains affine/vector |
-| `matrix3d` | identity starts inactive; interpolated projective frames activate |
-| `perspective` | animated distance/origin change the child plane, but perspective alone does not make the host a rendering-context owner |
-| `transform-origin` | same 3D matrix with moving pivot changes the exact quad |
-| `preserve-3d` | discrete preserve→flat transition ends direct context propagation and starts a child/self boundary |
-| grouping flatten | `overflow:visible→hidden` retains computed fixed-CB ownership while used paint starts a fresh inner context |
-| animation composition | two additive transform animations survive as Chromium's complete composed matrix |
+| Family                | Required discriminator                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `rotate3d`            | non-affine residual and child-owned atomic surface                                                                      |
+| `translate3d`         | perspective-composed uniform scale remains affine/vector                                                                |
+| `matrix3d`            | identity starts inactive; interpolated projective frames activate                                                       |
+| `perspective`         | animated distance/origin change the child plane, but perspective alone does not make the host a rendering-context owner |
+| `transform-origin`    | same 3D matrix with moving pivot changes the exact quad                                                                 |
+| `preserve-3d`         | discrete preserve→flat transition ends direct context propagation and starts a child/self boundary                      |
+| grouping flatten      | `overflow:visible→hidden` retains computed fixed-CB ownership while used paint starts a fresh inner context             |
+| animation composition | two additive transform animations survive as Chromium's complete composed matrix                                        |
 
 For each row the tool first pauses the source and reads a fresh independent CDP
 quad/computed record. Production capture then seeks the same time itself. The

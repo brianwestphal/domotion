@@ -5,16 +5,22 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["windows"]
-tickets: ["DM-641","DM-643","DM-645"]
-code: ["src/scroll/executor.ts","src/scroll/hoist-fixed.ts","src/scroll/hoist-sticky.test.ts","src/scroll/hoist-sticky.ts"]
-aliases: ["docs/35-scroll-sticky-hoisting.md","doc-35"]
+tickets: ["DM-641", "DM-643", "DM-645"]
+code:
+  [
+    "src/scroll/executor.ts",
+    "src/scroll/hoist-fixed.ts",
+    "src/scroll/hoist-sticky.test.ts",
+    "src/scroll/hoist-sticky.ts",
+  ]
+aliases: ["docs/35-scroll-sticky-hoisting.md", "doc-35"]
 ---
 
 # 35. Scroll composer: position:sticky hoisting
 
 The `--scroll` capture flow (`src/scroll/{executor,composer}.ts`) renders the page at multiple scrollY positions and stacks the captures inside a translating composite. The composer hoists `position: fixed` subtrees onto a viewport-level overlay (doc 33-like fold; the actual code lives in `src/scroll/hoist-fixed.ts` per DM-643) so a site header captured at viewport-y = 0 in every segment renders once, on top, in viewport coordinates — instead of being smeared down the composite once per segment.
 
-`position: sticky` doesn't fit cleanly into either bucket. A sticky element starts as an in-flow item that scrolls with its container; once scrolling crosses the container's stick-edge it pins to the viewport like a fixed element. So in a multi-segment scroll capture, the *same* element should:
+`position: sticky` doesn't fit cleanly into either bucket. A sticky element starts as an in-flow item that scrolls with its container; once scrolling crosses the container's stick-edge it pins to the viewport like a fixed element. So in a multi-segment scroll capture, the _same_ element should:
 
 - Scroll inline (stay inside the per-segment tree, at its in-flow `(x, y)`) during the segments where it hasn't yet hit its stick-point.
 - Hoist to the viewport overlay during the segments where it's pinned.
@@ -40,7 +46,7 @@ A sticky element's captured `(x, y, width, height)` is its viewport-relative bou
 
 ## Cross-segment identity
 
-A sticky element appears in *multiple* segment captures. To stitch them together as one logical element we need a key that survives the in-flow → stuck transition. Specifically `y` (and possibly `x`) will move; everything else should be stable.
+A sticky element appears in _multiple_ segment captures. To stitch them together as one logical element we need a key that survives the in-flow → stuck transition. Specifically `y` (and possibly `x`) will move; everything else should be stable.
 
 **Identity key**: `(tag, rounded(width), rounded(height), structural-path)` — the element's tag, its layout box size (sticky elements rarely change size at the stick-edge), and its position in the captured tree. The scroll composer derives that path while walking each captured tree, so identity does not depend on a separate capture-side path field.
 
@@ -51,7 +57,7 @@ Alternative considered: `(tag, rounded(x), rounded(width), rounded(height))` —
 For each sticky candidate matched across N segments:
 
 1. Read its viewport-y in every segment it appears in: `ys = [y₀, y₁, …, y_{N-1}]`.
-2. Find runs of consecutive segments where `|ys[i+1] − ys[i]| < ε` (say `ε = 1 px`) — those are "stuck windows". A stuck window of length 1 (a single segment with one neighbor) is *not* stuck (the element happens to have momentarily zero motion between two snapshot moments); require at least 2 consecutive segments at the same `y` to call it stuck.
+2. Find runs of consecutive segments where `|ys[i+1] − ys[i]| < ε` (say `ε = 1 px`) — those are "stuck windows". A stuck window of length 1 (a single segment with one neighbor) is _not_ stuck (the element happens to have momentarily zero motion between two snapshot moments); require at least 2 consecutive segments at the same `y` to call it stuck.
 
 Other constraints for a window to qualify as a stuck window:
 
@@ -62,17 +68,21 @@ Other constraints for a window to qualify as a stuck window:
 For each sticky element with one or more stuck windows:
 
 **Inline (in-flow) segments** — segments NOT inside a stuck window:
+
 - Element stays in the per-segment captured tree as today. The composer renders it at its captured viewport-y, which the composite-translate carries into the right composite-y slot. No change from baseline.
 
 **Stuck-window segments**:
+
 - Strip the element from those segments' captured trees (so the in-flow phase doesn't double-paint).
 - Emit ONE rendered copy of the element on the viewport overlay, positioned at the viewport-y from the stuck window.
 - Attach a visibility timeline class to that overlay copy: `visibility: visible` during the stuck-window segments, `visibility: hidden` outside (uses the same `visibility`-toggle approach as DM-641 — never `display: none`).
 
 **Multiple stuck windows for one element**:
+
 - Each window contributes an overlay group with its own visibility timeline. A sticky element that re-sticks twice (rare but possible — two containers in sequence both have sticky descendants of the same type) emits two overlay groups.
 
 **z-order**:
+
 - The sticky overlay sits on top of the scrolling composite (same place the DM-643 fixed overlay sits), so it paints over scrolling content while it's stuck. This matches how Chromium composites the live page.
 
 ## Interaction with the DM-643 fixed overlay

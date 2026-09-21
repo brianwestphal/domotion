@@ -26,11 +26,7 @@ describe("projective paint quad activation", () => {
   });
 
   it("keeps affine matrix3d and inert SVG perspective vector-owned", () => {
-    const nodes = [
-      node(null, true, false),
-      node(0, true, false, 0),
-      node(1, true, false, 0),
-    ];
+    const nodes = [node(null, true, false), node(0, true, false, 0), node(1, true, false, 0)];
 
     expect(selectProjectiveRasterOwnerIndexes(nodes)).toEqual([]);
   });
@@ -52,8 +48,8 @@ describe("projective raster owner selection", () => {
     const nodes = [
       node(null, false, false), // outer inline SVG clone
       node(0, false, false, 0), // foreignObject
-      node(1, true, false, 0, true),  // HTML preserve-3d host
-      node(2, true, true, 0),   // projective HTML child
+      node(1, true, false, 0, true), // HTML preserve-3d host
+      node(2, true, true, 0), // projective HTML child
     ];
 
     expect(selectProjectiveRasterOwnerIndexes(nodes)).toEqual([0]);
@@ -62,29 +58,21 @@ describe("projective raster owner selection", () => {
   it("retains an already-owning HTML ancestor above an inline SVG", () => {
     const nodes = [
       node(null, true, false, null, true), // HTML preserve-3d context
-      node(0, true, true, 1),   // atomic inline SVG root
-      node(1, true, true, 1),   // projective foreignObject descendant
+      node(0, true, true, 1), // atomic inline SVG root
+      node(1, true, true, 1), // projective foreignObject descendant
     ];
 
     expect(selectProjectiveRasterOwnerIndexes(nodes)).toEqual([0]);
   });
 
   it("coalesces nested projective planes and distinct clone descendants", () => {
-    const nodes = [
-      node(null, true, true, null, true),
-      node(0, true, true),
-      node(0, true, true),
-    ];
+    const nodes = [node(null, true, true, null, true), node(0, true, true), node(0, true, true)];
 
     expect(selectProjectiveRasterOwnerIndexes(nodes)).toEqual([0]);
   });
 
   it("keeps independent projective contexts as independent owners", () => {
-    const nodes = [
-      node(null, false, false),
-      node(0, true, true),
-      node(0, true, true),
-    ];
+    const nodes = [node(null, false, false), node(0, true, true), node(0, true, true)];
 
     expect(selectProjectiveRasterOwnerIndexes(nodes)).toEqual([1, 2]);
   });
@@ -93,7 +81,7 @@ describe("projective raster owner selection", () => {
     const nodes = [
       node(null, true, false), // perspective host, but no used preserve-3d
       node(0, true, true),
-      node(0, true, false),   // flat intermediary
+      node(0, true, false), // flat intermediary
       node(2, true, true),
     ];
 
@@ -112,10 +100,7 @@ describe("projective raster owner selection", () => {
   });
 
   it("falls back to the conservative influenced surface for unknown used style", () => {
-    const nodes = [
-      node(null, true, false, null, null),
-      node(0, true, true),
-    ];
+    const nodes = [node(null, true, false, null, null), node(0, true, true)];
 
     expect(selectProjectiveRasterOwnerIndexes(nodes)).toEqual([0]);
   });

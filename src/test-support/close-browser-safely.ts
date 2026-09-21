@@ -29,15 +29,26 @@ export async function closeBrowserSafely(browser: Browser | null | undefined, ti
  * calls `browser.close()`) against the same deadline, so a hung Chromium-close
  * inside it can't stall teardown. `browser` is accepted for call-site symmetry.
  */
-export async function closeSafely(closeFn: () => Promise<void>, _browser?: Browser | null, timeoutMs = ABANDON_MS): Promise<void> {
+export async function closeSafely(
+  closeFn: () => Promise<void>,
+  _browser?: Browser | null,
+  timeoutMs = ABANDON_MS,
+): Promise<void> {
   await raceWithDeadline(closeFn, timeoutMs);
 }
 
 async function raceWithDeadline(fn: () => Promise<void>, timeoutMs: number): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, timeoutMs); });
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
   try {
-    await Promise.race([Promise.resolve().then(fn).catch(() => {}), deadline]);
+    await Promise.race([
+      Promise.resolve()
+        .then(fn)
+        .catch(() => {}),
+      deadline,
+    ]);
   } finally {
     if (timer) clearTimeout(timer);
   }

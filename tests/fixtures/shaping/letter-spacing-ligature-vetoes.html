@@ -1,5 +1,5 @@
 <!doctype html>
-<meta charset="utf-8">
+<meta charset="utf-8" />
 <title>letter-spacing and text-rendering disable ligatures</title>
 <!--
   Shaping-oracle fixture (tools/shaping-conformance.ts extracts its runs).
@@ -51,12 +51,26 @@
   by it.
 -->
 <style>
-  body { font-size: 24px; margin: 16px; }
-  .times { font-family: Times, serif; }
-  .helv { font-family: Helvetica, sans-serif; }
-  .ls { letter-spacing: 2px; }
-  .speed { text-rendering: optimizeSpeed; }
-  .ls-liga { letter-spacing: 2px; font-variant-ligatures: common-ligatures; }
+  body {
+    font-size: 24px;
+    margin: 16px;
+  }
+  .times {
+    font-family: Times, serif;
+  }
+  .helv {
+    font-family: Helvetica, sans-serif;
+  }
+  .ls {
+    letter-spacing: 2px;
+  }
+  .speed {
+    text-rendering: optimizeSpeed;
+  }
+  .ls-liga {
+    letter-spacing: 2px;
+    font-variant-ligatures: common-ligatures;
+  }
 </style>
 
 <div class="times">office</div>

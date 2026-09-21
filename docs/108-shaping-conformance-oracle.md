@@ -3,18 +3,28 @@ id: "requirements/shaping-conformance-oracle"
 title: "108 — Shaping conformance oracle"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release","product-tooling"]
+owners: ["text-fonts", "platform-release", "product-tooling"]
 platforms: ["macos"]
-tickets: ["DM-1964","DM-2521"]
-code: ["tests/fixtures/shaping","tests/fixtures/shaping/letter-spacing-ligature-vetoes.html","tests/fixtures/variable-axis/variable-axis.html","tests/shaping-corpus-fontface-exclusion.e2e.test.ts","tests/variable-axis-oracle-pair.e2e.test.ts","tools/shaping-conformance-runs.json","tools/shaping-conformance.ts","tools/variable-axis-oracle-pair.ts"]
-aliases: ["docs/108-shaping-conformance-oracle.md","doc-108"]
+tickets: ["DM-1964", "DM-2521"]
+code:
+  [
+    "tests/fixtures/shaping",
+    "tests/fixtures/shaping/letter-spacing-ligature-vetoes.html",
+    "tests/fixtures/variable-axis/variable-axis.html",
+    "tests/shaping-corpus-fontface-exclusion.e2e.test.ts",
+    "tests/variable-axis-oracle-pair.e2e.test.ts",
+    "tools/shaping-conformance-runs.json",
+    "tools/shaping-conformance.ts",
+    "tools/variable-axis-oracle-pair.ts",
+  ]
+aliases: ["docs/108-shaping-conformance-oracle.md", "doc-108"]
 ---
 
 # 108 — Shaping conformance oracle
 
 `tools/shaping-conformance.ts` · `npm run fonts:shaping`
 
-The sibling of the face oracle ([doc 107](107-font-conformance-oracle.md)). That one answers *which font*; this one answers *which glyphs, where*.
+The sibling of the face oracle ([doc 107](107-font-conformance-oracle.md)). That one answers _which font_; this one answers _which glyphs, where_.
 
 ## Why it exists
 
@@ -31,10 +41,10 @@ It also gates the shaping work: replacing fontkit's `layout()` with harfbuzzjs a
 
 ## What each side is asked
 
-| | source |
-| --- | --- |
-| **Chrome** | CDP `CSS.getPlatformFontsForNode` → glyph count per face; `Range.getClientRects()` per source character → geometry |
-| **Ours** | production-selected run provenance before paint suppression → logical gids/clusters/source spans/count; the `<text x="x0 x1 …">` list remains the painted-origin leg |
+|            | source                                                                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Chrome** | CDP `CSS.getPlatformFontsForNode` → glyph count per face; `Range.getClientRects()` per source character → geometry                                                   |
+| **Ours**   | production-selected run provenance before paint suppression → logical gids/clusters/source spans/count; the `<text x="x0 x1 …">` list remains the painted-origin leg |
 
 **CDP does not expose glyph IDs.** There is no glyph-level CDP domain (checked against `Schema.getDomains`), and `getPlatformFontsForNode` carries only `familyName` / `postScriptName` / `isCustomFont` / `glyphCount`. Domotion's side records the exact gid/cluster/source span from the production-selected concrete face. For a standalone default-ignorable, a fail-closed source-equivalent control additionally requires that gid to equal the selected face's U+0020 gid, with zero advance and offsets, matching pinned HarfBuzz's `hb_ot_hide_default_ignorables` branch.
 
@@ -44,17 +54,17 @@ Our side still comes from the renderer's **real production route**, not a parall
 
 Agreement is tiered, and the tiers are the point — a single pass/fail number would hide both the findings and the blind spots.
 
-| Tier | Meaning |
-| --- | --- |
-| `agree-exact` | same glyph count, every comparable position within tolerance |
-| `agree-count` | same glyph count, comparable positions **differ** — this is the mark-offset tier |
-| `agree-count-clustered` | same glyph count, positions **not comparable** (see below) |
-| `mismatch-count` | different glyph count — a shaping decision differs |
-| `mismatch-unrendered` | we produced nothing for a run Chrome painted |
+| Tier                    | Meaning                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `agree-exact`           | same glyph count, every comparable position within tolerance                     |
+| `agree-count`           | same glyph count, comparable positions **differ** — this is the mark-offset tier |
+| `agree-count-clustered` | same glyph count, positions **not comparable** (see below)                       |
+| `mismatch-count`        | different glyph count — a shaping decision differs                               |
+| `mismatch-unrendered`   | we produced nothing for a run Chrome painted                                     |
 
 `agree-count` rows are recorded in full in `report.json`, not merely tallied: it is the tier a 3px mark misplacement lands in, and a tier you can only see the size of is one nobody acts on. The summary also prints the median / p90 / max position delta across it.
 
-`report.json`'s `meta` also records **`chromium`** — the build that produced Chrome's side, read from `browser.version()` on the launched binary rather than from Playwright's declared revision, which is not a promise about what actually runs. This oracle grades Blink's behavior, so two runs under different browsers are two different oracles, and every other field in `meta` can match while that is true. The face oracle (doc 107) records the same field and *refuses to judge* across a change; this one has no committed baseline yet, so it records without gating — when a baseline lands, the field is already there to key on rather than something to add retroactively.
+`report.json`'s `meta` also records **`chromium`** — the build that produced Chrome's side, read from `browser.version()` on the launched binary rather than from Playwright's declared revision, which is not a promise about what actually runs. This oracle grades Blink's behavior, so two runs under different browsers are two different oracles, and every other field in `meta` can match while that is true. The face oracle (doc 107) records the same field and _refuses to judge_ across a change; this one has no committed baseline yet, so it records without gating — when a baseline lands, the field is already there to key on rather than something to add retroactively.
 
 ### The structural blind spot, stated plainly
 
@@ -64,7 +74,7 @@ Chrome reports one x per **source character**; we report one per **glyph**. When
 
 **Derived, not authored.** `--extract-runs` walks the fixture corpus, and for every text node records `(text, fontFamily, fontSize, fontWeight, fontStyle, fontVariationSettings, fontStretch, fontFeatureSettings, fontVariantAlternates, letterSpacing, textRendering, fontVariantLigatures)` from the element's **computed** style. For a named alternate it also carries the relevant family-scoped `@font-feature-values` table and its exact resolved OpenType feature list. A hand-written list of "interesting" strings is precisely the sampled artifact this tool replaces — it would contain only the cases someone already thought of.
 
-Runs are filtered to non-empty, ≤24 characters, and **whitespace-free**. The last is not cosmetic: Chrome's `glyphCount` includes the space glyphs HarfBuzz produced, while our renderer usually emits no position for them (no ink) — but **does** on at least one path (measured: the emoji path emits one entry per character, spaces included). Normalizing by subtracting the whitespace count papers over that with an assumption that is false somewhere, so the corpus excludes the question instead. Nothing is lost for shaping: ligatures, joining, reordering and mark attachment are all *within-word* phenomena, and a space is a word boundary.
+Runs are filtered to non-empty, ≤24 characters, and **whitespace-free**. The last is not cosmetic: Chrome's `glyphCount` includes the space glyphs HarfBuzz produced, while our renderer usually emits no position for them (no ink) — but **does** on at least one path (measured: the emoji path emits one entry per character, spaces included). Normalizing by subtracting the whitespace count papers over that with an assumption that is false somewhere, so the corpus excludes the question instead. Nothing is lost for shaping: ligatures, joining, reordering and mark attachment are all _within-word_ phenomena, and a space is a word boundary.
 
 A run whose family is defined by an **unretained `@font-face` rule** is dropped as well. The exact exception is one self-contained base64 data-URL face: those bytes travel into Chrome's synthesized page and are registered with Domotion. `local()`, remote/file URLs, and multiple declarations for one family still cannot travel faithfully and remain excluded. Otherwise both sides can fall through and agree about a font the fixture never painted. Measured on `20-font-face.html` (`local(...)` only), the fixture paints Georgia/Menlo while the probe page paints Times/Courier, yet the 32 runs scored 28 `agree-exact` / 4 `agree-count`. `tests/shaping-corpus-fontface-exclusion.e2e.test.ts` pins that refusal and its no-`@font-face` positive control; doc 204's real WPT face pins the retained data-URL path.
 
@@ -89,10 +99,10 @@ keyword path: Times and Helvetica, whose common ligatures fire, under each veto.
 Measured over CDP at 24px (macOS, Chromium 147.0.7727.15) — `plain` is the
 ligated count and every veto column gives the un-ligated one:
 
-| word | plain | letter-spacing | optimizeSpeed | letter-spacing + `common-ligatures` |
-| --- | --- | --- | --- | --- |
-| `office` / `waffle` / `flight` | 5 | 6 | 6 | 6 |
-| `affix` | 4 | 5 | 5 | 5 |
+| word                           | plain | letter-spacing | optimizeSpeed | letter-spacing + `common-ligatures` |
+| ------------------------------ | ----- | -------------- | ------------- | ----------------------------------- |
+| `office` / `waffle` / `flight` | 5     | 6              | 6             | 6                                   |
+| `affix`                        | 4     | 5              | 5             | 5                                   |
 
 **Confirmed in the loop, not merely plumbed.** Per the standing rule that a flag
 being on is not evidence a mechanism runs, the sweep was scored twice — once with
@@ -122,19 +132,19 @@ unaffected by it and is the axis these vetoes actually move.
 Two measurements shaped this, and the second was the surprise:
 
 - **Most declared axes are inert.** Of the 13 text runs in the fixture corpus rendering under a non-normal axis, 9 resolve to Georgia — not a variable face — and stripping the axis moves nothing. This matches what the face oracle found when stretch and variation settings were added to its stack key: 17 new stacks, 0 mismatches.
-- **The movers need no webfont.** The `.var-stack` runs in `20-deep-font-palette.html` declare `font-family: "Inter Variable", system-ui, sans-serif`. "Inter Variable" is not installed, so the stack falls through to `system-ui` — macOS SF, which *is* variable and *does* respond. Stripping the axes moves Chrome's painted width by **76.27px** and **3.56px**.
+- **The movers need no webfont.** The `.var-stack` runs in `20-deep-font-palette.html` declare `font-family: "Inter Variable", system-ui, sans-serif`. "Inter Variable" is not installed, so the stack falls through to `system-ui` — macOS SF, which _is_ variable and _does_ respond. Stripping the axes moves Chrome's painted width by **76.27px** and **3.56px**.
 
 That second point matters because the expectation going in was that only a webfont could move an axis, which would have made this work depend on webfont support the corpus does not exercise. It does not.
 
-A third obstacle was not anticipated at all: **every one of the 11 axis-declaring text nodes in `external/html-test` contains a space**, so the whitespace filter dropped all of them. Recording the axis alone would have widened the schema and changed nothing — the corpus measured 0 axis-bearing runs. Axis-bearing nodes therefore have their text **split on whitespace** rather than dropped, which preserves the whitespace-free invariant exactly (each word contains no space) and rests on the same word-boundary argument the filter itself does. The split is applied *only* to axis-bearing nodes deliberately: splitting every node grows the corpus 10.95× (2,385 → 26,121 runs), which is a separate question about sweep breadth. The corpus is 2,417 runs, 32 of them axis-bearing.
+A third obstacle was not anticipated at all: **every one of the 11 axis-declaring text nodes in `external/html-test` contains a space**, so the whitespace filter dropped all of them. Recording the axis alone would have widened the schema and changed nothing — the corpus measured 0 axis-bearing runs. Axis-bearing nodes therefore have their text **split on whitespace** rather than dropped, which preserves the whitespace-free invariant exactly (each word contains no space) and rests on the same word-boundary argument the filter itself does. The split is applied _only_ to axis-bearing nodes deliberately: splitting every node grows the corpus 10.95× (2,385 → 26,121 runs), which is a separate question about sweep breadth. The corpus is 2,417 runs, 32 of them axis-bearing.
 
 **The mechanism is confirmed in the loop, not merely enabled.** Per the standing rule that a flag being on is not evidence a mechanism runs, the axis runs were scored twice — once with the axis plumbed through both sides and once with it stripped — and the answer was required to move. It moved on exactly the 12 `system-ui` runs and on none of the 20 Georgia ones, which is the correct partition. Chrome's reported face name is the direct evidence, and it encodes the applied coordinates as **hex 16.16 fixed point**:
 
-| declared | Chrome's face | decoded |
-| --- | --- | --- |
-| *(none)* | `.SFNS-Regular` | default instance |
-| `"opsz" 32, "wdth" 120, "wght" 700` | `.SFNS-Regular_wdth780000_opsz200000_GRAD_wght2BC0000` | wdth 120, opsz 32, wght 700 |
-| `"opsz" 14, "wdth" 80, "wght" 300` | `.SFNS-Regular_wdth500000_opsz110000_GRAD_wght12C0000` | wdth 80, opsz **17**, wght 300 |
+| declared                            | Chrome's face                                          | decoded                        |
+| ----------------------------------- | ------------------------------------------------------ | ------------------------------ |
+| _(none)_                            | `.SFNS-Regular`                                        | default instance               |
+| `"opsz" 32, "wdth" 120, "wght" 700` | `.SFNS-Regular_wdth780000_opsz200000_GRAD_wght2BC0000` | wdth 120, opsz 32, wght 700    |
+| `"opsz" 14, "wdth" 80, "wght" 300`  | `.SFNS-Regular_wdth500000_opsz110000_GRAD_wght12C0000` | wdth 80, opsz **17**, wght 300 |
 
 The last row is worth reading carefully: `opsz110000` is 0x110000/65536 = **17.0**, not decimal 11 — and 17 is not what the page asked for. The requested `opsz 14` was clamped up to the bottom of the face's `[17..28]` optical-size range. Skia does that clamp with `SkTPin<double>(position.coordinates[j].value, minDouble, maxDouble)` in `ctvariation_from_SkFontArguments` (`src/ports/SkTypeface_mac_ct.cpp:1147`, checkout `ebf5052`), independently of Blink's own clamp on the way in. Our positions track Chrome's to within **0.01px** on all four instanced runs, so the renderer resolves to the same clamped instance — a parity claim that was previously unmeasured rather than merely unverified.
 
@@ -152,14 +162,14 @@ Positive control: the tool reports the glyph counts hand-measured against Chrome
 
 Full derived corpus from `external/html-test`:
 
-| | 2026-07-30 | 2026-08-04 | 2026-08-05 |
-| --- | ---: | ---: | ---: |
-| runs | 2,385 | 2,417 | 2,454 |
-| agree exact | 2,023 (84.8%) | 2,387 (98.8%) | 2,424 (98.8%) |
-| agree count-only | 348 (14.6%) | 16 (0.7%) | 16 (0.7%) |
-| agree clustered | 13 (0.5%) | 13 (0.5%) | 13 (0.5%) |
-| MISMATCH count | 1 | 0 | 0 |
-| MISMATCH unrendered | 0 | 1 | 1 |
+|                                   |                              2026-07-30 |                              2026-08-04 |                              2026-08-05 |
+| --------------------------------- | --------------------------------------: | --------------------------------------: | --------------------------------------: |
+| runs                              |                                   2,385 |                                   2,417 |                                   2,454 |
+| agree exact                       |                           2,023 (84.8%) |                           2,387 (98.8%) |                           2,424 (98.8%) |
+| agree count-only                  |                             348 (14.6%) |                               16 (0.7%) |                               16 (0.7%) |
+| agree clustered                   |                               13 (0.5%) |                               13 (0.5%) |                               13 (0.5%) |
+| MISMATCH count                    |                                       1 |                                       0 |                                       0 |
+| MISMATCH unrendered               |                                       0 |                                       1 |                                       1 |
 | position deltas across count-only | median 1.20px · p90 2.82px · max 5.64px | median 0.88px · p90 2.57px · max 2.94px | median 0.88px · p90 2.57px · max 2.94px |
 
 The 2026-08-05 column is the committed corpus after the `font-stretch` re-extraction took it from 2,417 to 2,454 runs; the 37 added runs land wholly in `agree-exact` and every other tier is unchanged.
@@ -172,15 +182,15 @@ Read the count-only tier first: those runs shape to **visibly different glyph po
 
 Doc 107 has always said that its name-blindness for variable faces is covered here, because one PostScript name spans a variable font's whole design space and only positions can tell two instances apart. That was an argument. Nothing in either corpus drove an axis Chrome honors: macOS Helvetica has no `wdth` axis, so Chrome's painted width for `sans-serif` is identical at every `font-stretch` 50–200% and unchanged across `"wght" 100` ↔ `"wght" 900`.
 
-> **Correction (2026-08).** This paragraph used to extend that claim with "even on `system-ui`, whose SFNS file *is* variable." **That was wrong, and the way it was wrong is worth keeping.** macOS `system-ui` responds to both axes, and strongly:
+> **Correction (2026-08).** This paragraph used to extend that claim with "even on `system-ui`, whose SFNS file _is_ variable." **That was wrong, and the way it was wrong is worth keeping.** macOS `system-ui` responds to both axes, and strongly:
 >
-> | `system-ui`, 26px | width | face |
-> | --- | ---: | --- |
-> | *(default)* | 192.17 | `.SFNS-Regular` |
-> | `"wght" 100` | 181.00 | `.SFNS-Regular_wdth_opsz1A0000_GRAD_wght640000` |
-> | `"wght" 900` | 223.02 | `.SFNS-Regular_wdth_opsz1A0000_GRAD_wght3840000` |
-> | `font-stretch: 50%` | 133.52 | `.SFNS-Regular_wdth320000_opsz1A0000_GRAD_wght` |
-> | `font-stretch: 200%` | 272.70 | `.SFNS-Regular_wdth960000_opsz1A0000_GRAD_wght` |
+> | `system-ui`, 26px    |  width | face                                             |
+> | -------------------- | -----: | ------------------------------------------------ |
+> | _(default)_          | 192.17 | `.SFNS-Regular`                                  |
+> | `"wght" 100`         | 181.00 | `.SFNS-Regular_wdth_opsz1A0000_GRAD_wght640000`  |
+> | `"wght" 900`         | 223.02 | `.SFNS-Regular_wdth_opsz1A0000_GRAD_wght3840000` |
+> | `font-stretch: 50%`  | 133.52 | `.SFNS-Regular_wdth320000_opsz1A0000_GRAD_wght`  |
+> | `font-stretch: 200%` | 272.70 | `.SFNS-Regular_wdth960000_opsz1A0000_GRAD_wght`  |
 >
 > The original probe almost certainly wrote `font-variation-settings:"wght" 100` straight into an inline `style` attribute. The `"` **terminates the attribute**, so the property never reaches the page — the element renders at the default instance and the probe reports "no response" for every axis value. The same bug was reproduced while writing this section: an unescaped probe said all ten `system-ui` axis cases were inert, and escaping the quotes to `&quot;` moved every one of them. A negative result from a probe is only as good as the proof that the input arrived.
 >
@@ -191,13 +201,13 @@ Decoding those names confirms two mechanisms the corpus now depends on. `wght640
 `tests/fixtures/variable-axis/variable-axis.html` (a subset of variable Open Sans as a webfont, `fvar`/`gvar` intact) supplies the missing case, and `tools/variable-axis-oracle-pair.ts` runs **this tool's own `compareShaping`** and the face oracle's own `identifyFace` over every pair of instances. The full table is in [doc 107](107-font-conformance-oracle.md#the-variable-axis-blind-spot-measured-rather-than-asserted); the part that concerns this tool:
 
 | our instance vs Chrome's | `compareShaping` | max position delta |
-| --- | --- | ---: |
-| same | `agree-exact` | 0.01 px |
-| `wght 800` vs default | `agree-count` | 39.56 px |
-| `wdth 75` vs default | `agree-count` | 97.83 px |
-| `wdth 75` vs `wght 800` | `agree-count` | 137.39 px |
+| ------------------------ | ---------------- | -----------------: |
+| same                     | `agree-exact`    |            0.01 px |
+| `wght 800` vs default    | `agree-count`    |           39.56 px |
+| `wdth 75` vs default     | `agree-count`    |           97.83 px |
+| `wdth 75` vs `wght 800`  | `agree-count`    |          137.39 px |
 
-Two things worth carrying away. The discrimination is not marginal — 0.01 px against 39–137 px, where this tool's whole macOS baseline tops out at 5.64 px — so it is not a threshold-tuning result. And it lands in `agree-count`, the tier this document already argues is the interesting one: same glyph count, positions differ. A wrong variable instance is a *geometry* defect with no shaping decision behind it, which is precisely the shape `agree-count` exists to name.
+Two things worth carrying away. The discrimination is not marginal — 0.01 px against 39–137 px, where this tool's whole macOS baseline tops out at 5.64 px — so it is not a threshold-tuning result. And it lands in `agree-count`, the tier this document already argues is the interesting one: same glyph count, positions differ. A wrong variable instance is a _geometry_ defect with no shaping decision behind it, which is precisely the shape `agree-count` exists to name.
 
 The corollary for `agree-count` reading generally: a row in that tier can mean a mark attached 3 px wrong **or** the right glyphs painted from the wrong point in a design space. Both are real; they want different fixes.
 
@@ -220,37 +230,37 @@ Pinned by `tests/variable-axis-oracle-pair.e2e.test.ts`.
 
 ## Universal whitespace splitting — measured, and declined
 
-The corpus splits only axis- and feature-bearing nodes on whitespace; every other node must be whitespace-free *as a whole* or it is dropped. `--split-words` widens the split to every node, and exists so this decision is reproducible rather than a number in a changelog.
+The corpus splits only axis- and feature-bearing nodes on whitespace; every other node must be whitespace-free _as a whole_ or it is dropped. `--split-words` widens the split to every node, and exists so this decision is reproducible rather than a number in a changelog.
 
 Measured on macOS against `external/html-test`, both corpora swept at the same commit on the same machine:
 
-| | default | `--split-words` |
-| --- | ---: | ---: |
-| runs | 2,454 | 26,140 (**10.65×**) |
-| sweep wall | 7.3 s | 55.8 s |
-| agree exact | 2,424 | 25,453 |
-| agree count-only | 16 | 158 |
-| agree clustered | 13 | 522 |
-| MISMATCH count | 0 | 6 |
-| MISMATCH unrendered | 1 | 1 |
-| distinct disagreeing routes | 1 | 6 |
+|                             | default |     `--split-words` |
+| --------------------------- | ------: | ------------------: |
+| runs                        |   2,454 | 26,140 (**10.65×**) |
+| sweep wall                  |   7.3 s |              55.8 s |
+| agree exact                 |   2,424 |              25,453 |
+| agree count-only            |      16 |                 158 |
+| agree clustered             |      13 |                 522 |
+| MISMATCH count              |       0 |                   6 |
+| MISMATCH unrendered         |       1 |                   1 |
+| distinct disagreeing routes |       1 |                   6 |
 
 Two controls first, because the comparison is worthless without them. The split corpus is a **strict superset** — all 2,454 default runs are present — and every one of them received an **identical verdict** on both sweeps (0 changes). So the instrument is deterministic across the two runs and the added runs are genuinely added, not a reshuffle.
 
 **The new runs concentrate overwhelmingly in `agree-exact`: 23,029 of 23,686, or 97.23%.** The rest:
 
-- **142 new `agree-count`** rows — median **0.59 px**, p90 **1.17 px**, max **4.00 px**. That distribution is *tighter* than the tier the default corpus already reports (median 0.88, p90 2.57, max 2.94), and the nine rows above 2 px are all emoji-adjacent mixed runs (`Times-Roman×n + AppleColorEmoji×1`) — the class the corpus's one pre-existing hard mismatch already names. No new defect class appears.
+- **142 new `agree-count`** rows — median **0.59 px**, p90 **1.17 px**, max **4.00 px**. That distribution is _tighter_ than the tier the default corpus already reports (median 0.88, p90 2.57, max 2.94), and the nine rows above 2 px are all emoji-adjacent mixed runs (`Times-Roman×n + AppleColorEmoji×1`) — the class the corpus's one pre-existing hard mismatch already names. No new defect class appears.
 - **509 new `agree-count-clustered`** rows, whose positions are unchecked by construction.
 - **6 new `mismatch-count`** rows across 5 routes the default corpus never sees — and **all six are instrument artifacts, not shaping defects.**
 
-That last point exposed an oracle boundary later closed by DM-2521. The six are `de{U+00AD}spite`, `hand{U+00AD}ling`, `prov{U+00AD}a{U+00AD}tion`, `situa{U+00AD}tion`, `{U+202E}ABCDEFG{U+202C}` and `{U+202D}ABCDEFG{U+202C}` — every one a **Unicode default-ignorable** that Chrome counts logically while both renderers correctly paint nothing. HarfBuzz retains rather than deletes them: unless `HB_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES` is set, `hb_ot_hide_default_ignorables` *replaces* each with a **zero-advance invisible glyph** (`hb-ot-shape.cc:824-847`, checkout `4de187d`), and Blink never calls `hb_buffer_set_flags` at all, so the default applies. The oracle formerly equated an absent painted `<text x>` entry with an absent logical glyph; it now counts production provenance and keeps paint suppression separate. Confirmed by probe rather than by reading alone:
+That last point exposed an oracle boundary later closed by DM-2521. The six are `de{U+00AD}spite`, `hand{U+00AD}ling`, `prov{U+00AD}a{U+00AD}tion`, `situa{U+00AD}tion`, `{U+202E}ABCDEFG{U+202C}` and `{U+202D}ABCDEFG{U+202C}` — every one a **Unicode default-ignorable** that Chrome counts logically while both renderers correctly paint nothing. HarfBuzz retains rather than deletes them: unless `HB_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES` is set, `hb_ot_hide_default_ignorables` _replaces_ each with a **zero-advance invisible glyph** (`hb-ot-shape.cc:824-847`, checkout `4de187d`), and Blink never calls `hb_buffer_set_flags` at all, so the default applies. The oracle formerly equated an absent painted `<text x>` entry with an absent logical glyph; it now counts production provenance and keeps paint suppression separate. Confirmed by probe rather than by reading alone:
 
-| run | Chrome glyphs | ink width |
-| --- | ---: | ---: |
-| `despite` | 7 | 45.16 |
-| `de{U+00AD}spite` | 8 | **45.16** |
-| `ABCDEFG` | 7 | 67.69 |
-| `{U+202E}ABCDEFG{U+202C}` | 9 | **67.69** |
+| run                       | Chrome glyphs | ink width |
+| ------------------------- | ------------: | --------: |
+| `despite`                 |             7 |     45.16 |
+| `de{U+00AD}spite`         |             8 | **45.16** |
+| `ABCDEFG`                 |             7 |     67.69 |
+| `{U+202E}ABCDEFG{U+202C}` |             9 | **67.69** |
 
 The extra glyphs sit at width 0 on the same x as their neighbor, and the painted ink is identical. They are now ordinary logical rows rather than excluded artifacts. A blanket ignorable exclusion remains forbidden because selectors attached to a base participate in presentation and fallback.
 
@@ -262,10 +272,10 @@ The other half of the same corpus-breadth question: should the oracle carry `@fo
 
 Asked of the corpus directly, via Chrome's own `CSS.getPlatformFontsForNode.isCustomFont` on each real fixture page — the only place the answer exists, since the oracle's probe page can never see a webfont:
 
-| | |
-| --- | ---: |
-| fixtures walked | 296 |
-| text-bearing elements probed | 8,880 |
+|                                         |       |
+| --------------------------------------- | ----: |
+| fixtures walked                         |   296 |
+| text-bearing elements probed            | 8,880 |
 | elements rendering in a **custom** face | **0** |
 
 A zero from a freshly written probe is the shape that hides a dead instrument, so it carries a positive control: the same probe reports **3** custom-font entries on `tests/fixtures/variable-axis/variable-axis.html` (`Open Sans` as `OpenSans-Regular`, `OpenSansRoman-ExtraBold`, `OpenSansRoman-CondensedRegular`). The instrument is live; the zero is real.
@@ -278,7 +288,7 @@ Doc 204 supplies the changed calculus: a licensed, pinned WPT face with real nam
 
 ## `font-feature-settings` — the property this oracle owns, and a negative result with a control
 
-`font-feature-settings` is the one font property the face oracle deliberately declines to adjudicate: it is absent from `FontDescription::CacheKey`, so it cannot change which face Chrome reports, and its only reader appends it to the HarfBuzz feature array at shaping time (`FontFeatureRange::FromFontDescription`, `platform/fonts/shaping/font_features.cc:33`, the settings loop at `:203-225`, Chromium `7d859f27`). Doc 107 points here for the consequence. Until now the run corpus did not record the property at all, so the one instrument that *can* see a feature-driven substitution had no idea whether a fixture had asked for one — both sides shaped without features and scored agreement that meant nothing.
+`font-feature-settings` is the one font property the face oracle deliberately declines to adjudicate: it is absent from `FontDescription::CacheKey`, so it cannot change which face Chrome reports, and its only reader appends it to the HarfBuzz feature array at shaping time (`FontFeatureRange::FromFontDescription`, `platform/fonts/shaping/font_features.cc:33`, the settings loop at `:203-225`, Chromium `7d859f27`). Doc 107 points here for the consequence. Until now the run corpus did not record the property at all, so the one instrument that _can_ see a feature-driven substitution had no idea whether a fixture had asked for one — both sides shaped without features and scored agreement that meant nothing.
 
 The property is now extracted, declared on Chrome's probe page, and parsed into `renderTextAsPath`'s `features` argument with the **same** `parseFontFeatureSettings` the renderer uses on a real capture. Feature-bearing nodes get the whitespace split axis-bearing ones already had, for the same reason: the fixtures demonstrate ligatures and numeral styles with multi-word samples, so whole-node filtering would have dropped every one and left the field recorded-but-never-swept.
 
@@ -288,7 +298,7 @@ That is a negative result, and a negative result from a newly-added mechanism is
 
 - **Our side does respond to features.** `renderTextAsPath` on `Times` and on `Helvetica` with `["smcp"]` produces different `<text>` output than without it. The `features` argument reaches fontkit's `layout()`.
 - **Chrome's side does too, and the oracle can see it.** On `system-ui` the verdict moves `agree-exact` → `agree-count` under `"frac" 1`, `"smcp" 1` and `"tnum" 1` — Chrome's painted width for `1/2 3/4` goes 97.86px → 58.66px under `frac`, `hamburgefonstiv` 231.30 → 255.36 under `smcp`, `0123456789` 188.64 → 197.50 under `tnum`.
-- **The corpus's own runs land somewhere else.** All 29 resolve to Georgia or Menlo, and those faces do not implement the features the fixtures declare (`liga`/`dlig`, `zero`, `ss01`, `ss02`, `salt`, `tnum`). Chrome's glyph count is unchanged with the features on *and* off, so there is nothing for either side to disagree about.
+- **The corpus's own runs land somewhere else.** All 29 resolve to Georgia or Menlo, and those faces do not implement the features the fixtures declare (`liga`/`dlig`, `zero`, `ss01`, `ss02`, `salt`, `tnum`). Chrome's glyph count is unchanged with the features on _and_ off, so there is nothing for either side to disagree about.
 
 So the zero is real: the fixtures ask for features from fonts that do not have them. At the time of that measurement the corpus also could not exercise a **known divergence** this instrument exists to grade — `parseFontFeatureSettings` dropped `0`/`off` entries entirely, because fontkit takes an enable-only list and cannot disable a default-on feature. The corpus contained `"dlig" 0, "liga" 0` only on Georgia, whose ligatures do not fire for those samples in Chrome either (`office` and `waffle` are 6 glyphs both ways), so the divergence stayed invisible.
 

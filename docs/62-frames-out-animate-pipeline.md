@@ -5,9 +5,17 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1128","DM-1130","DM-1135","DM-1136","DM-1137","DM-1138","DM-2641"]
-code: ["src/animation/animator.ts","src/animation/svg-generator.ts","src/cli/animate-capture-session.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
-aliases: ["docs/62-frames-out-animate-pipeline.md","doc-62"]
+tickets: ["DM-1128", "DM-1130", "DM-1135", "DM-1136", "DM-1137", "DM-1138", "DM-2641"]
+code:
+  [
+    "src/animation/animator.ts",
+    "src/animation/svg-generator.ts",
+    "src/cli/animate-capture-session.ts",
+    "src/cli/animate-frame-capture.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate.ts",
+  ]
+aliases: ["docs/62-frames-out-animate-pipeline.md", "doc-62"]
 ---
 
 # 62 — Frames-out / per-frame hook for the declarative animate pipeline
@@ -52,8 +60,13 @@ it assembles exactly the argument object that `generateAnimatedSvg` consumes:
 ```ts
 // (today, inlined at the tail of composeAnimateConfig)
 return generateAnimatedSvg({
-  width: cfg.width, height: cfg.height,
-  frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg,
+  width: cfg.width,
+  height: cfg.height,
+  frames,
+  fontFaceCss,
+  cursorOverlay,
+  resolveCursorAt,
+  background: canvasBg,
 });
 ```
 
@@ -83,10 +96,10 @@ const animation = await composeAnimateFrames(browser, cfg /*, configDir?, log? *
 
 // The caller is free to mutate before rendering:
 animation.frames[1].overlays = [...(animation.frames[1].overlays ?? []), myOverlay];
-animation.frames.splice(2, 1);                 // drop a frame
+animation.frames.splice(2, 1); // drop a frame
 animation.frames[0].svgContent += myWindowChrome;
 
-const svg = generateAnimatedSvg(animation);    // caller renders when ready
+const svg = generateAnimatedSvg(animation); // caller renders when ready
 ```
 
 - **Return type**: the existing `AnimationConfig`. No new public type to learn;
@@ -160,7 +173,7 @@ callers; (A) was chosen.)
 
 - **No frame-level re-render helper.** The frames-out variant hands back
   `svgContent` strings already rendered from each tree. A caller that needs to
-  edit the *tree* and re-render must call `elementTreeToSvgInner` themselves
+  edit the _tree_ and re-render must call `elementTreeToSvgInner` themselves
   (the same primitive the pipeline uses). Exposing a "render this tree the way
   the pipeline did" convenience is a possible later addition but is out of scope
   here; the lower-level primitive is already public.
@@ -186,7 +199,7 @@ callers; (A) was chosen.)
   shipped, see "Signature compatibility" above): the hook fires once per frame
   with the `index` / `tree` / mutability semantics described.
 - **Companion: DM-1135** (doc 63) — expose the action vocabulary + cursor
-  resolution as standalone primitives, closing the *other* half of the
+  resolution as standalone primitives, closing the _other_ half of the
   JSON ↔ programmatic gap (per-feature primitives vs the whole pipeline).
 
 ## Related

@@ -21,7 +21,7 @@ const out = await page.evaluate(() => {
     flMarginRight: ps.marginRight,
     flMarginTop: ps.marginTop,
     flMarginBottom: ps.marginBottom,
-    flBorderBoxSize: ps.borderBoxSize,  // unlikely populated for pseudos
+    flBorderBoxSize: ps.borderBoxSize, // unlikely populated for pseudos
     flInitialLetter: ps.initialLetter,
     flWebkitInitialLetter: ps.webkitInitialLetter,
   };

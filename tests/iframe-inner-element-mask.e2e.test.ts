@@ -23,7 +23,11 @@ import type { CapturedElement } from "../src/capture/types.js";
  */
 
 const env = await (async () => {
-  try { return { browser: await chromium.launch() }; } catch { return null; }
+  try {
+    return { browser: await chromium.launch() };
+  } catch {
+    return null;
+  }
 })();
 
 afterAll(async () => {
@@ -36,8 +40,16 @@ const describeBrowser = env ? describe : describe.skip;
 // element. Only the fields rasterizeMaskSources reads are populated.
 function rootWithMaskRaster(rid: string, rect: { x: number; y: number; w: number; h: number }): CapturedElement[] {
   const root = {
-    tag: "body", x: 0, y: 0, width: 300, height: 220, styles: {}, children: [],
-    maskRasters: [{ id: "t", rid, width: rect.w, height: rect.h, rect: { x: rect.x, y: rect.y, width: rect.w, height: rect.h } }],
+    tag: "body",
+    x: 0,
+    y: 0,
+    width: 300,
+    height: 220,
+    styles: {},
+    children: [],
+    maskRasters: [
+      { id: "t", rid, width: rect.w, height: rect.h, rect: { x: rect.x, y: rect.y, width: rect.w, height: rect.h } },
+    ],
   } as unknown as CapturedElement;
   return [root];
 }
@@ -73,7 +85,8 @@ describeBrowser("frame-aware mask-source rasterize (DM-1447)", () => {
       // in-frame overlay and not the BLUE top-doc overlay.
       const png = Buffer.from(raster.dataUri!.split(",")[1], "base64");
       const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
-      const cx = Math.floor(info.width / 2), cy = Math.floor(info.height / 2);
+      const cx = Math.floor(info.width / 2),
+        cy = Math.floor(info.height / 2);
       const i = (cy * info.width + cx) * info.channels;
       const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
       expect(r, `center should be red (got rgb(${r},${g},${b}))`).toBeGreaterThan(180);

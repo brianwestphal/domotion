@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  coveredFontResolution,
-  fontInstanceCacheKey,
-  genericSettingsFamilyName,
-} from "./font-resolution.js";
+import { coveredFontResolution, fontInstanceCacheKey, genericSettingsFamilyName } from "./font-resolution.js";
 
 describe("fontInstanceCacheKey", () => {
   it("canonicalizes variation-axis insertion order", () => {
@@ -43,7 +39,10 @@ describe("genericSettingsFamilyName", () => {
 describe("coveredFontResolution", () => {
   it("centralizes the successful fallback-stage wire shape", () => {
     expect(coveredFontResolution("fallback", null, "x", true)).toEqual({
-      key: "fallback", fontOverride: null, emitCh: "x", decomposed: true,
+      key: "fallback",
+      fontOverride: null,
+      emitCh: "x",
+      decomposed: true,
       covered: true,
     });
   });

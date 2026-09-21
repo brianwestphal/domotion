@@ -26,8 +26,7 @@ const d = MACOS_FONTS ? describe : describe.skip;
 const FONT = { fontSize: 18, fontFamily: "Helvetica", fontWeight: "400" };
 const BAND = { decorationCenterYRel: 1.5, decorationThickness: 1 };
 
-const gapsFor = (text: string, over: Partial<typeof BAND> = {}) =>
-  computeSkipInkGaps(text, FONT, { ...BAND, ...over });
+const gapsFor = (text: string, over: Partial<typeof BAND> = {}) => computeSkipInkGaps(text, FONT, { ...BAND, ...over });
 
 d("computeSkipInkGaps — excluded characters contribute no intercepts", () => {
   it("a CJK run produces zero gaps", () => {

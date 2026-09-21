@@ -6,8 +6,8 @@ import { FEATURES } from "../tests/feature-coverage.js";
 export const SEMANTIC_COVERAGE_VALUES = ["exact", "partial", "unsupported"] as const;
 export const SEMANTIC_PLATFORMS = ["darwin", "linux", "win32"] as const;
 
-export type SemanticCoverage = typeof SEMANTIC_COVERAGE_VALUES[number];
-export type SemanticPlatform = typeof SEMANTIC_PLATFORMS[number];
+export type SemanticCoverage = (typeof SEMANTIC_COVERAGE_VALUES)[number];
+export type SemanticPlatform = (typeof SEMANTIC_PLATFORMS)[number];
 
 export interface SemanticTransition {
   id: string;
@@ -40,16 +40,26 @@ export interface SemanticCoverageInventory {
 }
 
 const transitionSchema = z.object({
-  id: z.string(), parityAreas: z.array(z.string()), featureIds: z.array(z.string()),
-  subjects: z.array(z.string()), states: z.array(z.string()), exactStates: z.array(z.string()),
-  uncoveredStates: z.array(z.string()), upstreamSources: z.array(z.string()),
-  productionOwners: z.array(z.string()), oracles: z.array(z.string()),
-  metamorphicTests: z.array(z.string()), visualFixtures: z.array(z.string()),
-  verifiedPlatforms: z.array(z.enum(SEMANTIC_PLATFORMS)), coverage: z.enum(SEMANTIC_COVERAGE_VALUES),
+  id: z.string(),
+  parityAreas: z.array(z.string()),
+  featureIds: z.array(z.string()),
+  subjects: z.array(z.string()),
+  states: z.array(z.string()),
+  exactStates: z.array(z.string()),
+  uncoveredStates: z.array(z.string()),
+  upstreamSources: z.array(z.string()),
+  productionOwners: z.array(z.string()),
+  oracles: z.array(z.string()),
+  metamorphicTests: z.array(z.string()),
+  visualFixtures: z.array(z.string()),
+  verifiedPlatforms: z.array(z.enum(SEMANTIC_PLATFORMS)),
+  coverage: z.enum(SEMANTIC_COVERAGE_VALUES),
   boundary: z.string().optional(),
 });
 const inventorySchema = z.object({
-  schemaVersion: z.number(), contract: z.string(), transitions: z.array(transitionSchema),
+  schemaVersion: z.number(),
+  contract: z.string(),
+  transitions: z.array(transitionSchema),
   excludedFeatureTransitions: z.array(z.object({ featureId: z.string(), reason: z.string() })),
 });
 
@@ -87,7 +97,7 @@ export async function validateSemanticCoverage(
     const parity = JSON.parse(await readFile(resolve(root, "tools/parity-program.json"), "utf8")) as {
       areas?: Array<{ id?: string }>;
     };
-    parityAreaIds = new Set((parity.areas ?? []).flatMap((area) => area.id == null ? [] : [area.id]));
+    parityAreaIds = new Set((parity.areas ?? []).flatMap((area) => (area.id == null ? [] : [area.id])));
     const featureSource = await readFile(resolve(root, "tests/features.ts"), "utf8");
     featureFixtureIds = new Set([...featureSource.matchAll(/\bname:\s*["']([^"']+)["']/g)].map((match) => match[1]));
   } catch (error) {
@@ -132,10 +142,13 @@ export async function validateSemanticCoverage(
     for (const featureId of row.featureIds ?? []) {
       if (!featureIds.has(featureId)) errors.push(`${label}: unknown feature id ${featureId}`);
     }
-    if (!row.states?.length || row.states.some((state) => {
-      const sides = state.split("->");
-      return sides.length !== 2 || sides.some((side) => !side.trim());
-    })) {
+    if (
+      !row.states?.length ||
+      row.states.some((state) => {
+        const sides = state.split("->");
+        return sides.length !== 2 || sides.some((side) => !side.trim());
+      })
+    ) {
       errors.push(`${label}: every state must name exactly one nonempty transition with ->`);
     }
     const stateSet = new Set(row.states ?? []);
@@ -147,10 +160,12 @@ export async function validateSemanticCoverage(
     }
     for (const state of row.uncoveredStates ?? []) {
       if (!stateSet.has(state)) errors.push(`${label}: uncoveredStates contains unknown state ${state}`);
-      if (exactStateSet.has(state)) errors.push(`${label}: state appears in both exactStates and uncoveredStates: ${state}`);
+      if (exactStateSet.has(state))
+        errors.push(`${label}: state appears in both exactStates and uncoveredStates: ${state}`);
     }
     for (const state of row.states ?? []) {
-      if (!exactStateSet.has(state) && !uncoveredStateSet.has(state)) errors.push(`${label}: unclassified state ${state}`);
+      if (!exactStateSet.has(state) && !uncoveredStateSet.has(state))
+        errors.push(`${label}: unclassified state ${state}`);
     }
     if (!coverageValues.has(row.coverage)) errors.push(`${label}: invalid coverage ${String(row.coverage)}`);
     if (!row.verifiedPlatforms?.length || row.verifiedPlatforms.some((platform) => !platforms.has(platform))) {
@@ -182,7 +197,8 @@ export async function validateSemanticCoverage(
       ...(row.oracles ?? []),
       ...(row.metamorphicTests ?? []),
       ...(row.visualFixtures ?? []),
-    ]) await requirePath(ref, label);
+    ])
+      await requirePath(ref, label);
   }
 
   const claimedParityAreas = new Set((inventory.transitions ?? []).flatMap((row) => row.parityAreas ?? []));
@@ -194,8 +210,10 @@ export async function validateSemanticCoverage(
   for (const exclusion of inventory.excludedFeatureTransitions ?? []) {
     if (!featureIds.has(exclusion.featureId)) errors.push(`unknown excluded feature id: ${exclusion.featureId}`);
     if (!exclusion.reason?.trim()) errors.push(`excluded feature ${exclusion.featureId} must include a reason`);
-    if (excludedFeatureTransitions.has(exclusion.featureId)) errors.push(`duplicate excluded feature: ${exclusion.featureId}`);
-    if (linkedFeatureTransitions.has(exclusion.featureId)) errors.push(`feature ${exclusion.featureId} is both linked and excluded`);
+    if (excludedFeatureTransitions.has(exclusion.featureId))
+      errors.push(`duplicate excluded feature: ${exclusion.featureId}`);
+    if (linkedFeatureTransitions.has(exclusion.featureId))
+      errors.push(`feature ${exclusion.featureId} is both linked and excluded`);
     excludedFeatureTransitions.add(exclusion.featureId);
   }
   for (const feature of FEATURES.filter((entry) => entry.transition != null)) {

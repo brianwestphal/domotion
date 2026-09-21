@@ -3,11 +3,17 @@ id: "requirements/dotted-circle-shaping-evidence"
 title: "Dotted-circle decisions from shaping evidence"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","product-tooling"]
+owners: ["text-fonts", "product-tooling"]
 platforms: ["linux"]
 tickets: ["DM-2522"]
-code: ["src/capture/script/dotted-circle-detect.ts","src/capture/script/dotted-circle-detect.test.ts","src/capture/script/walker/text-segments.ts","src/render/text-to-path.ts"]
-aliases: ["docs/144-dotted-circle-shaping-evidence.md","doc-144"]
+code:
+  [
+    "src/capture/script/dotted-circle-detect.ts",
+    "src/capture/script/dotted-circle-detect.test.ts",
+    "src/capture/script/walker/text-segments.ts",
+    "src/render/text-to-path.ts",
+  ]
+aliases: ["docs/144-dotted-circle-shaping-evidence.md", "doc-144"]
 ---
 
 # Dotted-circle decisions from shaping evidence

@@ -157,4 +157,3 @@ void runBin<SvgToVideoOptions>({
   },
   run: runSvgToVideo,
 });
-

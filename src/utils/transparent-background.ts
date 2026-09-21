@@ -28,7 +28,10 @@ export function isTransparentBackground(bg: string): boolean {
   // rgba()/hsla() with a zero (or 0%) alpha component.
   const fn = v.match(/^(?:rgba|hsla)\(([^)]*)\)$/);
   if (fn != null) {
-    const parts = fn[1].split(/[,/]/).map((p) => p.trim()).filter((p) => p !== "");
+    const parts = fn[1]
+      .split(/[,/]/)
+      .map((p) => p.trim())
+      .filter((p) => p !== "");
     const a = parts[parts.length - 1];
     if (parts.length >= 4 && (a === "0%" || /^0(?:\.0+)?$/.test(a))) return true;
   }

@@ -74,13 +74,27 @@ const BACKGROUND_LONGHANDS = [
 ] as const;
 
 const PHYSICAL_BORDER_LONGHANDS = [
-  "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-  "border-top-style", "border-right-style", "border-bottom-style", "border-left-style",
-  "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
-  "border-top-left-radius", "border-top-right-radius",
-  "border-bottom-right-radius", "border-bottom-left-radius",
-  "border-image-source", "border-image-slice", "border-image-width",
-  "border-image-outset", "border-image-repeat",
+  "border-top-color",
+  "border-right-color",
+  "border-bottom-color",
+  "border-left-color",
+  "border-top-style",
+  "border-right-style",
+  "border-bottom-style",
+  "border-left-style",
+  "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-bottom-right-radius",
+  "border-bottom-left-radius",
+  "border-image-source",
+  "border-image-slice",
+  "border-image-width",
+  "border-image-outset",
+  "border-image-repeat",
 ] as const;
 
 const BACKGROUND_SET = new Set<string>(BACKGROUND_LONGHANDS);
@@ -113,9 +127,7 @@ export function autoAppearanceForControl(control: ControlDescriptor): string {
   if (tag === "textarea") return "textarea";
   if (tag === "select") {
     const size = Number.isFinite(control.selectSize) ? Math.max(0, control.selectSize ?? 0) : 0;
-    const usesMenuList = control.multiple
-      ? Boolean(control.selectHasSizeAttribute) && size === 1
-      : size <= 1;
+    const usesMenuList = control.multiple ? Boolean(control.selectHasSizeAttribute) && size === 1 : size <= 1;
     return usesMenuList ? "menulist" : "listbox";
   }
   if (tag !== "input") return "none";
@@ -149,8 +161,15 @@ export function autoAppearanceForControl(control: ControlDescriptor): string {
 
 export function appearanceNeedsAuthorStyleFacts(appearance: string): boolean {
   return new Set([
-    "button", "push-button", "square-button", "progress-bar", "meter",
-    "menulist", "searchfield", "textarea", "textfield",
+    "button",
+    "push-button",
+    "square-button",
+    "progress-bar",
+    "meter",
+    "menulist",
+    "searchfield",
+    "textarea",
+    "textfield",
   ]).has(appearance);
 }
 
@@ -190,8 +209,7 @@ function elementTypeAdjustedAppearance(specified: string, control: ControlDescri
     case "slider-thumb-vertical":
       return auto === "slider-thumb-horizontal" ? specified : auto;
     case "textfield":
-      return control.tag.toLowerCase() === "input"
-          && (control.type ?? "text").toLowerCase() === "search"
+      return control.tag.toLowerCase() === "input" && (control.type ?? "text").toLowerCase() === "search"
         ? specified
         : auto;
     default:
@@ -240,9 +258,19 @@ export function effectiveAppearanceForControl(
 /** Appearances for which ThemePainter owns the complete host surface. */
 export function isWholeHostNativeAppearance(appearance: string): boolean {
   return new Set([
-    "button", "push-button", "square-button", "progress-bar", "meter",
-    "menulist", "searchfield", "textarea", "textfield",
-    "checkbox", "radio", "slider-horizontal", "slider-vertical",
+    "button",
+    "push-button",
+    "square-button",
+    "progress-bar",
+    "meter",
+    "menulist",
+    "searchfield",
+    "textarea",
+    "textfield",
+    "checkbox",
+    "radio",
+    "slider-horizontal",
+    "slider-vertical",
   ]).has(appearance);
 }
 
@@ -259,17 +287,20 @@ function layerIdentity(layers: Array<Record<string, unknown>> | undefined): stri
   // Protocol order is inner-most to outer-most. Named layers with the same
   // path intentionally coalesce across sheets; anonymous layers instead need
   // source coordinates to remain distinct.
-  return [...layers].reverse().map((layer) => {
-    const range = layer.range as { startLine?: number; startColumn?: number } | undefined;
-    const name = String(layer.text ?? "").trim();
-    if (name !== "") return `named:${name}`;
-    return [
-      "anonymous",
-      String(layer.styleSheetId ?? ""),
-      String(range?.startLine ?? ""),
-      String(range?.startColumn ?? ""),
-    ].join(":");
-  }).join("/");
+  return [...layers]
+    .reverse()
+    .map((layer) => {
+      const range = layer.range as { startLine?: number; startColumn?: number } | undefined;
+      const name = String(layer.text ?? "").trim();
+      if (name !== "") return `named:${name}`;
+      return [
+        "anonymous",
+        String(layer.styleSheetId ?? ""),
+        String(range?.startLine ?? ""),
+        String(range?.startColumn ?? ""),
+      ].join(":");
+    })
+    .join("/");
 }
 
 type PhysicalSide = "top" | "right" | "bottom" | "left";
@@ -329,8 +360,12 @@ function canonicalLonghand(name: string, direction: CascadeDirection): string {
 
   const logicalCorner = /^border-(start|end)-(start|end)-radius$/.exec(lower);
   if (logicalCorner != null) {
-    const block = sides[`${"block"}${logicalCorner[1][0].toUpperCase()}${logicalCorner[1].slice(1)}` as "blockStart" | "blockEnd"];
-    const inline = sides[`${"inline"}${logicalCorner[2][0].toUpperCase()}${logicalCorner[2].slice(1)}` as "inlineStart" | "inlineEnd"];
+    const block =
+      sides[`${"block"}${logicalCorner[1][0].toUpperCase()}${logicalCorner[1].slice(1)}` as "blockStart" | "blockEnd"];
+    const inline =
+      sides[
+        `${"inline"}${logicalCorner[2][0].toUpperCase()}${logicalCorner[2].slice(1)}` as "inlineStart" | "inlineEnd"
+      ];
     const vertical = block === "top" || block === "bottom" ? block : inline;
     const horizontal = block === "left" || block === "right" ? block : inline;
     return `border-${vertical}-${horizontal}-radius`;
@@ -343,11 +378,27 @@ function shorthandNames(name: string): readonly string[] {
   if (name === "background") return BACKGROUND_LONGHANDS;
   if (name === "background-position") return ["background-position-x", "background-position-y"];
   if (name === "border") return PHYSICAL_BORDER_LONGHANDS;
-  if (name === "border-color") return ["border-top-color", "border-right-color", "border-bottom-color", "border-left-color"];
-  if (name === "border-style") return ["border-top-style", "border-right-style", "border-bottom-style", "border-left-style"];
-  if (name === "border-width") return ["border-top-width", "border-right-width", "border-bottom-width", "border-left-width"];
-  if (name === "border-radius") return ["border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius"];
-  if (name === "border-image") return ["border-image-source", "border-image-slice", "border-image-width", "border-image-outset", "border-image-repeat"];
+  if (name === "border-color")
+    return ["border-top-color", "border-right-color", "border-bottom-color", "border-left-color"];
+  if (name === "border-style")
+    return ["border-top-style", "border-right-style", "border-bottom-style", "border-left-style"];
+  if (name === "border-width")
+    return ["border-top-width", "border-right-width", "border-bottom-width", "border-left-width"];
+  if (name === "border-radius")
+    return [
+      "border-top-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius",
+      "border-bottom-left-radius",
+    ];
+  if (name === "border-image")
+    return [
+      "border-image-source",
+      "border-image-slice",
+      "border-image-width",
+      "border-image-outset",
+      "border-image-repeat",
+    ];
   const physicalSide = /^border-(top|right|bottom|left)$/.exec(name);
   if (physicalSide != null) {
     return ["color", "style", "width"].map((suffix) => `border-${physicalSide[1]}-${suffix}`);
@@ -355,9 +406,9 @@ function shorthandNames(name: string): readonly string[] {
   const logicalAxis = /^border-(block|inline)(?:-(start|end))?$/.exec(name);
   if (logicalAxis != null) {
     const edges = logicalAxis[2] == null ? ["start", "end"] : [logicalAxis[2]];
-    return edges.flatMap((edge) => ["color", "style", "width"].map(
-      (suffix) => `border-${logicalAxis[1]}-${edge}-${suffix}`,
-    ));
+    return edges.flatMap((edge) =>
+      ["color", "style", "width"].map((suffix) => `border-${logicalAxis[1]}-${edge}-${suffix}`),
+    );
   }
   const logicalQuad = /^border-(block|inline)-(color|style|width)$/.exec(name);
   if (logicalQuad != null) {
@@ -382,9 +433,13 @@ function expandedDeclarations(
     for (const value of values) {
       const property = canonicalLonghand(value.name.trim(), direction);
       if (!BACKGROUND_SET.has(property) && !BORDER_SET.has(property)) continue;
-      const important = value.important === true || declaration.important === true || /!important\s*$/i.test(value.value);
+      const important =
+        value.important === true || declaration.important === true || /!important\s*$/i.test(value.value);
       declarations.set(property, {
-        value: value.value.replace(/\s*!important\s*$/i, "").trim().toLowerCase(),
+        value: value.value
+          .replace(/\s*!important\s*$/i, "")
+          .trim()
+          .toLowerCase(),
         important,
       });
     }
@@ -425,11 +480,14 @@ function winningCandidate(input: readonly Candidate[], layerCount: number): Cand
       continue;
     }
     if (winner.value === "revert-layer") {
-      candidates = candidates.filter((candidate) => !(
-        candidate.origin === winner.origin
-        && candidate.important === winner.important
-        && candidate.layer === winner.layer
-      ));
+      candidates = candidates.filter(
+        (candidate) =>
+          !(
+            candidate.origin === winner.origin &&
+            candidate.important === winner.important &&
+            candidate.layer === winner.layer
+          ),
+      );
       continue;
     }
     if (winner.value === "revert-rule") {

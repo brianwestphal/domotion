@@ -36,7 +36,9 @@ const BINS = Object.keys(pkg.bin ?? {});
 
 async function main(): Promise<void> {
   const problems: string[] = [];
-  const warn = (s: string): void => { problems.push(s); };
+  const warn = (s: string): void => {
+    problems.push(s);
+  };
 
   // ── 1. Manifest well-formedness ──
   const ids = new Set<string>();
@@ -55,7 +57,10 @@ async function main(): Promise<void> {
   const gaps: string[] = [];
   const brokenRefs: string[] = [];
   for (const f of FEATURES) {
-    if (f.tests.length === 0) { gaps.push(f.id); continue; }
+    if (f.tests.length === 0) {
+      gaps.push(f.id);
+      continue;
+    }
     for (const t of f.tests) {
       if (!existsSync(resolve(ROOT, t))) brokenRefs.push(`${f.id} → ${t}`);
     }
@@ -79,8 +84,12 @@ async function main(): Promise<void> {
   const total = FEATURES.length;
   const transitions = FEATURES.filter((f) => f.transition != null).length;
   console.log(`\nFeature coverage — ${total} features (${transitions} carry a state-transition assertion)`);
-  console.log(`Public exports: ${publicExports.length} · claimed by index: ${publicExports.length - unclaimedExports.length}`);
-  console.log(`CLI verbs + bins: ${VERBS.length + BINS.length} · claimed: ${VERBS.length + BINS.length - unclaimedVerbs.length}\n`);
+  console.log(
+    `Public exports: ${publicExports.length} · claimed by index: ${publicExports.length - unclaimedExports.length}`,
+  );
+  console.log(
+    `CLI verbs + bins: ${VERBS.length + BINS.length} · claimed: ${VERBS.length + BINS.length - unclaimedVerbs.length}\n`,
+  );
 
   if (dupIds.length > 0) {
     console.log(`❌ ${dupIds.length} duplicate feature id(s): ${dupIds.join(", ")}`);
@@ -118,11 +127,15 @@ async function main(): Promise<void> {
   }
 
   if (problems.length === 0) {
-    console.log("✅ Every public export + CLI verb/bin is claimed by a feature, and every feature/transition has an exact asserting test.\n");
+    console.log(
+      "✅ Every public export + CLI verb/bin is claimed by a feature, and every feature/transition has an exact asserting test.\n",
+    );
     process.exit(0);
   }
   console.log(`\n💥 Feature-coverage check failed: ${problems.length} problem(s).`);
-  console.log("   Fix: add the missing exact transition test, add/repair the feature entry in tests/feature-coverage.ts,");
+  console.log(
+    "   Fix: add the missing exact transition test, add/repair the feature entry in tests/feature-coverage.ts,",
+  );
   console.log("   or map the new export/verb to a feature. See docs/83-feature-coverage.md.\n");
   process.exit(1);
 }

@@ -17,7 +17,7 @@ JSON-Schema-aware editor at the `$schema` key for autocomplete and validation.
   "optimize": true,
   "cursor": "auto",
   "vars": { "brand": "#6366f1" },
-  "frames": [ /* … */ ]
+  "frames": [/* … */]
 }
 ```
 
@@ -29,12 +29,16 @@ JSON-Schema-aware editor at the `$schema` key for autocomplete and validation.
   "duration": 1500,
   "transition": { "type": "crossfade", "duration": 300 },
   "animations": [
-    { "selector": ".bar", "property": "width", "from": "0%", "to": "100%",
-      "duration": 1200, "easing": "cubic-bezier(0.215,0.61,0.355,1)" }
+    {
+      "selector": ".bar",
+      "property": "width",
+      "from": "0%",
+      "to": "100%",
+      "duration": 1200,
+      "easing": "cubic-bezier(0.215,0.61,0.355,1)"
+    }
   ],
-  "overlays": [
-    { "kind": "typing", "selector": "input", "text": "hello", "caret": true }
-  ]
+  "overlays": [{ "kind": "typing", "selector": "input", "text": "hello", "caret": true }]
 }
 ```
 

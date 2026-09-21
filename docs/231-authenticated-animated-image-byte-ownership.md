@@ -3,11 +3,16 @@ id: "requirements/authenticated-animated-image-byte-ownership"
 title: "Authenticated animated-image encoded-byte ownership"
 kind: "contract"
 status: "current"
-owners: ["images-media","animation"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2578","DM-2583","DM-2585","DM-2589","DM-2590"]
-code: ["tools/animated-image-owner-resource-truth-chromium.patch","tools/animated-image-owner-resource-truth-schema.ts","tools/animated-image-stock-cdp-support.ts"]
-aliases: ["docs/231-authenticated-animated-image-byte-ownership.md","doc-231"]
+owners: ["images-media", "animation"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2578", "DM-2583", "DM-2585", "DM-2589", "DM-2590"]
+code:
+  [
+    "tools/animated-image-owner-resource-truth-chromium.patch",
+    "tools/animated-image-owner-resource-truth-schema.ts",
+    "tools/animated-image-stock-cdp-support.ts",
+  ]
+aliases: ["docs/231-authenticated-animated-image-byte-ownership.md", "doc-231"]
 ---
 
 # Authenticated animated-image encoded-byte ownership
@@ -91,7 +96,7 @@ The source establishes each edge:
   `core/inspector/inspector_page_agent.cc:371-394` base64-encodes non-text
   `ResourceBuffer` bytes without text decoding.
 - `public/devtools_protocol/domains/Network.pdl:1167-1176,1377-1403,
-  1448-1515` defines
+1448-1515` defines
   `requestWillBeSent`, `responseReceived`, `loadingFinished`,
   `requestServedFromCache`, and `getResponseBody`. `loadingFinished`'s
   `encodedDataLength` is transfer/wire accounting; it is not the decoded entity
@@ -113,16 +118,16 @@ Every row below ultimately retains one `ImageResourceContent`; generated
 images such as gradients, cross-fades, paint worklets, and element snapshots do
 not and are outside the encoded-image selector.
 
-| Consumer | Blink-selected owner | Exact slot identity | Selection fact |
-| --- | --- | --- | --- |
-| `<img>` / `<picture>` | `HTMLImageElement` -> `HTMLImageLoader` -> `ImageLoader::GetContent()` | element backend node, `html-current` | `HTMLImageElement::FindBestFitImageFromPictureParent` and `SelectSourceURL` select source/type/media/srcset; `currentSrc()` returns the current content URL (`html_image_element.cc:475-514,734-750,1002-1029`). |
-| SVG `<image>` | `SVGImageElement` -> `SVGImageLoader`, a common `ImageLoader` route | SVG element backend node, `svg-href` | `svg_image_element.cc:69,121-150,172-179` owns the loader and reloads on href, CORS, or document changes. |
-| `<input type=image>` | `HTMLInputElement` -> `HTMLImageLoader` | input backend node, `input-src` | `image_input_type.cc:125-146` updates the loader on `src` and layout attachment. There is no `currentSrc`; the loader content URL is authoritative. |
+| Consumer                           | Blink-selected owner                                                                   | Exact slot identity                                                                   | Selection fact                                                                                                                                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<img>` / `<picture>`              | `HTMLImageElement` -> `HTMLImageLoader` -> `ImageLoader::GetContent()`                 | element backend node, `html-current`                                                  | `HTMLImageElement::FindBestFitImageFromPictureParent` and `SelectSourceURL` select source/type/media/srcset; `currentSrc()` returns the current content URL (`html_image_element.cc:475-514,734-750,1002-1029`).               |
+| SVG `<image>`                      | `SVGImageElement` -> `SVGImageLoader`, a common `ImageLoader` route                    | SVG element backend node, `svg-href`                                                  | `svg_image_element.cc:69,121-150,172-179` owns the loader and reloads on href, CORS, or document changes.                                                                                                                      |
+| `<input type=image>`               | `HTMLInputElement` -> `HTMLImageLoader`                                                | input backend node, `input-src`                                                       | `image_input_type.cc:125-146` updates the loader on `src` and layout attachment. There is no `currentSrc`; the loader content URL is authoritative.                                                                            |
 | `background-image` / `image-set()` | computed `FillLayer` -> selected `StyleImage` / `StyleImageSet` -> `StyleFetchedImage` | backend node or pseudo node, property, ordered layer index, selected image-set option | `css_image_set_value.cc:46-105,118-122` removes unsupported types, de-duplicates resolutions, and selects the first adequate or highest option. The retained selected `StyleImage`, not computed CSS text, owns the candidate. |
-| generated `content` image | `ContentData` chain -> `ImageContentData` -> selected `StyleImage` | host and pseudo identity plus ordered content-item index | `longhands_custom.cc:3267-3291` creates one image item; `content_data.h:108-166` retains its exact `StyleImage`. |
-| `list-style-image` | computed style -> selected `StyleImage` | list owner/marker identity, `list-style-image`, item 0 | `longhands_custom.cc:6640-6645` stores the selected style image. |
-| `border-image-source` | `NinePieceImage` -> selected `StyleImage` | backend node or pseudo, `border-image-source`, item 0 | `longhands_custom.cc:1547-1552` stores the selected source. Slice geometry belongs to later PNG substitution, not byte acquisition. |
-| `mask-image` | ordered mask `FillLayer` -> selected `StyleImage` | backend node or pseudo, property, ordered layer index | `element_style_resources.cc:491-500` loads non-SVG mask sources with anonymous CORS and retains each selected layer. |
+| generated `content` image          | `ContentData` chain -> `ImageContentData` -> selected `StyleImage`                     | host and pseudo identity plus ordered content-item index                              | `longhands_custom.cc:3267-3291` creates one image item; `content_data.h:108-166` retains its exact `StyleImage`.                                                                                                               |
+| `list-style-image`                 | computed style -> selected `StyleImage`                                                | list owner/marker identity, `list-style-image`, item 0                                | `longhands_custom.cc:6640-6645` stores the selected style image.                                                                                                                                                               |
+| `border-image-source`              | `NinePieceImage` -> selected `StyleImage`                                              | backend node or pseudo, `border-image-source`, item 0                                 | `longhands_custom.cc:1547-1552` stores the selected source. Slice geometry belongs to later PNG substitution, not byte acquisition.                                                                                            |
+| `mask-image`                       | ordered mask `FillLayer` -> selected `StyleImage`                                      | backend node or pseudo, property, ordered layer index                                 | `element_style_resources.cc:491-500` loads non-SVG mask sources with anonymous CORS and retains each selected layer.                                                                                                           |
 
 `core/css/css_image_value.cc:51-130` constructs the resource request and wraps
 the returned `ImageResourceContent` in `StyleFetchedImage`.
@@ -254,9 +259,15 @@ interface AnimatedImageByteOwnershipRecord {
     shadowRootTypes: Array<"user-agent" | "open" | "closed">;
     pseudo: null | { backendNodeId: number; type: string };
     slot: {
-      property: "html-current" | "svg-href" | "input-src" |
-        "background-image" | "content" | "list-style-image" |
-        "border-image-source" | "mask-image";
+      property:
+        | "html-current"
+        | "svg-href"
+        | "input-src"
+        | "background-image"
+        | "content"
+        | "list-style-image"
+        | "border-image-source"
+        | "mask-image";
       index: number;
       imageSetOptionIndex: number | null;
     };
@@ -267,8 +278,8 @@ interface AnimatedImageByteOwnershipRecord {
     viewportSha256: string;
   };
   resource: {
-    contentLogicalId: string;       // oracle: stable only within transaction
-    resourceLogicalId: string;      // oracle: stable only within transaction
+    contentLogicalId: string; // oracle: stable only within transaction
+    resourceLogicalId: string; // oracle: stable only within transaction
     inspectorRequestId: string;
     requestLoaderId: string;
     requestFrameId: string;
@@ -285,8 +296,8 @@ interface AnimatedImageByteOwnershipRecord {
     status: number;
     mimeType: string;
     rawContentType: string | null;
-    fetchResponseType: string;      // oracle/security authority
-    corsSameOrigin: true;           // oracle/security authority
+    fetchResponseType: string; // oracle/security authority
+    corsSameOrigin: true; // oracle/security authority
     fromDiskCache: boolean;
     fromMemoryCache: boolean;
     fromServiceWorker: boolean;
@@ -371,22 +382,22 @@ they are not visual tolerances.
 
 ## Bounded support matrix
 
-| Case | Intended strict status | Required proof |
-| --- | --- | --- |
-| Same-origin HTTP(S) GIF/APNG/WebP, settled before preflight | eligible | exact owner/resource/request join, successful final response, origin-clean resource, stable body SHA |
-| Cross-origin HTTP(S) with successful anonymous or credentialed CORS | eligible only where the oracle proves the public join and actual `corsSameOrigin` fact | request mode/credentials, Fetch response type, redirect result, single security origin, stable body |
-| Cross-origin no-CORS image that paints successfully | rejected | `corsSameOrigin` is false; CDP body availability is ignored |
-| CORS-denied or credential-mismatched response | rejected | load/error response and CORS failure are retained without body disclosure |
-| Stable redirect, memory/disk cache hit, 304, or service-worker/CacheStorage response | eligible after settlement | full hop/response/SW/cache/revalidation record and exact pre/post identity |
-| Revalidation, redirect, SW controller/version, router, or cache entry changes during transaction | rejected | response/resource epoch drift |
-| Selected `data:` GIF/APNG/WebP | eligible | exact selected URL parsing matches resource-buffer length/SHA |
-| Same-partition live `blob:` GIF/APNG/WebP | eligible when immutable blob read and oracle digest agree | blob URL/origin/document and double hash remain exact |
-| Revoked/inaccessible blob, opaque document origin, or unsupported scheme | rejected | no exact authorized byte transport |
-| Responsive `<picture>`/srcset or CSS `image-set()` | eligible only after selection settles | chosen candidate/content pointer and DPR/viewport/source facts remain exact |
-| Multiple requests for the same URL, ambiguous memory-cache reuse, or missing early Network events | rejected unless the exact pointer/request relation is privately/publicly proven | URL equality never disambiguates |
-| CSS gradients, cross-fade, paint worklet, element image, outer SVG document, broken/placeholder/loading image | rejected | no supported GIF/APNG/WebP encoded-resource owner |
-| `multipart/x-mixed-replace` | rejected | mutable part buffer has no single entity epoch |
-| Animated-image live playback or continuation | out of scope | the output remains one authenticated static PNG |
+| Case                                                                                                          | Intended strict status                                                                 | Required proof                                                                                       |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Same-origin HTTP(S) GIF/APNG/WebP, settled before preflight                                                   | eligible                                                                               | exact owner/resource/request join, successful final response, origin-clean resource, stable body SHA |
+| Cross-origin HTTP(S) with successful anonymous or credentialed CORS                                           | eligible only where the oracle proves the public join and actual `corsSameOrigin` fact | request mode/credentials, Fetch response type, redirect result, single security origin, stable body  |
+| Cross-origin no-CORS image that paints successfully                                                           | rejected                                                                               | `corsSameOrigin` is false; CDP body availability is ignored                                          |
+| CORS-denied or credential-mismatched response                                                                 | rejected                                                                               | load/error response and CORS failure are retained without body disclosure                            |
+| Stable redirect, memory/disk cache hit, 304, or service-worker/CacheStorage response                          | eligible after settlement                                                              | full hop/response/SW/cache/revalidation record and exact pre/post identity                           |
+| Revalidation, redirect, SW controller/version, router, or cache entry changes during transaction              | rejected                                                                               | response/resource epoch drift                                                                        |
+| Selected `data:` GIF/APNG/WebP                                                                                | eligible                                                                               | exact selected URL parsing matches resource-buffer length/SHA                                        |
+| Same-partition live `blob:` GIF/APNG/WebP                                                                     | eligible when immutable blob read and oracle digest agree                              | blob URL/origin/document and double hash remain exact                                                |
+| Revoked/inaccessible blob, opaque document origin, or unsupported scheme                                      | rejected                                                                               | no exact authorized byte transport                                                                   |
+| Responsive `<picture>`/srcset or CSS `image-set()`                                                            | eligible only after selection settles                                                  | chosen candidate/content pointer and DPR/viewport/source facts remain exact                          |
+| Multiple requests for the same URL, ambiguous memory-cache reuse, or missing early Network events             | rejected unless the exact pointer/request relation is privately/publicly proven        | URL equality never disambiguates                                                                     |
+| CSS gradients, cross-fade, paint worklet, element image, outer SVG document, broken/placeholder/loading image | rejected                                                                               | no supported GIF/APNG/WebP encoded-resource owner                                                    |
+| `multipart/x-mixed-replace`                                                                                   | rejected                                                                               | mutable part buffer has no single entity epoch                                                       |
+| Animated-image live playback or continuation                                                                  | out of scope                                                                           | the output remains one authenticated static PNG                                                      |
 
 The first production increment should be narrower than this design matrix:
 `<img>/<picture>` and `<input type=image>` routes whose owner/request/security
@@ -420,19 +431,19 @@ collection runs.
 These are exact logical probes for the implementation tickets. They compare
 records and digests; they do not use a raster tolerance.
 
-| Probe | Source fact exercised | Required discrimination |
-| --- | --- | --- |
-| `<picture>`/srcset candidate mutation | `html_image_element.cc:475-514,1002-1029`; `image_loader.cc:595-597,646-723` | change media, sizes, DPR, source order, or srcset after preflight; reject changed candidate/content/request even if final URL or pixels match |
-| CSS `image-set()` and layer/item mutation | `css_image_set_value.cc:46-105`; `element_style_resources.cc:417-500`; `content_data.h:108-166` | reorder equal-resolution options, background/mask layers, or generated-content items; reject wrong selected `StyleImage` or slot while unchanged siblings remain stable |
-| Same selected URL with redirect/response drift | `resource.cc:573-605`; `resource_response.h:99-130` | keep owner URL fixed while redirect destination, status, response URL, MIME, or bytes change; reject hop/request/response/SHA drift |
-| Settled 304 versus active revalidation | `resource.cc:1032-1055`; `inspector_network_agent.cc:1698-1705` | accept a fully settled 304 retaining exact body and recorded epoch; force a revalidation between pre/post and reject it even if SHA is unchanged |
-| Service-worker/cache replacement | `resource_response.cc:137-166`; `resource_response.h:227-280,648-665` | same URL switches SW source/router/URL list/CacheStorage entry or cached body; reject metadata, resource, or SHA drift |
-| Cross-origin body disclosure control | `image_resource_content.cc:660-664`; `image_resource.cc:689-696`; `inspector_network_agent.cc:2767-2796` | prove CDP can hold a no-CORS body but the authorization gate emits only `cors-denied`; accept only actual CORS-same-origin anonymous/credentialed controls |
-| Same-URL competing owners/cache reuse | `resource_fetcher.cc:1655-1660`; `style_image_cache.cc:24-37` | create repeated requests and shared CSS content; accept a shared exact resource but reject an unproven request-id choice |
-| Stale element/document reuse | `svg_image_element.cc:176-179` and loader/document ownership | navigate or adopt/recreate an identical owner with the same selector/URL; reject loader/document nonce or backend/tree-scope drift |
-| Pseudo/shadow slot collision | `longhands_custom.cc:3267-3291`; `content_data.h:108-166` | use identical URLs in light DOM, closed shadow, `::before`, and `::after`; mutate one item and require only its exact host/pseudo/slot record to move |
-| Data/blob lifecycle | exact selected resource-buffer relation above | mutate data payload, replace blob URL, revoke blob, or navigate owning document; accept only exact parser/blob/oracle digest agreement |
-| Body storage loss and bounds | `network_resources_data.cc:125-180,323-355` | force inspector eviction or configured count/byte ceiling; reject rather than refetch or truncate |
+| Probe                                          | Source fact exercised                                                                                    | Required discrimination                                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<picture>`/srcset candidate mutation          | `html_image_element.cc:475-514,1002-1029`; `image_loader.cc:595-597,646-723`                             | change media, sizes, DPR, source order, or srcset after preflight; reject changed candidate/content/request even if final URL or pixels match                           |
+| CSS `image-set()` and layer/item mutation      | `css_image_set_value.cc:46-105`; `element_style_resources.cc:417-500`; `content_data.h:108-166`          | reorder equal-resolution options, background/mask layers, or generated-content items; reject wrong selected `StyleImage` or slot while unchanged siblings remain stable |
+| Same selected URL with redirect/response drift | `resource.cc:573-605`; `resource_response.h:99-130`                                                      | keep owner URL fixed while redirect destination, status, response URL, MIME, or bytes change; reject hop/request/response/SHA drift                                     |
+| Settled 304 versus active revalidation         | `resource.cc:1032-1055`; `inspector_network_agent.cc:1698-1705`                                          | accept a fully settled 304 retaining exact body and recorded epoch; force a revalidation between pre/post and reject it even if SHA is unchanged                        |
+| Service-worker/cache replacement               | `resource_response.cc:137-166`; `resource_response.h:227-280,648-665`                                    | same URL switches SW source/router/URL list/CacheStorage entry or cached body; reject metadata, resource, or SHA drift                                                  |
+| Cross-origin body disclosure control           | `image_resource_content.cc:660-664`; `image_resource.cc:689-696`; `inspector_network_agent.cc:2767-2796` | prove CDP can hold a no-CORS body but the authorization gate emits only `cors-denied`; accept only actual CORS-same-origin anonymous/credentialed controls              |
+| Same-URL competing owners/cache reuse          | `resource_fetcher.cc:1655-1660`; `style_image_cache.cc:24-37`                                            | create repeated requests and shared CSS content; accept a shared exact resource but reject an unproven request-id choice                                                |
+| Stale element/document reuse                   | `svg_image_element.cc:176-179` and loader/document ownership                                             | navigate or adopt/recreate an identical owner with the same selector/URL; reject loader/document nonce or backend/tree-scope drift                                      |
+| Pseudo/shadow slot collision                   | `longhands_custom.cc:3267-3291`; `content_data.h:108-166`                                                | use identical URLs in light DOM, closed shadow, `::before`, and `::after`; mutate one item and require only its exact host/pseudo/slot record to move                   |
+| Data/blob lifecycle                            | exact selected resource-buffer relation above                                                            | mutate data payload, replace blob URL, revoke blob, or navigate owning document; accept only exact parser/blob/oracle digest agreement                                  |
+| Body storage loss and bounds                   | `network_resources_data.cc:125-180,323-355`                                                              | force inspector eviction or configured count/byte ceiling; reject rather than refetch or truncate                                                                       |
 
 Every browser arm in those tickets must launch Chromium with explicit
 `headless: true`. Proposal and validation arms use fresh contexts/decoders and

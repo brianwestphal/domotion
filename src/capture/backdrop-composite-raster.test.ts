@@ -79,8 +79,12 @@ describe("planBackdropRootComposites", () => {
 describe("targetNeedsAtomicFilterComposite", () => {
   it("selects a target regular-filter chain but not the initial value", () => {
     const raster = { x: 0, y: 0, width: 10, height: 10, token: "bf" };
-    expect(targetNeedsAtomicFilterComposite({ element: element("div", "opacity(.7)"), raster, selector: "div" })).toBe(true);
-    expect(targetNeedsAtomicFilterComposite({ element: element("div"), raster, selector: "div" } as BackdropCompositeTarget)).toBe(false);
+    expect(targetNeedsAtomicFilterComposite({ element: element("div", "opacity(.7)"), raster, selector: "div" })).toBe(
+      true,
+    );
+    expect(
+      targetNeedsAtomicFilterComposite({ element: element("div"), raster, selector: "div" } as BackdropCompositeTarget),
+    ).toBe(false);
   });
 });
 
@@ -95,25 +99,38 @@ describe("terminal backdrop effect-space ownership", () => {
       selector: "html",
       reasons: ["document-root"],
     };
-    target.backdropFilterRaster!.effectSpace!.ancestors = [{
-      depth: 1,
-      selector: "section.root",
-      reasons: [],
-      neutralize: ["rotate-skew"],
-    }];
-    expect(planBackdropTerminalComposites([root])).toEqual([expect.objectContaining({
-      root,
-      rootDepth: 1,
-      reason: "relative-transform",
-    })]);
+    target.backdropFilterRaster!.effectSpace!.ancestors = [
+      {
+        depth: 1,
+        selector: "section.root",
+        reasons: [],
+        neutralize: ["rotate-skew"],
+      },
+    ];
+    expect(planBackdropTerminalComposites([root])).toEqual([
+      expect.objectContaining({
+        root,
+        rootDepth: 1,
+        reason: "relative-transform",
+      }),
+    ]);
   });
 
   it("serializes only source pixels changed by the terminal owner", async () => {
-    const base = await sharp({ create: { width: 2, height: 1, channels: 4, background: { r: 20, g: 30, b: 40, alpha: 1 } } }).png().toBuffer();
+    const base = await sharp({
+      create: { width: 2, height: 1, channels: 4, background: { r: 20, g: 30, b: 40, alpha: 1 } },
+    })
+      .png()
+      .toBuffer();
     const source = await sharp(Buffer.from([20, 30, 40, 255, 90, 80, 70, 255]), {
       raw: { width: 2, height: 1, channels: 4 },
-    }).png().toBuffer();
-    const delta = await sharp(await exactCompositeDelta(source, base)).ensureAlpha().raw().toBuffer();
+    })
+      .png()
+      .toBuffer();
+    const delta = await sharp(await exactCompositeDelta(source, base))
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
     expect([...delta]).toEqual([0, 0, 0, 0, 90, 80, 70, 255]);
   });
 });

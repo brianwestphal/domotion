@@ -10,10 +10,14 @@ import {
 
 function quad(rect: CollapsedBorderPhysicalRect): number[] {
   return [
-    rect.x, rect.y,
-    rect.x + rect.width, rect.y,
-    rect.x + rect.width, rect.y + rect.height,
-    rect.x, rect.y + rect.height,
+    rect.x,
+    rect.y,
+    rect.x + rect.width,
+    rect.y,
+    rect.x + rect.width,
+    rect.y + rect.height,
+    rect.x,
+    rect.y + rect.height,
   ];
 }
 
@@ -30,23 +34,53 @@ function input(): CollapsedBorderFragmentRecordInput {
     totalRows: 2,
     totalColumns: 2,
     table: geometry(first, second),
-    sections: [{
-      sourceIndex: 0,
-      tableChildIndex: 0,
-      tag: "tbody",
-      globalStartRowIndex: 0,
-      globalRowCount: 2,
-      geometry: geometry(first, second),
-    }],
+    sections: [
+      {
+        sourceIndex: 0,
+        tableChildIndex: 0,
+        tag: "tbody",
+        globalStartRowIndex: 0,
+        globalRowCount: 2,
+        geometry: geometry(first, second),
+      },
+    ],
     rows: [
       { sourceIndex: 0, sectionSourceIndex: 0, globalRowIndex: 0, geometry: geometry(first) },
       { sourceIndex: 1, sectionSourceIndex: 0, globalRowIndex: 1, geometry: geometry(second) },
     ],
     cells: [
-      { sourceIndex: 0, globalRowIndex: 0, globalColumnIndex: 0, rowSpan: 1, columnSpan: 1, geometry: geometry({ x: 0, y: 0, width: 40.125, height: 50.5 }) },
-      { sourceIndex: 1, globalRowIndex: 0, globalColumnIndex: 1, rowSpan: 1, columnSpan: 1, geometry: geometry({ x: 40.125, y: 0, width: 60.125, height: 50.5 }) },
-      { sourceIndex: 2, globalRowIndex: 1, globalColumnIndex: 0, rowSpan: 1, columnSpan: 1, geometry: geometry({ x: 110.5, y: 0, width: 40.125, height: 50.5 }) },
-      { sourceIndex: 3, globalRowIndex: 1, globalColumnIndex: 1, rowSpan: 1, columnSpan: 1, geometry: geometry({ x: 150.625, y: 0, width: 60.125, height: 50.5 }) },
+      {
+        sourceIndex: 0,
+        globalRowIndex: 0,
+        globalColumnIndex: 0,
+        rowSpan: 1,
+        columnSpan: 1,
+        geometry: geometry({ x: 0, y: 0, width: 40.125, height: 50.5 }),
+      },
+      {
+        sourceIndex: 1,
+        globalRowIndex: 0,
+        globalColumnIndex: 1,
+        rowSpan: 1,
+        columnSpan: 1,
+        geometry: geometry({ x: 40.125, y: 0, width: 60.125, height: 50.5 }),
+      },
+      {
+        sourceIndex: 2,
+        globalRowIndex: 1,
+        globalColumnIndex: 0,
+        rowSpan: 1,
+        columnSpan: 1,
+        geometry: geometry({ x: 110.5, y: 0, width: 40.125, height: 50.5 }),
+      },
+      {
+        sourceIndex: 3,
+        globalRowIndex: 1,
+        globalColumnIndex: 1,
+        rowSpan: 1,
+        columnSpan: 1,
+        geometry: geometry({ x: 150.625, y: 0, width: 60.125, height: 50.5 }),
+      },
     ],
     captions: [],
     sourceRestoredExactly: true,
@@ -89,9 +123,30 @@ function repeatedInput(prefixFragments = 0, trailingFragments = 0): CollapsedBor
     totalColumns: 1,
     table: geometry(...tableFragments),
     sections: [
-      { sourceIndex: 0, tableChildIndex: 1, tag: "thead", globalStartRowIndex: 0, globalRowCount: 1, geometry: geometry(header, header, header) },
-      { sourceIndex: 1, tableChildIndex: 2, tag: "tbody", globalStartRowIndex: 1, globalRowCount: 3, geometry: geometry(...bodyRects) },
-      { sourceIndex: 2, tableChildIndex: 3, tag: "tfoot", globalStartRowIndex: 4, globalRowCount: 1, geometry: geometry(footer, footer, footer) },
+      {
+        sourceIndex: 0,
+        tableChildIndex: 1,
+        tag: "thead",
+        globalStartRowIndex: 0,
+        globalRowCount: 1,
+        geometry: geometry(header, header, header),
+      },
+      {
+        sourceIndex: 1,
+        tableChildIndex: 2,
+        tag: "tbody",
+        globalStartRowIndex: 1,
+        globalRowCount: 3,
+        geometry: geometry(...bodyRects),
+      },
+      {
+        sourceIndex: 2,
+        tableChildIndex: 3,
+        tag: "tfoot",
+        globalStartRowIndex: 4,
+        globalRowCount: 1,
+        geometry: geometry(footer, footer, footer),
+      },
     ],
     rows: [
       { sourceIndex: 0, sectionSourceIndex: 0, globalRowIndex: 0, geometry: geometry(header, header, header) },
@@ -104,7 +159,14 @@ function repeatedInput(prefixFragments = 0, trailingFragments = 0): CollapsedBor
       { sourceIndex: 4, sectionSourceIndex: 2, globalRowIndex: 4, geometry: geometry(footer, footer, footer) },
     ],
     cells: [
-      { sourceIndex: 0, globalRowIndex: 0, globalColumnIndex: 0, rowSpan: 1, columnSpan: 1, geometry: geometry(header, header, header) },
+      {
+        sourceIndex: 0,
+        globalRowIndex: 0,
+        globalColumnIndex: 0,
+        rowSpan: 1,
+        columnSpan: 1,
+        geometry: geometry(header, header, header),
+      },
       ...bodyRects.map((rect, index) => ({
         sourceIndex: index + 1,
         globalRowIndex: index + 1,
@@ -113,13 +175,25 @@ function repeatedInput(prefixFragments = 0, trailingFragments = 0): CollapsedBor
         columnSpan: 1,
         geometry: geometry(rect),
       })),
-      { sourceIndex: 4, globalRowIndex: 4, globalColumnIndex: 0, rowSpan: 1, columnSpan: 1, geometry: geometry(footer, footer, footer) },
+      {
+        sourceIndex: 4,
+        globalRowIndex: 4,
+        globalColumnIndex: 0,
+        rowSpan: 1,
+        columnSpan: 1,
+        geometry: geometry(footer, footer, footer),
+      },
     ],
-    captions: prefixFragments === 0 ? [] : [{
-      sourceIndex: 0,
-      tableChildIndex: 0,
-      geometry: geometry({ x: tableFragments[0].x, y: 0, width: 100, height: 20 }),
-    }],
+    captions:
+      prefixFragments === 0
+        ? []
+        : [
+            {
+              sourceIndex: 0,
+              tableChildIndex: 0,
+              geometry: geometry({ x: tableFragments[0].x, y: 0, width: 100, height: 20 }),
+            },
+          ],
     repeatSections: [
       {
         sectionSourceIndex: 0,
@@ -233,8 +307,11 @@ describe("collapsed-border physical section-fragment records", () => {
       { repeatRole: "repeated-footer", repeatOccurrenceIndex: 1, sectionPaintSlot: 2, logicalRowOffsets: [78, 98] },
       { repeatRole: "repeated-footer", repeatOccurrenceIndex: 2, sectionPaintSlot: 2, logicalRowOffsets: [78, 98] },
     ]);
-    expect(sections.filter((section) => section.repeatRole.endsWith("header"))
-      .map((section) => section.reservedCollapsedEdgeSpace)).toEqual([
+    expect(
+      sections
+        .filter((section) => section.repeatRole.endsWith("header"))
+        .map((section) => section.reservedCollapsedEdgeSpace),
+    ).toEqual([
       { side: "block-start", amount: 2, globalRowEdgeIndex: 0, tableEdgeIncludedInThisFragment: true },
       { side: "block-start", amount: 2, globalRowEdgeIndex: 0, tableEdgeIncludedInThisFragment: false },
       { side: "block-start", amount: 2, globalRowEdgeIndex: 0, tableEdgeIncludedInThisFragment: false },
@@ -293,8 +370,10 @@ describe("collapsed-border physical section-fragment records", () => {
     expect(buildCollapsedBorderFragmentRecord(duplicated)).toMatchObject({ status: "unavailable" });
 
     const reordered = repeatedInput();
-    [reordered.repeatSections![0].occurrences[1], reordered.repeatSections![0].occurrences[2]] =
-      [reordered.repeatSections![0].occurrences[2], reordered.repeatSections![0].occurrences[1]];
+    [reordered.repeatSections![0].occurrences[1], reordered.repeatSections![0].occurrences[2]] = [
+      reordered.repeatSections![0].occurrences[2],
+      reordered.repeatSections![0].occurrences[1],
+    ];
     expect(buildCollapsedBorderFragmentRecord(reordered)).toMatchObject({ status: "unavailable" });
 
     const record = buildCollapsedBorderFragmentRecord(repeatedInput());

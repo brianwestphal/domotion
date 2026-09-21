@@ -28,8 +28,13 @@
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { measureEmphasisMarkMetrics, renderTextAsPath, cssWeightOf } from "./text-to-path.js";
 import {
-  capturedSegmentFontFamily, capturedTextSegmentFontFeatures, decorationLengthScale, emphasisGraphemeSpans,
-  parseFontVariationSettings, parseTextEmphasisMark, renderTextDecoration,
+  capturedSegmentFontFamily,
+  capturedTextSegmentFontFeatures,
+  decorationLengthScale,
+  emphasisGraphemeSpans,
+  parseFontVariationSettings,
+  parseTextEmphasisMark,
+  renderTextDecoration,
 } from "./text.js";
 import { localeToScriptCodeForFontSelection } from "./generic-script-families.js";
 import { esc } from "./format.js";
@@ -50,10 +55,12 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
   const mark = parseTextEmphasisMark(el.styles.textEmphasisStyle);
   if (mark == null || el.textSegments == null) return "";
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const color = (el.styles.textEmphasisColor != null && el.styles.textEmphasisColor !== ""
-    && el.styles.textEmphasisColor !== "currentcolor")
-    ? el.styles.textEmphasisColor
-    : (el.styles.color ?? fillColor);
+  const color =
+    el.styles.textEmphasisColor != null &&
+    el.styles.textEmphasisColor !== "" &&
+    el.styles.textEmphasisColor !== "currentcolor"
+      ? el.styles.textEmphasisColor
+      : (el.styles.color ?? fillColor);
   const out: string[] = [];
   for (const seg of el.textSegments) {
     if (seg.verticalWritingMode == null) continue;
@@ -67,18 +74,18 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
     const segWeight = seg.fontWeight ?? el.styles.fontWeight;
     const segStyle = seg.fontStyle ?? el.styles.fontStyle;
     const metrics = measureEmphasisMarkMetrics(mark, {
-      fontSize: segFs, fontFamily: segFamily, fontWeight: segWeight,
-      fontStyle: segStyle, fontStretch: el.styles.fontStretch, lang: el.styles.lang,
+      fontSize: segFs,
+      fontFamily: segFamily,
+      fontWeight: segWeight,
+      fontStyle: segStyle,
+      fontStretch: el.styles.fontStretch,
+      lang: el.styles.lang,
     });
     if (metrics == null) continue;
     const position = el.styles.textEmphasisPosition ?? "over right";
     const ccw = seg.verticalWritingMode === "sideways-lr";
-    const under = /\bleft\b/.test(position) ? !ccw
-      : /\bright\b/.test(position) ? ccw
-        : /\bunder\b/.test(position);
-    const offset = under
-      ? Math.ceil(segDescent + metrics.ascent)
-      : Math.floor(-segAscent - metrics.descent);
+    const under = /\bleft\b/.test(position) ? !ccw : /\bright\b/.test(position) ? ccw : /\bunder\b/.test(position);
+    const offset = under ? Math.ceil(segDescent + metrics.ascent) : Math.floor(-segAscent - metrics.descent);
     const spans = emphasisGraphemeSpans(seg.text);
     for (const span of spans) {
       if (/^[\p{White_Space}\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(span.text)) continue;
@@ -86,12 +93,9 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
       const charH = advances[span.start] ?? segFs;
       const lineRelativeX = seg.x + charH / 2;
       const lineRelativeBaseline = charY + segAscent + offset;
-      const styleAttr = segStyle != null && segStyle !== "normal"
-        ? ` font-style="${esc(segStyle)}"` : "";
+      const styleAttr = segStyle != null && segStyle !== "normal" ? ` font-style="${esc(segStyle)}"` : "";
       const inner = `<text${visualTextOnlyHiddenAttr()} x="${r(lineRelativeX - metrics.inkCenterX)}" y="${r(lineRelativeBaseline)}" font-family="${esc(segFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`;
-      const transform = lineRelativeToPhysicalTransform(
-        seg.x, charY, seg.width, charH, seg.verticalWritingMode,
-      );
+      const transform = lineRelativeToPhysicalTransform(seg.x, charY, seg.width, charH, seg.verticalWritingMode);
       out.push(`<g transform="${transform}">${inner}</g>`);
     }
   }
@@ -137,14 +141,41 @@ export function lineRelativeToPhysicalTransform(
 // glyphs in CoreText/DirectWrite/fontconfig CJK fonts: comma / period / the
 // bracket and quote pairs.
 const VERTICAL_FORM_PUNCTUATION = new Set<number>([
-  0x3001, 0x3002, // 、 。
-  0x3008, 0x3009, 0x300A, 0x300B, // 〈〉《》
-  0x300C, 0x300D, 0x300E, 0x300F, // 「」『』
-  0x3010, 0x3011, // 【】
-  0x3014, 0x3015, 0x3016, 0x3017, 0x3018, 0x3019, 0x301A, 0x301B, // 〔〕〖〗〘〙〚〛
-  0x301D, 0x301E, 0x301F, // 〝〞〟
-  0xFF01, 0xFF08, 0xFF09, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0xFF1F, // ！（），．：；？
-  0xFF3B, 0xFF3D, 0xFF5B, 0xFF5D, // ［］｛｝
+  0x3001,
+  0x3002, // 、 。
+  0x3008,
+  0x3009,
+  0x300a,
+  0x300b, // 〈〉《》
+  0x300c,
+  0x300d,
+  0x300e,
+  0x300f, // 「」『』
+  0x3010,
+  0x3011, // 【】
+  0x3014,
+  0x3015,
+  0x3016,
+  0x3017,
+  0x3018,
+  0x3019,
+  0x301a,
+  0x301b, // 〔〕〖〗〘〙〚〛
+  0x301d,
+  0x301e,
+  0x301f, // 〝〞〟
+  0xff01,
+  0xff08,
+  0xff09,
+  0xff0c,
+  0xff0e,
+  0xff1a,
+  0xff1b,
+  0xff1f, // ！（），．：；？
+  0xff3b,
+  0xff3d,
+  0xff5b,
+  0xff5d, // ［］｛｝
 ]);
 
 function hasVerticalFormPunctuation(ch: string): boolean {
@@ -177,13 +208,11 @@ export function resolveVerticalDecoration(
 ): VerticalDecorationResolution {
   const tokens = (underlinePositionCss ?? "auto").trim().toLowerCase().split(/\s+/);
   const localeScript = localeToScriptCodeForFontSelection(lang ?? "");
-  const central = (writingMode === "vertical-rl" || writingMode === "vertical-lr")
-    && textOrientation !== "sideways";
+  const central = (writingMode === "vertical-rl" || writingMode === "vertical-lr") && textOrientation !== "sideways";
   if (!central) {
     return {
       baselineType: "alphabetic",
-      underlinePosition: tokens.includes("under") ? "under"
-        : tokens.includes("from-font") ? "from-font" : "auto",
+      underlinePosition: tokens.includes("under") ? "under" : tokens.includes("from-font") ? "from-font" : "auto",
       flipUnderlineAndOverline: false,
       localeScript,
     };
@@ -212,7 +241,7 @@ export function verticalDecorationSkipInkText(seg: TextSegment): string | undefi
   let out = "";
   for (let i = 0; i < seg.text.length;) {
     const cp = seg.text.codePointAt(i)!;
-    const step = cp > 0xFFFF ? 2 : 1;
+    const step = cp > 0xffff ? 2 : 1;
     const ch = seg.text.slice(i, i + step);
     out += orientations[i] === "upright" ? "\u200B".repeat(step) : ch;
     i += step;
@@ -221,11 +250,22 @@ export function verticalDecorationSkipInkText(seg: TextSegment): string | undefi
 }
 
 function verticalDecorationIdBase(el: CapturedElement, seg: TextSegment): string {
-  const key = [seg.text, seg.x, seg.y, seg.width, seg.height, seg.verticalWritingMode,
-    el.styles.lang, el.styles.textDecorationLine, el.styles.textDecorationStyle,
-    el.styles.textDecorationThickness, el.styles.textUnderlineOffset,
-    el.styles.textUnderlinePosition, el.styles.textDecorationSkipInk,
-    JSON.stringify(el.propagatedDecorations ?? [])].join("|");
+  const key = [
+    seg.text,
+    seg.x,
+    seg.y,
+    seg.width,
+    seg.height,
+    seg.verticalWritingMode,
+    el.styles.lang,
+    el.styles.textDecorationLine,
+    el.styles.textDecorationStyle,
+    el.styles.textDecorationThickness,
+    el.styles.textUnderlineOffset,
+    el.styles.textUnderlinePosition,
+    el.styles.textDecorationSkipInk,
+    JSON.stringify(el.propagatedDecorations ?? []),
+  ].join("|");
   let hash = 0x811c9dc5;
   for (let i = 0; i < key.length; i++) {
     hash ^= key.charCodeAt(i);
@@ -240,11 +280,7 @@ function verticalDecorationIdBase(el: CapturedElement, seg: TextSegment): string
  * offsets, styles, snapping, double/wavy geometry, and skip-ink all come from
  * the shared horizontal source transcription rather than column-edge values.
  */
-function renderVerticalDecoration(
-  el: CapturedElement,
-  seg: TextSegment,
-  fillColor: string,
-): string {
+function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillColor: string): string {
   const applied = [
     ...(el.propagatedDecorations ?? []).map((pd) => ({
       line: pd.line,
@@ -254,16 +290,23 @@ function renderVerticalDecoration(
       underlineOffset: pd.underlineOffset,
       lengthScale: pd.lengthScale ?? 1,
     })),
-    ...((el.styles.textDecorationLine != null && el.styles.textDecorationLine !== ""
-      && el.styles.textDecorationLine !== "none") ? [{
-        line: el.styles.textDecorationLine,
-        color: (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-          ? el.styles.textDecorationColor : fillColor,
-        style: el.styles.textDecorationStyle,
-        thickness: el.styles.textDecorationThickness,
-        underlineOffset: el.styles.textUnderlineOffset,
-        lengthScale: decorationLengthScale(el.styles),
-      }] : []),
+    ...(el.styles.textDecorationLine != null &&
+    el.styles.textDecorationLine !== "" &&
+    el.styles.textDecorationLine !== "none"
+      ? [
+          {
+            line: el.styles.textDecorationLine,
+            color:
+              el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor"
+                ? el.styles.textDecorationColor
+                : fillColor,
+            style: el.styles.textDecorationStyle,
+            thickness: el.styles.textDecorationThickness,
+            underlineOffset: el.styles.textUnderlineOffset,
+            lengthScale: decorationLengthScale(el.styles),
+          },
+        ]
+      : []),
   ];
   if (applied.length === 0) return "";
   const wm = seg.verticalWritingMode ?? "vertical-rl";
@@ -274,43 +317,50 @@ function renderVerticalDecoration(
   const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * 0.85;
   const segDescent = el.fontDescent ?? Math.max(0, segFontSize - segAscent);
   const resolution = resolveVerticalDecoration(
-    wm, el.styles.textOrientation, el.styles.textUnderlinePosition, el.styles.lang,
+    wm,
+    el.styles.textOrientation,
+    el.styles.textUnderlinePosition,
+    el.styles.lang,
   );
   const runXOffsets = seg.yOffsets?.map((y) => y - seg.y);
   const skipText = verticalDecorationSkipInkText(seg);
   const features = capturedTextSegmentFontFeatures(el, seg);
   const idBase = verticalDecorationIdBase(el, seg);
-  const lineRelative = applied.map((deco, index) => renderTextDecoration({
-    textDecorationLine: deco.line,
-    decorationColor: deco.color,
-    style: deco.style,
-    segX: seg.x,
-    fragTop: seg.y,
-    runBaselineY: seg.y + segAscent,
-    segWidth: seg.height,
-    fontAscent: segAscent,
-    fontDescent: segDescent,
-    fontSize: segFontSize,
-    fontFamily: segFamily,
-    fontWeight: segWeight,
-    fontStyle: segStyle,
-    fontStretch: el.styles.fontStretch,
-    lang: el.styles.lang,
-    variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
-    // Blink disables a non-horizontal decorating box, so inherited
-    // declarations remain but UsedFont/metrics are the TARGET vertical run.
-    thicknessOverride: deco.thickness,
-    underlineOffset: deco.underlineOffset,
-    lengthScale: deco.lengthScale,
-    underlinePosition: resolution.underlinePosition,
-    baselineType: resolution.baselineType,
-    flipUnderlineAndOverline: resolution.flipUnderlineAndOverline,
-    runText: skipText,
-    skipInk: el.styles.textDecorationSkipInk,
-    features,
-    runXOffsets,
-    idBase: `${idBase}-${index}`,
-  })).join("");
+  const lineRelative = applied
+    .map((deco, index) =>
+      renderTextDecoration({
+        textDecorationLine: deco.line,
+        decorationColor: deco.color,
+        style: deco.style,
+        segX: seg.x,
+        fragTop: seg.y,
+        runBaselineY: seg.y + segAscent,
+        segWidth: seg.height,
+        fontAscent: segAscent,
+        fontDescent: segDescent,
+        fontSize: segFontSize,
+        fontFamily: segFamily,
+        fontWeight: segWeight,
+        fontStyle: segStyle,
+        fontStretch: el.styles.fontStretch,
+        lang: el.styles.lang,
+        variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
+        // Blink disables a non-horizontal decorating box, so inherited
+        // declarations remain but UsedFont/metrics are the TARGET vertical run.
+        thicknessOverride: deco.thickness,
+        underlineOffset: deco.underlineOffset,
+        lengthScale: deco.lengthScale,
+        underlinePosition: resolution.underlinePosition,
+        baselineType: resolution.baselineType,
+        flipUnderlineAndOverline: resolution.flipUnderlineAndOverline,
+        runText: skipText,
+        skipInk: el.styles.textDecorationSkipInk,
+        features,
+        runXOffsets,
+        idBase: `${idBase}-${index}`,
+      }),
+    )
+    .join("");
   if (lineRelative === "") return "";
   return `<g transform="${lineRelativeToPhysicalTransform(seg.x, seg.y, seg.width, seg.height, wm)}">${lineRelative}</g>`;
 }
@@ -352,8 +402,13 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       if (decoMarkupC !== "") out.push(decoMarkupC);
       const baseline = seg.y + segAscent;
       const inner = renderTextAsPath(segText, seg.x, baseline, {
-        fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
-        xOffsets: seg.verticalCombineXOffsets, fontStyle, ascentOverride: 0,
+        fontSize: segFontSize,
+        fontFamily,
+        fontWeight,
+        fill: fillColor,
+        xOffsets: seg.verticalCombineXOffsets,
+        fontStyle,
+        ascentOverride: 0,
         fontStretch: el.styles.fontStretch,
       });
       out.push(inner);
@@ -376,10 +431,13 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     let i = 0;
     while (i < segText.length) {
       const code = segText.charCodeAt(i);
-      const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < segText.length;
+      const isHigh = code >= 0xd800 && code <= 0xdbff && i + 1 < segText.length;
       const step = isHigh ? 2 : 1;
       const ch = segText.slice(i, i + step);
-      if (/\s/.test(ch) && step === 1) { i += step; continue; }
+      if (/\s/.test(ch) && step === 1) {
+        i += step;
+        continue;
+      }
       const orientation = orientations[i] ?? "upright";
       const charY = yOffsets[i] ?? seg.y;
       const charH = advances[i] ?? segFontSize;
@@ -390,14 +448,16 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         // and `ComputeRelativeToPhysicalTransform` supplies this exact affine
         // transform. This removes the old 1.2em box and center-rotation fit.
         const inner = renderTextAsPath(ch, colX, charY, {
-          fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
-          fontStyle, ascentOverride: segAscent,
+          fontSize: segFontSize,
+          fontFamily,
+          fontWeight,
+          fill: fillColor,
+          fontStyle,
+          ascentOverride: segAscent,
           fontOrientation,
           fontStretch: el.styles.fontStretch,
         });
-        const transform = lineRelativeToPhysicalTransform(
-          colX, charY, colW, charH, seg.verticalWritingMode,
-        );
+        const transform = lineRelativeToPhysicalTransform(colX, charY, colW, charH, seg.verticalWritingMode);
         out.push(`<g transform="${transform}">${inner}</g>`);
       } else {
         // Upright char (DM-996 / DM-2193): baseline at the captured run's
@@ -422,8 +482,12 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         const naturalW = vertPunct ? segFontSize : (naturalWidths?.[i] ?? segFontSize);
         const xLeft = colX + (colW - naturalW) / 2;
         const inner = renderTextAsPath(ch, xLeft, baseline, {
-          fontSize: segFontSize, fontFamily, fontWeight, fill: fillColor,
-          fontStyle, ascentOverride: 0,
+          fontSize: segFontSize,
+          fontFamily,
+          fontWeight,
+          fill: fillColor,
+          fontStyle,
+          ascentOverride: 0,
           fontOrientation,
           features: vertPunct ? ["vert"] : undefined,
           fontStretch: el.styles.fontStretch,
@@ -478,12 +542,15 @@ export function renderVerticalSystemFontText(el: CapturedElement, fillColor: str
   const weight = cssWeightOf(el.styles.fontWeight);
   const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
   const fontStyle = el.styles.fontStyle;
-  const styleAttr = fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal"
-    ? ` font-style="${esc(fontStyle)}"` : "";
-  const decls = `writing-mode:${wm}`
-    + (to != null && to !== "" && to !== "mixed" ? `;text-orientation:${to}` : "");
-  return `<text x="${n2(x)}" y="${n2(y)}" font-family="${esc(family)}" font-size="${n2(fontSize)}"`
-    + `${weightAttr}${styleAttr} fill="${esc(fillColor)}" style="${decls}"${visualTextOnlyHiddenAttr()}>${esc(fullText)}</text>`;
+  const styleAttr =
+    fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal"
+      ? ` font-style="${esc(fontStyle)}"`
+      : "";
+  const decls = `writing-mode:${wm}` + (to != null && to !== "" && to !== "mixed" ? `;text-orientation:${to}` : "");
+  return (
+    `<text x="${n2(x)}" y="${n2(y)}" font-family="${esc(family)}" font-size="${n2(fontSize)}"` +
+    `${weightAttr}${styleAttr} fill="${esc(fillColor)}" style="${decls}"${visualTextOnlyHiddenAttr()}>${esc(fullText)}</text>`
+  );
 }
 
 export function hasVerticalSegments(el: CapturedElement): boolean {

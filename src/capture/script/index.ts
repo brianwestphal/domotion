@@ -38,11 +38,7 @@ import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
-import {
-  createTransformsHandler,
-  composeEffectiveTransform,
-  transformHasRotationOrSkew,
-} from "./walker/transforms.js";
+import { createTransformsHandler, composeEffectiveTransform, transformHasRotationOrSkew } from "./walker/transforms.js";
 import {
   createBordersBackgroundsHandler,
   physicalComputedGradientImage,
@@ -71,14 +67,10 @@ import {
   isWholeHostNativeAppearance,
 } from "../effective-appearance.js";
 import { nativeControlDecorationKinds } from "../native-control-decoration.js";
-import {
-  backdropEffectNeutralizations,
-  backdropRootReasons,
-} from "../backdrop-effect-space.js";
+import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
 import { captureFontFamilyStack } from "../../font-family-stack.js";
 
-const captureDocumentTree =
-(args) => {
+const captureDocumentTree = (args) => {
   const sel = args.sel;
   const vp = args.vp;
   // DM-1442: cross-origin <iframe> recursion allowlist (the parsed
@@ -90,7 +82,7 @@ const captureDocumentTree =
   // private registry is capture-local and removed in a finally; it prevents a
   // repeated URL, stale allowlist, or sibling-frame index from authorizing the
   // wrong document during a multi-segment scroll capture.
-  const _frameScrollKey = typeof args.fk === 'string' ? args.fk : '';
+  const _frameScrollKey = typeof args.fk === "string" ? args.fk : "";
   const _svgReferenceScopes = new WeakMap();
   let _nextSvgReferenceScope = 0;
   function _svgReferenceScope(el) {
@@ -106,15 +98,13 @@ const captureDocumentTree =
   // per-frame registry. The synchronous walker consumes only immutable facts;
   // no author-visible attributes or source-order guesses are involved.
   function _textPaintRegistryFor(el) {
-    if (typeof args.tgk !== 'string' || args.tgk === '') return undefined;
+    if (typeof args.tgk !== "string" || args.tgk === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
     return view != null ? view[args.tgk] : undefined;
   }
   function _textPaintElementIndexFor(el) {
     var registry = _textPaintRegistryFor(el);
-    return registry != null && registry.indexByElement != null
-      ? registry.indexByElement.get(el)
-      : undefined;
+    return registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
   }
   function _textPaintFactFor(el) {
     var registry = _textPaintRegistryFor(el);
@@ -126,26 +116,20 @@ const captureDocumentTree =
   function _textPaintSourceKeyFor(el) {
     var registry = _textPaintRegistryFor(el);
     var index = _textPaintElementIndexFor(el);
-    return registry != null && index != null ? registry.token + ':' + index : undefined;
+    return registry != null && index != null ? registry.token + ":" + index : undefined;
   }
   function _textPaintSourceTextNodeIndexFor(node) {
-    var registry = node != null && node.ownerDocument != null
-      ? node.ownerDocument.defaultView?.[args.tgk]
-      : undefined;
-    return registry != null && registry.indexByTextNode != null
-      ? registry.indexByTextNode.get(node)
-      : undefined;
+    var registry = node != null && node.ownerDocument != null ? node.ownerDocument.defaultView?.[args.tgk] : undefined;
+    return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
   }
   // DM-2467: exact generated-content fragment records are installed by one
   // frame-scoped CDP prepass. Presence (including a terminal-raster record)
   // disables the legacy clone/probe path for that live host.
   function _pseudoFragmentFactsFor(el) {
-    if (typeof args.pgk !== 'string' || args.pgk === '') return undefined;
+    if (typeof args.pgk !== "string" || args.pgk === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
     var registry = view != null ? view[args.pgk] : undefined;
-    var index = registry != null && registry.indexByElement != null
-      ? registry.indexByElement.get(el)
-      : undefined;
+    var index = registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
     return registry != null && index != null && registry.factsByElement != null
       ? registry.factsByElement[index]
       : undefined;
@@ -158,29 +142,25 @@ const captureDocumentTree =
   const { normColor, normGradientColors } = createColorNorm();
   const { rasterCandidates, textNeedsRaster } = createEmojiDetect();
   const { markGetsDottedCircle } = createDottedCircleDetect();
-  const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
+  const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } =
+    createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
-  const {
-    familyIsUADefault: _familyIsUADefault,
-    pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored,
-  } = createFontFamilyDefault();
+  const { familyIsUADefault: _familyIsUADefault, pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored } =
+    createFontFamilyDefault();
   const _fontFamilyStackFor = (el, computedFontFamily, pseudo) => {
     // Generated/first-letter/placeholder styles inherit the host's
     // kStandardFamily unless they resolve to a distinct family. CSSOM exposes
     // only the concrete settings name, so join the pseudo back to the host's
     // already-audited declaredness seam before creating the structured list.
-    const hostFamily = pseudo == null
-      ? computedFontFamily
-      : (el.ownerDocument?.defaultView ?? window).getComputedStyle(el).fontFamily;
-    const inheritedHostStandard = (pseudo == null || (computedFontFamily === hostFamily
-      && !_pseudoFamilyIsAuthored(el, pseudo)))
-      && _familyIsUADefault(el, hostFamily);
+    const hostFamily =
+      pseudo == null ? computedFontFamily : (el.ownerDocument?.defaultView ?? window).getComputedStyle(el).fontFamily;
+    const inheritedHostStandard =
+      (pseudo == null || (computedFontFamily === hostFamily && !_pseudoFamilyIsAuthored(el, pseudo))) &&
+      _familyIsUADefault(el, hostFamily);
     return captureFontFamilyStack(computedFontFamily, inheritedHostStandard);
   };
-  const {
-    resolveFontPalette: _resolveFontPalette,
-    resolveShadowFontPalettes: _resolveShadowFontPalettes,
-  } = createFontPaletteResolver();
+  const { resolveFontPalette: _resolveFontPalette, resolveShadowFontPalettes: _resolveShadowFontPalettes } =
+    createFontPaletteResolver();
   const _fontFeatureValuesByDocument = new WeakMap();
   const _fontFeatureValuesFor = (doc) => {
     let tables = _fontFeatureValuesByDocument.get(doc);
@@ -190,7 +170,10 @@ const captureDocumentTree =
     }
     return tables;
   };
-  const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules(args.ps, args.pk);
+  const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules(
+    args.ps,
+    args.pk,
+  );
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   // DM-770: counter-style map is populated by the pre-walk below (which
   // reads @counter-style rules from document.styleSheets); declared here so
@@ -200,10 +183,26 @@ const captureDocumentTree =
   // DM-1443: the `@counter-style` collector, captured so it can be re-run
   // against a recursed iframe's own document (`_runCounterStylePrewalk(doc)`).
   const _runCounterStylePrewalk = createCounterStylePrewalk({ counterStyles: _counterStyles });
-  const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
-  const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics: _measureFontMetrics });
+  const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({
+    counterStyles: _counterStyles,
+  });
+  const { captureListsCounters } = createListsCountersHandler({
+    normColor,
+    resolveCounterStyle,
+    isCustomCounterStyle,
+    measureFontMetrics: _measureFontMetrics,
+  });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
-  const { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn, referenceScopeFor: _svgReferenceScope });
+  const {
+    discoverMasks,
+    computeMaskIntrinsic,
+    discoverClipPaths,
+    discoverFilters,
+    maskDefs: _maskDefs,
+    maskRasters: _maskRasters,
+    clipPathDefs: _clipPathDefs,
+    filterDefs: _filterDefs,
+  } = createMasksClipsHandler({ vp, warn, referenceScopeFor: _svgReferenceScope });
   const { captureFormControls } = createFormControlsHandler({
     normColor,
     resolvePseudo: _resolvePseudo,
@@ -216,13 +215,13 @@ const captureDocumentTree =
   // prepass authenticated one transform-neutral physical section record from
   // independent CSSOM and protocol geometry. Keep the live DOM correlation in
   // a private WeakMap; no author-visible id participates in ownership.
-  const _collapsedBorderFragmentRegistry = typeof args.cbfk === 'string'
-    ? globalThis[args.cbfk]
-    : null;
+  const _collapsedBorderFragmentRegistry = typeof args.cbfk === "string" ? globalThis[args.cbfk] : null;
   const _collapsedBorderFragmentByTable = new WeakMap();
-  if (_collapsedBorderFragmentRegistry != null
-      && Array.isArray(_collapsedBorderFragmentRegistry.tables)
-      && Array.isArray(_collapsedBorderFragmentRegistry.records)) {
+  if (
+    _collapsedBorderFragmentRegistry != null &&
+    Array.isArray(_collapsedBorderFragmentRegistry.tables) &&
+    Array.isArray(_collapsedBorderFragmentRegistry.records)
+  ) {
     for (let _cbfi = 0; _cbfi < _collapsedBorderFragmentRegistry.tables.length; _cbfi++) {
       const _cbfTable = _collapsedBorderFragmentRegistry.tables[_cbfi];
       const _cbfRecord = _collapsedBorderFragmentRegistry.records[_cbfi];
@@ -319,13 +318,17 @@ const captureDocumentTree =
     let transformSubtreeRaster;
     const _projectiveIndex = _projectiveNodeIndex.get(el);
     const _projectiveFact = _projectiveIndex != null ? _projectiveFacts[_projectiveIndex] : undefined;
-    if (typeof args.pqt === 'number' && isFinite(args.pqt)
-      && _projectiveFact != null && _projectiveFact.influenced === true
-      && _projectiveFact.computed != null) {
+    if (
+      typeof args.pqt === "number" &&
+      isFinite(args.pqt) &&
+      _projectiveFact != null &&
+      _projectiveFact.influenced === true &&
+      _projectiveFact.computed != null
+    ) {
       projectiveFrameState = {
-        source: 'chromium-cdp-content-quad-v1',
+        source: "chromium-cdp-content-quad-v1",
         sampleTimeMs: args.pqt,
-        animationCount: typeof args.pqa === 'number' && isFinite(args.pqa) ? args.pqa : 0,
+        animationCount: typeof args.pqa === "number" && isFinite(args.pqa) ? args.pqa : 0,
         role: _projectiveFact.role,
         influenced: true,
         contentQuad: _projectiveFact.quad,
@@ -347,22 +350,29 @@ const captureDocumentTree =
         const _parentInv = _parentAbs != null ? _invertH(_parentAbs) : null;
         projectiveTransform = _parentInv != null ? _mulH(_parentInv, _abs) : _abs;
         _projectiveAbsH.set(el, _abs);
-        const _area = (_quad[1].x - _quad[0].x) * (_quad[3].y - _quad[0].y)
-          - (_quad[1].y - _quad[0].y) * (_quad[3].x - _quad[0].x);
-        projectiveHidden = cs.backfaceVisibility === 'hidden' && _area < 0;
+        const _area =
+          (_quad[1].x - _quad[0].x) * (_quad[3].y - _quad[0].y) - (_quad[1].y - _quad[0].y) * (_quad[3].x - _quad[0].x);
+        projectiveHidden = cs.backfaceVisibility === "hidden" && _area < 0;
       }
     }
     const _makeTransformSubtreeRaster = () => {
-      let _left = rect.left, _top = rect.top, _right = rect.right, _bottom = rect.bottom;
-      const _subs = el.getElementsByTagName('*');
+      let _left = rect.left,
+        _top = rect.top,
+        _right = rect.right,
+        _bottom = rect.bottom;
+      const _subs = el.getElementsByTagName("*");
       for (let _ri = 0; _ri < _subs.length; _ri++) {
         const _rr = _subs[_ri].getBoundingClientRect();
         if (_rr.width <= 0 || _rr.height <= 0) continue;
-        _left = Math.min(_left, _rr.left); _top = Math.min(_top, _rr.top);
-        _right = Math.max(_right, _rr.right); _bottom = Math.max(_bottom, _rr.bottom);
+        _left = Math.min(_left, _rr.left);
+        _top = Math.min(_top, _rr.top);
+        _right = Math.max(_right, _rr.right);
+        _bottom = Math.max(_bottom, _rr.bottom);
       }
-      const _rx = Math.max(vp.x, _left), _ry = Math.max(vp.y, _top);
-      const _rright = Math.min(vp.x + vp.width, _right), _rbottom = Math.min(vp.y + vp.height, _bottom);
+      const _rx = Math.max(vp.x, _left),
+        _ry = Math.max(vp.y, _top);
+      const _rright = Math.min(vp.x + vp.width, _right),
+        _rbottom = Math.min(vp.y + vp.height, _bottom);
       if (_rright > _rx && _rbottom > _ry) {
         return {
           x: _rx - vp.x,
@@ -383,11 +393,14 @@ const captureDocumentTree =
     // Missing, changing, singular, or projective text-fragment facts are an
     // explicit Chromium surface boundary. Never fall back to the legacy
     // scalar font/rect approximation for that transformed subtree.
-    if (_textPaintFact != null && _textPaintFact.surfaceReason != null
-      && transformSubtreeRaster == null) {
+    if (_textPaintFact != null && _textPaintFact.surfaceReason != null && transformSubtreeRaster == null) {
       transformSubtreeRaster = _makeTransformSubtreeRaster();
-      warn(shortSelector(el), '<transform>', 'Chromium text-fragment geometry unavailable; retained one outer raster surface: '
-        + _textPaintFact.surfaceReason);
+      warn(
+        shortSelector(el),
+        "<transform>",
+        "Chromium text-fragment geometry unavailable; retained one outer raster surface: " +
+          _textPaintFact.surfaceReason,
+      );
     }
     // DM-513: when an element's rect is outside the viewport, normally skip the
     // whole subtree. But position:fixed / position:sticky descendants escape
@@ -422,29 +435,32 @@ const captureDocumentTree =
     // these short and actionable — consumers (CLI, tests, demo scripts) log
     // them so the fidelity gaps are self-documenting.
     const sel = shortSelector(el);
-    const _nativeControlTag = tag === 'input' || tag === 'select' || tag === 'textarea'
-      || tag === 'button' || tag === 'progress' || tag === 'meter';
-    const _specifiedAppearance = cs.webkitAppearance || cs.appearance || 'auto';
+    const _nativeControlTag =
+      tag === "input" ||
+      tag === "select" ||
+      tag === "textarea" ||
+      tag === "button" ||
+      tag === "progress" ||
+      tag === "meter";
+    const _specifiedAppearance = cs.webkitAppearance || cs.appearance || "auto";
     const _autoAppearanceDescriptor = {
       tag,
-      type: tag === 'input' ? (el.type || 'text') : undefined,
-      multiple: tag === 'select' ? !!el.multiple : undefined,
-      selectSize: tag === 'select' ? +el.size : undefined,
-      selectHasSizeAttribute: tag === 'select' ? el.hasAttribute('size') : undefined,
+      type: tag === "input" ? el.type || "text" : undefined,
+      multiple: tag === "select" ? !!el.multiple : undefined,
+      selectSize: tag === "select" ? +el.size : undefined,
+      selectHasSizeAttribute: tag === "select" ? el.hasAttribute("size") : undefined,
     };
-    const _appearanceFacts = typeof args.eak === 'string' && args.eak !== ''
-      ? el[args.eak]
-      : undefined;
+    const _appearanceFacts = typeof args.eak === "string" && args.eak !== "" ? el[args.eak] : undefined;
     const _effectiveAppearance = _nativeControlTag
       ? effectiveAppearanceForControl(
           _specifiedAppearance,
           _autoAppearanceDescriptor,
           _appearanceFacts,
-          cs.boxShadow != null && cs.boxShadow !== '' && cs.boxShadow !== 'none',
+          cs.boxShadow != null && cs.boxShadow !== "" && cs.boxShadow !== "none",
         )
-      : 'none';
-    const _nativeDecorationRefs = typeof args.ndk === 'string' && args.ndk !== ''
-      && Array.isArray(el[args.ndk]) ? el[args.ndk] : [];
+      : "none";
+    const _nativeDecorationRefs =
+      typeof args.ndk === "string" && args.ndk !== "" && Array.isArray(el[args.ndk]) ? el[args.ndk] : [];
     // A closed select's displayed option is not a source-DOM text node. Blink
     // paints it through `-internal-select-inner-element` in the UA shadow
     // tree (MenuListSelectType::UpdateTextStyleAndContent). Its line box can
@@ -453,10 +469,10 @@ const captureDocumentTree =
     // has retained that exact node for every select; read its Range geometry
     // while the source page is still live and let the renderer reuse it.
     let _selectDisplayTextGeometry;
-    if (tag === 'select' && el.size <= 1 && !el.multiple) {
+    if (tag === "select" && el.size <= 1 && !el.multiple) {
       for (let _sdi = 0; _sdi < _nativeDecorationRefs.length; _sdi++) {
         const _entry = _nativeDecorationRefs[_sdi];
-        const _inner = _entry != null && _entry.kind === 'select-inner' ? _entry.node : null;
+        const _inner = _entry != null && _entry.kind === "select-inner" ? _entry.node : null;
         if (!(_inner instanceof Element) || !_inner.isConnected) continue;
         try {
           const _range = document.createRange();
@@ -473,23 +489,23 @@ const captureDocumentTree =
               break;
             }
           }
-        } catch (_e) { /* Missing/empty UA shadow text falls back below. */ }
+        } catch (_e) {
+          /* Missing/empty UA shadow text falls back below. */
+        }
       }
     }
     let _fileSelectorButtonAppearance;
     for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
       const _fileRef = _nativeDecorationRefs[_fri];
-      if (_fileRef == null || _fileRef.kind !== 'file-selector-button') continue;
-      _fileSelectorButtonAppearance = _fileRef.ownership == null
-        ? null
-        : _fileRef.ownership.effectiveAppearance;
+      if (_fileRef == null || _fileRef.kind !== "file-selector-button") continue;
+      _fileSelectorButtonAppearance = _fileRef.ownership == null ? null : _fileRef.ownership.effectiveAppearance;
       break;
     }
     const _nativeDecorationKinds = _nativeControlTag
       ? nativeControlDecorationKinds(
           _autoAppearanceDescriptor,
           _effectiveAppearance,
-          tag === 'input' && el.type === 'file' ? _fileSelectorButtonAppearance : undefined,
+          tag === "input" && el.type === "file" ? _fileSelectorButtonAppearance : undefined,
         )
       : [];
     const {
@@ -509,14 +525,14 @@ const captureDocumentTree =
     // This keeps localized/multiple/long status text structural and gives the
     // author-owned pseudo route the same physical rect as Blink.
     let _fileSelectorCapture;
-    if (tag === 'input' && el.type === 'file') {
+    if (tag === "input" && el.type === "file") {
       let _buttonNode;
       let _statusNode;
       for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
         const _entry = _nativeDecorationRefs[_fri];
         if (_entry == null || !(_entry.node instanceof Element)) continue;
-        if (_entry.kind === 'file-selector-button') _buttonNode = _entry.node;
-        else if (_entry.kind === 'file-selector-status') _statusNode = _entry.node;
+        if (_entry.kind === "file-selector-button") _buttonNode = _entry.node;
+        else if (_entry.kind === "file-selector-status") _statusNode = _entry.node;
       }
       const _paintScale = _effectiveZoomFor(el);
       const _buttonRect = _buttonNode && _buttonNode.getBoundingClientRect();
@@ -525,13 +541,12 @@ const captureDocumentTree =
       let _buttonTextWidth = 0;
       if (_buttonNode && _buttonStyle) {
         try {
-          const _buttonCanvas = document.createElement('canvas');
-          const _buttonCtx = _buttonCanvas.getContext('2d');
+          const _buttonCanvas = document.createElement("canvas");
+          const _buttonCtx = _buttonCanvas.getContext("2d");
           if (_buttonCtx) {
             _buttonCtx.font = _buttonStyle.font;
-            _buttonTextWidth = _buttonCtx.measureText(
-              _buttonNode.value || _buttonNode.getAttribute('value') || '',
-            ).width * _paintScale;
+            _buttonTextWidth =
+              _buttonCtx.measureText(_buttonNode.value || _buttonNode.getAttribute("value") || "").width * _paintScale;
           }
         } catch (_e) {}
       }
@@ -550,62 +565,73 @@ const captureDocumentTree =
         }
       }
       _fileSelectorCapture = {
-        fileSelectorButton: _buttonRect && _buttonStyle && _buttonMetrics ? {
-          x: _buttonRect.left - vp.x,
-          y: _buttonRect.top - vp.y,
-          width: _buttonRect.width,
-          height: _buttonRect.height,
-          text: _buttonNode.value || _buttonNode.getAttribute('value') || '',
-          textWidth: _buttonTextWidth,
-          fontSize: (parseFloat(_buttonStyle.fontSize) || 0) * _paintScale,
-          fontFamily: _buttonStyle.fontFamily,
-          fontFamilyStack: _fontFamilyStackFor(el, _buttonStyle.fontFamily, '::file-selector-button'),
-          fontWeight: _buttonStyle.fontWeight,
-          fontStyle: _buttonStyle.fontStyle,
-          fontAscent: _buttonMetrics.ascent * _paintScale,
-          fontDescent: _buttonMetrics.descent * _paintScale,
-          color: normColor(_buttonStyle.color),
-          boxShadow: _buttonStyle.boxShadow,
-          borderRadius: _buttonStyle.borderRadius,
-          writingMode: _buttonStyle.writingMode,
-          textOrientation: _buttonStyle.textOrientation,
-          direction: _buttonStyle.direction,
-        } : undefined,
-        fileSelectorStatus: _statusRect && _statusStyle && _statusText ? {
-          x: _statusRect.left - vp.x,
-          y: _statusRect.top - vp.y,
-          width: _statusRect.width,
-          height: _statusRect.height,
-          text: _statusText.text || _statusNode.textContent || '',
-          textSegments: _statusText.textSegments,
-          fontSize: (parseFloat(_statusStyle.fontSize) || 0) * _paintScale,
-          fontFamily: _statusStyle.fontFamily,
-          fontFamilyStack: _fontFamilyStackFor(el, _statusStyle.fontFamily, '::file-selector-status'),
-          fontWeight: _statusStyle.fontWeight,
-          fontStyle: _statusStyle.fontStyle,
-          fontAscent: (_statusText.fontAscent || 0) * _paintScale,
-          fontDescent: (_statusText.fontDescent || 0) * _paintScale,
-          color: normColor(_statusStyle.color),
-          writingMode: _statusStyle.writingMode,
-          textOrientation: _statusStyle.textOrientation,
-          direction: _statusStyle.direction,
-        } : undefined,
+        fileSelectorButton:
+          _buttonRect && _buttonStyle && _buttonMetrics
+            ? {
+                x: _buttonRect.left - vp.x,
+                y: _buttonRect.top - vp.y,
+                width: _buttonRect.width,
+                height: _buttonRect.height,
+                text: _buttonNode.value || _buttonNode.getAttribute("value") || "",
+                textWidth: _buttonTextWidth,
+                fontSize: (parseFloat(_buttonStyle.fontSize) || 0) * _paintScale,
+                fontFamily: _buttonStyle.fontFamily,
+                fontFamilyStack: _fontFamilyStackFor(el, _buttonStyle.fontFamily, "::file-selector-button"),
+                fontWeight: _buttonStyle.fontWeight,
+                fontStyle: _buttonStyle.fontStyle,
+                fontAscent: _buttonMetrics.ascent * _paintScale,
+                fontDescent: _buttonMetrics.descent * _paintScale,
+                color: normColor(_buttonStyle.color),
+                boxShadow: _buttonStyle.boxShadow,
+                borderRadius: _buttonStyle.borderRadius,
+                writingMode: _buttonStyle.writingMode,
+                textOrientation: _buttonStyle.textOrientation,
+                direction: _buttonStyle.direction,
+              }
+            : undefined,
+        fileSelectorStatus:
+          _statusRect && _statusStyle && _statusText
+            ? {
+                x: _statusRect.left - vp.x,
+                y: _statusRect.top - vp.y,
+                width: _statusRect.width,
+                height: _statusRect.height,
+                text: _statusText.text || _statusNode.textContent || "",
+                textSegments: _statusText.textSegments,
+                fontSize: (parseFloat(_statusStyle.fontSize) || 0) * _paintScale,
+                fontFamily: _statusStyle.fontFamily,
+                fontFamilyStack: _fontFamilyStackFor(el, _statusStyle.fontFamily, "::file-selector-status"),
+                fontWeight: _statusStyle.fontWeight,
+                fontStyle: _statusStyle.fontStyle,
+                fontAscent: (_statusText.fontAscent || 0) * _paintScale,
+                fontDescent: (_statusText.fontDescent || 0) * _paintScale,
+                color: normColor(_statusStyle.color),
+                writingMode: _statusStyle.writingMode,
+                textOrientation: _statusStyle.textOrientation,
+                direction: _statusStyle.direction,
+              }
+            : undefined,
       };
     }
     if (_nativeControlTag && _effectiveAppearance == null) {
-      const _autoAppearance = _specifiedAppearance === 'auto'
-        ? autoAppearanceForControl(_autoAppearanceDescriptor)
-        : _specifiedAppearance;
+      const _autoAppearance =
+        _specifiedAppearance === "auto" ? autoAppearanceForControl(_autoAppearanceDescriptor) : _specifiedAppearance;
       if (appearanceNeedsAuthorStyleFacts(_autoAppearance)) {
-        const _reason = _appearanceFacts && _appearanceFacts.reason
-          ? _appearanceFacts.reason
-          : (args.ear || 'no correlated Chromium matched-style facts');
-        warn(sel, 'effective-appearance-cascade',
-          'author background/border origin unavailable (' + _reason + '); preserving a conservative Chromium host raster');
+        const _reason =
+          _appearanceFacts && _appearanceFacts.reason
+            ? _appearanceFacts.reason
+            : args.ear || "no correlated Chromium matched-style facts";
+        warn(
+          sel,
+          "effective-appearance-cascade",
+          "author background/border origin unavailable (" +
+            _reason +
+            "); preserving a conservative Chromium host raster",
+        );
       }
     }
-    if (cs.transform && cs.transform.startsWith('matrix3d')) {
-      warn(sel, 'transform-3d', 'static 3D plane projected to vector SVG from Chromium-measured corners');
+    if (cs.transform && cs.transform.startsWith("matrix3d")) {
+      warn(sel, "transform-3d", "static 3D plane projected to vector SVG from Chromium-measured corners");
     }
     // DM-2490: backdrop-filter diagnostics belong to the Node post-pass. The
     // synchronous walk can declare a source-surface owner, but only the later
@@ -614,18 +640,22 @@ const captureDocumentTree =
     // writing-mode != horizontal-tb is handled via elementRaster (SK-1128)
     // — the text region is screenshot-rasterized so vertical text and
     // sideways glyph rotation come from Chromes own paint. No warning.
-    if (cs.position === 'fixed' || cs.position === 'sticky') {
-      warn(sel, 'position:' + cs.position, 'rendered as a static snapshot at t=0; scroll-following behavior is not animated');
+    if (cs.position === "fixed" || cs.position === "sticky") {
+      warn(
+        sel,
+        "position:" + cs.position,
+        "rendered as a static snapshot at t=0; scroll-following behavior is not animated",
+      );
     }
     // Mask discovery — same-document fragment refs (`url("#id")`), element
     // refs (`element(#id)`), and warnings for unsupported mask sources.
     // Handler owns the maskDefs / maskRasters Maps that the orchestration
     // tail consumes. See walker/masks-clips.ts.
     const _maskFragmentReferences = discoverMasks(el, cs, sel);
-    const _maskFragmentReferenceScope = _maskFragmentReferences != null
-      && _maskFragmentReferences.length === 1
-      ? _maskFragmentReferences[0].scope
-      : undefined;
+    const _maskFragmentReferenceScope =
+      _maskFragmentReferences != null && _maskFragmentReferences.length === 1
+        ? _maskFragmentReferences[0].scope
+        : undefined;
     // DM-826: clip-path: url("#id") same-document fragment refs. Sibling of
     // the mask discovery above; collects inline <clipPath> defs the
     // renderer copies into the output SVG. See docs/39.
@@ -635,12 +665,12 @@ const captureDocumentTree =
     // the existing pass-through of cs.filter as an inline style then
     // resolves against that same-document def.
     const urlFilterRasterToken = discoverFilters(el, cs, sel);
-    if (cs.borderImageSource && cs.borderImageSource !== 'none') {
-      warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
+    if (cs.borderImageSource && cs.borderImageSource !== "none") {
+      warn(sel, "border-image", "9-slice composition pending (SK-466); border-image-source ignored");
     }
-    if (tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed') {
-      warn(sel, '<' + tag + '>', 'element type is not rendered by domotion');
-    } else if (tag === 'iframe') {
+    if (tag === "canvas" || tag === "video" || tag === "object" || tag === "embed") {
+      warn(sel, "<" + tag + ">", "element type is not rendered by domotion");
+    } else if (tag === "iframe") {
       // DM-1441: same-origin <iframe> documents recurse to native SVG (crisp,
       // scalable, selectable text). Only warn when the frame's document is
       // inaccessible (cross-origin under the Same-Origin Policy, or a
@@ -648,17 +678,38 @@ const captureDocumentTree =
       if (_iframeIsRecursable(el) == null) {
         var _frameBoundary = _iframeFrameAuthority(el);
         var _frameBoundaryAccess = _frameBoundary && _frameBoundary.access;
-        var _frameBoundaryId = _frameBoundary && _frameBoundary.frameId
-          ? _frameBoundary.frameId
-          : 'unknown';
-        if (_frameBoundaryAccess === 'cross-origin-denied') {
-          warn(sel, '<iframe>', 'frame ' + _frameBoundaryId + ' was denied by this capture\'s cross-origin allowlist; rendered as a static Chromium raster and no child scroll state was read');
-        } else if (_frameBoundaryAccess === 'inaccessible') {
-          warn(sel, '<iframe>', 'frame ' + _frameBoundaryId + ' was allowlisted/same-origin but inaccessible from the parent document; rendered as a static Chromium raster and no child scroll state was read');
-        } else if (_frameBoundaryAccess === 'identity-unavailable' || (_frameScrollKey !== '' && _frameBoundary == null)) {
-          warn(sel, '<iframe>', 'child Chromium FrameId authority was unavailable or did not belong to this parent; rendered as a static Chromium raster and no child scroll state was read');
+        var _frameBoundaryId = _frameBoundary && _frameBoundary.frameId ? _frameBoundary.frameId : "unknown";
+        if (_frameBoundaryAccess === "cross-origin-denied") {
+          warn(
+            sel,
+            "<iframe>",
+            "frame " +
+              _frameBoundaryId +
+              " was denied by this capture's cross-origin allowlist; rendered as a static Chromium raster and no child scroll state was read",
+          );
+        } else if (_frameBoundaryAccess === "inaccessible") {
+          warn(
+            sel,
+            "<iframe>",
+            "frame " +
+              _frameBoundaryId +
+              " was allowlisted/same-origin but inaccessible from the parent document; rendered as a static Chromium raster and no child scroll state was read",
+          );
+        } else if (
+          _frameBoundaryAccess === "identity-unavailable" ||
+          (_frameScrollKey !== "" && _frameBoundary == null)
+        ) {
+          warn(
+            sel,
+            "<iframe>",
+            "child Chromium FrameId authority was unavailable or did not belong to this parent; rendered as a static Chromium raster and no child scroll state was read",
+          );
         } else {
-          warn(sel, '<iframe>', 'cross-origin / inaccessible frame rendered as a static raster snapshot; same-origin frames recurse to native SVG');
+          warn(
+            sel,
+            "<iframe>",
+            "cross-origin / inaccessible frame rendered as a static raster snapshot; same-origin frames recurse to native SVG",
+          );
         }
       }
     }
@@ -671,10 +722,10 @@ const captureDocumentTree =
     // warning fired even when the layer rendered correctly — moved to
     // the raster pipeline, which warns only when a tile cannot be produced.
     // text-align: justify combined with wrapping — renderer doesn't space-stretch.
-    if (cs.textAlign === 'justify') {
-      warn(sel, 'text-align:justify', 'path-mode renderer does not space-stretch justified text');
+    if (cs.textAlign === "justify") {
+      warn(sel, "text-align:justify", "path-mode renderer does not space-stretch justified text");
     }
-    let text = '';
+    let text = "";
     let imageSrc = undefined;
     let svgContent = undefined;
 
@@ -700,9 +751,10 @@ const captureDocumentTree =
     // DM-750: content-visibility:hidden hides the host's subtree, which
     // includes generated content from ::before / ::after. Skip the pseudo
     // capture too so the placeholder host is just an empty rect.
-    const _pcResult = _contentVisHidden || Array.isArray(_pseudoFragmentFacts)
-      ? { pseudoSegments: [], pseudoBoxes: [] }
-      : capturePseudoContent(el, cs, rect, _counterSnapshot);
+    const _pcResult =
+      _contentVisHidden || Array.isArray(_pseudoFragmentFacts)
+        ? { pseudoSegments: [], pseudoBoxes: [] }
+        : capturePseudoContent(el, cs, rect, _counterSnapshot);
     const pseudoSegments = _pcResult.pseudoSegments;
     const pseudoBoxes = _pcResult.pseudoBoxes;
 
@@ -718,8 +770,9 @@ const captureDocumentTree =
     // synthesize the selected option text via styles.selectDisplayText
     // (DM-246); listbox-mode selects synthesize all rows via
     // styles.selectListboxOptions (DM-282).
-    const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || tag === 'option' || tag === 'optgroup';
-    if (tag !== 'svg' && tag !== 'img' && !textIsHiddenFallback && !_contentVisHidden) {
+    const textIsHiddenFallback =
+      tag === "meter" || tag === "progress" || tag === "datalist" || tag === "option" || tag === "optgroup";
+    if (tag !== "svg" && tag !== "img" && !textIsHiddenFallback && !_contentVisHidden) {
       // Input / textarea value capture (incl. placeholder fallback, password
       // masking, sub-pixel inputXOffsets probe, text-align shift). See
       // walker/input-value.ts. When the handler `applied`, copy its locals
@@ -772,8 +825,13 @@ const captureDocumentTree =
     const _pi = Array.isArray(_pseudoFragmentFacts)
       ? { pseudoImages: [], text, textLeft, textTop, textWidth, textHeight, fontAscent }
       : injectPseudoSegments(el, pseudoSegments, textSegments, {
-        text, textLeft, textTop, textWidth, textHeight, fontAscent,
-      });
+          text,
+          textLeft,
+          textTop,
+          textWidth,
+          textHeight,
+          fontAscent,
+        });
     const pseudoImages = _pi.pseudoImages;
     text = _pi.text;
     textLeft = _pi.textLeft;
@@ -794,11 +852,14 @@ const captureDocumentTree =
       var _segMetricStyle = {
         fontStyle: _seg.fontStyle ?? cs.fontStyle,
         fontWeight: _seg.fontWeight ?? cs.fontWeight,
-        fontSize: _segLogicalSize + 'px',
+        fontSize: _segLogicalSize + "px",
         fontFamily: _seg.fontFamily ?? cs.fontFamily,
       };
       var _segLogicalMetrics = _measureFontMetrics(_segMetricStyle);
-      var _segComputedMetrics = _measureFontMetrics(_segMetricStyle, (_segLogicalSize * _segmentZoom).toFixed(4) + 'px');
+      var _segComputedMetrics = _measureFontMetrics(
+        _segMetricStyle,
+        (_segLogicalSize * _segmentZoom).toFixed(4) + "px",
+      );
       if (_seg.fontAscent === _segLogicalMetrics.ascent) _seg.fontAscent = _segComputedMetrics.ascent;
       if (_seg.fontDescent === _segLogicalMetrics.descent) _seg.fontDescent = _segComputedMetrics.descent;
       if (_seg.fontSize != null) _seg.fontSize = _segLogicalSize * _segmentZoom;
@@ -807,7 +868,7 @@ const captureDocumentTree =
     let textImageUri = undefined;
     const textImageScale = 2;
 
-    if (tag === 'img') {
+    if (tag === "img") {
       // currentSrc is the URL the browser actually resolved + loaded (from
       // srcset / <picture> <source>). Fall back to src when currentSrc is empty.
       imageSrc = el.currentSrc || el.src;
@@ -821,16 +882,16 @@ const captureDocumentTree =
       // a small broken-image icon plus the alt text inline. Capture both so
       // the renderer can synthesize the same fallback.
       var imageBroken = el.complete && el.naturalWidth === 0;
-      var imageAlt = el.alt || '';
+      var imageAlt = el.alt || "";
       // Seed only light-DOM/source facts here. Closed UA-shadow ownership,
       // used geometry, text shaping/font facts, and AX semantics are attached
       // by the Node/CDP post-pass while the private live-node registry exists.
-      var _imageHasSrc = el.hasAttribute('src');
-      var _imageHasAlt = el.hasAttribute('alt');
-      var _imageHasTitle = el.hasAttribute('title');
+      var _imageHasSrc = el.hasAttribute("src");
+      var _imageHasAlt = el.hasAttribute("alt");
+      var _imageHasTitle = el.hasAttribute("title");
       var brokenImageFallback = {
         schemaVersion: 1,
-        authority: 'chromium-ua-shadow-v1',
+        authority: "chromium-ua-shadow-v1",
         sourceNodeIndex: _projectiveNodeIndex.get(el),
         selector: sel,
         effectiveZoom: _effectiveZoomFor(el),
@@ -844,18 +905,20 @@ const captureDocumentTree =
           complete: el.complete === true,
           naturalWidth: Number(el.naturalWidth) || 0,
           naturalHeight: Number(el.naturalHeight) || 0,
-          currentSrc: el.currentSrc || '',
-          src: { present: _imageHasSrc, value: _imageHasSrc ? el.getAttribute('src') : null },
-          alt: { present: _imageHasAlt, value: _imageHasAlt ? el.getAttribute('alt') : null },
-          title: { present: _imageHasTitle, value: _imageHasTitle ? el.getAttribute('title') : null },
+          currentSrc: el.currentSrc || "",
+          src: { present: _imageHasSrc, value: _imageHasSrc ? el.getAttribute("src") : null },
+          alt: { present: _imageHasAlt, value: _imageHasAlt ? el.getAttribute("alt") : null },
+          title: { present: _imageHasTitle, value: _imageHasTitle ? el.getAttribute("title") : null },
           // Blink HTMLImageElement::AltText: a present alt wins even when it
           // is empty; title is consulted only when alt is absent.
           resolvedText: _imageHasAlt
-            ? (el.getAttribute('alt') || '')
-            : (_imageHasTitle ? (el.getAttribute('title') || '') : ''),
+            ? el.getAttribute("alt") || ""
+            : _imageHasTitle
+              ? el.getAttribute("title") || ""
+              : "",
         },
       };
-    } else if (tag === 'input' && el.type === 'image') {
+    } else if (tag === "input" && el.type === "image") {
       // <input type="image"> renders the src as a clickable button-image.
       // No currentSrc / naturalWidth on HTMLInputElement; the bounding rect
       // already reflects width/height attributes or the image's natural size.
@@ -863,7 +926,7 @@ const captureDocumentTree =
     }
     const _listsCounters = captureListsCounters(el, cs, tag);
     let svgReferenceScope = undefined;
-    if (tag === 'svg') {
+    if (tag === "svg") {
       const inlineSvgCapture = captureInlineSvg(el, cs, warn, sel);
       svgContent = inlineSvgCapture.content;
       // Missing/singular CTMs and failed isolated-clone correlation are an
@@ -892,9 +955,12 @@ const captureDocumentTree =
     const _fsBox = computeFieldsetLegendBox(el, tag, rect, vp);
 
     const _captured = {
-      tag, text,
-      x: _fsBox.x, y: _fsBox.y,
-      width: _fsBox.width, height: _fsBox.height,
+      tag,
+      text,
+      x: _fsBox.x,
+      y: _fsBox.y,
+      width: _fsBox.width,
+      height: _fsBox.height,
       fieldsetLegendNotch: _fsBox.fieldsetLegendNotch,
       resizeHandle: captureResizeHandle(el, cs, tag, rect),
       // DM-2481: populated by the Node-side live Chromium marker probe.  The
@@ -902,10 +968,16 @@ const captureDocumentTree =
       // be explicitly partial/unavailable; the renderer must never infer a
       // replacement from scrollWidth/clientWidth or scroll offsets.
       scrollbars: (function () {
-        const _record = typeof args.sk === 'string' && args.sk !== '' ? el[args.sk] : undefined;
-        if (_record == null && (cs.overflowX === 'auto' || cs.overflowX === 'scroll'
-            || cs.overflowY === 'auto' || cs.overflowY === 'scroll')) {
-          warn(sel, 'scrollbar-capture', 'live Chromium scrollbar probe did not correlate this scroll host; legacy synthesis is disabled');
+        const _record = typeof args.sk === "string" && args.sk !== "" ? el[args.sk] : undefined;
+        if (
+          _record == null &&
+          (cs.overflowX === "auto" || cs.overflowX === "scroll" || cs.overflowY === "auto" || cs.overflowY === "scroll")
+        ) {
+          warn(
+            sel,
+            "scrollbar-capture",
+            "live Chromium scrollbar probe did not correlate this scroll host; legacy synthesis is disabled",
+          );
         }
         return _record;
       })(),
@@ -913,24 +985,26 @@ const captureDocumentTree =
       magicKey: _magicKey,
       // DM-2457: private correlation only. The Node/CDP post-pass resolves the
       // real generated ::marker fragment and deletes this index before return.
-      _summaryMarkerSourceNodeIndex: tag === 'summary' && cs.display != null && cs.display.includes('list-item')
-        ? _projectiveNodeIndex.get(el)
-        : undefined,
+      _summaryMarkerSourceNodeIndex:
+        tag === "summary" && cs.display != null && cs.display.includes("list-item")
+          ? _projectiveNodeIndex.get(el)
+          : undefined,
       svgReferenceScope,
-      fragmentReferenceScope: _maskFragmentReferenceScope != null
-        ? _maskFragmentReferenceScope
-        : _clipFragmentReferenceScope,
-      fragmentReferenceZoom: (_maskFragmentReferences != null && _maskFragmentReferences.length > 0)
-          || _clipFragmentReferenceScope != null
-        ? _effectiveZoomFor(el)
-        : undefined,
-      maskFragmentReferences: _maskFragmentReferences != null && _maskFragmentReferences.length > 0
-        ? _maskFragmentReferences
-        : undefined,
+      fragmentReferenceScope:
+        _maskFragmentReferenceScope != null ? _maskFragmentReferenceScope : _clipFragmentReferenceScope,
+      fragmentReferenceZoom:
+        (_maskFragmentReferences != null && _maskFragmentReferences.length > 0) || _clipFragmentReferenceScope != null
+          ? _effectiveZoomFor(el)
+          : undefined,
+      maskFragmentReferences:
+        _maskFragmentReferences != null && _maskFragmentReferences.length > 0 ? _maskFragmentReferences : undefined,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
       // Omitted when it resolves to the default arrow (the common case) to keep
       // the tree lean — the overlay treats a missing value as `default`.
-      cursor: (() => { const _c = resolveElementCursor(el, cs); return _c === 'default' ? undefined : _c; })(),
+      cursor: (() => {
+        const _c = resolveElementCursor(el, cs);
+        return _c === "default" ? undefined : _c;
+      })(),
       styles: {
         // Border + background + outline + box-shadow fields — see
         // walker/borders-backgrounds.ts. Includes the
@@ -954,7 +1028,7 @@ const captureDocumentTree =
         overflowClipMargin: cs.overflowClipMargin
           ? physicalComputedCssPixelTerms(cs.overflowClipMargin, _effectiveZoomFor(el))
           : undefined,
-        scrollbarGutter: cs.scrollbarGutter || 'auto',
+        scrollbarGutter: cs.scrollbarGutter || "auto",
         scrollWidth: el.scrollWidth,
         scrollHeight: el.scrollHeight,
         clientWidth: el.clientWidth,
@@ -964,43 +1038,50 @@ const captureDocumentTree =
         objectFit: cs.objectFit,
         objectPosition: cs.objectPosition,
         filter: cs.filter,
-        backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || '',
+        backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || "",
         mixBlendMode: cs.mixBlendMode,
         clipPath: cs.clipPath,
-        mask: cs.mask || cs.webkitMask || '',
-        maskImage: physicalComputedGradientImage(cs.maskImage || cs.webkitMaskImage || '', _effectiveZoomFor(el)),
-        maskMode: cs.maskMode || 'match-source',
+        mask: cs.mask || cs.webkitMask || "",
+        maskImage: physicalComputedGradientImage(cs.maskImage || cs.webkitMaskImage || "", _effectiveZoomFor(el)),
+        maskMode: cs.maskMode || "match-source",
         // Computed mask lengths are exposed before effective zoom, while the
         // captured positioning rect is already in painted coordinates. Cross
         // that boundary once; percentages stay unresolved until Blink's
         // contain/cover tile has established the free space (DM-2379).
-        maskSize: physicalComputedCssPixelTerms(cs.maskSize || cs.webkitMaskSize || 'auto', _effectiveZoomFor(el)),
-        maskPosition: physicalComputedCssPixelTerms(cs.maskPosition || cs.webkitMaskPosition || '0% 0%', _effectiveZoomFor(el)),
-        maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || 'repeat',
-        maskComposite: cs.maskComposite || cs.webkitMaskComposite || 'add',
+        maskSize: physicalComputedCssPixelTerms(cs.maskSize || cs.webkitMaskSize || "auto", _effectiveZoomFor(el)),
+        maskPosition: physicalComputedCssPixelTerms(
+          cs.maskPosition || cs.webkitMaskPosition || "0% 0%",
+          _effectiveZoomFor(el),
+        ),
+        maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || "repeat",
+        maskComposite: cs.maskComposite || cs.webkitMaskComposite || "add",
         maskIntrinsic: computeMaskIntrinsic(el, cs),
-        maskOrigin: cs.maskOrigin || cs.webkitMaskOrigin || 'border-box',
-        maskClip: cs.maskClip || cs.webkitMaskClip || 'border-box',
+        maskOrigin: cs.maskOrigin || cs.webkitMaskOrigin || "border-box",
+        maskClip: cs.maskClip || cs.webkitMaskClip || "border-box",
         // DM-2472: BackgroundImageGeometry contracts the HTML border box by
         // mask-origin independently from mask-clip. Computed padding/borders
         // are pre-zoom CSS px while `rect` is already physical, so cross the
         // effective-zoom boundary once at capture time.
         maskBoxInsets: (function () {
-          var _maskImage = cs.maskImage || cs.webkitMaskImage || '';
-          if (_maskImage === '' || _maskImage === 'none') return undefined;
+          var _maskImage = cs.maskImage || cs.webkitMaskImage || "";
+          if (_maskImage === "" || _maskImage === "none") return undefined;
           var _zoom = _effectiveZoomFor(el);
           var _physical = function (value) {
-            var _number = parseFloat(value || '0');
+            var _number = parseFloat(value || "0");
             return Number.isFinite(_number) ? _number * _zoom : 0;
           };
           return {
             border: {
-              top: _physical(cs.borderTopWidth), right: _physical(cs.borderRightWidth),
-              bottom: _physical(cs.borderBottomWidth), left: _physical(cs.borderLeftWidth),
+              top: _physical(cs.borderTopWidth),
+              right: _physical(cs.borderRightWidth),
+              bottom: _physical(cs.borderBottomWidth),
+              left: _physical(cs.borderLeftWidth),
             },
             padding: {
-              top: _physical(cs.paddingTop), right: _physical(cs.paddingRight),
-              bottom: _physical(cs.paddingBottom), left: _physical(cs.paddingLeft),
+              top: _physical(cs.paddingTop),
+              right: _physical(cs.paddingRight),
+              bottom: _physical(cs.paddingBottom),
+              left: _physical(cs.paddingLeft),
             },
           };
         })(),
@@ -1009,9 +1090,10 @@ const captureDocumentTree =
         // returns undefined. Capture source + slice / width / outset so the
         // renderer can decide whether to route through the simplified
         // full-element mask path (only safe when width / outset both `0`).
-        maskBorderSource: cs.webkitMaskBoxImageSource && cs.webkitMaskBoxImageSource !== 'none'
-          ? cs.webkitMaskBoxImageSource
-          : undefined,
+        maskBorderSource:
+          cs.webkitMaskBoxImageSource && cs.webkitMaskBoxImageSource !== "none"
+            ? cs.webkitMaskBoxImageSource
+            : undefined,
         maskBorderSlice: cs.webkitMaskBoxImageSlice || undefined,
         maskBorderWidth: cs.webkitMaskBoxImageWidth || undefined,
         maskBorderOutset: cs.webkitMaskBoxImageOutset || undefined,
@@ -1025,15 +1107,15 @@ const captureDocumentTree =
         // the `<svg width/height>` attributes (or viewBox-derived size) for
         // SVG sources. Captured at capture time so the renderer can compute
         // 9-slice source rects without re-fetching the asset.
-        maskBorderIntrinsicWidth: (function() {
-          var _url = extractCssUrl(cs.webkitMaskBoxImageSource || '');
+        maskBorderIntrinsicWidth: (function () {
+          var _url = extractCssUrl(cs.webkitMaskBoxImageSource || "");
           if (_url == null) return undefined;
           var _img = new Image();
           _img.src = _url;
           return _img.naturalWidth || undefined;
         })(),
-        maskBorderIntrinsicHeight: (function() {
-          var _url = extractCssUrl(cs.webkitMaskBoxImageSource || '');
+        maskBorderIntrinsicHeight: (function () {
+          var _url = extractCssUrl(cs.webkitMaskBoxImageSource || "");
           if (_url == null) return undefined;
           var _img = new Image();
           _img.src = _url;
@@ -1058,7 +1140,7 @@ const captureDocumentTree =
         // cursor hit-testing (the auto cursor-overlay glyph picker). Captured
         // only when `none` — the property inherits, so descendants report it
         // themselves; every other value hit-tests normally.
-        pointerEvents: cs.pointerEvents === 'none' ? 'none' : undefined,
+        pointerEvents: cs.pointerEvents === "none" ? "none" : undefined,
         order: cs.order,
         flexDirection: cs.flexDirection,
         emptyCellsHidden: isTableCellHiddenByEmptyCells(el, cs, tag),
@@ -1108,16 +1190,16 @@ const captureDocumentTree =
         // DM-2470: font metrics live in Blink's pre-transform plane. Effective
         // CSS zoom is layout-local and is crossed here exactly once; the later
         // signed CSS transform is carried solely by textPaintGeometry.
-        fontSize: (function() {
+        fontSize: (function () {
           var _fs = parseFloat(cs.fontSize);
           if (!isFinite(_fs)) return cs.fontSize;
-          return (_fs * _effectiveZoomFor(el)).toFixed(4) + 'px';
+          return (_fs * _effectiveZoomFor(el)).toFixed(4) + "px";
         })(),
         fontLogicalSize: cs.fontSize,
-        fontComputedSize: (function() {
+        fontComputedSize: (function () {
           var _fs = parseFloat(cs.fontSize);
           if (!isFinite(_fs)) return cs.fontSize;
-          return (_fs * _effectiveZoomFor(el)).toFixed(4) + 'px';
+          return (_fs * _effectiveZoomFor(el)).toFixed(4) + "px";
         })(),
         // DM-2051: an element with NO author-declared font-family is a Blink
         // kStandardFamily description, which resolves to the SCRIPT-KEYED
@@ -1129,9 +1211,7 @@ const captureDocumentTree =
         // `matchFamilyNameToKey("-webkit-standard", true, lang)` then routes it
         // script-keyed. A declared `font-family: Times` (identical computed
         // string, but Latin→Times / CJK→fallback) is left untouched.
-        fontFamily: _capturedFontFamilyStack.genericFamily === 'standard'
-          ? '-webkit-standard'
-          : cs.fontFamily,
+        fontFamily: _capturedFontFamilyStack.genericFamily === "standard" ? "-webkit-standard" : cs.fontFamily,
         fontFamilyStack: _capturedFontFamilyStack,
         fontWeight: cs.fontWeight,
         fontStyle: cs.fontStyle,
@@ -1147,7 +1227,10 @@ const captureDocumentTree =
         // The alias table is document-global but only alternate-bearing nodes
         // can consume it; omit it from the common element shape to avoid
         // repeating author rule data throughout the serialized tree.
-        fontFeatureValues: cs.fontVariantAlternates && cs.fontVariantAlternates !== 'normal' ? _fontFeatureValuesFor(el.ownerDocument) : undefined,
+        fontFeatureValues:
+          cs.fontVariantAlternates && cs.fontVariantAlternates !== "normal"
+            ? _fontFeatureValuesFor(el.ownerDocument)
+            : undefined,
         // CSS font-variant-caps. 'small-caps' / 'all-small-caps' route to
         // the OpenType smcp feature; renderer applies synthesized small-caps
         // when the active font lacks smcp (Helvetica, Times, etc.). DM-361.
@@ -1200,13 +1283,13 @@ const captureDocumentTree =
         // [lang], falling back to document.documentElement.lang. Used by the
         // path renderer to route CJK Han fallback to the right PingFang
         // regional variant. (DM-394)
-        lang: (function() {
+        lang: (function () {
           var n = el;
           while (n != null && n.nodeType === 1) {
             if (n.lang) return n.lang;
             n = n.parentElement;
           }
-          return document.documentElement.lang || '';
+          return document.documentElement.lang || "";
         })(),
         textDecorationLine: cs.textDecorationLine,
         textDecorationColor: cs.textDecorationColor,
@@ -1232,7 +1315,14 @@ const captureDocumentTree =
       projectiveHidden,
       projectiveFrameState,
       transformSubtreeRaster,
-      children, imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback, svgContent,
+      children,
+      imageSrc,
+      imageIntrinsic,
+      imageEffectiveZoom,
+      imageBroken,
+      imageAlt,
+      brokenImageFallback,
+      svgContent,
       pseudoFragments: Array.isArray(_pseudoFragmentFacts) ? _pseudoFragmentFacts : undefined,
       pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
@@ -1245,13 +1335,16 @@ const captureDocumentTree =
       // capture and consumed before that intermediate tree is discarded.
       _textPaintSourceKey: args.tgp === true ? _textPaintSourceKeyFor(el) : undefined,
       lineClampTextFragments: lineClampTextFragments || undefined,
-      textTop, textLeft, textHeight, textWidth,
+      textTop,
+      textLeft,
+      textHeight,
+      textWidth,
       // DM-2446: Blink chooses and measures the face at computed size
       // (logical CSS size × effective zoom), then the transform stage scales
       // those metrics into paint space. Re-measure at computed size instead of
       // multiplying logical-size metrics by zoom: variable-font metrics can
       // change non-linearly when the computed size selects another instance.
-      fontAscent: (function() {
+      fontAscent: (function () {
         if (fontAscent == null) return fontAscent;
         var _logical = parseFloat(cs.fontSize);
         var _zoom = _effectiveZoomFor(el);
@@ -1261,19 +1354,20 @@ const captureDocumentTree =
         // than this host element. Preserve that source and only apply the
         // established local metric when it does not match the host metric.
         if (fontAscent !== _measureFontMetrics(cs).ascent) return fontAscent;
-        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').ascent;
+        return _measureFontMetrics(cs, _computed.toFixed(4) + "px").ascent;
       })(),
-      fontDescent: (function() {
+      fontDescent: (function () {
         if (fontDescent == null) return fontDescent;
         var _logical = parseFloat(cs.fontSize);
         var _zoom = _effectiveZoomFor(el);
         var _computed = _logical * _zoom;
         if (!isFinite(_computed) || _zoom === 0) return fontDescent;
         if (fontDescent !== _measureFontMetrics(cs).descent) return fontDescent;
-        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').descent;
+        return _measureFontMetrics(cs, _computed.toFixed(4) + "px").descent;
       })(),
       inputXOffsets,
-      textImageUri, textImageScale,
+      textImageUri,
+      textImageScale,
       // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in
       // walker/input-value.ts when the host is a placeholder-shown input
       // or textarea. Undefined elsewhere.
@@ -1303,9 +1397,8 @@ const captureDocumentTree =
         // that surface in the same snapshot instead of clipping it at `rect`.
         const outlineWidth = parseFloat(cs.outlineWidth) || 0;
         const outlineOffset = parseFloat(cs.outlineOffset) || 0;
-        const expand = cs.outlineStyle !== 'none' && cs.outlineStyle !== 'hidden'
-          ? Math.max(0, outlineWidth + outlineOffset)
-          : 0;
+        const expand =
+          cs.outlineStyle !== "none" && cs.outlineStyle !== "hidden" ? Math.max(0, outlineWidth + outlineOffset) : 0;
         // Skia AA coverage may extend one device-independent pixel past the
         // layout border box (notably the lower edge of rounded author borders
         // on otherwise native inputs). Preserve that visual-overflow fringe;
@@ -1326,7 +1419,7 @@ const captureDocumentTree =
           // LayoutProgress::IsDeterminate feeds ThemePainterDefault's native
           // progress parameters. Only the missing-value state advances its
           // platform paint independently of author animation timelines.
-          frameSensitive: tag === 'progress' && !el.hasAttribute('value') || undefined,
+          frameSensitive: (tag === "progress" && !el.hasAttribute("value")) || undefined,
         };
       })(),
       // A CSS-owned host can still contain either ThemePainter's select arrow
@@ -1336,26 +1429,30 @@ const captureDocumentTree =
       nativeControlDecorationRaster: (function () {
         if (_nativeDecorationKinds.length === 0 || rect.width <= 0 || rect.height <= 0) return undefined;
         const rasterExpand = 1;
-        const _fileButtonPart = _nativeDecorationKinds.indexOf('file-selector-button') >= 0
-          ? _nativeDecorationParts.find((_part) => _part.kind === 'file-selector-button')
-          : undefined;
+        const _fileButtonPart =
+          _nativeDecorationKinds.indexOf("file-selector-button") >= 0
+            ? _nativeDecorationParts.find((_part) => _part.kind === "file-selector-button")
+            : undefined;
         // ThemePainter owns exactly the file button's border box. The 4px
         // logical-end margin and filename span are separate layout/text paint;
         // author box-shadow is likewise structural outside this source crop.
-        const base = _fileButtonPart != null ? {
-          x: _fileButtonPart.x - vp.x,
-          y: _fileButtonPart.y - vp.y,
-          width: _fileButtonPart.width,
-          height: _fileButtonPart.height,
-          kinds: _nativeDecorationKinds,
-          exactPartBox: true,
-        } : {
-          x: rect.left - vp.x - rasterExpand,
-          y: rect.top - vp.y - rasterExpand,
-          width: rect.width + rasterExpand * 2,
-          height: rect.height + rasterExpand * 2,
-          kinds: _nativeDecorationKinds,
-        };
+        const base =
+          _fileButtonPart != null
+            ? {
+                x: _fileButtonPart.x - vp.x,
+                y: _fileButtonPart.y - vp.y,
+                width: _fileButtonPart.width,
+                height: _fileButtonPart.height,
+                kinds: _nativeDecorationKinds,
+                exactPartBox: true,
+              }
+            : {
+                x: rect.left - vp.x - rasterExpand,
+                y: rect.top - vp.y - rasterExpand,
+                width: rect.width + rasterExpand * 2,
+                height: rect.height + rasterExpand * 2,
+                kinds: _nativeDecorationKinds,
+              };
         if (_nativeDecorationUnavailableReason != null) {
           return Object.assign(base, {
             unavailableReason: _nativeDecorationUnavailableReason,
@@ -1364,11 +1461,11 @@ const captureDocumentTree =
         }
         if (_missingNativeDecorationKinds.length > 0) {
           return Object.assign(base, {
-            unavailableReason: 'pierced UA-shadow node missing: ' + _missingNativeDecorationKinds.join(', '),
+            unavailableReason: "pierced UA-shadow node missing: " + _missingNativeDecorationKinds.join(", "),
             selector: sel,
           });
         }
-        const selectArrow = _nativeDecorationKinds.indexOf('menulist-button-arrow') >= 0;
+        const selectArrow = _nativeDecorationKinds.indexOf("menulist-button-arrow") >= 0;
         if (!selectArrow && _nativeDecorationParts.length === 0) {
           // Used display/visibility/opacity/geometry proves every candidate is
           // currently non-painting (rest/readonly/disabled/base collapse).
@@ -1386,10 +1483,10 @@ const captureDocumentTree =
       // no equivalent input surface, so preserve Chromium's composited pixels
       // for the complete isolation subtree at its paint-order position.
       backdropFilterRaster: (function () {
-        const value = cs.backdropFilter || cs.webkitBackdropFilter || '';
-        if (value === '' || value === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
-        const token = 'bf' + (_backdropRasterSeq++);
-        el.setAttribute('data-domotion-backdrop-raster', token);
+        const value = cs.backdropFilter || cs.webkitBackdropFilter || "";
+        if (value === "" || value === "none" || rect.width <= 0 || rect.height <= 0) return undefined;
+        const token = "bf" + _backdropRasterSeq++;
+        el.setAttribute("data-domotion-backdrop-raster", token);
         return {
           x: rect.left - vp.x,
           y: rect.top - vp.y,
@@ -1403,13 +1500,16 @@ const captureDocumentTree =
       // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
       // original layer-space SourceGraphic pixels. The Node post-pass replaces
       // this placeholder with the isolated, fully-filtered Chromium surface.
-      urlFilterRaster: urlFilterRasterToken == null ? undefined : {
-        x: rect.left - vp.x,
-        y: rect.top - vp.y,
-        width: rect.width,
-        height: rect.height,
-        token: urlFilterRasterToken,
-      },
+      urlFilterRaster:
+        urlFilterRasterToken == null
+          ? undefined
+          : {
+              x: rect.left - vp.x,
+              y: rect.top - vp.y,
+              width: rect.width,
+              height: rect.height,
+              token: urlFilterRasterToken,
+            },
     };
     return assembleCaptureResultPhase({
       captured: _captured,
@@ -1441,32 +1541,34 @@ const captureDocumentTree =
   // styled box (with centered text for pill labels). Chrome lays out the replica
   // identically to the real group, so the measured rects ARE Chrome's geometry.
   function _captureScrollMarkerGroup(el, cs, rect) {
-    var smg = cs.scrollMarkerGroup != null && cs.scrollMarkerGroup !== ''
-      ? cs.scrollMarkerGroup
-      : (cs.getPropertyValue ? cs.getPropertyValue('scroll-marker-group') : '');
-    if (!smg || smg.indexOf('none') === 0) return undefined;
-    var position = smg.indexOf('before') === 0 ? 'before'
-      : (smg.indexOf('after') === 0 ? 'after' : null);
+    var smg =
+      cs.scrollMarkerGroup != null && cs.scrollMarkerGroup !== ""
+        ? cs.scrollMarkerGroup
+        : cs.getPropertyValue
+          ? cs.getPropertyValue("scroll-marker-group")
+          : "";
+    if (!smg || smg.indexOf("none") === 0) return undefined;
+    var position = smg.indexOf("before") === 0 ? "before" : smg.indexOf("after") === 0 ? "after" : null;
     if (!position) return undefined;
     // One marker per child whose ::scroll-marker has real content.
     var items = [];
     for (var i = 0; i < el.children.length; i++) {
       var child = el.children[i];
-      var mcs = window.getComputedStyle(child, '::scroll-marker');
+      var mcs = window.getComputedStyle(child, "::scroll-marker");
       var content = mcs.content;
-      if (!content || content === 'none' || content === 'normal') continue;
+      if (!content || content === "none" || content === "normal") continue;
       items.push({ mcs: mcs, content: content });
     }
     if (items.length === 0) return undefined;
-    var gcs = window.getComputedStyle(el, '::scroll-marker-group');
+    var gcs = window.getComputedStyle(el, "::scroll-marker-group");
     var doc = el.ownerDocument;
-    var container = doc.createElement('div');
+    var container = doc.createElement("div");
     var groupWidth = rect.width; // scroller border-box width
-    container.style.boxSizing = 'border-box';
-    container.style.position = 'absolute';
-    container.style.margin = '0';
-    container.style.display = gcs.display && gcs.display !== 'inline' ? gcs.display : 'flex';
-    container.style.justifyContent = gcs.justifyContent || 'center';
+    container.style.boxSizing = "border-box";
+    container.style.position = "absolute";
+    container.style.margin = "0";
+    container.style.display = gcs.display && gcs.display !== "inline" ? gcs.display : "flex";
+    container.style.justifyContent = gcs.justifyContent || "center";
     // DM-1257: the markers overflow the padding-height group box (see below), and
     // Chrome top-aligns them at padding-top + marker-margin from the group's TOP
     // edge for BOTH `before` and `after` (verified: `after` dots sit padTop+margin
@@ -1474,40 +1576,49 @@ const captureDocumentTree =
     // before-group's top, i.e. flush against the scroller's top edge). So always
     // flex-start — default `normal`/`center` would center them in the zero-height
     // content box and mis-place the row.
-    container.style.alignItems = 'flex-start';
+    container.style.alignItems = "flex-start";
     // Do not copy the group's flex gap. Blink leaves ::scroll-marker inline
     // (style_adjuster.cc:1194-1198), so adjacent markers are laid out through
     // one anonymous flex item; `gap` separates flex items and therefore does
     // not add spacing between these inline marker boxes. The replica's DOM
     // children are independent flex items, so copying gap would widen the row.
-    container.style.gap = '0';
-    container.style.padding = gcs.padding || '0';
-    container.style.background = gcs.backgroundColor || 'transparent';
-    container.style.borderRadius = gcs.borderRadius || '0';
-    container.style.width = groupWidth + 'px';
-    container.style.left = '-99999px';
-    container.style.top = '0px';
+    container.style.gap = "0";
+    container.style.padding = gcs.padding || "0";
+    container.style.background = gcs.backgroundColor || "transparent";
+    container.style.borderRadius = gcs.borderRadius || "0";
+    container.style.width = groupWidth + "px";
+    container.style.left = "-99999px";
+    container.style.top = "0px";
     for (var j = 0; j < items.length; j++) {
       var mc = items[j].mcs;
-      var m = doc.createElement('div');
+      var m = doc.createElement("div");
       var txt = items[j].content;
-      if (txt === '""' || txt === "''") txt = '';
-      else if (txt.length >= 2 && ((txt[0] === '"' && txt[txt.length - 1] === '"') || (txt[0] === "'" && txt[txt.length - 1] === "'"))) txt = txt.slice(1, -1);
-      else txt = '';
+      if (txt === '""' || txt === "''") txt = "";
+      else if (
+        txt.length >= 2 &&
+        ((txt[0] === '"' && txt[txt.length - 1] === '"') || (txt[0] === "'" && txt[txt.length - 1] === "'"))
+      )
+        txt = txt.slice(1, -1);
+      else txt = "";
       m.textContent = txt;
-      m.style.boxSizing = mc.boxSizing || 'content-box';
-      m.style.flex = '0 0 auto';
+      m.style.boxSizing = mc.boxSizing || "content-box";
+      m.style.flex = "0 0 auto";
       // Empty content ⇒ a sized dot (author set explicit width/height). Non-empty
       // ⇒ a content-sized pill (width/height auto from text + padding).
-      if (txt === '') { m.style.width = mc.width; m.style.height = mc.height; }
+      if (txt === "") {
+        m.style.width = mc.width;
+        m.style.height = mc.height;
+      }
       m.style.borderRadius = mc.borderRadius;
       m.style.background = mc.backgroundColor;
       m.style.color = mc.color;
       // DM-1257: keep the marker's vertical margin — it offsets each dot inside
       // the group (dot-top = group padding-top + marker margin-top). Horizontal
       // margin spaces the row.
-      m.style.marginTop = mc.marginTop || '0'; m.style.marginBottom = mc.marginBottom || '0';
-      m.style.marginLeft = mc.marginLeft || '0'; m.style.marginRight = mc.marginRight || '0';
+      m.style.marginTop = mc.marginTop || "0";
+      m.style.marginBottom = mc.marginBottom || "0";
+      m.style.marginLeft = mc.marginLeft || "0";
+      m.style.marginRight = mc.marginRight || "0";
       // Blink deliberately skips ordinary display blockification for
       // ::scroll-marker (style_adjuster.cc:1194-1198). In an in-flow marker
       // group the pseudo therefore keeps inline padding semantics: block-axis
@@ -1517,18 +1628,20 @@ const captureDocumentTree =
       // edges, making a labeled marker row substantially too wide.
       m.style.paddingTop = mc.paddingTop;
       m.style.paddingBottom = mc.paddingBottom;
-      m.style.paddingLeft = '0';
-      m.style.paddingRight = '0';
+      m.style.paddingLeft = "0";
+      m.style.paddingRight = "0";
       m.style.fontSize = mc.fontSize;
       m.style.fontWeight = mc.fontWeight;
       m.style.fontFamily = mc.fontFamily;
       m.style.lineHeight = mc.lineHeight;
-      m.style.display = mc.display && mc.display !== 'inline' ? mc.display : 'inline-block';
-      if (mc.transform && mc.transform !== 'none') m.style.transform = mc.transform;
+      m.style.display = mc.display && mc.display !== "inline" ? mc.display : "inline-block";
+      if (mc.transform && mc.transform !== "none") m.style.transform = mc.transform;
       if (mc.transformOrigin) m.style.transformOrigin = mc.transformOrigin;
-      var bw = parseFloat(mc.borderTopWidth || '0') || 0;
+      var bw = parseFloat(mc.borderTopWidth || "0") || 0;
       if (bw > 0) {
-        m.style.borderStyle = mc.borderTopStyle; m.style.borderWidth = mc.borderTopWidth; m.style.borderColor = mc.borderTopColor;
+        m.style.borderStyle = mc.borderTopStyle;
+        m.style.borderWidth = mc.borderTopWidth;
+        m.style.borderColor = mc.borderTopColor;
       }
       container.appendChild(m);
     }
@@ -1543,19 +1656,19 @@ const captureDocumentTree =
     // matches Chrome AND the captured marker rects land where Chrome paints them.
     // (The earlier `rect.bottom - padTop` + full-flex-height model painted the
     // dots ~16px too high and the bg band the wrong length.)
-    var padTop = parseFloat(gcs.paddingTop || '0') || 0;
-    var padBottom = parseFloat(gcs.paddingBottom || '0') || 0;
+    var padTop = parseFloat(gcs.paddingTop || "0") || 0;
+    var padBottom = parseFloat(gcs.paddingBottom || "0") || 0;
     var groupBoxH = padTop + padBottom;
-    container.style.height = groupBoxH + 'px';
-    container.style.overflow = 'visible';
+    container.style.height = groupBoxH + "px";
+    container.style.overflow = "visible";
     doc.body.appendChild(container);
-    var targetTop = position === 'after' ? rect.bottom : (rect.top - groupBoxH);
-    container.style.left = (rect.left + window.scrollX) + 'px';
-    container.style.top = (targetTop + window.scrollY) + 'px';
+    var targetTop = position === "after" ? rect.bottom : rect.top - groupBoxH;
+    container.style.left = rect.left + window.scrollX + "px";
+    container.style.top = targetTop + window.scrollY + "px";
     var node = capture(container);
     doc.body.removeChild(container);
     if (!node) return undefined;
-    return { node: node, before: position === 'before' };
+    return { node: node, before: position === "before" };
   }
 
   // DM-1234: CSS `::scroll-button(<dir>)` paging arrows (Chrome 135+). Like the
@@ -1579,27 +1692,37 @@ const captureDocumentTree =
     // Per-direction author declarations + the merged `:disabled` declarations,
     // gathered from every stylesheet rule whose `::scroll-button(<dir>)`
     // selector matches `el`. `*` (universal direction) is folded in as a base.
-    var sides = {}; var disabled = {}; var star = {};
+    var sides = {};
+    var disabled = {};
+    var star = {};
     var sheets = el.ownerDocument.styleSheets;
     for (var s = 0; s < sheets.length; s++) {
       var rules;
-      try { rules = sheets[s].cssRules; } catch (e) { continue; }
+      try {
+        rules = sheets[s].cssRules;
+      } catch (e) {
+        continue;
+      }
       if (!rules) continue;
       for (var r = 0; r < rules.length; r++) {
         var rule = rules[r];
         var sel = rule.selectorText;
         if (!sel) continue;
-        var at = sel.indexOf('::scroll-button(');
+        var at = sel.indexOf("::scroll-button(");
         if (at < 0) continue;
-        var close = sel.indexOf(')', at);
+        var close = sel.indexOf(")", at);
         if (close < 0) continue;
         var dir = sel.slice(at + 16, close).trim();
         var base = sel.slice(0, at).trim();
         var matches = false;
-        try { matches = base === '' || el.matches(base); } catch (e) { matches = false; }
+        try {
+          matches = base === "" || el.matches(base);
+        } catch (e) {
+          matches = false;
+        }
         if (!matches) continue;
-        var isDisabled = sel.slice(close + 1).indexOf(':disabled') >= 0;
-        var bucket = isDisabled ? disabled : (dir === '*' ? star : (sides[dir] || (sides[dir] = {})));
+        var isDisabled = sel.slice(close + 1).indexOf(":disabled") >= 0;
+        var bucket = isDisabled ? disabled : dir === "*" ? star : sides[dir] || (sides[dir] = {});
         var decl = rule.style;
         for (var d = 0; d < decl.length; d++) bucket[decl[d]] = decl.getPropertyValue(decl[d]);
       }
@@ -1618,10 +1741,10 @@ const captureDocumentTree =
   function _captureScrollButtons(el, cs, rect) {
     // Cheap gate: only elements that actually generate a scroll-button get the
     // CSSOM scan. A non-`none` `content` on the merged pseudo means buttons exist.
-    var probe = window.getComputedStyle(el, '::scroll-button(left)').content;
-    if (!probe || probe === 'none' || probe === 'normal') {
-      probe = window.getComputedStyle(el, '::scroll-button(right)').content;
-      if (!probe || probe === 'none' || probe === 'normal') return undefined;
+    var probe = window.getComputedStyle(el, "::scroll-button(left)").content;
+    if (!probe || probe === "none" || probe === "normal") {
+      probe = window.getComputedStyle(el, "::scroll-button(right)").content;
+      if (!probe || probe === "none" || probe === "normal") return undefined;
     }
     var rules = _scrollButtonAuthorRules(el);
     var doc = el.ownerDocument;
@@ -1632,34 +1755,49 @@ const captureDocumentTree =
       if (!Object.prototype.hasOwnProperty.call(rules.sides, dir)) continue;
       var decls = rules.sides[dir];
       var isDisabled = false;
-      if (dir === 'left' || dir === 'inline-start') isDisabled = el.scrollLeft <= 0;
-      else if (dir === 'right' || dir === 'inline-end') isDisabled = el.scrollLeft >= maxX - 1;
-      else if (dir === 'up' || dir === 'block-start') isDisabled = el.scrollTop <= 0;
-      else if (dir === 'down' || dir === 'block-end') isDisabled = el.scrollTop >= maxY - 1;
-      var btn = doc.createElement('div');
-      var content = '';
+      if (dir === "left" || dir === "inline-start") isDisabled = el.scrollLeft <= 0;
+      else if (dir === "right" || dir === "inline-end") isDisabled = el.scrollLeft >= maxX - 1;
+      else if (dir === "up" || dir === "block-start") isDisabled = el.scrollTop <= 0;
+      else if (dir === "down" || dir === "block-end") isDisabled = el.scrollTop >= maxY - 1;
+      var btn = doc.createElement("div");
+      var content = "";
       for (var p in decls) {
         if (!Object.prototype.hasOwnProperty.call(decls, p)) continue;
-        if (p === 'content') { content = decls[p]; continue; }
-        try { btn.style.setProperty(p, decls[p]); } catch (e) { /* unsupported prop */ }
+        if (p === "content") {
+          content = decls[p];
+          continue;
+        }
+        try {
+          btn.style.setProperty(p, decls[p]);
+        } catch (e) {
+          /* unsupported prop */
+        }
       }
       if (isDisabled) {
         for (var dp in rules.disabled) {
           if (!Object.prototype.hasOwnProperty.call(rules.disabled, dp)) continue;
-          try { btn.style.setProperty(dp, rules.disabled[dp]); } catch (e) { /* unsupported */ }
+          try {
+            btn.style.setProperty(dp, rules.disabled[dp]);
+          } catch (e) {
+            /* unsupported */
+          }
         }
       }
       // Match the real button's containing block (ICB) by living on <body> as an
       // absolutely-positioned box; the author's left/right/top/transform then
       // resolve against the viewport exactly as Chrome resolves them.
-      if (!btn.style.position || btn.style.position === 'static') btn.style.position = 'absolute';
-      btn.style.margin = '0';
+      if (!btn.style.position || btn.style.position === "static") btn.style.position = "absolute";
+      btn.style.margin = "0";
       // Only a quoted string `content` becomes a text glyph. DM-1248: a `url()` /
       // counter() / image content value is NOT text — set no glyph rather than
       // rendering the literal CSS string (e.g. `url("x.png")`) as garbage text.
       // (Faithful image-content rendering is a tracked TODO in DM-1248.)
-      var txt = '';
-      if (content.length >= 2 && ((content[0] === '"' && content[content.length - 1] === '"') || (content[0] === "'" && content[content.length - 1] === "'"))) {
+      var txt = "";
+      if (
+        content.length >= 2 &&
+        ((content[0] === '"' && content[content.length - 1] === '"') ||
+          (content[0] === "'" && content[content.length - 1] === "'"))
+      ) {
         txt = content.slice(1, -1);
       }
       btn.textContent = txt;
@@ -1684,7 +1822,7 @@ const captureDocumentTree =
       var w = el.contentWindow;
       if (w == null) return true;
       var o = w.location && w.location.origin;
-      if (o == null || o === '' || o === 'null') return false;
+      if (o == null || o === "" || o === "null") return false;
       return o !== location.origin;
     } catch (e) {
       return true;
@@ -1698,9 +1836,12 @@ const captureDocumentTree =
   function _crossOriginFrameAllowed(el) {
     if (_crossOriginAllow == null) return false;
     var url;
-    try { url = el.contentWindow && el.contentWindow.location ? el.contentWindow.location.href : el.src; }
-    catch (e) { url = el.src; }
-    return frameHostAllowed(url || '', _crossOriginAllow);
+    try {
+      url = el.contentWindow && el.contentWindow.location ? el.contentWindow.location.href : el.src;
+    } catch (e) {
+      url = el.src;
+    }
+    return frameHostAllowed(url || "", _crossOriginAllow);
   }
 
   // DM-2537: child authority must be from this exact capture, carry the same
@@ -1708,7 +1849,7 @@ const captureDocumentTree =
   // frame as its protocol parent. Failure is a raster boundary, never a URL- or
   // DOM-order fallback.
   function _iframeFrameAuthority(el) {
-    if (_frameScrollKey === '') return null;
+    if (_frameScrollKey === "") return null;
     try {
       // Node binds the child authority to this exact Chromium frame-owner
       // Element. Unlike reading a property through contentWindow, this remains
@@ -1718,24 +1859,27 @@ const captureDocumentTree =
       var parentView = el.ownerDocument && el.ownerDocument.defaultView;
       var parent = parentView && parentView[_frameScrollKey];
       if (child == null || parent == null) return null;
-      if (child.source !== 'chromium-cdp-frame-scroll-v1'
-          || parent.source !== 'chromium-cdp-frame-scroll-v1') return null;
+      if (child.source !== "chromium-cdp-frame-scroll-v1" || parent.source !== "chromium-cdp-frame-scroll-v1")
+        return null;
       if (child.captureId !== parent.captureId) return null;
       if (child.allowlistSha256 !== parent.allowlistSha256) return null;
       if (child.parentFrameId !== parent.frameId) return null;
-      if (typeof child.frameId !== 'string' || child.frameId === '') return null;
-      if (child.access === 'same-origin' || child.access === 'cross-origin-allowlisted') {
+      if (typeof child.frameId !== "string" || child.frameId === "") return null;
+      if (child.access === "same-origin" || child.access === "cross-origin-allowlisted") {
         // A document navigation replaces the child global but not necessarily
         // its iframe owner Element or Chromium FrameId. Require the live child
         // main-world token before using the earlier allowlist decision, so a
         // navigation during the async prepasses can only become a raster.
         var childView = el.contentWindow;
         var liveChild = childView && childView[_frameScrollKey];
-        if (liveChild == null
-            || liveChild.token !== child.token
-            || liveChild.frameId !== child.frameId
-            || liveChild.captureId !== child.captureId
-            || liveChild.allowlistSha256 !== child.allowlistSha256) return null;
+        if (
+          liveChild == null ||
+          liveChild.token !== child.token ||
+          liveChild.frameId !== child.frameId ||
+          liveChild.captureId !== child.captureId ||
+          liveChild.allowlistSha256 !== child.allowlistSha256
+        )
+          return null;
       }
       return child;
     } catch (e) {
@@ -1749,15 +1893,18 @@ const captureDocumentTree =
   // both to gate the recursion and to decide whether to emit the "rendered as a
   // raster" warning.
   function _iframeIsRecursable(el) {
-    if (el.tagName == null || el.tagName.toLowerCase() !== 'iframe') return null;
+    if (el.tagName == null || el.tagName.toLowerCase() !== "iframe") return null;
     var doc;
-    try { doc = el.contentDocument; } catch (e) { return null; }
+    try {
+      doc = el.contentDocument;
+    } catch (e) {
+      return null;
+    }
     if (doc == null || doc.body == null || doc.documentElement == null) return null;
-    if (_frameScrollKey !== '') {
+    if (_frameScrollKey !== "") {
       var authority = _iframeFrameAuthority(el);
       if (authority == null) return null;
-      if (authority.access !== 'same-origin'
-          && authority.access !== 'cross-origin-allowlisted') return null;
+      if (authority.access !== "same-origin" && authority.access !== "cross-origin-allowlisted") return null;
     }
     // Same-origin frames always recurse (Phase 1). A cross-origin frame is only
     // reachable here when web security was disabled (the --cross-origin-frames
@@ -1783,10 +1930,11 @@ const captureDocumentTree =
     // Content-box top-left of the iframe in top-document client coords. The
     // inner document's own viewport origin (0,0) sits here, so adding it to the
     // inner rects places them in the parent's space.
-    var bsw = sideWidths(cs, 'border', 'Width');
+    var bsw = sideWidths(cs, "border", "Width");
     var dx = rect.left + bsw.left + (parseFloat(cs.paddingLeft) || 0);
     var dy = rect.top + bsw.top + (parseFloat(cs.paddingTop) || 0);
-    var savedX = vp.x, savedY = vp.y;
+    var savedX = vp.x,
+      savedY = vp.y;
     vp.x = savedX - dx;
     vp.y = savedY - dy;
     var node;
@@ -1831,7 +1979,7 @@ const captureDocumentTree =
   // the iframe stays see-through, as Chrome paints it). `<html>` wins when
   // opaque; otherwise `<body>` propagates to the canvas.
   function _isOpaqueColor(c) {
-    return c != null && c !== '' && c !== 'transparent' && !/,\s*0\s*\)\s*$/.test(c);
+    return c != null && c !== "" && c !== "transparent" && !/,\s*0\s*\)\s*$/.test(c);
   }
   function _resolveIframeCanvasColor(doc) {
     var htmlBg = getComputedStyle(doc.documentElement).backgroundColor;
@@ -1852,12 +2000,12 @@ const captureDocumentTree =
   // to the iframe's space so the cull tests use the real painted region.
   function _runInnerDocumentPrePasses(doc) {
     var rootEl = doc.documentElement;
-    var allEls = rootEl.getElementsByTagName('*');
+    var allEls = rootEl.getElementsByTagName("*");
     // position:fixed / sticky in-viewport ancestors (DM-513).
     for (var i = 0; i < allEls.length; i++) {
       var el = allEls[i];
       var pos = getComputedStyle(el).position;
-      if (pos !== 'fixed' && pos !== 'sticky') continue;
+      if (pos !== "fixed" && pos !== "sticky") continue;
       var r = el.getBoundingClientRect();
       if (r.right < vp.x || r.bottom < vp.y || r.left > vp.x + vp.width || r.top > vp.y + vp.height) continue;
       var cur = el.parentElement;
@@ -1871,9 +2019,9 @@ const captureDocumentTree =
     for (var t = 0; t < allEls.length; t++) {
       var tel = allEls[t];
       var tt = getComputedStyle(tel).transform;
-      if (tt === 'none' || tt === '') continue;
+      if (tt === "none" || tt === "") continue;
       _transformInfluenced.add(tel);
-      var tdescs = tel.getElementsByTagName('*');
+      var tdescs = tel.getElementsByTagName("*");
       for (var td = 0; td < tdescs.length; td++) _transformInfluenced.add(tdescs[td]);
     }
     // CSS counters + @counter-style for the inner document.
@@ -1895,11 +2043,11 @@ const captureDocumentTree =
   // elements are positioned relative to their containing block, so if their
   // CB ancestor's rect is offscreen, so is the absolute child.
   const _fixedAncestors = new Set();
-  const _allEls = root.getElementsByTagName('*');
+  const _allEls = root.getElementsByTagName("*");
   for (let _i = 0; _i < _allEls.length; _i++) {
     const _el = _allEls[_i];
     const _pos = getComputedStyle(_el).position;
-    if (_pos !== 'fixed' && _pos !== 'sticky') continue;
+    if (_pos !== "fixed" && _pos !== "sticky") continue;
     const _r = _el.getBoundingClientRect();
     const _outside = _r.right < vp.x || _r.bottom < vp.y || _r.left > vp.x + vp.width || _r.top > vp.y + vp.height;
     if (_outside) continue;
@@ -1928,7 +2076,7 @@ const captureDocumentTree =
   for (let _ti = 0; _ti < _allEls.length; _ti++) {
     const _tel = _allEls[_ti];
     const _tt = getComputedStyle(_tel).transform;
-    if (_tt === 'none' || _tt === '') continue;
+    if (_tt === "none" || _tt === "") continue;
     // Mark the transformed element itself AND every descendant. The element
     // itself needs the exemption because its own post-transform rect may be
     // entirely outside the viewport (e.g. framer's marquee `<ul>` is
@@ -1938,7 +2086,7 @@ const captureDocumentTree =
     // element keeps the recursion alive so its descendants are captured.
     // (DM-637 / framer brand-logo carousel.)
     _transformInfluenced.add(_tel);
-    const _tdescs = _tel.getElementsByTagName('*');
+    const _tdescs = _tel.getElementsByTagName("*");
     for (let _tj = 0; _tj < _tdescs.length; _tj++) {
       _transformInfluenced.add(_tdescs[_tj]);
     }
@@ -1959,17 +2107,26 @@ const captureDocumentTree =
   // and retain the boolean for perspective activation and fixed ownership.
   const _transformRelatedBox = new WeakMap();
   const _transformRelatedWillChange = new Set([
-    'transform', 'transform-style', 'perspective', 'translate', 'rotate',
-    'scale', 'offset-path', 'offset-position',
+    "transform",
+    "transform-style",
+    "perspective",
+    "translate",
+    "rotate",
+    "scale",
+    "offset-path",
+    "offset-position",
   ]);
   const _hasTransformRelatedSignal = (_cs) => {
-    if ((_cs.transform != null && _cs.transform !== '' && _cs.transform !== 'none')
-        || (_cs.translate != null && _cs.translate !== '' && _cs.translate !== 'none')
-        || (_cs.rotate != null && _cs.rotate !== '' && _cs.rotate !== 'none')
-        || (_cs.scale != null && _cs.scale !== '' && _cs.scale !== 'none')
-        || _cs.transformStyle === 'preserve-3d'
-        || (_cs.perspective != null && _cs.perspective !== '' && _cs.perspective !== 'none')) return true;
-    if (_cs.willChange == null || _cs.willChange === '' || _cs.willChange === 'auto') return false;
+    if (
+      (_cs.transform != null && _cs.transform !== "" && _cs.transform !== "none") ||
+      (_cs.translate != null && _cs.translate !== "" && _cs.translate !== "none") ||
+      (_cs.rotate != null && _cs.rotate !== "" && _cs.rotate !== "none") ||
+      (_cs.scale != null && _cs.scale !== "" && _cs.scale !== "none") ||
+      _cs.transformStyle === "preserve-3d" ||
+      (_cs.perspective != null && _cs.perspective !== "" && _cs.perspective !== "none")
+    )
+      return true;
+    if (_cs.willChange == null || _cs.willChange === "" || _cs.willChange === "auto") return false;
     const _tokens = _cs.willChange.split(/[\s,]+/);
     for (let _wi = 0; _wi < _tokens.length; _wi++) {
       if (_transformRelatedWillChange.has(_tokens[_wi].toLowerCase())) return true;
@@ -1994,18 +2151,18 @@ const captureDocumentTree =
   const _backdropEffectFacts = new WeakMap();
   const _backdropFactsFor = (_element, _style) => ({
     isDocumentRoot: _element === _element.ownerDocument.documentElement,
-    opacity: _style.opacity || '1',
-    filter: _style.filter || 'none',
-    backdropFilter: _style.backdropFilter || _style.webkitBackdropFilter || 'none',
-    clipPath: _style.clipPath || 'none',
-    maskImage: _style.maskImage || 'none',
-    maskBorderSource: _style.maskBorderSource || 'none',
-    mixBlendMode: _style.mixBlendMode || 'normal',
-    willChange: _style.willChange || 'auto',
-    transform: _style.transform || 'none',
-    translate: _style.translate || 'none',
-    rotate: _style.rotate || 'none',
-    scale: _style.scale || 'none',
+    opacity: _style.opacity || "1",
+    filter: _style.filter || "none",
+    backdropFilter: _style.backdropFilter || _style.webkitBackdropFilter || "none",
+    clipPath: _style.clipPath || "none",
+    maskImage: _style.maskImage || "none",
+    maskBorderSource: _style.maskBorderSource || "none",
+    mixBlendMode: _style.mixBlendMode || "normal",
+    willChange: _style.willChange || "auto",
+    transform: _style.transform || "none",
+    translate: _style.translate || "none",
+    rotate: _style.rotate || "none",
+    scale: _style.scale || "none",
   });
   for (let _bi = 0; _bi < _ownershipEls.length; _bi++) {
     const _element = _ownershipEls[_bi];
@@ -2019,14 +2176,14 @@ const captureDocumentTree =
     let _depth = 1;
     while (_ancestor != null) {
       const _styleWindow = _ancestor.ownerDocument?.defaultView ?? window;
-      const _facts = _backdropEffectFacts.get(_ancestor)
-        || _backdropFactsFor(_ancestor, _styleWindow.getComputedStyle(_ancestor));
+      const _facts =
+        _backdropEffectFacts.get(_ancestor) || _backdropFactsFor(_ancestor, _styleWindow.getComputedStyle(_ancestor));
       const _reasons = backdropRootReasons(_facts);
       const _neutralize = backdropEffectNeutralizations(_facts);
       const _selector = shortSelector(_ancestor);
       if (_nearestRoot == null && _reasons.length > 0) {
         _nearestRoot = {
-          kind: _facts.isDocumentRoot ? 'document' : 'element',
+          kind: _facts.isDocumentRoot ? "document" : "element",
           depth: _depth,
           selector: _selector,
           reasons: _reasons,
@@ -2041,10 +2198,10 @@ const captureDocumentTree =
     // A connected HTML target always reaches documentElement. Keep this
     // conservative fallback explicit for detached/custom-document probes.
     if (_nearestRoot == null) {
-      _nearestRoot = { kind: 'document', depth: 0, selector: 'html', reasons: ['document-root'] };
+      _nearestRoot = { kind: "document", depth: 0, selector: "html", reasons: ["document-root"] };
     }
     return {
-      source: 'blink-backdrop-effect-tree-v1',
+      source: "blink-backdrop-effect-tree-v1",
       nearestRoot: _nearestRoot,
       ancestors: _ancestors,
     };
@@ -2059,25 +2216,24 @@ const captureDocumentTree =
     // Such elements cannot expose an authored fixed descendant through this
     // tree; leave the fact undefined so their own perspective paint retains
     // the source-compatible fallback.
-    if (_owner.namespaceURI === 'http://www.w3.org/2000/svg'
-        || _probeUnsupportedTags.test(_owner.tagName)) continue;
-    const _probeHost = document.createElement('span');
-    _probeHost.setAttribute('aria-hidden', 'true');
-    _probeHost.style.setProperty('all', 'initial', 'important');
-    _probeHost.style.setProperty('display', _ownerStyle.display, 'important');
-    _probeHost.style.setProperty('perspective', '1px', 'important');
-    _probeHost.style.setProperty('visibility', 'hidden', 'important');
-    _probeHost.style.setProperty('width', '0', 'important');
-    _probeHost.style.setProperty('height', '0', 'important');
-    _probeHost.style.setProperty('margin', '0', 'important');
-    _probeHost.style.setProperty('padding', '0', 'important');
-    _probeHost.style.setProperty('border', '0', 'important');
-    const _probe = document.createElement('i');
-    _probe.setAttribute('aria-hidden', 'true');
-    _probe.style.setProperty('all', 'initial', 'important');
-    _probe.style.setProperty('position', 'fixed', 'important');
-    _probe.style.setProperty('width', '0', 'important');
-    _probe.style.setProperty('height', '0', 'important');
+    if (_owner.namespaceURI === "http://www.w3.org/2000/svg" || _probeUnsupportedTags.test(_owner.tagName)) continue;
+    const _probeHost = document.createElement("span");
+    _probeHost.setAttribute("aria-hidden", "true");
+    _probeHost.style.setProperty("all", "initial", "important");
+    _probeHost.style.setProperty("display", _ownerStyle.display, "important");
+    _probeHost.style.setProperty("perspective", "1px", "important");
+    _probeHost.style.setProperty("visibility", "hidden", "important");
+    _probeHost.style.setProperty("width", "0", "important");
+    _probeHost.style.setProperty("height", "0", "important");
+    _probeHost.style.setProperty("margin", "0", "important");
+    _probeHost.style.setProperty("padding", "0", "important");
+    _probeHost.style.setProperty("border", "0", "important");
+    const _probe = document.createElement("i");
+    _probe.setAttribute("aria-hidden", "true");
+    _probe.style.setProperty("all", "initial", "important");
+    _probe.style.setProperty("position", "fixed", "important");
+    _probe.style.setProperty("width", "0", "important");
+    _probe.style.setProperty("height", "0", "important");
     _probeHost.appendChild(_probe);
     try {
       (document.body || document.documentElement).appendChild(_probeHost);
@@ -2097,9 +2253,8 @@ const captureDocumentTree =
   // source-flattened affine and deliberately do not receive a general box
   // homography; outer SVG roots and HTML boxes may.
   const _projectiveFacts = Array.isArray(args.pq) ? args.pq : [];
-  const _projectiveDomNodes = typeof args.pqk === 'string' && Array.isArray(globalThis[args.pqk])
-    ? globalThis[args.pqk]
-    : [];
+  const _projectiveDomNodes =
+    typeof args.pqk === "string" && Array.isArray(globalThis[args.pqk]) ? globalThis[args.pqk] : [];
   const _projectiveNodeIndex = new WeakMap();
   const _projectedQuads = new WeakMap();
   const _projectiveAbsH = new WeakMap();
@@ -2108,7 +2263,7 @@ const captureDocumentTree =
     const _pel = _projectiveDomNodes[_pi];
     if (_pel == null || _fact == null) continue;
     _projectiveNodeIndex.set(_pel, _pi);
-    if (_fact.role === 'svg-graphics') continue;
+    if (_fact.role === "svg-graphics") continue;
     const _values = _fact.borderQuad || _fact.quad;
     if (!Array.isArray(_values) || _values.length !== 8) continue;
     _projectedQuads.set(_pel, [
@@ -2125,25 +2280,42 @@ const captureDocumentTree =
   }
 
   const _invertH = (m) => {
-    const [a,b,c,d,e,f,g,h,i] = m;
-    const A=e*i-f*h, B=c*h-b*i, C=b*f-c*e;
-    const D=f*g-d*i, E=a*i-c*g, F=c*d-a*f;
-    const G=d*h-e*g, H=b*g-a*h, I=a*e-b*d;
-    const det=a*A+b*D+c*G;
+    const [a, b, c, d, e, f, g, h, i] = m;
+    const A = e * i - f * h,
+      B = c * h - b * i,
+      C = b * f - c * e;
+    const D = f * g - d * i,
+      E = a * i - c * g,
+      F = c * d - a * f;
+    const G = d * h - e * g,
+      H = b * g - a * h,
+      I = a * e - b * d;
+    const det = a * A + b * D + c * G;
     if (!isFinite(det) || Math.abs(det) < 1e-12) return null;
-    return [A/det,B/det,C/det,D/det,E/det,F/det,G/det,H/det,I/det];
+    return [A / det, B / det, C / det, D / det, E / det, F / det, G / det, H / det, I / det];
   };
   const _mulH = (a, b) => [
-    a[0]*b[0]+a[1]*b[3]+a[2]*b[6], a[0]*b[1]+a[1]*b[4]+a[2]*b[7], a[0]*b[2]+a[1]*b[5]+a[2]*b[8],
-    a[3]*b[0]+a[4]*b[3]+a[5]*b[6], a[3]*b[1]+a[4]*b[4]+a[5]*b[7], a[3]*b[2]+a[4]*b[5]+a[5]*b[8],
-    a[6]*b[0]+a[7]*b[3]+a[8]*b[6], a[6]*b[1]+a[7]*b[4]+a[8]*b[7], a[6]*b[2]+a[7]*b[5]+a[8]*b[8],
+    a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
+    a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
+    a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
+    a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
+    a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
+    a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
+    a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
+    a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
+    a[6] * b[2] + a[7] * b[5] + a[8] * b[8],
   ];
   const _homographyForRect = (rect, q) => {
-    const x=rect.left-vp.x, y=rect.top-vp.y, w=rect.width, h=rect.height;
+    const x = rect.left - vp.x,
+      y = rect.top - vp.y,
+      w = rect.width,
+      h = rect.height;
     if (w <= 0 || h <= 0) return null;
-    const a=(q[1].x-q[0].x)/w, d=(q[1].y-q[0].y)/w;
-    const b=(q[3].x-q[0].x)/h, e=(q[3].y-q[0].y)/h;
-    return [a,b,q[0].x-a*x-b*y,d,e,q[0].y-d*x-e*y,0,0,1];
+    const a = (q[1].x - q[0].x) / w,
+      d = (q[1].y - q[0].y) / w;
+    const b = (q[3].x - q[0].x) / h,
+      e = (q[3].y - q[0].y) / h;
+    return [a, b, q[0].x - a * x - b * y, d, e, q[0].y - d * x - e * y, 0, 0, 1];
   };
 
   // DM-1532: an element carrying `data-domotion-anim` gets a post-capture
@@ -2158,9 +2330,9 @@ const captureDocumentTree =
   const _animInfluenced = new Set();
   for (let _ai = 0; _ai < _allEls.length; _ai++) {
     const _ael = _allEls[_ai];
-    if (_ael.dataset == null || _ael.dataset.domotionAnim == null || _ael.dataset.domotionAnim === '') continue;
+    if (_ael.dataset == null || _ael.dataset.domotionAnim == null || _ael.dataset.domotionAnim === "") continue;
     _animInfluenced.add(_ael);
-    const _adescs = _ael.getElementsByTagName('*');
+    const _adescs = _ael.getElementsByTagName("*");
     for (let _aj = 0; _aj < _adescs.length; _aj++) _animInfluenced.add(_adescs[_aj]);
   }
 
@@ -2182,15 +2354,19 @@ const captureDocumentTree =
   // scroll geometry still needs pure scale magnitudes, so keep that conversion
   // narrowly named and owned here rather than sharing it with text.
   const _backgroundAttachmentAxisScale = (_tt) => {
-    if (_tt == null || _tt === 'none' || _tt === '') return [1, 1];
+    if (_tt == null || _tt === "none" || _tt === "") return [1, 1];
     const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);
-    let _sa = 1, _sd = 1;
-    if (_m2 != null) { _sa = parseFloat(_m2[1]); _sd = parseFloat(_m2[4]); }
-    else {
+    let _sa = 1,
+      _sd = 1;
+    if (_m2 != null) {
+      _sa = parseFloat(_m2[1]);
+      _sd = parseFloat(_m2[4]);
+    } else {
       const _m3 = /^matrix3d\(([^)]+)\)/.exec(_tt);
       if (_m3 != null) {
-        const _parts = _m3[1].split(',');
-        _sa = parseFloat(_parts[0]); _sd = parseFloat(_parts[5]);
+        const _parts = _m3[1].split(",");
+        _sa = parseFloat(_parts[0]);
+        _sd = parseFloat(_parts[5]);
       }
     }
     if (!isFinite(_sa) || !isFinite(_sd)) return [1, 1];
@@ -2218,10 +2394,7 @@ const captureDocumentTree =
       : _backgroundAttachmentAxisScale(_effectiveTransform);
     const _ownZoom = parseFloat(_style.zoom);
     const _zoom = Number.isFinite(_ownZoom) && _ownZoom > 0 ? _ownZoom : 1;
-    const _resolved = [
-      _parent[0] * _ownScale[0] * _zoom,
-      _parent[1] * _ownScale[1] * _zoom,
-    ];
+    const _resolved = [_parent[0] * _ownScale[0] * _zoom, _parent[1] * _ownScale[1] * _zoom];
     _backgroundAttachmentPaintScale.set(el, _resolved);
     return _resolved;
   };
@@ -2238,7 +2411,7 @@ const captureDocumentTree =
   // counters() joins all values along the ancestor chain (outermost first).
   const _counterSnapshot = new WeakMap();
   function _parseCounterDecl(declStr, defaultValue) {
-    if (!declStr || declStr === 'none') return [];
+    if (!declStr || declStr === "none") return [];
     // Format: "name1 [num] name2 [num] ..."
     const tokens = declStr.split(/\s+/);
     const out = [];
@@ -2261,7 +2434,10 @@ const captureDocumentTree =
   const _isAncestorOrSelf = (ancestor, node) => ancestor === node || ancestor.contains(node);
   function _stack(name) {
     let stack = _counterStacks.get(name);
-    if (stack == null) { stack = []; _counterStacks.set(name, stack); }
+    if (stack == null) {
+      stack = [];
+      _counterStacks.set(name, stack);
+    }
     return stack;
   }
   function _removeStale(name, el) {
@@ -2288,17 +2464,17 @@ const captureDocumentTree =
     const sets = _parseCounterDecl(style.counterSet, 0);
     for (const item of [...resets, ...increments, ...sets]) touched.add(item.name);
     for (const name of touched) _removeStale(name, owner);
-    for (const {name, value} of resets) {
+    for (const { name, value } of resets) {
       const stack = _stack(name);
       if (stack.length && stack[stack.length - 1].scopeParent === scopeParent) stack.pop();
       stack.push({ name, value, owner, scopeParent });
     }
-    for (const {name, value} of increments) {
+    for (const { name, value } of increments) {
       const current = _findInnermost(name);
       if (current) current.value += value;
       else _stack(name).push({ name, value, owner, scopeParent });
     }
-    for (const {name, value} of sets) {
+    for (const { name, value } of sets) {
       const current = _findInnermost(name);
       if (current) current.value = value;
       else _stack(name).push({ name, value, owner, scopeParent });
@@ -2315,13 +2491,13 @@ const captureDocumentTree =
     // `.restart` h2 in `24-counters.html`. Same off-by-one (always +1) in
     // `24-deep-counter-scope.html`.
     const touched = _applyCounterStyle(el, el.parentElement, cs);
-    const beforeStyle = window.getComputedStyle(el, '::before');
+    const beforeStyle = window.getComputedStyle(el, "::before");
     for (const name of _applyCounterStyle(el, el, beforeStyle)) touched.add(name);
-    const snapshots = { element: _snapshotCounters(), '::before': _snapshotCounters(), '::after': null };
+    const snapshots = { element: _snapshotCounters(), "::before": _snapshotCounters(), "::after": null };
     for (const child of el.children) _counterPreWalk(child);
-    const afterStyle = window.getComputedStyle(el, '::after');
+    const afterStyle = window.getComputedStyle(el, "::after");
     for (const name of _applyCounterStyle(el, el, afterStyle)) touched.add(name);
-    snapshots['::after'] = _snapshotCounters();
+    snapshots["::after"] = _snapshotCounters();
     _counterSnapshot.set(el, snapshots);
     // Match CountersAttachmentContext::RemoveCounterIfAncestorExists: a
     // descendant-origin counter cannot remain atop an ancestor counter after
@@ -2351,10 +2527,11 @@ const captureDocumentTree =
   // distinctive, fall through to the prior child-walk so we don't wrap
   // every page in a redundant outer rect.
   const rootCs = window.getComputedStyle(root);
-  const rootHasBorder = (parseFloat(rootCs.borderTopWidth) || 0) > 0
-    || (parseFloat(rootCs.borderRightWidth) || 0) > 0
-    || (parseFloat(rootCs.borderBottomWidth) || 0) > 0
-    || (parseFloat(rootCs.borderLeftWidth) || 0) > 0;
+  const rootHasBorder =
+    (parseFloat(rootCs.borderTopWidth) || 0) > 0 ||
+    (parseFloat(rootCs.borderRightWidth) || 0) > 0 ||
+    (parseFloat(rootCs.borderBottomWidth) || 0) > 0 ||
+    (parseFloat(rootCs.borderLeftWidth) || 0) > 0;
   const rootBg = rootCs.backgroundColor;
   // DM-855: also capture the root when it carries a gradient/image background,
   // not just a solid color. `backgroundColor` is `transparent` for a
@@ -2363,8 +2540,8 @@ const captureDocumentTree =
   // `background-image` as "has background" captures the root as a normal
   // element, routing its gradient through the existing element-gradient path.
   const rootBgImage = rootCs.backgroundImage;
-  const rootHasBgImage = rootBgImage != null && rootBgImage !== 'none' && rootBgImage !== '';
-  const rootHasBg = (rootBg != null && rootBg !== 'rgba(0, 0, 0, 0)' && rootBg !== 'transparent') || rootHasBgImage;
+  const rootHasBgImage = rootBgImage != null && rootBgImage !== "none" && rootBgImage !== "";
+  const rootHasBg = (rootBg != null && rootBg !== "rgba(0, 0, 0, 0)" && rootBg !== "transparent") || rootHasBgImage;
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
   // Chrome paints it; we'd miss it if we only walked root.children (Element
@@ -2372,7 +2549,7 @@ const captureDocumentTree =
   // whitespace content, capture root so its text-node walk picks them up.
   let rootHasDirectText = false;
   for (const node of root.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && (node.textContent || '').trim() !== '') {
+    if (node.nodeType === Node.TEXT_NODE && (node.textContent || "").trim() !== "") {
       rootHasDirectText = true;
       break;
     }
@@ -2421,12 +2598,13 @@ const captureDocumentTree =
   if (result.length > 0) {
     try {
       var _rootScrollbarOwner = document.scrollingElement;
-      var _rootScrollbarRecord = _rootScrollbarOwner != null && typeof args.sk === 'string' && args.sk !== ''
-        ? _rootScrollbarOwner[args.sk]
-        : undefined;
+      var _rootScrollbarRecord =
+        _rootScrollbarOwner != null && typeof args.sk === "string" && args.sk !== ""
+          ? _rootScrollbarOwner[args.sk]
+          : undefined;
       if (_rootScrollbarRecord != null) result[0].rootScrollbars = _rootScrollbarRecord;
-      var _isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      result[0].styles.rootColorScheme = _isDark ? 'dark' : 'light';
+      var _isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      result[0].styles.rootColorScheme = _isDark ? "dark" : "light";
       var _docCs = window.getComputedStyle(document.documentElement);
       result[0].styles.rootBgComputed = _docCs.backgroundColor;
       // DM-1244: <html>'s overflow decides whether <body>'s overflow propagates
@@ -2434,11 +2612,12 @@ const captureDocumentTree =
       // renderer needs it to know whether to apply <body>'s own overflow clip.
       result[0].styles.rootOverflowX = _docCs.overflowX;
       result[0].styles.rootOverflowY = _docCs.overflowY;
-    } catch (_e) { /* no-op — never block capture on this */ }
+    } catch (_e) {
+      /* no-op — never block capture on this */
+    }
   }
   return { tree: result, warnings: _warnings };
-}
-;
+};
 
 /** Serializable in-page capture entry point; orchestration lives above. */
 export const captureScript = (args) => captureDocumentTree(args);

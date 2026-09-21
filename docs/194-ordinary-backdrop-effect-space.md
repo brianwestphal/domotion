@@ -6,8 +6,15 @@ status: "current"
 owners: ["paint-effects"]
 platforms: []
 tickets: ["DM-2487"]
-code: ["src/capture/backdrop-effect-space.ts","src/capture/backdrop-effect-space.test.ts","src/capture/projective-owner.ts","src/render/borders.ts","tools/animated-projective-frame-oracle.ts"]
-aliases: ["docs/194-ordinary-backdrop-effect-space.md","doc-194"]
+code:
+  [
+    "src/capture/backdrop-effect-space.ts",
+    "src/capture/backdrop-effect-space.test.ts",
+    "src/capture/projective-owner.ts",
+    "src/render/borders.ts",
+    "tools/animated-projective-frame-oracle.ts",
+  ]
+aliases: ["docs/194-ordinary-backdrop-effect-space.md", "doc-194"]
 ---
 
 # 194 — Ordinary backdrop Backdrop Root/effect-space ownership
@@ -56,14 +63,14 @@ surface.
 per-channel changed-pixel discriminator and 1% diagnostic classification. No
 tolerance or mutation threshold changed.
 
-| Row | Before DPR 1 / 2 | DM-2487 DPR 1 / 2 | Result |
-| --- | ---: | ---: | --- |
-| opacity root | 98.02% / 97.57% | 39.13% / 37.53% | improved; atomic root-group alpha remains |
-| transformed non-root | 64.29% / 63.77% | 10.60% / 8.63% | improved; viewport-to-effect coordinate surface remains |
-| mask root | 10.42% / 4.13% | 6.44% / 0.24% | DPR 2 exact; DPR 1 mask-edge ownership remains |
-| filter root | 88.18% / 87.89% | 0.49% / 0.24% | exact under the existing classifier |
-| blend root | 21.25% / 21.16% | 21.25% / 21.16% | deliberately non-regressed |
-| target regular filter | 3.30% / 2.91% | 3.30% / 2.91% | target/group split remains |
+| Row                   | Before DPR 1 / 2 | DM-2487 DPR 1 / 2 | Result                                                  |
+| --------------------- | ---------------: | ----------------: | ------------------------------------------------------- |
+| opacity root          |  98.02% / 97.57% |   39.13% / 37.53% | improved; atomic root-group alpha remains               |
+| transformed non-root  |  64.29% / 63.77% |    10.60% / 8.63% | improved; viewport-to-effect coordinate surface remains |
+| mask root             |   10.42% / 4.13% |     6.44% / 0.24% | DPR 2 exact; DPR 1 mask-edge ownership remains          |
+| filter root           |  88.18% / 87.89% |     0.49% / 0.24% | exact under the existing classifier                     |
+| blend root            |  21.25% / 21.16% |   21.25% / 21.16% | deliberately non-regressed                              |
+| target regular filter |    3.30% / 2.91% |     3.30% / 2.91% | target/group split remains                              |
 
 Document-root, ordinary stacking/isolation, clip-path, fixed, nested,
 overlapping, filter-root, and overflow-clip rows are exact at both DPRs.

@@ -18,9 +18,10 @@ import { existsSync } from "node:fs";
 import { getFontInstance, resolveFont, stretchPercent } from "./font-resolution.js";
 import { isGlyphHelperAvailable } from "./glyph-helper.js";
 
-const available = process.platform === "darwin"
-  && existsSync("/System/Library/Fonts/Supplemental/Papyrus.ttc")
-  && isGlyphHelperAvailable();
+const available =
+  process.platform === "darwin" &&
+  existsSync("/System/Library/Fonts/Supplemental/Papyrus.ttc") &&
+  isGlyphHelperAvailable();
 const describeMac = available ? describe : describe.skip;
 
 const psName = (key: string, weight: number, stretch: number): string | undefined =>
@@ -86,12 +87,22 @@ describeMac("font-stretch selects the family's condensed cut", () => {
     // memo would serve whichever width asked first to every later caller — the
     // same defect this area already paid for on the weight axis.
     const seq: Array<[number, number]> = [
-      [400, 100], [400, 75], [400, 100], [900, 75], [400, 75], [900, 100], [400, 100],
+      [400, 100],
+      [400, 75],
+      [400, 100],
+      [900, 75],
+      [400, 75],
+      [900, 100],
+      [400, 100],
     ];
     const want = [
-      "HelveticaNeue", "HelveticaNeue-CondensedBold", "HelveticaNeue",
-      "HelveticaNeue-CondensedBlack", "HelveticaNeue-CondensedBold",
-      "HelveticaNeue-Bold", "HelveticaNeue",
+      "HelveticaNeue",
+      "HelveticaNeue-CondensedBold",
+      "HelveticaNeue",
+      "HelveticaNeue-CondensedBlack",
+      "HelveticaNeue-CondensedBold",
+      "HelveticaNeue-Bold",
+      "HelveticaNeue",
     ];
     expect(seq.map(([w, s]) => psName("helvetica-neue", w, s))).toEqual(want);
   });
@@ -109,7 +120,8 @@ describeMac("font-stretch selects the family's condensed cut", () => {
   it("defaults to normal width when no stretch is supplied", () => {
     // Every existing caller omits the argument, so the default IS the
     // compatibility contract.
-    expect((getFontInstance("papyrus", 400, 22) as unknown as { postscriptName?: string } | null)?.postscriptName)
-      .toBe("Papyrus");
+    expect((getFontInstance("papyrus", 400, 22) as unknown as { postscriptName?: string } | null)?.postscriptName).toBe(
+      "Papyrus",
+    );
   });
 });

@@ -5,7 +5,10 @@
  * process transport, font selection, or cache lifetime.
  */
 
-export interface PathCommand { command: string; args: number[] }
+export interface PathCommand {
+  command: string;
+  args: number[];
+}
 
 /**
  * The concrete non-outline representation the platform renderer selected for
@@ -96,11 +99,21 @@ export function parseSvgPath(d: string): PathCommand[] {
   while (i < tokens.length) {
     const t = tokens[i++];
     switch (t) {
-      case "M": out.push({ command: "moveTo", args: [num(), num()] }); break;
-      case "L": out.push({ command: "lineTo", args: [num(), num()] }); break;
-      case "Q": out.push({ command: "quadraticCurveTo", args: [num(), num(), num(), num()] }); break;
-      case "C": out.push({ command: "bezierCurveTo", args: [num(), num(), num(), num(), num(), num()] }); break;
-      case "Z": out.push({ command: "closePath", args: [] }); break;
+      case "M":
+        out.push({ command: "moveTo", args: [num(), num()] });
+        break;
+      case "L":
+        out.push({ command: "lineTo", args: [num(), num()] });
+        break;
+      case "Q":
+        out.push({ command: "quadraticCurveTo", args: [num(), num(), num(), num()] });
+        break;
+      case "C":
+        out.push({ command: "bezierCurveTo", args: [num(), num(), num(), num(), num(), num()] });
+        break;
+      case "Z":
+        out.push({ command: "closePath", args: [] });
+        break;
     }
   }
   return out;
@@ -164,15 +177,13 @@ export const OFFSET_PROBE_GLYPHS = [3, 4, 5, 6, 7, 8, 15, 20];
  * `probeUnitsPerEm` is the size the probe glyphs were requested at; the result
  * is scaled into the font's design-unit space.
  */
-export function measureOutlineOffsetY(
-  glyphs: GlyphResponse[], unitsPerEm: number, probeUnitsPerEm: number,
-): number {
+export function measureOutlineOffsetY(glyphs: GlyphResponse[], unitsPerEm: number, probeUnitsPerEm: number): number {
   const seen: number[] = [];
   for (const g of glyphs) {
     if (g == null || g.d.length === 0 || g.bbox == null) continue;
     const minY = pathMinY(parseSvgPath(g.d));
     if (minY == null) continue;
-    seen.push(Math.round((g.bbox.y - minY) * unitsPerEm / probeUnitsPerEm));
+    seen.push(Math.round(((g.bbox.y - minY) * unitsPerEm) / probeUnitsPerEm));
   }
   if (seen.length === 0) return 0;
   const first = seen[0];

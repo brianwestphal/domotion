@@ -30,7 +30,10 @@ const outDir = arg("--out", input);
 const commit = arg("--commit", null);
 const capturedAt = arg("--captured-at", null);
 const update = process.argv.includes("--update-baseline");
-if (input == null) { console.error("ci-baseline-aggregate: --input <dir> required"); process.exit(2); }
+if (input == null) {
+  console.error("ci-baseline-aggregate: --input <dir> required");
+  process.exit(2);
+}
 
 // Discover which OSes produced a merged results-<os>.json.
 const oses = readdirSync(input)
@@ -38,7 +41,10 @@ const oses = readdirSync(input)
   .filter(Boolean)
   .map((m) => m[1].toLowerCase());
 
-if (oses.length === 0) { console.log("ci-baseline-aggregate: no merged results-<os>.json found; nothing to diff."); process.exit(0); }
+if (oses.length === 0) {
+  console.log("ci-baseline-aggregate: no merged results-<os>.json found; nothing to diff.");
+  process.exit(0);
+}
 
 // The runner image was recorded by each shard as runner-image.txt; find the
 // first one for this OS so the written baseline records which image it came from.
@@ -67,12 +73,20 @@ for (const os of oses) {
   const envPath = envPathFor(os);
   console.log(`\n=== baseline diff: ${os} / ${suite} (vs ${baseline}) ===`);
   try {
-    const a = ["scripts/diff-against-baseline.mjs",
-      "--results", merged, "--baseline", baseline, "--label", `${os} / ${suite}`];
+    const a = [
+      "scripts/diff-against-baseline.mjs",
+      "--results",
+      merged,
+      "--baseline",
+      baseline,
+      "--label",
+      `${os} / ${suite}`,
+    ];
     if (envPath) a.push("--env", envPath);
     execFileSync("node", a, { stdio: "inherit" });
   } catch (e) {
-    if (e.status === 1) anyRegression = true; // diff exits 1 only under --strict; here it won't, so this is defensive
+    if (e.status === 1)
+      anyRegression = true; // diff exits 1 only under --strict; here it won't, so this is defensive
     else throw e;
   }
 
@@ -92,11 +106,12 @@ for (const os of oses) {
     // altogether, which announces nothing.
     if (envPath == null) {
       console.error(
-        `\n✖ Refusing to write ${suite}/${os}: no run-env-${os}.json in ${input}.\n`
-        + `  A baseline without environment provenance cannot be compared against, and\n`
-        + `  reads as an old baseline rather than a broken one. Re-run the sweep on a\n`
-        + `  ref whose workflow uploads run-env-*.json in the visual-tests-meta artifact,\n`
-        + `  or pass --eager to merge the full shard artifacts locally.\n`);
+        `\n✖ Refusing to write ${suite}/${os}: no run-env-${os}.json in ${input}.\n` +
+          `  A baseline without environment provenance cannot be compared against, and\n` +
+          `  reads as an old baseline rather than a broken one. Re-run the sweep on a\n` +
+          `  ref whose workflow uploads run-env-*.json in the visual-tests-meta artifact,\n` +
+          `  or pass --eager to merge the full shard artifacts locally.\n`,
+      );
       process.exit(1);
     }
     const out = join(outDir, `baseline-${suite}-${os}.json`);
@@ -105,7 +120,11 @@ for (const os of oses) {
     // fall back to it rather than recording null next to a populated `env`.
     let image = imageFor(os);
     if (image == null) {
-      try { image = JSON.parse(readFileSync(envPath, "utf8"))?.image ?? null; } catch { image = null; }
+      try {
+        image = JSON.parse(readFileSync(envPath, "utf8"))?.image ?? null;
+      } catch {
+        image = null;
+      }
     }
     const a = ["scripts/write-baseline.mjs", "--results", merged, "--out", out, "--suite", suite, "--os", os];
     if (image) a.push("--image", image);

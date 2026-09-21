@@ -14,11 +14,7 @@ export const E2E_HEAVY_FILES = [
   "tests/svg-effect-combination-oracle.e2e.test.ts",
 ] as const;
 
-export const E2E_BASE_EXCLUDES = [
-  "**/node_modules/**",
-  "**/dist/**",
-  "**/tests/output/**",
-] as const;
+export const E2E_BASE_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/tests/output/**"] as const;
 
 export function resolveE2ELane(raw: string | undefined): E2ELane {
   if (raw == null || raw === "") return "all";

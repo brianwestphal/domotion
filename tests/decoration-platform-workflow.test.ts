@@ -22,7 +22,7 @@ describe("DM-2345 cross-platform decoration evidence", () => {
     expect(helper).toContain("TryGetFontTable");
     expect(helper).toContain("readI16BE(68)");
     expect(helper).toContain("readI16BE(70)");
-    expect(helper).toContain("\\\"typoAscender\\\"");
+    expect(helper).toContain('\\"typoAscender\\"');
     expect(adapter).toContain("typoAscender: metaResp.typoAscender");
     expect(adapter).toContain("typoDescender: metaResp.typoDescender");
   });

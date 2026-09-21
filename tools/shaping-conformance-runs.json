@@ -1,9 +1,6 @@
 {
   "generatedAt": "2026-08-08T22:49:32.377Z",
-  "sources": [
-    "external/html-test",
-    "tests/fixtures/shaping"
-  ],
+  "sources": ["external/html-test", "tests/fixtures/shaping"],
   "splitWords": false,
   "runs": [
     {

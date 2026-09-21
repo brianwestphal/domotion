@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <title>Hover-state demo</title>
     <style>
-      * { margin: 0; box-sizing: border-box; }
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
       body {
         background: #0d1117;
         font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -29,9 +32,22 @@
         border-color: #2f81f7;
         background: #1b2330;
       }
-      .plan { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #8b949e; }
-      .price { font-size: 40px; font-weight: 700; margin: 6px 0 18px; }
-      .price span { font-size: 15px; font-weight: 400; color: #8b949e; }
+      .plan {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #8b949e;
+      }
+      .price {
+        font-size: 40px;
+        font-weight: 700;
+        margin: 6px 0 18px;
+      }
+      .price span {
+        font-size: 15px;
+        font-weight: 400;
+        color: #8b949e;
+      }
       .cta {
         display: block;
         width: 100%;
@@ -45,8 +61,13 @@
         cursor: pointer;
       }
       /* The page's OWN hover styling — this is what forceState captures. */
-      .cta:hover { background: #2ea043; box-shadow: 0 0 0 4px rgba(46, 160, 67, 0.35); }
-      .cta:active { background: #1a7f37; }
+      .cta:hover {
+        background: #2ea043;
+        box-shadow: 0 0 0 4px rgba(46, 160, 67, 0.35);
+      }
+      .cta:active {
+        background: #1a7f37;
+      }
     </style>
   </head>
   <body>

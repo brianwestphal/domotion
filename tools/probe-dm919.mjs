@@ -21,7 +21,11 @@ const out = await page.evaluate(() => {
   const cr = r.getBoundingClientRect();
   const parent = node.parentElement;
   const pcs = getComputedStyle(parent);
-  return { rect: { x: cr.x, y: cr.y, w: cr.width, h: cr.height }, fontSize: pcs.fontSize, textContent: parent.textContent.slice(0, 30) };
+  return {
+    rect: { x: cr.x, y: cr.y, w: cr.width, h: cr.height },
+    fontSize: pcs.fontSize,
+    textContent: parent.textContent.slice(0, 30),
+  };
 });
 console.log(JSON.stringify(out, null, 2));
 await browser.close();

@@ -50,16 +50,15 @@ function checkedRelativePath(ref) {
 }
 
 export function sourceAuthorityPlan(inventory, parityProgram = { areas: [] }) {
-  const semanticRefs = inventory.transitions.flatMap((row) => Object.values(row)
-    .flatMap((value) => Array.isArray(value) ? value : []))
+  const semanticRefs = inventory.transitions
+    .flatMap((row) => Object.values(row).flatMap((value) => (Array.isArray(value) ? value : [])))
     .filter((ref) => typeof ref === "string")
     .filter((ref) => ref.startsWith("external/"));
   const parityRefs = parityProgram.areas
     .flatMap((area) => area.upstreamSources ?? [])
     .filter((ref) => typeof ref === "string")
     .filter((ref) => ref.startsWith("external/"));
-  const refs = [...semanticRefs, ...parityRefs]
-    .map(checkedRelativePath);
+  const refs = [...semanticRefs, ...parityRefs].map(checkedRelativePath);
   const files = new Set(DIRECT_SOURCE_FILES);
   const directories = new Set();
   for (const ref of refs) {
@@ -134,7 +133,7 @@ async function fetchWithRetry(url, attempts = 5) {
     } catch (error) {
       lastError = error;
       if (attempt < attempts) {
-        await new Promise((done) => setTimeout(done, 1_000 * (2 ** (attempt - 1))));
+        await new Promise((done) => setTimeout(done, 1_000 * 2 ** (attempt - 1)));
       }
     }
   }
@@ -146,9 +145,10 @@ async function materializeFile(ref) {
   if (existsSync(destination)) return "cached";
   const source = sourceUrlFor(ref);
   const response = await fetchWithRetry(source.url);
-  const bytes = source.encoding === "gitiles-base64"
-    ? Buffer.from(response.toString("utf8").replace(/\s+/g, ""), "base64")
-    : response;
+  const bytes =
+    source.encoding === "gitiles-base64"
+      ? Buffer.from(response.toString("utf8").replace(/\s+/g, ""), "base64")
+      : response;
   await mkdir(dirname(destination), { recursive: true });
   await writeFile(destination, bytes);
   return "fetched";
@@ -164,8 +164,9 @@ export async function materializeSourceAuthorities({ concurrency = 4 } = {}) {
   let trustedCache = false;
   if (existsSync(manifestPath)) {
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    trustedCache = JSON.stringify(manifest.pins) === JSON.stringify(SOURCE_AUTHORITY_PINS)
-      && JSON.stringify(manifest.files) === JSON.stringify(plan.files);
+    trustedCache =
+      JSON.stringify(manifest.pins) === JSON.stringify(SOURCE_AUTHORITY_PINS) &&
+      JSON.stringify(manifest.files) === JSON.stringify(plan.files);
   }
   const unownedExisting = trustedCache ? [] : plan.files.filter((path) => existsSync(resolve(ROOT, path)));
   if (unownedExisting.length > 0) {
@@ -188,15 +189,24 @@ export async function materializeSourceAuthorities({ concurrency = 4 } = {}) {
   });
   await Promise.all(workers);
 
-  await writeFile(manifestPath, `${JSON.stringify({
-    schemaVersion: 1,
-    pins: SOURCE_AUTHORITY_PINS,
-    files: plan.files,
-  }, null, 2)}\n`);
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        pins: SOURCE_AUTHORITY_PINS,
+        files: plan.files,
+      },
+      null,
+      2,
+    )}\n`,
+  );
   return { ...plan, fetched, cached, manifestPath };
 }
 
 if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const result = await materializeSourceAuthorities();
-  console.log(`Source authorities ready: ${result.files.length} files (${result.fetched} fetched, ${result.cached} cached)`);
+  console.log(
+    `Source authorities ready: ${result.files.length} files (${result.fetched} fetched, ${result.cached} cached)`,
+  );
 }

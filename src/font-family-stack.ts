@@ -18,14 +18,7 @@
  */
 
 export type BlinkGenericFamily =
-  | "none"
-  | "standard"
-  | "webkit-body"
-  | "serif"
-  | "sans-serif"
-  | "monospace"
-  | "cursive"
-  | "fantasy";
+  "none" | "standard" | "webkit-body" | "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy";
 
 export interface CapturedFontFamilyEntry {
   /** Decoded family name, matching Blink `FontFamily::FamilyName()`. */
@@ -147,16 +140,16 @@ function splitCssFamilyTokens(value: string): string[] {
 
 /** Parse CSSOM `font-family` without splitting quoted or escaped commas. */
 export function parseCssFontFamilyEntries(value: string): ParsedFontFamilyEntry[] {
-  return splitCssFamilyTokens(value).map((token): ParsedFontFamilyEntry => {
-    const quote = token[0];
-    const quoted = token.length >= 2
-      && (quote === '"' || quote === "'")
-      && token[token.length - 1] === quote;
-    const encoded = quoted ? token.slice(1, -1) : token;
-    const name = decodeCssFontFamilyName(encoded).trim();
-    const generic = !quoted && name === name.toLowerCase() && LIST_GENERIC_NAMES.has(name);
-    return { name, type: generic ? "generic-family" : "family-name", quoted };
-  }).filter((entry) => entry.name !== "");
+  return splitCssFamilyTokens(value)
+    .map((token): ParsedFontFamilyEntry => {
+      const quote = token[0];
+      const quoted = token.length >= 2 && (quote === '"' || quote === "'") && token[token.length - 1] === quote;
+      const encoded = quoted ? token.slice(1, -1) : token;
+      const name = decodeCssFontFamilyName(encoded).trim();
+      const generic = !quoted && name === name.toLowerCase() && LIST_GENERIC_NAMES.has(name);
+      return { name, type: generic ? "generic-family" : "family-name", quoted };
+    })
+    .filter((entry) => entry.name !== "");
 }
 
 export function blinkGenericFamilyFromEntries(
@@ -172,10 +165,7 @@ export function blinkGenericFamilyFromEntries(
 }
 
 /** Build the capture record. `uaStandard` represents Blink kStandardFamily. */
-export function captureFontFamilyStack(
-  cssText: string,
-  uaStandard = false,
-): CapturedFontFamilyStack {
+export function captureFontFamilyStack(cssText: string, uaStandard = false): CapturedFontFamilyStack {
   const entries: CapturedFontFamilyEntry[] = uaStandard
     ? [{ name: "-webkit-standard", type: "generic-family" }]
     : parseCssFontFamilyEntries(cssText).map(({ name, type }) => ({ name, type }));
@@ -202,16 +192,13 @@ function serializeCssString(value: string): string {
  * names are always quoted; genuine generics are the only bare identifiers.
  */
 export function serializeCapturedFontFamilyStack(stack: CapturedFontFamilyStack): string {
-  return stack.entries.map((entry) => entry.type === "generic-family"
-    ? entry.name
-    : serializeCssString(entry.name)).join(", ");
+  return stack.entries
+    .map((entry) => (entry.type === "generic-family" ? entry.name : serializeCssString(entry.name)))
+    .join(", ");
 }
 
 /** Structured capture wins; the raw string is only a legacy-tree fallback. */
-export function capturedFontFamilyCss(
-  legacy: string,
-  stack?: CapturedFontFamilyStack,
-): string {
+export function capturedFontFamilyCss(legacy: string, stack?: CapturedFontFamilyStack): string {
   if (stack == null || stack.source !== "blink-font-family-stack-v1" || stack.entries.length === 0) {
     return legacy;
   }

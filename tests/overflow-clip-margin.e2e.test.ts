@@ -1,16 +1,17 @@
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-  launchChromium,
-  type CapturedElement,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvgInner, launchChromium, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null {
@@ -90,14 +91,21 @@ describeBrowser("DM-2419: Chromium overflow-clip-margin capture oracle", () => {
   it("activates non-visible overflow on a replaced image but not an ordinary scroll container", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 420, height: 220 }, deviceScaleFactor: 1 });
     try {
-      const image = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>');
-      await page.setContent(`<style>html,body{margin:0}.box{
+      const image =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>',
+        );
+      await page.setContent(
+        `<style>html,body{margin:0}.box{
         position:absolute;top:30px;box-sizing:border-box;width:40px;height:30px;
         border:4px solid black;border-radius:12px;overflow:hidden;
         overflow-clip-margin:border-box 6px;object-fit:none
       }</style>
       <img class="box" style="left:30px" data-domotion-anim="replaced" src="${image}">
-      <div class="box" style="left:130px" data-domotion-anim="ordinary"><i style="position:absolute;inset:-20px;background:red"></i></div>`, { waitUntil: "load" });
+      <div class="box" style="left:130px" data-domotion-anim="ordinary"><i style="position:absolute;inset:-20px;background:red"></i></div>`,
+        { waitUntil: "load" },
+      );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 220 });
       const replaced = byAnimId(tree, "replaced")!;
       const ordinary = byAnimId(tree, "ordinary")!;

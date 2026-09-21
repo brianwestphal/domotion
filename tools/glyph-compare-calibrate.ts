@@ -31,11 +31,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Page } from "@playwright/test";
-import {
-  compareGlyphPngs,
-  DEFAULT_THRESHOLDS,
-  type GlyphCompareResult,
-} from "../src/review/glyph-compare.js";
+import { compareGlyphPngs, DEFAULT_THRESHOLDS, type GlyphCompareResult } from "../src/review/glyph-compare.js";
 
 const OUT_DIR = "tests/output/glyph-compare-calibration";
 const QUICK = process.argv.includes("--quick");
@@ -61,11 +57,7 @@ function cellId(c: Cell): string {
 
 /** Render every char of a (family, weight, style, size, offset) config on
  *  one page and screenshot per-char crops. Returns id → png path. */
-async function renderConfig(
-  page: Page,
-  cfg: Omit<Cell, "char">,
-  chars: string[],
-): Promise<Map<string, string>> {
+async function renderConfig(page: Page, cfg: Omit<Cell, "char">, chars: string[]): Promise<Map<string, string>> {
   const spans = chars
     .map(
       (ch, i) =>
@@ -94,7 +86,7 @@ async function renderConfig(
 }
 
 interface PairSpec {
-  kind: string;               // same | family | weight | size | style
+  kind: string; // same | family | weight | size | style
   expect: "match" | "mismatch";
   /** Weak-char family pair — reported, not counted as a miss on match. */
   advisory: boolean;
@@ -111,14 +103,27 @@ function buildPairs(): PairSpec[] {
   const pairs: PairSpec[] = [];
   const families = QUICK
     ? ["Helvetica", "Arial", "Georgia"]
-    : ["Helvetica", "Arial", "'Helvetica Neue'", "system-ui", "Times", "'Times New Roman'", "Georgia", "Menlo", "Courier", "Verdana"];
+    : [
+        "Helvetica",
+        "Arial",
+        "'Helvetica Neue'",
+        "system-ui",
+        "Times",
+        "'Times New Roman'",
+        "Georgia",
+        "Menlo",
+        "Courier",
+        "Verdana",
+      ];
 
   // SAME: subpixel-phase re-render of every family at 32px and 16px.
   for (const f of families) {
     for (const size of QUICK ? [32] : [32, 16]) {
       for (const ch of CHARS) {
         pairs.push({
-          kind: "same", expect: "match", advisory: false,
+          kind: "same",
+          expect: "match",
+          advisory: false,
           a: cell(f, ch, { size }),
           b: cell(f, ch, { size, offset: 0.37 }),
           label: `${f}@${size} '${ch}' phase 0 vs 0.37`,
@@ -144,9 +149,11 @@ function buildPairs(): PairSpec[] {
   for (const [fa, fb] of familyPairs) {
     for (const ch of CHARS) {
       pairs.push({
-        kind: "family", expect: "mismatch",
+        kind: "family",
+        expect: "mismatch",
         advisory: WEAK.includes(ch),
-        a: cell(fa, ch), b: cell(fb, ch),
+        a: cell(fa, ch),
+        b: cell(fb, ch),
         label: `${fa} vs ${fb} '${ch}'`,
       });
     }
@@ -157,8 +164,11 @@ function buildPairs(): PairSpec[] {
   for (const f of weightFamilies) {
     for (const ch of CHARS) {
       pairs.push({
-        kind: "weight", expect: "mismatch", advisory: false,
-        a: cell(f, ch), b: cell(f, ch, { weight: 700 }),
+        kind: "weight",
+        expect: "mismatch",
+        advisory: false,
+        a: cell(f, ch),
+        b: cell(f, ch, { weight: 700 }),
         label: `${f} 400 vs 700 '${ch}'`,
       });
     }
@@ -166,8 +176,11 @@ function buildPairs(): PairSpec[] {
   if (!QUICK) {
     for (const ch of CHARS) {
       pairs.push({
-        kind: "weight", expect: "mismatch", advisory: true, // subtle real-medium step
-        a: cell("system-ui", ch), b: cell("system-ui", ch, { weight: 500 }),
+        kind: "weight",
+        expect: "mismatch",
+        advisory: true, // subtle real-medium step
+        a: cell("system-ui", ch),
+        b: cell("system-ui", ch, { weight: 500 }),
         label: `system-ui 400 vs 500 '${ch}'`,
       });
     }
@@ -180,14 +193,20 @@ function buildPairs(): PairSpec[] {
   for (const f of sizeFamilies) {
     for (const ch of CHARS) {
       pairs.push({
-        kind: "size", expect: "mismatch", advisory: false,
-        a: cell(f, ch, { size: 32 }), b: cell(f, ch, { size: 34 }),
+        kind: "size",
+        expect: "mismatch",
+        advisory: false,
+        a: cell(f, ch, { size: 32 }),
+        b: cell(f, ch, { size: 34 }),
         label: `${f} 32 vs 34px '${ch}'`,
       });
       if (!QUICK) {
         pairs.push({
-          kind: "size", expect: "mismatch", advisory: true,
-          a: cell(f, ch, { size: 32 }), b: cell(f, ch, { size: 33 }),
+          kind: "size",
+          expect: "mismatch",
+          advisory: true,
+          a: cell(f, ch, { size: 32 }),
+          b: cell(f, ch, { size: 33 }),
           label: `${f} 32 vs 33px '${ch}'`,
         });
       }
@@ -199,8 +218,11 @@ function buildPairs(): PairSpec[] {
   for (const f of styleFamilies) {
     for (const ch of CHARS) {
       pairs.push({
-        kind: "style", expect: "mismatch", advisory: false,
-        a: cell(f, ch), b: cell(f, ch, { style: "italic" }),
+        kind: "style",
+        expect: "mismatch",
+        advisory: false,
+        a: cell(f, ch),
+        b: cell(f, ch, { style: "italic" }),
         label: `${f} normal vs italic '${ch}'`,
       });
     }
@@ -248,12 +270,17 @@ async function main(): Promise<void> {
   await browser.close();
 
   console.log(`scoring ${pairs.length} pairs…`);
-  interface Scored extends PairSpec { result: GlyphCompareResult }
+  interface Scored extends PairSpec {
+    result: GlyphCompareResult;
+  }
   const scored: Scored[] = [];
   for (const p of pairs) {
     const fa = files.get(cellId(p.a));
     const fb = files.get(cellId(p.b));
-    if (fa == null || fb == null) { console.warn(`  skip (render missing): ${p.label}`); continue; }
+    if (fa == null || fb == null) {
+      console.warn(`  skip (render missing): ${p.label}`);
+      continue;
+    }
     try {
       scored.push({ ...p, result: await compareGlyphPngs(fa, fb) });
     } catch (err) {
@@ -265,8 +292,16 @@ async function main(): Promise<void> {
   const groups: Record<string, Scored[]> = {};
   for (const s of scored) (groups[s.kind] ??= []).push(s);
   const metricNames = [
-    "sizeDiffPx", "inkLogRatio", "ncc", "unexplainedMax", "d95", "hotspotMax",
-    "strokeLogRatio", "contrastLogRatio", "orientL1", "zoningL2",
+    "sizeDiffPx",
+    "inkLogRatio",
+    "ncc",
+    "unexplainedMax",
+    "d95",
+    "hotspotMax",
+    "strokeLogRatio",
+    "contrastLogRatio",
+    "orientL1",
+    "zoningL2",
   ] as const;
   const metricOf = (s: Scored, name: string): number => {
     const m = s.result.metrics;
@@ -291,20 +326,32 @@ async function main(): Promise<void> {
   }
 
   // Confusion at DEFAULT_THRESHOLDS.
-  let tp = 0, tn = 0, fp = 0, fn = 0, advisoryMatched = 0, advisoryCaught = 0;
+  let tp = 0,
+    tn = 0,
+    fp = 0,
+    fn = 0,
+    advisoryMatched = 0,
+    advisoryCaught = 0;
   const misses: string[] = [];
   for (const s of scored) {
     const got = s.result.verdict;
     if (s.advisory) {
-      if (got === "mismatch") advisoryCaught++; else advisoryMatched++;
+      if (got === "mismatch") advisoryCaught++;
+      else advisoryMatched++;
       continue;
     }
     if (s.expect === "match") {
       if (got === "match") tn++;
-      else { fp++; misses.push(`FALSE-MISMATCH: ${s.label} — ${s.result.reasons.join(" | ")}`); }
+      else {
+        fp++;
+        misses.push(`FALSE-MISMATCH: ${s.label} — ${s.result.reasons.join(" | ")}`);
+      }
     } else {
       if (got === "mismatch") tp++;
-      else { fn++; misses.push(`MISSED-MISMATCH: ${s.label} — ncc ${s.result.metrics.ncc.toFixed(4)}`); }
+      else {
+        fn++;
+        misses.push(`MISSED-MISMATCH: ${s.label} — ncc ${s.result.metrics.ncc.toFixed(4)}`);
+      }
     }
   }
   console.log("\n== confusion at DEFAULT_THRESHOLDS ==");
@@ -318,9 +365,14 @@ async function main(): Promise<void> {
 
   // Dump everything for offline threshold re-derivation.
   const dump = scored.map((s) => ({
-    kind: s.kind, expect: s.expect, advisory: s.advisory, label: s.label,
-    verdict: s.result.verdict, confidence: s.result.confidence,
-    hardSignals: s.result.hardSignals, softSignals: s.result.softSignals,
+    kind: s.kind,
+    expect: s.expect,
+    advisory: s.advisory,
+    label: s.label,
+    verdict: s.result.verdict,
+    confidence: s.result.confidence,
+    hardSignals: s.result.hardSignals,
+    softSignals: s.result.softSignals,
     metrics: s.result.metrics,
   }));
   const jsonPath = join(OUT_DIR, "results.json");

@@ -4,10 +4,60 @@ title: "Domotion: cross-platform fallback-chain calibration (Linux + Windows)"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1404","DM-1416","DM-1423","DM-1694","DM-1714","DM-1716","DM-1795","DM-1800","DM-2390","DM-2397","DM-241","DM-2442","DM-256","DM-257","DM-258","DM-259","DM-260","DM-261","DM-262","DM-835","DM-836","DM-838","DM-874","DM-876","DM-884","DM-983","DM-984","DM-987"]
-code: ["src/render/embolden-outline.ts","src/render/font-resolution.ts","src/render/text.ts","src/render/unicode-classification.ts","src/render/unicode-font-routing.noto-linux.generated.ts","src/render/unicode-font-routing.win32.generated.ts","src/render/win-font-fallback.test.ts","src/render/win-font-fallback.ts","tests/flipbook-parity.ts","tests/html-test-suite.tsx","tests/output/unicode-fonts.win32.json","tests/runner.tsx","tools/calibrate-linux-noto-profile.sh","tools/calibrate-win32-unicode-fonts.sh","tools/probe-983-genroutes-noto-linux.mjs","tools/probe-983-genroutes-win32.mjs","tools/probe-983-sweep.mjs","tools/probe-fallbacks-linux.mjs"]
-aliases: ["docs/42-cross-platform-fallback-calibration.md","doc-42"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  [
+    "DM-1404",
+    "DM-1416",
+    "DM-1423",
+    "DM-1694",
+    "DM-1714",
+    "DM-1716",
+    "DM-1795",
+    "DM-1800",
+    "DM-2390",
+    "DM-2397",
+    "DM-241",
+    "DM-2442",
+    "DM-256",
+    "DM-257",
+    "DM-258",
+    "DM-259",
+    "DM-260",
+    "DM-261",
+    "DM-262",
+    "DM-835",
+    "DM-836",
+    "DM-838",
+    "DM-874",
+    "DM-876",
+    "DM-884",
+    "DM-983",
+    "DM-984",
+    "DM-987",
+  ]
+code:
+  [
+    "src/render/embolden-outline.ts",
+    "src/render/font-resolution.ts",
+    "src/render/text.ts",
+    "src/render/unicode-classification.ts",
+    "src/render/unicode-font-routing.noto-linux.generated.ts",
+    "src/render/unicode-font-routing.win32.generated.ts",
+    "src/render/win-font-fallback.test.ts",
+    "src/render/win-font-fallback.ts",
+    "tests/flipbook-parity.ts",
+    "tests/html-test-suite.tsx",
+    "tests/output/unicode-fonts.win32.json",
+    "tests/runner.tsx",
+    "tools/calibrate-linux-noto-profile.sh",
+    "tools/calibrate-win32-unicode-fonts.sh",
+    "tools/probe-983-genroutes-noto-linux.mjs",
+    "tools/probe-983-genroutes-win32.mjs",
+    "tools/probe-983-sweep.mjs",
+    "tools/probe-fallbacks-linux.mjs",
+  ]
+aliases: ["docs/42-cross-platform-fallback-calibration.md", "doc-42"]
 ---
 
 # Domotion: cross-platform fallback-chain calibration (Linux + Windows)
@@ -18,8 +68,8 @@ code structure — only the candidate font set differs — so they're documented
 together here and cross-referenced from each ticket.
 
 > **Prerequisite (done)**: `docs/40-cross-platform-font-paths.md` (DM-258) made
-> font *path discovery* platform-aware, so every logical key already resolves to
-> a real file on Linux/Windows. This doc is about *routing* — which logical key
+> font _path discovery_ platform-aware, so every logical key already resolves to
+> a real file on Linux/Windows. This doc is about _routing_ — which logical key
 > Chromium actually paints for each Unicode block on each platform.
 
 ## The problem this solves
@@ -33,14 +83,14 @@ Lucida Grande for ←→, …). Chromium-on-Linux (fontconfig) and
 Chromium-on-Windows (DirectWrite) cascade through entirely different faces, so
 the macOS routing applied over Linux/Windows fonts produces the wrong glyph
 (wrong width, wrong ink) for every fallback block — even though, post-DM-258,
-*a* glyph now paints instead of tofu.
+_a_ glyph now paints instead of tofu.
 
 ## Methodology (identical to the macOS calibration — DM-241 / DM-256 / DM-257)
 
 For each representative codepoint in each Unicode block:
 
-1. **Measure Chromium's painted width.** In a Playwright page *running on the
-   target platform*, wrap the single character in a tight inline span and read
+1. **Measure Chromium's painted width.** In a Playwright page _running on the
+   target platform_, wrap the single character in a tight inline span and read
    `Range.getBoundingClientRect().width` at a known font-size with a known
    primary family (`sans-serif`, `serif`, `monospace`). This is the ground
    truth — what Chromium-on-that-platform actually paints.
@@ -87,32 +137,32 @@ export function fallbackFontChain(cp, primaryKey?, lang?): string[] {
 
 ## Candidate font sets to probe
 
-These are the faces to *test* in step 2 — not pre-calibrated answers. The probe
+These are the faces to _test_ in step 2 — not pre-calibrated answers. The probe
 decides which one each block actually routes to.
 
 ### Linux (fontconfig) — DM-259
 
-| Unicode block (representative chars) | Candidate faces (probe order) |
-| --- | --- |
-| Latin / sans-serif primary | DejaVu Sans, Liberation Sans |
-| serif primary | DejaVu Serif, Liberation Serif |
-| monospace primary | DejaVu Sans Mono, Liberation Mono |
-| Hebrew (U+0590–05FF) | Noto Sans Hebrew, DejaVu Sans |
-| Arabic (U+0600–06FF + pres. forms) | Noto Sans Arabic, Noto Naskh Arabic |
-| Devanagari (U+0900–097F) | Noto Sans Devanagari |
-| Thai (U+0E00–0E7F) | Noto Sans Thai, Garuda/Loma (tlwg) |
-| CJK Han / Kana (unmarked + lang-tagged) | Noto Sans CJK {SC,TC,HK,JP,KR}, WenQuanYi Zen Hei, IPAGothic |
-| CJK serif | Noto Serif CJK SC |
-| Hangul | Noto Sans CJK KR |
-| Box Drawing / Block (U+2500–259F) | DejaVu Sans Mono, Noto Sans Mono |
-| Geometric Shapes (U+25A0–25FF) | DejaVu Sans, Noto Sans Symbols 2 |
-| Misc Symbols (U+2600–26FF) | Noto Sans Symbols, Noto Sans Symbols 2, DejaVu Sans |
-| Dingbats (U+2700–27BF) | Noto Sans Symbols 2, DejaVu Sans |
-| Arrows (U+2190–21FF) | DejaVu Sans, Noto Sans Symbols 2 |
-| Math Operators (U+2200–22FF) | DejaVu Sans, Noto Sans Math |
-| Letterlike (U+2100–214F) | DejaVu Sans, Noto Sans Math |
-| Math Alphanumeric (U+1D400–1D7FF) | Noto Sans Math, STIX Two Math (if `fonts-stix`) |
-| Pictographs / Transport / Emoji | Noto Color Emoji (raster path — handled by the screenshot overlay, doc 15) |
+| Unicode block (representative chars)    | Candidate faces (probe order)                                              |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| Latin / sans-serif primary              | DejaVu Sans, Liberation Sans                                               |
+| serif primary                           | DejaVu Serif, Liberation Serif                                             |
+| monospace primary                       | DejaVu Sans Mono, Liberation Mono                                          |
+| Hebrew (U+0590–05FF)                    | Noto Sans Hebrew, DejaVu Sans                                              |
+| Arabic (U+0600–06FF + pres. forms)      | Noto Sans Arabic, Noto Naskh Arabic                                        |
+| Devanagari (U+0900–097F)                | Noto Sans Devanagari                                                       |
+| Thai (U+0E00–0E7F)                      | Noto Sans Thai, Garuda/Loma (tlwg)                                         |
+| CJK Han / Kana (unmarked + lang-tagged) | Noto Sans CJK {SC,TC,HK,JP,KR}, WenQuanYi Zen Hei, IPAGothic               |
+| CJK serif                               | Noto Serif CJK SC                                                          |
+| Hangul                                  | Noto Sans CJK KR                                                           |
+| Box Drawing / Block (U+2500–259F)       | DejaVu Sans Mono, Noto Sans Mono                                           |
+| Geometric Shapes (U+25A0–25FF)          | DejaVu Sans, Noto Sans Symbols 2                                           |
+| Misc Symbols (U+2600–26FF)              | Noto Sans Symbols, Noto Sans Symbols 2, DejaVu Sans                        |
+| Dingbats (U+2700–27BF)                  | Noto Sans Symbols 2, DejaVu Sans                                           |
+| Arrows (U+2190–21FF)                    | DejaVu Sans, Noto Sans Symbols 2                                           |
+| Math Operators (U+2200–22FF)            | DejaVu Sans, Noto Sans Math                                                |
+| Letterlike (U+2100–214F)                | DejaVu Sans, Noto Sans Math                                                |
+| Math Alphanumeric (U+1D400–1D7FF)       | Noto Sans Math, STIX Two Math (if `fonts-stix`)                            |
+| Pictographs / Transport / Emoji         | Noto Color Emoji (raster path — handled by the screenshot overlay, doc 15) |
 
 ### DM-259 RESULT — calibrated Linux chain (Playwright `*-noble` image)
 
@@ -122,27 +172,27 @@ Probed 2026-05-25 via `tools/probe-fallbacks-linux.mjs` (CDP
 Liberation, FreeFont, WenQuanYi Zen Hei, IPAGothic, Loma, Unifont. What Chromium
 actually paints (baseline = bare image, **option A**):
 
-| Block / sample | Chromium-on-Linux font | `linuxFallbackChain` key → `LINUX_FONT_PATHS` |
-| --- | --- | --- |
-| sans-serif Latin | Liberation Sans | `helvetica` → Liberation Sans |
-| serif Latin | Liberation Serif | `times` → Liberation Serif |
-| **monospace Latin** | **WenQuanYi Zen Hei Mono** | `courier` → WenQuanYi Zen Hei Mono *(its fontconfig `monospace` alias — not Liberation Mono)* |
-| Hebrew שלום | Liberation Sans | `helvetica` |
-| Arabic بحرم | FreeSerif | `sf-arabic` → FreeSerif |
-| Devanagari | FreeSans | `devanagari` → FreeSans |
-| Thai | Loma | `thai` → Loma |
-| CJK Han / Kana / Hangul | WenQuanYi Zen Hei | `cjk` → WenQuanYi Zen Hei |
-| Box Drawing (mono) | WenQuanYi Zen Hei Mono | primary; `cjk` safety net |
-| Geometric ▲●◆■□○ | Liberation Sans (+ WenQuanYi) | `helvetica`, `cjk` |
-| Misc Symbols ☀☂♠♥♦ | Liberation Sans (+ IPAGothic) | `helvetica`, `hiragino-jp`(→IPAGothic), `free-sans` |
-| Arrows ←→↑↓ | Liberation Sans | `helvetica` |
-| Arrows diag ↗↙ | WenQuanYi Zen Hei | `cjk` |
-| Dingbats ✂✈❤ | FreeSans | `free-sans` |
-| Chess ♔♚ | FreeSerif | `free-serif` |
-| Letterlike ℝ™ℕℤ | FreeSans (+ Liberation Sans) | `free-sans`, `helvetica` |
-| Math-italic 𝑎/𝛼, Math-bold 𝐀 | FreeSans | `free-sans`, `free-serif` |
-| Math-script 𝒜 / double-struck 𝕊 | FreeSerif | `free-sans`, `free-serif` |
-| Emoji 😀🚀 | Noto Color Emoji | raster overlay (doc 15) |
+| Block / sample                  | Chromium-on-Linux font        | `linuxFallbackChain` key → `LINUX_FONT_PATHS`                                                 |
+| ------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
+| sans-serif Latin                | Liberation Sans               | `helvetica` → Liberation Sans                                                                 |
+| serif Latin                     | Liberation Serif              | `times` → Liberation Serif                                                                    |
+| **monospace Latin**             | **WenQuanYi Zen Hei Mono**    | `courier` → WenQuanYi Zen Hei Mono _(its fontconfig `monospace` alias — not Liberation Mono)_ |
+| Hebrew שלום                     | Liberation Sans               | `helvetica`                                                                                   |
+| Arabic بحرم                     | FreeSerif                     | `sf-arabic` → FreeSerif                                                                       |
+| Devanagari                      | FreeSans                      | `devanagari` → FreeSans                                                                       |
+| Thai                            | Loma                          | `thai` → Loma                                                                                 |
+| CJK Han / Kana / Hangul         | WenQuanYi Zen Hei             | `cjk` → WenQuanYi Zen Hei                                                                     |
+| Box Drawing (mono)              | WenQuanYi Zen Hei Mono        | primary; `cjk` safety net                                                                     |
+| Geometric ▲●◆■□○                | Liberation Sans (+ WenQuanYi) | `helvetica`, `cjk`                                                                            |
+| Misc Symbols ☀☂♠♥♦              | Liberation Sans (+ IPAGothic) | `helvetica`, `hiragino-jp`(→IPAGothic), `free-sans`                                           |
+| Arrows ←→↑↓                     | Liberation Sans               | `helvetica`                                                                                   |
+| Arrows diag ↗↙                  | WenQuanYi Zen Hei             | `cjk`                                                                                         |
+| Dingbats ✂✈❤                    | FreeSans                      | `free-sans`                                                                                   |
+| Chess ♔♚                        | FreeSerif                     | `free-serif`                                                                                  |
+| Letterlike ℝ™ℕℤ                 | FreeSans (+ Liberation Sans)  | `free-sans`, `helvetica`                                                                      |
+| Math-italic 𝑎/𝛼, Math-bold 𝐀    | FreeSans                      | `free-sans`, `free-serif`                                                                     |
+| Math-script 𝒜 / double-struck 𝕊 | FreeSerif                     | `free-sans`, `free-serif`                                                                     |
+| Emoji 😀🚀                      | Noto Color Emoji              | raster overlay (doc 15)                                                                       |
 
 Implemented as `linuxFallbackChain` in `src/render/font-resolution.ts` (the macOS
 body is preserved verbatim as the darwin path). `LINUX_FONT_PATHS` was corrected
@@ -164,7 +214,7 @@ Chromium agree on the face. `mathml-mi-italic-letters` is pixel-clean (0.00 %)
 on Linux as a result.
 
 > **Correction (DM-876):** an earlier DM-838 probe concluded "FreeSans's cmap
-> does not contain U+1D400–1D7FF" and that Chromium *synthesizes* the letters
+> does not contain U+1D400–1D7FF" and that Chromium _synthesizes_ the letters
 > from base italic. That probe opened the **`FreeSansOblique`** face by mistake —
 > the oblique face has none of the block, but the upright `FreeSans.ttf` has all
 > of it (verified by `glyphForCodePoint` on each file + CDP). So the chain renders
@@ -172,7 +222,7 @@ on Linux as a result.
 
 DM-838 also added a **Math-Alphanumeric → base-letter decomposition**
 (`mathAlphaToBase` in `src/render/unicode-classification.ts`): when a U+1D400–1D7FF (or
-U+210E ℎ) codepoint resolves to `.notdef` across the *whole* fallback chain, it
+U+210E ℎ) codepoint resolves to `.notdef` across the _whole_ fallback chain, it
 maps the codepoint to its base char + the implied bold/italic style and renders
 that base glyph in a FreeFont sibling. On the noble image FreeSans covers the
 block, so this path does not engage — it's a **guarded fallback** for fonts /
@@ -216,8 +266,8 @@ tracked separately. See [doc 203](203-linux-mathml-greek-italic-investigation.md
 
 > **Read this before the Windows subsections below.** Everything from
 > "Windows (DirectWrite) — DM-260" through the DM-987 sweep describes a per-block
-> routing table built by *probing Chromium-on-Windows and curve-fitting the
-> answers*. That table has been **replaced** by a transcription of the stage
+> routing table built by _probing Chromium-on-Windows and curve-fitting the
+> answers_. That table has been **replaced** by a transcription of the stage
 > Blink actually runs on Windows: `src/render/win-font-fallback.ts`, wired in
 > through `win32FallbackChain`, documented in
 > [the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
@@ -227,7 +277,7 @@ tracked separately. See [doc 203](203-linux-mathml-greek-italic-investigation.md
 > table first** and only falls through to DirectWrite when it produces nothing
 > usable (`platform/fonts/win/font_cache_skia_win.cc:286-296`, Chromium rev
 > `7d859f27`). Domotion implemented only the fall-through — the question Chrome
-> asks *second*, and on a machine with a complete font set never asks at all. The
+> asks _second_, and on a machine with a complete font set never asks at all. The
 > probed table was standing in for a stage that was simply missing, and it scored
 > well precisely on the blocks it had been fitted to.
 >
@@ -243,7 +293,7 @@ tracked separately. See [doc 203](203-linux-mathml-greek-italic-investigation.md
 > and then probes its pan-Unicode list.
 >
 > **What survives, and why:** the generated per-block table
-> (`unicode-font-routing.win32.generated.ts`) is retained as the *net behind* the
+> (`unicode-font-routing.win32.generated.ts`) is retained as the _net behind_ the
 > live DirectWrite resolver — reached only when the resolver cannot answer (no
 > helper binary on the host, resolver flagged off, or a codepoint DirectWrite
 > declines). It must never pre-empt the live call, since it is a frozen sample of
@@ -281,10 +331,10 @@ as assumed.
 Blink nominates Cambria Math for the Arrows / Geometric Shapes / Misc Technical
 blocks and Times New Roman for Latin / Cyrillic / Greek, the generated table says
 `u-arial` for all of them. The generated entries are not wrong about what
-`getPlatformFontsForNode` reported — Arial *is* what Chrome painted, because Arial
+`getPlatformFontsForNode` reported — Arial _is_ what Chrome painted, because Arial
 was the `sans-serif` primary and it covers those codepoints, so Chrome never
 entered fallback at all. But a fallback chain is consulted only for codepoints the
-primary *lacks*, which makes "fall back to Arial" a route to a font that by
+primary _lacks_, which makes "fall back to Arial" a route to a font that by
 construction cannot cover the character. That conflation is invisible in a
 per-block paint sweep and structural in it.
 
@@ -301,26 +351,26 @@ mismatched.
 
 ### Windows (DirectWrite) — DM-260 (historical: the probed table)
 
-| Unicode block | Candidate faces (probe order) |
-| --- | --- |
-| Latin / sans-serif primary | Arial (`sans-serif`), Segoe UI (`system-ui`) |
-| serif primary | Times New Roman |
-| monospace primary | Courier New, Consolas |
-| Hebrew | Segoe UI, Arial |
-| Arabic | Segoe UI, Arial, Arabic Typesetting |
-| Devanagari | Nirmala UI, Mangal |
-| Thai | Leelawadee UI, Tahoma |
-| CJK Han / Kana | Yu Gothic (ja), Microsoft YaHei (zh-CN), Microsoft JhengHei (zh-TW/HK), Malgun Gothic (ko), MS Gothic |
-| CJK serif | SimSun, Yu Mincho |
-| Hangul | Malgun Gothic |
-| Box Drawing / Block | Consolas, Cascadia Mono (if installed), Courier New |
-| Geometric Shapes | Segoe UI Symbol, Arial |
-| Misc Symbols | Segoe UI Symbol |
-| Dingbats | Segoe UI Symbol, Wingdings/Webdings |
-| Arrows | Segoe UI Symbol, Arial |
-| Math Operators / Letterlike | Cambria Math, Segoe UI Symbol |
-| Math Alphanumeric (U+1D400–1D7FF) | Cambria Math |
-| Pictographs / Transport / Emoji | Segoe UI Emoji (color font — raster path, doc 15) |
+| Unicode block                     | Candidate faces (probe order)                                                                         |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Latin / sans-serif primary        | Arial (`sans-serif`), Segoe UI (`system-ui`)                                                          |
+| serif primary                     | Times New Roman                                                                                       |
+| monospace primary                 | Courier New, Consolas                                                                                 |
+| Hebrew                            | Segoe UI, Arial                                                                                       |
+| Arabic                            | Segoe UI, Arial, Arabic Typesetting                                                                   |
+| Devanagari                        | Nirmala UI, Mangal                                                                                    |
+| Thai                              | Leelawadee UI, Tahoma                                                                                 |
+| CJK Han / Kana                    | Yu Gothic (ja), Microsoft YaHei (zh-CN), Microsoft JhengHei (zh-TW/HK), Malgun Gothic (ko), MS Gothic |
+| CJK serif                         | SimSun, Yu Mincho                                                                                     |
+| Hangul                            | Malgun Gothic                                                                                         |
+| Box Drawing / Block               | Consolas, Cascadia Mono (if installed), Courier New                                                   |
+| Geometric Shapes                  | Segoe UI Symbol, Arial                                                                                |
+| Misc Symbols                      | Segoe UI Symbol                                                                                       |
+| Dingbats                          | Segoe UI Symbol, Wingdings/Webdings                                                                   |
+| Arrows                            | Segoe UI Symbol, Arial                                                                                |
+| Math Operators / Letterlike       | Cambria Math, Segoe UI Symbol                                                                         |
+| Math Alphanumeric (U+1D400–1D7FF) | Cambria Math                                                                                          |
+| Pictographs / Transport / Emoji   | Segoe UI Emoji (color font — raster path, doc 15)                                                     |
 
 ### DM-836 — first calibrated win32 chain + a methodology correction
 
@@ -328,30 +378,30 @@ First `windows-latest` painted-width probe (run 26430174100, Chromium 147). Two 
 
 1. **Advance width alone is insufficient on Windows for the CJK / shaped-script
    blocks.** Every CJK / Hangul / Arabic / Hebrew / Devanagari / Thai sample
-   measured exactly one em (`64px` at the 64px probe size) for *every* candidate
+   measured exactly one em (`64px` at the 64px probe size) for _every_ candidate
    face, so the width can't fingerprint which font Chromium painted. The probe
    was therefore extended to capture `CSS.getPlatformFontsForNode` (the actual
    painted family per cell) — the deterministic signal. (Validated on macOS,
    where it correctly reports Helvetica / PingFang SC / Apple SD Gothic Neo /
    Geeza Pro / Thonburi, matching the hand-calibrated darwin chain.) The next
    `windows-fidelity` run captures this for Windows.
-2. **Where advance width *does* discriminate, it proved that Chromium-on-Windows
+2. **Where advance width _does_ discriminate, it proved that Chromium-on-Windows
    paints the symbol / math-operator / geometric-shape / box-drawing / arrow
    codepoints in Arial itself** (the `sans-serif` painted width equals Arial's
    exactly for `∑ ∏ ≠ ∫ ■ ● ◆ ★ ─ ┼`), not in a dedicated symbol face.
 
 `win32FallbackChain` (`src/render/font-resolution.ts`) is populated accordingly:
 
-| Block | Chain | Basis |
-| --- | --- | --- |
-| Symbols / math operators / geometric / arrows | `helvetica` (Arial), then `symbols`/`stix-math` | **probe-proven** (Arial covers them) |
-| Box Drawing | mono primary → `[primary, sf-mono]`; else `[helvetica, symbols]` | probe-proven |
-| Math Alphanumeric | `stix-math` (Cambria Math) | Cambria Math covers the block |
-| CJK Han/Kana | `cjk` (YaHei); `hiragino-jp` (Yu Gothic) for `ja`; `cjk-serif` (SimSun) for serif | **painted-font confirmed** (Han → Microsoft YaHei) |
-| Hangul | `[korean, cjk]` (Malgun Gothic) | **painted-font confirmed** (→ Malgun Gothic) |
-| Thai | `[tahoma, thai]` | **painted-font confirmed** (→ Tahoma, not Leelawadee) |
-| Arabic / Hebrew | `sf-arabic` / `sf-hebrew` (Segoe UI) | first cut (Arial covers Arabic as primary; Segoe UI is the fallback) |
-| Devanagari | `devanagari` (Nirmala UI) | first cut |
+| Block                                         | Chain                                                                             | Basis                                                                |
+| --------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Symbols / math operators / geometric / arrows | `helvetica` (Arial), then `symbols`/`stix-math`                                   | **probe-proven** (Arial covers them)                                 |
+| Box Drawing                                   | mono primary → `[primary, sf-mono]`; else `[helvetica, symbols]`                  | probe-proven                                                         |
+| Math Alphanumeric                             | `stix-math` (Cambria Math)                                                        | Cambria Math covers the block                                        |
+| CJK Han/Kana                                  | `cjk` (YaHei); `hiragino-jp` (Yu Gothic) for `ja`; `cjk-serif` (SimSun) for serif | **painted-font confirmed** (Han → Microsoft YaHei)                   |
+| Hangul                                        | `[korean, cjk]` (Malgun Gothic)                                                   | **painted-font confirmed** (→ Malgun Gothic)                         |
+| Thai                                          | `[tahoma, thai]`                                                                  | **painted-font confirmed** (→ Tahoma, not Leelawadee)                |
+| Arabic / Hebrew                               | `sf-arabic` / `sf-hebrew` (Segoe UI)                                              | first cut (Arial covers Arabic as primary; Segoe UI is the fallback) |
+| Devanagari                                    | `devanagari` (Nirmala UI)                                                         | first cut                                                            |
 
 The second `windows-fidelity` run (26430730227) added `getPlatformFontsForNode`
 capture, which **confirmed** the CJK / Hangul rows and **corrected** Thai
@@ -360,12 +410,12 @@ request). The **proven** rows replace the previous darwin-fallthrough, which
 routed these to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or
 are absent on Windows.
 
-**Important scope note:** this fallback calibration does *not* move the
+**Important scope note:** this fallback calibration does _not_ move the
 `windows-fidelity` feature-regression diffs — those 18 failing fixtures render
 their text in the **primary** font (Arial), so the fallback chain is never
 consulted. The residual 0.2–3% diffs are a primary-font sub-pixel positioning
 drift on Windows (same Arial outlines, drifting x-positions), tracked
-separately as an investigation. The fallback chain governs *which* face covers a
+separately as an investigation. The fallback chain governs _which_ face covers a
 block; it can't fix how the primary face is positioned.
 
 ### DM-987 — per-Unicode-block sweep (the generated win32 table)
@@ -390,21 +440,21 @@ so the DM-836 routes still win where they match.
 
 What the sweep surfaced (net-new coverage over the hand-coded chain):
 
-| Script family | DirectWrite face | File |
-| --- | --- | --- |
-| Ancient / historic (Old Italic, Gothic, Cuneiform, Egyptian Hieroglyphs, Phoenician, Cypriot, Syriac, …) | Segoe UI Historic | `seguihis.ttf` |
-| Ethiopic, N'Ko, Vai, Osmanya | Ebrima | `ebrima.ttf` |
-| Cherokee, Canadian Aboriginal, Osage | Gadugi | `gadugi.ttf` |
-| Yi | Microsoft Yi Baiti | `msyi.ttf` |
-| Myanmar | Myanmar Text | `mmrtext.ttf` |
-| Javanese | Javanese Text | `javatext.ttf` |
-| Tibetan | Microsoft Himalaya | `himalaya.ttf` |
-| Mongolian | Mongolian Baiti | `monbaiti.ttf` |
-| Tai Le / New Tai Lue / Phags-pa | Microsoft Tai Le / New Tai Lue / PhagsPa | `taile.ttf` / `ntailu.ttf` / `phagspa.ttf` |
-| Thaana | MV Boli | `mvboli.ttf` |
-| Georgian / Armenian | Sylfaen | `sylfaen.ttf` |
-| Rare CJK ideographs (Ext B/C/D/…, Ext G) | SimSun-ExtB / -ExtG | `simsunb.ttf` / `SimsunExtG.ttf` |
-| Broad symbol / pictograph residue | Sans Serif Collection | `SansSerifCollection.ttf` |
+| Script family                                                                                            | DirectWrite face                         | File                                       |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------ |
+| Ancient / historic (Old Italic, Gothic, Cuneiform, Egyptian Hieroglyphs, Phoenician, Cypriot, Syriac, …) | Segoe UI Historic                        | `seguihis.ttf`                             |
+| Ethiopic, N'Ko, Vai, Osmanya                                                                             | Ebrima                                   | `ebrima.ttf`                               |
+| Cherokee, Canadian Aboriginal, Osage                                                                     | Gadugi                                   | `gadugi.ttf`                               |
+| Yi                                                                                                       | Microsoft Yi Baiti                       | `msyi.ttf`                                 |
+| Myanmar                                                                                                  | Myanmar Text                             | `mmrtext.ttf`                              |
+| Javanese                                                                                                 | Javanese Text                            | `javatext.ttf`                             |
+| Tibetan                                                                                                  | Microsoft Himalaya                       | `himalaya.ttf`                             |
+| Mongolian                                                                                                | Mongolian Baiti                          | `monbaiti.ttf`                             |
+| Tai Le / New Tai Lue / Phags-pa                                                                          | Microsoft Tai Le / New Tai Lue / PhagsPa | `taile.ttf` / `ntailu.ttf` / `phagspa.ttf` |
+| Thaana                                                                                                   | MV Boli                                  | `mvboli.ttf`                               |
+| Georgian / Armenian                                                                                      | Sylfaen                                  | `sylfaen.ttf`                              |
+| Rare CJK ideographs (Ext B/C/D/…, Ext G)                                                                 | SimSun-ExtB / -ExtG                      | `simsunb.ttf` / `SimsunExtG.ttf`           |
+| Broad symbol / pictograph residue                                                                        | Sans Serif Collection                    | `SansSerifCollection.ttf`                  |
 
 Validated on the same Windows 11 host: opening each generated key's font with
 fontkit and calling `glyphForCodePoint` for a representative codepoint in its
@@ -435,7 +485,7 @@ on the Parallels "Windows 11" VM; the host-side regen is `--regen`. Two
 hard-won requirements (DM-1423):
 
 - **Pin the Chromium to the repo's `@playwright/test`.** The table records which
-  face *Chromium* picks per block, so it must be swept with the chromium
+  face _Chromium_ picks per block, so it must be swept with the chromium
   revision the renderer + visual suite use (the repo's pinned Playwright →
   e.g. 1.59.1 → chromium-1217), NOT just any Chromium. A 1.60.0 / chromium-1223
   sweep drifted two recent Latin blocks — `latin-extended-f` (U+10780) and
@@ -443,11 +493,11 @@ hard-won requirements (DM-1423):
   That is a **Chromium-version nuance, not a desktop-vs-Server font-set
   difference**, and the wrong answer for the pinned Chromium — so it must not be
   committed. Install `@playwright/test@<pinned>` in the VM and `npx playwright
-  install chromium chromium-headless-shell` before sweeping.
+install chromium chromium-headless-shell` before sweeping.
 - **Install the headless shell.** `chromium.launch()` uses
   `chrome-headless-shell`, a separate download from the full `chromium` browser;
-  if only `chromium-<rev>` is installed the sweep dies with *"Executable doesn't
-  exist at …chromium_headless_shell-<rev>…"*. Under `prlctl exec` (which runs as
+  if only `chromium-<rev>` is installed the sweep dies with _"Executable doesn't
+  exist at …chromium_headless_shell-<rev>…"_. Under `prlctl exec` (which runs as
   `nt authority\system`) the browsers install to the SYSTEM profile's
   `%LOCALAPPDATA%\ms-playwright`; if the shell is reported missing at launch,
   `npx playwright install --force chromium-headless-shell` and confirm the .exe
@@ -475,8 +525,8 @@ block (matching the macOS chain's comment style).
 
 - **Linux (DM-259)**: run the probe inside the Playwright Linux container —
   `npm run test:linux-docker` infrastructure already pins the same image CI
-  uses. Requires Docker. *(Not available in the sandbox where DM-258 was
-  implemented — this is the gating dependency for DM-259's empirical step.)*
+  uses. Requires Docker. _(Not available in the sandbox where DM-258 was
+  implemented — this is the gating dependency for DM-259's empirical step.)_
 - **Windows (DM-260)**: run the probe on a `windows-latest` GitHub runner
   (the `windows-fidelity.yml` workflow already exists and is where DM-835's
   Windows painted-width JSON lands). DM-836 is the ticket that consumes that
@@ -553,7 +603,7 @@ subject to the same documented native-raster hinting floor as Linux.
 
 ## Per-platform visual-gate hinting floor (DM-262 / DM-884)
 
-Calibrating the fallback chain makes the renderer pick the *right* face, but the
+Calibrating the fallback chain makes the renderer pick the _right_ face, but the
 feature visual-regression suite (`tests/runner.tsx`, `paths` mode) still can't
 hit per-pixel parity with the native paint on non-macOS platforms — and that
 gap is **not** a fallback or positioning bug. The `expected` PNG is the platform
@@ -568,18 +618,18 @@ floor while still failing on gross breakage (missing fonts → tofu → far high
 coverage). macOS stays the strict per-pixel gate (`regionCount === 0`) and is
 the real regression catch.
 
-| Platform | Rasterizer | Max observed hinting coverage | Gate |
-| --- | --- | --- | --- |
-| macOS | CoreText (light) | ~0% (outline ≈ paint) | strict `regionCount === 0` |
-| Linux | FreeType | 0.43% (2 fixtures non-zero) — was 0.58% before DM-1795 | `coveragePct ≤ 1%` |
-| Windows | DirectWrite (heavy) | 3.34% (18 fixtures) | `coveragePct ≤ 4%` |
+| Platform | Rasterizer          | Max observed hinting coverage                          | Gate                       |
+| -------- | ------------------- | ------------------------------------------------------ | -------------------------- |
+| macOS    | CoreText (light)    | ~0% (outline ≈ paint)                                  | strict `regionCount === 0` |
+| Linux    | FreeType            | 0.43% (2 fixtures non-zero) — was 0.58% before DM-1795 | `coveragePct ≤ 1%`         |
+| Windows  | DirectWrite (heavy) | 3.34% (18 fixtures)                                    | `coveragePct ≤ 4%`         |
 
 Both non-macOS suites are green at these caps (Linux via `npm run
 test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap lives in
 `tests/runner.tsx` (`HINTING_FLOOR_PCT`).
 
 **The capture is now unhinted too (DM-1795).** This harness launches Chromium
-with `--font-render-hinting=none`, so the *expected* paint is no longer
+with `--font-render-hinting=none`, so the _expected_ paint is no longer
 grid-fitted either — which is the same capture↔render alignment
 `tests/flipbook-parity.ts` has always relied on. It only makes sense here
 because this suite pins `paths` mode: the candidate SVG is vector geometry that
@@ -596,13 +646,13 @@ platform branch: the flag is applied unconditionally.
 
 The caps in the table are deliberately **not** lowered to match, and DM-1800
 re-examined that with the full-suite evidence in hand rather than leaving it
-open. Under the unhinted capture the highest coverage among *passing* Linux
+open. Under the unhinted capture the highest coverage among _passing_ Linux
 fixtures is **0.428%** (`mathml-mi-greek-italic`), with only two fixtures
 non-zero at all — a 2.3× margin to the 1% cap.
 
 Lowering it anyway was rejected: the cap is a ceiling on acceptable hinting
 noise, not a running measurement, and it is no longer the gate that matters —
-the required check is the *baseline-relative* diff
+the required check is the _baseline-relative_ diff
 (`scripts/diff-against-baseline.mjs --strict`), which fails on a regression
 regardless of where the cap sits. Tightening it would buy nothing that the
 baseline diff doesn't already catch, while making a legitimately text-heavy new
@@ -675,7 +725,7 @@ its source scan rejects the former calibration symbols in production.
 
 ## Every platform is now scored by the conformance oracle, not only by fixtures
 
-Everything above is *calibration* measured through visual fixtures — the weakest
+Everything above is _calibration_ measured through visual fixtures — the weakest
 evidence available for a font-selection claim, because fixtures sample and a
 wrong-font bug lives comfortably in the codepoints none of them covers. The
 exhaustive check is the conformance oracle
@@ -694,7 +744,7 @@ straight while reading the calibration numbers above:
 - **The gate is regression-relative.** No platform measures zero; the baseline
   records what "no worse than last time on this image" means for that platform.
 - **A hinting floor is not a selection defect.** The rasterization gap described
-  in "Per-platform visual-gate hinting floor" below is a *different* concern from
+  in "Per-platform visual-gate hinting floor" below is a _different_ concern from
   the matching mechanism the oracle measures — a platform can be pixel-imperfect
   and font-selection-perfect at the same time, and the two must not be traded
   against each other.

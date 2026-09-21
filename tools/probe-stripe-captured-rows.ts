@@ -17,10 +17,18 @@ function walk(n: CapturedElement, pred: (n: CapturedElement) => boolean, out: Ca
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "stripe-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "stripe-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   await page.goto("https://stripe.com/", { waitUntil: "domcontentloaded" });
@@ -50,28 +58,37 @@ async function main() {
   // generally, but it might preserve data-* — let me check by walking and matching position
   // around y=1100-1250.
   const rows: CapturedElement[] = [];
-  walk(tree[0]!, (n) => {
-    // Match elements in the y range that look like rows: ~167 wide, position-y in 1100-1250
-    return n.tag === 'div' && Math.abs(n.width - 167) < 10 && n.y >= 1090 && n.y <= 1300 && n.height < 80;
-  }, rows);
+  walk(
+    tree[0]!,
+    (n) => {
+      // Match elements in the y range that look like rows: ~167 wide, position-y in 1100-1250
+      return n.tag === "div" && Math.abs(n.width - 167) < 10 && n.y >= 1090 && n.y <= 1300 && n.height < 80;
+    },
+    rows,
+  );
 
   console.log("Captured row-like elements:");
   for (const r of rows) {
     const styles: any = r.styles;
-    console.log(JSON.stringify({
-      tag: r.tag,
-      rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
-      opacity: styles.opacity,
-      visibility: styles.visibility,
-      display: styles.display,
-      clipPath: styles.clipPath,
-      zIndex: styles.zIndex,
-      position: styles.position,
-      transform: styles.transform,
-      transformCreatesSc: styles.transformCreatesSc,
-    }));
+    console.log(
+      JSON.stringify({
+        tag: r.tag,
+        rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+        opacity: styles.opacity,
+        visibility: styles.visibility,
+        display: styles.display,
+        clipPath: styles.clipPath,
+        zIndex: styles.zIndex,
+        position: styles.position,
+        transform: styles.transform,
+        transformCreatesSc: styles.transformCreatesSc,
+      }),
+    );
   }
 
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

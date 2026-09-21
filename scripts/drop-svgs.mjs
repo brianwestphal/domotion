@@ -10,11 +10,20 @@ import { readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2];
-if (dir == null) { console.error("drop-svgs: <dir> required"); process.exit(2); }
+if (dir == null) {
+  console.error("drop-svgs: <dir> required");
+  process.exit(2);
+}
 let n = 0;
 try {
   for (const name of readdirSync(dir)) {
-    if (name.endsWith(".svg")) { rmSync(join(dir, name), { force: true }); n++; }
+    if (name.endsWith(".svg")) {
+      rmSync(join(dir, name), { force: true });
+      n++;
+    }
   }
-} catch (e) { console.error(`drop-svgs: ${e.message}`); process.exit(0); } // dir may not exist on an empty shard
+} catch (e) {
+  console.error(`drop-svgs: ${e.message}`);
+  process.exit(0);
+} // dir may not exist on an empty shard
 console.log(`drop-svgs: removed ${n} .svg file(s) from ${dir}`);

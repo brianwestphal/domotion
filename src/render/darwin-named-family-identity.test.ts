@@ -11,11 +11,7 @@ import {
   resolveFontKeyChain,
   withFontRendererSession,
 } from "./font-resolution.js";
-import {
-  createGlyphHelperFont,
-  isGlyphHelperAvailable,
-  resolveInstalledFont,
-} from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveInstalledFont } from "./glyph-helper.js";
 import {
   clearGlyphDefs,
   getTextRunProvenance,
@@ -59,7 +55,8 @@ function faceIdentity(key: string, cps: number[]): FaceIdentity {
 }
 
 function installedFaceGlyphs(
-  installed: { path: string; postscriptName: string }, cps: number[],
+  installed: { path: string; postscriptName: string },
+  cps: number[],
 ): FaceIdentity["glyphs"] {
   const font = createGlyphHelperFont({
     fontPath: installed.path,
@@ -77,12 +74,23 @@ function declaredFallbackIdentity(stack: string, cp: number): FaceIdentity {
   const primary = resolveFont(stack, 400, 32, 0);
   expect(primary).not.toBeNull();
   const resolution = resolveFontForCodepoint(
-    cp, primary!, primaryKey, 400, 32, 0, undefined, undefined,
-    resolveFontKeyChain(stack), false, 100, undefined, stack,
+    cp,
+    primary!,
+    primaryKey,
+    400,
+    32,
+    0,
+    undefined,
+    undefined,
+    resolveFontKeyChain(stack),
+    false,
+    100,
+    undefined,
+    stack,
   );
   expect(resolution.covered).toBe(true);
-  const font = resolution.fontOverride
-    ?? (resolution.key === primaryKey ? primary : getFontInstance(resolution.key, 400, 32, 0));
+  const font =
+    resolution.fontOverride ?? (resolution.key === primaryKey ? primary : getFontInstance(resolution.key, 400, 32, 0));
   expect(font).not.toBeNull();
   const source = getFontSourceInfo(font);
   const glyph = font!.glyphForCodePoint(cp);
@@ -98,7 +106,10 @@ function renderedIdentity(stack: string, text: string) {
   clearGlyphDefs();
   resetTextRunProvenance();
   const markup = renderTextAsPath(text, 0, 40, {
-    fontFamily: stack, fontSize: 32, fontWeight: "400", fill: "#000",
+    fontFamily: stack,
+    fontSize: 32,
+    fontWeight: "400",
+    fill: "#000",
   });
   expect(markup).not.toBeNull();
   const runs = getTextRunProvenance().runs;
@@ -141,9 +152,7 @@ describeMac("exact macOS named-family face identity", () => {
   });
 
   it("uses a later exact named family before entering system fallback", () => {
-    const identity = declaredFallbackIdentity(
-      'Times, "Hiragino Kaku Gothic ProN", sans-serif', 0x1f100,
-    );
+    const identity = declaredFallbackIdentity('Times, "Hiragino Kaku Gothic ProN", sans-serif', 0x1f100);
     expect(identity.key).toBe("sysfb:HiraKakuProN-W3");
     expect(identity.postscriptName).toBe("HiraKakuProN-W3");
     expect(identity.glyphs).toEqual([{ id: 8061, advance: 1000 }]);

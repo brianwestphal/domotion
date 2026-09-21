@@ -5,9 +5,18 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-585","DM-945","DM-946","DM-947","DM-948","DM-949"]
-code: ["src/cli/review.ts","src/review/","src/review/client.tsx","src/review/region-overlay.ts","src/review/server.ts","tests/review-server.tsx","tools/crop-regions.ts"]
-aliases: ["docs/54-svg-review-tool.md","doc-54"]
+tickets: ["DM-585", "DM-945", "DM-946", "DM-947", "DM-948", "DM-949"]
+code:
+  [
+    "src/cli/review.ts",
+    "src/review/",
+    "src/review/client.tsx",
+    "src/review/region-overlay.ts",
+    "src/review/server.ts",
+    "tests/review-server.tsx",
+    "tools/crop-regions.ts",
+  ]
+aliases: ["docs/54-svg-review-tool.md", "doc-54"]
 ---
 
 # SVG Review Tool
@@ -65,7 +74,7 @@ A single review card, similar in layout to one card in `tests/review-server
 - **Draw issue boxes**: in either the grid or the lightbox, mousedown-drag
   draws a colored rectangle pinned to a region of the image. Pointer
   interactions reuse `src/review/region-overlay.ts`'s `enableRegionOverlays
-  ()` API: drag empty to draw, drag a handle to resize, click the interior
+()` API: drag empty to draw, drag a handle to resize, click the interior
   to delete. Rects sync across the three figures because they share the
   same source-PNG dimensions.
 - **Caption each region**: clicking a region opens an inline `<textarea>`
@@ -87,12 +96,13 @@ GitHub new-issue form:
 **Expected** (Chromium): `expected.png` (attached)
 **Actual** (Domotion): `actual.svg` (attached)
 
-| # | Region (x, y, w, h) | What's wrong |
-|--:|---|---|
-| 1 | (123, 456, 78, 90) | border-radius too tight |
-| 2 | (200, 400, 150, 30) | font-weight too thin |
+|   # | Region (x, y, w, h) | What's wrong            |
+| --: | ------------------- | ----------------------- |
+|   1 | (123, 456, 78, 90)  | border-radius too tight |
+|   2 | (200, 400, 150, 30) | font-weight too thin    |
 
 ### How to reproduce
+
 …
 ```
 

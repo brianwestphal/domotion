@@ -33,7 +33,9 @@ export function setupDebugBundle(
     const stem = basename(outPath).replace(/\.svgz?$/i, "");
     debugDir = resolve(dirname(outPath), `${stem}.debug`);
   } else {
-    throw new Error(`${command}: --debug requires either --output (so we can derive <output>.debug/) or --debug-dir <path>`);
+    throw new Error(
+      `${command}: --debug requires either --output (so we can derive <output>.debug/) or --debug-dir <path>`,
+    );
   }
 
   mkdirSync(debugDir, { recursive: true });

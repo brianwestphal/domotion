@@ -34,7 +34,8 @@ rises and fades in, then the recorded build session plays:
       "cast": "../term/sample.cast",
       "term": { "mode": "incremental", "theme": "dark" },
       "chrome": { "device": "window", "label": "build — widget", "theme": "dark" },
-      "x": 222, "y": 170,
+      "x": 222,
+      "y": 170,
       "animations": [
         { "property": "translateY", "from": 24, "to": 0, "start": 0, "duration": 500, "easing": "ease-out" },
         { "property": "opacity", "from": 0, "to": 1, "start": 0, "duration": 500, "easing": "ease-out" }

@@ -10,26 +10,35 @@ import {
   type AnimatedImageTruthDenialCode,
 } from "./animated-image-owner-resource-truth-schema.js";
 
-const RETAINED_LOGICAL_SHA256 =
-  "2af7b4b95aeac7f8bd94c2f619e7b2bbdbb9c7c676a54f0ea8b4e63940eade5a";
-const RETAINED_ADJUDICATION_SHA256 =
-  "5be4a89902b2eeccd605226dce912be12c83db22e57567a09c63794852dddb38";
+const RETAINED_LOGICAL_SHA256 = "2af7b4b95aeac7f8bd94c2f619e7b2bbdbb9c7c676a54f0ea8b4e63940eade5a";
+const RETAINED_ADJUDICATION_SHA256 = "5be4a89902b2eeccd605226dce912be12c83db22e57567a09c63794852dddb38";
 
 export const ANIMATED_IMAGE_STOCK_CDP_EVIDENCE = Object.freeze({
   chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
   normalizedLogicalSha256: RETAINED_LOGICAL_SHA256,
   adjudicationReportSha256: RETAINED_ADJUDICATION_SHA256,
-  requiredArtifactKeys: [
-    "macOS/proposal",
-    "macOS/validation",
-    "Linux/proposal",
-    "Linux/validation",
-  ],
+  requiredArtifactKeys: ["macOS/proposal", "macOS/validation", "Linux/proposal", "Linux/validation"],
   inputs: [
-    { pathToken: "linux-proposal-93e150ec.json", byteLength: 252529, sha256: "1218ffadfaed3d1272a79b5681d47f0d4283c5ff4293eae5138d9e813594964b" },
-    { pathToken: "linux-validation-93e150ec.json", byteLength: 252574, sha256: "51f0455203bb8e5497ed59f4946c6ff651cc015338d0cb84554960294d407f0a" },
-    { pathToken: "DM-2589_macos-proposal-93e150ec.json", byteLength: 251695, sha256: "53e7a5f8bf43d47545bcf13a5a930a1fbca25e69fdeb6a04143d4eb6f278d61e" },
-    { pathToken: "DM-2589_macos-validation-93e150ec.json", byteLength: 252012, sha256: "e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08" },
+    {
+      pathToken: "linux-proposal-93e150ec.json",
+      byteLength: 252529,
+      sha256: "1218ffadfaed3d1272a79b5681d47f0d4283c5ff4293eae5138d9e813594964b",
+    },
+    {
+      pathToken: "linux-validation-93e150ec.json",
+      byteLength: 252574,
+      sha256: "51f0455203bb8e5497ed59f4946c6ff651cc015338d0cb84554960294d407f0a",
+    },
+    {
+      pathToken: "DM-2589_macos-proposal-93e150ec.json",
+      byteLength: 251695,
+      sha256: "53e7a5f8bf43d47545bcf13a5a930a1fbca25e69fdeb6a04143d4eb6f278d61e",
+    },
+    {
+      pathToken: "DM-2589_macos-validation-93e150ec.json",
+      byteLength: 252012,
+      sha256: "e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08",
+    },
   ],
 } as const);
 
@@ -107,11 +116,7 @@ export const ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET = Object.freeze({
     slot: "html-current",
     transport: "same-partition-owning-document-read-and-double-hash",
   },
-  unsupportedOwners: [
-    "css-image-set-or-non-url-function",
-    "generated-pseudo",
-    "closed-shadow-pseudo",
-  ],
+  unsupportedOwners: ["css-image-set-or-non-url-function", "generated-pseudo", "closed-shadow-pseudo"],
   sourceReferences: [
     "third_party/blink/public/devtools_protocol/domains/DOM.pdl:95-180",
     "third_party/blink/public/devtools_protocol/domains/Network.pdl:445-487,1167-1176,1377-1515",
@@ -164,9 +169,11 @@ const SPECIAL_DENIAL_REASONS: Readonly<Record<string, AnimatedImageTruthDenialCo
 };
 
 function isUnsupportedOwnerProbe(probeId: string): boolean {
-  return probeId.startsWith("css-") ||
+  return (
+    probeId.startsWith("css-") ||
     probeId === "generated-content-item-reorder" ||
-    probeId === "shadow-pseudo-slot-collision";
+    probeId === "shadow-pseudo-slot-collision"
+  );
 }
 
 export const ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX = Object.freeze(
@@ -176,15 +183,12 @@ export const ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX = Object.freeze(
     let reasonCode: AnimatedImageTruthDenialCode | null;
     if (requiredCase.expected === "stable-authorized") {
       decision = ELIGIBLE_CASES.has(key) ? "eligible" : "unsupported";
-      reasonCode = decision === "eligible"
-        ? null
-        : UNSUPPORTED_AUTHORIZED_REASONS[key] ?? "ambiguous-resource";
+      reasonCode = decision === "eligible" ? null : (UNSUPPORTED_AUTHORIZED_REASONS[key] ?? "ambiguous-resource");
     } else {
       decision = "deny";
-      reasonCode = SPECIAL_DENIAL_REASONS[key] ??
-        (isUnsupportedOwnerProbe(requiredCase.probeId)
-          ? "unsupported-owner"
-          : "candidate-drift");
+      reasonCode =
+        SPECIAL_DENIAL_REASONS[key] ??
+        (isUnsupportedOwnerProbe(requiredCase.probeId) ? "unsupported-owner" : "candidate-drift");
     }
     return Object.freeze({
       probeId: requiredCase.probeId,
@@ -232,8 +236,11 @@ export function adjudicateAnimatedImageStockCdpSupport(
   artifact: AnimatedImageStockCdpAdjudicationArtifact,
 ): AnimatedImageStockCdpSupportReport {
   const failures: string[] = [];
-  if (artifact.schemaVersion !== 1 || artifact.ticket !== "DM-2583" ||
-      artifact.stage !== "animated-image-owner-resource-truth-adjudication") {
+  if (
+    artifact.schemaVersion !== 1 ||
+    artifact.ticket !== "DM-2583" ||
+    artifact.stage !== "animated-image-owner-resource-truth-adjudication"
+  ) {
     failures.push("private-truth adjudication envelope drift");
   }
   const { reportSha256: _reportedSha256, ...payload } = artifact;
@@ -246,21 +253,20 @@ export function adjudicateAnimatedImageStockCdpSupport(
   if (!sameJson(artifact.inputs, ANIMATED_IMAGE_STOCK_CDP_EVIDENCE.inputs)) {
     failures.push("retained proposal/validation artifact identity drift");
   }
-  if (!sameJson(
-    artifact.adjudication.requiredArtifactKeys,
-    ANIMATED_IMAGE_STOCK_CDP_EVIDENCE.requiredArtifactKeys,
-  )) {
+  if (!sameJson(artifact.adjudication.requiredArtifactKeys, ANIMATED_IMAGE_STOCK_CDP_EVIDENCE.requiredArtifactKeys)) {
     failures.push("macOS/Linux artifact-key set drift");
   }
-  if (artifact.adjudication.verdict !== "proposal-validation-agreement" ||
-      artifact.adjudication.failures.length !== 0 ||
-      artifact.adjudication.normalizedLogicalSha256 !== RETAINED_LOGICAL_SHA256) {
+  if (
+    artifact.adjudication.verdict !== "proposal-validation-agreement" ||
+    artifact.adjudication.failures.length !== 0 ||
+    artifact.adjudication.normalizedLogicalSha256 !== RETAINED_LOGICAL_SHA256
+  ) {
     failures.push("private-truth logical agreement is absent or changed");
   }
 
-  const eligibleCaseKeys = ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX
-    .filter((entry) => entry.stockDecision === "eligible")
-    .map((entry) => `${entry.probeId}/${entry.caseId}`);
+  const eligibleCaseKeys = ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX.filter(
+    (entry) => entry.stockDecision === "eligible",
+  ).map((entry) => `${entry.probeId}/${entry.caseId}`);
   const matrixSha256 = animatedImageTruthSha256({
     evidence: ANIMATED_IMAGE_STOCK_CDP_EVIDENCE,
     supportedSubset: ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET,
@@ -271,12 +277,8 @@ export function adjudicateAnimatedImageStockCdpSupport(
     ticket: "DM-2584",
     stage: "animated-image-stock-cdp-support",
     scope: "macOS-linux-interim",
-    verdict: failures.length === 0
-      ? "supported-subset-ratified"
-      : "verdict-withheld",
-    normalizedLogicalSha256: failures.length === 0
-      ? RETAINED_LOGICAL_SHA256
-      : null,
+    verdict: failures.length === 0 ? "supported-subset-ratified" : "verdict-withheld",
+    normalizedLogicalSha256: failures.length === 0 ? RETAINED_LOGICAL_SHA256 : null,
     matrixSha256,
     eligibleCaseKeys,
     failures,

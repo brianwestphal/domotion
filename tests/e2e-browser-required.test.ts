@@ -6,7 +6,11 @@ import { verifyRequiredE2EBrowser } from "./e2e-browser-required.global.js";
 describe("required Chromium E2E preflight", () => {
   it("fails instead of allowing browser-unavailable suites to report green", async () => {
     const unavailable = new Error("controlled Chromium launch failure");
-    await expect(verifyRequiredE2EBrowser(async () => { throw unavailable; })).rejects.toMatchObject({
+    await expect(
+      verifyRequiredE2EBrowser(async () => {
+        throw unavailable;
+      }),
+    ).rejects.toMatchObject({
       message: expect.stringContaining("Required Chromium E2E preflight failed"),
       cause: unavailable,
     });

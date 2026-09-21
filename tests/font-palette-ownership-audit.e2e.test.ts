@@ -20,7 +20,6 @@ describe("font-palette production raster identity", () => {
       expect(row.selectedRepresentation).toBe("colr");
       expect(row.svgImageCount).toBe(2);
     }
-    expect(report.productionOrders[0].capturedPngSha256[0])
-      .toBe(report.productionOrders[1].capturedPngSha256[1]);
+    expect(report.productionOrders[0].capturedPngSha256[0]).toBe(report.productionOrders[1].capturedPngSha256[1]);
   }, 30_000);
 });

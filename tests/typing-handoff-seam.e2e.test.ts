@@ -43,25 +43,28 @@ const PAGE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 
 /** Count light (text) pixels inside the field's interior. */
 async function fieldInk(page: Page, png: Buffer): Promise<number> {
-  return page.evaluate(async (uri: string) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = uri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const d = ctx.getImageData(0, 0, img.width, img.height).data;
-    let n = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      if ((d[i] + d[i + 1] + d[i + 2]) / 3 > 110) n++;
-    }
-    return n;
-  }, `data:image/png;base64,${png.toString("base64")}`);
+  return page.evaluate(
+    async (uri: string) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = uri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, img.width, img.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if ((d[i] + d[i + 1] + d[i + 2]) / 3 > 110) n++;
+      }
+      return n;
+    },
+    `data:image/png;base64,${png.toString("base64")}`,
+  );
 }
 
 async function setup() {
@@ -95,12 +98,16 @@ describeBrowser("typing overlay → captured field handoff (DM-1796)", () => {
       autoCompress: false,
       frames: [
         {
-          input: "./page.html", duration: HOLD, transition: cut,
+          input: "./page.html",
+          duration: HOLD,
+          transition: cut,
           actions: [{ type: "focus", selector: ".field" }],
           overlays: [{ kind: "typing", text: TYPED, x: 51, y: 102, fontSize: 14, color: "#e6edf3", speed: 55 }],
         },
         {
-          continue: true, duration: HOLD, transition: cut,
+          continue: true,
+          duration: HOLD,
+          transition: cut,
           actions: [{ type: "fill", selector: ".field", value: TYPED }],
         },
       ],

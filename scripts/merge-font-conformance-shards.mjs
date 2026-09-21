@@ -141,7 +141,10 @@ export function mergeShards(shards, opts = {}) {
   const stacksByStackShard = new Map();
   const cpsByCpShard = new Map();
   for (const { name, report } of shards) {
-    if (report == null) { missingShards.push(name); continue; }
+    if (report == null) {
+      missingShards.push(name);
+      continue;
+    }
     // The first shard's meta describes the run; every shard shares the corpus,
     // the universe and the flags, and differs only in WHICH slice it swept.
     if (meta == null) meta = report.meta ?? null;
@@ -277,7 +280,11 @@ function main() {
   const readShardFile = (name, file) => {
     const p = join(dir, name, file);
     if (!existsSync(p)) return null;
-    try { return readFileSync(p, "utf8"); } catch { return null; }
+    try {
+      return readFileSync(p, "utf8");
+    } catch {
+      return null;
+    }
   };
   const inventoryOf = (text) => {
     if (text == null) return null;
@@ -286,7 +293,9 @@ function main() {
       // Only the identity, not the 2,000-name list: the list belongs in the
       // artifact, the digest is what a baseline compares.
       return { digest: doc.digest, count: doc.count, source: doc.source };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const shards = names.map((name) => {
@@ -313,8 +322,8 @@ function main() {
   const doc = mergeShards(shards, { os, expected, image: imageId, fontInventory });
   writeFileSync(out, `${JSON.stringify(doc, null, 2)}\n`);
   process.stderr.write(
-    `merged ${doc.meta.shardsMerged}/${doc.meta.shardsExpected} shard reports → ${out}`
-    + `${doc.meta.complete ? "" : ` (INCOMPLETE: missing ${doc.meta.missingShards.join(", ") || "shard artifacts"})`}\n`,
+    `merged ${doc.meta.shardsMerged}/${doc.meta.shardsExpected} shard reports → ${out}` +
+      `${doc.meta.complete ? "" : ` (INCOMPLETE: missing ${doc.meta.missingShards.join(", ") || "shard artifacts"})`}\n`,
   );
   for (const c of doc.meta.envConflicts ?? []) {
     const parts = c.values.map((v) => `${v.value} (${v.shards.join(", ")})`);

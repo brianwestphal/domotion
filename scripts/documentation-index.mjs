@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { documentationCodePathErrors } from "./documentation-code-paths.mjs";
@@ -22,9 +16,7 @@ const generatedPacketsRoot = resolve(docsRoot, "ai", "packets");
 const write = process.argv.includes("--write");
 
 const numberedDocument = /^([0-9]+)-(.+)\.md$/;
-const metadataFields = [
-  "id", "title", "kind", "status", "owners", "platforms", "tickets", "code", "aliases",
-];
+const metadataFields = ["id", "title", "kind", "status", "owners", "platforms", "tickets", "code", "aliases"];
 
 function files() {
   const discovered = [];
@@ -32,12 +24,12 @@ function files() {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const name = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) walk(resolve(directory, entry.name), name);
-      else if (entry.name.endsWith(".md") && (numberedDocument.test(entry.name) || prefix === "handbook")) discovered.push(name);
+      else if (entry.name.endsWith(".md") && (numberedDocument.test(entry.name) || prefix === "handbook"))
+        discovered.push(name);
     }
   };
   walk(docsRoot);
-  return discovered
-    .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
+  return discovered.sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
 }
 
 function titleOf(body, filename) {
@@ -66,7 +58,9 @@ function inferredStatus(opening) {
 
 function inferredOwners(slug) {
   const owners = [];
-  const add = (owner, pattern) => { if (pattern.test(slug)) owners.push(owner); };
+  const add = (owner, pattern) => {
+    if (pattern.test(slug)) owners.push(owner);
+  };
   add("text-fonts", /font|glyph|text|shap|unicode|bidi|decoration|caret|writing|mathml|emoji|cluster/);
   add("images-media", /image|raster|canvas|video|media|sprite|replaced|broken/);
   add("paint-effects", /gradient|mask|clip|filter|blend|backdrop|border|paint|color|shadow/);
@@ -83,7 +77,9 @@ function inferredPlatforms(body) {
     ["macos", /\bmacos\b|\bcoretext\b/],
     ["linux", /\blinux\b|\bfontconfig\b/],
     ["windows", /\bwindows\b|\bdirectwrite\b/],
-  ].filter(([, pattern]) => pattern.test(lower)).map(([platform]) => platform);
+  ]
+    .filter(([, pattern]) => pattern.test(lower))
+    .map(([platform]) => platform);
 }
 
 function inferredCode(body) {
@@ -164,9 +160,11 @@ function internalLinkErrors(filename, body) {
 
 function generatedArtifacts(entries) {
   const historicalNumbers = {};
-  const defaultEntries = entries.filter((entry) =>
-    !["archive", "proposal", "investigation"].includes(entry.metadata.kind)
-    && !["proposed", "superseded", "retired"].includes(entry.metadata.status));
+  const defaultEntries = entries.filter(
+    (entry) =>
+      !["archive", "proposal", "investigation"].includes(entry.metadata.kind) &&
+      !["proposed", "superseded", "retired"].includes(entry.metadata.status),
+  );
   for (const entry of entries) {
     const number = entry.file.split("/").pop().match(numberedDocument)?.[1];
     if (number == null) continue;
@@ -189,31 +187,53 @@ function generatedArtifacts(entries) {
   for (const owner of [...groups.keys()].sort()) {
     markdown.push(`## ${owner}`, "");
     for (const entry of groups.get(owner)) {
-      markdown.push(`- [${entry.metadata.title}](${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\``);
+      markdown.push(
+        `- [${entry.metadata.title}](${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\``,
+      );
     }
     markdown.push("");
   }
   const historical = entries.filter((entry) => !defaultEntries.includes(entry));
   const archive = [
-    "# Documentation archive index", "",
-    "Generated from lifecycle metadata. Historical files remain at their alias paths so old links and ticket references continue to resolve.", "",
-    ...historical.map((entry) => `- [${entry.metadata.title}](../${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\``),
+    "# Documentation archive index",
+    "",
+    "Generated from lifecycle metadata. Historical files remain at their alias paths so old links and ticket references continue to resolve.",
+    "",
+    ...historical.map(
+      (entry) =>
+        `- [${entry.metadata.title}](../${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\``,
+    ),
     "",
   ].join("\n");
-  const manifest = `${JSON.stringify({
-    schemaVersion: 1,
-    entries: entries.map(({ file, metadata }) => ({
-      id: metadata.id, title: metadata.title, kind: metadata.kind, status: metadata.status,
-      owners: metadata.owners, platforms: metadata.platforms, code: metadata.code, file,
-    })),
-  }, null, 2)}\n`;
+  const manifest = `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      entries: entries.map(({ file, metadata }) => ({
+        id: metadata.id,
+        title: metadata.title,
+        kind: metadata.kind,
+        status: metadata.status,
+        owners: metadata.owners,
+        platforms: metadata.platforms,
+        code: metadata.code,
+        file,
+      })),
+    },
+    null,
+    2,
+  )}\n`;
   const packets = {};
   for (const owner of [...groups.keys()].sort()) {
     const rows = defaultEntries.filter((entry) => entry.metadata.owners.includes(owner));
     packets[`${owner}.md`] = [
-      `# ${owner} documentation packet`, "",
-      "Generated from current and partial documentation metadata. Read the linked handbook first when present, then open only the records needed for the task.", "",
-      ...rows.map((entry) => `- [${entry.metadata.title}](../../${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\`; code: ${entry.metadata.code.map((path) => `\`${path}\``).join(", ") || "unmapped"}`),
+      `# ${owner} documentation packet`,
+      "",
+      "Generated from current and partial documentation metadata. Read the linked handbook first when present, then open only the records needed for the task.",
+      "",
+      ...rows.map(
+        (entry) =>
+          `- [${entry.metadata.title}](../../${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\`; code: ${entry.metadata.code.map((path) => `\`${path}\``).join(", ") || "unmapped"}`,
+      ),
       "",
     ].join("\n");
   }
@@ -261,7 +281,8 @@ if (write) {
   writeFileSync(generatedMarkdownPath, generated.markdown);
   writeFileSync(generatedArchivePath, generated.archive);
   writeFileSync(generatedManifestPath, generated.manifest);
-  for (const [name, content] of Object.entries(generated.packets)) writeFileSync(resolve(generatedPacketsRoot, name), content);
+  for (const [name, content] of Object.entries(generated.packets))
+    writeFileSync(resolve(generatedPacketsRoot, name), content);
 } else {
   for (const [path, expected] of [
     [generatedJsonPath, generated.json],

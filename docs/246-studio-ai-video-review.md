@@ -3,11 +3,17 @@ id: "requirements/studio-ai-video-review"
 title: "Domotion Studio structured AI video review"
 kind: "contract"
 status: "current"
-owners: ["studio","review","images-media"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "review", "images-media"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2694"]
-code: ["src/studio/video-review.ts","src/studio/video-review.test.ts","src/studio/video-review.e2e.test.ts","src/studio/project-schema.ts"]
-aliases: ["docs/246-studio-ai-video-review.md","doc-246"]
+code:
+  [
+    "src/studio/video-review.ts",
+    "src/studio/video-review.test.ts",
+    "src/studio/video-review.e2e.test.ts",
+    "src/studio/project-schema.ts",
+  ]
+aliases: ["docs/246-studio-ai-video-review.md", "doc-246"]
 ---
 
 # Domotion Studio structured AI video review

@@ -31,8 +31,9 @@ describe("live generic-family semantic ownership", () => {
     for (const order of report.orders) {
       expect(order.rows).toHaveLength(26);
       expect(order.rows.every((row) => row.pass)).toBe(true);
-      expect(order.rows.every((row) =>
-        row.paintedFaces.length === 1 && row.paintedFaces[0].glyphCount === 1)).toBe(true);
+      expect(order.rows.every((row) => row.paintedFaces.length === 1 && row.paintedFaces[0].glyphCount === 1)).toBe(
+        true,
+      );
     }
   }, 30_000);
 });

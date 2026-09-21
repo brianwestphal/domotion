@@ -4,11 +4,7 @@
 // fade / push-left / scroll / cut / magic-move transitions and optional
 // typing / tap / SVG / cursor overlays.
 
-export {
-  buildMagicMove,
-  type MagicMove,
-  type MagicMoveSlide,
-} from "./magic-move.js";
+export { buildMagicMove, type MagicMove, type MagicMoveSlide } from "./magic-move.js";
 
 // DM-1323: general animated-SVG compositing — stack already-rendered (animated)
 // SVGs into one, each placed + on its own timeline, with animation intact.
@@ -23,7 +19,11 @@ export {
 // DM-1319 / DM-1323: the nesting building blocks (namespace + per-layer timeline)
 // exposed for callers assembling composites by hand.
 export { namespaceEmbeddedAnimatedSvg, type NamespaceEmbedOptions } from "./embed-namespace.js";
-export { offsetEmbeddedAnimatedSvgTimeline, type OffsetTimelineOptions, type EmbeddedTimelineMode } from "./embed-timeline.js";
+export {
+  offsetEmbeddedAnimatedSvgTimeline,
+  type OffsetTimelineOptions,
+  type EmbeddedTimelineMode,
+} from "./embed-timeline.js";
 
 // DM-1767 (docs/104): `overlayWindowEndMs` / `OVERLAY_DEFAULT_DELAY_MS` are
 // deliberately NOT re-exported here. They are internal overlay-timing details
@@ -41,7 +41,14 @@ export {
   type SvgOverlay,
   type IntraFrameAnimation,
 } from "./animator.js";
-export { transitionSchema, transitionTypeSchema, normalizeTransition, type Transition, type TransitionType, type NormalizedTransitionPlan } from "./transition-schema.js";
+export {
+  transitionSchema,
+  transitionTypeSchema,
+  normalizeTransition,
+  type Transition,
+  type TransitionType,
+  type NormalizedTransitionPlan,
+} from "./transition-schema.js";
 
 // Caret + selection track (docs/101): node-side captured-text addressing plus
 // the declarative caret / selection track `generateAnimatedSvg` layers above

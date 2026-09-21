@@ -6,8 +6,14 @@ status: "current"
 owners: ["platform-release"]
 platforms: []
 tickets: []
-code: ["src/review/roll-differential.ts","tests/roll-differential.test.ts","tools/compare-roll-evidence.ts","tools/parity-environment.ts"]
-aliases: ["docs/160-chromium-roll-differential-audit.md","doc-160"]
+code:
+  [
+    "src/review/roll-differential.ts",
+    "tests/roll-differential.test.ts",
+    "tools/compare-roll-evidence.ts",
+    "tools/parity-environment.ts",
+  ]
+aliases: ["docs/160-chromium-roll-differential-audit.md", "doc-160"]
 ---
 
 # 160 — Chromium roll differential audit

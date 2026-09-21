@@ -25,12 +25,8 @@ import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  blinkWinFallbackLocale, hanScriptForLocale, localeForSkFontMgr,
-} from "./win-font-fallback.js";
-import {
-  buildFallbackEnvelope, clearGlyphHelperCache, resolveSystemFallbackFonts,
-} from "./glyph-helper.js";
+import { blinkWinFallbackLocale, hanScriptForLocale, localeForSkFontMgr } from "./win-font-fallback.js";
+import { buildFallbackEnvelope, clearGlyphHelperCache, resolveSystemFallbackFonts } from "./glyph-helper.js";
 
 /** The host's own locale, which is what `LocaleForHan` falls through to when the
  *  content locale disambiguates nothing. Tests that depend on it say so. */
@@ -92,31 +88,57 @@ describe("localeForSkFontMgr — against Blink's OWN expectation table", () => {
   // exactly the function being ported, so anything it covers that we get wrong
   // is a transcription error and not a judgement call.
   const ROWS: ReadonlyArray<readonly [string, string]> = [
-    ["ja-JP", "ja"], ["ko-KR", "ko"],
-    ["zh", "zh-Hans"], ["zh-CN", "zh-Hans"], ["zh-HK", "zh-Hant"],
-    ["zh-MO", "zh-Hant"], ["zh-SG", "zh-Hans"], ["zh-TW", "zh-Hant"],
+    ["ja-JP", "ja"],
+    ["ko-KR", "ko"],
+    ["zh", "zh-Hans"],
+    ["zh-CN", "zh-Hans"],
+    ["zh-HK", "zh-Hant"],
+    ["zh-MO", "zh-Hant"],
+    ["zh-SG", "zh-Hans"],
+    ["zh-TW", "zh-Hant"],
     // Encompassed languages within the Chinese macrolanguage; "lang" and
     // "lang-extlang" both work.
-    ["nan", "zh-Hant"], ["wuu", "zh-Hans"], ["yue", "zh-Hant"],
-    ["zh-nan", "zh-Hant"], ["zh-wuu", "zh-Hans"], ["zh-yue", "zh-Hant"],
+    ["nan", "zh-Hant"],
+    ["wuu", "zh-Hans"],
+    ["yue", "zh-Hant"],
+    ["zh-nan", "zh-Hant"],
+    ["zh-wuu", "zh-Hans"],
+    ["zh-yue", "zh-Hant"],
     // "Specified scripts is honored."
-    ["zh-Hans", "zh-Hans"], ["zh-Hant", "zh-Hant"],
+    ["zh-Hans", "zh-Hans"],
+    ["zh-Hant", "zh-Hant"],
     // "Lowercase scripts should be capitalized."
-    ["zh-hans", "zh-Hans"], ["zh-hant", "zh-Hant"],
+    ["zh-hans", "zh-Hans"],
+    ["zh-hant", "zh-Hant"],
     // "Script has priority over other subtags."
-    ["en-Hans", "zh-Hans"], ["en-Hant", "zh-Hant"],
-    ["en-Hans-TW", "zh-Hans"], ["en-Hant-CN", "zh-Hant"],
-    ["en-TW-Hans", "zh-Hans"], ["en-CN-Hant", "zh-Hant"],
-    ["wuu-Hant", "zh-Hant"], ["yue-Hans", "zh-Hans"],
-    ["zh-wuu-Hant", "zh-Hant"], ["zh-yue-Hans", "zh-Hans"],
+    ["en-Hans", "zh-Hans"],
+    ["en-Hant", "zh-Hant"],
+    ["en-Hans-TW", "zh-Hans"],
+    ["en-Hant-CN", "zh-Hant"],
+    ["en-TW-Hans", "zh-Hans"],
+    ["en-CN-Hant", "zh-Hant"],
+    ["wuu-Hant", "zh-Hant"],
+    ["yue-Hans", "zh-Hans"],
+    ["zh-wuu-Hant", "zh-Hant"],
+    ["zh-yue-Hans", "zh-Hans"],
     // "Lang has priority over region."
-    ["ja", "ja"], ["ja-US", "ja"], ["ko", "ko"], ["ko-US", "ko"],
-    ["wuu-TW", "zh-Hans"], ["yue-CN", "zh-Hant"],
-    ["zh-wuu-TW", "zh-Hans"], ["zh-yue-CN", "zh-Hant"],
+    ["ja", "ja"],
+    ["ja-US", "ja"],
+    ["ko", "ko"],
+    ["ko-US", "ko"],
+    ["wuu-TW", "zh-Hans"],
+    ["yue-CN", "zh-Hant"],
+    ["zh-wuu-TW", "zh-Hans"],
+    ["zh-yue-CN", "zh-Hant"],
     // "Region should not affect script" — these stay Latin, so the tag reduces
     // through ICU rather than through the CJK shortcut.
-    ["en-CN", "en"], ["en-HK", "en"], ["en-MO", "en"], ["en-SG", "en"],
-    ["en-TW", "en"], ["en-JP", "en"], ["en-KR", "en"],
+    ["en-CN", "en"],
+    ["en-HK", "en"],
+    ["en-MO", "en"],
+    ["en-SG", "en"],
+    ["en-TW", "en"],
+    ["en-JP", "en"],
+    ["en-KR", "en"],
     // "Multiple regions are invalid, but it can still give hints" — invalid
     // enough that `Intl.Locale` throws where ICU is lenient, so this row also
     // covers the hand reduction.
@@ -189,9 +211,17 @@ describe("blinkWinFallbackLocale — FallbackLocaleForCharacter (font_cache_skia
 
 describe("the helper envelope", () => {
   it("carries the locale into the fallback query", () => {
-    const env = buildFallbackEnvelope("Helvetica", [0x6f22], {
-      weight: 400, italic: false, fontSize: 16, locale: "zh-Hant",
-    }, "win32");
+    const env = buildFallbackEnvelope(
+      "Helvetica",
+      [0x6f22],
+      {
+        weight: 400,
+        italic: false,
+        fontSize: 16,
+        locale: "zh-Hant",
+      },
+      "win32",
+    );
     expect(env.queries[0]).toMatchObject({ type: "fallback", locale: "zh-Hant" });
   });
 
@@ -199,13 +229,28 @@ describe("the helper envelope", () => {
     // Absent must mean "the helper keeps its own default", not "an empty locale
     // name" — DirectWrite treats those differently, and an older Node side
     // against a newer helper has to degrade to the previous behavior.
-    const env = buildFallbackEnvelope("Helvetica", [0x6f22], {
-      weight: 400, italic: false, fontSize: 16,
-    }, "win32");
+    const env = buildFallbackEnvelope(
+      "Helvetica",
+      [0x6f22],
+      {
+        weight: 400,
+        italic: false,
+        fontSize: 16,
+      },
+      "win32",
+    );
     expect(env.queries[0]).not.toHaveProperty("locale");
-    const empty = buildFallbackEnvelope("Helvetica", [0x6f22], {
-      weight: 400, italic: false, fontSize: 16, locale: "",
-    }, "win32");
+    const empty = buildFallbackEnvelope(
+      "Helvetica",
+      [0x6f22],
+      {
+        weight: 400,
+        italic: false,
+        fontSize: 16,
+        locale: "",
+      },
+      "win32",
+    );
     expect(empty.queries[0]).not.toHaveProperty("locale");
   });
 });
@@ -220,29 +265,32 @@ describe("the per-codepoint fallback memo", () => {
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "domotion-fblocale-"));
     const p = join(dir, "fake-helper");
-    writeFileSync(p, [
-      "#!/usr/bin/env node",
-      "function answer(req) {",
-      "  const q = (req.queries && req.queries[0]) || {};",
-      '  const loc = q.locale || "<none>";',
-      "  const fonts = (q.cps || []).map((cp) => ({",
-      "    cp, found: true,",
-      "    postscriptName: `PS-${loc}`, familyName: `Fam-${loc}`, path: `/fake/${loc}.ttf`,",
-      "  }));",
-      '  return JSON.stringify({ results: [{ type: "fallback", fonts }] });',
-      "}",
-      'let buf = "";',
-      'process.stdin.on("data", (c) => {',
-      '  buf += c.toString("utf-8");',
-      "  let i;",
-      '  while ((i = buf.indexOf("\\n")) >= 0) {',
-      "    const line = buf.slice(0, i);",
-      "    buf = buf.slice(i + 1);",
-      '    if (line.trim()) process.stdout.write(answer(JSON.parse(line)) + "\\n");',
-      "  }",
-      "});",
-      'process.stdin.on("end", () => { if (buf.trim()) process.stdout.write(answer(JSON.parse(buf))); });',
-    ].join("\n"));
+    writeFileSync(
+      p,
+      [
+        "#!/usr/bin/env node",
+        "function answer(req) {",
+        "  const q = (req.queries && req.queries[0]) || {};",
+        '  const loc = q.locale || "<none>";',
+        "  const fonts = (q.cps || []).map((cp) => ({",
+        "    cp, found: true,",
+        "    postscriptName: `PS-${loc}`, familyName: `Fam-${loc}`, path: `/fake/${loc}.ttf`,",
+        "  }));",
+        '  return JSON.stringify({ results: [{ type: "fallback", fonts }] });',
+        "}",
+        'let buf = "";',
+        'process.stdin.on("data", (c) => {',
+        '  buf += c.toString("utf-8");',
+        "  let i;",
+        '  while ((i = buf.indexOf("\\n")) >= 0) {',
+        "    const line = buf.slice(0, i);",
+        "    buf = buf.slice(i + 1);",
+        '    if (line.trim()) process.stdout.write(answer(JSON.parse(line)) + "\\n");',
+        "  }",
+        "});",
+        'process.stdin.on("end", () => { if (buf.trim()) process.stdout.write(answer(JSON.parse(buf))); });',
+      ].join("\n"),
+    );
     chmodSync(p, 0o755);
     process.env.DOMOTION_HELPER_PATH = p;
     clearGlyphHelperCache();
@@ -252,11 +300,16 @@ describe("the per-codepoint fallback memo", () => {
     clearGlyphHelperCache();
     rmSync(dir, { recursive: true, force: true });
   });
-  beforeEach(() => { clearGlyphHelperCache(); });
+  beforeEach(() => {
+    clearGlyphHelperCache();
+  });
 
   const ask = (cp: number, locale?: string): string | null =>
     resolveSystemFallbackFonts([cp], "Helvetica", {
-      weight: 400, italic: false, fontSize: 16, ...(locale != null ? { locale } : {}),
+      weight: 400,
+      italic: false,
+      fontSize: 16,
+      ...(locale != null ? { locale } : {}),
     }).get(cp)?.postscriptName ?? null;
 
   it("does not serve the first locale's answer to the next locale", () => {

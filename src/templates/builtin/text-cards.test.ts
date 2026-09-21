@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  resolveCardTheme, staggeredReveal, revealEndMs, cardHeadCss, CARD_FONT_STACK,
-  cardScaleFactor, fs, fsNum, fitOdometerCell,
+  resolveCardTheme,
+  staggeredReveal,
+  revealEndMs,
+  cardHeadCss,
+  CARD_FONT_STACK,
+  cardScaleFactor,
+  fs,
+  fsNum,
+  fitOdometerCell,
 } from "./text-card-common.js";
 import { titleCardTemplate, buildTitleCardHtml, titleCardParamsSchema } from "./title-card.js";
 import { quoteTemplate, buildQuoteHtml, quoteParamsSchema } from "./quote.js";
@@ -68,10 +75,10 @@ describe("text-card-common (DM-1531)", () => {
     expect(fsNum(84, 1, 1.25)).toBe(84);
     expect(fs(26, 1, 0.9)).toBe("26px");
     // sf !== 1: exp > 1 scales harder, exp < 1 softer, exp = 1 the plain factor.
-    expect(fsNum(100, 1.5, 1)).toBe(150);        // plain
+    expect(fsNum(100, 1.5, 1)).toBe(150); // plain
     expect(fsNum(100, 1.5, 1.25)).toBe(Math.round(100 * Math.pow(1.5, 1.25) * 100) / 100); // ~166
     expect(fsNum(100, 1.5, 1.25)).toBeGreaterThan(150); // harder than uniform
-    expect(fsNum(100, 1.5, 0.9)).toBeLessThan(150);     // softer than uniform
+    expect(fsNum(100, 1.5, 0.9)).toBeLessThan(150); // softer than uniform
     // Headline (1.25) : support (0.9) ratio GROWS as sf rises — the DM-1568 gap.
     const r1 = fsNum(84, 1, 1.25) / fsNum(26, 1, 0.9);
     const r2 = fsNum(84, 1.5, 1.25) / fsNum(26, 1.5, 0.9);
@@ -95,8 +102,15 @@ describe("text-card-common (DM-1531)", () => {
   });
 
   it("cardHeadCss: default padding when no inset; per-side max of default and inset", () => {
-    expect(cardHeadCss({ width: 100, height: 100, fontFamily: "x" }, 40, undefined)).toContain("padding: 40px 40px 40px 40px");
-    const css = cardHeadCss({ width: 100, height: 100, fontFamily: "x" }, 40, { top: 200, right: 10, bottom: 300, left: 10 });
+    expect(cardHeadCss({ width: 100, height: 100, fontFamily: "x" }, 40, undefined)).toContain(
+      "padding: 40px 40px 40px 40px",
+    );
+    const css = cardHeadCss({ width: 100, height: 100, fontFamily: "x" }, 40, {
+      top: 200,
+      right: 10,
+      bottom: 300,
+      left: 10,
+    });
     expect(css).toContain("padding: 200px 40px 300px 40px"); // top/bottom inset wins, sides keep 40
   });
 });
@@ -121,7 +135,9 @@ describe("title-card (DM-1531)", () => {
     expect(above).toMatch(/<img class="tc-logo" src="\/l\.svg"/);
     expect(above.indexOf('class="tc-logo"')).toBeLessThan(above.indexOf('class="tc-title"')); // above
 
-    const below = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "T", logo: "/l.svg", logoPosition: "below" }));
+    const below = buildTitleCardHtml(
+      parse(titleCardParamsSchema, { title: "T", logo: "/l.svg", logoPosition: "below" }),
+    );
     expect(below.indexOf('class="tc-title"')).toBeLessThan(below.indexOf('<img class="tc-logo"')); // below
   });
 
@@ -215,7 +231,9 @@ describe("caption (DM-1531)", () => {
 
 describe("cta (DM-1531)", () => {
   it("renders button + conditional headline/handles/url/logo", () => {
-    const html = buildCtaHtml(parse(ctaParamsSchema, { cta: "Go", headline: "H", handles: "@a,@b", url: "x.dev", logo: "https://x/l.svg" }));
+    const html = buildCtaHtml(
+      parse(ctaParamsSchema, { cta: "Go", headline: "H", handles: "@a,@b", url: "x.dev", logo: "https://x/l.svg" }),
+    );
     expect(html).toContain('class="cta-btn">Go');
     expect(html).toContain('class="cta-headline">H');
     expect(html).toContain('class="cta-handles"');

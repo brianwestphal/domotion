@@ -94,44 +94,52 @@ async function scanRegion(
   mode: "light" | "amber",
 ): Promise<{ minX: number; maxX: number; count: number }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return page.evaluate(async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number }; mode: string }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const { x, y, w, h } = args.rect;
-    const d = ctx.getImageData(x, y, w, h).data;
-    let minX = Infinity, maxX = -Infinity, count = 0;
-    for (let py = 0; py < h; py++) {
-      for (let px = 0; px < w; px++) {
-        const i = (py * w + px) * 4;
-        const r = d[i], g = d[i + 1], b = d[i + 2];
-        // light: the editor's default #e2e8f0 body text on the dark window.
-        // amber: the colorize state's #fbbf24 "hole" tokens.
-        const hit = args.mode === "light"
-          ? r > 170 && g > 170 && b > 170
-          // Include the amber glyph's antialiased edge coverage. At this
-          // 12.5px pinned strike Linux can have only one fully saturated core
-          // pixel even though the complete brace is visibly recolored. The
-          // hue-distance test rejects the dark background and every other
-          // syntax color while keeping partially covered #fbbf24 pixels.
-          : r > 80 && r - b > 40 && g - b > 30 && r > g;
-        if (hit) {
-          if (x + px < minX) minX = x + px;
-          if (x + px > maxX) maxX = x + px;
-          count++;
+  return page.evaluate(
+    async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number }; mode: string }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const { x, y, w, h } = args.rect;
+      const d = ctx.getImageData(x, y, w, h).data;
+      let minX = Infinity,
+        maxX = -Infinity,
+        count = 0;
+      for (let py = 0; py < h; py++) {
+        for (let px = 0; px < w; px++) {
+          const i = (py * w + px) * 4;
+          const r = d[i],
+            g = d[i + 1],
+            b = d[i + 2];
+          // light: the editor's default #e2e8f0 body text on the dark window.
+          // amber: the colorize state's #fbbf24 "hole" tokens.
+          const hit =
+            args.mode === "light"
+              ? r > 170 && g > 170 && b > 170
+              : // Include the amber glyph's antialiased edge coverage. At this
+                // 12.5px pinned strike Linux can have only one fully saturated core
+                // pixel even though the complete brace is visibly recolored. The
+                // hue-distance test rejects the dark background and every other
+                // syntax color while keeping partially covered #fbbf24 pixels.
+                r > 80 && r - b > 40 && g - b > 30 && r > g;
+          if (hit) {
+            if (x + px < minX) minX = x + px;
+            if (x + px > maxX) maxX = x + px;
+            count++;
+          }
         }
       }
-    }
-    return { minX, maxX, count };
-  }, { dataUri, rect, mode });
+      return { minX, maxX, count };
+    },
+    { dataUri, rect, mode },
+  );
 }
 
 /** Count red-dominant vs green-dominant pixels in a screenshot region — the
@@ -142,59 +150,75 @@ async function countHues(
   rect: { x: number; y: number; w: number; h: number },
 ): Promise<{ red: number; green: number }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return page.evaluate(async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const { x, y, w, h } = args.rect;
-    const d = ctx.getImageData(x, y, w, h).data;
-    let red = 0, green = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i], g = d[i + 1], b = d[i + 2];
-      if (r > 120 && g < 80 && b < 80) red++;
-      else if (g > 90 && r < 90 && b < 110) green++;
-    }
-    return { red, green };
-  }, { dataUri, rect });
+  return page.evaluate(
+    async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const { x, y, w, h } = args.rect;
+      const d = ctx.getImageData(x, y, w, h).data;
+      let red = 0,
+        green = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i],
+          g = d[i + 1],
+          b = d[i + 2];
+        if (r > 120 && g < 80 && b < 80) red++;
+        else if (g > 90 && r < 90 && b < 110) green++;
+      }
+      return { red, green };
+    },
+    { dataUri, rect },
+  );
 }
 
 /** Raw RGBA bytes of a screenshot region (prefix byte-stability checks). */
-async function regionPixels(page: Page, png: Buffer, rect: { x: number; y: number; w: number; h: number }): Promise<string> {
+async function regionPixels(
+  page: Page,
+  png: Buffer,
+  rect: { x: number; y: number; w: number; h: number },
+): Promise<string> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return page.evaluate(async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const { x, y, w, h } = args.rect;
-    const d = ctx.getImageData(x, y, w, h).data;
-    // FNV-1a over the raw bytes — a full-array compare in string form.
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < d.length; i++) {
-      hash ^= d[i];
-      hash = Math.imul(hash, 0x01000193);
-    }
-    return `${w}x${h}:${(hash >>> 0).toString(16)}`;
-  }, { dataUri, rect });
+  return page.evaluate(
+    async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const { x, y, w, h } = args.rect;
+      const d = ctx.getImageData(x, y, w, h).data;
+      // FNV-1a over the raw bytes — a full-array compare in string form.
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < d.length; i++) {
+        hash ^= d[i];
+        hash = Math.imul(hash, 0x01000193);
+      }
+      return `${w}x${h}:${(hash >>> 0).toString(16)}`;
+    },
+    { dataUri, rect },
+  );
 }
 
 /** Find text segments in a captured tree matching a predicate. */
-function findSegments(tree: CapturedElement[], pred: (seg: TextSegment, el: CapturedElement) => boolean): Array<{ seg: TextSegment; el: CapturedElement }> {
+function findSegments(
+  tree: CapturedElement[],
+  pred: (seg: TextSegment, el: CapturedElement) => boolean,
+): Array<{ seg: TextSegment; el: CapturedElement }> {
   const out: Array<{ seg: TextSegment; el: CapturedElement }> = [];
   const walk = (el: CapturedElement): void => {
     for (const seg of el.textSegments ?? []) {
@@ -260,7 +284,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         transition: { type: "cut" as const, duration: 0 },
       }));
       const flipbookSvg = generateAnimatedSvg({
-        width: W, height: H, frames,
+        width: W,
+        height: H,
+        frames,
         fontFaceCss: getEmbeddedFontFaceCss(),
         ...(rootBg != null ? { background: rootBg } : {}),
       });
@@ -274,13 +300,16 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       expect(run.durationMs).toBe(holds.reduce((a, b) => a + b, 0));
       const embedded = namespaceEmbeddedAnimatedSvg(run.svg, "cmp0");
       const outerSvg = generateAnimatedSvg({
-        width: W, height: H,
-        frames: [{
-          svgContent: embedded,
-          duration: run.durationMs,
-          embeddedAnimationPeriodMs: run.durationMs,
-          transition: { type: "cut", duration: 0 },
-        }],
+        width: W,
+        height: H,
+        frames: [
+          {
+            svgContent: embedded,
+            duration: run.durationMs,
+            embeddedAnimationPeriodMs: run.durationMs,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
         fontFaceCss: "",
       });
       writeFileSync(join(OUT_DIR, "flipbook.svg"), flipbookSvg);
@@ -288,7 +317,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
 
       // ── Pairing + size: the run must have really compressed ──────────────
       const stats = run.pairingStats;
-      console.log(`[compressed-run e2e] ${logs[0] ?? ""} | groups=${stats.groupCount} chromeTracks=${stats.chromeTrackCount} recolored=${stats.recolored}`);
+      console.log(
+        `[compressed-run e2e] ${logs[0] ?? ""} | groups=${stats.groupCount} chromeTracks=${stats.chromeTrackCount} recolored=${stats.recolored}`,
+      );
       expect(stats.pairedPct).toBeGreaterThan(0.85);
       expect(stats.compressedBytes).toBeLessThan(0.6 * stats.rawBytes);
       // The full documents (with the shared font block) shrink too.
@@ -357,7 +388,10 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       // ── (4) The recolor lands as an in-place color change ────────────────
       // colorized() re-tokenizes the import line: '{' / '}' turn amber
       // (#fbbf24) at unchanged painted positions.
-      const amberSegs = findSegments(trees[N - 1], (seg, el) => (seg.color ?? el.styles.color) === "rgb(251, 191, 36)" && Math.abs(seg.y - firstEdit.lineTop) < 2);
+      const amberSegs = findSegments(
+        trees[N - 1],
+        (seg, el) => (seg.color ?? el.styles.color) === "rgb(251, 191, 36)" && Math.abs(seg.y - firstEdit.lineTop) < 2,
+      );
       expect(amberSegs.length).toBeGreaterThanOrEqual(2); // '{' and '}'
       const braceX = Math.min(...amberSegs.map((s) => s.seg.x));
       const beforeColorize = await scanRegion(compPage, compShots[N - 2], lineStrip, "amber");
@@ -383,7 +417,8 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
 
   it("cross-line identity: an insertLine pushes N lines down and they PAIR across the move (translateY), matching the flipbook", async () => {
     const { browser } = env!;
-    const LW = 420, LH = 220;
+    const LW = 420,
+      LH = 220;
     const LINEPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${LW}px; height: ${LH}px; background: #101820; }
       #code { position: absolute; left: 16px; top: 16px; color: #e2e8f0;
@@ -416,7 +451,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         { width: LW, height: LH, idPrefix: "xl0", background: rootBg, log: (m) => logs.push(m) },
       );
       const stats = run.pairingStats;
-      console.log(`[cross-line e2e] ${logs[0]} | paired=${(stats.pairedPct * 100).toFixed(1)}% births=${stats.births} deaths=${stats.deaths} groups=${stats.groupCount} | rawBytes=${stats.rawBytes} compressedBytes=${stats.compressedBytes} (${(stats.compressedBytes / stats.rawBytes).toFixed(2)}× of raw)`);
+      console.log(
+        `[cross-line e2e] ${logs[0]} | paired=${(stats.pairedPct * 100).toFixed(1)}% births=${stats.births} deaths=${stats.deaths} groups=${stats.groupCount} | rawBytes=${stats.rawBytes} compressedBytes=${stats.compressedBytes} (${(stats.compressedBytes / stats.rawBytes).toFixed(2)}× of raw)`,
+      );
 
       // Cross-line identity: the five BASE lines pair across the +19 move, so
       // NOTHING dies; only the NEW line's inked glyphs are born. Without
@@ -435,13 +472,28 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       clearGlyphDefs();
       const frames = trees.map((tree, i) => ({
         svgContent: elementTreeToSvgInner(structuredClone(tree), LW, LH, `xf${i}-`, true, 2, false),
-        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+        duration: holds[i],
+        transition: { type: "cut" as const, duration: 0 },
       }));
-      const flipbookSvg = generateAnimatedSvg({ width: LW, height: LH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const flipbookSvg = generateAnimatedSvg({
+        width: LW,
+        height: LH,
+        frames,
+        fontFaceCss: getEmbeddedFontFaceCss(),
+        background: rootBg,
+      });
       const embedded = namespaceEmbeddedAnimatedSvg(run.svg, "xlcmp");
       const outerSvg = generateAnimatedSvg({
-        width: LW, height: LH,
-        frames: [{ svgContent: embedded, duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        width: LW,
+        height: LH,
+        frames: [
+          {
+            svgContent: embedded,
+            duration: run.durationMs,
+            embeddedAnimationPeriodMs: run.durationMs,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
@@ -472,7 +524,8 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // windows) instead of emitting it twice — and the text must stay in the
     // glyph layer (the highlight sits BEHIND it, so it is not an occluder).
     const { browser } = env!;
-    const RW = 380, RH = 160;
+    const RW = 380,
+      RH = 160;
     const RPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${RW}px; height: ${RH}px; background: #101820; }
       #code { position: absolute; left: 16px; top: 16px;
@@ -492,23 +545,33 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       await page.setContent(RPAGE, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => document.fonts.ready);
       const trees: CapturedElement[][] = [];
-      const cap = async () => { trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: RW, height: RH })); };
-      await cap();                                                                     // A: plain
+      const cap = async () => {
+        trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: RW, height: RH }));
+      };
+      await cap(); // A: plain
       await page.evaluate(() => (window as unknown as { render: (h: boolean) => void }).render(true));
-      await cap();                                                                     // B: highlighted
+      await cap(); // B: highlighted
       await page.evaluate(() => (window as unknown as { render: (h: boolean) => void }).render(false));
-      await cap();                                                                     // A again
+      await cap(); // A again
 
       const holds = [300, 300, 400];
       const boundaries = [0, 300, 600];
       const rootBg = "rgb(16, 24, 32)";
-      const run = composeCompressedRun(trees.map((tree, i) => ({ tree, holdMs: holds[i] })), {
-        width: RW, height: RH, idPrefix: "rp0", background: rootBg,
-      });
+      const run = composeCompressedRun(
+        trees.map((tree, i) => ({ tree, holdMs: holds[i] })),
+        {
+          width: RW,
+          height: RH,
+          idPrefix: "rp0",
+          background: rootBg,
+        },
+      );
       // Reopen: the plain variant is emitted once with a two-window display
       // track (0..1 and 2..3), so the run carries FEWER chrome variants than
       // the three states would naively need.
-      console.log(`[reopen e2e] chromeTracks=${run.pairingStats.chromeTrackCount} groups=${run.pairingStats.groupCount} deaths=${run.pairingStats.deaths}`);
+      console.log(
+        `[reopen e2e] chromeTracks=${run.pairingStats.chromeTrackCount} groups=${run.pairingStats.groupCount} deaths=${run.pairingStats.deaths}`,
+      );
       // The text pairs across all three states — the highlight paints behind it.
       expect(run.pairingStats.deaths).toBe(0);
       expect(run.pairingStats.births).toBe(0);
@@ -517,12 +580,27 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       clearGlyphDefs();
       const frames = trees.map((tree, i) => ({
         svgContent: elementTreeToSvgInner(structuredClone(tree), RW, RH, `rf${i}-`, true, 2, false),
-        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+        duration: holds[i],
+        transition: { type: "cut" as const, duration: 0 },
       }));
-      const flipbookSvg = generateAnimatedSvg({ width: RW, height: RH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const flipbookSvg = generateAnimatedSvg({
+        width: RW,
+        height: RH,
+        frames,
+        fontFaceCss: getEmbeddedFontFaceCss(),
+        background: rootBg,
+      });
       const outerSvg = generateAnimatedSvg({
-        width: RW, height: RH,
-        frames: [{ svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "rpcmp"), duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        width: RW,
+        height: RH,
+        frames: [
+          {
+            svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "rpcmp"),
+            duration: run.durationMs,
+            embeddedAnimationPeriodMs: run.durationMs,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
@@ -556,7 +634,8 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // union variant sits BEFORE that sibling. Reopening in place would flip the
     // overlap; the conservative re-emit keeps the pixels exact.
     const { browser } = env!;
-    const OW = 320, OH = 180;
+    const OW = 320,
+      OH = 180;
     const OPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${OW}px; height: ${OH}px; background: #101820; }
       #ov { position: absolute; left: 0; top: 0; width: ${OW}px; height: ${OH}px; }
@@ -579,30 +658,53 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       await page.setContent(OPAGE, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => document.fonts.ready);
       const trees: CapturedElement[][] = [];
-      const cap = async (): Promise<void> => { trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: OW, height: OH })); };
-      await cap();                                                                       // A, B
+      const cap = async (): Promise<void> => {
+        trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: OW, height: OH }));
+      };
+      await cap(); // A, B
       await page.evaluate(() => (window as unknown as { s1: () => void }).s1());
-      await cap();                                                                       // A
+      await cap(); // A
       await page.evaluate(() => (window as unknown as { s2: () => void }).s2());
-      await cap();                                                                       // A, NEW, B — B last, over NEW
+      await cap(); // A, NEW, B — B last, over NEW
 
       const holds = [300, 300, 400];
       const boundaries = [0, 300, 600];
       const rootBg = "rgb(16, 24, 32)";
-      const run = composeCompressedRun(trees.map((tree, i) => ({ tree, holdMs: holds[i] })), {
-        width: OW, height: OH, idPrefix: "oo0", background: rootBg,
-      });
+      const run = composeCompressedRun(
+        trees.map((tree, i) => ({ tree, holdMs: holds[i] })),
+        {
+          width: OW,
+          height: OH,
+          idPrefix: "oo0",
+          background: rootBg,
+        },
+      );
 
       clearEmbeddedFonts();
       clearGlyphDefs();
       const frames = trees.map((tree, i) => ({
         svgContent: elementTreeToSvgInner(structuredClone(tree), OW, OH, `of${i}-`, true, 2, false),
-        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+        duration: holds[i],
+        transition: { type: "cut" as const, duration: 0 },
       }));
-      const flipbookSvg = generateAnimatedSvg({ width: OW, height: OH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const flipbookSvg = generateAnimatedSvg({
+        width: OW,
+        height: OH,
+        frames,
+        fontFaceCss: getEmbeddedFontFaceCss(),
+        background: rootBg,
+      });
       const outerSvg = generateAnimatedSvg({
-        width: OW, height: OH,
-        frames: [{ svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "oocmp"), duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        width: OW,
+        height: OH,
+        frames: [
+          {
+            svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "oocmp"),
+            duration: run.durationMs,
+            embeddedAnimationPeriodMs: run.durationMs,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
@@ -659,7 +761,8 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // later line used to inherit the first line's textTop and render stacked on
     // line 1 (the compressor's single-line render anchors on textTop, not seg.y).
     const { browser } = env!;
-    const MW = 380, MH = 140;
+    const MW = 380,
+      MH = 140;
     const MLPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${MW}px; height: ${MH}px; background: #0d1117; }
       #out { position: absolute; left: 16px; top: 14px; color: #c9d1d9;
@@ -686,20 +789,41 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: MW, height: MH }));
 
       const rootBg = "rgb(13, 17, 23)";
-      const run = composeCompressedRun(trees.map((tree, i) => ({ tree, holdMs: holds[i] })), {
-        width: MW, height: MH, idPrefix: "ml0", background: rootBg,
-      });
+      const run = composeCompressedRun(
+        trees.map((tree, i) => ({ tree, holdMs: holds[i] })),
+        {
+          width: MW,
+          height: MH,
+          idPrefix: "ml0",
+          background: rootBg,
+        },
+      );
 
       clearEmbeddedFonts();
       clearGlyphDefs();
       const frames = trees.map((tree, i) => ({
         svgContent: elementTreeToSvgInner(structuredClone(tree), MW, MH, `ml${i}-`, true, 2, false),
-        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+        duration: holds[i],
+        transition: { type: "cut" as const, duration: 0 },
       }));
-      const flipbookSvg = generateAnimatedSvg({ width: MW, height: MH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const flipbookSvg = generateAnimatedSvg({
+        width: MW,
+        height: MH,
+        frames,
+        fontFaceCss: getEmbeddedFontFaceCss(),
+        background: rootBg,
+      });
       const outerSvg = generateAnimatedSvg({
-        width: MW, height: MH,
-        frames: [{ svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "mlcmp"), duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        width: MW,
+        height: MH,
+        frames: [
+          {
+            svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "mlcmp"),
+            duration: run.durationMs,
+            embeddedAnimationPeriodMs: run.durationMs,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
         fontFaceCss: "",
       });
       const flipPage = await ctx.newPage();
@@ -732,7 +856,8 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     // standalone-overlay z-order), the opaque red would cover the glyphs and no
     // white pixel would survive.
     const { browser } = env!;
-    const SW = 320, SH = 120;
+    const SW = 320,
+      SH = 120;
     const SELPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
       body { margin: 0; width: ${SW}px; height: ${SH}px; background: #101820; }
       #line { position: absolute; left: 20px; top: 40px; color: #ffffff;
@@ -747,8 +872,16 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
 
       // Select chars 3..6 ("DEF") with an opaque red, over a one-state run.
       const run = composeCompressedRun([{ tree, holdMs: 500 }], {
-        width: SW, height: SH, idPrefix: "sel0", background: "rgb(16, 24, 32)",
-        selection: { target: { match: (el) => el.text === "ABCDEFGHIJ" }, charStart: 3, charEnd: 6, color: "rgb(220, 0, 0)" },
+        width: SW,
+        height: SH,
+        idPrefix: "sel0",
+        background: "rgb(16, 24, 32)",
+        selection: {
+          target: { match: (el) => el.text === "ABCDEFGHIJ" },
+          charStart: 3,
+          charEnd: 6,
+          color: "rgb(220, 0, 0)",
+        },
       });
       expect(run.svg).toContain('class="tt-sel"');
       // Structural z-order: the rect precedes the first glyph-paint group.
@@ -758,8 +891,16 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
 
       const embedded = namespaceEmbeddedAnimatedSvg(run.svg, "selcmp");
       const outerSvg = generateAnimatedSvg({
-        width: SW, height: SH,
-        frames: [{ svgContent: embedded, duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        width: SW,
+        height: SH,
+        frames: [
+          {
+            svgContent: embedded,
+            duration: run.durationMs,
+            embeddedAnimationPeriodMs: run.durationMs,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
         fontFaceCss: "",
       });
       const view = await ctx.newPage();
@@ -772,16 +913,24 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       const dataUri = `data:image/png;base64,${png.toString("base64")}`;
       const counts = await view.evaluate(async (uri: string) => {
         const img = new Image();
-        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("decode")); img.src = uri; });
+        await new Promise<void>((res, rej) => {
+          img.onload = () => res();
+          img.onerror = () => rej(new Error("decode"));
+          img.src = uri;
+        });
         const canvas = document.createElement("canvas");
-        canvas.width = img.width; canvas.height = img.height;
+        canvas.width = img.width;
+        canvas.height = img.height;
         const cx = canvas.getContext("2d")!;
         cx.drawImage(img, 0, 0);
         // The 24px Menlo cell is ~14.4px wide; "DEF" starts ~char 3 → x ≈ 20 + 3·14.4.
         const d = cx.getImageData(60, 40, 50, 34).data;
-        let white = 0, red = 0;
+        let white = 0,
+          red = 0;
         for (let i = 0; i < d.length; i += 4) {
-          const r = d[i], g = d[i + 1], b = d[i + 2];
+          const r = d[i],
+            g = d[i + 1],
+            b = d[i + 2];
           if (r > 200 && g > 200 && b > 200) white++;
           else if (r > 150 && g < 90 && b < 90) red++;
         }
@@ -789,7 +938,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       }, dataUri);
       // Both present → the glyphs show through a rect painted behind them.
       expect(counts.red, "no selection-red pixels found in the rect band").toBeGreaterThan(20);
-      expect(counts.white, "no glyph ink survived — the selection painted OVER the glyphs, not behind").toBeGreaterThan(20);
+      expect(counts.white, "no glyph ink survived — the selection painted OVER the glyphs, not behind").toBeGreaterThan(
+        20,
+      );
     } finally {
       await ctx.close();
     }

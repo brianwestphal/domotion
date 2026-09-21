@@ -66,15 +66,17 @@ const annotationPayloadSchema = z.discriminatedUnion("kind", [
     target: studioAnnotationTargetSchema.optional(),
     evidenceArtifactIds: z.array(studioIdSchema).optional(),
   }),
-  z.strictObject({
-    kind: z.literal("edit"),
-    annotationId: studioIdSchema,
-    body: nonEmpty.optional(),
-    target: studioAnnotationTargetSchema.nullable().optional(),
-    evidenceArtifactIds: z.array(studioIdSchema).optional(),
-  }).refine((value) => value.body != null || value.target !== undefined || value.evidenceArtifactIds != null, {
-    message: "an annotation edit must change body, target, or evidence",
-  }),
+  z
+    .strictObject({
+      kind: z.literal("edit"),
+      annotationId: studioIdSchema,
+      body: nonEmpty.optional(),
+      target: studioAnnotationTargetSchema.nullable().optional(),
+      evidenceArtifactIds: z.array(studioIdSchema).optional(),
+    })
+    .refine((value) => value.body != null || value.target !== undefined || value.evidenceArtifactIds != null, {
+      message: "an annotation edit must change body, target, or evidence",
+    }),
   z.strictObject({
     kind: z.literal("set-status"),
     annotationId: studioIdSchema,
@@ -139,11 +141,11 @@ export type StudioAgentSelection = z.infer<typeof selectionSchema>;
 /** Project the MCP/CLI input contract directly from the runtime request schema. */
 export function buildStudioAgentToolRequestJsonSchema(): Record<string, unknown> {
   return {
-    ...z.toJSONSchema(studioAgentToolRequestSchema, {
+    ...(z.toJSONSchema(studioAgentToolRequestSchema, {
       target: "draft-2020-12",
       io: "input",
       reused: "ref",
-    }) as Record<string, unknown>,
+    }) as Record<string, unknown>),
     $schema: "https://json-schema.org/draft/2020-12/schema",
     title: "Domotion Studio agent tool request",
     description: `Version ${STUDIO_AGENT_TOOL_VERSION} transport for one bounded Studio agent operation.`,
@@ -155,7 +157,10 @@ export const studioAgentToolArtifactSchema = z.strictObject({
   path: pathField,
   workspacePath: pathField,
   id: studioIdSchema.optional(),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/i)
+    .optional(),
   sourceRevisionId: studioIdSchema.optional(),
   sceneIds: z.array(studioIdSchema).optional(),
 });
@@ -167,13 +172,20 @@ export const studioAgentToolResponseSchema = z.strictObject({
   tool: z.string(),
   status: z.enum(["ok", "clarification", "permission-required", "conflict"]),
   summary: nonEmpty,
-  projectDigest: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+  projectDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/i)
+    .optional(),
   headRevisionId: studioIdSchema.optional(),
   project: z.unknown().optional(),
   data: z.record(z.string(), z.json()).optional(),
   artifacts: z.array(studioAgentToolArtifactSchema).optional(),
-  clarification: z.strictObject({ question: nonEmpty, reason: nonEmpty, choices: z.array(z.string()).optional() }).optional(),
-  permission: z.strictObject({ name: nonEmpty, reason: nonEmpty, destructiveIds: z.array(studioIdSchema).optional() }).optional(),
+  clarification: z
+    .strictObject({ question: nonEmpty, reason: nonEmpty, choices: z.array(z.string()).optional() })
+    .optional(),
+  permission: z
+    .strictObject({ name: nonEmpty, reason: nonEmpty, destructiveIds: z.array(studioIdSchema).optional() })
+    .optional(),
 });
 
 export type StudioAgentToolResponse = z.infer<typeof studioAgentToolResponseSchema> & { project?: StudioProject };
@@ -210,10 +222,15 @@ export interface RunStudioAgentToolOptions {
   timestamp?: () => string;
   capture?: (input: StudioAgentGenerationInput) => Promise<StudioAgentGenerationResult>;
   preview?: (input: StudioAgentGenerationInput) => Promise<StudioAgentGenerationResult>;
-  video?: (input: StudioAgentGenerationInput & { inputSvgPath: string; inputSvgWorkspacePath: string; review: "required" }) => Promise<StudioAgentGenerationResult | {
-    clarification: { question: string; reason: string; choices?: string[] };
-    evidence?: Record<string, z.infer<ReturnType<typeof z.json>>>;
-  }>;
+  video?: (
+    input: StudioAgentGenerationInput & { inputSvgPath: string; inputSvgWorkspacePath: string; review: "required" },
+  ) => Promise<
+    | StudioAgentGenerationResult
+    | {
+        clarification: { question: string; reason: string; choices?: string[] };
+        evidence?: Record<string, z.infer<ReturnType<typeof z.json>>>;
+      }
+  >;
 }
 
 export class StudioAgentToolError extends Error {
@@ -224,7 +241,9 @@ export class StudioAgentToolError extends Error {
 }
 
 export function studioAgentProjectDigest(project: StudioProject): string {
-  return createHash("sha256").update(JSON.stringify(validateStudioProject(project))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(validateStudioProject(project)))
+    .digest("hex");
 }
 
 function response(
@@ -232,7 +251,10 @@ function response(
   status: StudioAgentToolResponse["status"],
   summary: string,
   project?: StudioProject,
-  extra: Omit<StudioAgentToolResponse, "version" | "tool" | "status" | "summary" | "project" | "projectDigest" | "headRevisionId"> = {},
+  extra: Omit<
+    StudioAgentToolResponse,
+    "version" | "tool" | "status" | "summary" | "project" | "projectDigest" | "headRevisionId"
+  > = {},
   includeProject = true,
 ): StudioAgentToolResponse {
   return studioAgentToolResponseSchema.parse({
@@ -240,16 +262,24 @@ function response(
     tool,
     status,
     summary,
-    ...(project == null ? {} : {
-      ...(includeProject ? { project } : {}),
-      projectDigest: studioAgentProjectDigest(project),
-      headRevisionId: project.review.headRevisionId,
-    }),
+    ...(project == null
+      ? {}
+      : {
+          ...(includeProject ? { project } : {}),
+          projectDigest: studioAgentProjectDigest(project),
+          headRevisionId: project.review.headRevisionId,
+        }),
     ...extra,
   }) as StudioAgentToolResponse;
 }
 
-function permissionResponse(tool: string, project: StudioProject | undefined, name: string, reason: string, destructiveIds?: string[]): StudioAgentToolResponse {
+function permissionResponse(
+  tool: string,
+  project: StudioProject | undefined,
+  name: string,
+  reason: string,
+  destructiveIds?: string[],
+): StudioAgentToolResponse {
   return response(tool, "permission-required", reason, project, {
     permission: { name, reason, ...(destructiveIds == null ? {} : { destructiveIds }) },
   });
@@ -275,7 +305,11 @@ function workspacePath(workspaceRoot: string, requested: string): { absolutePath
   return { absolutePath, workspacePath: local.replaceAll("\\", "/") };
 }
 
-function resolveSelection(project: StudioProject, selection: StudioAgentSelection | undefined, tool: string): StudioAgentSelection | StudioAgentToolResponse {
+function resolveSelection(
+  project: StudioProject,
+  selection: StudioAgentSelection | undefined,
+  tool: string,
+): StudioAgentSelection | StudioAgentToolResponse {
   if (selection == null) {
     if (project.scenes.length !== 1) {
       return response(tool, "clarification", "Scene selection is ambiguous.", project, {
@@ -322,7 +356,10 @@ function stableIds(project: StudioProject): Set<string> {
   return ids;
 }
 
-function applyProjectChanges(project: StudioProject, changes: z.infer<typeof projectChangesSchema>): StudioProject | StudioAgentToolResponse {
+function applyProjectChanges(
+  project: StudioProject,
+  changes: z.infer<typeof projectChangesSchema>,
+): StudioProject | StudioAgentToolResponse {
   const next = structuredClone(project);
   const narrative = changes.narrative;
   if (narrative != null) {
@@ -356,13 +393,16 @@ function applyProjectChanges(project: StudioProject, changes: z.infer<typeof pro
     else if (patch.tracks !== undefined) scene.tracks = patch.tracks;
   }
   for (const scene of changes.addScenes ?? []) {
-    if (next.scenes.some((candidate) => candidate.id === scene.id)) throw new StudioAgentToolError(`scene id already exists: ${scene.id}`);
+    if (next.scenes.some((candidate) => candidate.id === scene.id))
+      throw new StudioAgentToolError(`scene id already exists: ${scene.id}`);
     next.scenes.push(scene);
   }
   const removed = new Set(changes.removeSceneIds ?? []);
   if (removed.size > 0) {
     next.scenes = next.scenes.filter((scene) => !removed.has(scene.id));
-    next.narrative.beats.forEach((beat) => { beat.sceneIds = beat.sceneIds.filter((id) => !removed.has(id)); });
+    next.narrative.beats.forEach((beat) => {
+      beat.sceneIds = beat.sceneIds.filter((id) => !removed.has(id));
+    });
   }
   return next;
 }
@@ -382,20 +422,36 @@ function compactInspection(project: StudioProject): Record<string, z.infer<Retur
     })),
     review: {
       headRevisionId: project.review.headRevisionId,
-      openAnnotationIds: project.review.annotations.filter((annotation) => annotation.status === "open").map((annotation) => annotation.id),
-      resolvedAnnotationIds: project.review.annotations.filter((annotation) => annotation.status === "resolved").map((annotation) => annotation.id),
+      openAnnotationIds: project.review.annotations
+        .filter((annotation) => annotation.status === "open")
+        .map((annotation) => annotation.id),
+      resolvedAnnotationIds: project.review.annotations
+        .filter((annotation) => annotation.status === "resolved")
+        .map((annotation) => annotation.id),
     },
-    artifacts: project.artifacts.map((artifact) => ({ id: artifact.id, kind: artifact.kind, path: artifact.path, sha256: artifact.sha256 ?? null })),
+    artifacts: project.artifacts.map((artifact) => ({
+      id: artifact.id,
+      kind: artifact.kind,
+      path: artifact.path,
+      sha256: artifact.sha256 ?? null,
+    })),
   };
 }
 
 function ensureArtifacts(artifacts: StudioAgentToolArtifact[], root: string): StudioAgentToolArtifact[] {
   return artifacts.map((artifact) => {
     const resolved = workspacePath(root, artifact.workspacePath);
-    if (!isAbsolute(artifact.path)) throw new StudioAgentToolError(`generation adapter artifact path must be absolute: ${artifact.path}`);
-    if (resolve(artifact.path) !== resolved.absolutePath) throw new StudioAgentToolError(`artifact absolute/workspace paths disagree: ${artifact.path}`);
-    if (!existsSync(resolved.absolutePath)) throw new StudioAgentToolError(`generation adapter reported a missing artifact: ${resolved.workspacePath}`);
-    return studioAgentToolArtifactSchema.parse({ ...artifact, path: resolved.absolutePath, workspacePath: resolved.workspacePath });
+    if (!isAbsolute(artifact.path))
+      throw new StudioAgentToolError(`generation adapter artifact path must be absolute: ${artifact.path}`);
+    if (resolve(artifact.path) !== resolved.absolutePath)
+      throw new StudioAgentToolError(`artifact absolute/workspace paths disagree: ${artifact.path}`);
+    if (!existsSync(resolved.absolutePath))
+      throw new StudioAgentToolError(`generation adapter reported a missing artifact: ${resolved.workspacePath}`);
+    return studioAgentToolArtifactSchema.parse({
+      ...artifact,
+      path: resolved.absolutePath,
+      workspacePath: resolved.workspacePath,
+    });
   });
 }
 
@@ -406,15 +462,24 @@ async function runGeneration(
   options: RunStudioAgentToolOptions,
 ): Promise<StudioAgentToolResponse> {
   const permission = tool === "capture.compile" ? "capture" : "artifactWrites";
-  if (options.permissions?.[permission] !== true) return permissionResponse(tool, project, permission, `${tool} requires explicit ${permission} permission.`);
-  if (options.permissions?.artifactWrites !== true) return permissionResponse(tool, project, "artifactWrites", `${tool} writes generated artifacts.`);
+  if (options.permissions?.[permission] !== true)
+    return permissionResponse(tool, project, permission, `${tool} requires explicit ${permission} permission.`);
+  if (options.permissions?.artifactWrites !== true)
+    return permissionResponse(tool, project, "artifactWrites", `${tool} writes generated artifacts.`);
   const overwrite = request.overwrite === true;
-  if (overwrite && options.permissions.overwriteArtifacts !== true) return permissionResponse(tool, project, "overwriteArtifacts", `${tool} requested replacement of existing artifacts.`);
+  if (overwrite && options.permissions.overwriteArtifacts !== true)
+    return permissionResponse(
+      tool,
+      project,
+      "overwriteArtifacts",
+      `${tool} requested replacement of existing artifacts.`,
+    );
   const selection = resolveSelection(project, request.selection, tool);
   if ("status" in selection) return selection;
   const requestedPath = request.tool === "capture.compile" ? request.artifactDir : request.outputPath;
   const path = workspacePath(options.workspaceRoot, requestedPath);
-  if (existsSync(path.absolutePath) && !overwrite) throw new StudioAgentToolError(`${path.workspacePath} already exists; request overwrite explicitly`);
+  if (existsSync(path.absolutePath) && !overwrite)
+    throw new StudioAgentToolError(`${path.workspacePath} already exists; request overwrite explicitly`);
   const adapter = tool === "capture.compile" ? options.capture : options.preview;
   if (adapter == null) throw new StudioAgentToolError(`${tool} requires a host generation adapter`);
   const generated = await adapter({
@@ -439,23 +504,49 @@ export async function runStudioAgentTool(
 ): Promise<StudioAgentToolResponse> {
   const request = studioAgentToolRequestSchema.parse(rawRequest);
   if (request.tool === "project.create") {
-    if (rawProject != null) return permissionResponse(request.tool, validateStudioProject(rawProject), "replaceProject", "Creating here would replace the loaded project; start with an empty tool session.");
-    if (options.permissions?.editProject !== true) return permissionResponse(request.tool, undefined, "editProject", "Project creation requires explicit editProject permission.");
+    if (rawProject != null)
+      return permissionResponse(
+        request.tool,
+        validateStudioProject(rawProject),
+        "replaceProject",
+        "Creating here would replace the loaded project; start with an empty tool session.",
+      );
+    if (options.permissions?.editProject !== true)
+      return permissionResponse(
+        request.tool,
+        undefined,
+        "editProject",
+        "Project creation requires explicit editProject permission.",
+      );
     const actor = actorFor(options, request.tool);
-    const project = createStudioProjectDocument({ title: request.title, width: request.width, height: request.height, createdAt: options.timestamp?.() });
+    const project = createStudioProjectDocument({
+      title: request.title,
+      width: request.width,
+      height: request.height,
+      createdAt: options.timestamp?.(),
+    });
     project.review.revisions[0].author = actor;
-    return response(request.tool, "ok", "Studio project created.", validateStudioProject(project), { data: compactInspection(project) });
+    return response(request.tool, "ok", "Studio project created.", validateStudioProject(project), {
+      data: compactInspection(project),
+    });
   }
 
   const project = requireProject(rawProject, request.tool);
   if (request.tool === "project.inspect") {
     const include = request.include ?? "summary";
-    return response(request.tool, "ok", "Studio project inspected.", project, {
-      data: {
-        ...compactInspection(project),
-        ...(include === "annotations" ? { annotations: project.review.annotations } : {}),
+    return response(
+      request.tool,
+      "ok",
+      "Studio project inspected.",
+      project,
+      {
+        data: {
+          ...compactInspection(project),
+          ...(include === "annotations" ? { annotations: project.review.annotations } : {}),
+        },
       },
-    }, include === "project");
+      include === "project",
+    );
   }
 
   if (request.tool === "project.edit" || request.tool === "annotation.apply") {
@@ -468,25 +559,56 @@ export async function runStudioAgentTool(
   }
 
   if (request.tool === "project.edit") {
-    if (options.permissions?.editProject !== true) return permissionResponse(request.tool, project, "editProject", "Project editing requires explicit editProject permission.");
+    if (options.permissions?.editProject !== true)
+      return permissionResponse(
+        request.tool,
+        project,
+        "editProject",
+        "Project editing requires explicit editProject permission.",
+      );
     const proposed = applyProjectChanges(project, request.changes);
     if ("status" in proposed) return proposed;
     if (isDeepStrictEqual(project, proposed)) {
       return response(request.tool, "clarification", "The requested edit makes no project change.", project, {
-        clarification: { question: "What should change in the project?", reason: "Every supplied field already has the requested value." },
+        clarification: {
+          question: "What should change in the project?",
+          reason: "Every supplied field already has the requested value.",
+        },
       });
     }
     const removedIds = [...stableIds(project)].filter((id) => !stableIds(proposed).has(id));
     if (removedIds.length > 0) {
-      if (request.destructive == null) return permissionResponse(request.tool, project, "destructiveProjectEdits", "The edit removes stable project identities.", removedIds);
+      if (request.destructive == null)
+        return permissionResponse(
+          request.tool,
+          project,
+          "destructiveProjectEdits",
+          "The edit removes stable project identities.",
+          removedIds,
+        );
       if (request.destructive.expectedProjectDigest !== request.expectedProjectDigest) {
-        return response(request.tool, "conflict", "Destructive confirmation was prepared for a different project digest.", project);
+        return response(
+          request.tool,
+          "conflict",
+          "Destructive confirmation was prepared for a different project digest.",
+          project,
+        );
       }
-      if (options.permissions.destructiveProjectEdits !== true) return permissionResponse(request.tool, project, "destructiveProjectEdits", request.destructive.reason, removedIds);
+      if (options.permissions.destructiveProjectEdits !== true)
+        return permissionResponse(
+          request.tool,
+          project,
+          "destructiveProjectEdits",
+          request.destructive.reason,
+          removedIds,
+        );
     }
     const actor = actorFor(options, request.tool);
     const createdAt = options.timestamp?.() ?? new Date().toISOString();
-    const revisionId = `revision-agent-${createHash("sha256").update(JSON.stringify({ parent: project.review.headRevisionId, changes: request.changes, createdAt })).digest("hex").slice(0, 16)}`;
+    const revisionId = `revision-agent-${createHash("sha256")
+      .update(JSON.stringify({ parent: project.review.headRevisionId, changes: request.changes, createdAt }))
+      .digest("hex")
+      .slice(0, 16)}`;
     proposed.review.revisions.push({
       id: revisionId,
       parentId: project.review.headRevisionId,
@@ -510,29 +632,65 @@ export async function runStudioAgentTool(
   }
 
   if (request.tool === "annotation.apply") {
-    if (options.permissions?.editProject !== true) return permissionResponse(request.tool, project, "editProject", "Annotation changes require explicit editProject permission.");
+    if (options.permissions?.editProject !== true)
+      return permissionResponse(
+        request.tool,
+        project,
+        "editProject",
+        "Annotation changes require explicit editProject permission.",
+      );
     const actor = actorFor(options, request.tool);
-    const result = applyStudioAnnotationCommand(project, { ...request.command, author: actor, ...(request.command.kind === "create" ? { origin: { kind: "studio", data: { producer: "studio-agent-tool", version: STUDIO_AGENT_TOOL_VERSION } } } : {}) }, {
-      expectedHeadRevisionId: project.review.headRevisionId,
-      now: options.timestamp?.(),
-    });
+    const result = applyStudioAnnotationCommand(
+      project,
+      {
+        ...request.command,
+        author: actor,
+        ...(request.command.kind === "create"
+          ? { origin: { kind: "studio", data: { producer: "studio-agent-tool", version: STUDIO_AGENT_TOOL_VERSION } } }
+          : {}),
+      },
+      {
+        expectedHeadRevisionId: project.review.headRevisionId,
+        now: options.timestamp?.(),
+      },
+    );
     return response(request.tool, "ok", "Studio annotation updated.", result.project, {
-      data: { annotationId: result.annotation.id, annotationStatus: result.annotation.status, revisionId: result.revision.id },
+      data: {
+        annotationId: result.annotation.id,
+        annotationStatus: result.annotation.status,
+        revisionId: result.revision.id,
+      },
     });
   }
 
-  if (request.tool === "capture.compile" || request.tool === "render.preview") return runGeneration(request.tool, project, request, options);
+  if (request.tool === "capture.compile" || request.tool === "render.preview")
+    return runGeneration(request.tool, project, request, options);
 
-  if (options.permissions?.renderVideo !== true) return permissionResponse(request.tool, project, "renderVideo", "Video rendering requires explicit renderVideo permission.");
-  if (options.permissions.artifactWrites !== true) return permissionResponse(request.tool, project, "artifactWrites", "Video rendering writes generated artifacts.");
+  if (options.permissions?.renderVideo !== true)
+    return permissionResponse(
+      request.tool,
+      project,
+      "renderVideo",
+      "Video rendering requires explicit renderVideo permission.",
+    );
+  if (options.permissions.artifactWrites !== true)
+    return permissionResponse(request.tool, project, "artifactWrites", "Video rendering writes generated artifacts.");
   const overwrite = request.overwrite === true;
-  if (overwrite && options.permissions.overwriteArtifacts !== true) return permissionResponse(request.tool, project, "overwriteArtifacts", "Video rendering requested replacement of an existing artifact.");
+  if (overwrite && options.permissions.overwriteArtifacts !== true)
+    return permissionResponse(
+      request.tool,
+      project,
+      "overwriteArtifacts",
+      "Video rendering requested replacement of an existing artifact.",
+    );
   const selection = resolveSelection(project, request.selection, request.tool);
   if ("status" in selection) return selection;
   const output = workspacePath(options.workspaceRoot, request.outputPath);
   const input = workspacePath(options.workspaceRoot, request.inputSvgPath);
-  if (existsSync(output.absolutePath) && !overwrite) throw new StudioAgentToolError(`${output.workspacePath} already exists; request overwrite explicitly`);
-  if (options.video == null) throw new StudioAgentToolError("render.video requires a host video + required-AI-review adapter");
+  if (existsSync(output.absolutePath) && !overwrite)
+    throw new StudioAgentToolError(`${output.workspacePath} already exists; request overwrite explicitly`);
+  if (options.video == null)
+    throw new StudioAgentToolError("render.video requires a host video + required-AI-review adapter");
   const generated = await options.video({
     project,
     selection,

@@ -5,9 +5,25 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-1443","DM-1446","DM-1447","DM-1448","DM-2338","DM-2520"]
-code: ["examples/iframe-recursion.ts","examples/output/","src/capture/index.ts","src/capture/script/cross-origin.test.ts","src/capture/script/cross-origin.ts","src/capture/script/index.ts","src/capture/script/walker/replaced-elements.ts","src/cli/capture.ts","tests/cross-origin-iframe-recursion.e2e.test.ts","tests/features.ts","tests/iframe-inner-defs.e2e.test.ts","tests/iframe-inner-element-mask.e2e.test.ts","tests/iframe-inner-prepasses.e2e.test.ts","tests/multi-layer-fragment-mask.e2e.test.ts"]
-aliases: ["docs/81-iframe-recursion.md","doc-81"]
+tickets: ["DM-1443", "DM-1446", "DM-1447", "DM-1448", "DM-2338", "DM-2520"]
+code:
+  [
+    "examples/iframe-recursion.ts",
+    "examples/output/",
+    "src/capture/index.ts",
+    "src/capture/script/cross-origin.test.ts",
+    "src/capture/script/cross-origin.ts",
+    "src/capture/script/index.ts",
+    "src/capture/script/walker/replaced-elements.ts",
+    "src/cli/capture.ts",
+    "tests/cross-origin-iframe-recursion.e2e.test.ts",
+    "tests/features.ts",
+    "tests/iframe-inner-defs.e2e.test.ts",
+    "tests/iframe-inner-element-mask.e2e.test.ts",
+    "tests/iframe-inner-prepasses.e2e.test.ts",
+    "tests/multi-layer-fragment-mask.e2e.test.ts",
+  ]
+aliases: ["docs/81-iframe-recursion.md", "doc-81"]
 ---
 
 # 81 — `<iframe>` recursion into native SVG
@@ -108,9 +124,11 @@ capture script **temporarily shifts the shared `vp` origin** for the duration of
 the inner walk:
 
 ```js
-vp.x = savedX - dx;  vp.y = savedY - dy;
+vp.x = savedX - dx;
+vp.y = savedY - dy;
 node = capture(innerDoc.documentElement);
-vp.x = savedX;       vp.y = savedY;       // restored in a finally
+vp.x = savedX;
+vp.y = savedY; // restored in a finally
 ```
 
 Every capture helper reads `vp.x`/`vp.y` **live** (they all close over the same
@@ -118,7 +136,7 @@ Every capture helper reads `vp.x`/`vp.y` **live** (they all close over the same
 With `vp.x` shifted by `-dx`, an inner element at inner-client `ix` is emitted at
 `ix - (savedX - dx) = (ix + dx) - savedX` — exactly its position in the parent's
 captured space. As a bonus, the **viewport cull** then tests each inner element's
-*true* painted position against the real capture region, so inner content that
+_true_ painted position against the real capture region, so inner content that
 maps off-screen is culled correctly.
 
 This composes for **nested** same-origin iframes: each inner rect is relative to
@@ -157,12 +175,12 @@ document (with `vp` already shifted) before the inner walk, fixing:
 - **CSS counters** (`counter()` / `counters()`) inside iframe content — the
   counter pre-walk now runs on the inner root, so `counter(sec)` resolves to
   `1.`, `2.`, … instead of `0.`.
-- **`@counter-style`** rules defined *inside* the iframe's own stylesheets are
+- **`@counter-style`** rules defined _inside_ the iframe's own stylesheets are
   collected (the `@counter-style` prewalk takes an optional `doc`).
 - **`position: fixed` / `sticky`** and **`transform`-influenced** off-screen
   inner descendants now get the viewport-cull exemptions, tested against the real
   painted region (the shifted `vp`).
-- **`transform: scale()` / `zoom`** ancestors *inside* the iframe fold into the
+- **`transform: scale()` / `zoom`** ancestors _inside_ the iframe fold into the
   cumulative-scale map, so inner text metrics under an inner scale are pre-scaled
   (a `scale(2)` 10px element captures `20px`).
 
@@ -228,7 +246,7 @@ correctly isolated out).
 **Toolchain caveat:** `mask-image: element()` is currently **dormant in the
 Playwright Chromium** Domotion captures with — Chrome computes it to `none` and
 paints unmasked, so the path can't be exercised end-to-end through real capture
-(the top-level `mask-element-ref` feature fixture passes *vacuously* for the same
+(the top-level `mask-element-ref` feature fixture passes _vacuously_ for the same
 reason). The frame-aware code is correct for if/when `element()` resolves;
 tracked separately (see the `element()`-dormancy investigation).
 

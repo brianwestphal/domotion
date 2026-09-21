@@ -43,7 +43,9 @@ const DURATIONS = [400, 400, 400, 400, 400];
 const FRAMES = [
   { input: "./slides.html", duration: DURATIONS[0], transition: { type: "cut", duration: 0 } },
   ...[1, 2, 3, 4].map((k) => ({
-    continue: true, duration: DURATIONS[k], transition: { type: "cut", duration: 0 },
+    continue: true,
+    duration: DURATIONS[k],
+    transition: { type: "cut", duration: 0 },
     actions: [{ type: "evaluate", script: `slide(${k})` }],
   })),
 ];
@@ -135,23 +137,36 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
     const { browser, dir } = env!;
     // The same page, but each state only appends one bullet — content pairs, so
     // the compressed form wins and the guard must NOT fire.
-    writeFileSync(join(dir, "grow.html"), SLIDES_HTML.replace(
-      "window.slide(0);",
-      `window.slide = (k) => { document.getElementById("slide").innerHTML =
+    writeFileSync(
+      join(dir, "grow.html"),
+      SLIDES_HTML.replace(
+        "window.slide(0);",
+        `window.slide = (k) => { document.getElementById("slide").innerHTML =
          "<h1>Capture the DOM</h1><ul>" + ["Playwright drives Chromium","The tree is serialized","Computed styles ride along","Nothing is guessed"]
            .slice(0, k + 1).map((l) => "<li>" + l + "</li>").join("") + "</ul>"; };
        window.slide(0);`,
-    ));
+      ),
+    );
     const frames = [
       { input: "./grow.html", duration: 300, transition: { type: "cut", duration: 0 } },
       ...[1, 2, 3].map((k) => ({
-        continue: true, duration: 300, transition: { type: "cut", duration: 0 },
+        continue: true,
+        duration: 300,
+        transition: { type: "cut", duration: 0 },
         actions: [{ type: "evaluate", script: `slide(${k})` }],
       })),
     ];
     const logs: string[] = [];
-    const flip = await composeAnimateFrames(browser, validateAnimateConfig({ width: W, height: H, autoCompress: false, frames }), { configDir: dir });
-    const comp = await composeAnimateFrames(browser, validateAnimateConfig({ width: W, height: H, autoCompress: true, frames }), { configDir: dir, log: (m) => logs.push(m) });
+    const flip = await composeAnimateFrames(
+      browser,
+      validateAnimateConfig({ width: W, height: H, autoCompress: false, frames }),
+      { configDir: dir },
+    );
+    const comp = await composeAnimateFrames(
+      browser,
+      validateAnimateConfig({ width: W, height: H, autoCompress: true, frames }),
+      { configDir: dir, log: (m) => logs.push(m) },
+    );
     expect(logs.some((l) => /reverting frame/.test(l))).toBe(false);
     // And it is a real win, not a wash.
     expect(generateAnimatedSvg(comp).length).toBeLessThan(generateAnimatedSvg(flip).length * 0.9);
@@ -160,7 +175,8 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
   // DM-1772: a mixed scene exercises per-region sizing. With the current
   // text-plane compressor, keep-all now beats both historical fallbacks; the
   // test still proves the winner is deterministic and pixel-identical.
-  const MW = 640, MH = 300;
+  const MW = 640,
+    MH = 300;
   const MIXED_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
     body{margin:0;width:${MW}px;height:${MH}px;overflow:hidden;background:#0f172a;font:13px Helvetica,Arial,sans-serif}
@@ -206,7 +222,9 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
   const MIXED_FRAMES = [
     { input: "./mixed.html", duration: MIXED_DUR[0], transition: { type: "cut" as const, duration: 0 } },
     ...[1, 2, 3, 4].map((k) => ({
-      continue: true as const, duration: MIXED_DUR[k], transition: { type: "cut" as const, duration: 0 },
+      continue: true as const,
+      duration: MIXED_DUR[k],
+      transition: { type: "cut" as const, duration: 0 },
       actions: [{ type: "evaluate" as const, script: `setLeft(${k * 2}); setRight(${k})` }],
     })),
   ];
@@ -216,9 +234,14 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
     writeFileSync(join(dir, "mixed.html"), MIXED_HTML);
     const cfg = { width: MW, height: MH, frames: MIXED_FRAMES };
 
-    const flip = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: false }), { configDir: dir });
+    const flip = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: false }), {
+      configDir: dir,
+    });
     const logs: string[] = [];
-    const comp = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), { configDir: dir, log: (m) => logs.push(m) });
+    const comp = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), {
+      configDir: dir,
+      log: (m) => logs.push(m),
+    });
 
     expect(logs.some((l) => /reverting frame|demoting .* into the chrome union/.test(l))).toBe(false);
 
@@ -230,7 +253,9 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
     // Byte-identity of the speculative trials: composing the same config again
     // (which re-runs every per-region trial) must be byte-for-byte identical —
     // proof the snapshot/restore leaves no PUA / dmfN trace (DM-1771 contract).
-    const comp2 = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), { configDir: dir });
+    const comp2 = await composeAnimateFrames(browser, validateAnimateConfig({ ...cfg, autoCompress: true }), {
+      configDir: dir,
+    });
     expect(generateAnimatedSvg(comp2)).toBe(compSvg);
 
     // Pixel-identical to the flipbook at every state.
@@ -260,8 +285,9 @@ describeBrowser("autoCompress size-regression guard (DM-1764)", () => {
         // structural break (3712 px), with no authoritative region at all.
         expect(cmp.regionCount, `mixed state ${s} @ ${t}ms had an authoritative diff`).toBe(0);
         expect(cmp.strictMaxRegionArea, `mixed state ${s} @ ${t}ms moved a block`).toBeLessThanOrEqual(320);
-        expect(cmp.strictRegionArea, `mixed state ${s} @ ${t}ms had too much suppressed change`)
-          .toBeLessThanOrEqual(STRICT_CAPS.totalRegionArea);
+        expect(cmp.strictRegionArea, `mixed state ${s} @ ${t}ms had too much suppressed change`).toBeLessThanOrEqual(
+          STRICT_CAPS.totalRegionArea,
+        );
       }
     } finally {
       await ctx.close();

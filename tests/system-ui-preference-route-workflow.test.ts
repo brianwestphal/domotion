@@ -19,8 +19,9 @@ describe("DM-2504 system-ui preference route workflow", () => {
     expect(workflow).toContain("xvfb-run -a npm run fonts:system-ui-preferences");
     expect(workflow.match(/--allow-headed-browser/g)).toHaveLength(3);
     expect(workflow).toContain("--allow-system-preference-mutation");
-    expect(packageJson.scripts?.["fonts:system-ui-preferences"])
-      .toBe("node --import tsx tools/system-ui-preference-route-oracle.ts");
+    expect(packageJson.scripts?.["fonts:system-ui-preferences"]).toBe(
+      "node --import tsx tools/system-ui-preference-route-oracle.ts",
+    );
   });
 
   it("retains source and inventory evidence from every native leg", () => {

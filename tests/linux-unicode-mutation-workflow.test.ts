@@ -8,7 +8,7 @@ describe("Linux Unicode three-arm evidence workflow (DM-2438)", () => {
   it("runs the closed corpus in baseline, helper-off, and hinted-subset-off arms", () => {
     expect(workflow).toContain("linux-unicode-mutation-matrix.ts --print-fixtures");
     expect(workflow).toContain("mv tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths");
-    expect(workflow).toMatch(/Hinted-subset-off arm[\s\S]*?DOMOTION_HINTED_SUBSET: '0'/);
+    expect(workflow).toMatch(/Hinted-subset-off arm[\s\S]*?DOMOTION_HINTED_SUBSET: ["']0["']/);
     expect(workflow.match(/bash scripts\/ci-run-shard\.sh unicode/g)).toHaveLength(3);
   });
 

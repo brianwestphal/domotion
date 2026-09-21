@@ -19,7 +19,14 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, linuxTargetStrikeGlyphs, resolveSystemFallbackFonts, resolveInstalledFont, type GlyphRasterRepresentation } from "./glyph-helper.js";
+import {
+  createGlyphHelperFont,
+  isGlyphHelperAvailable,
+  linuxTargetStrikeGlyphs,
+  resolveSystemFallbackFonts,
+  resolveInstalledFont,
+  type GlyphRasterRepresentation,
+} from "./glyph-helper.js";
 export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // The SHARED attribute escaper. Two local copies used to live in this file and
 // escaped only the five XML metacharacters, so a codepoint the XML `Char`
@@ -29,13 +36,27 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // one implementation instead of restating it; see `esc` for the disposition.
 import { esc as escAttr } from "./format.js";
 import { visualTextSemantics } from "./real-text-layer.js";
-import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import {
+  clearEmbeddedFontBuilder,
+  getBuiltEmbeddedFontFaceCss,
+  trackGlyphInEmbedFont,
+} from "./embedded-font-builder.js";
 import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
 // DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
 // live in one module because BOTH render modes ask them. Re-exported below so
 // the long-standing `text-to-path.js` import sites keep working.
-import { faceNeedsSyntheticBold, faceNeedsSyntheticOblique, synthesisAllowed, type FontSynthesisAllowance } from "./synthesis-decision.js";
-export { faceNeedsSyntheticBold, faceNeedsSyntheticOblique, synthesisAllowed, type FontSynthesisAllowance } from "./synthesis-decision.js";
+import {
+  faceNeedsSyntheticBold,
+  faceNeedsSyntheticOblique,
+  synthesisAllowed,
+  type FontSynthesisAllowance,
+} from "./synthesis-decision.js";
+export {
+  faceNeedsSyntheticBold,
+  faceNeedsSyntheticOblique,
+  synthesisAllowed,
+  type FontSynthesisAllowance,
+} from "./synthesis-decision.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
@@ -44,11 +65,23 @@ import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./s
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
-  "Arabic", "Hanifi_Rohingya", "Mandaic", "Mongolian", "Nko", "Phags_Pa", "Syriac",
+  "Arabic",
+  "Hanifi_Rohingya",
+  "Mandaic",
+  "Mongolian",
+  "Nko",
+  "Phags_Pa",
+  "Syriac",
   // The font-run splitter carries HarfBuzz's ISO 15924 tag, while the local
   // script segmenter carries ICU's long name. They describe the same Blink
   // UScriptCode and must make the same placement decision.
-  "Arab", "Rohg", "Mand", "Mong", "Nkoo", "Phag", "Syrc",
+  "Arab",
+  "Rohg",
+  "Mand",
+  "Mong",
+  "Nkoo",
+  "Phag",
+  "Syrc",
 ]);
 export function blinkSuppressesInterLetterSpacing(script: string): boolean {
   return BLINK_CURSIVE_SPACING_SCRIPTS.has(script);
@@ -56,10 +89,23 @@ export function blinkSuppressesInterLetterSpacing(script: string): boolean {
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
 import { icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
-import { recordSelectedFontRuns, recordTextEmitterTransition, type TextRunRequestDiagnostic } from "./text-run-provenance.js";
+import {
+  recordSelectedFontRuns,
+  recordTextEmitterTransition,
+  type TextRunRequestDiagnostic,
+} from "./text-run-provenance.js";
 export { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
-import { mathAlphaToBase, isLegitimatelyInklessCodepoint, isHarfbuzzDefaultIgnorable, canTextDecorationSkipInk, usesDedicatedShaper, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
-
+import {
+  mathAlphaToBase,
+  isLegitimatelyInklessCodepoint,
+  isHarfbuzzDefaultIgnorable,
+  canTextDecorationSkipInk,
+  usesDedicatedShaper,
+  complexShaperBaseMarkDecomposition,
+  isStrippableOrphanIgnorable,
+  isLeftReorderingMatra,
+  isRtlScriptCodepoint,
+} from "./unicode-classification.js";
 
 import {
   BLINK_ITALIC_SLOPE_VALUE,
@@ -120,10 +166,15 @@ function recordRendererRuns(
   request: Omit<TextRunRequestDiagnostic, "direction">,
 ): void {
   for (const run of runs) {
-    recordSelectedFontRuns(emitter, sourceText, {
-      ...request,
-      direction: run.shapingDirection ?? shapingDirectionAt(sourceText, run.startIdx),
-    }, [run]);
+    recordSelectedFontRuns(
+      emitter,
+      sourceText,
+      {
+        ...request,
+        direction: run.shapingDirection ?? shapingDirectionAt(sourceText, run.startIdx),
+      },
+      [run],
+    );
   }
 }
 export * from "./font-resolution.js";
@@ -131,7 +182,7 @@ export * from "./font-resolution.js";
 function slantForStyle(style: string | undefined): number {
   if (style == null) return 0;
   const s = style.toLowerCase();
-  return (s === "italic" || s.startsWith("oblique")) ? ITALIC_SLNT : 0;
+  return s === "italic" || s.startsWith("oblique") ? ITALIC_SLNT : 0;
 }
 
 /**
@@ -266,12 +317,29 @@ export function splitTextIntoGlyphPathRuns(
   const semanticContext = createFontFallbackSemanticContext(fontFamily);
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
-    return splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
-      mode: "paths", features, bidiOverride,
-      fallbackRawSlope: fallbackRequest?.rawSlope,
-      fallbackOrientation: fallbackRequest?.orientation,
-      semanticContext,
-    });
+    return splitTextIntoFontRunsShaped(
+      text,
+      primaryFont,
+      primaryFontKey,
+      weight,
+      fontSize,
+      slant,
+      variationSettings,
+      lang,
+      fontKeyChain,
+      systemUiPrimary,
+      stretch,
+      fontVariantEmoji,
+      fontFamily,
+      {
+        mode: "paths",
+        features,
+        bidiOverride,
+        fallbackRawSlope: fallbackRequest?.rawSlope,
+        fallbackOrientation: fallbackRequest?.orientation,
+        semanticContext,
+      },
+    );
   }
   const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = "cluster-disabled-legacy";
   const runs: FontRun[] = [];
@@ -312,13 +380,32 @@ export function splitTextIntoGlyphPathRuns(
       else hbDottedCircleRun = null; // a base/space closes the cluster
     }
     if (clusterRun == null) {
-      const markForCluster = (cp === 0x25CC && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp)))
-        ? nextCp                                  // explicit ◌ + mark (mark drives the shaping font)
-        : (chIsMark && !clusterHasBase) ? cp      // orphaned bare mark (HarfBuzz inserts the ◌)
-        : 0;
+      const markForCluster =
+        cp === 0x25cc && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp))
+          ? nextCp // explicit ◌ + mark (mark drives the shaping font)
+          : chIsMark && !clusterHasBase
+            ? cp // orphaned bare mark (HarfBuzz inserts the ◌)
+            : 0;
       if (markForCluster !== 0) {
-        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, undefined, undefined, fontFamily, semanticContext);
-        if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
+        const hbRun = resolveDottedCircleHbRun(
+          markForCluster,
+          primaryFont,
+          primaryFontKey,
+          weight,
+          fontSize,
+          slant,
+          variationSettings,
+          lang,
+          fontKeyChain,
+          undefined,
+          undefined,
+          fontFamily,
+          semanticContext,
+        );
+        if (hbRun != null) {
+          hbDottedCircleRun = hbRun;
+          clusterRun = hbRun;
+        }
       }
     }
     // Track spacing-base presence for the NEXT codepoint's orphan test: a base
@@ -333,13 +420,28 @@ export function splitTextIntoGlyphPathRuns(
     // (the substituted base char) rather than the per-char source index.
     // The property must not override an explicit VS15/VS16 in the text
     // (`HasVSFallbackPriority`, `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
-    const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    const res = clusterRun != null ? null : resolveFontForCodepoint(
-      cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-      variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve,
-      fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation,
-      semanticContext,
-    );
+    const effFve = nextCp === 0xfe0e || nextCp === 0xfe0f ? undefined : fontVariantEmoji;
+    const res =
+      clusterRun != null
+        ? null
+        : resolveFontForCodepoint(
+            cp,
+            primaryFont,
+            primaryFontKey,
+            weight,
+            fontSize,
+            slant,
+            variationSettings,
+            lang,
+            fontKeyChain,
+            systemUiPrimary,
+            stretch,
+            effFve,
+            fontFamily,
+            fallbackRequest?.rawSlope,
+            fallbackRequest?.orientation,
+            semanticContext,
+          );
     if (clusterRun != null) {
       emitCh = ch;
       useKey = clusterRun.key;
@@ -377,8 +479,7 @@ export function splitTextIntoGlyphPathRuns(
     // family's webfont:<key>). Discriminate runs by the (key, override)
     // pair so a Latin-partition run and a Cyrillic-partition run within
     // the same Geist family stay separate even though they share the key.
-    const runChanged = useKey !== curKey || useFontOverride !== curFontOverride
-      || useDecomposed !== curDecomposed;
+    const runChanged = useKey !== curKey || useFontOverride !== curFontOverride || useDecomposed !== curDecomposed;
     if (runChanged && curText.length > 0) {
       // Variation settings apply to the primary requested font, not to
       // system fallbacks reached for missing glyphs (CJK / emoji / symbols
@@ -388,8 +489,20 @@ export function splitTextIntoGlyphPathRuns(
       // directly — re-resolving via the key would drop the optical-cut `opsz`
       // that `resolveFont` injected from the family name (it's keyed on the
       // family, not the collapsed font key), re-emitting at the wrong cut.
-      const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey, routeMechanism: legacyMechanism, decomposed: curDecomposed });
+      const f =
+        curFontOverride ??
+        (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
+      if (f != null)
+        runs.push({
+          fontKey: curKey,
+          font: f,
+          text: curText,
+          startIdx: curStart,
+          endIdx: i,
+          isPrimary: curKey === primaryFontKey,
+          routeMechanism: legacyMechanism,
+          decomposed: curDecomposed,
+        });
       curText = "";
       curStart = i;
     }
@@ -403,13 +516,33 @@ export function splitTextIntoGlyphPathRuns(
     const fvs = curKey === primaryFontKey ? variationSettings : undefined;
     // DM-1103: prefer the resolved `primaryFont` for the primary key so the
     // optical-cut opsz (injected by resolveFont from the family name) survives.
-    const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
-    const finalKey = curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey);
-    runs.push({ fontKey: finalKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: finalKey === primaryFontKey, routeMechanism: legacyMechanism, decomposed: curDecomposed });
+    const f =
+      curFontOverride ??
+      (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ??
+      primaryFont;
+    const finalKey = curKey === primaryFontKey ? primaryFontKey : f === primaryFont ? primaryFontKey : curKey;
+    runs.push({
+      fontKey: finalKey,
+      font: f,
+      text: curText,
+      startIdx: curStart,
+      endIdx: text.length,
+      isPrimary: finalKey === primaryFontKey,
+      routeMechanism: legacyMechanism,
+      decomposed: curDecomposed,
+    });
   }
   for (const run of runs) {
-    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant,
-      run.isPrimary ? variationSettings : undefined, run.text, features);
+    run.font = harfbuzzShapedRunOverride(
+      run.font,
+      run.fontKey,
+      weight,
+      fontSize,
+      slant,
+      run.isPrimary ? variationSettings : undefined,
+      run.text,
+      features,
+    );
   }
   return runs;
 }
@@ -433,9 +566,7 @@ export function embeddedBaselineY(
   ascent: number,
   ascentOverride: number | undefined,
 ): number {
-  const baselineAscent = ascentOverride != null
-    ? ascentOverride
-    : Math.round(ascent * (fontSize / unitsPerEm));
+  const baselineAscent = ascentOverride != null ? ascentOverride : Math.round(ascent * (fontSize / unitsPerEm));
   return y + baselineAscent;
 }
 
@@ -460,36 +591,51 @@ export function embeddedBaselineY(
  * captured `fontBoundingBoxAscent` — is the only baseline source; when it is
  * absent the size-relative `fontSize * 0.8` fallback keeps us off the font.
  */
-export function renderTextAsSystemFont(
-  text: string,
-  x: number,
-  y: number,
-  options: RenderTextOptions,
-): string {
+export function renderTextAsSystemFont(text: string, x: number, y: number, options: RenderTextOptions): string {
   if (text === "") return "";
-  const { fontSize, fontFamily, fill, fontStyle, ascentOverride, fontStretch,
-    variationSettings, textStrokeWidth, textStrokeColor, paintOrder, bidiOverride } = options;
+  const {
+    fontSize,
+    fontFamily,
+    fill,
+    fontStyle,
+    ascentOverride,
+    fontStretch,
+    variationSettings,
+    textStrokeWidth,
+    textStrokeColor,
+    paintOrder,
+    bidiOverride,
+  } = options;
   const weight = cssWeightOf(options.fontWeight);
   const baselineY = y + (ascentOverride != null ? ascentOverride : fontSize * 0.8);
 
   const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
-  const styleAttr = (fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal")
-    ? ` font-style="${escAttr(fontStyle)}"` : "";
+  const styleAttr =
+    fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal"
+      ? ` font-style="${escAttr(fontStyle)}"`
+      : "";
   // Chrome serializes `font-stretch` as a percentage ("75%"); emit only a
   // non-default width so ordinary runs stay compact.
-  const stretchAttr = (fontStretch != null && fontStretch !== "" && fontStretch !== "100%"
-      && fontStretch.toLowerCase() !== "normal")
-    ? ` font-stretch="${escAttr(fontStretch)}"` : "";
-  const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
-    ? ` style="font-variation-settings: ${escAttr(Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", "))}"` : "";
+  const stretchAttr =
+    fontStretch != null && fontStretch !== "" && fontStretch !== "100%" && fontStretch.toLowerCase() !== "normal"
+      ? ` font-stretch="${escAttr(fontStretch)}"`
+      : "";
+  const fvsAttr =
+    variationSettings != null && Object.keys(variationSettings).length > 0
+      ? ` style="font-variation-settings: ${escAttr(
+          Object.entries(variationSettings)
+            .map(([k, v]) => `'${k}' ${v}`)
+            .join(", "),
+        )}"`
+      : "";
 
   // `-webkit-text-stroke` → stroke + optional paint-order (mirrors the embedded
   // path's DM-719 handling).
-  const wantsStroke = textStrokeWidth != null && textStrokeWidth > 0
-    && textStrokeColor != null && textStrokeColor !== "";
+  const wantsStroke =
+    textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "";
   const strokeAttr = wantsStroke
-    ? ` stroke="${escAttr(textStrokeColor!)}" stroke-width="${r2(textStrokeWidth!)}"`
-      + (paintOrder != null && paintOrder !== "" ? ` paint-order="${escAttr(paintOrder)}"` : "")
+    ? ` stroke="${escAttr(textStrokeColor!)}" stroke-width="${r2(textStrokeWidth!)}"` +
+      (paintOrder != null && paintOrder !== "" ? ` paint-order="${escAttr(paintOrder)}"` : "")
     : "";
 
   // The browser owns reordering in this mode: emit the paragraph direction, and
@@ -513,9 +659,11 @@ export function renderTextAsSystemFont(
     if (ub === "bidi-override" || ub === "isolate-override") bidiAttr += ` unicode-bidi="${escAttr(ub)}"`;
   }
 
-  return `<text x="${r2(x)}" y="${r2(baselineY)}" font-family="${escAttr(fontFamily)}"`
-    + ` font-size="${r2(fontSize)}"${weightAttr}${styleAttr}${stretchAttr}`
-    + ` fill="${escAttr(fill)}"${strokeAttr}${bidiAttr}${fvsAttr}>${escAttr(text)}</text>`;
+  return (
+    `<text x="${r2(x)}" y="${r2(baselineY)}" font-family="${escAttr(fontFamily)}"` +
+    ` font-size="${r2(fontSize)}"${weightAttr}${styleAttr}${stretchAttr}` +
+    ` fill="${escAttr(fill)}"${strokeAttr}${bidiAttr}${fvsAttr}>${escAttr(text)}</text>`
+  );
 }
 
 export function synthesizedSmallCapsScale(fontSize: number): number {
@@ -536,9 +684,7 @@ function codePointsInSourceSpan(text: string, span: [number, number]): number[] 
   return [...text.slice(span[0], span[1])].map((ch) => ch.codePointAt(0)!);
 }
 
-function noteRasterGlyph(
-  ownership: TextPathOwnership,
-): void {
+function noteRasterGlyph(ownership: TextPathOwnership): void {
   ownership.rasterGlyphs++;
 }
 
@@ -558,7 +704,11 @@ function ownedCommandsFor(
   sourceText: string,
 ): PathCommand[] {
   const resolution = resolveGlyphCommands(
-    glyph, fontKey, weight, fontSize, slant,
+    glyph,
+    fontKey,
+    weight,
+    fontSize,
+    slant,
     codePointsInSourceSpan(sourceText, sourceSpan),
     selectedFont,
   );
@@ -598,9 +748,7 @@ function fakeBoldSvgPaintAttributes(
   const fillColor = pass.fill === "none" ? "none" : paint.fill;
   let attrs = ` fill="${escAttr(fillColor)}"`;
   if (pass.stroke !== "none" && pass.strokeWidthPx > 0) {
-    const strokeColor = pass.stroke === "source-fill"
-      ? paint.fill
-      : paint.strokeColor;
+    const strokeColor = pass.stroke === "source-fill" ? paint.fill : paint.strokeColor;
     if (strokeColor != null && strokeColor !== "") {
       attrs += ` stroke="${escAttr(strokeColor)}" stroke-width="${r2(pass.strokeWidthPx / groupScale)}"`;
     }
@@ -673,12 +821,7 @@ function renderTextPathRuns(
   // versa), and each face can have a different units-per-em scale. Repeating
   // the same <use> stream is necessary only for opaque `stroke fill`: Skia's
   // author-stroke pass and frame-and-fill pass have different colors.
-  const paintPathGroup = (
-    runFont: FontInstance,
-    groupScale: number,
-    transform: string,
-    body: string,
-  ): string => {
+  const paintPathGroup = (runFont: FontInstance, groupScale: number, transform: string, body: string): string => {
     if (paint == null || groupScale <= 0) {
       return `<g transform="${transform}">${body}</g>`;
     }
@@ -689,10 +832,12 @@ function renderTextPathRuns(
       faceLacksWeight: faceNeedsSyntheticBold(runFont, weight, fontSynthesis),
       fontSizePx: fontSize,
     });
-    return plan.svgPasses.map((pass) => {
-      const attrs = fakeBoldSvgPaintAttributes(pass, paint, groupScale);
-      return `<g transform="${transform}"${attrs}>${body}</g>`;
-    }).join("");
+    return plan.svgPasses
+      .map((pass) => {
+        const attrs = fakeBoldSvgPaintAttributes(pass, paint, groupScale);
+        return `<g transform="${transform}"${attrs}>${body}</g>`;
+      })
+      .join("");
   };
 
   // Split the text into runs by font. Code points that primary lacks (Arabic,
@@ -704,7 +849,24 @@ function renderTextPathRuns(
   // splitter (docs/113) in its "paths" mode — the same cluster decisions the
   // embedded pipeline makes. The legacy per-codepoint walk exists only behind
   // the explicit mutation flag. See `splitTextIntoGlyphPathRuns`.
-  const runs: FontRun[] = splitTextIntoGlyphPathRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride, fallbackRequest);
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(
+    text,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    fontKeyChain,
+    stackPrimaryIsSystemUi(fontFamily, lang),
+    stretch,
+    fontVariantEmoji,
+    fontFamily,
+    features,
+    bidiOverride,
+    fallbackRequest,
+  );
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
@@ -719,8 +881,15 @@ function renderTextPathRuns(
     }
   }
   recordRendererRuns("paths", text, runs, {
-    fontFamily, fontWeight: weight, fontStyle, fontStretch: stretch, fontSizePx: fontSize,
-    variationSettings, features, language: lang, fontVariantEmoji,
+    fontFamily,
+    fontWeight: weight,
+    fontStyle,
+    fontStretch: stretch,
+    fontSizePx: fontSize,
+    variationSettings,
+    features,
+    language: lang,
+    fontVariantEmoji,
   });
   // Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
   // resolves to the OpenType `smcp` feature but the active font lacks `smcp`
@@ -744,11 +913,11 @@ function renderTextPathRuns(
   // Times / Menlo) lack pcap, c2pc, c2sc, unic, and titl entirely, so the
   // synthesis path runs whenever any of these is requested.
   const features_ = features ?? [];
-  const wantSmcp   = features_.includes("smcp");
-  const wantC2sc   = features_.includes("c2sc");
-  const wantPcap   = features_.includes("pcap");
-  const wantC2pc   = features_.includes("c2pc");
-  const wantUnic   = features_.includes("unic");
+  const wantSmcp = features_.includes("smcp");
+  const wantC2sc = features_.includes("c2sc");
+  const wantPcap = features_.includes("pcap");
+  const wantC2pc = features_.includes("c2pc");
+  const wantUnic = features_.includes("unic");
   const availableFeatures = primaryFont.availableFeatures ?? [];
   // DM-1971: `font-synthesis-small-caps: none` vetoes only the SYNTHESIZED
   // form — the scaled-uppercase stand-in taken when the face has no `smcp`.
@@ -803,9 +972,27 @@ function renderTextPathRuns(
   // support and per-char fidelity. Multi-run path falls back to native advances.
   // When synthesizing small-caps we need per-char rendering at variable scales,
   // so we route around singleFontMarkup which emits one fixed-scale group.
-  if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps
-      && runs[0].decomposed !== true && runs[0].font.shapesWithHarfbuzz !== true) {
-    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features, stretch, paintPathGroup, ownership);
+  if (
+    runs.length === 1 &&
+    runs[0].fontKey === primaryFontKey &&
+    !synthSmallCaps &&
+    runs[0].decomposed !== true &&
+    runs[0].font.shapesWithHarfbuzz !== true
+  ) {
+    return singleFontMarkup(
+      runs[0].font,
+      runs[0].fontKey,
+      runs[0].text,
+      weight,
+      fontSize,
+      slant,
+      targetWidth,
+      xOffsets,
+      features,
+      stretch,
+      paintPathGroup,
+      ownership,
+    );
   }
 
   // Content with captured per-char xOffsets. Primary runs and non-shaping
@@ -852,10 +1039,11 @@ function renderTextPathRuns(
       // the two agree by construction instead of by a name that has to be kept
       // in sync. The key checks stay as-is: they cost nothing and they keep the
       // behavior identical for every run that still routes through a static key.
-      const isShapingRequired = run.fontKey === "sf-arabic"
-        || run.fontKey === "devanagari"
-        || run.fontKey === "thai"
-        || run.decomposed === true
+      const isShapingRequired =
+        run.fontKey === "sf-arabic" ||
+        run.fontKey === "devanagari" ||
+        run.fontKey === "thai" ||
+        run.decomposed === true ||
         // A face deliberately wrapped with the Chromium-configured HarfBuzz
         // engine must shape as a run. Sending that wrapper one scalar at a
         // time defeats the very syllable/cluster logic it was selected for,
@@ -865,8 +1053,8 @@ function renderTextPathRuns(
         // to each source character. The HarfBuzz proxy remains the shaper for
         // every ordinary run, but treating it as an unconditional run-shaping
         // signal here would silently discard that synthesis.
-        || (run.font.shapesWithHarfbuzz === true && !synthSmallCaps)
-        || [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
+        (run.font.shapesWithHarfbuzz === true && !synthSmallCaps) ||
+        [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
 
       if (!isShapingRequired) {
         // Per-char anchoring — primary runs and any fallback that's 1:1 char→
@@ -893,11 +1081,12 @@ function renderTextPathRuns(
             if (synth.upcase) ch = ch.toUpperCase();
             if (synth.scale !== 1) chScale = Number((runScale * synth.scale).toFixed(5));
           }
-          const layout = features != null && features.length > 0 && !synthSmallCaps
-            // Enable-only projection: a disable/value entry is honored by the
-            // run's HarfBuzz proxy (bound at wrap time above), never by fontkit.
-            ? run.font.layout(ch, fontkitFeatureList(features))
-            : run.font.layout(ch);
+          const layout =
+            features != null && features.length > 0 && !synthSmallCaps
+              ? // Enable-only projection: a disable/value entry is honored by the
+                // run's HarfBuzz proxy (bound at wrap time above), never by fontkit.
+                run.font.layout(ch, fontkitFeatureList(features))
+              : run.font.layout(ch);
           const nextI = i + ch.length;
           const uses: string[] = [];
           for (const g of layout.glyphs) {
@@ -906,7 +1095,12 @@ function renderTextPathRuns(
               continue;
             }
             const gCmds = ownedCommandsFor(
-              ownership, g, run.fontKey, weight, fontSize, slant,
+              ownership,
+              g,
+              run.fontKey,
+              weight,
+              fontSize,
+              slant,
               run.font,
               boundedSourceSpan(text, i, nextI),
               text,
@@ -934,11 +1128,20 @@ function renderTextPathRuns(
             // DM-1184: shift trimmed fullwidth-punctuation ink (see
             // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
             if (nextI < xOffsets.length && layout.glyphs.length === 1) {
-              const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, layout.glyphs[0], cp,
-                xOffsets[nextI] - xOffsets[i], fontSize, runScale);
+              const shiftFU = cjkTrimShiftFontUnits(
+                run.font,
+                run.fontKey,
+                layout.glyphs[0],
+                cp,
+                xOffsets[nextI] - xOffsets[i],
+                fontSize,
+                runScale,
+              );
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
             }
-            groups.push(paintPathGroup(run.font, chScale, `translate(${cssX},0) scale(${chScale},${-chScale})`, uses.join("")));
+            groups.push(
+              paintPathGroup(run.font, chScale, `translate(${cssX},0) scale(${chScale},${-chScale})`, uses.join("")),
+            );
             if (cssX > rightEdge) rightEdge = cssX;
           }
           i += ch.length;
@@ -979,9 +1182,10 @@ function renderTextPathRuns(
         // came from and no per-character alignment exists to preserve; those runs
         // are Latin base letters by construction, and `undefined` levels are read
         // as left-to-right, which is what they are.
-        const runLevels = (bidiLevels != null && run.text.length === run.endIdx - run.startIdx)
-          ? bidiLevels.subarray(run.startIdx, run.endIdx)
-          : undefined;
+        const runLevels =
+          bidiLevels != null && run.text.length === run.endIdx - run.startIdx
+            ? bidiLevels.subarray(run.startIdx, run.endIdx)
+            : undefined;
         // Blink's 8-bit shortcut is the only case that may skip script
         // itemization. A one-segment non-Latin run still needs its resolved
         // script: HarfBuzz selects the syllabic shaper from that tag, so an
@@ -989,12 +1193,14 @@ function renderTextPathRuns(
         // from the same buffer left as Common.
         const isEightBit = [...run.text].every((ch) => ch.codePointAt(0)! <= 0xff);
         const segments = isEightBit
-          ? [{
-            start: 0,
-            end: run.text.length,
-            script: "Latin",
-            rtl: runLevels != null && runLevels.length > 0 && (runLevels[0] & 1) === 1,
-          }]
+          ? [
+              {
+                start: 0,
+                end: run.text.length,
+                script: "Latin",
+                rtl: runLevels != null && runLevels.length > 0 && (runLevels[0] & 1) === 1,
+              },
+            ]
           : segmentForShaping(run.text, runLevels);
 
         // A note on what an override run does NOT need: a different shaper.
@@ -1099,8 +1305,8 @@ function renderTextPathRuns(
           // the content is an override, where Blink's injected LRO/RLO makes the
           // level authoritative by construction — which is the whole point of
           // the property.
-          const forceDirection = bidiOverride?.unicodeBidi === "bidi-override"
-            || bidiOverride?.unicodeBidi === "isolate-override";
+          const forceDirection =
+            bidiOverride?.unicodeBidi === "bidi-override" || bidiOverride?.unicodeBidi === "isolate-override";
           const flipToNative = forceDirection && seg.rtl !== contentIsRtl;
           const shapeText = flipToNative ? [...segText].reverse().join("") : segText;
           // Once flipped, the run IS native, so hand the shaper the direction its
@@ -1111,28 +1317,42 @@ function renderTextPathRuns(
           // this face. Keep that authoritative tag through emission; legacy
           // runs without provenance retain the local segment derivation.
           const scriptTag = run.shapingScript ?? SCRIPT_NAME_TO_ISO15924[seg.script];
-          const layout = features != null && features.length > 0
-            ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, lang, shapeDir)
-            : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
+          const layout =
+            features != null && features.length > 0
+              ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, lang, shapeDir)
+              : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
           const uses: string[] = [];
           const shapedClusters = (layout as typeof layout & { clusters?: number[] }).clusters;
           const glyphSourceSpans = shapedGlyphSourceSpans(
-            segText, shapeText, layout.glyphs, shapedClusters,
-            shapeDir === "rtl", flipToNative,
+            segText,
+            shapeText,
+            layout.glyphs,
+            shapedClusters,
+            shapeDir === "rtl",
+            flipToNative,
           );
           const placements = blinkSuppressesInterLetterSpacing(seg.script)
             ? (() => {
-              let cursorFU = 0;
-              return layout.positions.map((pos) => {
-                const xFontUnits = cursorFU + pos.xOffset;
-                cursorFU += pos.xAdvance;
-                return { xFontUnits, rightCss: segMinX + cursorFU * runScale };
-              });
-            })()
+                let cursorFU = 0;
+                return layout.positions.map((pos) => {
+                  const xFontUnits = cursorFU + pos.xOffset;
+                  cursorFU += pos.xAdvance;
+                  return { xFontUnits, rightCss: segMinX + cursorFU * runScale };
+                });
+              })()
             : positionShapedClusters(
-              segText, shapeText, layout.glyphs, layout.positions, shapedClusters,
-              xOffsets, run.startIdx + seg.start, runScale, segMinX, seg.rtl, flipToNative,
-            );
+                segText,
+                shapeText,
+                layout.glyphs,
+                layout.positions,
+                shapedClusters,
+                xOffsets,
+                run.startIdx + seg.start,
+                runScale,
+                segMinX,
+                seg.rtl,
+                flipToNative,
+              );
           let maxRightCss = segMinX;
           for (let gi = 0; gi < layout.glyphs.length; gi++) {
             const glyph = layout.glyphs[gi];
@@ -1143,22 +1363,25 @@ function renderTextPathRuns(
             // advance and GPOS offset. Anchoring only the segment (the previous
             // behavior) discarded spacing between clusters and accumulated a
             // visible drift across ordinary shaped Latin runs.
-            const rasterOwned = glyphUsesRasterRepresentation(
-              run.font, run.fontKey, glyph, fontSize, weight, slant,
-            );
+            const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
             if (rasterOwned) noteRasterGlyph(ownership);
             const glyphCmds = rasterOwned
               ? []
               : ownedCommandsFor(
-                ownership, glyph, run.fontKey, weight, fontSize, slant,
-                run.font,
-                boundedSourceSpan(
+                  ownership,
+                  glyph,
+                  run.fontKey,
+                  weight,
+                  fontSize,
+                  slant,
+                  run.font,
+                  boundedSourceSpan(
+                    text,
+                    run.startIdx + seg.start + glyphSourceSpans[gi][0],
+                    run.startIdx + seg.start + glyphSourceSpans[gi][1],
+                  ),
                   text,
-                  run.startIdx + seg.start + glyphSourceSpans[gi][0],
-                  run.startIdx + seg.start + glyphSourceSpans[gi][1],
-                ),
-                text,
-              );
+                );
             if (glyphCmds.length > 0) {
               const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
               const tx = placements[gi].xFontUnits;
@@ -1190,12 +1413,12 @@ function renderTextPathRuns(
     // layout for genuinely mixed segments; the font-run splitter normally
     // separates those, while declining here avoids inventing placement rules.
     const runSegments = segmentForShaping(run.text);
-    const runScript = run.shapingScript ?? (runSegments.length === 1
-      ? SCRIPT_NAME_TO_ISO15924[runSegments[0].script]
-      : undefined);
-    const layout = features != null && features.length > 0
-      ? run.font.layout(run.text, fontkitFeatureList(features), runScript, lang, runDirection)
-      : run.font.layout(run.text, undefined, runScript, lang, runDirection);
+    const runScript =
+      run.shapingScript ?? (runSegments.length === 1 ? SCRIPT_NAME_TO_ISO15924[runSegments[0].script] : undefined);
+    const layout =
+      features != null && features.length > 0
+        ? run.font.layout(run.text, fontkitFeatureList(features), runScript, lang, runDirection)
+        : run.font.layout(run.text, undefined, runScript, lang, runDirection);
     const glyphSourceSpans = shapedGlyphSourceSpans(
       run.text,
       run.text,
@@ -1208,22 +1431,21 @@ function renderTextPathRuns(
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
-      const rasterOwned = glyphUsesRasterRepresentation(
-        run.font, run.fontKey, glyph, fontSize, weight, slant,
-      );
+      const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
       if (rasterOwned) noteRasterGlyph(ownership);
       const glyphCmds = rasterOwned
         ? []
         : ownedCommandsFor(
-          ownership, glyph, run.fontKey, weight, fontSize, slant,
-          run.font,
-          boundedSourceSpan(
+            ownership,
+            glyph,
+            run.fontKey,
+            weight,
+            fontSize,
+            slant,
+            run.font,
+            boundedSourceSpan(text, run.startIdx + glyphSourceSpans[i][0], run.startIdx + glyphSourceSpans[i][1]),
             text,
-            run.startIdx + glyphSourceSpans[i][0],
-            run.startIdx + glyphSourceSpans[i][1],
-          ),
-          text,
-        );
+          );
       if (glyphCmds.length > 0) {
         const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
         const tx = runX + pos.xOffset;
@@ -1265,9 +1487,22 @@ export function textToPathMarkup(
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): TextPathResult | null {
   return renderTextPathRuns(
-    text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle,
-    features, lang, variationSettings, bidiOverride, fontStretch,
-    fontVariantEmoji, fontSynthesis, paint, fallbackRequest,
+    text,
+    fontSize,
+    fontFamily,
+    fontWeight,
+    targetWidth,
+    xOffsets,
+    fontStyle,
+    features,
+    lang,
+    variationSettings,
+    bidiOverride,
+    fontStretch,
+    fontVariantEmoji,
+    fontSynthesis,
+    paint,
+    fallbackRequest,
   );
 }
 
@@ -1294,7 +1529,12 @@ export function textToPathMarkup(
 export function cjkTrimShiftFontUnits(
   font: FontInstance,
   fontKey: string,
-  glyph: { id: number; advanceWidth?: number; path?: { commands: Array<{ command: string; args: number[] }> }; codePoints?: number[] },
+  glyph: {
+    id: number;
+    advanceWidth?: number;
+    path?: { commands: Array<{ command: string; args: number[] }> };
+    codePoints?: number[];
+  },
   cp: number,
   capturedAdvCss: number,
   fontSize: number,
@@ -1343,21 +1583,19 @@ export function cjkTrimShiftFontUnits(
  * text, which is the part a shared Glyph cannot know. `backwards` walks an RTL
  * run, whose cursor sits at the cluster END rather than its start.
  */
-export function sourceClusterSpan(
-  text: string, cursor: number, cpCount: number, backwards: boolean,
-): number {
+export function sourceClusterSpan(text: string, cursor: number, cpCount: number, backwards: boolean): number {
   let span = 0;
   for (let k = 0; k < cpCount; k++) {
     if (backwards) {
       const end = cursor - span;
       if (end <= 0) break;
       const unit = text.charCodeAt(end - 1);
-      const isLowSurrogate = unit >= 0xDC00 && unit <= 0xDFFF;
+      const isLowSurrogate = unit >= 0xdc00 && unit <= 0xdfff;
       span += isLowSurrogate && end - 2 >= 0 ? 2 : 1;
     } else {
       const at = cursor + span;
       if (at >= text.length) break;
-      span += text.codePointAt(at)! > 0xFFFF ? 2 : 1;
+      span += text.codePointAt(at)! > 0xffff ? 2 : 1;
     }
   }
   // Never return 0: the caller's cursor must advance or the walk never ends.
@@ -1380,11 +1618,12 @@ export function shapedGlyphSourceSpans(
   rtl: boolean,
   reversedForNativeDirection = false,
 ): Array<[number, number]> {
-  const clusterStarts = clusters == null
-    ? []
-    : [...new Set(clusters.filter((value) =>
-      Number.isInteger(value) && value >= 0 && value < shapedText.length))]
-      .sort((a, b) => a - b);
+  const clusterStarts =
+    clusters == null
+      ? []
+      : [
+          ...new Set(clusters.filter((value) => Number.isInteger(value) && value >= 0 && value < shapedText.length)),
+        ].sort((a, b) => a - b);
   let fallbackCursor = rtl ? shapedText.length : 0;
   return glyphs.map((glyph, index) => {
     const cluster = clusters?.[index];
@@ -1395,9 +1634,7 @@ export function shapedGlyphSourceSpans(
       const next = clusterStarts.find((value) => value > cluster) ?? shapedText.length;
       span = Math.max(1, next - cluster);
     } else {
-      const cpCount = glyph.codePoints != null && glyph.codePoints.length > 0
-        ? glyph.codePoints.length
-        : 1;
+      const cpCount = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1;
       if (rtl) {
         span = sourceClusterSpan(shapedText, fallbackCursor, cpCount, true);
         shapedStart = Math.max(0, fallbackCursor - span);
@@ -1408,9 +1645,7 @@ export function shapedGlyphSourceSpans(
         fallbackCursor += span;
       }
     }
-    const sourceStart = reversedForNativeDirection
-      ? Math.max(0, sourceText.length - shapedStart - span)
-      : shapedStart;
+    const sourceStart = reversedForNativeDirection ? Math.max(0, sourceText.length - shapedStart - span) : shapedStart;
     return boundedSourceSpan(sourceText, sourceStart, sourceStart + span);
   });
 }
@@ -1441,8 +1676,12 @@ export function positionShapedClusters(
     const pos = positions[i];
     let shapedCluster = clusters?.[i];
     if (shapedCluster == null) {
-      const span = sourceClusterSpan(shapedText, rtl ? Math.max(0, fallbackTextIdx - 1) : fallbackTextIdx,
-        glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1, rtl);
+      const span = sourceClusterSpan(
+        shapedText,
+        rtl ? Math.max(0, fallbackTextIdx - 1) : fallbackTextIdx,
+        glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1,
+        rtl,
+      );
       if (rtl) fallbackTextIdx -= span;
       shapedCluster = Math.max(0, fallbackTextIdx);
       if (!rtl) fallbackTextIdx += span;
@@ -1478,26 +1717,21 @@ function singleFontMarkup(
    *  `ensureGlyphDef`). */
   stretch: number = 100,
   /** Lower the source outline stream through the run's ordered paint stages. */
-  paintPathGroup?: (
-    font: FontInstance,
-    groupScale: number,
-    transform: string,
-    body: string,
-  ) => string,
+  paintPathGroup?: (font: FontInstance, groupScale: number, transform: string, body: string) => string,
   ownership: TextPathOwnership = createTextPathOwnership(),
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
-  const run = features != null && features.length > 0
-    // Enable-only projection — a caller whose list carries a disable hands in a
-    // font already wrapped in the HarfBuzz proxy, which shapes with the full
-    // list it was bound with and ignores this argument.
-    ? font.layout(text, fontkitFeatureList(features))
-    : font.layout(text);
+  const run =
+    features != null && features.length > 0
+      ? // Enable-only projection — a caller whose list carries a disable hands in a
+        // font already wrapped in the HarfBuzz proxy, which shapes with the full
+        // list it was bound with and ignores this argument.
+        font.layout(text, fontkitFeatureList(features))
+      : font.layout(text);
   let totalAdvance = 0;
   for (const pos of run.positions) totalAdvance += pos.xAdvance;
   const nativeWidth = totalAdvance * scale;
-  const xScale = (targetWidth != null && targetWidth > 0 && nativeWidth > 0)
-    ? targetWidth / nativeWidth : 1;
+  const xScale = targetWidth != null && targetWidth > 0 && nativeWidth > 0 ? targetWidth / nativeWidth : 1;
   // When xOffsets are provided but the layout's glyph count doesn't match the
   // text length (Helvetica's `liga` feature collapsed `fi`/`fl` into single
   // glyphs, Apple Chancery's `Th`/`th` ligatures, etc.), the simple per-char
@@ -1516,19 +1750,22 @@ function singleFontMarkup(
       const glyph = run.glyphs[gi];
       const pos = run.positions[gi];
       const cps = glyph.codePoints;
-      const clusterSpan = sourceClusterSpan(
-        text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, false,
-      );
+      const clusterSpan = sourceClusterSpan(text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, false);
       const rasterOwned = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant);
       if (rasterOwned) noteRasterGlyph(ownership);
       const dCmds = rasterOwned
         ? []
         : ownedCommandsFor(
-          ownership, glyph, fontKey, weight, fontSize, slant,
-          font,
-          boundedSourceSpan(text, textIdx, textIdx + clusterSpan),
-          text,
-        );
+            ownership,
+            glyph,
+            fontKey,
+            weight,
+            fontSize,
+            slant,
+            font,
+            boundedSourceSpan(text, textIdx, textIdx + clusterSpan),
+            text,
+          );
       if (textIdx < xOffsets.length && dCmds.length > 0) {
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds, stretch);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
@@ -1545,10 +1782,11 @@ function singleFontMarkup(
       textIdx += clusterSpan;
     }
     return {
-      markup: uses.length > 0
-        ? (paintPathGroup?.(font, sc, `scale(${sc},${-sc})`, uses.join(""))
-          ?? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>`)
-        : "",
+      markup:
+        uses.length > 0
+          ? (paintPathGroup?.(font, sc, `scale(${sc},${-sc})`, uses.join("")) ??
+            `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>`)
+          : "",
       width: xOffsets[xOffsets.length - 1] + nativeWidth / Math.max(1, text.length),
       ownership,
     };
@@ -1579,19 +1817,22 @@ function singleFontMarkup(
     const glyph = run.glyphs[i];
     const pos = run.positions[i];
     const cps = glyph.codePoints;
-    const clusterSpan = sourceClusterSpan(
-      text, sourceCursor, cps != null && cps.length > 0 ? cps.length : 1, false,
-    );
+    const clusterSpan = sourceClusterSpan(text, sourceCursor, cps != null && cps.length > 0 ? cps.length : 1, false);
     const rasterOwned = glyphUsesRasterRepresentation(font, fontKey, glyph, fontSize, weight, slant);
     if (rasterOwned) noteRasterGlyph(ownership);
     const eCmds = rasterOwned
       ? []
       : ownedCommandsFor(
-        ownership, glyph, fontKey, weight, fontSize, slant,
-        font,
-        boundedSourceSpan(text, sourceCursor, sourceCursor + clusterSpan),
-        text,
-      );
+          ownership,
+          glyph,
+          fontKey,
+          weight,
+          fontSize,
+          slant,
+          font,
+          boundedSourceSpan(text, sourceCursor, sourceCursor + clusterSpan),
+          text,
+        );
     if (eCmds.length > 0) {
       const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds, stretch);
       let tx: number;
@@ -1614,8 +1855,8 @@ function singleFontMarkup(
         // an untrimmed （ ） is left untouched.
         const cp0 = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints[0] : undefined;
         if (cp0 != null && i + 1 < xOffsets!.length) {
-          const fullAdv = pos.xAdvance * scale;                 // full em advance, CSS px
-          const capturedAdv = xOffsets![i + 1] - xOffsets![i];  // what Chrome used, CSS px
+          const fullAdv = pos.xAdvance * scale; // full em advance, CSS px
+          const capturedAdv = xOffsets![i + 1] - xOffsets![i]; // what Chrome used, CSS px
           if (fullAdv > 0 && capturedAdv > 0 && capturedAdv < fullAdv * 0.75) {
             const halt = haltInfoFor(font, fontKey, cp0);
             if (halt.halved) tx += halt.xOffset; // font units
@@ -1631,15 +1872,17 @@ function singleFontMarkup(
     sourceCursor += clusterSpan;
   }
   return {
-    markup: uses.length > 0
-      ? (paintPathGroup?.(font, sc, `scale(${sc},${-sc})`, uses.join(""))
-        ?? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>`)
-      : "",
-    width: usePerChar ? (xOffsets![xOffsets!.length - 1] + nativeWidth / run.glyphs.length) : (targetWidth ?? nativeWidth),
+    markup:
+      uses.length > 0
+        ? (paintPathGroup?.(font, sc, `scale(${sc},${-sc})`, uses.join("")) ??
+          `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>`)
+        : "",
+    width: usePerChar
+      ? xOffsets![xOffsets!.length - 1] + nativeWidth / run.glyphs.length
+      : (targetWidth ?? nativeWidth),
     ownership,
   };
 }
-
 
 // DM-1026: does `cp` resolve to a `.notdef` (no real font in the chain covers
 // it)? Mirrors the coverage resolution in `splitTextIntoFontRuns`'s walk —
@@ -1670,10 +1913,16 @@ function singleFontMarkup(
 // Chrome's OTS rejects — so the consumer browser cascaded past our font and
 // painted its own `.notdef` tofu for the PUA codepoint.
 export function stripOrphanedDefaultIgnorables(
-  text: string, xOffsets: number[] | undefined,
+  text: string,
+  xOffsets: number[] | undefined,
 ): { text: string; xOffsets: number[] | undefined } {
   let any = false;
-  for (const ch of text) { if (isStrippableOrphanIgnorable(ch.codePointAt(0)!)) { any = true; break; } }
+  for (const ch of text) {
+    if (isStrippableOrphanIgnorable(ch.codePointAt(0)!)) {
+      any = true;
+      break;
+    }
+  }
   if (!any) return { text, xOffsets };
   const haveX = xOffsets != null;
   let outText = "";
@@ -1683,7 +1932,7 @@ export function stripOrphanedDefaultIgnorables(
   let i = 0;
   while (i < text.length) {
     const cp = text.codePointAt(i)!;
-    const chLen = cp > 0xFFFF ? 2 : 1;
+    const chLen = cp > 0xffff ? 2 : 1;
     const ch = text.slice(i, i + chLen);
     const isWs = chLen === 1 && /\s/.test(ch);
     const isMark = /\p{M}/u.test(ch);
@@ -1713,9 +1962,14 @@ export function stripOrphanedDefaultIgnorables(
 // CoreText `shape` path (DM-1028) already inserts their dotted circle, so this
 // never double-inserts.
 export function insertSyntheticDottedCircles(
-  text: string, xOffsets: number[] | undefined,
-  fontFamily: string, weight: number, fontSize: number, slant: number,
-  variationSettings: Record<string, number> | undefined, lang: string | undefined,
+  text: string,
+  xOffsets: number[] | undefined,
+  fontFamily: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
   /** DM-1126: UTF-16 indices (into `text`) of COVERED orphaned marks the capture
    *  layer detected Chrome auto-inserts a U+25CC before. The renderer synthesizes
    *  the circle for these (fontkit fonts don't replicate HarfBuzz's insertion),
@@ -1766,14 +2020,14 @@ export function insertSyntheticDottedCircles(
   let dottedCircleRunFont: FontInstance | null | undefined;
   const resolveDottedCircleRunFont = (): FontInstance | null => {
     if (dottedCircleRunFont !== undefined) return dottedCircleRunFont;
-    if (glyphIdForCp(primaryFont, 0x25CC) !== 0) return (dottedCircleRunFont = primaryFont);
+    if (glyphIdForCp(primaryFont, 0x25cc) !== 0) return (dottedCircleRunFont = primaryFont);
     // Blink's family stage can select a later declared face as the first
     // candidate for .notdef. The macOS Vedic fixture is exactly that shape:
     // Mukta is absent, Arial Unicode lacks U+1CD1 but supplies U+25CC, so the
     // broken syllable is shaped on Arial rather than on the generic primary.
     for (const key of fontKeyChain) {
       const candidate = key === primaryFontKey ? primaryFont : getFontInstance(key, weight, fontSize, slant);
-      if (candidate != null && glyphIdForCp(candidate, 0x25CC) !== 0) {
+      if (candidate != null && glyphIdForCp(candidate, 0x25cc) !== 0) {
         return (dottedCircleRunFont = candidate);
       }
     }
@@ -1783,16 +2037,22 @@ export function insertSyntheticDottedCircles(
     if (dottedCircleAdvanceCss >= 0) return dottedCircleAdvanceCss;
     dottedCircleAdvanceCss = 0;
     const advFrom = (cf: FontInstance | null): number | null => {
-      const g = cf != null ? cf.glyphForCodePoint(0x25CC) : null;
+      const g = cf != null ? cf.glyphForCodePoint(0x25cc) : null;
       if (cf != null && g != null && g.id !== 0) return (g.advanceWidth ?? 0) * (fontSize / cf.unitsPerEm);
       return null;
     };
     const fromRunFont = advFrom(resolveDottedCircleRunFont());
-    if (fromRunFont != null) { dottedCircleAdvanceCss = fromRunFont; return dottedCircleAdvanceCss; }
-    for (const cand of fallbackFontChain(0x25CC, primaryFontKey, lang)) {
+    if (fromRunFont != null) {
+      dottedCircleAdvanceCss = fromRunFont;
+      return dottedCircleAdvanceCss;
+    }
+    for (const cand of fallbackFontChain(0x25cc, primaryFontKey, lang)) {
       if (cand === "last-resort") continue;
       const a = advFrom(getFontInstance(cand, weight, fontSize, slant));
-      if (a != null) { dottedCircleAdvanceCss = a; break; }
+      if (a != null) {
+        dottedCircleAdvanceCss = a;
+        break;
+      }
     }
     return dottedCircleAdvanceCss;
   };
@@ -1817,7 +2077,7 @@ export function insertSyntheticDottedCircles(
   let i = 0;
   while (i < text.length) {
     const cp = text.codePointAt(i)!;
-    const chLen = cp > 0xFFFF ? 2 : 1;
+    const chLen = cp > 0xffff ? 2 : 1;
     const ch = text.slice(i, i + chLen);
     const icu = icuCodepointProperties(cp);
     // ICU UCharCategory: NON_SPACING_MARK=6, ENCLOSING_MARK=7,
@@ -1828,10 +2088,8 @@ export function insertSyntheticDottedCircles(
     const nextCp = i + chLen < text.length ? text.codePointAt(i + chLen)! : -1;
     // ICU Indic_Syllabic_Category=Joiner is 20 in the pinned companion. The
     // literal fallback is helper-absent degradation, not a script/font route.
-    const shapingTransparentControl = icu != null ? icu.indicSyllabicCategory === 20
-      : cp === 0x200C || cp === 0x200D;
-    if (!clusterHasBase && shapingTransparentControl && nextCp >= 0
-        && (coveredCircleSet?.has(i + chLen) === true)) {
+    const shapingTransparentControl = icu != null ? icu.indicSyllabicCategory === 20 : cp === 0x200c || cp === 0x200d;
+    if (!clusterHasBase && shapingTransparentControl && nextCp >= 0 && coveredCircleSet?.has(i + chLen) === true) {
       // A leading format control belongs to the following broken syllable. The
       // capture-side Chromium probe establishes whether that syllable receives
       // a dotted circle; HarfBuzz inserts it at the syllable start, before the
@@ -1864,34 +2122,49 @@ export function insertSyntheticDottedCircles(
     // Ask the selected shaping face the logical question instead: with Blink's
     // resolved script, does shaping this orphan emit that face's U+25CC glyph?
     const orphaned = !clusterHasBase;
-    const logicalHbRun = isMark && orphaned
-      ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-        variationSettings, lang, fontKeyChain, undefined, undefined, fontFamily, semanticContext)
-      : null;
+    const logicalHbRun =
+      isMark && orphaned
+        ? resolveDottedCircleHbRun(
+            cp,
+            primaryFont,
+            primaryFontKey,
+            weight,
+            fontSize,
+            slant,
+            variationSettings,
+            lang,
+            fontKeyChain,
+            undefined,
+            undefined,
+            fontFamily,
+            semanticContext,
+          )
+        : null;
     const fallbackScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
     const icuScriptTag = icu?.scriptName;
-    const logicalScriptTag = icuScriptTag != null && icuScriptTag !== "Zinh"
-      && icuScriptTag !== "Zyyy" && icuScriptTag !== "Zzzz"
-      ? icuScriptTag
-      : fallbackScript != null ? SCRIPT_NAME_TO_ISO15924[fallbackScript] : undefined;
+    const logicalScriptTag =
+      icuScriptTag != null && icuScriptTag !== "Zinh" && icuScriptTag !== "Zyyy" && icuScriptTag !== "Zzzz"
+        ? icuScriptTag
+        : fallbackScript != null
+          ? SCRIPT_NAME_TO_ISO15924[fallbackScript]
+          : undefined;
     // Covered marks shape on their resolved mark face. An uncovered mark stays
     // on Blink's first candidate for `.notdef`, which is the run primary here.
     // In both cases ask the actual HarfBuzz proxy whether the bare orphan emits
     // that face's U+25CC glyph; no script/block membership participates.
     const logicalBaseFont = logicalHbRun?.font ?? primaryFont;
     const logicalFontKey = logicalHbRun?.key ?? primaryFontKey;
-    const logicalShapeFont = isMark && orphaned
-      ? harfbuzzShapedRunOverride(logicalBaseFont, logicalFontKey, weight, fontSize, slant,
-        variationSettings, ch)
-      : null;
-    const logicalCircleGid = logicalShapeFont?.shapesWithHarfbuzz === true
-      ? glyphIdForCp(logicalShapeFont, 0x25cc) : 0;
-    const logicalLayout = logicalShapeFont?.shapesWithHarfbuzz === true && logicalScriptTag != null
-      ? logicalShapeFont.layout(ch, undefined, logicalScriptTag, lang, "ltr")
-      : null;
-    const logicallyFlagged = logicalCircleGid !== 0
-      && logicalLayout != null
-      && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);
+    const logicalShapeFont =
+      isMark && orphaned
+        ? harfbuzzShapedRunOverride(logicalBaseFont, logicalFontKey, weight, fontSize, slant, variationSettings, ch)
+        : null;
+    const logicalCircleGid = logicalShapeFont?.shapesWithHarfbuzz === true ? glyphIdForCp(logicalShapeFont, 0x25cc) : 0;
+    const logicalLayout =
+      logicalShapeFont?.shapesWithHarfbuzz === true && logicalScriptTag != null
+        ? logicalShapeFont.layout(ch, undefined, logicalScriptTag, lang, "ltr")
+        : null;
+    const logicallyFlagged =
+      logicalCircleGid !== 0 && logicalLayout != null && logicalLayout.glyphs.some((g) => g.id === logicalCircleGid);
     // When capture supplied probe data, its answer is authoritative for
     // covered marks: an empty set means Chromium painted the mark bare (Tai
     // Tham), while a positive index means it painted a circle. Falling back to
@@ -1899,9 +2172,7 @@ export function insertSyntheticDottedCircles(
     // font/shaper-owned circles (Balinese) and invents circles for bare marks.
     // With no capture data (unit callers / old captures), use the same selected
     // face plus HarfBuzz shaping evidence rather than a codepoint range.
-    const probeFlagged = coveredCircleSet != null
-      ? coveredCircleSet.has(i)
-      : logicallyFlagged;
+    const probeFlagged = coveredCircleSet != null ? coveredCircleSet.has(i) : logicallyFlagged;
     if (isMark || probeFlagged) {
       // The canvas probe is authoritative only for a glyph Chrome actually
       // painted. For an uncovered mark it observes the fallback face's bare
@@ -1936,11 +2207,30 @@ export function insertSyntheticDottedCircles(
       // syllable — which we cannot read off the font. So this can only ever
       // REMOVE a circle we would otherwise have drawn, never add one.
       const runFontHasDottedCircle = resolveDottedCircleRunFont() != null;
-      if (orphaned && wantUncoveredCircle && runFontHasDottedCircle
-          && !(shapeUncoveredOrphansNatively && logicalShapeFont?.shapesWithHarfbuzz === true)
-          && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-            variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch,
-            undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation, fontFamily, semanticContext)) {
+      if (
+        orphaned &&
+        wantUncoveredCircle &&
+        runFontHasDottedCircle &&
+        !(shapeUncoveredOrphansNatively && logicalShapeFont?.shapesWithHarfbuzz === true) &&
+        codepointResolvesToNotdef(
+          cp,
+          primaryFont,
+          primaryFontKey,
+          weight,
+          fontSize,
+          slant,
+          variationSettings,
+          lang,
+          fontKeyChain,
+          stackPrimaryIsSystemUi(fontFamily, lang),
+          stretch,
+          undefined,
+          fallbackRequest?.rawSlope,
+          fallbackRequest?.orientation,
+          fontFamily,
+          semanticContext,
+        )
+      ) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {
@@ -1976,55 +2266,78 @@ export function insertSyntheticDottedCircles(
       // (e.g. a wide Egyptian hieroglyph U+130C3) would otherwise get a spurious
       // centered ◌ stamped over it. Uncovered orphaned Lo cluster letters
       // (Soyombo) are handled by the notdef path above instead.
-      const coveredMarkResolution = probeFlagged && logicalHbRun == null
-        ? resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-          variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch,
-          undefined, fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation, semanticContext)
-        : null;
-      const coveredMarkFont = logicalHbRun?.font
-        ?? (coveredMarkResolution?.covered === true
-          ? (coveredMarkResolution.fontOverride
-            ?? (coveredMarkResolution.key === primaryFontKey ? primaryFont : getFontInstance(coveredMarkResolution.key, weight, fontSize, slant)))
+      const coveredMarkResolution =
+        probeFlagged && logicalHbRun == null
+          ? resolveFontForCodepoint(
+              cp,
+              primaryFont,
+              primaryFontKey,
+              weight,
+              fontSize,
+              slant,
+              variationSettings,
+              lang,
+              fontKeyChain,
+              stackPrimaryIsSystemUi(fontFamily, lang),
+              stretch,
+              undefined,
+              fontFamily,
+              fallbackRequest?.rawSlope,
+              fallbackRequest?.orientation,
+              semanticContext,
+            )
+          : null;
+      const coveredMarkFont =
+        logicalHbRun?.font ??
+        (coveredMarkResolution?.covered === true
+          ? (coveredMarkResolution.fontOverride ??
+            (coveredMarkResolution.key === primaryFontKey
+              ? primaryFont
+              : getFontInstance(coveredMarkResolution.key, weight, fontSize, slant)))
           : null);
-      if (isMark && orphaned && probeFlagged
-          && coveredMarkFont != null
-          && glyphIdForCp(coveredMarkFont, cp) !== 0
-          && glyphIdForCp(coveredMarkFont, 0x25CC) !== 0
-          // If the selected face's own layout already emitted its U+25CC gid,
-          // keep the source cluster intact. The normal run shaper will produce
-          // that same attached circle; materialising a separate "◌+mark"
-          // string here splits fallback ownership and paints the two glyphs
-          // apart (Miao/Brahmi). Only synthesize for a probe-positive face whose
-          // layout facade does NOT already own the circle.
-          && !logicallyFlagged
-          && !fontAutoInsertsDottedCircle(coveredMarkFont, ch)
-          // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
-          // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
-          // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks
-          // and do NOT get this treatment from HarfBuzz) must NOT take this
-          // "◌ + centered-mark" path. Real HarfBuzz on the bare mark in Arial
-          // Unicode MS already reproduces Chrome exactly by routing through the
-          // DM-1215 dotted-circle HarfBuzz path (see `resolveDottedCircleHbRun`)
-          // instead of our own synthesis here.
-          //
-          // The ordering our own synthesis would otherwise hard-code is NOT
-          // simply "[mark, ◌]" — HarfBuzz's own rule (`hb-ot-shaper-hangul.cc:
-          // 231-247`) picks `[u, ◌]` (mark left) unless `is_zero_width_char`
-          // says the tone-mark glyph has zero advance in the run's font, in
-          // which case it picks `[◌, u]` (circle left) instead; letting real
-          // HarfBuzz shape the run (rather than re-deriving that rule here)
-          // reproduces whichever ordering the font calls for. HarfBuzz's other
-          // "move an ALREADY-attached tone mark in front of a valid preceding
-          // syllable" rule (same file, :215-226) is a different code path
-          // (a real base exists; this is the ORPHANED branch) and stays
-          // unmodeled here — noted rather than implied as covered.
-          && !(cp >= 0x302e && cp <= 0x302f)
-          // DM-1126: skip LEFT-reordering matras (pre-base vowels, e.g. Grantha
-          // U+11347/11348). Chrome paints them "matra ◌" (the matra reorders
-          // BEFORE the synthetic circle), not "◌ + centered-mark" — the centering
-          // here would mis-place them. They render correctly via the existing
-          // path; no Vedic combining mark (the motivating case) is a left matra.
-          && !isLeftReorderingMatra(cp)) {
+      if (
+        isMark &&
+        orphaned &&
+        probeFlagged &&
+        coveredMarkFont != null &&
+        glyphIdForCp(coveredMarkFont, cp) !== 0 &&
+        glyphIdForCp(coveredMarkFont, 0x25cc) !== 0 &&
+        // If the selected face's own layout already emitted its U+25CC gid,
+        // keep the source cluster intact. The normal run shaper will produce
+        // that same attached circle; materialising a separate "◌+mark"
+        // string here splits fallback ownership and paints the two glyphs
+        // apart (Miao/Brahmi). Only synthesize for a probe-positive face whose
+        // layout facade does NOT already own the circle.
+        !logicallyFlagged &&
+        !fontAutoInsertsDottedCircle(coveredMarkFont, ch) &&
+        // DM-1229 / DM-2020: U+302E–302F (the actual Hangul tone marks —
+        // `isHangulTone` in `hb-ot-shaper-hangul.cc:130`, rev 4de187d;
+        // U+302A–302D are the unrelated Mandarin/CJK ideographic tone marks
+        // and do NOT get this treatment from HarfBuzz) must NOT take this
+        // "◌ + centered-mark" path. Real HarfBuzz on the bare mark in Arial
+        // Unicode MS already reproduces Chrome exactly by routing through the
+        // DM-1215 dotted-circle HarfBuzz path (see `resolveDottedCircleHbRun`)
+        // instead of our own synthesis here.
+        //
+        // The ordering our own synthesis would otherwise hard-code is NOT
+        // simply "[mark, ◌]" — HarfBuzz's own rule (`hb-ot-shaper-hangul.cc:
+        // 231-247`) picks `[u, ◌]` (mark left) unless `is_zero_width_char`
+        // says the tone-mark glyph has zero advance in the run's font, in
+        // which case it picks `[◌, u]` (circle left) instead; letting real
+        // HarfBuzz shape the run (rather than re-deriving that rule here)
+        // reproduces whichever ordering the font calls for. HarfBuzz's other
+        // "move an ALREADY-attached tone mark in front of a valid preceding
+        // syllable" rule (same file, :215-226) is a different code path
+        // (a real base exists; this is the ORPHANED branch) and stays
+        // unmodeled here — noted rather than implied as covered.
+        !(cp >= 0x302e && cp <= 0x302f) &&
+        // DM-1126: skip LEFT-reordering matras (pre-base vowels, e.g. Grantha
+        // U+11347/11348). Chrome paints them "matra ◌" (the matra reorders
+        // BEFORE the synthetic circle), not "◌ + centered-mark" — the centering
+        // here would mis-place them. They render correctly via the existing
+        // path; no Vedic combining mark (the motivating case) is a left matra.
+        !isLeftReorderingMatra(cp)
+      ) {
         // DM-1126: covered mark Chrome circles (capture-detected) whose fontkit
         // primary won't auto-insert the ◌ (native-extractor Indic faces already
         // insert it — the guard above skips them to avoid a DOUBLE circle).
@@ -2066,16 +2379,17 @@ export function insertSyntheticDottedCircles(
  * cases HB_SCRIPT_TAMIL / MALAYALAM / SINHALA.
  */
 export function needsSyntheticVowelConstraintCircle(base: number, next: number): boolean {
-  if (base === 0x0B85) return next === 0x0BC2;
-  if (base === 0x0D07 || base === 0x0D09) return next === 0x0D57;
-  if (base === 0x0D0E) return next === 0x0D46;
-  if (base === 0x0D12) return next === 0x0D3E || next === 0x0D57;
-  if (base === 0x0D85) return next === 0x0DCF || next === 0x0DD0 || next === 0x0DD1;
-  if (base === 0x0D8B || base === 0x0D8F || base === 0x0D94) return next === 0x0DDF;
-  if (base === 0x0D8D) return next === 0x0DD8;
-  if (base === 0x0D91) {
-    return next === 0x0DCA || next === 0x0DD9 || next === 0x0DDA
-      || next === 0x0DDC || next === 0x0DDD || next === 0x0DDE;
+  if (base === 0x0b85) return next === 0x0bc2;
+  if (base === 0x0d07 || base === 0x0d09) return next === 0x0d57;
+  if (base === 0x0d0e) return next === 0x0d46;
+  if (base === 0x0d12) return next === 0x0d3e || next === 0x0d57;
+  if (base === 0x0d85) return next === 0x0dcf || next === 0x0dd0 || next === 0x0dd1;
+  if (base === 0x0d8b || base === 0x0d8f || base === 0x0d94) return next === 0x0ddf;
+  if (base === 0x0d8d) return next === 0x0dd8;
+  if (base === 0x0d91) {
+    return (
+      next === 0x0dca || next === 0x0dd9 || next === 0x0dda || next === 0x0ddc || next === 0x0ddd || next === 0x0dde
+    );
   }
   return false;
 }
@@ -2123,12 +2437,28 @@ function splitTextIntoFontRuns(
   // activation A/B. See docs/113-cluster-granularity-fallback.md.
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
-    return splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
-      features, bidiOverride,
-      fallbackRawSlope: fallbackRequest?.rawSlope,
-      fallbackOrientation: fallbackRequest?.orientation,
-      semanticContext,
-    });
+    return splitTextIntoFontRunsShaped(
+      text,
+      primaryFont,
+      primaryFontKey,
+      weight,
+      fontSize,
+      slant,
+      variationSettings,
+      lang,
+      fontKeyChain,
+      systemUiPrimary,
+      stretch,
+      fontVariantEmoji,
+      fontFamily,
+      {
+        features,
+        bidiOverride,
+        fallbackRawSlope: fallbackRequest?.rawSlope,
+        fallbackOrientation: fallbackRequest?.orientation,
+        semanticContext,
+      },
+    );
   }
   const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = "cluster-disabled-legacy";
   const runs: FontRun[] = [];
@@ -2179,7 +2509,15 @@ function splitTextIntoFontRuns(
       // webfonts (in-process fontkit), so this probe issues no helper round-trip.
       if (primaryFontKey.startsWith("webfont:")) {
         const family = primaryFontKey.slice("webfont:".length);
-        const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
+        const cpVariant = pickWebfontVariantForCodepoint(
+          family,
+          weight,
+          fontSize,
+          slant,
+          cp,
+          variationSettings,
+          stretch,
+        );
         if (cpVariant != null && glyphIdForCp(cpVariant, cp) !== 0) {
           continue;
         }
@@ -2194,7 +2532,12 @@ function splitTextIntoFontRuns(
     const byChain = new Map<string, { chain: string[]; cps: number[] }>();
     for (const cp of uncovered) {
       const chain = fallbackFontChain(cp, primaryFontKey, lang, {
-        weight, slant, fontSize, stretch, fontVariantEmoji, ...semanticContext,
+        weight,
+        slant,
+        fontSize,
+        stretch,
+        fontVariantEmoji,
+        ...semanticContext,
       });
       if (chain.length === 0) continue;
       const key = chain.join("\0");
@@ -2247,13 +2590,32 @@ function splitTextIntoFontRuns(
       else hbDottedCircleRun = null;
     }
     if (clusterRun == null) {
-      const markForCluster = (cp === 0x25CC && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp)))
-        ? nextCp
-        : (chIsMark && !clusterHasBase) ? cp
-        : 0;
+      const markForCluster =
+        cp === 0x25cc && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp))
+          ? nextCp
+          : chIsMark && !clusterHasBase
+            ? cp
+            : 0;
       if (markForCluster !== 0) {
-        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, undefined, undefined, fontFamily, semanticContext);
-        if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
+        const hbRun = resolveDottedCircleHbRun(
+          markForCluster,
+          primaryFont,
+          primaryFontKey,
+          weight,
+          fontSize,
+          slant,
+          variationSettings,
+          lang,
+          fontKeyChain,
+          undefined,
+          undefined,
+          fontFamily,
+          semanticContext,
+        );
+        if (hbRun != null) {
+          hbDottedCircleRun = hbRun;
+          clusterRun = hbRun;
+        }
       }
     }
     if (/\s/.test(ch) && ch.length === 1) clusterHasBase = false;
@@ -2270,13 +2632,28 @@ function splitTextIntoFontRuns(
     // (`decomposed` is unused here — the embedded loop always renders run.text.)
     // Explicit VS15/VS16 wins over `font-variant-emoji` (`HasVSFallbackPriority`,
     // `harfbuzz_shaper.cc:184-198`, rev 7d859f27).
-    const effFve = (nextCp === 0xFE0E || nextCp === 0xFE0F) ? undefined : fontVariantEmoji;
-    const res = clusterRun != null ? null : resolveFontForCodepoint(
-      cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-      variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve,
-      fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation,
-      semanticContext,
-    );
+    const effFve = nextCp === 0xfe0e || nextCp === 0xfe0f ? undefined : fontVariantEmoji;
+    const res =
+      clusterRun != null
+        ? null
+        : resolveFontForCodepoint(
+            cp,
+            primaryFont,
+            primaryFontKey,
+            weight,
+            fontSize,
+            slant,
+            variationSettings,
+            lang,
+            fontKeyChain,
+            systemUiPrimary,
+            stretch,
+            effFve,
+            fontFamily,
+            fallbackRequest?.rawSlope,
+            fallbackRequest?.orientation,
+            semanticContext,
+          );
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;
     const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
@@ -2286,8 +2663,19 @@ function splitTextIntoFontRuns(
       // DM-1103: for the primary key use the resolved `primaryFont` directly so
       // the optical-cut opsz (injected by resolveFont from the family name)
       // survives — re-resolving via the collapsed key would lose it.
-      const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
-      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey, routeMechanism: legacyMechanism });
+      const f =
+        curFontOverride ??
+        (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
+      if (f != null)
+        runs.push({
+          fontKey: curKey,
+          font: f,
+          text: curText,
+          startIdx: curStart,
+          endIdx: i,
+          isPrimary: curKey === primaryFontKey,
+          routeMechanism: legacyMechanism,
+        });
       curText = "";
       curStart = i;
     }
@@ -2300,12 +2688,31 @@ function splitTextIntoFontRuns(
     const fvs = curKey === primaryFontKey ? variationSettings : undefined;
     // DM-1103: prefer the resolved `primaryFont` for the primary key (keeps the
     // optical-cut opsz; see above).
-    const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
-    runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey, routeMechanism: legacyMechanism });
+    const f =
+      curFontOverride ??
+      (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ??
+      primaryFont;
+    runs.push({
+      fontKey: curKey,
+      font: f,
+      text: curText,
+      startIdx: curStart,
+      endIdx: text.length,
+      isPrimary: curKey === primaryFontKey,
+      routeMechanism: legacyMechanism,
+    });
   }
   for (const run of runs) {
-    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant,
-      run.isPrimary ? variationSettings : undefined, run.text, features);
+    run.font = harfbuzzShapedRunOverride(
+      run.font,
+      run.fontKey,
+      weight,
+      fontSize,
+      slant,
+      run.isPrimary ? variationSettings : undefined,
+      run.text,
+      features,
+    );
   }
   return runs;
 }
@@ -2339,15 +2746,14 @@ export interface EmbeddedTextAttempt {
   markup: string | null;
   decline?: {
     reason: EmbeddedTextDeclineReason;
-    glyphDisposition?: Exclude<ReturnType<typeof resolveGlyphCommands>["disposition"], "source-outline" | "helper-outline" | "legitimately-inkless">;
+    glyphDisposition?: Exclude<
+      ReturnType<typeof resolveGlyphCommands>["disposition"],
+      "source-outline" | "helper-outline" | "legitimately-inkless"
+    >;
   };
 }
 
-const LINUX_GEOMETRIC_PRECISION_FACES = new Set([
-  "WenQuanYiZenHei",
-  "WenQuanYi Zen Hei",
-  "WenQuanYiZenHeiMono",
-]);
+const LINUX_GEOMETRIC_PRECISION_FACES = new Set(["WenQuanYiZenHei", "WenQuanYi Zen Hei", "WenQuanYiZenHeiMono"]);
 const LINUX_TARGET_STRIKES = new Set([
   "WenQuanYiZenHeiMono|17|400",
   "WenQuanYiZenHeiMono|26|700",
@@ -2379,13 +2785,15 @@ export function embeddedLinuxTargetStrikeEnabled(
   authoredTextRendering = "auto",
   enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== "0",
 ): boolean {
-  return enabled
-    && capturePlatform === "linux"
-    && sourcePostscriptName != null
-    && LINUX_TARGET_STRIKES.has(`${sourcePostscriptName}|${fontSizePx}|${weight}`)
-    && slant === 0
-    && stretch === 100
-    && authoredTextRendering.toLowerCase() === "auto";
+  return (
+    enabled &&
+    capturePlatform === "linux" &&
+    sourcePostscriptName != null &&
+    LINUX_TARGET_STRIKES.has(`${sourcePostscriptName}|${fontSizePx}|${weight}`) &&
+    slant === 0 &&
+    stretch === 100 &&
+    authoredTextRendering.toLowerCase() === "auto"
+  );
 }
 
 /** Blink rounds synthesized-small-caps sizes before constructing the scaled
@@ -2412,10 +2820,23 @@ export function embeddedLinuxTargetStrikeSizes(
   enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== "0",
 ): number[] | null {
   const sizes = [...new Set(glyphScales.map((scale) => effectiveGlyphFontSize(fontSizePx, scale)))];
-  if (sizes.length === 0 || sizes.some((size) => !embeddedLinuxTargetStrikeEnabled(
-    capturePlatform, sourcePostscriptName, size, weight, slant, stretch,
-    authoredTextRendering, enabled,
-  ))) return null;
+  if (
+    sizes.length === 0 ||
+    sizes.some(
+      (size) =>
+        !embeddedLinuxTargetStrikeEnabled(
+          capturePlatform,
+          sourcePostscriptName,
+          size,
+          weight,
+          slant,
+          stretch,
+          authoredTextRendering,
+          enabled,
+        ),
+    )
+  )
+    return null;
   return sizes;
 }
 
@@ -2434,7 +2855,7 @@ export function targetStrikeVerticalCommands(
     if (design.command !== hinted.command || design.args.length !== hinted.args.length) return null;
     out.push({
       command: design.command,
-      args: design.args.map((value, argIndex) => argIndex % 2 === 0 ? value * xScale : hinted.args[argIndex]),
+      args: design.args.map((value, argIndex) => (argIndex % 2 === 0 ? value * xScale : hinted.args[argIndex])),
     });
   }
   return out;
@@ -2465,9 +2886,15 @@ export function embeddedSystemFontTextRendering(
   // the exact WQY faces for which both the phase oracle and fixture corpus show
   // improvement. The env seam can replace this set for future A/B evidence;
   // it never changes face selection or permits host-font passthrough.
-  const allowed = allowlist == null
-    ? LINUX_GEOMETRIC_PRECISION_FACES
-    : new Set(allowlist.split(",").map((name) => name.trim()).filter(Boolean));
+  const allowed =
+    allowlist == null
+      ? LINUX_GEOMETRIC_PRECISION_FACES
+      : new Set(
+          allowlist
+            .split(",")
+            .map((name) => name.trim())
+            .filter(Boolean),
+        );
   if (sourcePostscriptName == null || !allowed.has(sourcePostscriptName)) return null;
   return "geometricPrecision";
 }
@@ -2544,7 +2971,24 @@ function renderEmbeddedGlyphRuns(
   // that shares the collapsed `sf-pro` key at the same weight/slant.
   const primaryCutOpsz = opticalCutOpszFor(fontFamily, lang);
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, fontVariantEmoji, fontFamily, features, bidiOverride, fallbackRequest);
+  const runs = splitTextIntoFontRuns(
+    text,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    fontKeyChain,
+    stackPrimaryIsSystemUi(fontFamily, lang),
+    stretch,
+    fontVariantEmoji,
+    fontFamily,
+    features,
+    bidiOverride,
+    fallbackRequest,
+  );
   if (runs.length === 0) return { markup: null, decline: { reason: "empty-shaped-runs" } };
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -2560,17 +3004,22 @@ function renderEmbeddedGlyphRuns(
     }
   }
   recordRendererRuns("embedded-font", text, runs, {
-    fontFamily, fontWeight: weight, fontStyle, fontStretch: stretch, fontSizePx: fontSize,
-    variationSettings, features, language: lang, fontVariantEmoji,
+    fontFamily,
+    fontWeight: weight,
+    fontStyle,
+    fontStretch: stretch,
+    fontSizePx: fontSize,
+    variationSettings,
+    features,
+    language: lang,
+    fontVariantEmoji,
   });
 
   // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
   // captured Chrome `fontBoundingBoxAscent` when provided (matches what
   // Chrome's text engine measured on the original page); else fall back
   // to the primary font's HHEA ascent scaled to fontSize.
-  const baselineY = embeddedBaselineY(
-    y, fontSize, primaryFont.unitsPerEm, primaryFont.ascent, ascentOverride,
-  );
+  const baselineY = embeddedBaselineY(y, fontSize, primaryFont.unitsPerEm, primaryFont.ascent, ascentOverride);
 
   const esc = escAttr;
   // void: silence "unused" when the helper isn't called below (path varies).
@@ -2642,7 +3091,8 @@ function renderEmbeddedGlyphRuns(
   // cache on the SAME text the layout() call will, or it wouldn't hit.
   function computeRunShaping(run: FontRun): { shapingText: string; perCharScale: number[] } {
     const availableFeatures = Array.isArray((run.font as { availableFeatures?: string[] }).availableFeatures)
-      ? ((run.font as { availableFeatures: string[] }).availableFeatures) : [];
+      ? (run.font as { availableFeatures: string[] }).availableFeatures
+      : [];
     // DM-1971: same narrow veto as the paths branch — see `capsSynthOk` there.
     // Reporting the feature as PRESENT is how the veto is expressed: every
     // synthesis site below is `want<F> && !fontHas("<f>")`, so a present
@@ -2652,11 +3102,21 @@ function renderEmbeddedGlyphRuns(
     const fontHas = (f: string) => !capsSynthOk || availableFeatures.includes(f);
     let synthLower = 1; // scale for lowercase letters
     let synthUpper = 1; // scale for same-case chars (upper / digit / punct / symbol)
-    if (wantSmcp && !fontHas("smcp")) { synthLower = SMALL_CAP_SCALE; }
-    if (wantPcap && !fontHas("pcap")) { synthLower = SMALL_CAP_SCALE; }
-    if (wantC2sc && !fontHas("c2sc")) { synthUpper = SMALL_CAP_SCALE; }
-    if (wantC2pc && !fontHas("c2pc")) { synthUpper = SMALL_CAP_SCALE; }
-    if (wantUnic && !fontHas("unic")) { synthUpper = SMALL_CAP_SCALE; /* lowercase stays 1.0 per CSS Fonts 4 §3.5 */ }
+    if (wantSmcp && !fontHas("smcp")) {
+      synthLower = SMALL_CAP_SCALE;
+    }
+    if (wantPcap && !fontHas("pcap")) {
+      synthLower = SMALL_CAP_SCALE;
+    }
+    if (wantC2sc && !fontHas("c2sc")) {
+      synthUpper = SMALL_CAP_SCALE;
+    }
+    if (wantC2pc && !fontHas("c2pc")) {
+      synthUpper = SMALL_CAP_SCALE;
+    }
+    if (wantUnic && !fontHas("unic")) {
+      synthUpper = SMALL_CAP_SCALE; /* lowercase stays 1.0 per CSS Fonts 4 §3.5 */
+    }
     const doSynth = synthLower !== 1 || synthUpper !== 1;
     const perCharScale: number[] = new Array(run.text.length).fill(1);
     if (!doSynth) return { shapingText: run.text, perCharScale };
@@ -2708,12 +3168,22 @@ function renderEmbeddedGlyphRuns(
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
     const { shapingText, perCharScale } = computeRunShaping(run);
-    let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters?: number[] };
+    let layout: {
+      glyphs: Array<{
+        id: number;
+        path: { commands: Array<{ command: string; args: number[] }> };
+        advanceWidth: number;
+        codePoints?: number[];
+      }>;
+      positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+      clusters?: number[];
+    };
     try {
       const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
-      layout = features != null && features.length > 0
-        ? run.font.layout(shapingText, fontkitFeatureList(features), run.shapingScript, lang, runDirection)
-        : run.font.layout(shapingText, undefined, run.shapingScript, lang, runDirection);
+      layout =
+        features != null && features.length > 0
+          ? run.font.layout(shapingText, fontkitFeatureList(features), run.shapingScript, lang, runDirection)
+          : run.font.layout(shapingText, undefined, run.shapingScript, lang, runDirection);
     } catch {
       return { markup: null, decline: { reason: "layout-failed" } };
     }
@@ -2729,10 +3199,9 @@ function renderEmbeddedGlyphRuns(
     // ICU-name segmenter (Arabic); blinkSuppressesInterLetterSpacing accepts
     // both representations.
     const inferredRunSegments = run.shapingScript == null ? segmentForShaping(run.text) : [];
-    const placementScript = run.shapingScript
-      ?? (inferredRunSegments.length === 1 ? inferredRunSegments[0].script : undefined);
-    const useNativeCursivePlacement = placementScript != null
-      && blinkSuppressesInterLetterSpacing(placementScript);
+    const placementScript =
+      run.shapingScript ?? (inferredRunSegments.length === 1 ? inferredRunSegments[0].script : undefined);
+    const useNativeCursivePlacement = placementScript != null && blinkSuppressesInterLetterSpacing(placementScript);
     let nativeCursiveOriginCss = cssX;
     if (useNativeCursivePlacement && xOffsets != null) {
       let minX = Infinity;
@@ -2747,9 +3216,14 @@ function renderEmbeddedGlyphRuns(
     // text runs that resolve to the same font at the same axis values share
     // one custom TTF; runs at a different `wght`/`opsz` get their own TTF
     // because the baked glyph outlines differ.
-    const fvsTuple = run.isPrimary && variationSettings != null
-      ? "|" + Object.keys(variationSettings).sort().map((k) => `${k}=${variationSettings[k]}`).join(",")
-      : "";
+    const fvsTuple =
+      run.isPrimary && variationSettings != null
+        ? "|" +
+          Object.keys(variationSettings)
+            .sort()
+            .map((k) => `${k}=${variationSettings[k]}`)
+            .join(",")
+        : "";
     // DM-1103: the optical-cut opsz is pinned on `run.font` (not in
     // variationSettings), so fold it into the key too — otherwise a cut run and
     // a generic run with the same key/weight/slant would share one TTF.
@@ -2763,9 +3237,14 @@ function renderEmbeddedGlyphRuns(
     // wavy-underline fixture's 36px row rendered with opsz-13 outlines: ~1px
     // ink shift and subtly wrong shapes ("font size doesn't seem right").
     const srcInfo = getFontSourceInfo(run.font);
-    const axesTuple = srcInfo?.variationAxes != null && Object.keys(srcInfo.variationAxes).length > 0
-      ? "|ax=" + Object.keys(srcInfo.variationAxes).sort().map((k) => `${k}=${srcInfo.variationAxes![k]}`).join(",")
-      : "";
+    const axesTuple =
+      srcInfo?.variationAxes != null && Object.keys(srcInfo.variationAxes).length > 0
+        ? "|ax=" +
+          Object.keys(srcInfo.variationAxes)
+            .sort()
+            .map((k) => `${k}=${srcInfo.variationAxes![k]}`)
+            .join(",")
+        : "";
 
     // Ascent/descent are font-wide metrics that drive baseline placement
     // when the consumer browser lays out our PUA codepoints. Use the run
@@ -2785,8 +3264,10 @@ function renderEmbeddedGlyphRuns(
     const faceLacksWeight = faceNeedsSyntheticBold(run.font, weight, fontSynthesis);
     const runStrokeFirst = paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder);
     const fakeBoldPaint = resolveFakeBoldTextPaint({
-      strokeWidthPx: (textStrokeWidth != null && textStrokeWidth > 0
-        && textStrokeColor != null && textStrokeColor !== "") ? textStrokeWidth : 0,
+      strokeWidthPx:
+        textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== ""
+          ? textStrokeWidth
+          : 0,
       strokeFirst: runStrokeFirst,
       fillIsTransparent: isFullyTransparentColor(fill),
       faceLacksWeight,
@@ -2800,7 +3281,8 @@ function renderEmbeddedGlyphRuns(
     // gate). Paths mode applies the same factor as a group `skewX`; the
     // WHETHER is the shared predicate, only the HOW differs. DM-1984.
     const shearFactor = faceNeedsSyntheticOblique(run.font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
-      ? OBLIQUE_SHEAR : 0;
+      ? OBLIQUE_SHEAR
+      : 0;
 
     // DM-1722 / DM-2390: for a STATIC-weight source on the hinted path (no
     // wght axis), the glyph outlines are identical at every requested
@@ -2822,17 +3304,14 @@ function renderEmbeddedGlyphRuns(
     // outlines: measured 4665 vs 4680 path chars for the same glyph id) into one
     // shared entry, the exact first-seen-face-wins bug the comment above
     // describes. Fall back to per-weight keying when the member can't be named.
-    const staticWeightShared = srcInfo != null && srcInfo.nameMatched && srcInfo.faceIndex != null
-      && srcInfo.variationAxes?.wght == null;
-    const weightPart = staticWeightShared
-      ? `w=*|src=${srcInfo!.path}#${srcInfo!.faceIndex}`
-      : `w=${weight}`;
+    const staticWeightShared =
+      srcInfo != null && srcInfo.nameMatched && srcInfo.faceIndex != null && srcInfo.variationAxes?.wght == null;
+    const weightPart = staticWeightShared ? `w=*|src=${srcInfo!.path}#${srcInfo!.faceIndex}` : `w=${weight}`;
     // Only synthesis that changes the embedded glyph belongs in the subset
     // identity. Bold now changes paint records, not outlines; oblique still
     // shears the outline and therefore remains keyed.
     const synthPart = `|sh=${shearFactor}`;
     const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`;
-
 
     // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
     // embedded builder can hb-subset the ORIGINAL (hinted) font instead of the
@@ -2851,9 +3330,7 @@ function renderEmbeddedGlyphRuns(
       undefined,
       authoredTextRendering,
     );
-    const ordinaryTextRenderingAttr = ordinaryTextRendering == null
-      ? ""
-      : ` text-rendering="${ordinaryTextRendering}"`;
+    const ordinaryTextRenderingAttr = ordinaryTextRendering == null ? "" : ` text-rendering="${ordinaryTextRendering}"`;
 
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
@@ -2893,7 +3370,9 @@ function renderEmbeddedGlyphRuns(
     let runIsRtl = false;
     if (run.text.length >= 2 && layout.glyphs.length >= 1) {
       const firstTextCp = run.text.codePointAt(0);
-      const lastTextCp = run.text.codePointAt(run.text.length - (run.text.codePointAt(run.text.length - 2)! > 0xFFFF ? 2 : 1));
+      const lastTextCp = run.text.codePointAt(
+        run.text.length - (run.text.codePointAt(run.text.length - 2)! > 0xffff ? 2 : 1),
+      );
       // DM-1849: a `.notdef` (id 0) never identifies a codepoint. fontkit
       // memoizes ONE Glyph per glyph id, so every uncovered codepoint in a font
       // shares one `.notdef` instance whose `codePoints` is whichever codepoint
@@ -2945,21 +3424,29 @@ function renderEmbeddedGlyphRuns(
       for (const glyph of layout.glyphs) {
         const cps = glyph.codePoints;
         const span = sourceClusterSpan(
-          run.text, scaleTextIdx, cps != null && cps.length > 0 ? cps.length : 1, runIsRtl,
+          run.text,
+          scaleTextIdx,
+          cps != null && cps.length > 0 ? cps.length : 1,
+          runIsRtl,
         );
         if (runIsRtl) scaleTextIdx -= span;
         glyphScales.push(perCharScale[scaleTextIdx] ?? 1);
         if (!runIsRtl) scaleTextIdx += span;
       }
     }
-    const candidateStrikeSizes = srcInfo?.faceIndex != null
-      && shearFactor === 0
-      && (textStrokeWidth == null || textStrokeWidth === 0)
-      ? embeddedLinuxTargetStrikeSizes(
-        process.platform, srcInfo.postscriptName, fontSize, glyphScales,
-        weight, slant, stretch, authoredTextRendering,
-      )
-      : null;
+    const candidateStrikeSizes =
+      srcInfo?.faceIndex != null && shearFactor === 0 && (textStrokeWidth == null || textStrokeWidth === 0)
+        ? embeddedLinuxTargetStrikeSizes(
+            process.platform,
+            srcInfo.postscriptName,
+            fontSize,
+            glyphScales,
+            weight,
+            slant,
+            stretch,
+            authoredTextRendering,
+          )
+        : null;
     let targetStrikeCommandsBySize: Map<number, Map<number, PathCommand[]>> | null = null;
     if (candidateStrikeSizes != null) {
       const planned = new Map<number, Map<number, PathCommand[]>>();
@@ -2969,12 +3456,16 @@ function renderEmbeddedGlyphRuns(
         const glyphIds = layout.glyphs
           .filter((_glyph, glyphIndex) => effectiveGlyphFontSize(fontSize, glyphScales[glyphIndex]) === targetSize)
           .map((glyph) => glyph.id);
-        const hintedGlyphs = linuxTargetStrikeGlyphs({
-          postscriptName: srcInfo!.postscriptName,
-          fontPath: srcInfo!.path,
-          faceIndex: srcInfo!.faceIndex!,
-          variations: srcInfo!.variationAxes,
-        }, targetSize, glyphIds);
+        const hintedGlyphs = linuxTargetStrikeGlyphs(
+          {
+            postscriptName: srcInfo!.postscriptName,
+            fontPath: srcInfo!.path,
+            faceIndex: srcInfo!.faceIndex!,
+            variations: srcInfo!.variationAxes,
+          },
+          targetSize,
+          glyphIds,
+        );
         if (hintedGlyphs == null) {
           topologyMatches = false;
           break;
@@ -2987,9 +3478,8 @@ function renderEmbeddedGlyphRuns(
           const designCommands = hinted?.designCommands ?? [];
           // Spaces and other genuinely inkless glyphs never enter the subset.
           if (designCommands.length === 0) continue;
-          const commands = hinted == null
-            ? null
-            : targetStrikeVerticalCommands(designCommands, hinted.commands, xScale);
+          const commands =
+            hinted == null ? null : targetStrikeVerticalCommands(designCommands, hinted.commands, xScale);
           if (commands == null || commands.length === 0) {
             topologyMatches = false;
             break;
@@ -3048,8 +3538,7 @@ function renderEmbeddedGlyphRuns(
       // source cluster to U+200B upstream collapsed that advance; embedding an
       // empty PUA glyph here risks the consumer painting `.notdef`. The raster
       // overlay owns the paint, while this shaped glyph still owns placement.
-      const rasterOwned = glyphUsesRasterRepresentation(
-        run.font, run.fontKey, glyph, fontSize, weight, slant);
+      const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
       const commandResolution = rasterOwned
         ? null
         : resolveGlyphCommands(glyph, run.fontKey, weight, fontSize, slant, undefined, run.font);
@@ -3079,8 +3568,7 @@ function renderEmbeddedGlyphRuns(
           if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
             clusterAnchorCss = xOffsets[wholeTextIdx];
           } else {
-            const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
-              ? xOffsets[run.startIdx] : cssX;
+            const runOriginCss = xOffsets != null && xOffsets[run.startIdx] != null ? xOffsets[run.startIdx] : cssX;
             clusterAnchorCss = runOriginCss + runCursorFontUnits * runScale;
             allGlyphsHaveXOffset = false;
           }
@@ -3099,10 +3587,17 @@ function renderEmbeddedGlyphRuns(
           // aliased by a shared Glyph the way `codePoints` can.
           const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
           if (cpCl != null && xOffsets != null) {
-            const nextCharIdx = wholeTextIdx + (cpCl > 0xFFFF ? 2 : 1);
+            const nextCharIdx = wholeTextIdx + (cpCl > 0xffff ? 2 : 1);
             if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
-              trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cpCl,
-                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx], fontSize, runScale);
+              trimShiftFU = cjkTrimShiftFontUnits(
+                run.font,
+                run.fontKey,
+                glyph,
+                cpCl,
+                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx],
+                fontSize,
+                runScale,
+              );
             }
           }
           xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset + trimShiftFU) * runScale;
@@ -3119,8 +3614,7 @@ function renderEmbeddedGlyphRuns(
         // intra-run textIdx to look it up.
         // Compute the cluster's UTF-16 char span (size in run.text).
         const cps = glyph.codePoints;
-        const span = sourceClusterSpan(
-          run.text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, runIsRtl);
+        const span = sourceClusterSpan(run.text, textIdx, cps != null && cps.length > 0 ? cps.length : 1, runIsRtl);
         // For RTL runs, textIdx walks backwards: the cluster's first
         // logical char sits at (textIdx - span), so subtract BEFORE lookup
         // so the lookup index lands on the cluster's first char.
@@ -3137,10 +3631,17 @@ function renderEmbeddedGlyphRuns(
           // DM-1849: source first, as above.
           const cp0 = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
           if (cp0 != null) {
-            const nextCharIdx = wholeTextIdx + (cp0 > 0xFFFF ? 2 : 1);
+            const nextCharIdx = wholeTextIdx + (cp0 > 0xffff ? 2 : 1);
             if (xOffsets[nextCharIdx] != null) {
-              const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cp0,
-                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx], fontSize, runScale);
+              const shiftFU = cjkTrimShiftFontUnits(
+                run.font,
+                run.fontKey,
+                glyph,
+                cp0,
+                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx],
+                fontSize,
+                runScale,
+              );
               if (shiftFU !== 0) xCss = xCss + shiftFU * runScale;
             }
           }
@@ -3149,8 +3650,7 @@ function renderEmbeddedGlyphRuns(
           // Anchored at run.startIdx + 0 if xOffsets exists for the run's
           // first char (so subsequent glyphs in the run remain run-relative
           // when xOffsets gap mid-run).
-          const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
-            ? xOffsets[run.startIdx] : cssX;
+          const runOriginCss = xOffsets != null && xOffsets[run.startIdx] != null ? xOffsets[run.startIdx] : cssX;
           xCss = runOriginCss + runCursorFontUnits * runScale;
           allGlyphsHaveXOffset = false;
         }
@@ -3187,10 +3687,12 @@ function renderEmbeddedGlyphRuns(
       // Falls back to `codePoints` only when the index is out of range, which
       // means the cluster map disagreed with the text.
       const srcCpForInk = glyphSrcIdx != null ? text.codePointAt(glyphSrcIdx) : undefined;
-      const glyphInkless = srcCpForInk != null
-        ? isLegitimatelyInklessCodepoint(srcCpForInk)
-        : (glyph.codePoints != null && glyph.codePoints.length > 0
-          && glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp)));
+      const glyphInkless =
+        srcCpForInk != null
+          ? isLegitimatelyInklessCodepoint(srcCpForInk)
+          : glyph.codePoints != null &&
+            glyph.codePoints.length > 0 &&
+            glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp));
       let placement: ReturnType<typeof trackGlyphInEmbedFont> = null;
       if (rasterOwned) {
         rasterOwnedGlyphs++;
@@ -3201,21 +3703,17 @@ function renderEmbeddedGlyphRuns(
           markup: null,
           decline: {
             reason: "glyph-outline-unavailable",
-            ...(commandResolution == null
-              || commandResolution.disposition === "source-outline"
-              || commandResolution.disposition === "helper-outline"
-              || commandResolution.disposition === "legitimately-inkless"
+            ...(commandResolution == null ||
+            commandResolution.disposition === "source-outline" ||
+            commandResolution.disposition === "helper-outline" ||
+            commandResolution.disposition === "legitimately-inkless"
               ? {}
               : { glyphDisposition: commandResolution.disposition }),
           },
         };
       } else {
-        const targetSize = targetStrikeActive
-          ? effectiveGlyphFontSize(fontSize, glyphScale)
-          : null;
-        const targetCommands = targetSize == null
-          ? null
-          : targetStrikeCommandsBySize!.get(targetSize)?.get(glyph.id);
+        const targetSize = targetStrikeActive ? effectiveGlyphFontSize(fontSize, glyphScale) : null;
+        const targetCommands = targetSize == null ? null : targetStrikeCommandsBySize!.get(targetSize)?.get(glyph.id);
         // Activation is all-or-nothing for a run. Every effective size gets a
         // distinct TTF because its hinted coordinates use a different
         // units-per-em space; decline if an alternate outline backend found ink
@@ -3223,16 +3721,17 @@ function renderEmbeddedGlyphRuns(
         if (targetStrikeActive && targetCommands == null) {
           return { markup: null, decline: { reason: "glyph-outline-unavailable" } };
         }
-        const trackedUnitsPerEm = targetSize == null
-          ? run.font.unitsPerEm
-          : Math.round(targetSize * 64);
+        const trackedUnitsPerEm = targetSize == null ? run.font.unitsPerEm : Math.round(targetSize * 64);
         const metricScale = trackedUnitsPerEm / run.font.unitsPerEm;
-        const placementInstanceKey = targetSize == null
-          ? instanceKey
-          : `${instanceKey}|strike-y=${targetSize}`;
+        const placementInstanceKey = targetSize == null ? instanceKey : `${instanceKey}|strike-y=${targetSize}`;
         placement = trackGlyphInEmbedFont(
-          placementInstanceKey, trackedUnitsPerEm, runAscent * metricScale, runDescent * metricScale,
-          glyph.id, targetCommands ?? commandResolution.commands, glyph.advanceWidth * metricScale,
+          placementInstanceKey,
+          trackedUnitsPerEm,
+          runAscent * metricScale,
+          runDescent * metricScale,
+          glyph.id,
+          targetCommands ?? commandResolution.commands,
+          glyph.advanceWidth * metricScale,
           // The descriptor exactly matches the already-resolved/baked face;
           // the consumer browser performs neither face selection nor shaping.
           { italic: slant !== 0, weight, shearFactor, hintedSource, targetStrike: targetStrikeActive, runToken: run },
@@ -3251,9 +3750,7 @@ function renderEmbeddedGlyphRuns(
           // Target-strike outlines already carry FreeType's concrete 26.6-grid
           // y coordinates. geometricPrecision prevents the consumer's
           // family-less custom-font scaler from applying a second hint pass.
-          textRenderingAttr: targetStrikeActive
-            ? ' text-rendering="geometricPrecision"'
-            : ordinaryTextRenderingAttr,
+          textRenderingAttr: targetStrikeActive ? ' text-rendering="geometricPrecision"' : ordinaryTextRenderingAttr,
         });
       }
       // DM-2020: HarfBuzz doesn't just hide a default-ignorable's ink after
@@ -3297,25 +3794,35 @@ function renderEmbeddedGlyphRuns(
     // trackGlyphInEmbedFont above), but keep it on the element anyway —
     // costs nothing and helps when the custom TTF is opened by a tool
     // that does honor variation tables.
-    const italicAttr = (fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal")
-      ? ` font-style="${esc(fontStyle)}"` : "";
+    const italicAttr =
+      fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal"
+        ? ` font-style="${esc(fontStyle)}"`
+        : "";
     const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
-    const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
-      ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
+    const fvsAttr =
+      variationSettings != null && Object.keys(variationSettings).length > 0
+        ? ` style="font-variation-settings: ${Object.entries(variationSettings)
+            .map(([k, v]) => `'${k}' ${v}`)
+            .join(", ")}"`
+        : "";
 
     pending.push({
-      perGlyph, weightAttr, italicAttr, fvsAttr,
+      perGlyph,
+      weightAttr,
+      italicAttr,
+      fvsAttr,
       paintPasses: fakeBoldPaint.svgPasses,
     });
     cssX += runCursorFontUnits * runScale;
   }
 
   if (pending.length === 0) {
-    const reason: EmbeddedTextDeclineReason = rasterOwnedGlyphs > 0 && inklessGlyphs === 0
-      ? "all-raster-owned"
-      : inklessGlyphs > 0 && rasterOwnedGlyphs === 0
-        ? "all-inkless"
-        : "no-emittable-glyphs";
+    const reason: EmbeddedTextDeclineReason =
+      rasterOwnedGlyphs > 0 && inklessGlyphs === 0
+        ? "all-raster-owned"
+        : inklessGlyphs > 0 && rasterOwnedGlyphs === 0
+          ? "all-inkless"
+          : "no-emittable-glyphs";
     return { markup: null, decline: { reason } };
   }
   const segments: string[] = [];
@@ -3328,8 +3835,7 @@ function renderEmbeddedGlyphRuns(
   // every glyph at Chrome's painted position, so an additional scale
   // would mis-position), scale every glyph's xCss by `targetWidth /
   // cssX`. Otherwise emit unchanged.
-  const xScale = (targetWidth != null && targetWidth > 0 && cssX > 0 && !allGlyphsHaveXOffset)
-    ? targetWidth / cssX : 1;
+  const xScale = targetWidth != null && targetWidth > 0 && cssX > 0 && !allGlyphsHaveXOffset ? targetWidth / cssX : 1;
   // Position each glyph with the `<text>` `x` positional list — one value
   // per glyph — instead of wrapping each in its own `<tspan>` (DM-841). The
   // explicit per-glyph x is still required: the custom subset TTF carries no
@@ -3349,10 +3855,13 @@ function renderEmbeddedGlyphRuns(
       const firstGlyph = p.perGlyph[runStart];
       const runScale = firstGlyph.scale;
       let runEnd = runStart + 1;
-      while (runEnd < p.perGlyph.length
-          && p.perGlyph[runEnd].scale === runScale
-          && p.perGlyph[runEnd].cssFamily === firstGlyph.cssFamily
-          && p.perGlyph[runEnd].textRenderingAttr === firstGlyph.textRenderingAttr) runEnd++;
+      while (
+        runEnd < p.perGlyph.length &&
+        p.perGlyph[runEnd].scale === runScale &&
+        p.perGlyph[runEnd].cssFamily === firstGlyph.cssFamily &&
+        p.perGlyph[runEnd].textRenderingAttr === firstGlyph.textRenderingAttr
+      )
+        runEnd++;
       const slice = p.perGlyph.slice(runStart, runEnd);
       const xList = slice.map((g) => r2(x + g.xCss * xScale)).join(" ");
       const puaStream = slice.map((g) => g.pua).join("");
@@ -3362,9 +3871,7 @@ function renderEmbeddedGlyphRuns(
       // case (all glyphs on the baseline) keeps the single `y` attribute and
       // the smaller markup.
       const anyY = slice.some((g) => g.yCss !== 0);
-      const yAttr = anyY
-        ? `y="${slice.map((g) => r2(baselineY + g.yCss)).join(" ")}"`
-        : `y="${r2(baselineY)}"`;
+      const yAttr = anyY ? `y="${slice.map((g) => r2(baselineY + g.yCss)).join(" ")}"` : `y="${r2(baselineY)}"`;
       const base = `<text x="${xList}" ${yAttr} font-family="${firstGlyph.cssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr}${firstGlyph.textRenderingAttr}`;
       const paint = {
         fill,
@@ -3417,10 +3924,29 @@ function renderTextAsEmbedded(
   authoredTextRendering?: string,
 ): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
-    text, x, y, fontSize, fontFamily, fontWeight, fill, xOffsets, fontStyle,
-    ascentOverride, features, lang, variationSettings, textStrokeWidth,
-    textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-    fontSynthesis, bidiOverride, fallbackRequest, authoredTextRendering,
+    text,
+    x,
+    y,
+    fontSize,
+    fontFamily,
+    fontWeight,
+    fill,
+    xOffsets,
+    fontStyle,
+    ascentOverride,
+    features,
+    lang,
+    variationSettings,
+    textStrokeWidth,
+    textStrokeColor,
+    paintOrder,
+    targetWidth,
+    fontStretch,
+    fontVariantEmoji,
+    fontSynthesis,
+    bidiOverride,
+    fallbackRequest,
+    authoredTextRendering,
   );
 }
 
@@ -3550,7 +4076,11 @@ export function glyphRasterRepresentation(
   // different outline, so the Chromium screenshot owns these glyph pixels.
   if (font.embeddedBitmapPaint === true) return "bitmap";
   if (glyph.type === "SBIX") {
-    try { if (glyph.getImageForSize?.(fontSize) != null) return "sbix"; } catch { /* use table/path evidence below */ }
+    try {
+      if (glyph.getImageForSize?.(fontSize) != null) return "sbix";
+    } catch {
+      /* use table/path evidence below */
+    }
   }
   if (glyph.type === "COLR" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return "colr";
   if (commandsFor(glyph, fontKey, weight, fontSize, slant, font).length > 0) return null;
@@ -3573,50 +4103,109 @@ export function selectedGlyphRasterSpans(
   text: string,
   candidates: Array<{ start: number; end: number }>,
   options: TextFontOptions,
-): Array<{ start: number; end: number; representation: GlyphRasterRepresentation; fontKey: string; faceId: string; glyphIds: number[]; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] }> {
+): Array<{
+  start: number;
+  end: number;
+  representation: GlyphRasterRepresentation;
+  fontKey: string;
+  faceId: string;
+  glyphIds: number[];
+  paletteEntryCount?: number;
+  paletteCount?: number;
+  paletteTypes?: number[];
+}> {
   if (text.length === 0 || candidates.length === 0) return [];
   const fontSize = options.fontSize;
   const fontFamily = options.fontFamily;
   const weight = cssWeightOf(options.fontWeight);
   const slant = slantForStyle(options.fontStyle);
   const stretch = stretchPercent(options.fontStretch);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, options.variationSettings, stretch, options.lang);
+  const primaryFont = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    options.variationSettings,
+    stretch,
+    options.lang,
+  );
   if (primaryFont == null) return [];
   const primaryKey = resolveFontKey(fontFamily, options.lang);
   const chain = resolveFontKeyChain(fontFamily, options.lang);
   const runs = splitTextIntoGlyphPathRuns(
-    text, primaryFont, primaryKey, weight, fontSize, slant,
-    options.variationSettings, options.lang, chain,
-    stackPrimaryIsSystemUi(fontFamily, options.lang), stretch,
-    options.fontVariantEmoji, fontFamily, options.features,
+    text,
+    primaryFont,
+    primaryKey,
+    weight,
+    fontSize,
+    slant,
+    options.variationSettings,
+    options.lang,
+    chain,
+    stackPrimaryIsSystemUi(fontFamily, options.lang),
+    stretch,
+    options.fontVariantEmoji,
+    fontFamily,
+    options.features,
   );
-  const out: Array<{ start: number; end: number; representation: GlyphRasterRepresentation; fontKey: string; faceId: string; glyphIds: number[]; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] }> = [];
+  const out: Array<{
+    start: number;
+    end: number;
+    representation: GlyphRasterRepresentation;
+    fontKey: string;
+    faceId: string;
+    glyphIds: number[];
+    paletteEntryCount?: number;
+    paletteCount?: number;
+    paletteTypes?: number[];
+  }> = [];
   for (const candidate of candidates) {
     const run = runs.find((r) => candidate.start >= r.startIdx && candidate.start < r.endIdx);
     if (run == null) continue;
     const source = text.slice(candidate.start, candidate.end);
-    let glyphs: Array<{ id: number; path: { commands: PathCommand[] }; type?: string; getImageForSize?: (size: number) => unknown; rasterRepresentation?: GlyphRasterRepresentation }>;
+    let glyphs: Array<{
+      id: number;
+      path: { commands: PathCommand[] };
+      type?: string;
+      getImageForSize?: (size: number) => unknown;
+      rasterRepresentation?: GlyphRasterRepresentation;
+    }>;
     try {
-      glyphs = run.font.layout(source, options.features != null ? fontkitFeatureList(options.features) : undefined).glyphs;
-    } catch { continue; }
+      glyphs = run.font.layout(
+        source,
+        options.features != null ? fontkitFeatureList(options.features) : undefined,
+      ).glyphs;
+    } catch {
+      continue;
+    }
     const fontWithColr = run.font as FontInstance & {
       COLR?: { baseGlyphRecord?: Array<{ gid: number }> };
       directory?: { tables?: Record<string, unknown> };
       CPAL?: { numPaletteEntries?: number; numPalettes?: number; offsetPaletteTypeArray?: number[] };
     };
-    const representation = glyphs.map((glyph) => glyphRasterRepresentation(
-      fontWithColr, run.fontKey, glyph, fontSize, weight, slant,
-    )).find((kind) => kind != null);
+    const representation = glyphs
+      .map((glyph) => glyphRasterRepresentation(fontWithColr, run.fontKey, glyph, fontSize, weight, slant))
+      .find((kind) => kind != null);
     const sourceInfo = getFontSourceInfo(run.font);
     const faceId = sourceInfo == null ? run.fontKey : `${sourceInfo.path}#${sourceInfo.faceIndex ?? 0}`;
-    if (representation != null) out.push({ ...candidate, representation, fontKey: run.fontKey, faceId, glyphIds: glyphs.map((glyph) => glyph.id), paletteEntryCount: fontWithColr.CPAL?.numPaletteEntries, paletteCount: fontWithColr.CPAL?.numPalettes, paletteTypes: fontWithColr.CPAL?.offsetPaletteTypeArray });
+    if (representation != null)
+      out.push({
+        ...candidate,
+        representation,
+        fontKey: run.fontKey,
+        faceId,
+        glyphIds: glyphs.map((glyph) => glyph.id),
+        paletteEntryCount: fontWithColr.CPAL?.numPaletteEntries,
+        paletteCount: fontWithColr.CPAL?.numPalettes,
+        paletteTypes: fontWithColr.CPAL?.offsetPaletteTypeArray,
+      });
   }
   return out;
 }
 
 /** Normalize `TextFontOptions.fontWeight` to the numeric CSS weight. */
 export function cssWeightOf(fontWeight: string | number): number {
-  return typeof fontWeight === "number" ? fontWeight : (parseFloat(fontWeight) || 400);
+  return typeof fontWeight === "number" ? fontWeight : parseFloat(fontWeight) || 400;
 }
 
 /** Options for `renderTextAsPath` beyond the shared font context. */
@@ -3688,10 +4277,14 @@ export function renderSourceOwnedTextBoundary(
   reason: SourceOwnedTextBoundaryReason,
   degraded: TextPathOwnership["degradedGlyphs"] = [],
 ): string {
-  const details = degraded.length === 0
-    ? ""
-    : ` data-domotion-text-degraded-spans="${escAttr(degraded.map((item) =>
-      `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
+  const details =
+    degraded.length === 0
+      ? ""
+      : ` data-domotion-text-degraded-spans="${escAttr(
+          degraded
+            .map((item) => `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`)
+            .join(","),
+        )}"`;
   const semantics = visualTextSemantics(text);
   return `<g${semantics.attrs} data-domotion-text-owner="source-boundary" data-domotion-text-boundary="${reason}"${details}>${semantics.title}</g>`;
 }
@@ -3700,16 +4293,28 @@ export function renderSourceOwnedTextBoundary(
  * Render text as SVG markup using path outlines with <defs>/<use> deduplication.
  * Returns a <g> element containing <use> references, positioned at (x, y) top.
  */
-export function renderTextAsPath(
-  text: string,
-  x: number,
-  y: number,
-  options: RenderTextOptions,
-): string {
-  const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
-    features, lang, variationSettings, textStrokeWidth, textStrokeColor,
-    paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji,
-    fontSynthesis, fontOrientation = 0, textRendering } = options;
+export function renderTextAsPath(text: string, x: number, y: number, options: RenderTextOptions): string {
+  const {
+    fontSize,
+    fontFamily,
+    fill,
+    targetWidth,
+    fontStyle,
+    ascentOverride,
+    features,
+    lang,
+    variationSettings,
+    textStrokeWidth,
+    textStrokeColor,
+    paintOrder,
+    dottedCircleMarks,
+    bidiOverride,
+    fontStretch,
+    fontVariantEmoji,
+    fontSynthesis,
+    fontOrientation = 0,
+    textRendering,
+  } = options;
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
   const weight = cssWeightOf(options.fontWeight);
@@ -3740,8 +4345,19 @@ export function renderTextAsPath(
   // embedded-font and glyph-path branches below receive the augmented text +
   // xOffsets. A no-op for text with no combining marks.
   ({ text, xOffsets } = insertSyntheticDottedCircles(
-    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang,
-    dottedCircleMarks, fontStretch, clusterFallbackEnabled(), fallbackRequest));
+    text,
+    xOffsets,
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    dottedCircleMarks,
+    fontStretch,
+    clusterFallbackEnabled(),
+    fallbackRequest,
+  ));
 
   // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for
   // (they otherwise fall through to a last-resort tofu box).
@@ -3764,10 +4380,31 @@ export function renderTextAsPath(
     // A classified null markup falls through to source glyph paths when the run
     // can't be embedded (font failed to resolve, layout threw, PUA-A exhausted,
     // etc.). No authored family is emitted at either terminal.
-    const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
-      xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
-      textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-      fontSynthesis, bidiOverride, fallbackRequest, textRendering);
+    const embedded = renderTextAsEmbedded(
+      text,
+      x,
+      y,
+      fontSize,
+      fontFamily,
+      fontWeight,
+      fill,
+      xOffsets,
+      fontStyle,
+      ascentOverride,
+      features,
+      lang,
+      variationSettings,
+      textStrokeWidth,
+      textStrokeColor,
+      paintOrder,
+      targetWidth,
+      fontStretch,
+      fontVariantEmoji,
+      fontSynthesis,
+      bidiOverride,
+      fallbackRequest,
+      textRendering,
+    );
     if (embedded.markup != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
       return embedded.markup;
@@ -3775,9 +4412,10 @@ export function renderTextAsPath(
     recordTextEmitterTransition({
       kind: "embedded-declined-to-paths",
       sourceText: text,
-      reason: embedded.decline?.glyphDisposition == null
-        ? embedded.decline?.reason
-        : `${embedded.decline.reason}:${embedded.decline.glyphDisposition}`,
+      reason:
+        embedded.decline?.glyphDisposition == null
+          ? embedded.decline?.reason
+          : `${embedded.decline.reason}:${embedded.decline.glyphDisposition}`,
     });
   }
 
@@ -3785,8 +4423,8 @@ export function renderTextAsPath(
   // paint plan. Keeping the concrete colors here lets the path emitter repeat
   // an unchanged outline for the two Skia passes required by opaque
   // `paint-order: stroke fill`; every other case safely coalesces to one pass.
-  const wantsTextStroke = textStrokeWidth != null && textStrokeWidth > 0
-    && textStrokeColor != null && textStrokeColor !== "";
+  const wantsTextStroke =
+    textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "";
   const runPaint: TextRunPaintOptions = {
     fill,
     strokeWidthPx: wantsTextStroke ? textStrokeWidth! : 0,
@@ -3796,8 +4434,24 @@ export function renderTextAsPath(
   };
   let result: TextPathResult | null;
   try {
-    result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings, bidiOverride, fontStretch, fontVariantEmoji, fontSynthesis,
-      runPaint, fallbackRequest);
+    result = textToPathMarkup(
+      text,
+      fontSize,
+      fontFamily,
+      fontWeight,
+      targetWidth,
+      xOffsets,
+      fontStyle,
+      features,
+      lang,
+      variationSettings,
+      bidiOverride,
+      fontStretch,
+      fontVariantEmoji,
+      fontSynthesis,
+      runPaint,
+      fallbackRequest,
+    );
   } catch {
     const reason = "path-layout-failed" as const;
     recordTextEmitterTransition({ kind: "paths-declined", sourceText: text, reason });
@@ -3811,25 +4465,31 @@ export function renderTextAsPath(
     return renderSourceOwnedTextBoundary(text, reason);
   }
   if (result.markup === "") {
-    const reason: SourceOwnedTextBoundaryReason = result.ownership.degradedGlyphs.length > 0
-      ? "path-outline-unavailable"
-      : result.ownership.rasterGlyphs > 0 && result.ownership.inklessGlyphs === 0
-        ? "path-all-raster-owned"
-        : result.ownership.inklessGlyphs > 0 && result.ownership.rasterGlyphs === 0
-          ? "path-all-inkless"
-          : "path-no-emittable-glyphs";
+    const reason: SourceOwnedTextBoundaryReason =
+      result.ownership.degradedGlyphs.length > 0
+        ? "path-outline-unavailable"
+        : result.ownership.rasterGlyphs > 0 && result.ownership.inklessGlyphs === 0
+          ? "path-all-raster-owned"
+          : result.ownership.inklessGlyphs > 0 && result.ownership.rasterGlyphs === 0
+            ? "path-all-inkless"
+            : "path-no-emittable-glyphs";
     recordTextEmitterTransition({
-      kind: "paths-declined", sourceText: text, reason,
+      kind: "paths-declined",
+      sourceText: text,
+      reason,
       degradedSpans: result.ownership.degradedGlyphs,
     });
     recordTextEmitterTransition({
-      kind: "source-owned-boundary", sourceText: text, reason,
+      kind: "source-owned-boundary",
+      sourceText: text,
+      reason,
       degradedSpans: result.ownership.degradedGlyphs,
     });
     return renderSourceOwnedTextBoundary(text, reason, result.ownership.degradedGlyphs);
   }
   recordTextEmitterTransition({
-    kind: "paths-succeeded", sourceText: text,
+    kind: "paths-succeeded",
+    sourceText: text,
     ...(result.ownership.degradedGlyphs.length === 0
       ? {}
       : { reason: "partial-source-outline", degradedSpans: result.ownership.degradedGlyphs }),
@@ -3868,9 +4528,7 @@ export function renderTextAsPath(
   // Suppressed under an ancestor CSS transform: Skia rounds in device space,
   // so a local-space snap under a scale/rotation would move glyphs AWAY from
   // Chrome's paint (see `pushBaselineSnapSuppression`).
-  const baselineY = baselineSnapSuppressionDepth > 0
-    ? y + ascent
-    : Math.floor(y + ascent + 0.5);
+  const baselineY = baselineSnapSuppressionDepth > 0 ? y + ascent : Math.floor(y + ascent + 0.5);
 
   // DM-719 / DM-2390: stroke widths are now attached to the actual per-run
   // path groups by `fakeBoldSvgPaintAttributes`, where each run's font-unit
@@ -3884,11 +4542,16 @@ export function renderTextAsPath(
   // Composed AFTER the translate, so the shear pivots on the baseline origin —
   // which is where Chrome's `SkFont.setSkewX` pivots too.
   const shear = faceNeedsSyntheticOblique(font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
-    ? ` matrix(1,0,${-OBLIQUE_SHEAR},1,0,0)` : "";
-  const degradedAttr = result.ownership.degradedGlyphs.length === 0
-    ? ""
-    : ` data-domotion-text-owner="source-partial" data-domotion-text-degraded-spans="${esc(result.ownership.degradedGlyphs.map((item) =>
-      `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`).join(","))}"`;
+    ? ` matrix(1,0,${-OBLIQUE_SHEAR},1,0,0)`
+    : "";
+  const degradedAttr =
+    result.ownership.degradedGlyphs.length === 0
+      ? ""
+      : ` data-domotion-text-owner="source-partial" data-domotion-text-degraded-spans="${esc(
+          result.ownership.degradedGlyphs
+            .map((item) => `${item.sourceSpan[0]}-${item.sourceSpan[1]}:${item.glyphId}:${item.disposition}`)
+            .join(","),
+        )}"`;
   const semantics = visualTextSemantics(text);
   return `<g transform="translate(${r2(x)},${r2(baselineY)})${shear}" fill="${fill}"${semantics.attrs}${degradedAttr}>${semantics.title}${result.markup}</g>`;
 }
@@ -3899,7 +4562,6 @@ export function renderTextAsPath(
 export function isTextToPathAvailable(fontFamily: string): boolean {
   return resolveFont(fontFamily, 400, 14) != null;
 }
-
 
 /** The decoration-specific CSS inputs to `getDecorationMetrics`. */
 export interface DecorationStyleOptions {
@@ -3976,9 +4638,7 @@ function decorationLengthPx(spec: string, fontSize: number, lengthScale = 1): nu
  * typo ascender is missing or non-positive, exactly as
  * `ComputeNormalizedTypoAscentAndDescent` does; 0 when nothing is usable.
  */
-function normalizedTypoDescentPx(
-  fontSize: number, font: FontInstance | null, ascF: number, descF: number,
-): number {
+function normalizedTypoDescentPx(fontSize: number, font: FontInstance | null, ascF: number, descF: number): number {
   const tryNorm = (a: number, d: number): number | null => {
     const height = a + d;
     if (height <= 0 || a < 0 || a > height) return null;
@@ -4045,12 +4705,24 @@ export function getDecorationMetrics(
 ): DecorationMetrics {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const {
-    thicknessOverride, underlineOffsetCss, underlinePositionCss, lengthScale = 1,
-    baselineType = "alphabetic", flipUnderlineAndOverline = false,
+    thicknessOverride,
+    underlineOffsetCss,
+    underlinePositionCss,
+    lengthScale = 1,
+    baselineType = "alphabetic",
+    flipUnderlineAndOverline = false,
   } = decoration;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
+  const font = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretchPercent(fontStretch),
+    fontOptions.lang,
+  );
   const upem = font?.unitsPerEm ?? 1000;
   const ascF = decoration.fontAscent ?? fontSize * 0.8;
   // `FontMetrics::Ascent()` = lroundf(FloatAscent) (`platform/fonts/font_metrics.h:109`).
@@ -4130,8 +4802,7 @@ export function getDecorationMetrics(
       const normalizedCentralHeight = LU(fontSize);
       const normalizedCentralDescent = Math.trunc(Math.round(fontSize * 64) / 2) / 64;
       const normalizedCentralAscent = normalizedCentralHeight - normalizedCentralDescent;
-      overlineTop = Math.floor(LU(centralFloatAscent - normalizedCentralAscent) - LU(extra))
-        - 1 - Math.floor(t);
+      overlineTop = Math.floor(LU(centralFloatAscent - normalizedCentralAscent) - LU(extra)) - 1 - Math.floor(t);
     } else {
       const integerHeight = Math.round(ascF) + Math.round(descF);
       const centralIntAscent = integerHeight - Math.trunc(integerHeight / 2);
@@ -4192,7 +4863,15 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
+  const font = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretchPercent(fontStretch),
+    fontOptions.lang,
+  );
   if (font == null) return fontSize * 0.25;
   try {
     const g = font.layout(" ").glyphs[0] as { advanceWidth: number } | undefined;
@@ -4212,12 +4891,25 @@ export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions):
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
+  const font = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretchPercent(fontStretch),
+    fontOptions.lang,
+  );
   if (font == null) return 0;
   let layout;
-  try { layout = font.layout(trimmed); } catch { return 0; }
+  try {
+    layout = font.layout(trimmed);
+  } catch {
+    return 0;
+  }
   if (layout.glyphs.length === 0) return 0;
-  const lastGlyph = layout.glyphs[layout.glyphs.length - 1] as { advanceWidth: number; bbox?: { maxX?: number } } | undefined;
+  const lastGlyph = layout.glyphs[layout.glyphs.length - 1] as
+    { advanceWidth: number; bbox?: { maxX?: number } } | undefined;
   if (lastGlyph == null) return 0;
   const bboxMaxX = lastGlyph.bbox?.maxX;
   if (typeof bboxMaxX !== "number") return 0;
@@ -4239,26 +4931,39 @@ export function measureEmphasisMarkMetrics(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   const runs = splitTextIntoFontRuns(
-    mark, primaryFont, primaryFontKey, weight, fontSize, slant,
-    variationSettings, lang, resolveFontKeyChain(fontFamily, lang),
-    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang), stretch, undefined, fontFamily,
+    mark,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    resolveFontKeyChain(fontFamily, lang),
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang),
+    stretch,
+    undefined,
+    fontFamily,
   );
   const run = runs[0];
   if (run == null) return null;
-  let glyph: { id: number; advanceWidth?: number; bbox?: { minX: number; maxX: number; minY: number; maxY: number } } | undefined;
-  try { glyph = run.font.layout(run.text).glyphs[0]; } catch { return null; }
+  let glyph:
+    | { id: number; advanceWidth?: number; bbox?: { minX: number; maxX: number; minY: number; maxY: number } }
+    | undefined;
+  try {
+    glyph = run.font.layout(run.text).glyphs[0];
+  } catch {
+    return null;
+  }
   if (glyph == null || glyph.id === 0) return null;
   // Blink shapes with the main Font first, then calls EmphasisMarkFontData on
   // that selected run. Scaling here (instead of resolving again at mark size)
   // preserves the selected face and its optical cut.
   const markFontSize = Math.round(fontSize * 0.5);
   const scale = markFontSize / run.font.unitsPerEm;
-  const centerX = glyph.bbox != null
-    ? (glyph.bbox.minX + glyph.bbox.maxX) / 2
-    : (glyph.advanceWidth ?? run.font.unitsPerEm) / 2;
-  const centerY = glyph.bbox != null
-    ? -(glyph.bbox.minY + glyph.bbox.maxY) / 2
-    : 0;
+  const centerX =
+    glyph.bbox != null ? (glyph.bbox.minX + glyph.bbox.maxX) / 2 : (glyph.advanceWidth ?? run.font.unitsPerEm) / 2;
+  const centerY = glyph.bbox != null ? -(glyph.bbox.minY + glyph.bbox.maxY) / 2 : 0;
   return {
     fontSize: markFontSize,
     ascent: LU(run.font.ascent * scale),
@@ -4307,18 +5012,36 @@ export function measureInkMetrics(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, undefined, fontFamily, features);
+  const runs = splitTextIntoFontRuns(
+    text,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    fontKeyChain,
+    stackPrimaryIsSystemUi(fontFamily, lang),
+    stretch,
+    undefined,
+    fontFamily,
+    features,
+  );
   let maxY = -Infinity; // ink top    (font units, y-up)
-  let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
+  let minY = Infinity; // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
     const scale = fontSize / run.font.unitsPerEm;
     let layout;
     try {
       const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
-      layout = features != null && features.length > 0
-        ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
-        : run.font.layout(run.text, undefined, undefined, lang, runDirection);
-    } catch { continue; }
+      layout =
+        features != null && features.length > 0
+          ? run.font.layout(run.text, fontkitFeatureList(features), undefined, lang, runDirection)
+          : run.font.layout(run.text, undefined, undefined, lang, runDirection);
+    } catch {
+      continue;
+    }
     for (const g of layout.glyphs) {
       // Skip .notdef tofu (id 0) — its placeholder bbox would inflate the ink
       // box, and `textToPathMarkup` suppresses it from emission anyway.
@@ -4334,7 +5057,6 @@ export function measureInkMetrics(
   if (maxY === -Infinity) return null;
   return { inkAscent: maxY, inkDescent: -minY };
 }
-
 
 /**
  * Render a MathML stretchy fence operator (a `<mo>` whose text is a single
@@ -4373,15 +5095,39 @@ export function renderStretchyFenceGlyph(
   const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
-  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, fontOptions.lang,
-    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily, fontOptions.lang), stretch, undefined, fontFamily);
+  const res = resolveFontForCodepoint(
+    cp,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    undefined,
+    fontOptions.lang,
+    resolveFontKeyChain(fontFamily, fontOptions.lang),
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang),
+    stretch,
+    undefined,
+    fontFamily,
+  );
   const useKey = res.covered ? res.key : primaryFontKey;
-  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
+  const font = res.covered
+    ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont)
+    : primaryFont;
 
   let layout;
-  try { layout = font.layout(ch); } catch { return null; }
+  try {
+    layout = font.layout(ch);
+  } catch {
+    return null;
+  }
   const glyph = layout.glyphs[0] as
-    { id: number; path: { commands: Array<{ command: string; args: number[] }> }; bbox?: { minX: number; minY: number; maxX: number; maxY: number } } | undefined;
+    | {
+        id: number;
+        path: { commands: Array<{ command: string; args: number[] }> };
+        bbox?: { minX: number; minY: number; maxX: number; maxY: number };
+      }
+    | undefined;
   if (glyph == null) return null;
   // CFF/CFF2 math faces can shape successfully while fontkit exposes an empty
   // path. Use the same native-helper fallback as ordinary glyph emission;
@@ -4391,12 +5137,18 @@ export function renderStretchyFenceGlyph(
   if (glyphCommands.length === 0) return null;
   let bbox = glyph.bbox;
   if (bbox == null || !(bbox.maxY > bbox.minY)) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     for (const command of glyphCommands) {
       for (let i = 0; i + 1 < command.args.length; i += 2) {
-        const px = command.args[i], py = command.args[i + 1];
-        minX = Math.min(minX, px); maxX = Math.max(maxX, px);
-        minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+        const px = command.args[i],
+          py = command.args[i + 1];
+        minX = Math.min(minX, px);
+        maxX = Math.max(maxX, px);
+        minY = Math.min(minY, py);
+        maxY = Math.max(maxY, py);
       }
     }
     if (maxY > minY) bbox = { minX, minY, maxX, maxY };
@@ -4449,7 +5201,7 @@ export function renderRadicalGlyph(
   fill: string,
 ): string | null {
   if (height <= 0 || width <= 0) return null;
-  const cp = 0x221A; // √ SQUARE ROOT
+  const cp = 0x221a; // √ SQUARE ROOT
   const { fontFamily, fontSize, fontStyle, fontStretch } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
@@ -4461,15 +5213,39 @@ export function renderRadicalGlyph(
   const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
-  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, fontOptions.lang,
-    resolveFontKeyChain(fontFamily, fontOptions.lang), stackPrimaryIsSystemUi(fontFamily, fontOptions.lang), stretch, undefined, fontFamily);
+  const res = resolveFontForCodepoint(
+    cp,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    undefined,
+    fontOptions.lang,
+    resolveFontKeyChain(fontFamily, fontOptions.lang),
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang),
+    stretch,
+    undefined,
+    fontFamily,
+  );
   const useKey = res.covered ? res.key : primaryFontKey;
-  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont) : primaryFont;
+  const font = res.covered
+    ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant, undefined, stretch) ?? primaryFont)
+    : primaryFont;
 
   let layout;
-  try { layout = font.layout("√"); } catch { return null; }
+  try {
+    layout = font.layout("√");
+  } catch {
+    return null;
+  }
   const glyph = layout.glyphs[0] as
-    { id: number; path: { commands: Array<{ command: string; args: number[] }> }; bbox?: { minX: number; minY: number; maxX: number; maxY: number } } | undefined;
+    | {
+        id: number;
+        path: { commands: Array<{ command: string; args: number[] }> };
+        bbox?: { minX: number; minY: number; maxX: number; maxY: number };
+      }
+    | undefined;
   if (glyph == null || glyph.path.commands.length === 0) return null;
   const bbox = glyph.bbox;
   if (bbox == null || !(bbox.maxY > bbox.minY) || !(bbox.maxX > bbox.minX)) return null;
@@ -4549,15 +5325,31 @@ export function computeSkipInkGaps(
 ): Array<[number, number]> {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings, features } = fontOptions;
   const {
-    decorationCenterYRel = 0, decorationThickness = 1, interceptPad,
-    targetWidth, charXOffsets, skipInkMode = "auto",
+    decorationCenterYRel = 0,
+    decorationThickness = 1,
+    interceptPad,
+    targetWidth,
+    charXOffsets,
+    skipInkMode = "auto",
   } = skipInk;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
+  const font = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretchPercent(fontStretch),
+    fontOptions.lang,
+  );
   if (font == null) return [];
   let layout;
-  try { layout = font.layout(text, fontkitFeatureList(features)); } catch { return []; }
+  try {
+    layout = font.layout(text, fontkitFeatureList(features));
+  } catch {
+    return [];
+  }
   const scale = fontSize / font.unitsPerEm;
   // Blink insets the decoration rect by 0.5px top and bottom before asking for
   // intercepts — "In order to ignore intersects less than 0.5px, inflate by
@@ -4593,9 +5385,10 @@ export function computeSkipInkGaps(
     // them do not. The character is the glyph's own source character, which is
     // why this is read at `charCursor` rather than from the run.
     const srcCp = text.codePointAt(charCursor);
-    const range = skipInkMode !== "all" && srcCp != null && !canTextDecorationSkipInk(srcCp)
-      ? null
-      : glyphPathIntercepts(glyph.path, fkGlyphX, scale, yTop, yBot);
+    const range =
+      skipInkMode !== "all" && srcCp != null && !canTextDecorationSkipInk(srcCp)
+        ? null
+        : glyphPathIntercepts(glyph.path, fkGlyphX, scale, yTop, yBot);
     if (range != null) {
       rawGaps.push([range.minX - pad, range.maxX + pad]);
       // Anchored variant: shift this glyph's intercept so its pen origin sits
@@ -4628,7 +5421,10 @@ export function computeSkipInkGaps(
   }
   if (targetWidth != null && xCursor > 0.5 && Math.abs(xCursor - targetWidth) > 0.5) {
     const factor = targetWidth / xCursor;
-    for (const g of rawGaps) { g[0] *= factor; g[1] *= factor; }
+    for (const g of rawGaps) {
+      g[0] *= factor;
+      g[1] *= factor;
+    }
   }
   return mergeGaps(rawGaps);
 }

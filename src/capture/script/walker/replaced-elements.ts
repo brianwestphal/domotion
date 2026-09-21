@@ -39,10 +39,10 @@ export const createReplacedElementsHandler = ({ vp }) => {
   let _replacedIdx = 0;
 
   const handleReplacedElement = (el, cs, tag, rect, captured, bordersOnlyCell) => {
-    if (bordersOnlyCell || cs.display === 'none' || rect.width <= 0 || rect.height <= 0) return;
+    if (bordersOnlyCell || cs.display === "none" || rect.width <= 0 || rect.height <= 0) return;
 
     // Path 1: built-in replaced tags + custom elements with open shadow DOM.
-    const isCustomEl = tag.indexOf('-') > 0;
+    const isCustomEl = tag.indexOf("-") > 0;
     const hasOpenShadow = isCustomEl && el.shadowRoot != null;
     const customElNeedsSnapshot = isCustomEl && hasOpenShadow;
 
@@ -50,10 +50,17 @@ export const createReplacedElementsHandler = ({ vp }) => {
     // SVG (captured.children spliced in upstream) must NOT also be rastered —
     // skip the snapshot path for it. Cross-origin / inaccessible frames have no
     // `_iframeRecursed` marker and still fall through to the raster snapshot.
-    const iframeRecursed = tag === 'iframe' && captured._iframeRecursed === true;
+    const iframeRecursed = tag === "iframe" && captured._iframeRecursed === true;
 
-    if ((tag === 'iframe' && !iframeRecursed) || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed' || customElNeedsSnapshot) {
-      const { left: bl, right: br, top: bt, bottom: bb } = sideWidths(cs, 'border', 'Width');
+    if (
+      (tag === "iframe" && !iframeRecursed) ||
+      tag === "canvas" ||
+      tag === "video" ||
+      tag === "object" ||
+      tag === "embed" ||
+      customElNeedsSnapshot
+    ) {
+      const { left: bl, right: br, top: bt, bottom: bb } = sideWidths(cs, "border", "Width");
       const pl = parseFloat(cs.paddingLeft) || 0;
       const pr = parseFloat(cs.paddingRight) || 0;
       const pt = parseFloat(cs.paddingTop) || 0;
@@ -61,8 +68,8 @@ export const createReplacedElementsHandler = ({ vp }) => {
       const cw = rect.width - bl - br - pl - pr;
       const ch = rect.height - bt - bb - pt - pb;
       if (cw > 0 && ch > 0) {
-        const rid = 'dr' + (_replacedIdx++);
-        el.setAttribute('data-domotion-rid', rid);
+        const rid = "dr" + _replacedIdx++;
+        el.setAttribute("data-domotion-rid", rid);
         captured.replacedSnapshot = {
           x: rect.left - vp.x + bl + pl,
           y: rect.top - vp.y + bt + pt,
@@ -79,14 +86,14 @@ export const createReplacedElementsHandler = ({ vp }) => {
     if (captured.replacedSnapshot != null || captured.imageSrc != null) return;
 
     const ti = parseFloat(cs.textIndent) || 0;
-    const ovX = cs.overflowX === 'hidden' || cs.overflow === 'hidden';
+    const ovX = cs.overflowX === "hidden" || cs.overflow === "hidden";
     const hasBgImage = hasCssValue(cs.backgroundImage);
     const phark = ti <= -1000;
-    const modern = ti < 0 && ovX && cs.whiteSpace === 'nowrap';
+    const modern = ti < 0 && ovX && cs.whiteSpace === "nowrap";
     if ((phark || modern) && hasBgImage) {
-      const rid = 'dr' + (_replacedIdx++);
-      el.setAttribute('data-domotion-rid', rid);
-      const titleText = ((el.getAttribute && el.getAttribute('aria-label')) || captured.text || '').trim();
+      const rid = "dr" + _replacedIdx++;
+      el.setAttribute("data-domotion-rid", rid);
+      const titleText = ((el.getAttribute && el.getAttribute("aria-label")) || captured.text || "").trim();
       captured.replacedSnapshot = {
         x: rect.left - vp.x,
         y: rect.top - vp.y,
@@ -99,7 +106,7 @@ export const createReplacedElementsHandler = ({ vp }) => {
       // already covers both. Keep border + bg-color emission so a styled
       // border around the icon (rare but supported) still paints.
       captured.styles.backgroundImage = undefined;
-      captured.text = '';
+      captured.text = "";
       captured.textSegments = undefined;
     }
   };

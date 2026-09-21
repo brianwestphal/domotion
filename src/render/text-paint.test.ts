@@ -8,17 +8,26 @@ import { buildPseudoBoxBgLayers, emitVerticalRasterText, resolveTextFill } from 
 function context(): PaintCtx {
   let index = 0;
   return {
-    svgParts: [], defsParts: [], idPrefix: "t-",
+    svgParts: [],
+    defsParts: [],
+    idPrefix: "t-",
     nextClipId: (prefix) => `t-${prefix}${index++}`,
     peekClipIdx: () => index,
-    advanceClipIdx: (count) => { index += count; },
+    advanceClipIdx: (count) => {
+      index += count;
+    },
     emittedTextCtm: new Map(),
   };
 }
 
 function element(styles: Record<string, unknown> = {}): CapturedElement {
   return {
-    tag: "span", text: "Hello", x: 10, y: 20, width: 100, height: 30,
+    tag: "span",
+    text: "Hello",
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 30,
     styles: { color: "rgba(0, 0, 0, 0)", ...styles },
   } as unknown as CapturedElement;
 }
@@ -27,14 +36,16 @@ describe("text paint owner", () => {
   it("selects the top text-clipped fill for transparent text", () => {
     const ctx = context();
     const builder = vi.fn() as unknown as BackgroundLayerBuilder;
-    expect(resolveTextFill(
-      ctx,
-      element(),
-      parseColor("rgba(0, 0, 0, 0)"),
-      ["url(#top)", "url(#bottom)"],
-      { w: 800, h: 600 },
-      builder,
-    )).toEqual({ fillColor: "url(#top)", textIsTransparent: true });
+    expect(
+      resolveTextFill(
+        ctx,
+        element(),
+        parseColor("rgba(0, 0, 0, 0)"),
+        ["url(#top)", "url(#bottom)"],
+        { w: 800, h: 600 },
+        builder,
+      ),
+    ).toEqual({ fillColor: "url(#top)", textIsTransparent: true });
     expect(builder).not.toHaveBeenCalled();
   });
 
@@ -54,8 +65,18 @@ describe("text paint owner", () => {
     );
     expect(result).toEqual({ fillColor: "url(#t-bg0)", textIsTransparent: true });
     expect(builder).toHaveBeenCalledWith(
-      "t-bg0", "linear-gradient(red, blue)", 1, 2, 300, 40,
-      "auto", "0% 0%", "no-repeat", null, "scroll", { w: 800, h: 600 },
+      "t-bg0",
+      "linear-gradient(red, blue)",
+      1,
+      2,
+      300,
+      40,
+      "auto",
+      "0% 0%",
+      "no-repeat",
+      null,
+      "scroll",
+      { w: 800, h: 600 },
     );
     expect(ctx.defsParts).toEqual(['<linearGradient id="t-bg0"/>']);
   });

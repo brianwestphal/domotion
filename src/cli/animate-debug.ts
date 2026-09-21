@@ -61,9 +61,9 @@ export async function writeEmbeddedAnimateDebugFrame(request: EmbeddedAnimateDeb
   try {
     await page.setViewportSize({ width: request.width, height: request.height });
     await page.setContent(
-      `<!doctype html><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}</style>`
-      + `<svg xmlns="http://www.w3.org/2000/svg" width="${request.width}" height="${request.height}" viewBox="0 0 ${request.width} ${request.height}">`
-      + `<style>${request.fontFaceCss}</style>${request.svgContent}</svg>`,
+      `<!doctype html><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}</style>` +
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${request.width}" height="${request.height}" viewBox="0 0 ${request.width} ${request.height}">` +
+        `<style>${request.fontFaceCss}</style>${request.svgContent}</svg>`,
       { waitUntil: "load" },
     );
     await page.evaluate(() => document.fonts.ready);
@@ -95,15 +95,12 @@ export function writeAnimateDebugActual(debugDir: string, svg: string): void {
   writeFileSync(join(debugDir, "actual.svg"), svg);
 }
 
-export function logAnimateDebugBundle(
-  debugDir: string,
-  log: (message: string) => void,
-): void {
+export function logAnimateDebugBundle(debugDir: string, log: (message: string) => void): void {
   log(
-    `Debug bundle written:\n`
-    + `  ${join(debugDir, "capture.har")}          (shared Playwright HAR)\n`
-    + `  ${join(debugDir, "actual.svg")}           (final produced animation)\n`
-    + `  ${join(debugDir, "frames", "NNN", "expected.png")}    (Chromium source pixels per frame)\n`
-    + `  ${join(debugDir, "frames", "NNN", "captured-tree.json")} (raw tree per frame; null for compound/embedded frames)`,
+    `Debug bundle written:\n` +
+      `  ${join(debugDir, "capture.har")}          (shared Playwright HAR)\n` +
+      `  ${join(debugDir, "actual.svg")}           (final produced animation)\n` +
+      `  ${join(debugDir, "frames", "NNN", "expected.png")}    (Chromium source pixels per frame)\n` +
+      `  ${join(debugDir, "frames", "NNN", "captured-tree.json")} (raw tree per frame; null for compound/embedded frames)`,
   );
 }

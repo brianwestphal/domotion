@@ -268,7 +268,11 @@ const EXPECTED_VALUE_EXPORTS = [
 describe("public barrel export surface (DM-1058)", () => {
   it("exports exactly the documented set of value symbols (sorted)", () => {
     const actual = Object.keys(pkg)
-      .filter((k) => typeof (pkg as Record<string, unknown>)[k] === "function" || typeof (pkg as Record<string, unknown>)[k] === "object")
+      .filter(
+        (k) =>
+          typeof (pkg as Record<string, unknown>)[k] === "function" ||
+          typeof (pkg as Record<string, unknown>)[k] === "object",
+      )
       .sort();
     expect(actual).toEqual([...EXPECTED_VALUE_EXPORTS]);
   });

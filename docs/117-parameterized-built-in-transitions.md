@@ -6,8 +6,15 @@ status: "current"
 owners: ["animation"]
 platforms: []
 tickets: ["DM-2071"]
-code: ["src/animation/animator.ts","src/animation/animator-parameterized-transitions.test.ts","src/animation/transition-schema.ts","src/animation/transition-schema.test.ts","tests/compose-animate-frames.e2e.test.ts"]
-aliases: ["docs/117-parameterized-built-in-transitions.md","doc-117"]
+code:
+  [
+    "src/animation/animator.ts",
+    "src/animation/animator-parameterized-transitions.test.ts",
+    "src/animation/transition-schema.ts",
+    "src/animation/transition-schema.test.ts",
+    "tests/compose-animate-frames.e2e.test.ts",
+  ]
+aliases: ["docs/117-parameterized-built-in-transitions.md", "doc-117"]
 ---
 
 # 117 — Parameterized built-in transitions

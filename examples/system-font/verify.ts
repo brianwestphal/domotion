@@ -26,7 +26,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "output");
 mkdirSync(outDir, { recursive: true });
 
-const fixtures = readdirSync(here).filter((f) => f.endsWith(".html")).sort();
+const fixtures = readdirSync(here)
+  .filter((f) => f.endsWith(".html"))
+  .sort();
 
 const browser = await chromium.launch({ headless: true });
 const source = await browser.newPage({ viewport: { width: 800, height: 900 } });
@@ -60,11 +62,11 @@ for (const file of fixtures) {
 
   const cmp = await comparePngs(comparePage, expectedPath, actualPath, join(outDir, `${name}.diff.png`));
   const embedded = elementTreeToSvg(tree, box.width, box.height, { renderTextMode: "embedded-font" });
-  const ratio = (svg.length / embedded.length * 100).toFixed(0);
+  const ratio = ((svg.length / embedded.length) * 100).toFixed(0);
   worst = Math.max(worst, cmp.diffPct);
   console.log(
     `${name.padEnd(20)} diff ${cmp.diffPct.toFixed(3)}%  regions ${cmp.regionCount}` +
-    `  size ${(svg.length / 1024).toFixed(1)}KB (${ratio}% of embedded)`,
+      `  size ${(svg.length / 1024).toFixed(1)}KB (${ratio}% of embedded)`,
   );
 }
 

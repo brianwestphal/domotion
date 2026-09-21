@@ -1,7 +1,14 @@
 name: Unicode shaping conformance
 on:
   pull_request:
-    paths: ["src/render/**", "src/capture/**", "tools/shaping-*.ts", "tests/shaping-*.test.ts", ".github/workflows/shaping-unicode-conformance.yml"]
+    paths:
+      [
+        "src/render/**",
+        "src/capture/**",
+        "tools/shaping-*.ts",
+        "tests/shaping-*.test.ts",
+        ".github/workflows/shaping-unicode-conformance.yml",
+      ]
   workflow_dispatch:
     inputs:
       mode:

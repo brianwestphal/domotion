@@ -57,7 +57,9 @@ if (!Array.isArray(arr)) {
 // Recorded when present; absent fields stay absent so older results files
 // still produce a valid (if unattributable) baseline.
 const fixtures = {};
-let passed = 0, failed = 0, skipped = 0;
+let passed = 0,
+  failed = 0,
+  skipped = 0;
 for (const r of arr.slice().sort((a, b) => a.name.localeCompare(b.name))) {
   if (!r || typeof r.name !== "string") continue;
   const f = {
@@ -79,7 +81,9 @@ for (const r of arr.slice().sort((a, b) => a.name.localeCompare(b.name))) {
 const envPath = arg("--env", null);
 let env = null;
 if (envPath != null) {
-  try { env = JSON.parse(readFileSync(envPath, "utf8")); } catch (e) {
+  try {
+    env = JSON.parse(readFileSync(envPath, "utf8"));
+  } catch (e) {
     console.error(`write-baseline: could not read --env ${envPath}: ${e.message}`);
     process.exit(2); // an unreadable env is worse than none: it looks recorded
   }
@@ -100,5 +104,7 @@ const doc = {
 
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(doc, null, 2) + "\n");
-console.log(`Wrote baseline ${outPath}: ${passed} passed, ${failed} failed, ${skipped} skipped ` +
-  `(${doc.meta.counts.total} fixtures, image=${doc.meta.image ?? "?"})`);
+console.log(
+  `Wrote baseline ${outPath}: ${passed} passed, ${failed} failed, ${skipped} skipped ` +
+    `(${doc.meta.counts.total} fixtures, image=${doc.meta.image ?? "?"})`,
+);

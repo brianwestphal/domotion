@@ -19,7 +19,7 @@ await page.waitForTimeout(500);
 
 const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 1024, height: 1500 });
 const mis: CapturedElement[] = [];
-walk(tree[0]!, (n) => n.tag === 'mi', mis);
+walk(tree[0]!, (n) => n.tag === "mi", mis);
 
 for (const mi of mis.slice(0, 4)) {
   const styles: any = mi.styles;

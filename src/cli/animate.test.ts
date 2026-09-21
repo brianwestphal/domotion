@@ -9,7 +9,23 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { runAnimate, validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, autoCompressRuns, compressMarkedRuns, composeStatesFlipbook, wasAutoCollapsed, planRegionCaptureRounds, assembleRegionStateTrees, type AnimateConfig } from "./animate.js";
+import {
+  runAnimate,
+  validateAnimateConfig,
+  interpolateConfigVars,
+  resolveConfigBrand,
+  buildCursorOverlay,
+  placeEmbeddedFrame,
+  resolveEmbeddedFrameOverlays,
+  configTextTrackSpec,
+  autoCompressRuns,
+  compressMarkedRuns,
+  composeStatesFlipbook,
+  wasAutoCollapsed,
+  planRegionCaptureRounds,
+  assembleRegionStateTrees,
+  type AnimateConfig,
+} from "./animate.js";
 import { getRenderTextMode, setRenderTextMode, type CursorEvent } from "../index.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -55,7 +71,13 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     expect(() =>
       validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, actions: [{ type: "replaceText", selector: "#x", pattern: "(", replacement: "" }] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            actions: [{ type: "replaceText", selector: "#x", pattern: "(", replacement: "" }],
+          },
+        ],
       }),
     ).toThrow(/not a valid regular expression/);
   });
@@ -72,22 +94,35 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("allows continue: true on a later frame", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1 }, { continue: true, duration: 1 }],
+        frames: [
+          { input: "a.html", duration: 1 },
+          { continue: true, duration: 1 },
+        ],
       });
       expect(cfg.frames[1].continue).toBe(true);
     });
 
     it("errors when frame 0 has no input", () => {
-      expect(() => validateAnimateConfig({ ...base, frames: [{ duration: 1 }] })).toThrow(/frame 0 must load an .input., a .cast., or a .template./);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ duration: 1 }] })).toThrow(
+        /frame 0 must load an .input., a .cast., or a .template./,
+      );
     });
 
     it("errors when frame 0 sets continue", () => {
-      expect(() => validateAnimateConfig({ ...base, frames: [{ input: "a.html", continue: true, duration: 1 }] })).toThrow(/frame 0 cannot continue/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", continue: true, duration: 1 }] }),
+      ).toThrow(/frame 0 cannot continue/);
     });
 
     it("errors when a frame sets both continue and input", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { continue: true, input: "b.html", duration: 1 }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1 },
+            { continue: true, input: "b.html", duration: 1 },
+          ],
+        }),
       ).toThrow(/cannot set both `continue` and `input`/);
     });
   });
@@ -123,7 +158,13 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects a cast frame that also continues a live page", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { cast: "x.cast", continue: true, duration: 1 }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1 },
+            { cast: "x.cast", continue: true, duration: 1 },
+          ],
+        }),
       ).toThrow(/`cast` frame cannot also `continue`/);
     });
   });
@@ -164,7 +205,13 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects a template frame that also continues a live page", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { template: "lower-third", continue: true, duration: 1 }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1 },
+            { template: "lower-third", continue: true, duration: 1 },
+          ],
+        }),
       ).toThrow(/`template` frame cannot also `continue`/);
     });
 
@@ -182,20 +229,23 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
 
     it("rejects a non-template frame that omits `duration`", () => {
-      expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html" }] }),
-      ).toThrow(/`duration` is required and must be > 0/);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ input: "a.html" }] })).toThrow(
+        /`duration` is required and must be > 0/,
+      );
     });
 
     it("rejects a non-template frame with a non-positive `duration`", () => {
-      expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 0 }] }),
-      ).toThrow(/`duration` is required and must be > 0/);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 0 }] })).toThrow(
+        /`duration` is required and must be > 0/,
+      );
     });
 
     // DM-1293: per-frame `fit` placement policy (template frames only).
     it("accepts a template frame with a `fit` policy", () => {
-      const cfg = validateAnimateConfig({ ...base, frames: [{ template: "lower-third", params: { title: "Ada" }, duration: 1, fit: "contain" }] });
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ template: "lower-third", params: { title: "Ada" }, duration: 1, fit: "contain" }],
+      });
       expect(cfg.frames[0].fit).toBe("contain");
     });
 
@@ -216,22 +266,26 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("accepts a frame subtree selector and an explicit live-capture clip", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{
-          input: "virtual-list.html",
-          duration: 1000,
-          selector: "#list",
-          scroll: { pattern: "down:bottom/1s", selector: "#list", clip: [30, 187, 640, 382] },
-        }],
+        frames: [
+          {
+            input: "virtual-list.html",
+            duration: 1000,
+            selector: "#list",
+            scroll: { pattern: "down:bottom/1s", selector: "#list", clip: [30, 187, 640, 382] },
+          },
+        ],
       });
       expect(cfg.frames[0].selector).toBe("#list");
       expect(cfg.frames[0].scroll?.clip).toEqual([30, 187, 640, 382]);
     });
 
     it("rejects an empty or negative scroll capture extent", () => {
-      expect(() => validateAnimateConfig({
-        ...base,
-        frames: [{ input: "a.html", duration: 1, scroll: { pattern: "down:1px", clip: [0, 0, 0, 10] } }],
-      })).toThrow();
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, scroll: { pattern: "down:1px", clip: [0, 0, 0, 10] } }],
+        }),
+      ).toThrow();
     });
   });
 
@@ -250,7 +304,19 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
         ...base,
         frames: [
           { input: "form.html", duration: 1 },
-          { continue: true, duration: 2000, typeResample: { selector: "#phone", text: "42", speed: 40, delay: 100, tailMs: 300, clear: false, caret: false } },
+          {
+            continue: true,
+            duration: 2000,
+            typeResample: {
+              selector: "#phone",
+              text: "42",
+              speed: 40,
+              delay: 100,
+              tailMs: 300,
+              clear: false,
+              caret: false,
+            },
+          },
         ],
       });
       expect(cfg.frames[1].typeResample?.clear).toBe(false);
@@ -258,25 +324,39 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects an empty typeResample text", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "form.html", duration: 1, typeResample: { selector: "#p", text: "" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "form.html", duration: 1, typeResample: { selector: "#p", text: "" } }],
+        }),
       ).toThrow(/must be a non-empty string/);
     });
 
     it("rejects typeResample combined with scroll", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, typeResample: { selector: "#p", text: "x" }, scroll: { pattern: "down" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1, typeResample: { selector: "#p", text: "x" }, scroll: { pattern: "down" } },
+          ],
+        }),
       ).toThrow(/cannot set both `typeResample` and `scroll`/);
     });
 
     it("rejects typeResample combined with cast", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, typeResample: { selector: "#p", text: "x" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ cast: "x.cast", duration: 1, typeResample: { selector: "#p", text: "x" } }],
+        }),
       ).toThrow(/cannot set both `typeResample` and `cast`/);
     });
 
     it("rejects typeResample combined with template", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, typeResample: { selector: "#p", text: "x" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ template: "lower-third", duration: 1, typeResample: { selector: "#p", text: "x" } }],
+        }),
       ).toThrow(/cannot set both `typeResample` and `template`/);
     });
   });
@@ -294,29 +374,56 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("accepts an explicit event + timing", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "menu.html", duration: 2000, jsReveal: { selector: "#a", event: "mousedown", settleMs: 400, debounceMs: 80, holdMs: 600, crossfadeMs: 0 } }],
+        frames: [
+          {
+            input: "menu.html",
+            duration: 2000,
+            jsReveal: {
+              selector: "#a",
+              event: "mousedown",
+              settleMs: 400,
+              debounceMs: 80,
+              holdMs: 600,
+              crossfadeMs: 0,
+            },
+          },
+        ],
       });
       expect(cfg.frames[0].jsReveal?.event).toBe("mousedown");
     });
 
     it("rejects an unsupported jsReveal event", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "menu.html", duration: 1, jsReveal: { selector: "#a", event: "keydown" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "menu.html", duration: 1, jsReveal: { selector: "#a", event: "keydown" } }],
+        }),
       ).toThrow();
     });
 
     it("rejects jsReveal combined with scroll / cast / template / typeResample", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, scroll: { pattern: "down" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, scroll: { pattern: "down" } }],
+        }),
       ).toThrow(/cannot set both `jsReveal` and `scroll`/);
       expect(() =>
         validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, jsReveal: { selector: "#a" } }] }),
       ).toThrow(/cannot set both `jsReveal` and `cast`/);
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, jsReveal: { selector: "#a" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ template: "lower-third", duration: 1, jsReveal: { selector: "#a" } }],
+        }),
       ).toThrow(/cannot set both `jsReveal` and `template`/);
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, typeResample: { selector: "#p", text: "x" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1, jsReveal: { selector: "#a" }, typeResample: { selector: "#p", text: "x" } },
+          ],
+        }),
       ).toThrow(/cannot set both `jsReveal` and `typeResample`/);
     });
   });
@@ -325,16 +432,18 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("accepts a states frame with per-state actions and an auto-caret", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{
-          input: "editor.html",
-          duration: 1500,
-          caret: true,
-          states: [
-            { duration: 200 },
-            { actions: [{ type: "evaluate", script: "ins(1)" }], duration: 170 },
-            { actions: [{ type: "setText", selector: "#l1", value: "done" }], duration: 900 },
-          ],
-        }],
+        frames: [
+          {
+            input: "editor.html",
+            duration: 1500,
+            caret: true,
+            states: [
+              { duration: 200 },
+              { actions: [{ type: "evaluate", script: "ins(1)" }], duration: 170 },
+              { actions: [{ type: "setText", selector: "#l1", value: "done" }], duration: 900 },
+            ],
+          },
+        ],
       });
       expect(cfg.frames[0].states).toHaveLength(3);
       expect(cfg.frames[0].caret).toBe(true);
@@ -343,18 +452,23 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("accepts caret as a { shape, color } object; rejects a bad shape", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], caret: { shape: "block", color: "#ff0000" } }],
+        frames: [
+          { input: "a.html", duration: 1, states: [{ duration: 100 }], caret: { shape: "block", color: "#ff0000" } },
+        ],
       });
       expect(cfg.frames[0].caret).toEqual({ shape: "block", color: "#ff0000" });
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], caret: { shape: "beam" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], caret: { shape: "beam" } }],
+        }),
       ).toThrow(/caret/);
     });
 
     it("rejects an empty states array (path-specific)", () => {
-      expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [] }] }),
-      ).toThrow(/frames\[0\]\.states: must be a non-empty array/);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [] }] })).toThrow(
+        /frames\[0\]\.states: must be a non-empty array/,
+      );
     });
 
     it("rejects a non-positive state duration (path-specific)", () => {
@@ -365,32 +479,49 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects states combined with scroll / cast / template / typeResample / jsReveal", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], scroll: { pattern: "down" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], scroll: { pattern: "down" } }],
+        }),
       ).toThrow(/cannot set both `states` and `scroll`/);
       expect(() =>
         validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, states: [{ duration: 100 }] }] }),
       ).toThrow(/cannot set both `states` and `cast`/);
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, states: [{ duration: 100 }] }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ template: "lower-third", duration: 1, states: [{ duration: 100 }] }],
+        }),
       ).toThrow(/cannot set both `states` and `template`/);
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], typeResample: { selector: "#p", text: "x" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1, states: [{ duration: 100 }], typeResample: { selector: "#p", text: "x" } },
+          ],
+        }),
       ).toThrow(/cannot set both `states` and `typeResample`/);
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], jsReveal: { selector: "#a" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], jsReveal: { selector: "#a" } }],
+        }),
       ).toThrow(/cannot set both `states` and `jsReveal`/);
     });
 
     it("rejects `caret` without `states`", () => {
-      expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, caret: true }] }),
-      ).toThrow(/frames\[0\]\.caret: `caret` requires a `states` compressed run/);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, caret: true }] })).toThrow(
+        /frames\[0\]\.caret: `caret` requires a `states` compressed run/,
+      );
     });
 
     it("allows states on a continue frame (it drives the live page)", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1 }, { continue: true, duration: 1, states: [{ duration: 100 }] }],
+        frames: [
+          { input: "a.html", duration: 1 },
+          { continue: true, duration: 1, states: [{ duration: 100 }] },
+        ],
       });
       expect(cfg.frames[1].states).toHaveLength(1);
     });
@@ -399,22 +530,27 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
   describe("explicit `regions` + per-state `advances` (DM-1770, docs/43 §11.1)", () => {
     const withRegions = (over: Record<string, unknown>) => ({
       ...base,
-      frames: [{
-        input: "panes.html", duration: 900,
-        regions: { editor: "#ed", preview: "#pv" },
-        states: [{ duration: 300 }, { duration: 300 }, { duration: 300 }],
-        ...over,
-      }],
+      frames: [
+        {
+          input: "panes.html",
+          duration: 900,
+          regions: { editor: "#ed", preview: "#pv" },
+          states: [{ duration: 300 }, { duration: 300 }, { duration: 300 }],
+          ...over,
+        },
+      ],
     });
 
     it("accepts a regions map with per-state advances", () => {
-      const cfg = validateAnimateConfig(withRegions({
-        states: [
-          { duration: 300 },
-          { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(2)" }], duration: 300 },
-          { advances: ["preview", "editor"], duration: 300 },
-        ],
-      }));
+      const cfg = validateAnimateConfig(
+        withRegions({
+          states: [
+            { duration: 300 },
+            { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(2)" }], duration: 300 },
+            { advances: ["preview", "editor"], duration: 300 },
+          ],
+        }),
+      );
       expect(cfg.frames[0].regions).toEqual({ editor: "#ed", preview: "#pv" });
       expect(cfg.frames[0].states![1].advances).toEqual(["editor"]);
       expect(cfg.frames[0].states![2].advances).toEqual(["preview", "editor"]);
@@ -434,7 +570,10 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects an empty regions map", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, regions: {}, states: [{ duration: 1 }] }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, regions: {}, states: [{ duration: 1 }] }],
+        }),
       ).toThrow(/frames\[0\]\.regions/);
     });
 
@@ -449,10 +588,14 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects `advances` naming an undeclared region, listing what IS declared", () => {
       expect(() =>
-        validateAnimateConfig(withRegions({
-          states: [{ duration: 1 }, { advances: ["previw"], duration: 1 }],
-        })),
-      ).toThrow(/frames\[0\]\.states\[1\]\.advances\[0\]: unknown region "previw" — this frame declares "editor", "preview"/);
+        validateAnimateConfig(
+          withRegions({
+            states: [{ duration: 1 }, { advances: ["previw"], duration: 1 }],
+          }),
+        ),
+      ).toThrow(
+        /frames\[0\]\.states\[1\]\.advances\[0\]: unknown region "previw" — this frame declares "editor", "preview"/,
+      );
     });
 
     it("rejects `advances` on state 0 — every region's starting point", () => {
@@ -466,7 +609,9 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
         validateAnimateConfig(withRegions({ states: [{ duration: 1 }, { advances: [], duration: 1 }] })),
       ).toThrow(/frames\[0\]\.states\[1\]\.advances: must name at least one region/);
       expect(() =>
-        validateAnimateConfig(withRegions({ states: [{ duration: 1 }, { advances: ["editor", "editor"], duration: 1 }] })),
+        validateAnimateConfig(
+          withRegions({ states: [{ duration: 1 }, { advances: ["editor", "editor"], duration: 1 }] }),
+        ),
       ).toThrow(/frames\[0\]\.states\[1\]\.advances\[1\]: region "editor" is listed twice/);
     });
   });
@@ -475,32 +620,39 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("accepts a track with the full event vocabulary + options", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{
-          input: "a.html",
-          duration: 4000,
-          textTracks: [{
-            selector: "#line",
-            shape: "block",
-            color: "#ff0000",
-            barWidthPx: 1.5,
-            blinkMs: 900,
-            selectionColor: "#22ff2288",
-            events: [
-              { type: "park", at: 200, charOffset: 0 },
-              { type: "move", at: 1200, charOffset: 6, selector: "#other" },
-              { type: "select", at: 2000, charStart: 0, charEnd: 5, sweepMs: 600, color: "#0000ff44" },
-              { type: "clearSelection", at: 3000 },
-              { type: "hide", at: 3500 },
+        frames: [
+          {
+            input: "a.html",
+            duration: 4000,
+            textTracks: [
+              {
+                selector: "#line",
+                shape: "block",
+                color: "#ff0000",
+                barWidthPx: 1.5,
+                blinkMs: 900,
+                selectionColor: "#22ff2288",
+                events: [
+                  { type: "park", at: 200, charOffset: 0 },
+                  { type: "move", at: 1200, charOffset: 6, selector: "#other" },
+                  { type: "select", at: 2000, charStart: 0, charEnd: 5, sweepMs: 600, color: "#0000ff44" },
+                  { type: "clearSelection", at: 3000 },
+                  { type: "hide", at: 3500 },
+                ],
+              },
             ],
-          }],
-        }],
+          },
+        ],
       });
       expect(cfg.frames[0].textTracks?.[0].events).toHaveLength(5);
     });
 
     it("rejects an empty events array (path-specific)", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [] }] }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [] }] }],
+        }),
       ).toThrow(/frames\[0\]\.textTracks\[0\]\.events: must be a non-empty array/);
     });
 
@@ -508,7 +660,13 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "select", at: 0, charStart: 5, charEnd: 5 }] }] }],
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              textTracks: [{ selector: "#x", events: [{ type: "select", at: 0, charStart: 5, charEnd: 5 }] }],
+            },
+          ],
         }),
       ).toThrow(/frames\[0\]\.textTracks\[0\]\.events\[0\]\.charEnd: `charEnd` must be greater than `charStart`/);
     });
@@ -517,13 +675,25 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "park", at: -1, charOffset: 0 }] }] }],
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              textTracks: [{ selector: "#x", events: [{ type: "park", at: -1, charOffset: 0 }] }],
+            },
+          ],
         }),
       ).toThrow(/frames\[0\]\.textTracks\[0\]\.events\[0\]\.at/);
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "park", at: 0, charOffset: -2 }] }] }],
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              textTracks: [{ selector: "#x", events: [{ type: "park", at: 0, charOffset: -2 }] }],
+            },
+          ],
         }),
       ).toThrow(/frames\[0\]\.textTracks\[0\]\.events\[0\]\.charOffset/);
     });
@@ -532,19 +702,35 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ input: "a.html", duration: 1, scroll: { pattern: "down" }, textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] }],
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              scroll: { pattern: "down" },
+              textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }],
+            },
+          ],
         }),
       ).toThrow(/`textTracks` needs this frame's captured tree — it cannot be combined with `scroll`/);
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] }],
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              states: [{ duration: 100 }],
+              textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }],
+            },
+          ],
         }),
       ).toThrow(/`textTracks` needs this frame's captured tree — it cannot be combined with `states`/);
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ cast: "x.cast", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] }],
+          frames: [
+            { cast: "x.cast", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] },
+          ],
         }),
       ).toThrow(/`textTracks` needs this frame's captured tree — it cannot be combined with `cast`/);
     });
@@ -552,21 +738,25 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("configTextTrackSpec maps frame-relative times to global time and animIds to the stamping convention", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{
-          input: "a.html",
-          duration: 4000,
-          textTracks: [{
-            selector: "#line",
-            shape: "underscore",
-            events: [
-              { type: "park", at: 100, charOffset: 2 },
-              { type: "move", at: 900, charOffset: 4, selector: "#other" },
-              { type: "select", at: 1500, charStart: 1, charEnd: 3, sweepMs: 250 },
-              { type: "clearSelection", at: 2500 },
-              { type: "hide", at: 3000 },
+        frames: [
+          {
+            input: "a.html",
+            duration: 4000,
+            textTracks: [
+              {
+                selector: "#line",
+                shape: "underscore",
+                events: [
+                  { type: "park", at: 100, charOffset: 2 },
+                  { type: "move", at: 900, charOffset: 4, selector: "#other" },
+                  { type: "select", at: 1500, charStart: 1, charEnd: 3, sweepMs: 250 },
+                  { type: "clearSelection", at: 2500 },
+                  { type: "hide", at: 3000 },
+                ],
+              },
             ],
-          }],
-        }],
+          },
+        ],
       });
       // The authored events already end the track (clearSelection + hide), so
       // the DM-1763 auto-end synthesizes nothing — the mapping is 1:1.
@@ -607,7 +797,10 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
             { type: "park", at: 100, charOffset: 0 },
             { type: "select", at: 300, charStart: 0, charEnd: 4, sweepMs: 200 },
           ]),
-          1, 0, 5000, 2000,
+          1,
+          0,
+          5000,
+          2000,
         );
         expect(spec.events).toEqual([
           { type: "park", t: 5100, charOffset: 0 },
@@ -625,7 +818,10 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
             { type: "clearSelection", at: 500 },
             { type: "move", at: 600, charOffset: 3 },
           ]),
-          0, 0, 0, 2000,
+          0,
+          0,
+          0,
+          2000,
         );
         expect(spec.events.filter((e) => e.type === "clearSelection")).toHaveLength(1);
         expect(spec.events.at(-1)).toEqual({ type: "hide", t: 2000 });
@@ -637,7 +833,10 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
             { type: "park", at: 100, charOffset: 3 },
             { type: "hide", at: 1800 },
           ]),
-          0, 0, 0, 2000,
+          0,
+          0,
+          0,
+          2000,
         );
         expect(spec.events).toEqual([
           { type: "park", t: 100, charOffset: 3 },
@@ -654,7 +853,10 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
             { type: "clearSelection", at: 1900 },
             { type: "hide", at: 1900 },
           ]),
-          0, 0, 0, 2000,
+          0,
+          0,
+          0,
+          2000,
         );
         expect(spec.events.filter((e) => e.type === "hide")).toHaveLength(1);
         expect(spec.events.filter((e) => e.type === "clearSelection")).toHaveLength(1);
@@ -662,11 +864,17 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
       it("persist: true suppresses all synthesized end events", () => {
         const spec = configTextTrackSpec(
-          track([
-            { type: "park", at: 100, charOffset: 0 },
-            { type: "select", at: 300, charStart: 0, charEnd: 4 },
-          ], { persist: true }),
-          0, 0, 0, 2000,
+          track(
+            [
+              { type: "park", at: 100, charOffset: 0 },
+              { type: "select", at: 300, charStart: 0, charEnd: 4 },
+            ],
+            { persist: true },
+          ),
+          0,
+          0,
+          0,
+          2000,
         );
         expect(spec.events).toEqual([
           { type: "park", t: 100, charOffset: 0 },
@@ -677,7 +885,11 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
   });
 
   it("accepts a top-level vars map", () => {
-    const cfg = validateAnimateConfig({ ...base, vars: { base: "http://x" }, frames: [{ input: "${base}", duration: 1 }] });
+    const cfg = validateAnimateConfig({
+      ...base,
+      vars: { base: "http://x" },
+      frames: [{ input: "${base}", duration: 1 }],
+    });
     expect(cfg.vars).toEqual({ base: "http://x" });
   });
 
@@ -708,18 +920,35 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
 
     it("rejects waitForCount with no equals/atLeast/atMost", () => {
       expect(() =>
-        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, waitForCount: { selector: ".x" } }] }),
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, waitForCount: { selector: ".x" } }],
+        }),
       ).toThrow(/requires `equals`, `atLeast`, or `atMost`/);
     });
   });
 
   describe("repeating animations (DM-869)", () => {
-    it("accepts repeat (integer | \"infinite\") + alternate on a frame animation", () => {
+    it('accepts repeat (integer | "infinite") + alternate on a frame animation', () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, animations: [
-          { selector: ".caret", property: "opacity", from: "1", to: "0", duration: 530, repeat: "infinite", alternate: true },
-        ] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            animations: [
+              {
+                selector: ".caret",
+                property: "opacity",
+                from: "1",
+                to: "0",
+                duration: 530,
+                repeat: "infinite",
+                alternate: true,
+              },
+            ],
+          },
+        ],
       });
       const a = cfg.frames[0].animations?.[0];
       expect(a?.repeat).toBe("infinite");
@@ -730,9 +959,13 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({
           ...base,
-          frames: [{ input: "a.html", duration: 1, animations: [
-            { selector: ".c", property: "opacity", from: "1", to: "0", duration: 1, repeat: 0 },
-          ] }],
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              animations: [{ selector: ".c", property: "opacity", from: "1", to: "0", duration: 1, repeat: 0 }],
+            },
+          ],
         }),
       ).toThrow();
     });
@@ -740,38 +973,62 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("DM-2460: accepts the SVG transform reference-box selector", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, animations: [{
-          selector: ".subject",
-          property: "scale",
-          from: "1",
-          to: ".5",
-          duration: 300,
-          transformOrigin: "right bottom",
-          transformBox: "view-box",
-        }] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            animations: [
+              {
+                selector: ".subject",
+                property: "scale",
+                from: "1",
+                to: ".5",
+                duration: 300,
+                transformOrigin: "right bottom",
+                transformBox: "view-box",
+              },
+            ],
+          },
+        ],
       });
       expect(cfg.frames[0].animations?.[0]?.transformBox).toBe("view-box");
-      expect(() => validateAnimateConfig({
-        ...base,
-        frames: [{ input: "a.html", duration: 1, animations: [{
-          selector: ".subject",
-          property: "scale",
-          from: "1",
-          to: ".5",
-          duration: 300,
-          transformOrigin: "right bottom",
-          transformBox: "border-box",
-        }] }],
-      })).toThrow();
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            {
+              input: "a.html",
+              duration: 1,
+              animations: [
+                {
+                  selector: ".subject",
+                  property: "scale",
+                  from: "1",
+                  to: ".5",
+                  duration: 300,
+                  transformOrigin: "right bottom",
+                  transformBox: "border-box",
+                },
+              ],
+            },
+          ],
+        }),
+      ).toThrow();
     });
 
     it("DM-870: accepts a typing-overlay caret (boolean or object)", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, overlays: [
-          { kind: "typing", text: "hi", x: 1, y: 2, caret: true },
-          { kind: "typing", text: "yo", x: 1, y: 20, caret: { color: "#fff", width: 2, blinkMs: 500 } },
-        ] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            overlays: [
+              { kind: "typing", text: "hi", x: 1, y: 2, caret: true },
+              { kind: "typing", text: "yo", x: 1, y: 20, caret: { color: "#fff", width: 2, blinkMs: 500 } },
+            ],
+          },
+        ],
       });
       expect(cfg.frames[0].overlays).toHaveLength(2);
     });
@@ -779,9 +1036,15 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("DM-871: accepts a blink overlay", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, overlays: [
-          { kind: "blink", x: 1, y: 2, width: 10, height: 10, periodMs: 800, color: "#ef4444", radius: 5 },
-        ] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            overlays: [
+              { kind: "blink", x: 1, y: 2, width: 10, height: 10, periodMs: 800, color: "#ef4444", radius: 5 },
+            ],
+          },
+        ],
       });
       expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "blink" });
     });
@@ -789,10 +1052,21 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("DM-861: accepts overlay anchor + maxWidth; x/y default to 0 when omitted", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, overlays: [
-          { kind: "typing", text: "hi", anchor: { selector: ".f", at: "top-left", dx: 8, dy: 8 }, maxWidth: "anchor" },
-          { kind: "blink", width: 4, height: 12, anchor: { selector: ".c" } },
-        ] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            overlays: [
+              {
+                kind: "typing",
+                text: "hi",
+                anchor: { selector: ".f", at: "top-left", dx: 8, dy: 8 },
+                maxWidth: "anchor",
+              },
+              { kind: "blink", width: 4, height: 12, anchor: { selector: ".c" } },
+            ],
+          },
+        ],
       });
       expect(cfg.frames[0].overlays).toHaveLength(2);
       // x/y default to 0 when omitted (the anchor overrides them at capture time).
@@ -804,20 +1078,26 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     it("DM-1750: accepts anchor.baseline on a typing overlay, rejects it on other kinds", () => {
       const cfg = validateAnimateConfig({
         ...base,
-        frames: [{ input: "a.html", duration: 1, overlays: [
-          { kind: "typing", text: "hi", anchor: { selector: ".f", baseline: true } },
-        ] }],
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            overlays: [{ kind: "typing", text: "hi", anchor: { selector: ".f", baseline: true } }],
+          },
+        ],
       });
       expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "typing", anchor: { selector: ".f", baseline: true } });
       // Any non-typing anchor is strict: `baseline` fails at its config path
       // instead of being silently stripped (a tap's y is a box corner, not a
       // text baseline).
-      expect(() => validateAnimateConfig({
-        ...base,
-        frames: [{ input: "a.html", duration: 1, overlays: [
-          { kind: "tap", anchor: { selector: ".c", baseline: true } },
-        ] }],
-      })).toThrow(/frames\[0\].overlays\[0\].anchor/);
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [
+            { input: "a.html", duration: 1, overlays: [{ kind: "tap", anchor: { selector: ".c", baseline: true } }] },
+          ],
+        }),
+      ).toThrow(/frames\[0\].overlays\[0\].anchor/);
     });
   });
 });
@@ -835,20 +1115,35 @@ describe("interpolateConfigVars (DM-852)", () => {
   });
 
   it("substitutes ${name} inside `states` actions and `textTracks` selectors (DM-1747)", () => {
-    const out = interpolateConfigVars(validateAnimateConfig({
-      ...base,
-      vars: { line: "#line-1", ins: "ins(2)" },
-      frames: [
-        {
-          input: "editor.html", duration: 1000,
-          states: [{ duration: 100 }, { actions: [{ type: "evaluate", script: "${ins}" }, { type: "setText", selector: "${line}", value: "x" }], duration: 100 }],
-        },
-        {
-          continue: true, duration: 1000,
-          textTracks: [{ selector: "${line}", events: [{ type: "move", at: 0, charOffset: 1, selector: "${line}" }] }],
-        },
-      ],
-    }));
+    const out = interpolateConfigVars(
+      validateAnimateConfig({
+        ...base,
+        vars: { line: "#line-1", ins: "ins(2)" },
+        frames: [
+          {
+            input: "editor.html",
+            duration: 1000,
+            states: [
+              { duration: 100 },
+              {
+                actions: [
+                  { type: "evaluate", script: "${ins}" },
+                  { type: "setText", selector: "${line}", value: "x" },
+                ],
+                duration: 100,
+              },
+            ],
+          },
+          {
+            continue: true,
+            duration: 1000,
+            textTracks: [
+              { selector: "${line}", events: [{ type: "move", at: 0, charOffset: 1, selector: "${line}" }] },
+            ],
+          },
+        ],
+      }),
+    );
     const stActions = out.frames[0].states![1].actions!;
     expect(stActions[0].type === "evaluate" ? stActions[0].script : "").toBe("ins(2)");
     expect("selector" in stActions[1] ? stActions[1].selector : "").toBe("#line-1");
@@ -865,15 +1160,20 @@ describe("interpolateConfigVars (DM-852)", () => {
     // match them stay literal too — otherwise the two halves of one identifier
     // would follow different rules, and the "is this region declared?" check
     // runs at parse time, before any substitution could happen.
-    const out = interpolateConfigVars(validateAnimateConfig({
-      ...base,
-      vars: { pane: "#ed" },
-      frames: [{
-        input: "panes.html", duration: 1000,
-        regions: { editor: "${pane}", preview: "#pv" },
-        states: [{ duration: 100 }, { advances: ["editor"], duration: 100 }],
-      }],
-    }));
+    const out = interpolateConfigVars(
+      validateAnimateConfig({
+        ...base,
+        vars: { pane: "#ed" },
+        frames: [
+          {
+            input: "panes.html",
+            duration: 1000,
+            regions: { editor: "${pane}", preview: "#pv" },
+            states: [{ duration: 100 }, { advances: ["editor"], duration: 100 }],
+          },
+        ],
+      }),
+    );
     expect(out.frames[0].regions).toEqual({ editor: "#ed", preview: "#pv" });
     expect(out.frames[0].states![1].advances).toEqual(["editor"]);
   });
@@ -882,11 +1182,14 @@ describe("interpolateConfigVars (DM-852)", () => {
     const out = interpolateConfigVars({
       ...base,
       vars: { left: "editor" },
-      frames: [{
-        input: "panes.html", duration: 1000,
-        regions: { "${left}": "#ed" },
-        states: [{ duration: 100 }, { advances: ["${left}"], duration: 100 }],
-      }],
+      frames: [
+        {
+          input: "panes.html",
+          duration: 1000,
+          regions: { "${left}": "#ed" },
+          states: [{ duration: 100 }, { advances: ["${left}"], duration: 100 }],
+        },
+      ],
     } as unknown as AnimateConfig);
     expect(Object.keys(out.frames[0].regions!)).toEqual(["${left}"]);
     expect(out.frames[0].states![1].advances).toEqual(["${left}"]);
@@ -912,8 +1215,12 @@ describe("interpolateConfigVars (DM-852)", () => {
 describe("cursor overlay config (DM-851)", () => {
   const base = { width: 100, height: 100 };
 
-  it("accepts cursor: \"auto\"", () => {
-    const cfg = validateAnimateConfig({ ...base, cursor: "auto", frames: [{ input: "a.html", duration: 1, actions: [{ type: "click", selector: ".b" }] }] });
+  it('accepts cursor: "auto"', () => {
+    const cfg = validateAnimateConfig({
+      ...base,
+      cursor: "auto",
+      frames: [{ input: "a.html", duration: 1, actions: [{ type: "click", selector: ".b" }] }],
+    });
     expect(cfg.cursor).toBe("auto");
   });
 
@@ -928,7 +1235,11 @@ describe("cursor overlay config (DM-851)", () => {
 
   it("rejects a move event without selector or to", () => {
     expect(() =>
-      validateAnimateConfig({ ...base, cursor: { events: [{ frame: 0, type: "move" }] }, frames: [{ input: "a.html", duration: 1 }] }),
+      validateAnimateConfig({
+        ...base,
+        cursor: { events: [{ frame: 0, type: "move" }] },
+        frames: [{ input: "a.html", duration: 1 }],
+      }),
     ).toThrow(/requires `selector` or `to`/);
   });
 
@@ -939,14 +1250,17 @@ describe("cursor overlay config (DM-851)", () => {
     const cfg = validateAnimateConfig({
       ...base,
       cursor: "auto",
-      frames: [{
-        input: "a.html", duration: 1,
-        actions: [
-          { type: "click", selector: ".b", cursorAt: "bottom-right", cursorOffset: { dx: -4, dy: 8 } },
-          { type: "fill", selector: ".in", value: "x", cursorOffset: { dx: 40 } },
-          { type: "hover", selector: ".h", cursorAt: "left" },
-        ],
-      }],
+      frames: [
+        {
+          input: "a.html",
+          duration: 1,
+          actions: [
+            { type: "click", selector: ".b", cursorAt: "bottom-right", cursorOffset: { dx: -4, dy: 8 } },
+            { type: "fill", selector: ".in", value: "x", cursorOffset: { dx: 40 } },
+            { type: "hover", selector: ".h", cursorAt: "left" },
+          ],
+        },
+      ],
     });
     const acts = cfg.frames[0].actions!;
     expect(acts[0]).toMatchObject({ cursorAt: "bottom-right", cursorOffset: { dx: -4, dy: 8 } });
@@ -980,9 +1294,24 @@ describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
     cursor: "auto",
     frames: [
       { input: "a.html", duration: 1000 },
-      { continue: true, duration: 1100, transition: { type: "crossfade", duration: 220 }, actions: [{ type: "click", selector: "#load" }] },
-      { continue: true, duration: 1100, transition: { type: "crossfade", duration: 220 }, actions: [{ type: "click", selector: "#remove" }] },
-      { continue: true, duration: 1300, transition: { type: "crossfade", duration: 220 }, actions: [{ type: "click", selector: "#reload" }] },
+      {
+        continue: true,
+        duration: 1100,
+        transition: { type: "crossfade", duration: 220 },
+        actions: [{ type: "click", selector: "#load" }],
+      },
+      {
+        continue: true,
+        duration: 1100,
+        transition: { type: "crossfade", duration: 220 },
+        actions: [{ type: "click", selector: "#remove" }],
+      },
+      {
+        continue: true,
+        duration: 1300,
+        transition: { type: "crossfade", duration: 220 },
+        actions: [{ type: "click", selector: "#reload" }],
+      },
     ],
   }).frames;
   const starts = frameStartsFor(frames); // [0, 1300, 2620, 3940]
@@ -995,7 +1324,9 @@ describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
 
   it("fires each continue-frame's click during the PREVIOUS frame's hold, before the reveal", () => {
     const ov = buildCursorOverlay(true, [], undefined, targets, new Map(), starts, frames);
-    const clickTimes = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);
+    const clickTimes = clicksOf(ov)
+      .map((c) => c.t)
+      .sort((a, b) => a - b);
     expect(clickTimes).toHaveLength(3);
     // Each click must land within its STAGE frame's hold (the before-image) and
     // strictly before the result frame's own start (= when its reveal completes).
@@ -1006,25 +1337,33 @@ describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
       const stageHoldEnd = starts[stage] + frames[stage].duration;
       const t = clickTimes[i];
       expect(t).toBeGreaterThanOrEqual(stageStart);
-      expect(t).toBeLessThanOrEqual(stageHoldEnd);          // within the before-image's hold
-      expect(t).toBeLessThan(starts[actionFrame]);          // before the result frame begins
+      expect(t).toBeLessThanOrEqual(stageHoldEnd); // within the before-image's hold
+      expect(t).toBeLessThan(starts[actionFrame]); // before the result frame begins
     }
   });
 
   it("carries a pre-action target cursor onto the generated move", () => {
     const ov = buildCursorOverlay(
-      true, [], undefined,
+      true,
+      [],
+      undefined,
       [{ frame: 1, cx: 20, cy: 20, cursor: "pointer" }],
-      new Map(), starts, frames,
+      new Map(),
+      starts,
+      frames,
     );
     expect(ov?.events.find((event) => event.type === "move")).toMatchObject({
-      type: "move", to: { x: 20, y: 20 }, cursor: "pointer",
+      type: "move",
+      to: { x: 20, y: 20 },
+      cursor: "pointer",
     });
   });
 
   it("does NOT fire a click during its OWN result frame's hold (the bug)", () => {
     const ov = buildCursorOverlay(true, [], undefined, targets, new Map(), starts, frames);
-    const clickTimes = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);
+    const clickTimes = clicksOf(ov)
+      .map((c) => c.t)
+      .sort((a, b) => a - b);
     // The old behavior placed each click at the mid-hold of the frame that holds
     // its action — i.e. inside the result image (1850 / 3170 / 4590). Each
     // click[i] is for action frame i+1; assert it is NOT inside that frame's hold.
@@ -1047,13 +1386,23 @@ describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
       cursor: "auto",
       frames: [
         { input: "a.html", duration: 1000, actions: [{ type: "click", selector: "#a" }] },
-        { input: "b.html", duration: 1000, transition: { type: "crossfade", duration: 200 }, actions: [{ type: "click", selector: "#b" }] },
+        {
+          input: "b.html",
+          duration: 1000,
+          transition: { type: "crossfade", duration: 200 },
+          actions: [{ type: "click", selector: "#b" }],
+        },
       ],
     }).frames;
     const rs = frameStartsFor(reloadFrames); // [0, 1300]
-    const rt = [{ frame: 0, cx: 1, cy: 1 }, { frame: 1, cx: 2, cy: 2 }];
+    const rt = [
+      { frame: 0, cx: 1, cy: 1 },
+      { frame: 1, cx: 2, cy: 2 },
+    ];
     const ov = buildCursorOverlay(true, [], undefined, rt, new Map(), rs, reloadFrames);
-    const ct = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);
+    const ct = clicksOf(ov)
+      .map((c) => c.t)
+      .sort((a, b) => a - b);
     expect(ct).toHaveLength(2);
     // Frame 0 click stays in frame 0's hold; the reload frame's click stays in
     // its OWN hold (its before-state was never captured, so there's nothing to
@@ -1107,7 +1456,10 @@ describe("resolveEmbeddedFrameOverlays — overlays on cast/template frames (DM-
     const logs: string[] = [];
     const out = resolveEmbeddedFrameOverlays(
       [{ kind: "tap", x: 0, y: 0, anchor: { selector: ".btn", at: "center" } }],
-      process.cwd(), 0, "cast", (m) => logs.push(m),
+      process.cwd(),
+      0,
+      "cast",
+      (m) => logs.push(m),
     );
     expect(out).toHaveLength(1);
     expect((out![0] as { anchor?: unknown }).anchor).toBeUndefined();
@@ -1118,7 +1470,10 @@ describe("resolveEmbeddedFrameOverlays — overlays on cast/template frames (DM-
     const logs: string[] = [];
     const out = resolveEmbeddedFrameOverlays(
       [{ kind: "typing", x: 10, y: 20, text: "hi", maxWidth: "anchor" }],
-      process.cwd(), 1, "template", (m) => logs.push(m),
+      process.cwd(),
+      1,
+      "template",
+      (m) => logs.push(m),
     );
     expect((out![0] as { maxWidth?: unknown }).maxWidth).toBeUndefined();
     expect(logs.join("\n")).toMatch(/maxWidth:"anchor" is ignored on a template frame/);
@@ -1126,9 +1481,8 @@ describe("resolveEmbeddedFrameOverlays — overlays on cast/template frames (DM-
 
   it("passes explicit-coordinate overlays through untouched (no warning)", () => {
     const logs: string[] = [];
-    const out = resolveEmbeddedFrameOverlays(
-      [{ kind: "tap", x: 100, y: 50 }],
-      process.cwd(), 0, "cast", (m) => logs.push(m),
+    const out = resolveEmbeddedFrameOverlays([{ kind: "tap", x: 100, y: 50 }], process.cwd(), 0, "cast", (m) =>
+      logs.push(m),
     );
     expect(out).toEqual([{ kind: "tap", x: 100, y: 50 }]);
     expect(logs).toHaveLength(0);
@@ -1165,8 +1519,9 @@ describe("config `brand` key (DM-1544)", () => {
   });
 
   it("rejects an inline brand with a wrong-typed token", () => {
-    expect(() => validateAnimateConfig({ ...base, brand: { palette: { primary: 123 } }, frames: [frame] }))
-      .toThrow(/brand/);
+    expect(() => validateAnimateConfig({ ...base, brand: { palette: { primary: 123 } }, frames: [frame] })).toThrow(
+      /brand/,
+    );
   });
 
   it("resolveConfigBrand loads a string path relative to configDir", () => {
@@ -1185,7 +1540,9 @@ describe("config `brand` key (DM-1544)", () => {
 
   it("resolveConfigBrand leaves an absolute path / URL logo untouched", () => {
     expect(resolveConfigBrand({ logo: "/opt/l.svg" }, dir)?.logo).toBe("/opt/l.svg");
-    expect(resolveConfigBrand({ logo: "https://cdn.example.com/l.svg" }, dir)?.logo).toBe("https://cdn.example.com/l.svg");
+    expect(resolveConfigBrand({ logo: "https://cdn.example.com/l.svg" }, dir)?.logo).toBe(
+      "https://cdn.example.com/l.svg",
+    );
   });
 
   it("resolveConfigBrand returns undefined for an absent brand", () => {
@@ -1217,11 +1574,14 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("collapses a maximal continue+cut run into ONE states frame", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut, actions: [{ type: "evaluate", script: "s(0)" }] },
-      { continue: true, duration: 120, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
-      { continue: true, duration: 140, transition: cut, actions: [{ type: "evaluate", script: "s(2)" }] },
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut, actions: [{ type: "evaluate", script: "s(0)" }] },
+        { continue: true, duration: 120, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
+        { continue: true, duration: 140, transition: cut, actions: [{ type: "evaluate", script: "s(2)" }] },
+      ],
+      { autoCompress: true },
+    );
     const out = autoCompressRuns(cfg);
     expect(out.frames).toHaveLength(1);
     const f = out.frames[0];
@@ -1239,11 +1599,14 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("uses `continue: true` on the collapsed frame when the anchor is a continue frame", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: { type: "crossfade", duration: 200 } }, // standalone (crossfade)
-      { continue: true, duration: 100, transition: cut }, // anchor of the run
-      { continue: true, duration: 100, transition: cut },
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: { type: "crossfade", duration: 200 } }, // standalone (crossfade)
+        { continue: true, duration: 100, transition: cut }, // anchor of the run
+        { continue: true, duration: 100, transition: cut },
+      ],
+      { autoCompress: true },
+    );
     const out = autoCompressRuns(cfg);
     expect(out.frames).toHaveLength(2);
     expect(out.frames[0].transition).toEqual({ type: "crossfade", duration: 200 });
@@ -1253,24 +1616,30 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("does not collapse a single continue+cut frame (needs >= 2)", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: { type: "crossfade", duration: 100 } },
-      { continue: true, duration: 100, transition: cut },
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: { type: "crossfade", duration: 100 } },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      { autoCompress: true },
+    );
     // Frame 0 alone (frame 1 is crossfade → not a member) is length-1 → not collapsed.
     // Frame 2 alone is length-1 → not collapsed. Nothing collapses.
     expect(autoCompressRuns(cfg)).toBe(cfg);
   });
 
   it("stops the run at a non-cut (crossfade) transition and collapses two separate runs", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut },     // run A ends here (out-transition cut into f2)
-      { continue: true, duration: 100, transition: { type: "crossfade", duration: 150 } }, // standalone (crossfade out)
-      { continue: true, duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut },     // run B
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut }, // run A ends here (out-transition cut into f2)
+        { continue: true, duration: 100, transition: { type: "crossfade", duration: 150 } }, // standalone (crossfade out)
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut }, // run B
+      ],
+      { autoCompress: true },
+    );
     const out = autoCompressRuns(cfg);
     // run A = [0,1] → 1 frame; f2 standalone; run B = [3,4] → 1 frame. 5 → 3.
     expect(out.frames).toHaveLength(3);
@@ -1286,11 +1655,14 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
       { textTracks: [{ selector: "#a", events: [{ at: 0, type: "park", charOffset: 0 }] }] },
       { forceState: [{ selector: "#a", states: ["hover"] }] },
     ]) {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut, ...feature },
-        { continue: true, duration: 100, transition: cut },
-      ], { autoCompress: true });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut, ...feature },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        { autoCompress: true },
+      );
       const out = autoCompressRuns(cfg);
       // The feature frame breaks the run: frame 0 (len 1) and frame 2 (len 1) → nothing collapses.
       expect(out.frames, JSON.stringify(feature)).toHaveLength(3);
@@ -1304,11 +1676,14 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   // whole and the overlay keeps its authored lifetime.
   describe("DM-1767: member overlays ride along as per-state overlays", () => {
     it("collapses a run whose members carry overlays, mapping each onto its state", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 120, transition: cut, overlays: [{ kind: "typing", text: "hi", x: 4, y: 8 }] },
-        { continue: true, duration: 140, transition: cut },
-      ], { autoCompress: true });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 120, transition: cut, overlays: [{ kind: "typing", text: "hi", x: 4, y: 8 }] },
+          { continue: true, duration: 140, transition: cut },
+        ],
+        { autoCompress: true },
+      );
       const out = autoCompressRuns(cfg);
       // All three collapse now — the overlay no longer splits the window.
       expect(out.frames).toHaveLength(1);
@@ -1325,10 +1700,13 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     });
 
     it("maps the ANCHOR's overlays onto state 0", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut, overlays: [{ kind: "tap", x: 3, y: 3 }] },
-        { continue: true, duration: 100, transition: cut },
-      ], { autoCompress: true });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut, overlays: [{ kind: "tap", x: 3, y: 3 }] },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        { autoCompress: true },
+      );
       const f = autoCompressRuns(cfg).frames[0];
       expect(f.states?.[0].overlays).toMatchObject([{ kind: "tap", x: 3, y: 3 }]);
       expect(f.states?.[1].overlays).toBeUndefined();
@@ -1336,8 +1714,19 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
 
     it("a `compress: true` marker no longer rejects a run carrying overlays", () => {
       const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut, compress: true, overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }] },
-        { continue: true, duration: 100, transition: cut, overlays: [{ kind: "blink", x: 0, y: 0, width: 2, height: 10 }] },
+        {
+          input: "a.html",
+          duration: 100,
+          transition: cut,
+          compress: true,
+          overlays: [{ kind: "typing", text: "x", x: 0, y: 0 }],
+        },
+        {
+          continue: true,
+          duration: 100,
+          transition: cut,
+          overlays: [{ kind: "blink", x: 0, y: 0, width: 2, height: 10 }],
+        },
       ]);
       const out = compressMarkedRuns(cfg);
       expect(out.frames).toHaveLength(1);
@@ -1347,12 +1736,15 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("ends a run at a non-anchor readiness wait, but that frame can anchor the NEXT run", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut, waitFor: ".ready" }, // ends run [0,1]; anchors run [2,3]
-      { continue: true, duration: 100, transition: cut },
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, waitFor: ".ready" }, // ends run [0,1]; anchors run [2,3]
+        { continue: true, duration: 100, transition: cut },
+      ],
+      { autoCompress: true },
+    );
     const out = autoCompressRuns(cfg);
     // A waitFor disqualifies a frame as a NON-anchor member (state runs have no
     // per-state readiness wait), so it ends run [0,1]. But an anchor MAY carry a
@@ -1366,24 +1758,30 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("leaves a run uncompressed when an explicit cursor event addresses a member", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut },
-    ], {
-      autoCompress: true,
-      cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#btn" }] },
-    });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      {
+        autoCompress: true,
+        cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#btn" }] },
+      },
+    );
     // The run [0,1,2] is rejected (cursor addresses frame 1). Unchanged.
     expect(autoCompressRuns(cfg).frames).toHaveLength(3);
   });
 
   it("leaves a run uncompressed when it is entered via a magic-move transition", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
-      { continue: true, duration: 100, transition: cut }, // anchor — entered via magic-move
-      { continue: true, duration: 100, transition: cut },
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
+        { continue: true, duration: 100, transition: cut }, // anchor — entered via magic-move
+        { continue: true, duration: 100, transition: cut },
+      ],
+      { autoCompress: true },
+    );
     const out = autoCompressRuns(cfg);
     // Run [1,2] rejected (magic-move entry). Frame 0 standalone. 3 frames unchanged.
     expect(out.frames).toHaveLength(3);
@@ -1391,20 +1789,26 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("under cursor:auto, leaves a run with an interaction action uncompressed", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
-      { continue: true, duration: 100, transition: cut },
-    ], { autoCompress: true, cursor: "auto" });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
+        { continue: true, duration: 100, transition: cut },
+      ],
+      { autoCompress: true, cursor: "auto" },
+    );
     expect(autoCompressRuns(cfg).frames).toHaveLength(3);
   });
 
   it("under cursor:auto, still collapses a run whose actions are non-interaction (evaluate/DOM)", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
-      { continue: true, duration: 100, transition: cut, actions: [{ type: "setText", selector: "#x", value: "y" }] },
-    ], { autoCompress: true, cursor: "auto" });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
+        { continue: true, duration: 100, transition: cut, actions: [{ type: "setText", selector: "#x", value: "y" }] },
+      ],
+      { autoCompress: true, cursor: "auto" },
+    );
     const out = autoCompressRuns(cfg);
     expect(out.frames).toHaveLength(1);
     expect(out.frames[0].states).toHaveLength(3);
@@ -1415,16 +1819,19 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   // a magic-move landing) splits the candidate window instead of dropping it.
   describe("sub-run splitting around a single ineligible frame (DM-1764)", () => {
     it("splits a run around a cursor-addressed member and collapses both sides", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },   // ← cursor event here
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-      ], {
-        autoCompress: true,
-        cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#btn" }] },
-      });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut }, // ← cursor event here
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        {
+          autoCompress: true,
+          cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#btn" }] },
+        },
+      );
       const out = autoCompressRuns(cfg);
       // [0,1] → one run, frame 2 stays plain, [3,4] → one run. 5 → 3.
       expect(out.frames).toHaveLength(3);
@@ -1437,13 +1844,16 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     });
 
     it("splits under cursor:auto around the member carrying the interaction action", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-      ], { autoCompress: true, cursor: "auto" });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut, actions: [{ type: "click", selector: "#b" }] },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        { autoCompress: true, cursor: "auto" },
+      );
       const out = autoCompressRuns(cfg);
       expect(out.frames).toHaveLength(3);
       expect(out.frames[0].states).toHaveLength(2);
@@ -1453,12 +1863,15 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     });
 
     it("splits off a magic-move-entered anchor and still collapses the rest", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
-        { continue: true, duration: 100, transition: cut },  // anchor — entered via magic-move
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-      ], { autoCompress: true });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: { type: "magic-move", duration: 300 } },
+          { continue: true, duration: 100, transition: cut }, // anchor — entered via magic-move
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        { autoCompress: true },
+      );
       const out = autoCompressRuns(cfg);
       // Frame 0 keeps its magic-move INTO frame 1, which stays a plain captured
       // frame (so the transition still has a tree to morph into); [2,3] collapse.
@@ -1470,22 +1883,27 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     });
 
     it("splits around MULTIPLE ineligible frames in one window", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },   // ← cursor
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },   // ← cursor
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-      ], {
-        autoCompress: true,
-        cursor: { events: [
-          { frame: 2, at: 0, type: "click", selector: "#a" },
-          { frame: 5, at: 0, type: "click", selector: "#b" },
-        ] },
-      });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut }, // ← cursor
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut }, // ← cursor
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        {
+          autoCompress: true,
+          cursor: {
+            events: [
+              { frame: 2, at: 0, type: "click", selector: "#a" },
+              { frame: 5, at: 0, type: "click", selector: "#b" },
+            ],
+          },
+        },
+      );
       const out = autoCompressRuns(cfg);
       // [0,1] run · 2 plain · [3,4] run · 5 plain · [6,7] run → 5 frames.
       expect(out.frames.map((f) => f.states?.length ?? 0)).toEqual([2, 0, 2, 0, 2]);
@@ -1493,44 +1911,57 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
     });
 
     it("leaves a 1-frame remnant plain (a compressed run needs >= 2 states)", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },   // ← cursor: remnant [0] is 1 frame
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-      ], {
-        autoCompress: true,
-        cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#a" }] },
-      });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut }, // ← cursor: remnant [0] is 1 frame
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        {
+          autoCompress: true,
+          cursor: { events: [{ frame: 1, at: 0, type: "click", selector: "#a" }] },
+        },
+      );
       const out = autoCompressRuns(cfg);
       expect(out.frames.map((f) => f.states?.length ?? 0)).toEqual([0, 0, 2]);
     });
 
     it("logs the split frame with its reason, and the surviving sub-runs", () => {
       const logs: string[] = [];
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },
-      ], {
-        autoCompress: true,
-        cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#btn" }] },
-      });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut },
+        ],
+        {
+          autoCompress: true,
+          cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#btn" }] },
+        },
+      );
       autoCompressRuns(cfg, (m) => logs.push(m));
-      expect(logs.some((l) => /auto-compress: leaving frame 2 uncompressed — an explicit cursor event addresses frame 2/.test(l))).toBe(true);
+      expect(
+        logs.some((l) =>
+          /auto-compress: leaving frame 2 uncompressed — an explicit cursor event addresses frame 2/.test(l),
+        ),
+      ).toBe(true);
       expect(logs.some((l) => /auto-compress: collapsed frames 0–1 into a states run/.test(l))).toBe(true);
       expect(logs.some((l) => /auto-compress: collapsed frames 3–4 into a states run/.test(l))).toBe(true);
     });
 
     it("keeps the marker mode's hard error for a run containing a split point", () => {
-      const cfg = cfgOf([
-        { input: "a.html", duration: 100, transition: cut, compress: true },
-        { continue: true, duration: 100, transition: cut },
-        { continue: true, duration: 100, transition: cut },   // ← cursor
-        { continue: true, duration: 100, transition: cut },
-      ], { cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#a" }] } });
+      const cfg = cfgOf(
+        [
+          { input: "a.html", duration: 100, transition: cut, compress: true },
+          { continue: true, duration: 100, transition: cut },
+          { continue: true, duration: 100, transition: cut }, // ← cursor
+          { continue: true, duration: 100, transition: cut },
+        ],
+        { cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#a" }] } },
+      );
       // The author asked for THIS run; compressing a shorter piece of it would
       // hide the mismatch, so the marker still fails loudly.
       expect(() => compressMarkedRuns(cfg)).toThrow(/an explicit cursor event addresses frame 2 inside it/);
@@ -1538,16 +1969,19 @@ describe("autoCompressRuns (DM-1757): automatic compressed-run detection", () =>
   });
 
   it("remaps explicit cursor-event frame indices across collapsed runs", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },  // run A member
-      { continue: true, duration: 100, transition: cut },   // run A member
-      { continue: true, duration: 100, transition: { type: "crossfade", duration: 150 } }, // standalone (idx 2 → 1)
-      { continue: true, duration: 100, transition: cut },   // run B member
-      { continue: true, duration: 100, transition: cut },   // run B member
-    ], {
-      autoCompress: true,
-      cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#c" }] },
-    });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut }, // run A member
+        { continue: true, duration: 100, transition: cut }, // run A member
+        { continue: true, duration: 100, transition: { type: "crossfade", duration: 150 } }, // standalone (idx 2 → 1)
+        { continue: true, duration: 100, transition: cut }, // run B member
+        { continue: true, duration: 100, transition: cut }, // run B member
+      ],
+      {
+        autoCompress: true,
+        cursor: { events: [{ frame: 2, at: 0, type: "click", selector: "#c" }] },
+      },
+    );
     const out = autoCompressRuns(cfg);
     expect(out.frames).toHaveLength(3); // [0,1]→0, 2→1, [3,4]→2
     expect(out.cursor).not.toBe("auto");
@@ -1607,7 +2041,11 @@ describe("planRegionCaptureRounds (DM-1770): independent per-region timing", () 
   it("states with no `advances` advance every region — one round each, the sequential default", () => {
     const plan = planRegionCaptureRounds([{}, {}, {}], ["a", "b"]);
     expect(plan.rounds).toEqual([[], [1], [2]]);
-    expect(plan.sourceRound).toEqual([{ a: 0, b: 0 }, { a: 1, b: 1 }, { a: 2, b: 2 }]);
+    expect(plan.sourceRound).toEqual([
+      { a: 0, b: 0 },
+      { a: 1, b: 1 },
+      { a: 2, b: 2 },
+    ]);
   });
 
   it("a single state needs exactly one capture", () => {
@@ -1619,38 +2057,71 @@ describe("assembleRegionStateTrees (DM-1770): each state's tree from the round h
   // Minimal captured shapes — the assembly is pure structure, so only the
   // region roots' `animId`s and the surrounding nodes matter.
   const el = (over: Record<string, unknown>): CapturedElement =>
-    ({ tag: "div", text: "", x: 0, y: 0, width: 10, height: 10, children: [], styles: {}, ...over }) as unknown as CapturedElement;
+    ({
+      tag: "div",
+      text: "",
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      children: [],
+      styles: {},
+      ...over,
+    }) as unknown as CapturedElement;
   /** One whole-page capture: a static shell wrapping two region roots holding
    *  `a` / `b` as their content marker. */
   const round = (a: string, b: string, shell = "chrome"): CapturedElement[] => [
-    el({ text: shell, children: [
-      el({ animId: "rgA", children: [el({ text: a })] }),
-      el({ animId: "rgB", children: [el({ text: b })] }),
-    ] }),
+    el({
+      text: shell,
+      children: [
+        el({ animId: "rgA", children: [el({ text: a })] }),
+        el({ animId: "rgB", children: [el({ text: b })] }),
+      ],
+    }),
   ];
-  const names = new Map([["editor", "rgA"], ["preview", "rgB"]]);
+  const names = new Map([
+    ["editor", "rgA"],
+    ["preview", "rgB"],
+  ]);
   /** Read back what each region holds in each assembled state. */
-  const contents = (trees: CapturedElement[][]): string[] => trees.map((t) => {
-    const kids = t[0].children;
-    return `${kids[0].children[0].text}/${kids[1].children[0].text}`;
-  });
+  const contents = (trees: CapturedElement[][]): string[] =>
+    trees.map((t) => {
+      const kids = t[0].children;
+      return `${kids[0].children[0].text}/${kids[1].children[0].text}`;
+    });
 
   it("assembles the alternating two-region schedule from 4 rounds into 7 states", () => {
     const plan = planRegionCaptureRounds(
-      [{}, { advances: ["editor"] }, { advances: ["preview"] }, { advances: ["editor"] },
-        { advances: ["preview"] }, { advances: ["editor"] }, { advances: ["preview"] }],
+      [
+        {},
+        { advances: ["editor"] },
+        { advances: ["preview"] },
+        { advances: ["editor"] },
+        { advances: ["preview"] },
+        { advances: ["editor"] },
+        { advances: ["preview"] },
+      ],
       ["editor", "preview"],
     );
     const rounds = [round("A0", "B0"), round("A1", "B1"), round("A2", "B2"), round("A3", "B3")];
     // Each state must show each region at ITS own step — the staircase the
     // page was never actually driven through.
     expect(contents(assembleRegionStateTrees(rounds, plan, names, "frames[0]"))).toEqual([
-      "A0/B0", "A1/B0", "A1/B1", "A2/B1", "A2/B2", "A3/B2", "A3/B3",
+      "A0/B0",
+      "A1/B0",
+      "A1/B1",
+      "A2/B1",
+      "A2/B2",
+      "A3/B2",
+      "A3/B3",
     ]);
   });
 
   it("a region that never advances holds its round-0 subtree in every state", () => {
-    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }, { advances: ["editor"] }], ["editor", "preview"]);
+    const plan = planRegionCaptureRounds(
+      [{}, { advances: ["editor"] }, { advances: ["editor"] }],
+      ["editor", "preview"],
+    );
     const rounds = [round("A0", "B0"), round("A1", "B1"), round("A2", "B2")];
     expect(contents(assembleRegionStateTrees(rounds, plan, names, "frames[0]"))).toEqual(["A0/B0", "A1/B0", "A2/B0"]);
   });
@@ -1667,15 +2138,20 @@ describe("assembleRegionStateTrees (DM-1770): each state's tree from the round h
   it("hard-errors when the page changed OUTSIDE every declared region", () => {
     const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
     const rounds = [round("A0", "B0"), round("A1", "B1", "chrome moved")];
-    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[2]"))
-      .toThrow(/frames\[2\] declares per-region timing \(`advances`\), but the page changed OUTSIDE the declared regions between capture round 0 and round 1/);
+    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[2]")).toThrow(
+      /frames\[2\] declares per-region timing \(`advances`\), but the page changed OUTSIDE the declared regions between capture round 0 and round 1/,
+    );
   });
 
   it("hard-errors when a region root vanished from a later round", () => {
     const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
-    const rounds = [round("A0", "B0"), [el({ text: "chrome", children: [el({ animId: "rgA", children: [el({ text: "A1" })] })] })]];
-    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[0]"))
-      .toThrow(/frames\[0\]\.regions\.preview — the region's element is missing from capture round 1/);
+    const rounds = [
+      round("A0", "B0"),
+      [el({ text: "chrome", children: [el({ animId: "rgA", children: [el({ text: "A1" })] })] })],
+    ];
+    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[0]")).toThrow(
+      /frames\[0\]\.regions\.preview — the region's element is missing from capture round 1/,
+    );
   });
 
   it("a region's OWN subtree may change freely between rounds — that is the point", () => {
@@ -1685,10 +2161,15 @@ describe("assembleRegionStateTrees (DM-1770): each state's tree from the round h
     const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
     const rounds = [
       round("A0", "B0"),
-      [el({ text: "chrome", children: [
-        el({ animId: "rgA", width: 999, children: [el({ text: "A1" }), el({ text: "extra" })] }),
-        el({ animId: "rgB", children: [el({ text: "B1" })] }),
-      ] })],
+      [
+        el({
+          text: "chrome",
+          children: [
+            el({ animId: "rgA", width: 999, children: [el({ text: "A1" }), el({ text: "extra" })] }),
+            el({ animId: "rgB", children: [el({ text: "B1" })] }),
+          ],
+        }),
+      ],
     ];
     const out = assembleRegionStateTrees(rounds, plan, names, "frames[0]");
     expect(out[1][0].children[0].width).toBe(999);
@@ -1727,7 +2208,9 @@ describe("size-regression guard (DM-1764)", () => {
     });
 
     it("does NOT flag a hand-authored `states:` frame", () => {
-      const cfg = cfgOf([{ input: "a.html", duration: 200, transition: cut, states: [{ duration: 100 }, { duration: 100 }] }]);
+      const cfg = cfgOf([
+        { input: "a.html", duration: 200, transition: cut, states: [{ duration: 100 }, { duration: 100 }] },
+      ]);
       expect(wasAutoCollapsed(cfg.frames[0])).toBe(false);
     });
   });
@@ -1747,7 +2230,9 @@ describe("size-regression guard (DM-1764)", () => {
       // State 0 holds 0–100ms of 600 (0–16.6667%), state 1 to 300ms (50%),
       // state 2 to the end. Exactly one group is `inline` at any instant.
       expect(svg).toContain("@keyframes crfb0{0%{display:inline}16.6667%{display:none}100%{display:none}}");
-      expect(svg).toContain("@keyframes crfb1{0%{display:none}16.6667%{display:inline}50%{display:none}100%{display:none}}");
+      expect(svg).toContain(
+        "@keyframes crfb1{0%{display:none}16.6667%{display:inline}50%{display:none}100%{display:none}}",
+      );
       expect(svg).toContain("@keyframes crfb2{0%{display:none}50%{display:inline}100%{display:inline}}");
       expect(svg).toContain("#crfb0{animation:crfb0 0.600s step-end infinite}");
       expect(svg).toContain("#crfb2{animation:crfb2 0.600s step-end infinite}");
@@ -1755,8 +2240,9 @@ describe("size-regression guard (DM-1764)", () => {
     });
 
     it("paints the captured root background when there is one", () => {
-      expect(composeStatesFlipbook(trees, holds, 200, 120, "cr", "rgb(30, 41, 59)").svg)
-        .toContain(`<rect width="200" height="120" fill="rgb(30, 41, 59)"/>`);
+      expect(composeStatesFlipbook(trees, holds, 200, 120, "cr", "rgb(30, 41, 59)").svg).toContain(
+        `<rect width="200" height="120" fill="rgb(30, 41, 59)"/>`,
+      );
       expect(composeStatesFlipbook(trees, holds, 200, 120, "cr").svg).not.toContain("<rect");
     });
 
@@ -1835,7 +2321,14 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
 
   it("carries the anchor's actions / readiness wait onto the collapsed frame", () => {
     const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut, waitFor: ".ready", compress: true, actions: [{ type: "evaluate", script: "s(0)" }] },
+      {
+        input: "a.html",
+        duration: 100,
+        transition: cut,
+        waitFor: ".ready",
+        compress: true,
+        actions: [{ type: "evaluate", script: "s(0)" }],
+      },
       { continue: true, duration: 120, transition: cut, actions: [{ type: "evaluate", script: "s(1)" }] },
     ]);
     const out = compressMarkedRuns(cfg);
@@ -1863,7 +2356,12 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
       name: "a member carries animations",
       frames: [
         { input: "a.html", duration: 100, transition: cut, compress: true },
-        { continue: true, duration: 100, transition: cut, animations: [{ selector: "#a", property: "opacity", from: "0", to: "1", duration: 100 }] },
+        {
+          continue: true,
+          duration: 100,
+          transition: cut,
+          animations: [{ selector: "#a", property: "opacity", from: "0", to: "1", duration: 100 }],
+        },
       ],
       match: /no following frame can join it — frames\[1\] carries `animations`/,
     },
@@ -1871,7 +2369,12 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
       name: "a member carries textTracks",
       frames: [
         { input: "a.html", duration: 100, transition: cut, compress: true },
-        { continue: true, duration: 100, transition: cut, textTracks: [{ selector: "#a", events: [{ at: 0, type: "park", charOffset: 0 }] }] },
+        {
+          continue: true,
+          duration: 100,
+          transition: cut,
+          textTracks: [{ selector: "#a", events: [{ at: 0, type: "park", charOffset: 0 }] }],
+        },
       ],
       match: /frames\[1\] carries `textTracks`/,
     },
@@ -1886,7 +2389,13 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
     {
       name: "the marker rides a frame that already IS a compressed run",
       frames: [
-        { input: "a.html", duration: 100, transition: cut, compress: true, states: [{ duration: 50 }, { duration: 50 }] },
+        {
+          input: "a.html",
+          duration: 100,
+          transition: cut,
+          compress: true,
+          states: [{ duration: 50 }, { duration: 50 }],
+        },
         { continue: true, duration: 100, transition: cut },
       ],
       match: /frames\[0\] already IS a compressed run.*drop the `compress` marker/,
@@ -1958,7 +2467,12 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
       // The same config under `autoCompress` only logs and skips — the contrast
       // that justifies the marker's stricter contract.
       const logs: string[] = [];
-      expect(() => autoCompressRuns(validateAnimateConfig({ ...B, ...(c.extra ?? {}), autoCompress: true, frames: c.frames }), (m) => logs.push(m))).not.toThrow();
+      expect(() =>
+        autoCompressRuns(
+          validateAnimateConfig({ ...B, ...(c.extra ?? {}), autoCompress: true, frames: c.frames }),
+          (m) => logs.push(m),
+        ),
+      ).not.toThrow();
     });
   }
 
@@ -1975,15 +2489,18 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
   });
 
   it("composes with autoCompress: the marked run collapses first, then the rest — no double-collapse", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },                    // auto run A
-      { continue: true, duration: 100, transition: cut },                     // auto run A
-      { continue: true, duration: 100, transition: cross },                   // standalone
-      { continue: true, duration: 100, transition: cut, compress: true },     // marked run B
-      { continue: true, duration: 100, transition: cut },                     // marked run B
-    ], { autoCompress: true });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut }, // auto run A
+        { continue: true, duration: 100, transition: cut }, // auto run A
+        { continue: true, duration: 100, transition: cross }, // standalone
+        { continue: true, duration: 100, transition: cut, compress: true }, // marked run B
+        { continue: true, duration: 100, transition: cut }, // marked run B
+      ],
+      { autoCompress: true },
+    );
     const marked = compressMarkedRuns(cfg);
-    expect(marked.frames).toHaveLength(4);      // [3,4] → one states frame
+    expect(marked.frames).toHaveLength(4); // [3,4] → one states frame
     expect(marked.frames[3].states).toHaveLength(2);
     const both = autoCompressRuns(marked);
     // Run A collapses on the automatic pass; the already-collapsed run B carries
@@ -1996,12 +2513,15 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
   });
 
   it("remaps explicit cursor-event frame indices across a marked collapse", () => {
-    const cfg = cfgOf([
-      { input: "a.html", duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cut, compress: true }, // run [1,2]
-      { continue: true, duration: 100, transition: cut },
-      { continue: true, duration: 100, transition: cross },
-    ], { cursor: { events: [{ frame: 3, at: 0, type: "click", selector: "#c" }] } });
+    const cfg = cfgOf(
+      [
+        { input: "a.html", duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cut, compress: true }, // run [1,2]
+        { continue: true, duration: 100, transition: cut },
+        { continue: true, duration: 100, transition: cross },
+      ],
+      { cursor: { events: [{ frame: 3, at: 0, type: "click", selector: "#c" }] } },
+    );
     const out = compressMarkedRuns(cfg);
     expect(out.frames).toHaveLength(3); // 0→0, [1,2]→1, 3→2
     if (out.cursor != null && out.cursor !== "auto") {
@@ -2016,7 +2536,9 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
     frames[1] = { ...frames[1], compress: true };
     const logs: string[] = [];
     compressMarkedRuns(cfgOf(frames), (m) => logs.push(m));
-    expect(logs.some((l) => /^ {2}compress: collapsed frames 1–3 into a states run \(3 states, 300ms\)$/.test(l))).toBe(true);
+    expect(logs.some((l) => /^ {2}compress: collapsed frames 1–3 into a states run \(3 states, 300ms\)$/.test(l))).toBe(
+      true,
+    );
     expect(logs.some((l) => /auto-compress:/.test(l))).toBe(false);
   });
 });
@@ -2029,8 +2551,9 @@ describe("animate --text-mode arg handling (DM-FJZQ34)", () => {
   it("rejects an out-of-enum --text-mode with a clear message", async () => {
     const prev = getRenderTextMode();
     try {
-      await expect(runAnimate(["/no/such/config.json", "--text-mode", "bogus"], ""))
-        .rejects.toThrow(/animate: --text-mode expects one of embedded-font, paths, system-font, got "bogus"/);
+      await expect(runAnimate(["/no/such/config.json", "--text-mode", "bogus"], "")).rejects.toThrow(
+        /animate: --text-mode expects one of embedded-font, paths, system-font, got "bogus"/,
+      );
     } finally {
       setRenderTextMode(prev);
     }
@@ -2041,8 +2564,9 @@ describe("animate --text-mode arg handling (DM-FJZQ34)", () => {
     try {
       // Missing config → throws at existsSync, AFTER the mode is applied but
       // BEFORE launchChromium, so this observes the flag's side effect purely.
-      await expect(runAnimate(["/no/such/config.json", "--text-mode", "system-font"], ""))
-        .rejects.toThrow(/config not found/);
+      await expect(runAnimate(["/no/such/config.json", "--text-mode", "system-font"], "")).rejects.toThrow(
+        /config not found/,
+      );
       expect(getRenderTextMode()).toBe("system-font");
     } finally {
       setRenderTextMode(prev);

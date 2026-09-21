@@ -8,21 +8,11 @@
  * - later transform origin: core/style/computed_style.cc:1415-1489
  */
 
-import type {
-  CapturedTextPaintAffine,
-  CapturedTextPaintLineOrigin,
-  CapturedTextPaintPoint,
-} from "./types.js";
+import type { CapturedTextPaintAffine, CapturedTextPaintLineOrigin, CapturedTextPaintPoint } from "./types.js";
 
-export type CapturedTextWritingMode =
-  | "horizontal-tb"
-  | "vertical-rl"
-  | "vertical-lr"
-  | "sideways-rl"
-  | "sideways-lr";
+export type CapturedTextWritingMode = "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr";
 
-export const TEXT_LINE_ORIGIN_CHROMIUM_REVISION =
-  "7d859f271cbda744098ac69f44978d4edfa62be3" as const;
+export const TEXT_LINE_ORIGIN_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3" as const;
 
 export const TEXT_LINE_ORIGIN_PROVENANCE = {
   chromiumRevision: TEXT_LINE_ORIGIN_CHROMIUM_REVISION,
@@ -94,9 +84,7 @@ export interface TextLineOriginInput {
  * preserves the source operation without pretending the private operands were
  * observable.
  */
-export function buildCapturedTextLineOrigin(
-  input: TextLineOriginInput,
-): CapturedTextPaintLineOrigin | null {
+export function buildCapturedTextLineOrigin(input: TextLineOriginInput): CapturedTextPaintLineOrigin | null {
   const values = [
     input.fragmentLeft,
     input.fragmentTop,
@@ -105,8 +93,8 @@ export function buildCapturedTextLineOrigin(
     input.primaryFontAscent,
     input.effectiveZoom,
   ];
-  if (!values.every(Number.isFinite) || input.fragmentWidth < 0 || input.fragmentHeight < 0
-      || input.effectiveZoom <= 0) return null;
+  if (!values.every(Number.isFinite) || input.fragmentWidth < 0 || input.fragmentHeight < 0 || input.effectiveZoom <= 0)
+    return null;
   const primaryFontIntegerAscent = Math.round(input.primaryFontAscent);
   const roundedContainingPaintOffsetTop = Math.round(input.fragmentTop);
   const fragmentRelativeTop = input.fragmentTop - roundedContainingPaintOffsetTop;
@@ -150,19 +138,26 @@ export function capturedTextLineOriginErrors(
 ): string[] {
   const errors: string[] = [];
   const mode = asCapturedTextWritingMode(input.writingMode);
-  if (record.source !== "blink-text-fragment-line-origin-v1"
-      || record.space !== "pre-css-transform-viewport") errors.push("line-origin schema provenance is unavailable");
-  if (record.provenance.chromiumRevision !== TEXT_LINE_ORIGIN_CHROMIUM_REVISION
-      || record.provenance.decomposition !== "normalized-neutral-fragment-top") errors.push("line-origin Chromium provenance changed");
-  if (!Number.isInteger(record.roundedContainingPaintOffsetTop)) errors.push("containing paint offset was not integer-rounded");
+  if (record.source !== "blink-text-fragment-line-origin-v1" || record.space !== "pre-css-transform-viewport")
+    errors.push("line-origin schema provenance is unavailable");
+  if (
+    record.provenance.chromiumRevision !== TEXT_LINE_ORIGIN_CHROMIUM_REVISION ||
+    record.provenance.decomposition !== "normalized-neutral-fragment-top"
+  )
+    errors.push("line-origin Chromium provenance changed");
+  if (!Number.isInteger(record.roundedContainingPaintOffsetTop))
+    errors.push("containing paint offset was not integer-rounded");
   if (!Number.isInteger(record.primaryFontIntegerAscent)) errors.push("primary-font ascent is not an integer");
   if (!(record.effectiveZoom > 0) || !Number.isFinite(record.effectiveZoom)) errors.push("effective zoom is invalid");
-  if (input.effectiveZoom != null && Math.abs(record.effectiveZoom - input.effectiveZoom) > epsilon) errors.push("effective zoom changed planes");
+  if (input.effectiveZoom != null && Math.abs(record.effectiveZoom - input.effectiveZoom) > epsilon)
+    errors.push("effective zoom changed planes");
   if (mode == null) return [...errors, "unsupported writing mode"];
   const physicalTop = record.roundedContainingPaintOffsetTop + record.fragmentRelativeTop;
   if (Math.abs(physicalTop - input.fragmentTop) > epsilon) errors.push("fragment-relative top changed");
-  if (Math.abs(record.lineRelativeTextOrigin.lineLeft - input.fragmentLeft) > epsilon) errors.push("line-left origin changed");
-  if (Math.abs(record.lineRelativeTextOrigin.lineOver - (physicalTop + record.primaryFontIntegerAscent)) > epsilon) errors.push("ascent was not applied in line-relative space");
+  if (Math.abs(record.lineRelativeTextOrigin.lineLeft - input.fragmentLeft) > epsilon)
+    errors.push("line-left origin changed");
+  if (Math.abs(record.lineRelativeTextOrigin.lineOver - (physicalTop + record.primaryFontIntegerAscent)) > epsilon)
+    errors.push("ascent was not applied in line-relative space");
   const expectedRotation = textLineOriginWritingModeRotation(
     input.fragmentLeft,
     physicalTop,
@@ -170,14 +165,18 @@ export function capturedTextLineOriginErrors(
     input.fragmentHeight,
     mode,
   );
-  if (expectedRotation.some((value, index) => Math.abs(value - record.writingModeRotation[index]) > epsilon)) errors.push("writing-mode rotation changed");
+  if (expectedRotation.some((value, index) => Math.abs(value - record.writingModeRotation[index]) > epsilon))
+    errors.push("writing-mode rotation changed");
   const expectedPhysical = mapTextLineOriginPoint(record.writingModeRotation, {
     x: record.lineRelativeTextOrigin.lineLeft,
     y: record.lineRelativeTextOrigin.lineOver,
   });
-  if (Math.hypot(
-    expectedPhysical.x - record.physicalBaselinePoint.x,
-    expectedPhysical.y - record.physicalBaselinePoint.y,
-  ) > epsilon) errors.push("decoded physical baseline changed");
+  if (
+    Math.hypot(
+      expectedPhysical.x - record.physicalBaselinePoint.x,
+      expectedPhysical.y - record.physicalBaselinePoint.y,
+    ) > epsilon
+  )
+    errors.push("decoded physical baseline changed");
   return errors;
 }

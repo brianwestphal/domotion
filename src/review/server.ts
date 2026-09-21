@@ -54,10 +54,10 @@ export interface ReviewServer {
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
-  ".js":   "application/javascript; charset=utf-8",
-  ".css":  "text/css; charset=utf-8",
-  ".png":  "image/png",
-  ".svg":  "image/svg+xml",
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
   ".json": "application/json; charset=utf-8",
 };
 
@@ -136,9 +136,9 @@ export async function startReviewServer(inputs: ReviewServerInputs): Promise<Rev
   const assetByRoute: Record<string, { buf: Buffer; contentType: string }> = {};
   for (const [route, p] of Object.entries({
     "/expected.png": inputs.expectedPng,
-    "/actual.png":   inputs.actualPng,
-    "/actual.svg":   inputs.actualSvg,
-    "/diff.png":     inputs.diffPng,
+    "/actual.png": inputs.actualPng,
+    "/actual.svg": inputs.actualSvg,
+    "/diff.png": inputs.diffPng,
   })) {
     if (!existsSync(p)) throw new Error(`svg-review: file not found: ${p}`);
     const ext = extname(p).toLowerCase();
@@ -171,7 +171,9 @@ export async function startReviewServer(inputs: ReviewServerInputs): Promise<Rev
       try {
         res.writeHead(500, { "content-type": "text/plain" });
         res.end(`svg-review error: ${(err as Error).message}`);
-      } catch { /* response already partially written */ }
+      } catch {
+        /* response already partially written */
+      }
     }
   };
 

@@ -39,8 +39,10 @@ function coverage(cp) {
 }
 
 function blockReport(label, lo, hi, gaps = []) {
-  let covered = 0, total = 0;
-  const sampleCovered = [], sampleUncovered = [];
+  let covered = 0,
+    total = 0;
+  const sampleCovered = [],
+    sampleUncovered = [];
   for (let cp = lo; cp <= hi; cp++) {
     total++;
     const cov = coverage(cp);
@@ -56,5 +58,5 @@ function blockReport(label, lo, hi, gaps = []) {
   console.log("  sample uncovered:", sampleUncovered.join("  ") || "(none)");
 }
 
-blockReport("F900–FAD9 (BMP CJK Compat Ideographs)", 0xF900, 0xFAD9);
-blockReport("2F800–2FA1D (CJK Compat Ideographs Supplement)", 0x2F800, 0x2FA1D);
+blockReport("F900–FAD9 (BMP CJK Compat Ideographs)", 0xf900, 0xfad9);
+blockReport("2F800–2FA1D (CJK Compat Ideographs Supplement)", 0x2f800, 0x2fa1d);

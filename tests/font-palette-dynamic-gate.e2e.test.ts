@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runFontPaletteDynamicGate } from "../tools/font-palette-dynamic-gate.js";
-import {
-  COLRV1_FIXTURE,
-  readColrv1SourceFacts,
-} from "../tools/font-palette-paint-gate.js";
+import { COLRV1_FIXTURE, readColrv1SourceFacts } from "../tools/font-palette-paint-gate.js";
 
 describe("dynamic font-palette production ownership", () => {
   it("preserves mix, animation time, and document/shadow scope in both cache orders", async () => {

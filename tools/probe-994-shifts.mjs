@@ -29,20 +29,21 @@ const data = await page.evaluate(() => {
     r.setStart(firstNode, offset);
     r.setEnd(firstNode, offset + 1);
     const cr = r.getBoundingClientRect();
-    const c = document.createElement('canvas');
-    const cc = c.getContext('2d');
+    const c = document.createElement("canvas");
+    const cc = c.getContext("2d");
     cc.font = `${fl.fontStyle} ${fl.fontWeight} 100px ${fl.fontFamily}`;
-    const m = cc.measureText('H');
+    const m = cc.measureText("H");
     const capHeightRatio = m.actualBoundingBoxAscent / 100;
     const ascentRatio = m.fontBoundingBoxAscent / 100;
     const pseudoCw = parseFloat(fl.width);
     const probe = cc.measureText(ch);
     const naturalW100 = probe.width;
-    const effectiveFs = 100 * pseudoCw / naturalW100;
+    const effectiveFs = (100 * pseudoCw) / naturalW100;
     const effectiveAscent = effectiveFs * ascentRatio;
     const effectiveCap = effectiveFs * capHeightRatio;
     out.push({
-      cls, ch,
+      cls,
+      ch,
       pRectY: +pRect.y.toFixed(2),
       pseudoIL: fl.initialLetter || fl.webkitInitialLetter,
       cRecY: +cr.y.toFixed(2),
@@ -63,11 +64,7 @@ await browser.close();
 
 // Walk expected.png for each W region to find painted ink top.
 async function inkTopBottom(path, region) {
-  const img = await sharp(path)
-    .extract(region)
-    .raw()
-    .greyscale()
-    .toBuffer({ resolveWithObject: true });
+  const img = await sharp(path).extract(region).raw().greyscale().toBuffer({ resolveWithObject: true });
   const { data: buf, info } = img;
   const rows = [];
   for (let y = 0; y < info.height; y++) {
@@ -105,9 +102,13 @@ for (const d of data) {
   const absExpBot = region.top + (exp.bottom ?? 0);
   const shift = absExpTop - d.cRecY;
   console.log(`${d.cls} ${d.ch} IL=${d.pseudoIL} pRectY=${d.pRectY}`);
-  console.log(`  cRecY=${d.cRecY} cRecH=${d.cRecH} effectiveFs=${d.effectiveFs} effectiveCap=${d.effectiveCap.toFixed(1)} effectiveAscent=${d.effectiveAscent.toFixed(1)}`);
+  console.log(
+    `  cRecY=${d.cRecY} cRecH=${d.cRecH} effectiveFs=${d.effectiveFs} effectiveCap=${d.effectiveCap.toFixed(1)} effectiveAscent=${d.effectiveAscent.toFixed(1)}`,
+  );
   console.log(`  expected ink top=${absExpTop} bot=${absExpBot} ink-height=${absExpBot - absExpTop}`);
   console.log(`  region: left=${region.left} top=${region.top} w=${region.width} h=${region.height}`);
   console.log(`  SHIFT(painted ink-top − Range.top) = ${shift.toFixed(2)}`);
-  console.log(`  bodyLine1 baseline ≈ ${(d.pRectY + (d.parentLH - d.bodyFs * (1 - d.capHeightRatio)) / 2 + d.bodyFs * d.capHeightRatio).toFixed(2)} cap-top ≈ ${(d.pRectY + (d.parentLH - d.bodyFs * (1 - d.capHeightRatio)) / 2).toFixed(2)}`);
+  console.log(
+    `  bodyLine1 baseline ≈ ${(d.pRectY + (d.parentLH - d.bodyFs * (1 - d.capHeightRatio)) / 2 + d.bodyFs * d.capHeightRatio).toFixed(2)} cap-top ≈ ${(d.pRectY + (d.parentLH - d.bodyFs * (1 - d.capHeightRatio)) / 2).toFixed(2)}`,
+  );
 }

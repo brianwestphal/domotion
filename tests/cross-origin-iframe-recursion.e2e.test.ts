@@ -7,10 +7,7 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { assertScrollFrameOwnership } from "../src/scroll/composer.js";
-import {
-  prepareFrameScrollCapture,
-  validateCapturedFrameScrollState,
-} from "../src/capture/frame-scroll-state.js";
+import { prepareFrameScrollCapture, validateCapturedFrameScrollState } from "../src/capture/frame-scroll-state.js";
 
 /**
  * DM-1442 — opt-in cross-origin `<iframe>` recursion via the
@@ -35,9 +32,7 @@ function startServer(html: string): Promise<{ server: Server; port: number }> {
   });
 }
 
-function startRouteServer(
-  routes: Record<string, string>,
-): Promise<{ server: Server; port: number }> {
+function startRouteServer(routes: Record<string, string>): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
     const server = createServer((req, res) => {
       const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
@@ -185,20 +180,57 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
     const page = await ctx.newPage();
     try {
       await page.goto(outerUrl, { waitUntil: "networkidle" });
-      const segments = await executeScrollPattern(page, parseScrollPattern("down:40px"), { viewportW: 280, viewportH: 140, prescroll: false, embedImages: false, crossOriginFrames: `localhost:${innerSrv.port}` });
+      const segments = await executeScrollPattern(page, parseScrollPattern("down:40px"), {
+        viewportW: 280,
+        viewportH: 140,
+        prescroll: false,
+        embedImages: false,
+        crossOriginFrames: `localhost:${innerSrv.port}`,
+      });
       expect(segments.length).toBe(2);
       const iframeYs: number[] = [];
       for (const segment of segments) {
-        const iframe = findByTag(segment.tree, "iframe"); expect(iframe?.replacedSnapshot).toBeUndefined(); expect(iframe && subtreeHasText(iframe, INNER_TEXT)).toBe(true); iframeYs.push(iframe!.y);
-        const ids:string[]=[]; const walk=(nodes:CapturedElement[])=>{for(const node of nodes){if(node.id) ids.push(node.id);walk(node.children??[])}}; walk(segment.tree); expect(new Set(ids).size).toBe(ids.length);
+        const iframe = findByTag(segment.tree, "iframe");
+        expect(iframe?.replacedSnapshot).toBeUndefined();
+        expect(iframe && subtreeHasText(iframe, INNER_TEXT)).toBe(true);
+        iframeYs.push(iframe!.y);
+        const ids: string[] = [];
+        const walk = (nodes: CapturedElement[]) => {
+          for (const node of nodes) {
+            if (node.id) ids.push(node.id);
+            walk(node.children ?? []);
+          }
+        };
+        walk(segment.tree);
+        expect(new Set(ids).size).toBe(ids.length);
       }
       expect(iframeYs[0]! - iframeYs[1]!).toBeCloseTo(40, 1);
-    } finally { await ctx.close(); }
+    } finally {
+      await ctx.close();
+    }
   });
 
   it("keeps non-allowlisted frames raster across scroll segments", async () => {
-    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 280, height: 140 } }); const page = await ctx.newPage();
-    try { await page.goto(outerUrl,{waitUntil:"networkidle"}); const segments=await executeScrollPattern(page,parseScrollPattern("down:40px"),{viewportW:280,viewportH:140,prescroll:false,embedImages:false,crossOriginFrames:`localhost:${innerSrv.port+1}`}); expect(segments).toHaveLength(2); for(const segment of segments){const iframe=findByTag(segment.tree,"iframe");expect(iframe?.replacedSnapshot).toBeDefined();expect(iframe&&subtreeHasText(iframe,INNER_TEXT)).toBe(false)}} finally {await ctx.close()}
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 280, height: 140 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(outerUrl, { waitUntil: "networkidle" });
+      const segments = await executeScrollPattern(page, parseScrollPattern("down:40px"), {
+        viewportW: 280,
+        viewportH: 140,
+        prescroll: false,
+        embedImages: false,
+        crossOriginFrames: `localhost:${innerSrv.port + 1}`,
+      });
+      expect(segments).toHaveLength(2);
+      for (const segment of segments) {
+        const iframe = findByTag(segment.tree, "iframe");
+        expect(iframe?.replacedSnapshot).toBeDefined();
+        expect(iframe && subtreeHasText(iframe, INNER_TEXT)).toBe(false);
+      }
+    } finally {
+      await ctx.close();
+    }
   });
 
   it("threads exact nested frame identities, scroll owners and resource scopes through composition", async () => {
@@ -227,58 +259,77 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
         expect(accesses.filter((access) => access === "cross-origin-allowlisted").length).toBeGreaterThanOrEqual(1);
         expect(accesses.filter((access) => access === "cross-origin-denied").length).toBeGreaterThanOrEqual(2);
         const denied = state.frames.filter(({ access }) => access === "cross-origin-denied");
-        expect(denied.every(({ scrollOwners, diagnostic }) => scrollOwners.length === 0 && diagnostic?.includes("denied"))).toBe(true);
-        const belowDeniedAncestor = state.frames.filter(({ reachableFromTop, diagnostic }) => (
-          !reachableFromTop && diagnostic?.includes("below an inaccessible or denied ancestor")
-        ));
+        expect(
+          denied.every(({ scrollOwners, diagnostic }) => scrollOwners.length === 0 && diagnostic?.includes("denied")),
+        ).toBe(true);
+        const belowDeniedAncestor = state.frames.filter(
+          ({ reachableFromTop, diagnostic }) =>
+            !reachableFromTop && diagnostic?.includes("below an inaccessible or denied ancestor"),
+        );
         expect(belowDeniedAncestor.length).toBeGreaterThanOrEqual(1);
         expect(belowDeniedAncestor.every(({ scrollOwners }) => scrollOwners.length === 0)).toBe(true);
 
         const owners = state.frames.flatMap(({ scrollOwners }) => scrollOwners);
         expect(new Set(owners.map(({ ownerId }) => ownerId)).size).toBe(owners.length);
         expect(owners.some(({ direction, scrollLeft }) => direction === "rtl" && scrollLeft === -37)).toBe(true);
-        expect(owners.some(({ writingMode, scrollLeft }) => writingMode === "vertical-rl" && scrollLeft === -29)).toBe(true);
+        expect(owners.some(({ writingMode, scrollLeft }) => writingMode === "vertical-rl" && scrollLeft === -29)).toBe(
+          true,
+        );
 
-        const iframeOwners = flatten(segment.tree).filter(({ tag, frameScrollIdentity }) => (
-          tag === "iframe" && frameScrollIdentity != null
-        ));
-        expect(iframeOwners.some(({ frameScrollIdentity }) => frameScrollIdentity?.access === "same-origin")).toBe(true);
-        const allowedOwners = iframeOwners.filter(({ frameScrollIdentity }) => (
-          frameScrollIdentity?.access === "cross-origin-allowlisted"
-        ));
-        const deniedOwners = iframeOwners.filter(({ frameScrollIdentity }) => (
-          frameScrollIdentity?.access === "cross-origin-denied"
-        ));
+        const iframeOwners = flatten(segment.tree).filter(
+          ({ tag, frameScrollIdentity }) => tag === "iframe" && frameScrollIdentity != null,
+        );
+        expect(iframeOwners.some(({ frameScrollIdentity }) => frameScrollIdentity?.access === "same-origin")).toBe(
+          true,
+        );
+        const allowedOwners = iframeOwners.filter(
+          ({ frameScrollIdentity }) => frameScrollIdentity?.access === "cross-origin-allowlisted",
+        );
+        const deniedOwners = iframeOwners.filter(
+          ({ frameScrollIdentity }) => frameScrollIdentity?.access === "cross-origin-denied",
+        );
         expect(allowedOwners.length).toBeGreaterThanOrEqual(1);
         expect(allowedOwners.every(({ replacedSnapshot }) => replacedSnapshot == null)).toBe(true);
         expect(deniedOwners.length).toBeGreaterThanOrEqual(2);
         expect(deniedOwners.every(({ replacedSnapshot }) => replacedSnapshot != null)).toBe(true);
-        expect(state.frames.some((frame) => {
-          const parent = state.frames.find(({ frameId }) => frameId === frame.parentFrameId);
-          return frame.access === "same-origin" && parent?.access === "cross-origin-allowlisted";
-        })).toBe(true);
-        expect(state.frames.some((frame) => {
-          const parent = state.frames.find(({ frameId }) => frameId === frame.parentFrameId);
-          return frame.access === "cross-origin-denied" && parent?.access === "cross-origin-allowlisted";
-        })).toBe(true);
+        expect(
+          state.frames.some((frame) => {
+            const parent = state.frames.find(({ frameId }) => frameId === frame.parentFrameId);
+            return frame.access === "same-origin" && parent?.access === "cross-origin-allowlisted";
+          }),
+        ).toBe(true);
+        expect(
+          state.frames.some((frame) => {
+            const parent = state.frames.find(({ frameId }) => frameId === frame.parentFrameId);
+            return frame.access === "cross-origin-denied" && parent?.access === "cross-origin-allowlisted";
+          }),
+        ).toBe(true);
 
         const allElements = flatten(segment.tree);
         const rtl = allElements.find(({ styles }) => styles.direction === "rtl" && styles.overflowX === "scroll");
-        const vertical = allElements.find(({ styles }) => styles.writingMode === "vertical-rl" && styles.overflowX === "scroll");
+        const vertical = allElements.find(
+          ({ styles }) => styles.writingMode === "vertical-rl" && styles.overflowX === "scroll",
+        );
         for (const scroller of [rtl, vertical]) {
           expect(scroller?.scrollbars?.owner).toBeDefined();
           const capturedOwner = scroller!.scrollbars!.owner!;
-          expect(owners.some(({ frameId, ownerId }) => (
-            frameId === capturedOwner.frameId && ownerId === capturedOwner.ownerId
-          ))).toBe(true);
+          expect(
+            owners.some(
+              ({ frameId, ownerId }) => frameId === capturedOwner.frameId && ownerId === capturedOwner.ownerId,
+            ),
+          ).toBe(true);
         }
         expect(allElements.some(({ styles }) => styles.position === "fixed")).toBe(true);
         const resources = allElements.filter(({ maskFragmentReferences }) => maskFragmentReferences?.length === 1);
         expect(resources.length).toBeGreaterThanOrEqual(2);
-        expect(new Set(resources.map(({ fragmentReferenceScope }) => fragmentReferenceScope)).size).toBeGreaterThanOrEqual(2);
-        expect(segment.captureWarnings?.some(({ feature, detail }) => (
-          feature === "cross-origin-frame-scroll" && detail.includes("denied")
-        ))).toBe(true);
+        expect(
+          new Set(resources.map(({ fragmentReferenceScope }) => fragmentReferenceScope)).size,
+        ).toBeGreaterThanOrEqual(2);
+        expect(
+          segment.captureWarnings?.some(
+            ({ feature, detail }) => feature === "cross-origin-frame-scroll" && detail.includes("denied"),
+          ),
+        ).toBe(true);
       }
     } finally {
       await ctx.close();
@@ -291,37 +342,63 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
     try {
       await page.goto(complexOuterUrl, { waitUntil: "networkidle" });
       const first = await captureElementTreeWithWarnings(
-        page, "body", { x: 0, y: 0, width: 420, height: 520 }, { crossOriginFrames: "*" },
+        page,
+        "body",
+        { x: 0, y: 0, width: 420, height: 520 },
+        { crossOriginFrames: "*" },
       );
-      const second = await captureElementTreeWithWarnings(
-        page, "body", { x: 0, y: 0, width: 420, height: 520 },
-      );
+      const second = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 420, height: 520 });
       expect(first.frameScrollState.captureId).not.toBe(second.frameScrollState.captureId);
       expect(first.frameScrollState.allowlist.canonical).toBe("*");
       expect(second.frameScrollState.allowlist.canonical).toBe("");
-      const firstDeniedOriginOwners = flatten(first.tree).filter(({ tag, frameScrollIdentity }) => (
-        tag === "iframe" && frameScrollIdentity != null
-          && first.frameScrollState.frames.find(({ frameId }) => frameId === frameScrollIdentity.frameId)?.origin.endsWith(`:${deniedDeepSrv.port}`)
-      ));
-      const secondDeniedOriginOwners = flatten(second.tree).filter(({ tag, frameScrollIdentity }) => (
-        tag === "iframe" && frameScrollIdentity != null
-          && second.frameScrollState.frames.find(({ frameId }) => frameId === frameScrollIdentity.frameId)?.origin.endsWith(`:${deniedDeepSrv.port}`)
-      ));
+      const firstDeniedOriginOwners = flatten(first.tree).filter(
+        ({ tag, frameScrollIdentity }) =>
+          tag === "iframe" &&
+          frameScrollIdentity != null &&
+          first.frameScrollState.frames
+            .find(({ frameId }) => frameId === frameScrollIdentity.frameId)
+            ?.origin.endsWith(`:${deniedDeepSrv.port}`),
+      );
+      const secondDeniedOriginOwners = flatten(second.tree).filter(
+        ({ tag, frameScrollIdentity }) =>
+          tag === "iframe" &&
+          frameScrollIdentity != null &&
+          second.frameScrollState.frames
+            .find(({ frameId }) => frameId === frameScrollIdentity.frameId)
+            ?.origin.endsWith(`:${deniedDeepSrv.port}`),
+      );
       expect(firstDeniedOriginOwners.length).toBeGreaterThanOrEqual(2);
       expect(firstDeniedOriginOwners.every(({ replacedSnapshot }) => replacedSnapshot == null)).toBe(true);
       expect(secondDeniedOriginOwners.length).toBeGreaterThanOrEqual(1);
       expect(secondDeniedOriginOwners.every(({ replacedSnapshot }) => replacedSnapshot != null)).toBe(true);
-      expect(second.frameScrollState.frames.find(({ origin }) => origin.endsWith(`:${deniedDeepSrv.port}`))?.access)
-        .toBe("cross-origin-denied");
-      const leakedKeys = (await Promise.all(page.frames().map((frame) => frame.evaluate(() => (
-        Object.getOwnPropertyNames(globalThis).filter((name) => name.startsWith("__domotionFrameScroll_"))
-      ))))).flat();
+      expect(
+        second.frameScrollState.frames.find(({ origin }) => origin.endsWith(`:${deniedDeepSrv.port}`))?.access,
+      ).toBe("cross-origin-denied");
+      const leakedKeys = (
+        await Promise.all(
+          page
+            .frames()
+            .map((frame) =>
+              frame.evaluate(() =>
+                Object.getOwnPropertyNames(globalThis).filter((name) => name.startsWith("__domotionFrameScroll_")),
+              ),
+            ),
+        )
+      ).flat();
       expect(leakedKeys).toEqual([]);
-      const leakedOwnerKeys = (await Promise.all(page.frames().map((frame) => frame.evaluate(() => (
-        [...document.querySelectorAll("iframe")].flatMap((owner) => (
-          Object.getOwnPropertyNames(owner).filter((name) => name.startsWith("__domotionFrameScroll_"))
-        ))
-      ))))).flat();
+      const leakedOwnerKeys = (
+        await Promise.all(
+          page
+            .frames()
+            .map((frame) =>
+              frame.evaluate(() =>
+                [...document.querySelectorAll("iframe")].flatMap((owner) =>
+                  Object.getOwnPropertyNames(owner).filter((name) => name.startsWith("__domotionFrameScroll_")),
+                ),
+              ),
+            ),
+        )
+      ).flat();
       expect(leakedOwnerKeys).toEqual([]);
     } finally {
       await ctx.close();
@@ -396,11 +473,10 @@ describe("cross-origin recursion requires web security disabled (DM-1442)", () =
       const targetSession = await page.context().newCDPSession(page);
       const targets = await targetSession.send("Target.getTargets");
       await targetSession.detach();
-      const oopifTarget = targets.targetInfos.find(({ type, url }) => (
-        type === "iframe" && url.startsWith(`http://localhost:${innerSrv.port}/`)
-      ));
-      expect(oopifTarget, "cross-site inaccessible control must exercise Chromium's OOPIF target")
-        .toBeDefined();
+      const oopifTarget = targets.targetInfos.find(
+        ({ type, url }) => type === "iframe" && url.startsWith(`http://localhost:${innerSrv.port}/`),
+      );
+      expect(oopifTarget, "cross-site inaccessible control must exercise Chromium's OOPIF target").toBeDefined();
       const { tree, warnings, frameScrollState } = await captureElementTreeWithWarnings(
         page,
         "body",
@@ -411,9 +487,9 @@ describe("cross-origin recursion requires web security disabled (DM-1442)", () =
       expect(iframe).not.toBeNull();
       expect(iframe!.replacedSnapshot, "unreadable cross-origin frame must raster").toBeDefined();
       expect(subtreeHasText(iframe!, INNER_TEXT)).toBe(false);
-      const inaccessible = frameScrollState.frames.find(({ frameId }) => (
-        frameId === iframe!.frameScrollIdentity?.frameId
-      ));
+      const inaccessible = frameScrollState.frames.find(
+        ({ frameId }) => frameId === iframe!.frameScrollIdentity?.frameId,
+      );
       expect(inaccessible?.frameId).toBe(oopifTarget?.targetId);
       expect(inaccessible?.parentFrameId).toBe(oopifTarget?.parentFrameId);
       expect(inaccessible?.parentFrameId).toBe(frameScrollState.topFrameId);
@@ -421,9 +497,11 @@ describe("cross-origin recursion requires web security disabled (DM-1442)", () =
       expect(iframe!.frameScrollIdentity?.access).toBe("inaccessible");
       expect(inaccessible?.scrollOwners).toEqual([]);
       expect(inaccessible?.diagnostic).toContain("inaccessible");
-      expect(warnings.some(({ feature, detail }) => (
-        feature === "cross-origin-frame-scroll" && detail.includes("inaccessible")
-      ))).toBe(true);
+      expect(
+        warnings.some(
+          ({ feature, detail }) => feature === "cross-origin-frame-scroll" && detail.includes("inaccessible"),
+        ),
+      ).toBe(true);
       await ctx.close();
     } finally {
       await closeBrowserSafely(browser);

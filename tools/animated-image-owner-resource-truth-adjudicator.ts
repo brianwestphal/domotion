@@ -38,8 +38,7 @@ function argumentValue(argv: string[], flag: string): string | undefined {
 }
 
 function argumentValues(argv: string[], flag: string): string[] {
-  return argv.flatMap((value, index) =>
-    value === flag && argv[index + 1] != null ? [argv[index + 1]] : []);
+  return argv.flatMap((value, index) => (value === flag && argv[index + 1] != null ? [argv[index + 1]] : []));
 }
 
 function readReport(path: string): {
@@ -62,8 +61,7 @@ function reportSortKey(report: unknown): string {
     return "~malformed";
   }
   const candidate = report as Record<string, unknown>;
-  return typeof candidate.operatingSystem === "string" &&
-      typeof candidate.evidenceRole === "string"
+  return typeof candidate.operatingSystem === "string" && typeof candidate.evidenceRole === "string"
     ? `${candidate.operatingSystem}/${candidate.evidenceRole}`
     : "~malformed";
 }
@@ -71,8 +69,9 @@ function reportSortKey(report: unknown): string {
 export function runAnimatedImageOwnerResourceTruthAdjudicator(
   artifactPaths: string[],
 ): AnimatedImageTruthAdjudicationArtifact {
-  const inputs = artifactPaths.map(readReport).sort((left, right) =>
-    reportSortKey(left.report).localeCompare(reportSortKey(right.report)));
+  const inputs = artifactPaths
+    .map(readReport)
+    .sort((left, right) => reportSortKey(left.report).localeCompare(reportSortKey(right.report)));
   const payload = {
     schemaVersion: 1 as const,
     ticket: "DM-2583" as const,
@@ -94,29 +93,23 @@ function runCli(): void {
   const report = runAnimatedImageOwnerResourceTruthAdjudicator(artifactPaths);
   const reportPath = argumentValue(argv, "--report");
   if (reportPath != null) {
-    writeFileSync(
-      resolve(reportPath),
-      `${JSON.stringify(report, null, 2)}\n`,
-      { flag: "wx" },
-    );
+    writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
   }
   console.log(
-    `DM-2583 truth adjudication: ${report.adjudication.verdict}; `
-      + `artifacts=${artifactPaths.length}; `
-      + `failures=${report.adjudication.failures.length}; `
-      + `report=${report.reportSha256}`,
+    `DM-2583 truth adjudication: ${report.adjudication.verdict}; ` +
+      `artifacts=${artifactPaths.length}; ` +
+      `failures=${report.adjudication.failures.length}; ` +
+      `report=${report.reportSha256}`,
   );
   if (report.adjudication.failures.length > 0) {
     console.error(report.adjudication.failures.join("\n"));
   }
-  if (report.adjudication.verdict !== "proposal-validation-agreement" &&
-      !argv.includes("--allow-withheld")) {
+  if (report.adjudication.verdict !== "proposal-validation-agreement" && !argv.includes("--allow-withheld")) {
     process.exitCode = 1;
   }
 }
 
-const isMain = process.argv[1] != null &&
-  pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const isMain = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 if (isMain) {
   try {
     runCli();

@@ -31,7 +31,9 @@ function byId(tree: CapturedElement[], id: string): CapturedElement {
 
 async function colors(uri: string): Promise<Map<string, number>> {
   const decoded = await sharp(Buffer.from(uri.slice(uri.indexOf(",") + 1), "base64"))
-    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   const result = new Map<string, number>();
   for (let offset = 0; offset < decoded.data.length; offset += 4) {
     if (decoded.data[offset + 3] === 0) continue;
@@ -148,10 +150,8 @@ describeBrowser("source-owned partial native-control decorations", () => {
         expect(raster?.sourceNodeIndex).toBeUndefined();
         expect(raster?.parts).toBeUndefined();
       }
-      expect(byId(capture.tree, "search").nativeControlDecorationRaster?.kinds)
-        .toEqual(["search-cancel-button"]);
-      expect(byId(capture.tree, "number").nativeControlDecorationRaster?.kinds)
-        .toEqual(["inner-spin-button"]);
+      expect(byId(capture.tree, "search").nativeControlDecorationRaster?.kinds).toEqual(["search-cancel-button"]);
+      expect(byId(capture.tree, "number").nativeControlDecorationRaster?.kinds).toEqual(["inner-spin-button"]);
       expect(byId(capture.tree, "search").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
       expect(byId(capture.tree, "number").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
       expect(byId(capture.tree, "readonly").nativeControlDecorationRaster?.empty).toBe(true);
@@ -175,15 +175,45 @@ describeBrowser("source-owned partial native-control decorations", () => {
 
   it("retains platform paint across interaction, schemes, forced colors, axes, zoom, and DPR", async () => {
     const rows = [
-      { dpr: 1, scheme: "light" as const, forced: "none" as const, writing: "horizontal-tb", direction: "ltr", zoom: "1" },
-      { dpr: 2, scheme: "dark" as const, forced: "none" as const, writing: "horizontal-tb", direction: "rtl", zoom: "1.25" },
-      { dpr: 2, scheme: "light" as const, forced: "active" as const, writing: "vertical-rl", direction: "rtl", zoom: ".85" },
-      { dpr: 1, scheme: "dark" as const, forced: "none" as const, writing: "sideways-lr", direction: "ltr", zoom: "1.1" },
+      {
+        dpr: 1,
+        scheme: "light" as const,
+        forced: "none" as const,
+        writing: "horizontal-tb",
+        direction: "ltr",
+        zoom: "1",
+      },
+      {
+        dpr: 2,
+        scheme: "dark" as const,
+        forced: "none" as const,
+        writing: "horizontal-tb",
+        direction: "rtl",
+        zoom: "1.25",
+      },
+      {
+        dpr: 2,
+        scheme: "light" as const,
+        forced: "active" as const,
+        writing: "vertical-rl",
+        direction: "rtl",
+        zoom: ".85",
+      },
+      {
+        dpr: 1,
+        scheme: "dark" as const,
+        forced: "none" as const,
+        writing: "sideways-lr",
+        direction: "ltr",
+        zoom: "1.1",
+      },
     ];
     for (const row of rows) {
       const context = await env!.browser.newContext({
-        viewport: { width: 430, height: 260 }, deviceScaleFactor: row.dpr,
-        colorScheme: row.scheme, forcedColors: "none",
+        viewport: { width: 430, height: 260 },
+        deviceScaleFactor: row.dpr,
+        colorScheme: row.scheme,
+        forcedColors: "none",
       });
       const page = await context.newPage();
       try {
@@ -198,9 +228,8 @@ describeBrowser("source-owned partial native-control decorations", () => {
         <input class="c" id="search" data-domotion-anim="search" type="search" value="clear me">
         <input class="c" id="number" data-domotion-anim="number" type="number" value="7">`);
 
-        const captureState = async () => captureElementTreeWithWarnings(
-          page, "body", { x: 0, y: 0, width: 430, height: 260 },
-        );
+        const captureState = async () =>
+          captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 430, height: 260 });
         const rest = await captureState();
         expect(rest.warnings.filter(({ feature }) => feature === "native-control-decoration-raster")).toEqual([]);
         expect(byId(rest.tree, "select").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\/png;base64,/);

@@ -16,8 +16,9 @@ describe("DM-2507 native arm64 source-priority workflow", () => {
     expect(workflow).toContain("--require-linux-arm64");
     expect(workflow).toContain("emoji-presentation-ownership.json");
     expect(workflow).not.toContain("continue-on-error");
-    expect(packageJson.scripts?.["fonts:emoji-presentation-ownership-audit"])
-      .toBe("node --import tsx tools/emoji-presentation-ownership-audit.ts");
+    expect(packageJson.scripts?.["fonts:emoji-presentation-ownership-audit"]).toBe(
+      "node --import tsx tools/emoji-presentation-ownership-audit.ts",
+    );
   });
 
   it("does not encode or relax any raster tolerance", () => {

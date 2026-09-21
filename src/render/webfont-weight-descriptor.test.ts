@@ -21,8 +21,12 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
-  parseFontWeightDescriptor, registerWebfont, clearWebfonts, resolveFont,
-  __pickWebfontVariantMetaForTest, __pickWebfontVariantMetaForCodepointForTest,
+  parseFontWeightDescriptor,
+  registerWebfont,
+  clearWebfonts,
+  resolveFont,
+  __pickWebfontVariantMetaForTest,
+  __pickWebfontVariantMetaForCodepointForTest,
 } from "./font-resolution.js";
 
 describe("parseFontWeightDescriptor", () => {
@@ -46,7 +50,7 @@ describe("parseFontWeightDescriptor", () => {
     expect(parseFontWeightDescriptor("")).toBeUndefined();
     expect(parseFontWeightDescriptor("auto")).toBeUndefined();
     expect(parseFontWeightDescriptor("bolder")).toBeUndefined(); // not valid in the descriptor
-    expect(parseFontWeightDescriptor("0.5")).toBeUndefined();    // below Blink's [1, 1000] check
+    expect(parseFontWeightDescriptor("0.5")).toBeUndefined(); // below Blink's [1, 1000] check
     expect(parseFontWeightDescriptor("1001")).toBeUndefined();
     expect(parseFontWeightDescriptor("100 2000")).toBeUndefined();
   });

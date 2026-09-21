@@ -15,27 +15,37 @@ function file(statements: number[], branches: number[][], functions: number[]) {
 
 describe("merged coverage directory summary (DM-2646)", () => {
   it("aggregates source directories and identifies genuinely low files", () => {
-    const summary = summarizeCoverage({
-      "/repo/src/capture/a.ts": file([1, 0], [[1, 0]], [1]),
-      "/repo/src/capture/b.ts": file([0, 0], [[0, 0]], [0]),
-      "/repo/src/render.ts": file([1, 1], [[1, 1]], [1]),
-      "/repo/tests/ignored.ts": file([0], [[0]], [0]),
-    }, "/repo");
+    const summary = summarizeCoverage(
+      {
+        "/repo/src/capture/a.ts": file([1, 0], [[1, 0]], [1]),
+        "/repo/src/capture/b.ts": file([0, 0], [[0, 0]], [0]),
+        "/repo/src/render.ts": file([1, 1], [[1, 1]], [1]),
+        "/repo/tests/ignored.ts": file([0], [[0]], [0]),
+      },
+      "/repo",
+    );
 
     expect(summary.overall.statements).toMatchObject({ covered: 3, total: 6, pct: 50 });
     expect(summary.directories.map((row: { path: string }) => row.path)).toEqual(["src/(root)", "src/capture"]);
-    expect(summary.directories.find((row: { path: string }) => row.path === "src/capture")?.statements)
-      .toMatchObject({ covered: 1, total: 4, pct: 25 });
+    expect(summary.directories.find((row: { path: string }) => row.path === "src/capture")?.statements).toMatchObject({
+      covered: 1,
+      total: 4,
+      pct: 25,
+    });
     expect(summary.lowStatementFiles.map((row: { path: string }) => row.path)).toEqual(["src/capture/b.ts"]);
   });
 
   it("formats an explicit per-directory table and low-file list", () => {
-    const summary = summarizeCoverage({
-      "/repo/src/cli/a.ts": file([1, 0], [[1, 0]], [0]),
-      "/repo/src/scrubber/client.tsx": file([0, 0], [[0]], [0]),
-    }, "/repo", {
-      "src/scrubber/client.tsx": "executes in Chromium",
-    });
+    const summary = summarizeCoverage(
+      {
+        "/repo/src/cli/a.ts": file([1, 0], [[1, 0]], [0]),
+        "/repo/src/scrubber/client.tsx": file([0, 0], [[0]], [0]),
+      },
+      "/repo",
+      {
+        "src/scrubber/client.tsx": "executes in Chromium",
+      },
+    );
     const output = formatCoverageSummary(summary);
     expect(output).toContain("Per-directory merged coverage:");
     expect(output).toContain("src/cli");

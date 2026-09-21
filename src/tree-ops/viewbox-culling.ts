@@ -14,11 +14,7 @@
 import type { CapturedElement } from "../capture/types.js";
 import type { IntraFrameAnimation } from "../animation/animator.js";
 import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
-import {
-  conservativeSweptBoxes,
-  type SweptAnimationContext,
-  type SweptBox,
-} from "./swept-transform-bounds.js";
+import { conservativeSweptBoxes, type SweptAnimationContext, type SweptBox } from "./swept-transform-bounds.js";
 import {
   buildRendererCullGeometry,
   type RendererCullGeometryIndex,
@@ -53,7 +49,8 @@ interface CullDecision {
  */
 export function decideCull(
   staticBbox: Bbox,
-  vw: number, vh: number,
+  vw: number,
+  vh: number,
   ctx: AnimationFrameContext | readonly AnimationFrameContext[] | null,
 ): CullDecision {
   if (ctx == null) {
@@ -67,8 +64,7 @@ export function decideCull(
     // Mirrors Chromium's false-return contract: uncertainty keeps paint.
     return { alwaysHidden: false };
   }
-  const possiblyVisible = swept.filter((interval) =>
-    bboxIntersectsViewport(interval.bounds, vw, vh));
+  const possiblyVisible = swept.filter((interval) => bboxIntersectsViewport(interval.bounds, vw, vh));
   if (possiblyVisible.length === 0) return { alwaysHidden: true };
 
   // One visibility class can express only one interval. Use the hull of all
@@ -88,7 +84,8 @@ export function decideCull(
  */
 function decideForElement(
   el: CapturedElement,
-  vw: number, vh: number,
+  vw: number,
+  vh: number,
   inheritedCtx: readonly AnimationFrameContext[],
   animsById: Map<string, AnimationFrameContext>,
   geometryIndex: RendererCullGeometryIndex,
@@ -110,9 +107,10 @@ function decideForElement(
     // transform. View-box and the unset SVG-default origin do not depend on
     // descendants. Preserve the others as geometry contributors; the owner
     // can still be culled from its complete renderer-owned visual surface.
-    preservesDescendantReferenceGeometry = animation.anim.transformOrigin != null
-      && animation.anim.transformOrigin.trim() !== ""
-      && animation.anim.transformBox !== "view-box";
+    preservesDescendantReferenceGeometry =
+      animation.anim.transformOrigin != null &&
+      animation.anim.transformOrigin.trim() !== "" &&
+      animation.anim.transformBox !== "view-box";
     contexts.push({
       ...animation,
       transformReferenceBox: rendererTransformReferenceBox(geometry, animation.anim),
@@ -123,8 +121,11 @@ function decideForElement(
   // interleaving the outer static wrapper with the inner animated wrapper;
   // until that exact composition is represented, retain instead of changing
   // the operation order.
-  if (geometry == null || geometry.visualBounds.kind !== "bounded"
-      || (contexts.length > 0 && geometry.hasStaticTransformPath)) {
+  if (
+    geometry == null ||
+    geometry.visualBounds.kind !== "bounded" ||
+    (contexts.length > 0 && geometry.hasStaticTransformPath)
+  ) {
     return {
       contexts,
       decision: { alwaysHidden: false },
@@ -148,11 +149,12 @@ function rendererTransformReferenceBox(
 ): Bbox | undefined {
   if (animation.transformOrigin == null || animation.transformOrigin.trim() === "") return undefined;
   if (geometry == null || geometry.referenceBoxMayAnimate) return undefined;
-  const selected = animation.transformBox === "stroke-box"
-    ? geometry.referenceBoxes.strokeBox
-    : animation.transformBox === "view-box"
-      ? geometry.referenceBoxes.viewBox
-      : geometry.referenceBoxes.fillBox;
+  const selected =
+    animation.transformBox === "stroke-box"
+      ? geometry.referenceBoxes.strokeBox
+      : animation.transformBox === "view-box"
+        ? geometry.referenceBoxes.viewBox
+        : geometry.referenceBoxes.fillBox;
   return selected.kind === "exact" ? selected.box : undefined;
 }
 
@@ -247,17 +249,14 @@ export function cullElementsOutsideViewBox(
   // subtree. Both `display:none` and an ancestor `visibility` window affect
   // descendants, including overflow-visible ink, so a parent's own box can
   // never narrow a broader child interval (DM-650 / DM-2461).
-  const walk = (
-    el: CapturedElement,
-    inheritedCtx: readonly AnimationFrameContext[],
-  ): VisibleHull | null => {
-    const {
-      contexts,
-      decision,
-      suppressesDescendants,
-      preservesDescendantReferenceGeometry,
-    } = decideForElement(
-      el, viewportW, viewportH, inheritedCtx, animsById, geometryIndex,
+  const walk = (el: CapturedElement, inheritedCtx: readonly AnimationFrameContext[]): VisibleHull | null => {
+    const { contexts, decision, suppressesDescendants, preservesDescendantReferenceGeometry } = decideForElement(
+      el,
+      viewportW,
+      viewportH,
+      inheritedCtx,
+      animsById,
+      geometryIndex,
     );
     let subtreeHull = decisionHull(decision);
     if (!suppressesDescendants && !preservesDescendantReferenceGeometry && el.children != null) {

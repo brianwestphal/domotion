@@ -4,10 +4,10 @@ title: "109 — Declared-family match conformance oracle (macOS)"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["src/render/text-to-path.test.ts","tools/family-match-conformance.ts"]
-aliases: ["docs/109-family-match-conformance.md","doc-109"]
+code: ["src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"]
+aliases: ["docs/109-family-match-conformance.md", "doc-109"]
 ---
 
 # 109 — Declared-family match conformance oracle (macOS)
@@ -19,11 +19,11 @@ aliases: ["docs/109-family-match-conformance.md","doc-109"]
 Three decisions sit between a CSS declaration and a painted glyph, and each has
 its own oracle because each can be wrong on its own:
 
-| Question | Oracle |
-| --- | --- |
-| Given `font-family: X; font-weight: N`, which **cut of X** does Chrome open? | **this doc** |
-| Given a codepoint no declared family covers, which **fallback face** does Chrome reach? | doc 107 |
-| Given a face and a run, which **glyphs, at which offsets**? | doc 108 |
+| Question                                                                                | Oracle       |
+| --------------------------------------------------------------------------------------- | ------------ |
+| Given `font-family: X; font-weight: N`, which **cut of X** does Chrome open?            | **this doc** |
+| Given a codepoint no declared family covers, which **fallback face** does Chrome reach? | doc 107      |
+| Given a face and a run, which **glyphs, at which offsets**?                             | doc 108      |
 
 The first question was previously unmeasured. Its failure mode is a family's
 weight ladder collapsing onto one or two faces — which is invisible to a fixture
@@ -65,7 +65,7 @@ Two calibration notes, both of which cost real time to learn:
 
 1. **Score the shipped port, not a restatement of it.** Two JavaScript
    re-implementations of the same rule scored 98.65% and 99.75% against Chrome
-   — both *worse* than the Swift port at 99.88% — because both omitted the
+   — both _worse_ than the Swift port at 99.88% — because both omitted the
    trait-precedence loop and so picked condensed faces (`Futura-CondensedExtraBold`,
    `HelveticaNeue-CondensedBlack`) where Chrome takes the plain Bold. A
    restatement measures the restatement.
@@ -117,7 +117,7 @@ That one comparator explains every previously-recorded anomaly at once:
 - **`Avenir Next` @300 → Regular**: plain nearest weight among {100, 400,
   500}.
 - **`Avenir` @600 → Heavy over the nearer Medium**: at ≥ 600 the bold trait is
-  *desired*, so non-bold faces lose on traits — the "directional heavy end"
+  _desired_, so non-bold faces lose on traits — the "directional heavy end"
   was never a weight rule at all.
 - **`PingFang SC` @300 → Thin**: AppKit reports Thin and Light both as weight
   3 → CSS 200; the three-way delta-100 tie (Thin, Light, Regular) breaks

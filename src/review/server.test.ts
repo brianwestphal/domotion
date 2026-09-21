@@ -13,8 +13,14 @@ let srv: ReviewServer | null = null;
 let dir: string | null = null;
 
 afterEach(async () => {
-  if (srv) { await srv.close(); srv = null; }
-  if (dir) { rmSync(dir, { recursive: true, force: true }); dir = null; }
+  if (srv) {
+    await srv.close();
+    srv = null;
+  }
+  if (dir) {
+    rmSync(dir, { recursive: true, force: true });
+    dir = null;
+  }
 });
 
 function fixtureDir(): { expectedPng: string; actualPng: string; actualSvg: string; diffPng: string } {

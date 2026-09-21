@@ -279,11 +279,11 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
         dir,
         ...(seg.verticalWritingMode != null
           ? {
-            vertical: seg.verticalWritingMode,
-            yOffsets: seg.yOffsets,
-            verticalAdvances: seg.verticalAdvances,
-            columnLength: seg.height,
-          }
+              vertical: seg.verticalWritingMode,
+              yOffsets: seg.yOffsets,
+              verticalAdvances: seg.verticalAdvances,
+              columnLength: seg.height,
+            }
           : {}),
       }));
   }
@@ -291,20 +291,22 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
     // Input-value synthesis — mirrors `renderInputText`'s anchors: text starts
     // at `textLeft` (falling back to the content-box inset the renderer uses)
     // with the line-box top at `textTop`.
-    return [{
-      text: el.text,
-      x: el.textLeft ?? el.x + 4,
-      y: el.textTop ?? el.y,
-      width: el.textWidth,
-      lineHeight: el.textHeight,
-      xOffsets: el.inputXOffsets,
-      fontSize,
-      ascentPx: ascentOf(),
-      descentPx: descent,
-      fontFamily,
-      fontWeight,
-      dir,
-    }];
+    return [
+      {
+        text: el.text,
+        x: el.textLeft ?? el.x + 4,
+        y: el.textTop ?? el.y,
+        width: el.textWidth,
+        lineHeight: el.textHeight,
+        xOffsets: el.inputXOffsets,
+        fontSize,
+        ascentPx: ascentOf(),
+        descentPx: descent,
+        fontFamily,
+        fontWeight,
+        dir,
+      },
+    ];
   }
   return [];
 }
@@ -516,7 +518,11 @@ function runBidiLevels(runs: TextRun[]): Array<number[] | null> | null {
  *  typing overlay's `overlayAdvances` (animator.ts): resolve the family to a
  *  font key, load the instance, scale to px. All fields undefined / estimated
  *  when the face can't be resolved on this host. */
-function fallbackMetrics(fontFamily: string, fontWeight: string, fontSize: number): {
+function fallbackMetrics(
+  fontFamily: string,
+  fontWeight: string,
+  fontSize: number,
+): {
   ascentPx?: number;
   descentPx?: number;
   advOf: (ch: string) => number;
@@ -693,7 +699,11 @@ export function addressableLength(roots: CapturedElement[], target: TextAddressT
  * length` parks the caret at the column's bottom edge, which is exactly where
  * Chromium's own collapsed range lands past the final character.
  */
-export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressTarget, charOffset: number): CaretPoint | null {
+export function resolveCaretPoint(
+  roots: CapturedElement[],
+  target: TextAddressTarget,
+  charOffset: number,
+): CaretPoint | null {
   const el = findAddressedElement(roots, target);
   if (el == null) return null;
   const runs = elementTextRuns(el);
@@ -737,11 +747,13 @@ export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressT
     const box = atEnd ? boxes[boxes.length - 1] : boxes.find((b) => b.utf16 === loc.utf16);
     if (box == null) return null;
     rtl = box.rtl;
-    x = atEnd ? (box.rtl ? box.left : box.right) : (box.rtl ? box.right : box.left);
+    x = atEnd ? (box.rtl ? box.left : box.right) : box.rtl ? box.right : box.left;
     cellWidthPx = atEnd ? spaceAdvance() : box.right - box.left;
     if (!(cellWidthPx > 0)) {
       const nextU = loc.utf16 + codePointLengthAt(run.text, loc.utf16);
-      cellWidthPx = fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize).advOf(run.text.slice(loc.utf16, nextU));
+      cellWidthPx = fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize).advOf(
+        run.text.slice(loc.utf16, nextU),
+      );
     }
   } else {
     x = atEnd ? runRightEdge(run, xs) : xs[loc.utf16];
@@ -796,7 +808,12 @@ function codePointLengthAt(text: string, u: number): number {
  * COLUMN's cross extent and growing DOWN it: `edges` are the successive bottom
  * edges and the emission steps `height` where the horizontal path steps `width`.
  */
-export function resolveRangeRects(roots: CapturedElement[], target: TextAddressTarget, charStart: number, charEnd: number): RangeRects | null {
+export function resolveRangeRects(
+  roots: CapturedElement[],
+  target: TextAddressTarget,
+  charStart: number,
+  charEnd: number,
+): RangeRects | null {
   const el = findAddressedElement(roots, target);
   if (el == null || charEnd <= charStart || charStart < 0) return null;
   const runs = elementTextRuns(el);
@@ -864,7 +881,14 @@ export function resolveRangeRects(roots: CapturedElement[], target: TextAddressT
     for (const box of boxes) {
       if (cp >= charStart && cp < charEnd) {
         if (plan == null || planRtl !== box.rtl) {
-          plan = { x: box.left, y: run.y, height, width: box.right - box.left, edges: [], ...(box.rtl ? { rtl: true } : {}) };
+          plan = {
+            x: box.left,
+            y: run.y,
+            height,
+            width: box.right - box.left,
+            edges: [],
+            ...(box.rtl ? { rtl: true } : {}),
+          };
           planRtl = box.rtl;
           rects.push(plan);
         }

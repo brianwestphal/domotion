@@ -28,29 +28,29 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 // Linux paths from the Playwright Docker image. Verified via `fc-list` /
 // `fc-match -f '%{file}\n' '<family>'` inside the container.
-const LIB      = "/usr/share/fonts/truetype/liberation";
+const LIB = "/usr/share/fonts/truetype/liberation";
 const FREEFONT = "/usr/share/fonts/truetype/freefont";
-const WQY      = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc";
-const UNIFONT  = "/usr/share/fonts/opentype/unifont";
+const WQY = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc";
+const UNIFONT = "/usr/share/fonts/opentype/unifont";
 
 const FAMILY_TO_PATH = {
   // Chrome's CDP `CSS.getPlatformFontsForNode` reports these family names
   // for the bare Playwright image on Linux. Values are absolute paths
   // (string literals — they only need to resolve at runtime inside the
   // container or on a similarly-configured Linux host, not on macOS).
-  "Unifont":           { path: `${UNIFONT}/unifont.otf` },
-  "Unifont Upper":     { path: `${UNIFONT}/unifont_upper.otf` },
-  "Liberation Sans":   { path: `${LIB}/LiberationSans-Regular.ttf` },
-  "Liberation Serif":  { path: `${LIB}/LiberationSerif-Regular.ttf` },
-  "FreeSans":          { path: `${FREEFONT}/FreeSans.ttf` },
-  "FreeSerif":         { path: `${FREEFONT}/FreeSerif.ttf` },
-  "FreeMono":          { path: `${FREEFONT}/FreeMono.ttf` },
+  Unifont: { path: `${UNIFONT}/unifont.otf` },
+  "Unifont Upper": { path: `${UNIFONT}/unifont_upper.otf` },
+  "Liberation Sans": { path: `${LIB}/LiberationSans-Regular.ttf` },
+  "Liberation Serif": { path: `${LIB}/LiberationSerif-Regular.ttf` },
+  FreeSans: { path: `${FREEFONT}/FreeSans.ttf` },
+  FreeSerif: { path: `${FREEFONT}/FreeSerif.ttf` },
+  FreeMono: { path: `${FREEFONT}/FreeMono.ttf` },
   "WenQuanYi Zen Hei": { path: WQY, postscriptName: "WenQuanYiZenHei" },
-  "IPAGothic":         { path: "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf" },
-  "Loma":              { path: "/usr/share/fonts/opentype/tlwg/Loma.otf" },
+  IPAGothic: { path: "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf" },
+  Loma: { path: "/usr/share/fonts/opentype/tlwg/Loma.otf" },
   // Apple Color Emoji's Linux counterpart — handled via the raster path,
   // not the glyph-path keys; skip routing.
-  "Noto Color Emoji":  null,
+  "Noto Color Emoji": null,
 };
 
 function resolveFamily(family) {
@@ -69,9 +69,12 @@ function makeKey(family) {
   if (familyToKey.has(family)) return familyToKey.get(family);
   // Lowercase, dash-separated, prefixed with "u-" to avoid clashing with
   // hand-coded keys in LINUX_FONT_PATHS.
-  const slug = "u-" + family.toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const slug =
+    "u-" +
+    family
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   familyToKey.set(family, slug);
   return slug;
 }
@@ -102,9 +105,10 @@ out += "// fallback picks via CDP `CSS.getPlatformFontsForNode`. Consulted by\n"
 out += "// `linuxFallbackChain` as the final fallback when no hand-coded route\n";
 out += "// matches a given codepoint. Paths target the bare Playwright image\n";
 out += "// — Unifont / Unifont Upper carry the bulk of non-Latin coverage as\n";
-out += "// pixel-art \"last resort\" glyphs (matching what Chrome paints here).\n";
+out += '// pixel-art "last resort" glyphs (matching what Chrome paints here).\n';
 out += "\n";
-out += "export interface UnicodeFontEntry { path: string; postscriptName?: string; extractor?: \"fontkit\" | \"native\" }\n\n";
+out +=
+  'export interface UnicodeFontEntry { path: string; postscriptName?: string; extractor?: "fontkit" | "native" }\n\n';
 out += "export const UNICODE_FONT_PATHS_LINUX: Record<string, UnicodeFontEntry> = {\n";
 const seenKeys = new Set();
 for (const r of ranges) {
@@ -125,6 +129,8 @@ writeFileSync("src/render/unicode-font-routing.linux.generated.ts", out);
 
 console.log(`Generated ${ranges.length} ranges covering ${seenKeys.size} fonts.`);
 if (unresolved.size > 0) {
-  console.log(`Unresolved font families (skipped — no FAMILY_TO_PATH entry; add a path to the generator if you want to route these):`);
+  console.log(
+    `Unresolved font families (skipped — no FAMILY_TO_PATH entry; add a path to the generator if you want to route these):`,
+  );
   for (const f of unresolved) console.log(`  - ${JSON.stringify(f)}`);
 }

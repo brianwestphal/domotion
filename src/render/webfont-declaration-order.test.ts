@@ -16,8 +16,10 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
-  registerWebfont, clearWebfonts,
-  __pickWebfontVariantMetaForTest, __pickWebfontVariantMetaForCodepointForTest,
+  registerWebfont,
+  clearWebfonts,
+  __pickWebfontVariantMetaForTest,
+  __pickWebfontVariantMetaForCodepointForTest,
   webfontVariantsInDeclarationOrder,
 } from "./font-resolution.js";
 
@@ -26,15 +28,15 @@ import {
 // webfont-weight-descriptor.test.ts).
 const HELVETICA = "/System/Library/Fonts/Helvetica.ttc";
 const LIBERATION = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
-const FONT_FILE = existsSync(HELVETICA) ? HELVETICA : (existsSync(LIBERATION) ? LIBERATION : null);
+const FONT_FILE = existsSync(HELVETICA) ? HELVETICA : existsSync(LIBERATION) ? LIBERATION : null;
 const fontBuf = FONT_FILE != null ? readFileSync(FONT_FILE) : null;
 const describeWithFont = fontBuf != null ? describe : describe.skip;
 
 // Distinct-but-equivalent unicode-ranges covering 'A' (the Latin probe) and
 // U+00E9, used purely as markers to tell two otherwise identically-scoring
 // variants apart in the picker's answer.
-const MARK_FIRST: Array<[number, number]> = [[0x0000, 0xFFFF]];
-const MARK_LAST: Array<[number, number]> = [[0x0000, 0xFFFD]];
+const MARK_FIRST: Array<[number, number]> = [[0x0000, 0xffff]];
+const MARK_LAST: Array<[number, number]> = [[0x0000, 0xfffd]];
 
 describeWithFont("last-declared wins on exact score ties (Blink's reverse-declaration order)", () => {
   beforeEach(() => clearWebfonts());
@@ -48,7 +50,7 @@ describeWithFont("last-declared wins on exact score ties (Blink's reverse-declar
   it("per-codepoint pick honors the same rule when both ranges cover the codepoint", () => {
     registerWebfont("dupcp", 400, "normal", fontBuf!, MARK_FIRST, undefined, "400");
     registerWebfont("dupcp", 400, "normal", fontBuf!, MARK_LAST, undefined, "400");
-    expect(__pickWebfontVariantMetaForCodepointForTest("dupcp", 400, false, 0x00E9)?.unicodeRange).toEqual(MARK_LAST);
+    expect(__pickWebfontVariantMetaForCodepointForTest("dupcp", 400, false, 0x00e9)?.unicodeRange).toEqual(MARK_LAST);
   });
 });
 
@@ -73,19 +75,27 @@ describeWithFont("segmented fallback walks declarations instead of re-scoring a 
   it("iterates only the weight capability group selected by FontFaceCache", () => {
     registerWebfont("weight-groups", 400, "normal", fontBuf!, MARK_FIRST, undefined, "400");
     registerWebfont("weight-groups", 700, "normal", fontBuf!, MARK_LAST, undefined, "700");
-    expect(webfontVariantsInDeclarationOrder("weight-groups", 400, 16, 0)
-      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_FIRST]);
-    expect(webfontVariantsInDeclarationOrder("weight-groups", 700, 16, 0)
-      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_LAST]);
+    expect(
+      webfontVariantsInDeclarationOrder("weight-groups", 400, 16, 0).map((face) => face.webfontUnicodeRange),
+    ).toEqual([MARK_FIRST]);
+    expect(
+      webfontVariantsInDeclarationOrder("weight-groups", 700, 16, 0).map((face) => face.webfontUnicodeRange),
+    ).toEqual([MARK_LAST]);
   });
 
   it("iterates only the selected style and stretch capability group", () => {
     registerWebfont("axis-groups", 400, "normal", fontBuf!, MARK_FIRST, "75%", "400", "normal");
     registerWebfont("axis-groups", 400, "italic", fontBuf!, MARK_LAST, "100%", "400", "italic");
-    expect(webfontVariantsInDeclarationOrder("axis-groups", 400, 16, 0, undefined, 75)
-      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_FIRST]);
-    expect(webfontVariantsInDeclarationOrder("axis-groups", 400, 16, 14, undefined, 100)
-      .map((face) => face.webfontUnicodeRange)).toEqual([MARK_LAST]);
+    expect(
+      webfontVariantsInDeclarationOrder("axis-groups", 400, 16, 0, undefined, 75).map(
+        (face) => face.webfontUnicodeRange,
+      ),
+    ).toEqual([MARK_FIRST]);
+    expect(
+      webfontVariantsInDeclarationOrder("axis-groups", 400, 16, 14, undefined, 100).map(
+        (face) => face.webfontUnicodeRange,
+      ),
+    ).toEqual([MARK_LAST]);
   });
 
   it("keeps every unicode-range partition inside the selected capability group", () => {

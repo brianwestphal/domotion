@@ -15,10 +15,7 @@ function transformOrigin(
   value: string | undefined,
   box: Pick<PseudoPaintEffects, "x" | "y" | "width" | "height">,
 ): [number, number] {
-  const fallback: [number, number] = [
-    box.x + box.width / 2,
-    box.y + box.height / 2,
-  ];
+  const fallback: [number, number] = [box.x + box.width / 2, box.y + box.height / 2];
   if (!value) return fallback;
 
   const parts = value.trim().split(/\s+/);
@@ -42,10 +39,7 @@ function transformOrigin(
  * third_party/blink/renderer/core/paint/filter_effect_builder.cc and
  * third_party/blink/renderer/core/paint/paint_property_tree_builder.cc.
  */
-export function wrapPseudoPaintEffects(
-  box: PseudoPaintEffects,
-  content: string,
-): string {
+export function wrapPseudoPaintEffects(box: PseudoPaintEffects, content: string): string {
   let result = content;
 
   const filter = box.filter?.trim();

@@ -21,13 +21,21 @@ export function walkHtmlFiles(rootDir: string): string[] {
   const out: string[] = [];
   function visit(dir: string, prefix: string): void {
     let entries: string[];
-    try { entries = readdirSync(dir); } catch { return; }
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
     for (const name of entries) {
       if (name.startsWith(".") || name.startsWith("_")) continue;
       const fullPath = resolve(dir, name);
       const relPath = prefix === "" ? name : `${prefix}/${name}`;
       let isDir = false;
-      try { isDir = statSync(fullPath).isDirectory(); } catch { continue; }
+      try {
+        isDir = statSync(fullPath).isDirectory();
+      } catch {
+        continue;
+      }
       if (isDir && prefix === "" && name === "unicode") continue; // separate suite (DM-1230)
       if (isDir) {
         visit(fullPath, relPath);

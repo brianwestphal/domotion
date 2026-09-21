@@ -7,7 +7,9 @@
  * tells reports which secondary oracle family to emphasize at this revision.
  */
 export function rotationForRevision(revision, ordinal) {
-  const normalized = String(revision ?? "").trim().toLowerCase();
+  const normalized = String(revision ?? "")
+    .trim()
+    .toLowerCase();
   if (!/^[0-9a-f]{8,64}$/.test(normalized)) {
     throw new Error("revision must be an 8-64 character hexadecimal git object id");
   }
@@ -18,8 +20,14 @@ export function rotationForRevision(revision, ordinal) {
   const byte = run % 256;
   const stackIndex = run % 8;
   const stackBuckets = [
-    "generic-initial", "weight-style", "stretch-variable", "named-missing-first",
-    "webfont-unicode-range", "emoji-presentation", "cjk-locales", "rtl-combining",
+    "generic-initial",
+    "weight-style",
+    "stretch-variable",
+    "named-missing-first",
+    "webfont-unicode-range",
+    "emoji-presentation",
+    "cjk-locales",
+    "rtl-combining",
   ];
   return {
     sampleByte: byte.toString(16).toUpperCase().padStart(2, "0"),

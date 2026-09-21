@@ -5,7 +5,11 @@ import type { CapturedElement } from "./types.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 
 const env = await (async () => {
-  try { return { browser: await launchChromium({ headless: true }) }; } catch { return null; }
+  try {
+    return { browser: await launchChromium({ headless: true }) };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -38,11 +42,7 @@ describeBrowser("DM-2558 source-authenticated collapsed-table fragment records",
         computed: getComputedStyle(owner).transform,
       }));
 
-      const capture = await captureElementTreeWithWarnings(
-        page,
-        "body",
-        { x: 0, y: 0, width: 920, height: 360 },
-      );
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 920, height: 360 });
       const table = capturedTable(capture.tree);
       const record = table.styles.collapsedBorderFragmentRecord;
       if (record?.status === "unavailable") throw new Error(record.reason);
@@ -68,12 +68,16 @@ describeBrowser("DM-2558 source-authenticated collapsed-table fragment records",
       expect(new Set(rects.map((rect) => rect.fragmentIndex))).toEqual(
         new Set(record.tableFragments.map((fragment) => fragment.fragmentIndex)),
       );
-      expect(capture.warnings.some((warning) => warning.feature === "fragmented collapsed-table ownership")).toBe(false);
+      expect(capture.warnings.some((warning) => warning.feature === "fragmented collapsed-table ownership")).toBe(
+        false,
+      );
 
-      expect(await page.locator("#owner").evaluate((owner) => ({
-        inline: owner.getAttribute("style"),
-        computed: getComputedStyle(owner).transform,
-      }))).toEqual(before);
+      expect(
+        await page.locator("#owner").evaluate((owner) => ({
+          inline: owner.getAttribute("style"),
+          computed: getComputedStyle(owner).transform,
+        })),
+      ).toEqual(before);
     } finally {
       await page.close();
     }
@@ -89,11 +93,7 @@ describeBrowser("DM-2558 source-authenticated collapsed-table fragment records",
       </style><div class="cols"><table><thead><tr><th></th></tr></thead><tbody>
         ${Array.from({ length: 12 }, () => "<tr><td></td></tr>").join("")}
       </tbody><tfoot><tr><td></td></tr></tfoot></table></div>`);
-      const capture = await captureElementTreeWithWarnings(
-        page,
-        "body",
-        { x: 0, y: 0, width: 1100, height: 280 },
-      );
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 1100, height: 280 });
       const table = capturedTable(capture.tree);
       const record = table.styles.collapsedBorderFragmentRecord;
       if (record?.status === "unavailable") throw new Error(record.reason);
@@ -105,9 +105,11 @@ describeBrowser("DM-2558 source-authenticated collapsed-table fragment records",
         },
       });
       if (record?.status !== "authenticated") throw new Error("repeat record was not authenticated");
-      const headerOccurrences = record.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+      const headerOccurrences = record.tableFragments
+        .flatMap((fragment) => fragment.sectionFragments)
         .filter((section) => section.repeatRole.endsWith("header"));
-      const footerOccurrences = record.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+      const footerOccurrences = record.tableFragments
+        .flatMap((fragment) => fragment.sectionFragments)
         .filter((section) => section.repeatRole.endsWith("footer"));
       expect(headerOccurrences).toHaveLength(record.tableFragments.length);
       expect(footerOccurrences).toHaveLength(record.tableFragments.length);
@@ -117,14 +119,22 @@ describeBrowser("DM-2558 source-authenticated collapsed-table fragment records",
       expect(footerOccurrences.map((section) => section.repeatOccurrenceIndex)).toEqual(
         record.tableFragments.map((_, index) => index),
       );
-      expect(headerOccurrences.every((section) => section.globalStartRowIndex === 0
-        && section.reservedCollapsedEdgeSpace?.side === "block-start")).toBe(true);
-      expect(footerOccurrences.every((section) => section.lastGlobalRowIndex === record.totalRows - 1
-        && section.reservedCollapsedEdgeSpace?.side === "block-end")).toBe(true);
+      expect(
+        headerOccurrences.every(
+          (section) => section.globalStartRowIndex === 0 && section.reservedCollapsedEdgeSpace?.side === "block-start",
+        ),
+      ).toBe(true);
+      expect(
+        footerOccurrences.every(
+          (section) =>
+            section.lastGlobalRowIndex === record.totalRows - 1 &&
+            section.reservedCollapsedEdgeSpace?.side === "block-end",
+        ),
+      ).toBe(true);
       expect(table.styles.collapsedBorderRects?.length).toBeGreaterThan(0);
-      expect(capture.warnings.some((warning) =>
-        warning.feature === "fragmented collapsed-table ownership",
-      )).toBe(false);
+      expect(capture.warnings.some((warning) => warning.feature === "fragmented collapsed-table ownership")).toBe(
+        false,
+      );
     } finally {
       await page.close();
     }

@@ -50,7 +50,10 @@ async function captureToSvg(
     await discoverAndRegisterWebfonts(page, tracker.urls);
     tracker.detach();
     const tree = await captureElementTree(page, p.selector ?? "body", {
-      x: 0, y: 0, width: p.width, height: p.height,
+      x: 0,
+      y: 0,
+      width: p.width,
+      height: p.height,
     });
     cullElementsOutsideViewBox(tree, p.width, p.height, undefined, 0, 1);
     clearEmbeddedFonts();

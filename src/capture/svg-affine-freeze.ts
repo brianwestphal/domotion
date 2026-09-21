@@ -27,13 +27,15 @@ export interface SvgAffineFreeze {
 }
 
 export function isFiniteSvgAffine(matrix: SvgAffineMatrix | null | undefined): matrix is SvgAffineMatrix {
-  return matrix != null
-    && Number.isFinite(matrix.a)
-    && Number.isFinite(matrix.b)
-    && Number.isFinite(matrix.c)
-    && Number.isFinite(matrix.d)
-    && Number.isFinite(matrix.e)
-    && Number.isFinite(matrix.f);
+  return (
+    matrix != null &&
+    Number.isFinite(matrix.a) &&
+    Number.isFinite(matrix.b) &&
+    Number.isFinite(matrix.c) &&
+    Number.isFinite(matrix.d) &&
+    Number.isFinite(matrix.e) &&
+    Number.isFinite(matrix.f)
+  );
 }
 
 export function multiplySvgAffine(left: SvgAffineMatrix, right: SvgAffineMatrix): SvgAffineMatrix {
@@ -111,7 +113,11 @@ export function serializeSvgAffine(matrix: SvgAffineMatrix): string | null {
 export function svgAffineMaxPointError(
   left: SvgAffineMatrix,
   right: SvgAffineMatrix,
-  points: ReadonlyArray<readonly [number, number]> = [[0, 0], [1, 0], [0, 1]],
+  points: ReadonlyArray<readonly [number, number]> = [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+  ],
 ): number {
   if (!isFiniteSvgAffine(left) || !isFiniteSvgAffine(right)) return Number.POSITIVE_INFINITY;
   let max = 0;

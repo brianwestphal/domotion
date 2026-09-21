@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-883","DM-889"]
-code: ["src/cli/capture.ts","src/cli/common.ts","tests/real-world.tsx"]
-aliases: ["docs/48-har-source.md","doc-48"]
+tickets: ["DM-883", "DM-889"]
+code: ["src/cli/capture.ts", "src/cli/common.ts", "tests/real-world.tsx"]
+aliases: ["docs/48-har-source.md", "doc-48"]
 ---
 
 # Domotion: HAR files as a capture source
@@ -65,7 +65,7 @@ change. No new dependency.
    - else `log.pages[0].title` when it's an `http(s)` URL (some recorders set it);
    - else the first 2xx `text/html` entry's `request.url`;
    - else the first entry's `request.url`.
-   Error clearly if none can be found (tell the user to pass `--url`).
+     Error clearly if none can be found (tell the user to pass `--url`).
 3. **Replay.** On the context:
    `routeFromHAR(harPath, { url: "**/*", notFound: "abort" })` — strict offline
    replay so the capture is fully deterministic (every asset must be in the
@@ -104,6 +104,6 @@ adopted as the implementation (DM-889); none were overridden.
 ## Out of scope (v1)
 
 - Recording HARs from the CLI (`domotion record`?) — this ticket is about
-  *consuming* an existing HAR. Recording is a possible follow-up.
+  _consuming_ an existing HAR. Recording is a possible follow-up.
 - HARs that depend on live JS calling non-recorded XHR/fetch endpoints — those
   need `--har-fallback` (network) or will abort.

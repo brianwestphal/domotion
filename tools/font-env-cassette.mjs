@@ -79,9 +79,16 @@ const raw = readFileSync(0, "utf8");
  */
 function keyFor(text) {
   let req;
-  try { req = JSON.parse(text); } catch { return text; }
+  try {
+    req = JSON.parse(text);
+  } catch {
+    return text;
+  }
   const fonts = (req.fonts ?? []).map((f) => ({
-    fontPath: f.fontPath, size: f.size, index: f.index, variations: f.variations,
+    fontPath: f.fontPath,
+    size: f.size,
+    index: f.index,
+    variations: f.variations,
   }));
   return JSON.stringify({ fonts, queries: req.queries ?? [] });
 }
@@ -118,8 +125,8 @@ if (hit == null) {
   // Loud, not silent. See the header: falling through to the real helper would
   // make "the cassette covers this" unfalsifiable.
   process.stderr.write(
-    `font-env-cassette: REPLAY MISS (${Object.keys(cassette.entries).length} entries recorded on ${cassette.platform})\n`
-    + `  request: ${key.slice(0, 400)}\n`,
+    `font-env-cassette: REPLAY MISS (${Object.keys(cassette.entries).length} entries recorded on ${cassette.platform})\n` +
+      `  request: ${key.slice(0, 400)}\n`,
   );
   process.exit(3);
 }

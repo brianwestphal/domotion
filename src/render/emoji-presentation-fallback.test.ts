@@ -39,12 +39,12 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   // Miscellaneous Technical — a block `isEmojiCodepoint`'s hand-curated ranges
   // never covered, which is why nobody caught it by sampling.
   const EMOJI_PRESENTATION: Array<[number, string]> = [
-    [0x231A, "⌚ watch"],
-    [0x231B, "⌛ hourglass"],
-    [0x23E9, "⏩ fast-forward"],
-    [0x23EA, "⏪ rewind"],
-    [0x1F600, "😀 grinning face"],
-    [0x2B50, "⭐ star"],
+    [0x231a, "⌚ watch"],
+    [0x231b, "⌛ hourglass"],
+    [0x23e9, "⏩ fast-forward"],
+    [0x23ea, "⏪ rewind"],
+    [0x1f600, "😀 grinning face"],
+    [0x2b50, "⭐ star"],
   ];
 
   for (const [cp, label] of EMOJI_PRESENTATION) {
@@ -68,7 +68,7 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
     [0x2618, "☘ shamrock"],
     [0x0023, "# keycap base"],
     [0x0041, "A latin"],
-    [0x4E00, "一 Han"],
+    [0x4e00, "一 Han"],
   ];
 
   for (const [cp, label] of TEXT_PRESENTATION) {
@@ -86,8 +86,7 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
   it("an emoji-presentation codepoint short-circuits under the system-ui base too", () => {
     // The base is what made the defect visible, so pin the fix under it as well
     // as under the default named base.
-    expect(__resolveSystemFallbackKeyForCpForTest(0x231A, 400, 0, 16, "sf-pro", true))
-      .toBe("sysfb:AppleColorEmoji");
+    expect(__resolveSystemFallbackKeyForCpForTest(0x231a, 400, 0, 16, "sf-pro", true)).toBe("sysfb:AppleColorEmoji");
   });
 
   // NOT asserted here: that Emoji_Modifier (U+1F3FB–U+1F3FF) keeps walking the
@@ -110,7 +109,7 @@ const darwinHelper = process.platform === "darwin" && isGlyphHelperAvailable();
     // The short-circuit happens before any weight-dependent work, so a bold run
     // must not drift to a different face — there is no bold color-emoji cut.
     for (const weight of [100, 400, 700, 900]) {
-      expect(__resolveSystemFallbackKeyForCpForTest(0x231A, weight)).toBe("sysfb:AppleColorEmoji");
+      expect(__resolveSystemFallbackKeyForCpForTest(0x231a, weight)).toBe("sysfb:AppleColorEmoji");
     }
   });
 });

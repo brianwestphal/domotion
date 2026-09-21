@@ -23,18 +23,27 @@ const HTML = `<!doctype html><style>
 </style><div id="host">host<span id="reference">縦 AB</span></div>`;
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function pseudoBox(tree: CapturedElement[]) {
   let box: { width: number; height: number } | undefined;
   const visit = (nodes: CapturedElement[]): void => {
     for (const node of nodes) {
-      const record = node.pseudoFragments?.find((entry) => entry.pseudo === "::before"
-        && entry.fragments.some((fragment) => fragment.kind === "text" && fragment.text.includes("縦 AB")));
+      const record = node.pseudoFragments?.find(
+        (entry) =>
+          entry.pseudo === "::before" &&
+          entry.fragments.some((fragment) => fragment.kind === "text" && fragment.text.includes("縦 AB")),
+      );
       if (record != null) box = record.boxFragments[0]?.physicalRect;
       if (node.children) visit(node.children as CapturedElement[]);
     }

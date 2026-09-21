@@ -38,15 +38,15 @@ import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss } from "./embedde
 const FAMILY = "Papyrus";
 
 function render(text: string, extra: Partial<RenderTextOptions> = {}): string | null {
-  return renderTextAsPath(text, 0, 64,
-    { fontSize: 64, fontFamily: FAMILY, fontWeight: "400", fill: "#000", ...extra });
+  return renderTextAsPath(text, 0, 64, { fontSize: 64, fontFamily: FAMILY, fontWeight: "400", fill: "#000", ...extra });
 }
 
 /** The `@font-face` blocks the builder emitted, with the base64 payload cut. */
 function faces(): string[] {
   const css = getBuiltEmbeddedFontFaceCss();
-  return [...css.matchAll(/@font-face\s*\{(.*?)\}/gs)]
-    .map((m) => m[1].replace(/base64,[A-Za-z0-9+/=]+/, "base64,…").trim());
+  return [...css.matchAll(/@font-face\s*\{(.*?)\}/gs)].map((m) =>
+    m[1].replace(/base64,[A-Za-z0-9+/=]+/, "base64,…").trim(),
+  );
 }
 
 /** The embedded font BYTES per entry — what actually decides whether a
@@ -73,8 +73,14 @@ describe("synthesisAllowed — absent means `auto`", () => {
 });
 
 describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
-  beforeEach(() => { setRenderTextMode("embedded-font"); clearEmbeddedFontBuilder(); });
-  afterEach(() => { setRenderTextMode("paths"); clearEmbeddedFontBuilder(); });
+  beforeEach(() => {
+    setRenderTextMode("embedded-font");
+    clearEmbeddedFontBuilder();
+  });
+  afterEach(() => {
+    setRenderTextMode("paths");
+    clearEmbeddedFontBuilder();
+  });
 
   /** Whether this host's resolved face actually enters the synthesis path. */
   const synthesizes = (): boolean => {
@@ -86,8 +92,7 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
     clearEmbeddedFontBuilder();
     const auto = render("Hamburgefonstiv", { fontWeight: "700" }) ?? "";
     const veto = render("Hamburgefonstiv", { fontWeight: "700", fontSynthesis: { weight: false } }) ?? "";
-    const ok = /<text\b[^>]*\sstroke="#000"/.test(auto)
-      && !/<text\b[^>]*\sstroke="#000"/.test(veto);
+    const ok = /<text\b[^>]*\sstroke="#000"/.test(auto) && !/<text\b[^>]*\sstroke="#000"/.test(veto);
     clearEmbeddedFontBuilder();
     return ok;
   };
@@ -145,7 +150,8 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
   it("does not disturb an un-vetoed run — auto is byte-identical to omitting the option", () => {
     if (!synthesizes()) return;
     const withOpt = render("Hamburgefonstiv", {
-      fontWeight: "700", fontSynthesis: { weight: true, style: true, smallCaps: true },
+      fontWeight: "700",
+      fontSynthesis: { weight: true, style: true, smallCaps: true },
     });
     clearEmbeddedFontBuilder();
     const without = render("Hamburgefonstiv", { fontWeight: "700" });
@@ -154,7 +160,9 @@ describe("font-synthesis vetoes in embedded-font mode (DM-1971)", () => {
 });
 
 describe("synthesized small-caps veto (DM-1971)", () => {
-  beforeEach(() => { setRenderTextMode("paths"); });
+  beforeEach(() => {
+    setRenderTextMode("paths");
+  });
 
   it("suppresses the scaled-uppercase stand-in a font without smcp would otherwise get", () => {
     // Papyrus ships no `smcp`, so `small-caps` normally synthesizes: lowercase

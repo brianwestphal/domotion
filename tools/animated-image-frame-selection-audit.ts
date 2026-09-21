@@ -11,8 +11,7 @@ import { dirname, resolve } from "node:path";
 import { createServer, type Server } from "node:http";
 import { chromium, type Page } from "@playwright/test";
 
-export const ANIMATED_IMAGE_CHROMIUM_REVISION =
-  "7d859f271cbda744098ac69f44978d4edfa62be3";
+export const ANIMATED_IMAGE_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 
 export const ANIMATED_IMAGE_FIXTURES = [
   {
@@ -122,9 +121,7 @@ function observationIdentity(observation: AnimatedImageFrameObservation): string
   });
 }
 
-export function adjudicateAnimatedImageFormat(
-  evidence: AnimatedImageFormatEvidence,
-): string[] {
+export function adjudicateAnimatedImageFormat(evidence: AnimatedImageFormatEvidence): string[] {
   const errors: string[] = [];
   const prefix = evidence.format;
   const expectedMimeTypes = { gif: "image/gif", apng: "image/png", webp: "image/webp" } as const;
@@ -155,8 +152,10 @@ export function adjudicateAnimatedImageFormat(
     return errors;
   }
 
-  const expectedForward = Array.from({ length: evidence.track.frameCount }, (_, index) => index)
-    .flatMap((index) => [index, index]);
+  const expectedForward = Array.from({ length: evidence.track.frameCount }, (_, index) => index).flatMap((index) => [
+    index,
+    index,
+  ]);
   const expectedReverse = [...expectedForward].reverse();
   if (JSON.stringify(evidence.arms[0].order) !== JSON.stringify(expectedForward)) {
     errors.push(`${prefix}: proposal order is not forward same-frame pairs`);
@@ -175,7 +174,8 @@ export function adjudicateAnimatedImageFormat(
         errors.push(`${prefix}/${arm.role}: requested index moved at position ${position}`);
       }
       if (
-        !Number.isInteger(observation.requestedIndex) || observation.requestedIndex < 0 ||
+        !Number.isInteger(observation.requestedIndex) ||
+        observation.requestedIndex < 0 ||
         observation.requestedIndex >= evidence.track.frameCount
       ) {
         errors.push(`${prefix}/${arm.role}: requested frame index is outside the selected track`);
@@ -184,8 +184,10 @@ export function adjudicateAnimatedImageFormat(
         errors.push(`${prefix}/${arm.role}: frame ${observation.requestedIndex} was partial`);
       }
       if (
-        observation.codedWidth <= 0 || observation.codedHeight <= 0 ||
-        observation.displayWidth <= 0 || observation.displayHeight <= 0
+        observation.codedWidth <= 0 ||
+        observation.codedHeight <= 0 ||
+        observation.displayWidth <= 0 ||
+        observation.displayHeight <= 0
       ) {
         errors.push(`${prefix}/${arm.role}: frame ${observation.requestedIndex} has invalid dimensions`);
       }
@@ -193,15 +195,21 @@ export function adjudicateAnimatedImageFormat(
         errors.push(`${prefix}/${arm.role}: frame ${observation.requestedIndex} has invalid pixel identity`);
       }
       if (
-        !Number.isFinite(observation.timestamp) || observation.timestamp < 0 ||
+        !Number.isFinite(observation.timestamp) ||
+        observation.timestamp < 0 ||
         (observation.duration != null && (!Number.isFinite(observation.duration) || observation.duration < 0))
       ) {
         errors.push(`${prefix}/${arm.role}: frame ${observation.requestedIndex} has invalid timing metadata`);
       }
       const rect = observation.visibleRect;
       if (
-        rect == null || rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 ||
-        rect.x + rect.width > observation.codedWidth || rect.y + rect.height > observation.codedHeight
+        rect == null ||
+        rect.x < 0 ||
+        rect.y < 0 ||
+        rect.width <= 0 ||
+        rect.height <= 0 ||
+        rect.x + rect.width > observation.codedWidth ||
+        rect.y + rect.height > observation.codedHeight
       ) {
         errors.push(`${prefix}/${arm.role}: frame ${observation.requestedIndex} has invalid visible rect`);
       }
@@ -243,7 +251,7 @@ async function listen(server: Server): Promise<string> {
 }
 
 async function closeServer(server: Server): Promise<void> {
-  await new Promise<void>((resolve, reject) => server.close((error) => error == null ? resolve() : reject(error)));
+  await new Promise<void>((resolve, reject) => server.close((error) => (error == null ? resolve() : reject(error))));
 }
 
 function evaluateHeadlessPage<Argument, Result>(
@@ -267,176 +275,184 @@ export async function runAnimatedImageFrameSelectionAudit(): Promise<AnimatedIma
   try {
     const page = await browser.newPage({ viewport: { width: 160, height: 100 } });
     await page.goto(origin, { waitUntil: "load" });
-    const pageEvidence = await evaluateHeadlessPage(page, async (fixtureInputs) => {
-      interface DecoderTrack {
-        frameCount: number;
-        animated: boolean;
-        repetitionCount: number;
-      }
-      interface DecoderResult {
-        image: VideoFrame;
-        complete: boolean;
-      }
-      interface DecoderInstance {
-        tracks: {
-          ready: Promise<unknown>;
-          selectedIndex: number;
-          selectedTrack: DecoderTrack | null;
-        };
-        decode(options: { frameIndex: number; completeFramesOnly: boolean }): Promise<DecoderResult>;
-        close(): void;
-      }
-      interface DecoderConstructor {
-        new(init: {
-          data: Uint8Array;
-          type: string;
-          colorSpaceConversion: "default";
-          preferAnimation: boolean;
-        }): DecoderInstance;
-        isTypeSupported(type: string): Promise<boolean>;
-      }
-
-      const Decoder = (globalThis as unknown as { ImageDecoder: DecoderConstructor }).ImageDecoder;
-      const toBytes = (base64: string) => Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
-      const digest = async (bytes: Uint8Array) => {
-        const stableBytes = new Uint8Array(bytes);
-        const value = await crypto.subtle.digest("SHA-256", stableBytes);
-        return [...new Uint8Array(value)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-      };
-      const pngBytes = (canvas: HTMLCanvasElement) => new Promise<Uint8Array>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob == null) {
-            reject(new Error("canvas PNG encoding failed"));
-            return;
-          }
-          blob.arrayBuffer().then((buffer) => resolve(new Uint8Array(buffer)), reject);
-        }, "image/png");
-      });
-
-      const decodeObservation = async (decoder: DecoderInstance, frameIndex: number) => {
-        const result = await decoder.decode({ frameIndex, completeFramesOnly: true });
-        const frame = result.image;
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = frame.displayWidth;
-          canvas.height = frame.displayHeight;
-          const context = canvas.getContext("2d", { willReadFrequently: true });
-          if (context == null) throw new Error("2D canvas unavailable");
-          context.drawImage(frame, 0, 0);
-          const rgba = new Uint8Array(context.getImageData(0, 0, canvas.width, canvas.height).data);
-          const encodedPng = await pngBytes(canvas);
-          const rect = frame.visibleRect;
-          return {
-            requestedIndex: frameIndex,
-            complete: result.complete,
-            rgbaSha256: await digest(rgba),
-            pngSha256: await digest(encodedPng),
-            codedWidth: frame.codedWidth,
-            codedHeight: frame.codedHeight,
-            displayWidth: frame.displayWidth,
-            displayHeight: frame.displayHeight,
-            visibleRect: rect == null ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-            timestamp: frame.timestamp,
-            duration: frame.duration,
-            format: frame.format,
-            colorSpace: {
-              primaries: frame.colorSpace.primaries,
-              transfer: frame.colorSpace.transfer,
-              matrix: frame.colorSpace.matrix,
-              fullRange: frame.colorSpace.fullRange,
-            },
+    const pageEvidence = await evaluateHeadlessPage(
+      page,
+      async (fixtureInputs) => {
+        interface DecoderTrack {
+          frameCount: number;
+          animated: boolean;
+          repetitionCount: number;
+        }
+        interface DecoderResult {
+          image: VideoFrame;
+          complete: boolean;
+        }
+        interface DecoderInstance {
+          tracks: {
+            ready: Promise<unknown>;
+            selectedIndex: number;
+            selectedTrack: DecoderTrack | null;
           };
-        } finally {
-          frame.close();
+          decode(options: { frameIndex: number; completeFramesOnly: boolean }): Promise<DecoderResult>;
+          close(): void;
         }
-      };
+        interface DecoderConstructor {
+          new (init: {
+            data: Uint8Array;
+            type: string;
+            colorSpaceConversion: "default";
+            preferAnimation: boolean;
+          }): DecoderInstance;
+          isTypeSupported(type: string): Promise<boolean>;
+        }
 
-      const formats = [];
-      for (const fixture of fixtureInputs) {
-        const bytes = toBytes(fixture.base64);
-        const typeSupported = await Decoder.isTypeSupported(fixture.mimeType);
-        const inspectDecoder = new Decoder({
-          data: bytes,
-          type: fixture.mimeType,
-          colorSpaceConversion: "default",
-          preferAnimation: true,
-        });
-        await inspectDecoder.tracks.ready;
-        const inspectTrack = inspectDecoder.tracks.selectedTrack;
-        if (inspectTrack == null) throw new Error(`${fixture.format}: no selected animation track`);
-        const track = {
-          frameCount: inspectTrack.frameCount,
-          animated: inspectTrack.animated,
-          repetitionCount: Number.isFinite(inspectTrack.repetitionCount)
-            ? String(inspectTrack.repetitionCount)
-            : "Infinity",
-          selectedIndex: inspectDecoder.tracks.selectedIndex,
+        const Decoder = (globalThis as unknown as { ImageDecoder: DecoderConstructor }).ImageDecoder;
+        const toBytes = (base64: string) => Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+        const digest = async (bytes: Uint8Array) => {
+          const stableBytes = new Uint8Array(bytes);
+          const value = await crypto.subtle.digest("SHA-256", stableBytes);
+          return [...new Uint8Array(value)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
         };
-        inspectDecoder.close();
-        const frameCount = track.frameCount;
-        if (frameCount < 2 || frameCount > 8) {
-          throw new Error(`${fixture.format}: frameCount ${frameCount} outside bounded 2..8 corpus`);
-        }
+        const pngBytes = (canvas: HTMLCanvasElement) =>
+          new Promise<Uint8Array>((resolve, reject) => {
+            canvas.toBlob((blob) => {
+              if (blob == null) {
+                reject(new Error("canvas PNG encoding failed"));
+                return;
+              }
+              blob.arrayBuffer().then((buffer) => resolve(new Uint8Array(buffer)), reject);
+            }, "image/png");
+          });
 
-        const runArm = async (role: "proposal" | "validation", order: number[]) => {
-          const decoder = new Decoder({
+        const decodeObservation = async (decoder: DecoderInstance, frameIndex: number) => {
+          const result = await decoder.decode({ frameIndex, completeFramesOnly: true });
+          const frame = result.image;
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = frame.displayWidth;
+            canvas.height = frame.displayHeight;
+            const context = canvas.getContext("2d", { willReadFrequently: true });
+            if (context == null) throw new Error("2D canvas unavailable");
+            context.drawImage(frame, 0, 0);
+            const rgba = new Uint8Array(context.getImageData(0, 0, canvas.width, canvas.height).data);
+            const encodedPng = await pngBytes(canvas);
+            const rect = frame.visibleRect;
+            return {
+              requestedIndex: frameIndex,
+              complete: result.complete,
+              rgbaSha256: await digest(rgba),
+              pngSha256: await digest(encodedPng),
+              codedWidth: frame.codedWidth,
+              codedHeight: frame.codedHeight,
+              displayWidth: frame.displayWidth,
+              displayHeight: frame.displayHeight,
+              visibleRect: rect == null ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+              timestamp: frame.timestamp,
+              duration: frame.duration,
+              format: frame.format,
+              colorSpace: {
+                primaries: frame.colorSpace.primaries,
+                transfer: frame.colorSpace.transfer,
+                matrix: frame.colorSpace.matrix,
+                fullRange: frame.colorSpace.fullRange,
+              },
+            };
+          } finally {
+            frame.close();
+          }
+        };
+
+        const formats = [];
+        for (const fixture of fixtureInputs) {
+          const bytes = toBytes(fixture.base64);
+          const typeSupported = await Decoder.isTypeSupported(fixture.mimeType);
+          const inspectDecoder = new Decoder({
             data: bytes,
             type: fixture.mimeType,
             colorSpaceConversion: "default",
             preferAnimation: true,
           });
-          try {
-            await decoder.tracks.ready;
-            const observations = [];
-            for (const frameIndex of order) observations.push(await decodeObservation(decoder, frameIndex));
-            return { role, order, observations };
-          } finally {
-            decoder.close();
+          await inspectDecoder.tracks.ready;
+          const inspectTrack = inspectDecoder.tracks.selectedTrack;
+          if (inspectTrack == null) throw new Error(`${fixture.format}: no selected animation track`);
+          const track = {
+            frameCount: inspectTrack.frameCount,
+            animated: inspectTrack.animated,
+            repetitionCount: Number.isFinite(inspectTrack.repetitionCount)
+              ? String(inspectTrack.repetitionCount)
+              : "Infinity",
+            selectedIndex: inspectDecoder.tracks.selectedIndex,
+          };
+          inspectDecoder.close();
+          const frameCount = track.frameCount;
+          if (frameCount < 2 || frameCount > 8) {
+            throw new Error(`${fixture.format}: frameCount ${frameCount} outside bounded 2..8 corpus`);
           }
-        };
-        const proposalOrder = Array.from({ length: frameCount }, (_, index) => index)
-          .flatMap((index) => [index, index]);
-        const validationOrder = [...proposalOrder].reverse();
-        const proposal = await runArm("proposal", proposalOrder);
-        const validation = await runArm("validation", validationOrder);
 
-        const rangeDecoder = new Decoder({
-          data: bytes,
-          type: fixture.mimeType,
-          colorSpaceConversion: "default",
-          preferAnimation: true,
-        });
-        let outOfRange = { name: "none", message: "no error" };
-        try {
-          await rangeDecoder.tracks.ready;
-          await rangeDecoder.decode({ frameIndex: frameCount, completeFramesOnly: true });
-        } catch (error) {
-          outOfRange = error instanceof Error
-            ? { name: error.name, message: error.message }
-            : { name: typeof error, message: String(error) };
-        } finally {
-          rangeDecoder.close();
+          const runArm = async (role: "proposal" | "validation", order: number[]) => {
+            const decoder = new Decoder({
+              data: bytes,
+              type: fixture.mimeType,
+              colorSpaceConversion: "default",
+              preferAnimation: true,
+            });
+            try {
+              await decoder.tracks.ready;
+              const observations = [];
+              for (const frameIndex of order) observations.push(await decodeObservation(decoder, frameIndex));
+              return { role, order, observations };
+            } finally {
+              decoder.close();
+            }
+          };
+          const proposalOrder = Array.from({ length: frameCount }, (_, index) => index).flatMap((index) => [
+            index,
+            index,
+          ]);
+          const validationOrder = [...proposalOrder].reverse();
+          const proposal = await runArm("proposal", proposalOrder);
+          const validation = await runArm("validation", validationOrder);
+
+          const rangeDecoder = new Decoder({
+            data: bytes,
+            type: fixture.mimeType,
+            colorSpaceConversion: "default",
+            preferAnimation: true,
+          });
+          let outOfRange = { name: "none", message: "no error" };
+          try {
+            await rangeDecoder.tracks.ready;
+            await rangeDecoder.decode({ frameIndex: frameCount, completeFramesOnly: true });
+          } catch (error) {
+            outOfRange =
+              error instanceof Error
+                ? { name: error.name, message: error.message }
+                : { name: typeof error, message: String(error) };
+          } finally {
+            rangeDecoder.close();
+          }
+
+          formats.push({
+            format: fixture.format,
+            mimeType: fixture.mimeType,
+            typeSupported,
+            track,
+            arms: [proposal, validation],
+            outOfRange,
+          });
         }
-
-        formats.push({
-          format: fixture.format,
-          mimeType: fixture.mimeType,
-          typeSupported,
-          track,
-          arms: [proposal, validation],
-          outOfRange,
-        });
-      }
-      return {
-        environment: {
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          secureContext: isSecureContext,
-          imageDecoderType: typeof Decoder,
-        },
-        formats,
-      };
-    }, ANIMATED_IMAGE_FIXTURES.map(({ format, mimeType, base64 }) => ({ format, mimeType, base64 })));
+        return {
+          environment: {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            secureContext: isSecureContext,
+            imageDecoderType: typeof Decoder,
+          },
+          formats,
+        };
+      },
+      ANIMATED_IMAGE_FIXTURES.map(({ format, mimeType, base64 }) => ({ format, mimeType, base64 })),
+    );
 
     const formats: AnimatedImageFormatEvidence[] = pageEvidence.formats.map((formatEvidence, index) => {
       const fixture = ANIMATED_IMAGE_FIXTURES[index];
@@ -484,7 +500,9 @@ export async function mainAnimatedImageFrameSelectionAudit(argv = process.argv):
   if (jsonIndex >= 0) {
     const output = argv[jsonIndex + 1];
     if (output == null || output.startsWith("--")) throw new Error("--json requires an output path");
-    const path = resolve(output); await mkdir(dirname(path), { recursive: true }); await writeFile(path, json);
+    const path = resolve(output);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, json);
   } else process.stdout.write(json);
   if (report.verdict !== "decoder-frame-exact") process.exitCode = 1;
 }

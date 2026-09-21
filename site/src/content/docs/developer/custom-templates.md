@@ -35,9 +35,9 @@ That reframing is what makes templates powerful:
 Two shapes have emerged, both expressible on one contract:
 
 - **Generator** (the common case — `lower-third`, `kinetic-text`, the example
-  below): synthesize HTML/CSS plus an animation config and run it for *animated*
+  below): synthesize HTML/CSS plus an animation config and run it for _animated_
   output.
-- **Decorator** (`device-mockup`): capture an existing page to a *static* SVG
+- **Decorator** (`device-mockup`): capture an existing page to a _static_ SVG
   and wrap/post-process it (e.g. frame it in a device bezel).
 
 ## Why author one
@@ -54,8 +54,8 @@ validated parameters:
 
 ```ts
 interface Template<P> {
-  name: string;          // the registry key + `domotion template <name>` verb
-  description: string;   // one line; shown by `domotion template list`
+  name: string; // the registry key + `domotion template <name>` verb
+  description: string; // one line; shown by `domotion template list`
   paramsSchema: ZodType<P>;
   render(params: P, ctx: TemplateRenderContext): Promise<TemplateOutput>;
 }
@@ -88,9 +88,9 @@ dimensions:
 
 ```ts
 interface TemplateOutput {
-  svg: string;       // a finished, self-contained <svg> document
-  width: number;     // intrinsic width in px (after any bezel growth)
-  height: number;    // intrinsic height in px
+  svg: string; // a finished, self-contained <svg> document
+  width: number; // intrinsic width in px (after any bezel growth)
+  height: number; // intrinsic height in px
   durationMs?: number; // intrinsic play time in ms (see "durationMs" below)
 }
 ```
@@ -123,8 +123,8 @@ constraints come straight from the SVG output model; respect them or motion
 breaks:
 
 1. **One animation per captured element.** A second animation entry on the same
-   selector overrides the first. So put the *move* on a wrapper element and the
-   *fade* on an inner element — two distinct selectors, two animations.
+   selector overrides the first. So put the _move_ on a wrapper element and the
+   _fade_ on an inner element — two distinct selectors, two animations.
 2. **SVG transforms pivot about the origin (0, 0).** A `scale`/`rotate` pivots
    about the SVG origin, not the element. So motion is normally restricted to
    origin-safe `translate` + `opacity`, looped with `alternate: true` for
@@ -194,7 +194,7 @@ Three things make a valid package:
 ```
 
 Add the `domotion-template` keyword so the package is discoverable on npm (see
-*Discovery* below). A minimal `tsconfig.json` that emits ESM + declarations to
+_Discovery_ below). A minimal `tsconfig.json` that emits ESM + declarations to
 `dist/` rounds out the package:
 
 ```json
@@ -249,9 +249,7 @@ function escapeHtml(s: string): string {
 
 /** Pure HTML builder — no I/O, so it's unit-testable without a browser. */
 export function buildQuoteCardHtml(p: QuoteCardParams): string {
-  const author = p.author != null && p.author !== ""
-    ? `<div class="qc-author">— ${escapeHtml(p.author)}</div>`
-    : "";
+  const author = p.author != null && p.author !== "" ? `<div class="qc-author">— ${escapeHtml(p.author)}</div>` : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
@@ -314,7 +312,14 @@ export const quoteCardTemplate: Template<QuoteCardParams> = {
           // origin-(0,0) scale/rotate).
           animations: [
             { selector: ".qc-inner", property: "opacity", from: "0", to: "1", duration: 500, easing: "ease-out" },
-            { selector: ".qc", property: "translateY", from: "0.6em", to: "0em", duration: 650, easing: "cubic-bezier(0.22,1,0.36,1)" },
+            {
+              selector: ".qc",
+              property: "translateY",
+              from: "0.6em",
+              to: "0em",
+              duration: 650,
+              easing: "cubic-bezier(0.22,1,0.36,1)",
+            },
           ],
         },
       ],
@@ -364,7 +369,7 @@ async function renderTemplateToSvg<P>(
   template: Template<P>,
   rawParams: unknown,
   opts?: {
-    browser?: Browser;          // reuse an existing browser; else one is launched + closed
+    browser?: Browser; // reuse an existing browser; else one is launched + closed
     log?: (msg: string) => void; // progress logger; default no-op
   },
 ): Promise<TemplateOutput>;
@@ -413,7 +418,7 @@ than through the programmatic API.
 
 So built-ins and third-party packages use the **exact same mechanism** — there
 is no registry to sign up for, no plugin API, no config to edit. The npm graph
-*is* the registry. An unknown name fails with an actionable message naming the
+_is_ the registry. An unknown name fails with an actionable message naming the
 built-ins and the `npm install domotion-template-<name>` to run; a package whose
 export isn't a valid template fails saying so.
 
@@ -436,15 +441,16 @@ import { quoteCardTemplate, buildQuoteCardHtml } from "./index.js";
 describe("quote-card", () => {
   // Pure builders need no browser.
   it("escapes the quote text", () => {
-    expect(buildQuoteCardHtml({ quote: "<b>", accent: "#000", color: "#fff", width: 100, height: 100, holdMs: 1000 }))
-      .toContain("&lt;b&gt;");
+    expect(
+      buildQuoteCardHtml({ quote: "<b>", accent: "#000", color: "#fff", width: 100, height: 100, holdMs: 1000 }),
+    ).toContain("&lt;b&gt;");
   });
 
   // The full render needs Chromium (Playwright).
   it("renders a self-contained animated SVG", async () => {
     const out = await renderTemplateToSvg(quoteCardTemplate, { quote: "Ship it.", author: "Ada" });
     expect(out.svg).toContain("<svg");
-    expect(out.svg).toMatch(/@keyframes/);   // the rise + fade reveal
+    expect(out.svg).toMatch(/@keyframes/); // the rise + fade reveal
     expect(out.durationMs).toBe(2600);
   });
 });
@@ -452,7 +458,7 @@ describe("quote-card", () => {
 
 ## Keeping output on-brand
 
-A template that's merely *correct* isn't enough — the point is output that looks
+A template that's merely _correct_ isn't enough — the point is output that looks
 genuinely compelling. Bake your palette, type scale, spacing, and motion
 vocabulary into the template so every invocation is on-brand by construction. For
 a deeper playbook on getting the design itself right, see the

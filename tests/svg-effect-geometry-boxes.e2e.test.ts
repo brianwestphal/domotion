@@ -4,14 +4,22 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function svgMarkup(nodes: CapturedElement[]): string[] {
-  return nodes.flatMap((node) => [node.svgContent, ...svgMarkup(node.children)].filter((value): value is string => value != null));
+  return nodes.flatMap((node) =>
+    [node.svgContent, ...svgMarkup(node.children)].filter((value): value is string => value != null),
+  );
 }
 
 describeBrowser("SVG effect geometry-box capture (DM-2328)", () => {

@@ -11,9 +11,15 @@ body{margin:0;font:700 18px/24px Arial,sans-serif}
 </style><div class="flex"><div class="item">early flex item</div></div><div class="later">later flow text</div>`;
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("overflowing flex-item paint order", () => {

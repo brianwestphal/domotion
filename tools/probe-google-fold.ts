@@ -11,17 +11,22 @@ import { fileURLToPath } from "node:url";
 const TESTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "tests");
 const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 
-interface Region { id: string; x: number; y: number; w: number; h: number }
-const REGIONS: Region[] = [
-  { id: "DM-665 apps icon",         x: 1131, y: 7, w: 66, h: 52 },
-];
+interface Region {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const REGIONS: Region[] = [{ id: "DM-665 apps icon", x: 1131, y: 7, w: 66, h: 52 }];
 
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 1,
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
   await context.routeFromHAR(resolve(CACHE_DIR, "google-desktop.har"), { url: "**/*", notFound: "fallback" });
   const page = await context.newPage();
@@ -43,7 +48,9 @@ async function main() {
         const cs = getComputedStyle(el);
         const text = (el as HTMLElement).innerText?.slice(0, 60) ?? "";
         out.push({
-          tag: el.tagName, id: (el as HTMLElement).id, cls: (el as HTMLElement).className?.toString?.()?.slice(0, 60),
+          tag: el.tagName,
+          id: (el as HTMLElement).id,
+          cls: (el as HTMLElement).className?.toString?.()?.slice(0, 60),
           rect: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
           text: text.length > 0 ? text : undefined,
           bg: cs.background?.slice(0, 80),
@@ -89,7 +96,9 @@ async function main() {
         e.verticalAlign && e.verticalAlign !== "baseline" ? `vAlign=${e.verticalAlign}` : "",
         e.maskImage && e.maskImage !== "none" ? `maskImage=${e.maskImage}` : "",
         e.src ? `src=${e.src.slice(0, 80)}` : "",
-      ].filter(Boolean).join(" ");
+      ]
+        .filter(Boolean)
+        .join(" ");
       console.log("  " + summary);
     }
   }

@@ -4,10 +4,21 @@ title: "113 — Font fallback at shaped-cluster granularity"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2387","DM-2444","DM-2507"]
-code: ["src/render/cluster-fallback-bidi-boundary.test.ts","src/render/cluster-fallback.test.ts","src/render/cluster-fallback.ts","src/render/font-resolution.ts","src/render/glyph-path-run-split.test.ts","src/render/skia-last-resort-routing.test.ts","src/render/text-to-path.ts","tests/features.ts","tools/cluster-conformance.ts"]
-aliases: ["docs/113-cluster-granularity-fallback.md","doc-113"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2387", "DM-2444", "DM-2507"]
+code:
+  [
+    "src/render/cluster-fallback-bidi-boundary.test.ts",
+    "src/render/cluster-fallback.test.ts",
+    "src/render/cluster-fallback.ts",
+    "src/render/font-resolution.ts",
+    "src/render/glyph-path-run-split.test.ts",
+    "src/render/skia-last-resort-routing.test.ts",
+    "src/render/text-to-path.ts",
+    "tests/features.ts",
+    "tools/cluster-conformance.ts",
+  ]
+aliases: ["docs/113-cluster-granularity-fallback.md", "doc-113"]
 ---
 
 # 113 — Font fallback at shaped-cluster granularity
@@ -94,7 +105,7 @@ came back `.notdef`:
   takes the next font from `FontFallbackIterator`, shapes every queued range
   with it, and splits the result.
 - `ExtractShapeResults` (`harfbuzz_shaper.cc:627-787`) walks the shaped buffer
-  **by cluster**: a cluster is `kShaped` only if *every* glyph HarfBuzz mapped
+  **by cluster**: a cluster is `kShaped` only if _every_ glyph HarfBuzz mapped
   to it is non-zero (`:672-739`); maximal same-state cluster runs are committed
   (`CommitGlyphs`) or re-queued (`QueueCharacters`) as units.
 - The re-queued range's next font is chosen from **one hint character**:
@@ -105,7 +116,7 @@ came back `.notdef`:
 - When the system stage declines or repeats, Blink tries
   `GetLastResortFallbackFont` (**Times** on macOS, `mac/font_cache_mac.mm:376-388`),
   and finally `kFirstCandidateForNotdefGlyph` re-returns the **first** candidate
-  so *its* `.notdef` paints (`font_fallback_iterator.cc:159-164`).
+  so _its_ `.notdef` paints (`font_fallback_iterator.cc:159-164`).
 
 The legacy Domotion route decides **per codepoint from cmap coverage, before
 any shaping**
@@ -123,10 +134,10 @@ prototype on **9/10**, and the shipped implementation on **10/10** (the
 splitter additionally passes the Geneva `e`+U+0E48 case because script
 itemization now precedes the requeue loop):
 
-| case | Chrome paints | shipping path | prototype |
-|---|---|---|---|
-| Helvetica `x` + U+0951 (base covered, mark not) | **Helvetica ×2** — the mark is Helvetica's `.notdef` tofu. The cluster's hint char is `x` (U+0951 is Inherited); CoreText answers Helvetica; the iterator refuses the duplicate; the terminal commits `.notdef`. | `x`→Helvetica, mark→Kohinoor Devanagari — paints a mark Chrome never finds | Helvetica ×2 ✓ |
-| Helvetica `ก` + U+0301 (base not covered, mark covered) | **Thonburi ×2** — the covered mark travels with its base and keeps its GPOS anchor | `ก`→Thonburi, U+0301→Helvetica — mid-cluster split, anchor lost | Thonburi ×2 ✓ |
+| case                                                    | Chrome paints                                                                                                                                                                                                    | shipping path                                                              | prototype      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------- |
+| Helvetica `x` + U+0951 (base covered, mark not)         | **Helvetica ×2** — the mark is Helvetica's `.notdef` tofu. The cluster's hint char is `x` (U+0951 is Inherited); CoreText answers Helvetica; the iterator refuses the duplicate; the terminal commits `.notdef`. | `x`→Helvetica, mark→Kohinoor Devanagari — paints a mark Chrome never finds | Helvetica ×2 ✓ |
+| Helvetica `ก` + U+0301 (base not covered, mark covered) | **Thonburi ×2** — the covered mark travels with its base and keeps its GPOS anchor                                                                                                                               | `ก`→Thonburi, U+0301→Helvetica — mid-cluster split, anchor lost            | Thonburi ×2 ✓  |
 
 ## Post-spacing cluster origins
 
@@ -141,16 +152,16 @@ ligatures and cursive/Indic behavior, and prevents native advances from
 accumulating over captured positive or negative spacing. RTL clusters and the
 bidi-override native-direction reversal map back to the same source anchors.
 | Arial `ل` + U+08F0 | **Arial ×2** (mark = `.notdef`) | mark→SF Arabic | Arial ×2 ✓ |
-| Menlo `α` + U+0345 (decomposed input) | **Menlo ×1** — HarfBuzz *composes* to the precomposed ᾳ glyph (`hb-ot-shape-normalize.cc`) | `α`→Menlo, U+0345→**Monaco** | Menlo ×1 ✓ |
-| Geneva `e` + U+0E48 | **Geneva + Thonburi** — U+0E48 is Script=**Thai**, not Inherited, so Blink's `RunSegmenter` splits base and mark into separate script runs *before* shaping | agrees (by accident of per-cp granularity) | ✗ merges them — see §4 itemization note |
-| partial webfont (क ् only), text क्ष | webfont ×2 (क + visible halant) + **Kohinoor ×1 (ष only)** — the requeue unit is the *shaped cluster*: HarfBuzz keeps the unligated ष in its own cluster, so only it is re-queued, not the syllable | same assignment here | same ✓ |
+| Menlo `α` + U+0345 (decomposed input) | **Menlo ×1** — HarfBuzz _composes_ to the precomposed ᾳ glyph (`hb-ot-shape-normalize.cc`) | `α`→Menlo, U+0345→**Monaco** | Menlo ×1 ✓ |
+| Geneva `e` + U+0E48 | **Geneva + Thonburi** — U+0E48 is Script=**Thai**, not Inherited, so Blink's `RunSegmenter` splits base and mark into separate script runs _before_ shaping | agrees (by accident of per-cp granularity) | ✗ merges them — see §4 itemization note |
+| partial webfont (क ् only), text क्ष | webfont ×2 (क + visible halant) + **Kohinoor ×1 (ष only)** — the requeue unit is the _shaped cluster_: HarfBuzz keeps the unligated ष in its own cluster, so only it is re-queued, not the syllable | same assignment here | same ✓ |
 | 4 controls / fully-uncovered clusters | — | agree | agree |
 
 Three corrections these probes force on the ticket's own framing:
 
 1. **The requeue unit is the shaped cluster, not the grapheme or syllable.**
    For the broken conjunct, HarfBuzz merged क+् (grapheme) but left ष in its
-   own cluster; Chrome re-queued exactly ष. Cluster boundaries are an *output*
+   own cluster; Chrome re-queued exactly ष. Cluster boundaries are an _output_
    of shaping with the failing font.
 2. **Chrome often paints tofu where we paint a "better" glyph.** Cluster
    granularity plus the one-ask hint rule means a partially-covered cluster
@@ -159,7 +170,7 @@ Three corrections these probes force on the ticket's own framing:
 3. **Script itemization comes first.** A mark with a real script value
    (Thai U+0E48) never joins a Latin base's fallback context, because
    `RunSegmenter` split them before the shaper ever saw them. Cluster-level
-   fallback without itemization *over-merges* (the prototype's one miss).
+   fallback without itemization _over-merges_ (the prototype's one miss).
 
 ## 3. Why the existing sweeps cannot grade this
 
@@ -204,7 +215,7 @@ capture text
 - **`resolveFontForCodepoint` becomes "next font for this failing cluster".**
   The system stage asks it for the cluster's `ChooseHintIndex` character. This
   keeps every calibrated stage — live resolver first, static chain as net, PUA
-  guard, emoji forcing — while changing only *what question* is asked (one hint
+  guard, emoji forcing — while changing only _what question_ is asked (one hint
   per cluster, once) instead of one question per codepoint. `ChooseHintIndex`
   and the asked-once set are ~20 lines, ported in the prototype
   (`chooseHintIndex` / `collectHintChars`) — the ticket was right that this
@@ -260,10 +271,10 @@ capture text
   uses it if no strong script supersedes it. This matters for lone Vedic
   marks: the preferred Bengali/Devanagari tag selects HarfBuzz's syllabic
   shaper, while a mark with several possible scripts stays Common.
-- **Context**: the buffer is filled with the *whole* text plus item
+- **Context**: the buffer is filled with the _whole_ text plus item
   offset/length. The design-time note that harfbuzzjs's `Buffer.addText` lacks
   offset/length parameters was **stale** — the vendored build's `addText(text,
-  itemOffset, itemLength)` maps directly onto `hb_buffer_add_utf16`'s item
+itemOffset, itemLength)` maps directly onto `hb_buffer_add_utf16`'s item
   bounds, so no wasm-API addition was needed. Re-queued ranges therefore keep
   Arabic joining context, and cluster values come back as absolute indices.
 - **Direction/script/language on the buffer**: set explicitly per segment
@@ -353,14 +364,14 @@ universe (154,998 codepoints, no PUA) × the top-6 corpus stacks:
 
 **macOS (dev machine, helper present):**
 
-| counter | value |
-|---|---|
-| resolver decisions | 929,988 |
-| reached the system stage | 916,119 |
-| live resolver answered | 423,495 (46.2%) |
-| **static chain answered** | **6 (0.001%)** — all six are variation selectors (U+FE0x page) routed to `u-noto-sans` |
-| uncovered terminal (primary `.notdef`, as Chrome) | 492,618 |
-| static chain *asked* | 492,624 |
+| counter                                           | value                                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| resolver decisions                                | 929,988                                                                                |
+| reached the system stage                          | 916,119                                                                                |
+| live resolver answered                            | 423,495 (46.2%)                                                                        |
+| **static chain answered**                         | **6 (0.001%)** — all six are variation selectors (U+FE0x page) routed to `u-noto-sans` |
+| uncovered terminal (primary `.notdef`, as Chrome) | 492,618                                                                                |
+| static chain _asked_                              | 492,624                                                                                |
 
 The chain was consulted half a million times to contribute six answers — and
 those six are answers Chrome does **not** give (Blink's system stage is the
@@ -380,7 +391,7 @@ honestly:
   (Arial Unicode MS-first stacks exist in the corpus tail) exercises the chain
   differently. The instrumentation is cheap to re-run over all 450 stacks.
 - **Windows is excluded by design** — its chain transcribes Blink's own
-  hardcoded table and *is* the parity mechanism (docs/106 §4).
+  hardcoded table and _is_ the parity mechanism (docs/106 §4).
 - Linux: same instrumentation queued in the CI container (fontconfig helper
   built in-container); the fcfallback resolver answers by construction from the
   same fontconfig Chrome consults, so the expected shape is the same as macOS.
@@ -395,7 +406,7 @@ honestly:
   everything — the overwhelmingly common case) that is one shape, and the
   per-codepoint probe storm disappears with it: the 92%-of-probes fast path
   (one helper IPC round trip per codepoint on helper-backed primaries,
-  4,000/4,353 probes in the profiled Windows walk) is *replaced* by a single
+  4,000/4,353 probes in the profiled Windows walk) is _replaced_ by a single
   in-process wasm shape whose `.notdef` scan is the byproduct. Measured on the
   9-fixture A/B: wall time identical (~7 s both arms) with 182 prototype
   invocations per fixture — the prototype is not measurably slower even
@@ -407,15 +418,15 @@ honestly:
 - **Cache design.** Two layers: (i) hb face/font objects per (file, faceIndex)
   — already cached in `harfbuzz-shaper.ts` with ptem/variations reset per call;
   (ii) a shape-verdict cache keyed (faceKey, segment text) → cluster verdicts
-  + committed split, LRU-capped, exactly where the per-codepoint decision
-  cache sits today. The unicode-grid case (hundreds of one-char segments per
-  fixture) hits (i) hard and (ii) not at all; real paragraphs hit (ii).
+  - committed split, LRU-capped, exactly where the per-codepoint decision
+    cache sits today. The unicode-grid case (hundreds of one-char segments per
+    fixture) hits (i) hard and (ii) not at all; real paragraphs hit (ii).
 - **Risk of double shaping drift**: the split decision and the final emission
   both shape; if they use different engines (hb for splitting, fontkit for
   emission) a cluster can be committed on hb's verdict and then emitted with
   fontkit glyphs. The end state (tracked separately, docs/106 §6) is hb
   everywhere; until then the split verdict must be treated as authoritative
-  only for *font assignment*, never for glyph ids.
+  only for _font assignment_, never for glyph ids.
 
 ## 7. What it fixes, what it might break
 

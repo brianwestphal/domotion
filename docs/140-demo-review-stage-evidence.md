@@ -6,8 +6,15 @@ status: "current"
 owners: ["product-tooling"]
 platforms: ["linux"]
 tickets: [2625]
-code: ["src/review/stage-evidence.ts","src/review/linux-unicode-evidence.ts","tests/review-server.tsx","tools/linux-unicode-mutation-matrix.ts","tools/semantic-coverage.json"]
-aliases: ["docs/140-demo-review-stage-evidence.md","doc-140"]
+code:
+  [
+    "src/review/stage-evidence.ts",
+    "src/review/linux-unicode-evidence.ts",
+    "tests/review-server.tsx",
+    "tools/linux-unicode-mutation-matrix.ts",
+    "tools/semantic-coverage.json",
+  ]
+aliases: ["docs/140-demo-review-stage-evidence.md", "doc-140"]
 ---
 
 # Demo-review stage evidence

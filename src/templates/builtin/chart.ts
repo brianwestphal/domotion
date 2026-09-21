@@ -32,7 +32,12 @@ const BAR_NEUTRAL = "#3a4661";
 const seriesSchema = z
   .union([
     z.string().transform((s) =>
-      s.split(";").map((g) => g.split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n))),
+      s.split(";").map((g) =>
+        g
+          .split(",")
+          .map((x) => Number(x.trim()))
+          .filter((n) => Number.isFinite(n)),
+      ),
     ),
     z.array(z.number()).transform((a) => [a]),
     z.array(z.array(z.number())),
@@ -40,34 +45,52 @@ const seriesSchema = z
   .pipe(z.array(z.array(z.number()).min(1)).min(1));
 
 /** Strings as a JSON array OR a comma-separated string. */
-const stringsSchema = z.union([
-  z.string().transform((s) => s.split(",").map((x) => x.trim())),
-  z.array(z.string()),
-]);
+const stringsSchema = z.union([z.string().transform((s) => s.split(",").map((x) => x.trim())), z.array(z.string())]);
 
 export const chartParamsSchema = z.object({
   type: z.enum(CHART_TYPES).default("column").describe('"column" | "bar" | "line" | "pie" | "donut".'),
   data: seriesSchema.describe('Values: a JSON array, a 2D array for multi-series, or a string ("1,2,3" or "1,2;3,4").'),
-  labels: stringsSchema.optional().describe("Category labels (comma-separated or array); cycled if shorter than the data."),
+  labels: stringsSchema
+    .optional()
+    .describe("Category labels (comma-separated or array); cycled if shorter than the data."),
   seriesNames: stringsSchema.optional().describe("Legend names, one per series (multi-series only)."),
-  layout: z.enum(["grouped", "stacked"]).default("grouped").describe("Multi-series bars: side-by-side (grouped) or stacked."),
+  layout: z
+    .enum(["grouped", "stacked"])
+    .default("grouped")
+    .describe("Multi-series bars: side-by-side (grouped) or stacked."),
   title: z.string().optional().describe("Chart title shown above the plot."),
-  colors: stringsSchema.default(DEFAULT_COLORS).describe("Colors: per-series when multi-series, else per-bar (comma-separated or array)."),
-  max: z.coerce.number().positive().optional().describe("Axis maximum (default: a nice round value above the largest datum)."),
-  yTicks: z.coerce.number().int().nonnegative().default(4).describe("Value-axis gridline / tick divisions (0 disables the scale)."),
-  showValues: z.coerce.boolean().default(true).describe("Print each value at the end of its bar / point (single series only)."),
+  colors: stringsSchema
+    .default(DEFAULT_COLORS)
+    .describe("Colors: per-series when multi-series, else per-bar (comma-separated or array)."),
+  max: z.coerce
+    .number()
+    .positive()
+    .optional()
+    .describe("Axis maximum (default: a nice round value above the largest datum)."),
+  yTicks: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(4)
+    .describe("Value-axis gridline / tick divisions (0 disables the scale)."),
+  showValues: z.coerce
+    .boolean()
+    .default(true)
+    .describe("Print each value at the end of its bar / point (single series only)."),
   width: z.coerce.number().int().positive().default(1000).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(600).describe("Output height in px."),
   background: z.string().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
   color: z.string().default("#e6edf3").describe("Text / axis color (CSS color)."),
-  fontFamily: z.string().default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif").describe("CSS font-family."),
+  fontFamily: z
+    .string()
+    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
+    .describe("CSS font-family."),
   growMs: z.coerce.number().int().positive().default(750).describe("Grow / draw duration per element in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(110).describe("Delay between categories in ms."),
   holdMs: z.coerce.number().int().positive().default(1800).describe("Hold time after the chart finishes in ms."),
 });
 
 export type ChartParams = z.infer<typeof chartParamsSchema>;
-
 
 /** Round `v` up to a "nice" axis maximum (1 / 2 / 2.5 / 5 × 10ⁿ). */
 function niceMax(v: number): number {
@@ -92,30 +115,73 @@ function polar(cx: number, cy: number, r: number, deg: number): { x: number; y: 
 /** SVG path for a pie wedge (`ri = 0`) or a donut ring segment, clockwise. */
 function arcPath(cx: number, cy: number, r: number, ri: number, start: number, end: number): string {
   const large = end - start > 180 ? 1 : 0;
-  const o1 = polar(cx, cy, r, start), o2 = polar(cx, cy, r, end);
+  const o1 = polar(cx, cy, r, start),
+    o2 = polar(cx, cy, r, end);
   if (ri <= 0) return `M ${cx} ${cy} L ${o1.x} ${o1.y} A ${r} ${r} 0 ${large} 1 ${o2.x} ${o2.y} Z`;
-  const i2 = polar(cx, cy, ri, end), i1 = polar(cx, cy, ri, start);
+  const i2 = polar(cx, cy, ri, end),
+    i1 = polar(cx, cy, ri, start);
   return `M ${o1.x} ${o1.y} A ${r} ${r} 0 ${large} 1 ${o2.x} ${o2.y} L ${i2.x} ${i2.y} A ${ri} ${ri} 0 ${large} 0 ${i1.x} ${i1.y} Z`;
 }
 
 /** A single bar / stack-segment, in px. `catIdx` drives the grow stagger. */
-interface BarRect { catIdx: number; color: string; left: number; top: number; width: number; height: number; }
+interface BarRect {
+  catIdx: number;
+  color: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 /** A stacked-category container that grows as one unit (so segments rise together). */
-interface StackBox { catIdx: number; left: number; top: number; width: number; height: number; segments: { color: string; offset: number; size: number }[]; }
-interface SeriesLine { seriesIdx: number; color: string; points: string; areaPath: string | null; dots: { cx: number; cy: number }[]; }
-interface GridLine { x1: number; y1: number; x2: number; y2: number; label: string; lLeft: number; lTop: number; lWidth: number; lHeight: number; lAlign: "right" | "center"; }
-interface Box { text: string; left: number; top: number; width: number; height: number; align: "center" | "right" | "left"; }
-interface PieSlice { path: string; color: string; }
+interface StackBox {
+  catIdx: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  segments: { color: string; offset: number; size: number }[];
+}
+interface SeriesLine {
+  seriesIdx: number;
+  color: string;
+  points: string;
+  areaPath: string | null;
+  dots: { cx: number; cy: number }[];
+}
+interface GridLine {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  label: string;
+  lLeft: number;
+  lTop: number;
+  lWidth: number;
+  lHeight: number;
+  lAlign: "right" | "center";
+}
+interface Box {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  align: "center" | "right" | "left";
+}
+interface PieSlice {
+  path: string;
+  color: string;
+}
 
 export interface ChartPlan {
   type: ChartType;
   stacked: boolean;
   maxVal: number;
   plot: { x: number; y: number; w: number; h: number };
-  bars: BarRect[];          // grouped bars (and single-series)
-  stacks: StackBox[];       // stacked categories
-  lines: SeriesLine[];      // line series
-  slices: PieSlice[];       // pie / donut slices
+  bars: BarRect[]; // grouped bars (and single-series)
+  stacks: StackBox[]; // stacked categories
+  lines: SeriesLine[]; // line series
+  slices: PieSlice[]; // pie / donut slices
   pie: { cx: number; cy: number; r: number } | null;
   gridlines: GridLine[];
   catLabels: Box[];
@@ -164,14 +230,27 @@ function planPie(p: ChartParams, series: number[][], catLabel: (c: number) => st
     const start = (acc / total) * 360;
     acc += v;
     const end = (acc / total) * 360;
-    slices.push({ path: arcPath(cx, cy, r, ri, start, Math.max(end, start + 0.0001)), color: p.colors[i % p.colors.length] });
+    slices.push({
+      path: arcPath(cx, cy, r, ri, start, Math.max(end, start + 0.0001)),
+      color: p.colors[i % p.colors.length],
+    });
     const pct = Math.round((v / total) * 1000) / 10;
     pieLegend.push({ name: `${catLabel(i) || `Slice ${i + 1}`} · ${pct}%`, color: p.colors[i % p.colors.length] });
   });
   return {
-    type: p.type, stacked: false, maxVal: total,
-    plot: { x: 0, y: top, w: areaW, h: p.height - top }, bars: [], stacks: [], lines: [],
-    slices, pie: { cx, cy, r }, gridlines: [], catLabels: [], valueLabels: [], legend: pieLegend,
+    type: p.type,
+    stacked: false,
+    maxVal: total,
+    plot: { x: 0, y: top, w: areaW, h: p.height - top },
+    bars: [],
+    stacks: [],
+    lines: [],
+    slices,
+    pie: { cx, cy, r },
+    gridlines: [],
+    catLabels: [],
+    valueLabels: [],
+    legend: pieLegend,
   };
 }
 
@@ -194,17 +273,37 @@ function planLine(ctx: PlanCtx): { lines: SeriesLine[]; catLabels: Box[]; valueL
       seriesIdx: s,
       color: p.colors[s % p.colors.length],
       points: pts.map((q) => `${q.x},${q.y}`).join(" "),
-      areaPath: multi ? null : `M ${pts[0].x} ${baseY} ` + pts.map((q) => `L ${q.x} ${q.y}`).join(" ") + ` L ${pts[pts.length - 1].x} ${baseY} Z`,
+      areaPath: multi
+        ? null
+        : `M ${pts[0].x} ${baseY} ` +
+          pts.map((q) => `L ${q.x} ${q.y}`).join(" ") +
+          ` L ${pts[pts.length - 1].x} ${baseY} Z`,
       dots: pts.map((q) => ({ cx: q.x, cy: q.y })),
     });
     if (showVals) {
-      pts.forEach((q, c) => valueLabels.push({ text: fmt(val(s, c)), left: q.x - 40, top: q.y - 34, width: 80, height: 22, align: "center" }));
+      pts.forEach((q, c) =>
+        valueLabels.push({
+          text: fmt(val(s, c)),
+          left: q.x - 40,
+          top: q.y - 34,
+          width: 80,
+          height: 22,
+          align: "center",
+        }),
+      );
     }
   }
   // Category labels under each point (x positions shared across series).
   for (let c = 0; c < nCats; c++) {
     const x = nCats === 1 ? plot.x + plot.w / 2 : Math.round(plot.x + (c / (nCats - 1)) * plot.w);
-    catLabels.push({ text: catLabel(c), left: x - 60, top: plot.y + plot.h + 10, width: 120, height: 34, align: "center" });
+    catLabels.push({
+      text: catLabel(c),
+      left: x - 60,
+      top: plot.y + plot.h + 10,
+      width: 120,
+      height: 34,
+      align: "center",
+    });
   }
   return { lines, catLabels, valueLabels };
 }
@@ -214,17 +313,20 @@ function planLine(ctx: PlanCtx): { lines: SeriesLine[]; catLabels: Box[]; valueL
  *  is which; everything else (slot sizing, grouped-vs-stacked, the grow stagger)
  *  is identical. `vertical` columns grow UP from the plot's bottom edge; `bar`s
  *  grow RIGHT from the plot's left edge. */
-function planBars(ctx: PlanCtx, orientation: "column" | "bar"): { bars: BarRect[]; stacks: StackBox[]; catLabels: Box[]; valueLabels: Box[] } {
+function planBars(
+  ctx: PlanCtx,
+  orientation: "column" | "bar",
+): { bars: BarRect[]; stacks: StackBox[]; catLabels: Box[]; valueLabels: Box[] } {
   const { nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals, sf } = ctx;
   const bars: BarRect[] = [];
   const stacks: StackBox[] = [];
   const catLabels: Box[] = [];
   const valueLabels: Box[] = [];
   const vertical = orientation === "column";
-  const catExtent = vertical ? plot.w : plot.h;   // along which the categories spread
-  const valExtent = vertical ? plot.h : plot.w;    // along which a value's bar grows
+  const catExtent = vertical ? plot.w : plot.h; // along which the categories spread
+  const valExtent = vertical ? plot.h : plot.w; // along which a value's bar grows
   const catOrigin = vertical ? plot.x : plot.y;
-  const baseY = plot.y + plot.h;                    // columns grow up from here
+  const baseY = plot.y + plot.h; // columns grow up from here
   const slot = catExtent / nCats;
   // DM-1560: the absolute single-series bar-thickness cap scales with the format
   // (sf === 1 → the tuned 130/90, byte-identical), so a reel's few wide-slotted
@@ -241,25 +343,80 @@ function planBars(ctx: PlanCtx, orientation: "column" | "bar"): { bars: BarRect[
         segs.push({ color: colorOf(s, c), offset: acc, size: px });
         acc += px;
       }
-      stacks.push(vertical
-        ? { catIdx: c, left: Math.round(g), top: Math.round(baseY - acc), width: Math.round(groupSize), height: acc, segments: segs }
-        : { catIdx: c, left: plot.x, top: Math.round(g), width: acc, height: Math.round(groupSize), segments: segs });
+      stacks.push(
+        vertical
+          ? {
+              catIdx: c,
+              left: Math.round(g),
+              top: Math.round(baseY - acc),
+              width: Math.round(groupSize),
+              height: acc,
+              segments: segs,
+            }
+          : { catIdx: c, left: plot.x, top: Math.round(g), width: acc, height: Math.round(groupSize), segments: segs },
+      );
     } else {
       const sub = groupSize / nSeries;
       for (let s = 0; s < nSeries; s++) {
         const px = Math.round((val(s, c) / maxVal) * valExtent);
         if (vertical) {
-          bars.push({ catIdx: c, color: colorOf(s, c), left: Math.round(g + s * sub), top: baseY - px, width: Math.round(sub), height: px });
-          if (showVals) valueLabels.push({ text: fmt(val(s, c)), left: Math.round(g + s * sub - 10), top: baseY - px - 30, width: Math.round(sub + 20), height: 24, align: "center" });
+          bars.push({
+            catIdx: c,
+            color: colorOf(s, c),
+            left: Math.round(g + s * sub),
+            top: baseY - px,
+            width: Math.round(sub),
+            height: px,
+          });
+          if (showVals)
+            valueLabels.push({
+              text: fmt(val(s, c)),
+              left: Math.round(g + s * sub - 10),
+              top: baseY - px - 30,
+              width: Math.round(sub + 20),
+              height: 24,
+              align: "center",
+            });
         } else {
-          bars.push({ catIdx: c, color: colorOf(s, c), left: plot.x, top: Math.round(g + s * sub), width: px, height: Math.round(sub) });
-          if (showVals) valueLabels.push({ text: fmt(val(s, c)), left: plot.x + px + 10, top: Math.round(g + s * sub), width: mRight - 4, height: Math.round(sub), align: "left" });
+          bars.push({
+            catIdx: c,
+            color: colorOf(s, c),
+            left: plot.x,
+            top: Math.round(g + s * sub),
+            width: px,
+            height: Math.round(sub),
+          });
+          if (showVals)
+            valueLabels.push({
+              text: fmt(val(s, c)),
+              left: plot.x + px + 10,
+              top: Math.round(g + s * sub),
+              width: mRight - 4,
+              height: Math.round(sub),
+              align: "left",
+            });
         }
       }
     }
-    catLabels.push(vertical
-      ? { text: catLabel(c), left: Math.round(plot.x + c * slot), top: baseY + 10, width: Math.round(slot), height: 34, align: "center" }
-      : { text: catLabel(c), left: 0, top: Math.round(g), width: mLeft - 12, height: Math.round(groupSize), align: "right" });
+    catLabels.push(
+      vertical
+        ? {
+            text: catLabel(c),
+            left: Math.round(plot.x + c * slot),
+            top: baseY + 10,
+            width: Math.round(slot),
+            height: 34,
+            align: "center",
+          }
+        : {
+            text: catLabel(c),
+            left: 0,
+            top: Math.round(g),
+            width: mLeft - 12,
+            height: Math.round(groupSize),
+            align: "right",
+          },
+    );
   }
   return { bars, stacks, catLabels, valueLabels };
 }
@@ -286,7 +443,8 @@ export function planChart(p: ChartParams, sf = 1): ChartPlan {
   const peakCat = emphasizeOne ? series[0].reduce((best, v, i) => (v > series[0][best] ? i : best), 0) : -1;
   const colorOf = (s: number, c: number): string =>
     emphasizeOne ? (c === peakCat ? p.colors[0] : BAR_NEUTRAL) : p.colors[(multi ? s : c) % p.colors.length];
-  const catLabel = (c: number): string => (p.labels != null && p.labels.length > 0 ? p.labels[c % p.labels.length] : "");
+  const catLabel = (c: number): string =>
+    p.labels != null && p.labels.length > 0 ? p.labels[c % p.labels.length] : "";
 
   if (p.type === "pie" || p.type === "donut") return planPie(p, series, catLabel);
 
@@ -315,19 +473,69 @@ export function planChart(p: ChartParams, sf = 1): ChartPlan {
     const label = fmt(maxVal * frac);
     if (valueAxisX) {
       const x = Math.round(plot.x + frac * plot.w);
-      gridlines.push({ x1: x, y1: plot.y, x2: x, y2: plot.y + plot.h, label, lLeft: x - 50, lTop: plot.y + plot.h + 8, lWidth: 100, lHeight: 24, lAlign: "center" });
+      gridlines.push({
+        x1: x,
+        y1: plot.y,
+        x2: x,
+        y2: plot.y + plot.h,
+        label,
+        lLeft: x - 50,
+        lTop: plot.y + plot.h + 8,
+        lWidth: 100,
+        lHeight: 24,
+        lAlign: "center",
+      });
     } else {
       const y = Math.round(plot.y + plot.h - frac * plot.h);
-      gridlines.push({ x1: plot.x, y1: y, x2: plot.x + plot.w, y2: y, label, lLeft: 0, lTop: y - 12, lWidth: mLeft - 12, lHeight: 24, lAlign: "right" });
+      gridlines.push({
+        x1: plot.x,
+        y1: y,
+        x2: plot.x + plot.w,
+        y2: y,
+        label,
+        lLeft: 0,
+        lTop: y - 12,
+        lWidth: mLeft - 12,
+        lHeight: 24,
+        lAlign: "right",
+      });
     }
   }
 
-  const ctx: PlanCtx = { p, nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals, sf };
-  const { bars, stacks, lines, catLabels, valueLabels } = p.type === "line"
-    ? { bars: [], stacks: [], ...planLine(ctx) }
-    : { lines: [], ...planBars(ctx, p.type) };
+  const ctx: PlanCtx = {
+    p,
+    nSeries,
+    nCats,
+    multi,
+    stacked,
+    val,
+    colorOf,
+    catLabel,
+    maxVal,
+    plot,
+    mLeft,
+    mRight,
+    showVals,
+    sf,
+  };
+  const { bars, stacks, lines, catLabels, valueLabels } =
+    p.type === "line" ? { bars: [], stacks: [], ...planLine(ctx) } : { lines: [], ...planBars(ctx, p.type) };
 
-  return { type: p.type, stacked, maxVal, plot, bars, stacks, lines, slices: [], pie: null, gridlines, catLabels, valueLabels, legend };
+  return {
+    type: p.type,
+    stacked,
+    maxVal,
+    plot,
+    bars,
+    stacks,
+    lines,
+    slices: [],
+    pie: null,
+    gridlines,
+    catLabels,
+    valueLabels,
+    legend,
+  };
 }
 
 /** Standalone HTML for the chart. Pure — unit-testable without a browser.
@@ -352,16 +560,23 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
   const gridColor = "rgba(255,255,255,0.10)";
 
   const isPie = plan.type === "pie" || plan.type === "donut";
-  const legend = plan.legend.length === 0
-    ? ""
-    : isPie
-      // Vertical legend down the right side (label + percentage).
-      ? `<div class="ch-legend-v">${plan.legend
-          .map((l) => `<span class="ch-leg"><span class="ch-swatch" style="background:${l.color}"></span>${escapeHtml(l.name)}</span>`)
-          .join("")}</div>`
-      : `<div class="ch-legend" style="top:${p.title != null && p.title !== "" ? 56 : 16}px">${plan.legend
-          .map((l) => `<span class="ch-leg"><span class="ch-swatch" style="background:${l.color}"></span>${escapeHtml(l.name)}</span>`)
-          .join("")}</div>`;
+  const legend =
+    plan.legend.length === 0
+      ? ""
+      : isPie
+        ? // Vertical legend down the right side (label + percentage).
+          `<div class="ch-legend-v">${plan.legend
+            .map(
+              (l) =>
+                `<span class="ch-leg"><span class="ch-swatch" style="background:${l.color}"></span>${escapeHtml(l.name)}</span>`,
+            )
+            .join("")}</div>`
+        : `<div class="ch-legend" style="top:${p.title != null && p.title !== "" ? 56 : 16}px">${plan.legend
+            .map(
+              (l) =>
+                `<span class="ch-leg"><span class="ch-swatch" style="background:${l.color}"></span>${escapeHtml(l.name)}</span>`,
+            )
+            .join("")}</div>`;
 
   const grid = plan.gridlines
     .map((g) => {
@@ -376,14 +591,22 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
   let body = "";
   if (isPie) {
     const paths = plan.slices
-      .map((s, i) => `<path class="ch-pie-slice ch-pie-slice-${i}" d="${s.path}" fill="${s.color}" stroke="${p.background}" stroke-width="2"/>`)
+      .map(
+        (s, i) =>
+          `<path class="ch-pie-slice ch-pie-slice-${i}" d="${s.path}" fill="${s.color}" stroke="${p.background}" stroke-width="2"/>`,
+      )
       .join("");
     body += `<div class="ch-pie-wrap"><svg width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}"><g class="ch-pie-group">${paths}</g></svg></div>`;
   } else if (plan.type === "line") {
     const svgInner = plan.lines
       .map((l) => {
         const area = l.areaPath != null ? `<path d="${l.areaPath}" fill="${l.color}" opacity="0.14"/>` : "";
-        const dots = l.dots.map((d, i) => `<circle class="ch-dot ch-dot-${l.seriesIdx}-${i}" cx="${d.cx}" cy="${d.cy}" r="6" fill="${l.color}" stroke="${p.background}" stroke-width="3"/>`).join("");
+        const dots = l.dots
+          .map(
+            (d, i) =>
+              `<circle class="ch-dot ch-dot-${l.seriesIdx}-${i}" cx="${d.cx}" cy="${d.cy}" r="6" fill="${l.color}" stroke="${p.background}" stroke-width="3"/>`,
+          )
+          .join("");
         return `<g class="ch-reveal ch-reveal-${l.seriesIdx}">${area}<polyline points="${l.points}" fill="none" stroke="${l.color}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>${dots}</g>`;
       })
       .join("");
@@ -392,9 +615,11 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
     body += plan.stacks
       .map((st) => {
         const segs = st.segments
-          .map((sg) => plan.type === "column"
-            ? `<div class="ch-seg" style="left:0;bottom:${sg.offset}px;width:100%;height:${sg.size}px;background:${sg.color}"></div>`
-            : `<div class="ch-seg" style="top:0;left:${sg.offset}px;height:100%;width:${sg.size}px;background:${sg.color}"></div>`)
+          .map((sg) =>
+            plan.type === "column"
+              ? `<div class="ch-seg" style="left:0;bottom:${sg.offset}px;width:100%;height:${sg.size}px;background:${sg.color}"></div>`
+              : `<div class="ch-seg" style="top:0;left:${sg.offset}px;height:100%;width:${sg.size}px;background:${sg.color}"></div>`,
+          )
           .join("");
         return `<div class="ch-stack ch-stack-${st.catIdx}" style="left:${st.left}px;top:${st.top}px;width:${st.width}px;height:${st.height}px">${segs}</div>`;
       })
@@ -402,20 +627,27 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
   } else {
     body += plan.bars
       .map((b, i) => {
-        const anchor = plan.type === "column"
-          ? `left:${b.left}px;bottom:${p.height - (plan.plot.y + plan.plot.h)}px;width:${b.width}px;height:${b.height}px`
-          : `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px`;
+        const anchor =
+          plan.type === "column"
+            ? `left:${b.left}px;bottom:${p.height - (plan.plot.y + plan.plot.h)}px;width:${b.width}px;height:${b.height}px`
+            : `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px`;
         return `<div class="ch-bar ch-bar-${i}" style="${anchor};background:${b.color}"></div>`;
       })
       .join("\n  ");
   }
 
   const valueMarkup = plan.valueLabels
-    .map((v, i) => `<div class="ch-val ch-val-${i}" style="left:${v.left}px;top:${v.top}px;width:${v.width}px;text-align:${v.align};${v.align === "left" ? `height:${v.height}px;display:flex;align-items:center` : ""}">${escapeHtml(v.text)}</div>`)
+    .map(
+      (v, i) =>
+        `<div class="ch-val ch-val-${i}" style="left:${v.left}px;top:${v.top}px;width:${v.width}px;text-align:${v.align};${v.align === "left" ? `height:${v.height}px;display:flex;align-items:center` : ""}">${escapeHtml(v.text)}</div>`,
+    )
     .join("\n  ");
   const catMarkup = plan.catLabels
     .filter((b) => b.text !== "")
-    .map((b) => `<div class="ch-cat" style="left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;text-align:${b.align};${b.align === "right" ? "display:flex;align-items:center;justify-content:flex-end" : ""}">${escapeHtml(b.text)}</div>`)
+    .map(
+      (b) =>
+        `<div class="ch-cat" style="left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;text-align:${b.align};${b.align === "right" ? "display:flex;align-items:center;justify-content:flex-end" : ""}">${escapeHtml(b.text)}</div>`,
+    )
     .join("\n  ");
 
   return `<!doctype html>
@@ -462,10 +694,13 @@ export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
   const ease = "cubic-bezier(0.22,1,0.36,1)";
   const grow = (sel: string, catIdx: number): void => {
     anims.push({
-      selector: sel, property: "transform",
+      selector: sel,
+      property: "transform",
       from: plan.type === "bar" ? "scaleX(0)" : "scaleY(0)",
       to: plan.type === "bar" ? "scaleX(1)" : "scaleY(1)",
-      duration: p.growMs, delay: catIdx * p.staggerMs, easing: ease,
+      duration: p.growMs,
+      delay: catIdx * p.staggerMs,
+      easing: ease,
       transformOrigin: plan.type === "bar" ? "left" : "bottom",
     });
   };
@@ -473,9 +708,25 @@ export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
   if (plan.type === "pie" || plan.type === "donut") {
     // The pie spins + scales into place as one group, while the slices fade in
     // staggered clockwise — a sweep.
-    anims.push({ selector: ".ch-pie-group", property: "transform", from: "scale(0.3) rotate(-22deg)", to: "scale(1) rotate(0deg)", duration: 640, easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center" });
+    anims.push({
+      selector: ".ch-pie-group",
+      property: "transform",
+      from: "scale(0.3) rotate(-22deg)",
+      to: "scale(1) rotate(0deg)",
+      duration: 640,
+      easing: "cubic-bezier(0.34,1.56,0.64,1)",
+      transformOrigin: "center",
+    });
     plan.slices.forEach((_s, i) => {
-      anims.push({ selector: `.ch-pie-slice-${i}`, property: "opacity", from: "0", to: "1", duration: 260, delay: i * PIE_SLICE_STAGGER, easing: "ease-out" });
+      anims.push({
+        selector: `.ch-pie-slice-${i}`,
+        property: "opacity",
+        from: "0",
+        to: "1",
+        duration: 260,
+        delay: i * PIE_SLICE_STAGGER,
+        easing: "ease-out",
+      });
     });
     return anims;
   }
@@ -484,10 +735,26 @@ export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
     for (const l of plan.lines) {
       const n = l.dots.length;
       const revealMs = p.growMs + Math.max(0, n - 1) * p.staggerMs;
-      anims.push({ selector: `.ch-reveal-${l.seriesIdx}`, property: "clipPath", from: "inset(0 100% 0 0)", to: "inset(0 0% 0 0)", duration: revealMs, easing: "linear" });
+      anims.push({
+        selector: `.ch-reveal-${l.seriesIdx}`,
+        property: "clipPath",
+        from: "inset(0 100% 0 0)",
+        to: "inset(0 0% 0 0)",
+        duration: revealMs,
+        easing: "linear",
+      });
       for (let i = 0; i < n; i++) {
         const delay = n === 1 ? 0 : Math.round((i / (n - 1)) * revealMs);
-        anims.push({ selector: `.ch-dot-${l.seriesIdx}-${i}`, property: "scale", from: "0", to: "1", duration: 320, delay, easing: ease, transformOrigin: "center" });
+        anims.push({
+          selector: `.ch-dot-${l.seriesIdx}-${i}`,
+          property: "scale",
+          from: "0",
+          to: "1",
+          duration: 320,
+          delay,
+          easing: ease,
+          transformOrigin: "center",
+        });
       }
     }
   } else if (plan.stacked) {
@@ -499,8 +766,17 @@ export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
   if (!plan.stacked) {
     plan.valueLabels.forEach((_v, i) => {
       // value labels track their bar's category; approximate via even spread.
-      const delay = Math.round((i / Math.max(1, plan.valueLabels.length)) * (plan.catLabels.length * p.staggerMs)) + p.growMs - 150;
-      anims.push({ selector: `.ch-val-${i}`, property: "opacity", from: "0", to: "1", duration: 280, delay: Math.max(0, delay), easing: "ease-out" });
+      const delay =
+        Math.round((i / Math.max(1, plan.valueLabels.length)) * (plan.catLabels.length * p.staggerMs)) + p.growMs - 150;
+      anims.push({
+        selector: `.ch-val-${i}`,
+        property: "opacity",
+        from: "0",
+        to: "1",
+        duration: 280,
+        delay: Math.max(0, delay),
+        easing: "ease-out",
+      });
     });
   }
   return anims;
@@ -536,9 +812,14 @@ export const chartTemplate: Template<ChartParams> = {
     // canvas; only the drawn chart is inset. Without an inset the plan uses the
     // full canvas exactly as before (byte-identical).
     const inset = ctx.safeInset;
-    const plotParams = inset != null
-      ? { ...params, width: params.width - inset.left - inset.right, height: params.height - inset.top - inset.bottom }
-      : params;
+    const plotParams =
+      inset != null
+        ? {
+            ...params,
+            width: params.width - inset.left - inset.right,
+            height: params.height - inset.top - inset.bottom,
+          }
+        : params;
     // DM-1560: adaptive per-ratio type scaling (docs/91), the same `formatScaleFactor`
     // the creative-pack cards fold in (DM-1541). It enlarges the chart's title /
     // axis / value-label type — and the bar-thickness cap — so a landscape-tuned
@@ -548,7 +829,9 @@ export const chartTemplate: Template<ChartParams> = {
     // → byte-identical default output.
     const sf = formatScaleFactor(params.width, params.height, inset);
     const plan = planChart(plotParams, sf);
-    ctx.log(`template chart: ${params.type}, ${params.data.length} series × ${params.data[0].length}, ${params.width}×${params.height}`);
+    ctx.log(
+      `template chart: ${params.type}, ${params.data.length} series × ${params.data[0].length}, ${params.width}×${params.height}`,
+    );
     return runSingleFrameGenerator(ctx, {
       name: "chart",
       html: buildChartHtml(plotParams, plan, inset, sf),

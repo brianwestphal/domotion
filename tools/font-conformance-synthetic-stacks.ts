@@ -212,18 +212,14 @@ export const STYLES: readonly string[] = ["normal", "italic"];
 
 /** Spellings whose distinction Blink preserves through computed style. */
 export const FAMILY_SPELLINGS = ["keyword", "quoted", "case-variant"] as const;
-export type FamilySpelling = typeof FAMILY_SPELLINGS[number];
+export type FamilySpelling = (typeof FAMILY_SPELLINGS)[number];
 
 /** The union of Playwright's script-keyed generic-family tables on macOS and Windows. */
-export const LANGUAGES: readonly (string | null)[] = [
-  null, "ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el",
-];
+export const LANGUAGES: readonly (string | null)[] = [null, "ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el"];
 
 function familyForSpelling(generic: string, spelling: FamilySpelling): string {
   if (spelling === "keyword") return generic;
-  const literal = spelling === "quoted"
-    ? generic
-    : `${generic[0].toUpperCase()}${generic.slice(1)}`;
+  const literal = spelling === "quoted" ? generic : `${generic[0].toUpperCase()}${generic.slice(1)}`;
   // A continuation makes walking past an unavailable literal observable.
   return `"${literal}", Menlo`;
 }
@@ -272,8 +268,8 @@ export function buildSyntheticStacks(): SyntheticStack[] {
               const style = STYLES[yi];
               const spelling = FAMILY_SPELLINGS[qi];
               const lang = LANGUAGES[li];
-              const distance = (wi === 0 ? 0 : 1) + (si === 0 ? 0 : 1) + (yi === 0 ? 0 : 1)
-                + (qi === 0 ? 0 : 1) + (li === 0 ? 0 : 1);
+              const distance =
+                (wi === 0 ? 0 : 1) + (si === 0 ? 0 : 1) + (yi === 0 ? 0 : 1) + (qi === 0 ? 0 : 1) + (li === 0 ? 0 : 1);
               rows.push({
                 distance,
                 order: [gi, wi, si, yi, qi, li],
@@ -286,9 +282,9 @@ export function buildSyntheticStacks(): SyntheticStack[] {
                   ...(lang == null ? {} : { lang }),
                   fixtures: 0,
                   example:
-                    `rule v${RULE_VERSION}: ${GENERIC_FAMILIES[gi]} @${SYNTHETIC_FONT_SIZE}px`
-                    + ` / ${weight} / ${style} / ${stretch.keyword} (${stretch.percent})`
-                    + ` / ${spelling} / lang=${lang ?? "default"}`,
+                    `rule v${RULE_VERSION}: ${GENERIC_FAMILIES[gi]} @${SYNTHETIC_FONT_SIZE}px` +
+                    ` / ${weight} / ${style} / ${stretch.keyword} (${stretch.percent})` +
+                    ` / ${spelling} / lang=${lang ?? "default"}`,
                 },
               });
             }
@@ -355,8 +351,8 @@ export function syntheticCorpus(): SyntheticCorpus {
     generatedAt: corpusIdentity(stacks),
     platform: PORTABLE_CORPUS_PLATFORM,
     sources: [
-      "(rule-derived) CSS generic families x weight ladder x font-stretch keywords x style x spelling x language"
-      + ` — tools/font-conformance-synthetic-stacks.ts v${RULE_VERSION}`,
+      "(rule-derived) CSS generic families x weight ladder x font-stretch keywords x style x spelling x language" +
+        ` — tools/font-conformance-synthetic-stacks.ts v${RULE_VERSION}`,
     ],
     rule: {
       version: RULE_VERSION,
@@ -399,20 +395,25 @@ function main(argv: string[]): number {
   const corpus = syntheticCorpus();
   const byDistance = new Map<number, number>();
   for (const s of corpus.stacks) {
-    const d = (s.fontWeight === 400 ? 0 : 1) + (s.fontStretch === "100%" ? 0 : 1)
-      + (s.fontStyle === "normal" ? 0 : 1) + (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1)
-      + (s.lang == null ? 0 : 1);
+    const d =
+      (s.fontWeight === 400 ? 0 : 1) +
+      (s.fontStretch === "100%" ? 0 : 1) +
+      (s.fontStyle === "normal" ? 0 : 1) +
+      (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1) +
+      (s.lang == null ? 0 : 1);
     byDistance.set(d, (byDistance.get(d) ?? 0) + 1);
   }
   process.stdout.write(
-    `synthetic stack corpus — rule v${RULE_VERSION}\n`
-    + `  ${GENERIC_FAMILIES.length} generics x ${WEIGHT_LADDER.length} weights `
-    + `x ${STRETCH_KEYWORDS.length} stretches x ${STYLES.length} styles x ${FAMILY_SPELLINGS.length} spellings `
-    + `x ${LANGUAGES.length} languages = ${corpus.stacks.length} stacks\n`
-    + `  all at ${SYNTHETIC_FONT_SIZE}px (CSS initial \`medium\`)\n`
-    + `  identity ${corpus.generatedAt}\n`
-    + [...byDistance.entries()].sort((a, b) => a[0] - b[0])
-      .map(([d, n]) => `  ${n} stack(s) at distance ${d} from the CSS initial state\n`).join(""),
+    `synthetic stack corpus — rule v${RULE_VERSION}\n` +
+      `  ${GENERIC_FAMILIES.length} generics x ${WEIGHT_LADDER.length} weights ` +
+      `x ${STRETCH_KEYWORDS.length} stretches x ${STYLES.length} styles x ${FAMILY_SPELLINGS.length} spellings ` +
+      `x ${LANGUAGES.length} languages = ${corpus.stacks.length} stacks\n` +
+      `  all at ${SYNTHETIC_FONT_SIZE}px (CSS initial \`medium\`)\n` +
+      `  identity ${corpus.generatedAt}\n` +
+      [...byDistance.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([d, n]) => `  ${n} stack(s) at distance ${d} from the CSS initial state\n`)
+        .join(""),
   );
   if (printOnly) return 0;
   writeFileSync(out, serializeCorpus(corpus));
@@ -420,8 +421,7 @@ function main(argv: string[]): number {
   return 0;
 }
 
-const invokedDirectly = process.argv[1] != null
-  && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (invokedDirectly) {
   try {

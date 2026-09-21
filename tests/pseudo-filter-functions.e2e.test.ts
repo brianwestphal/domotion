@@ -1,11 +1,6 @@
 import sharp from "sharp";
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  elementTreeToSvg,
-  launchChromium,
-  type CapturedElement,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvg, launchChromium, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const W = 760;
@@ -26,9 +21,7 @@ const FILTERS = [
   "drop-shadow(rgb(220, 20, 60) 6px 4px 3px) opacity(0.35)",
 ] as const;
 
-const CARD_MARKUP = FILTERS.map((filter, i) =>
-  `<div class="card c${i}" data-filter="${filter}"></div>`,
-).join("");
+const CARD_MARKUP = FILTERS.map((filter, i) => `<div class="card c${i}" data-filter="${filter}"></div>`).join("");
 
 const HTML = `<!doctype html><style>
   html,body{margin:0;width:${W}px;height:${H}px;background:rgb(245,247,251)}
@@ -53,9 +46,15 @@ const HTML = `<!doctype html><style>
 <div id="identity"></div><div id="none"></div><div id="zoom"></div>`;
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function pseudoRecords(nodes: CapturedElement[]): NonNullable<CapturedElement["pseudoFragments"]> {
@@ -129,11 +128,14 @@ function imageDocument(svg: string): string {
 describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
   it("keeps the effect owner on generated text and replaced-image content", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 420, height: 180 }, deviceScaleFactor: 1 });
-    const imageUrl = "data:image/svg+xml," + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="20"><rect width="28" height="20" fill="#2870db"/><circle cx="8" cy="8" r="5" fill="#f4cf55"/></svg>',
-    );
+    const imageUrl =
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="20"><rect width="28" height="20" fill="#2870db"/><circle cx="8" cy="8" r="5" fill="#f4cf55"/></svg>',
+      );
     try {
-      await page.setContent(`<style>html,body{margin:0}.host{position:absolute;top:30px;height:70px}
+      await page.setContent(
+        `<style>html,body{margin:0}.host{position:absolute;top:30px;height:70px}
         #text{left:25px;width:150px;font:700 24px/40px Arial,sans-serif}
         #text::before{content:"PF";display:inline-block;padding:3px 7px;background:#2870db;color:white;
           filter:hue-rotate(31deg) drop-shadow(rgb(160,20,80) 3px 2px 1px);opacity:.7}
@@ -141,7 +143,9 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
           width:28px;height:20px;filter:blur(2px) invert(.65) saturate(1.8);
           transform:translate(2px,1px) scale(.85);transform-origin:4px 7px}
       </style><div id="text" class="host" data-domotion-anim="text">main</div>
-      <div id="image" class="host" data-domotion-anim="image"></div>`, { waitUntil: "load" });
+      <div id="image" class="host" data-domotion-anim="image"></div>`,
+        { waitUntil: "load" },
+      );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 180 });
       const text = byAnimId(tree, "text")!;
       const textPseudo = text.pseudoFragments?.find((record) => record.pseudo === "::before");
@@ -162,14 +166,18 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
       // Computed pseudo paint properties stay in the pseudo's pre-zoom CSS
       // plane. The physical fragment below carries the host's effective zoom.
       expect(image?.paint).toMatchObject(imageComputed);
-      expect(image?.fragments.find((fragment) => fragment.kind === "image")?.physicalRect)
-        .toMatchObject({ width: 28 * 1.25 * 0.85, height: 20 * 1.25 * 0.85 });
+      expect(image?.fragments.find((fragment) => fragment.kind === "image")?.physicalRect).toMatchObject({
+        width: 28 * 1.25 * 0.85,
+        height: 20 * 1.25 * 0.85,
+      });
 
       const svg = elementTreeToSvg(tree, 420, 180);
       expect(svg).toContain(`style="filter:${textPseudo!.paint.filter}"`);
       expect(svg).toContain(`style="filter:${image!.paint.filter}"`);
       expect(svg).toContain(`opacity="0.7" style="filter:${textPseudo!.paint.filter}"`);
-      expect(svg).toMatch(/data-domotion-pseudo="::after"[^>]*style="filter:blur\(2px\) invert[^\"]*"><g transform="matrix\(/);
+      expect(svg).toMatch(
+        /data-domotion-pseudo="::after"[^>]*style="filter:blur\(2px\) invert[^\"]*"><g transform="matrix\(/,
+      );
     } finally {
       await page.close();
     }
@@ -179,9 +187,9 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
     const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       await page.setContent(HTML);
-      const computed = await page.locator(".card").evaluateAll((cards) =>
-        cards.map((card) => getComputedStyle(card, "::before").filter),
-      );
+      const computed = await page
+        .locator(".card")
+        .evaluateAll((cards) => cards.map((card) => getComputedStyle(card, "::before").filter));
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const captured = pseudoRecords(tree).map((record) => record.paint.filter);
       for (const filter of computed) expect(captured).toContain(filter);
@@ -196,9 +204,7 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
       const forward = computed[10];
       const reverse = computed[11];
       expect(forward).not.toBe(reverse);
-      expect(svg.indexOf(`style="filter:${forward}"`)).toBeLessThan(
-        svg.indexOf(`style="filter:${reverse}"`),
-      );
+      expect(svg.indexOf(`style="filter:${forward}"`)).toBeLessThan(svg.indexOf(`style="filter:${reverse}"`));
       expect(svg).toMatch(/style="filter:opacity\(0\.35\) drop-shadow[^\"]*"><g transform="matrix\(/);
     } finally {
       await page.close();

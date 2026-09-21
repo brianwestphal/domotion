@@ -16,7 +16,7 @@ target observes the same data and enum surface before release.
 Protocol:
 
 ```json
-{"cps":[65,8205,19968]}
+{ "cps": [65, 8205, 19968] }
 ```
 
 Pass `--serve` for one JSON request/response per line. Every response reports

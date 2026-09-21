@@ -43,7 +43,9 @@ describe("capture warnings buffer", () => {
     expect(second).toEqual(first);
     expect(second).not.toBe(first);
     expect(() => (first as CaptureWarning[]).push(W[0])).toThrow(TypeError);
-    expect(() => { (first[0] as CaptureWarning).detail = "mutated"; }).toThrow(TypeError);
+    expect(() => {
+      (first[0] as CaptureWarning).detail = "mutated";
+    }).toThrow(TypeError);
     expect(getLastCaptureWarnings()).toEqual(second);
   });
 

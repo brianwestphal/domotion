@@ -6,10 +6,10 @@ const upem = ff.unitsPerEm;
 
 const codepoints = [
   { name: "(", cp: 0x0028 },
-  { name: "𝑎 (math italic a)", cp: 0x1D44E },
-  { name: "𝑏 (math italic b)", cp: 0x1D44F },
-  { name: "𝑐 (math italic c)", cp: 0x1D450 },
-  { name: "𝑑 (math italic d)", cp: 0x1D451 },
+  { name: "𝑎 (math italic a)", cp: 0x1d44e },
+  { name: "𝑏 (math italic b)", cp: 0x1d44f },
+  { name: "𝑐 (math italic c)", cp: 0x1d450 },
+  { name: "𝑑 (math italic d)", cp: 0x1d451 },
   { name: "a (ascii)", cp: 0x0061 },
   { name: "F", cp: 0x0046 },
 ];
@@ -20,7 +20,10 @@ console.log(`STIX Two Math, upem=${upem}, scale at 22px = ${scale.toFixed(5)}`);
 for (const { name, cp } of codepoints) {
   const layout = ff.layout(String.fromCodePoint(cp));
   const g = layout.glyphs[0];
-  if (!g) { console.log(`${name}: no glyph`); continue; }
+  if (!g) {
+    console.log(`${name}: no glyph`);
+    continue;
+  }
   const b = g.bbox;
   console.log(`${name} (U+${cp.toString(16)}, glyph ${g.id}): bbox maxY=${b.maxY} minY=${b.minY}`);
   console.log(`   ink ascent at 22px = ${(b.maxY * scale).toFixed(2)}, descent = ${(-b.minY * scale).toFixed(2)}`);

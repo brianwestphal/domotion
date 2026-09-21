@@ -5,14 +5,20 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["windows"]
-tickets: ["DM-2460","DM-2461","DM-2462","DM-599","DM-602","DM-603"]
-code: ["src/render/culling-geometry.ts","src/render/element-tree-to-svg.ts","src/tree-ops/swept-transform-bounds.ts","src/tree-ops/viewbox-culling.ts"]
-aliases: ["docs/33-element-out-of-viewbox-hiding.md","doc-33"]
+tickets: ["DM-2460", "DM-2461", "DM-2462", "DM-599", "DM-602", "DM-603"]
+code:
+  [
+    "src/render/culling-geometry.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/tree-ops/swept-transform-bounds.ts",
+    "src/tree-ops/viewbox-culling.ts",
+  ]
+aliases: ["docs/33-element-out-of-viewbox-hiding.md", "doc-33"]
 ---
 
 # 33 — Element-level out-of-viewBox hiding (DM-603 / DM-2460 / DM-2461)
 
-Phase 2 of the animation-performance work. Phase 1 ([doc 8 §Out-of-frame paint suppression](08-animation-model.md)) drops entire frames from paint while they're outside their show window. Phase 2 drops individual *elements within a frame* whose bboxes don't intersect the viewBox at the relevant times.
+Phase 2 of the animation-performance work. Phase 1 ([doc 8 §Out-of-frame paint suppression](08-animation-model.md)) drops entire frames from paint while they're outside their show window. Phase 2 drops individual _elements within a frame_ whose bboxes don't intersect the viewBox at the relevant times.
 
 ## Why
 
@@ -46,9 +52,10 @@ needed. The geometry pass mirrors renderer branches before SVG serialization.
 
 ### Per-element visibility intervals
 
-For each captured element, compute the set of time intervals during which its transformed bbox intersects the viewBox `[0, 0, viewportW, viewportH]`. Emit `display: none` for the *complement* of that set.
+For each captured element, compute the set of time intervals during which its transformed bbox intersects the viewBox `[0, 0, viewportW, viewportH]`. Emit `display: none` for the _complement_ of that set.
 
 **Static element (no live animation wrapper)**:
+
 - Intersect the renderer-owned visual bound with
   `(0, 0, viewportW, viewportH)`, after every frozen affine SVG wrapper on the
   path and every finite emitted overflow clip.
@@ -123,15 +130,15 @@ Each `<g>` that becomes `display: none` adds ~16 bytes (`style="display:none"`).
 Mitigation, in priority order:
 
 1. **Coalesce identical intervals** — N elements sharing the same `(t_visible_start, t_visible_end)` share one keyframes block. For uniform scroll over a list of similar rows, this collapses to O(viewport-height / row-height) blocks instead of O(rows).
-2. **Threshold by bbox area** — skip Phase 2 for elements smaller than some pixel count (e.g. <4 px²). Tiny glyphs don't move the perf needle individually. *Punted: complicates the model; measure first.*
-3. **Container vs leaf** — apply hide on the highest `<g>` ancestor that's fully off-viewBox rather than every leaf. *Punted: requires bbox roll-up which is straightforward but additional work; measure first.*
+2. **Threshold by bbox area** — skip Phase 2 for elements smaller than some pixel count (e.g. <4 px²). Tiny glyphs don't move the perf needle individually. _Punted: complicates the model; measure first._
+3. **Container vs leaf** — apply hide on the highest `<g>` ancestor that's fully off-viewBox rather than every leaf. _Punted: requires bbox roll-up which is straightforward but additional work; measure first._
 
 The composition-time pre-pass is O(elements) for static analysis, O(elements × animations) for animated analysis — both fast.
 
 ## Resolved design choices (per DM-603 feedback)
 
 1. **Always-on.** Trust coalescing + gzip to keep output size bounded. No opt-in flag.
-2. **Scope = ALL drawing in our SVGs**, not specific transitions. The user's exact framing: *"this optimization isn't related to any particular transition type or animation type, it should be for ALL drawing within our svgs. Large SVGs trying to render too much at once get slow / choppy."* The current `scroll` transition is "probably wrong" but is out of scope here — `translateY` / `translateX` intra-frame animations are the supported scroll mechanism.
+2. **Scope = ALL drawing in our SVGs**, not specific transitions. The user's exact framing: _"this optimization isn't related to any particular transition type or animation type, it should be for ALL drawing within our svgs. Large SVGs trying to render too much at once get slow / choppy."_ The current `scroll` transition is "probably wrong" but is out of scope here — `translateY` / `translateX` intra-frame animations are the supported scroll mechanism.
 3. **Non-linear easing**: cubic-bezier extrema are bounded continuously from
    the polynomial derivative (including control-point overshoot); CSS step
    discontinuities become explicit clock partitions. Unsupported timing syntax

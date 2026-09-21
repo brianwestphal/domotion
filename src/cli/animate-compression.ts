@@ -51,18 +51,31 @@ function collapseCompressibleRuns(
   // state of someone else's run. Everything else in `blockingFeature` is a
   // per-frame decoration with no per-state equivalent, for which the hand-
   // authored `states:` block (which CAN carry frame-level overlays) is the way.
-  const contentKinds = new Set(["cast", "template", "scroll", "states", "typeResample", "jsReveal", "hoverReveal", "hoverDetect"]);
+  const contentKinds = new Set([
+    "cast",
+    "template",
+    "scroll",
+    "states",
+    "typeResample",
+    "jsReveal",
+    "hoverReveal",
+    "hoverDetect",
+  ]);
   const blockingFeatureReason = (idx: number, feature: string): string =>
     feature === "states"
       ? `frames[${idx}] already IS a compressed run (it carries a \`states\` block) — drop the \`compress\` marker`
       : contentKinds.has(feature)
-      ? `frames[${idx}] is a \`${feature}\` frame, which produces its own nested content and cannot be a state of a compressed run`
-      : `frames[${idx}] carries \`${feature}\`, which has no per-state equivalent inside a compressed run — author that run as a \`states:\` block instead, which can carry frame-level \`${feature}\` (docs/43 §11)`;
+        ? `frames[${idx}] is a \`${feature}\` frame, which produces its own nested content and cannot be a state of a compressed run`
+        : `frames[${idx}] carries \`${feature}\`, which has no per-state equivalent inside a compressed run — author that run as a \`states:\` block instead, which can carry frame-level \`${feature}\` (docs/43 §11)`;
   const hasInteractionAction = (f: AnimateFrameCfg): boolean =>
     f.actions != null && f.actions.some((a) => a.type === "click" || a.type === "hover" || a.type === "fill");
   const hasReadinessWaitOrScroll = (f: AnimateFrameCfg): boolean =>
-    f.waitFor != null || f.waitForText != null || f.waitForGone != null || f.waitForCount != null ||
-    f.wait != null || f.scrollTo != null;
+    f.waitFor != null ||
+    f.waitForText != null ||
+    f.waitForGone != null ||
+    f.waitForCount != null ||
+    f.wait != null ||
+    f.scrollTo != null;
 
   // Why frame `idx` cannot SEED a run (null when it can), and why frame `idx`
   // cannot JOIN one. Shared by both modes: auto uses them as predicates, marker
@@ -70,7 +83,8 @@ function collapseCompressibleRuns(
   const anchorBlocker = (idx: number): string | null => {
     const f = frames[idx];
     if (f.compress === false) return `frames[${idx}] sets \`compress: false\``;
-    if (!isCut(f)) return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\` (a compressed run holds its states with cuts)`;
+    if (!isCut(f))
+      return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\` (a compressed run holds its states with cuts)`;
     const feature = blockingFeature(f);
     if (feature != null) return blockingFeatureReason(idx, feature);
     if (f.selector != null) return `frames[${idx}] captures a \`selector\` subtree rather than the whole page`;
@@ -80,12 +94,15 @@ function collapseCompressibleRuns(
     const f = frames[idx];
     if (f.compress === false) return `frames[${idx}] sets \`compress: false\``;
     if (f.input != null) return `frames[${idx}] loads an \`input\` (a compressed run holds ONE continuous page)`;
-    if (f.cast != null || f.template != null) return `frames[${idx}] is a \`${f.cast != null ? "cast" : "template"}\` frame (a compressed run holds ONE continuous page)`;
-    if (!isCut(f)) return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\``;
+    if (f.cast != null || f.template != null)
+      return `frames[${idx}] is a \`${f.cast != null ? "cast" : "template"}\` frame (a compressed run holds ONE continuous page)`;
+    if (!isCut(f))
+      return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\``;
     const feature = blockingFeature(f);
     if (feature != null) return blockingFeatureReason(idx, feature);
     if (f.selector != null) return `frames[${idx}] captures a \`selector\` subtree rather than the whole page`;
-    if (hasReadinessWaitOrScroll(f)) return `frames[${idx}] carries a readiness wait / \`scrollTo\` (a compressed run has no per-state wait)`;
+    if (hasReadinessWaitOrScroll(f))
+      return `frames[${idx}] carries a readiness wait / \`scrollTo\` (a compressed run has no per-state wait)`;
     return null;
   };
 
@@ -165,9 +182,12 @@ function collapseCompressibleRuns(
       while (j < n && memberBlocker(j) == null) j++;
       const b = j - 1; // inclusive run end
       if (strict && b === i) {
-        failMarked(i, j < n
-          ? `no following frame can join it — ${memberBlocker(j)}`
-          : "it is the last frame in the config (a compressed run needs at least 2 frames)");
+        failMarked(
+          i,
+          j < n
+            ? `no following frame can join it — ${memberBlocker(j)}`
+            : "it is the last frame in the config (a compressed run needs at least 2 frames)",
+        );
       }
       if (b > i) {
         // A maximal candidate run [i..b] (≥ 2 frames). The remaining exclusions
@@ -190,7 +210,11 @@ function collapseCompressibleRuns(
         }
         for (let k = i; k <= b; k++) {
           if (explicitCursorFrames.has(k)) {
-            addSplit(k, `an explicit cursor event addresses frame ${k}`, `an explicit cursor event addresses frame ${k} inside it`);
+            addSplit(
+              k,
+              `an explicit cursor event addresses frame ${k}`,
+              `an explicit cursor event addresses frame ${k} inside it`,
+            );
           } else if (cursorAuto && hasInteractionAction(frames[k])) {
             addSplit(k, `cursor:"auto" derives a pointer from an interaction action in frame ${k}`);
           }

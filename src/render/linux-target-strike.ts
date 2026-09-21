@@ -8,10 +8,7 @@
 
 import { hostPlatform } from "./host-platform.js";
 import { parseSvgPath, type PathCommand } from "./glyph-helper-outline.js";
-import {
-  callGlyphHelper as callHelper,
-  isGlyphHelperAvailable,
-} from "./glyph-helper-transport.js";
+import { callGlyphHelper as callHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
 
 export interface LinuxTargetStrikeGlyph {
   id: number;
@@ -43,9 +40,13 @@ export function linuxTargetStrikeGlyphs(
   glyphIds: number[],
 ): Map<number, LinuxTargetStrikeGlyph> | null {
   if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || !(fontSizePx > 0)) return null;
-  const variationKey = spec.variations == null
-    ? ""
-    : Object.keys(spec.variations).sort().map((tag) => `${tag}=${spec.variations![tag]}`).join(",");
+  const variationKey =
+    spec.variations == null
+      ? ""
+      : Object.keys(spec.variations)
+          .sort()
+          .map((tag) => `${tag}=${spec.variations![tag]}`)
+          .join(",");
   const cacheKey = `${spec.fontPath}#${spec.faceIndex}|${spec.postscriptName ?? ""}|${fontSizePx}|${variationKey}|slight`;
   let cache = linuxTargetStrikeCache.get(cacheKey);
   if (cache == null) {
@@ -57,13 +58,15 @@ export function linuxTargetStrikeGlyphs(
   if (missing.length > 0) {
     try {
       const response = callHelper({
-        fonts: [{
-          ref: "f",
-          postscriptName: spec.postscriptName,
-          fontPath: spec.fontPath,
-          size: fontSizePx,
-          ...(spec.variations == null ? {} : { variations: spec.variations }),
-        }],
+        fonts: [
+          {
+            ref: "f",
+            postscriptName: spec.postscriptName,
+            fontPath: spec.fontPath,
+            size: fontSizePx,
+            ...(spec.variations == null ? {} : { variations: spec.variations }),
+          },
+        ],
         queries: [
           { type: "glyphs", fontRef: "f", glyphs: missing.map((id) => ({ id })) },
           {
@@ -79,20 +82,28 @@ export function linuxTargetStrikeGlyphs(
       });
       const designResult = response.results[0];
       const result = response.results[1];
-      if (designResult?.type !== "glyphs"
-          || result?.type !== "hintedGlyphs" || result.error != null || result.glyphs == null
-          || result.coordinateScale !== 64 || result.fontSizePx !== fontSizePx) return null;
+      if (
+        designResult?.type !== "glyphs" ||
+        result?.type !== "hintedGlyphs" ||
+        result.error != null ||
+        result.glyphs == null ||
+        result.coordinateScale !== 64 ||
+        result.fontSizePx !== fontSizePx
+      )
+        return null;
       for (let index = 0; index < missing.length; index++) {
         const designGlyph = designResult.glyphs[index];
         const glyph = result.glyphs[index];
-        cache.set(missing[index], glyph == null || designGlyph == null
-          || glyph.id !== missing[index] || designGlyph.id !== missing[index]
-          ? null
-          : {
-            id: glyph.id,
-            designCommands: parseSvgPath(designGlyph.d),
-            commands: parseSvgPath(glyph.d),
-          });
+        cache.set(
+          missing[index],
+          glyph == null || designGlyph == null || glyph.id !== missing[index] || designGlyph.id !== missing[index]
+            ? null
+            : {
+                id: glyph.id,
+                designCommands: parseSvgPath(designGlyph.d),
+                commands: parseSvgPath(glyph.d),
+              },
+        );
       }
     } catch {
       return null;

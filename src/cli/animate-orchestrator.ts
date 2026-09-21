@@ -59,7 +59,11 @@ import {
 // it needs each kind's default. Internal to the overlay-timing model — not part
 // of the published barrel (see the note in `../animation/index.ts`).
 import { OVERLAY_DEFAULT_DELAY_MS } from "../animation/animator.js";
-import { captureElementTreeSelfContained, attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import {
+  captureElementTreeSelfContained,
+  attachWebfontTracker,
+  discoverAndRegisterWebfonts,
+} from "../capture/index.js";
 import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
@@ -85,19 +89,16 @@ import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resa
 import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
 import { openAnimateCaptureSession } from "./animate-capture-session.js";
 import { captureAnimateFrame } from "./animate-frame-capture.js";
-import {
-  buildCapturedFrame,
-  type LiveFrameNavigation,
-} from "./animate-captured-frame-stage.js";
+import { buildCapturedFrame, type LiveFrameNavigation } from "./animate-captured-frame-stage.js";
 import { buildStatesRunContent } from "./animate-states-run-stage.js";
 import { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
 export { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
-import { prepareAnimateDebugBundle, writeEmbeddedAnimateDebugFrame, writeLiveAnimateDebugFrame } from "./animate-debug.js";
 import {
-  applyReadyWaits,
-  loadInputIntoPage,
-  timed,
-} from "./common.js";
+  prepareAnimateDebugBundle,
+  writeEmbeddedAnimateDebugFrame,
+  writeLiveAnimateDebugFrame,
+} from "./animate-debug.js";
+import { applyReadyWaits, loadInputIntoPage, timed } from "./common.js";
 
 // ── Config schema (DM-843) ──────────────────────────────────────────────────
 // The animate config is external `JSON.parse`'d input, so it's validated with
@@ -115,7 +116,10 @@ const scrollSchema = z.object({
       try {
         parseScrollPattern(val);
       } catch (e) {
-        ctx.addIssue({ code: "custom", message: `is not a valid scroll pattern: ${e instanceof Error ? e.message : String(e)}` });
+        ctx.addIssue({
+          code: "custom",
+          message: `is not a valid scroll pattern: ${e instanceof Error ? e.message : String(e)}`,
+        });
       }
     }),
   /** Default scroll speed in px/s for tokens without an explicit `/<duration>`. */
@@ -132,25 +136,23 @@ const scrollSchema = z.object({
 // (SSOT `intraFrameAnimationSchema`) with the resolved `animId` swapped for the
 // authoring `selector` (resolved against the captured DOM → `animId`), and the
 // `repeat` count tightened to a positive integer for config-author ergonomics.
-const frameAnimationSchema = intraFrameAnimationSchema
-  .omit({ animId: true })
-  .extend({
-    selector: z.string(),
-    // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
-    repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
-    // DM-1526: a named motion preset (fade-up / pop / slide-in-<dir> / wipe-in, …)
-    // can supply property/from/to/fuse/easing, so those become optional here — the
-    // preset fills them and any explicit field overrides. `easing` also accepts a
-    // named easing preset (spring / back-out / ease-out-quart / …). Expansion runs
-    // in `expandMotionPreset` before the animation is emitted.
-    property: intraFrameAnimationSchema.shape.property.optional(),
-    from: z.string().optional(),
-    to: z.string().optional(),
-    preset: z.string().optional().describe("Named motion preset supplying property/from/to/fuse/easing."),
-    presetDistance: z.coerce.number().optional().describe("Travel px for slide/fade presets."),
-    presetScaleFrom: z.coerce.number().optional().describe("Start scale for the `pop` preset."),
-    exit: z.boolean().optional().describe("Reverse the preset (animate the element OUT)."),
-  });
+const frameAnimationSchema = intraFrameAnimationSchema.omit({ animId: true }).extend({
+  selector: z.string(),
+  // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
+  repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
+  // DM-1526: a named motion preset (fade-up / pop / slide-in-<dir> / wipe-in, …)
+  // can supply property/from/to/fuse/easing, so those become optional here — the
+  // preset fills them and any explicit field overrides. `easing` also accepts a
+  // named easing preset (spring / back-out / ease-out-quart / …). Expansion runs
+  // in `expandMotionPreset` before the animation is emitted.
+  property: intraFrameAnimationSchema.shape.property.optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  preset: z.string().optional().describe("Named motion preset supplying property/from/to/fuse/easing."),
+  presetDistance: z.coerce.number().optional().describe("Travel px for slide/fade presets."),
+  presetScaleFrom: z.coerce.number().optional().describe("Start scale for the `pop` preset."),
+  exit: z.boolean().optional().describe("Reverse the preset (animate the element OUT)."),
+});
 
 /**
  * DM-1526: expand a motion preset (if any) into concrete intra-frame animation
@@ -172,9 +174,7 @@ function expandMotionPreset(a: z.infer<typeof frameAnimationSchema>): ExpandedFr
   const from = a.from ?? preset?.from;
   const to = a.to ?? preset?.to;
   if (property == null || from == null || to == null) {
-    throw new Error(
-      `animation for "${a.selector}": needs either a "preset" or explicit property/from/to.`,
-    );
+    throw new Error(`animation for "${a.selector}": needs either a "preset" or explicit property/from/to.`);
   }
   return {
     ...a,
@@ -199,39 +199,46 @@ const scrollLogicalSchema = z.enum(["start", "center", "end", "nearest"]);
 // invisible-child-pad workaround. Ignored under explicit `cursor.events`
 // (those carry their own selector/at/offset) and when no cursor is shown.
 const cursorAimSchema = {
-  cursorAt: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
+  cursorAt: z
+    .enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"])
+    .optional(),
   cursorOffset: z.object({ dx: z.number().optional(), dy: z.number().optional() }).optional(),
 };
 
 const actionSchema = z.discriminatedUnion("type", [
   // Interaction (Playwright-native).
-  z.object({ type: z.literal("click"),  selector: z.string(), ...cursorAimSchema }),
-  z.object({ type: z.literal("fill"),   selector: z.string(), value: z.string(), ...cursorAimSchema }),
-  z.object({ type: z.literal("press"),  key: z.string() }),
+  z.object({ type: z.literal("click"), selector: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("fill"), selector: z.string(), value: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("press"), key: z.string() }),
   z.object({ type: z.literal("scroll"), x: z.number().optional(), y: z.number().optional() }),
-  z.object({ type: z.literal("hover"),  selector: z.string(), ...cursorAimSchema }),
-  z.object({ type: z.literal("wait"),   ms: z.number() }),
+  z.object({ type: z.literal("hover"), selector: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("wait"), ms: z.number() }),
   // DM-848 §3 — interaction actions beyond click/fill.
-  z.object({ type: z.literal("scrollIntoView"), selector: z.string(), block: scrollLogicalSchema.optional(), inline: scrollLogicalSchema.optional() }),
-  z.object({ type: z.literal("dispatch"),       selector: z.string(), event: z.string(), bubbles: z.boolean().optional() }),
-  z.object({ type: z.literal("focus"),          selector: z.string() }),
-  z.object({ type: z.literal("blur"),           selector: z.string() }),
-  z.object({ type: z.literal("selectText"),     selector: z.string() }),
-  z.object({ type: z.literal("clear"),          selector: z.string() }),
+  z.object({
+    type: z.literal("scrollIntoView"),
+    selector: z.string(),
+    block: scrollLogicalSchema.optional(),
+    inline: scrollLogicalSchema.optional(),
+  }),
+  z.object({ type: z.literal("dispatch"), selector: z.string(), event: z.string(), bubbles: z.boolean().optional() }),
+  z.object({ type: z.literal("focus"), selector: z.string() }),
+  z.object({ type: z.literal("blur"), selector: z.string() }),
+  z.object({ type: z.literal("selectText"), selector: z.string() }),
+  z.object({ type: z.literal("clear"), selector: z.string() }),
   // DM-847 §2 — declarative DOM mutations.
-  z.object({ type: z.literal("setText"),        selector: z.string(), value: z.string() }),
-  z.object({ type: z.literal("setHtml"),        selector: z.string(), value: z.string() }),
-  z.object({ type: z.literal("remove"),         selector: z.string() }),
-  z.object({ type: z.literal("setAttribute"),   selector: z.string(), name: z.string(), value: z.string() }),
-  z.object({ type: z.literal("removeAttribute"),selector: z.string(), name: z.string() }),
-  z.object({ type: z.literal("addClass"),       selector: z.string(), class: z.string() }),
-  z.object({ type: z.literal("removeClass"),    selector: z.string(), class: z.string() }),
-  z.object({ type: z.literal("toggleClass"),    selector: z.string(), class: z.string() }),
-  z.object({ type: z.literal("setStyle"),       selector: z.string(), props: z.record(z.string(), z.string()) }),
-  z.object({ type: z.literal("insert"),         selector: z.string(), position: insertPositionSchema, html: z.string() }),
-  z.object({ type: z.literal("setValue"),       selector: z.string(), value: z.string() }),
-  z.object({ type: z.literal("check"),          selector: z.string(), checked: z.boolean() }),
-  z.object({ type: z.literal("selectOption"),   selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("setText"), selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("setHtml"), selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("remove"), selector: z.string() }),
+  z.object({ type: z.literal("setAttribute"), selector: z.string(), name: z.string(), value: z.string() }),
+  z.object({ type: z.literal("removeAttribute"), selector: z.string(), name: z.string() }),
+  z.object({ type: z.literal("addClass"), selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("removeClass"), selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("toggleClass"), selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("setStyle"), selector: z.string(), props: z.record(z.string(), z.string()) }),
+  z.object({ type: z.literal("insert"), selector: z.string(), position: insertPositionSchema, html: z.string() }),
+  z.object({ type: z.literal("setValue"), selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("check"), selector: z.string(), checked: z.boolean() }),
+  z.object({ type: z.literal("selectOption"), selector: z.string(), value: z.string() }),
   z.object({
     type: z.literal("replaceText"),
     selector: z.string(),
@@ -239,7 +246,10 @@ const actionSchema = z.discriminatedUnion("type", [
       try {
         new RegExp(val);
       } catch (e) {
-        ctx.addIssue({ code: "custom", message: `is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}` });
+        ctx.addIssue({
+          code: "custom",
+          message: `is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}`,
+        });
       }
     }),
     replacement: z.string(),
@@ -254,7 +264,9 @@ const actionSchema = z.discriminatedUnion("type", [
 // `dx`/`dy` offset from it.
 const anchorFields = {
   selector: z.string(),
-  at: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
+  at: z
+    .enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"])
+    .optional(),
   dx: z.number().optional(),
   dy: z.number().optional(),
 };
@@ -370,9 +382,20 @@ const termOptionsSchema = z.object({
 // CDP's `forcedPseudoClasses`; pair it with a cursor event/action so the pointer
 // sits on the element it's hovering.
 const forcePseudoClassSchema = z.enum([
-  "hover", "active", "focus", "focus-within", "focus-visible",
-  "visited", "target", "enabled", "disabled", "checked",
-  "indeterminate", "read-only", "read-write", "link",
+  "hover",
+  "active",
+  "focus",
+  "focus-within",
+  "focus-visible",
+  "visited",
+  "target",
+  "enabled",
+  "disabled",
+  "checked",
+  "indeterminate",
+  "read-only",
+  "read-write",
+  "link",
 ]);
 const forceStateSchema = z
   .object({
@@ -487,7 +510,10 @@ const runStateSchema = z.object({
    * capture exactly sequential (one per state) — `regions` is then purely a
    * region-discriminator override.
    */
-  advances: z.array(z.string().min(1, "must be a declared region name")).min(1, "must name at least one region").optional(),
+  advances: z
+    .array(z.string().min(1, "must be a declared region name"))
+    .min(1, "must name at least one region")
+    .optional(),
   /**
    * DM-1767 (docs/104): overlays scoped to THIS state rather than to the whole
    * run. Each is anchor-resolved against the live page at the moment this state
@@ -534,9 +560,19 @@ const statesCaretSchema = z.union([
 // events. Offsets count Unicode code points.
 const textTrackEventSchema = z.discriminatedUnion("type", [
   /** Place the caret at the offset (shows it if hidden); blinks while parked. */
-  z.object({ type: z.literal("park"), at: z.number().nonnegative(), charOffset: z.number().int().nonnegative(), selector: z.string().optional() }),
+  z.object({
+    type: z.literal("park"),
+    at: z.number().nonnegative(),
+    charOffset: z.number().int().nonnegative(),
+    selector: z.string().optional(),
+  }),
   /** Step-end jump to the offset (same semantics as park; reads better in scripts). */
-  z.object({ type: z.literal("move"), at: z.number().nonnegative(), charOffset: z.number().int().nonnegative(), selector: z.string().optional() }),
+  z.object({
+    type: z.literal("move"),
+    at: z.number().nonnegative(),
+    charOffset: z.number().int().nonnegative(),
+    selector: z.string().optional(),
+  }),
   /** Hide the caret until the next park/move. */
   z.object({ type: z.literal("hide"), at: z.number().nonnegative() }),
   /** Sweep a selection over [charStart, charEnd), growing over sweepMs. */
@@ -580,7 +616,11 @@ const textTrackSchema = z
   .superRefine((tt, ctx) => {
     tt.events.forEach((ev, j) => {
       if (ev.type === "select" && ev.charEnd <= ev.charStart) {
-        ctx.addIssue({ code: "custom", path: ["events", j, "charEnd"], message: "`charEnd` must be greater than `charStart`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["events", j, "charEnd"],
+          message: "`charEnd` must be greater than `charStart`",
+        });
       }
     });
   });
@@ -679,8 +719,15 @@ const frameSchema = z.object({
     .optional(),
   waitForGone: z.string().optional(),
   waitForCount: z
-    .object({ selector: z.string(), equals: z.number().optional(), atLeast: z.number().optional(), atMost: z.number().optional() })
-    .refine((v) => v.equals != null || v.atLeast != null || v.atMost != null, { message: "requires `equals`, `atLeast`, or `atMost`" })
+    .object({
+      selector: z.string(),
+      equals: z.number().optional(),
+      atLeast: z.number().optional(),
+      atMost: z.number().optional(),
+    })
+    .refine((v) => v.equals != null || v.atLeast != null || v.atMost != null, {
+      message: "requires `equals`, `atLeast`, or `atMost`",
+    })
     .optional(),
   /**
    * Scroll the page (or `selector`'s element) to this offset BEFORE the
@@ -829,7 +876,10 @@ export const cursorEventSchema = z
 
 const cursorSchema = z.union([
   z.literal("auto"),
-  z.object({ style: cursorStyleSchema.optional(), events: z.array(cursorEventSchema).min(1, "must be a non-empty array") }),
+  z.object({
+    style: cursorStyleSchema.optional(),
+    events: z.array(cursorEventSchema).min(1, "must be a non-empty array"),
+  }),
 ]);
 
 // Exported so the published JSON Schema can be generated from it (see
@@ -892,33 +942,65 @@ export const animateConfigSchema = z
     // DM-846 §1 cross-frame rules for the continuous-session model.
     cfg.frames.forEach((f, i) => {
       if (i === 0 && f.input == null && f.cast == null && f.template == null) {
-        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an `input`, a `cast`, or a `template`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", 0, "input"],
+          message: "frame 0 must load an `input`, a `cast`, or a `template`",
+        });
       }
       if (i === 0 && f.continue === true) {
-        ctx.addIssue({ code: "custom", path: ["frames", 0, "continue"], message: "frame 0 cannot continue — it has no predecessor" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", 0, "continue"],
+          message: "frame 0 cannot continue — it has no predecessor",
+        });
       }
       if (f.continue === true && f.input != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "continue"], message: "a frame cannot set both `continue` and `input` (reload or continue, not both)" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "continue"],
+          message: "a frame cannot set both `continue` and `input` (reload or continue, not both)",
+        });
       }
       // DM-1225: a `cast` frame is its own content source — it can't also load
       // an `input`, continue a live page, or run page-oriented options.
       if (f.cast != null && f.input != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a frame cannot set both `cast` and `input`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "cast"],
+          message: "a frame cannot set both `cast` and `input`",
+        });
       }
       if (f.cast != null && f.continue === true) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a `cast` frame cannot also `continue` a live page" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "cast"],
+          message: "a `cast` frame cannot also `continue` a live page",
+        });
       }
       // DM-1287: a `template` frame is its own content source — it can't also
       // load an `input`, embed a `cast`, or continue a live page. `params`
       // without a `template` has nothing to validate against.
       if (f.template != null && f.input != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a frame cannot set both `template` and `input`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "template"],
+          message: "a frame cannot set both `template` and `input`",
+        });
       }
       if (f.template != null && f.cast != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a frame cannot set both `template` and `cast`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "template"],
+          message: "a frame cannot set both `template` and `cast`",
+        });
       }
       if (f.template != null && f.continue === true) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a `template` frame cannot also `continue` a live page" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "template"],
+          message: "a `template` frame cannot also `continue` a live page",
+        });
       }
       if (f.params != null && f.template == null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "params"], message: "`params` requires a `template`" });
@@ -932,29 +1014,57 @@ export const animateConfigSchema = z
       // content-producing frame kinds. It DOES drive the live page, so it's fine
       // on a `continue` frame or a fresh `input` load (unlike cast/template).
       if (f.typeResample != null && f.scroll != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `scroll`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "typeResample"],
+          message: "a frame cannot set both `typeResample` and `scroll`",
+        });
       }
       if (f.typeResample != null && f.cast != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `cast`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "typeResample"],
+          message: "a frame cannot set both `typeResample` and `cast`",
+        });
       }
       if (f.typeResample != null && f.template != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `template`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "typeResample"],
+          message: "a frame cannot set both `typeResample` and `template`",
+        });
       }
       // DM-1564: `jsReveal` also produces the frame's content (a nested
       // rest→after crossfade), so it can't coexist with the other
       // content-producing kinds. It drives the live page, so it's fine on a
       // `continue` frame or a fresh `input` load.
       if (f.jsReveal != null && f.scroll != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `scroll`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "jsReveal"],
+          message: "a frame cannot set both `jsReveal` and `scroll`",
+        });
       }
       if (f.jsReveal != null && f.cast != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `cast`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "jsReveal"],
+          message: "a frame cannot set both `jsReveal` and `cast`",
+        });
       }
       if (f.jsReveal != null && f.template != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `template`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "jsReveal"],
+          message: "a frame cannot set both `jsReveal` and `template`",
+        });
       }
       if (f.jsReveal != null && f.typeResample != null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `typeResample`" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "jsReveal"],
+          message: "a frame cannot set both `jsReveal` and `typeResample`",
+        });
       }
       // DM-1747: `states` produces the frame's content (a compressed-run nested
       // animated SVG), so it can't coexist with the other content-producing
@@ -962,17 +1072,29 @@ export const animateConfigSchema = z
       // fresh `input` load (like `typeResample`).
       if (f.states != null) {
         const conflicts: Array<[string, unknown]> = [
-          ["scroll", f.scroll], ["cast", f.cast], ["template", f.template],
-          ["typeResample", f.typeResample], ["jsReveal", f.jsReveal],
+          ["scroll", f.scroll],
+          ["cast", f.cast],
+          ["template", f.template],
+          ["typeResample", f.typeResample],
+          ["jsReveal", f.jsReveal],
         ];
         for (const [key, present] of conflicts) {
           if (present != null) {
-            ctx.addIssue({ code: "custom", path: ["frames", i, "states"], message: `a frame cannot set both \`states\` and \`${key}\`` });
+            ctx.addIssue({
+              code: "custom",
+              path: ["frames", i, "states"],
+              message: `a frame cannot set both \`states\` and \`${key}\``,
+            });
           }
         }
       }
       if (f.caret != null && f.states == null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "caret"], message: "`caret` requires a `states` compressed run (the typing overlay and `typeResample` carry their own caret options)" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "caret"],
+          message:
+            "`caret` requires a `states` compressed run (the typing overlay and `typeResample` carry their own caret options)",
+        });
       }
       // DM-1770: explicit regions + per-state `advances`. Both only mean
       // anything inside a compressed run, and `advances` can only name a region
@@ -980,7 +1102,12 @@ export const animateConfigSchema = z
       // author a different timing than they wrote, so it's a validation error
       // rather than a runtime surprise.
       if (f.regions != null && f.states == null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "regions"], message: "`regions` requires a `states` compressed run — it declares the run's independently-updating regions" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "regions"],
+          message:
+            "`regions` requires a `states` compressed run — it declares the run's independently-updating regions",
+        });
       }
       if (f.states != null) {
         const declared = Object.keys(f.regions ?? {});
@@ -988,18 +1115,35 @@ export const animateConfigSchema = z
           const adv = f.states[j].advances;
           if (adv == null) continue;
           if (f.regions == null) {
-            ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances"], message: "`advances` requires the frame to declare `regions`" });
+            ctx.addIssue({
+              code: "custom",
+              path: ["frames", i, "states", j, "advances"],
+              message: "`advances` requires the frame to declare `regions`",
+            });
             continue;
           }
           if (j === 0) {
-            ctx.addIssue({ code: "custom", path: ["frames", i, "states", 0, "advances"], message: "state 0 is the frame's own post-`actions` state — every region's starting point — so it cannot advance one" });
+            ctx.addIssue({
+              code: "custom",
+              path: ["frames", i, "states", 0, "advances"],
+              message:
+                "state 0 is the frame's own post-`actions` state — every region's starting point — so it cannot advance one",
+            });
           }
           const seen = new Set<string>();
           for (let k = 0; k < adv.length; k++) {
             if (!declared.includes(adv[k])) {
-              ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances", k], message: `unknown region "${adv[k]}" — this frame declares ${declared.map((n) => `"${n}"`).join(", ")}` });
+              ctx.addIssue({
+                code: "custom",
+                path: ["frames", i, "states", j, "advances", k],
+                message: `unknown region "${adv[k]}" — this frame declares ${declared.map((n) => `"${n}"`).join(", ")}`,
+              });
             } else if (seen.has(adv[k])) {
-              ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances", k], message: `region "${adv[k]}" is listed twice` });
+              ctx.addIssue({
+                code: "custom",
+                path: ["frames", i, "states", j, "advances", k],
+                message: `region "${adv[k]}" is listed twice`,
+              });
             }
             seen.add(adv[k]);
           }
@@ -1010,12 +1154,20 @@ export const animateConfigSchema = z
       // composition (no single tree to resolve against).
       if (f.textTracks != null) {
         const conflicts: Array<[string, unknown]> = [
-          ["scroll", f.scroll], ["cast", f.cast], ["template", f.template],
-          ["typeResample", f.typeResample], ["jsReveal", f.jsReveal], ["states", f.states],
+          ["scroll", f.scroll],
+          ["cast", f.cast],
+          ["template", f.template],
+          ["typeResample", f.typeResample],
+          ["jsReveal", f.jsReveal],
+          ["states", f.states],
         ];
         for (const [key, present] of conflicts) {
           if (present != null) {
-            ctx.addIssue({ code: "custom", path: ["frames", i, "textTracks"], message: `\`textTracks\` needs this frame's captured tree — it cannot be combined with \`${key}\`` });
+            ctx.addIssue({
+              code: "custom",
+              path: ["frames", i, "textTracks"],
+              message: `\`textTracks\` needs this frame's captured tree — it cannot be combined with \`${key}\``,
+            });
           }
         }
       }
@@ -1023,29 +1175,57 @@ export const animateConfigSchema = z
       // frame, which derives it from the template's play time when omitted (the
       // `0` default is the "unset" sentinel).
       if (f.duration <= 0 && f.template == null) {
-        ctx.addIssue({ code: "custom", path: ["frames", i, "duration"], message: "`duration` is required and must be > 0 (only a `template` frame may omit it — it inherits the template's play time)" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["frames", i, "duration"],
+          message:
+            "`duration` is required and must be > 0 (only a `template` frame may omit it — it inherits the template's play time)",
+        });
       }
       // DM-1562: `hoverReveal` expands into captured frames — it needs a page
       // (an `input` or a `continue`), not a self-contained cast/template frame.
       if (f.hoverReveal != null) {
         if (f.cast != null || f.template != null) {
-          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "`hoverReveal` needs a captured page — it can't be used on a `cast` or `template` frame" });
+          ctx.addIssue({
+            code: "custom",
+            path: ["frames", i, "hoverReveal"],
+            message: "`hoverReveal` needs a captured page — it can't be used on a `cast` or `template` frame",
+          });
         }
         if (f.forceState != null) {
-          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "`hoverReveal` already forces the hover state — don't combine it with `forceState` on the same frame" });
+          ctx.addIssue({
+            code: "custom",
+            path: ["frames", i, "hoverReveal"],
+            message:
+              "`hoverReveal` already forces the hover state — don't combine it with `forceState` on the same frame",
+          });
         }
         if (f.hoverDetect != null) {
-          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "set either `hoverReveal` or `hoverDetect` on a frame, not both" });
+          ctx.addIssue({
+            code: "custom",
+            path: ["frames", i, "hoverReveal"],
+            message: "set either `hoverReveal` or `hoverDetect` on a frame, not both",
+          });
         }
       }
       // DM-1563: `hoverDetect` probes a standalone page — it needs an `input`
       // (a `continue`/`cast`/`template` frame has no page to load-and-probe).
       if (f.hoverDetect != null) {
         if (f.input == null || f.continue === true) {
-          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverDetect"], message: "`hoverDetect` requires an `input` (it loads-and-probes a standalone page; it can't run on a `continue`/`cast`/`template` frame)" });
+          ctx.addIssue({
+            code: "custom",
+            path: ["frames", i, "hoverDetect"],
+            message:
+              "`hoverDetect` requires an `input` (it loads-and-probes a standalone page; it can't run on a `continue`/`cast`/`template` frame)",
+          });
         }
         if (f.forceState != null) {
-          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverDetect"], message: "`hoverDetect` synthesizes the state itself — don't combine it with `forceState` on the same frame" });
+          ctx.addIssue({
+            code: "custom",
+            path: ["frames", i, "hoverDetect"],
+            message:
+              "`hoverDetect` synthesizes the state itself — don't combine it with `forceState` on the same frame",
+          });
         }
       }
     });
@@ -1119,7 +1299,14 @@ export interface ComposeAnimateOptions {
 function normalizeComposeArgs(
   configDirOrOpts?: string | ComposeAnimateOptions,
   log?: (msg: string) => void,
-): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook; brand?: Brand; safeInset?: SafeInset; debugDir?: string } {
+): {
+  configDir: string;
+  log: (msg: string) => void;
+  onFrame?: OnFrameHook;
+  brand?: Brand;
+  safeInset?: SafeInset;
+  debugDir?: string;
+} {
   if (configDirOrOpts != null && typeof configDirOrOpts === "object") {
     return {
       configDir: configDirOrOpts.configDir ?? process.cwd(),
@@ -1146,7 +1333,12 @@ export function resolveConfigBrand(brand: AnimateConfig["brand"], configDir: str
   if (brand == null) return undefined;
   if (typeof brand === "string") return loadBrand(resolve(configDir, brand));
   const resolved: Brand = { ...brand };
-  if (resolved.logo != null && resolved.logo !== "" && !isAbsolute(resolved.logo) && !/^https?:\/\//i.test(resolved.logo)) {
+  if (
+    resolved.logo != null &&
+    resolved.logo !== "" &&
+    !isAbsolute(resolved.logo) &&
+    !/^https?:\/\//i.test(resolved.logo)
+  ) {
     resolved.logo = resolve(configDir, resolved.logo);
   }
   return resolved;
@@ -1283,7 +1475,9 @@ async function renderTemplateFrames(
 
     const fit = fc.fit ?? "center";
     if (fit === "center" && (result.width > cfg.width || result.height > cfg.height)) {
-      log(`  note: template output ${result.width}×${result.height} exceeds the ${cfg.width}×${cfg.height} canvas — it will be centered and clipped (set "fit":"contain" to scale it down)`);
+      log(
+        `  note: template output ${result.width}×${result.height} exceeds the ${cfg.width}×${cfg.height} canvas — it will be centered and clipped (set "fit":"contain" to scale it down)`,
+      );
     }
 
     // DM-1294: resolve the frame's duration. When the author omitted it, inherit
@@ -1293,12 +1487,16 @@ async function renderTemplateFrames(
     // rule as a `cast` frame).
     if (fc.duration <= 0) {
       if (result.durationMs == null) {
-        throw new Error(`animate: frames[${i}].duration: template "${name}" has no intrinsic play time (it's a static template) — set an explicit "duration"`);
+        throw new Error(
+          `animate: frames[${i}].duration: template "${name}" has no intrinsic play time (it's a static template) — set an explicit "duration"`,
+        );
       }
       fc.duration = result.durationMs;
       log(`  frame duration defaulted to the template's play time: ${result.durationMs}ms`);
     } else if (result.durationMs != null && fc.duration < result.durationMs) {
-      log(`  note: frame duration ${fc.duration}ms < template play time ${result.durationMs}ms — the template will be cut off; size duration to ≈ ${result.durationMs}ms`);
+      log(
+        `  note: frame duration ${fc.duration}ms < template play time ${result.durationMs}ms — the template will be cut off; size duration to ≈ ${result.durationMs}ms`,
+      );
     }
 
     // Namespace the template's document-global names (ids, font families, frame
@@ -1344,16 +1542,27 @@ async function buildCastFrame(
   // composed WITHOUT its own font CSS — it defers to that block. The cast
   // renders via the chosen mode (incremental by default).
   const { svg: castSvg, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
-    theme: t.theme, mode: t.mode, cursor: t.cursor, cursorColor: t.cursorColor,
-    fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
-    cols: t.cols, rows: t.rows,
-    settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
+    theme: t.theme,
+    mode: t.mode,
+    cursor: t.cursor,
+    cursorColor: t.cursorColor,
+    fontSize: t.fontSize,
+    fontFamily: t.fontFamily,
+    padding: t.padding,
+    cols: t.cols,
+    rows: t.rows,
+    settleMs: t.settleMs,
+    minFrameMs: t.minFrameMs,
+    maxFrameMs: t.maxFrameMs,
+    tailMs: t.tailMs,
     manageFonts: false,
     realText: cfg.realText === true,
     log: (m) => log(`  ${m}`),
   });
   if (fc.duration < totalDurationMs) {
-    log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
+    log(
+      `  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`,
+    );
   }
   // DM-1292: the cast SVG is a full `generateAnimatedSvg` document, so its
   // document-global names (ids, `.f-N` frame classes + `@keyframes fv-N` in
@@ -1463,7 +1672,17 @@ async function buildLiveCapturedFrame(
   navigation: LiveFrameNavigation,
   ctx: CapturedFrameContext,
 ): Promise<{ frame: AnimationFrame; frameTree: CapturedElement[] | null; rootBg: string | undefined }> {
-  const { page, cfg, configDir, log, tracker, cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes } = ctx;
+  const {
+    page,
+    cfg,
+    configDir,
+    log,
+    tracker,
+    cursorAuto,
+    explicitCursorEvents,
+    autoCursorTargets,
+    explicitCursorBoxes,
+  } = ctx;
   // The captured root background of this frame (the caller stamps it onto the
   // composed canvas only for frame 0 — see DM-893); computed in both the scroll
   // and capture branches below.
@@ -1490,7 +1709,8 @@ async function buildLiveCapturedFrame(
   });
   await discoverAndRegisterWebfonts(page, tracker.urls);
   if (fc.scrollTo != null) {
-    const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
+    const sx = fc.scrollTo[0],
+      sy = fc.scrollTo[1];
     await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
   }
   // DM-851 §6: for `cursor: "auto"`, record each interaction target's
@@ -1516,7 +1736,8 @@ async function buildLiveCapturedFrame(
   for (const ev of explicitCursorEvents) {
     if (ev.frame === i && ev.selector != null) {
       const c = await queryCursorBox(page, ev.selector);
-      if (c == null) throw new Error(`animate: cursor.events selector "${ev.selector}" matched no element in frame ${i}`);
+      if (c == null)
+        throw new Error(`animate: cursor.events selector "${ev.selector}" matched no element in frame ${i}`);
       explicitCursorBoxes.set(`${i}:${ev.selector}`, c);
     }
   }
@@ -1612,14 +1833,19 @@ async function buildLiveCapturedFrame(
     // cast block), so magic-move to/from it falls back to crossfade.
     const spec = resolveTypeResampleSpec(fc.typeResample);
     const res = await buildTypeResampleAnimation(page, spec, {
-      width: cfg.width, height: cfg.height, framePrefix: `tr${i}_`, log,
+      width: cfg.width,
+      height: cfg.height,
+      framePrefix: `tr${i}_`,
+      log,
     });
     svgContent = res.svgContent;
     frameCullCss = "";
     rootBg = res.rootBg;
     embeddedAnimationPeriodMs = res.periodMs;
     if (fc.duration < res.periodMs) {
-      log(`  note: frame duration ${fc.duration}ms < type-resample play time ${res.periodMs}ms — the typing will be cut off; size duration to ≈ ${res.periodMs}ms`);
+      log(
+        `  note: frame duration ${fc.duration}ms < type-resample play time ${res.periodMs}ms — the typing will be cut off; size duration to ≈ ${res.periodMs}ms`,
+      );
     }
   } else if (fc.jsReveal != null) {
     // DM-1564 (docs/94 option 3): dispatch a pointer event, observe the page's
@@ -1628,7 +1854,10 @@ async function buildLiveCapturedFrame(
     // tree (like a scroll / cast block), so magic-move to/from it crossfades.
     const spec = resolveJsRevealSpec(fc.jsReveal);
     const res = await buildJsRevealAnimation(page, spec, {
-      width: cfg.width, height: cfg.height, framePrefix: `jr${i}_`, log,
+      width: cfg.width,
+      height: cfg.height,
+      framePrefix: `jr${i}_`,
+      log,
       realText: cfg.realText === true,
     });
     svgContent = res.svgContent;
@@ -1636,7 +1865,9 @@ async function buildLiveCapturedFrame(
     rootBg = res.rootBg;
     embeddedAnimationPeriodMs = res.periodMs;
     if (fc.duration < res.periodMs) {
-      log(`  note: frame duration ${fc.duration}ms < jsReveal play time ${res.periodMs}ms — the reveal will be cut off; size duration to ≈ ${res.periodMs}ms`);
+      log(
+        `  note: frame duration ${fc.duration}ms < jsReveal play time ${res.periodMs}ms — the reveal will be cut off; size duration to ≈ ${res.periodMs}ms`,
+      );
     }
   } else if (fc.states != null) {
     // DM-1747 (docs/100 Primitive 1): compressed editing run. Each state runs
@@ -1655,7 +1886,9 @@ async function buildLiveCapturedFrame(
     // state's own page inside the run and re-based onto this frame's timeline.
     stateOverlays = res.overlays;
     if (fc.duration < res.periodMs) {
-      log(`  note: frame duration ${fc.duration}ms < compressed-run play time ${res.periodMs}ms — the run will be cut off; size duration to ≈ ${res.periodMs}ms`);
+      log(
+        `  note: frame duration ${fc.duration}ms < compressed-run play time ${res.periodMs}ms — the run will be cut off; size duration to ≈ ${res.periodMs}ms`,
+      );
     }
   } else if (fc.scroll != null) {
     // DM-612: scroll-demo block. Run the executor against the loaded
@@ -1671,7 +1904,10 @@ async function buildLiveCapturedFrame(
       selector: fc.scroll.selector,
       captureSelector: fc.selector ?? "body",
       captureViewport: {
-        x: scrollClip[0], y: scrollClip[1], width: scrollClip[2], height: scrollClip[3],
+        x: scrollClip[0],
+        y: scrollClip[1],
+        width: scrollClip[2],
+        height: scrollClip[3],
       },
       viewportW: scrollClip[2],
       viewportH: scrollClip[3],
@@ -1693,14 +1929,21 @@ async function buildLiveCapturedFrame(
     const outerGeneration = snapshotGeneration();
     let composed: string;
     try {
-      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3], realText: cfg.realText === true, renderText: getRenderTextMode() });
+      composed = composeScrollSvg(segments, {
+        viewportW: scrollClip[2],
+        viewportH: scrollClip[3],
+        realText: cfg.realText === true,
+        renderText: getRenderTextMode(),
+      });
     } finally {
       restoreGeneration(outerGeneration);
     }
     composed = namespaceEmbeddedAnimatedSvg(composed, `sf${i}_`);
     embeddedAnimationPeriodMs = Math.max(segments[segments.length - 1]?.segmentEndMs ?? 0, 1);
     if (fc.duration < embeddedAnimationPeriodMs) {
-      log(`  note: frame duration ${fc.duration}ms < scroll play time ${embeddedAnimationPeriodMs}ms — the scroll will be cut off; size duration to ≈ ${embeddedAnimationPeriodMs}ms`);
+      log(
+        `  note: frame duration ${fc.duration}ms < scroll play time ${embeddedAnimationPeriodMs}ms — the scroll will be cut off; size duration to ≈ ${embeddedAnimationPeriodMs}ms`,
+      );
     }
     // The composer emits a full `<?xml ...><svg>...</svg>` document. The
     // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
@@ -1738,7 +1981,9 @@ async function buildLiveCapturedFrame(
     // `AnimationConfig.textTracks`.
     if (fc.textTracks != null && fc.textTracks.length > 0) {
       for (let k = 0; k < fc.textTracks.length; k++) {
-        ctx.textTracks.push(resolveTextTrack(captured.tree, configTextTrackSpec(fc.textTracks[k], i, k, frameStartMs, fc.duration)));
+        ctx.textTracks.push(
+          resolveTextTrack(captured.tree, configTextTrackSpec(fc.textTracks[k], i, k, frameStartMs, fc.duration)),
+        );
       }
     }
   }
@@ -1751,9 +1996,7 @@ async function buildLiveCapturedFrame(
   // against their own state's page (`buildStatesRunContent`), so they join the
   // list AFTER the frame-level ones — declaration order is paint order, and a
   // frame-level overlay spans the whole run while a state's is bounded to it.
-  const allOverlays = stateOverlays != null
-    ? [...(anchoredOverlays ?? []), ...stateOverlays]
-    : anchoredOverlays;
+  const allOverlays = stateOverlays != null ? [...(anchoredOverlays ?? []), ...stateOverlays] : anchoredOverlays;
   // Resolve SVG-kind overlays: read each `src` from disk, namespace its
   // ids, and replace with `innerSvg`. Other overlay kinds pass through
   // verbatim. (DM-210.)
@@ -1852,13 +2095,14 @@ function indexRegionRoots(tree: CapturedElement[], ids: ReadonlySet<string>): Ma
  *  declared region's subtree from the capture holding that region's own state.
  *  Every spliced subtree is cloned, so the assembled trees never alias. */
 function spliceRegionSubtrees(base: CapturedElement[], sources: Map<string, CapturedElement>): CapturedElement[] {
-  const walk = (els: CapturedElement[]): CapturedElement[] => els.map((el) => {
-    const id = el.animId;
-    const src = id != null ? sources.get(id) : undefined;
-    if (src != null) return structuredClone(src);
-    if (el.children.length === 0) return el;
-    return { ...el, children: walk(el.children) };
-  });
+  const walk = (els: CapturedElement[]): CapturedElement[] =>
+    els.map((el) => {
+      const id = el.animId;
+      const src = id != null ? sources.get(id) : undefined;
+      if (src != null) return structuredClone(src);
+      if (el.children.length === 0) return el;
+      return { ...el, children: walk(el.children) };
+    });
   return walk(base);
 }
 
@@ -1868,11 +2112,12 @@ function spliceRegionSubtrees(base: CapturedElement[], sources: Map<string, Capt
  *  moved something outside itself (or another region) breaks it, and it is
  *  cheaper and far more legible to catch that here than to ship wrong pixels. */
 function outsideRegionsKey(tree: CapturedElement[], ids: ReadonlySet<string>): string {
-  const mask = (els: CapturedElement[]): unknown[] => els.map((el) => {
-    const id = el.animId;
-    if (id != null && ids.has(id)) return { region: id };
-    return { ...el, children: mask(el.children) };
-  });
+  const mask = (els: CapturedElement[]): unknown[] =>
+    els.map((el) => {
+      const id = el.animId;
+      if (id != null && ids.has(id)) return { region: id };
+      return { ...el, children: mask(el.children) };
+    });
   return JSON.stringify(mask(tree));
 }
 
@@ -1915,7 +2160,9 @@ export function assembleRegionStateTrees(
   for (let r = 0; r < rootsByRound.length; r++) {
     for (const [name, id] of regionIdByName) {
       if (!rootsByRound[r].has(id)) {
-        throw new Error(`animate: ${framePath}.regions.${name} — the region's element is missing from capture round ${r}; its subtree was replaced without keeping the element itself`);
+        throw new Error(
+          `animate: ${framePath}.regions.${name} — the region's element is missing from capture round ${r}; its subtree was replaced without keeping the element itself`,
+        );
       }
     }
   }
@@ -1924,10 +2171,10 @@ export function assembleRegionStateTrees(
     const roundKey = outsideRegionsKey(roundTrees[r], ids);
     if (roundKey !== baseKey) {
       throw new Error(
-        `animate: ${framePath} declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared `
-        + `regions between capture round 0 and round ${r} — each state's tree is assembled from the round holding each `
-        + `region's own state, so anything that changes must live inside a declared region. Declare the changing element `
-        + `in \`regions\`, or drop \`advances\` to capture every state whole; ${firstKeyDifference(baseKey, roundKey)}.`,
+        `animate: ${framePath} declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared ` +
+          `regions between capture round 0 and round ${r} — each state's tree is assembled from the round holding each ` +
+          `region's own state, so anything that changes must live inside a declared region. Declare the changing element ` +
+          `in \`regions\`, or drop \`advances\` to capture every state whole; ${firstKeyDifference(baseKey, roundKey)}.`,
       );
     }
   }
@@ -1988,19 +2235,20 @@ async function captureStatesRun(
     // clobber each other's stamp, leaving one region with no root at all. Read
     // the stamps back and name the colliding pair instead.
     const stamps = await page.evaluate(
-      (args: { selectors: string[] }) => args.selectors.map((s) => {
-        const el = document.querySelector(s);
-        return el instanceof HTMLElement ? (el.dataset.domotionAnim ?? "") : "";
-      }),
+      (args: { selectors: string[] }) =>
+        args.selectors.map((s) => {
+          const el = document.querySelector(s);
+          return el instanceof HTMLElement ? (el.dataset.domotionAnim ?? "") : "";
+        }),
       { selectors: regionNames.map((n) => fc.regions![n]) },
     );
     for (let k = 0; k < regionNames.length; k++) {
       if (stamps[k] === regionIdOf(regionNames[k])) continue;
       const other = regionNames[regionIds.indexOf(stamps[k])] ?? "another region";
       throw new Error(
-        `animate: frames[${i}].regions.${regionNames[k]} and .${other} resolve to the SAME element `
-        + `("${fc.regions![regionNames[k]]}" and "${fc.regions![other] ?? "?"}") — each region must name a distinct element, `
-        + `since a region is the unit a state advances independently.`,
+        `animate: frames[${i}].regions.${regionNames[k]} and .${other} resolve to the SAME element ` +
+          `("${fc.regions![regionNames[k]]}" and "${fc.regions![other] ?? "?"}") — each region must name a distinct element, ` +
+          `since a region is the unit a state advances independently.`,
       );
     }
   };
@@ -2019,7 +2267,10 @@ async function captureStatesRun(
     if (perRegionTiming) await stampAnchorTargets();
     // Self-contained, as above — the compressed-run state path captures its own trees.
     const tree = await captureElementTreeSelfContained(page, fc.selector ?? "body", {
-      x: 0, y: 0, width: cfg.width, height: cfg.height,
+      x: 0,
+      y: 0,
+      width: cfg.width,
+      height: cfg.height,
     });
     cullElementsOutsideViewBox(tree, cfg.width, cfg.height, undefined, 0, 1);
     return tree;
@@ -2035,7 +2286,10 @@ async function captureStatesRun(
   const stateOffsets: number[] = [];
   {
     let t = 0;
-    for (const st of stateCfgs) { stateOffsets.push(t); t += st.duration; }
+    for (const st of stateCfgs) {
+      stateOffsets.push(t);
+      t += st.duration;
+    }
   }
   // Bucketed per state, then flattened in STATE order — with per-region timing
   // the capture rounds visit states out of order, and an overlay's position in
@@ -2050,7 +2304,11 @@ async function captureStatesRun(
       // it bounds the overlay inside the state; without one the state's own
       // hold is the window. Either way the result can never outlive the state.
       const endAt = start + Math.min(ov.endAt ?? hold, hold);
-      overlayBuckets[j].push({ ...ov, delay: (ov.delay ?? OVERLAY_DEFAULT_DELAY_MS[ov.kind]) + start, endAt } as OverlayInput);
+      overlayBuckets[j].push({
+        ...ov,
+        delay: (ov.delay ?? OVERLAY_DEFAULT_DELAY_MS[ov.kind]) + start,
+        endAt,
+      } as OverlayInput);
     }
   };
   const collectStateOverlays = async (j: number): Promise<void> => {
@@ -2072,16 +2330,23 @@ async function captureStatesRun(
   // each state when it is captured, so page resolution is already exact, it is
   // what every shipped golden was measured under, and it can see things the
   // tree cannot (anything capture drops).
-  const anchorSelectors = [...new Set(
-    stateCfgs.flatMap((st) => (st.overlays ?? []).map((ov) => ov.anchor?.selector).filter((sel): sel is string => sel != null)),
-  )];
+  const anchorSelectors = [
+    ...new Set(
+      stateCfgs.flatMap((st) =>
+        (st.overlays ?? []).map((ov) => ov.anchor?.selector).filter((sel): sel is string => sel != null),
+      ),
+    ),
+  ];
   const anchorAnimId = (sel: string): string => `f${i}ova${anchorSelectors.indexOf(sel)}`;
   const stampAnchorTargets = async (): Promise<void> => {
     for (const sel of anchorSelectors) {
       const matched = await page.evaluate(
         (args: { selector: string; animId: string }) => {
           const el = document.querySelector(args.selector);
-          if (el instanceof HTMLElement) { el.dataset.domotionAnim = args.animId; return true; }
+          if (el instanceof HTMLElement) {
+            el.dataset.domotionAnim = args.animId;
+            return true;
+          }
           return false;
         },
         { selector: sel, animId: anchorAnimId(sel) },
@@ -2092,8 +2357,10 @@ async function captureStatesRun(
 
   const states: CompressedRunState[] = [];
   if (plan != null) {
-    log(`  states: ${stateCfgs.length} states over ${regionNames.length} region${regionNames.length === 1 ? "" : "s"} `
-      + `→ ${plan.rounds.length} whole-page capture${plan.rounds.length === 1 ? "" : "s"} (per-region timing; ${stateCfgs.length} without it)…`);
+    log(
+      `  states: ${stateCfgs.length} states over ${regionNames.length} region${regionNames.length === 1 ? "" : "s"} ` +
+        `→ ${plan.rounds.length} whole-page capture${plan.rounds.length === 1 ? "" : "s"} (per-region timing; ${stateCfgs.length} without it)…`,
+    );
     const roundTrees: CapturedElement[][] = [];
     for (let r = 0; r < plan.rounds.length; r++) {
       for (const s of plan.rounds[r]) {
@@ -2115,7 +2382,9 @@ async function captureStatesRun(
       const authored = stateCfgs[s].overlays;
       if (authored != null && authored.length > 0) {
         const resolved = resolveAnchoredOverlaysInTree(
-          assembled[s], authored, (sel) => anchorAnimId(sel),
+          assembled[s],
+          authored,
+          (sel) => anchorAnimId(sel),
           (kind) => `animate: frames[${i}].states[${s}] ${kind} overlay`,
         );
         if (resolved != null) bucketStateOverlays(s, resolved);
@@ -2123,7 +2392,9 @@ async function captureStatesRun(
     }
     for (let s = 0; s < stateCfgs.length; s++) states.push({ tree: assembled[s], holdMs: stateCfgs[s].duration });
   } else {
-    log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);
+    log(
+      `  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`,
+    );
     for (let j = 0; j < stateCfgs.length; j++) {
       const st = stateCfgs[j];
       // State 0 is the frame's own post-`actions` state; each state's own
@@ -2228,7 +2499,8 @@ function guardStatesRunSize(
       const demote: string[] = [];
       for (const region of run.regions) {
         const marker = snapshotGeneration();
-        const shrank = composeCompressedRun(states, { ...baseOpts, demotedRegions: [region] }).svg.length < run.svg.length;
+        const shrank =
+          composeCompressedRun(states, { ...baseOpts, demotedRegions: [region] }).svg.length < run.svg.length;
         restoreGeneration(marker);
         if (shrank) demote.push(region);
       }
@@ -2241,7 +2513,15 @@ function guardStatesRunSize(
         restoreGeneration(marker);
       }
       const fbMarker = snapshotGeneration();
-      const flipbookLen = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg, cfg.realText === true).svg.length;
+      const flipbookLen = composeStatesFlipbook(
+        cloneTrees(),
+        holds,
+        cfg.width,
+        cfg.height,
+        `cr${i}`,
+        rootBg,
+        cfg.realText === true,
+      ).svg.length;
       restoreGeneration(fbMarker);
 
       // Pick the smallest; keep-all wins ties (never rewrite when nothing helps),
@@ -2249,14 +2529,27 @@ function guardStatesRunSize(
       if (demotedLen <= flipbookLen && demotedLen < run.svg.length) {
         restoreGeneration(preRun);
         const chosen = composeCompressedRun(states, { ...baseOpts, demotedRegions: demote });
-        const scope = demote.length === run.regions.length ? "all regions" : `${demote.length}/${run.regions.length} regions`;
-        log(`  auto-compress: demoting ${scope} into the chrome union — compressing kept them ${pct} larger than uncompressed (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); demoted is ${toKb(chosen.svg.length)} KB`);
+        const scope =
+          demote.length === run.regions.length ? "all regions" : `${demote.length}/${run.regions.length} regions`;
+        log(
+          `  auto-compress: demoting ${scope} into the chrome union — compressing kept them ${pct} larger than uncompressed (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); demoted is ${toKb(chosen.svg.length)} KB`,
+        );
         svg = chosen.svg;
         periodMs = chosen.durationMs;
       } else if (flipbookLen < run.svg.length) {
         restoreGeneration(preRun);
-        const fb = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg, cfg.realText === true);
-        log(`  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); uncompressed is ${toKb(fb.svg.length)} KB`);
+        const fb = composeStatesFlipbook(
+          cloneTrees(),
+          holds,
+          cfg.width,
+          cfg.height,
+          `cr${i}`,
+          rootBg,
+          cfg.realText === true,
+        );
+        log(
+          `  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); uncompressed is ${toKb(fb.svg.length)} KB`,
+        );
         svg = fb.svg;
         periodMs = fb.durationMs;
       }
@@ -2266,7 +2559,9 @@ function guardStatesRunSize(
       // `compress: true` marker). Same contract as the marker's hard error:
       // don't silently rewrite what they wrote — say it, and point at the
       // opt-out.
-      log(`  note: this compressed run is ${pct} LARGER than the same states rendered uncompressed (${(rawBytes / 1024).toFixed(1)} KB → ${(compressedBytes / 1024).toFixed(1)} KB, only ${(run.pairingStats.pairedPct * 100).toFixed(1)}% of glyphs paired) — its states share too little to pair; drop the run or set \`compress: false\``);
+      log(
+        `  note: this compressed run is ${pct} LARGER than the same states rendered uncompressed (${(rawBytes / 1024).toFixed(1)} KB → ${(compressedBytes / 1024).toFixed(1)} KB, only ${(run.pairingStats.pairedPct * 100).toFixed(1)}% of glyphs paired) — its states share too little to pair; drop the run or set \`compress: false\``,
+      );
     }
   }
   // Namespace the run's document-global names (ids, classes, @keyframes) so
@@ -2355,7 +2650,10 @@ export function composeStatesFlipbook(
   const starts: number[] = [];
   {
     let acc = 0;
-    for (const ms of holdMs) { starts.push(acc); acc += ms; }
+    for (const ms of holdMs) {
+      starts.push(acc);
+      acc += ms;
+    }
   }
   const pct = (ms: number): string => `${Number(Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(4))}%`;
   const kf: string[] = [];
@@ -2369,14 +2667,17 @@ export function composeStatesFlipbook(
     stops.push(`100%{display:${j === last ? "inline" : "none"}}`);
     kf.push(`@keyframes ${idPrefix}fb${j}{${stops.join("")}}`);
     rules.push(`#${idPrefix}fb${j}{animation:${idPrefix}fb${j} ${(totalMs / 1000).toFixed(3)}s step-end infinite}`);
-    const renderState = (): string => elementTreeToSvgInner(trees[j], width, height, `${idPrefix}s${j}-`, true, 2, false);
+    const renderState = (): string =>
+      elementTreeToSvgInner(trees[j], width, height, `${idPrefix}s${j}-`, true, 2, false);
     const stateInner = realText ? withRealTextLayerVisualSemantics(renderState) : renderState();
     groups.push(`<g id="${idPrefix}fb${j}">${stateInner}</g>`);
   }
   const realTextLayer = realText && trees.length > 0 ? renderRealTextLayer(trees[last]) : "";
-  const bgRect = background != null ? `<rect width="${width}" height="${height}" fill="${escapeAttr(background)}"/>` : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${kf.join("")}${rules.join("")}</style>${bgRect}${groups.join("")}${realTextLayer}</svg>`;
+  const bgRect =
+    background != null ? `<rect width="${width}" height="${height}" fill="${escapeAttr(background)}"/>` : "";
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<style>${kf.join("")}${rules.join("")}</style>${bgRect}${groups.join("")}${realTextLayer}</svg>`;
   return { svg, durationMs: totalMs };
 }
 
@@ -2397,19 +2698,27 @@ export function composeStatesFlipbook(
  * the final-state scan leaves the caret hidden / selection cleared. Pure —
  * exported for unit tests.
  */
-export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackIdx: number, frameStartMs: number, frameDurationMs: number): TextTrackSpec {
+export function configTextTrackSpec(
+  tt: TextTrackInput,
+  frameIdx: number,
+  trackIdx: number,
+  frameStartMs: number,
+  frameDurationMs: number,
+): TextTrackSpec {
   const events: TextTrackSpecEvent[] = tt.events.map((ev, j) => {
     const t = frameStartMs + ev.at;
-    const override = "selector" in ev && ev.selector != null
-      ? { target: { animId: `f${frameIdx}tt${trackIdx}e${j}` } }
-      : {};
+    const override =
+      "selector" in ev && ev.selector != null ? { target: { animId: `f${frameIdx}tt${trackIdx}e${j}` } } : {};
     switch (ev.type) {
       case "park":
       case "move":
         return { type: ev.type, t, charOffset: ev.charOffset, ...override };
       case "select":
         return {
-          type: "select", t, charStart: ev.charStart, charEnd: ev.charEnd,
+          type: "select",
+          t,
+          charStart: ev.charStart,
+          charEnd: ev.charEnd,
           ...(ev.sweepMs != null ? { sweepMs: ev.sweepMs } : {}),
           ...(ev.color != null ? { color: ev.color } : {}),
           ...override,
@@ -2618,7 +2927,9 @@ export async function composeAnimateFrames(
     const frameStartsMs = frameTimeline.frames.map((window) => window.startMs);
     for (const ev of explicitCursorEvents) {
       if (ev.frame >= cfg.frames.length) {
-        throw new Error(`animate: cursor.events references frame ${ev.frame}, but there are only ${cfg.frames.length} frames`);
+        throw new Error(
+          `animate: cursor.events references frame ${ev.frame}, but there are only ${cfg.frames.length} frames`,
+        );
       }
     }
 
@@ -2628,9 +2939,17 @@ export async function composeAnimateFrames(
 
     // DM-1379: the per-frame loop state `buildCapturedFrame` reads/appends to.
     const capturedCtx: CapturedFrameContext = {
-      page, cfg, configDir, log, tracker,
-      cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes,
-      textTracks, timeline: frameTimeline,
+      page,
+      cfg,
+      configDir,
+      log,
+      tracker,
+      cursorAuto,
+      explicitCursorEvents,
+      autoCursorTargets,
+      explicitCursorBoxes,
+      textTracks,
+      timeline: frameTimeline,
     };
 
     for (let i = 0; i < cfg.frames.length; i++) {
@@ -2647,9 +2966,15 @@ export async function composeAnimateFrames(
         frames.push(built.frame);
         if (debugDir != null) {
           await writeEmbeddedAnimateDebugFrame({
-            debugDir, index: i, frameCount: cfg.frames.length,
-            width: cfg.width, height: cfg.height, tree: null, log,
-            sessionPage: page, svgContent: built.frame.svgContent,
+            debugDir,
+            index: i,
+            frameCount: cfg.frames.length,
+            width: cfg.width,
+            height: cfg.height,
+            tree: null,
+            log,
+            sessionPage: page,
+            svgContent: built.frame.svgContent,
             fontFaceCss: getEmbeddedFontFaceCss(),
           });
         }
@@ -2665,8 +2990,14 @@ export async function composeAnimateFrames(
 
       if (debugDir != null) {
         await writeLiveAnimateDebugFrame({
-          debugDir, index: i, frameCount: cfg.frames.length,
-          width: cfg.width, height: cfg.height, tree: frameTree, log, page,
+          debugDir,
+          index: i,
+          frameCount: cfg.frames.length,
+          width: cfg.width,
+          height: cfg.height,
+          tree: frameTree,
+          log,
+          page,
         });
       }
 
@@ -2694,16 +3025,26 @@ export async function composeAnimateFrames(
         // the transient bridge list.
         const bridgeEnvelope = createCapturedTreeEnvelope(frameTree);
         frames[i - 1].magicMove = buildMagicMove(
-          prevFrameTree, frameTree,
-          (roots, prefix) => elementTreeToSvgInner({
-            ...bridgeEnvelope,
-            tree: roots.map((root) => {
-              if (root.sessionGenericFamilies == null) return root;
-              const copy = { ...root };
-              delete copy.sessionGenericFamilies;
-              return copy;
-            }),
-          }, cfg.width, cfg.height, prefix, true, 2, false),
+          prevFrameTree,
+          frameTree,
+          (roots, prefix) =>
+            elementTreeToSvgInner(
+              {
+                ...bridgeEnvelope,
+                tree: roots.map((root) => {
+                  if (root.sessionGenericFamilies == null) return root;
+                  const copy = { ...root };
+                  delete copy.sessionGenericFamilies;
+                  return copy;
+                }),
+              },
+              cfg.width,
+              cfg.height,
+              prefix,
+              true,
+              2,
+              false,
+            ),
           `mm${i - 1}-`,
         );
       }
@@ -2714,7 +3055,13 @@ export async function composeAnimateFrames(
     // frame timeline. Move events carry absolute `to` coords (selectors already
     // resolved during capture), so no resolveSelector callback is needed.
     const cursorOverlay = buildCursorOverlay(
-      cursorAuto, explicitCursorEvents, cursorStyleCfg, autoCursorTargets, explicitCursorBoxes, frameStartsMs, cfg.frames,
+      cursorAuto,
+      explicitCursorEvents,
+      cursorStyleCfg,
+      autoCursorTargets,
+      explicitCursorBoxes,
+      frameStartsMs,
+      cfg.frames,
     );
     // DM-1106: hit-test the cursor TYPE under each pointer position against the
     // frame's captured tree, so the overlay paints the matching glyph (hand over
@@ -2728,7 +3075,13 @@ export async function composeAnimateFrames(
     // DM-1137: return the assembled config instead of rendering it here — the
     // render lives in `composeAnimateConfig` so callers can mutate frames first.
     return {
-      width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg,
+      width: cfg.width,
+      height: cfg.height,
+      frames,
+      fontFaceCss,
+      cursorOverlay,
+      resolveCursorAt,
+      background: canvasBg,
       // DM-1747 (docs/101): declarative caret/selection tracks resolved during
       // capture. Omitted when none are declared (byte-identical output).
       ...(textTracks.length > 0 ? { textTracks } : {}),
@@ -2782,32 +3135,56 @@ export async function composeAnimateConfig(
  * selector that matches nothing), surfacing the bug rather than silently
  * skipping.
  */
-export async function runActions(page: Page, actions: AnimateAction[], log: (msg: string) => void = () => {}): Promise<void> {
+export async function runActions(
+  page: Page,
+  actions: AnimateAction[],
+  log: (msg: string) => void = () => {},
+): Promise<void> {
   for (const a of actions) {
     switch (a.type) {
       // Playwright-native interactions (handle actionability + waiting).
-      case "click":        await page.click(a.selector); break;
-      case "fill":         await page.fill(a.selector, a.value); break;
-      case "press":        await page.keyboard.press(a.key); break;
-      case "hover":        await page.hover(a.selector); break;
-      case "focus":        await page.focus(a.selector); break;
-      case "selectOption": await page.selectOption(a.selector, a.value); break;
-      case "scroll":       await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [a.x ?? 0, a.y ?? 0]); break;
-      case "wait":         await page.waitForTimeout(a.ms); break;
+      case "click":
+        await page.click(a.selector);
+        break;
+      case "fill":
+        await page.fill(a.selector, a.value);
+        break;
+      case "press":
+        await page.keyboard.press(a.key);
+        break;
+      case "hover":
+        await page.hover(a.selector);
+        break;
+      case "focus":
+        await page.focus(a.selector);
+        break;
+      case "selectOption":
+        await page.selectOption(a.selector, a.value);
+        break;
+      case "scroll":
+        await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [a.x ?? 0, a.y ?? 0]);
+        break;
+      case "wait":
+        await page.waitForTimeout(a.ms);
+        break;
       case "evaluate": {
         // DM-853 §8: last resort. Nudge toward declarative actions / the API
         // once a snippet outgrows a line or two, but don't block it.
         const EVALUATE_NUDGE_MAX_CHARS = 200;
         const EVALUATE_NUDGE_MAX_LINES = 2;
         if (a.script.length > EVALUATE_NUDGE_MAX_CHARS || a.script.split("\n").length > EVALUATE_NUDGE_MAX_LINES) {
-          log(`  warning: evaluate script is ${a.script.length} chars / ${a.script.split("\n").length} lines — more than a line or two means you've outgrown the config; consider the declarative actions or the programmatic API`);
+          log(
+            `  warning: evaluate script is ${a.script.length} chars / ${a.script.split("\n").length} lines — more than a line or two means you've outgrown the config; consider the declarative actions or the programmatic API`,
+          );
         }
         await page.evaluate(a.script);
         break;
       }
       // DM-847 §2 + DM-848 §3: DOM mutations and the remaining interactions run
       // in page context against all matched elements.
-      default: await applyDomAction(page, a); break;
+      default:
+        await applyDomAction(page, a);
+        break;
     }
   }
 }
@@ -2866,18 +3243,20 @@ export async function applyForcedPseudoStates(
     entry.rootNodeId = root.nodeId;
   }
   for (const fs of forceState) {
-    const { nodeIds } = await entry.session.send("DOM.querySelectorAll", { nodeId: entry.rootNodeId, selector: fs.selector });
+    const { nodeIds } = await entry.session.send("DOM.querySelectorAll", {
+      nodeId: entry.rootNodeId,
+      selector: fs.selector,
+    });
     if (nodeIds.length === 0) {
       throw new Error(`animate: forceState selector "${fs.selector}" matched no element`);
     }
     // `reset: true` clears the override by re-issuing an EMPTY forced-class list.
-    const forcedPseudoClasses = fs.reset === true ? [] : fs.states ?? [];
+    const forcedPseudoClasses = fs.reset === true ? [] : (fs.states ?? []);
     for (const nodeId of nodeIds) {
       await entry.session.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses });
     }
-    const label = fs.reset === true
-      ? `cleared forced state on`
-      : `forced ${forcedPseudoClasses.map((s) => `:${s}`).join("")} on`;
+    const label =
+      fs.reset === true ? `cleared forced state on` : `forced ${forcedPseudoClasses.map((s) => `:${s}`).join("")} on`;
     log(`  ${label} "${fs.selector}" (${nodeIds.length} element${nodeIds.length === 1 ? "" : "s"})`);
   }
 }
@@ -2934,22 +3313,54 @@ async function applyDomAction(page: Page, action: AnimateAction): Promise<void> 
     const els = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
     for (const h of els) {
       switch (a.type) {
-        case "setText":         h.textContent = a.value; break;
-        case "setHtml":         h.innerHTML = a.value; break;
-        case "remove":          h.remove(); break;
-        case "setAttribute":    h.setAttribute(a.name, a.value); break;
-        case "removeAttribute": h.removeAttribute(a.name); break;
-        case "addClass":        h.classList.add(a.class); break;
-        case "removeClass":     h.classList.remove(a.class); break;
-        case "toggleClass":     h.classList.toggle(a.class); break;
-        case "setStyle":        for (const [k, v] of Object.entries(a.props)) h.style.setProperty(k, v); break;
-        case "insert":          h.insertAdjacentHTML(a.position, a.html); break;
-        case "setValue":        (h as HTMLInputElement).value = a.value; break;
-        case "check":           (h as HTMLInputElement).checked = a.checked; break;
-        case "clear":           (h as HTMLInputElement).value = ""; break;
-        case "scrollIntoView":  h.scrollIntoView({ block: a.block ?? "center", inline: a.inline ?? "nearest" }); break;
-        case "blur":            h.blur(); break;
-        case "dispatch":        h.dispatchEvent(new Event(a.event, { bubbles: a.bubbles ?? true })); break;
+        case "setText":
+          h.textContent = a.value;
+          break;
+        case "setHtml":
+          h.innerHTML = a.value;
+          break;
+        case "remove":
+          h.remove();
+          break;
+        case "setAttribute":
+          h.setAttribute(a.name, a.value);
+          break;
+        case "removeAttribute":
+          h.removeAttribute(a.name);
+          break;
+        case "addClass":
+          h.classList.add(a.class);
+          break;
+        case "removeClass":
+          h.classList.remove(a.class);
+          break;
+        case "toggleClass":
+          h.classList.toggle(a.class);
+          break;
+        case "setStyle":
+          for (const [k, v] of Object.entries(a.props)) h.style.setProperty(k, v);
+          break;
+        case "insert":
+          h.insertAdjacentHTML(a.position, a.html);
+          break;
+        case "setValue":
+          (h as HTMLInputElement).value = a.value;
+          break;
+        case "check":
+          (h as HTMLInputElement).checked = a.checked;
+          break;
+        case "clear":
+          (h as HTMLInputElement).value = "";
+          break;
+        case "scrollIntoView":
+          h.scrollIntoView({ block: a.block ?? "center", inline: a.inline ?? "nearest" });
+          break;
+        case "blur":
+          h.blur();
+          break;
+        case "dispatch":
+          h.dispatchEvent(new Event(a.event, { bubbles: a.bubbles ?? true }));
+          break;
         case "selectText": {
           const range = document.createRange();
           range.selectNodeContents(h);
@@ -3005,7 +3416,7 @@ export function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig {
       //    cross-check that a name is declared runs at parse time, before any
       //    substitution could happen. Region SELECTORS (the map's values) are
       //    interpolated like every other selector in the config.
-      for (const [k, val] of Object.entries(v)) out[k] = (k === "vars" || k === "advances") ? val : walk(val);
+      for (const [k, val] of Object.entries(v)) out[k] = k === "vars" || k === "advances" ? val : walk(val);
       return out;
     }
     return v;
@@ -3032,7 +3443,10 @@ export function expandHoverReveal(cfg: AnimateConfig, log: (msg: string) => void
   cfg.frames.forEach((f, oldIdx) => {
     restIndexForOld[oldIdx] = newFrames.length;
     const hr = f.hoverReveal;
-    if (hr == null) { newFrames.push(f); return; }
+    if (hr == null) {
+      newFrames.push(f);
+      return;
+    }
     const origTransition = f.transition;
     const crossfadeMs = hr.crossfadeMs ?? 400;
     // Rest frame: the original frame minus the sugar, cross-fading INTO the reveal.
@@ -3082,7 +3496,10 @@ function mergeInjectedCursorEvents(
   log: (msg: string) => void,
   sugar: string,
 ): AnimateConfig["cursor"] {
-  const remap = (c: { style?: CursorStyleInput; events: CursorEventInput[] }): { style?: CursorStyleInput; events: CursorEventInput[] } => ({
+  const remap = (c: {
+    style?: CursorStyleInput;
+    events: CursorEventInput[];
+  }): { style?: CursorStyleInput; events: CursorEventInput[] } => ({
     ...c,
     events: c.events.map((e) => ({ ...e, frame: restIndexForOld[e.frame] ?? e.frame })),
   });
@@ -3090,7 +3507,9 @@ function mergeInjectedCursorEvents(
     return cursor != null && cursor !== "auto" ? remap(cursor) : cursor;
   }
   if (cursor === "auto") {
-    log(`  note: ${sugar} can't inject a cursor move under cursor:"auto" (auto derives the pointer from actions, and a forced state has none) — set an explicit cursor or "cursor": false on the ${sugar} to silence this`);
+    log(
+      `  note: ${sugar} can't inject a cursor move under cursor:"auto" (auto derives the pointer from actions, and a forced state has none) — set an explicit cursor or "cursor": false on the ${sugar} to silence this`,
+    );
     return cursor;
   }
   if (cursor == null) return { events: injected };
@@ -3126,7 +3545,10 @@ async function expandHoverDetect(
     const f = cfg.frames[oldIdx];
     restIndexForOld[oldIdx] = newFrames.length;
     const hd = f.hoverDetect;
-    if (hd == null) { newFrames.push(f); continue; }
+    if (hd == null) {
+      newFrames.push(f);
+      continue;
+    }
     const states = hd.states ?? ["hover"];
     const transitionMs = hd.transitionMs ?? 400;
 
@@ -3144,8 +3566,13 @@ async function expandHoverDetect(
       log(`Frame ${oldIdx + 1}/${cfg.frames.length}: hoverDetect probing "${hd.selector}" (${input})…`);
       await loadInputIntoPage(page, input);
       await applyReadyWaits(page, {
-        wait: f.wait ?? 200, waitFor: f.waitFor, fontsReady: true, frameIndex: oldIdx,
-        waitForText: f.waitForText, waitForGone: f.waitForGone, waitForCount: f.waitForCount,
+        wait: f.wait ?? 200,
+        waitFor: f.waitFor,
+        fontsReady: true,
+        frameIndex: oldIdx,
+        waitForText: f.waitForText,
+        waitForGone: f.waitForGone,
+        waitForCount: f.waitForCount,
       });
       const rest = await captureStyleSnapshot(page, hd.selector, HOVER_DIFF_PROPERTIES);
       await applyForcedPseudoStates(page, [{ selector: hd.selector, states }], () => {});
@@ -3157,7 +3584,9 @@ async function expandHoverDetect(
     const mode = classifyHoverTransition(diff);
 
     if (mode === "none") {
-      log(`  hoverDetect: no hover-state change detected on "${hd.selector}" — keeping the frame as rest-only (check the selector, or that the page defines a :${states.join("/:")} rule)`);
+      log(
+        `  hoverDetect: no hover-state change detected on "${hd.selector}" — keeping the frame as rest-only (check the selector, or that the page defines a :${states.join("/:")} rule)`,
+      );
       const plain: AnimateFrameCfg = { ...f };
       delete (plain as { hoverDetect?: unknown }).hoverDetect;
       newFrames.push(plain);
@@ -3182,7 +3611,9 @@ async function expandHoverDetect(
       const frame: AnimateFrameCfg = { ...f, animations: [...(f.animations ?? []), ...anims] };
       delete (frame as { hoverDetect?: unknown }).hoverDetect;
       newFrames.push(frame);
-      log(`  hoverDetect: motion-only hover on "${hd.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween`);
+      log(
+        `  hoverDetect: motion-only hover on "${hd.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween`,
+      );
     } else {
       // paint: rest + forced-hover crossfade pair (like hoverReveal).
       const origTransition = f.transition;
@@ -3252,7 +3683,11 @@ function formatConfigIssues(err: z.ZodError): string {
  * `resolveOverlays` primitive can't diverge; this wrapper only supplies the
  * frame-indexed error label.
  */
-function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined, frameIdx: number): Promise<OverlayInput[] | undefined> {
+function resolveOverlayAnchors(
+  page: Page,
+  overlays: OverlayInput[] | undefined,
+  frameIdx: number,
+): Promise<OverlayInput[] | undefined> {
   return resolveAnchoredOverlays(page, overlays, (kind) => `animate: frames[${frameIdx}] ${kind} overlay`);
 }
 
@@ -3285,12 +3720,14 @@ async function queryCursorBox(
       if (value.includes("url(")) value = value.split(",").at(-1)?.trim() ?? "default";
       if (value !== "auto") return value;
       const textInputTypes = new Set(["text", "search", "url", "tel", "email", "password", "number"]);
-      const editable = el.isContentEditable
-        || el.tagName === "TEXTAREA"
-        || (el.tagName === "INPUT" && textInputTypes.has((el.getAttribute("type") || "text").toLowerCase()));
-      const selectableText = !editable
-        && (cs.userSelect || cs.webkitUserSelect || "") !== "none"
-        && [...el.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && (node.textContent || "").trim() !== "");
+      const editable =
+        el.isContentEditable ||
+        el.tagName === "TEXTAREA" ||
+        (el.tagName === "INPUT" && textInputTypes.has((el.getAttribute("type") || "text").toLowerCase()));
+      const selectableText =
+        !editable &&
+        (cs.userSelect || cs.webkitUserSelect || "") !== "none" &&
+        [...el.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && (node.textContent || "").trim() !== "");
       if (editable || selectableText) return (cs.writingMode || "").startsWith("vertical") ? "vertical-text" : "text";
       return "default";
     }, sel);
@@ -3363,15 +3800,27 @@ export function buildCursorOverlay(
         // Single click → land at `lastHit` (just before the transition).
         // Multiple → spread across the hold so the LAST still lands at lastHit.
         const tHit = targets.length === 1 ? lastHit : start + (span * (m + 1)) / targets.length;
-        events.push({ type: "move", t: Math.max(start, tHit - moveDur), duration: moveDur, to: { x: tg.cx, y: tg.cy }, cursor: tg.cursor });
+        events.push({
+          type: "move",
+          t: Math.max(start, tHit - moveDur),
+          duration: moveDur,
+          to: { x: tg.cx, y: tg.cy },
+          cursor: tg.cursor,
+        });
         events.push({ type: "click", t: tHit });
       });
     }
   } else {
     for (const ev of explicitEvents) {
       const t = frameStarts[ev.frame] + ev.at;
-      if (ev.type === "hide") { events.push({ type: "hide", t }); continue; }
-      if (ev.type === "click") { events.push({ type: "click", t, button: ev.button }); continue; }
+      if (ev.type === "hide") {
+        events.push({ type: "hide", t });
+        continue;
+      }
+      if (ev.type === "click") {
+        events.push({ type: "click", t, button: ev.button });
+        continue;
+      }
       // move / moveClick
       let pos: { x: number; y: number } | null = null;
       if (ev.to != null) {
@@ -3429,11 +3878,15 @@ export function resolveEmbeddedFrameOverlays(
   const stripped = overlays.map((ov) => {
     let next = ov;
     if ("anchor" in next && next.anchor != null) {
-      log(`  warning: overlay anchor { selector: ${JSON.stringify(next.anchor.selector)} } is ignored on a ${frameKind} frame — it has no captured DOM to resolve a selector against. The overlay falls back to its x/y (default 0,0); set explicit "x"/"y" to position it.`);
+      log(
+        `  warning: overlay anchor { selector: ${JSON.stringify(next.anchor.selector)} } is ignored on a ${frameKind} frame — it has no captured DOM to resolve a selector against. The overlay falls back to its x/y (default 0,0); set explicit "x"/"y" to position it.`,
+      );
       next = { ...next, anchor: undefined };
     }
     if (next.kind === "typing" && next.maxWidth === "anchor") {
-      log(`  warning: typing overlay maxWidth:"anchor" is ignored on a ${frameKind} frame (no DOM); set a fixed px width instead.`);
+      log(
+        `  warning: typing overlay maxWidth:"anchor" is ignored on a ${frameKind} frame (no DOM); set a fixed px width instead.`,
+      );
       next = { ...next, maxWidth: undefined };
     }
     return next;
@@ -3441,7 +3894,11 @@ export function resolveEmbeddedFrameOverlays(
   return resolveSvgOverlays(stripped, configDir, frameIdx);
 }
 
-function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: string, frameIdx: number): AnimationOverlay[] | undefined {
+function resolveSvgOverlays(
+  overlays: OverlayInput[] | undefined,
+  configDir: string,
+  frameIdx: number,
+): AnimationOverlay[] | undefined {
   if (overlays == null) return undefined;
   const out: AnimationOverlay[] = [];
   let svgIdx = 0;
@@ -3456,9 +3913,13 @@ function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: str
       out.push({
         kind: "svg",
         innerSvg: namespaced,
-        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+        x: ov.x,
+        y: ov.y,
+        width: ov.width,
+        height: ov.height,
         animId,
-        enter: ov.enter, exit: ov.exit,
+        enter: ov.enter,
+        exit: ov.exit,
       });
     } else {
       // typing / tap / blink already match their runtime overlay shapes verbatim.

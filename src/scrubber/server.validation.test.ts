@@ -18,7 +18,10 @@ describe("scrubber server: request-body validation (DM-1065)", () => {
 
   const start = async (): Promise<ScrubberServerHandle> => {
     srv = await startScrubberServer({
-      launchBrowser: async () => { launched = true; throw new Error("STUB: browser should not be launched for an invalid request"); },
+      launchBrowser: async () => {
+        launched = true;
+        throw new Error("STUB: browser should not be launched for an invalid request");
+      },
     });
     return srv;
   };
@@ -30,13 +33,17 @@ describe("scrubber server: request-body validation (DM-1065)", () => {
   });
 
   const post = (path: string, body: string) =>
-    fetch(srv!.url.replace(/\/$/, "") + path, { method: "POST", headers: { "content-type": "application/json" }, body });
+    fetch(srv!.url.replace(/\/$/, "") + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
 
   it("rejects malformed JSON with 400 (not 500) and never launches the browser", async () => {
     await start();
     const r = await post("/timing", "{ not json");
     expect(r.status).toBe(400);
-    expect((await r.json() as { error: string }).error).toMatch(/invalid JSON/i);
+    expect(((await r.json()) as { error: string }).error).toMatch(/invalid JSON/i);
     expect(launched).toBe(false);
   });
 
@@ -57,12 +64,12 @@ describe("scrubber server: request-body validation (DM-1065)", () => {
   it("rejects non-finite / out-of-range numbers", async () => {
     await start();
     const cases: Array<[string, unknown]> = [
-      ["/export-frame", { svg: VALID_SVG, timeMs: 0, width: -5, height: 10 }],          // negative dim
-      ["/export-frame", { svg: VALID_SVG, timeMs: 0, width: 1e9, height: 10 }],          // absurd dim
-      ["/export-frame", { svg: VALID_SVG, timeMs: -1, width: 10, height: 10 }],          // negative time
-      ["/export-frame", { svg: VALID_SVG, timeMs: 0, width: "10", height: 10 }],         // wrong type
-      ["/trim", { svg: VALID_SVG, startMs: 0, endMs: 100, periodMs: 0 }],                // periodMs must be > 0
-      ["/trim", { svg: VALID_SVG, startMs: 0, endMs: 100, periodMs: Number.NaN }],       // NaN
+      ["/export-frame", { svg: VALID_SVG, timeMs: 0, width: -5, height: 10 }], // negative dim
+      ["/export-frame", { svg: VALID_SVG, timeMs: 0, width: 1e9, height: 10 }], // absurd dim
+      ["/export-frame", { svg: VALID_SVG, timeMs: -1, width: 10, height: 10 }], // negative time
+      ["/export-frame", { svg: VALID_SVG, timeMs: 0, width: "10", height: 10 }], // wrong type
+      ["/trim", { svg: VALID_SVG, startMs: 0, endMs: 100, periodMs: 0 }], // periodMs must be > 0
+      ["/trim", { svg: VALID_SVG, startMs: 0, endMs: 100, periodMs: Number.NaN }], // NaN
     ];
     for (const [path, body] of cases) {
       const r = await post(path, JSON.stringify(body));
@@ -77,7 +84,7 @@ describe("scrubber server: request-body validation (DM-1065)", () => {
     // validation passed and the request progressed past the boundary.
     const r = await post("/timing", JSON.stringify({ svg: VALID_SVG }));
     expect(r.status).toBe(500);
-    expect((await r.json() as { error: string }).error).toMatch(/STUB/);
+    expect(((await r.json()) as { error: string }).error).toMatch(/STUB/);
     expect(launched).toBe(true);
   });
 });

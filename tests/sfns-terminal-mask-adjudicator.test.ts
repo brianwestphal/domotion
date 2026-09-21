@@ -1,10 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { adjudicateSfnsTerminalMasks } from "../tools/sfns-terminal-mask-adjudicator.js";
-import type {
-  SfnsPinnedObservation,
-  SfnsPinnedSkiaProposalArtifact,
-} from "../tools/sfns-pinned-skia-mask-schema.js";
+import type { SfnsPinnedObservation, SfnsPinnedSkiaProposalArtifact } from "../tools/sfns-pinned-skia-mask-schema.js";
 import type {
   SfnsPinnedChromiumValidationArtifact,
   SfnsGammaPayload,
@@ -20,18 +17,14 @@ import {
   sfnsValidationObservationDigest,
 } from "../tools/sfns-pinned-chromium-validation-schema.js";
 
-const proposal = JSON.parse(readFileSync(
-  ".pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json",
-  "utf8",
-)) as SfnsPinnedSkiaProposalArtifact;
-const validation = JSON.parse(readFileSync(
-  ".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json",
-  "utf8",
-)) as SfnsPinnedChromiumValidationArtifact;
+const proposal = JSON.parse(
+  readFileSync(".pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json", "utf8"),
+) as SfnsPinnedSkiaProposalArtifact;
+const validation = JSON.parse(
+  readFileSync(".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json", "utf8"),
+) as SfnsPinnedChromiumValidationArtifact;
 
-function mutatedProposal(
-  mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => void,
-): SfnsPinnedSkiaProposalArtifact {
+function mutatedProposal(mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => void): SfnsPinnedSkiaProposalArtifact {
   const copy = structuredClone(proposal);
   mutate(copy);
   return copy;
@@ -44,15 +37,10 @@ function resealValidation(artifact: SfnsPinnedChromiumValidationArtifact): void 
     }
     scenario.observationLogicalDigest = sfnsValidationObservationDigest(scenario.observations[0]);
   }
-  const baseline = artifact.scenarios.find(
-    (scenario) => scenario.id === "zoom-2",
-  )!.observations[0];
+  const baseline = artifact.scenarios.find((scenario) => scenario.id === "zoom-2")!.observations[0];
   for (const control of artifact.controls) {
     control.observation.logicalDigest = sfnsValidationObservationDigest(control.observation);
-    control.changedEvidenceGroups = sfnsValidationChangedEvidenceGroups(
-      baseline,
-      control.observation,
-    );
+    control.changedEvidenceGroups = sfnsValidationChangedEvidenceGroups(baseline, control.observation);
   }
   artifact.artifactDigest = sfnsValidationArtifactDigest(artifact);
 }
@@ -66,10 +54,7 @@ function mutatedValidation(
   return copy;
 }
 
-function selectedPayload<T>(
-  observation: SfnsValidationObservation,
-  sequence: number,
-): T {
+function selectedPayload<T>(observation: SfnsValidationObservation, sequence: number): T {
   return observation.events.find((event) => event.sequence === sequence)!.payload as T;
 }
 
@@ -77,24 +62,26 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
   it("compares the independently collected proposal and validation-v2 evidence exactly", () => {
     const report = adjudicateSfnsTerminalMasks(proposal, validation);
     const groups = new Set(report.mismatches.map((mismatch) => mismatch.group));
-    const count = (group: string): number => report.mismatches.filter(
-      (mismatch) => mismatch.group === group,
-    ).length;
+    const count = (group: string): number => report.mismatches.filter((mismatch) => mismatch.group === group).length;
 
     expect(report.schemaVersion).toBe(3);
     expect(report.inputIntegrityErrors).toEqual([]);
     expect(report.observationPairs).toHaveLength(26);
-    expect(report.cancellationDecision).toEqual(expect.objectContaining({
-      required: "13px-scaler-not-26px-later-resample",
-      requiredScale: [13, 13],
-      exact: true,
-    }));
-    expect(report.independence).toEqual(expect.objectContaining({
-      distinctAuthorities: true,
-      distinctBuildIdentities: true,
-      distinctBinaryDigests: true,
-      distinctObservationIds: true,
-    }));
+    expect(report.cancellationDecision).toEqual(
+      expect.objectContaining({
+        required: "13px-scaler-not-26px-later-resample",
+        requiredScale: [13, 13],
+        exact: true,
+      }),
+    );
+    expect(report.independence).toEqual(
+      expect.objectContaining({
+        distinctAuthorities: true,
+        distinctBuildIdentities: true,
+        distinctBinaryDigests: true,
+        distinctObservationIds: true,
+      }),
+    );
     expect(report.mismatches).toHaveLength(498);
     expect(groups).toContain("glyph-0-shapedAdvance");
     expect(count("gamma")).toBe(1);
@@ -102,16 +89,38 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
     expect(count("glyph-1-shapedAdvance")).toBe(5);
     expect(count("glyph-5-shapedAdvance")).toBe(5);
     for (const aligned of [
-      "source", "paint", "surfaceProps", "scalerContextFlags", "matrices",
-      "smoothBehavior", "fontMetrics", "glyph-count", "observation-identity",
-      "glyph-0-identity", "glyph-1-identity", "glyph-2-identity", "glyph-3-identity",
-      "glyph-4-identity", "glyph-5-identity", "glyph-0-strikeAdvance",
-      "glyph-1-strikeAdvance", "glyph-2-strikeAdvance", "glyph-3-strikeAdvance",
-      "glyph-4-strikeAdvance", "glyph-5-strikeAdvance", "glyph-0-placement",
-      "glyph-0-phase", "glyph-0-metrics", "glyph-0-shapedOffset",
-      "glyph-1-shapedOffset", "glyph-2-shapedOffset", "glyph-3-shapedOffset",
-      "glyph-4-shapedOffset", "glyph-5-shapedOffset",
-    ]) expect(groups).not.toContain(aligned);
+      "source",
+      "paint",
+      "surfaceProps",
+      "scalerContextFlags",
+      "matrices",
+      "smoothBehavior",
+      "fontMetrics",
+      "glyph-count",
+      "observation-identity",
+      "glyph-0-identity",
+      "glyph-1-identity",
+      "glyph-2-identity",
+      "glyph-3-identity",
+      "glyph-4-identity",
+      "glyph-5-identity",
+      "glyph-0-strikeAdvance",
+      "glyph-1-strikeAdvance",
+      "glyph-2-strikeAdvance",
+      "glyph-3-strikeAdvance",
+      "glyph-4-strikeAdvance",
+      "glyph-5-strikeAdvance",
+      "glyph-0-placement",
+      "glyph-0-phase",
+      "glyph-0-metrics",
+      "glyph-0-shapedOffset",
+      "glyph-1-shapedOffset",
+      "glyph-2-shapedOffset",
+      "glyph-3-shapedOffset",
+      "glyph-4-shapedOffset",
+      "glyph-5-shapedOffset",
+    ])
+      expect(groups).not.toContain(aligned);
     expect(report.ready).toBe(false);
     expect(report.reportDigest).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -206,9 +215,7 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "event-dropped",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        const index = observation.events.findIndex(
-          (event) => event.sequence === observation.selection.shapeSequence,
-        );
+        const index = observation.events.findIndex((event) => event.sequence === observation.selection.shapeSequence);
         observation.events.splice(index, 1);
       },
     },
@@ -223,8 +230,7 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       name: "wrong decoded font",
       expected: "font-identity",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
-        artifact.scenarios[0].observations[0].events[0]
-          .typeface.fontBytes.sha256 = "0".repeat(64);
+        artifact.scenarios[0].observations[0].events[0].typeface.fontBytes.sha256 = "0".repeat(64);
       },
     },
     {
@@ -232,9 +238,7 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "axis:wdth",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        const event = observation.events.find(
-          (candidate) => candidate.sequence === observation.selection.runSequence,
-        )!;
+        const event = observation.events.find((candidate) => candidate.sequence === observation.selection.runSequence)!;
         event.typeface.axes.find((axis) => axis.tag === "wdth")!.actual = 99;
       },
     },
@@ -243,9 +247,7 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "shaping-run-seam",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        selectedPayload<SfnsShapePayload>(
-          observation, observation.selection.shapeSequence,
-        ).glyphs[0].gid += 1;
+        selectedPayload<SfnsShapePayload>(observation, observation.selection.shapeSequence).glyphs[0].gid += 1;
       },
     },
     {
@@ -253,33 +255,23 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "packed-phase",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        selectedPayload<SfnsRunPayload>(
-          observation, observation.selection.runSequence,
-        ).glyphs[0].phase.x ^= 1;
+        selectedPayload<SfnsRunPayload>(observation, observation.selection.runSequence).glyphs[0].phase.x ^= 1;
       },
     },
     {
       name: "wrong anti-aliasing result",
       expected: ":font",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
-        const observation = artifact.controls.find(
-          (control) => control.id === "anti-aliasing",
-        )!.observation;
-        selectedPayload<SfnsRawPayload>(
-          observation, observation.selection.rawSequence,
-        ).font.edging = "subpixel";
+        const observation = artifact.controls.find((control) => control.id === "anti-aliasing")!.observation;
+        selectedPayload<SfnsRawPayload>(observation, observation.selection.rawSequence).font.edging = "subpixel";
       },
     },
     {
       name: "wrong hinting result",
       expected: ":font",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
-        const observation = artifact.controls.find(
-          (control) => control.id === "hinting",
-        )!.observation;
-        selectedPayload<SfnsRawPayload>(
-          observation, observation.selection.rawSequence,
-        ).font.hinting = "normal";
+        const observation = artifact.controls.find((control) => control.id === "hinting")!.observation;
+        selectedPayload<SfnsRawPayload>(observation, observation.selection.rawSequence).font.hinting = "normal";
       },
     },
     {
@@ -287,21 +279,15 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "matrix-factorization",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        selectedPayload<SfnsRawPayload>(
-          observation, observation.selection.rawSequence,
-        ).deviceMatrix[2] += 0.25;
+        selectedPayload<SfnsRawPayload>(observation, observation.selection.rawSequence).deviceMatrix[2] += 0.25;
       },
     },
     {
       name: "wrong optical-size result",
       expected: "axis:opsz",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
-        const observation = artifact.controls.find(
-          (control) => control.id === "optical-size",
-        )!.observation;
-        const event = observation.events.find(
-          (candidate) => candidate.sequence === observation.selection.runSequence,
-        )!;
+        const observation = artifact.controls.find((control) => control.id === "optical-size")!.observation;
+        const event = observation.events.find((candidate) => candidate.sequence === observation.selection.runSequence)!;
         event.typeface.axes.find((axis) => axis.tag === "opsz")!.actual = 17;
       },
     },
@@ -309,12 +295,9 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       name: "wrong surface result",
       expected: ":surface",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
-        const observation = artifact.controls.find(
-          (control) => control.id === "surface-mask-format",
-        )!.observation;
-        selectedPayload<SfnsRawPayload>(
-          observation, observation.selection.rawSequence,
-        ).surfaceProps.pixelGeometry = "rgb-h";
+        const observation = artifact.controls.find((control) => control.id === "surface-mask-format")!.observation;
+        selectedPayload<SfnsRawPayload>(observation, observation.selection.rawSequence).surfaceProps.pixelGeometry =
+          "rgb-h";
       },
     },
     {
@@ -322,9 +305,7 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "gamma-table:sha256",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        const gamma = selectedPayload<SfnsGammaPayload>(
-          observation, observation.selection.gammaSequence,
-        );
+        const gamma = selectedPayload<SfnsGammaPayload>(observation, observation.selection.gammaSequence);
         const bytes = Buffer.from(gamma.tableBytesBase64, "base64");
         bytes[0] ^= 1;
         gamma.tableBytesBase64 = bytes.toString("base64");
@@ -335,9 +316,7 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
       expected: "mask:0:sha256",
       mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
         const observation = artifact.scenarios[0].observations[0];
-        const mask = selectedPayload<SfnsMaskPayload>(
-          observation, observation.selection.maskSequences[0],
-        ).glyph.mask;
+        const mask = selectedPayload<SfnsMaskPayload>(observation, observation.selection.maskSequences[0]).glyph.mask;
         const bytes = Buffer.from(mask.bytes, "base64");
         bytes[0] ^= 1;
         mask.bytes = bytes.toString("base64");

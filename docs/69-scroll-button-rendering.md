@@ -7,7 +7,7 @@ owners: ["layout"]
 platforms: []
 tickets: ["DM-1234"]
 code: ["src/capture/script/index.ts"]
-aliases: ["docs/69-scroll-button-rendering.md","doc-69"]
+aliases: ["docs/69-scroll-button-rendering.md", "doc-69"]
 ---
 
 # `::scroll-button()` paging-arrow rendering
@@ -35,7 +35,7 @@ can't page further in its direction (the left button is disabled at
 - Chrome paints the **full authored button box** — background, `border-radius`,
   `width`/`height`, the centered `content` glyph in the button `color`. (The
   reference fixture's background is `rgba(255,255,255,0.9)`, so on the white page
-  margin the circle is invisible *white-on-white* and only the dark glyph shows —
+  margin the circle is invisible _white-on-white_ and only the dark glyph shows —
   forcing the background to a vivid color makes the 36×36 box plainly visible.)
 - The disabled button is painted faint per its `:disabled` rule (`opacity: 0.3`).
 
@@ -57,12 +57,12 @@ prototype that placed the arrows at the scroller's `left:8px` made the diff wors
 `_captureScrollMarkerGroup` replica-and-measure pattern:
 
 1. **Gate** cheaply: skip unless `getComputedStyle(el, '::scroll-button(left|
-   right)').content` is non-`none` (so the per-element cost is one extra
+right)').content` is non-`none` (so the per-element cost is one extra
    computed-style read; the CSSOM scan only runs for real scroll-button hosts).
 2. **Read the per-side rules from the author stylesheet (CSSOM).**
    `getComputedStyle(el, '::scroll-button(left)')` cannot disambiguate the
-   parameterized pseudo — it returns one *merged* style (shared box props, but
-   the cascade-last `content` and *both* insets). So `_scrollButtonAuthorRules`
+   parameterized pseudo — it returns one _merged_ style (shared box props, but
+   the cascade-last `content` and _both_ insets). So `_scrollButtonAuthorRules`
    walks `document.styleSheets`, matches each `::scroll-button(<dir>)` rule whose
    base selector `el.matches(...)`, and collects per-direction declarations plus
    the merged `:disabled` declarations (folding the universal `*` direction in as
@@ -72,13 +72,13 @@ prototype that placed the arrows at the scroller's `left:8px` made the diff wors
    `<body>`, and `capture()` it. An absolutely-positioned body child also takes
    the **ICB as its containing block**, so `top:50%` / `left` / `right` /
    `transform` land exactly where Chrome paints the real button — the measured
-   rect *is* Chrome's geometry. No manual viewport math.
+   rect _is_ Chrome's geometry. No manual viewport math.
 4. **Enabled/disabled state** comes from the captured scroll offset vs the scroll
    range (`scrollLeft <= 0` ⇒ left/inline-start disabled, `>= maxScroll` ⇒ right/
    inline-end disabled; the vertical pair uses `scrollTop`); when disabled, the
    `:disabled` declarations (e.g. `opacity: 0.3`) are applied to the replica.
 5. **Splice as siblings.** The captured button nodes are emitted as siblings of
-   the scroller, *after* it (and after the marker group), so they paint outside
+   the scroller, _after_ it (and after the marker group), so they paint outside
    the scroller's overflow clip and above its content (the fixture's `z-index:1`)
    — the same reason the marker group is a sibling, not a child.
 

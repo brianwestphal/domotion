@@ -4,10 +4,11 @@ title: "218 — Mixed reference-filter color-space ownership"
 kind: "reference"
 status: "current"
 owners: ["paint-effects"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2535","DM-2548","DM-2549"]
-code: ["tests/fixtures/html-test/38-mixed-reference-color-space-stage.html","tools/mixed-reference-color-space-oracle.ts"]
-aliases: ["docs/218-mixed-reference-color-space-ownership.md","doc-218"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2535", "DM-2548", "DM-2549"]
+code:
+  ["tests/fixtures/html-test/38-mixed-reference-color-space-stage.html", "tools/mixed-reference-color-space-oracle.ts"]
+aliases: ["docs/218-mixed-reference-color-space-ownership.md", "doc-218"]
 ---
 
 # 218 — Mixed reference-filter color-space ownership
@@ -109,13 +110,13 @@ Blink maps both gamma directions to Skia color filters
 The oracle records straight and premultiplied RGBA for every transition. Its
 principal partial-alpha trace is:
 
-| Surface | Logical space | Straight RGBA | Premultiplied RGBA |
-| --- | --- | --- | --- |
-| SourceGraphic | sRGB | `(0.20392, 0.64314, 0.90588, 0.58)` | `(0.11827, 0.37302, 0.52541, 0.58)` |
-| reference input | linearRGB | `(0.03434, 0.37124, 0.79910, 0.58)` | `(0.01992, 0.21532, 0.46348, 0.58)` |
-| reference output | linearRGB | `(0.09816, 0.35244, 0.74718, 0.58)` | `(0.05693, 0.20442, 0.43337, 0.58)` |
+| Surface                      | Logical space                       | Straight RGBA                         | Premultiplied RGBA                    |
+| ---------------------------- | ----------------------------------- | ------------------------------------- | ------------------------------------- |
+| SourceGraphic                | sRGB                                | `(0.20392, 0.64314, 0.90588, 0.58)`   | `(0.11827, 0.37302, 0.52541, 0.58)`   |
+| reference input              | linearRGB                           | `(0.03434, 0.37124, 0.79910, 0.58)`   | `(0.01992, 0.21532, 0.46348, 0.58)`   |
+| reference output             | linearRGB                           | `(0.09816, 0.35244, 0.74718, 0.58)`   | `(0.05693, 0.20442, 0.43337, 0.58)`   |
 | shorthand without transition | linear values, shorthand assumption | `(0.23504, 0.35170, 0.53281, 0.3886)` | `(0.09133, 0.13667, 0.20705, 0.3886)` |
-| terminal | sRGB | `(0.52206, 0.62759, 0.75657, 0.3886)` | `(0.20287, 0.24388, 0.29400, 0.3886)` |
+| terminal                     | sRGB                                | `(0.52206, 0.62759, 0.75657, 0.3886)` | `(0.20287, 0.24388, 0.29400, 0.3886)` |
 
 The explicit sRGB-reference boundary instead ends at straight
 `(0.34878, 0.47821, 0.59345, 0.3886)`, a 44-code discriminator. The report also
@@ -193,17 +194,17 @@ run 32684579069 passed all three platforms at DPR 1/2 with empty
 
 The macOS arm64 Chromium 147.0.7727.15 run was identical at both DPRs:
 
-| Evidence | DPR 1 | DPR 2 |
-| --- | ---: | ---: |
-| filter-stage source/model rows within four codes | 9/9 | 9/9 |
-| filter-stage candidate/source rows exact | 9/9 | 9/9 |
-| source/model maximum error | 1 code | 1 code |
-| candidate/source maximum error, filter-only | 0 codes | 0 codes |
-| native-vector ownership | 6/6 | same captured boundary |
-| color-space/order mutations active | 5/5 | 5/5 |
-| hostile logical controls active | 4/4 | same deterministic model |
-| nonisolated blend residual | 62 codes | 62 codes |
-| local-isolated blend residual | 48 codes | 48 codes |
+| Evidence                                         |    DPR 1 |                    DPR 2 |
+| ------------------------------------------------ | -------: | -----------------------: |
+| filter-stage source/model rows within four codes |      9/9 |                      9/9 |
+| filter-stage candidate/source rows exact         |      9/9 |                      9/9 |
+| source/model maximum error                       |   1 code |                   1 code |
+| candidate/source maximum error, filter-only      |  0 codes |                  0 codes |
+| native-vector ownership                          |      6/6 |   same captured boundary |
+| color-space/order mutations active               |      5/5 |                      5/5 |
+| hostile logical controls active                  |      4/4 | same deterministic model |
+| nonisolated blend residual                       | 62 codes |                 62 codes |
+| local-isolated blend residual                    | 48 codes |                 48 codes |
 
 The isolated external-backdrop row remains exact and its no-blend mutation is
 stable, which rules out a bad blend formula. The source's no-blend/no-isolation

@@ -4,10 +4,16 @@ title: "Domotion: animated SVG → video export (svg-to-video)"
 kind: "contract"
 status: "current"
 owners: ["images-media"]
-platforms: ["macos","windows"]
-tickets: ["DM-1142","DM-1144","DM-1146","DM-873","DM-885"]
-code: ["src/cli/svg-to-video-core.test.ts","src/cli/svg-to-video-core.ts","src/cli/svg-to-video-e2e.test.ts","src/cli/svg-to-video.ts"]
-aliases: ["docs/47-svg-to-video.md","doc-47"]
+platforms: ["macos", "windows"]
+tickets: ["DM-1142", "DM-1144", "DM-1146", "DM-873", "DM-885"]
+code:
+  [
+    "src/cli/svg-to-video-core.test.ts",
+    "src/cli/svg-to-video-core.ts",
+    "src/cli/svg-to-video-e2e.test.ts",
+    "src/cli/svg-to-video.ts",
+  ]
+aliases: ["docs/47-svg-to-video.md", "doc-47"]
 ---
 
 # Domotion: animated SVG → video export (`svg-to-video`)
@@ -52,7 +58,7 @@ racing the wall clock. Domotion's output makes this clean:
   already uses `getAnimations({ subtree: true })`, so the API is known-good in
   this Chromium.)
 
-What is *not* free:
+What is _not_ free:
 
 - **SMIL** (`<animate>`/`<animateTransform>`) animations are not controlled by
   WAAPI. They need `svgRoot.pauseAnimations()` + `svgRoot.setCurrentTime(t)`.
@@ -70,7 +76,7 @@ What is *not* free:
    the SVG into a minimal HTML wrapper at its intrinsic size so the document's
    animations are script-reachable and the viewport is controlled.
 3. **Determine intrinsic size** from `viewBox` / `width`/`height`, then compute
-   the output size: `--width`/`--height` *contain* the natural aspect ratio
+   the output size: `--width`/`--height` _contain_ the natural aspect ratio
    (fit inside the box, never distort). Render at an integer device scale for
    crisp frames; pad to even dimensions (h264 `yuv420p` requires even W/H).
 4. **Determine duration & frame count.** Duration = explicit `--duration`, else
@@ -103,25 +109,25 @@ What is *not* free:
 
 ## CLI options
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `-o, --output <path>` | required | Output video path. |
-| `--width <px>` / `--height <px>` | intrinsic | Contain within; preserve aspect ratio. Either or both. |
-| `--fps <n>` | `30` | Target frame rate; drives the sampling interval. |
-| `--duration <s>` | one cycle | Override the rendered length (required for SMIL-only or indeterminate general SVGs). |
-| `--format <codec>` | `h264` | Output format: video codecs `h264`, `hevc`, `vp9`, `vp8`, `av1`, `prores` (ProRes 4444, `.mov`), or the animated images `gif` / `apng` (no audio track). |
-| `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`, prores → `mov`). Ignored for `gif`/`apng` (the format *is* the container). |
-| `--scale <n>` | `2` | Supersample render factor; ffmpeg downscales (lanczos) to the target size for crisper output. |
-| `--background <css>` | `#ffffff` | Page background behind the SVG. `transparent` / `none` / a zero-alpha color requests a transparent output — see [Transparent backgrounds / alpha](#transparent-backgrounds--alpha). |
-| `--color-range <r>` | `tv` | Color range for the yuv420p formats (h264/hevc/av1): `tv` (limited, most compatible) or `pc` (full, more dynamic range). See [Color fidelity](#color-fidelity-dm-1146). |
-| `--music <path>` | — | Background music; looped (`-stream_loop -1`) + trimmed (`-shortest`) to the video length. |
-| `--audio <path>` | — | Foreground audio; mixed over music via `amix` when both are given. |
-| `--audio-offset <s>` | — | Delay the foreground audio by this many seconds (`-itsoffset`). |
-| `--captions <path>` | — | Caption file (`.srt`/`.vtt`); soft-muxed (mp4→`mov_text`, webm→`webvtt`) or burned-in via `--burn-captions`. |
-| `--burn-captions` | off | Render captions into the picture (`subtitles=` filter) instead of muxing a track. |
-| `--keep-frames <dir>` | — | Also write the PNG sequence to disk (debug). |
-| `--ffmpeg <path>` | `$FFMPEG_PATH` or `ffmpeg` | ffmpeg binary to shell out to. |
-| `--quiet` | off | Suppress per-phase progress on stderr. |
+| Option                           | Default                    | Meaning                                                                                                                                                                             |
+| -------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-o, --output <path>`            | required                   | Output video path.                                                                                                                                                                  |
+| `--width <px>` / `--height <px>` | intrinsic                  | Contain within; preserve aspect ratio. Either or both.                                                                                                                              |
+| `--fps <n>`                      | `30`                       | Target frame rate; drives the sampling interval.                                                                                                                                    |
+| `--duration <s>`                 | one cycle                  | Override the rendered length (required for SMIL-only or indeterminate general SVGs).                                                                                                |
+| `--format <codec>`               | `h264`                     | Output format: video codecs `h264`, `hevc`, `vp9`, `vp8`, `av1`, `prores` (ProRes 4444, `.mov`), or the animated images `gif` / `apng` (no audio track).                            |
+| `--container <ext>`              | per format                 | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`, prores → `mov`). Ignored for `gif`/`apng` (the format _is_ the container).                                    |
+| `--scale <n>`                    | `2`                        | Supersample render factor; ffmpeg downscales (lanczos) to the target size for crisper output.                                                                                       |
+| `--background <css>`             | `#ffffff`                  | Page background behind the SVG. `transparent` / `none` / a zero-alpha color requests a transparent output — see [Transparent backgrounds / alpha](#transparent-backgrounds--alpha). |
+| `--color-range <r>`              | `tv`                       | Color range for the yuv420p formats (h264/hevc/av1): `tv` (limited, most compatible) or `pc` (full, more dynamic range). See [Color fidelity](#color-fidelity-dm-1146).             |
+| `--music <path>`                 | —                          | Background music; looped (`-stream_loop -1`) + trimmed (`-shortest`) to the video length.                                                                                           |
+| `--audio <path>`                 | —                          | Foreground audio; mixed over music via `amix` when both are given.                                                                                                                  |
+| `--audio-offset <s>`             | —                          | Delay the foreground audio by this many seconds (`-itsoffset`).                                                                                                                     |
+| `--captions <path>`              | —                          | Caption file (`.srt`/`.vtt`); soft-muxed (mp4→`mov_text`, webm→`webvtt`) or burned-in via `--burn-captions`.                                                                        |
+| `--burn-captions`                | off                        | Render captions into the picture (`subtitles=` filter) instead of muxing a track.                                                                                                   |
+| `--keep-frames <dir>`            | —                          | Also write the PNG sequence to disk (debug).                                                                                                                                        |
+| `--ffmpeg <path>`                | `$FFMPEG_PATH` or `ffmpeg` | ffmpeg binary to shell out to.                                                                                                                                                      |
+| `--quiet`                        | off                        | Suppress per-phase progress on stderr.                                                                                                                                              |
 
 ## ffmpeg dependency
 
@@ -136,10 +142,11 @@ runtime, resolved from `PATH`. When missing, print install guidance:
 
 Codec notes: h264 (`libx264`) + AAC audio is the portable default; `yuv420p` is
 needed for QuickTime/Safari/most players; VP9/webm uses `libvpx-vp9` + Opus audio
-+ WebVTT subs; HEVC needs `libx265`. The `--ffmpeg <path>` flag (or `FFMPEG_PATH`
-env var) points at a specific binary. ffmpeg is resolved up front so the tool
-fails with guidance *before* launching a browser. (Per the maintainer decision,
-there is no `ffmpeg-static` auto-fallback — system ffmpeg is a hard requirement.)
+
+- WebVTT subs; HEVC needs `libx265`. The `--ffmpeg <path>` flag (or `FFMPEG_PATH`
+  env var) points at a specific binary. ffmpeg is resolved up front so the tool
+  fails with guidance _before_ launching a browser. (Per the maintainer decision,
+  there is no `ffmpeg-static` auto-fallback — system ffmpeg is a hard requirement.)
 
 ## Disk space
 
@@ -201,7 +208,7 @@ stream tags — so players decode with the same assumptions the encode used and 
 colors don't drift (untagged streams were the worst case). `--color-range pc` keeps
 full range (more dynamic range, slightly less universal playback).
 
-This fixes the *systematic* shift, but yuv420p still **subsamples chroma 4:2:0**, so
+This fixes the _systematic_ shift, but yuv420p still **subsamples chroma 4:2:0**, so
 saturated colors and anti-aliased colored edges (neon/fire gradients, colored text)
 desaturate somewhat regardless of range. For true color fidelity use a **4:4:4 /
 RGBA** path — `--format prores` (ProRes 4444 for transparent, HQ otherwise) or
@@ -221,13 +228,13 @@ container, transparent)` switches alpha-capable formats to an alpha pixel format
 (and any alpha-specific codec args) and reports `alpha: true`; the rest report
 `alphaCapable: false` and the CLI composites onto opaque white with a note.
 
-| `--format` | Transparent output | How |
-| --- | --- | --- |
-| `vp9` | ✅ alpha | `-pix_fmt yuva420p` (webm). Verified transparent in Chromium's `<video>`; note ffmpeg's own VP9-alpha *decode* round-trip is lossy, but browsers — the real consumer — render it correctly. |
-| `prores` | ✅ alpha | ProRes 4444, `prores_ks -profile:v 4 -pix_fmt yuva444p10le` (`.mov`). The standard alpha video for editing / compositing. Opaque ProRes uses the HQ profile (`3`, `yuv422p10le`). |
-| `apng` | ✅ alpha | `rgba` (already the APNG pixel format). |
-| `gif` | ✅ 1-bit alpha | `palettegen=reserve_transparent=1` + `paletteuse=…:alpha_threshold=128`. GIF alpha is 1-bit, so semi-transparent edges snap fully on/off. |
-| `h264` / `hevc` / `av1` / `vp8` | ⚠️ composited | These can't carry alpha (h264/hevc/av1 have no alpha profile we target; ffmpeg's libvpx VP8 encoder *lists* `yuva420p` but fails to open with it, producing a corrupt file). A transparent request composites onto opaque white with a `note:` and a pointer to `vp9`/`prores`/`apng`/`gif`. |
+| `--format`                      | Transparent output | How                                                                                                                                                                                                                                                                                          |
+| ------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vp9`                           | ✅ alpha           | `-pix_fmt yuva420p` (webm). Verified transparent in Chromium's `<video>`; note ffmpeg's own VP9-alpha _decode_ round-trip is lossy, but browsers — the real consumer — render it correctly.                                                                                                  |
+| `prores`                        | ✅ alpha           | ProRes 4444, `prores_ks -profile:v 4 -pix_fmt yuva444p10le` (`.mov`). The standard alpha video for editing / compositing. Opaque ProRes uses the HQ profile (`3`, `yuv422p10le`).                                                                                                            |
+| `apng`                          | ✅ alpha           | `rgba` (already the APNG pixel format).                                                                                                                                                                                                                                                      |
+| `gif`                           | ✅ 1-bit alpha     | `palettegen=reserve_transparent=1` + `paletteuse=…:alpha_threshold=128`. GIF alpha is 1-bit, so semi-transparent edges snap fully on/off.                                                                                                                                                    |
+| `h264` / `hevc` / `av1` / `vp8` | ⚠️ composited      | These can't carry alpha (h264/hevc/av1 have no alpha profile we target; ffmpeg's libvpx VP8 encoder _lists_ `yuva420p` but fails to open with it, producing a corrupt file). A transparent request composites onto opaque white with a `note:` and a pointer to `vp9`/`prores`/`apng`/`gif`. |
 
 ## Out of scope (v1)
 

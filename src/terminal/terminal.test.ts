@@ -22,7 +22,7 @@ describe("parseCast (asciinema v2)", () => {
     expect(c.duration).toBe(1.2);
   });
 
-  it("ignores input/marker events but captures resize (\"r\") events (DM-1246)", () => {
+  it('ignores input/marker events but captures resize ("r") events (DM-1246)', () => {
     const text = [
       JSON.stringify({ version: 2, width: 80, height: 24 }),
       JSON.stringify([0.1, "i", "ls\n"]),
@@ -133,7 +133,10 @@ describe("TerminalEmulator", () => {
     await emu.write("Loading...\rDone!     ");
     const grid = emu.snapshot();
     emu.dispose();
-    const row0 = grid[0].map((c) => c.char).join("").trimEnd();
+    const row0 = grid[0]
+      .map((c) => c.char)
+      .join("")
+      .trimEnd();
     expect(row0).toBe("Done!");
   });
 
@@ -170,7 +173,7 @@ describe("buildFrames (settle-point selection)", () => {
     const events = [
       { time: 0.0, data: "step one\r\n" },
       { time: 1.0, data: "step two\r\n" }, // 1s gap before this → previous settled
-      { time: 1.02, data: "x" },            // 20ms burst — coalesced (no settle)
+      { time: 1.02, data: "x" }, // 20ms burst — coalesced (no settle)
       { time: 2.0, data: "step three\r\n" },
     ];
     const frames = await buildFrames(emu, events, { settleMs: 90, minFrameMs: 100, tailMs: 1000 });
@@ -245,30 +248,46 @@ describe("gridToHtml", () => {
     const html = gridToHtml(emu.snapshot(), { theme: THEMES.dark });
     emu.dispose();
 
-    expect(html).toContain(
-      `&lt;img src=&quot;x&quot; onerror=&quot;pwn()&quot;&gt;it's &amp; safe&lt;/img&gt;`,
-    );
+    expect(html).toContain(`&lt;img src=&quot;x&quot; onerror=&quot;pwn()&quot;&gt;it's &amp; safe&lt;/img&gt;`);
     expect(html).not.toContain('<img src="x"');
   });
 });
 
 describe("gridSignature", () => {
   it("ignores trailing blank columns so a quiet screen compares equal", () => {
-    const a: Parameters<typeof gridSignature>[0] = [[
-      { char: "h", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false },
-      { char: " ", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false },
-    ]];
-    const b: Parameters<typeof gridSignature>[0] = [[
-      { char: "h", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false },
-    ]];
+    const a: Parameters<typeof gridSignature>[0] = [
+      [
+        { char: "h", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false },
+        { char: " ", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false },
+      ],
+    ];
+    const b: Parameters<typeof gridSignature>[0] = [
+      [{ char: "h", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false }],
+    ];
     expect(gridSignature(a)).toBe(gridSignature(b));
   });
 });
 
 describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
-  const blank = (): TermCell => ({ char: " ", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false });
+  const blank = (): TermCell => ({
+    char: " ",
+    fg: null,
+    bg: null,
+    bold: false,
+    italic: false,
+    dim: false,
+    underline: false,
+  });
   const cells = (s: string, cols: number): TermCell[] => {
-    const row: TermCell[] = [...s].map((ch) => ({ char: ch, fg: null, bg: null, bold: false, italic: false, dim: false, underline: false }));
+    const row: TermCell[] = [...s].map((ch) => ({
+      char: ch,
+      fg: null,
+      bg: null,
+      bold: false,
+      italic: false,
+      dim: false,
+      underline: false,
+    }));
     while (row.length < cols) row.push(blank());
     return row;
   };
@@ -312,7 +331,10 @@ describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
       const b = lines.find((l) => l.html === "b")!;
       const c = lines.find((l) => l.html === "c")!;
       expect(a.endMs).toBe(1000); // left the screen at the scroll
-      expect(b.waypoints).toEqual([{ ms: 0, row: 1 }, { ms: 1000, row: 0 }]); // moved up — same line
+      expect(b.waypoints).toEqual([
+        { ms: 0, row: 1 },
+        { ms: 1000, row: 0 },
+      ]); // moved up — same line
       expect(b.endMs).toBe(2000);
       expect(c.waypoints).toEqual([{ ms: 1000, row: 1 }]);
     });
@@ -360,10 +382,7 @@ describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
     });
 
     it("shows no caret for a pure-output cast (no prompt to type at)", () => {
-      const frames = [
-        cframe(["building...", ""], 11, 0),
-        cframe(["building...", "done."], 5, 1),
-      ];
+      const frames = [cframe(["building...", ""], 11, 0), cframe(["building...", "done."], 5, 1)];
       expect(detectInputFrames(frames)).toEqual([false, false]);
     });
   });

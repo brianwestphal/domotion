@@ -132,13 +132,19 @@ export function formatNames(): string[] {
 export function resolveFormat(fmt: string): ResolvedFormat {
   const key = fmt.trim().toLowerCase();
   if (key === "") {
-    throw new Error(`format: empty value — use a preset (${formatNames().join(", ")}) or WIDTHxHEIGHT (e.g. 1600x900).`);
+    throw new Error(
+      `format: empty value — use a preset (${formatNames().join(", ")}) or WIDTHxHEIGHT (e.g. 1600x900).`,
+    );
   }
 
   const name = ALIAS_TO_NAME[key];
   if (name != null) {
     const preset = FORMATS[name];
-    return { width: preset.width, height: preset.height, safeInset: insetToPx(preset.width, preset.height, preset.inset) };
+    return {
+      width: preset.width,
+      height: preset.height,
+      safeInset: insetToPx(preset.width, preset.height, preset.inset),
+    };
   }
 
   const m = RAW_SIZE_RE.exec(key);

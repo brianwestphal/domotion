@@ -15,8 +15,12 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
-  parseFontStretchDescriptor, registerWebfont, clearWebfonts, resolveFont,
-  __pickWebfontVariantMetaForTest, __pickWebfontVariantMetaForCodepointForTest,
+  parseFontStretchDescriptor,
+  registerWebfont,
+  clearWebfonts,
+  resolveFont,
+  __pickWebfontVariantMetaForTest,
+  __pickWebfontVariantMetaForCodepointForTest,
 } from "./font-resolution.js";
 
 describe("parseFontStretchDescriptor", () => {

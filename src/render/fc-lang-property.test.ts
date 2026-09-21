@@ -68,8 +68,8 @@ describe("fontconfig :lang= fragment (DM-1863)", () => {
   });
 
   it("rejects tags that are not shaped like language tags at all", () => {
-    expect(fcLangProperty("e")).toBe("");        // too short
-    expect(fcLangProperty("english")).toBe("");  // primary subtag is 2-3 chars
+    expect(fcLangProperty("e")).toBe(""); // too short
+    expect(fcLangProperty("english")).toBe(""); // primary subtag is 2-3 chars
     expect(fcLangProperty("123")).toBe("");
   });
 

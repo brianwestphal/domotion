@@ -27,18 +27,31 @@
  */
 
 import { type BrowserContext, type Page } from "@playwright/test";
-import { launchHarnessBrowsers, harnessBrowserNote, captureFlagsCacheToken, expectedCachePlatformDir } from "./harness-browsers.js";
+import {
+  launchHarnessBrowsers,
+  harnessBrowserNote,
+  captureFlagsCacheToken,
+  expectedCachePlatformDir,
+} from "./harness-browsers.js";
 import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import {
+  captureElementTreeWithWarnings,
+  elementTreeToSvgInner,
+  embedRemoteImages,
+} from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { profReset, profSnapshot } from "../src/render/render-profile.js";
-import { getEmbeddedFontBuildDiagnostics, resetGeneration, type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
+import {
+  getEmbeddedFontBuildDiagnostics,
+  resetGeneration,
+  type EmbeddedFontBuildDiagnostic,
+} from "../src/render/font-resolution.js";
 import {
   getFixtureTextRunProvenance,
   resetTextRunProvenance,
@@ -47,7 +60,14 @@ import {
 } from "../src/render/text-run-provenance.js";
 import { shouldCollectLinuxUnicodeTextEvidence } from "../src/review/linux-unicode-evidence.js";
 import { raw } from "kerfjs";
-import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
+import {
+  comparePngs,
+  MIN_REGION_AREA,
+  REGION_DILATE_PX,
+  SIGNIFICANT_PIXEL_DIST,
+  TILE_PX,
+  type DiffVerdict,
+} from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { parseShardSpec, selectShard } from "./shard.js";
@@ -59,9 +79,10 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
-const HTML_TEST_DIR = process.env.HTML_TEST_DIR != null && process.env.HTML_TEST_DIR !== ""
-  ? resolve(process.env.HTML_TEST_DIR)
-  : resolve(PACKAGE_ROOT, "external/html-test");
+const HTML_TEST_DIR =
+  process.env.HTML_TEST_DIR != null && process.env.HTML_TEST_DIR !== ""
+    ? resolve(process.env.HTML_TEST_DIR)
+    : resolve(PACKAGE_ROOT, "external/html-test");
 // Anchor output under this package's tests/ regardless of cwd so runs from
 // inside  don't create a stray
 // subtree (the reason SK-991 was filed). Override via `HTML_TEST_OUTPUT_DIR`
@@ -74,11 +95,12 @@ const HTML_TEST_DIR = process.env.HTML_TEST_DIR != null && process.env.HTML_TEST
 // artifacts (see the note in tests/runner.tsx). The suite-specific
 // `HTML_TEST_OUTPUT_DIR` still wins where both are set, since it names this
 // suite's folder exactly.
-const OUTPUT_DIR = process.env.HTML_TEST_OUTPUT_DIR != null && process.env.HTML_TEST_OUTPUT_DIR !== ""
-  ? resolve(process.env.HTML_TEST_OUTPUT_DIR)
-  : process.env.DOMOTION_OUTPUT_DIR != null && process.env.DOMOTION_OUTPUT_DIR !== ""
-  ? resolve(process.env.DOMOTION_OUTPUT_DIR, "html-test")
-  : resolve(__dirname, "output/html-test");
+const OUTPUT_DIR =
+  process.env.HTML_TEST_OUTPUT_DIR != null && process.env.HTML_TEST_OUTPUT_DIR !== ""
+    ? resolve(process.env.HTML_TEST_OUTPUT_DIR)
+    : process.env.DOMOTION_OUTPUT_DIR != null && process.env.DOMOTION_OUTPUT_DIR !== ""
+      ? resolve(process.env.DOMOTION_OUTPUT_DIR, "html-test")
+      : resolve(__dirname, "output/html-test");
 const WIDTH = 1024;
 const HEIGHT = 768;
 // Diagnostic capture DPR (default 1). `CAPTURE_DPR=2` renders BOTH the expected
@@ -93,8 +115,7 @@ const CAPTURE_DPR = Math.max(1, Math.floor(Number(process.env.CAPTURE_DPR) || 1)
 // pipeline entirely and emit a placeholder result. Default keeps rendering
 // so the review UI can inspect skipped artifacts; CI / batch sweeps that
 // don't read the review UI can save the per-fixture cost.
-const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0"
-  && !process.argv.includes("--no-render-skipped");
+const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0" && !process.argv.includes("--no-render-skipped");
 
 // DM-1002: expected.png cache. The expected screenshot is deterministic
 // per (source HTML, viewport, Chromium version). When the cache hits we
@@ -113,15 +134,21 @@ const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0"
 const EXPECTED_CACHE_DIR = resolve(OUTPUT_DIR, ".expected-cache", expectedCachePlatformDir());
 const _require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION: string = (() => {
-  try { return _require("@playwright/test/package.json").version as string; }
-  catch { return "unknown"; }
+  try {
+    return _require("@playwright/test/package.json").version as string;
+  } catch {
+    return "unknown";
+  }
 })();
 // DM-1013: fold the CAPTURE_SCRIPT bundle hash into the cache key so a
 // bundle rebuild (`npm run build:capture-script`) invalidates every
 // cached tree. Read once at module init.
 function _hashFileOrEmpty(path: string): string {
-  try { return createHash("sha256").update(readFileSync(path)).digest("hex"); }
-  catch { return "missing"; }
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch {
+    return "missing";
+  }
 }
 const CAPTURE_SCRIPT_HASH = _hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/script.generated.ts"));
 // DM-1198: also fold the Node-side post-CAPTURE_SCRIPT tree mutators into the
@@ -152,17 +179,26 @@ const CAPTURE_NODE_HASH = createHash("sha256")
 // forever after. Locally the cache never expires on its own, which meant local
 // A/Bs were comparing fresh actuals against expecteds of unknown font vintage.
 const FONT_INVENTORY_DIGEST: string = (() => {
-  try { return (inventoryDocument() as { digest: string }).digest; }
-  catch { return "unknown"; }
+  try {
+    return (inventoryDocument() as { digest: string }).digest;
+  } catch {
+    return "unknown";
+  }
 })();
 function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
   return createHash("sha256")
     .update(htmlBytes)
-    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}|${FONT_INVENTORY_DIGEST}${captureFlagsCacheToken()}`)
+    .update(
+      `|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}|${FONT_INVENTORY_DIGEST}${captureFlagsCacheToken()}`,
+    )
     .digest("hex");
 }
-function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
-function expectedCacheMetaPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.json`); }
+function expectedCachePngPath(key: string): string {
+  return resolve(EXPECTED_CACHE_DIR, `${key}.png`);
+}
+function expectedCacheMetaPath(key: string): string {
+  return resolve(EXPECTED_CACHE_DIR, `${key}.json`);
+}
 // DM-1013: cache the raw captured tree + warnings alongside expected.png
 // + bodyBg. On full cache hit, runOneHtmlTest skips the source goto,
 // screenshot, bodyBg evaluate, webfont discovery, AND captureElementTree
@@ -1021,14 +1057,16 @@ function formatDuration(ms: number): string {
  */
 const SKIP_TESTS: Record<string, string> = {
   "21-transform-3d": "CSS transforms deferred in SK-435 (layout-coord refactor needed)",
-  "21-deep-transform-3d-preserve": "preserve-3d cube composition deferred in SK-435 (same territory as 21-transform-3d)",
+  "21-deep-transform-3d-preserve":
+    "preserve-3d cube composition deferred in SK-435 (same territory as 21-transform-3d)",
   "27-page": "@page rules are print-media only, not relevant to static screen capture",
   // DM-725: `-webkit-box-reflect` paints a mirrored copy of the element box
   // below / above / left / right of itself. SVG has no direct equivalent —
   // would need a `<filter>` chain with feGaussianBlur + feImage or a
   // duplicated subtree with transform-flip + opacity gradient. Author note
   // says "skip for now".
-  "niche-webkit-box-reflect": "DM-725: -webkit-box-reflect has no direct SVG equivalent; user-flagged for skip until we ship a duplicated-subtree + gradient-mask approach",
+  "niche-webkit-box-reflect":
+    "DM-725: -webkit-box-reflect has no direct SVG equivalent; user-flagged for skip until we ship a duplicated-subtree + gradient-mask approach",
 };
 
 /**
@@ -1047,13 +1085,15 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // antialiasing scatter on arrow forms the macOS fallback fonts draw slightly
   // differently from Chrome's painted output. Reviewed visually; accepted as a
   // stable baseline per maintainer.
-  "1F800-1F8FF-supplemental-arrows-c": "DM-1019: arrows render; residual diff is fallback arrow-glyph shape / antialiasing scatter — accepted baseline",
+  "1F800-1F8FF-supplemental-arrows-c":
+    "DM-1019: arrows render; residual diff is fallback arrow-glyph shape / antialiasing scatter — accepted baseline",
   // DM-1027: lone combining diacritical marks (U+0300–036F) now capture +
   // render (the zero-advance-width cells were being dropped by the capture's
   // zero-sized-element filter; fixed so a zero-WIDTH element with inked text +
   // non-zero height is kept). Expected vs actual are visually identical; the
   // residual ~0.04% is antialiasing scatter on the thin 1–2px mark strokes.
-  "0300-036F-combining-diacritical-marks": "DM-1027: marks now render at Chrome's positions; residual is sub-pixel antialiasing scatter on the thin marks — accepted baseline",
+  "0300-036F-combining-diacritical-marks":
+    "DM-1027: marks now render at Chrome's positions; residual is sub-pixel antialiasing scatter on the thin marks — accepted baseline",
   // DM-1039: writing-mode + mixed-scripts + tate-chu-yoko. All seven vertical
   // blocks render structurally correct after DM-1024 (per-glyph baseline/ascent
   // drift) and DM-1032 (tate-chu-yoko `text-combine-upright` digit cells, now
@@ -1065,7 +1105,8 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // outlines), the same antialiasing class the rest of the suite carries, just
   // multiplied by the many stroke-edges of CJK so the region COUNT (not the area)
   // trips the verdict. Reviewed visually + quantitatively; accepted baseline.
-  "20-deep-writing-mode-mixed": "DM-1039: vertical writing-mode + tate-chu-yoko render correct (DM-1024 + DM-1032); ink positions match Chrome per-glyph, residual is CJK-glyph antialiasing scatter — accepted baseline",
+  "20-deep-writing-mode-mixed":
+    "DM-1039: vertical writing-mode + tate-chu-yoko render correct (DM-1024 + DM-1032); ink positions match Chrome per-glyph, residual is CJK-glyph antialiasing scatter — accepted baseline",
   // DM-1025: Misc Symbols (U+2600-26FF) — the dominant diff (zodiac signs + ☔
   // etc. wrongly painted as color emoji) is fixed: renderer-owned fallback
   // selects the declared Apple Symbols face first and inspects its actual glyph
@@ -1074,23 +1115,27 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // (e.g. ☂ U+2602, the dice faces) where the macOS fallback font draws a
   // slightly different monochrome glyph than Chrome — a per-codepoint routing
   // nuance, not the emoji-presentation bug. Accepted as a stable baseline.
-  "2600-26FF-miscellaneous-symbols": "DM-1025: emoji-vs-text presentation fixed (1.32% -> 0.10%); residual is minor monochrome glyph-shape on a few symbols — accepted baseline",
+  "2600-26FF-miscellaneous-symbols":
+    "DM-1025: emoji-vs-text presentation fixed (1.32% -> 0.10%); residual is minor monochrome glyph-shape on a few symbols — accepted baseline",
   // DM-774: paint-order test renders the seven nested layers in the correct
   // back-to-front order with correct colors / geometry; the residual diff is
   // text antialiasing + arrow-glyph substitution in the header / caption
   // paragraphs only. Reviewed visually; accepted as a stable baseline.
-  "13-deep-stacking-paint-order": "DM-774: text antialiasing + arrow-glyph substitution only; geometry / paint order are correct",
+  "13-deep-stacking-paint-order":
+    "DM-774: text antialiasing + arrow-glyph substitution only; geometry / paint order are correct",
   // DM-771: <select> single-choice / optgroup / size=N listbox / multiple
   // listbox all render with correct UA chrome (chevrons, item rows,
   // selected-row highlight). Residual diff is text-baseline antialiasing
   // scatter on the option rows + the closed-dropdown's chevron column.
   // Reviewed visually; accepted.
-  "06-forms-select": "DM-771: <select> UA chrome correct; residual diff is text-baseline antialiasing scatter on option rows",
+  "06-forms-select":
+    "DM-771: <select> UA chrome correct; residual diff is text-baseline antialiasing scatter on option rows",
   // DM-772: overflow visible / hidden / scroll / auto / clip / x/y test —
   // all six boxes paint their content with the correct clip behavior.
   // Residual diff is text-baseline antialiasing scatter inside each box.
   // Reviewed visually; accepted.
-  "25-overflow-values": "DM-772: clip behavior correct on all six boxes; residual diff is text-baseline antialiasing scatter",
+  "25-overflow-values":
+    "DM-772: clip behavior correct on all six boxes; residual diff is text-baseline antialiasing scatter",
   // DM-760: the original "text covered" issue (a gray rectangle obscuring
   // the middle of the Pass-criteria paragraph) is fixed by the DM-721
   // inline `box-decoration-break` work + DM-781 height override — the
@@ -1098,18 +1143,21 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // Residual diff is text-baseline antialiasing on the paragraph + a
   // sub-pixel padding shift on the wrapping `<code>:user-invalid</code>`
   // span. Reviewed visually; accepted.
-  "10-deep-form-state-pseudos": "DM-760: paragraph text + inline code chips render correctly; residual diff is antialiasing + sub-pixel wrap padding",
+  "10-deep-form-state-pseudos":
+    "DM-760: paragraph text + inline code chips render correctly; residual diff is antialiasing + sub-pixel wrap padding",
   // DM-757: SVG markers + curve with directional marker + stroke
   // dasharray / dashoffset / linecap / linejoin / miterlimit + paint-order
   // + vector-effect: non-scaling-stroke + nested <svg> viewBox all render
   // correctly to the eye. Residual diff is text-baseline antialiasing on
   // the Pass-criteria paragraph and inline `<code>` annotations only.
   // Reviewed visually; accepted.
-  "07-deep-svg-markers-strokes": "DM-757: SVG marker / stroke / paint-order rendering correct; residual diff is text antialiasing on the caption paragraph",
+  "07-deep-svg-markers-strokes":
+    "DM-757: SVG marker / stroke / paint-order rendering correct; residual diff is text antialiasing on the caption paragraph",
   // DM-763: @container scroll-state(snapped / stuck) styling test —
   // sticky headers, snap-target highlights, and section colorations all
   // render correctly. Residual diff is text antialiasing on labels.
-  "niche-scroll-state-queries": "DM-763: scroll-state container queries render correctly; residual diff is text antialiasing",
+  "niche-scroll-state-queries":
+    "DM-763: scroll-state container queries render correctly; residual diff is text antialiasing",
   // DM-748: Basic <table> with <caption> / <thead> / <tbody> / <tfoot> /
   // <th scope=…>. All grid lines, header bolding, and column-scoped header
   // emphasis paint correctly. Residual diff is text antialiasing inside
@@ -1119,33 +1167,39 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // axis is driven correctly by the captured font-variation-settings; the
   // Hamburgefontsiv samples render at the requested stretches. Residual
   // diff is text antialiasing on the wide-axis variants.
-  "20-font-stretch": "DM-744: font-stretch keyword / percentage map correctly; residual diff is text antialiasing on the variant samples",
+  "20-font-stretch":
+    "DM-744: font-stretch keyword / percentage map correctly; residual diff is text antialiasing on the variant samples",
   // DM-743: <meta> tags page — purely informational; no visible boxes /
   // shapes / images. Residual diff is text antialiasing on the descriptor
   // labels and their values.
-  "01-structure-meta": "DM-743: meta-tag fixture renders correctly; residual diff is text antialiasing on the descriptor labels",
+  "01-structure-meta":
+    "DM-743: meta-tag fixture renders correctly; residual diff is text antialiasing on the descriptor labels",
   // DM-742: `scrollbar-gutter: stable / both-edges` reserve-the-scrollbar
   // pattern. The reserved-gutter padding shows on the static layout
   // correctly (boxes with no overflow still reserve the scrollbar gutter,
   // boxes with overflow paint content inside the gutter). Residual diff
   // is text antialiasing inside the labeled boxes.
-  "25-scrollbar-gutter": "DM-742: scrollbar-gutter reserve behavior correct; residual diff is text antialiasing inside the demo boxes",
+  "25-scrollbar-gutter":
+    "DM-742: scrollbar-gutter reserve behavior correct; residual diff is text antialiasing inside the demo boxes",
   // DM-735: font-family generics test — serif / sans-serif / monospace /
   // cursive / fantasy / system-ui / ui-* / math / emoji / fangsong samples
   // resolve to the right system font on macOS. Fallback stack chain ("DoesNotExist",
   // Georgia, "Times New Roman", serif) demonstrates the chain falls through
   // to Georgia / serif as expected. Residual diff is text antialiasing.
-  "20-font-family": "DM-735: font-family generics + fallback chain resolve correctly; residual diff is text antialiasing",
+  "20-font-family":
+    "DM-735: font-family generics + fallback chain resolve correctly; residual diff is text antialiasing",
   // DM-734: line-height / letter-spacing / word-spacing keyword + length +
   // percentage + unitless. Sample paragraphs render with correct spacing
   // and the inline labels show the active value. Residual diff is text
   // antialiasing on the labels and demonstrators.
-  "20-text-line-spacing": "DM-734: line-height / letter-spacing / word-spacing values render correctly; residual diff is text antialiasing",
+  "20-text-line-spacing":
+    "DM-734: line-height / letter-spacing / word-spacing values render correctly; residual diff is text antialiasing",
   // DM-733: text-align (left / right / center / justify / start / end with
   // RTL + last-line keywords) aligns correctly to spec; minor sub-pixel
   // shifting on the justify variant + RTL start-as-right diff is below the
   // bar for a fidelity bug. User-signed-off as a baseline.
-  "20-text-align": "DM-733: text-align variants align correctly; residual diff is sub-pixel shifting on justify + RTL labels",
+  "20-text-align":
+    "DM-733: text-align variants align correctly; residual diff is sub-pixel shifting on justify + RTL labels",
 };
 
 interface TestResult {
@@ -1226,7 +1280,14 @@ interface TestResult {
       text: string;
       computedFont: string;
       computedFontSize: string;
-      ranges: Array<{ codepoint: number; utf16: [number, number]; x: number; y: number; width: number; height: number }>;
+      ranges: Array<{
+        codepoint: number;
+        utf16: [number, number];
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }>;
       platformFonts: Array<{ familyName: string; postScriptName?: string; isCustomFont: boolean; glyphCount: number }>;
     }>;
     emittedSvg: { sha256: string; byteLength: number; textTargets: string[]; pathTransforms: string[] };
@@ -1258,7 +1319,15 @@ interface TestResult {
   /** Qualitative tier — `clean`/`trivial`/`minor`/`moderate`/`major`. */
   verdict: DiffVerdict;
   /** Per-region breakdown (top 32 by area). */
-  regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }>;
+  regions: Array<{
+    area: number;
+    maxSeverity: number;
+    highSevFraction: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }>;
   pass: boolean;
   skipped?: boolean;
   skipReason?: string;
@@ -1270,7 +1339,6 @@ interface TestResult {
   error?: string;
   warnings?: Array<{ selector: string; feature: string; detail: string }>;
 }
-
 
 function categoryOf(name: string): string {
   // Subdir-prefixed names (e.g. `niche-foo`) take their subdir as the
@@ -1340,7 +1408,9 @@ async function withCompareLock<T>(fn: (page: Page) => Promise<T>): Promise<T> {
   }
   const prev = compareMutex;
   let release: () => void = () => {};
-  compareMutex = new Promise<void>((resolve) => { release = resolve; });
+  compareMutex = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await prev;
   try {
     return await fn(sharedComparePage);
@@ -1391,7 +1461,15 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let shiftyRegionArea = 0;
   let coveragePct = 100;
   let verdict: DiffVerdict = "major";
-  let regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }> = [];
+  let regions: Array<{
+    area: number;
+    maxSeverity: number;
+    highSevFraction: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }> = [];
   let bodyBg = "#ffffff";
   let err: string | undefined;
   let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
@@ -1558,15 +1636,25 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         if (collectCellEvidence) sourceDiagnosticCells = [];
         for (let i = 0; i < Math.min(leafCount, PROBE_CAP); i++) {
           const { nodeId } = await session.send("DOM.querySelector", {
-            nodeId: root.nodeId, selector: `[data-dm-faces-probe="${i}"]`,
+            nodeId: root.nodeId,
+            selector: `[data-dm-faces-probe="${i}"]`,
           });
           if (nodeId === 0) continue;
           const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
           if (collectCellEvidence) {
             const cell = await w.page.locator(`[data-dm-faces-probe="${i}"]`).evaluate((element) => {
-              const textNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && /\S/.test(child.textContent ?? ""));
+              const textNode = [...element.childNodes].find(
+                (child) => child.nodeType === Node.TEXT_NODE && /\S/.test(child.textContent ?? ""),
+              );
               const text = textNode?.textContent ?? "";
-              const ranges: Array<{ codepoint: number; utf16: [number, number]; x: number; y: number; width: number; height: number }> = [];
+              const ranges: Array<{
+                codepoint: number;
+                utf16: [number, number];
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+              }> = [];
               let offset = 0;
               for (const character of text) {
                 const end = offset + character.length;
@@ -1574,13 +1662,20 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
                 range.setStart(textNode!, offset);
                 range.setEnd(textNode!, end);
                 const rect = range.getBoundingClientRect();
-                ranges.push({ codepoint: character.codePointAt(0)!, utf16: [offset, end], x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+                ranges.push({
+                  codepoint: character.codePointAt(0)!,
+                  utf16: [offset, end],
+                  x: rect.x,
+                  y: rect.y,
+                  width: rect.width,
+                  height: rect.height,
+                });
                 offset = end;
               }
               const style = getComputedStyle(element);
               return { text, computedFont: style.font, computedFontSize: style.fontSize, ranges };
             });
-            if (cell.ranges.some((range) => range.codepoint >= 0x270EF && range.codepoint <= 0x270F4)) {
+            if (cell.ranges.some((range) => range.codepoint >= 0x270ef && range.codepoint <= 0x270f4)) {
               sourceDiagnosticCells!.push({ probe: i, ...cell, platformFonts: fonts });
             }
           }
@@ -1595,16 +1690,23 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         if (leafCount > PROBE_CAP) chromeFacesTruncated = true;
         await session.detach().catch(() => {});
         await w.page.evaluate(() => {
-          for (const el of document.querySelectorAll("[data-dm-faces-probe]")) el.removeAttribute("data-dm-faces-probe");
+          for (const el of document.querySelectorAll("[data-dm-faces-probe]"))
+            el.removeAttribute("data-dm-faces-probe");
         });
-      } catch { /* diagnostic only */ }
+      } catch {
+        /* diagnostic only */
+      }
       timer.mark("chrome-faces");
 
       // Pick up any @font-face rules — covers both url(...) downloads and
       // local(...) aliases (DM-303). Without this, fixtures using
       // `font-family: "MyFamily"` declared via @font-face render in the
       // chain-fallback face (`serif` → Times) instead of the local() target.
-      try { await discoverAndRegisterWebfonts(w.page); } catch { /* best-effort */ }
+      try {
+        await discoverAndRegisterWebfonts(w.page);
+      } catch {
+        /* best-effort */
+      }
       timer.mark("discover-webfonts");
 
       // captureElementTreeWithWarnings returns warnings inline so concurrent
@@ -1622,7 +1724,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         mkdirSync(EXPECTED_CACHE_DIR, { recursive: true });
         copyFileSync(expectedPath, cachedPng);
         writeFileSync(cachedMeta, JSON.stringify({ bodyBg, tree: cap.tree, warnings: cap.warnings }));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       timer.mark("cache-write");
     }
     // DM-512: demos always emit self-contained SVGs.
@@ -1642,8 +1746,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // is worker-cumulative and a workerSeq subtraction is required to guess
     // which subset belonged to this row.
     resetGeneration();
-    const collectTextEvidence = (process.platform === "linux" && shouldCollectLinuxUnicodeTextEvidence(name))
-      || name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
+    const collectTextEvidence =
+      (process.platform === "linux" && shouldCollectLinuxUnicodeTextEvidence(name)) ||
+      name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
     if (collectTextEvidence) {
       resetTextRunProvenance();
       setTextRunProvenanceEnabled(true);
@@ -1657,9 +1762,12 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
           textRunEvidence.runs = textRunEvidence.runs.filter((run) =>
             [...run.sourceText].some((character) => {
               const cp = character.codePointAt(0)!;
-              return cp >= 0x270EF && cp <= 0x270F4;
-            }));
-          textRunEvidence.runs.forEach((run, row) => { run.row = row; });
+              return cp >= 0x270ef && cp <= 0x270f4;
+            }),
+          );
+          textRunEvidence.runs.forEach((run, row) => {
+            run.row = row;
+          });
         }
       }
     } finally {
@@ -1710,7 +1818,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     actualSha256 = createHash("sha256").update(readFileSync(actualPath)).digest("hex");
     timer.mark("hash-sides");
 
-    const cmp = await withCompareLock((cp) => comparePngs(cp, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST));
+    const cmp = await withCompareLock((cp) =>
+      comparePngs(cp, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST),
+    );
     timer.mark("compare-pngs");
     if (DEMO_TIMING) {
       _timingRecords.push({
@@ -1820,19 +1930,25 @@ async function main(): Promise<void> {
   // the CI aggregate step noticed, six minutes later, with
   // `no results.json found under shard-artifacts`. Selecting nothing is now a
   // hard error below rather than an empty success.
-  const onlyPrefixes = onlyArg != null
-    ? onlyArg.split(",").map((s) => s.trim().replace(/\//g, "-")).filter((s) => s !== "")
-    : null;
-  const filteredFiles = onlyPrefixes != null && onlyPrefixes.length > 0
-    ? files.filter((f) => { const n = f.replace(/\//g, "-"); return onlyPrefixes.some((p) => n.startsWith(p)); })
-    : files;
+  const onlyPrefixes =
+    onlyArg != null
+      ? onlyArg
+          .split(",")
+          .map((s) => s.trim().replace(/\//g, "-"))
+          .filter((s) => s !== "")
+      : null;
+  const filteredFiles =
+    onlyPrefixes != null && onlyPrefixes.length > 0
+      ? files.filter((f) => {
+          const n = f.replace(/\//g, "-");
+          return onlyPrefixes.some((p) => n.startsWith(p));
+        })
+      : files;
   // DM-1216: shard-by-index so independent GitHub Actions jobs can each run a
   // slice of the suite. `--shard i/N` (or HTML_TEST_SHARD=i/N) keeps a STRIDE of
   // the sorted list (walkHtmlFiles already `.sort()`s, so every shard sees the
   // same ordering). No spec / "1/1" → the whole list. See tests/shard.ts.
-  const shardSpec = args.includes("--shard")
-    ? args[args.indexOf("--shard") + 1]
-    : process.env.HTML_TEST_SHARD;
+  const shardSpec = args.includes("--shard") ? args[args.indexOf("--shard") + 1] : process.env.HTML_TEST_SHARD;
   const testFiles = selectShard(filteredFiles, shardSpec);
   if (testFiles.length === 0) {
     // An `--only` that matches nothing is a caller mistake, not an empty run.
@@ -1847,9 +1963,8 @@ async function main(): Promise<void> {
     console.log(msg);
     return;
   }
-  const shardNote = parseShardSpec(shardSpec) != null
-    ? ` [shard ${shardSpec} → ${testFiles.length} of ${filteredFiles.length}]`
-    : "";
+  const shardNote =
+    parseShardSpec(shardSpec) != null ? ` [shard ${shardSpec} → ${testFiles.length} of ${filteredFiles.length}]` : "";
 
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
   lowerProcessPriority();
@@ -1858,10 +1973,13 @@ async function main(): Promise<void> {
     const name = f.replace(/\.html$/, "").replace(/\//g, "-");
     return FIXTURE_HEIGHT_OVERRIDES[name] != null;
   }).length;
-  const overrideNote = overrideCount > 0
-    ? ` (${overrideCount} fixture${overrideCount === 1 ? "" : "s"} use a taller capture height per DM-781)`
-    : "";
-  console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}${overrideNote})${shardNote} with ${workerCount} workers...\n`);
+  const overrideNote =
+    overrideCount > 0
+      ? ` (${overrideCount} fixture${overrideCount === 1 ? "" : "s"} use a taller capture height per DM-781)`
+      : "";
+  console.log(
+    `Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}${overrideNote})${shardNote} with ${workerCount} workers...\n`,
+  );
 
   // Progress-indicator state — updated inside `onResult` below as each
   // fixture completes. `runStartMs` clocks total wall time so the
@@ -1893,10 +2011,10 @@ async function main(): Promise<void> {
   const helperAvailable = isGlyphHelperAvailable();
   if (!helperAvailable && (process.platform === "darwin" || process.platform === "win32")) {
     console.log(
-      `  ⚠  NATIVE GLYPH HELPER MISSING — the live ${process.platform === "darwin" ? "CoreText" : "DirectWrite"} fallback\n`
-      + `     resolver is OFF, so font selection falls back to the static chain and will NOT\n`
-      + `     match the browser. These results are not comparable to a normal run.\n`
-      + `     Build it: tools/${process.platform === "darwin" ? "macos" : "win32"}-glyph-extractor/build.sh\n`,
+      `  ⚠  NATIVE GLYPH HELPER MISSING — the live ${process.platform === "darwin" ? "CoreText" : "DirectWrite"} fallback\n` +
+        `     resolver is OFF, so font selection falls back to the static chain and will NOT\n` +
+        `     match the browser. These results are not comparable to a normal run.\n` +
+        `     Build it: tools/${process.platform === "darwin" ? "macos" : "win32"}-glyph-extractor/build.sh\n`,
     );
   }
 
@@ -1916,7 +2034,10 @@ async function main(): Promise<void> {
     jobs: testFiles,
     workers: workerCount,
     setup: async () => {
-      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: CAPTURE_DPR });
+      const context = await browser.newContext({
+        viewport: { width: WIDTH, height: HEIGHT },
+        deviceScaleFactor: CAPTURE_DPR,
+      });
       const page = await context.newPage();
       // DM-479: 90 s instead of Playwright's 30 s default.
       page.setDefaultTimeout(90_000);
@@ -1927,7 +2048,10 @@ async function main(): Promise<void> {
       let rasterContext: BrowserContext | null = null;
       let rasterPage = page;
       if (browsers.asymmetric) {
-        rasterContext = await browsers.raster.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: CAPTURE_DPR });
+        rasterContext = await browsers.raster.newContext({
+          viewport: { width: WIDTH, height: HEIGHT },
+          deviceScaleFactor: CAPTURE_DPR,
+        });
         rasterPage = await rasterContext.newPage();
         rasterPage.setDefaultTimeout(90_000);
         rasterPage.setDefaultNavigationTimeout(90_000);
@@ -1949,19 +2073,16 @@ async function main(): Promise<void> {
     },
     onResult: (result) => {
       const { name, pass, skipped, acceptedReason, error: err, warnings, verdict, regionCount, coveragePct } = result;
-      const status = skipped
-        ? "- SKIP"
-        : acceptedReason != null
-        ? "~ ACCEPT"
-        : pass ? "✓ PASS" : "✗ FAIL";
+      const status = skipped ? "- SKIP" : acceptedReason != null ? "~ ACCEPT" : pass ? "✓ PASS" : "✗ FAIL";
       const warnBadge = warnings != null ? ` (${warnings.length}w)` : "";
       // Headline: verdict tier + region count + coverage %. Three things,
       // each immediately interpretable: "minor" tells you it's small,
       // "3 regions" tells you how many spots to look at, "0.28% of image"
       // tells you how much area is wrong.
-      const headline = (skipped ?? false)
-        ? ""
-        : ` ${verdict} · ${regionCount} region${regionCount === 1 ? "" : "s"} · ${coveragePct.toFixed(2)}% of image`;
+      const headline =
+        (skipped ?? false)
+          ? ""
+          : ` ${verdict} · ${regionCount} region${regionCount === 1 ? "" : "s"} · ${coveragePct.toFixed(2)}% of image`;
       // Progress indicator: completed / total ([pct%]), elapsed, ETA. Lets
       // long runs (the 818-fixture unicode sweep is ~30 min on a laptop)
       // show how much is left at a glance. ETA uses the rolling average
@@ -1973,7 +2094,9 @@ async function main(): Promise<void> {
       const avgMsPerJob = elapsedMs / completedJobs;
       const remainingMs = Math.max(0, (testFiles.length - completedJobs) * avgMsPerJob);
       const progress = `[${completedJobs.toString().padStart(String(testFiles.length).length)}/${testFiles.length} ${pct.toFixed(1).padStart(5)}%  elapsed ${formatDuration(elapsedMs)}  ETA ${formatDuration(remainingMs)}]`;
-      console.log(`  ${progress}  ${status}  ${name.padEnd(40)}${headline}${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
+      console.log(
+        `  ${progress}  ${status}  ${name.padEnd(40)}${headline}${warnBadge}${err != null ? `  ERR: ${err}` : ""}`,
+      );
     },
   });
 
@@ -2000,7 +2123,18 @@ async function main(): Promise<void> {
       // renderer — comparing its numbers to a normal run's is meaningless, so
       // the artifact has to carry the fact rather than leaving a reviewer to
       // infer it from the fixture names that happened to fail.
-      JSON.stringify({ generatedAt: new Date().toISOString(), platform: process.platform, glyphHelper: helperAvailable, browsers: browserNote, captureFlags: browsers.captureFlags, rasterFlags: browsers.rasterFlags }, null, 2),
+      JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          platform: process.platform,
+          glyphHelper: helperAvailable,
+          browsers: browserNote,
+          captureFlags: browsers.captureFlags,
+          rasterFlags: browsers.rasterFlags,
+        },
+        null,
+        2,
+      ),
     );
   }
 
@@ -2013,7 +2147,9 @@ async function main(): Promise<void> {
       resolve(OUTPUT_DIR, "timing.json"),
       JSON.stringify({ workerCount: _timingWorkerCount, totalWallMs, fixtures: _timingRecords }, null, 2),
     );
-    console.log(`DEMO_TIMING: wrote ${resolve(OUTPUT_DIR, "timing.json")} (${_timingRecords.length} fixtures, ${(totalWallMs / 1000).toFixed(1)}s wall)`);
+    console.log(
+      `DEMO_TIMING: wrote ${resolve(OUTPUT_DIR, "timing.json")} (${_timingRecords.length} fixtures, ${(totalWallMs / 1000).toFixed(1)}s wall)`,
+    );
   }
 
   const indexHtml = buildIndexHtml(results);
@@ -2027,8 +2163,10 @@ async function main(): Promise<void> {
   // confirm the cache is actually firing across the run.
   const totalCacheChecks = _expectedCacheHits + _expectedCacheMisses;
   if (totalCacheChecks > 0) {
-    const hitPct = (_expectedCacheHits / totalCacheChecks * 100).toFixed(1);
-    console.log(`Expected.png cache: ${_expectedCacheHits} hits / ${_expectedCacheMisses} misses (${hitPct}% hit rate)`);
+    const hitPct = ((_expectedCacheHits / totalCacheChecks) * 100).toFixed(1);
+    console.log(
+      `Expected.png cache: ${_expectedCacheHits} hits / ${_expectedCacheMisses} misses (${hitPct}% hit rate)`,
+    );
   }
   console.log(`\nArtifacts: ${OUTPUT_DIR}`);
   console.log(`Visual index: file://${resolve(OUTPUT_DIR, "index.html")}`);
@@ -2079,15 +2217,23 @@ function ResultRow({ r }: { r: TestResult }) {
       <td className="name">{r.name}</td>
       <td className="status">{status}</td>
       <td className="diff">
-        <div><b>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"}`}</b></div>
+        <div>
+          <b>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"}`}</b>
+        </div>
         <div className="tile">{`${r.coveragePct.toFixed(2)}% of image`}</div>
         <div className="tile">{`shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`}</div>
         <div className="tile">{`raw avg ${r.diffPct.toFixed(2)}% · non-AA ${r.nonAaPixels} px`}</div>
       </td>
       <td className="imgs">
-        <a href={`${r.name}-expected.png`}><img src={`${r.name}-expected.png`} /></a>
-        <a href={`${r.name}-actual.png`}><img src={`${r.name}-actual.png`} /></a>
-        <a href={`${r.name}-diff.png`}><img src={`${r.name}-diff.png`} /></a>
+        <a href={`${r.name}-expected.png`}>
+          <img src={`${r.name}-expected.png`} />
+        </a>
+        <a href={`${r.name}-actual.png`}>
+          <img src={`${r.name}-actual.png`} />
+        </a>
+        <a href={`${r.name}-diff.png`}>
+          <img src={`${r.name}-diff.png`} />
+        </a>
       </td>
       <td className="err-cell">
         {r.error != null ? <div className="err">{r.error}</div> : null}
@@ -2095,7 +2241,10 @@ function ResultRow({ r }: { r: TestResult }) {
         {(r.warnings ?? []).length > 0 ? (
           <ul className="warn-list">
             {(r.warnings ?? []).map((w) => (
-              <li><b>{w.feature}</b>{` · ${w.selector} — ${w.detail}`}</li>
+              <li>
+                <b>{w.feature}</b>
+                {` · ${w.selector} — ${w.detail}`}
+              </li>
             ))}
           </ul>
         ) : null}
@@ -2128,9 +2277,19 @@ function IndexLayout({ results }: { results: TestResult[] }) {
         <h1>{`domotion vs html-test (${results.length} files; ${passCount} pass · ${failCount} fail · ${skipCount} skip)`}</h1>
         <MetricsLegend />
         <table>
-          <thead><tr><th>File</th><th>Status</th><th>Diff</th><th>Expected · Actual · Diff</th><th>Notes</th></tr></thead>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Status</th>
+              <th>Diff</th>
+              <th>Expected · Actual · Diff</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
           <tbody>
-            {results.map((r) => <ResultRow r={r} />)}
+            {results.map((r) => (
+              <ResultRow r={r} />
+            ))}
           </tbody>
         </table>
       </body>

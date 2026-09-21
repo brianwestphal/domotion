@@ -19,23 +19,77 @@ const HEIGHT = 1700;
 const TARGET = { red: 207, green: 0, blue: 159 };
 
 export const pseudoRenderRequiredStates = [
-  "before", "after", "child-first", "child-last", "one-line", "two-lines", "three-lines",
-  "vertical-align:baseline", "vertical-align:middle", "vertical-align:text-top", "vertical-align:text-bottom",
-  "vertical-align:top", "vertical-align:bottom", "vertical-align:sub", "vertical-align:super",
-  "vertical-align:length", "vertical-align:percent", "mixed-fallback-fonts", "mixed-font-sizes",
-  "LTR", "RTL", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr",
-  "text-url-text", "asymmetric-edges", "slice", "clone", "multicol", "inline-block", "flex", "grid",
-  "absolute", "fixed", "affine-transform", "zoom", "DPR:1", "DPR:2",
-  "content:none", "display:none", "visibility:hidden", "opacity:0",
-  "appearance:none-checkbox", "appearance:none-radio", "checked", "unchecked", "indeterminate", "disabled",
-  "checkable-before", "checkable-after", "checkable-text", "checkable-box", "checkable-gradient", "checkable-transform",
-  "switch-pattern", "appearance:base-checkmark", "native-auto-negative", "fractional-checkable", "checkable-zoom",
-  "ordinary-text-unaffected", "first-letter-unaffected", "line-clamp-unaffected", "list-marker-unaffected",
+  "before",
+  "after",
+  "child-first",
+  "child-last",
+  "one-line",
+  "two-lines",
+  "three-lines",
+  "vertical-align:baseline",
+  "vertical-align:middle",
+  "vertical-align:text-top",
+  "vertical-align:text-bottom",
+  "vertical-align:top",
+  "vertical-align:bottom",
+  "vertical-align:sub",
+  "vertical-align:super",
+  "vertical-align:length",
+  "vertical-align:percent",
+  "mixed-fallback-fonts",
+  "mixed-font-sizes",
+  "LTR",
+  "RTL",
+  "vertical-rl",
+  "vertical-lr",
+  "sideways-rl",
+  "sideways-lr",
+  "text-url-text",
+  "asymmetric-edges",
+  "slice",
+  "clone",
+  "multicol",
+  "inline-block",
+  "flex",
+  "grid",
+  "absolute",
+  "fixed",
+  "affine-transform",
+  "zoom",
+  "DPR:1",
+  "DPR:2",
+  "content:none",
+  "display:none",
+  "visibility:hidden",
+  "opacity:0",
+  "appearance:none-checkbox",
+  "appearance:none-radio",
+  "checked",
+  "unchecked",
+  "indeterminate",
+  "disabled",
+  "checkable-before",
+  "checkable-after",
+  "checkable-text",
+  "checkable-box",
+  "checkable-gradient",
+  "checkable-transform",
+  "switch-pattern",
+  "appearance:base-checkmark",
+  "native-auto-negative",
+  "fractional-checkable",
+  "checkable-zoom",
+  "ordinary-text-unaffected",
+  "first-letter-unaffected",
+  "line-clamp-unaffected",
+  "list-marker-unaffected",
 ] as const;
 
 export function pseudoFragmentRenderFixture(): string {
   const align = ["baseline", "middle", "text-top", "text-bottom", "top", "bottom", "sub", "super", "7px", "45%"];
-  const alignRules = align.map((value, index) => `#va${index}::before{content:"V${index}";vertical-align:${value}}`).join("");
+  const alignRules = align
+    .map((value, index) => `#va${index}::before{content:"V${index}";vertical-align:${value}}`)
+    .join("");
   const alignHtml = align.map((_, index) => `<span class="probe va" id="va${index}"><b>T</b></span>`).join("");
   const image = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='9'%3E%3Crect width='11' height='9' fill='rgb(207,0,159)'/%3E%3C/svg%3E`;
   return `<!doctype html><meta charset="utf-8"><style>
@@ -127,53 +181,69 @@ async function targetEdges(png: Buffer): Promise<{ width: number; height: number
   // terminal subpixel color order. Remove only those isolated classifications;
   // connected one-device-pixel strokes and every real contour remain intact.
   const isolated: number[] = [];
-  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
-    const index = y * width + x;
-    if (mask[index] === 0) continue;
-    let connected = false;
-    for (let dy = -1; dy <= 1 && !connected; dy++) for (let dx = -1; dx <= 1; dx++) {
-      if ((dx !== 0 || dy !== 0) && mask[(y + dy) * width + x + dx] !== 0) {
-        connected = true;
-        break;
-      }
+  for (let y = 1; y < height - 1; y++)
+    for (let x = 1; x < width - 1; x++) {
+      const index = y * width + x;
+      if (mask[index] === 0) continue;
+      let connected = false;
+      for (let dy = -1; dy <= 1 && !connected; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          if ((dx !== 0 || dy !== 0) && mask[(y + dy) * width + x + dx] !== 0) {
+            connected = true;
+            break;
+          }
+        }
+      if (!connected) isolated.push(index);
     }
-    if (!connected) isolated.push(index);
-  }
   for (const index of isolated) mask[index] = 0;
   const edges = new Uint8Array(mask.length);
   let count = 0;
-  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
-    const index = y * width + x;
-    if (mask[index] === 0) continue;
-    if (mask[index - 1] === 0 || mask[index + 1] === 0 || mask[index - width] === 0 || mask[index + width] === 0) {
-      edges[index] = 1;
-      count++;
+  for (let y = 1; y < height - 1; y++)
+    for (let x = 1; x < width - 1; x++) {
+      const index = y * width + x;
+      if (mask[index] === 0) continue;
+      if (mask[index - 1] === 0 || mask[index + 1] === 0 || mask[index - width] === 0 || mask[index + width] === 0) {
+        edges[index] = 1;
+        count++;
+      }
     }
-  }
   return { width, height, edges, count };
 }
 
-function directedEdgeDistance(source: Awaited<ReturnType<typeof targetEdges>>, target: Awaited<ReturnType<typeof targetEdges>>, radius: number): { max: number; misses: number } {
+function directedEdgeDistance(
+  source: Awaited<ReturnType<typeof targetEdges>>,
+  target: Awaited<ReturnType<typeof targetEdges>>,
+  radius: number,
+): { max: number; misses: number } {
   let max = 0;
   let misses = 0;
-  for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
-    if (source.edges[y * source.width + x] === 0) continue;
-    let best = Number.POSITIVE_INFINITY;
-    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
-      // The acceptance threshold is a Euclidean device-pixel radius, not a
-      // square/Chebyshev neighborhood. Excluding diagonal points outside the
-      // disk keeps the search and reported maximum on one unchanged 4px
-      // criterion instead of admitting sqrt(4^2 + 4^2) as an accidental 4px
-      // match.
-      if (dx * dx + dy * dy > radius * radius) continue;
-      const tx = x + dx;
-      const ty = y + dy;
-      if (tx < 0 || ty < 0 || tx >= target.width || ty >= target.height || target.edges[ty * target.width + tx] === 0) continue;
-      best = Math.min(best, Math.hypot(dx, dy));
+  for (let y = 0; y < source.height; y++)
+    for (let x = 0; x < source.width; x++) {
+      if (source.edges[y * source.width + x] === 0) continue;
+      let best = Number.POSITIVE_INFINITY;
+      for (let dy = -radius; dy <= radius; dy++)
+        for (let dx = -radius; dx <= radius; dx++) {
+          // The acceptance threshold is a Euclidean device-pixel radius, not a
+          // square/Chebyshev neighborhood. Excluding diagonal points outside the
+          // disk keeps the search and reported maximum on one unchanged 4px
+          // criterion instead of admitting sqrt(4^2 + 4^2) as an accidental 4px
+          // match.
+          if (dx * dx + dy * dy > radius * radius) continue;
+          const tx = x + dx;
+          const ty = y + dy;
+          if (
+            tx < 0 ||
+            ty < 0 ||
+            tx >= target.width ||
+            ty >= target.height ||
+            target.edges[ty * target.width + tx] === 0
+          )
+            continue;
+          best = Math.min(best, Math.hypot(dx, dy));
+        }
+      if (!Number.isFinite(best)) misses++;
+      else max = Math.max(max, best);
     }
-    if (!Number.isFinite(best)) misses++;
-    else max = Math.max(max, best);
-  }
   return { max, misses };
 }
 
@@ -220,27 +290,52 @@ export async function runPseudoFragmentRenderOracle(
         await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       });
       const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
-      const captured = await captureElementTreeWithWarnings(source, "#stage", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+      const captured = await captureElementTreeWithWarnings(source, "#stage", {
+        x: 0,
+        y: 0,
+        width: WIDTH,
+        height: HEIGHT,
+      });
       const records = flatten(captured.tree).flatMap((element) => element.pseudoFragments ?? []);
       const exact = records.filter((record) => record.status === "exact");
       const terminal = records.filter((record) => record.status === "terminal-raster");
-      const structuralErrors = exact.flatMap((record, index) => pseudoFragmentRecordErrors(record).map((error) => `${index}:${error}`));
-      const checkables = flatten(captured.tree).filter((element) => element.animId?.startsWith("check-") || element.animId?.startsWith("base-") || element.animId === "native-auto");
+      const structuralErrors = exact.flatMap((record, index) =>
+        pseudoFragmentRecordErrors(record).map((error) => `${index}:${error}`),
+      );
+      const checkables = flatten(captured.tree).filter(
+        (element) =>
+          element.animId?.startsWith("check-") ||
+          element.animId?.startsWith("base-") ||
+          element.animId === "native-auto",
+      );
       for (const element of checkables) {
         const identity = element.animId ?? "unknown";
         if (identity === "native-auto") {
-          if (element.nativeControlRaster == null) structuralErrors.push(`${identity}: native auto control lost Chromium raster ownership`);
-          if (checkablePseudoFactsOwnIndicator(element)) structuralErrors.push(`${identity}: auto control activated authored pseudo ownership`);
+          if (element.nativeControlRaster == null)
+            structuralErrors.push(`${identity}: native auto control lost Chromium raster ownership`);
+          if (checkablePseudoFactsOwnIndicator(element))
+            structuralErrors.push(`${identity}: auto control activated authored pseudo ownership`);
           continue;
         }
-        if (!checkablePseudoFactsOwnIndicator(element)) structuralErrors.push(`${identity}: authoritative pseudo facts did not suppress compatibility synthesis`);
-        if (renderFormControl(element, "") !== "") structuralErrors.push(`${identity}: generic indicator synthesis remained active`);
+        if (!checkablePseudoFactsOwnIndicator(element))
+          structuralErrors.push(`${identity}: authoritative pseudo facts did not suppress compatibility synthesis`);
+        if (renderFormControl(element, "") !== "")
+          structuralErrors.push(`${identity}: generic indicator synthesis remained active`);
       }
       const checkmarkRecords = records.filter((record) => record.pseudo === "::checkmark");
-      if (checkmarkRecords.length !== 3) structuralErrors.push(`expected 3 ::checkmark records, received ${checkmarkRecords.length}`);
-      for (const identity of ["check-before", "check-after", "check-gradient", "check-indeterminate", "check-disabled", "check-switch"]) {
+      if (checkmarkRecords.length !== 3)
+        structuralErrors.push(`expected 3 ::checkmark records, received ${checkmarkRecords.length}`);
+      for (const identity of [
+        "check-before",
+        "check-after",
+        "check-gradient",
+        "check-indeterminate",
+        "check-disabled",
+        "check-switch",
+      ]) {
         const element = checkables.find((candidate) => candidate.animId === identity);
-        if ((element?.pseudoFragments?.length ?? 0) === 0) structuralErrors.push(`${identity}: generated pseudo record missing`);
+        if ((element?.pseudoFragments?.length ?? 0) === 0)
+          structuralErrors.push(`${identity}: generated pseudo record missing`);
       }
       const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
       if (artifactDir != null) {
@@ -249,9 +344,16 @@ export async function runPseudoFragmentRenderOracle(
       }
       const renderedRecords = (svg.match(/data-domotion-pseudo-source="blink-pseudo-fragment-v1"/g) ?? []).length;
       const rendered = await context.newPage();
-      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, { waitUntil: "load" });
-      await rendered.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); });
-      const renderedPng = Buffer.from(await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
+      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, {
+        waitUntil: "load",
+      });
+      await rendered.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      const renderedPng = Buffer.from(
+        await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }),
+      );
       if (artifactDir != null) {
         mkdirSync(artifactDir, { recursive: true });
         writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
@@ -264,7 +366,9 @@ export async function runPseudoFragmentRenderOracle(
       const radius = 4;
       const forward = directedEdgeDistance(sourceMask, renderedMask, radius);
       const reverse = directedEdgeDistance(renderedMask, sourceMask, radius);
-      const expectedRendered = records.filter((record: CapturedPseudoFragmentSet) => !pseudoFragmentIsUnpainted(record)).length;
+      const expectedRendered = records.filter(
+        (record: CapturedPseudoFragmentSet) => !pseudoFragmentIsUnpainted(record),
+      ).length;
       rows.push({
         dpr,
         exactRecords: exact.length,
@@ -277,12 +381,15 @@ export async function runPseudoFragmentRenderOracle(
         unmatchedSourceEdges: forward.misses,
         unmatchedRenderedEdges: reverse.misses,
         structuralErrors,
-        pass: structuralErrors.length === 0
-          && terminal.length === 0
-          && renderedRecords === expectedRendered
-          && sourceMask.count > 0 && renderedMask.count > 0
-          && forward.misses === 0 && reverse.misses === 0
-          && Math.max(forward.max, reverse.max) <= radius,
+        pass:
+          structuralErrors.length === 0 &&
+          terminal.length === 0 &&
+          renderedRecords === expectedRendered &&
+          sourceMask.count > 0 &&
+          renderedMask.count > 0 &&
+          forward.misses === 0 &&
+          reverse.misses === 0 &&
+          Math.max(forward.max, reverse.max) <= radius,
       });
       await context.close();
     }

@@ -28,8 +28,8 @@ jobs:
         continue-on-error: true
         env:
           HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/baseline
-          DOMOTION_NO_NICE: '1'
-          DOMOTION_TEST_WORKERS: '1'
+          DOMOTION_NO_NICE: "1"
+          DOMOTION_TEST_WORKERS: "1"
         run: |
           export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
           bash scripts/ci-run-shard.sh unicode
@@ -37,8 +37,8 @@ jobs:
         continue-on-error: true
         env:
           HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/fontconfig-helper-off
-          DOMOTION_NO_NICE: '1'
-          DOMOTION_TEST_WORKERS: '1'
+          DOMOTION_NO_NICE: "1"
+          DOMOTION_TEST_WORKERS: "1"
         run: |
           mv tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths
           export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
@@ -52,9 +52,9 @@ jobs:
         continue-on-error: true
         env:
           HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/hinted-subset-off
-          DOMOTION_HINTED_SUBSET: '0'
-          DOMOTION_NO_NICE: '1'
-          DOMOTION_TEST_WORKERS: '1'
+          DOMOTION_HINTED_SUBSET: "0"
+          DOMOTION_NO_NICE: "1"
+          DOMOTION_TEST_WORKERS: "1"
         run: |
           export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
           bash scripts/ci-run-shard.sh unicode

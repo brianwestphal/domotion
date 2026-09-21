@@ -53,7 +53,15 @@ describe("resolveImageFormat", () => {
 
 describe("isTransparentBg", () => {
   it("is true for transparent keywords and zero-alpha colors", () => {
-    for (const v of ["transparent", "none", "#0000", "#00000000", "rgba(0,0,0,0)", "hsla(0, 0%, 0%, 0)", "  TRANSPARENT  "]) {
+    for (const v of [
+      "transparent",
+      "none",
+      "#0000",
+      "#00000000",
+      "rgba(0,0,0,0)",
+      "hsla(0, 0%, 0%, 0)",
+      "  TRANSPARENT  ",
+    ]) {
       expect(isTransparentBg(v)).toBe(true);
     }
   });

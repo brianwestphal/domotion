@@ -12,7 +12,7 @@ import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
 
 /** Parse Blink's computed `-webkit-line-clamp` value. */
 export const parseBlinkLineClampCount = (value) => {
-  if (typeof value !== 'string' || !/^\s*[1-9]\d*\s*$/.test(value)) return null;
+  if (typeof value !== "string" || !/^\s*[1-9]\d*\s*$/.test(value)) return null;
   const count = Number.parseInt(value, 10);
   return Number.isSafeInteger(count) && count > 0 ? count : null;
 };
@@ -24,23 +24,18 @@ export const parseBlinkLineClampCount = (value) => {
  * mandatory: an authored `display:flow-root` with the two WebKit properties is
  * not a line-clamp formatting context.
  */
-export const blinkLineClampActivation = ({
-  webkitLineClamp,
-  webkitBoxOrient,
-  computedDisplay,
-  behaviorallyClamps,
-}) => {
+export const blinkLineClampActivation = ({ webkitLineClamp, webkitBoxOrient, computedDisplay, behaviorallyClamps }) => {
   const clampCount = parseBlinkLineClampCount(webkitLineClamp);
   if (clampCount == null) return null;
-  if (webkitBoxOrient !== 'vertical') return null;
-  if (computedDisplay !== 'flow-root') return null;
+  if (webkitBoxOrient !== "vertical") return null;
+  if (computedDisplay !== "flow-root") return null;
   if (behaviorallyClamps !== true) return null;
   return { clampCount };
 };
 
 /** Blink's primary-font coverage fallback for the generated marker. */
 export const blinkLineClampEllipsisText = (primaryFontHasHorizontalEllipsis) =>
-  primaryFontHasHorizontalEllipsis ? '\u2026' : '...';
+  primaryFontHasHorizontalEllipsis ? "\u2026" : "...";
 
 /**
  * `InlineLayoutAlgorithm::SetupLineClampEllipsis` is reached only for a real
@@ -53,19 +48,18 @@ export const blinkShouldEmitLineClampEllipsis = ({
   totalLineCount,
   emptyLine = false,
   blockInInline = false,
-}) => active === true
-  && Number.isInteger(clampCount)
-  && clampCount > 0
-  && totalLineCount > clampCount
-  && !emptyLine
-  && !blockInInline;
+}) =>
+  active === true &&
+  Number.isInteger(clampCount) &&
+  clampCount > 0 &&
+  totalLineCount > clampCount &&
+  !emptyLine &&
+  !blockInInline;
 
 /** Block-axis ordering of line boxes in the three supported writing modes. */
 export const blinkLogicalLineOrder = (blockOffsets, writingMode) => {
   const unique = [...new Set(blockOffsets)].sort((a, b) => a - b);
-  return writingMode === 'vertical-rl' || writingMode === 'sideways-rl'
-    ? unique.reverse()
-    : unique;
+  return writingMode === "vertical-rl" || writingMode === "sideways-rl" ? unique.reverse() : unique;
 };
 
 /**
@@ -74,21 +68,15 @@ export const blinkLogicalLineOrder = (blockOffsets, writingMode) => {
  * RTL backs up by the shaped marker advance.  The same rule applies to the Y
  * inline axis in vertical writing.
  */
-export const blinkLineClampInlineStart = ({
-  direction,
-  adjacentInlineStart,
-  adjacentInlineEnd,
-  ellipsisAdvance,
-}) => direction === 'rtl'
-  ? adjacentInlineStart - ellipsisAdvance
-  : adjacentInlineEnd;
+export const blinkLineClampInlineStart = ({ direction, adjacentInlineStart, adjacentInlineEnd, ellipsisAdvance }) =>
+  direction === "rtl" ? adjacentInlineStart - ellipsisAdvance : adjacentInlineEnd;
 
 /** Clamp-owned source fragments past the Nth logical line do not paint. */
 export const blinkLineClampLineIsVisible = (logicalLineIndex, clampCount) =>
-  Number.isInteger(logicalLineIndex)
-  && Number.isInteger(clampCount)
-  && logicalLineIndex >= 0
-  && logicalLineIndex < clampCount;
+  Number.isInteger(logicalLineIndex) &&
+  Number.isInteger(clampCount) &&
+  logicalLineIndex >= 0 &&
+  logicalLineIndex < clampCount;
 
 const VERTICAL_WRITING_RE = /^(?:vertical|sideways)-/;
 
@@ -99,8 +87,8 @@ const collectTextCharacters = (root, vertical) => {
     const owner = node.parentElement;
     if (owner == null) continue;
     const ownerStyle = getComputedStyle(owner);
-    if (ownerStyle.display === 'none' || ownerStyle.visibility === 'hidden') continue;
-    const source = node.textContent || '';
+    if (ownerStyle.display === "none" || ownerStyle.visibility === "hidden") continue;
+    const source = node.textContent || "";
     for (let offset = 0; offset < source.length;) {
       const cp = source.codePointAt(offset);
       const ch = String.fromCodePoint(cp);
@@ -141,7 +129,7 @@ const groupLogicalLines = (chars, writingMode) => {
     line.chars.push(char);
   }
   groups.sort((a, b) => a.blockOffset - b.blockOffset);
-  if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') groups.reverse();
+  if (writingMode === "vertical-rl" || writingMode === "sideways-rl") groups.reverse();
   return groups;
 };
 
@@ -154,27 +142,27 @@ const behaviorallyClampsInClone = (el, cs, writingMode) => {
   const parent = el.parentNode;
   if (parent == null) return false;
   const clone = el.cloneNode(true);
-  clone.setAttribute('aria-hidden', 'true');
+  clone.setAttribute("aria-hidden", "true");
   clone.inert = true;
-  clone.style.setProperty('position', 'fixed', 'important');
-  clone.style.setProperty('left', '-100000px', 'important');
-  clone.style.setProperty('top', '0', 'important');
-  clone.style.setProperty('visibility', 'hidden', 'important');
-  clone.style.setProperty('pointer-events', 'none', 'important');
-  clone.style.setProperty('content-visibility', 'visible', 'important');
-  clone.style.setProperty('contain', 'none', 'important');
+  clone.style.setProperty("position", "fixed", "important");
+  clone.style.setProperty("left", "-100000px", "important");
+  clone.style.setProperty("top", "0", "important");
+  clone.style.setProperty("visibility", "hidden", "important");
+  clone.style.setProperty("pointer-events", "none", "important");
+  clone.style.setProperty("content-visibility", "visible", "important");
+  clone.style.setProperty("contain", "none", "important");
   if (VERTICAL_WRITING_RE.test(writingMode)) {
-    clone.style.setProperty('height', cs.height, 'important');
-    clone.style.setProperty('width', 'auto', 'important');
-    clone.style.setProperty('min-width', '0', 'important');
-    clone.style.setProperty('max-width', 'none', 'important');
+    clone.style.setProperty("height", cs.height, "important");
+    clone.style.setProperty("width", "auto", "important");
+    clone.style.setProperty("min-width", "0", "important");
+    clone.style.setProperty("max-width", "none", "important");
   } else {
-    clone.style.setProperty('width', cs.width, 'important');
-    clone.style.setProperty('height', 'auto', 'important');
-    clone.style.setProperty('min-height', '0', 'important');
-    clone.style.setProperty('max-height', 'none', 'important');
+    clone.style.setProperty("width", cs.width, "important");
+    clone.style.setProperty("height", "auto", "important");
+    clone.style.setProperty("min-height", "0", "important");
+    clone.style.setProperty("max-height", "none", "important");
   }
-  clone.style.setProperty('overflow', 'visible', 'important');
+  clone.style.setProperty("overflow", "visible", "important");
   parent.insertBefore(clone, el.nextSibling);
   try {
     return VERTICAL_WRITING_RE.test(writingMode)
@@ -186,7 +174,7 @@ const behaviorallyClampsInClone = (el, cs, writingMode) => {
 };
 
 const firstFamily = (familyList) => {
-  return parseCssFontFamilyEntries(familyList || '')[0]?.name || 'sans-serif';
+  return parseCssFontFamilyEntries(familyList || "")[0]?.name || "sans-serif";
 };
 
 // CSS Font Loading exposes exact unicode-range coverage for authored faces.
@@ -197,15 +185,15 @@ const primaryFontHasEllipsis = (doc, cs) => {
   const primary = firstFamily(cs.fontFamily).toLowerCase();
   let sawMatchingFace = false;
   for (const face of doc.fonts) {
-    if ((face.family || '').replace(/^['"]|['"]$/g, '').toLowerCase() !== primary) continue;
+    if ((face.family || "").replace(/^['"]|['"]$/g, "").toLowerCase() !== primary) continue;
     sawMatchingFace = true;
-    const range = face.unicodeRange || 'U+0-10FFFF';
-    const covers = range.split(',').some((part) => {
+    const range = face.unicodeRange || "U+0-10FFFF";
+    const covers = range.split(",").some((part) => {
       const match = /U\+([0-9a-f?]+)(?:-([0-9a-f]+))?/i.exec(part.trim());
       if (match == null) return false;
-      if (match[1].includes('?')) {
-        const lo = Number.parseInt(match[1].replace(/\?/g, '0'), 16);
-        const hi = Number.parseInt(match[1].replace(/\?/g, 'f'), 16);
+      if (match[1].includes("?")) {
+        const lo = Number.parseInt(match[1].replace(/\?/g, "0"), 16);
+        const hi = Number.parseInt(match[1].replace(/\?/g, "f"), 16);
         return 0x2026 >= lo && 0x2026 <= hi;
       }
       const lo = Number.parseInt(match[1], 16);
@@ -218,10 +206,11 @@ const primaryFontHasEllipsis = (doc, cs) => {
 };
 
 const measureMarker = (doc, cs, text, writingMode, scale) => {
-  const probe = doc.createElement('span');
-  probe.setAttribute('aria-hidden', 'true');
+  const probe = doc.createElement("span");
+  probe.setAttribute("aria-hidden", "true");
   probe.textContent = text;
-  probe.style.cssText = 'position:fixed;left:-100000px;top:0;display:inline-block;visibility:hidden;white-space:pre;margin:0;padding:0;border:0;';
+  probe.style.cssText =
+    "position:fixed;left:-100000px;top:0;display:inline-block;visibility:hidden;white-space:pre;margin:0;padding:0;border:0;";
   probe.style.fontFamily = cs.fontFamily;
   probe.style.fontSize = cs.fontSize;
   probe.style.fontWeight = cs.fontWeight;
@@ -260,12 +249,12 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
 
   const analyzeRoot = (el, cs) => {
     if (contexts.has(el)) return contexts.get(el);
-    const parsed = parseBlinkLineClampCount(cs.webkitLineClamp || '');
-    if (parsed == null || cs.webkitBoxOrient !== 'vertical' || cs.display !== 'flow-root') {
+    const parsed = parseBlinkLineClampCount(cs.webkitLineClamp || "");
+    if (parsed == null || cs.webkitBoxOrient !== "vertical" || cs.display !== "flow-root") {
       contexts.set(el, null);
       return null;
     }
-    const writingMode = cs.writingMode || 'horizontal-tb';
+    const writingMode = cs.writingMode || "horizontal-tb";
     const vertical = VERTICAL_WRITING_RE.test(writingMode);
     const chars = collectTextCharacters(el, vertical);
     const lines = groupLogicalLines(chars, writingMode);
@@ -289,15 +278,15 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
       contexts.set(el, null);
       return null;
     }
-    const direction = cs.direction === 'rtl' ? 'rtl' : 'ltr';
+    const direction = cs.direction === "rtl" ? "rtl" : "ltr";
     // CSS zoom belongs to Blink's local layout/metric space. CSS transforms
     // are deliberately excluded: DM-2470 applies the signed fragment paint
     // matrix once after the complete marker/text bundle is emitted.
     const scale = effectiveZoomFor?.(el) || 1;
     const markerText = blinkLineClampEllipsisText(primaryFontHasEllipsis(el.ownerDocument, cs));
     const measured = measureMarker(el.ownerDocument, cs, markerText, writingMode, scale);
-    const inlineStarts = clampLine.chars.map((char) => vertical ? char.top : char.left);
-    const inlineEnds = clampLine.chars.map((char) => vertical ? char.bottom : char.right);
+    const inlineStarts = clampLine.chars.map((char) => (vertical ? char.top : char.left));
+    const inlineEnds = clampLine.chars.map((char) => (vertical ? char.bottom : char.right));
     const adjacentInlineStart = Math.min(...inlineStarts);
     const adjacentInlineEnd = Math.max(...inlineEnds);
     const inlineStart = blinkLineClampInlineStart({
@@ -306,41 +295,46 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
       adjacentInlineEnd,
       ellipsisAdvance: measured.inlineAdvance,
     });
-    const adjacent = direction === 'rtl'
-      ? clampLine.chars.reduce((best, char) => (vertical ? char.top : char.left) < (vertical ? best.top : best.left) ? char : best)
-      : clampLine.chars.reduce((best, char) => (vertical ? char.bottom : char.right) > (vertical ? best.bottom : best.right) ? char : best);
+    const adjacent =
+      direction === "rtl"
+        ? clampLine.chars.reduce((best, char) =>
+            (vertical ? char.top : char.left) < (vertical ? best.top : best.left) ? char : best,
+          )
+        : clampLine.chars.reduce((best, char) =>
+            (vertical ? char.bottom : char.right) > (vertical ? best.bottom : best.right) ? char : best,
+          );
     const adjacentStyle = getComputedStyle(adjacent.owner);
     const adjacentAscent = measureFontMetrics(adjacentStyle).ascent * (effectiveZoomFor?.(adjacent.owner) || 1);
     const rootMetrics = measureFontMetrics(cs);
     const rootAscent = rootMetrics.ascent * scale;
-    const baseline = vertical
-      ? adjacent.left + adjacentAscent
-      : adjacent.top + adjacentAscent;
+    const baseline = vertical ? adjacent.left + adjacentAscent : adjacent.top + adjacentAscent;
     const lineLeft = Math.min(...clampLine.chars.map((char) => char.left));
     const lineRight = Math.max(...clampLine.chars.map((char) => char.right));
     const lineTop = Math.min(...clampLine.chars.map((char) => char.top));
     const lineBottom = Math.max(...clampLine.chars.map((char) => char.bottom));
-    const marker = vertical ? {
-      text: markerText,
-      x: lineLeft - vp.x,
-      y: inlineStart - vp.y,
-      width: lineRight - lineLeft,
-      height: measured.inlineAdvance,
-      yOffsets: [inlineStart - vp.y],
-      verticalWritingMode: writingMode,
-      verticalOrientations: ['rotated'],
-      verticalAdvances: [measured.inlineAdvance],
-      verticalNaturalWidths: [measured.width],
-      fontAscent: rootMetrics.ascent,
-    } : {
-      text: markerText,
-      x: inlineStart - vp.x,
-      y: baseline - rootAscent - vp.y,
-      width: measured.inlineAdvance,
-      height: lineBottom - lineTop,
-      xOffsets: [inlineStart - vp.x],
-      fontAscent: rootMetrics.ascent,
-    };
+    const marker = vertical
+      ? {
+          text: markerText,
+          x: lineLeft - vp.x,
+          y: inlineStart - vp.y,
+          width: lineRight - lineLeft,
+          height: measured.inlineAdvance,
+          yOffsets: [inlineStart - vp.y],
+          verticalWritingMode: writingMode,
+          verticalOrientations: ["rotated"],
+          verticalAdvances: [measured.inlineAdvance],
+          verticalNaturalWidths: [measured.width],
+          fontAscent: rootMetrics.ascent,
+        }
+      : {
+          text: markerText,
+          x: inlineStart - vp.x,
+          y: baseline - rootAscent - vp.y,
+          width: measured.inlineAdvance,
+          height: lineBottom - lineTop,
+          xOffsets: [inlineStart - vp.x],
+          fontAscent: rootMetrics.ascent,
+        };
     Object.assign(marker, {
       generatedLineClampEllipsis: true,
       shapedWidth: measured.inlineAdvance,
@@ -355,7 +349,7 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
       fontVariant: cs.fontVariant,
     });
     const probeId = `dm2417-${probeSequence++}`;
-    el.setAttribute('data-domotion-line-clamp-probe', probeId);
+    el.setAttribute("data-domotion-line-clamp-probe", probeId);
     marker.lineClampProbeId = probeId;
     const context = { root: el, clampCount: activation.clampCount, writingMode, lines, marker };
     contexts.set(el, context);
@@ -364,9 +358,7 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
 
   const nearestContext = (el) => {
     for (let cursor = el; cursor != null; cursor = cursor.parentElement) {
-      const context = contexts.has(cursor)
-        ? contexts.get(cursor)
-        : analyzeRoot(cursor, getComputedStyle(cursor));
+      const context = contexts.has(cursor) ? contexts.get(cursor) : analyzeRoot(cursor, getComputedStyle(cursor));
       if (context != null) return context;
     }
     return null;
@@ -398,11 +390,15 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
       const index = segmentLineIndex(segment, context);
       return index < 0 || blinkLineClampLineIsVisible(index, context.clampCount);
     });
-    if (el === context.root && blinkShouldEmitLineClampEllipsis({
-      active: true,
-      clampCount: context.clampCount,
-      totalLineCount: context.lines.length,
-    })) retained.push(context.marker);
+    if (
+      el === context.root &&
+      blinkShouldEmitLineClampEllipsis({
+        active: true,
+        clampCount: context.clampCount,
+        totalLineCount: context.lines.length,
+      })
+    )
+      retained.push(context.marker);
     return {
       ...result,
       textSegments: retained,

@@ -18,11 +18,39 @@ import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 
 export type PrimitiveKind = "border" | "outline";
 export type PrimitiveStyle = "solid" | "dashed" | "dotted" | "double";
-export interface PhaseCase { id: string; kind: PrimitiveKind; style: PrimitiveStyle; width: number; phase: number; x: number; y: number; boxWidth: number; boxHeight: number; nominalCenter: number }
-export interface EdgeProfile { values: number[]; origin: number; outer: number; inner: number; center: number }
-export interface SnapSample { nominalCenter: number; observedCenter: number; width: number }
-export interface SnapFit { rule: "none" | "css-edge-round" | "device-center-round"; mae: number }
-export interface PhaseScenario { id: string; dsf: number; zoom: number }
+export interface PhaseCase {
+  id: string;
+  kind: PrimitiveKind;
+  style: PrimitiveStyle;
+  width: number;
+  phase: number;
+  x: number;
+  y: number;
+  boxWidth: number;
+  boxHeight: number;
+  nominalCenter: number;
+}
+export interface EdgeProfile {
+  values: number[];
+  origin: number;
+  outer: number;
+  inner: number;
+  center: number;
+}
+export interface SnapSample {
+  nominalCenter: number;
+  observedCenter: number;
+  width: number;
+}
+export interface SnapFit {
+  rule: "none" | "css-edge-round" | "device-center-round";
+  mae: number;
+}
+export interface PhaseScenario {
+  id: string;
+  dsf: number;
+  zoom: number;
+}
 
 export const BORDER_PHASE_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -32,9 +60,7 @@ export const BORDER_PHASE_SOURCE_PINS = {
 /** Blink pixel-snaps the border/outline reference rect before paint. Every
  * straight border and square-outline branch, including both uniform-double
  * stripe boxes, now mirrors that decision locally. */
-export function borderPhaseGeometryStatus(
-  _phaseCase: Pick<PhaseCase, "kind" | "style">,
-): "source-exact" {
+export function borderPhaseGeometryStatus(_phaseCase: Pick<PhaseCase, "kind" | "style">): "source-exact" {
   return "source-exact";
 }
 
@@ -68,9 +94,12 @@ export type BorderPaintDecision =
  * clip split in `ClipBorderSidePolygon`. Revision and source are recorded in
  * docs/129 and the parity matrix. */
 export function classifyBorderPaintDecision(input: BorderPaintDecisionInput): BorderPaintDecision {
-  const eligible = input.uniformColor && input.uniformStyle
-    && input.innerRenderable && input.innerRoundCurvature
-    && (input.style === "solid" || input.style === "double");
+  const eligible =
+    input.uniformColor &&
+    input.uniformStyle &&
+    input.innerRenderable &&
+    input.innerRoundCurvature &&
+    (input.style === "solid" || input.style === "double");
   if (eligible && input.allEdges) {
     if (input.style === "double") return "double-drrect-fast-path";
     if (input.uniformWidth && !input.outerRounded) return "solid-rect-fast-path";
@@ -86,12 +115,19 @@ export function classifyBorderPaintDecision(input: BorderPaintDecisionInput): Bo
 
 export function buildBorderPaintDecisionCases(): BorderPaintDecisionInput[] {
   const base: Omit<BorderPaintDecisionInput, "id"> = {
-    uniformColor: true, uniformStyle: true, uniformWidth: true,
-    innerRenderable: true, innerRoundCurvature: true, style: "solid",
-    allEdges: true, outerRounded: false, transparent: false,
+    uniformColor: true,
+    uniformStyle: true,
+    uniformWidth: true,
+    innerRenderable: true,
+    innerRoundCurvature: true,
+    style: "solid",
+    allEdges: true,
+    outerRounded: false,
+    transparent: false,
   };
   const rows: BorderPaintDecisionInput[] = [];
-  const add = (id: string, patch: Partial<Omit<BorderPaintDecisionInput, "id">>) => rows.push({ id, ...base, ...patch });
+  const add = (id: string, patch: Partial<Omit<BorderPaintDecisionInput, "id">>) =>
+    rows.push({ id, ...base, ...patch });
   add("uniform-solid-rect", {});
   add("uniform-solid-rounded", { outerRounded: true });
   add("mixed-width-solid-rounded", { uniformWidth: false, outerRounded: true });
@@ -105,23 +141,42 @@ export function buildBorderPaintDecisionCases(): BorderPaintDecisionInput[] {
   return rows;
 }
 
-const DEFAULT_DSF = 4, PAGE_WIDTH = 760, ROW_HEIGHT = 56, TOP_PAD = 18;
-const BOX_WIDTH = 132, BOX_HEIGHT = 34, OUTLINE_OFFSET = 3;
+const DEFAULT_DSF = 4,
+  PAGE_WIDTH = 760,
+  ROW_HEIGHT = 56,
+  TOP_PAD = 18;
+const BOX_WIDTH = 132,
+  BOX_HEIGHT = 34,
+  OUTLINE_OFFSET = 3;
 
 export function buildPhaseCases(): PhaseCase[] {
   const out: PhaseCase[] = [];
   let index = 0;
   for (const kind of ["border", "outline"] as const)
     for (const style of ["solid", "dashed", "dotted", "double"] as const)
-      for (const width of [1, 2, 3, 5]) for (const phase of [0, 0.25, 0.5, 0.75]) {
-        // Four columns keep DSF/zoom matrix screenshots below Chromium's image
-        // dimension limits without changing any case's local paint inputs.
-        const column = index % 4, row = Math.floor(index / 4);
-        const x = 20 + column * 185 + phase, y = TOP_PAD + row * ROW_HEIGHT + phase;
-        const nominalCenter = kind === "border" ? y + width / 2 : y - OUTLINE_OFFSET - width / 2;
-        out.push({ id: `${kind}.${style}.w${width}.p${String(phase).replace(".", "_")}`, kind, style, width, phase, x, y, boxWidth: BOX_WIDTH, boxHeight: BOX_HEIGHT, nominalCenter });
-        index++;
-      }
+      for (const width of [1, 2, 3, 5])
+        for (const phase of [0, 0.25, 0.5, 0.75]) {
+          // Four columns keep DSF/zoom matrix screenshots below Chromium's image
+          // dimension limits without changing any case's local paint inputs.
+          const column = index % 4,
+            row = Math.floor(index / 4);
+          const x = 20 + column * 185 + phase,
+            y = TOP_PAD + row * ROW_HEIGHT + phase;
+          const nominalCenter = kind === "border" ? y + width / 2 : y - OUTLINE_OFFSET - width / 2;
+          out.push({
+            id: `${kind}.${style}.w${width}.p${String(phase).replace(".", "_")}`,
+            kind,
+            style,
+            width,
+            phase,
+            x,
+            y,
+            boxWidth: BOX_WIDTH,
+            boxHeight: BOX_HEIGHT,
+            nominalCenter,
+          });
+          index++;
+        }
   return out;
 }
 
@@ -132,11 +187,19 @@ export function buildPhaseScenarios(dsfs: number[], zooms: number[]): PhaseScena
 export function profileEdges(values: number[], origin: number, dsf = DEFAULT_DSF): EdgeProfile {
   const active = values.map((v, i) => ({ v, i })).filter(({ v }) => v >= 1 / 255);
   if (!active.length) return { values, origin, outer: NaN, inner: NaN, center: NaN };
-  const first = active[0].i, last = active.at(-1)!.i;
+  const first = active[0].i,
+    last = active.at(-1)!.i;
   const total = active.reduce((n, p) => n + p.v, 0);
   const centerIndex = active.reduce((n, p) => n + (p.i + 0.5) * p.v, 0) / total;
-  const lead = values[first], tail = values[last];
-  return { values, origin, outer: origin + (first + 1 - lead) / dsf, inner: origin + (last + tail) / dsf, center: origin + centerIndex / dsf };
+  const lead = values[first],
+    tail = values[last];
+  return {
+    values,
+    origin,
+    outer: origin + (first + 1 - lead) / dsf,
+    inner: origin + (last + tail) / dsf,
+    center: origin + centerIndex / dsf,
+  };
 }
 
 export function profileRmse(a: number[], b: number[]): number {
@@ -148,21 +211,38 @@ export function profileRmse(a: number[], b: number[]): number {
 }
 
 export function deriveSnapRule(samples: SnapSample[], dsf = DEFAULT_DSF): SnapFit[] {
-  const predict = (s: SnapSample, rule: SnapFit["rule"]): number => rule === "css-edge-round"
-    ? Math.round(s.nominalCenter - s.width / 2) + s.width / 2
-    : rule === "device-center-round" ? Math.round(s.nominalCenter * dsf) / dsf : s.nominalCenter;
-  return (["none", "css-edge-round", "device-center-round"] as const).map((rule) => ({ rule, mae: samples.reduce((n, s) => n + Math.abs(predict(s, rule) - s.observedCenter), 0) / Math.max(1, samples.length) })).sort((a, b) => a.mae - b.mae);
+  const predict = (s: SnapSample, rule: SnapFit["rule"]): number =>
+    rule === "css-edge-round"
+      ? Math.round(s.nominalCenter - s.width / 2) + s.width / 2
+      : rule === "device-center-round"
+        ? Math.round(s.nominalCenter * dsf) / dsf
+        : s.nominalCenter;
+  return (["none", "css-edge-round", "device-center-round"] as const)
+    .map((rule) => ({
+      rule,
+      mae: samples.reduce((n, s) => n + Math.abs(predict(s, rule) - s.observedCenter), 0) / Math.max(1, samples.length),
+    }))
+    .sort((a, b) => a.mae - b.mae);
 }
 
 function pageHtml(cases: PhaseCase[], zoom: number): string {
-  const boxes = cases.map((c) => {
-    const paint = c.kind === "border" ? `border:${c.width}px ${c.style} #000` : `outline:${c.width}px ${c.style} #000;outline-offset:${OUTLINE_OFFSET}px`;
-    return `<div style="position:absolute;left:${c.x}px;top:${c.y}px;width:${c.boxWidth}px;height:${c.boxHeight}px;box-sizing:border-box;${paint}"></div>`;
-  }).join("");
+  const boxes = cases
+    .map((c) => {
+      const paint =
+        c.kind === "border"
+          ? `border:${c.width}px ${c.style} #000`
+          : `outline:${c.width}px ${c.style} #000;outline-offset:${OUTLINE_OFFSET}px`;
+      return `<div style="position:absolute;left:${c.x}px;top:${c.y}px;width:${c.boxWidth}px;height:${c.boxHeight}px;box-sizing:border-box;${paint}"></div>`;
+    })
+    .join("");
   return `<!doctype html><style>html,body{margin:0;background:transparent}body{zoom:${zoom}}</style>${boxes}`;
 }
 
-async function imageProfiles(png: Buffer, cases: PhaseCase[], scenario: PhaseScenario): Promise<Map<string, EdgeProfile>> {
+async function imageProfiles(
+  png: Buffer,
+  cases: PhaseCase[],
+  scenario: PhaseScenario,
+): Promise<Map<string, EdgeProfile>> {
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const result = new Map<string, EdgeProfile>();
   for (const c of cases) {
@@ -190,19 +270,13 @@ function numberList(raw: string, name: string): number[] {
   return [...new Set(values)];
 }
 
-const sha256 = (value: string | Buffer): string =>
-  createHash("sha256").update(value).digest("hex");
+const sha256 = (value: string | Buffer): string => createHash("sha256").update(value).digest("hex");
 
 /** Linux's headless screenshot protocol rejects the full DSF=4 surface even
  * though the resulting PNG is within Chromium's image dimensions. Capture
  * bounded vertical tiles and stitch their unchanged device pixels so all
  * platforms run the same 128-case corpus. */
-async function screenshotInVerticalTiles(
-  page: Page,
-  width: number,
-  height: number,
-  dsf: number,
-): Promise<Buffer> {
+async function screenshotInVerticalTiles(page: Page, width: number, height: number, dsf: number): Promise<Buffer> {
   const maxTileDeviceHeight = 3_600;
   const tileCssHeight = Math.max(1, Math.floor(maxTileDeviceHeight / dsf));
   if (height <= tileCssHeight) return page.screenshot({ omitBackground: true });
@@ -218,8 +292,7 @@ async function screenshotInVerticalTiles(
       omitBackground: true,
     });
     const metadata = await sharp(input).metadata();
-    if (metadata.width == null || metadata.height == null)
-      throw new Error(`screenshot tile ${y} has no dimensions`);
+    if (metadata.width == null || metadata.height == null) throw new Error(`screenshot tile ${y} has no dimensions`);
     outputWidth = Math.max(outputWidth, metadata.width);
     tiles.push({ input, left: 0, top: outputHeight });
     outputHeight += metadata.height;
@@ -232,32 +305,46 @@ async function screenshotInVerticalTiles(
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-  }).composite(tiles).png().toBuffer();
+  })
+    .composite(tiles)
+    .png()
+    .toBuffer();
 }
 
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
-  const option = (name: string, fallback: string) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback; };
-  const jsonPath = option("--json", ""), keepDir = option("--keep", "");
-  const scenarios = buildPhaseScenarios(numberList(option("--dsf", "4"), "--dsf"), numberList(option("--zoom", "1"), "--zoom"));
+  const option = (name: string, fallback: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback;
+  };
+  const jsonPath = option("--json", ""),
+    keepDir = option("--keep", "");
+  const scenarios = buildPhaseScenarios(
+    numberList(option("--dsf", "4"), "--dsf"),
+    numberList(option("--zoom", "1"), "--zoom"),
+  );
   const reportOnly = args.includes("--report-only");
   // Baseline envelopes are deliberately just above the measured 2026-08-15
   // maxima (0.551 / 0.471). A paint change may tighten them when it reduces
   // the named fixture residuals; widening them requires an explicit review.
-  const maxEdgeError = Number(option("--max-edge-error", "0.56")), maxProfileRmse = Number(option("--max-profile-rmse", "0.48"));
+  const maxEdgeError = Number(option("--max-edge-error", "0.56")),
+    maxProfileRmse = Number(option("--max-profile-rmse", "0.48"));
   const cases = buildPhaseCases();
-  const corpusFingerprint = sha256(JSON.stringify({
-    schemaVersion: 2,
-    cases,
-    scenarios,
-    sourcePins: BORDER_PHASE_SOURCE_PINS,
-  }));
+  const corpusFingerprint = sha256(
+    JSON.stringify({
+      schemaVersion: 2,
+      cases,
+      scenarios,
+      sourcePins: BORDER_PHASE_SOURCE_PINS,
+    }),
+  );
   const browser = await chromium.launch();
   try {
     const reports = [];
     for (const scenario of scenarios) {
       const baseHeight = TOP_PAD + Math.ceil(cases.length / 4) * ROW_HEIGHT + 20;
-      const width = Math.ceil(PAGE_WIDTH * scenario.zoom), height = Math.ceil(baseHeight * scenario.zoom);
+      const width = Math.ceil(PAGE_WIDTH * scenario.zoom),
+        height = Math.ceil(baseHeight * scenario.zoom);
       const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scenario.dsf });
       try {
         const htmlPage = await context.newPage();
@@ -267,25 +354,60 @@ async function main(): Promise<number> {
         const inner = elementTreeToSvgInner(tree, width, height);
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${inner}</svg>`;
         const svgPage = await context.newPage();
-        await svgPage.setContent(`<style>html,body{margin:0;background:transparent}img{display:block;width:${width}px;height:${height}px}</style><img>`, { waitUntil: "load" });
-        await svgPage.locator("img").evaluate((img, src) => { (img as HTMLImageElement).src = `data:image/svg+xml;base64,${src}`; }, Buffer.from(svg).toString("base64"));
+        await svgPage.setContent(
+          `<style>html,body{margin:0;background:transparent}img{display:block;width:${width}px;height:${height}px}</style><img>`,
+          { waitUntil: "load" },
+        );
+        await svgPage.locator("img").evaluate((img, src) => {
+          (img as HTMLImageElement).src = `data:image/svg+xml;base64,${src}`;
+        }, Buffer.from(svg).toString("base64"));
         await svgPage.locator("img").evaluate((img) => (img as HTMLImageElement).decode());
         const svgPng = await screenshotInVerticalTiles(svgPage, width, height, scenario.dsf);
-        const htmlProfiles = await imageProfiles(htmlPng, cases, scenario), svgProfiles = await imageProfiles(svgPng, cases, scenario);
+        const htmlProfiles = await imageProfiles(htmlPng, cases, scenario),
+          svgProfiles = await imageProfiles(svgPng, cases, scenario);
         const rows = cases.map((c) => {
-          const html = htmlProfiles.get(c.id)!, emitted = svgProfiles.get(c.id)!;
-          return { ...c, nominalCenter: c.nominalCenter * scenario.zoom, paintedWidth: c.width * scenario.zoom, html, svg: emitted, outerError: Math.abs(emitted.outer - html.outer), innerError: Math.abs(emitted.inner - html.inner), centerError: Math.abs(emitted.center - html.center), profileRmse: profileRmse(html.values, emitted.values) };
+          const html = htmlProfiles.get(c.id)!,
+            emitted = svgProfiles.get(c.id)!;
+          return {
+            ...c,
+            nominalCenter: c.nominalCenter * scenario.zoom,
+            paintedWidth: c.width * scenario.zoom,
+            html,
+            svg: emitted,
+            outerError: Math.abs(emitted.outer - html.outer),
+            innerError: Math.abs(emitted.inner - html.inner),
+            centerError: Math.abs(emitted.center - html.center),
+            profileRmse: profileRmse(html.values, emitted.values),
+          };
         });
         const finite = rows.filter((row) => Number.isFinite(row.outerError) && Number.isFinite(row.innerError));
         const worstEdge = Math.max(...finite.flatMap((row) => [row.outerError, row.innerError]));
         const worstRmse = Math.max(...finite.map((row) => row.profileRmse));
-        const sample = (key: "html" | "svg") => finite.map((row) => ({ nominalCenter: row.nominalCenter, observedCenter: row[key].center, width: row.paintedWidth }));
-        const geometry = { htmlSnapFits: deriveSnapRule(sample("html"), scenario.dsf), svgSnapFits: deriveSnapRule(sample("svg"), scenario.dsf) };
-        const failed = rows.filter((row) => !Number.isFinite(row.outerError) || row.outerError > maxEdgeError || row.innerError > maxEdgeError || row.profileRmse > maxProfileRmse);
+        const sample = (key: "html" | "svg") =>
+          finite.map((row) => ({
+            nominalCenter: row.nominalCenter,
+            observedCenter: row[key].center,
+            width: row.paintedWidth,
+          }));
+        const geometry = {
+          htmlSnapFits: deriveSnapRule(sample("html"), scenario.dsf),
+          svgSnapFits: deriveSnapRule(sample("svg"), scenario.dsf),
+        };
+        const failed = rows.filter(
+          (row) =>
+            !Number.isFinite(row.outerError) ||
+            row.outerError > maxEdgeError ||
+            row.innerError > maxEdgeError ||
+            row.profileRmse > maxProfileRmse,
+        );
         const ratified = rows.filter((row) => borderPhaseGeometryStatus(row) === "source-exact");
-        const ratifiedFailed = ratified.filter((row) => !Number.isFinite(row.outerError)
-          || row.outerError > maxEdgeError || row.innerError > maxEdgeError
-          || row.profileRmse > maxProfileRmse);
+        const ratifiedFailed = ratified.filter(
+          (row) =>
+            !Number.isFinite(row.outerError) ||
+            row.outerError > maxEdgeError ||
+            row.innerError > maxEdgeError ||
+            row.profileRmse > maxProfileRmse,
+        );
         reports.push({
           scenario,
           geometry,
@@ -307,26 +429,55 @@ async function main(): Promise<number> {
           },
           rows,
         });
-        console.log(`${scenario.id}: ${rows.length - failed.length}/${rows.length} pass; edge=${worstEdge.toFixed(3)} CSS px; profile=${worstRmse.toFixed(3)}; HTML snap=${geometry.htmlSnapFits[0].rule}; SVG snap=${geometry.svgSnapFits[0].rule}`);
+        console.log(
+          `${scenario.id}: ${rows.length - failed.length}/${rows.length} pass; edge=${worstEdge.toFixed(3)} CSS px; profile=${worstRmse.toFixed(3)}; HTML snap=${geometry.htmlSnapFits[0].rule}; SVG snap=${geometry.svgSnapFits[0].rule}`,
+        );
         if (keepDir) {
-          const dir = join(keepDir, scenario.id); mkdirSync(dir, { recursive: true });
-          writeFileSync(join(dir, "html.png"), htmlPng); writeFileSync(join(dir, "domotion.svg"), svg); writeFileSync(join(dir, "svg-img.png"), svgPng);
+          const dir = join(keepDir, scenario.id);
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(join(dir, "html.png"), htmlPng);
+          writeFileSync(join(dir, "domotion.svg"), svg);
+          writeFileSync(join(dir, "svg-img.png"), svgPng);
         }
-      } finally { await context.close(); }
+      } finally {
+        await context.close();
+      }
     }
     const browserVersion = browser.version();
     const report = {
       schemaVersion: 2,
       sourcePins: BORDER_PHASE_SOURCE_PINS,
       corpusFingerprint,
-      meta: { platform: platform(), arch: arch(), osRelease: release(), node: process.version, browserVersion, scenarios: scenarios.length, casesPerScenario: cases.length, maxEdgeError, maxProfileRmse, reportOnly },
+      meta: {
+        platform: platform(),
+        arch: arch(),
+        osRelease: release(),
+        node: process.version,
+        browserVersion,
+        scenarios: scenarios.length,
+        casesPerScenario: cases.length,
+        maxEdgeError,
+        maxProfileRmse,
+        reportOnly,
+      },
       scenarios: reports,
     };
     if (jsonPath) writeFileSync(jsonPath, JSON.stringify(report, null, 2));
     const failedCount = reports.reduce((count, entry) => count + entry.paintResiduals.failed.length, 0);
-    if (failedCount && reportOnly) console.log(`diagnostic mode: recorded ${failedCount} paint-profile residual(s) without gating`);
+    if (failedCount && reportOnly)
+      console.log(`diagnostic mode: recorded ${failedCount} paint-profile residual(s) without gating`);
     return failedCount && !reportOnly ? 1 : 0;
-  } finally { await browser.close(); }
+  } finally {
+    await browser.close();
+  }
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) main().then((code) => { process.exitCode = code; }).catch((error: unknown) => { console.error(error); process.exitCode = 2; });
+if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href)
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error: unknown) => {
+      console.error(error);
+      process.exitCode = 2;
+    });

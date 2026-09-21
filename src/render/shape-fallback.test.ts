@@ -26,8 +26,9 @@ function arabicFontPath(): { path: string; ps?: string } | null {
 }
 
 const arabic = arabicFontPath();
-const WINDOWS_GEORGIA = ["C:/Windows/Fonts/georgia.ttf", "C:\\Windows\\Fonts\\georgia.ttf"]
-  .find((candidate) => existsSync(candidate));
+const WINDOWS_GEORGIA = ["C:/Windows/Fonts/georgia.ttf", "C:\\Windows\\Fonts\\georgia.ttf"].find((candidate) =>
+  existsSync(candidate),
+);
 
 it.runIf(WINDOWS_GEORGIA != null)("forwards explicit GSUB features to fontkit on Windows", () => {
   const shape = makeFontkitShaper(WINDOWS_GEORGIA!)!;
@@ -60,7 +61,9 @@ function coversArabic(): boolean {
     const shaper = makeFontkitShaper(arabic.path, arabic.ps);
     const run = shaper?.("مرحبا");
     return run != null && run.ids.some((id) => id !== 0);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 // Skipped rather than failed on a host with no Arabic face: the point is to pin
@@ -84,10 +87,7 @@ describeArabic("fontkit shaper for helper-backed faces (DM-1883)", () => {
     // within one engine, so a font substitution cannot make it pass by accident.
     const naive = naiveIds("مرحبا");
     expect(naive.length).toBeGreaterThan(0);
-    expect(
-      run!.ids,
-      "shaped ids equal the per-codepoint cmap ids — contextual joining did not run",
-    ).not.toEqual(naive);
+    expect(run!.ids, "shaped ids equal the per-codepoint cmap ids — contextual joining did not run").not.toEqual(naive);
   });
 
   it("returns a cluster per glyph, so the caller can map glyphs to source text", () => {
@@ -123,8 +123,7 @@ describeArabic("fontkit shaper for helper-backed faces (DM-1883)", () => {
     for (const text of ["مرحبا", "Hello", "نمستے"]) {
       const run = shape(text);
       if (run == null || run.ids.length < 2) continue;
-      expect(new Set(run.clusters).size, `all glyphs mapped to one cluster for ${text}`)
-        .toBeGreaterThan(1);
+      expect(new Set(run.clusters).size, `all glyphs mapped to one cluster for ${text}`).toBeGreaterThan(1);
     }
   });
 
@@ -165,9 +164,10 @@ describeArabic("fontkit shaper for helper-backed faces (DM-1883)", () => {
     const opened: any = fontkit.openSync(arabic!.path);
     let f: any = opened;
     if (opened?.fonts != null && Array.isArray(opened.fonts)) {
-      f = (arabic!.ps != null && opened.getFont != null)
-        ? (opened.getFont(arabic!.ps) ?? opened.fonts[0])
-        : opened.fonts[0];
+      f =
+        arabic!.ps != null && opened.getFont != null
+          ? (opened.getFont(arabic!.ps) ?? opened.fonts[0])
+          : opened.fonts[0];
     }
     return [...text].map((ch) => f.glyphForCodePoint(ch.codePointAt(0)!).id as number);
   }

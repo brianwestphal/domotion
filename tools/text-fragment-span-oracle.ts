@@ -56,21 +56,20 @@ export const TEXT_FRAGMENT_SPAN_CASES: readonly TextFragmentSpanCase[] = [
     text: "“Latin fi العربية 漢字 אבג wrapped office tail",
     writingMode: "horizontal-tb",
     firstLetter: true,
-    targetCss: "display:block;width:238px;white-space:normal;unicode-bidi:plaintext;font-variant-ligatures:common-ligatures;font-feature-settings:'liga' 1;transform:skewX(7deg);transform-origin:19% 83%",
+    targetCss:
+      "display:block;width:238px;white-space:normal;unicode-bidi:plaintext;font-variant-ligatures:common-ligatures;font-feature-settings:'liga' 1;transform:skewX(7deg);transform-origin:19% 83%",
   },
   {
     id: "vertical-mixed-fallback-ligature",
     text: "Latin fi العربية 漢字 office",
     writingMode: "vertical-rl",
     firstLetter: false,
-    targetCss: "display:block;height:248px;writing-mode:vertical-rl;font-feature-settings:'liga' 1;transform:rotate(-9deg) scaleX(-1);transform-origin:23% 76%",
+    targetCss:
+      "display:block;height:248px;writing-mode:vertical-rl;font-feature-settings:'liga' 1;transform:rotate(-9deg) scaleX(-1);transform-origin:23% 76%",
   },
 ] as const;
 
-export type TextFragmentSpanMutationKind =
-  | "collapse-fragments"
-  | "reorder-fragments"
-  | "wrong-source-span";
+export type TextFragmentSpanMutationKind = "collapse-fragments" | "reorder-fragments" | "wrong-source-span";
 
 export const REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS: readonly TextFragmentSpanMutationKind[] = [
   "collapse-fragments",
@@ -165,8 +164,11 @@ export function validateTextFragmentSpanCorpus(): string[] {
   else {
     if (!mixed.firstLetter) errors.push("mixed case must exercise ::first-letter");
     if (!mixed.text.includes("fi")) errors.push("mixed case must exercise a ligature candidate");
-    if (!/[\u0600-\u06ff]/u.test(mixed.text) || !/[\u3400-\u9fff]/u.test(mixed.text)
-      || !/[\u0590-\u05ff]/u.test(mixed.text)) {
+    if (
+      !/[\u0600-\u06ff]/u.test(mixed.text) ||
+      !/[\u3400-\u9fff]/u.test(mixed.text) ||
+      !/[\u0590-\u05ff]/u.test(mixed.text)
+    ) {
       errors.push("mixed case must contain Arabic, CJK, and Hebrew fallback/bidi text");
     }
   }
@@ -180,9 +182,7 @@ export function validateTextFragmentSpanCorpus(): string[] {
 }
 
 function fixtureHtml(test: TextFragmentSpanCase, fontBase64: string): string {
-  const firstLetter = test.firstLetter
-    ? "#target::first-letter{font:700 42px/31px Georgia,serif;color:#c21}"
-    : "";
+  const firstLetter = test.firstLetter ? "#target::first-letter{font:700 42px/31px Georgia,serif;color:#c21}" : "";
   return `<!doctype html><style>
     @font-face{font-family:DM2546OpenSans;src:url(data:font/ttf;base64,${fontBase64}) format('truetype');font-weight:100 900}
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}
@@ -198,8 +198,11 @@ function walk(nodes: readonly CapturedElement[]): CapturedElement[] {
 }
 
 function ownerFor(tree: readonly CapturedElement[], text: string): CapturedElement | null {
-  return walk(tree).find((node) => node.textPaintGeometry?.neutral?.textSegments
-    ?.some((segment) => segment.sourceMapping?.domText === text)) ?? null;
+  return (
+    walk(tree).find((node) =>
+      node.textPaintGeometry?.neutral?.textSegments?.some((segment) => segment.sourceMapping?.domText === text),
+    ) ?? null
+  );
 }
 
 function exact<T>(left: T, right: T): boolean {
@@ -207,8 +210,9 @@ function exact<T>(left: T, right: T): boolean {
 }
 
 async function settle(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolveFrame) => requestAnimationFrame(() =>
-    requestAnimationFrame(() => resolveFrame()))));
+  await page.evaluate(
+    () => new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))),
+  );
 }
 
 async function contentQuadsForTarget(page: Page, session: CDPSession): Promise<CapturedTextPaintQuad[]> {
@@ -241,7 +245,8 @@ async function platformFontsForTarget(session: CDPSession): Promise<IndependentF
 
 async function independentNeutralState(page: Page): Promise<IndependentFragmentState> {
   const neutralStyle = await page.addStyleTag({
-    content: "[data-affine-owner]{transform:none!important;translate:none!important;rotate:none!important;scale:none!important}",
+    content:
+      "[data-affine-owner]{transform:none!important;translate:none!important;rotate:none!important;scale:none!important}",
   });
   const session = await page.context().newCDPSession(page);
   try {
@@ -276,12 +281,17 @@ async function independentNeutralState(page: Page): Promise<IndependentFragmentS
         const suffix = Array.from({ length: node.length + 1 }, (_, offset) => countsFor(rectsFor(offset, node.length)));
         return full.map((neutralRangeRect, physicalFragmentIndex) => {
           const token = tokens[physicalFragmentIndex];
-          const forwardRank = tokens.slice(0, physicalFragmentIndex + 1).filter((candidate) => candidate === token).length;
+          const forwardRank = tokens
+            .slice(0, physicalFragmentIndex + 1)
+            .filter((candidate) => candidate === token).length;
           const reverseRank = tokens.slice(physicalFragmentIndex).filter((candidate) => candidate === token).length;
           const end = prefix.findIndex((counts) => (counts.get(token) ?? 0) >= forwardRank);
           let start = -1;
           for (let offset = node.length; offset >= 0; offset--) {
-            if ((suffix[offset].get(token) ?? 0) >= reverseRank) { start = offset; break; }
+            if ((suffix[offset].get(token) ?? 0) >= reverseRank) {
+              start = offset;
+              break;
+            }
           }
           const isolated = start >= 0 && end > start ? rectsFor(start, end) : [];
           if (isolated.length !== 1 || tokenFor(isolated[0]) !== token) {
@@ -309,17 +319,22 @@ function mapRenderedSpanToDom(
   mapping: CapturedTextSegmentSourceMapping,
   renderedSpan: CapturedDomUtf16Span,
 ): CapturedDomUtf16Span | null {
-  const chunks = mapping.renderedChunks.filter((chunk) =>
-    chunk.renderedUtf16Span[0] < renderedSpan[1] && renderedSpan[0] < chunk.renderedUtf16Span[1]);
-  if (chunks.length === 0 || chunks[0].renderedUtf16Span[0] !== renderedSpan[0]
-    || chunks.at(-1)!.renderedUtf16Span[1] !== renderedSpan[1]) return null;
+  const chunks = mapping.renderedChunks.filter(
+    (chunk) => chunk.renderedUtf16Span[0] < renderedSpan[1] && renderedSpan[0] < chunk.renderedUtf16Span[1],
+  );
+  if (
+    chunks.length === 0 ||
+    chunks[0].renderedUtf16Span[0] !== renderedSpan[0] ||
+    chunks.at(-1)!.renderedUtf16Span[1] !== renderedSpan[1]
+  )
+    return null;
   return [
     Math.min(...chunks.map((chunk) => chunk.domUtf16Span[0])),
     Math.max(...chunks.map((chunk) => chunk.domUtf16Span[1])),
   ];
 }
 
-type RendererProvenance = ReturnType<typeof import("../src/render/text-run-provenance.js")["getTextRunProvenance"]>;
+type RendererProvenance = ReturnType<(typeof import("../src/render/text-run-provenance.js"))["getTextRunProvenance"]>;
 
 function shapedEvidence(
   sourceFragments: NonNullable<CapturedElement["textPaintGeometry"]>["sourceFragments"],
@@ -339,7 +354,7 @@ function shapedEvidence(
     if (segment.verticalWritingMode != null) {
       for (let offset = 0; offset < segment.text.length;) {
         const codepoint = segment.text.codePointAt(offset)!;
-        const width = codepoint > 0xFFFF ? 2 : 1;
+        const width = codepoint > 0xffff ? 2 : 1;
         const character = segment.text.slice(offset, offset + width);
         if (!/\s/u.test(character)) {
           const runIndex = availableRuns.findIndex((run) => run.sourceText === character);
@@ -353,24 +368,26 @@ function shapedEvidence(
         selected.unshift({ run: availableRuns.splice(runIndex, 1)[0], renderedShift: 0 });
       }
     }
-    const glyphs = selected.flatMap(({ run, renderedShift }) => run.glyphs.map((glyph): GlyphEvidence => {
-      const renderedUtf16Span: CapturedDomUtf16Span = [
-        glyph.sourceSpan[0] + renderedShift,
-        glyph.sourceSpan[1] + renderedShift,
-      ];
-      const domUtf16Span = mapRenderedSpanToDom(mapping, renderedUtf16Span);
-      if (domUtf16Span == null) throw new Error(`glyph ${glyph.id} crosses a non-exact source-map chunk`);
-      return {
-        gid: glyph.id,
-        cluster: glyph.cluster,
-        renderedUtf16Span,
-        domUtf16Span,
-        xAdvance: glyph.xAdvance,
-        yAdvance: glyph.yAdvance,
-        xOffset: glyph.xOffset,
-        yOffset: glyph.yOffset,
-      };
-    }));
+    const glyphs = selected.flatMap(({ run, renderedShift }) =>
+      run.glyphs.map((glyph): GlyphEvidence => {
+        const renderedUtf16Span: CapturedDomUtf16Span = [
+          glyph.sourceSpan[0] + renderedShift,
+          glyph.sourceSpan[1] + renderedShift,
+        ];
+        const domUtf16Span = mapRenderedSpanToDom(mapping, renderedUtf16Span);
+        if (domUtf16Span == null) throw new Error(`glyph ${glyph.id} crosses a non-exact source-map chunk`);
+        return {
+          gid: glyph.id,
+          cluster: glyph.cluster,
+          renderedUtf16Span,
+          domUtf16Span,
+          xAdvance: glyph.xAdvance,
+          yAdvance: glyph.yAdvance,
+          xOffset: glyph.xOffset,
+          yOffset: glyph.yOffset,
+        };
+      }),
+    );
     return {
       sourceFragmentIndex: fragment.sourceFragmentIndex,
       sourceTextNodeIndex: fragment.sourceTextNodeIndex,
@@ -418,8 +435,9 @@ function mutationResults(
       domUtf16Span: [...fragment.domUtf16Span],
       neutralRangeRect: { ...fragment.neutralRangeRect },
     }));
-    const candidate = wrong.find((fragment) => fragment.cdpQuadIndex != null && fragment.domUtf16Span[0] > 0)
-      ?? wrong.find((fragment) => fragment.cdpQuadIndex != null);
+    const candidate =
+      wrong.find((fragment) => fragment.cdpQuadIndex != null && fragment.domUtf16Span[0] > 0) ??
+      wrong.find((fragment) => fragment.cdpQuadIndex != null);
     if (candidate != null) candidate.domUtf16Span = [candidate.domUtf16Span[0], candidate.domUtf16Span[1] + 1];
     const split = splitTextSegmentsOnFragmentSpans(segments, wrong);
     wrongSpanRejected = split.segments == null;
@@ -451,14 +469,17 @@ async function runCase(
   provenanceApi: typeof import("../src/render/text-run-provenance.js"),
 ): Promise<{ row: TextFragmentSpanRow; mutations: TextFragmentSpanMutationResult[] }> {
   await page.setContent(fixtureHtml(test, fontBase64), { waitUntil: "load" });
-  await page.locator("#target").evaluate((element, text) => { element.textContent = text; }, test.text);
+  await page.locator("#target").evaluate((element, text) => {
+    element.textContent = text;
+  }, test.text);
   await page.evaluate(() => document.fonts.ready);
   const independent = await independentNeutralState(page);
-  const captureResult = await capture.captureElementTreeWithWarnings(
-    page,
-    "#scene",
-    { x: 0, y: 0, width: 960, height: 640 },
-  );
+  const captureResult = await capture.captureElementTreeWithWarnings(page, "#scene", {
+    x: 0,
+    y: 0,
+    width: 960,
+    height: 640,
+  });
   const owner = ownerFor(captureResult.tree, test.text);
   const geometry = owner?.textPaintGeometry;
   if (owner == null || geometry?.neutral?.textSegments == null) {
@@ -486,10 +507,15 @@ async function runCase(
   }));
   const ordinary = geometry.sourceFragments.filter((fragment) => fragment.role === "ordinary");
   const firstLetter = geometry.sourceFragments.filter((fragment) => fragment.role === "first-letter");
-  const splitOwners = geometry.sourceFragments.map((source) => neutralSegments.filter((segment) =>
-    segment.sourceMapping?.sourceTextNodeIndex === source.sourceTextNodeIndex
-      && segment.sourceMapping.role === source.role
-      && exact(segment.sourceMapping.domUtf16Span, source.domUtf16Span)).length);
+  const splitOwners = geometry.sourceFragments.map(
+    (source) =>
+      neutralSegments.filter(
+        (segment) =>
+          segment.sourceMapping?.sourceTextNodeIndex === source.sourceTextNodeIndex &&
+          segment.sourceMapping.role === source.role &&
+          exact(segment.sourceMapping.domUtf16Span, source.domUtf16Span),
+      ).length,
+  );
   const controls = {
     multiplePhysicalFragmentItems: geometry.sourceFragments.length > 2,
     independentRangeRecordMatchesCaptureExactly: exact(independentSourceShape, capturedSourceShape),
@@ -499,25 +525,41 @@ async function runCase(
       const cdpQuadIndex = geometry.sourceFragments[fragment.sourceFragmentIndex]?.cdpQuadIndex;
       return cdpQuadIndex != null && exact(fragment.neutralQuad, independent.contentQuads[cdpQuadIndex]);
     }),
-    expectedFirstLetterOwnership: firstLetter.length === (test.firstLetter ? 1 : 0)
-      && (!test.firstLetter || exact(firstLetter[0]?.domUtf16Span, [0, 2])),
+    expectedFirstLetterOwnership:
+      firstLetter.length === (test.firstLetter ? 1 : 0) &&
+      (!test.firstLetter || exact(firstLetter[0]?.domUtf16Span, [0, 2])),
     everySourceHasOneSplitSegment: splitOwners.every((count) => count === 1),
-    shapedRecordsRemainUtf16Aligned: shapedRuns.every((run) =>
-      run.shapedOrigins.length === run.text.length && run.shapedAdvances.length === run.text.length
-        && run.shapedOrigins.every(Number.isFinite) && run.shapedAdvances.every(Number.isFinite)),
-    glyphRecordsRetainExactSourceOwnership: shapedRuns.every((run) => run.glyphs.length > 0
-      && run.glyphs.every((glyph) => Number.isInteger(glyph.gid) && Number.isInteger(glyph.cluster)
-        && glyph.domUtf16Span[0] >= run.domUtf16Span[0] && glyph.domUtf16Span[1] <= run.domUtf16Span[1]
-        && [glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite))),
+    shapedRecordsRemainUtf16Aligned: shapedRuns.every(
+      (run) =>
+        run.shapedOrigins.length === run.text.length &&
+        run.shapedAdvances.length === run.text.length &&
+        run.shapedOrigins.every(Number.isFinite) &&
+        run.shapedAdvances.every(Number.isFinite),
+    ),
+    glyphRecordsRetainExactSourceOwnership: shapedRuns.every(
+      (run) =>
+        run.glyphs.length > 0 &&
+        run.glyphs.every(
+          (glyph) =>
+            Number.isInteger(glyph.gid) &&
+            Number.isInteger(glyph.cluster) &&
+            glyph.domUtf16Span[0] >= run.domUtf16Span[0] &&
+            glyph.domUtf16Span[1] <= run.domUtf16Span[1] &&
+            [glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite),
+        ),
+    ),
     fallbackFacesRemainDistinct: new Set(shapedRuns.flatMap((run) => run.selectedFontKeys).filter(Boolean)).size > 1,
     browserSelectedPinnedLigatureFace: independent.platformFonts.some((font) => {
       const family = `${font.familyName} ${font.postScriptName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
       return font.isCustomFont && family.includes("opensans") && font.glyphCount > 0;
     }),
     browserSelectedFallbackFaces: independent.platformFonts.some((font) => !font.isCustomFont && font.glyphCount > 0),
-    noTextFragmentFallbackWarning: captureResult.warnings.every((warning) => !/text-fragment|outer.*surface/i.test(warning.detail)),
+    noTextFragmentFallbackWarning: captureResult.warnings.every(
+      (warning) => !/text-fragment|outer.*surface/i.test(warning.detail),
+    ),
   };
-  const warnings = captureResult.warnings.map((warning) => warning.detail)
+  const warnings = captureResult.warnings
+    .map((warning) => warning.detail)
     .filter((warning) => /text-fragment|outer.*surface/i.test(warning));
   return {
     row: {
@@ -577,10 +619,14 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
       const controls = {
         everyRequestedRowPresent: rows.length === TEXT_FRAGMENT_SPAN_CASES.length,
         everyLogicalRowPasses: rows.every((row) => row.pass),
-        ligatureClusterPreserved: rows.some((row) => row.captured.shapedRuns.some((run) =>
-          run.glyphs.some((glyph) => glyph.renderedUtf16Span[1] - glyph.renderedUtf16Span[0] > 1))),
-        everyMutationRejected: mutations.length === REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.length
-          && mutations.every((mutation) => mutation.rejected),
+        ligatureClusterPreserved: rows.some((row) =>
+          row.captured.shapedRuns.some((run) =>
+            run.glyphs.some((glyph) => glyph.renderedUtf16Span[1] - glyph.renderedUtf16Span[0] > 1),
+          ),
+        ),
+        everyMutationRejected:
+          mutations.length === REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.length &&
+          mutations.every((mutation) => mutation.rejected),
         noPixelOrScreenshotLeg: true,
       };
       return {
@@ -616,17 +662,24 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
 async function main(): Promise<number> {
   const report = await runTextFragmentSpanOracle();
   const jsonIndex = process.argv.indexOf("--json");
-  const path = resolve(jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
-    ? process.argv[jsonIndex + 1]
-    : `tests/output/text-fragment-spans-${platform()}.json`);
+  const path = resolve(
+    jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
+      ? process.argv[jsonIndex + 1]
+      : `tests/output/text-fragment-spans-${platform()}.json`,
+  );
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`text FragmentItem spans: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`);
+  console.log(
+    `text FragmentItem spans: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`,
+  );
   for (const row of report.rows) {
-    console.log(`${row.pass ? "PASS" : "FAIL"} ${row.id}: Range/CDP/source/paint=${row.independent.rangeFragments.length}/${row.independent.contentQuads.length}/${row.captured.sourceFragments.length}/${row.captured.paintFragments.length}`);
+    console.log(
+      `${row.pass ? "PASS" : "FAIL"} ${row.id}: Range/CDP/source/paint=${row.independent.rangeFragments.length}/${row.independent.contentQuads.length}/${row.captured.sourceFragments.length}/${row.captured.paintFragments.length}`,
+    );
     for (const [name, pass] of Object.entries(row.controls)) if (!pass) console.log(`  FAIL control ${name}`);
   }
-  for (const mutation of report.mutations) console.log(`${mutation.rejected ? "PASS" : "FAIL"} mutation ${mutation.kind}: ${mutation.failureReason}`);
+  for (const mutation of report.mutations)
+    console.log(`${mutation.rejected ? "PASS" : "FAIL"} mutation ${mutation.kind}: ${mutation.failureReason}`);
   console.log(`report: ${path}`);
   return report.verdict === "exact-fragment-span-agreement" ? 0 : 1;
 }

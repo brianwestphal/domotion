@@ -5,9 +5,20 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2716","DM-CAGCSM","DM-FJZQ34","DM-ZDDJAG"]
-code: ["src/render/font-resolution.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/vertical-text.ts","src/render/element-tree-to-svg.ts","src/cli/capture.ts","src/cli/animate-command.ts","src/cli/index.ts","src/render/system-font-mode.test.ts"]
-aliases: ["docs/261-system-font-render-text-mode.md","doc-261"]
+tickets: ["DM-2716", "DM-CAGCSM", "DM-FJZQ34", "DM-ZDDJAG"]
+code:
+  [
+    "src/render/font-resolution.ts",
+    "src/render/text-to-path.ts",
+    "src/render/text.ts",
+    "src/render/vertical-text.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/cli/capture.ts",
+    "src/cli/animate-command.ts",
+    "src/cli/index.ts",
+    "src/render/system-font-mode.test.ts",
+  ]
+aliases: ["docs/261-system-font-render-text-mode.md", "doc-261"]
 ---
 
 # 261 — system-font render text mode
@@ -82,9 +93,9 @@ browser untouched logical text; the emitted `direction` / `unicode-bidi` drive
 the browser's own UAX #9 reordering and mirroring.
 
 An rtl run additionally emits **`text-anchor="end"`** (DM-CAGCSM). The run's
-captured origin `x` is its visual-*left* edge, but SVG's default
-`text-anchor: start` anchors the text's *start* — which, under `direction: rtl`,
-is the *right* edge. Left unset it would place the run's right edge at its left
+captured origin `x` is its visual-_left_ edge, but SVG's default
+`text-anchor: start` anchors the text's _start_ — which, under `direction: rtl`,
+is the _right_ edge. Left unset it would place the run's right edge at its left
 edge, shifting the whole run left by its width and overlapping its neighbor;
 `text-anchor="end"` anchors the run's visual-left (the end, in rtl inline order)
 where it was captured. Verified by rasterization against Chrome for Hebrew+Latin,
@@ -99,11 +110,11 @@ Arabic contextual joining, and paired-bracket mirroring; ltr runs emit no
 - **Complex-script fidelity depends on the viewer's shaping**, not Domotion's:
   synthetic dotted circles, contextual joining, and mark positioning are
   produced by the viewer's own HarfBuzz over the source text, not reproduced
-  from the capture. RTL run *ordering, mirroring, and anchoring* are correct (the
+  from the capture. RTL run _ordering, mirroring, and anchoring_ are correct (the
   browser's UBA plus the `text-anchor="end"` fix above); only the inter-run
   horizontal spacing carries the general positional drift, as for ltr.
 - **Vertical writing modes are supported** (DM-ZDDJAG). A `writing-mode:
-  vertical-*` run is emitted as **one** authored `<text>` carrying the captured
+vertical-*` run is emitted as **one** authored `<text>` carrying the captured
   `writing-mode` and `text-orientation` (`renderVerticalSystemFontText`), so the
   viewing browser lays out the column itself — upright CJK stays upright and
   **sideways/rotated glyphs** (`text-orientation: sideways`, Latin in vertical
@@ -117,8 +128,8 @@ Arabic contextual joining, and paired-bracket mirroring; ltr runs emit no
 
 ## Relationship to the real-text layer (docs 260)
 
-Independent and composable. `--real-text` adds a *paintless* authored `<text>`
+Independent and composable. `--real-text` adds a _paintless_ authored `<text>`
 layer for search/selection/accessibility over any visible-glyph mode;
-`--text-mode system-font` changes how the *visible* text is painted. In
+`--text-mode system-font` changes how the _visible_ text is painted. In
 `system-font` mode the visible `<text>` is itself authored text, so a viewer can
 already select/search it.

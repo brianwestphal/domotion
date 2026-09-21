@@ -4,15 +4,38 @@ title: "Distributed visual-regression testing on GitHub Actions (DM-1216)"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1216","DM-1217","DM-1660","DM-1661","DM-1665","DM-1790","DM-1844"]
-code: [".github/workflows/fast-visual-tests.yml",".github/workflows/visual-tests.yml","scripts/ci-baseline-aggregate.mjs","scripts/ci-run-fast-visuals.mjs","scripts/diff-against-baseline.mjs","scripts/diff-font-conformance-baseline.mjs","scripts/merge-shard-results.mjs","scripts/prune-passing-artifacts.mjs","scripts/run-env.mjs","scripts/write-baseline.mjs","src/review/side-digest.ts","tests/baselines/README.md","tests/html-test-suite.tsx","tests/output/","tests/runner.tsx","tests/shard-completeness.test.ts","tests/shard.ts","tests/visual-tests-workflow.test.ts","tests/worker-pool.ts","tools/ab-compare-results.mjs","tools/run-ci-visual-tests.mjs"]
-aliases: ["docs/66-ci-visual-tests.md","doc-66"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844"]
+code:
+  [
+    ".github/workflows/fast-visual-tests.yml",
+    ".github/workflows/visual-tests.yml",
+    "scripts/ci-baseline-aggregate.mjs",
+    "scripts/ci-run-fast-visuals.mjs",
+    "scripts/diff-against-baseline.mjs",
+    "scripts/diff-font-conformance-baseline.mjs",
+    "scripts/merge-shard-results.mjs",
+    "scripts/prune-passing-artifacts.mjs",
+    "scripts/run-env.mjs",
+    "scripts/write-baseline.mjs",
+    "src/review/side-digest.ts",
+    "tests/baselines/README.md",
+    "tests/html-test-suite.tsx",
+    "tests/output/",
+    "tests/runner.tsx",
+    "tests/shard-completeness.test.ts",
+    "tests/shard.ts",
+    "tests/visual-tests-workflow.test.ts",
+    "tests/worker-pool.ts",
+    "tools/ab-compare-results.mjs",
+    "tools/run-ci-visual-tests.mjs",
+  ]
+aliases: ["docs/66-ci-visual-tests.md", "doc-66"]
 ---
 
 # Distributed visual-regression testing on GitHub Actions (DM-1216)
 
-The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a *deliberately throttled background job* (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.
+The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a _deliberately throttled background job_ (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.
 
 ## When to use it
 
@@ -128,18 +151,18 @@ This is not a small drift. Reproduced by disabling the helper on a Mac (`DOMOTIO
 
 ## Two baselines: local Mac vs CI image (DM-1217)
 
-**The macOS runner is not your local Mac, and its pass/fail COUNT does not transfer (measured).** `macos-latest` is currently `macos-15-arm64` (Apple Silicon). A full unicode sweep there returned **742/818 vs 766/818 locally** (commit-matched) — ~24 extra failures, almost all in the COMMON text blocks (basic-latin, latin-1, cyrillic, greek, IPA, punctuation, math, arrows). They fail by a *small* margin that is consistently ~5–7× the local diff (basic-latin: CI 0.18% / worst-tile 2.4% vs local 0.027% / 0.07%): that runner rasterizes text differently enough that Domotion's locally-calibrated output crosses the pass threshold on otherwise-clean blocks (the same Chrome-paints-hinted-vs-Domotion-fills-unhinted gap that Linux/Windows carry a coverage floor for — macOS has none, because locally the gap is negligible).
+**The macOS runner is not your local Mac, and its pass/fail COUNT does not transfer (measured).** `macos-latest` is currently `macos-15-arm64` (Apple Silicon). A full unicode sweep there returned **742/818 vs 766/818 locally** (commit-matched) — ~24 extra failures, almost all in the COMMON text blocks (basic-latin, latin-1, cyrillic, greek, IPA, punctuation, math, arrows). They fail by a _small_ margin that is consistently ~5–7× the local diff (basic-latin: CI 0.18% / worst-tile 2.4% vs local 0.027% / 0.07%): that runner rasterizes text differently enough that Domotion's locally-calibrated output crosses the pass threshold on otherwise-clean blocks (the same Chrome-paints-hinted-vs-Domotion-fills-unhinted gap that Linux/Windows carry a coverage floor for — macOS has none, because locally the gap is negligible).
 
 So we keep **two baselines** rather than pretend one count is authoritative:
 
 - **Local Mac** — the implicit baseline the `demos:test` / `demos:test:unicode` suites already enforce (each fixture diffed against the host's live Chromium screenshot). The calibration target; nothing extra is stored.
-- **CI image** — a *committed* per-fixture snapshot under `tests/baselines/<suite>-<os>.json`. A CI run is judged **relative to its own baseline** ("did this change regress anything vs the last known-good run on the same image?"), which *does* transfer — not against the local count. See `tests/baselines/README.md`.
+- **CI image** — a _committed_ per-fixture snapshot under `tests/baselines/<suite>-<os>.json`. A CI run is judged **relative to its own baseline** ("did this change regress anything vs the last known-good run on the same image?"), which _does_ transfer — not against the local count. See `tests/baselines/README.md`.
 
 Establish / refresh a baseline from a reviewed known-good run: `node tools/run-ci-visual-tests.mjs --suite <suite> --update-baseline` (writes `tests/baselines/<suite>-<os>.json` for you to commit). The aggregate job's **Baseline diff** Step-Summary section, and `--strict` on `scripts/diff-against-baseline.mjs`, gate on regressions/new-failures vs that baseline. When the runner image rotates (`macos-15` → a future `macos-N`), the `meta.image` mismatch signals it's time to refresh.
 
 ### A baseline "regression" can be the ORACLE moving, not the renderer
 
-The baseline diff compares one number per fixture — the diff between Chrome's `expected.png` and Domotion's `actual.svg`. That number rises whenever *either side* moves, and the report cannot tell you which. On the CI runners it is sometimes Chrome.
+The baseline diff compares one number per fixture — the diff between Chrome's `expected.png` and Domotion's `actual.svg`. That number rises whenever _either side_ moves, and the report cannot tell you which. On the CI runners it is sometimes Chrome.
 
 The measured case: `2070-209F-superscripts-and-subscripts` reported a worst-tile jump 0.07% → 2.17% on one sweep. Re-running the **same commit** reproduced the baseline value, and a fresh full sweep on `main` reproduced it again. Comparing the two runs' artifacts directly showed Domotion's `actual.png` essentially unchanged while Chrome's `expected.png` differed by 607 px, confined to the four cells for U+2090–U+2093 — Chrome had painted those codepoints from a different face in one run than the other. Domotion was stable and correct in both.
 
@@ -153,7 +176,7 @@ The correct paint there is Helvetica: Blink exhausts the declared family list (`
 
 ### The environment moves underneath you — and `meta.image` could not see it
 
-The same fixture went on to look like a regression caused by five *more* unrelated changes, oscillating between exactly 0.0574 and 0.0138. Three of those five readings were wrong. The cause was not the renderer, not the oracle's own nondeterminism, and not the comparator:
+The same fixture went on to look like a regression caused by five _more_ unrelated changes, oscillating between exactly 0.0574 and 0.0138. Three of those five readings were wrong. The cause was not the renderer, not the oracle's own nondeterminism, and not the comparator:
 
 ```
 run 30682135006:  shards 1-4 → runner image 20260728.0273 (macOS 26.5.2, kernel 25.5.0)
@@ -165,26 +188,26 @@ run 30682617339:  all shards → runner image 20260728.0273
 
 Two things made this invisible for months:
 
-- **`meta.image` is derived from `ImageOS`**, which reads `macOS26` on both images. The fields that actually moved — `ImageVersion` and `os.release()` — were not recorded at all. The documented "when the image rotates, `meta.image` signals it" contract only covers a *major* rotation.
+- **`meta.image` is derived from `ImageOS`**, which reads `macOS26` on both images. The fields that actually moved — `ImageVersion` and `os.release()` — were not recorded at all. The documented "when the image rotates, `meta.image` signals it" contract only covers a _major_ rotation.
 - **A single run's shards can straddle the rotation**, so a merged `results-<os>.json` is not necessarily one measurement. Capturing such a run as a baseline bakes the mix in.
 
-Both are now guarded. `scripts/run-env.mjs` records `ImageVersion`, `os.release()` and a digest of the installed font set per shard; `scripts/merge-shard-results.mjs` folds them, and when shards disagree it says so in the Step Summary, names the odd shard, and leaves the conflicting field `null` in `run-env-<os>.json` rather than adopting the majority value (`--strict-env` makes that a hard failure). `scripts/diff-against-baseline.mjs` compares this run's record against the baseline's `meta.env` and leads the report with an environment-drift banner *above* the counts, because it changes what those counts mean. A baseline written before this existed reports "predates environment recording" rather than a false all-clear.
+Both are now guarded. `scripts/run-env.mjs` records `ImageVersion`, `os.release()` and a digest of the installed font set per shard; `scripts/merge-shard-results.mjs` folds them, and when shards disagree it says so in the Step Summary, names the odd shard, and leaves the conflicting field `null` in `run-env-<os>.json` rather than adopting the majority value (`--strict-env` makes that a hard failure). `scripts/diff-against-baseline.mjs` compares this run's record against the baseline's `meta.env` and leads the report with an environment-drift banner _above_ the counts, because it changes what those counts mean. A baseline written before this existed reports "predates environment recording" rather than a false all-clear.
 
 This mirrors the guard the font-conformance oracle already had (`comparability()` in `scripts/diff-font-conformance-baseline.mjs`, doc 107), which refuses to judge across a change in runner image, font inventory, ICU version or slice. The visual sweep simply never had one.
 
 ### The browser is part of the environment too
 
-The record above covers the machine. It did not, until 2026-08, cover **Chromium** — which for a visual sweep is the sharpest omission available, because Chromium is on *both* sides of the diff: it paints `expected.png` and it rasterizes our SVG into `actual.png`. A build change moves both, and not necessarily by the same amount.
+The record above covers the machine. It did not, until 2026-08, cover **Chromium** — which for a visual sweep is the sharpest omission available, because Chromium is on _both_ sides of the diff: it paints `expected.png` and it rasterizes our SVG into `actual.png`. A build change moves both, and not necessarily by the same amount.
 
 Measured on one macOS host with the platform held constant: `font-variant-emoji: emoji` moves U+00A9 U+2122 U+203C U+263A to the color emoji font in **147.0.7727.15** and leaves them on the run's primary in **148.0.7778.96**. A fixture containing any of those flips between the two builds while `image`, `imageVersion`, `osRelease` and the font digest all stay identical — the same shape as the image rotation above, one layer down.
 
 `run-env.mjs` now records `chromium`, and three properties of how are load-bearing:
 
-- **It launches the browser to read `browser.version()`**, rather than reading Playwright's `browsers.json` or `chromium.executablePath()`. Those report the revision Playwright *intends*, which is not a promise about the binary that runs — measured, a Windows VM launched a 148 build out of a directory named `chromium-1217` (the pinned 147 revision) and `executablePath()` reported that 1217 path. Recording the declared value would have written 147 for a run that used 148.
+- **It launches the browser to read `browser.version()`**, rather than reading Playwright's `browsers.json` or `chromium.executablePath()`. Those report the revision Playwright _intends_, which is not a promise about the binary that runs — measured, a Windows VM launched a 148 build out of a directory named `chromium-1217` (the pinned 147 revision) and `executablePath()` reported that 1217 path. Recording the declared value would have written 147 for a run that used 148.
 - **`mergeShardEnvs` folds it like every other field**, so a run whose shards launched different builds reports the conflict and leaves `chromium` null instead of presenting one shard's browser as the run's. A sharded sweep is exposed to this precisely because each shard resolves its own browser.
 - **It WARNS rather than refuses.** The font oracles decline to judge across a browser change; this gate is regression-relative and its banner already sits above the counts, so a warning carries the same information without turning a legitimate browser bump into a red build that cannot be cleared until someone re-seeds. Deliberate, and the trade is: a browser change here is reported and the numbers still print.
 
-Honest limit: `run-env.mjs` is a separate step from the sweep, so its launch records what the harness *would* resolve on this machine, not what one particular harness process did. Those differ only if the installed browser changes mid-job.
+Honest limit: `run-env.mjs` is a separate step from the sweep, so its launch records what the harness _would_ resolve on this machine, not what one particular harness process did. Those differ only if the installed browser changes mid-job.
 
 ## A merge is only a measurement if every shard reached it
 
@@ -192,11 +215,11 @@ The aggregate downloads `results-*` and merges whatever it finds. That meant a r
 
 Observed: a 5-way macOS unicode run's shard 5 ran to completion (its log reaches `Post Run actions/checkout`) but produced no artifact. The aggregate merged the other four, **succeeded**, and the driver printed `✅ No regressions vs the CI baseline` over **655 of 818 fixtures**. The 163 lost ones were Tibetan, Kannada, Gurmukhi, Arabic Supplement, IPA Extensions — complex-script blocks, i.e. the ones a shaping change is most likely to disturb.
 
-It also manufactured a false A/B. Diffing that run against a complete one reported "2 newly passing, 0 fixtures moved": both artifacts of comparing only the fixture names present in *both* runs. The two "newly passing" fixtures were not passing, they were **absent**.
+It also manufactured a false A/B. Diffing that run against a complete one reported "2 newly passing, 0 fixtures moved": both artifacts of comparing only the fixture names present in _both_ runs. The two "newly passing" fixtures were not passing, they were **absent**.
 
 The guard is in three places, deliberately not one:
 
-- `merge-shard-results.mjs` takes `--expect <os>=<n>,…` (the matrix size, passed by the workflow from the setup job's per-OS totals). It writes `shard-completeness-<os>.json`, prints a red block naming the missing shards, and **exits non-zero unconditionally** — there is no opt-out flag, because this is not a fidelity opinion but the merge saying the file it just wrote does not describe the corpus. An OS reporting `0` was not dispatched and is skipped; an OS that was dispatched and produced *nothing* never enters the per-OS loop at all, so it is swept for separately (the quietest form of the same failure).
+- `merge-shard-results.mjs` takes `--expect <os>=<n>,…` (the matrix size, passed by the workflow from the setup job's per-OS totals). It writes `shard-completeness-<os>.json`, prints a red block naming the missing shards, and **exits non-zero unconditionally** — there is no opt-out flag, because this is not a fidelity opinion but the merge saying the file it just wrote does not describe the corpus. An OS reporting `0` was not dispatched and is skipped; an OS that was dispatched and produced _nothing_ never enters the per-OS loop at all, so it is swept for separately (the quietest form of the same failure).
 - The workflow adds `shard-completeness-*.json` to the `visual-tests-meta` artifact.
 - `tools/run-ci-visual-tests.mjs` reads those files and **refuses to print a baseline verdict** for an incomplete run. This stays independent of the merge's exit code on purpose: it is the last thing between a partial run and a number a human will quote, and it should not depend on the producing job having failed loudly.
 
@@ -204,24 +227,24 @@ Absent `--expect` — a local run, or an unsharded one — the check is skipped 
 
 This is the same defect class already fixed once for the conformance workflow, where `|| true` on the shard step plus `continue` on a missing report let a run whose mismatch-bearing shards died report zero mismatches and go green. It was not fixed here at the same time.
 
-**Practical rule:** a per-fixture difference between two sweeps is evidence about the code *only* if both were measured in the same environment. Check the Step Summary's environment line before attributing anything to a commit.
+**Practical rule:** a per-fixture difference between two sweeps is evidence about the code _only_ if both were measured in the same environment. Check the Step Summary's environment line before attributing anything to a commit.
 
 ### Chrome itself is not run-to-run deterministic on the runner — and the digests alone could not see which side moved
 
 After the environment guard landed, paired sweeps of one commit in a **byte-identical recorded environment** (same image build, same kernel, same font-inventory digest, 370 fonts) still disagreed on 3 of 818 unicode fixtures. The decisive artifact comparison: on `2150-218F-number-forms`, Chrome's `expected.png` differed between the two runs while Domotion's `actual.png` was **byte-identical** — no change on our side can produce that shape, so the wobble is (at least partly) Chrome's own output on the runner. That shape replicated on a second, independent run pair.
 
-Pixel-clustering the differing expecteds localizes the flip to **specific grid cells**, and they share one profile: `2070-209F` flips exactly U+2090–U+2093, `2C60-2C7F` flips U+2C62 and U+2C65, `2150-218F` flips U+2184. Every flipping cell declares a stack whose leading families are **absent on the runner** (`"SF Pro Text","Arial Unicode MS",…` — no SF Pro, no Arial Unicode MS, no core Noto in the runner's 370-font inventory) and whose codepoint IS covered by the generic terminus (`sans-serif` → Helvetica). The two paint states are geometrically consistent with (a) the correct declared-list resolution — Helvetica's designed below-baseline subscript forms (~9 px at 32 px em) — versus (b) full-x-height forms above the baseline matching a per-character system-fallback face (Geneva's metrics fit the flipped `2070` cells to the pixel; Helvetica-covered codepoints should never reach system fallback per Blink's `FontFallbackIterator` order, `font_fallback_iterator.h:72-80`, checkout `7d859f27`). Cells whose codepoints Helvetica does NOT cover go to system fallback in *both* states and stay stable — which is why only this narrow cell profile flips. The open question is what makes the generic's resolution intermittently unavailable on the runner; the per-leaf `chromeFaces` record (below) names the face per cell on every future run pair, so the next occurrence answers it from artifacts alone.
+Pixel-clustering the differing expecteds localizes the flip to **specific grid cells**, and they share one profile: `2070-209F` flips exactly U+2090–U+2093, `2C60-2C7F` flips U+2C62 and U+2C65, `2150-218F` flips U+2184. Every flipping cell declares a stack whose leading families are **absent on the runner** (`"SF Pro Text","Arial Unicode MS",…` — no SF Pro, no Arial Unicode MS, no core Noto in the runner's 370-font inventory) and whose codepoint IS covered by the generic terminus (`sans-serif` → Helvetica). The two paint states are geometrically consistent with (a) the correct declared-list resolution — Helvetica's designed below-baseline subscript forms (~9 px at 32 px em) — versus (b) full-x-height forms above the baseline matching a per-character system-fallback face (Geneva's metrics fit the flipped `2070` cells to the pixel; Helvetica-covered codepoints should never reach system fallback per Blink's `FontFallbackIterator` order, `font_fallback_iterator.h:72-80`, checkout `7d859f27`). Cells whose codepoints Helvetica does NOT cover go to system fallback in _both_ states and stay stable — which is why only this narrow cell profile flips. The open question is what makes the generic's resolution intermittently unavailable on the runner; the per-leaf `chromeFaces` record (below) names the face per cell on every future run pair, so the next occurrence answers it from artifacts alone.
 
 Why CI sees it and a local machine cannot: the workflow **never restores the expected-cache**, so every CI run regenerates `expected.png` from Chrome and any wobble lands straight in the reference. Locally the cache persists, so the expected is frozen at whatever Chrome produced the day the entry was written — local repetition is structurally incapable of detecting oracle-side drift. (The cache key now folds in the host's font-inventory digest alongside the Playwright version, so a locally frozen expected at least cannot silently outlive the font state that produced it.)
 
 The instrument problem this exposed: the per-side perceptual digests (`expectedDigest` / `actualDigest`, `src/review/side-digest.ts`) were **identical for the two distinct outputs** — the PNGs differed by ~2,900 bytes, below the 16×16 digest's sensitivity floor. Digest equality must therefore never be read as output equality. The harness now records, per fixture:
 
-- **`expectedSha256` / `actualSha256`** — exact byte hashes. Equality is *proof* of "unchanged"; inequality alone proves nothing (CI raster is not bit-stable). Attribution uses the rule *a byte-identical side is exonerated*: the metric is a pure function of the two images, so if one input's bytes did not change, the movement came from the other side — even when it sits below the digest's floor. `attributeMovementWithBytes` (`src/review/side-digest.ts`), `scripts/diff-against-baseline.mjs` (labels like `**oracle** ✓ (actual byte-identical)`), and `tools/ab-compare-results.mjs` all apply it; `scripts/write-baseline.mjs` retains these fields (it previously dropped the digests the comparator reads, so every report printed "—").
+- **`expectedSha256` / `actualSha256`** — exact byte hashes. Equality is _proof_ of "unchanged"; inequality alone proves nothing (CI raster is not bit-stable). Attribution uses the rule _a byte-identical side is exonerated_: the metric is a pure function of the two images, so if one input's bytes did not change, the movement came from the other side — even when it sits below the digest's floor. `attributeMovementWithBytes` (`src/review/side-digest.ts`), `scripts/diff-against-baseline.mjs` (labels like `**oracle** ✓ (actual byte-identical)`), and `tools/ab-compare-results.mjs` all apply it; `scripts/write-baseline.mjs` retains these fields (it previously dropped the digests the comparator reads, so every report printed "—").
 - **`chromeFaces`** — the faces Chrome actually painted with (`CSS.getPlatformFontsForNode` per text-bearing leaf element, merged as a per-face glyph-count sum, sorted `PostScriptName:glyphCount`), so a face flip names itself in the artifact instead of costing a fresh CI run. Absent on cache hits. Granularity is load-bearing: the first version made ONE call on `<body>`, which (measured on a unicode grid fixture) returned only the heading + intro-paragraph faces and none of the grid cells — it read identical across a run pair whose cells visibly flipped face. A paired-run comparison that shows identical `chromeFaces` from a body-level record proves nothing about the grid.
 - **`expectedFromCache`** — whether the expected side came from the cache. A repeatability claim about Chrome must check this first: a cache-hit "unchanged" is a statement about the cache.
 - **`worker` / `workerSeq`** — which pool worker ran the fixture and where in that worker's sequence. Sorting by these reconstructs the exact per-worker execution order, so order-sensitivity (process-global font caches in the shared browser or in Node) can be checked across runs from the artifacts alone.
 
-**Practical rule:** before attributing a single-fixture move, read its attribution label. `oracle ✓` means re-capture the baseline, not bisect. An "unattributed" label means the change is below the digest's resolution on both sides — it is *not* a statement that the images are identical.
+**Practical rule:** before attributing a single-fixture move, read its attribution label. `oracle ✓` means re-capture the baseline, not bisect. An "unattributed" label means the change is below the digest's resolution on both sides — it is _not_ a statement that the images are identical.
 
 ## Other-platform caveats
 
@@ -230,12 +253,12 @@ The instrument problem this exposed: the per-side perceptual digests (`expectedD
 
 ## These suites can't measure a capture-only Chromium flag
 
-Both harnesses (`tests/runner.tsx`, `tests/html-test-suite.tsx`) drive **one** Chromium: the same browser page screenshots the expected paint AND rasterizes the candidate Domotion SVG for the pixel diff. So a `chromium.launch({ args: [...] })` flag applied to change *capture* also changes how the candidate SVG is rasterized — both sides move together, and any effect that should only hit the capture is masked.
+Both harnesses (`tests/runner.tsx`, `tests/html-test-suite.tsx`) drive **one** Chromium: the same browser page screenshots the expected paint AND rasterizes the candidate Domotion SVG for the pixel diff. So a `chromium.launch({ args: [...] })` flag applied to change _capture_ also changes how the candidate SVG is rasterized — both sides move together, and any effect that should only hit the capture is masked.
 
 This bit a `--font-render-hinting=none` experiment (the flag disables FreeType/DirectWrite glyph hinting):
 
 - **Paths mode (feature suite) — measurable.** The candidate SVG is vector `<path>` geometry; hinting doesn't apply to paths, so only the expected capture changes (goes unhinted). Unhinted capture aligns better with Domotion's unhinted fontkit outlines → a real, if small, improvement (one fixture crossed to passing). This is exactly why `flipbook-parity.ts` uses the flag locally to align capture↔render.
-- **Embedded mode (html / unicode sweeps) — NOT measurable.** The candidate SVG embeds a *hinted* subset font; the flagged browser rasterizes it **unhinted** too, so both sides go soft and agree — the sweep's per-fixture `diff%` even *drops*. That is a mirage: a real consumer opens the shipped SVG in an **unflagged** browser that renders the embedded font hinted, so the capture-vs-consumer mismatch the flag would introduce is invisible to a suite that rasterizes both sides in the same flagged browser. Do not read a sweep run under such a flag as evidence the flag is safe for the default (embedded) render mode.
+- **Embedded mode (html / unicode sweeps) — NOT measurable.** The candidate SVG embeds a _hinted_ subset font; the flagged browser rasterizes it **unhinted** too, so both sides go soft and agree — the sweep's per-fixture `diff%` even _drops_. That is a mirage: a real consumer opens the shipped SVG in an **unflagged** browser that renders the embedded font hinted, so the capture-vs-consumer mismatch the flag would introduce is invisible to a suite that rasterizes both sides in the same flagged browser. Do not read a sweep run under such a flag as evidence the flag is safe for the default (embedded) render mode.
 
 To measure an asymmetric capture flag you need an asymmetric harness: capture the expected paint **with** the flag but rasterize the candidate SVG in a **separate, unflagged** browser (the consumer's condition).
 

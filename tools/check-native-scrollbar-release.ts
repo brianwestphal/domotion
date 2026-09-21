@@ -10,16 +10,18 @@ import {
 
 function option(name: string): string | null {
   const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] ?? null : null;
+  return index >= 0 ? (process.argv[index + 1] ?? null) : null;
 }
 
 async function jsonFiles(path: string): Promise<string[]> {
   const entries = await readdir(path, { withFileTypes: true });
-  const nested = await Promise.all(entries.map(async (entry) => {
-    const child = resolve(path, entry.name);
-    if (entry.isDirectory()) return jsonFiles(child);
-    return entry.isFile() && extname(entry.name) === ".json" && entry.name === "report.json" ? [child] : [];
-  }));
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const child = resolve(path, entry.name);
+      if (entry.isDirectory()) return jsonFiles(child);
+      return entry.isFile() && extname(entry.name) === ".json" && entry.name === "report.json" ? [child] : [];
+    }),
+  );
   return nested.flat();
 }
 
@@ -50,7 +52,9 @@ async function verifyArtifacts(reportPath: string, input: unknown): Promise<stri
           blockers.push(`${display}: decoded PNG dimensions do not match report`);
         }
       } catch (error) {
-        blockers.push(`${display}: strip artifact unreadable (${error instanceof Error ? error.message : String(error)})`);
+        blockers.push(
+          `${display}: strip artifact unreadable (${error instanceof Error ? error.message : String(error)})`,
+        );
       }
     }
   }
@@ -58,14 +62,16 @@ async function verifyArtifacts(reportPath: string, input: unknown): Promise<stri
 }
 
 const reportsDir = option("--reports");
-if (reportsDir == null) throw new Error("usage: check-native-scrollbar-release --reports <downloaded-artifact-dir> [--envelopes <json>]");
+if (reportsDir == null)
+  throw new Error("usage: check-native-scrollbar-release --reports <downloaded-artifact-dir> [--envelopes <json>]");
 const reportPaths = (await jsonFiles(resolve(reportsDir))).sort();
 const reports = await Promise.all(reportPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown));
 const integrity = (await Promise.all(reportPaths.map((path, index) => verifyArtifacts(path, reports[index])))).flat();
 const envelopesPath = option("--envelopes");
-const envelopes = envelopesPath == null
-  ? []
-  : JSON.parse(await readFile(resolve(envelopesPath), "utf8")) as NativeScrollbarRasterEnvelope[];
+const envelopes =
+  envelopesPath == null
+    ? []
+    : (JSON.parse(await readFile(resolve(envelopesPath), "utf8")) as NativeScrollbarRasterEnvelope[]);
 const result = adjudicateNativeScrollbarReports(reports, envelopes, integrity);
 
 console.log(`native scrollbar release gate — ${result.summary}`);

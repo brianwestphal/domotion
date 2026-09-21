@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  runVerticalDecorationLogicalOracle,
-  verticalDecorationCases,
-} from "../tools/vertical-decoration-oracle.js";
+import { runVerticalDecorationLogicalOracle, verticalDecorationCases } from "../tools/vertical-decoration-oracle.js";
 
 describe("DM-2514 pinned Blink vertical decoration logical oracle", () => {
   const report = runVerticalDecorationLogicalOracle();

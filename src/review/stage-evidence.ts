@@ -53,19 +53,21 @@ export function relevantStageEvidence(
   fixtureEvidence?: FixtureScopedStageEvidence,
 ): RelevantStageEvidence | undefined {
   if (manifest == null) {
-    return fixtureEvidence == null ? undefined : {
-      transitionIds: [...new Set(fixtureEvidence.transitionIds ?? [])].sort(),
-      reports: fixtureEvidence.reports,
-      scope: "fixture",
-    };
+    return fixtureEvidence == null
+      ? undefined
+      : {
+          transitionIds: [...new Set(fixtureEvidence.transitionIds ?? [])].sort(),
+          reports: fixtureEvidence.reports,
+          scope: "fixture",
+        };
   }
-  const rules = manifest.rules.filter((rule) =>
-    rule.suites.includes(suite) && (rule.fixture == null || rule.fixture === fixture));
+  const rules = manifest.rules.filter(
+    (rule) => rule.suites.includes(suite) && (rule.fixture == null || rule.fixture === fixture),
+  );
   if (rules.length === 0 && fixtureEvidence == null) return undefined;
-  const transitionIds = [...new Set([
-    ...rules.flatMap((rule) => rule.transitionIds),
-    ...(fixtureEvidence?.transitionIds ?? []),
-  ])].sort();
+  const transitionIds = [
+    ...new Set([...rules.flatMap((rule) => rule.transitionIds), ...(fixtureEvidence?.transitionIds ?? [])]),
+  ].sort();
   const fixtureRules = rules.filter((rule) => rule.fixture === fixture);
   const globalRules = rules.filter((rule) => rule.fixture == null);
   const areas = new Set(rules.flatMap((rule) => rule.areas));
@@ -74,7 +76,9 @@ export function relevantStageEvidence(
     const fixtureAreas = new Set(fixtureRules.flatMap((rule) => rule.areas));
     const exactReports = reports.filter((report) => fixtureAreas.has(report.area));
     const globalAreas = new Set(globalRules.flatMap((rule) => rule.areas));
-    const supersededReports = reports.filter((report) => globalAreas.has(report.area) && !fixtureAreas.has(report.area));
+    const supersededReports = reports.filter(
+      (report) => globalAreas.has(report.area) && !fixtureAreas.has(report.area),
+    );
     return {
       transitionIds,
       reports: [...exactReports, ...fixtureEvidence.reports],

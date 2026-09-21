@@ -341,9 +341,10 @@ export async function embedRemoteImages(
         // often carry a `?format=pjpg&...` suffix that would defeat extension
         // sniffing on its own.
         const ctype = res.headers.get("content-type");
-        const mime = (ctype != null && ctype.startsWith("image/"))
-          ? ctype.split(";")[0].trim()
-          : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
+        const mime =
+          ctype != null && ctype.startsWith("image/")
+            ? ctype.split(";")[0].trim()
+            : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
         _dataUriCache.set(url, `data:${mime};base64,${buf.toString("base64")}`);
         return;
       } catch (err) {
@@ -351,9 +352,10 @@ export async function embedRemoteImages(
       }
     }
     if (lastFailure != null) {
-      const detail = lastFailure.kind === "status"
-        ? `failed to fetch ${url} — HTTP ${lastFailure.status}`
-        : `failed to fetch ${url} — ${describeFetchError(lastFailure.err)}`;
+      const detail =
+        lastFailure.kind === "status"
+          ? `failed to fetch ${url} — HTTP ${lastFailure.status}`
+          : `failed to fetch ${url} — ${describeFetchError(lastFailure.err)}`;
       warnings.push({ selector, feature: "remote-image", detail });
     }
   });

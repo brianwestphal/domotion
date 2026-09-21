@@ -6,8 +6,16 @@ status: "current"
 owners: ["product-tooling"]
 platforms: []
 tickets: ["DM-1449"]
-code: ["src/cli/scrubber.ts","src/scrubber/client.tsx","src/scrubber/server.e2e.test.ts","src/scrubber/server.ts","src/scrubber/ticket.test.ts","tests/scrubber-frame-attach.e2e.test.ts"]
-aliases: ["docs/82-svg-scrubber-review-mode.md","doc-82"]
+code:
+  [
+    "src/cli/scrubber.ts",
+    "src/scrubber/client.tsx",
+    "src/scrubber/server.e2e.test.ts",
+    "src/scrubber/server.ts",
+    "src/scrubber/ticket.test.ts",
+    "tests/scrubber-frame-attach.e2e.test.ts",
+  ]
+aliases: ["docs/82-svg-scrubber-review-mode.md", "doc-82"]
 ---
 
 # 82 — svg-scrubber review mode (`--review`)
@@ -77,15 +85,15 @@ and import it without parsing prose. Schema (`ScrubberTicket` in
   "createdAt": "2026-06-30T15:00:00.000Z",
   "title": "Logo flickers at the loop point",
   "category": "bug",
-  "svg": "/abs/path/to/animation.svg",   // null if loaded via drag-drop (no path)
+  "svg": "/abs/path/to/animation.svg", // null if loaded via drag-drop (no path)
   "svgName": "animation",
   "frameTimeMs": 1234.5,
   "range": { "startMs": 1000, "endMs": 2000 },
-  "regions": [{ "x": 56, "y": 38, "w": 80, "h": 48 }],  // SVG user-units; [] = whole frame
-  "region": { "x": 56, "y": 38, "w": 80, "h": 48 },     // back-compat: first region (or null)
-  "framePng": "/abs/path/to/animation-<stamp>.png",     // sibling frame PNG, or null
+  "regions": [{ "x": 56, "y": 38, "w": 80, "h": 48 }], // SVG user-units; [] = whole frame
+  "region": { "x": 56, "y": 38, "w": 80, "h": 48 }, // back-compat: first region (or null)
+  "framePng": "/abs/path/to/animation-<stamp>.png", // sibling frame PNG, or null
   "note": "Visible seam when the animation wraps.",
-  "details": "…markdown body…"
+  "details": "…markdown body…",
 }
 ```
 

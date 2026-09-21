@@ -42,8 +42,13 @@ function mergeIgnoringShapingItems(runs: FontRun[]): FontRun[] {
   const out: FontRun[] = [];
   for (const run of runs) {
     const last = out[out.length - 1];
-    if (last != null && last.fontKey === run.fontKey && last.font === run.font
-        && last.endIdx === run.startIdx && last.routeMechanism === run.routeMechanism) {
+    if (
+      last != null &&
+      last.fontKey === run.fontKey &&
+      last.font === run.font &&
+      last.endIdx === run.startIdx &&
+      last.routeMechanism === run.routeMechanism
+    ) {
       last.text += run.text;
       last.endIdx = run.endIdx;
     } else {
@@ -63,13 +68,15 @@ describe("shaped fallback preserves Blink bidi items", () => {
 
   it("keeps adjacent same-face LTR, RTL, and LTR items as distinct directed runs", () => {
     const runs = split("AאבB");
-    expect(runs.map((run) => ({
-      text: run.text,
-      start: run.startIdx,
-      end: run.endIdx,
-      direction: run.shapingDirection,
-      key: run.fontKey,
-    }))).toEqual([
+    expect(
+      runs.map((run) => ({
+        text: run.text,
+        start: run.startIdx,
+        end: run.endIdx,
+        direction: run.shapingDirection,
+        key: run.fontKey,
+      })),
+    ).toEqual([
       { text: "A", start: 0, end: 1, direction: "ltr", key: "webfont:dm bidi boundary" },
       { text: "אב", start: 1, end: 3, direction: "rtl", key: "webfont:dm bidi boundary" },
       { text: "B", start: 3, end: 4, direction: "ltr", key: "webfont:dm bidi boundary" },
@@ -84,8 +91,9 @@ describe("shaped fallback preserves Blink bidi items", () => {
   });
 
   it("carries a CSS override's resolved direction instead of re-inferring it from Hebrew", () => {
-    expect(split("AאבB", { direction: "ltr", unicodeBidi: "bidi-override" })
-      .map((run) => run.shapingDirection)).toEqual(["ltr", "ltr", "ltr"]);
+    expect(
+      split("AאבB", { direction: "ltr", unicodeBidi: "bidi-override" }).map((run) => run.shapingDirection),
+    ).toEqual(["ltr", "ltr", "ltr"]);
   });
 
   it("mutation control: deleting the item-boundary guard collapses the positive case", () => {

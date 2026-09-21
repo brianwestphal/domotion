@@ -9,20 +9,19 @@ import { capturedInputValueTextGeometry } from "./input-value-geometry.js";
 
 describe("Chromium-resolved control pseudo capture", () => {
   it("retains the closed-shadow input text top as a host-relative used offset", () => {
-    expect(capturedInputValueTextGeometry(
-      [[98.703125, 235.046875, 159.078125, 235.046875, 159.078125, 270.046875, 98.703125, 270.046875]],
-      [[109.703125, 242.046875, 138.140625, 242.046875, 138.140625, 262.046875, 109.703125, 262.046875]],
-    )).toEqual({
+    expect(
+      capturedInputValueTextGeometry(
+        [[98.703125, 235.046875, 159.078125, 235.046875, 159.078125, 270.046875, 98.703125, 270.046875]],
+        [[109.703125, 242.046875, 138.140625, 242.046875, 138.140625, 262.046875, 109.703125, 262.046875]],
+      ),
+    ).toEqual({
       source: "chromium-ua-shadow-text-quad-v1",
       hostWidth: 60.375,
       hostHeight: 35,
       textTopOffset: 7,
       textHeight: 20,
     });
-    expect(capturedInputValueTextGeometry(
-      [[0, 0, 10, 1, 9, 10, 0, 10]],
-      [[1, 1, 8, 1, 8, 9, 1, 9]],
-    )).toBeNull();
+    expect(capturedInputValueTextGeometry([[0, 0, 10, 1, 9, 10, 0, 10]], [[1, 1, 8, 1, 8, 9, 1, 9]])).toBeNull();
   });
 
   it("maps Blink UA-shadow pseudo identities, including the id-only range thumb", () => {
@@ -45,18 +44,12 @@ describe("Chromium-resolved control pseudo capture", () => {
     for (const [pseudo, kind] of rows) {
       expect(controlPseudoKindForNode({ pseudo }, "INPUT", { type: "range" })).toBe(kind);
     }
-    expect(controlPseudoKindForNode(
-      { id: "thumb" },
-      "INPUT",
-      { type: "RANGE" },
-    )).toBe("thumb");
+    expect(controlPseudoKindForNode({ id: "thumb" }, "INPUT", { type: "RANGE" })).toBe("thumb");
     expect(controlPseudoKindForNode({ id: "thumb" }, "DIV", {})).toBeNull();
-    expect(controlPseudoKindForNode(
-      { "aria-hidden": "true" }, "INPUT", { type: "file" }, "SPAN",
-    )).toBe("file-selector-status");
-    expect(controlPseudoKindForNode(
-      { "aria-hidden": "true" }, "INPUT", { type: "text" }, "SPAN",
-    )).toBeNull();
+    expect(controlPseudoKindForNode({ "aria-hidden": "true" }, "INPUT", { type: "file" }, "SPAN")).toBe(
+      "file-selector-status",
+    );
+    expect(controlPseudoKindForNode({ "aria-hidden": "true" }, "INPUT", { type: "text" }, "SPAN")).toBeNull();
   });
 
   it("classifies UA-only rules as native and every non-UA direct origin as authored", () => {
@@ -75,11 +68,7 @@ describe("Chromium-resolved control pseudo capture", () => {
         .box::-webkit-scrollbar-corner { background: green }
       `,
     ]);
-    expect([...kinds].sort()).toEqual([
-      "scrollbar-button",
-      "scrollbar-thumb",
-      "scrollbar-track-piece",
-    ]);
+    expect([...kinds].sort()).toEqual(["scrollbar-button", "scrollbar-thumb", "scrollbar-track-piece"]);
   });
 
   it("serializes final longhands after Blink resolves shorthand/longhand competition", () => {

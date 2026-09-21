@@ -12,18 +12,36 @@ describe("Linux terminal-mask oracle contract (DM-2623)", () => {
   it("covers the ticket surfaces and fallback-stack controls at every quarter-pixel phase", () => {
     const matrix = linuxTerminalMaskMatrix();
     expect(LINUX_TERMINAL_MASK_CASES.map((testCase) => testCase.id)).toEqual([
-      "ui-meta-13", "mono-label-17", "ui-header-20", "ui-cjk-32",
-      "freesans-malayalam-32", "unifont-malayalam-32",
+      "ui-meta-13",
+      "mono-label-17",
+      "ui-header-20",
+      "ui-cjk-32",
+      "freesans-malayalam-32",
+      "unifont-malayalam-32",
     ]);
     expect(matrix).toHaveLength(96);
     for (const testCase of LINUX_TERMINAL_MASK_CASES) {
       const rows = matrix.filter((row) => row.id === testCase.id);
-      expect(new Set(rows.map((row) => `${row.phaseX},${row.phaseY}`))).toEqual(new Set([
-        "0,0", "0.25,0", "0.5,0", "0.75,0",
-        "0,0.25", "0.25,0.25", "0.5,0.25", "0.75,0.25",
-        "0,0.5", "0.25,0.5", "0.5,0.5", "0.75,0.5",
-        "0,0.75", "0.25,0.75", "0.5,0.75", "0.75,0.75",
-      ]));
+      expect(new Set(rows.map((row) => `${row.phaseX},${row.phaseY}`))).toEqual(
+        new Set([
+          "0,0",
+          "0.25,0",
+          "0.5,0",
+          "0.75,0",
+          "0,0.25",
+          "0.25,0.25",
+          "0.5,0.25",
+          "0.75,0.25",
+          "0,0.5",
+          "0.25,0.5",
+          "0.5,0.5",
+          "0.75,0.5",
+          "0,0.75",
+          "0.25,0.75",
+          "0.5,0.75",
+          "0.75,0.75",
+        ]),
+      );
     }
   });
 
@@ -59,7 +77,10 @@ describe("Linux terminal-mask oracle contract (DM-2623)", () => {
 
   it("gates the causal result without pinning architecture-specific percentages", () => {
     const row = (id: string, diffPct: number, sha256: string, deltas: number[], embedded = true) => ({
-      id, embedded, sha256, global: { diffPct },
+      id,
+      embedded,
+      sha256,
+      global: { diffPct },
       cases: LINUX_TERMINAL_MASK_CASES.map((testCase, index) => ({
         id: testCase.id,
         totalChannelDelta: deltas[index],
@@ -81,7 +102,7 @@ describe("Linux terminal-mask oracle contract (DM-2623)", () => {
       row("pua-no-hinting", 0.25, "unhinted", [101, 201, 301, 500, 1, 1]),
     ];
     expect(validateLinuxTerminalMaskResults(results)).toEqual([]);
-    results[4] = row("pua-production-policy", 0.20, "production", [70, 210, 250, 300, 1, 0]);
+    results[4] = row("pua-production-policy", 0.2, "production", [70, 210, 250, 300, 1, 0]);
     expect(validateLinuxTerminalMaskResults(results)).toEqual([
       "production-policy aggregate improvement is below 15% (0.23 -> 0.2)",
       "mono-label-17: production policy did not reduce terminal-mask delta",

@@ -6,7 +6,12 @@ import { chromium, type Browser, type BrowserContext, type Page } from "@playwri
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeSafely } from "../test-support/close-browser-safely.js";
 import { createStudioProjectFile, openStudioProjectFile, saveStudioProjectFile } from "./app-projects.js";
-import { startStudioServer, type StudioGenerationInput, type StudioGenerationResult, type StudioServerHandle } from "./server.js";
+import {
+  startStudioServer,
+  type StudioGenerationInput,
+  type StudioGenerationResult,
+  type StudioServerHandle,
+} from "./server.js";
 import { htmlWrapper, seekTo, screenshot } from "../cli/svg-to-video-core.js";
 import { studioContentRevisionId } from "./authoring.js";
 import { startBrowserCoverage, writeBrowserCoverage } from "../test-support/browser-coverage.js";
@@ -36,8 +41,16 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     generationInputs.push(structuredClone(input));
     const next = structuredClone(input.project);
     const selectedSceneId = input.selection.kind === "scene" ? input.selection.sceneId : undefined;
-    const selectedScenes = selectedSceneId == null ? next.scenes : next.scenes.filter((scene) => scene.id === selectedSceneId);
-    const durationMs = selectedScenes.reduce((total, scene) => total + (scene.render.kind === "storyboard" ? scene.render.recipe.duration ?? 1600 : scene.render.duration ?? scene.render.composition.duration ?? 1600), 0);
+    const selectedScenes =
+      selectedSceneId == null ? next.scenes : next.scenes.filter((scene) => scene.id === selectedSceneId);
+    const durationMs = selectedScenes.reduce(
+      (total, scene) =>
+        total +
+        (scene.render.kind === "storyboard"
+          ? (scene.render.recipe.duration ?? 1600)
+          : (scene.render.duration ?? scene.render.composition.duration ?? 1600)),
+      0,
+    );
     const svg = animatedPreview(input.selection.kind === "story" ? "#7690ff" : "#f0a64a", durationMs, 48);
     const token = `${input.selection.kind === "story" ? "story" : input.selection.sceneId}-${++generationCount}`;
     const workspacePath = `generated/${token}.svg`;
@@ -128,10 +141,16 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     const secondScene = testPage.locator("[data-scene-id]").nth(1);
     await secondScene.getByLabel("Scene 2 title").fill("Generated payoff");
     await secondScene.getByLabel("Scene 2 description").fill("Show the reviewed output.");
-    await secondScene.getByLabel("Scene 2 generation instructions").fill("Inspect the live DOM and computed CSS before capture, then keep the cursor deliberate.");
+    await secondScene
+      .getByLabel("Scene 2 generation instructions")
+      .fill("Inspect the live DOM and computed CSS before capture, then keep the cursor deliberate.");
     await secondScene.getByLabel("Scene 2 narrative beat").selectOption({ label: "Payoff" });
     await secondScene.getByLabel("Scene 2 source type").selectOption("svg");
-    await testPage.locator("[data-scene-id]").nth(1).getByLabel("Scene 2 source", { exact: true }).fill("source/payoff.svg");
+    await testPage
+      .locator("[data-scene-id]")
+      .nth(1)
+      .getByLabel("Scene 2 source", { exact: true })
+      .fill("source/payoff.svg");
     await testPage.locator("[data-scene-id]").nth(1).getByLabel("Scene 2 source", { exact: true }).press("Tab");
     await secondScene.getByLabel("Scene 2 trim start").fill("200");
     await secondScene.getByLabel("Scene 2 trim start").press("Tab");
@@ -146,7 +165,9 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     expect(generationInputs.at(-1)).toMatchObject({
       selection: { kind: "scene" },
       aiPolicy: { healing: "required", review: "required" },
-      project: { scenes: [{}, { title: "Generated payoff", generationInstructions: expect.stringContaining("computed CSS") }] },
+      project: {
+        scenes: [{}, { title: "Generated payoff", generationInstructions: expect.stringContaining("computed CSS") }],
+      },
     });
     await testPage.getByRole("button", { name: "Reopen", exact: true }).click();
     await testPage.getByLabel("Scene 2 title").waitFor();
@@ -188,7 +209,17 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     expect(persisted.scenes[1]).toMatchObject({
       title: "Generated payoff",
       generationInstructions: expect.stringContaining("computed CSS"),
-      render: { kind: "storyboard", recipe: { svg: "source/payoff.svg", trimStart: 200, trimEnd: 1200, duration: 1000, fit: "cover", transition: { type: "push-left" } } },
+      render: {
+        kind: "storyboard",
+        recipe: {
+          svg: "source/payoff.svg",
+          trimStart: 200,
+          trimEnd: 1200,
+          duration: 1000,
+          fit: "cover",
+          transition: { type: "push-left" },
+        },
+      },
       treatments: [{ kind: "browser-chrome", theme: "dark" }],
     });
     expect(persisted.artifacts.some((artifact) => artifact.sceneIds?.includes(persisted.scenes[1].id))).toBe(true);
@@ -221,13 +252,17 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       }),
     });
     expect(createdResponse.status).toBe(200);
-    const created = await createdResponse.json() as { project: typeof before };
+    const created = (await createdResponse.json()) as { project: typeof before };
     expect(created.project.review.annotations.at(-1)?.author).toEqual({ kind: "human", name: "Browser caller" });
 
     const staleSave = await fetch(new URL("/api/save", server.url), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path: "glassbox.studio.json", expectedHeadRevisionId: before.review.headRevisionId, project: before }),
+      body: JSON.stringify({
+        path: "glassbox.studio.json",
+        expectedHeadRevisionId: before.review.headRevisionId,
+        project: before,
+      }),
     });
     expect(staleSave.status).toBe(409);
 
@@ -236,10 +271,16 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     const genericReviewSave = await fetch(new URL("/api/save", server.url), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path: "glassbox.studio.json", expectedHeadRevisionId: created.project.review.headRevisionId, project: tampered }),
+      body: JSON.stringify({
+        path: "glassbox.studio.json",
+        expectedHeadRevisionId: created.project.review.headRevisionId,
+        project: tampered,
+      }),
     });
     expect(genericReviewSave.status).toBe(400);
-    await expect(genericReviewSave.json()).resolves.toMatchObject({ error: expect.stringContaining("/api/annotation") });
+    await expect(genericReviewSave.json()).resolves.toMatchObject({
+      error: expect.stringContaining("/api/annotation"),
+    });
   });
 
   it("switches scene/story previews, preserves scrub context after regeneration, and matches exported pixels", async () => {
@@ -252,7 +293,10 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     writeFileSync(join(generatedDir, "opening.svg"), opening);
     writeFileSync(join(generatedDir, "detail.svg"), detail);
     writeFileSync(join(generatedDir, "story.svg"), story);
-    const created = createStudioProjectFile(root, "previews.studio.json", { title: "Preview story", createdAt: PREVIEW_TIME });
+    const created = createStudioProjectFile(root, "previews.studio.json", {
+      title: "Preview story",
+      createdAt: PREVIEW_TIME,
+    });
     const authored = structuredClone(created.project);
     authored.scenes.push({
       id: "scene-detail",
@@ -263,9 +307,38 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     authored.narrative.beats[0].sceneIds.push("scene-detail");
     const revision = authored.review.headRevisionId;
     authored.artifacts.push(
-      { id: "artifact-opening", kind: "svg", path: "generated/opening.svg", generatedAt: PREVIEW_TIME, generator: { name: "test" }, sourceRevisionId: revision, sceneIds: ["scene-opening"], sha256: digest(opening), metadata: { durationMs: 2000 } },
-      { id: "artifact-detail", kind: "svg", path: "generated/detail.svg", generatedAt: PREVIEW_TIME, generator: { name: "test" }, sourceRevisionId: revision, sceneIds: ["scene-detail"], sha256: digest(detail), metadata: { durationMs: 1200 } },
-      { id: "artifact-story", kind: "svg", path: "generated/story.svg", generatedAt: PREVIEW_TIME, generator: { name: "test" }, sourceRevisionId: revision, sha256: digest(story), metadata: { durationMs: 3200 } },
+      {
+        id: "artifact-opening",
+        kind: "svg",
+        path: "generated/opening.svg",
+        generatedAt: PREVIEW_TIME,
+        generator: { name: "test" },
+        sourceRevisionId: revision,
+        sceneIds: ["scene-opening"],
+        sha256: digest(opening),
+        metadata: { durationMs: 2000 },
+      },
+      {
+        id: "artifact-detail",
+        kind: "svg",
+        path: "generated/detail.svg",
+        generatedAt: PREVIEW_TIME,
+        generator: { name: "test" },
+        sourceRevisionId: revision,
+        sceneIds: ["scene-detail"],
+        sha256: digest(detail),
+        metadata: { durationMs: 1200 },
+      },
+      {
+        id: "artifact-story",
+        kind: "svg",
+        path: "generated/story.svg",
+        generatedAt: PREVIEW_TIME,
+        generator: { name: "test" },
+        sourceRevisionId: revision,
+        sha256: digest(story),
+        metadata: { durationMs: 3200 },
+      },
     );
     saveStudioProjectFile(root, "previews.studio.json", authored, PREVIEW_TIME);
 

@@ -44,7 +44,7 @@ export const SVG_EFFECT_DIMENSIONS = [
   { name: "maskComposite", values: ["add", "subtract", "intersect", "exclude"] },
 ] as const;
 
-export type SvgEffectDimension = typeof SVG_EFFECT_DIMENSIONS[number];
+export type SvgEffectDimension = (typeof SVG_EFFECT_DIMENSIONS)[number];
 export type SvgEffectAxis = SvgEffectDimension["name"];
 export type SvgEffectValues = Record<SvgEffectAxis, string>;
 
@@ -140,17 +140,24 @@ export function generateSvgEffectCombinations(): SvgEffectCombinationCase[] {
           if (row[other] == null) continue;
           const left = Math.min(axis, other);
           const right = Math.max(axis, other);
-          const key = axis < other
-            ? pairKey(left, value, right, row[other]!)
-            : pairKey(left, row[other]!, right, value);
+          const key =
+            axis < other ? pairKey(left, value, right, row[other]!) : pairKey(left, row[other]!, right, value);
           if (uncovered.has(key)) score++;
         }
         const candidate = [...row];
         candidate[axis] = value;
         for (const names of SVG_EFFECT_TARGETED_TRIPLES) {
           const indices = names.map((name) => dimensionIndex.get(name)!);
-          if (indices.every((index) => candidate[index] != null)
-              && uncoveredTriples.has(tripleKey(indices, indices.map((index) => candidate[index]!)))) score += 4;
+          if (
+            indices.every((index) => candidate[index] != null) &&
+            uncoveredTriples.has(
+              tripleKey(
+                indices,
+                indices.map((index) => candidate[index]!),
+              ),
+            )
+          )
+            score += 4;
         }
         if (score > bestScore) {
           best = value;
@@ -161,7 +168,12 @@ export function generateSvgEffectCombinations(): SvgEffectCombinationCase[] {
     }
     for (const names of SVG_EFFECT_TARGETED_TRIPLES) {
       const indices = names.map((name) => dimensionIndex.get(name)!);
-      uncoveredTriples.delete(tripleKey(indices, indices.map((index) => row[index]!)));
+      uncoveredTriples.delete(
+        tripleKey(
+          indices,
+          indices.map((index) => row[index]!),
+        ),
+      );
     }
 
     for (let left = 0; left < row.length; left++) {
@@ -175,7 +187,9 @@ export function generateSvgEffectCombinations(): SvgEffectCombinationCase[] {
   return rows.map((row, ordinal) => ({
     id: `svg-effect-${String(ordinal + 1).padStart(2, "0")}`,
     ordinal,
-    values: Object.fromEntries(SVG_EFFECT_DIMENSIONS.map((dimension, axis) => [dimension.name, row[axis]])) as SvgEffectValues,
+    values: Object.fromEntries(
+      SVG_EFFECT_DIMENSIONS.map((dimension, axis) => [dimension.name, row[axis]]),
+    ) as SvgEffectValues,
     sourceDecisions: [
       "gradientUnits",
       "gradientInterpolation",
@@ -198,7 +212,12 @@ export function svgEffectHigherOrderCoverage(cases: readonly SvgEffectCombinatio
   for (const test of cases) {
     for (const names of SVG_EFFECT_TARGETED_TRIPLES) {
       const indices = names.map((name) => dimensionIndex.get(name)!);
-      covered.add(tripleKey(indices, names.map((name) => test.values[name])));
+      covered.add(
+        tripleKey(
+          indices,
+          names.map((name) => test.values[name]),
+        ),
+      );
     }
   }
   const missingTargetedTriples = [...expected].filter((key) => !covered.has(key)).sort();
@@ -215,12 +234,14 @@ export function svgEffectPairCoverage(cases: readonly SvgEffectCombinationCase[]
   for (const test of cases) {
     for (let left = 0; left < SVG_EFFECT_DIMENSIONS.length; left++) {
       for (let right = left + 1; right < SVG_EFFECT_DIMENSIONS.length; right++) {
-        covered.add(pairKey(
-          left,
-          test.values[SVG_EFFECT_DIMENSIONS[left].name],
-          right,
-          test.values[SVG_EFFECT_DIMENSIONS[right].name],
-        ));
+        covered.add(
+          pairKey(
+            left,
+            test.values[SVG_EFFECT_DIMENSIONS[left].name],
+            right,
+            test.values[SVG_EFFECT_DIMENSIONS[right].name],
+          ),
+        );
       }
     }
   }
@@ -243,18 +264,21 @@ function shapeMarkup(test: SvgEffectCombinationCase): string {
 
 function gradientMarkup(test: SvgEffectCombinationCase): string {
   const units = test.values.gradientUnits;
-  const coords = units === "objectBoundingBox"
-    ? test.values.gradientKind === "linear" ? `x1="0" y1="0" x2="1" y2="1"` : `cx=".48" cy=".44" r=".7" fx=".31" fy=".29"`
-    : test.values.gradientKind === "linear" ? `x1="5" y1="8" x2="148" y2="106"` : `cx="76" cy="54" r="74" fx="43" fy="31"`;
+  const coords =
+    units === "objectBoundingBox"
+      ? test.values.gradientKind === "linear"
+        ? `x1="0" y1="0" x2="1" y2="1"`
+        : `cx=".48" cy=".44" r=".7" fx=".31" fy=".29"`
+      : test.values.gradientKind === "linear"
+        ? `x1="5" y1="8" x2="148" y2="106"`
+        : `cx="76" cy="54" r="74" fx="43" fy="31"`;
   const tag = test.values.gradientKind === "linear" ? "linearGradient" : "radialGradient";
   return `<${tag} id="gradient-${test.ordinal}" class="gradient-${test.ordinal}" gradientUnits="${units}" ${coords} color-interpolation="sRGB"><stop offset="0" stop-color="#f97316"/><stop offset=".48" stop-color="#22c55e"/><stop offset="1" stop-color="#2563eb"/></${tag}>`;
 }
 
 function clipMarkup(test: SvgEffectCombinationCase): string {
   const bbox = test.values.clipPathUnits === "objectBoundingBox";
-  const geometry = bbox
-    ? `<path d="M.05 .12H.92L.72 .92H.17Z"/>`
-    : `<path d="M8 13H148L116 106H27Z"/>`;
+  const geometry = bbox ? `<path d="M.05 .12H.92L.72 .92H.17Z"/>` : `<path d="M8 13H148L116 106H27Z"/>`;
   return `<clipPath id="clip-${test.ordinal}" clipPathUnits="${test.values.clipPathUnits}">${geometry}</clipPath>`;
 }
 
@@ -277,16 +301,19 @@ function filterMarkup(test: SvgEffectCombinationCase): string {
 }
 
 function cssFor(test: SvgEffectCombinationCase): string {
-  const clip = test.values.clipRoute === "url"
-    ? `url("#clip-${test.ordinal}")`
-    : `${test.values.clipRoute === "basic-circle" ? "circle(43% at 47% 52%)" : "inset(8% 13% 17% 5% round 8px)"} ${test.values.referenceBox}`;
-  const transform = test.values.transform === "affine"
-    ? `transform:translate(7px,3px) rotate(11deg) scale(.92,1.06);transform-box:fill-box;transform-origin:50% 50%;`
-    : "";
+  const clip =
+    test.values.clipRoute === "url"
+      ? `url("#clip-${test.ordinal}")`
+      : `${test.values.clipRoute === "basic-circle" ? "circle(43% at 47% 52%)" : "inset(8% 13% 17% 5% round 8px)"} ${test.values.referenceBox}`;
+  const transform =
+    test.values.transform === "affine"
+      ? `transform:translate(7px,3px) rotate(11deg) scale(.92,1.06);transform-box:fill-box;transform-origin:50% 50%;`
+      : "";
   const filter = test.values.filterRoute === "url" ? `filter:url("#filter-${test.ordinal}");` : "filter:none;";
-  const marker = test.values.markers === "all"
-    ? `marker-start:url("#marker-${test.ordinal}");marker-mid:url("#marker-${test.ordinal}");marker-end:url("#marker-${test.ordinal}");`
-    : `marker-start:none;marker-mid:none;marker-end:none;`;
+  const marker =
+    test.values.markers === "all"
+      ? `marker-start:url("#marker-${test.ordinal}");marker-mid:url("#marker-${test.ordinal}");marker-end:url("#marker-${test.ordinal}");`
+      : `marker-start:none;marker-mid:none;marker-end:none;`;
   return `
     .gradient-${test.ordinal}{color-interpolation:${test.values.gradientInterpolation}}
     .paint-${test.ordinal}{fill:url("#gradient-${test.ordinal}");stroke:#172554;stroke-width:8;clip-path:${clip};mask:url("#mask-${test.ordinal}");${filter}vector-effect:${test.values.vectorEffect};${transform}}
@@ -299,12 +326,14 @@ function tileMarkup(test: SvgEffectCombinationCase): string {
   const x = (test.ordinal % SVG_EFFECT_TILE.columns) * SVG_EFFECT_TILE.width;
   const y = Math.floor(test.ordinal / SVG_EFFECT_TILE.columns) * SVG_EFFECT_TILE.height;
   const content = `${shapeMarkup(test)}<polyline class="marker-line-${test.ordinal}" points="26,116 77,96 130,118"/><rect class="css-mask-${test.ordinal}" x="137" y="18" width="30" height="104" rx="5"/>`;
-  const owner = test.values.viewport === "nested"
-    ? `<svg x="7" y="6" width="164" height="136" viewBox="0 0 176 146" preserveAspectRatio="xMidYMid meet" overflow="visible">${content}</svg>`
-    : content;
-  const projective = test.values.transform === "projective"
-    ? ";transform:perspective(520px) rotateY(9deg);transform-origin:50% 50%"
-    : "";
+  const owner =
+    test.values.viewport === "nested"
+      ? `<svg x="7" y="6" width="164" height="136" viewBox="0 0 176 146" preserveAspectRatio="xMidYMid meet" overflow="visible">${content}</svg>`
+      : content;
+  const projective =
+    test.values.transform === "projective"
+      ? ";transform:perspective(520px) rotateY(9deg);transform-origin:50% 50%"
+      : "";
   return `<svg data-effect-case="${test.id}" style="position:absolute;left:${x}px;top:${y}px${projective}" width="180" height="150" viewBox="0 0 180 150"><defs>${gradientMarkup(test)}${clipMarkup(test)}${maskMarkup(test)}${markerMarkup(test)}${filterMarkup(test)}</defs>${owner}</svg>`;
 }
 
@@ -314,7 +343,9 @@ export function buildSvgEffectCombinationHtml(cases: readonly SvgEffectCombinati
   return `<!doctype html><style>html,body{margin:0;background:white}#stage{position:relative;width:${SVG_EFFECT_VIEWPORT.width}px;height:${SVG_EFFECT_VIEWPORT.height}px;background:white;overflow:hidden}${css}</style><div id="stage">${tiles}</div>`;
 }
 
-export function validateSvgEffectCombinationCorpus(cases: readonly SvgEffectCombinationCase[] = SVG_EFFECT_CASES): string[] {
+export function validateSvgEffectCombinationCorpus(
+  cases: readonly SvgEffectCombinationCase[] = SVG_EFFECT_CASES,
+): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
   for (const test of cases) {
@@ -330,10 +361,15 @@ export function validateSvgEffectCombinationCorpus(cases: readonly SvgEffectComb
     }
   }
   const coverage = svgEffectPairCoverage(cases);
-  if (coverage.missingPairs.length > 0) errors.push(`missing ${coverage.missingPairs.length}/${coverage.expectedPairs} pairwise transitions`);
+  if (coverage.missingPairs.length > 0)
+    errors.push(`missing ${coverage.missingPairs.length}/${coverage.expectedPairs} pairwise transitions`);
   const higherOrder = svgEffectHigherOrderCoverage(cases);
-  if (higherOrder.missingTargetedTriples.length > 0) errors.push(`missing ${higherOrder.missingTargetedTriples.length}/${higherOrder.expectedTargetedTriples} source-selected triples`);
+  if (higherOrder.missingTargetedTriples.length > 0)
+    errors.push(
+      `missing ${higherOrder.missingTargetedTriples.length}/${higherOrder.expectedTargetedTriples} source-selected triples`,
+    );
   const html = buildSvgEffectCombinationHtml(cases);
-  if (/clip-path\s*:\s*url\([^;]+\)\s+(?:fill|stroke|view)-box/.test(html)) errors.push("URL clip illegally combined with a geometry box");
+  if (/clip-path\s*:\s*url\([^;]+\)\s+(?:fill|stroke|view)-box/.test(html))
+    errors.push("URL clip illegally combined with a geometry box");
   return errors;
 }

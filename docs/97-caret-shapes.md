@@ -5,9 +5,21 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: []
-tickets: ["DM-1590","DM-1591"]
-code: ["examples/animate/caret-shapes/","src/animation/animator.ts","src/animation/caret-metrics.test.ts","src/animation/caret-metrics.ts","src/animation/overlay-schema.ts","src/cli/animate.ts","src/cli/type-resample.test.ts","src/cli/type-resample.ts","src/terminal/incremental.ts","tests/animate-examples.tsx"]
-aliases: ["docs/97-caret-shapes.md","doc-97"]
+tickets: ["DM-1590", "DM-1591"]
+code:
+  [
+    "examples/animate/caret-shapes/",
+    "src/animation/animator.ts",
+    "src/animation/caret-metrics.test.ts",
+    "src/animation/caret-metrics.ts",
+    "src/animation/overlay-schema.ts",
+    "src/cli/animate.ts",
+    "src/cli/type-resample.test.ts",
+    "src/cli/type-resample.ts",
+    "src/terminal/incremental.ts",
+    "tests/animate-examples.tsx",
+  ]
+aliases: ["docs/97-caret-shapes.md", "doc-97"]
 ---
 
 # 97 — Caret shapes (bar / block / underscore)
@@ -32,25 +44,25 @@ The caret only paints in Blink when the window has OS focus, so it never appears
 
 `caretShapeRect()` is the single shared source of caret geometry, used by both surfaces so a bar/block/underscore caret is identical wherever it's drawn. Given the caret x, the text baseline, the font's exact ascent/descent (DM-1590), and the insertion-cell width:
 
-| shape | x | y | width | height | opacity |
-|---|---|---|---|---|---|
-| `bar` | caret x | baseline − ascent | `barWidthPx` (2, or 1.5 for `typeResample`) | ascent + descent | 1 |
-| `block` | caret x | baseline − ascent | one cell | ascent + descent | **0.5** |
-| `underscore` | caret x | baseline | one cell | `≈ fontSize / 12` (≥1px) | 1 |
+| shape        | x       | y                 | width                                       | height                   | opacity |
+| ------------ | ------- | ----------------- | ------------------------------------------- | ------------------------ | ------- |
+| `bar`        | caret x | baseline − ascent | `barWidthPx` (2, or 1.5 for `typeResample`) | ascent + descent         | 1       |
+| `block`      | caret x | baseline − ascent | one cell                                    | ascent + descent         | **0.5** |
+| `underscore` | caret x | baseline          | one cell                                    | `≈ fontSize / 12` (≥1px) | 1       |
 
 - **Block alpha `0.5`** mirrors Blink's `color_.SetAlpha(0.5)` in `caret_display_item_client.cc`, so the glyph shows through the block.
 - **Cell width** is the advance of the character the caret sits on. At the insertion point (end of typed text) there is no next character, so it uses the **space advance** in the caret's font — a natural "empty cell", matching editor/terminal block cursors.
-- **Underscore** sits *on* the baseline (top of the bar at the baseline), `≈ 1/12 em` thick with a 1px floor.
-- **RTL insertion points** (`rtl: true`, set by the caret + selection track's addressing engine — [docs/101](101-caret-selection-track.md)) put the caret x on the cell's **right** edge, because the character it addresses paints to the *left* of the insertion point. Every shape then mirrors about `x`: `block` / `underscore` cover `[x − cell, x]` and `bar` sits just inside that edge, so the cell still lands on the addressed character. Omitting the flag keeps the left-to-right geometry byte-for-byte.
+- **Underscore** sits _on_ the baseline (top of the bar at the baseline), `≈ 1/12 em` thick with a 1px floor.
+- **RTL insertion points** (`rtl: true`, set by the caret + selection track's addressing engine — [docs/101](101-caret-selection-track.md)) put the caret x on the cell's **right** edge, because the character it addresses paints to the _left_ of the insertion point. Every shape then mirrors about `x`: `block` / `underscore` cover `[x − cell, x]` and `bar` sits just inside that edge, so the cell still lands on the addressed character. Omitting the flag keeps the left-to-right geometry byte-for-byte.
 
 ### Vertical writing modes
 
 `vertical: true` (with `columnWidthPx`, also set by the docs/101 addressing engine) rotates the caret a quarter turn about the column. `x` is then the **column's left edge**, `baselineY` the along-column position, and `cellWidthPx` the cell's extent **down** the column:
 
-| shape | x | y | width | height |
-|---|---|---|---|---|
-| `bar` | column left | along-column position | column width | `barWidthPx` — a **horizontal** bar across the column |
-| `block` | column left | along-column position | column width | one cell |
+| shape        | x           | y                     | width             | height                                                |
+| ------------ | ----------- | --------------------- | ----------------- | ----------------------------------------------------- |
+| `bar`        | column left | along-column position | column width      | `barWidthPx` — a **horizontal** bar across the column |
+| `block`      | column left | along-column position | column width      | one cell                                              |
 | `underscore` | column left | along-column position | `≈ fontSize / 12` | one cell — a thin bar down the column's **left** edge |
 
 The `underscore` side is the column's left edge because that is where Chrome paints a vertical-text underline: probed on both `vertical-rl` and `vertical-lr` with a colored `text-decoration: underline`, the rule lands ~2px inside the column's left edge in each. Omitting the flag keeps the horizontal geometry byte-for-byte.
@@ -62,8 +74,7 @@ The `underscore` side is the column's left edge because that is where Chrome pai
 `caret` accepts a `shape` alongside the existing `color` / `width` / `blinkMs`:
 
 ```jsonc
-{ "kind": "typing", "text": "npm run build", "x": 40, "y": 120,
-  "caret": { "shape": "block", "color": "#58ff9b" } }
+{ "kind": "typing", "text": "npm run build", "x": 40, "y": 120, "caret": { "shape": "block", "color": "#58ff9b" } }
 ```
 
 `shape` defaults to `bar`. The caret still rides the growing text edge and blinks.

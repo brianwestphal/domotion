@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  fuseFontFeatureValueRules,
-  IMPLICIT_OUTER_LAYER_ORDER,
-} from "../src/font-feature-values-cascade.js";
+import { fuseFontFeatureValueRules, IMPLICIT_OUTER_LAYER_ORDER } from "../src/font-feature-values-cascade.js";
 import {
   exactFeatureValueSignature,
   exactWebfontFeatureRecord,
@@ -48,11 +45,7 @@ describe("doc 204 named alternates use Blink's exact OpenType feature list", () 
   });
 
   it("keeps character-variant's optional value and family ownership exact", () => {
-    expect(resolvedFeatureValueList(
-      "character-variant(indexed)",
-      `"${FAMILY}"`,
-      TABLES,
-    )).toEqual(["cv02=3"]);
+    expect(resolvedFeatureValueList("character-variant(indexed)", `"${FAMILY}"`, TABLES)).toEqual(["cv02=3"]);
     expect(resolvedFeatureValueList("stylistic(fancy)", "wrong, serif", TABLES)).toEqual([]);
   });
 
@@ -106,8 +99,9 @@ describe("doc 204 named alternates use Blink's exact OpenType feature list", () 
 
 describe("the pinned WPT webfont makes every alias anti-vacuous", () => {
   it("is the exact Chromium-pinned fixture", () => {
-    expect(createHash("sha256").update(fixtureBytes()).digest("hex"))
-      .toBe("0f7e550009d5d7348fdbaf79365e9cdbe010feb04e3af00bacc49f825e1f93f2");
+    expect(createHash("sha256").update(fixtureBytes()).digest("hex")).toBe(
+      "0f7e550009d5d7348fdbaf79365e9cdbe010feb04e3af00bacc49f825e1f93f2",
+    );
   });
 
   it.each(CASES)("moves the logical glyph at the source-owned %s clusters", (_css, features, changed) => {
@@ -115,13 +109,14 @@ describe("the pinned WPT webfont makes every alias anti-vacuous", () => {
     const baseline = exactWebfontFeatureRecord(bytes, TEXT, []);
     const selected = exactWebfontFeatureRecord(bytes, TEXT, [...features]);
     const actualChanged = selected.glyphs
-      .map((glyph, index) => glyph.id === baseline.glyphs[index].id ? -1 : index)
+      .map((glyph, index) => (glyph.id === baseline.glyphs[index].id ? -1 : index))
       .filter((index) => index >= 0);
 
     expect(selected.features).toEqual(features);
     expect(selected.clusters).toEqual(Array.from({ length: TEXT.length }, (_, index) => index));
-    expect(selected.glyphs.map((glyph) => glyph.sourceSpan))
-      .toEqual(Array.from({ length: TEXT.length }, (_, index) => [index, index + 1]));
+    expect(selected.glyphs.map((glyph) => glyph.sourceSpan)).toEqual(
+      Array.from({ length: TEXT.length }, (_, index) => [index, index + 1]),
+    );
     expect(actualChanged).toEqual(changed);
     expect(exactFeatureValueSignature(selected)).not.toBe(exactFeatureValueSignature(baseline));
   });
@@ -134,10 +129,7 @@ describe("the pinned WPT webfont makes every alias anti-vacuous", () => {
     for (const anchor of ["kSaltTag", "ssTag", "cvTag", "kSwshTag", "kCswhTag", "kOrnmTag", "kNaltTag"]) {
       expect(blink).toContain(anchor);
     }
-    const selector = readFileSync(
-      "external/chromium/third_party/blink/renderer/core/css/css_font_selector.cc",
-      "utf8",
-    );
+    const selector = readFileSync("external/chromium/third_party/blink/renderer/core/css/css_font_selector.cc", "utf8");
     expect(selector).toContain("FontFeatureValuesForFamily");
     expect(selector).toContain("GetFontVariantAlternates()->Resolve");
     const storage = readFileSync(

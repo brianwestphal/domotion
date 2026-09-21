@@ -48,12 +48,8 @@ describe("DM-2507 emoji presentation ownership closure", () => {
   });
 
   it("retains source VS15/VS16 states and order/declared-family controls", () => {
-    expect(sourcePriorityItems("❗\ufe0e")).toEqual([
-      { start: 0, end: 2, text: "❗\ufe0e", priority: "text-vs" },
-    ]);
-    expect(sourcePriorityItems("❗\ufe0f")).toEqual([
-      { start: 0, end: 2, text: "❗\ufe0f", priority: "emoji-vs" },
-    ]);
+    expect(sourcePriorityItems("❗\ufe0e")).toEqual([{ start: 0, end: 2, text: "❗\ufe0e", priority: "text-vs" }]);
+    expect(sourcePriorityItems("❗\ufe0f")).toEqual([{ start: 0, end: 2, text: "❗\ufe0f", priority: "emoji-vs" }]);
     expect(EMOJI_OWNERSHIP_ROUTE_CASES.map((row) => row.id)).toEqual([
       "fixture-order",
       "text-before-emoji",

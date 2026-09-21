@@ -42,9 +42,9 @@ describe("captured DOM inline <svg> flattening (DM-7AN9AH)", () => {
   it("a plain icon flattens to <g matrix>, pixel-identical to the nested <svg>", async () => {
     await source.setContent(
       `<!doctype html><style>html,body{margin:0;background:#fff}` +
-      `.icon{width:40px;height:40px;color:#c33;padding:8px}</style>` +
-      `<div class="icon"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z" fill="currentColor"/>` +
-      `<circle cx="12" cy="12" r="5" fill="#39c"/></svg></div>`,
+        `.icon{width:40px;height:40px;color:#c33;padding:8px}</style>` +
+        `<div class="icon"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z" fill="currentColor"/>` +
+        `<circle cx="12" cy="12" r="5" fill="#39c"/></svg></div>`,
     );
     const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: W, height: H });
 
@@ -65,7 +65,7 @@ describe("captured DOM inline <svg> flattening (DM-7AN9AH)", () => {
     // selector IS: it would leak into the outer document once merged.
     await source.setContent(
       `<!doctype html><style>html,body{margin:0;background:#fff}.icon{width:40px;height:40px;color:#282}</style>` +
-      `<div class="icon"><svg viewBox="0 0 10 10"><style>rect{fill:currentColor}</style><rect width="10" height="10"/></svg></div>`,
+        `<div class="icon"><svg viewBox="0 0 10 10"><style>rect{fill:currentColor}</style><rect width="10" height="10"/></svg></div>`,
     );
     const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: W, height: H });
     const flat = render(tree, true);

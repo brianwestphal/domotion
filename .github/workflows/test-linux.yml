@@ -259,7 +259,7 @@ jobs:
   # proves it compiles and matches fontkit) — run after editing the C++ to catch
   # build / coordinate issues without cutting a tag.
   glyph-extractor-build:
-    if: github.event_name != 'pull_request'   # DM-1405: on-demand, not on every PR (see font-width-probe)
+    if: github.event_name != 'pull_request' # DM-1405: on-demand, not on every PR (see font-width-probe)
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble

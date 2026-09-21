@@ -4,8 +4,7 @@ import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runAnimatedImageOwnerResourceTruthAdjudicator } from
-  "../tools/animated-image-owner-resource-truth-adjudicator.js";
+import { runAnimatedImageOwnerResourceTruthAdjudicator } from "../tools/animated-image-owner-resource-truth-adjudicator.js";
 import {
   adjudicateAnimatedImageOwnerResourceTruth,
   animatedImageTruthSha256,
@@ -170,9 +169,7 @@ function deniedRecord(
 }
 
 function probeRows(): AnimatedImageTruthProbeRow[] {
-  const requirements = new Map(
-    ANIMATED_IMAGE_TRUTH_PROBE_REQUIREMENTS.map((entry) => [entry.probeId, entry]),
-  );
+  const requirements = new Map(ANIMATED_IMAGE_TRUTH_PROBE_REQUIREMENTS.map((entry) => [entry.probeId, entry]));
   return ANIMATED_IMAGE_TRUTH_CASES.map((requiredCase) => {
     const caseKey = `${requiredCase.probeId}/${requiredCase.caseId}`;
     let denialCode: AnimatedImageTruthDeniedRecord["denialCode"] = "candidate-drift";
@@ -188,13 +185,14 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
     const makeDenied = (): AnimatedImageTruthDeniedRecord => {
       const record = deniedRecord(denialCode);
       if (record.owner) {
-        record.owner.kind = requiredCase.property === "html-current"
-          ? "html-image"
-          : requiredCase.property === "svg-href"
-          ? "svg-image"
-          : requiredCase.property === "input-src"
-          ? "image-input"
-          : "css-image";
+        record.owner.kind =
+          requiredCase.property === "html-current"
+            ? "html-image"
+            : requiredCase.property === "svg-href"
+              ? "svg-image"
+              : requiredCase.property === "input-src"
+                ? "image-input"
+                : "css-image";
         record.owner.slot.property = requiredCase.property;
         record.owner.slot.index = requiredCase.index;
         if (requiredCase.pseudoType) {
@@ -204,21 +202,21 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
           };
         }
       }
-      if (caseKey === "paintable-no-cors-denial/opaque-paintable" &&
-          record.requestIdentity) {
+      if (caseKey === "paintable-no-cors-denial/opaque-paintable" && record.requestIdentity) {
         record.requestIdentity.requestMode = "no-cors";
       }
       return record;
     };
     const makeAuthorized = (): AnimatedImageTruthAuthorizedRecord => {
       const record = authorizedRecord();
-      record.owner.kind = requiredCase.property === "html-current"
-        ? "html-image"
-        : requiredCase.property === "svg-href"
-        ? "svg-image"
-        : requiredCase.property === "input-src"
-        ? "image-input"
-        : "css-image";
+      record.owner.kind =
+        requiredCase.property === "html-current"
+          ? "html-image"
+          : requiredCase.property === "svg-href"
+            ? "svg-image"
+            : requiredCase.property === "input-src"
+              ? "image-input"
+              : "css-image";
       record.owner.slot.property = requiredCase.property;
       record.owner.slot.index = requiredCase.index;
       if (requiredCase.pseudoType) {
@@ -232,30 +230,28 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
       } else if (caseKey === "img-src-mutation/stable-apng") {
         record.resource.mimeType = "image/png";
         record.resource.rawContentType = "image/png";
-      } else if (caseKey ===
-          "css-image-set-option-reorder/stable-selected-option") {
+      } else if (caseKey === "css-image-set-option-reorder/stable-selected-option") {
         record.owner.slot.imageSetOptionIndex = 0;
       } else if (caseKey.startsWith("same-url-memory-cache-sharing/")) {
         record.resource.memoryCacheHitCount = 1;
       } else if (caseKey === "redirect-response-mime-drift/stable-redirect") {
-        record.resource.redirects = [{
-          requestUrl: "https://127.0.0.1:4401/redirect.gif",
-          responseUrl: "https://127.0.0.1:4401/redirect.gif",
-          status: 302,
-          responseTime: 1_700_000_000_000,
-        }];
+        record.resource.redirects = [
+          {
+            requestUrl: "https://127.0.0.1:4401/redirect.gif",
+            responseUrl: "https://127.0.0.1:4401/redirect.gif",
+            status: 302,
+            responseTime: 1_700_000_000_000,
+          },
+        ];
       } else if (caseKey === "settled-304/settled-cache-entry") {
         record.resource.revalidationCount = 1;
         record.resource.lastRevalidationStatus = 304;
-      } else if (caseKey ===
-          "service-worker-router-cache-replacement/stable-cache-route") {
+      } else if (caseKey === "service-worker-router-cache-replacement/stable-cache-route") {
         record.resource.fromServiceWorker = true;
         record.resource.serviceWorkerControllerVersionId = "17";
         record.resource.serviceWorkerResponseSource = "cache-storage";
         record.resource.serviceWorkerRouterSha256 = SHA_B;
-        record.resource.serviceWorkerUrlList = [
-          "https://127.0.0.1:4401/sw-asset.gif",
-        ];
+        record.resource.serviceWorkerUrlList = ["https://127.0.0.1:4401/sw-asset.gif"];
         record.resource.cacheStorageCacheName = "dm2583-a";
       } else if (caseKey === "cors-anonymous-success/anonymous") {
         record.resource.requestMode = "cors";
@@ -275,8 +271,7 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
         record.body.base64EncodedByProtocol = false;
         record.body.networkLoadingFinished = null;
       } else if (caseKey === "blob-replacement-revocation/stable-blob") {
-        const blobUrl =
-          "blob:https://127.0.0.1:4401/11111111-1111-1111-1111-111111111111";
+        const blobUrl = "blob:https://127.0.0.1:4401/11111111-1111-1111-1111-111111111111";
         record.owner.currentSrc = blobUrl;
         record.owner.selectedResourceUrl = blobUrl;
         record.resource.currentRequestUrl = blobUrl;
@@ -285,8 +280,7 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
         record.body.transport = "blob-read";
         record.body.base64EncodedByProtocol = false;
         record.body.networkLoadingFinished = null;
-      } else if (caseKey ===
-          "shadow-pseudo-slot-collision/stable-closed-shadow-before") {
+      } else if (caseKey === "shadow-pseudo-slot-collision/stable-closed-shadow-before") {
         record.owner.shadowHostBackendNodeIds = [91];
         record.owner.shadowRootTypes = ["closed"];
         record.owner.pseudo = { backendNodeId: 92, type: "before" };
@@ -308,12 +302,14 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
       begin,
       finish,
       transactionUnchanged: requiredCase.expected !== "reject-drift",
-      publicBody: isAuthorized ? {
-        transport: begin.body.transport,
-        base64EncodedByProtocol: begin.body.base64EncodedByProtocol,
-        byteLength: begin.body.byteLength,
-        sha256: begin.body.sha256,
-      } : null,
+      publicBody: isAuthorized
+        ? {
+            transport: begin.body.transport,
+            base64EncodedByProtocol: begin.body.base64EncodedByProtocol,
+            byteLength: begin.body.byteLength,
+            sha256: begin.body.sha256,
+          }
+        : null,
       deniedInspectorBodyDiscarded: !isAuthorized,
       activation: {
         sourceReferences: requirement.sourceReferences,
@@ -350,16 +346,12 @@ function report(
     explicitHeadless: true,
     binaries: {
       browser: {
-        pathToken: operatingSystem === "Windows"
-          ? "headless_shell.exe"
-          : "headless_shell",
+        pathToken: operatingSystem === "Windows" ? "headless_shell.exe" : "headless_shell",
         byteLength: 100,
         sha256: SHA_A,
       },
       renderer: {
-        pathToken: operatingSystem === "Windows"
-          ? "headless_shell.exe"
-          : "headless_shell",
+        pathToken: operatingSystem === "Windows" ? "headless_shell.exe" : "headless_shell",
         byteLength: 100,
         sha256: SHA_A,
       },
@@ -375,23 +367,17 @@ function report(
 
 describe("animated image owner/resource truth schema", () => {
   it("pins the contract and fixed limit fingerprints", () => {
-    expect(ANIMATED_IMAGE_TRUTH_SCHEMA_SHA256).toBe(
-      "52969c415240f444dde400e0bd6920f0aee0ff2c68787a4edfe204b8c958b2c5",
-    );
+    expect(ANIMATED_IMAGE_TRUTH_SCHEMA_SHA256).toBe("52969c415240f444dde400e0bd6920f0aee0ff2c68787a4edfe204b8c958b2c5");
     expect(ANIMATED_IMAGE_TRUTH_LIMITS_FINGERPRINT).toBe(
       "b020def31cbbf0944279249bbe1f802cb98fc73436a012a57bd854f79d32c195",
     );
-    expect(ANIMATED_IMAGE_TRUTH_PATCH_SHA256).toBe(
-      "93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f",
-    );
+    expect(ANIMATED_IMAGE_TRUTH_PATCH_SHA256).toBe("93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f");
     expect(ANIMATED_IMAGE_TRUTH_SOURCE_MANIFEST_SHA256).toBe(
       "3dc66cab6e2982a336eb275cc808a260b590b535ed304a0701c43350f3b838cd",
     );
     expect(new Set(ANIMATED_IMAGE_TRUTH_PROBES).size).toBe(22);
-    expect(new Set(ANIMATED_IMAGE_TRUTH_CASES.map((row) =>
-      `${row.probeId}/${row.caseId}`)).size).toBe(38);
-    expect(ANIMATED_IMAGE_TRUTH_PROBE_REQUIREMENTS.map((row) => row.probeId))
-      .toEqual(ANIMATED_IMAGE_TRUTH_PROBES);
+    expect(new Set(ANIMATED_IMAGE_TRUTH_CASES.map((row) => `${row.probeId}/${row.caseId}`)).size).toBe(38);
+    expect(ANIMATED_IMAGE_TRUTH_PROBE_REQUIREMENTS.map((row) => row.probeId)).toEqual(ANIMATED_IMAGE_TRUTH_PROBES);
   });
 
   it("keeps the evidence browser launch explicitly headless", async () => {
@@ -408,19 +394,13 @@ describe("animated image owner/resource truth schema", () => {
 
   it("retains the exact reproducible 26-file private Chromium patch", async () => {
     const source = await readFile(
-      new URL(
-        "../tools/animated-image-owner-resource-truth-chromium.patch",
-        import.meta.url,
-      ),
+      new URL("../tools/animated-image-owner-resource-truth-chromium.patch", import.meta.url),
       "utf8",
     );
-    const paths = [...source.matchAll(/^diff --git a\/(.+) b\/\1$/gm)]
-      .map((match) => match[1]);
+    const paths = [...source.matchAll(/^diff --git a\/(.+) b\/\1$/gm)].map((match) => match[1]);
     expect(paths).toHaveLength(26);
     expect(new Set(paths).size).toBe(26);
-    expect(source).toContain(
-      "93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f",
-    );
+    expect(source).toContain("93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f");
     expect(source).toContain("experimental domain DomotionAnimatedImageTruth");
   });
 
@@ -430,13 +410,14 @@ describe("animated image owner/resource truth schema", () => {
 
   it("rejects body or URL facts smuggled into every denied identity level", () => {
     for (const mutate of [
-      (record: Record<string, unknown>) => { record.body = { sha256: SHA_A }; },
+      (record: Record<string, unknown>) => {
+        record.body = { sha256: SHA_A };
+      },
       (record: Record<string, unknown>) => {
         (record.document as Record<string, unknown>).url = "https://secret.invalid/body";
       },
       (record: Record<string, unknown>) => {
-        (record.owner as Record<string, unknown>).selectedResourceUrl =
-          "https://secret.invalid/body";
+        (record.owner as Record<string, unknown>).selectedResourceUrl = "https://secret.invalid/body";
       },
       (record: Record<string, unknown>) => {
         (record.requestIdentity as Record<string, unknown>).byteLength = 113;
@@ -444,9 +425,11 @@ describe("animated image owner/resource truth schema", () => {
     ]) {
       const value = structuredClone(deniedRecord()) as unknown as Record<string, unknown>;
       mutate(value);
-      expect(validateAnimatedImageTruthRecord(
-        value as unknown as AnimatedImageTruthDeniedRecord,
-      ).some((failure) => failure.includes("unsafe or missing keys"))).toBe(true);
+      expect(
+        validateAnimatedImageTruthRecord(value as unknown as AnimatedImageTruthDeniedRecord).some((failure) =>
+          failure.includes("unsafe or missing keys"),
+        ),
+      ).toBe(true);
     }
   });
 
@@ -516,16 +499,13 @@ describe("animated image owner/resource truth schema", () => {
         row.begin.oracle.patchSha256 = SHA_A;
         row.finish.oracle.patchSha256 = SHA_A;
       }
-      candidate.normalizedLogicalSha256 =
-        normalizedAnimatedImageTruthRowsSha256(candidate.rows);
+      candidate.normalizedLogicalSha256 = normalizedAnimatedImageTruthRowsSha256(candidate.rows);
     }
 
     const result = adjudicateAnimatedImageOwnerResourceTruth(reports);
     expect(result.verdict).toBe("verdict-withheld");
     expect(result.failures).toContain("macOS/proposal: helper patch authority drift");
-    expect(result.failures).toContain(
-      "Windows/validation: source-manifest authority drift",
-    );
+    expect(result.failures).toContain("Windows/validation: source-manifest authority drift");
   });
 
   it("seals every reopened input and the persisted adjudication envelope", () => {
@@ -548,37 +528,26 @@ describe("animated image owner/resource truth schema", () => {
       const { reportSha256, ...payload } = artifact;
       expect(artifact.adjudication.verdict).toBe("proposal-validation-agreement");
       expect(artifact.inputs).toHaveLength(6);
-      expect(artifact.inputs.every((input) =>
-        input.byteLength > 0 && /^[0-9a-f]{64}$/.test(input.sha256))).toBe(true);
+      expect(artifact.inputs.every((input) => input.byteLength > 0 && /^[0-9a-f]{64}$/.test(input.sha256))).toBe(true);
       expect(reportSha256).toBe(animatedImageTruthSha256(payload));
-      expect(runAnimatedImageOwnerResourceTruthAdjudicator(
-        [...paths].reverse(),
-      ).reportSha256).toBe(reportSha256);
+      expect(runAnimatedImageOwnerResourceTruthAdjudicator([...paths].reverse()).reportSha256).toBe(reportSha256);
 
       const malformedPath = join(directory, "malformed-structural.json");
       writeFileSync(malformedPath, '{"not":"a report"}\n');
-      const withheld = runAnimatedImageOwnerResourceTruthAdjudicator([
-        paths[0],
-        malformedPath,
-      ]);
+      const withheld = runAnimatedImageOwnerResourceTruthAdjudicator([paths[0], malformedPath]);
       expect(withheld.adjudication.verdict).toBe("verdict-withheld");
-      expect(withheld.adjudication.failures.some((failure) =>
-        failure.includes("unsafe or missing keys"))).toBe(true);
+      expect(withheld.adjudication.failures.some((failure) => failure.includes("unsafe or missing keys"))).toBe(true);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
   });
 
   it("normalizes per-context blob tokens without weakening byte identity", () => {
-    const left = [probeRows().find((row) =>
-      row.probeId === "blob-replacement-revocation" &&
-      row.caseId === "stable-blob")!];
+    const left = [
+      probeRows().find((row) => row.probeId === "blob-replacement-revocation" && row.caseId === "stable-blob")!,
+    ];
     const right = structuredClone(left);
-    const bindBlobIdentity = (
-      row: AnimatedImageTruthProbeRow,
-      blobUrl: string,
-      candidateFactsSha256: string,
-    ): void => {
+    const bindBlobIdentity = (row: AnimatedImageTruthProbeRow, blobUrl: string, candidateFactsSha256: string): void => {
       for (const record of [row.begin, row.finish]) {
         if (record.outcome !== "authorized") throw new Error("expected blob authorization");
         record.owner.currentSrc = blobUrl;
@@ -588,43 +557,27 @@ describe("animated image owner/resource truth schema", () => {
         record.resource.responseUrl = blobUrl;
       }
     };
-    bindBlobIdentity(
-      left[0],
-      "blob:http://localhost:4401/11111111-1111-1111-1111-111111111111",
-      SHA_A,
-    );
-    bindBlobIdentity(
-      right[0],
-      "blob:http://127.0.0.1:5502/22222222-2222-2222-2222-222222222222",
-      SHA_B,
-    );
-    expect(normalizedAnimatedImageTruthRowsSha256(left)).toBe(
-      normalizedAnimatedImageTruthRowsSha256(right),
-    );
+    bindBlobIdentity(left[0], "blob:http://localhost:4401/11111111-1111-1111-1111-111111111111", SHA_A);
+    bindBlobIdentity(right[0], "blob:http://127.0.0.1:5502/22222222-2222-2222-2222-222222222222", SHA_B);
+    expect(normalizedAnimatedImageTruthRowsSha256(left)).toBe(normalizedAnimatedImageTruthRowsSha256(right));
     const rightRecord = right[0].begin as AnimatedImageTruthAuthorizedRecord;
     rightRecord.body.sha256 = SHA_B;
-    expect(normalizedAnimatedImageTruthRowsSha256(left)).not.toBe(
-      normalizedAnimatedImageTruthRowsSha256(right),
-    );
+    expect(normalizedAnimatedImageTruthRowsSha256(left)).not.toBe(normalizedAnimatedImageTruthRowsSha256(right));
   });
 
   it("normalizes memory-cache reuse counts to the authenticated reuse fact", () => {
-    const left = [probeRows().find((row) =>
-      row.probeId === "same-url-memory-cache-sharing" &&
-      row.caseId === "css-shared")!];
+    const left = [
+      probeRows().find((row) => row.probeId === "same-url-memory-cache-sharing" && row.caseId === "css-shared")!,
+    ];
     const right = structuredClone(left);
     for (const record of [right[0].begin, right[0].finish]) {
       if (record.outcome === "authorized") record.resource.memoryCacheHitCount = 7;
     }
-    expect(normalizedAnimatedImageTruthRowsSha256(left)).toBe(
-      normalizedAnimatedImageTruthRowsSha256(right),
-    );
+    expect(normalizedAnimatedImageTruthRowsSha256(left)).toBe(normalizedAnimatedImageTruthRowsSha256(right));
     for (const record of [right[0].begin, right[0].finish]) {
       if (record.outcome === "authorized") record.resource.memoryCacheHitCount = 0;
     }
-    expect(normalizedAnimatedImageTruthRowsSha256(left)).not.toBe(
-      normalizedAnimatedImageTruthRowsSha256(right),
-    );
+    expect(normalizedAnimatedImageTruthRowsSha256(left)).not.toBe(normalizedAnimatedImageTruthRowsSha256(right));
   });
 
   it("withholds when the browser and renderer executable identities differ", () => {
@@ -639,22 +592,14 @@ describe("animated image owner/resource truth schema", () => {
     reports[0].binaries.renderer.sha256 = SHA_B;
     const result = adjudicateAnimatedImageOwnerResourceTruth(reports);
     expect(result.verdict).toBe("verdict-withheld");
-    expect(result.failures).toContain(
-      "macOS/proposal: multiprocess browser/renderer executable identity differs",
-    );
+    expect(result.failures).toContain("macOS/proposal: multiprocess browser/renderer executable identity differs");
 
     reports[0].binaries.renderer.sha256 = SHA_A;
     reports[0].binaries.renderer.pathToken = "untrusted-browser";
-    reports[0].binaries.loadedLibraries = [
-      { pathToken: "unrelated-library", byteLength: 102, sha256: SHA_A },
-    ];
+    reports[0].binaries.loadedLibraries = [{ pathToken: "unrelated-library", byteLength: 102, sha256: SHA_A }];
     const pathResult = adjudicateAnimatedImageOwnerResourceTruth(reports);
-    expect(pathResult.failures).toContain(
-      "macOS/proposal: browser/renderer executable path token drift",
-    );
-    expect(pathResult.failures).toContain(
-      "macOS/proposal: loaded-library manifest lacks Blink core/platform",
-    );
+    expect(pathResult.failures).toContain("macOS/proposal: browser/renderer executable path token drift");
+    expect(pathResult.failures).toContain("macOS/proposal: loaded-library manifest lacks Blink core/platform");
   });
 
   it("withholds on a reused process/build/context or a missing OS arm", () => {
@@ -674,36 +619,35 @@ describe("animated image owner/resource truth schema", () => {
   it("withholds and reports malformed nested records instead of throwing", () => {
     const malformed = authorizedRecord() as unknown as Record<string, unknown>;
     malformed.resource = null;
-    expect(() => validateAnimatedImageTruthRecord(
-      malformed as unknown as AnimatedImageTruthAuthorizedRecord,
-    )).not.toThrow();
-    expect(validateAnimatedImageTruthRecord(
-      malformed as unknown as AnimatedImageTruthAuthorizedRecord,
-    ).length).toBeGreaterThan(0);
+    expect(() =>
+      validateAnimatedImageTruthRecord(malformed as unknown as AnimatedImageTruthAuthorizedRecord),
+    ).not.toThrow();
+    expect(
+      validateAnimatedImageTruthRecord(malformed as unknown as AnimatedImageTruthAuthorizedRecord).length,
+    ).toBeGreaterThan(0);
 
-    const malformedReport = report("macOS", "proposal", 1) as unknown as
-      Record<string, unknown>;
+    const malformedReport = report("macOS", "proposal", 1) as unknown as Record<string, unknown>;
     malformedReport.rows = null;
-    expect(() => adjudicateAnimatedImageOwnerResourceTruth(
-      [malformedReport as unknown as AnimatedImageTruthRunReport],
-    )).not.toThrow();
-    const adjudication = adjudicateAnimatedImageOwnerResourceTruth(
-      [malformedReport as unknown as AnimatedImageTruthRunReport],
-    );
+    expect(() =>
+      adjudicateAnimatedImageOwnerResourceTruth([malformedReport as unknown as AnimatedImageTruthRunReport]),
+    ).not.toThrow();
+    const adjudication = adjudicateAnimatedImageOwnerResourceTruth([
+      malformedReport as unknown as AnimatedImageTruthRunReport,
+    ]);
     expect(adjudication.verdict).toBe("verdict-withheld");
     expect(adjudication.failures).toContain("macOS/proposal.rows: expected an array");
 
-    const malformedBinaries = report("macOS", "proposal", 2) as unknown as
-      Record<string, unknown>;
+    const malformedBinaries = report("macOS", "proposal", 2) as unknown as Record<string, unknown>;
     const binaries = malformedBinaries.binaries as Record<string, unknown>;
     binaries.browser = null;
     binaries.loadedLibraries = [null];
-    expect(() => adjudicateAnimatedImageOwnerResourceTruth(
-      [malformedBinaries as unknown as AnimatedImageTruthRunReport],
-    )).not.toThrow();
-    expect(adjudicateAnimatedImageOwnerResourceTruth(
-      [malformedBinaries as unknown as AnimatedImageTruthRunReport],
-    ).failures.some((failure) => failure.includes("loaded-library manifest")))
-      .toBe(true);
+    expect(() =>
+      adjudicateAnimatedImageOwnerResourceTruth([malformedBinaries as unknown as AnimatedImageTruthRunReport]),
+    ).not.toThrow();
+    expect(
+      adjudicateAnimatedImageOwnerResourceTruth([
+        malformedBinaries as unknown as AnimatedImageTruthRunReport,
+      ]).failures.some((failure) => failure.includes("loaded-library manifest")),
+    ).toBe(true);
   });
 });

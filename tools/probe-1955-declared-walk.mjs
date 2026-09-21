@@ -4,10 +4,24 @@
 import { chromium } from "@playwright/test";
 
 const families = [
-  '"Courier New"', "Courier", "Consolas", "monospace",
-  "Georgia", "Helvetica", '"Helvetica Neue"', "Times", '"Times New Roman"',
-  "Arial", "serif", "sans-serif", "Menlo", "Monaco", '"SF Mono"',
-  "Papyrus", "cursive", "fantasy",
+  '"Courier New"',
+  "Courier",
+  "Consolas",
+  "monospace",
+  "Georgia",
+  "Helvetica",
+  '"Helvetica Neue"',
+  "Times",
+  '"Times New Roman"',
+  "Arial",
+  "serif",
+  "sans-serif",
+  "Menlo",
+  "Monaco",
+  '"SF Mono"',
+  "Papyrus",
+  "cursive",
+  "fantasy",
 ];
 const weights = [400, 550, 700];
 
@@ -21,7 +35,9 @@ const html = ["<body>"];
 let id = 0;
 for (const fam of families) {
   for (const w of weights) {
-    html.push(`<div id="p${id++}" style="font-family:${fam.replace(/"/g, "&quot;")};font-weight:${w};font-size:24px">Hamburgefonstiv 123</div>`);
+    html.push(
+      `<div id="p${id++}" style="font-family:${fam.replace(/"/g, "&quot;")};font-weight:${w};font-size:24px">Hamburgefonstiv 123</div>`,
+    );
   }
 }
 html.push("</body>");

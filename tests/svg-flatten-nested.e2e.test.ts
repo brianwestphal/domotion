@@ -23,12 +23,16 @@ afterAll(async () => {
 async function shoot(inner: string): Promise<Buffer> {
   await page.setContent(
     `<!doctype html><body style="margin:0;background:#fff">` +
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${inner}</svg></body>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${inner}</svg></body>`,
   );
   return page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
 }
 
-interface Case { name: string; svg: string; place: InlineSvgPlacement; }
+interface Case {
+  name: string;
+  svg: string;
+  place: InlineSvgPlacement;
+}
 const CASES: Case[] = [
   {
     name: "simple icon, meet, centered",
@@ -54,13 +58,17 @@ const CASES: Case[] = [
 
 describe("flattenImgSvg renders identically to the nested <svg> (DM-K0S6ZS)", () => {
   for (const c of CASES) {
-    it(c.name, async () => {
-      const nested = inlineImgSvg(c.svg, c.place);
-      const flat = flattenImgSvg(c.svg, c.place);
-      expect(nested).not.toBeNull();
-      expect(flat).not.toBeNull();
-      const [a, b] = [await shoot(nested!), await shoot(flat!)];
-      expect(a.equals(b)).toBe(true);
-    }, 30_000);
+    it(
+      c.name,
+      async () => {
+        const nested = inlineImgSvg(c.svg, c.place);
+        const flat = flattenImgSvg(c.svg, c.place);
+        expect(nested).not.toBeNull();
+        expect(flat).not.toBeNull();
+        const [a, b] = [await shoot(nested!), await shoot(flat!)];
+        expect(a.equals(b)).toBe(true);
+      },
+      30_000,
+    );
   }
 });

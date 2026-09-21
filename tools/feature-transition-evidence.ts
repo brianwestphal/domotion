@@ -20,8 +20,13 @@ export interface TransitionFeatureLike {
  * unrelated string from masquerading as an assertion.
  */
 export function declaredTestTitles(source: string, fileName = "test.ts"): Set<string> {
-  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true,
-    fileName.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const file = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
   const titles = new Set<string>();
 
   const rootCallName = (expr: ts.Expression): string | null => {
@@ -35,9 +40,11 @@ export function declaredTestTitles(source: string, fileName = "test.ts"): Set<st
     if (ts.isCallExpression(node)) {
       const root = rootCallName(node.expression);
       const title = node.arguments[0];
-      if ((root === "it" || root === "test")
-        && title != null
-        && (ts.isStringLiteral(title) || ts.isNoSubstitutionTemplateLiteral(title))) {
+      if (
+        (root === "it" || root === "test") &&
+        title != null &&
+        (ts.isStringLiteral(title) || ts.isNoSubstitutionTemplateLiteral(title))
+      ) {
         titles.add(title.text);
       }
     }
@@ -70,7 +77,8 @@ export function transitionEvidenceProblems(
     const seen = new Set<string>();
     for (const ref of evidence) {
       const key = `${ref.test}\u0000${ref.title}`;
-      if (seen.has(key)) problems.push(`${feature.id} repeats transition evidence ${ref.test} → ${JSON.stringify(ref.title)}`);
+      if (seen.has(key))
+        problems.push(`${feature.id} repeats transition evidence ${ref.test} → ${JSON.stringify(ref.title)}`);
       seen.add(key);
 
       if (!feature.tests.includes(ref.test)) {
@@ -89,7 +97,9 @@ export function transitionEvidenceProblems(
         titlesByPath.set(ref.test, titles);
       }
       if (!titles.has(ref.title)) {
-        problems.push(`${feature.id} transition evidence title is not declared by ${ref.test}: ${JSON.stringify(ref.title)}`);
+        problems.push(
+          `${feature.id} transition evidence title is not declared by ${ref.test}: ${JSON.stringify(ref.title)}`,
+        );
       }
     }
   }

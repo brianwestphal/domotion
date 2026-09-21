@@ -19,8 +19,8 @@ describe("trimAnimatedSvg — window-slice + re-base (DM-1041)", () => {
   const r = trimAnimatedSvg(SVG, 1000, 3000, 4000);
 
   it("classifies: period-spanning CSS + SMIL are SLICED, the ripple is re-based", () => {
-    expect(r.slicedCss).toBe(1);   // the one .box rule (both fv-0 + fd-0 period-spanning)
-    expect(r.slicedSmil).toBe(1);  // the cursor animateTransform
+    expect(r.slicedCss).toBe(1); // the one .box rule (both fv-0 + fd-0 period-spanning)
+    expect(r.slicedSmil).toBe(1); // the cursor animateTransform
     expect(r.shiftedSmil).toBe(1); // the ripple
   });
 
@@ -75,8 +75,7 @@ describe("trimAnimatedSvg — window-slice + re-base (DM-1041)", () => {
   });
 
   it("re-bases (not slices) a non-period CSS animation", () => {
-    const svg = SVG.replace("animation: fv-0 4s infinite, fd-0 4s infinite step-end",
-      "animation: fv-0 0.3s infinite"); // 0.3s ≠ 4s period → scheduled
+    const svg = SVG.replace("animation: fv-0 4s infinite, fd-0 4s infinite step-end", "animation: fv-0 0.3s infinite"); // 0.3s ≠ 4s period → scheduled
     const out = trimAnimatedSvg(svg, 1000, 3000, 4000);
     expect(out.shiftedCss).toBe(1);
     expect(out.slicedCss).toBe(0);

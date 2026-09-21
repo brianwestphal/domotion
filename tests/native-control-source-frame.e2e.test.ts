@@ -15,7 +15,13 @@ import {
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
-async function setup() { try { return { browser: await launchChromium() }; } catch { return null; } }
+async function setup() {
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
+}
 const env = await setup();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -49,8 +55,11 @@ async function sourceCrop(
   const top = Math.floor(raster.y * scaleY);
   const right = Math.ceil((raster.x + raster.width) * scaleX);
   const bottom = Math.ceil((raster.y + raster.height) * scaleY);
-  return sharp(sourcePath).extract({ left, top, width: right - left, height: bottom - top })
-    .ensureAlpha().raw().toBuffer();
+  return sharp(sourcePath)
+    .extract({ left, top, width: right - left, height: bottom - top })
+    .ensureAlpha()
+    .raw()
+    .toBuffer();
 }
 
 describeBrowser("source-frame coherent native-control rasters", () => {
@@ -87,9 +96,14 @@ describeBrowser("source-frame coherent native-control rasters", () => {
       };
       let capture: Awaited<ReturnType<typeof captureElementTreeWithWarnings>>;
       try {
-        capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport }, {
-          rasterizeFromImagePath: sourcePath,
-        });
+        capture = await captureElementTreeWithWarnings(
+          page,
+          "body",
+          { x: 0, y: 0, ...viewport },
+          {
+            rasterizeFromImagePath: sourcePath,
+          },
+        );
       } finally {
         delete (page as unknown as Record<string, unknown>).screenshot;
       }
@@ -113,9 +127,12 @@ describeBrowser("source-frame coherent native-control rasters", () => {
         for (let offset = 0; offset < actual.data.length; offset += 4) {
           if (actual.data[offset + 3] !== 255) continue;
           compared++;
-          if (actual.data[offset] !== source[offset]
-              || actual.data[offset + 1] !== source[offset + 1]
-              || actual.data[offset + 2] !== source[offset + 2]) mismatch++;
+          if (
+            actual.data[offset] !== source[offset] ||
+            actual.data[offset + 1] !== source[offset + 1] ||
+            actual.data[offset + 2] !== source[offset + 2]
+          )
+            mismatch++;
         }
         expect(compared).toBeGreaterThan(100);
         expect(mismatch).toBe(0);
@@ -136,7 +153,9 @@ describeBrowser("source-frame coherent native-control rasters", () => {
     const viewport = { width: 300, height: 180 };
     const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 1 });
     try {
-      await page.setContent(`<style>html,body{margin:0}#state{position:absolute;left:60px;top:45px;width:120px;height:38px}</style><button id="state">Platform state</button>`);
+      await page.setContent(
+        `<style>html,body{margin:0}#state{position:absolute;left:60px;top:45px;width:120px;height:38px}</style><button id="state">Platform state</button>`,
+      );
       const capture = async (): Promise<string> => {
         const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
         expect(result.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
@@ -174,9 +193,14 @@ describeBrowser("source-frame coherent native-control rasters", () => {
       </style><input id="check" type="checkbox" checked><input id="radio" type="radio" checked><div id="overlap"></div>
       <progress id="moving"></progress><div id="moving-overlap"></div>`);
       await page.screenshot({ path: sourcePath });
-      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport }, {
-        rasterizeFromImagePath: sourcePath,
-      });
+      const capture = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, ...viewport },
+        {
+          rasterizeFromImagePath: sourcePath,
+        },
+      );
       const warnings = capture.warnings.filter((warning) => warning.feature === "native-control-raster");
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toMatchObject({ selector: "progress#moving" });
@@ -191,9 +215,11 @@ describeBrowser("source-frame coherent native-control rasters", () => {
         let leakedBackdrop = 0;
         for (let offset = 0; offset < decoded.data.length; offset += 4) {
           if (decoded.data[offset + 3] === 0) transparent++;
-          if (decoded.data[offset + 3] !== 0
-              && (decoded.data[offset] === 1 && decoded.data[offset + 1] === 254 && decoded.data[offset + 2] === 2
-                || decoded.data[offset] === 254 && decoded.data[offset + 1] === 1 && decoded.data[offset + 2] === 253)) {
+          if (
+            decoded.data[offset + 3] !== 0 &&
+            ((decoded.data[offset] === 1 && decoded.data[offset + 1] === 254 && decoded.data[offset + 2] === 2) ||
+              (decoded.data[offset] === 254 && decoded.data[offset + 1] === 1 && decoded.data[offset + 2] === 253))
+          ) {
             leakedBackdrop++;
           }
         }
@@ -222,20 +248,28 @@ describeBrowser("source-frame coherent native-control rasters", () => {
         #right{left:285.5px;top:328.25px;zoom:1.1}
       </style><input id="left" type="checkbox" checked><input id="right" type="radio" checked>`);
       await page.evaluate(() => scrollTo(0, 200));
-      const expected = await page.locator("input").evaluateAll((inputs) => inputs.map((input) => {
-        const rect = input.getBoundingClientRect();
-        const style = getComputedStyle(input);
-        const expansion = Math.max(0, Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset)) + 1;
-        const left = Math.max(0, Math.floor(rect.left - expansion));
-        const top = Math.max(0, Math.floor(rect.top - expansion));
-        const right = Math.min(innerWidth, Math.ceil(rect.right + expansion));
-        const bottom = Math.min(innerHeight, Math.ceil(rect.bottom + expansion));
-        return { id: input.id, x: left, y: top, width: right - left, height: bottom - top };
-      }));
+      const expected = await page.locator("input").evaluateAll((inputs) =>
+        inputs.map((input) => {
+          const rect = input.getBoundingClientRect();
+          const style = getComputedStyle(input);
+          const expansion =
+            Math.max(0, Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset)) + 1;
+          const left = Math.max(0, Math.floor(rect.left - expansion));
+          const top = Math.max(0, Math.floor(rect.top - expansion));
+          const right = Math.min(innerWidth, Math.ceil(rect.right + expansion));
+          const bottom = Math.min(innerHeight, Math.ceil(rect.bottom + expansion));
+          return { id: input.id, x: left, y: top, width: right - left, height: bottom - top };
+        }),
+      );
       await page.screenshot({ path: sourcePath });
-      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport }, {
-        rasterizeFromImagePath: sourcePath,
-      });
+      const capture = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, ...viewport },
+        {
+          rasterizeFromImagePath: sourcePath,
+        },
+      );
       expect(capture.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
       const controls = walk(capture.tree).filter((node) => node.nativeControlRaster != null);
       expect(controls).toHaveLength(2);
@@ -262,7 +296,9 @@ describeBrowser("source-frame coherent native-control rasters", () => {
     try {
       await page.setContent(`<input style="appearance:none;width:1px;height:1px">`);
       await captureElementTree(page, "body", { x: 0, y: 0, ...viewport });
-      await page.setContent(`<input id="required" type="checkbox" checked style="position:absolute;left:40px;top:40px;width:24px;height:24px">`);
+      await page.setContent(
+        `<input id="required" type="checkbox" checked style="position:absolute;left:40px;top:40px;width:24px;height:24px">`,
+      );
       (page as unknown as { screenshot: typeof page.screenshot }).screenshot = async () => {
         throw new Error("forced DM-2456 screenshot failure");
       };

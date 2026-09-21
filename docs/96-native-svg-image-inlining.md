@@ -1,13 +1,23 @@
 ---
 id: "requirements/native-svg-image-inlining"
-title: "96 — Native inlining of <img src=\".svg\">"
+title: '96 — Native inlining of <img src=".svg">'
 kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["windows"]
-tickets: ["DM-1592","DM-1593","DM-1595"]
-code: ["src/capture/embed.ts","src/cli/animate.ts","src/render/element-tree-to-svg.ts","src/render/resolve-svg-source.test.ts","src/render/svg-inline.test.ts","src/render/svg-inline.ts","tests/inline-svg-textpath-oracle.e2e.test.ts","tests/replaced-used-size.e2e.test.ts"]
-aliases: ["docs/96-native-svg-image-inlining.md","doc-96"]
+tickets: ["DM-1592", "DM-1593", "DM-1595"]
+code:
+  [
+    "src/capture/embed.ts",
+    "src/cli/animate.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/resolve-svg-source.test.ts",
+    "src/render/svg-inline.test.ts",
+    "src/render/svg-inline.ts",
+    "tests/inline-svg-textpath-oracle.e2e.test.ts",
+    "tests/replaced-used-size.e2e.test.ts",
+  ]
+aliases: ["docs/96-native-svg-image-inlining.md", "doc-96"]
 ---
 
 # 96 — Native inlining of `<img src="*.svg">`
@@ -16,13 +26,13 @@ aliases: ["docs/96-native-svg-image-inlining.md","doc-96"]
 
 When a captured page references an SVG through an `<img>` (or any replaced image whose source resolves to `image/svg+xml`), Domotion inlines the SVG as a **native, positioned `<svg>`** in the output rather than embedding it as `<image href="data:image/svg+xml;base64,…">`. The result is truly resolution-independent (crisp at any zoom), smaller (no ~33% base64 bloat), and more cross-engine-robust than an SVG-in-`<image>`.
 
-This is the *inverse* of the raster-image fallbacks catalogued in [reference/raster-image-fallback-cases.md](reference/raster-image-fallback-cases.md): instead of turning a paint we can't express into a raster, we turn a raster-ish embedding into crisp vector.
+This is the _inverse_ of the raster-image fallbacks catalogued in [reference/raster-image-fallback-cases.md](reference/raster-image-fallback-cases.md): instead of turning a paint we can't express into a raster, we turn a raster-ish embedding into crisp vector.
 
 ## Motivation
 
 Chromium paints an SVG referenced from an `<image>` (or an `<img>`) by rasterizing it at the element's **layout size** and then scaling that raster. So an SVG logo displayed at 100×100 is rasterized to ~100×100 device pixels (times DPR) and any subsequent zoom scales those pixels — the edges soften and alias. This was the user-reported symptom on the `brand-mixed` demo: the embedded `assets/logo.svg` looked pixelated at 3× zoom.
 
-A nested native `<svg>` carries live vector geometry (paths, gradients, filters). The browser scales the *geometry*, not a bitmap, so it stays razor-sharp at any scale — and the payload is the SVG's own markup rather than a base64 blob roughly one-third larger than the raw bytes.
+A nested native `<svg>` carries live vector geometry (paths, gradients, filters). The browser scales the _geometry_, not a bitmap, so it stays razor-sharp at any scale — and the payload is the SVG's own markup rather than a base64 blob roughly one-third larger than the raw bytes.
 
 ## Behavior
 
@@ -68,13 +78,13 @@ dimensions only for the object-fit calculation.
 All `object-fit` values take the native path:
 
 - `fill` (default), `contain`, `cover`, and `scale-down` place the nested `<svg>` at the content box with a `preserveAspectRatio` derived from `object-fit` / `object-position` (the standard branch).
-- **`object-fit: none`** (DM-1592) places the nested `<svg>` at the SVG's **intrinsic size** (`el.imageIntrinsic`), positioned by `object-position` inside the content box and clipped to it — the native counterpart of the raster intrinsic-size branch. Since `iw×ih` *is* the SVG's intrinsic size, its own viewBox maps 1:1 and `preserveAspectRatio="xMidYMid meet"` (the SVG default) keeps that exact with no distortion. Falls back to the raster `<image>` when the source isn't SVG or has no coordinate system.
+- **`object-fit: none`** (DM-1592) places the nested `<svg>` at the SVG's **intrinsic size** (`el.imageIntrinsic`), positioned by `object-position` inside the content box and clipped to it — the native counterpart of the raster intrinsic-size branch. Since `iw×ih` _is_ the SVG's intrinsic size, its own viewBox maps 1:1 and `preserveAspectRatio="xMidYMid meet"` (the SVG default) keeps that exact with no distortion. Falls back to the raster `<image>` when the source isn't SVG or has no coordinate system.
 
 ## Id + class namespacing
 
 `prefixSvgIds` rewrites every `id`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` with the per-document-unique prefix so gradients / clipPaths / filters / masks / `<use>` targets can't collide across inlined SVGs or with the outer document.
 
-`prefixSvgClasses` (DM-1593) does the same for **CSS class names** — but only when the SVG carries a `<style>` block (the only way a class affects rendering, so a presentation-attribute export like the `brand-mixed` logo stays byte-identical). It rewrites class selectors in the *selector portion* of each rule inside `<style>` (never a `.` in a declaration value) plus every `class="…"` attribute. Without this, two design-tool exports that both define `.cls-1` in a `<style>` block would cross-contaminate, since an inlined SVG `<style>` applies document-wide (verified: a red-`.cls-1` and a blue-`.cls-1` SVG now render independently). Nested at-rules (`@media`) inside an SVG `<style>` are not handled — essentially never present in an SVG asset.
+`prefixSvgClasses` (DM-1593) does the same for **CSS class names** — but only when the SVG carries a `<style>` block (the only way a class affects rendering, so a presentation-attribute export like the `brand-mixed` logo stays byte-identical). It rewrites class selectors in the _selector portion_ of each rule inside `<style>` (never a `.` in a declaration value) plus every `class="…"` attribute. Without this, two design-tool exports that both define `.cls-1` in a `<style>` block would cross-contaminate, since an inlined SVG `<style>` applies document-wide (verified: a red-`.cls-1` and a blue-`.cls-1` SVG now render independently). Nested at-rules (`@media`) inside an SVG `<style>` are not handled — essentially never present in an SVG asset.
 
 `prefixSvgClasses` is shared by all three SVG-inlining paths (DM-1595), each gated on `<style>` presence:
 

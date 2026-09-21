@@ -42,10 +42,9 @@ const editCommandSchema = z
     target: studioAnnotationTargetSchema.nullable().optional(),
     evidenceArtifactIds: evidenceArtifactIdsSchema.optional(),
   })
-  .refine(
-    (command) => command.body != null || command.target !== undefined || command.evidenceArtifactIds != null,
-    { message: "an annotation edit must change body, target, or evidence" },
-  );
+  .refine((command) => command.body != null || command.target !== undefined || command.evidenceArtifactIds != null, {
+    message: "an annotation edit must change body, target, or evidence",
+  });
 
 const statusCommandSchema = z.strictObject({
   kind: z.literal("set-status"),
@@ -98,7 +97,12 @@ function portableBasename(value: string): string {
 function portableReference(value: string | undefined, fallback: string | undefined, label: string): string | undefined {
   if (value == null) return fallback;
   const normalized = value.trim().replaceAll("\\", "/");
-  if (normalized === "" || normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized) || normalized.split("/").includes("..")) {
+  if (
+    normalized === "" ||
+    normalized.startsWith("/") ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    normalized.split("/").includes("..")
+  ) {
     throw new StudioAnnotationError(`${label} must be a non-empty project-relative path without '..'`);
   }
   return normalized;
@@ -136,14 +140,20 @@ function annotationById(project: StudioProject, id: string): StudioReviewAnnotat
 }
 
 function layerOwner(project: StudioProject, layerId: string): string | undefined {
-  const hasLayer = (layers: readonly StudioLayer[]): boolean => layers.some((layer) =>
-    layer.id === layerId || (layer.kind === "composition" && hasLayer(layer.composition.layers)),
-  );
-  return project.scenes.find((scene) => scene.render.kind === "composition" && hasLayer(scene.render.composition.layers))?.id;
+  const hasLayer = (layers: readonly StudioLayer[]): boolean =>
+    layers.some(
+      (layer) => layer.id === layerId || (layer.kind === "composition" && hasLayer(layer.composition.layers)),
+    );
+  return project.scenes.find(
+    (scene) => scene.render.kind === "composition" && hasLayer(scene.render.composition.layers),
+  )?.id;
 }
 
 /** Convert legacy v1 aliases into the one normalized target shape emitted by all new commands. */
-export function normalizeStudioAnnotationTarget(project: StudioProject, rawTarget: StudioAnnotationTarget): StudioAnnotationTarget {
+export function normalizeStudioAnnotationTarget(
+  project: StudioProject,
+  rawTarget: StudioAnnotationTarget,
+): StudioAnnotationTarget {
   const target = studioAnnotationTargetSchema.parse(rawTarget);
   const ownerScenes = new Set<string>();
   if (target.sceneId != null) ownerScenes.add(target.sceneId);
@@ -152,7 +162,9 @@ export function normalizeStudioAnnotationTarget(project: StudioProject, rawTarge
     if (owner != null) ownerScenes.add(owner.id);
   }
   if (target.eventId != null) {
-    const owner = project.scenes.find((scene) => scene.tracks?.some((track) => track.events.some((event) => event.id === target.eventId)));
+    const owner = project.scenes.find((scene) =>
+      scene.tracks?.some((track) => track.events.some((event) => event.id === target.eventId)),
+    );
     if (owner != null) ownerScenes.add(owner.id);
   }
   if (target.layerId != null) {
@@ -160,21 +172,26 @@ export function normalizeStudioAnnotationTarget(project: StudioProject, rawTarge
     if (owner != null) ownerScenes.add(owner);
   }
   if (target.scope?.kind === "scene") ownerScenes.add(target.scope.sceneId);
-  if (ownerScenes.size > 1) throw new StudioAnnotationError("annotation target combines references from different scenes");
+  if (ownerScenes.size > 1)
+    throw new StudioAnnotationError("annotation target combines references from different scenes");
   const inferredScene = [...ownerScenes][0];
-  const scope = target.scope ?? (inferredScene == null ? { kind: "project" as const } : { kind: "scene" as const, sceneId: inferredScene });
+  const scope =
+    target.scope ??
+    (inferredScene == null ? { kind: "project" as const } : { kind: "scene" as const, sceneId: inferredScene });
   if (scope.kind === "project" && (target.domTarget != null || target.domIdentity != null)) {
     throw new StudioAnnotationError("a DOM-grounded annotation must declare or imply scene scope");
   }
   if (scope.kind === "project" && target.regions?.some((region) => region.coordinateSpace === "scene")) {
     throw new StudioAnnotationError("scene-coordinate regions require scene scope");
   }
-  const time = target.time ?? (target.atMs == null
-    ? undefined
-    : {
-        pointMs: target.atMs,
-        ...(target.endMs == null ? {} : { range: { startMs: target.atMs, endMs: target.endMs } }),
-      });
+  const time =
+    target.time ??
+    (target.atMs == null
+      ? undefined
+      : {
+          pointMs: target.atMs,
+          ...(target.endMs == null ? {} : { range: { startMs: target.atMs, endMs: target.endMs } }),
+        });
   const { sceneId: _sceneId, atMs: _atMs, endMs: _endMs, ...normalized } = target;
   return studioAnnotationTargetSchema.parse({
     ...normalized,
@@ -225,7 +242,9 @@ export function applyStudioAnnotationCommand(
     if (options.attachToHeadRevision) {
       revision = project.review.revisions.find((candidate) => candidate.id === project.review.headRevisionId)!;
       if (revision.author.kind !== command.author.kind || revision.author.name !== command.author.name) {
-        throw new StudioAnnotationError("an annotation can attach to the head only when its author matches that revision");
+        throw new StudioAnnotationError(
+          "an annotation can attach to the head only when its author matches that revision",
+        );
       }
     } else {
       revision = appendRevision(project, revisionId, now, command.author, "Created a review annotation.", {
@@ -247,7 +266,8 @@ export function applyStudioAnnotationCommand(
     if (command.target === null) delete annotation.target;
     else if (command.target !== undefined) annotation.target = normalizeStudioAnnotationTarget(project, command.target);
     if (command.evidenceArtifactIds != null) annotation.evidenceArtifactIds = command.evidenceArtifactIds;
-    if (isDeepStrictEqual(before, annotation)) throw new StudioAnnotationError(`annotation ${annotation.id} edit did not change anything`);
+    if (isDeepStrictEqual(before, annotation))
+      throw new StudioAnnotationError(`annotation ${annotation.id} edit did not change anything`);
     annotation.updatedAt = now;
     annotation.updatedRevisionId = revisionId;
     revision = appendRevision(project, revisionId, now, command.author, "Edited a review annotation.", {
@@ -267,9 +287,12 @@ export function applyStudioAnnotationCommand(
       throw new StudioAnnotationError(`annotation ${annotation.id} is already ${command.status}`);
     }
     const previousStatus = annotation.status;
-    if (previousStatus === "superseded") throw new StudioAnnotationError(`annotation ${annotation.id} is superseded and cannot be reopened or resolved`);
+    if (previousStatus === "superseded")
+      throw new StudioAnnotationError(`annotation ${annotation.id} is superseded and cannot be reopened or resolved`);
     if (previousStatus === "resolved" && command.status !== "open") {
-      throw new StudioAnnotationError(`annotation ${annotation.id} must be reopened before another lifecycle transition`);
+      throw new StudioAnnotationError(
+        `annotation ${annotation.id} must be reopened before another lifecycle transition`,
+      );
     }
     const before = structuredClone(annotation);
     annotation.status = command.status;
@@ -277,14 +300,21 @@ export function applyStudioAnnotationCommand(
     annotation.statusRevisionId = revisionId;
     if (command.status === "resolved") annotation.resolvedRevisionId = revisionId;
     else delete annotation.resolvedRevisionId;
-    revision = appendRevision(project, revisionId, now, command.author, `Changed a review annotation to ${command.status}.`, {
-      operation: "studio.annotation.set-status",
-      annotationId: annotation.id,
-      previousStatus,
-      status: command.status,
-      before,
-      after: annotation,
-    });
+    revision = appendRevision(
+      project,
+      revisionId,
+      now,
+      command.author,
+      `Changed a review annotation to ${command.status}.`,
+      {
+        operation: "studio.annotation.set-status",
+        annotationId: annotation.id,
+        previousStatus,
+        status: command.status,
+        before,
+        after: annotation,
+      },
+    );
   }
 
   project.updatedAt = now;
@@ -304,21 +334,27 @@ const scrubberRegionSchema = z.strictObject({
 });
 
 /** The durable JSON emitted by `svg-scrubber --review`; unknown legacy fields are ignored. */
-export const svgScrubberReviewTicketSchema = z.object({
-  tool: z.literal("svg-scrubber"),
-  version: z.literal(1),
-  createdAt: z.string().datetime({ offset: true }),
-  title: nonEmpty,
-  svg: z.string().nullable().optional(),
-  svgName: nonEmpty,
-  frameTimeMs: z.number().nonnegative(),
-  range: z.strictObject({ startMs: z.number().nonnegative(), endMs: z.number().nonnegative() })
-    .refine((range) => range.endMs >= range.startMs, { message: "range end must not be before its start", path: ["endMs"] }),
-  regions: z.array(scrubberRegionSchema).optional(),
-  region: scrubberRegionSchema.nullable().optional(),
-  framePng: z.string().nullable().optional(),
-  note: z.string().optional(),
-}).passthrough();
+export const svgScrubberReviewTicketSchema = z
+  .object({
+    tool: z.literal("svg-scrubber"),
+    version: z.literal(1),
+    createdAt: z.string().datetime({ offset: true }),
+    title: nonEmpty,
+    svg: z.string().nullable().optional(),
+    svgName: nonEmpty,
+    frameTimeMs: z.number().nonnegative(),
+    range: z
+      .strictObject({ startMs: z.number().nonnegative(), endMs: z.number().nonnegative() })
+      .refine((range) => range.endMs >= range.startMs, {
+        message: "range end must not be before its start",
+        path: ["endMs"],
+      }),
+    regions: z.array(scrubberRegionSchema).optional(),
+    region: scrubberRegionSchema.nullable().optional(),
+    framePng: z.string().nullable().optional(),
+    note: z.string().optional(),
+  })
+  .passthrough();
 
 export interface ImportSvgScrubberAnnotationOptions {
   author: StudioReviewAuthor;
@@ -339,11 +375,22 @@ export function importSvgScrubberReviewAnnotation(
   options: ImportSvgScrubberAnnotationOptions,
 ): StudioAnnotationCreateCommand {
   const ticket = svgScrubberReviewTicketSchema.parse(rawTicket);
-  if (options.layerId != null && options.sceneId == null) throw new StudioAnnotationError("an imported layer requires sceneId");
-  const sourceRegions = ticket.regions?.length ? ticket.regions : (ticket.region == null ? [] : [ticket.region]);
-  const evidenceArtifactIds = [options.sourceArtifactId, options.frameArtifactId].filter((id): id is string => id != null);
-  const sourceReference = portableReference(options.sourceReference, ticket.svg == null ? undefined : portableBasename(ticket.svg), "sourceReference");
-  const frameReference = portableReference(options.frameReference, ticket.framePng == null ? undefined : portableBasename(ticket.framePng), "frameReference");
+  if (options.layerId != null && options.sceneId == null)
+    throw new StudioAnnotationError("an imported layer requires sceneId");
+  const sourceRegions = ticket.regions?.length ? ticket.regions : ticket.region == null ? [] : [ticket.region];
+  const evidenceArtifactIds = [options.sourceArtifactId, options.frameArtifactId].filter(
+    (id): id is string => id != null,
+  );
+  const sourceReference = portableReference(
+    options.sourceReference,
+    ticket.svg == null ? undefined : portableBasename(ticket.svg),
+    "sourceReference",
+  );
+  const frameReference = portableReference(
+    options.frameReference,
+    ticket.framePng == null ? undefined : portableBasename(ticket.framePng),
+    "frameReference",
+  );
   const sourceDigest = createHash("sha256").update(JSON.stringify(ticket)).digest("hex");
   const target: StudioAnnotationTarget = {
     scope: options.sceneId == null ? { kind: "project" } : { kind: "scene", sceneId: options.sceneId },
@@ -352,16 +399,18 @@ export function importSvgScrubberReviewAnnotation(
       pointMs: ticket.frameTimeMs,
       range: ticket.range,
     },
-    ...(sourceRegions.length === 0 ? {} : {
-      regions: sourceRegions.map((region) => ({
-        x: region.x,
-        y: region.y,
-        width: region.w,
-        height: region.h,
-        coordinateSpace: "svg-user-space" as const,
-        ...(options.sourceArtifactId == null ? {} : { artifactId: options.sourceArtifactId }),
-      })),
-    }),
+    ...(sourceRegions.length === 0
+      ? {}
+      : {
+          regions: sourceRegions.map((region) => ({
+            x: region.x,
+            y: region.y,
+            width: region.w,
+            height: region.h,
+            coordinateSpace: "svg-user-space" as const,
+            ...(options.sourceArtifactId == null ? {} : { artifactId: options.sourceArtifactId }),
+          })),
+        }),
   };
   const note = ticket.note?.trim() ?? "";
   return createCommandSchema.parse({
@@ -440,8 +489,8 @@ export function importSvgReviewRegionsAnnotation(
       kind: "svg-review-regions",
       data: {
         regionCount: regions.length,
-        captions: regions.flatMap((region) => region.caption == null ? [] : [region.caption]),
-        images: regions.flatMap((region) => region.image == null ? [] : [portableBasename(region.image)]),
+        captions: regions.flatMap((region) => (region.caption == null ? [] : [region.caption])),
+        images: regions.flatMap((region) => (region.image == null ? [] : [portableBasename(region.image)])),
       },
     },
   });

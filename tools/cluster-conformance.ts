@@ -338,15 +338,15 @@ function probePageHtml(cell: Cell, subset: Buffer | null): string {
       ? `@font-face{font-family:"${cell.webfont.family}";src:url(data:font/ttf;base64,${subset.toString("base64")}) format("truetype")}`
       : "";
   return (
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>`
-    + `body{margin:0}${face}`
-    + `#w{display:flex;flex-wrap:wrap;font-family:${cell.fontFamily};font-size:${SIZE}px;`
-    + `font-weight:${WEIGHT};font-style:normal;${cell.fontVariantEmoji != null ? `font-variant-emoji:${cell.fontVariantEmoji};` : ""}}`
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>` +
+    `body{margin:0}${face}` +
+    `#w{display:flex;flex-wrap:wrap;font-family:${cell.fontFamily};font-size:${SIZE}px;` +
+    `font-weight:${WEIGHT};font-style:normal;${cell.fontVariantEmoji != null ? `font-variant-emoji:${cell.fontVariantEmoji};` : ""}}` +
     // One inline-block cell holding the WHOLE multi-codepoint text — its own
     // block formatting context, so shaping stays inside the cell. `white-space:pre`
     // so a space separator is not collapsed away (see docs/107).
-    + `.c{display:inline-block;font-style:inherit;white-space:pre}`
-    + `</style></head><body><div id=w><i class=c>${entities}</i></body></html>`
+    `.c{display:inline-block;font-style:inherit;white-space:pre}` +
+    `</style></head><body><div id=w><i class=c>${entities}</i></body></html>`
   );
 }
 
@@ -459,12 +459,19 @@ function judgeCell(cell: Cell, chromeFaces: ChromeFace[], ourRuns: OurRun[]): Ce
   return {
     id: cell.id,
     fontFamily: cell.fontFamily,
-    textHex: [...cell.text].map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}`).join(" "),
+    textHex: [...cell.text]
+      .map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}`)
+      .join(" "),
     note: cell.note,
     verdict: agree ? "agree" : "mismatch",
     chromeFaces: chromeList.map((c) => ({ label: chromeLabel(c.face), count: c.count })),
     ourFaces: ourList.map((o) => ({ label: ourLabel(o.face), count: o.count })),
-    ourRuns: ourRuns.map((r) => ({ key: r.face.key, text: r.text, cpCount: r.cpCount, postscriptName: r.face.postscriptName })),
+    ourRuns: ourRuns.map((r) => ({
+      key: r.face.key,
+      text: r.text,
+      cpCount: r.cpCount,
+      postscriptName: r.face.postscriptName,
+    })),
     unmatchedChrome,
     unmatchedOurs,
   };
@@ -498,7 +505,8 @@ async function main(): Promise<number> {
   let cells = buildCells();
   if (opts.only != null) cells = cells.filter((c) => c.id.includes(opts.only!));
 
-  const clusterFlag = process.env.DOMOTION_CLUSTER_FALLBACK === "0" ? "legacy-per-codepoint" : "shaped-cluster (default)";
+  const clusterFlag =
+    process.env.DOMOTION_CLUSTER_FALLBACK === "0" ? "legacy-per-codepoint" : "shaped-cluster (default)";
   const browser = await chromium.launch();
   const results: CellResult[] = [];
   beginCharacterFallbackDocument();
@@ -507,10 +515,17 @@ async function main(): Promise<number> {
     for (const cell of cells) {
       if (cell.knownSkipReason != null) {
         results.push({
-          id: cell.id, fontFamily: cell.fontFamily,
+          id: cell.id,
+          fontFamily: cell.fontFamily,
           textHex: [...cell.text].map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).join(" "),
-          note: cell.note, verdict: "skip", skipReason: cell.knownSkipReason,
-          chromeFaces: [], ourFaces: [], ourRuns: [], unmatchedChrome: [], unmatchedOurs: [],
+          note: cell.note,
+          verdict: "skip",
+          skipReason: cell.knownSkipReason,
+          chromeFaces: [],
+          ourFaces: [],
+          ourRuns: [],
+          unmatchedChrome: [],
+          unmatchedOurs: [],
         });
         continue;
       }
@@ -519,10 +534,17 @@ async function main(): Promise<number> {
         subset = buildWebfontSubset(cell.webfont);
         if (subset == null) {
           results.push({
-            id: cell.id, fontFamily: cell.fontFamily,
+            id: cell.id,
+            fontFamily: cell.fontFamily,
             textHex: [...cell.text].map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).join(" "),
-            note: cell.note, verdict: "skip", skipReason: `webfont source unavailable: ${cell.webfont.sourcePath}`,
-            chromeFaces: [], ourFaces: [], ourRuns: [], unmatchedChrome: [], unmatchedOurs: [],
+            note: cell.note,
+            verdict: "skip",
+            skipReason: `webfont source unavailable: ${cell.webfont.sourcePath}`,
+            chromeFaces: [],
+            ourFaces: [],
+            ourRuns: [],
+            unmatchedChrome: [],
+            unmatchedOurs: [],
           });
           continue;
         }
@@ -570,7 +592,9 @@ async function main(): Promise<number> {
 
   const lines: string[] = [];
   lines.push(`cluster-conformance — ${process.platform} ${process.arch}, ${browser.version()}`);
-  lines.push(`mechanism          ${clusterFlag}  (DOMOTION_CLUSTER_FALLBACK=${process.env.DOMOTION_CLUSTER_FALLBACK ?? "unset"})`);
+  lines.push(
+    `mechanism          ${clusterFlag}  (DOMOTION_CLUSTER_FALLBACK=${process.env.DOMOTION_CLUSTER_FALLBACK ?? "unset"})`,
+  );
   lines.push(`cells              ${results.length}   agree ${agreed}   MISMATCH ${mismatched}   skip ${skipped}`);
   lines.push("");
   for (const r of results) {
@@ -581,10 +605,14 @@ async function main(): Promise<number> {
       continue;
     }
     lines.push(`        chrome:  ${r.chromeFaces.map((f) => `${f.label}×${f.count}`).join("  +  ") || "(none)"}`);
-    lines.push(`        ours:    ${r.ourRuns.map((f) => `${f.key} "${f.text}"×${f.cpCount}`).join("  +  ") || "(none)"}`);
+    lines.push(
+      `        ours:    ${r.ourRuns.map((f) => `${f.key} "${f.text}"×${f.cpCount}`).join("  +  ") || "(none)"}`,
+    );
     if (r.verdict === "mismatch") {
-      if (r.unmatchedChrome.length > 0) lines.push(`        chrome faces we never assigned: ${r.unmatchedChrome.join(", ")}`);
-      if (r.unmatchedOurs.length > 0) lines.push(`        our faces chrome never used:    ${r.unmatchedOurs.join(", ")}`);
+      if (r.unmatchedChrome.length > 0)
+        lines.push(`        chrome faces we never assigned: ${r.unmatchedChrome.join(", ")}`);
+      if (r.unmatchedOurs.length > 0)
+        lines.push(`        our faces chrome never used:    ${r.unmatchedOurs.join(", ")}`);
     }
   }
   const text = `${lines.join("\n")}\n`;
@@ -598,8 +626,7 @@ async function main(): Promise<number> {
 // Only sweep when run as a script — the pure pieces (`buildCells`, `judgeCell`,
 // `reconciles`, `ourFaceForRun`) are imported by the unit test without launching
 // a browser.
-const invokedDirectly =
-  process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (invokedDirectly) {
   main().then(

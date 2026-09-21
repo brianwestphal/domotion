@@ -36,10 +36,12 @@ export function axisAlignedQuadBounds(quad: CssQuad): CssRect | null {
   // only Blink-baked translations/scales/zoom remain and the content quad must
   // be axis aligned. Rejecting a residual skew/projective quad prevents a
   // known-inexact AABB fallback from silently re-entering the pipeline.
-  if (Math.abs(y1 - y2) > EPSILON
-      || Math.abs(x2 - x3) > EPSILON
-      || Math.abs(y3 - y4) > EPSILON
-      || Math.abs(x4 - x1) > EPSILON) {
+  if (
+    Math.abs(y1 - y2) > EPSILON ||
+    Math.abs(x2 - x3) > EPSILON ||
+    Math.abs(y3 - y4) > EPSILON ||
+    Math.abs(x4 - x1) > EPSILON
+  ) {
     return null;
   }
   const left = Math.min(x1, x2, x3, x4);
@@ -53,10 +55,14 @@ export function axisAlignedQuadBounds(quad: CssQuad): CssRect | null {
 /** Translate every point without collapsing the quad to an AABB. */
 export function translateQuad(quad: CssQuad, dx: number, dy: number): CssQuad {
   return [
-    quad[0] + dx, quad[1] + dy,
-    quad[2] + dx, quad[3] + dy,
-    quad[4] + dx, quad[5] + dy,
-    quad[6] + dx, quad[7] + dy,
+    quad[0] + dx,
+    quad[1] + dy,
+    quad[2] + dx,
+    quad[3] + dy,
+    quad[4] + dx,
+    quad[5] + dy,
+    quad[6] + dx,
+    quad[7] + dy,
   ];
 }
 
@@ -79,8 +85,7 @@ export function mapTranslatedQuadToScreenshot(
   const output = axisAlignedQuadBounds(outputQuad);
   const sampled = axisAlignedQuadBounds(sampledQuad);
   if (output == null || sampled == null) return null;
-  if (Math.abs(output.width - sampled.width) > EPSILON
-      || Math.abs(output.height - sampled.height) > EPSILON) {
+  if (Math.abs(output.width - sampled.width) > EPSILON || Math.abs(output.height - sampled.height) > EPSILON) {
     return null;
   }
 
@@ -132,9 +137,15 @@ export function mapCssRectToSourcePixels(
   captureSize: { width: number; height: number },
   sourceSize: { width: number; height: number },
 ): PixelCropMapping | null {
-  if (captureSize.width <= 0 || captureSize.height <= 0
-      || sourceSize.width <= 0 || sourceSize.height <= 0
-      || rect.width <= 0 || rect.height <= 0) return null;
+  if (
+    captureSize.width <= 0 ||
+    captureSize.height <= 0 ||
+    sourceSize.width <= 0 ||
+    sourceSize.height <= 0 ||
+    rect.width <= 0 ||
+    rect.height <= 0
+  )
+    return null;
   const scaleX = sourceSize.width / captureSize.width;
   const scaleY = sourceSize.height / captureSize.height;
   const left = Math.max(0, Math.floor(rect.x * scaleX));
@@ -152,4 +163,3 @@ export function mapCssRectToSourcePixels(
     },
   };
 }
-

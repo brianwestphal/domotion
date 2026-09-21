@@ -42,7 +42,9 @@ describe("production text-run provenance", () => {
       mechanism: "declared-family",
       request: { fontFamily: options.fontFamily, fontWeight: 400, fontSizePx: 24 },
       selected: {
-        sourcePath: expect.any(String), faceIndex: expect.any(Number), shapesWithHarfbuzz: true,
+        sourcePath: expect.any(String),
+        faceIndex: expect.any(Number),
+        shapesWithHarfbuzz: true,
         descriptorAxes: expect.toSatisfy((value) => value === null || Array.isArray(value)),
         sourceFile: expect.objectContaining({
           sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
@@ -53,14 +55,19 @@ describe("production text-run provenance", () => {
       emittedIdentity: expect.stringMatching(/^paths:/),
       finalRepresentation: "svg-paths",
     });
-    expect(evidence.runs[0].glyphs).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: expect.any(Number), cluster: expect.any(Number), xAdvance: expect.any(Number),
-        sourceSpan: expect.any(Array), sourceCodepointSpan: expect.any(Array),
-        sourceOutline: expect.objectContaining({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }),
-        outlineDisposition: "source-outline",
-      }),
-    ]));
+    expect(evidence.runs[0].glyphs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.any(Number),
+          cluster: expect.any(Number),
+          xAdvance: expect.any(Number),
+          sourceSpan: expect.any(Array),
+          sourceCodepointSpan: expect.any(Array),
+          sourceOutline: expect.objectContaining({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }),
+          outlineDisposition: "source-outline",
+        }),
+      ]),
+    );
   });
 
   it("records the embedded emitter and its transition independently", () => {
@@ -85,9 +92,11 @@ describe("production text-run provenance", () => {
     });
     expect(markup).toContain('data-domotion-text-boundary="path-all-inkless"');
     expect(markup).not.toMatch(/<text(?:\s|>)/);
-    expect(getTextRunProvenance().transitions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "paths-declined", reason: "path-all-inkless" }),
-      expect.objectContaining({ kind: "source-owned-boundary", reason: "path-all-inkless" }),
-    ]));
+    expect(getTextRunProvenance().transitions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "paths-declined", reason: "path-all-inkless" }),
+        expect.objectContaining({ kind: "source-owned-boundary", reason: "path-all-inkless" }),
+      ]),
+    );
   });
 });

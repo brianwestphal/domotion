@@ -111,7 +111,13 @@ function build(fontPath, licensePath) {
     if (g == null || g.id === 0) throw new Error(`source font has no glyph for ${JSON.stringify(ch)}`);
     gids.add(g.id);
   }
-  const subset = hbSubsetRetainGids(src, [...gids].sort((a, b) => a - b), 0, true, null);
+  const subset = hbSubsetRetainGids(
+    src,
+    [...gids].sort((a, b) => a - b),
+    0,
+    true,
+    null,
+  );
 
   // The subset must still be variable, and must still report ONE name. Both are
   // load-bearing: an instanced subset has no axis to drive, and a subset that
@@ -125,7 +131,8 @@ function build(fontPath, licensePath) {
 
   const b64 = subset.toString("base64");
   const axisSummary = Object.entries(subAxes)
-    .map(([tag, a]) => `${tag} [${a.min}..${a.max}] default ${a.default}`).join(", ");
+    .map(([tag, a]) => `${tag} [${a.min}..${a.max}] default ${a.default}`)
+    .join(", ");
 
   const html = `<!doctype html>
 <html lang="en">
@@ -168,12 +175,12 @@ ${INSTANCES.map((i) => `<div class="run" id="${i.id}" data-settings='${i.setting
   writeFileSync(join(OUT_DIR, "variable-axis.html"), html);
   writeFileSync(join(OUT_DIR, "LICENSE-open-sans.txt"), readFileSync(licensePath));
   process.stdout.write(
-    `wrote ${join(OUT_DIR, "variable-axis.html")}\n`
-    + `  face        ${subFace.postscriptName} (family ${JSON.stringify(subFace.familyName)})\n`
-    + `  axes        ${axisSummary}\n`
-    + `  glyphs      ${gids.size}\n`
-    + `  font bytes  ${subset.length} (${b64.length} base64)\n`
-    + `  instances   ${INSTANCES.map((i) => `${i.id}=${i.settings}`).join(", ")}\n`,
+    `wrote ${join(OUT_DIR, "variable-axis.html")}\n` +
+      `  face        ${subFace.postscriptName} (family ${JSON.stringify(subFace.familyName)})\n` +
+      `  axes        ${axisSummary}\n` +
+      `  glyphs      ${gids.size}\n` +
+      `  font bytes  ${subset.length} (${b64.length} base64)\n` +
+      `  instances   ${INSTANCES.map((i) => `${i.id}=${i.settings}`).join(", ")}\n`,
   );
 }
 

@@ -25,9 +25,15 @@ import {
 import { tests as featureTests } from "./features.js";
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 
 const initialHelperDisable = process.env.DOMOTION_DISABLE_HELPER;
 function restoreHelperEnvironment(): void {
@@ -100,7 +106,9 @@ async function cdpPaintedFaces(page: Page, ids: string[]): Promise<Record<string
 }
 
 const terminalKinds = new Set<TextEmitterTransitionDiagnostic["kind"]>([
-  "capture-raster", "source-owned-boundary", "paths-succeeded",
+  "capture-raster",
+  "source-owned-boundary",
+  "paths-succeeded",
 ]);
 
 interface RenderEvidence {
@@ -135,10 +143,12 @@ function assertSelectedRun(
   expect(run.selected.postscriptName, label).toBe(face.postscriptName);
   expect(run.selected.sourcePath, label).toEqual(expect.any(String));
   expect(run.selected.faceIndex, label).toEqual(expect.any(Number));
-  expect(run.selected.sourceFile, label).toEqual(expect.objectContaining({
-    sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-    byteLength: expect.any(Number),
-  }));
+  expect(run.selected.sourceFile, label).toEqual(
+    expect.objectContaining({
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      byteLength: expect.any(Number),
+    }),
+  );
   expect(run.selected.sourceFile!.byteLength, label).toBeGreaterThan(0);
   expect(run.selected.shapesWithHarfbuzz, label).toBe(true);
   expect(run.glyphs, label).toHaveLength(1);
@@ -149,10 +159,12 @@ function assertSelectedRun(
   expect(glyph.sourceCodepointSpan, label).toEqual([0, 1]);
   expect(glyph.xAdvance, label).toBeGreaterThan(0);
   for (const value of [glyph.yAdvance, glyph.xOffset, glyph.yOffset]) expect(Number.isFinite(value), label).toBe(true);
-  expect(glyph.sourceOutline, label).toEqual(expect.objectContaining({
-    sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-    commandCount: expect.any(Number),
-  }));
+  expect(glyph.sourceOutline, label).toEqual(
+    expect.objectContaining({
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      commandCount: expect.any(Number),
+    }),
+  );
   expect(glyph.sourceOutline!.commandCount, label).toBeGreaterThan(0);
 }
 
@@ -177,14 +189,18 @@ function setHelperEnabled(enabled: boolean): void {
 }
 
 const cp = (text: string): number => text.codePointAt(0)!;
-const italicCorrectionFont = readFileSync(new URL("./fixtures/fonts/largeop-italic-correction.woff.base64", import.meta.url), "utf8").trim();
+const italicCorrectionFont = readFileSync(
+  new URL("./fixtures/fonts/largeop-italic-correction.woff.base64", import.meta.url),
+  "utf8",
+).trim();
 
 describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
   it("joins Blink math-auto geometry and face identity to the exact selected source before its terminal", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 720, height: 320 }, deviceScaleFactor: 1 });
     try {
       setHelperEnabled(true);
-      await page.setContent(`<style>
+      await page.setContent(
+        `<style>
         @font-face { font-family: ItalicCorrectionMath; src: url(data:font/woff;base64,${italicCorrectionFont}) format("woff"); }
         body { margin: 20px; }
         math { font-size: 32px; margin-right: 28px; }
@@ -198,41 +214,67 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
       <math><mi id="css-italic" data-magic-key="css-italic" style="font-style:italic">b</mi></math>
       <div>
         <math display="block"><msubsup><mo id="script-base" largeop="true" movablelimits="false">⫿</mo><mi id="sub-script">x</mi><mi id="sup-script" data-magic-key="sup-script">x</mi></msubsup></math>
-      </div>`, { waitUntil: "load" });
+      </div>`,
+        { waitUntil: "load" },
+      );
       await page.evaluate(() => document.fonts.ready);
 
       const ids = ["ascii", "greek", "exceptional-h", "supplementary", "normal", "css-italic", "sup-script"];
-      const sourceRows = await page.evaluate((rowIds) => {
+      const sourceRows = (await page.evaluate((rowIds) => {
         const geometry = (el: Element) => {
           const range = document.createRange();
           range.selectNodeContents(el);
           const rect = range.getBoundingClientRect();
           const style = getComputedStyle(el);
           return {
-            left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width,
-            textTransform: style.textTransform, fontStyle: style.fontStyle,
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            textTransform: style.textTransform,
+            fontStyle: style.fontStyle,
           };
         };
         return {
-          tokens: Object.fromEntries(rowIds.map((id) => {
-            const element = document.getElementById(id)!;
-            return [id, { source: element.textContent ?? "", ...geometry(element) }];
-          })),
+          tokens: Object.fromEntries(
+            rowIds.map((id) => {
+              const element = document.getElementById(id)!;
+              return [id, { source: element.textContent ?? "", ...geometry(element) }];
+            }),
+          ),
           scriptControl: {
             base: geometry(document.getElementById("script-base")!),
             sup: geometry(document.getElementById("sup-script")!),
             sub: geometry(document.getElementById("sub-script")!),
           },
         };
-      }, ids) as {
-        tokens: Record<string, { source: string; left: number; top: number; right: number; bottom: number; width: number; textTransform: string; fontStyle: string }>;
+      }, ids)) as {
+        tokens: Record<
+          string,
+          {
+            source: string;
+            left: number;
+            top: number;
+            right: number;
+            bottom: number;
+            width: number;
+            textTransform: string;
+            fontStyle: string;
+          }
+        >;
         scriptControl: { base: { left: number }; sup: { left: number }; sub: { left: number } };
       };
       const faces = await cdpPaintedFaces(page, ids);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 720, height: 320 });
       const expected: Record<string, string> = {
-        ascii: "𝑎", greek: "𝛼", "exceptional-h": "ℎ", supplementary: "𝑎",
-        normal: "a", "css-italic": "𝑏", "sup-script": "𝑥",
+        ascii: "𝑎",
+        greek: "𝛼",
+        "exceptional-h": "ℎ",
+        supplementary: "𝑎",
+        normal: "a",
+        "css-italic": "𝑏",
+        "sup-script": "𝑥",
       };
 
       for (const [id, transformed] of Object.entries(expected)) {
@@ -275,34 +317,56 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
     const page = await env!.browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
     try {
       await page.setContent(fixture!.html, { waitUntil: "load" });
-      await page.evaluate((tokens) => {
-        for (const element of document.querySelectorAll("mi")) {
-          const token = tokens.find((candidate) => candidate.source === element.textContent);
-          if (token == null) continue;
-          element.id = token.id;
-          (element as HTMLElement).dataset.magicKey = token.id;
-        }
-      }, LINUX_MATHML_GREEK_TOKENS.map(({ id, source }) => ({ id, source })));
+      await page.evaluate(
+        (tokens) => {
+          for (const element of document.querySelectorAll("mi")) {
+            const token = tokens.find((candidate) => candidate.source === element.textContent);
+            if (token == null) continue;
+            element.id = token.id;
+            (element as HTMLElement).dataset.magicKey = token.id;
+          }
+        },
+        LINUX_MATHML_GREEK_TOKENS.map(({ id, source }) => ({ id, source })),
+      );
       await page.evaluate(() => document.fonts.ready);
 
       const ids = LINUX_MATHML_GREEK_TOKENS.map((token) => token.id);
-      const sourceRows = await page.evaluate((rowIds) => Object.fromEntries(rowIds.map((id) => {
-        const element = document.getElementById(id)!;
-        const range = document.createRange();
-        range.selectNodeContents(element);
-        const rect = range.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        return [id, {
-          source: element.textContent ?? "", textTransform: style.textTransform, fontStyle: style.fontStyle,
-          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        }];
-      })), ids) as Record<string, {
-        source: string; textTransform: string; fontStyle: string;
-        rect: { x: number; y: number; width: number; height: number };
-      }>;
+      const sourceRows = (await page.evaluate(
+        (rowIds) =>
+          Object.fromEntries(
+            rowIds.map((id) => {
+              const element = document.getElementById(id)!;
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              const rect = range.getBoundingClientRect();
+              const style = getComputedStyle(element);
+              return [
+                id,
+                {
+                  source: element.textContent ?? "",
+                  textTransform: style.textTransform,
+                  fontStyle: style.fontStyle,
+                  rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                },
+              ];
+            }),
+          ),
+        ids,
+      )) as Record<
+        string,
+        {
+          source: string;
+          textTransform: string;
+          fontStyle: string;
+          rect: { x: number; y: number; width: number; height: number };
+        }
+      >;
       const faces = await cdpPaintedFaces(page, ids);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
-      const nodes = Object.fromEntries(ids.map((id) => [id, byMagicKey(tree, id)])) as Record<string, CapturedElement | null>;
+      const nodes = Object.fromEntries(ids.map((id) => [id, byMagicKey(tree, id)])) as Record<
+        string,
+        CapturedElement | null
+      >;
       for (const expected of LINUX_MATHML_GREEK_TOKENS) {
         expect(nodes[expected.id], expected.id).not.toBeNull();
         expect(sourceRows[expected.id]!.source, expected.id).toBe(expected.source);
@@ -313,27 +377,41 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
 
       setHelperEnabled(true);
       expect(isGlyphHelperAvailable(), "helper-enabled control").toBe(true);
-      const enabled = Object.fromEntries(LINUX_MATHML_GREEK_TOKENS.map((expected) => {
-        const node = nodes[expected.id]!;
-        const terminal = renderEvidence(node, width, height);
-        expect(["capture-raster", "source-owned-boundary"], `${expected.id}: helper-enabled terminal`).toContain(terminal.terminal.kind);
-        return [expected.id, {
-          terminal: terminal.terminal,
-          preterminal: preterminalEvidence(node, width, height, expected.transformed, faces[expected.id]!),
-        }];
-      }));
+      const enabled = Object.fromEntries(
+        LINUX_MATHML_GREEK_TOKENS.map((expected) => {
+          const node = nodes[expected.id]!;
+          const terminal = renderEvidence(node, width, height);
+          expect(["capture-raster", "source-owned-boundary"], `${expected.id}: helper-enabled terminal`).toContain(
+            terminal.terminal.kind,
+          );
+          return [
+            expected.id,
+            {
+              terminal: terminal.terminal,
+              preterminal: preterminalEvidence(node, width, height, expected.transformed, faces[expected.id]!),
+            },
+          ];
+        }),
+      );
 
       setHelperEnabled(false);
       expect(isGlyphHelperAvailable(), "helper-disabled control").toBe(false);
-      const disabled = Object.fromEntries(LINUX_MATHML_GREEK_TOKENS.map((expected) => {
-        const node = nodes[expected.id]!;
-        const terminal = renderEvidence(node, width, height);
-        expect(["capture-raster", "source-owned-boundary"], `${expected.id}: helper-disabled terminal`).toContain(terminal.terminal.kind);
-        return [expected.id, {
-          terminal: terminal.terminal,
-          preterminal: preterminalEvidence(node, width, height, expected.transformed, faces[expected.id]!),
-        }];
-      }));
+      const disabled = Object.fromEntries(
+        LINUX_MATHML_GREEK_TOKENS.map((expected) => {
+          const node = nodes[expected.id]!;
+          const terminal = renderEvidence(node, width, height);
+          expect(["capture-raster", "source-owned-boundary"], `${expected.id}: helper-disabled terminal`).toContain(
+            terminal.terminal.kind,
+          );
+          return [
+            expected.id,
+            {
+              terminal: terminal.terminal,
+              preterminal: preterminalEvidence(node, width, height, expected.transformed, faces[expected.id]!),
+            },
+          ];
+        }),
+      );
 
       for (const expected of LINUX_MATHML_GREEK_TOKENS) {
         const on = enabled[expected.id]!;
@@ -343,23 +421,32 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
         const offRun = off.preterminal.run;
         expect(onRun.selected.fontKey, `${expected.id}: helper-enabled route identity`).not.toBe("");
         expect(offRun.selected.fontKey, `${expected.id}: helper-disabled route identity`).not.toBe("");
-        expect({
-          postscriptName: offRun.selected.postscriptName,
-          sourcePath: offRun.selected.sourcePath,
-          faceIndex: offRun.selected.faceIndex,
-          sourceFile: offRun.selected.sourceFile == null ? null : {
-            sha256: offRun.selected.sourceFile.sha256,
-            byteLength: offRun.selected.sourceFile.byteLength,
+        expect(
+          {
+            postscriptName: offRun.selected.postscriptName,
+            sourcePath: offRun.selected.sourcePath,
+            faceIndex: offRun.selected.faceIndex,
+            sourceFile:
+              offRun.selected.sourceFile == null
+                ? null
+                : {
+                    sha256: offRun.selected.sourceFile.sha256,
+                    byteLength: offRun.selected.sourceFile.byteLength,
+                  },
+            glyphs: offRun.glyphs,
           },
-          glyphs: offRun.glyphs,
-        }, `${expected.id}: physical source identity remains exact`).toEqual({
+          `${expected.id}: physical source identity remains exact`,
+        ).toEqual({
           postscriptName: onRun.selected.postscriptName,
           sourcePath: onRun.selected.sourcePath,
           faceIndex: onRun.selected.faceIndex,
-          sourceFile: onRun.selected.sourceFile == null ? null : {
-            sha256: onRun.selected.sourceFile.sha256,
-            byteLength: onRun.selected.sourceFile.byteLength,
-          },
+          sourceFile:
+            onRun.selected.sourceFile == null
+              ? null
+              : {
+                  sha256: onRun.selected.sourceFile.sha256,
+                  byteLength: onRun.selected.sourceFile.byteLength,
+                },
           glyphs: onRun.glyphs,
         });
       }
@@ -403,7 +490,8 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
       });
       const linuxProblems = validateLinuxMathmlGreekTokenEvidence(linuxProjection);
       if (process.platform === "linux") expect(linuxProblems).toEqual([]);
-      else expect(linuxProblems.length, "non-Linux host must not masquerade as authenticated FreeSans").toBeGreaterThan(0);
+      else
+        expect(linuxProblems.length, "non-Linux host must not masquerade as authenticated FreeSans").toBeGreaterThan(0);
     } finally {
       restoreHelperEnvironment();
       await page.close();

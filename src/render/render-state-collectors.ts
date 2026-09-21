@@ -1,14 +1,8 @@
-import type {
-  CapturedElement,
-  ClipPathFragmentDef,
-  MaskFragmentDef,
-  MaskRasterRef,
-} from "../capture/types.js";
+import type { CapturedElement, ClipPathFragmentDef, MaskFragmentDef, MaskRasterRef } from "../capture/types.js";
 import { findOffGridCollapsedCells } from "./borders.js";
 
-export const fragmentDefinitionKey = (id: string, scope?: number): string => (
-  scope == null ? id : `${scope}\u0000${id}`
-);
+export const fragmentDefinitionKey = (id: string, scope?: number): string =>
+  scope == null ? id : `${scope}\u0000${id}`;
 
 export function collectParentElements(elements: CapturedElement[]): Map<CapturedElement, CapturedElement> {
   const parents = new Map<CapturedElement, CapturedElement>();
@@ -54,9 +48,7 @@ export function collectElementMaskRasters(elements: CapturedElement[]): Map<stri
   return rasters;
 }
 
-export function collectFragmentFilterDefs(
-  elements: CapturedElement[],
-): Map<string, { id: string; outerHTML: string }> {
+export function collectFragmentFilterDefs(elements: CapturedElement[]): Map<string, { id: string; outerHTML: string }> {
   const defs = new Map<string, { id: string; outerHTML: string }>();
   for (const root of elements) {
     for (const def of root.filterDefs ?? []) {
@@ -74,8 +66,11 @@ export function collectOffGridCollapsedCells(elements: CapturedElement[]): Set<C
   const groups = new Map<CapturedElement, CapturedElement[]>();
   const collect = (element: CapturedElement, table: CapturedElement | null): void => {
     const owner = element.tag === "table" ? element : table;
-    if (owner != null && element.styles?.borderCollapse === "collapse"
-        && (element.tag === "td" || element.tag === "th")) {
+    if (
+      owner != null &&
+      element.styles?.borderCollapse === "collapse" &&
+      (element.tag === "td" || element.tag === "th")
+    ) {
       const cells = groups.get(owner);
       if (cells == null) groups.set(owner, [element]);
       else cells.push(element);

@@ -82,7 +82,7 @@
  * aside. That derived number — printed as `reaching production` — is the one to
  * quote when a script moves, and it is attributable because the per-script
  * breakdown says which script accounts for the drop.
- */import { writeFileSync } from "node:fs";
+ */ import { writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { harfbuzzShapeRun } from "../src/render/harfbuzz-shaper.js";
 import { createGlyphHelperFont, isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
@@ -124,8 +124,18 @@ const u = (n: number): number => Math.round(n);
 /** Every font key this platform's table declares that actually resolves to a
  *  file present on THIS host. Keys are skipped silently when the font is not
  *  installed — that is a coverage fact, reported in the summary, not an error. */
-function resolvableFaces(filter: string | null, sizePx: number, weight: number): Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null; weight: number }> {
-  const out: Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null; weight: number }> = [];
+function resolvableFaces(
+  filter: string | null,
+  sizePx: number,
+  weight: number,
+): Array<{ key: string; path: string; faceIndex: number; axes: Record<string, number> | null; weight: number }> {
+  const out: Array<{
+    key: string;
+    path: string;
+    faceIndex: number;
+    axes: Record<string, number> | null;
+    weight: number;
+  }> = [];
   for (const key of platformFontKeys()) {
     if (filter != null && !key.toLowerCase().includes(filter.toLowerCase())) continue;
     let face: { path: string; faceIndex: number | null; axes: Record<string, number> | null } | null = null;
@@ -180,7 +190,14 @@ function comparePair(
   const hb = harfbuzzShapeRun(face.path, face.faceIndex, sample.text, undefined, font.unitsPerEm, face.axes);
   if (hb == null) return []; // HarfBuzz declined the face — nothing to compare
   const ct = font.layout(sample.text);
-  const base = { face: `${face.key}@${face.weight}`, path: face.path, faceIndex: face.faceIndex, sample: sample.note ?? sample.script, script: sample.script, text: sample.text };
+  const base = {
+    face: `${face.key}@${face.weight}`,
+    path: face.path,
+    faceIndex: face.faceIndex,
+    sample: sample.note ?? sample.script,
+    script: sample.script,
+    text: sample.text,
+  };
 
   if (hb.glyphs.length !== ct.glyphs.length) {
     return [{ ...base, kind: "glyph-count", hb: `${hb.glyphs.length} glyphs`, ct: `${ct.glyphs.length} glyphs` }];
@@ -195,13 +212,21 @@ function comparePair(
   }
   const advDiff = hb.positions.some((p, i) => Math.abs(u(p.xAdvance) - u(ct.positions[i].xAdvance)) > UNIT_EPS);
   if (advDiff) {
-    out.push({ ...base, kind: "advance", hb: hb.positions.map((p) => p.xAdvance).join(" "), ct: ct.positions.map((p) => p.xAdvance).join(" ") });
+    out.push({
+      ...base,
+      kind: "advance",
+      hb: hb.positions.map((p) => p.xAdvance).join(" "),
+      ct: ct.positions.map((p) => p.xAdvance).join(" "),
+    });
   }
   const offDiff = hb.positions.some(
-    (p, i) => Math.abs(u(p.xOffset) - u(ct.positions[i].xOffset)) > UNIT_EPS || Math.abs(u(p.yOffset) - u(ct.positions[i].yOffset)) > UNIT_EPS,
+    (p, i) =>
+      Math.abs(u(p.xOffset) - u(ct.positions[i].xOffset)) > UNIT_EPS ||
+      Math.abs(u(p.yOffset) - u(ct.positions[i].yOffset)) > UNIT_EPS,
   );
   if (offDiff) {
-    const fmt = (ps: Array<{ xOffset: number; yOffset: number }>): string => ps.map((p) => `${p.xOffset},${p.yOffset}`).join(" ");
+    const fmt = (ps: Array<{ xOffset: number; yOffset: number }>): string =>
+      ps.map((p) => `${p.xOffset},${p.yOffset}`).join(" ");
     out.push({ ...base, kind: "offset", hb: fmt(hb.positions), ct: fmt(ct.positions) });
   }
   if (ct.clusters != null && hb.clusters.join(",") !== ct.clusters.join(",")) {
@@ -268,7 +293,8 @@ function main(): void {
       // from a name. Production's asymmetry between those two derivations is a
       // routing fact, and routing is not what this tool measures.
       const f = createGlyphHelperFont({
-        postscriptName: spec?.postscriptName, fontPath: face.path,
+        postscriptName: spec?.postscriptName,
+        fontPath: face.path,
         variations: face.axes ?? undefined,
       });
       if (f == null) continue;
@@ -276,7 +302,10 @@ function main(): void {
     } catch {
       continue;
     }
-    if (harfbuzzShapeRun(face.path, face.faceIndex, "A", undefined, 1000, face.axes) == null && harfbuzzShapeRun(face.path, face.faceIndex, SHAPE_SAMPLES[0].text, undefined, 1000, face.axes) == null) {
+    if (
+      harfbuzzShapeRun(face.path, face.faceIndex, "A", undefined, 1000, face.axes) == null &&
+      harfbuzzShapeRun(face.path, face.faceIndex, SHAPE_SAMPLES[0].text, undefined, 1000, face.axes) == null
+    ) {
       declined++;
       continue;
     }
@@ -306,8 +335,12 @@ function main(): void {
   const reaching = disagreements.length - routed.length;
 
   console.log("");
-  console.log(`Shape agreement — HarfBuzz (Chromium config) vs ${process.platform === "darwin" ? "CoreText" : "platform helper"}`);
-  console.log(`  faces in table:      ${platformFontKeys().length}${filter != null ? ` (filtered to "${filter}")` : ""}`);
+  console.log(
+    `Shape agreement — HarfBuzz (Chromium config) vs ${process.platform === "darwin" ? "CoreText" : "platform helper"}`,
+  );
+  console.log(
+    `  faces in table:      ${platformFontKeys().length}${filter != null ? ` (filtered to "${filter}")` : ""}`,
+  );
   console.log(`  faces resolvable:    ${faces.length}`);
   console.log(`  face×weight compared:${facesUsed.size}   (${declined} declined by HarfBuzz)`);
   console.log(`  scripts exercised:   ${scriptsUsed.size} of ${new Set(SHAPE_SAMPLES.map((x) => x.script)).size}`);
@@ -319,7 +352,9 @@ function main(): void {
   console.log(`  reaching production: ${reaching}   (${routed.length} in scripts routed to HarfBuzz)`);
   console.log("  by script:");
   for (const [script, n] of Object.entries(byScript).sort((a, b) => b[1] - a[1])) {
-    const isRouted = [...(SHAPE_SAMPLES.find((s) => s.script === script)?.text ?? "")].some((c) => usesHarfbuzzShaping(c.codePointAt(0)!));
+    const isRouted = [...(SHAPE_SAMPLES.find((s) => s.script === script)?.text ?? "")].some((c) =>
+      usesHarfbuzzShaping(c.codePointAt(0)!),
+    );
     console.log(`      ${script.padEnd(12)} ${String(n).padStart(4)}${isRouted ? "   → HarfBuzz" : ""}`);
   }
 
@@ -330,7 +365,8 @@ function main(): void {
       console.log(`      hb: ${d.hb}`);
       console.log(`      ct: ${d.ct}`);
     }
-    if (disagreements.length > maxReport) console.log(`  … and ${disagreements.length - maxReport} more (use --json for all)`);
+    if (disagreements.length > maxReport)
+      console.log(`  … and ${disagreements.length - maxReport} more (use --json for all)`);
   }
 
   if (jsonOut != null) {

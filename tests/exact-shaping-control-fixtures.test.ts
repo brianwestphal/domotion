@@ -30,10 +30,7 @@ describe("DM-2500 portable exact-shaping controls", () => {
   it("proves both variable axes by destructively dropping non-default coordinates", () => {
     const report = runApplicableShapingControls();
     const rows = report.controlRows.filter((candidate) => candidate.control === "axes");
-    expect(rows.map((row) => row.id)).toEqual([
-      "open-sans-wght-800-to-default",
-      "open-sans-wdth-75-to-default",
-    ]);
+    expect(rows.map((row) => row.id)).toEqual(["open-sans-wght-800-to-default", "open-sans-wdth-75-to-default"]);
     const ids = [43, 68, 80, 69, 88, 85, 74, 72, 73, 82, 81, 86, 87, 76, 89];
     const defaultGlyphs = asciiGlyphs(
       ids,
@@ -135,17 +132,21 @@ describe("DM-2500 portable exact-shaping controls", () => {
     const outputDir = mkdtempSync(join(tmpdir(), "dm2500-shaping-"));
     const output = join(outputDir, "shaping.json");
     try {
-      const run = spawnSync(process.execPath, [
-        "--import",
-        "tsx",
-        "tools/exact-shaping-oracle.ts",
-        "--face",
-        "__dm2500_no_host_face__",
-        "--tracking-control-fixture",
-        "tests/fixtures/exact-shaping/not-present.ttf.base64",
-        "--json",
-        output,
-      ], { cwd: process.cwd(), encoding: "utf8" });
+      const run = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          "tools/exact-shaping-oracle.ts",
+          "--face",
+          "__dm2500_no_host_face__",
+          "--tracking-control-fixture",
+          "tests/fixtures/exact-shaping/not-present.ttf.base64",
+          "--json",
+          output,
+        ],
+        { cwd: process.cwd(), encoding: "utf8" },
+      );
       expect(run.status).toBe(1);
       expect(run.stderr).toContain("portable control failure: harfbuzz-trak-ptem-9-to-unset");
       const report = JSON.parse(readFileSync(output, "utf8")) as Record<string, unknown>;
@@ -165,7 +166,10 @@ describe("DM-2500 portable exact-shaping controls", () => {
   });
 
   it("matches the pinned Blink and HarfBuzz activation branches", () => {
-    const blink = readFileSync("external/chromium/third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.cc", "utf8");
+    const blink = readFileSync(
+      "external/chromium/third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.cc",
+      "utf8",
+    );
     const harfbuzz = readFileSync("external/harfbuzz/src/hb-ot-shape.cc", "utf8");
     expect(blink).toContain("hb_font_set_variations(");
     expect(blink).toContain("hb_font_set_ptem(unscaled_font");

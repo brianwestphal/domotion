@@ -10,12 +10,7 @@ export type ComposedParityFamily =
   | "dynamic-replaced-content";
 
 export type MetamorphicAxis =
-  | "neutral-wrapper"
-  | "equivalent-syntax"
-  | "node-split"
-  | "translation"
-  | "scale"
-  | "dom-order";
+  "neutral-wrapper" | "equivalent-syntax" | "node-split" | "translation" | "scale" | "dom-order";
 
 export interface ComposedParityFixture extends FeatureTest {
   family: ComposedParityFamily;

@@ -33,13 +33,21 @@ for (const [suite, results] of suites) {
   }
   const baseline = resolve(`tests/baselines/${suite}-${os}.json`);
   if (existsSync(baseline)) {
-    execFileSync("node", [
-      "scripts/diff-against-baseline.mjs",
-      "--results", results,
-      "--baseline", baseline,
-      "--env", envPath,
-      "--label", `${os} / ${suite}`,
-    ], { stdio: "inherit" });
+    execFileSync(
+      "node",
+      [
+        "scripts/diff-against-baseline.mjs",
+        "--results",
+        results,
+        "--baseline",
+        baseline,
+        "--env",
+        envPath,
+        "--label",
+        `${os} / ${suite}`,
+      ],
+      { stdio: "inherit" },
+    );
   } else {
     console.warn(`ci-fast-baselines: no committed ${suite}/${os} baseline yet`);
   }
@@ -48,12 +56,18 @@ for (const [suite, results] of suites) {
     const out = resolve(outputDir, `baseline-${suite}-${os}.json`);
     const writeArgs = [
       "scripts/write-baseline.mjs",
-      "--results", results,
-      "--out", out,
-      "--suite", suite,
-      "--os", os,
-      "--env", envPath,
-      "--captured-at", new Date().toISOString(),
+      "--results",
+      results,
+      "--out",
+      out,
+      "--suite",
+      suite,
+      "--os",
+      os,
+      "--env",
+      envPath,
+      "--captured-at",
+      new Date().toISOString(),
     ];
     if (image) writeArgs.push("--image", image);
     execFileSync("node", writeArgs, { stdio: "inherit" });

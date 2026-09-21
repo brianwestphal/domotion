@@ -8,13 +8,7 @@ import {
   type CapturedTextWritingMode,
 } from "./text-line-origin.js";
 
-const modes: CapturedTextWritingMode[] = [
-  "horizontal-tb",
-  "vertical-rl",
-  "vertical-lr",
-  "sideways-rl",
-  "sideways-lr",
-];
+const modes: CapturedTextWritingMode[] = ["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"];
 
 describe("Blink structured line-relative text origin", () => {
   it("keeps the rounded containing offset and fractional fragment delta independent", () => {
@@ -32,14 +26,16 @@ describe("Blink structured line-relative text origin", () => {
     expect(record.primaryFontIntegerAscent).toBe(22);
     expect(record.lineRelativeTextOrigin).toEqual({ lineLeft: 102.25, lineOver: 102.375 });
     expect(record.physicalBaselinePoint).toEqual({ x: 102.25, y: 102.375 });
-    expect(capturedTextLineOriginErrors(record, {
-      fragmentLeft: 102.25,
-      fragmentTop: 80.375,
-      fragmentWidth: 27,
-      fragmentHeight: 96,
-      writingMode: "horizontal-tb",
-      effectiveZoom: 1.25,
-    })).toEqual([]);
+    expect(
+      capturedTextLineOriginErrors(record, {
+        fragmentLeft: 102.25,
+        fragmentTop: 80.375,
+        fragmentWidth: 27,
+        fragmentHeight: 96,
+        writingMode: "horizontal-tb",
+        effectiveZoom: 1.25,
+      }),
+    ).toEqual([]);
   });
 
   it("transcribes all five Blink writing-mode rotations", () => {
@@ -62,10 +58,12 @@ describe("Blink structured line-relative text origin", () => {
       })!;
       expect(record.writingModeRotation).toEqual(expected[writingMode].matrix);
       expect(record.physicalBaselinePoint).toEqual(expected[writingMode].point);
-      expect(mapTextLineOriginPoint(
-        textLineOriginWritingModeRotation(10.25, 20.375, 40, 120, writingMode),
-        { x: 10.25, y: 42.375 },
-      )).toEqual(expected[writingMode].point);
+      expect(
+        mapTextLineOriginPoint(textLineOriginWritingModeRotation(10.25, 20.375, 40, 120, writingMode), {
+          x: 10.25,
+          y: 42.375,
+        }),
+      ).toEqual(expected[writingMode].point);
     }
   });
 

@@ -15,19 +15,23 @@ describe("captured animation frame stage", () => {
     expect(resolveCapturedFrameStage(frame({ cast: "demo.cast" }), 0)).toEqual({ kind: "cast" });
     expect(resolveCapturedFrameStage(frame({ template: "hero" }), 0)).toEqual({ kind: "template" });
     expect(resolveCapturedFrameStage(frame({ input: "page.html" }), 0)).toEqual({
-      kind: "live", navigation: { kind: "load", input: "page.html" },
+      kind: "live",
+      navigation: { kind: "load", input: "page.html" },
     });
     expect(resolveCapturedFrameStage(frame({ continue: true }), 1)).toEqual({
-      kind: "live", navigation: { kind: "continue" },
+      kind: "live",
+      navigation: { kind: "continue" },
     });
     expect(resolveCapturedFrameStage(frame({}), 1)).toEqual({
-      kind: "live", navigation: { kind: "continue" },
+      kind: "live",
+      navigation: { kind: "continue" },
     });
   });
 
   it("keeps frame zero from implicitly continuing a stale browser page", () => {
-    expect(() => resolveCapturedFrameStage(frame({ continue: true }), 0))
-      .toThrow("frames[0] has no input and is not a continue frame");
+    expect(() => resolveCapturedFrameStage(frame({ continue: true }), 0)).toThrow(
+      "frames[0] has no input and is not a continue frame",
+    );
   });
 
   it("dispatches only the selected stage handler", async () => {
@@ -38,7 +42,8 @@ describe("captured animation frame stage", () => {
     };
 
     await expect(buildCapturedFrame(frame({ input: "page.html" }), 0, handlers)).resolves.toMatchObject({
-      kind: "live", rootBg: "transparent",
+      kind: "live",
+      rootBg: "transparent",
     });
     expect(handlers.live).toHaveBeenCalledWith({ kind: "load", input: "page.html" });
     expect(handlers.cast).not.toHaveBeenCalled();
@@ -53,13 +58,18 @@ describe("captured animation frame stage", () => {
     };
 
     await expect(buildCapturedFrame(frame({ cast: "a.cast" }), 0, handlers)).resolves.toMatchObject({
-      kind: "embedded", source: "cast", frame: { duration: 1 },
+      kind: "embedded",
+      source: "cast",
+      frame: { duration: 1 },
     });
     await expect(buildCapturedFrame(frame({ template: "hero" }), 1, handlers)).resolves.toMatchObject({
-      kind: "embedded", source: "template", frame: { duration: 2 },
+      kind: "embedded",
+      source: "template",
+      frame: { duration: 2 },
     });
     await expect(buildCapturedFrame(frame({}), 2, handlers)).resolves.toMatchObject({
-      kind: "live", frame: { duration: 3 },
+      kind: "live",
+      frame: { duration: 3 },
     });
     expect(handlers.cast).toHaveBeenCalledOnce();
     expect(handlers.template).toHaveBeenCalledOnce();

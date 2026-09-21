@@ -24,19 +24,31 @@ export const subscribeParamsSchema = z.object({
   avatarColor: z.string().default("#6366f1").describe("Avatar circle color (CSS color or gradient)."),
   avatarText: z.string().optional().describe("Avatar initial (default: first letter of name)."),
   theme: z.enum(["light", "dark"]).default("light").describe('Card theme: "light" | "dark".'),
-  background: z.string().default("linear-gradient(135deg,#1e293b,#0f172a)").describe("Frame background (CSS color/gradient)."),
+  background: z
+    .string()
+    .default("linear-gradient(135deg,#1e293b,#0f172a)")
+    .describe("Frame background (CSS color/gradient)."),
   showBell: z.coerce.boolean().default(true).describe("Show the notification-bell button beside the CTA."),
-  clickAfterMs: z.coerce.number().int().nonnegative().default(1700).describe("Simulate a click after this delay: the CTA flips to the subscribed state and the bell fills. 0 disables it."),
+  clickAfterMs: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(1700)
+    .describe(
+      "Simulate a click after this delay: the CTA flips to the subscribed state and the bell fills. 0 disables it.",
+    ),
   subscribedLabel: z.string().default("Subscribed").describe("Label after the simulated click."),
   width: z.coerce.number().int().positive().default(760).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(360).describe("Output height in px."),
-  fontFamily: z.string().default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif").describe("CSS font-family."),
+  fontFamily: z
+    .string()
+    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
+    .describe("CSS font-family."),
   popMs: z.coerce.number().int().positive().default(520).describe("Pop-in duration in ms."),
   holdMs: z.coerce.number().int().positive().default(2600).describe("Hold after the pop in ms."),
 });
 
 export type SubscribeParams = z.infer<typeof subscribeParamsSchema>;
-
 
 /** Standalone HTML for the subscribe pop-up. Pure — unit-testable without a browser. */
 export function buildSubscribeHtml(p: SubscribeParams, safeInset?: SafeInset): string {
@@ -135,19 +147,35 @@ export function buildSubscribeAnimations(p: SubscribeParams): Anims {
   const click = p.clickAfterMs > 0;
   const anims: Anims = [
     {
-      selector: ".sub-pop", property: "scale", from: "0.82", to: "1",
-      duration: p.popMs, easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center",
+      selector: ".sub-pop",
+      property: "scale",
+      from: "0.82",
+      to: "1",
+      duration: p.popMs,
+      easing: "cubic-bezier(0.34,1.56,0.64,1)",
+      transformOrigin: "center",
     },
     {
-      selector: ".sub-inner", property: "opacity", from: "0", to: "1",
-      duration: Math.round(p.popMs * 0.7), easing: "ease-out",
+      selector: ".sub-inner",
+      property: "opacity",
+      from: "0",
+      to: "1",
+      duration: Math.round(p.popMs * 0.7),
+      easing: "ease-out",
     },
     {
       // Attention pulse on the CTA, after the card has settled (hidden once the
       // click cross-fades the Subscribe state out).
-      selector: ".sub-cta", property: "scale", from: "1", to: "1.07",
-      duration: 620, delay: p.popMs + 240, easing: "ease-in-out",
-      repeat: "infinite", alternate: true, transformOrigin: "center",
+      selector: ".sub-cta",
+      property: "scale",
+      from: "1",
+      to: "1.07",
+      duration: 620,
+      delay: p.popMs + 240,
+      easing: "ease-in-out",
+      repeat: "infinite",
+      alternate: true,
+      transformOrigin: "center",
     },
   ];
 
@@ -155,11 +183,52 @@ export function buildSubscribeAnimations(p: SubscribeParams): Anims {
     // Cross-fade Subscribe → Subscribed, with the new state popping like a real
     // tap, and the bell filling in.
     anims.push(
-      { selector: ".sub-state-cta", property: "opacity", from: "1", to: "0", duration: CLICK_FADE_MS, delay: p.clickAfterMs, easing: "ease-out" },
-      { selector: ".sub-state-done", property: "opacity", from: "0", to: "1", duration: CLICK_FADE_MS, delay: p.clickAfterMs, easing: "ease-out" },
-      { selector: ".sub-done", property: "scale", from: "0.84", to: "1", duration: 360, delay: p.clickAfterMs, easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center" },
-      { selector: ".sub-bell-off", property: "opacity", from: "1", to: "0", duration: CLICK_FADE_MS, delay: p.clickAfterMs, easing: "ease-out" },
-      { selector: ".sub-bell-on", property: "opacity", from: "0", to: "1", duration: CLICK_FADE_MS, delay: p.clickAfterMs, easing: "ease-out" },
+      {
+        selector: ".sub-state-cta",
+        property: "opacity",
+        from: "1",
+        to: "0",
+        duration: CLICK_FADE_MS,
+        delay: p.clickAfterMs,
+        easing: "ease-out",
+      },
+      {
+        selector: ".sub-state-done",
+        property: "opacity",
+        from: "0",
+        to: "1",
+        duration: CLICK_FADE_MS,
+        delay: p.clickAfterMs,
+        easing: "ease-out",
+      },
+      {
+        selector: ".sub-done",
+        property: "scale",
+        from: "0.84",
+        to: "1",
+        duration: 360,
+        delay: p.clickAfterMs,
+        easing: "cubic-bezier(0.34,1.56,0.64,1)",
+        transformOrigin: "center",
+      },
+      {
+        selector: ".sub-bell-off",
+        property: "opacity",
+        from: "1",
+        to: "0",
+        duration: CLICK_FADE_MS,
+        delay: p.clickAfterMs,
+        easing: "ease-out",
+      },
+      {
+        selector: ".sub-bell-on",
+        property: "opacity",
+        from: "0",
+        to: "1",
+        duration: CLICK_FADE_MS,
+        delay: p.clickAfterMs,
+        easing: "ease-out",
+      },
     );
   }
   return anims;

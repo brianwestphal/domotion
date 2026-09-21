@@ -21,7 +21,9 @@ for (const root of roots) {
     if (e?.tag === "textarea") {
       console.log("\ntextarea found, text:", JSON.stringify((e.text || "").slice(0, 100)));
       console.log("  textSegments count:", e.textSegments?.length ?? "(none)");
-      if (e.textSegments) for (const s of e.textSegments) console.log("    seg text=" + JSON.stringify(s.text) + " x=" + s.x + " y=" + s.y);
+      if (e.textSegments)
+        for (const s of e.textSegments)
+          console.log("    seg text=" + JSON.stringify(s.text) + " x=" + s.x + " y=" + s.y);
       console.log("  elementRaster:", e.elementRaster ? "PRESENT" : "absent");
     }
   });

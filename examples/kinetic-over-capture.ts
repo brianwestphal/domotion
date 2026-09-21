@@ -41,9 +41,7 @@ const W = 1280;
 const H = 720;
 
 /** Capture `PAGE` at W×H as one static, self-contained SVG (the background layer). */
-async function captureBackground(
-  browser: Awaited<ReturnType<typeof chromium.launch>>,
-): Promise<string> {
+async function captureBackground(browser: Awaited<ReturnType<typeof chromium.launch>>): Promise<string> {
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   try {
     const page = await ctx.newPage();

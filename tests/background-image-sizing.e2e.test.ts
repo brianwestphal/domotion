@@ -5,19 +5,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  captureElementTreeWithWarnings,
-  elementTreeToSvg,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg, launchChromium } from "../src/index.js";
 import type { CapturedBackgroundImage } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
-async function rasterDataUrl(
-  width: number,
-  height: number,
-  format: "png" | "jpeg" = "png",
-): Promise<string> {
+async function rasterDataUrl(width: number, height: number, format: "png" | "jpeg" = "png"): Promise<string> {
   const image = sharp({
     create: { width, height, channels: 4, background: { r: width, g: height, b: 177, alpha: 1 } },
   });
@@ -32,9 +24,14 @@ const [PNG_1X, PNG_2X, PNG_3X, PNG_DIRECT, JPEG_DIRECT] = await Promise.all([
   rasterDataUrl(30, 20),
   rasterDataUrl(44, 22, "jpeg"),
 ]);
-const ORIENTED_JPEG = `data:image/jpeg;base64,${(await sharp({
-  create: { width: 40, height: 20, channels: 3, background: { r: 220, g: 50, b: 47 } },
-}).jpeg().withMetadata({ orientation: 6 }).toBuffer()).toString("base64")}`;
+const ORIENTED_JPEG = `data:image/jpeg;base64,${(
+  await sharp({
+    create: { width: 40, height: 20, channels: 3, background: { r: 220, g: 50, b: 47 } },
+  })
+    .jpeg()
+    .withMetadata({ orientation: 6 })
+    .toBuffer()
+).toString("base64")}`;
 const SVG_RATIO = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3 7"><rect width="3" height="7" fill="red"/></svg>',
 )}`;
@@ -55,7 +52,11 @@ function selected(tree: Awaited<ReturnType<typeof captureElementTreeWithWarnings
 }
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -71,14 +72,29 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       source.clone().png({ bitdepth: 8 }).toFile(png8Path),
       source.clone().png({ bitdepth: 16 }).toFile(png16Path),
     ]);
-    await writeFile(htmlPath, `<div id="target" style="width:200px;height:200px;background-image:url(wide-8.png),url(wide-16.png);background-size:cover"></div>`);
+    await writeFile(
+      htmlPath,
+      `<div id="target" style="width:200px;height:200px;background-image:url(wide-8.png),url(wide-16.png);background-size:cover"></div>`,
+    );
     const page = await env!.browser.newPage({ viewport: { width: 240, height: 240 } });
     try {
       await page.goto(pathToFileURL(htmlPath).href);
       const result = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 240, height: 240 });
       expect(result.tree[0].styles.backgroundImages).toMatchObject([
-        { decodedImageKind: "bitmap", naturalSizingState: "resolved", decodedNaturalWidth: 384, decodedNaturalHeight: 128, naturalAspectRatio: { width: 384, height: 128 } },
-        { decodedImageKind: "bitmap", naturalSizingState: "resolved", decodedNaturalWidth: 384, decodedNaturalHeight: 128, naturalAspectRatio: { width: 384, height: 128 } },
+        {
+          decodedImageKind: "bitmap",
+          naturalSizingState: "resolved",
+          decodedNaturalWidth: 384,
+          decodedNaturalHeight: 128,
+          naturalAspectRatio: { width: 384, height: 128 },
+        },
+        {
+          decodedImageKind: "bitmap",
+          naturalSizingState: "resolved",
+          decodedNaturalWidth: 384,
+          decodedNaturalHeight: 128,
+          naturalAspectRatio: { width: 384, height: 128 },
+        },
       ]);
     } finally {
       await page.close();
@@ -91,8 +107,14 @@ describeBrowser("authoritative URL background image sizing capture", () => {
     const htmlPath = path.join(dir, "fixture.html");
     const svgPath = path.join(dir, "wide.svg");
     await Promise.all([
-      writeFile(svgPath, '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="32" viewBox="0 0 3 1"><rect width="3" height="1" fill="orange"/></svg>'),
-      writeFile(htmlPath, `<div id="target" style="width:240px;height:160px;background-image:url(wide.svg),url(wide.svg);background-size:48px auto,contain;background-repeat:repeat-y,repeat-x"></div>`),
+      writeFile(
+        svgPath,
+        '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="32" viewBox="0 0 3 1"><rect width="3" height="1" fill="orange"/></svg>',
+      ),
+      writeFile(
+        htmlPath,
+        `<div id="target" style="width:240px;height:160px;background-image:url(wide.svg),url(wide.svg);background-size:48px auto,contain;background-repeat:repeat-y,repeat-x"></div>`,
+      ),
     ]);
     const page = await env!.browser.newPage({ viewport: { width: 280, height: 200 } });
     try {
@@ -115,7 +137,7 @@ describeBrowser("authoritative URL background image sizing capture", () => {
         },
       ]);
       const svg = elementTreeToSvg(result.tree, 280, 200);
-      expect((svg.match(/<pattern\b/g) ?? [])).toHaveLength(2);
+      expect(svg.match(/<pattern\b/g) ?? []).toHaveLength(2);
       expect(svg).toContain('width="48" height="16"');
       expect(svg).toContain('width="240" height="80"');
       expect(result.warnings.filter((warning) => warning.feature === "background-image")).toEqual([]);
@@ -130,7 +152,10 @@ describeBrowser("authoritative URL background image sizing capture", () => {
     { dpr: 2, selectedUrl: PNG_2X, decodedWidth: 80, naturalWidth: 50, resolution: 2 },
   ]) {
     it(`uses Blink's image-set candidate and density at DPR ${row.dpr}`, async () => {
-      const context = await env!.browser.newContext({ viewport: { width: 220, height: 140 }, deviceScaleFactor: row.dpr });
+      const context = await env!.browser.newContext({
+        viewport: { width: 220, height: 140 },
+        deviceScaleFactor: row.dpr,
+      });
       const page = await context.newPage();
       try {
         await page.setContent(`<style>
@@ -151,9 +176,7 @@ describeBrowser("authoritative URL background image sizing capture", () => {
           naturalSizingState: "resolved",
         });
         expect(record.naturalHeight).toBe(row.naturalWidth / 2);
-        expect(result.tree[0].styles.backgroundIntrinsic).toEqual([
-          { w: row.naturalWidth, h: row.naturalWidth / 2 },
-        ]);
+        expect(result.tree[0].styles.backgroundIntrinsic).toEqual([{ w: row.naturalWidth, h: row.naturalWidth / 2 }]);
         const svg = elementTreeToSvg(result.tree, 220, 140);
         expect(svg).toContain(row.selectedUrl);
         expect(svg).not.toContain(row.dpr === 1 ? PNG_2X : PNG_1X);
@@ -177,28 +200,40 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       expect(layers.map((entry) => entry?.layerIndex ?? null)).toEqual([0, null, 2, 3, 4]);
       expect(layers[0]).toMatchObject({
         decodedImageKind: "bitmap",
-        decodedNaturalWidth: 30, decodedNaturalHeight: 20,
-        naturalWidth: 37.5, naturalHeight: 25,
-        hasNaturalWidth: true, hasNaturalHeight: true,
-        imageOrientation: "none", effectiveZoom: 1.25,
+        decodedNaturalWidth: 30,
+        decodedNaturalHeight: 20,
+        naturalWidth: 37.5,
+        naturalHeight: 25,
+        hasNaturalWidth: true,
+        hasNaturalHeight: true,
+        imageOrientation: "none",
+        effectiveZoom: 1.25,
       });
       expect(layers[2]).toMatchObject({
         decodedImageKind: "bitmap",
-        decodedNaturalWidth: 44, decodedNaturalHeight: 22,
-        naturalWidth: 55, naturalHeight: 27.5,
+        decodedNaturalWidth: 44,
+        decodedNaturalHeight: 22,
+        naturalWidth: 55,
+        naturalHeight: 27.5,
       });
       expect(layers[3]).toMatchObject({
         decodedImageKind: "svg",
-        decodedNaturalWidth: null, decodedNaturalHeight: null,
-        naturalWidth: null, naturalHeight: null,
-        hasNaturalWidth: false, hasNaturalHeight: false,
+        decodedNaturalWidth: null,
+        decodedNaturalHeight: null,
+        naturalWidth: null,
+        naturalHeight: null,
+        hasNaturalWidth: false,
+        hasNaturalHeight: false,
         naturalAspectRatio: { width: 3, height: 7 },
       });
       expect(layers[4]).toMatchObject({
         decodedImageKind: "svg",
-        decodedNaturalWidth: 80, decodedNaturalHeight: null,
-        naturalWidth: 100, naturalHeight: null,
-        hasNaturalWidth: true, hasNaturalHeight: false,
+        decodedNaturalWidth: 80,
+        decodedNaturalHeight: null,
+        naturalWidth: 100,
+        naturalHeight: null,
+        hasNaturalWidth: true,
+        hasNaturalHeight: false,
         naturalAspectRatio: { width: 4, height: 2 },
       });
       expect(result.warnings.filter((warning) => warning.feature === "background-image")).toEqual([]);
@@ -232,20 +267,40 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       }
     });
     try {
-      await page.route("http://page.test/", async (route) => route.fulfill({
-        status: 200,
-        contentType: "text/html",
-        body: `<div id="target" style="width:120px;height:80px;
+      await page.route("http://page.test/", async (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "text/html",
+          body: `<div id="target" style="width:120px;height:80px;
           background-image:url('http://background.test/delayed.png'),url('http://background.test/failed.png'),url('http://background.test/opaque.png')"></div>`,
-      }));
+        }),
+      );
       await page.goto("http://page.test/", {
         waitUntil: "domcontentloaded",
       });
       const result = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 220, height: 140 });
       expect(result.tree[0].styles.backgroundImages).toMatchObject([
-        { decodedImageKind: "bitmap", loadState: "loaded", naturalSizingState: "resolved", decodedNaturalWidth: 30, decodedNaturalHeight: 20 },
-        { decodedImageKind: "unknown", loadState: "failed", naturalSizingState: "unavailable", naturalWidth: null, naturalHeight: null },
-        { decodedImageKind: "unknown", loadState: "loaded", naturalSizingState: "unavailable", naturalWidth: null, naturalHeight: null },
+        {
+          decodedImageKind: "bitmap",
+          loadState: "loaded",
+          naturalSizingState: "resolved",
+          decodedNaturalWidth: 30,
+          decodedNaturalHeight: 20,
+        },
+        {
+          decodedImageKind: "unknown",
+          loadState: "failed",
+          naturalSizingState: "unavailable",
+          naturalWidth: null,
+          naturalHeight: null,
+        },
+        {
+          decodedImageKind: "unknown",
+          loadState: "loaded",
+          naturalSizingState: "unavailable",
+          naturalWidth: null,
+          naturalHeight: null,
+        },
       ]);
       const warning = result.warnings.find((entry) => entry.feature === "background-image");
       expect(warning?.detail).toContain("failed");
@@ -258,7 +313,9 @@ describeBrowser("authoritative URL background image sizing capture", () => {
   it("applies the captured image-orientation to decoded natural dimensions", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 220, height: 140 }, deviceScaleFactor: 1 });
     try {
-      await page.setContent(`<section style="zoom:1.2"><div id="target" style="width:120px;height:80px;zoom:1.25;image-orientation:from-image;background-image:url('${ORIENTED_JPEG}')"></div></section>`);
+      await page.setContent(
+        `<section style="zoom:1.2"><div id="target" style="width:120px;height:80px;zoom:1.25;image-orientation:from-image;background-image:url('${ORIENTED_JPEG}')"></div></section>`,
+      );
       const oriented = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 220, height: 140 });
       expect(selected(oriented)[0]).toMatchObject({
         decodedImageKind: "bitmap",
@@ -307,11 +364,13 @@ describeBrowser("authoritative URL background image sizing capture", () => {
         selectedResolution: 1,
         decodedImageKind: "bitmap",
       });
-      expect(await page.evaluate(() => ({
-        host: "__domotionBackgroundImageTargets" in globalThis,
-        key: "__domotionBackgroundImageKey" in document.querySelector("#target")!,
-        record: "__domotionBackgroundImages" in document.querySelector("#target")!,
-      }))).toEqual({ host: false, key: false, record: false });
+      expect(
+        await page.evaluate(() => ({
+          host: "__domotionBackgroundImageTargets" in globalThis,
+          key: "__domotionBackgroundImageKey" in document.querySelector("#target")!,
+          record: "__domotionBackgroundImages" in document.querySelector("#target")!,
+        })),
+      ).toEqual({ host: false, key: false, record: false });
     } finally {
       await context.close();
     }

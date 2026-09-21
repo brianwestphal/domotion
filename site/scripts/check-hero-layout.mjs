@@ -57,10 +57,11 @@ async function startDevServer() {
       // the origin so appending PATH_ON_SITE doesn't double it.
       if (m) finish(resolve, new URL(m[1]).origin);
     };
-    const onExit = (code) => finish(
-      reject,
-      new Error(`astro dev exited early (code ${code})${buf.trim() ? `\n${stripAnsi(buf).trim()}` : ""}`),
-    );
+    const onExit = (code) =>
+      finish(
+        reject,
+        new Error(`astro dev exited early (code ${code})${buf.trim() ? `\n${stripAnsi(buf).trim()}` : ""}`),
+      );
     proc.stdout.on("data", onData);
     proc.stderr.on("data", onData);
     proc.on("exit", onExit);

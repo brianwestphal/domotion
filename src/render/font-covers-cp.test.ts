@@ -29,8 +29,8 @@ import { fontCoversCp, glyphIdForCp, type FontInstance } from "./font-resolution
 /** The two answers a font instance can give, independently controllable. */
 const stub = (o: { hasGlyph?: boolean | (() => never); glyphId?: number | null }): FontInstance =>
   ({
-    hasGlyphForCodePoint: o.hasGlyph == null ? undefined
-      : typeof o.hasGlyph === "function" ? o.hasGlyph : () => o.hasGlyph as boolean,
+    hasGlyphForCodePoint:
+      o.hasGlyph == null ? undefined : typeof o.hasGlyph === "function" ? o.hasGlyph : () => o.hasGlyph as boolean,
     glyphForCodePoint: () => (o.glyphId == null ? null : { id: o.glyphId }),
   }) as unknown as FontInstance;
 
@@ -57,7 +57,12 @@ describe("fontCoversCp asks the cmap, not the outline tables (DM-1986)", () => {
   });
 
   it("falls back to the id test when the cmap accessor throws", () => {
-    const throws = stub({ hasGlyph: () => { throw new Error("bad table"); }, glyphId: 42 });
+    const throws = stub({
+      hasGlyph: () => {
+        throw new Error("bad table");
+      },
+      glyphId: 42,
+    });
     expect(fontCoversCp(throws, 0x41)).toBe(true);
   });
 
@@ -76,14 +81,12 @@ describe("fontCoversCp asks the cmap, not the outline tables (DM-1986)", () => {
  * pass.
  */
 const NOTO_COLOR_EMOJI = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf";
-const describeLinuxEmoji = process.platform === "linux" && existsSync(NOTO_COLOR_EMOJI)
-  ? describe : describe.skip;
+const describeLinuxEmoji = process.platform === "linux" && existsSync(NOTO_COLOR_EMOJI) ? describe : describe.skip;
 
 describeLinuxEmoji("the real bitmap color font (Linux)", () => {
   it("maps U+1F600 in its cmap while yielding no Glyph object", async () => {
     const fontkit = await import("fontkit");
-    const f = (fontkit as unknown as { openSync(p: string): FontInstance })
-      .openSync(NOTO_COLOR_EMOJI);
+    const f = (fontkit as unknown as { openSync(p: string): FontInstance }).openSync(NOTO_COLOR_EMOJI);
     expect(f.hasGlyphForCodePoint?.(0x1f600), "the cmap must map it").toBe(true);
     // Stated through `glyphIdForCp` rather than through the raw return, because
     // this IS the test the production code was making. (The raw return is

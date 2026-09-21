@@ -33,10 +33,7 @@ export interface AssembleCaptureDebugBundleOptions {
 }
 
 /** Snapshot screenshot bytes and a JSON inspection form of the captured tree. */
-export function createCaptureDebugArtifacts(
-  expectedPng: Uint8Array,
-  tree: CapturedElement[],
-): CaptureDebugArtifacts {
+export function createCaptureDebugArtifacts(expectedPng: Uint8Array, tree: CapturedElement[]): CaptureDebugArtifacts {
   return {
     expectedPng: Uint8Array.from(expectedPng),
     capturedTreeJson: JSON.stringify(tree, null, 2),
@@ -52,11 +49,12 @@ export function assembleCaptureDebugBundle(
   actualSvg: string,
   options: AssembleCaptureDebugBundleOptions = {},
 ): CaptureDebugBundle {
-  const captureHar = options.captureHar == null
-    ? undefined
-    : typeof options.captureHar === "string"
-      ? new TextEncoder().encode(options.captureHar)
-      : Uint8Array.from(options.captureHar);
+  const captureHar =
+    options.captureHar == null
+      ? undefined
+      : typeof options.captureHar === "string"
+        ? new TextEncoder().encode(options.captureHar)
+        : Uint8Array.from(options.captureHar);
   return {
     expectedPng: Uint8Array.from(artifacts.expectedPng),
     capturedTreeJson: artifacts.capturedTreeJson,

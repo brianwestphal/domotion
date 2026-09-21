@@ -30,22 +30,38 @@ describe("Blink collapsed-border precedence (DM-2245)", () => {
 });
 
 const source = (side: CollapsedBorderPhysicalSide, style: string, w: number, order: number): CollapsedBorderSource => ({
-  side, style, w, order, color: `${side}-${order}`,
+  side,
+  style,
+  w,
+  order,
+  color: `${side}-${order}`,
 });
 
 describe("Blink table-level collapsed-border graph (DM-2320)", () => {
   it("maps physical sides through the table writing direction", () => {
     expect(physicalSidesForTable("horizontal-tb", "ltr")).toEqual({
-      blockStart: "top", blockEnd: "bottom", inlineStart: "left", inlineEnd: "right",
+      blockStart: "top",
+      blockEnd: "bottom",
+      inlineStart: "left",
+      inlineEnd: "right",
     });
     expect(physicalSidesForTable("horizontal-tb", "rtl")).toEqual({
-      blockStart: "top", blockEnd: "bottom", inlineStart: "right", inlineEnd: "left",
+      blockStart: "top",
+      blockEnd: "bottom",
+      inlineStart: "right",
+      inlineEnd: "left",
     });
     expect(physicalSidesForTable("vertical-rl", "ltr")).toEqual({
-      blockStart: "right", blockEnd: "left", inlineStart: "top", inlineEnd: "bottom",
+      blockStart: "right",
+      blockEnd: "left",
+      inlineStart: "top",
+      inlineEnd: "bottom",
     });
     expect(physicalSidesForTable("vertical-lr", "rtl")).toEqual({
-      blockStart: "left", blockEnd: "right", inlineStart: "bottom", inlineEnd: "top",
+      blockStart: "left",
+      blockEnd: "right",
+      inlineStart: "bottom",
+      inlineEnd: "top",
     });
   });
 
@@ -57,20 +73,37 @@ describe("Blink table-level collapsed-border graph (DM-2320)", () => {
 
   it("stores one winner per logical grid edge and retains the earlier exact tie", () => {
     const grid = createCollapsedBorderGrid(1, 2);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      right: source("right", "solid", 4, 1),
-    }, "horizontal-tb", "ltr");
-    mergeCollapsedBorderBox(grid, 0, 1, 1, 1, {
-      left: source("left", "solid", 4, 2),
-    }, "horizontal-tb", "ltr");
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        right: source("right", "solid", 4, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      1,
+      1,
+      1,
+      {
+        left: source("left", "solid", 4, 2),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
     expect(grid.columnAxis[0][1].winner).toMatchObject({ side: "right", order: 1 });
   });
 
   it("lets later sources replace by hidden, width, then style but not source order", () => {
     const grid = createCollapsedBorderGrid(1, 1);
-    const mergeTop = (candidate: CollapsedBorderSource) => mergeCollapsedBorderBox(
-      grid, 0, 0, 1, 1, { top: candidate }, "horizontal-tb", "ltr",
-    );
+    const mergeTop = (candidate: CollapsedBorderSource) =>
+      mergeCollapsedBorderBox(grid, 0, 0, 1, 1, { top: candidate }, "horizontal-tb", "ltr");
     mergeTop(source("top", "solid", 3, 1));
     mergeTop(source("top", "double", 3, 2));
     expect(grid.rowAxis[0][0].winner).toMatchObject({ style: "double", order: 2 });
@@ -84,12 +117,22 @@ describe("Blink table-level collapsed-border graph (DM-2320)", () => {
 
   it("marks a spanning cell's unclaimed interior edges do-not-fill", () => {
     const grid = createCollapsedBorderGrid(2, 2);
-    mergeCollapsedBorderBox(grid, 0, 0, 2, 2, {
-      top: source("top", "solid", 2, 1),
-      right: source("right", "solid", 2, 1),
-      bottom: source("bottom", "solid", 2, 1),
-      left: source("left", "solid", 2, 1),
-    }, "horizontal-tb", "ltr", true);
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      2,
+      2,
+      {
+        top: source("top", "solid", 2, 1),
+        right: source("right", "solid", 2, 1),
+        bottom: source("bottom", "solid", 2, 1),
+        left: source("left", "solid", 2, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+      true,
+    );
     expect(grid.columnAxis.map((row) => row[1].doNotFill)).toEqual([true, true]);
     expect(grid.rowAxis[1].map((edge) => edge.doNotFill)).toEqual([true, true]);
     expect(grid.rowAxis[0].every((edge) => !edge.doNotFill && edge.winner != null)).toBe(true);
@@ -98,48 +141,103 @@ describe("Blink table-level collapsed-border graph (DM-2320)", () => {
   it("does not let a later structural source fill a span interior", () => {
     const grid = createCollapsedBorderGrid(1, 2);
     mergeCollapsedBorderBox(grid, 0, 0, 1, 2, {}, "horizontal-tb", "ltr", true);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      right: source("right", "solid", 8, 9),
-    }, "horizontal-tb", "ltr");
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        right: source("right", "solid", 8, 9),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
     expect(grid.columnAxis[0][1]).toEqual({ winner: null, doNotFill: true });
   });
 
   it("uses width, style, and box order for paint-joint precedence", () => {
     const edge = (candidate: CollapsedBorderSource | null) => ({ winner: candidate, doNotFill: false });
-    expect(compareCollapsedEdgesForPaint(edge(source("top", "solid", 4, 1)), edge(source("left", "double", 3, 0)))).toBe(1);
-    expect(compareCollapsedEdgesForPaint(edge(source("top", "dashed", 4, 1)), edge(source("left", "solid", 4, 2)))).toBe(-1);
-    expect(compareCollapsedEdgesForPaint(edge(source("top", "solid", 4, 1)), edge(source("left", "solid", 4, 2)))).toBe(1);
+    expect(
+      compareCollapsedEdgesForPaint(edge(source("top", "solid", 4, 1)), edge(source("left", "double", 3, 0))),
+    ).toBe(1);
+    expect(
+      compareCollapsedEdgesForPaint(edge(source("top", "dashed", 4, 1)), edge(source("left", "solid", 4, 2))),
+    ).toBe(-1);
+    expect(compareCollapsedEdgesForPaint(edge(source("top", "solid", 4, 1)), edge(source("left", "solid", 4, 2)))).toBe(
+      1,
+    );
   });
 
   it("extends equal winning edges through joints like ComputeEdgeJoints", () => {
     const grid = createCollapsedBorderGrid(1, 1);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      top: source("top", "solid", 4, 1), right: source("right", "solid", 4, 1),
-      bottom: source("bottom", "solid", 4, 1), left: source("left", "solid", 4, 1),
-    }, "horizontal-tb", "ltr");
-    const top = collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).find((rect) => rect.axis === "row" && rect.row === 0)!;
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        top: source("top", "solid", 4, 1),
+        right: source("right", "solid", 4, 1),
+        bottom: source("bottom", "solid", 4, 1),
+        left: source("left", "solid", 4, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
+    const top = collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).find(
+      (rect) => rect.axis === "row" && rect.row === 0,
+    )!;
     expect(top).toMatchObject({ inlineStart: -2, inlineSize: 14, blockStart: -2, blockSize: 4 });
   });
 
   it("retreats a narrower edge from a perpendicular joint winner", () => {
     const grid = createCollapsedBorderGrid(1, 1);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      top: source("top", "solid", 2, 1), right: source("right", "solid", 2, 1),
-      bottom: source("bottom", "solid", 2, 1), left: source("left", "solid", 8, 1),
-    }, "horizontal-tb", "ltr");
-    const top = collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).find((rect) => rect.axis === "row" && rect.row === 0)!;
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        top: source("top", "solid", 2, 1),
+        right: source("right", "solid", 2, 1),
+        bottom: source("bottom", "solid", 2, 1),
+        left: source("left", "solid", 8, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
+    const top = collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).find(
+      (rect) => rect.axis === "row" && rect.row === 0,
+    )!;
     expect(top.inlineStart).toBe(4);
     expect(top.inlineSize).toBe(7);
   });
 
   it("DM-2413: paints edges in Blink's interleaved TableBorders storage order", () => {
     const grid = createCollapsedBorderGrid(1, 1);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      top: source("top", "solid", 4, 1), right: source("right", "solid", 4, 1),
-      bottom: source("bottom", "solid", 4, 1), left: source("left", "solid", 4, 1),
-    }, "horizontal-tb", "ltr");
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        top: source("top", "solid", 4, 1),
+        right: source("right", "solid", 4, 1),
+        bottom: source("bottom", "solid", 4, 1),
+        left: source("left", "solid", 4, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
     expect(collapsedBorderLogicalRects(grid, [0, 10], [0, 10]).map((rect) => rect.winner.side)).toEqual([
-      "left", "top", "right", "bottom",
+      "left",
+      "top",
+      "right",
+      "bottom",
     ]);
   });
 });
@@ -147,25 +245,63 @@ describe("Blink table-level collapsed-border graph (DM-2320)", () => {
 describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
   const twoRowGrid = () => {
     const grid = createCollapsedBorderGrid(2, 1);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      top: source("top", "solid", 4, 1), right: source("right", "solid", 4, 1),
-      bottom: source("bottom", "solid", 4, 1), left: source("left", "solid", 4, 1),
-    }, "horizontal-tb", "ltr");
-    mergeCollapsedBorderBox(grid, 1, 0, 1, 1, {
-      top: source("top", "solid", 4, 2), right: source("right", "solid", 4, 2),
-      bottom: source("bottom", "solid", 4, 2), left: source("left", "solid", 4, 2),
-    }, "horizontal-tb", "ltr");
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        top: source("top", "solid", 4, 1),
+        right: source("right", "solid", 4, 1),
+        bottom: source("bottom", "solid", 4, 1),
+        left: source("left", "solid", 4, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
+    mergeCollapsedBorderBox(
+      grid,
+      1,
+      0,
+      1,
+      1,
+      {
+        top: source("top", "solid", 4, 2),
+        right: source("right", "solid", 4, 2),
+        bottom: source("bottom", "solid", 4, 2),
+        left: source("left", "solid", 4, 2),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
     return grid;
   };
 
   it("paints half of an inline border on each side of a row break", () => {
     const grid = twoRowGrid();
-    const before = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
-      rowStart: 0, blockLines: [0, 10], hasContentAfter: true,
-    }]);
-    const after = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
-      rowStart: 1, blockLines: [0, 10], hasContentBefore: true,
-    }]);
+    const before = collapsedBorderFragmentLogicalRects(
+      grid,
+      [0, 20],
+      [
+        {
+          rowStart: 0,
+          blockLines: [0, 10],
+          hasContentAfter: true,
+        },
+      ],
+    );
+    const after = collapsedBorderFragmentLogicalRects(
+      grid,
+      [0, 20],
+      [
+        {
+          rowStart: 1,
+          blockLines: [0, 10],
+          hasContentBefore: true,
+        },
+      ],
+    );
     const beforeBreak = before.find((rect) => rect.axis === "row" && rect.row === 1)!;
     const afterBreak = after.find((rect) => rect.axis === "row" && rect.row === 1)!;
     expect(beforeBreak).toMatchObject({ blockStart: 8, blockSize: 2 });
@@ -174,12 +310,28 @@ describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
 
   it("omits an inline edge through a fragmented row", () => {
     const grid = twoRowGrid();
-    const firstPiece = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
-      rowStart: 0, blockLines: [0, 10], endRowFragmented: true,
-    }]);
-    const continuation = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
-      rowStart: 0, blockLines: [0, 10], startRowFragmented: true,
-    }]);
+    const firstPiece = collapsedBorderFragmentLogicalRects(
+      grid,
+      [0, 20],
+      [
+        {
+          rowStart: 0,
+          blockLines: [0, 10],
+          endRowFragmented: true,
+        },
+      ],
+    );
+    const continuation = collapsedBorderFragmentLogicalRects(
+      grid,
+      [0, 20],
+      [
+        {
+          rowStart: 0,
+          blockLines: [0, 10],
+          startRowFragmented: true,
+        },
+      ],
+    );
     expect(firstPiece.some((rect) => rect.axis === "row" && rect.row === 1)).toBe(false);
     expect(continuation.some((rect) => rect.axis === "row" && rect.row === 0)).toBe(false);
     expect(firstPiece.some((rect) => rect.axis === "column" && rect.row === 0)).toBe(true);
@@ -188,22 +340,45 @@ describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
 
   it("does not double-paint the shared row edge between adjacent sections", () => {
     const grid = twoRowGrid();
-    const rects = collapsedBorderFragmentLogicalRects(grid, [0, 20], [
-      { rowStart: 0, blockLines: [0, 10] },
-      { rowStart: 1, blockLines: [10, 20] },
-    ]);
+    const rects = collapsedBorderFragmentLogicalRects(
+      grid,
+      [0, 20],
+      [
+        { rowStart: 0, blockLines: [0, 10] },
+        { rowStart: 1, blockLines: [10, 20] },
+      ],
+    );
     expect(rects.filter((rect) => rect.axis === "row" && rect.row === 1)).toHaveLength(1);
   });
 
   it("DM-2413: uses the final block-axis segment as the fragment-end boundary", () => {
     const grid = createCollapsedBorderGrid(1, 1);
-    mergeCollapsedBorderBox(grid, 0, 0, 1, 1, {
-      top: source("top", "solid", 2, 1), right: source("right", "solid", 6, 1),
-      bottom: source("bottom", "solid", 8, 1), left: source("left", "solid", 4, 1),
-    }, "horizontal-tb", "ltr");
-    const rects = collapsedBorderFragmentLogicalRects(grid, [0, 20], [{
-      rowStart: 0, blockLines: [0, 10], hasContentAfter: true,
-    }]);
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      1,
+      1,
+      {
+        top: source("top", "solid", 2, 1),
+        right: source("right", "solid", 6, 1),
+        bottom: source("bottom", "solid", 8, 1),
+        left: source("left", "solid", 4, 1),
+      },
+      "horizontal-tb",
+      "ltr",
+    );
+    const rects = collapsedBorderFragmentLogicalRects(
+      grid,
+      [0, 20],
+      [
+        {
+          rowStart: 0,
+          blockLines: [0, 10],
+          hasContentAfter: true,
+        },
+      ],
+    );
     expect(rects.map((rect) => rect.winner.side)).toEqual(["left", "top", "right", "bottom"]);
     expect(rects.find((rect) => rect.winner.side === "left")).toMatchObject({
       blockStart: -1,

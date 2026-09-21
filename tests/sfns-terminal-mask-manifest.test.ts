@@ -27,9 +27,7 @@ describe("source-owned SFNS terminal-mask manifest", () => {
       ...SFNS_TERMINAL_MASK_SCENARIO_IDS,
       ...SFNS_TERMINAL_MASK_CONTROL_IDS.map((id) => `control-${id}`),
     ]);
-    expect(sfnsTerminalMaskManifestDigest()).toBe(
-      "0a4551275051e7bf3c5548b7d010a82e715325c9ef88784371d2329cb4c714e9",
-    );
+    expect(sfnsTerminalMaskManifestDigest()).toBe("0a4551275051e7bf3c5548b7d010a82e715325c9ef88784371d2329cb4c714e9");
   });
 
   it("contains requests only, never cross-arm derived rendering results", () => {
@@ -37,7 +35,10 @@ describe("source-owned SFNS terminal-mask manifest", () => {
     const visit = (value: unknown): void => {
       if (Array.isArray(value)) value.forEach(visit);
       else if (value != null && typeof value === "object") {
-        for (const [key, entry] of Object.entries(value)) { keys.add(key); visit(entry); }
+        for (const [key, entry] of Object.entries(value)) {
+          keys.add(key);
+          visit(entry);
+        }
       }
     };
     visit(SFNS_TERMINAL_MASK_MANIFEST);
@@ -53,7 +54,8 @@ describe("source-owned SFNS terminal-mask manifest", () => {
       "coreTextMetrics",
       "maskBytes",
       "bytesBase64",
-    ]) expect(keys).not.toContain(forbidden);
+    ])
+      expect(keys).not.toContain(forbidden);
   });
 
   it("pins Chromium-exact white-paint and full live-matrix requests", () => {

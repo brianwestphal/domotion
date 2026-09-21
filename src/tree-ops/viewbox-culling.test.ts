@@ -45,38 +45,42 @@ describe("decideCull — static (no animation)", () => {
 
 describe("decideCull — under a translate animation", () => {
   const anim = (overrides: Partial<IntraFrameAnimation>): IntraFrameAnimation => ({
-    animId: "a", property: "translateY", from: "0px", to: "0px",
-    duration: 1000, ...overrides,
+    animId: "a",
+    property: "translateY",
+    from: "0px",
+    to: "0px",
+    duration: 1000,
+    ...overrides,
   });
 
   it("enters viewBox during animation (from off, to on): hide BEFORE only", () => {
-    const d = decideCull(
-      { x: 100, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "translateY", from: "-1000px", to: "0px" }) },
-    );
+    const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "translateY", from: "-1000px", to: "0px" }),
+    });
     expect(d.alwaysHidden).toBe(false);
-    expect(d.visStartPct).toBe(30);   // hidden 0% → 30%, then visible
-    expect(d.visEndPct).toBe(100);    // visible all the way through end of cycle
+    expect(d.visStartPct).toBe(30); // hidden 0% → 30%, then visible
+    expect(d.visEndPct).toBe(100); // visible all the way through end of cycle
   });
 
   it("exits viewBox during animation (from on, to off): hide AFTER only", () => {
-    const d = decideCull(
-      { x: 100, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "translateY", from: "0px", to: "1000px" }) },
-    );
+    const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "translateY", from: "0px", to: "1000px" }),
+    });
     expect(d.alwaysHidden).toBe(false);
     expect(d.visStartPct).toBe(0);
-    expect(d.visEndPct).toBe(50);     // hidden 50% → 100%
+    expect(d.visEndPct).toBe(50); // hidden 50% → 100%
   });
 
   it("both from and to inside viewBox: always visible", () => {
-    const d = decideCull(
-      { x: 100, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "translateY", from: "0px", to: "100px" }) },
-    );
+    const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "translateY", from: "0px", to: "100px" }),
+    });
     expect(d.alwaysHidden).toBe(false);
     expect(d.visStartPct).toBeUndefined();
     expect(d.visEndPct).toBeUndefined();
@@ -84,35 +88,35 @@ describe("decideCull — under a translate animation", () => {
 
   it("both endpoints off-viewBox, animation path doesn't cross: alwaysHidden", () => {
     // bbox at y=100, animating from y=+1000 to y=+2000 — never re-enters viewBox.
-    const d = decideCull(
-      { x: 100, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "translateY", from: "1000px", to: "2000px" }) },
-    );
+    const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "translateY", from: "1000px", to: "2000px" }),
+    });
     expect(d.alwaysHidden).toBe(true);
   });
 
   it("both endpoints off-viewBox, animation path passes through: visible during", () => {
     // bbox at y=100, animating from y=-1000 to y=+1000 — passes through.
     // Per DM-599 feedback rule, visible during the animation.
-    const d = decideCull(
-      { x: 100, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "translateY", from: "-1000px", to: "1000px" }) },
-    );
+    const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "translateY", from: "-1000px", to: "1000px" }),
+    });
     expect(d.alwaysHidden).toBe(false);
-    expect(d.visStartPct).toBe(30);   // hide before
-    expect(d.visEndPct).toBe(50);     // hide after
+    expect(d.visStartPct).toBe(30); // hide before
+    expect(d.visEndPct).toBe(50); // hide after
   });
 
   it("translateX animation: uses x-axis intersection", () => {
     // bbox at x=200, animating from x=-2000 to x=0 (still off-screen left at 200-1000=-800).
     // Wait: 200 + (-2000) = -1800 (off-left). 200 + 0 = 200 (visible). Enters.
-    const d = decideCull(
-      { x: 200, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "translateX", from: "-2000px", to: "0px" }) },
-    );
+    const d = decideCull({ x: 200, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "translateX", from: "-2000px", to: "0px" }),
+    });
     expect(d.alwaysHidden).toBe(false);
     expect(d.visStartPct).toBe(30);
     expect(d.visEndPct).toBe(100);
@@ -121,11 +125,11 @@ describe("decideCull — under a translate animation", () => {
   it("non-translate animation (width): treated as static", () => {
     // The bbox doesn't move — width changes don't shift x/y. Static element
     // at (100,100,100,100) is inside viewBox.
-    const d = decideCull(
-      { x: 100, y: 100, w: 100, h: 100 },
-      VW, VH,
-      { animStartPct: 30, animEndPct: 50, anim: anim({ property: "width", from: "0px", to: "200px" }) },
-    );
+    const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
+      animStartPct: 30,
+      animEndPct: 50,
+      anim: anim({ property: "width", from: "0px", to: "200px" }),
+    });
     expect(d.alwaysHidden).toBe(false);
   });
 });
@@ -140,8 +144,12 @@ describe("decideCull — under a translate animation", () => {
 // culling entirely.
 describe("decideCull — translate+scale affine", () => {
   const anim = (overrides: Partial<IntraFrameAnimation>): IntraFrameAnimation => ({
-    animId: "a", property: "transform", from: "none", to: "none",
-    duration: 1000, ...overrides,
+    animId: "a",
+    property: "transform",
+    from: "none",
+    to: "none",
+    duration: 1000,
+    ...overrides,
   });
   const win = { animStartPct: 25, animEndPct: 50 };
 
@@ -174,8 +182,8 @@ describe("decideCull — translate+scale affine", () => {
       // its own frame.
       const d = decideCull({ x: -600, y: -400, w: 100, h: 100 }, VW, VH, shrink);
       expect(d.alwaysHidden).toBe(false);
-      expect(d.visStartPct).toBe(25);   // hidden before the glide starts
-      expect(d.visEndPct).toBe(100);    // visible through end of cycle
+      expect(d.visStartPct).toBe(25); // hidden before the glide starts
+      expect(d.visEndPct).toBe(100); // visible through end of cycle
     });
 
     it("zoom-in glide pushes a child out: exit window (the cull the old parser forfeited)", () => {
@@ -331,7 +339,8 @@ describe("decideCull — translate+scale affine", () => {
       // check → alwaysHidden. A rotation can sweep the element into view;
       // retain the full continuously bounded active interval.
       const d = decideCull({ x: 900, y: 100, w: 100, h: 100 }, VW, VH, {
-        ...win, anim: anim({ from: "rotate(0deg)", to: "rotate(180deg)" }),
+        ...win,
+        anim: anim({ from: "rotate(0deg)", to: "rotate(180deg)" }),
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(25);
@@ -340,7 +349,8 @@ describe("decideCull — translate+scale affine", () => {
 
     it("matrix: no window emitted even when endpoints suggest an exit", () => {
       const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
-        ...win, anim: anim({ from: "matrix(1, 0, 0, 1, 0, 0)", to: "matrix(0.5, 0.5, -0.5, 0.5, 2000, 0)" }),
+        ...win,
+        anim: anim({ from: "matrix(1, 0, 0, 1, 0, 0)", to: "matrix(0.5, 0.5, -0.5, 0.5, 2000, 0)" }),
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBeUndefined();
@@ -351,7 +361,8 @@ describe("decideCull — translate+scale affine", () => {
       // Old behavior treated `-100%` as 0 → static check → hid an off-viewBox
       // element that the percent translate may move into view.
       const d = decideCull({ x: 900, y: 100, w: 100, h: 100 }, VW, VH, {
-        ...win, anim: anim({ from: "translate(0%)", to: "translate(-100%)" }),
+        ...win,
+        anim: anim({ from: "translate(0%)", to: "translate(-100%)" }),
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBeUndefined();
@@ -367,13 +378,15 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 100, y: 650, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({
-          property: "opacity", from: "0", to: "1",
+          property: "opacity",
+          from: "0",
+          to: "1",
           fuse: [{ property: "translateY", from: "0px", to: "-200px" }],
         }),
       });
       expect(d.alwaysHidden).toBe(false);
-      expect(d.visStartPct).toBe(25);   // off at `from` (y 650) → hidden before
-      expect(d.visEndPct).toBe(100);    // at `to` y' = 450 → visible after
+      expect(d.visStartPct).toBe(25); // off at `from` (y 650) → hidden before
+      expect(d.visEndPct).toBe(100); // at `to` y' = 450 → visible after
     });
 
     it("fused transform track with its own timing: sweeps its own global window", () => {
@@ -382,7 +395,9 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({
-          property: "opacity", from: "1", to: "0",
+          property: "opacity",
+          from: "1",
+          to: "0",
           fuse: [{ property: "translateY", from: "0px", to: "1000px", duration: 500 }],
         }),
       });
@@ -419,7 +434,8 @@ describe("decideCull — translate+scale affine", () => {
   describe("pure-translate regression through the affine parser", () => {
     it("transform list `translateX(…) translateY(…)` composes to the same window as before", () => {
       const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
-        ...win, anim: anim({ from: "translateX(0px) translateY(-1000px)", to: "translateX(0px) translateY(0px)" }),
+        ...win,
+        anim: anim({ from: "translateX(0px) translateY(-1000px)", to: "translateX(0px) translateY(0px)" }),
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(25);
@@ -428,7 +444,8 @@ describe("decideCull — translate+scale affine", () => {
 
     it("`none` endpoint with a translate endpoint still parses (identity affine)", () => {
       const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
-        ...win, anim: anim({ from: "none", to: "translate(0px, 1000px)" }),
+        ...win,
+        anim: anim({ from: "none", to: "translate(0px, 1000px)" }),
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(0);
@@ -445,17 +462,23 @@ describe("cullElementsOutsideViewBox — transform-origin threading through the 
     // .5 the child remains x=310..320. The retired carrier proxy used origin
     // (400,200) and incorrectly moved it to x=350..360 (outside width 330).
     const anim: IntraFrameAnimation = {
-      animId: "glide", property: "transform",
-      from: "scale(1)", to: "scale(0.5)",
+      animId: "glide",
+      property: "transform",
+      from: "scale(1)",
+      to: "scale(0.5)",
       transformOrigin: "100% 100%",
-      duration: 1000, easing: "linear",
+      duration: 1000,
+      easing: "linear",
     };
     const tree: CapturedElement = el({
-      x: 0, y: 0, width: 400, height: 200, tag: "div", animId: "glide",
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
+      tag: "div",
+      animId: "glide",
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
-      children: [
-        el({ x: 300, y: 100, width: 20, height: 20, tag: "div" }),
-      ],
+      children: [el({ x: 300, y: 100, width: 20, height: 20, tag: "div" })],
     });
     // frameStart 1000, totalDur 4000 → animStart 25%, animEnd 50%.
     const { css } = cullElementsOutsideViewBox(tree, 330, 200, [anim], 1000, 4000);
@@ -487,28 +510,39 @@ describe("cullElementsOutsideViewBox — transform-origin threading through the 
     // fill-box starts at x=375 (the outline centerline) while stroke-box
     // starts at x=350 (outer stroke ink). Reflecting about fill-left stays
     // offscreen (x=280..400); stroke-left reaches x=230 and must be retained.
-    const outlined = (animId: string): CapturedElement => el({
-      x: 400,
-      y: 100,
-      width: 20,
-      height: 20,
-      animId,
-      styles: {
-        backgroundColor: "rgb(0, 0, 0)",
-        outlineStyle: "solid",
-        outlineWidth: "50px",
-        outlineOffset: "0px",
-        outlineColor: "rgb(0, 0, 0)",
-      } as CapturedElement["styles"],
-    });
+    const outlined = (animId: string): CapturedElement =>
+      el({
+        x: 400,
+        y: 100,
+        width: 20,
+        height: 20,
+        animId,
+        styles: {
+          backgroundColor: "rgb(0, 0, 0)",
+          outlineStyle: "solid",
+          outlineWidth: "50px",
+          outlineOffset: "0px",
+          outlineColor: "rgb(0, 0, 0)",
+        } as CapturedElement["styles"],
+      });
     const fill = outlined("fill");
     const stroke = outlined("stroke");
-    cullElementsOutsideViewBox(fill, 250, 220, [
-      animation("fill", "fill-box", "scaleX(1)", "scaleX(-1)", "left top"),
-    ], 0, 1000);
-    cullElementsOutsideViewBox(stroke, 250, 220, [
-      animation("stroke", "stroke-box", "scaleX(1)", "scaleX(-1)", "left top"),
-    ], 0, 1000);
+    cullElementsOutsideViewBox(
+      fill,
+      250,
+      220,
+      [animation("fill", "fill-box", "scaleX(1)", "scaleX(-1)", "left top")],
+      0,
+      1000,
+    );
+    cullElementsOutsideViewBox(
+      stroke,
+      250,
+      220,
+      [animation("stroke", "stroke-box", "scaleX(1)", "scaleX(-1)", "left top")],
+      0,
+      1000,
+    );
     expect(fill.displayNone).toBe(true);
     expect(stroke.displayNone).toBeFalsy();
 
@@ -517,12 +551,22 @@ describe("cullElementsOutsideViewBox — transform-origin threading through the 
     // and moves it to x=170, so view-box must retain it.
     const fillPlain = el({ x: 340, y: 40, width: 20, height: 20, animId: "fill-plain" });
     const viewPlain = el({ x: 340, y: 40, width: 20, height: 20, animId: "view-plain" });
-    cullElementsOutsideViewBox(fillPlain, 330, 200, [
-      animation("fill-plain", "fill-box", "scale(1)", "scale(.5)", "left top"),
-    ], 0, 1000);
-    cullElementsOutsideViewBox(viewPlain, 330, 200, [
-      animation("view-plain", "view-box", "scale(1)", "scale(.5)", "left top"),
-    ], 0, 1000);
+    cullElementsOutsideViewBox(
+      fillPlain,
+      330,
+      200,
+      [animation("fill-plain", "fill-box", "scale(1)", "scale(.5)", "left top")],
+      0,
+      1000,
+    );
+    cullElementsOutsideViewBox(
+      viewPlain,
+      330,
+      200,
+      [animation("view-plain", "view-box", "scale(1)", "scale(.5)", "left top")],
+      0,
+      1000,
+    );
     expect(fillPlain.displayNone).toBe(true);
     expect(viewPlain.displayNone).toBeFalsy();
   });
@@ -530,16 +574,25 @@ describe("cullElementsOutsideViewBox — transform-origin threading through the 
   it("resolves keyword, percentage, and px origins inside the selected box", () => {
     const run = (animId: string, transformOrigin: string): CapturedElement => {
       const target = el({ x: 340, y: 40, width: 20, height: 20, animId });
-      cullElementsOutsideViewBox(target, 330, 200, [{
-        animId,
-        property: "transform",
-        from: "scale(1)",
-        to: "scale(.5)",
-        transformOrigin,
-        transformBox: "fill-box",
-        duration: 1000,
-        easing: "linear",
-      }], 0, 1000);
+      cullElementsOutsideViewBox(
+        target,
+        330,
+        200,
+        [
+          {
+            animId,
+            property: "transform",
+            from: "scale(1)",
+            to: "scale(.5)",
+            transformOrigin,
+            transformBox: "fill-box",
+            duration: 1000,
+            easing: "linear",
+          },
+        ],
+        0,
+        1000,
+      );
       return target;
     };
     expect(run("keyword", "left top").displayNone).toBe(true);
@@ -560,16 +613,25 @@ describe("cullElementsOutsideViewBox — transform-origin threading through the 
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
       children: [subject, offscreenExtent],
     });
-    cullElementsOutsideViewBox(owner, 330, 200, [{
-      animId: "scale-owner",
-      property: "scale",
-      from: "1",
-      to: ".5",
-      transformOrigin: "right top",
-      transformBox: "fill-box",
-      duration: 1000,
-      easing: "linear",
-    }], 0, 2000);
+    cullElementsOutsideViewBox(
+      owner,
+      330,
+      200,
+      [
+        {
+          animId: "scale-owner",
+          property: "scale",
+          from: "1",
+          to: ".5",
+          transformOrigin: "right top",
+          transformBox: "fill-box",
+          duration: 1000,
+          easing: "linear",
+        },
+      ],
+      0,
+      2000,
+    );
 
     // Removing x=900..920 would move fill-right from 920 to 320. The subject
     // would then paint at 310..320 after the animation even though the culler
@@ -588,16 +650,25 @@ describe("cullElementsOutsideViewBox — transform-origin threading through the 
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
       children: [viewSubject, viewOffscreen],
     });
-    cullElementsOutsideViewBox(viewOwner, 330, 200, [{
-      animId: "view-owner",
-      property: "scale",
-      from: "1",
-      to: ".5",
-      transformOrigin: "right top",
-      transformBox: "view-box",
-      duration: 1000,
-      easing: "linear",
-    }], 0, 2000);
+    cullElementsOutsideViewBox(
+      viewOwner,
+      330,
+      200,
+      [
+        {
+          animId: "view-owner",
+          property: "scale",
+          from: "1",
+          to: ".5",
+          transformOrigin: "right top",
+          transformBox: "view-box",
+          duration: 1000,
+          easing: "linear",
+        },
+      ],
+      0,
+      2000,
+    );
     // The viewport reference is invariant under descendant suppression, so
     // this negative control keeps the independent child-cull optimization.
     expect(viewOffscreen.displayNone).toBe(true);
@@ -668,19 +739,31 @@ describe("cullElementsOutsideViewBox — renderer-owned visual surface", () => {
 
   it("uses an exact replaced raster surface instead of its HTML carrier", () => {
     const visibleRaster = el({
-      x: 900, y: 20, width: 300, height: 150,
+      x: 900,
+      y: 20,
+      width: 300,
+      height: 150,
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
       replacedSnapshot: {
-        x: 780, y: 20, width: 40, height: 30,
+        x: 780,
+        y: 20,
+        width: 40,
+        height: 30,
         rid: "visible",
         dataUri: "data:image/png;base64,AA==",
       },
     });
     const hiddenRaster = el({
-      x: 20, y: 20, width: 30, height: 30,
+      x: 20,
+      y: 20,
+      width: 30,
+      height: 30,
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
       replacedSnapshot: {
-        x: 900, y: 20, width: 40, height: 30,
+        x: 900,
+        y: 20,
+        width: 40,
+        height: 30,
         rid: "hidden",
         dataUri: "data:image/png;base64,AA==",
       },
@@ -716,20 +799,32 @@ describe("cullElementsOutsideViewBox — renderer-owned visual surface", () => {
   it("never culls unknown, empty, singular, or split-raster facts", () => {
     const unknownText = el({ x: 900, y: 20, width: 30, height: 20, text: "ink" });
     const empty = el({
-      x: 900, y: 50, width: 30, height: 20,
+      x: 900,
+      y: 50,
+      width: 30,
+      height: 20,
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
     });
     const singular = el({
-      x: 900, y: 80, width: 30, height: 20,
+      x: 900,
+      y: 80,
+      width: 30,
+      height: 20,
       styles: {
         backgroundColor: "red",
         transform: "matrix(0, 0, 0, 1, 0, 0)",
       } as CapturedElement["styles"],
     });
     const backdrop = el({
-      x: 900, y: 110, width: 30, height: 20,
+      x: 900,
+      y: 110,
+      width: 30,
+      height: 20,
       backdropFilterRaster: {
-        x: 900, y: 110, width: 30, height: 20,
+        x: 900,
+        y: 110,
+        width: 30,
+        height: 20,
         dataUri: "data:image/png;base64,AA==",
       },
     });
@@ -750,14 +845,23 @@ describe("cullElementsOutsideViewBox — renderer-owned visual surface", () => {
       animId: "control",
       styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
     });
-    cullElementsOutsideViewBox(control, VW, VH, [{
-      animId: "control",
-      property: "scale",
-      from: "1",
-      to: "1",
-      duration: 1000,
-      transformOrigin: "center",
-    }], 0, 1000);
+    cullElementsOutsideViewBox(
+      control,
+      VW,
+      VH,
+      [
+        {
+          animId: "control",
+          property: "scale",
+          from: "1",
+          to: "1",
+          duration: 1000,
+          transformOrigin: "center",
+        },
+      ],
+      0,
+      1000,
+    );
     expect(control.displayNone).toBeFalsy();
     expect(control.cullClass).toBeUndefined();
   });
@@ -766,11 +870,15 @@ describe("cullElementsOutsideViewBox — renderer-owned visual surface", () => {
 describe("cullElementsOutsideViewBox — tree walk", () => {
   it("hides off-viewBox static elements and recurses into in-viewBox parents", () => {
     const tree: CapturedElement = el({
-      x: 0, y: 0, width: 800, height: 600, tag: "body",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+      tag: "body",
       children: [
-        el({ x: 100, y: 100, width: 100, height: 100, tag: "div" }),         // visible
-        el({ x: 100, y: 700, width: 100, height: 100, tag: "div" }),         // below viewBox
-        el({ x: 1000, y: 100, width: 100, height: 100, tag: "div" }),        // right of viewBox
+        el({ x: 100, y: 100, width: 100, height: 100, tag: "div" }), // visible
+        el({ x: 100, y: 700, width: 100, height: 100, tag: "div" }), // below viewBox
+        el({ x: 1000, y: 100, width: 100, height: 100, tag: "div" }), // right of viewBox
       ],
     });
     const { css } = cullElementsOutsideViewBox(tree, VW, VH, undefined, 0, 1000);
@@ -787,15 +895,23 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     // both inside at `to` (animation moves them all into view). They share the
     // same visible window so they should share a single cull class.
     const anim: IntraFrameAnimation = {
-      animId: "scroll", property: "translateY",
-      from: "-2000px", to: "0px",
-      duration: 1000, easing: "linear",
+      animId: "scroll",
+      property: "translateY",
+      from: "-2000px",
+      to: "0px",
+      duration: 1000,
+      easing: "linear",
     };
     const tree: CapturedElement = el({
-      x: 0, y: 0, width: 800, height: 4000, tag: "body", animId: "scroll",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 4000,
+      tag: "body",
+      animId: "scroll",
       children: [
-        el({ x: 100, y: 1800, width: 100, height: 50, tag: "div" }),  // static off; under translateY enters
-        el({ x: 100, y: 1900, width: 100, height: 50, tag: "div" }),  // same
+        el({ x: 100, y: 1800, width: 100, height: 50, tag: "div" }), // static off; under translateY enters
+        el({ x: 100, y: 1900, width: 100, height: 50, tag: "div" }), // same
       ],
     });
     // frameStart 0, totalDur 2000 → animStart=0, animEnd=50%.
@@ -831,14 +947,22 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
   it("element fully outside viewBox under an animation that never reaches it: alwaysHidden", () => {
     // A child whose static bbox + any animation transform never intersects.
     const anim: IntraFrameAnimation = {
-      animId: "scroll", property: "translateY",
-      from: "0px", to: "10px",                 // tiny move
-      duration: 1000, easing: "linear",
+      animId: "scroll",
+      property: "translateY",
+      from: "0px",
+      to: "10px", // tiny move
+      duration: 1000,
+      easing: "linear",
     };
     const tree: CapturedElement = el({
-      x: 0, y: 0, width: 800, height: 4000, tag: "body", animId: "scroll",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 4000,
+      tag: "body",
+      animId: "scroll",
       children: [
-        el({ x: 100, y: 2000, width: 100, height: 50, tag: "div" }),  // static at y=2000, far below 600
+        el({ x: 100, y: 2000, width: 100, height: 50, tag: "div" }), // static at y=2000, far below 600
       ],
     });
     const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 2000);
@@ -855,7 +979,11 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     // fix, the bottom-up walk culled the body and skipped recursion,
     // hiding the whole subtree → seg renders white.
     const tree: CapturedElement = el({
-      x: 0, y: -844, width: 390, height: 844, tag: "body",
+      x: 0,
+      y: -844,
+      width: 390,
+      height: 844,
+      tag: "body",
       children: [
         el({ x: 0, y: 100, width: 390, height: 200, tag: "div", text: "headline" }),
         el({ x: 0, y: 400, width: 390, height: 100, tag: "p", text: "body copy" }),
@@ -871,10 +999,14 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     // Same shape as above but with children also outside viewBox. Now it
     // IS safe to mark the parent displayNone (and every descendant too).
     const tree: CapturedElement = el({
-      x: 0, y: -844, width: 390, height: 844, tag: "body",
+      x: 0,
+      y: -844,
+      width: 390,
+      height: 844,
+      tag: "body",
       children: [
-        el({ x: 0, y: -800, width: 390, height: 100, tag: "div" }),     // above viewBox
-        el({ x: 0, y: -700, width: 390, height: 200, tag: "p" }),       // above viewBox
+        el({ x: 0, y: -800, width: 390, height: 100, tag: "div" }), // above viewBox
+        el({ x: 0, y: -700, width: 390, height: 200, tag: "p" }), // above viewBox
       ],
     });
     cullElementsOutsideViewBox(tree, 390, 844, undefined, 0, 1000);
@@ -889,18 +1021,30 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     // x=200 paints at x=80..100. Nearest-animation replacement emitted a
     // 40..60% window and hid that valid 70% state.
     const parentAnim: IntraFrameAnimation = {
-      animId: "outer", property: "translateX", from: "0px", to: "400px",
-      duration: 1000, easing: "linear",
+      animId: "outer",
+      property: "translateX",
+      from: "0px",
+      to: "400px",
+      duration: 1000,
+      easing: "linear",
     };
     const childAnim: IntraFrameAnimation = {
-      animId: "inner", property: "translateX", from: "0px", to: "-400px",
-      duration: 200, easing: "linear", delay: 400,
+      animId: "inner",
+      property: "translateX",
+      from: "0px",
+      to: "-400px",
+      duration: 200,
+      easing: "linear",
+      delay: 400,
     };
     const tree: CapturedElement = el({
-      x: 200, y: 0, width: 20, height: 20, tag: "div", animId: "outer",
-      children: [
-        el({ x: 200, y: 10, width: 20, height: 20, tag: "div", animId: "inner" }),
-      ],
+      x: 200,
+      y: 0,
+      width: 20,
+      height: 20,
+      tag: "div",
+      animId: "outer",
+      children: [el({ x: 200, y: 10, width: 20, height: 20, tag: "div", animId: "inner" })],
     });
     const { css } = cullElementsOutsideViewBox(tree, 100, VH, [parentAnim, childAnim], 0, 1000);
     expect(tree.children![0].displayNone).toBeFalsy();
@@ -927,22 +1071,42 @@ describe("cullElementsOutsideViewBox — multi-frame scene composition", () => {
 
   // Frame A shape: element visible at `from`, animated out of the viewBox
   // during frame A → exit window [0%, animEnd].
-  const exitTree = () => el({
-    x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "out",
-  });
+  const exitTree = () =>
+    el({
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 100,
+      tag: "div",
+      animId: "out",
+    });
   const exitAnim: IntraFrameAnimation = {
-    animId: "out", property: "translateY", from: "0px", to: "1000px",
-    duration: 1000, easing: "linear",
+    animId: "out",
+    property: "translateY",
+    from: "0px",
+    to: "1000px",
+    duration: 1000,
+    easing: "linear",
   };
 
   // Frame B shape: element off-viewBox at `from`, animated into the viewBox
   // during frame B → enter window [animStart, 100%].
-  const enterTree = () => el({
-    x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "in",
-  });
+  const enterTree = () =>
+    el({
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 100,
+      tag: "div",
+      animId: "in",
+    });
   const enterAnim: IntraFrameAnimation = {
-    animId: "in", property: "translateY", from: "-1000px", to: "0px",
-    duration: 1000, easing: "linear",
+    animId: "in",
+    property: "translateY",
+    from: "-1000px",
+    to: "0px",
+    duration: 1000,
+    easing: "linear",
   };
 
   it("frames with different windows get distinct class names and non-conflicting keyframes", () => {
@@ -1002,11 +1166,21 @@ describe("cullElementsOutsideViewBox — multi-frame scene composition", () => {
 describe("cullElementsOutsideViewBox — keyframes structure", () => {
   it("keyframes use step-end timing and var(--scene-dur)", () => {
     const anim: IntraFrameAnimation = {
-      animId: "a", property: "translateY", from: "-1000px", to: "0px",
-      duration: 500, easing: "linear", delay: 300,   // hold at off-screen `from` for 300 ms
+      animId: "a",
+      property: "translateY",
+      from: "-1000px",
+      to: "0px",
+      duration: 500,
+      easing: "linear",
+      delay: 300, // hold at off-screen `from` for 300 ms
     };
     const tree: CapturedElement = el({
-      x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "a",
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 100,
+      tag: "div",
+      animId: "a",
     });
     const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 1000);
     // DM-1454: step-end lives INSIDE the `animation:` shorthand (not a separate

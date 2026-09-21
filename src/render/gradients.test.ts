@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLegacyWebkitGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
-import { buildLinearGradientDef as buildBackgroundLinearGradientDef, buildRadialGradientDef as buildBackgroundRadialGradientDef, normalizeRadialGradientDomain } from "./gradient-defs.js";
+import {
+  buildLinearGradientDef,
+  buildRadialGradientDef,
+  parseConicGradient,
+  parseGradient,
+  parseLegacyWebkitGradient,
+  parseLinearGradient,
+  parseRadialGradient,
+} from "./gradients.js";
+import {
+  buildLinearGradientDef as buildBackgroundLinearGradientDef,
+  buildRadialGradientDef as buildBackgroundRadialGradientDef,
+  normalizeRadialGradientDomain,
+} from "./gradient-defs.js";
 
 describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
   it("vertical top-to-bottom from()/to() form (slashdot mobile header)", () => {
     // Slashdot's mobile header background, as Chromium serializes it.
-    const g = parseGradient(
-      "-webkit-gradient(linear, 0% 0%, 0% 100%, from(rgb(0, 0, 0)), to(rgb(32, 32, 32)))",
-    );
+    const g = parseGradient("-webkit-gradient(linear, 0% 0%, 0% 100%, from(rgb(0, 0, 0)), to(rgb(32, 32, 32)))");
     expect(g).not.toBeNull();
     expect(g!.kind).toBe("linear");
     const lg = g as { kind: "linear"; angleDeg: number; stops: Array<{ color: string; offset?: number }> };
@@ -20,18 +30,14 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
   });
 
   it("horizontal with side keyword endpoints", () => {
-    const g = parseGradient(
-      "-webkit-gradient(linear, left top, right top, from(red), to(blue))",
-    );
+    const g = parseGradient("-webkit-gradient(linear, left top, right top, from(red), to(blue))");
     expect(g).not.toBeNull();
     expect(g!.kind).toBe("linear");
     expect((g as { angleDeg: number }).angleDeg).toBe(90);
   });
 
   it("intermediate color-stop() entries pass through", () => {
-    const g = parseGradient(
-      "-webkit-gradient(linear, 0% 0%, 0% 100%, from(red), color-stop(0.5, green), to(blue))",
-    );
+    const g = parseGradient("-webkit-gradient(linear, 0% 0%, 0% 100%, from(red), color-stop(0.5, green), to(blue))");
     expect(g).not.toBeNull();
     const lg = g as { kind: "linear"; stops: Array<{ color: string; offset?: number }> };
     expect(lg.stops).toHaveLength(3);
@@ -45,22 +51,29 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     expect(g).not.toBeNull();
     expect(g!.kind).toBe("linear");
     expect((g as { angleDeg: number }).angleDeg).toBe(135);
-    expect(buildLinearGradientDef(g as any, "legacy", { x: 10, y: 20, w: 200, h: 80 }))
-      .toContain('x1="10" y1="20" x2="210" y2="100"');
+    expect(buildLinearGradientDef(g as any, "legacy", { x: 10, y: 20, w: 200, h: 80 })).toContain(
+      'x1="10" y1="20" x2="210" y2="100"',
+    );
   });
 
   it("preserves arbitrary percentage and unitless endpoints instead of applying magic-corner geometry", () => {
-    const percent = parseGradient("-webkit-gradient(linear, 10% 25%, 80% 75%, from(red), color-stop(75%, lime), to(blue))")!;
-    expect(buildLinearGradientDef(percent as any, "p", { x: 5, y: 7, w: 300, h: 120 }))
-      .toContain('x1="35" y1="37" x2="245" y2="97"');
+    const percent = parseGradient(
+      "-webkit-gradient(linear, 10% 25%, 80% 75%, from(red), color-stop(75%, lime), to(blue))",
+    )!;
+    expect(buildLinearGradientDef(percent as any, "p", { x: 5, y: 7, w: 300, h: 120 })).toContain(
+      'x1="35" y1="37" x2="245" y2="97"',
+    );
     const numbers = parseGradient("-webkit-gradient(linear, 12 8, 112 48, from(red), to(blue))")!;
-    expect(buildLinearGradientDef(numbers as any, "q", { x: 20, y: 30, w: 400, h: 200 }))
-      .toContain('x1="32" y1="38" x2="132" y2="78"');
+    expect(buildLinearGradientDef(numbers as any, "q", { x: 20, y: 30, w: 400, h: 200 })).toContain(
+      'x1="32" y1="38" x2="132" y2="78"',
+    );
     expect(parseGradient("-webkit-gradient(linear, 12px 8px, 112px 48px, from(red), to(blue))")).toBeNull();
   });
 
   it("stable-sorts deprecated stops as Blink does", () => {
-    const g = parseGradient("-webkit-gradient(linear, left top, right bottom, color-stop(.8, blue), from(red), color-stop(.2, green))")!;
+    const g = parseGradient(
+      "-webkit-gradient(linear, left top, right bottom, color-stop(.8, blue), from(red), color-stop(.2, green))",
+    )!;
     expect(g.stops.map((stop) => stop.color)).toEqual(["red", "green", "blue"]);
   });
 
@@ -72,8 +85,9 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
   it("preserves Blink's degenerate endpoint record instead of substituting modern geometry", () => {
     const g = parseGradient("-webkit-gradient(linear, 50% 50%, 50% 50%, from(red), to(blue))");
     expect(g?.kind).toBe("linear");
-    expect(buildLinearGradientDef(g as any, "degenerate", { x: 10, y: 20, w: 200, h: 80 }))
-      .toContain('x1="110" y1="60" x2="110" y2="60"');
+    expect(buildLinearGradientDef(g as any, "degenerate", { x: 10, y: 20, w: 200, h: 80 })).toContain(
+      'x1="110" y1="60" x2="110" y2="60"',
+    );
   });
 
   it("uses the axis-specific legacy keyword grammar", () => {
@@ -84,17 +98,30 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
   });
 
   it("stable-sorts before Skia's terminal clamp for negative and out-of-range stops", () => {
-    const g = parseGradient("-webkit-gradient(linear, left top, right bottom, color-stop(1.2, yellow), to(blue), color-stop(-.2, green), from(red))")!;
+    const g = parseGradient(
+      "-webkit-gradient(linear, left top, right bottom, color-stop(1.2, yellow), to(blue), color-stop(-.2, green), from(red))",
+    )!;
     expect(g.stops.map((stop) => [stop.color, stop.offset])).toEqual([
-      ["green", -0.2], ["red", 0], ["blue", 1], ["yellow", 1.2],
+      ["green", -0.2],
+      ["red", 0],
+      ["blue", 1],
+      ["yellow", 1.2],
     ]);
     const svg = buildLinearGradientDef(g as any, "clamped", { x: 0, y: 0, w: 200, h: 80 });
-    expect([...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]))
-      .toEqual([[0, "green"], [0, "red"], [1, "blue"], [1, "yellow"]]);
+    expect(
+      [...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]),
+    ).toEqual([
+      [0, "green"],
+      [0, "red"],
+      [1, "blue"],
+      [1, "yellow"],
+    ]);
   });
 
   it("parses two-circle radial geometry without modern radial normalization", () => {
-    const g = parseLegacyWebkitGradient("-webkit-gradient(radial, 10% 25%, 5, 80% 75%, 40, from(red), color-stop(.5, lime), to(blue))")!;
+    const g = parseLegacyWebkitGradient(
+      "-webkit-gradient(radial, 10% 25%, 5, 80% 75%, 40, from(red), color-stop(.5, lime), to(blue))",
+    )!;
     expect(g.kind).toBe("radial");
     const svg = buildRadialGradientDef(g as any, "legacy-r", { x: 5, y: 7, w: 300, h: 120 });
     expect(svg).toContain('fx="35" fy="37" fr="5" cx="245" cy="97" r="40"');
@@ -102,11 +129,18 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
   });
 
   it("reverses shrinking two-circle radial geometry into SVG's fr <= r domain", () => {
-    const g = parseLegacyWebkitGradient("-webkit-gradient(radial, 80% 75%, 40, 10% 25%, 5, from(red), color-stop(.25, lime), to(blue))")!;
+    const g = parseLegacyWebkitGradient(
+      "-webkit-gradient(radial, 80% 75%, 40, 10% 25%, 5, from(red), color-stop(.25, lime), to(blue))",
+    )!;
     const svg = buildRadialGradientDef(g as any, "legacy-shrink", { x: 5, y: 7, w: 300, h: 120 });
     expect(svg).toContain('fx="35" fy="37" fr="5" cx="245" cy="97" r="40"');
-    expect([...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]))
-      .toEqual([[0, "blue"], [0.75, "lime"], [1, "red"]]);
+    expect(
+      [...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]),
+    ).toEqual([
+      [0, "blue"],
+      [0.75, "lime"],
+      [1, "red"],
+    ]);
   });
 
   it("accepts Blink's zero- and one-stop deprecated forms", () => {
@@ -166,8 +200,7 @@ describe("parseGradient: calc(N% ± Mpx) stop positions", () => {
 
 describe("radial gradient length boundary (DM-2194)", () => {
   it("accepts computed px radii and rejects unresolved font-relative radii", () => {
-    expect(parseRadialGradient("radial-gradient(circle 24px, red, blue)")?.size)
-      .toEqual({ kind: "px", r1: 24 });
+    expect(parseRadialGradient("radial-gradient(circle 24px, red, blue)")?.size).toEqual({ kind: "px", r1: 24 });
     expect(parseRadialGradient("radial-gradient(circle 2em, red, blue)")).toBeNull();
   });
 });
@@ -179,7 +212,7 @@ describe("radial gradient percentage ellipse sizing (DM-2649)", () => {
     expect(background).toContain('cx="0"');
     expect(background).toContain('cy="0"');
     expect(background).toContain('r="1200"');
-    expect(background).toContain('scale(1 0.65)');
+    expect(background).toContain("scale(1 0.65)");
 
     const parsed = parseRadialGradient(`radial-gradient(${args})`);
     expect(parsed?.size).toEqual({
@@ -187,14 +220,14 @@ describe("radial gradient percentage ellipse sizing (DM-2649)", () => {
       x: { kind: "frac", value: 1.2 },
       y: { kind: "frac", value: 1.3 },
     });
-    expect(buildRadialGradientDef(parsed!, "control", { x: 0, y: 0, w: 1000, h: 600 }))
-      .toContain('scale(1 0.65)');
+    expect(buildRadialGradientDef(parsed!, "control", { x: 0, y: 0, w: 1000, h: 600 })).toContain("scale(1 0.65)");
   });
 
   it("supports mixed length/percentage ellipse axes", () => {
     const g = parseRadialGradient("radial-gradient(120px 80% at center, red, blue)")!;
-    expect(buildRadialGradientDef(g, "mixed", { x: 0, y: 0, w: 300, h: 200 }))
-      .toContain('r="120" gradientTransform="translate(150 100) scale(1 1.333)');
+    expect(buildRadialGradientDef(g, "mixed", { x: 0, y: 0, w: 300, h: 200 })).toContain(
+      'r="120" gradientTransform="translate(150 100) scale(1 1.333)',
+    );
   });
 
   it("rejects the invalid one-percentage circle form", () => {
@@ -207,8 +240,13 @@ describe("radial gradient percentage ellipse sizing (DM-2649)", () => {
 describe("repeating radial gradient period geometry (DM-2290)", () => {
   it("makes the 20px CSS period the SVG radial vector instead of padding the ending color", () => {
     const svg = buildBackgroundRadialGradientDef(
-      "g", "circle at center, #0ea5e9 0 10px, #bae6fd 10px 20px", true,
-      0, 0, 288, 120,
+      "g",
+      "circle at center, #0ea5e9 0 10px, #bae6fd 10px 20px",
+      true,
+      0,
+      0,
+      288,
+      120,
     );
     expect(svg).toContain('r="20"');
     expect(svg).toContain('spreadMethod="repeat"');
@@ -218,8 +256,13 @@ describe("repeating radial gradient period geometry (DM-2290)", () => {
 
   it("resolves percentage stops against the computed x radius in a non-square box", () => {
     const svg = buildBackgroundRadialGradientDef(
-      "g", "circle 100px at 25% 75%, red 0%, blue 20%", true,
-      10, 20, 200, 80,
+      "g",
+      "circle 100px at 25% 75%, red 0%, blue 20%",
+      true,
+      10,
+      20,
+      200,
+      80,
     );
     expect(svg).toContain('cx="60"');
     expect(svg).toContain('cy="80"');
@@ -228,8 +271,13 @@ describe("repeating radial gradient period geometry (DM-2290)", () => {
 
   it("uses SVG's focal radius for a positive first stop so inward repetition keeps its phase", () => {
     const svg = buildBackgroundRadialGradientDef(
-      "g", "circle 100px at 30% 40%, red 10px, blue 30px", true,
-      0, 0, 200, 100,
+      "g",
+      "circle 100px at 30% 40%, red 10px, blue 30px",
+      true,
+      0,
+      0,
+      200,
+      100,
     );
     expect(svg).toContain('fr="10"');
     expect(svg).toContain('r="30"');
@@ -239,22 +287,16 @@ describe("repeating radial gradient period geometry (DM-2290)", () => {
   });
 
   it("collapses a coincident period to the final solid color", () => {
-    const svg = buildBackgroundRadialGradientDef(
-      "g", "circle 100px, red 10px, blue 10px", true,
-      0, 0, 200, 100,
-    );
+    const svg = buildBackgroundRadialGradientDef("g", "circle 100px, red 10px, blue 10px", true, 0, 0, 200, 100);
     expect(svg).not.toContain("spreadMethod");
-    expect((svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? [])).toHaveLength(2);
+    expect(svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? []).toHaveLength(2);
     expect(svg).not.toContain("rgb(255,0,0)");
   });
 
   it("also collapses a period below SVG serialization precision", () => {
-    const svg = buildBackgroundRadialGradientDef(
-      "g", "circle 100px, red 10px, blue 10.000001px", true,
-      0, 0, 200, 100,
-    );
+    const svg = buildBackgroundRadialGradientDef("g", "circle 100px, red 10px, blue 10.000001px", true, 0, 0, 200, 100);
     expect(svg).not.toContain("spreadMethod");
-    expect((svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? [])).toHaveLength(2);
+    expect(svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? []).toHaveLength(2);
   });
 });
 
@@ -268,9 +310,7 @@ describe("radial gradient negative-domain normalization (DM-2326)", () => {
   });
 
   it("emits the shifted radii through the production SVG builder", () => {
-    const svg = buildBackgroundRadialGradientDef(
-      "g", "circle 100px, red -30px, blue -10px", true, 0, 0, 200, 200,
-    );
+    const svg = buildBackgroundRadialGradientDef("g", "circle 100px, red -30px, blue -10px", true, 0, 0, 200, 200);
     expect(svg).toContain('fr="10"');
     expect(svg).toContain('r="30"');
     expect(svg).toContain('spreadMethod="repeat"');
@@ -290,7 +330,13 @@ describe("radial gradient negative-domain normalization (DM-2326)", () => {
 
   it("emits the contracted non-repeating radius and boundary color", () => {
     const svg = buildBackgroundRadialGradientDef(
-      "g", "circle 100px, rgb(255, 0, 0) -20px, rgb(0, 0, 255) 80px", false, 0, 0, 200, 200,
+      "g",
+      "circle 100px, rgb(255, 0, 0) -20px, rgb(0, 0, 255) 80px",
+      false,
+      0,
+      0,
+      200,
+      200,
     );
     expect(svg).toContain('r="80"');
     expect(svg).toContain('stop-color="rgb(204,0,51)"');
@@ -316,9 +362,7 @@ describe("radial gradient negative-domain normalization (DM-2326)", () => {
 
 describe("background gradient computed-length boundary (DM-2194)", () => {
   it("resolves preserved percentages and px inside calc against the gradient line", () => {
-    const svg = buildBackgroundLinearGradientDef(
-      "g", "90deg, red calc(25% + 10px), blue 100%", false, 200, 40,
-    );
+    const svg = buildBackgroundLinearGradientDef("g", "90deg, red calc(25% + 10px), blue 100%", false, 200, 40);
     expect(svg).toContain('offset="0.3"');
   });
 
@@ -334,9 +378,7 @@ describe("background gradient magic corners (DM-2297)", () => {
     // 90 - atan2(width, height), then EndPointsFromAngle projects the two
     // magic-corner endpoints. A direct atan2(width,height) vector would emit
     // (0,100)→(300,0) here and is the historical Domotion bug.
-    const svg = buildBackgroundLinearGradientDef(
-      "g", "to top right, red, blue", false, 300, 100,
-    );
+    const svg = buildBackgroundLinearGradientDef("g", "to top right, red, blue", false, 300, 100);
     expect(svg).toContain('x1="120"');
     expect(svg).toContain('y1="140"');
     expect(svg).toContain('x2="180"');
@@ -344,9 +386,7 @@ describe("background gradient magic corners (DM-2297)", () => {
   });
 
   it("mirrors the same source rule into the opposite corner", () => {
-    const svg = buildBackgroundLinearGradientDef(
-      "g", "to bottom left, red, blue", false, 300, 100, 10, 20,
-    );
+    const svg = buildBackgroundLinearGradientDef("g", "to bottom left, red, blue", false, 300, 100, 10, 20);
     expect(svg).toContain('x1="190"');
     expect(svg).toContain('y1="-20"');
     expect(svg).toContain('x2="130"');
@@ -375,17 +415,29 @@ describe("buildLinearGradientDef: repeating domains", () => {
   });
 
   it("expands an over-line period and collapses coincident stops", () => {
-    const over = buildLinearGradientDef(parseLinearGradient("repeating-linear-gradient(90deg, red 0, blue 240px)")!, "over", { x: 0, y: 0, w: 100, h: 10 });
+    const over = buildLinearGradientDef(
+      parseLinearGradient("repeating-linear-gradient(90deg, red 0, blue 240px)")!,
+      "over",
+      { x: 0, y: 0, w: 100, h: 10 },
+    );
     expect(over).toContain('x2="240"');
     expect(over).toContain('spreadMethod="repeat"');
 
-    const solid = buildLinearGradientDef(parseLinearGradient("repeating-linear-gradient(90deg, red 8px, blue 8px)")!, "solid", { x: 0, y: 0, w: 100, h: 10 });
+    const solid = buildLinearGradientDef(
+      parseLinearGradient("repeating-linear-gradient(90deg, red 8px, blue 8px)")!,
+      "solid",
+      { x: 0, y: 0, w: 100, h: 10 },
+    );
     expect(solid).not.toContain("spreadMethod");
     expect((solid.match(/stop-color="blue"/g) ?? []).length).toBe(2);
   });
 
   it("defaults omitted repeat endpoints before moving the vector", () => {
-    const svg = buildLinearGradientDef(parseLinearGradient("repeating-linear-gradient(90deg, red, blue)")!, "defaulted", { x: 0, y: 0, w: 100, h: 10 });
+    const svg = buildLinearGradientDef(
+      parseLinearGradient("repeating-linear-gradient(90deg, red, blue)")!,
+      "defaulted",
+      { x: 0, y: 0, w: 100, h: 10 },
+    );
     expect(svg).toContain('x1="0"');
     expect(svg).toContain('x2="100"');
     expect(svg).toContain('spreadMethod="repeat"');

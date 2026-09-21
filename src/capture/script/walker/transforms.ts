@@ -72,14 +72,17 @@
 // matrix3d (12 values for the 4×4 matrix major-column layout) carries the
 // 2D submatrix in positions 0, 1, 4, 5 (= a, b, c, d in 2D form).
 export const transformHasRotationOrSkew = (transformStr) => {
-  if (!transformStr || transformStr === 'none') return false;
+  if (!transformStr || transformStr === "none") return false;
   const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(transformStr);
   if (m2) {
     const b = parseFloat(m2[2]);
     const c = parseFloat(m2[3]);
     return Math.abs(b) > 1e-6 || Math.abs(c) > 1e-6;
   }
-  const m3 = /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(transformStr);
+  const m3 =
+    /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(
+      transformStr,
+    );
   if (m3) {
     const b = parseFloat(m3[2]);
     const c = parseFloat(m3[3]);
@@ -109,11 +112,11 @@ export const composeEffectiveTransform = (cs) => {
   const r = cs.rotate;
   const s = cs.scale;
   const tr = cs.transform;
-  const hasT = t && t !== 'none';
-  const hasR = r && r !== 'none';
-  const hasS = s && s !== 'none';
-  const hasTr = tr && tr !== 'none';
-  if (!hasT && !hasR && !hasS && !hasTr) return 'none';
+  const hasT = t && t !== "none";
+  const hasR = r && r !== "none";
+  const hasS = s && s !== "none";
+  const hasTr = tr && tr !== "none";
+  if (!hasT && !hasR && !hasS && !hasTr) return "none";
   if (!hasT && !hasR && !hasS) return tr;
   // Build the composed matrix via DOMMatrix in spec order. DOMMatrix
   // multiplications are LEFT to RIGHT post-multiply (each multiplySelf
@@ -144,7 +147,10 @@ export const composeEffectiveTransform = (cs) => {
     }
   }
   if (hasS) {
-    const ts = s.trim().split(/\s+/).map((v) => parseFloat(v));
+    const ts = s
+      .trim()
+      .split(/\s+/)
+      .map((v) => parseFloat(v));
     const sx = isFinite(ts[0]) ? ts[0] : 1;
     const sy = ts.length > 1 && isFinite(ts[1]) ? ts[1] : sx;
     const sz = ts.length > 2 && isFinite(ts[2]) ? ts[2] : 1;
@@ -171,11 +177,11 @@ const parseAngleToDeg = (a) => {
   const m = /^([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)(deg|rad|grad|turn)?$/.exec(a);
   if (!m) return 0;
   const n = parseFloat(m[1]);
-  const u = m[2] || 'deg';
-  if (u === 'deg') return n;
-  if (u === 'rad') return (n * 180) / Math.PI;
-  if (u === 'grad') return (n * 360) / 400;
-  if (u === 'turn') return n * 360;
+  const u = m[2] || "deg";
+  if (u === "deg") return n;
+  if (u === "rad") return (n * 180) / Math.PI;
+  if (u === "grad") return (n * 360) / 400;
+  if (u === "turn") return n * 360;
   return n;
 };
 
@@ -199,7 +205,7 @@ export const createTransformsHandler = () => {
     // the box axis-aligned. The composed string flows through the same
     // freeze logic as a plain `transform:` of the same shape.
     const originalTransform = composeEffectiveTransform(cs);
-    const hasTransform = originalTransform && originalTransform !== 'none';
+    const hasTransform = originalTransform && originalTransform !== "none";
     if (!hasTransform) {
       return captureInner(el, cs, null, null);
     }
@@ -224,10 +230,10 @@ export const createTransformsHandler = () => {
       const inlineRotate = el.style.rotate;
       const inlineScale = el.style.scale;
       const inlineTranslate = el.style.translate;
-      el.style.transform = 'translate(0)';
-      el.style.rotate = 'none';
-      el.style.scale = 'none';
-      el.style.translate = 'none';
+      el.style.transform = "translate(0)";
+      el.style.rotate = "none";
+      el.style.scale = "none";
+      el.style.translate = "none";
       try {
         return captureInner(el, cs, originalTransform, cs.transformOrigin);
       } finally {
@@ -249,9 +255,7 @@ export const createTransformsHandler = () => {
     // position directly. frozenTransform is non-null whenever the element
     // originally had a non-none transform; we only stash the rotation/skew
     // string back into styles.transform.
-    transform: frozenTransform != null && transformHasRotationOrSkew(frozenTransform)
-      ? frozenTransform
-      : 'none',
+    transform: frozenTransform != null && transformHasRotationOrSkew(frozenTransform) ? frozenTransform : "none",
     transformOrigin: cs.transformOrigin,
     // DM-751: extract `matrix3d` translateZ so the paint-order sort can
     // honor 3D Z position when the parent element has
@@ -260,10 +264,10 @@ export const createTransformsHandler = () => {
     // perspective / actual 3D rendering in SVG; this is paint-order only.
     translateZ: (function () {
       const tt = cs.transform;
-      if (tt == null || tt === 'none' || tt === '') return undefined;
+      if (tt == null || tt === "none" || tt === "") return undefined;
       const m3 = /^matrix3d\(([^)]+)\)/.exec(tt);
       if (m3 == null) return undefined;
-      const parts = m3[1].split(',').map((s) => parseFloat(s.trim()));
+      const parts = m3[1].split(",").map((s) => parseFloat(s.trim()));
       const tz = parts[14];
       return Number.isFinite(tz) && tz !== 0 ? tz : undefined;
     })(),

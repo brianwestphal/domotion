@@ -19,11 +19,14 @@ export function optimizeSvg(svg: string): string {
   // Cast the convertPathData entry so the rest of the plugin list still
   // type-checks.
   const plugins: PluginConfig[] = [
-    { name: "convertPathData", params: {
-      floatPrecision: 1,
-      transformPrecision: 3,
-      makeArcs: false,
-    } } as PluginConfig,
+    {
+      name: "convertPathData",
+      params: {
+        floatPrecision: 1,
+        transformPrecision: 3,
+        makeArcs: false,
+      },
+    } as PluginConfig,
     "convertTransform",
     // DM-1454: `minifyStyles` (csso) restructures/reorders CSS declarations and
     // can factor a common longhand out across rules. So animation CSS we emit

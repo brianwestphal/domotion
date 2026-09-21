@@ -56,8 +56,7 @@ describe("skiaFamilyMatchAcceptable (pinned-Skia MatchFont transcription)", () =
   it("accepts when ANY of the pick's family names matches (the Issue-12530 clause)", () => {
     // `:575-580`: requested "Bitstream Vera Sans", post-config "Arial", match
     // families include the requested name — a good match.
-    expect(skiaFamilyMatchAcceptable("Bitstream Vera Sans", "Arial",
-      ["Bitstream Vera Sans", "Roman"])).toBe(true);
+    expect(skiaFamilyMatchAcceptable("Bitstream Vera Sans", "Arial", ["Bitstream Vera Sans", "Roman"])).toBe(true);
   });
 
   it("honors kFontEquivMap's first-match class for names listed twice", () => {

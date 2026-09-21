@@ -4,10 +4,27 @@ title: "Blink affine text baseline and fragment-origin protocol"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2544","DM-2546","DM-2547","DM-2680"]
-code: [".github/workflows/text-transform-parity.yml","src/capture/text-fragment-geometry.test.ts","src/capture/text-fragment-spans.test.ts","src/capture/text-line-origin.test.ts","src/capture/text-line-origin.ts","src/capture/text-paint-geometry-cdp.test.ts","src/capture/text-paint-geometry-cdp.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","tests/text-affine-baseline-protocol-oracle.test.ts","tests/text-affine-line-origin-workflow.test.ts","tests/text-affine-render.e2e.test.ts","tests/text-fragment-span-oracle.test.ts","tests/text-fragment-span-workflow.test.ts","tests/text-paint-geometry.e2e.test.ts"]
-aliases: ["docs/215-affine-text-baseline-protocol.md","doc-215"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2544", "DM-2546", "DM-2547", "DM-2680"]
+code:
+  [
+    ".github/workflows/text-transform-parity.yml",
+    "src/capture/text-fragment-geometry.test.ts",
+    "src/capture/text-fragment-spans.test.ts",
+    "src/capture/text-line-origin.test.ts",
+    "src/capture/text-line-origin.ts",
+    "src/capture/text-paint-geometry-cdp.test.ts",
+    "src/capture/text-paint-geometry-cdp.ts",
+    "src/render/text-affine.test.ts",
+    "src/render/text-affine.ts",
+    "tests/text-affine-baseline-protocol-oracle.test.ts",
+    "tests/text-affine-line-origin-workflow.test.ts",
+    "tests/text-affine-render.e2e.test.ts",
+    "tests/text-fragment-span-oracle.test.ts",
+    "tests/text-fragment-span-workflow.test.ts",
+    "tests/text-paint-geometry.e2e.test.ts",
+  ]
+aliases: ["docs/215-affine-text-baseline-protocol.md", "doc-215"]
 ---
 
 # Blink affine text baseline and fragment-origin protocol
@@ -206,16 +223,16 @@ all `3/3/3` Range/CDP/captured fragments as vectors.
 
 Eight destructive controls are mandatory:
 
-| Mutation | Local discriminator |
-| --- | ---: |
-| post-transform AABB top plus ascent | `1.809447` CSS px |
-| apply ascent after affine mapping | `4.454658` CSS px |
-| snap after affine mapping | `0.255442` CSS px |
-| apply effective zoom twice | `5.956938` CSS px |
-| drop transform-origin translation | `62.408470` CSS px |
-| collapse mixed physical fragments | `3 -> 1` fragments |
-| interpret a vertical origin in the horizontal plane | `22.561028` CSS px |
-| drop the fractional fragment-relative top | `0.375000` CSS px |
+| Mutation                                            | Local discriminator |
+| --------------------------------------------------- | ------------------: |
+| post-transform AABB top plus ascent                 |   `1.809447` CSS px |
+| apply ascent after affine mapping                   |   `4.454658` CSS px |
+| snap after affine mapping                           |   `0.255442` CSS px |
+| apply effective zoom twice                          |   `5.956938` CSS px |
+| drop transform-origin translation                   |  `62.408470` CSS px |
+| collapse mixed physical fragments                   |  `3 -> 1` fragments |
+| interpret a vertical origin in the horizontal plane |  `22.561028` CSS px |
+| drop the fractional fragment-relative top           |   `0.375000` CSS px |
 
 Run the exact source-span/shaping oracle with:
 

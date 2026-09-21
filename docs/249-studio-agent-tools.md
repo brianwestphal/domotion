@@ -3,11 +3,11 @@ id: "requirements/studio-agent-tools"
 title: "Domotion Studio agent authoring and generation tools"
 kind: "contract"
 status: "current"
-owners: ["studio","ai","product-tooling"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "ai", "product-tooling"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2693"]
-code: ["src/studio/agent-tools.ts","src/studio/agent-tools.test.ts","src/studio/index.ts"]
-aliases: ["docs/249-studio-agent-tools.md","doc-249"]
+code: ["src/studio/agent-tools.ts", "src/studio/agent-tools.test.ts", "src/studio/index.ts"]
+aliases: ["docs/249-studio-agent-tools.md", "doc-249"]
 ---
 
 # Domotion Studio agent authoring and generation tools
@@ -49,15 +49,15 @@ file. Capture, preview, and video work are injected adapters, allowing a host to
 connect the existing Studio compiler, browser session, healing loop, and video
 review pipeline without putting browser handles or code in JSON.
 
-| Tool | Project operation | Important result |
-| --- | --- | --- |
-| `project.inspect` | Read a compact project outline | Stable scene/track/action IDs, review head, annotations, and artifacts |
-| `project.create` | Create the smallest useful Studio document | Valid project and digest; author comes from the trusted host |
-| `project.edit` | Patch narrative or scenes/tracks; add/remove scenes | New content revision, removed stable IDs, and new digest |
-| `capture.compile` | Invoke the host capture adapter | Exact artifact paths and structured DOM/CSS evidence |
-| `render.preview` | Invoke the host preview adapter | Exact SVG/image artifact paths and provenance |
-| `render.video` | Invoke the host video plus required-AI-review adapter | Reviewed media, or a clarification with supporting evidence |
-| `annotation.apply` | Create/edit/lifecycle-update the shared annotation queue | Annotation and review revision IDs |
+| Tool               | Project operation                                        | Important result                                                       |
+| ------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `project.inspect`  | Read a compact project outline                           | Stable scene/track/action IDs, review head, annotations, and artifacts |
+| `project.create`   | Create the smallest useful Studio document               | Valid project and digest; author comes from the trusted host           |
+| `project.edit`     | Patch narrative or scenes/tracks; add/remove scenes      | New content revision, removed stable IDs, and new digest               |
+| `capture.compile`  | Invoke the host capture adapter                          | Exact artifact paths and structured DOM/CSS evidence                   |
+| `render.preview`   | Invoke the host preview adapter                          | Exact SVG/image artifact paths and provenance                          |
+| `render.video`     | Invoke the host video plus required-AI-review adapter    | Reviewed media, or a clarification with supporting evidence            |
+| `annotation.apply` | Create/edit/lifecycle-update the shared annotation queue | Annotation and review revision IDs                                     |
 
 Every response is compact and has one of four explicit states:
 

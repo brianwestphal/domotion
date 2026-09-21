@@ -6,11 +6,11 @@ import { chromium } from "@playwright/test";
 
 const codepoints = [
   { name: "DM-1010 U+13668 (egypt hierogl ext-A)", cp: 0x13668 },
-  { name: "DM-999  U+1D800 (sutton signwriting)",  cp: 0x1D800 },
-  { name: "DM-998  U+1D80D (sutton signwriting)",  cp: 0x1D80D },
-  { name: "DM-1012 U+3208E (CJK ext-H)",           cp: 0x3208E },
-  { name: "DM-1011 U+305D6 (CJK ext-G)",           cp: 0x305D6 },
-  { name: "DM-1000 U+2F8F5 (CJK compat suppl)",    cp: 0x2F8F5 },
+  { name: "DM-999  U+1D800 (sutton signwriting)", cp: 0x1d800 },
+  { name: "DM-998  U+1D80D (sutton signwriting)", cp: 0x1d80d },
+  { name: "DM-1012 U+3208E (CJK ext-H)", cp: 0x3208e },
+  { name: "DM-1011 U+305D6 (CJK ext-G)", cp: 0x305d6 },
+  { name: "DM-1000 U+2F8F5 (CJK compat suppl)", cp: 0x2f8f5 },
 ];
 
 const fontStack = `"Arial Unicode MS","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
@@ -31,7 +31,7 @@ const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
 function findById(n, id) {
   if (n.attributes) {
     for (let j = 0; j < n.attributes.length - 1; j += 2) {
-      if (n.attributes[j] === "id" && n.attributes[j+1] === id) return n;
+      if (n.attributes[j] === "id" && n.attributes[j + 1] === id) return n;
     }
   }
   for (const c of n.children || []) {
@@ -43,7 +43,10 @@ function findById(n, id) {
 
 for (let i = 0; i < codepoints.length; i++) {
   const n = findById(root, `c${i}`);
-  if (!n) { console.log(`${codepoints[i].name}: node not found`); continue; }
+  if (!n) {
+    console.log(`${codepoints[i].name}: node not found`);
+    continue;
+  }
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: n.nodeId });
   console.log(`${codepoints[i].name}:`);
   for (const f of fonts) {

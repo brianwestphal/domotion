@@ -25,9 +25,7 @@ describe("extractCssUrl", () => {
     // What Chrome's getComputedStyle returns for an inline-SVG data URL: the
     // inner attribute quotes are backslash-escaped.
     const input = 'url("data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\"><rect/></svg>")';
-    expect(extractCssUrl(input)).toBe(
-      'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>',
-    );
+    expect(extractCssUrl(input)).toBe('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
   });
 
   it("finds the first url() anywhere in the value (image-set candidates)", () => {

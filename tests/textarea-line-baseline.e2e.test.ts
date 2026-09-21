@@ -75,9 +75,7 @@ describeBrowser("textarea per-line segment baselines", () => {
       const ref = document.getElementById("ref")!;
       const box = ref.getBoundingClientRect();
       const cs = getComputedStyle(ref);
-      const contentTop = box.top
-        + (parseFloat(cs.borderTopWidth) || 0)
-        + (parseFloat(cs.paddingTop) || 0);
+      const contentTop = box.top + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
       const node = ref.firstChild!;
       const first = document.createRange();
       first.setStart(node, 0);
@@ -113,9 +111,8 @@ describeBrowser("textarea per-line segment baselines", () => {
     expect(segs.map((s) => s.text)).toEqual(["alpha", "bravo", "charlie"]);
 
     // The textarea's own content-box top, from the captured geometry.
-    const contentTop = ta.y
-      + (parseFloat(ta.styles.borderTopWidth ?? "0") || 0)
-      + (parseFloat(ta.styles.paddingTop ?? "0") || 0);
+    const contentTop =
+      ta.y + (parseFloat(ta.styles.borderTopWidth ?? "0") || 0) + (parseFloat(ta.styles.paddingTop ?? "0") || 0);
 
     // Line 0 must sit exactly one half-leading below the content top — the
     // offset Chrome itself produced for the reference — snapped to the whole
@@ -126,8 +123,7 @@ describeBrowser("textarea per-line segment baselines", () => {
     // Chrome positions glyphs subpixel horizontally but rounds the vertical
     // origin, so a textarea on a fractional y must still yield integer line
     // tops. `#ta` is deliberately at 40.4375px to make this bite.
-    expect(contentTop, "fixture must sit on a fractional y or this proves nothing")
-      .not.toBe(Math.round(contentTop));
+    expect(contentTop, "fixture must sit on a fractional y or this proves nothing").not.toBe(Math.round(contentTop));
     for (const s of segs) {
       expect(s.y, `line "${s.text}" must land on a whole pixel`).toBe(Math.round(s.y));
     }
@@ -135,10 +131,10 @@ describeBrowser("textarea per-line segment baselines", () => {
     // ...and the leading must not compound down the block: every subsequent
     // line is exactly one pitch below its predecessor.
     for (let i = 1; i < segs.length; i++) {
-      expect(
-        segs[i].y - segs[i - 1].y,
-        `line ${i} must be exactly one line-height below line ${i - 1}`,
-      ).toBeCloseTo(oracle.linePitch, 1);
+      expect(segs[i].y - segs[i - 1].y, `line ${i} must be exactly one line-height below line ${i - 1}`).toBeCloseTo(
+        oracle.linePitch,
+        1,
+      );
     }
 
     await ctx.close();

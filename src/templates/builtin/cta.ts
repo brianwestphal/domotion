@@ -16,7 +16,15 @@ import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
+import {
+  CARD_FONT_STACK,
+  cardHeadCss,
+  cardScaleFactor,
+  fs,
+  resolveCardTheme,
+  staggeredReveal,
+  revealEndMs,
+} from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const THEMES = ["dark", "light"] as const;
@@ -24,7 +32,12 @@ const PADDING = 96;
 
 /** A comma-separated string OR an array of handle strings. */
 const handlesSchema = z.union([
-  z.string().transform((s) => s.split(",").map((h) => h.trim()).filter((h) => h !== "")),
+  z.string().transform((s) =>
+    s
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h !== ""),
+  ),
   z.array(z.string()),
 ]);
 
@@ -57,9 +70,10 @@ export function buildCtaHtml(p: CtaParams, safeInset?: SafeInset): string {
   const handles = p.handles ?? [];
   const logoMarkup = blank(p.logo) != null ? `<img class="cta-logo" src="${escapeHtml(p.logo!)}" alt="">` : "";
   const headlineMarkup = blank(p.headline) != null ? `<div class="cta-headline">${escapeHtml(p.headline!)}</div>` : "";
-  const handlesMarkup = handles.length > 0
-    ? `<div class="cta-handles">${handles.map((h) => `<span>${escapeHtml(h)}</span>`).join('<span class="cta-dot">·</span>')}</div>`
-    : "";
+  const handlesMarkup =
+    handles.length > 0
+      ? `<div class="cta-handles">${handles.map((h) => `<span>${escapeHtml(h)}</span>`).join('<span class="cta-dot">·</span>')}</div>`
+      : "";
   const urlMarkup = blank(p.url) != null ? `<div class="cta-url">${escapeHtml(p.url!)}</div>` : "";
   // DM-1541: scale authored (landscape-tuned) type + spacing by the adaptive
   // per-ratio factor (sf === 1 with no format → byte-identical default output).
@@ -99,8 +113,15 @@ export function buildCtaAnimations(p: CtaParams, selectors: string[]): Anims {
     // The pulse lives on the INNER `.cta-btn` (scale), separate from `.cta-btn-wrap`'s
     // enter reveal — one animation per property per element. It loops forever.
     anims.push({
-      selector: ".cta-btn", property: "scale", from: "1", to: "1.06", duration: 900,
-      easing: "ease-in-out", transformOrigin: "center", repeat: "infinite", alternate: true,
+      selector: ".cta-btn",
+      property: "scale",
+      from: "1",
+      to: "1.06",
+      duration: 900,
+      easing: "ease-in-out",
+      transformOrigin: "center",
+      repeat: "infinite",
+      alternate: true,
     });
   }
   return anims;
@@ -108,7 +129,8 @@ export function buildCtaAnimations(p: CtaParams, selectors: string[]): Anims {
 
 export const ctaTemplate: Template<CtaParams> = {
   name: "cta",
-  description: "Closing end-card (optional logo + headline + call-to-action button [optional pulse] + handles/URL) with a staggered reveal.",
+  description:
+    "Closing end-card (optional logo + headline + call-to-action button [optional pulse] + handles/URL) with a staggered reveal.",
   paramsSchema: ctaParamsSchema,
   brandDefaults(brand: Brand): Partial<CtaParams> {
     return brandParams<CtaParams>({

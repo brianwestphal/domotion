@@ -5,9 +5,23 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
-tickets: ["DM-1156","SK-1092","SK-1125","SK-1126","SK-1138","SK-1191","SK-1192","SK-1193","SK-1222","SK-1224","SK-1225","SK-1226"]
-code: ["src/capture/types.ts","src/render/form-controls.ts"]
-aliases: ["docs/05-progress-meter-pseudos.md","doc-05"]
+tickets:
+  [
+    "DM-1156",
+    "SK-1092",
+    "SK-1125",
+    "SK-1126",
+    "SK-1138",
+    "SK-1191",
+    "SK-1192",
+    "SK-1193",
+    "SK-1222",
+    "SK-1224",
+    "SK-1225",
+    "SK-1226",
+  ]
+code: ["src/capture/types.ts", "src/render/form-controls.ts"]
+aliases: ["docs/05-progress-meter-pseudos.md", "doc-05"]
 ---
 
 # Domotion: progress / meter pseudo styling
@@ -118,7 +132,7 @@ Chrome-on-macOS paint. Sampling `06-forms-style-progress-meter.html`'s
 on a single row instead of anti-aliasing across two. Native `<progress>` gets
 **no** groove (sampled: flat blue fill, AA only) — only `<meter>` does.
 
-A second gap affected *author-styled* meters: Chrome insets the **value pseudo**
+A second gap affected _author-styled_ meters: Chrome insets the **value pseudo**
 to the center ~half-height (inset `floor(h/4)`; `h=16` → center 8px, `h=28` →
 center 14px) while the track pseudo fills full height. The value gradient maps
 to that inset box (matters for the `meter.tall` vertical gradient). Box tops are

@@ -14,11 +14,16 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import * as fontkit from "fontkit";
 import {
-  clearWebfonts, computeSkipInkGaps, getDecorationMetrics, registerWebfont,
+  clearWebfonts,
+  computeSkipInkGaps,
+  getDecorationMetrics,
+  registerWebfont,
 } from "../src/render/text-to-path.js";
 import { resolvedTextDecorationLine } from "../src/render/text.js";
 import {
-  lineRelativeToPhysicalTransform, resolveVerticalDecoration, verticalDecorationSkipInkText,
+  lineRelativeToPhysicalTransform,
+  resolveVerticalDecoration,
+  verticalDecorationSkipInkText,
 } from "../src/render/vertical-text.js";
 
 const SERIF_PATH = "assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf";
@@ -119,8 +124,11 @@ const base = {
   height: 64.5,
 };
 
-function row(id: string, values: Partial<VerticalDecorationOracleCase> & Pick<VerticalDecorationOracleCase,
-  "writingMode" | "textOrientation" | "lang" | "text" | "scriptClass" | "family">): VerticalDecorationOracleCase {
+function row(
+  id: string,
+  values: Partial<VerticalDecorationOracleCase> &
+    Pick<VerticalDecorationOracleCase, "writingMode" | "textOrientation" | "lang" | "text" | "scriptClass" | "family">,
+): VerticalDecorationOracleCase {
   return { id, ...base, ...values };
 }
 
@@ -128,22 +136,156 @@ function row(id: string, values: Partial<VerticalDecorationOracleCase> & Pick<Ve
  * different-glyph/same-locale pairs prevent a codepoint-derived script guess. */
 export function verticalDecorationCases(): VerticalDecorationOracleCase[] {
   const cases: VerticalDecorationOracleCase[] = [
-    row("vrl-en-A-auto-under", { writingMode: "vertical-rl", textOrientation: "mixed", lang: "en", text: "A", scriptClass: "other", family: "serif" }),
-    row("vrl-ja-A-auto-over", { writingMode: "vertical-rl", textOrientation: "mixed", lang: "ja", text: "A", scriptClass: "kana-hangul", family: "serif", offset: "3px" }),
+    row("vrl-en-A-auto-under", {
+      writingMode: "vertical-rl",
+      textOrientation: "mixed",
+      lang: "en",
+      text: "A",
+      scriptClass: "other",
+      family: "serif",
+    }),
+    row("vrl-ja-A-auto-over", {
+      writingMode: "vertical-rl",
+      textOrientation: "mixed",
+      lang: "ja",
+      text: "A",
+      scriptClass: "kana-hangul",
+      family: "serif",
+      offset: "3px",
+    }),
     // Rounded LayoutUnit em: round(15.001 * 64) = 960. The captured central
     // FloatAscent is chosen at the integer-boundary discriminator where
     // dividing the unrounded float before LU rounding produces the wrong +1.
-    row("vrl-en-kana-auto-under", { writingMode: "vertical-rl", textOrientation: "mixed", lang: "en", text: "日", scriptClass: "other", family: "serif", fontSize: 15.001, logicalFontSize: 15.001, ascent: 13.5, descent: 3.484132 }),
-    row("vlr-ja-kana-left-under", { writingMode: "vertical-lr", textOrientation: "upright", lang: "ja-JP", text: "日", scriptClass: "kana-hangul", family: "mono", position: "under left", lines: "underline overline" }),
-    row("vlr-ko-right-over", { writingMode: "vertical-lr", textOrientation: "mixed", lang: "ko", text: "한", scriptClass: "kana-hangul", family: "mono", position: "under right", lines: "overline" }),
-    row("vrl-zh-right-over", { writingMode: "vertical-rl", textOrientation: "mixed", lang: "zh-Hans", text: "中", scriptClass: "other", family: "serif", position: "from-font right", thickness: "from-font", offset: "10%" }),
-    row("vrl-en-from-font-central-under", { writingMode: "vertical-rl", textOrientation: "mixed", lang: "en", text: "A", scriptClass: "other", family: "mono", position: "from-font", thickness: "from-font" }),
-    row("vrl-sideways-from-font", { writingMode: "vertical-rl", textOrientation: "sideways", lang: "ja", text: "A", scriptClass: "kana-hangul", family: "serif", position: "from-font right", thickness: "from-font", offset: "2px", fontSize: 40, logicalFontSize: 40, ascent: 32.8, descent: 8.4 }),
-    row("srl-ja-right-alphabetic-auto", { writingMode: "sideways-rl", textOrientation: "mixed", lang: "ja", text: "日", scriptClass: "kana-hangul", family: "serif", position: "right", thickness: "10%", lines: "underline line-through" }),
-    row("slr-en-under", { writingMode: "sideways-lr", textOrientation: "mixed", lang: "en", text: "g", scriptClass: "other", family: "mono", position: "under left", thickness: "0.2em", offset: "-2px" }),
-    row("slr-ja-from-font", { writingMode: "sideways-lr", textOrientation: "mixed", lang: "ja", text: "A", scriptClass: "kana-hangul", family: "mono", position: "from-font", thickness: "from-font", lines: "underline overline line-through" }),
-    row("vrl-zoom-125-fixed", { writingMode: "vertical-rl", textOrientation: "upright", lang: "en", text: "A", scriptClass: "other", family: "serif", fontSize: 25, logicalFontSize: 20, ascent: 20.5, descent: 5.25, thickness: "3px", offset: "2px" }),
-    row("vrl-zoom-080-percent", { writingMode: "vertical-rl", textOrientation: "upright", lang: "ja", text: "A", scriptClass: "kana-hangul", family: "mono", fontSize: 16, logicalFontSize: 20, ascent: 13.1, descent: 3.4, thickness: "12.5%", offset: "0.15em", lines: "underline overline" }),
+    row("vrl-en-kana-auto-under", {
+      writingMode: "vertical-rl",
+      textOrientation: "mixed",
+      lang: "en",
+      text: "日",
+      scriptClass: "other",
+      family: "serif",
+      fontSize: 15.001,
+      logicalFontSize: 15.001,
+      ascent: 13.5,
+      descent: 3.484132,
+    }),
+    row("vlr-ja-kana-left-under", {
+      writingMode: "vertical-lr",
+      textOrientation: "upright",
+      lang: "ja-JP",
+      text: "日",
+      scriptClass: "kana-hangul",
+      family: "mono",
+      position: "under left",
+      lines: "underline overline",
+    }),
+    row("vlr-ko-right-over", {
+      writingMode: "vertical-lr",
+      textOrientation: "mixed",
+      lang: "ko",
+      text: "한",
+      scriptClass: "kana-hangul",
+      family: "mono",
+      position: "under right",
+      lines: "overline",
+    }),
+    row("vrl-zh-right-over", {
+      writingMode: "vertical-rl",
+      textOrientation: "mixed",
+      lang: "zh-Hans",
+      text: "中",
+      scriptClass: "other",
+      family: "serif",
+      position: "from-font right",
+      thickness: "from-font",
+      offset: "10%",
+    }),
+    row("vrl-en-from-font-central-under", {
+      writingMode: "vertical-rl",
+      textOrientation: "mixed",
+      lang: "en",
+      text: "A",
+      scriptClass: "other",
+      family: "mono",
+      position: "from-font",
+      thickness: "from-font",
+    }),
+    row("vrl-sideways-from-font", {
+      writingMode: "vertical-rl",
+      textOrientation: "sideways",
+      lang: "ja",
+      text: "A",
+      scriptClass: "kana-hangul",
+      family: "serif",
+      position: "from-font right",
+      thickness: "from-font",
+      offset: "2px",
+      fontSize: 40,
+      logicalFontSize: 40,
+      ascent: 32.8,
+      descent: 8.4,
+    }),
+    row("srl-ja-right-alphabetic-auto", {
+      writingMode: "sideways-rl",
+      textOrientation: "mixed",
+      lang: "ja",
+      text: "日",
+      scriptClass: "kana-hangul",
+      family: "serif",
+      position: "right",
+      thickness: "10%",
+      lines: "underline line-through",
+    }),
+    row("slr-en-under", {
+      writingMode: "sideways-lr",
+      textOrientation: "mixed",
+      lang: "en",
+      text: "g",
+      scriptClass: "other",
+      family: "mono",
+      position: "under left",
+      thickness: "0.2em",
+      offset: "-2px",
+    }),
+    row("slr-ja-from-font", {
+      writingMode: "sideways-lr",
+      textOrientation: "mixed",
+      lang: "ja",
+      text: "A",
+      scriptClass: "kana-hangul",
+      family: "mono",
+      position: "from-font",
+      thickness: "from-font",
+      lines: "underline overline line-through",
+    }),
+    row("vrl-zoom-125-fixed", {
+      writingMode: "vertical-rl",
+      textOrientation: "upright",
+      lang: "en",
+      text: "A",
+      scriptClass: "other",
+      family: "serif",
+      fontSize: 25,
+      logicalFontSize: 20,
+      ascent: 20.5,
+      descent: 5.25,
+      thickness: "3px",
+      offset: "2px",
+    }),
+    row("vrl-zoom-080-percent", {
+      writingMode: "vertical-rl",
+      textOrientation: "upright",
+      lang: "ja",
+      text: "A",
+      scriptClass: "kana-hangul",
+      family: "mono",
+      fontSize: 16,
+      logicalFontSize: 20,
+      ascent: 13.1,
+      descent: 3.4,
+      thickness: "12.5%",
+      offset: "0.15em",
+      lines: "underline overline",
+    }),
   ];
   // DPR is a coherent state qualifier, never a geometry multiplier.
   return cases.flatMap((c) => [c, { ...c, id: `${c.id}.dpr4`, deviceScaleFactor: 4 }]);
@@ -156,20 +298,20 @@ function lengthPx(value: string, fontSize: number, scale: number): number | null
   const match = /^(-?[\d.]+)(px|em|%)?$/.exec(value.trim());
   if (match == null) return null;
   const n = Number.parseFloat(match[1]);
-  if (match[2] === "%") return n * fontSize / 100;
+  if (match[2] === "%") return (n * fontSize) / 100;
   if (match[2] === "em") return n * fontSize;
   return n * scale;
 }
 
 function sourceResolution(c: VerticalDecorationOracleCase) {
   const tokens = c.position.toLowerCase().split(/\s+/);
-  const central = (c.writingMode === "vertical-rl" || c.writingMode === "vertical-lr")
-    && c.textOrientation !== "sideways";
+  const central =
+    (c.writingMode === "vertical-rl" || c.writingMode === "vertical-lr") && c.textOrientation !== "sideways";
   if (!central) {
     return {
       baselineType: "alphabetic" as const,
-      underlinePosition: (tokens.includes("under") ? "under"
-        : tokens.includes("from-font") ? "from-font" : "auto") as "under" | "from-font" | "auto",
+      underlinePosition: (tokens.includes("under") ? "under" : tokens.includes("from-font") ? "from-font" : "auto") as
+        "under" | "from-font" | "auto",
       flip: false,
     };
   }
@@ -181,18 +323,16 @@ function normalizedTypoDescent(fontSize: number, face: FaceFacts, asc: number, d
   const normalize = (a: number, d: number): number | null => {
     const height = a + d;
     if (height <= 0 || a < 0 || a > height) return null;
-    return LU(fontSize) - LU(a * fontSize / height);
+    return LU(fontSize) - LU((a * fontSize) / height);
   };
-  return face.typoAscender > 0
-    ? (normalize(face.typoAscender, -face.typoDescender) ?? 0)
-    : (normalize(asc, desc) ?? 0);
+  return face.typoAscender > 0 ? (normalize(face.typoAscender, -face.typoDescender) ?? 0) : (normalize(asc, desc) ?? 0);
 }
 
 function sourceMetrics(c: VerticalDecorationOracleCase, face: FaceFacts, resolution = sourceResolution(c)) {
   const scale = c.fontSize / c.logicalFontSize;
   let thickness: number;
   if (c.thickness === "auto" || c.thickness === "") thickness = c.fontSize / 10;
-  else if (c.thickness === "from-font") thickness = face.underlineThickness * c.fontSize / face.unitsPerEm;
+  else if (c.thickness === "from-font") thickness = (face.underlineThickness * c.fontSize) / face.unitsPerEm;
   else thickness = roundf(lengthPx(c.thickness, c.fontSize, scale) ?? c.fontSize / 10);
   thickness = Math.max(1, thickness);
   const offsetAuto = c.offset === "auto" || c.offset === "";
@@ -202,12 +342,12 @@ function sourceMetrics(c: VerticalDecorationOracleCase, face: FaceFacts, resolut
     const centralAscent = (c.ascent + c.descent) / 2;
     const normalizedHeightRaw = Math.round(c.fontSize * 64);
     const normalizedDescent = Math.trunc(normalizedHeightRaw / 2) / 64;
-    underlineTop = Math.floor(LU(centralAscent + normalizedDescent)
-      + LU(resolution.flip ? 0 : extra)) + 1;
+    underlineTop = Math.floor(LU(centralAscent + normalizedDescent) + LU(resolution.flip ? 0 : extra)) + 1;
   } else if (resolution.underlinePosition === "under") {
-    underlineTop = Math.floor(LU(c.ascent + normalizedTypoDescent(c.fontSize, face, c.ascent, c.descent)) + LU(extra)) + 1;
+    underlineTop =
+      Math.floor(LU(c.ascent + normalizedTypoDescent(c.fontSize, face, c.ascent, c.descent)) + LU(extra)) + 1;
   } else if (resolution.underlinePosition === "from-font") {
-    const belowBaseline = -face.underlinePosition * c.fontSize / face.unitsPerEm;
+    const belowBaseline = (-face.underlinePosition * c.fontSize) / face.unitsPerEm;
     underlineTop = roundf(c.ascent + belowBaseline + extra);
   } else {
     const gap = offsetAuto ? Math.max(1, Math.ceil(thickness / 2)) : 0;
@@ -221,8 +361,7 @@ function sourceMetrics(c: VerticalDecorationOracleCase, face: FaceFacts, resolut
       const normalizedHeight = normalizedHeightRaw / 64;
       const normalizedDescent = Math.trunc(normalizedHeightRaw / 2) / 64;
       const normalizedAscent = normalizedHeight - normalizedDescent;
-      overlineTop = Math.floor(LU(centralAscent - normalizedAscent) - LU(extra))
-        - 1 - Math.floor(thickness);
+      overlineTop = Math.floor(LU(centralAscent - normalizedAscent) - LU(extra)) - 1 - Math.floor(thickness);
     } else {
       const integerHeight = Math.round(c.ascent) + Math.round(c.descent);
       const centralIntAscent = integerHeight - Math.trunc(integerHeight / 2);
@@ -231,19 +370,23 @@ function sourceMetrics(c: VerticalDecorationOracleCase, face: FaceFacts, resolut
   } else {
     overlineTop = Math.floor(LU(c.ascent - Math.round(c.ascent))) - Math.floor(thickness);
   }
-  return { thickness, underlineTop, overlineTop, lineThroughTop: 2 * c.ascent / 3 - thickness / 2 };
+  return { thickness, underlineTop, overlineTop, lineThroughTop: (2 * c.ascent) / 3 - thickness / 2 };
 }
 
 function sourceTransform(c: VerticalDecorationOracleCase): string {
-  const r = (v: number) => Number.isInteger(v) ? String(v) : v.toFixed(2);
+  const r = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2));
   return c.writingMode === "sideways-lr"
     ? `matrix(0 -1 1 0 ${r(c.x - c.y)} ${r(c.x + c.y + c.height)})`
     : `matrix(0 1 -1 0 ${r(c.x + c.y + c.width)} ${r(c.y - c.x)})`;
 }
 
 function sourceLines(lines: string, flip: boolean): string {
-  return flip ? lines.split(/\s+/).map((line) => line === "underline" ? "overline"
-    : line === "overline" ? "underline" : line).join(" ") : lines;
+  return flip
+    ? lines
+        .split(/\s+/)
+        .map((line) => (line === "underline" ? "overline" : line === "overline" ? "underline" : line))
+        .join(" ")
+    : lines;
 }
 
 function faceFacts(path: string): FaceFacts {
@@ -309,7 +452,14 @@ export function runVerticalDecorationLogicalOracle(): VerticalDecorationOracleRe
     for (const key of ["thickness", "underlineTop", "overlineTop", "lineThroughTop"] as const) {
       compareNumber(errors, key, expected[key], actual[key]);
     }
-    rows.push({ id: c.id, deviceScaleFactor: c.deviceScaleFactor, expected, actual, errors, pass: errors.length === 0 });
+    rows.push({
+      id: c.id,
+      deviceScaleFactor: c.deviceScaleFactor,
+      expected,
+      actual,
+      errors,
+      pass: errors.length === 0,
+    });
   }
 
   const byId = new Map(rows.map((entry) => [entry.id, entry]));
@@ -320,45 +470,60 @@ export function runVerticalDecorationLogicalOracle(): VerticalDecorationOracleRe
   const fromFont = byId.get("vrl-sideways-from-font")!;
   const skipInkFont = { fontFamily: FAMILIES.serif, fontSize: 20, fontWeight: "400" };
   const autoExcludedSlash = computeSkipInkGaps("/", skipInkFont, {
-    decorationCenterYRel: 0, decorationThickness: 4, skipInkMode: "auto",
+    decorationCenterYRel: 0,
+    decorationThickness: 4,
+    skipInkMode: "auto",
   });
   const allIncludedSlash = computeSkipInkGaps("/", skipInkFont, {
-    decorationCenterYRel: 0, decorationThickness: 4, skipInkMode: "all",
+    decorationCenterYRel: 0,
+    decorationThickness: 4,
+    skipInkMode: "all",
   });
-  const uprightProjection = verticalDecorationSkipInkText({
-    text: "/", verticalOrientations: ["upright"],
-  } as Parameters<typeof verticalDecorationSkipInkText>[0]) ?? "";
-  const rotatedProjection = verticalDecorationSkipInkText({
-    text: "/", verticalOrientations: ["rotated"],
-  } as Parameters<typeof verticalDecorationSkipInkText>[0]) ?? "";
+  const uprightProjection =
+    verticalDecorationSkipInkText({
+      text: "/",
+      verticalOrientations: ["upright"],
+    } as Parameters<typeof verticalDecorationSkipInkText>[0]) ?? "";
+  const rotatedProjection =
+    verticalDecorationSkipInkText({
+      text: "/",
+      verticalOrientations: ["rotated"],
+    } as Parameters<typeof verticalDecorationSkipInkText>[0]) ?? "";
   const skipInk = {
     autoExcludedSlashGapCount: autoExcludedSlash.length,
     allIncludedSlashGapCount: allIncludedSlash.length,
     uprightProjection,
     rotatedProjection,
-    pass: autoExcludedSlash.length === 0 && allIncludedSlash.length > 0
-      && uprightProjection === "\u200B" && rotatedProjection === "/",
+    pass:
+      autoExcludedSlash.length === 0 &&
+      allIncludedSlash.length > 0 &&
+      uprightProjection === "\u200B" &&
+      rotatedProjection === "/",
   };
   const mutationControls = {
     "force-central-under": ja.expected.flip !== false,
     "use-alphabetic-central-offset": central.expected.underlineTop !== Math.trunc(Math.round(base.ascent) + 1),
-    "drop-flipped-author-offset": ja.expected.overlineTop !== sourceMetrics(
-      { ...caseById.get("vrl-ja-A-auto-over")!, offset: "auto" }, faces.serif,
-    ).overlineTop,
+    "drop-flipped-author-offset":
+      ja.expected.overlineTop !==
+      sourceMetrics({ ...caseById.get("vrl-ja-A-auto-over")!, offset: "auto" }, faces.serif).overlineTop,
     "skip-effective-zoom": zoom.expected.thickness !== roundf(3),
-    "multiply-logical-geometry-by-dpr": byId.get("vrl-en-A-auto-under.dpr4")!.expected.thickness * 4
-      !== byId.get("vrl-en-A-auto-under.dpr4")!.actual.thickness,
-    "reuse-clockwise-for-sideways-lr": slr.expected.transform
-      !== sourceTransform({ ...caseById.get("slr-en-under")!, writingMode: "sideways-rl" }),
-    "derive-script-from-glyph": ja.expected.flip
-      !== sourceResolution({ ...caseById.get("vrl-ja-A-auto-over")!, scriptClass: "other" }).flip,
-    "substitute-wrong-from-font-face": fromFont.expected.thickness
-      !== Math.max(1, faces.mono.underlineThickness * caseById.get("vrl-sideways-from-font")!.fontSize / faces.mono.unitsPerEm),
+    "multiply-logical-geometry-by-dpr":
+      byId.get("vrl-en-A-auto-under.dpr4")!.expected.thickness * 4 !==
+      byId.get("vrl-en-A-auto-under.dpr4")!.actual.thickness,
+    "reuse-clockwise-for-sideways-lr":
+      slr.expected.transform !== sourceTransform({ ...caseById.get("slr-en-under")!, writingMode: "sideways-rl" }),
+    "derive-script-from-glyph":
+      ja.expected.flip !== sourceResolution({ ...caseById.get("vrl-ja-A-auto-over")!, scriptClass: "other" }).flip,
+    "substitute-wrong-from-font-face":
+      fromFont.expected.thickness !==
+      Math.max(
+        1,
+        (faces.mono.underlineThickness * caseById.get("vrl-sideways-from-font")!.fontSize) / faces.mono.unitsPerEm,
+      ),
     "treat-skip-ink-all-as-auto": autoExcludedSlash.length === 0 && allIncludedSlash.length > 0,
     "open-upright-vertical-intercepts": uprightProjection !== rotatedProjection,
   };
-  const pass = rows.every((entry) => entry.pass) && skipInk.pass
-    && Object.values(mutationControls).every(Boolean);
+  const pass = rows.every((entry) => entry.pass) && skipInk.pass && Object.values(mutationControls).every(Boolean);
   return {
     chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
     geometrySpace: "line-relative-css-px",

@@ -65,7 +65,9 @@ pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; paddin
 const FRAMES = [
   {
     title: "Typography & Colors",
-    html: page("Typography & Colors", `
+    html: page(
+      "Typography & Colors",
+      `
       <h1>Domotion</h1>
       <p>Turn HTML/CSS into a self-contained, animated SVG. <a href="#">Read the docs</a></p>
       <h2>Text Styles</h2>
@@ -88,12 +90,15 @@ const FRAMES = [
       <h2>Code</h2>
       <pre>npm install domotion-svg</pre>
       <p>Inline code: <code>domotion capture</code> writes a self-contained <code>out.svg</code></p>
-    `),
+    `,
+    ),
     duration: 4000,
   },
   {
     title: "Cards & Components",
-    html: page("Cards & Components", `
+    html: page(
+      "Cards & Components",
+      `
       <div class="title-row">
         <h1>domotion</h1>
         <span class="version">v0.15.0</span>
@@ -119,12 +124,15 @@ const FRAMES = [
         <button class="btn btn-primary">Render</button>
         <button class="btn btn-secondary">Optimize</button>
       </div>
-    `),
+    `,
+    ),
     duration: 4000,
   },
   {
     title: "Forms & Inputs",
-    html: page("Forms & Inputs", `
+    html: page(
+      "Forms & Inputs",
+      `
       <h1>Capture a page</h1>
       <p>Render any URL or HTML file to a self-contained animated SVG.</p>
       <div style="margin-top: 16px">
@@ -146,7 +154,8 @@ const FRAMES = [
       <div class="flex" style="margin-top: 16px">
         <button class="btn btn-primary">Capture</button>
       </div>
-    `),
+    `,
+    ),
     duration: 4000,
   },
 ];
@@ -184,7 +193,12 @@ async function main(): Promise<void> {
 
   await browser.close();
 
-  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames: animFrames, fontFaceCss: getEmbeddedFontFaceCss() });
+  let svg = generateAnimatedSvg({
+    width: WIDTH,
+    height: HEIGHT,
+    frames: animFrames,
+    fontFaceCss: getEmbeddedFontFaceCss(),
+  });
   svg = optimizeSvg(svg);
   writeFileSync(OUTPUT, svg);
   console.log(`Generated: ${OUTPUT} (${(svg.length / 1024).toFixed(1)} KB)`);

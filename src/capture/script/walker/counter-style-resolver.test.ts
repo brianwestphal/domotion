@@ -29,9 +29,20 @@ describe("counter-style resolver: built-in styles in counter() context (DM-1274)
     // resolveCounterValue is the `wrap=false` path — unlike the ::marker
     // resolveCounterStyle path which adds prefix/suffix.
     const { resolveCounterValue: rv, resolveCounterStyle: rs } = createCounterStyleResolver({
-      counterStyles: { stepd: { system: "extends", extendsName: "decimal", prefix: "Step ", suffix: ":", padLen: 2, padSym: "0", rangeLo: -Infinity, rangeHi: Infinity } },
+      counterStyles: {
+        stepd: {
+          system: "extends",
+          extendsName: "decimal",
+          prefix: "Step ",
+          suffix: ":",
+          padLen: 2,
+          padSym: "0",
+          rangeLo: -Infinity,
+          rangeHi: Infinity,
+        },
+      },
     });
-    expect(rv("stepd", 1)).toBe("01");            // value only
-    expect(rs("stepd", 1)).toBe("Step 01:");      // wrapped (marker context)
+    expect(rv("stepd", 1)).toBe("01"); // value only
+    expect(rs("stepd", 1)).toBe("Step 01:"); // wrapped (marker context)
   });
 });

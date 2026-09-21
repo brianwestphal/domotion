@@ -14,7 +14,15 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
+import {
+  CARD_FONT_STACK,
+  cardHeadCss,
+  cardScaleFactor,
+  fs,
+  resolveCardTheme,
+  staggeredReveal,
+  revealEndMs,
+} from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const ALIGN = ["center", "left"] as const;
@@ -45,7 +53,10 @@ export const titleCardParamsSchema = z.object({
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3500).describe("Total on-screen time in ms."),
   logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown above/below the title."),
-  logoPosition: z.enum(["above", "below"]).default("above").describe('Place the logo "above" (default) or "below" the title block.'),
+  logoPosition: z
+    .enum(["above", "below"])
+    .default("above")
+    .describe('Place the logo "above" (default) or "below" the title block.'),
 });
 
 export type TitleCardParams = z.infer<typeof titleCardParamsSchema>;

@@ -15,7 +15,10 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2];
-if (dir == null) { console.error("slim-results: <dir> required"); process.exit(2); }
+if (dir == null) {
+  console.error("slim-results: <dir> required");
+  process.exit(2);
+}
 
 // Heavy per-fixture fields the review UI does NOT need (drop these).
 const DROP = new Set(["regions"]);
@@ -25,7 +28,11 @@ for (const name of readdirSync(dir)) {
   const m = /^results-([a-z0-9]+)\.json$/i.exec(name);
   if (m == null) continue;
   let arr;
-  try { arr = JSON.parse(readFileSync(join(dir, name), "utf8")); } catch { continue; }
+  try {
+    arr = JSON.parse(readFileSync(join(dir, name), "utf8"));
+  } catch {
+    continue;
+  }
   if (!Array.isArray(arr)) continue;
   const slim = arr.map((r) => {
     const out = {};
@@ -33,7 +40,11 @@ for (const name of readdirSync(dir)) {
       if (DROP.has(k)) continue;
       // `chunks` (real-world scroll) is kept but its own nested `regions` dropped.
       if (k === "chunks" && Array.isArray(r[k])) {
-        out[k] = r[k].map((c) => { const cc = { ...c }; delete cc.regions; return cc; });
+        out[k] = r[k].map((c) => {
+          const cc = { ...c };
+          delete cc.regions;
+          return cc;
+        });
       } else {
         out[k] = r[k];
       }

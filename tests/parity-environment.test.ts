@@ -9,14 +9,18 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("parity environment source provenance", () => {
   it("reads revisions from the materialized source-authority manifest", () => {
-    expect(sourceAuthorityPinsFromManifest(JSON.stringify({
-      pins: {
-        chromium: "chromium-materialized-pin",
-        harfbuzz: "harfbuzz-materialized-pin",
-        skia: "skia-materialized-pin",
-        icu: "icu-materialized-pin",
-      },
-    }))).toEqual({
+    expect(
+      sourceAuthorityPinsFromManifest(
+        JSON.stringify({
+          pins: {
+            chromium: "chromium-materialized-pin",
+            harfbuzz: "harfbuzz-materialized-pin",
+            skia: "skia-materialized-pin",
+            icu: "icu-materialized-pin",
+          },
+        }),
+      ),
+    ).toEqual({
       chromium: "chromium-materialized-pin",
       harfbuzz: "harfbuzz-materialized-pin",
       skia: "skia-materialized-pin",

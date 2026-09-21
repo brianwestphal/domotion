@@ -5,9 +5,18 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1041","DM-1042","DM-1045"]
-code: ["scripts/build-scrubber-client.mjs","src/cli/scrubber.ts","src/scrubber/client.tsx","src/scrubber/server.e2e.test.ts","src/scrubber/server.ts","src/scrubber/trim.test.ts","src/scrubber/trim.ts"]
-aliases: ["docs/56-svg-scrubber.md","doc-56"]
+tickets: ["DM-1041", "DM-1042", "DM-1045"]
+code:
+  [
+    "scripts/build-scrubber-client.mjs",
+    "src/cli/scrubber.ts",
+    "src/scrubber/client.tsx",
+    "src/scrubber/server.e2e.test.ts",
+    "src/scrubber/server.ts",
+    "src/scrubber/trim.test.ts",
+    "src/scrubber/trim.ts",
+  ]
+aliases: ["docs/56-svg-scrubber.md", "doc-56"]
 ---
 
 # 56 — `svg-scrubber` (video-style playback for animated SVGs)
@@ -18,7 +27,7 @@ scrub the timeline by hand, mark an in/out range and loop it, export the current
 frame as a PNG, and trim the range to a new self-contained animated SVG.
 
 It complements the non-interactive `svg-to-video` CLI (doc 47): that bakes an
-SVG to a finished video file; this is the interactive bench for *deciding* what
+SVG to a finished video file; this is the interactive bench for _deciding_ what
 you want before (or instead of) baking.
 
 ## Usage
@@ -42,16 +51,16 @@ spreads three groups across the width (`space-between`) — **range** controls o
 the left, **zoom / pan** controls in the middle, the **Export** button on the
 right.
 
-| Control | Behavior |
-| --- | --- |
-| Play / pause | Space, or the play/pause button (a Lucide play/pause icon). The scrubber thumb advances while playing. |
-| Frame step | `←` / `→` step one 30 fps frame; hold **Shift** to step 1 ms. |
-| Speed | 0.1x–4x select; affects playback only, not the underlying timeline. |
-| Scrub | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range; the ticks are **draggable** along the track to set the in/out points. |
-| Range | **In** / **Out** set the in/out points to the playhead (or type seconds, or drag the ticks). **loop** loops playback over `[in, out]`. **Reset** restores the full loop. |
-| Zoom / pan | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom; **Center** resets the pan. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
-| Crop | A **crop** toggle (lucide crop icon) overlays a draggable crop rectangle with 8 resize handles on the stage; the chosen region is baked into every export. Disabling resets the crop. See **doc 57**. |
-| Export | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Each honors the crop rect when crop mode is on (doc 57). Export errors surface as a browser alert; there is no persistent status line. |
+| Control      | Behavior                                                                                                                                                                                                                                                                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Play / pause | Space, or the play/pause button (a Lucide play/pause icon). The scrubber thumb advances while playing.                                                                                                                                                                                                                             |
+| Frame step   | `←` / `→` step one 30 fps frame; hold **Shift** to step 1 ms.                                                                                                                                                                                                                                                                      |
+| Speed        | 0.1x–4x select; affects playback only, not the underlying timeline.                                                                                                                                                                                                                                                                |
+| Scrub        | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range; the ticks are **draggable** along the track to set the in/out points.                                                                                                                                             |
+| Range        | **In** / **Out** set the in/out points to the playhead (or type seconds, or drag the ticks). **loop** loops playback over `[in, out]`. **Reset** restores the full loop.                                                                                                                                                           |
+| Zoom / pan   | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom; **Center** resets the pan. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
+| Crop         | A **crop** toggle (lucide crop icon) overlays a draggable crop rectangle with 8 resize handles on the stage; the chosen region is baked into every export. Disabling resets the crop. See **doc 57**.                                                                                                                              |
+| Export       | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Each honors the crop rect when crop mode is on (doc 57). Export errors surface as a browser alert; there is no persistent status line.                                                                  |
 
 The UI is built with **kerfjs** (signals + `mount` + `delegate`); the loaded SVG
 sits in a `data-morph-skip` host so the reactive re-render never touches it,

@@ -45,8 +45,12 @@ describe("Blink HTML mask-origin/mask-clip geometry (DM-2472)", () => {
     expect(normalizeHtmlMaskBox("fill-box", false)).toBe("content-box");
     expect(normalizeHtmlMaskBox("stroke-box", false)).toBe("border-box");
     expect(normalizeHtmlMaskBox("view-box", true)).toBe("border-box");
-    expect(resolveHtmlMaskReferenceBox(borderBox, "fill-box", context.border, context.padding))
-      .toEqual({ x: 44, y: 36, width: 64, height: 48 });
+    expect(resolveHtmlMaskReferenceBox(borderBox, "fill-box", context.border, context.padding)).toEqual({
+      x: 44,
+      y: 36,
+      width: 64,
+      height: 48,
+    });
   });
 
   it("same-box negative control is invariant while the collapsed-box mutation moves ink", () => {
@@ -64,10 +68,20 @@ describe("Blink HTML mask-origin/mask-clip geometry (DM-2472)", () => {
   it("emits contain geometry from origin and clips it to a different box", () => {
     const png = 'url("data:image/png;base64,iVBORw0KGgo=")';
     const built = buildMaskDef(
-      "m", png,
-      borderBox.x, borderBox.y, borderBox.width, borderBox.height,
-      "alpha", "contain", "100% 50%", "no-repeat", "add",
-      undefined, [{ w: 2, h: 1 }], undefined,
+      "m",
+      png,
+      borderBox.x,
+      borderBox.y,
+      borderBox.width,
+      borderBox.height,
+      "alpha",
+      "contain",
+      "100% 50%",
+      "no-repeat",
+      "add",
+      undefined,
+      [{ w: 2, h: 1 }],
+      undefined,
       { ...context, originCss: "content-box", clipCss: "padding-box" },
     );
     // Content positioning area is 64x48. contain => 64x32, right aligned,
@@ -80,10 +94,20 @@ describe("Blink HTML mask-origin/mask-clip geometry (DM-2472)", () => {
   it("paints repeating layers across clip while anchoring their pattern to origin", () => {
     const png = 'url("data:image/png;base64,iVBORw0KGgo=")';
     const built = buildMaskDef(
-      "m", png,
-      borderBox.x, borderBox.y, borderBox.width, borderBox.height,
-      "alpha", "16px 12px", "0% 0%", "repeat", "add",
-      undefined, [{ w: 2, h: 1 }], undefined,
+      "m",
+      png,
+      borderBox.x,
+      borderBox.y,
+      borderBox.width,
+      borderBox.height,
+      "alpha",
+      "16px 12px",
+      "0% 0%",
+      "repeat",
+      "add",
+      undefined,
+      [{ w: 2, h: 1 }],
+      undefined,
       { ...context, originCss: "content-box", clipCss: "border-box" },
     );
     // The serialized pattern cell begins before the painting area by Blink's
@@ -97,17 +121,37 @@ describe("Blink HTML mask-origin/mask-clip geometry (DM-2472)", () => {
     (repeat) => {
       const png = 'url("data:image/png;base64,iVBORw0KGgo=")';
       const distinct = buildMaskDef(
-        "m", png,
-        borderBox.x, borderBox.y, borderBox.width, borderBox.height,
-        "alpha", "16px 12px", "25% 75%", `${repeat} no-repeat`, "add",
-        undefined, [{ w: 16, h: 12 }], undefined,
+        "m",
+        png,
+        borderBox.x,
+        borderBox.y,
+        borderBox.width,
+        borderBox.height,
+        "alpha",
+        "16px 12px",
+        "25% 75%",
+        `${repeat} no-repeat`,
+        "add",
+        undefined,
+        [{ w: 16, h: 12 }],
+        undefined,
         { ...context, originCss: "content-box", clipCss: "border-box" },
       ).def;
       const collapsed = buildMaskDef(
-        "m", png,
-        borderBox.x, borderBox.y, borderBox.width, borderBox.height,
-        "alpha", "16px 12px", "25% 75%", `${repeat} no-repeat`, "add",
-        undefined, [{ w: 16, h: 12 }], undefined,
+        "m",
+        png,
+        borderBox.x,
+        borderBox.y,
+        borderBox.width,
+        borderBox.height,
+        "alpha",
+        "16px 12px",
+        "25% 75%",
+        `${repeat} no-repeat`,
+        "add",
+        undefined,
+        [{ w: 16, h: 12 }],
+        undefined,
         { ...context, originCss: "content-box", clipCss: "content-box" },
       ).def;
 

@@ -27,9 +27,10 @@ const SCRIPT = join(process.cwd(), "scripts/merge-shard-results.mjs");
 function shardDir(root: string, os: string, shard: number, fixtures: string[]) {
   const d = join(root, `results-${os}-shard${shard}`);
   mkdirSync(d, { recursive: true });
-  writeFileSync(join(d, "results.json"), JSON.stringify(
-    fixtures.map((name) => ({ name, pass: true, skipped: false, diffPct: 0, regionCount: 0 })),
-  ));
+  writeFileSync(
+    join(d, "results.json"),
+    JSON.stringify(fixtures.map((name) => ({ name, pass: true, skipped: false, diffPct: 0, regionCount: 0 }))),
+  );
   writeFileSync(join(d, "run-env.json"), JSON.stringify({ image: "macos26-arm64", platform: "darwin" }));
   return d;
 }
@@ -42,7 +43,10 @@ function runMerge(root: string, expectArg?: string) {
     return { code: 0, summary: readFileSync(join(root, "summary.md"), "utf-8") };
   } catch (e) {
     const err = e as { status?: number };
-    return { code: err.status ?? 1, summary: existsSync(join(root, "summary.md")) ? readFileSync(join(root, "summary.md"), "utf-8") : "" };
+    return {
+      code: err.status ?? 1,
+      summary: existsSync(join(root, "summary.md")) ? readFileSync(join(root, "summary.md"), "utf-8") : "",
+    };
   }
 }
 

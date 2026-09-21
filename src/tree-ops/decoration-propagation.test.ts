@@ -8,7 +8,12 @@ import type { DecorationFragmentCarrier } from "../render/decoration-fragment-ow
 
 type StyleOverrides = Partial<CapturedElement["styles"]>;
 
-function el(opts: { tag?: string; text?: string; styles?: StyleOverrides; children?: CapturedElement[] }): CapturedElement {
+function el(opts: {
+  tag?: string;
+  text?: string;
+  styles?: StyleOverrides;
+  children?: CapturedElement[];
+}): CapturedElement {
   return {
     tag: opts.tag ?? "span",
     text: opts.text ?? "",
@@ -60,21 +65,23 @@ describe("propagateTextDecorations: basics", () => {
     const strong = el({ tag: "strong", text: "bold", styles: { fontWeight: "700", textDecorationLine: "none" } });
     const span = el({ text: "regular ", styles: decoStyles(), children: [strong] });
     propagateTextDecorations([span]);
-    expect(strong.propagatedDecorations).toEqual([{
-      line: "underline",
-      style: "wavy",
-      color: "rgb(220, 38, 38)",
-      thickness: "2px",
-      underlineOffset: "auto",
-      fontFamily: "system-ui",
-      fontSize: 24,
-      fontWeight: "400",
-      fontStyle: undefined,
-      fontAscent: undefined,
-      fontDescent: undefined,
-      baselines: undefined,
-      lengthScale: 1,
-    }]);
+    expect(strong.propagatedDecorations).toEqual([
+      {
+        line: "underline",
+        style: "wavy",
+        color: "rgb(220, 38, 38)",
+        thickness: "2px",
+        underlineOffset: "auto",
+        fontFamily: "system-ui",
+        fontSize: 24,
+        fontWeight: "400",
+        fontStyle: undefined,
+        fontAscent: undefined,
+        fontDescent: undefined,
+        baselines: undefined,
+        lengthScale: 1,
+      },
+    ]);
     // The decorating element itself is not annotated.
     expect(span.propagatedDecorations).toBeUndefined();
   });
@@ -91,7 +98,9 @@ describe("propagateTextDecorations: basics", () => {
 
   it("annotates elements with textSegments but empty text", () => {
     const child = el({ tag: "strong", styles: { textDecorationLine: "none" } });
-    child.textSegments = [{ text: "seg", x: 0, y: 0, width: 10, height: 10 } as NonNullable<CapturedElement["textSegments"]>[number]];
+    child.textSegments = [
+      { text: "seg", x: 0, y: 0, width: 10, height: 10 } as NonNullable<CapturedElement["textSegments"]>[number],
+    ];
     const span = el({ styles: decoStyles(), children: [child] });
     propagateTextDecorations([span]);
     expect(child.propagatedDecorations?.[0]?.line).toBe("underline");
@@ -112,7 +121,15 @@ describe("propagateTextDecorations: basics", () => {
     // Blink's AppliedTextDecorations: <u><span style="overline">x</span></u>
     // paints BOTH lines over "x" — both entries reach the leaf, applied order.
     const leaf = el({ text: "leaf", styles: { textDecorationLine: "none" } });
-    const inner = el({ text: "mid", styles: decoStyles({ textDecorationLine: "overline", textDecorationStyle: "dotted", textDecorationColor: "rgb(0, 0, 255)" }), children: [leaf] });
+    const inner = el({
+      text: "mid",
+      styles: decoStyles({
+        textDecorationLine: "overline",
+        textDecorationStyle: "dotted",
+        textDecorationColor: "rgb(0, 0, 255)",
+      }),
+      children: [leaf],
+    });
     const outer = el({ styles: decoStyles(), children: [inner] });
     propagateTextDecorations([outer]);
     expect(leaf.propagatedDecorations).toHaveLength(2);
@@ -159,7 +176,11 @@ describe("propagateTextDecorations: blockers", () => {
   ] as const) {
     it(`${name} blocks receiving AND forwarding`, () => {
       const grandchild = el({ text: "deep", styles: { textDecorationLine: "none" } });
-      const blocked = el({ text: "blocked", styles: { textDecorationLine: "none", ...styles }, children: [grandchild] });
+      const blocked = el({
+        text: "blocked",
+        styles: { textDecorationLine: "none", ...styles },
+        children: [grandchild],
+      });
       const span = el({ styles: decoStyles(), children: [blocked] });
       propagateTextDecorations([span]);
       expect(blocked.propagatedDecorations).toBeUndefined();
@@ -245,10 +266,14 @@ describe("propagateTextDecorations: decorating-box baselines (DM-1732)", () => {
     ];
     propagateTextDecorations([u]);
     const record = child.propagatedDecorations?.[0] as
-      | (NonNullable<typeof child.propagatedDecorations>[number] & DecorationFragmentCarrier)
-      | undefined;
-    expect(record?.decorationFragments?.map(({ lineOver, baseline, continuationPhase }) =>
-      ({ lineOver, baseline, continuationPhase }))).toEqual([
+      (NonNullable<typeof child.propagatedDecorations>[number] & DecorationFragmentCarrier) | undefined;
+    expect(
+      record?.decorationFragments?.map(({ lineOver, baseline, continuationPhase }) => ({
+        lineOver,
+        baseline,
+        continuationPhase,
+      })),
+    ).toEqual([
       { lineOver: 20.125, baseline: 32.375, continuationPhase: 0 },
       { lineOver: 42.625, baseline: 54.875, continuationPhase: 0 },
     ]);
@@ -273,7 +298,9 @@ describe("propagateTextDecorations: decorating-box baselines (DM-1732)", () => {
     const u = el({ text: "big", styles: decoStyles(), children: [child] });
     u.fontAscent = 20;
     u.textSegments = [
-      { text: "big", x: 0, y: 100, width: 30, height: 40, fontAscent: 30 } as NonNullable<CapturedElement["textSegments"]>[number],
+      { text: "big", x: 0, y: 100, width: 30, height: 40, fontAscent: 30 } as NonNullable<
+        CapturedElement["textSegments"]
+      >[number],
     ];
     propagateTextDecorations([u]);
     expect(child.propagatedDecorations?.[0]?.baselines).toEqual([130]);

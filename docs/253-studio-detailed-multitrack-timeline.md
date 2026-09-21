@@ -3,11 +3,20 @@ id: "requirements/studio-detailed-multitrack-timeline"
 title: "Detailed multitrack timeline editing in Domotion Studio"
 kind: "contract"
 status: "current"
-owners: ["studio","ui","scrubber","ai"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2692","DM-S31XF3"]
-code: ["src/studio/timeline.ts","src/studio/timeline.test.ts","src/studio/timeline.e2e.test.ts","src/studio/client.tsx","src/studio/server.ts","src/scrubber/embed.ts","src/scrubber/client.tsx"]
-aliases: ["docs/253-studio-detailed-multitrack-timeline.md","doc-253"]
+owners: ["studio", "ui", "scrubber", "ai"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2692", "DM-S31XF3"]
+code:
+  [
+    "src/studio/timeline.ts",
+    "src/studio/timeline.test.ts",
+    "src/studio/timeline.e2e.test.ts",
+    "src/studio/client.tsx",
+    "src/studio/server.ts",
+    "src/scrubber/embed.ts",
+    "src/scrubber/client.tsx",
+  ]
+aliases: ["docs/253-studio-detailed-multitrack-timeline.md", "doc-253"]
 ---
 
 # Detailed multitrack timeline editing in Domotion Studio

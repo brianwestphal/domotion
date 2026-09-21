@@ -6,8 +6,15 @@ status: "current"
 owners: ["animation"]
 platforms: []
 tickets: ["DM-2072"]
-code: ["src/animation/animator.ts","src/animation/animator-parameterized-transitions.test.ts","src/animation/transition-schema.ts","src/animation/transition-schema.test.ts","tests/compose-animate-frames.e2e.test.ts"]
-aliases: ["docs/118-custom-transition-recipes.md","doc-118"]
+code:
+  [
+    "src/animation/animator.ts",
+    "src/animation/animator-parameterized-transitions.test.ts",
+    "src/animation/transition-schema.ts",
+    "src/animation/transition-schema.test.ts",
+    "tests/compose-animate-frames.e2e.test.ts",
+  ]
+aliases: ["docs/118-custom-transition-recipes.md", "doc-118"]
 ---
 
 # 118 — Declarative custom transition recipes
@@ -16,7 +23,9 @@ DM-2072 provides an open-ended transition escape hatch without accepting viewer 
 
 ```json
 {
-  "type": "custom", "duration": 420, "easing": "ease-out",
+  "type": "custom",
+  "duration": 420,
+  "easing": "ease-out",
   "custom": {
     "zOrder": "incoming-on-top",
     "incoming": {

@@ -102,9 +102,30 @@ describe("resolveDurationMs", () => {
 
 describe("resolveFormat", () => {
   it("maps known formats to codec + default container + pix_fmt", () => {
-    expect(resolveFormat("h264")).toEqual({ videoCodec: "libx264", container: "mp4", pixFmt: "yuv420p", extraArgs: [], alpha: false, alphaCapable: false });
-    expect(resolveFormat("vp9")).toEqual({ videoCodec: "libvpx-vp9", container: "webm", pixFmt: "yuv420p", extraArgs: [], alpha: false, alphaCapable: true });
-    expect(resolveFormat("hevc")).toEqual({ videoCodec: "libx265", container: "mp4", pixFmt: "yuv420p", extraArgs: [], alpha: false, alphaCapable: false });
+    expect(resolveFormat("h264")).toEqual({
+      videoCodec: "libx264",
+      container: "mp4",
+      pixFmt: "yuv420p",
+      extraArgs: [],
+      alpha: false,
+      alphaCapable: false,
+    });
+    expect(resolveFormat("vp9")).toEqual({
+      videoCodec: "libvpx-vp9",
+      container: "webm",
+      pixFmt: "yuv420p",
+      extraArgs: [],
+      alpha: false,
+      alphaCapable: true,
+    });
+    expect(resolveFormat("hevc")).toEqual({
+      videoCodec: "libx265",
+      container: "mp4",
+      pixFmt: "yuv420p",
+      extraArgs: [],
+      alpha: false,
+      alphaCapable: false,
+    });
   });
   it("honors a container override", () => {
     expect(resolveFormat("h264", "mov").container).toBe("mov");
@@ -113,8 +134,22 @@ describe("resolveFormat", () => {
     expect(() => resolveFormat("xyz")).toThrow(/Unsupported --format/);
   });
   it("maps the animated-image formats and ignores a container override for them", () => {
-    expect(resolveFormat("gif")).toEqual({ videoCodec: "gif", container: "gif", pixFmt: "pal8", extraArgs: [], alpha: false, alphaCapable: true });
-    expect(resolveFormat("apng")).toEqual({ videoCodec: "apng", container: "apng", pixFmt: "rgba", extraArgs: [], alpha: false, alphaCapable: true });
+    expect(resolveFormat("gif")).toEqual({
+      videoCodec: "gif",
+      container: "gif",
+      pixFmt: "pal8",
+      extraArgs: [],
+      alpha: false,
+      alphaCapable: true,
+    });
+    expect(resolveFormat("apng")).toEqual({
+      videoCodec: "apng",
+      container: "apng",
+      pixFmt: "rgba",
+      extraArgs: [],
+      alpha: false,
+      alphaCapable: true,
+    });
     // a nonsensical override can't desync the format from its container
     expect(resolveFormat("gif", "mp4").container).toBe("gif");
     expect(resolveFormat("apng", "webm").container).toBe("apng");
@@ -128,10 +163,19 @@ describe("resolveFormat", () => {
 
   // DM-1142: transparency-aware resolution.
   it("switches alpha-capable formats to their alpha pix_fmt when transparent", () => {
-    expect(resolveFormat("vp9", undefined, true)).toMatchObject({ pixFmt: "yuva420p", alpha: true, alphaCapable: true });
+    expect(resolveFormat("vp9", undefined, true)).toMatchObject({
+      pixFmt: "yuva420p",
+      alpha: true,
+      alphaCapable: true,
+    });
     // ProRes 4444: alpha pix_fmt + the 4444 profile arg.
     expect(resolveFormat("prores", undefined, true)).toMatchObject({
-      videoCodec: "prores_ks", container: "mov", pixFmt: "yuva444p10le", extraArgs: ["-profile:v", "4"], alpha: true, alphaCapable: true,
+      videoCodec: "prores_ks",
+      container: "mov",
+      pixFmt: "yuva444p10le",
+      extraArgs: ["-profile:v", "4"],
+      alpha: true,
+      alphaCapable: true,
     });
     // gif/apng are alpha-capable and emit alpha when transparent.
     expect(resolveFormat("gif", undefined, true)).toMatchObject({ alpha: true, alphaCapable: true });
@@ -150,7 +194,13 @@ describe("resolveFormat", () => {
   });
 
   it("uses ProRes HQ profile (opaque) by default", () => {
-    expect(resolveFormat("prores")).toMatchObject({ videoCodec: "prores_ks", container: "mov", pixFmt: "yuv422p10le", extraArgs: ["-profile:v", "3"], alpha: false });
+    expect(resolveFormat("prores")).toMatchObject({
+      videoCodec: "prores_ks",
+      container: "mov",
+      pixFmt: "yuv422p10le",
+      extraArgs: ["-profile:v", "3"],
+      alpha: false,
+    });
   });
 });
 
@@ -186,19 +236,45 @@ describe("frameSampleTimeMs (DM-1144)", () => {
 
 describe("isTransparentBackground (DM-1142)", () => {
   it("treats keyword / zero-alpha values as transparent", () => {
-    for (const v of ["transparent", "none", "  Transparent ", "rgba(0,0,0,0)", "rgba(255, 0, 0, 0)", "hsla(0,0%,0%,0)", "#0000", "#abc0", "#11223300"]) {
+    for (const v of [
+      "transparent",
+      "none",
+      "  Transparent ",
+      "rgba(0,0,0,0)",
+      "rgba(255, 0, 0, 0)",
+      "hsla(0,0%,0%,0)",
+      "#0000",
+      "#abc0",
+      "#11223300",
+    ]) {
       expect(isTransparentBackground(v), v).toBe(true);
     }
   });
   it("treats opaque values as not transparent", () => {
-    for (const v of ["#ffffff", "white", "#000", "rgb(0,0,0)", "rgba(0,0,0,1)", "rgba(0,0,0,0.5)", "#000000ff", "#abcf"]) {
+    for (const v of [
+      "#ffffff",
+      "white",
+      "#000",
+      "rgb(0,0,0)",
+      "rgba(0,0,0,1)",
+      "rgba(0,0,0,0.5)",
+      "#000000ff",
+      "#abcf",
+    ]) {
       expect(isTransparentBackground(v), v).toBe(false);
     }
   });
 });
 
 describe("buildFfmpegArgs", () => {
-  const h264: ResolvedFormat = { videoCodec: "libx264", container: "mp4", pixFmt: "yuv420p", extraArgs: [], alpha: false, alphaCapable: false };
+  const h264: ResolvedFormat = {
+    videoCodec: "libx264",
+    container: "mp4",
+    pixFmt: "yuv420p",
+    extraArgs: [],
+    alpha: false,
+    alphaCapable: false,
+  };
   const base = {
     fps: 30,
     frameWidth: 800,
@@ -260,15 +336,38 @@ describe("buildFfmpegArgs", () => {
   });
 
   it("uses webm audio/subtitle codecs for a webm container", () => {
-    const vp9: ResolvedFormat = { videoCodec: "libvpx-vp9", container: "webm", pixFmt: "yuv420p", extraArgs: [], alpha: false, alphaCapable: true };
-    const a = buildFfmpegArgs({ ...base, fmt: vp9, output: "out.webm", music: "bed.mp3", captions: "cap.vtt" }).join(" ");
+    const vp9: ResolvedFormat = {
+      videoCodec: "libvpx-vp9",
+      container: "webm",
+      pixFmt: "yuv420p",
+      extraArgs: [],
+      alpha: false,
+      alphaCapable: true,
+    };
+    const a = buildFfmpegArgs({ ...base, fmt: vp9, output: "out.webm", music: "bed.mp3", captions: "cap.vtt" }).join(
+      " ",
+    );
     expect(a).toContain("-c:a libopus");
     expect(a).toContain("-c:s webvtt");
     expect(a).not.toContain("faststart");
   });
 
-  const gif: ResolvedFormat = { videoCodec: "gif", container: "gif", pixFmt: "pal8", extraArgs: [], alpha: false, alphaCapable: true };
-  const apng: ResolvedFormat = { videoCodec: "apng", container: "apng", pixFmt: "rgba", extraArgs: [], alpha: false, alphaCapable: true };
+  const gif: ResolvedFormat = {
+    videoCodec: "gif",
+    container: "gif",
+    pixFmt: "pal8",
+    extraArgs: [],
+    alpha: false,
+    alphaCapable: true,
+  };
+  const apng: ResolvedFormat = {
+    videoCodec: "apng",
+    container: "apng",
+    pixFmt: "rgba",
+    extraArgs: [],
+    alpha: false,
+    alphaCapable: true,
+  };
 
   it("builds a GIF via the palettegen/paletteuse filtergraph", () => {
     const a = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif" });
@@ -321,14 +420,28 @@ describe("buildFfmpegArgs", () => {
   });
 
   it("does NOT color-manage non-yuv420p formats (prores 4:4:4 handles its own color)", () => {
-    const prores: ResolvedFormat = { videoCodec: "prores_ks", container: "mov", pixFmt: "yuv422p10le", extraArgs: ["-profile:v", "3"], alpha: false, alphaCapable: true };
+    const prores: ResolvedFormat = {
+      videoCodec: "prores_ks",
+      container: "mov",
+      pixFmt: "yuv422p10le",
+      extraArgs: ["-profile:v", "3"],
+      alpha: false,
+      alphaCapable: true,
+    };
     const s = buildFfmpegArgs({ ...base, fmt: prores, output: "out.mov" }).join(" ");
     expect(s).not.toContain("out_color_matrix");
     expect(s).not.toContain("-color_range");
   });
 
   it("emits the ProRes 4444 profile + yuva pix_fmt for a transparent .mov", () => {
-    const proresAlpha: ResolvedFormat = { videoCodec: "prores_ks", container: "mov", pixFmt: "yuva444p10le", extraArgs: ["-profile:v", "4"], alpha: true, alphaCapable: true };
+    const proresAlpha: ResolvedFormat = {
+      videoCodec: "prores_ks",
+      container: "mov",
+      pixFmt: "yuva444p10le",
+      extraArgs: ["-profile:v", "4"],
+      alpha: true,
+      alphaCapable: true,
+    };
     const a = buildFfmpegArgs({ ...base, fmt: proresAlpha, output: "out.mov" });
     const s = a.join(" ");
     expect(s).toContain("-c:v prores_ks -profile:v 4 -pix_fmt yuva444p10le");
@@ -348,13 +461,26 @@ describe("buildFfmpegArgs", () => {
 
   it("drops audio + soft captions for animated-image formats (burn-in still applies)", () => {
     // music/audio/soft-captions are ignored; only burn-in subtitles reach the filter.
-    const dropped = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif", music: "bed.mp3", audio: "vo.m4a", captions: "cap.srt" }).join(" ");
+    const dropped = buildFfmpegArgs({
+      ...base,
+      fmt: gif,
+      output: "out.gif",
+      music: "bed.mp3",
+      audio: "vo.m4a",
+      captions: "cap.srt",
+    }).join(" ");
     expect(dropped).not.toContain("-c:a");
     expect(dropped).not.toContain("-c:s");
     expect(dropped).not.toContain("amix");
     expect(dropped).not.toContain("subtitles=");
 
-    const burned = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif", captions: "cap.srt", burnCaptions: true }).join(" ");
+    const burned = buildFfmpegArgs({
+      ...base,
+      fmt: gif,
+      output: "out.gif",
+      captions: "cap.srt",
+      burnCaptions: true,
+    }).join(" ");
     expect(burned).toContain("subtitles=cap.srt");
   });
 });

@@ -3,11 +3,11 @@ id: "requirements/blend-filter-pixel-stage-oracle"
 title: "185 — Blend-mode and filter-kernel pixel-stage oracle"
 kind: "evidence"
 status: "current"
-owners: ["paint-effects","platform-release"]
-platforms: ["macos","linux","windows"]
+owners: ["paint-effects", "platform-release"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: [".github/workflows/blend-filter-pixel-stage.yml","tools/blend-filter-pixel-stage-oracle.ts"]
-aliases: ["docs/185-blend-filter-pixel-stage-oracle.md","doc-185"]
+code: [".github/workflows/blend-filter-pixel-stage.yml", "tools/blend-filter-pixel-stage-oracle.ts"]
+aliases: ["docs/185-blend-filter-pixel-stage-oracle.md", "doc-185"]
 ---
 
 # 185 — Blend-mode and filter-kernel pixel-stage oracle

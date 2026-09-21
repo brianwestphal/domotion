@@ -98,23 +98,23 @@ function canonicalAllowlist(raw: string | undefined): string {
   const parsed = parseCrossOriginAllowlist(raw);
   if (parsed == null) return "";
   if (parsed === "*") return "*";
-  return [...new Set(parsed.map(({ host, port }) => `${host}${port == null ? "" : `:${port}`}`))]
-    .sort()
-    .join(",");
+  return [...new Set(parsed.map(({ host, port }) => `${host}${port == null ? "" : `:${port}`}`))].sort().join(",");
 }
 
 function frameTreePayload(frames: readonly CapturedFrameScrollRecord[]): string {
-  return JSON.stringify([...frames]
-    .sort((a, b) => a.frameId.localeCompare(b.frameId))
-    .map(({ frameId, parentFrameId, origin, access, allowlistMatched, readableFromParent, reachableFromTop }) => ({
-      frameId,
-      parentFrameId,
-      origin,
-      access,
-      allowlistMatched,
-      readableFromParent,
-      reachableFromTop,
-    })));
+  return JSON.stringify(
+    [...frames]
+      .sort((a, b) => a.frameId.localeCompare(b.frameId))
+      .map(({ frameId, parentFrameId, origin, access, allowlistMatched, readableFromParent, reachableFromTop }) => ({
+        frameId,
+        parentFrameId,
+        origin,
+        access,
+        allowlistMatched,
+        readableFromParent,
+        reachableFromTop,
+      })),
+  );
 }
 
 function integrityPayload(state: Omit<CapturedFrameScrollState, "integritySha256">): string {
@@ -148,8 +148,12 @@ export function sealCapturedFrameScrollState(
 export function validateCapturedFrameScrollState(state: CapturedFrameScrollState): string[] {
   const failures: string[] = [];
   const validAccess = new Set<CapturedFrameAccess>([
-    "top", "same-origin", "cross-origin-allowlisted", "cross-origin-denied",
-    "inaccessible", "identity-unavailable",
+    "top",
+    "same-origin",
+    "cross-origin-allowlisted",
+    "cross-origin-denied",
+    "inaccessible",
+    "identity-unavailable",
   ]);
   if (state.source !== "chromium-cdp-frame-scroll-v1") failures.push("unknown frame-scroll source");
   if (state.captureId === "") failures.push("empty capture id");
@@ -175,29 +179,26 @@ export function validateCapturedFrameScrollState(state: CapturedFrameScrollState
     if (frame.access === "cross-origin-allowlisted" && !frame.allowlistMatched) {
       failures.push(`allowlisted frame ${frame.frameId} has no matching allowlist decision`);
     }
-    if (frame.access === "cross-origin-allowlisted"
-        && !frameHostAllowed(frame.origin, parsedAllowlist)) {
+    if (frame.access === "cross-origin-allowlisted" && !frameHostAllowed(frame.origin, parsedAllowlist)) {
       failures.push(`allowlisted frame ${frame.frameId} is not authorized by the sealed allowlist`);
     }
     if (frame.access === "cross-origin-denied" && frame.allowlistMatched) {
       failures.push(`denied frame ${frame.frameId} carries an allowlist match`);
     }
-    if (frame.access === "cross-origin-denied"
-        && frameHostAllowed(frame.origin, parsedAllowlist)) {
+    if (frame.access === "cross-origin-denied" && frameHostAllowed(frame.origin, parsedAllowlist)) {
       failures.push(`denied frame ${frame.frameId} is authorized by the sealed allowlist`);
     }
     if ((frame.access === "top" || frame.access === "same-origin") && frame.allowlistMatched) {
       failures.push(`same-origin frame ${frame.frameId} unexpectedly carries an allowlist match`);
     }
-    if ((frame.access === "same-origin" || frame.access === "cross-origin-allowlisted")
-        && !frame.readableFromParent) {
+    if ((frame.access === "same-origin" || frame.access === "cross-origin-allowlisted") && !frame.readableFromParent) {
       failures.push(`readable child frame ${frame.frameId} was not readable from its parent`);
     }
     if (frame.access === "inaccessible" && frame.readableFromParent) {
       failures.push(`inaccessible frame ${frame.frameId} claims parent readability`);
     }
-    const readableAccess = frame.access === "top" || frame.access === "same-origin"
-      || frame.access === "cross-origin-allowlisted";
+    const readableAccess =
+      frame.access === "top" || frame.access === "same-origin" || frame.access === "cross-origin-allowlisted";
     const readable = frame.reachableFromTop && readableAccess;
     if (!readable && frame.scrollOwners.length !== 0) {
       failures.push(`fail-closed frame ${frame.frameId} leaked scroll owners`);
@@ -218,8 +219,13 @@ export function validateCapturedFrameScrollState(state: CapturedFrameScrollState
       if (ownerIds.has(owner.ownerId)) failures.push(`duplicate scroll owner ${owner.ownerId}`);
       ownerIds.add(owner.ownerId);
       for (const value of [
-        owner.elementIndex, owner.scrollLeft, owner.scrollTop,
-        owner.scrollWidth, owner.scrollHeight, owner.clientWidth, owner.clientHeight,
+        owner.elementIndex,
+        owner.scrollLeft,
+        owner.scrollTop,
+        owner.scrollWidth,
+        owner.scrollHeight,
+        owner.clientWidth,
+        owner.clientHeight,
       ]) {
         if (!Number.isFinite(value)) failures.push(`non-finite scroll fact on ${owner.ownerId}`);
       }
@@ -229,8 +235,12 @@ export function validateCapturedFrameScrollState(state: CapturedFrameScrollState
       if ([owner.scrollWidth, owner.scrollHeight, owner.clientWidth, owner.clientHeight].some((value) => value < 0)) {
         failures.push(`negative scroll extent on ${owner.ownerId}`);
       }
-      if ((owner.kind !== "viewport" && owner.kind !== "element")
-          || owner.tag === "" || owner.direction === "" || owner.writingMode === "") {
+      if (
+        (owner.kind !== "viewport" && owner.kind !== "element") ||
+        owner.tag === "" ||
+        owner.direction === "" ||
+        owner.writingMode === ""
+      ) {
         failures.push(`invalid scroll owner metadata on ${owner.ownerId}`);
       }
     }
@@ -240,8 +250,7 @@ export function validateCapturedFrameScrollState(state: CapturedFrameScrollState
     if (frame.frameId === state.topFrameId && frame.parentFrameId != null) {
       failures.push("top frame unexpectedly has a parent");
     }
-    if (frame.frameId !== state.topFrameId
-        && (frame.parentFrameId == null || !frameIds.has(frame.parentFrameId))) {
+    if (frame.frameId !== state.topFrameId && (frame.parentFrameId == null || !frameIds.has(frame.parentFrameId))) {
       failures.push(`frame ${frame.frameId} has an unknown parent`);
     }
     if (frame.frameId === state.topFrameId && !frame.reachableFromTop) {
@@ -280,12 +289,14 @@ export function capturedScrollOwnerBindingSha256(
   scrollX: number,
   scrollY: number,
 ): string {
-  return sha256(JSON.stringify({
-    authority: state.integritySha256,
-    ownerId,
-    scrollX,
-    scrollY,
-  }));
+  return sha256(
+    JSON.stringify({
+      authority: state.integritySha256,
+      ownerId,
+      scrollX,
+      scrollY,
+    }),
+  );
 }
 
 async function setupFrame(
@@ -295,18 +306,21 @@ async function setupFrame(
   isTop: boolean,
 ): Promise<FrameSetup | null> {
   try {
-    const own = await frame.evaluate(({ propertyKey, token }) => {
-      Object.defineProperty(globalThis, propertyKey, {
-        configurable: true,
-        value: { token },
-      });
-      return {
-        url: location.href,
-        origin: location.origin || "null",
-        width: window.innerWidth,
-        height: window.innerHeight,
-      };
-    }, { propertyKey, token });
+    const own = await frame.evaluate(
+      ({ propertyKey, token }) => {
+        Object.defineProperty(globalThis, propertyKey, {
+          configurable: true,
+          value: { token },
+        });
+        return {
+          url: location.href,
+          origin: location.origin || "null",
+          width: window.innerWidth,
+          height: window.innerHeight,
+        };
+      },
+      { propertyKey, token },
+    );
     if (isTop) {
       return {
         frame,
@@ -337,15 +351,15 @@ async function setupFrame(
           } catch {
             readable = false;
           }
-          const hasIndependentTransform = [style.translate, style.rotate, style.scale]
-            .some((value) => value != null && value !== "" && value !== "none");
+          const hasIndependentTransform = [style.translate, style.rotate, style.scale].some(
+            (value) => value != null && value !== "" && value !== "none",
+          );
           let axisAligned = !hasIndependentTransform;
           if (style.transform !== "none") {
             try {
               const matrix = new DOMMatrixReadOnly(style.transform);
-              axisAligned = axisAligned && matrix.is2D
-                && matrix.a > 0 && matrix.d > 0
-                && matrix.b === 0 && matrix.c === 0;
+              axisAligned =
+                axisAligned && matrix.is2D && matrix.a > 0 && matrix.d > 0 && matrix.b === 0 && matrix.c === 0;
             } catch {
               axisAligned = false;
             }
@@ -393,16 +407,16 @@ async function setupFrame(
   }
 }
 
-function flattenProtocolFrameTree(tree: ProtocolFrameTree, output = new Map<string, string | null>()): Map<string, string | null> {
+function flattenProtocolFrameTree(
+  tree: ProtocolFrameTree,
+  output = new Map<string, string | null>(),
+): Map<string, string | null> {
   output.set(tree.frame.id, tree.frame.parentId ?? null);
   for (const child of tree.childFrames ?? []) flattenProtocolFrameTree(child, output);
   return output;
 }
 
-async function collectDefaultContextTokens(
-  session: CDPSession,
-  propertyKey: string,
-): Promise<Map<string, string>> {
+async function collectDefaultContextTokens(session: CDPSession, propertyKey: string): Promise<Map<string, string>> {
   const contexts: RuntimeContextRow[] = [];
   session.on("Runtime.executionContextCreated", (event) => {
     const frameId = event.context.auxData?.frameId;
@@ -413,19 +427,25 @@ async function collectDefaultContextTokens(
   await session.send("Runtime.enable");
   const byToken = new Map<string, string>();
   for (const context of contexts) {
-    const result = await session.send("Runtime.evaluate", {
-      expression: `globalThis[${JSON.stringify(propertyKey)}]?.token ?? ""`,
-      contextId: context.contextId,
-      returnByValue: true,
-      silent: true,
-    }).catch(() => null);
+    const result = await session
+      .send("Runtime.evaluate", {
+        expression: `globalThis[${JSON.stringify(propertyKey)}]?.token ?? ""`,
+        contextId: context.contextId,
+        returnByValue: true,
+        silent: true,
+      })
+      .catch(() => null);
     const token = result?.result.value;
     if (typeof token === "string" && token !== "") byToken.set(token, context.frameId);
   }
   return byToken;
 }
 
-async function cdpFrameIds(page: Page, propertyKey: string, setups: readonly FrameSetup[]): Promise<{
+async function cdpFrameIds(
+  page: Page,
+  propertyKey: string,
+  setups: readonly FrameSetup[],
+): Promise<{
   byToken: Map<string, string>;
   parents: Map<string, string | null>;
 }> {
@@ -435,13 +455,13 @@ async function cdpFrameIds(page: Page, propertyKey: string, setups: readonly Fra
   try {
     await session.send("Page.enable");
     byToken = await collectDefaultContextTokens(session, propertyKey);
-    const tree = await session.send("Page.getFrameTree") as unknown as { frameTree: ProtocolFrameTree };
+    const tree = (await session.send("Page.getFrameTree")) as unknown as { frameTree: ProtocolFrameTree };
     parents = flattenProtocolFrameTree(tree.frameTree);
     // Page.getFrameTree only contains the local-frame subtree of this target.
     // Site-isolated children are separate `iframe` targets; Chromium publishes
     // their exact target id (also the OOPIF's FrameId) and parent FrameId in
     // TargetInfo, so merge those protocol-owned edges into the same graph.
-    const targets = await session.send("Target.getTargets") as unknown as {
+    const targets = (await session.send("Target.getTargets")) as unknown as {
       targetInfos: ProtocolTargetInfo[];
     };
     for (const target of targets.targetInfos) {
@@ -460,29 +480,30 @@ async function cdpFrameIds(page: Page, propertyKey: string, setups: readonly Fra
   // Page.getFrameTree plus TargetInfo.parentFrameId above remain the protocol
   // parent-graph authority.
   const unresolved = setups.filter(({ token }) => !byToken.has(token));
-  const oopifMaps = await Promise.all(unresolved.map(async ({ frame }) => {
-    const frameSession = await page.context().newCDPSession(frame).catch(() => null);
-    if (frameSession == null) return new Map<string, string>();
-    try {
-      return await collectDefaultContextTokens(frameSession, propertyKey);
-    } catch {
-      return new Map<string, string>();
-    } finally {
-      await frameSession.send("Runtime.disable").catch(() => undefined);
-      await frameSession.detach().catch(() => undefined);
-    }
-  }));
+  const oopifMaps = await Promise.all(
+    unresolved.map(async ({ frame }) => {
+      const frameSession = await page
+        .context()
+        .newCDPSession(frame)
+        .catch(() => null);
+      if (frameSession == null) return new Map<string, string>();
+      try {
+        return await collectDefaultContextTokens(frameSession, propertyKey);
+      } catch {
+        return new Map<string, string>();
+      } finally {
+        await frameSession.send("Runtime.disable").catch(() => undefined);
+        await frameSession.detach().catch(() => undefined);
+      }
+    }),
+  );
   for (const map of oopifMaps) {
     for (const [token, frameId] of map) byToken.set(token, frameId);
   }
   return { byToken, parents };
 }
 
-function frameDiagnostic(
-  frameId: string,
-  origin: string,
-  access: CapturedFrameAccess,
-): string | undefined {
+function frameDiagnostic(frameId: string, origin: string, access: CapturedFrameAccess): string | undefined {
   if (access === "cross-origin-denied") {
     return `frame ${frameId} (${origin}) was denied by this capture's cross-origin allowlist; retained the Chromium raster and read no frame scroll state`;
   }
@@ -501,47 +522,58 @@ async function frameCaptureLiveness(
   captureId: string,
   allowlistSha256: string,
 ): Promise<{ authorityMatches: boolean; parentReadable: boolean }> {
-  const authorityMatches = await frame.frame.evaluate(({ propertyKey, expected }) => {
-    const authority = (globalThis as typeof globalThis & Record<string, unknown>)[propertyKey] as {
-      token?: string;
-      source?: string;
-      captureId?: string;
-      frameId?: string;
-      parentFrameId?: string | null;
-      access?: CapturedFrameAccess;
-      allowlistSha256?: string;
-    } | undefined;
-    return authority?.token === expected.token
-      && authority.source === "chromium-cdp-frame-scroll-v1"
-      && authority.captureId === expected.captureId
-      && authority.frameId === expected.frameId
-      && authority.parentFrameId === expected.parentFrameId
-      && authority.access === expected.access
-      && authority.allowlistSha256 === expected.allowlistSha256
-      && (location.origin || "null") === expected.origin;
-  }, {
-    propertyKey,
-    expected: {
-      token: frame.token,
-      captureId,
-      frameId: frame.frameId,
-      parentFrameId: frame.parentFrameId,
-      access: frame.access,
-      allowlistSha256,
-      origin: frame.origin,
-    },
-  }).catch(() => false);
+  const authorityMatches = await frame.frame
+    .evaluate(
+      ({ propertyKey, expected }) => {
+        const authority = (globalThis as typeof globalThis & Record<string, unknown>)[propertyKey] as
+          | {
+              token?: string;
+              source?: string;
+              captureId?: string;
+              frameId?: string;
+              parentFrameId?: string | null;
+              access?: CapturedFrameAccess;
+              allowlistSha256?: string;
+            }
+          | undefined;
+        return (
+          authority?.token === expected.token &&
+          authority.source === "chromium-cdp-frame-scroll-v1" &&
+          authority.captureId === expected.captureId &&
+          authority.frameId === expected.frameId &&
+          authority.parentFrameId === expected.parentFrameId &&
+          authority.access === expected.access &&
+          authority.allowlistSha256 === expected.allowlistSha256 &&
+          (location.origin || "null") === expected.origin
+        );
+      },
+      {
+        propertyKey,
+        expected: {
+          token: frame.token,
+          captureId,
+          frameId: frame.frameId,
+          parentFrameId: frame.parentFrameId,
+          access: frame.access,
+          allowlistSha256,
+          origin: frame.origin,
+        },
+      },
+    )
+    .catch(() => false);
   if (frame.parentFrameId == null) return { authorityMatches, parentReadable: true };
   const owner = await frame.frame.frameElement().catch(() => null);
   if (owner == null) return { authorityMatches, parentReadable: false };
   try {
-    const parentReadable = await owner.evaluate((element) => {
-      try {
-        return element instanceof HTMLIFrameElement && element.contentDocument != null;
-      } catch {
-        return false;
-      }
-    }).catch(() => false);
+    const parentReadable = await owner
+      .evaluate((element) => {
+        try {
+          return element instanceof HTMLIFrameElement && element.contentDocument != null;
+        } catch {
+          return false;
+        }
+      })
+      .catch(() => false);
     return { authorityMatches, parentReadable };
   } finally {
     await owner.dispose();
@@ -554,88 +586,95 @@ async function snapshotOwners(
   captureId: string,
   allowlistSha256: string,
 ): Promise<CapturedFrameScrollOwner[]> {
-  const rows = await frame.frame.evaluate(({ propertyKey, expected }) => {
-    const authority = (globalThis as typeof globalThis & Record<string, unknown>)[propertyKey] as {
-      token?: string;
-      source?: string;
-      captureId?: string;
-      frameId?: string;
-      parentFrameId?: string | null;
-      access?: CapturedFrameAccess;
-      allowlistSha256?: string;
-    } | undefined;
-    if (authority?.token !== expected.token
-        || authority.source !== "chromium-cdp-frame-scroll-v1"
-        || authority.captureId !== expected.captureId
-        || authority.frameId !== expected.frameId
-        || authority.parentFrameId !== expected.parentFrameId
-        || authority.access !== expected.access
-        || authority.allowlistSha256 !== expected.allowlistSha256
-        || (location.origin || "null") !== expected.origin) {
-      throw new Error("capture-local frame authority changed before scroll-owner sampling");
-    }
-    const root = document.documentElement;
-    if (root == null) return [];
-    const elements: Element[] = [];
-    const stack: Element[] = [root];
-    const seen = new Set<Element>();
-    while (stack.length > 0) {
-      const element = stack.pop()!;
-      if (seen.has(element)) continue;
-      seen.add(element);
-      elements.push(element);
-      const children: Element[] = [...element.children];
-      if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
-      for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
-    }
-    const rows: Array<{
-      elementIndex: number;
-      kind: "viewport" | "element";
-      tag: string;
-      direction: string;
-      writingMode: string;
-      scrollLeft: number;
-      scrollTop: number;
-      scrollWidth: number;
-      scrollHeight: number;
-      clientWidth: number;
-      clientHeight: number;
-    }> = [];
-    for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
-      const element = elements[elementIndex]!;
-      const style = getComputedStyle(element);
-      const html = element as HTMLElement;
-      const viewport = element === document.scrollingElement;
-      const hasRange = html.scrollWidth > html.clientWidth || html.scrollHeight > html.clientHeight;
-      const scrollStyle = [style.overflowX, style.overflowY].some((value) => value === "auto" || value === "scroll");
-      if (!viewport && !hasRange && !scrollStyle && style.scrollbarGutter === "auto") continue;
-      rows.push({
-        elementIndex,
-        kind: viewport ? "viewport" : "element",
-        tag: element.localName,
-        direction: style.direction,
-        writingMode: style.writingMode,
-        scrollLeft: html.scrollLeft ?? 0,
-        scrollTop: html.scrollTop ?? 0,
-        scrollWidth: html.scrollWidth ?? 0,
-        scrollHeight: html.scrollHeight ?? 0,
-        clientWidth: html.clientWidth ?? 0,
-        clientHeight: html.clientHeight ?? 0,
-      });
-    }
-    return rows;
-  }, {
-    propertyKey,
-    expected: {
-      token: frame.token,
-      captureId,
-      frameId: frame.frameId,
-      parentFrameId: frame.parentFrameId,
-      access: frame.access,
-      allowlistSha256,
-      origin: frame.origin,
+  const rows = await frame.frame.evaluate(
+    ({ propertyKey, expected }) => {
+      const authority = (globalThis as typeof globalThis & Record<string, unknown>)[propertyKey] as
+        | {
+            token?: string;
+            source?: string;
+            captureId?: string;
+            frameId?: string;
+            parentFrameId?: string | null;
+            access?: CapturedFrameAccess;
+            allowlistSha256?: string;
+          }
+        | undefined;
+      if (
+        authority?.token !== expected.token ||
+        authority.source !== "chromium-cdp-frame-scroll-v1" ||
+        authority.captureId !== expected.captureId ||
+        authority.frameId !== expected.frameId ||
+        authority.parentFrameId !== expected.parentFrameId ||
+        authority.access !== expected.access ||
+        authority.allowlistSha256 !== expected.allowlistSha256 ||
+        (location.origin || "null") !== expected.origin
+      ) {
+        throw new Error("capture-local frame authority changed before scroll-owner sampling");
+      }
+      const root = document.documentElement;
+      if (root == null) return [];
+      const elements: Element[] = [];
+      const stack: Element[] = [root];
+      const seen = new Set<Element>();
+      while (stack.length > 0) {
+        const element = stack.pop()!;
+        if (seen.has(element)) continue;
+        seen.add(element);
+        elements.push(element);
+        const children: Element[] = [...element.children];
+        if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
+        for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
+      }
+      const rows: Array<{
+        elementIndex: number;
+        kind: "viewport" | "element";
+        tag: string;
+        direction: string;
+        writingMode: string;
+        scrollLeft: number;
+        scrollTop: number;
+        scrollWidth: number;
+        scrollHeight: number;
+        clientWidth: number;
+        clientHeight: number;
+      }> = [];
+      for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
+        const element = elements[elementIndex]!;
+        const style = getComputedStyle(element);
+        const html = element as HTMLElement;
+        const viewport = element === document.scrollingElement;
+        const hasRange = html.scrollWidth > html.clientWidth || html.scrollHeight > html.clientHeight;
+        const scrollStyle = [style.overflowX, style.overflowY].some((value) => value === "auto" || value === "scroll");
+        if (!viewport && !hasRange && !scrollStyle && style.scrollbarGutter === "auto") continue;
+        rows.push({
+          elementIndex,
+          kind: viewport ? "viewport" : "element",
+          tag: element.localName,
+          direction: style.direction,
+          writingMode: style.writingMode,
+          scrollLeft: html.scrollLeft ?? 0,
+          scrollTop: html.scrollTop ?? 0,
+          scrollWidth: html.scrollWidth ?? 0,
+          scrollHeight: html.scrollHeight ?? 0,
+          clientWidth: html.clientWidth ?? 0,
+          clientHeight: html.clientHeight ?? 0,
+        });
+      }
+      return rows;
     },
-  });
+    {
+      propertyKey,
+      expected: {
+        token: frame.token,
+        captureId,
+        frameId: frame.frameId,
+        parentFrameId: frame.parentFrameId,
+        access: frame.access,
+        allowlistSha256,
+        origin: frame.origin,
+      },
+    },
+  );
   return rows.map((row) => ({
     ...row,
     frameId: frame.frameId,
@@ -651,16 +690,26 @@ export async function prepareFrameScrollCapture(
   const captureId = randomUUID();
   const propertyKey = `__domotionFrameScroll_${captureId.replaceAll("-", "")}`;
   const initialFrames = page.frames();
-  const setups = (await Promise.all(initialFrames.map((frame, index) => (
-    setupFrame(frame, propertyKey, `${captureId}:${index}`, frame === page.mainFrame())
-  )))).filter((entry): entry is FrameSetup => entry != null);
+  const setups = (
+    await Promise.all(
+      initialFrames.map((frame, index) =>
+        setupFrame(frame, propertyKey, `${captureId}:${index}`, frame === page.mainFrame()),
+      ),
+    )
+  ).filter((entry): entry is FrameSetup => entry != null);
   let cdpIdentity: Awaited<ReturnType<typeof cdpFrameIds>>;
   try {
     cdpIdentity = await cdpFrameIds(page, propertyKey, setups);
   } catch (error) {
-    await Promise.all(setups.map(({ frame }) => frame.evaluate((key) => {
-      delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
-    }, propertyKey).catch(() => undefined)));
+    await Promise.all(
+      setups.map(({ frame }) =>
+        frame
+          .evaluate((key) => {
+            delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
+          }, propertyKey)
+          .catch(() => undefined),
+      ),
+    );
     throw error;
   }
   const { byToken, parents: protocolParents } = cdpIdentity;
@@ -678,11 +727,12 @@ export async function prepareFrameScrollCapture(
     const parentSetup = parent == null ? null : byFrame.get(parent);
     const parentFrameId = parentSetup == null ? null : (byToken.get(parentSetup.token) ?? null);
     const protocolParent = frameId === "" ? undefined : protocolParents.get(frameId);
-    const identityExact = setup != null && frameId !== "" && (
-      frame === page.mainFrame()
+    const identityExact =
+      setup != null &&
+      frameId !== "" &&
+      (frame === page.mainFrame()
         ? protocolParent === null
-        : parentFrameId != null && protocolParent === parentFrameId
-    );
+        : parentFrameId != null && protocolParent === parentFrameId);
     const origin = setup?.origin ?? "null";
     const parentOrigin = parentSetup?.origin ?? "null";
     const inheritedOrigin = origin === "" || origin === "null";
@@ -698,9 +748,11 @@ export async function prepareFrameScrollCapture(
     if (!identityExact) {
       access = "identity-unavailable";
       if (setup == null) {
-        identityDiagnostic = "frame setup became unavailable before Chromium identity authentication; retained the Chromium raster and read no frame scroll state";
+        identityDiagnostic =
+          "frame setup became unavailable before Chromium identity authentication; retained the Chromium raster and read no frame scroll state";
       } else if (frameId === "") {
-        identityDiagnostic = "frame identity could not be authenticated against Chromium's default execution context; retained the Chromium raster and read no frame scroll state";
+        identityDiagnostic =
+          "frame identity could not be authenticated against Chromium's default execution context; retained the Chromium raster and read no frame scroll state";
       } else if (frame === page.mainFrame()) {
         identityDiagnostic = `top frame ${frameId} did not resolve as Chromium's root browsing context; retained the Chromium raster and read no frame scroll state`;
       } else if (parentFrameId == null) {
@@ -710,8 +762,7 @@ export async function prepareFrameScrollCapture(
       } else {
         identityDiagnostic = `frame ${frameId} reported Chromium parent ${protocolParent}, not capture parent ${parentFrameId}; retained the Chromium raster and read no frame scroll state`;
       }
-    }
-    else if (frame === page.mainFrame()) access = "top";
+    } else if (frame === page.mainFrame()) access = "top";
     else if (crossOrigin && !allowlistMatched) access = "cross-origin-denied";
     else if (!setup.parentReadable) access = "inaccessible";
     else if (crossOrigin) access = "cross-origin-allowlisted";
@@ -748,10 +799,7 @@ export async function prepareFrameScrollCapture(
       if (frame.frameClip != null && parent.frameClip != null) {
         const x = Math.max(frame.frameClip.x, parent.frameClip.x);
         const y = Math.max(frame.frameClip.y, parent.frameClip.y);
-        const right = Math.min(
-          frame.frameClip.x + frame.frameClip.width,
-          parent.frameClip.x + parent.frameClip.width,
-        );
+        const right = Math.min(frame.frameClip.x + frame.frameClip.width, parent.frameClip.x + parent.frameClip.width);
         const bottom = Math.min(
           frame.frameClip.y + frame.frameClip.height,
           parent.frameClip.y + parent.frameClip.height,
@@ -768,26 +816,36 @@ export async function prepareFrameScrollCapture(
   };
   for (const frame of frames) resolveFrameGeometry(frame);
 
-  const globalAuthorityInstalled = await Promise.all(frames.map((frame) => frame.frame.evaluate(({ propertyKey, authority }) => {
-    const current = (globalThis as typeof globalThis & Record<string, unknown>)[propertyKey] as { token?: string } | undefined;
-    if (current?.token !== authority.token) return false;
-    Object.defineProperty(globalThis, propertyKey, {
-      configurable: true,
-      value: authority,
-    });
-    return true;
-  }, {
-    propertyKey,
-    authority: {
-      token: frame.token,
-      source: "chromium-cdp-frame-scroll-v1",
-      captureId,
-      frameId: frame.frameId,
-      parentFrameId: frame.parentFrameId,
-      access: frame.access,
-      allowlistSha256,
-    },
-  }).catch(() => false)));
+  const globalAuthorityInstalled = await Promise.all(
+    frames.map((frame) =>
+      frame.frame
+        .evaluate(
+          ({ propertyKey, authority }) => {
+            const current = (globalThis as typeof globalThis & Record<string, unknown>)[propertyKey] as
+              { token?: string } | undefined;
+            if (current?.token !== authority.token) return false;
+            Object.defineProperty(globalThis, propertyKey, {
+              configurable: true,
+              value: authority,
+            });
+            return true;
+          },
+          {
+            propertyKey,
+            authority: {
+              token: frame.token,
+              source: "chromium-cdp-frame-scroll-v1",
+              captureId,
+              frameId: frame.frameId,
+              parentFrameId: frame.parentFrameId,
+              access: frame.access,
+              allowlistSha256,
+            },
+          },
+        )
+        .catch(() => false),
+    ),
+  );
   for (let index = 0; index < frames.length; index++) {
     if (globalAuthorityInstalled[index]) continue;
     const frame = frames[index]!;
@@ -799,54 +857,63 @@ export async function prepareFrameScrollCapture(
   // the immediate parent world. Reading contentWindow properties would itself
   // cross the Same-Origin Policy when web security is enabled, precisely where
   // the capture needs an exact identity for a fail-closed raster boundary.
-  await Promise.all(frames.filter(({ parentFrameId }) => parentFrameId != null).map(async (frame) => {
-    const owner = await frame.frame.frameElement().catch(() => null);
-    let installed = false;
-    if (owner == null) {
-      frame.access = "identity-unavailable";
-      frame.diagnostic = `frame ${frame.frameId || "unknown"} lost its Chromium frame-owner element before capture; retained the Chromium raster and read no frame scroll state`;
-      return;
-    }
-    try {
-      installed = await owner.evaluate((element, { propertyKey, authority }) => {
-        Object.defineProperty(element, propertyKey, {
-          configurable: true,
-          value: authority,
-        });
-        return true;
-      }, {
-        propertyKey,
-        authority: {
-          token: frame.token,
-          source: "chromium-cdp-frame-scroll-v1",
-          captureId,
-          frameId: frame.frameId,
-          parentFrameId: frame.parentFrameId,
-          access: frame.access,
-          allowlistSha256,
-        },
-      }).catch(() => false);
-    } finally {
-      await owner.dispose();
-    }
-    if (!installed) {
-      frame.access = "identity-unavailable";
-      frame.diagnostic = `frame ${frame.frameId || "unknown"} could not bind its capture-local authority to the exact Chromium frame-owner element; retained the Chromium raster and read no frame scroll state`;
-    }
-  }));
+  await Promise.all(
+    frames
+      .filter(({ parentFrameId }) => parentFrameId != null)
+      .map(async (frame) => {
+        const owner = await frame.frame.frameElement().catch(() => null);
+        let installed = false;
+        if (owner == null) {
+          frame.access = "identity-unavailable";
+          frame.diagnostic = `frame ${frame.frameId || "unknown"} lost its Chromium frame-owner element before capture; retained the Chromium raster and read no frame scroll state`;
+          return;
+        }
+        try {
+          installed = await owner
+            .evaluate(
+              (element, { propertyKey, authority }) => {
+                Object.defineProperty(element, propertyKey, {
+                  configurable: true,
+                  value: authority,
+                });
+                return true;
+              },
+              {
+                propertyKey,
+                authority: {
+                  token: frame.token,
+                  source: "chromium-cdp-frame-scroll-v1",
+                  captureId,
+                  frameId: frame.frameId,
+                  parentFrameId: frame.parentFrameId,
+                  access: frame.access,
+                  allowlistSha256,
+                },
+              },
+            )
+            .catch(() => false);
+        } finally {
+          await owner.dispose();
+        }
+        if (!installed) {
+          frame.access = "identity-unavailable";
+          frame.diagnostic = `frame ${frame.frameId || "unknown"} could not bind its capture-local authority to the exact Chromium frame-owner element; retained the Chromium raster and read no frame scroll state`;
+        }
+      }),
+  );
 
   const resolving = new Set<PreparedFrameScrollFrame>();
   const resolveReachability = (frame: PreparedFrameScrollFrame): boolean => {
     if (frame.reachableFromTop) return true;
     if (resolving.has(frame)) return false;
     resolving.add(frame);
-    const readableAccess = frame.access === "top" || frame.access === "same-origin"
-      || frame.access === "cross-origin-allowlisted";
+    const readableAccess =
+      frame.access === "top" || frame.access === "same-origin" || frame.access === "cross-origin-allowlisted";
     const parentHandle = frame.frame.parentFrame();
     const parent = parentHandle == null ? undefined : preparedByFrame.get(parentHandle);
-    frame.reachableFromTop = readableAccess && (
-      frame.frame === page.mainFrame() ? frame.access === "top" : parent != null && resolveReachability(parent)
-    );
+    frame.reachableFromTop =
+      readableAccess &&
+      (frame.frame === page.mainFrame() ? frame.access === "top" : parent != null && resolveReachability(parent));
     if (!frame.reachableFromTop && frame.diagnostic == null) {
       frame.diagnostic = `frame ${frame.frameId || "unknown"} is below an inaccessible or denied ancestor browsing context; retained the ancestor Chromium raster and read no descendant scroll state`;
     }
@@ -855,69 +922,66 @@ export async function prepareFrameScrollCapture(
   };
   for (const frame of frames) resolveReachability(frame);
 
-  const warnings: CaptureWarning[] = frames.flatMap((frame) => frame.diagnostic == null ? [] : [{
-    selector: `frame[${frame.frameId || "unknown"}]`,
-    feature: "cross-origin-frame-scroll",
-    detail: frame.diagnostic,
-    status: "unavailable" as const,
-  }]);
+  const warnings: CaptureWarning[] = frames.flatMap((frame) =>
+    frame.diagnostic == null
+      ? []
+      : [
+          {
+            selector: `frame[${frame.frameId || "unknown"}]`,
+            feature: "cross-origin-frame-scroll",
+            detail: frame.diagnostic,
+            status: "unavailable" as const,
+          },
+        ],
+  );
 
   const snapshot = async (): Promise<CapturedFrameScrollState> => {
-    const records = await Promise.all(frames.map(async (frame): Promise<CapturedFrameScrollRecord> => {
-      let canRead = frame.reachableFromTop && (
-        frame.access === "top" || frame.access === "same-origin"
-          || frame.access === "cross-origin-allowlisted"
-      );
-      let scrollOwners: CapturedFrameScrollOwner[] = [];
-      let access = frame.access;
-      let diagnostic = frame.diagnostic;
-      let reachableFromTop = canRead;
-      let readableFromParent = frame.readableFromParent;
-      const live = await frameCaptureLiveness(
-        frame,
-        propertyKey,
-        captureId,
-        allowlistSha256,
-      );
-      readableFromParent = live.parentReadable;
-      if (!live.authorityMatches) {
-        access = "identity-unavailable";
-        canRead = false;
-        reachableFromTop = false;
-        diagnostic = `frame ${frame.frameId || "unknown"} navigated or lost its capture-local Chromium authority before scroll-owner sampling; retained the Chromium raster and read no frame scroll state`;
-      } else if (canRead && !live.parentReadable) {
-        access = "inaccessible";
-        canRead = false;
-        reachableFromTop = false;
-        diagnostic = `frame ${frame.frameId || "unknown"} became inaccessible from its parent before scroll-owner sampling; retained the Chromium raster and read no frame scroll state`;
-      }
-      if (canRead) {
-        try {
-          scrollOwners = await snapshotOwners(
-            frame,
-            propertyKey,
-            captureId,
-            allowlistSha256,
-          );
-        } catch (error) {
-          access = "inaccessible";
+    const records = await Promise.all(
+      frames.map(async (frame): Promise<CapturedFrameScrollRecord> => {
+        let canRead =
+          frame.reachableFromTop &&
+          (frame.access === "top" || frame.access === "same-origin" || frame.access === "cross-origin-allowlisted");
+        let scrollOwners: CapturedFrameScrollOwner[] = [];
+        let access = frame.access;
+        let diagnostic = frame.diagnostic;
+        let reachableFromTop = canRead;
+        let readableFromParent = frame.readableFromParent;
+        const live = await frameCaptureLiveness(frame, propertyKey, captureId, allowlistSha256);
+        readableFromParent = live.parentReadable;
+        if (!live.authorityMatches) {
+          access = "identity-unavailable";
+          canRead = false;
           reachableFromTop = false;
-          readableFromParent = false;
-          diagnostic = `frame ${frame.frameId} scroll ownership became inaccessible during capture (${error instanceof Error ? error.message : String(error)}); retained no frame scroll state`;
+          diagnostic = `frame ${frame.frameId || "unknown"} navigated or lost its capture-local Chromium authority before scroll-owner sampling; retained the Chromium raster and read no frame scroll state`;
+        } else if (canRead && !live.parentReadable) {
+          access = "inaccessible";
+          canRead = false;
+          reachableFromTop = false;
+          diagnostic = `frame ${frame.frameId || "unknown"} became inaccessible from its parent before scroll-owner sampling; retained the Chromium raster and read no frame scroll state`;
         }
-      }
-      return {
-        frameId: frame.frameId,
-        parentFrameId: frame.parentFrameId,
-        origin: frame.origin,
-        access,
-        allowlistMatched: frame.allowlistMatched,
-        readableFromParent,
-        reachableFromTop,
-        scrollOwners,
-        ...(diagnostic == null ? {} : { diagnostic }),
-      };
-    }));
+        if (canRead) {
+          try {
+            scrollOwners = await snapshotOwners(frame, propertyKey, captureId, allowlistSha256);
+          } catch (error) {
+            access = "inaccessible";
+            reachableFromTop = false;
+            readableFromParent = false;
+            diagnostic = `frame ${frame.frameId} scroll ownership became inaccessible during capture (${error instanceof Error ? error.message : String(error)}); retained no frame scroll state`;
+          }
+        }
+        return {
+          frameId: frame.frameId,
+          parentFrameId: frame.parentFrameId,
+          origin: frame.origin,
+          access,
+          allowlistMatched: frame.allowlistMatched,
+          readableFromParent,
+          reachableFromTop,
+          scrollOwners,
+          ...(diagnostic == null ? {} : { diagnostic }),
+        };
+      }),
+    );
     const recordsById = new Map(records.map((record) => [record.frameId, record]));
     const resolved = new Set<CapturedFrameScrollRecord>();
     const resolvingRecords = new Set<CapturedFrameScrollRecord>();
@@ -925,12 +989,13 @@ export async function prepareFrameScrollCapture(
       if (resolved.has(record)) return record.reachableFromTop;
       if (resolvingRecords.has(record)) return false;
       resolvingRecords.add(record);
-      const readableAccess = record.access === "top" || record.access === "same-origin"
-        || record.access === "cross-origin-allowlisted";
+      const readableAccess =
+        record.access === "top" || record.access === "same-origin" || record.access === "cross-origin-allowlisted";
       const parent = record.parentFrameId == null ? undefined : recordsById.get(record.parentFrameId);
-      record.reachableFromTop = record.reachableFromTop && readableAccess && (
-        record.frameId === topFrameId ? record.access === "top" : parent != null && resolveRecordReachability(parent)
-      );
+      record.reachableFromTop =
+        record.reachableFromTop &&
+        readableAccess &&
+        (record.frameId === topFrameId ? record.access === "top" : parent != null && resolveRecordReachability(parent));
       if (!record.reachableFromTop) {
         record.scrollOwners = [];
         record.diagnostic ??= `frame ${record.frameId || "unknown"} is below a frame that became inaccessible during capture; retained the ancestor Chromium raster and read no descendant scroll state`;
@@ -968,21 +1033,27 @@ export async function prepareFrameScrollCapture(
     warnings,
     snapshot,
     dispose: async () => {
-      await Promise.all(initialFrames.map(async (frame) => {
-        await frame.evaluate((key) => {
-          delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
-        }, propertyKey).catch(() => undefined);
-        if (frame === page.mainFrame()) return;
-        const owner = await frame.frameElement().catch(() => null);
-        if (owner == null) return;
-        try {
-          await owner.evaluate((element, key) => {
-            delete (element as Element & Record<string, unknown>)[key];
-          }, propertyKey).catch(() => undefined);
-        } finally {
-          await owner.dispose();
-        }
-      }));
+      await Promise.all(
+        initialFrames.map(async (frame) => {
+          await frame
+            .evaluate((key) => {
+              delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
+            }, propertyKey)
+            .catch(() => undefined);
+          if (frame === page.mainFrame()) return;
+          const owner = await frame.frameElement().catch(() => null);
+          if (owner == null) return;
+          try {
+            await owner
+              .evaluate((element, key) => {
+                delete (element as Element & Record<string, unknown>)[key];
+              }, propertyKey)
+              .catch(() => undefined);
+          } finally {
+            await owner.dispose();
+          }
+        }),
+      );
     },
   };
 }

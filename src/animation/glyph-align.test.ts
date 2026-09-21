@@ -11,7 +11,10 @@ import { alignLineGlyphs, type AlignGlyph } from "./glyph-align.js";
 const ADV = 7.53; // one Menlo-12.5px advance, the measured per-keystroke delta
 
 /** Build a line: chars at x = start + i*adv (uniform advances). */
-function line(text: string, opts: { start?: number; adv?: number; fill?: string | string[]; styleKey?: string } = {}): AlignGlyph[] {
+function line(
+  text: string,
+  opts: { start?: number; adv?: number; fill?: string | string[]; styleKey?: string } = {},
+): AlignGlyph[] {
   const { start = 100, adv = ADV, styleKey = "menlo|12.5" } = opts;
   return [...text].map((ch, i) => ({
     ch,
@@ -125,7 +128,10 @@ describe("alignLineGlyphs — adversarial repeated characters", () => {
     const prev = line("aab");
     const next = line("aaab");
     const r = alignLineGlyphs(prev, next);
-    expect(r.pairs.map((p) => [p.prevIndex, p.nextIndex])).toEqual([[0, 0], [1, 1]]);
+    expect(r.pairs.map((p) => [p.prevIndex, p.nextIndex])).toEqual([
+      [0, 0],
+      [1, 1],
+    ]);
     expect(r.pairs.every((p) => p.dx === 0)).toBe(true);
     expect(r.unpairedPrev).toEqual([2]);
     expect(r.unpairedNext.sort((a, b) => a - b)).toEqual([2, 3]);
@@ -148,7 +154,9 @@ describe("alignLineGlyphs — adversarial repeated characters", () => {
 describe("alignLineGlyphs — recolor (fill ignored for pairing)", () => {
   it("same char + position with a different fill pairs as a recolor, not a re-emit", () => {
     const prev = line("{ signal }", { fill: "#e2e8f0" });
-    const next = line("{ signal }", { fill: [...("{ signal }")].map((ch) => (ch === "{" || ch === "}" ? "#fbbf24" : "#e2e8f0")) });
+    const next = line("{ signal }", {
+      fill: [..."{ signal }"].map((ch) => (ch === "{" || ch === "}" ? "#fbbf24" : "#e2e8f0")),
+    });
     const r = alignLineGlyphs(prev, next);
     expect(r.pairs).toHaveLength(prev.length);
     expect(r.unpairedPrev).toEqual([]);

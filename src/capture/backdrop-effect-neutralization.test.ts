@@ -4,12 +4,7 @@ import { backdropNeutralizationDeclarations } from "./backdrop-effect-neutraliza
 
 describe("DM-2487 backdrop screenshot neutralization", () => {
   it("lowers every SVG-owned ancestor effect without erasing backdrop input", () => {
-    expect(backdropNeutralizationDeclarations([
-      "opacity",
-      "filter",
-      "clip-path",
-      "mask",
-    ])).toEqual([
+    expect(backdropNeutralizationDeclarations(["opacity", "filter", "clip-path", "mask"])).toEqual([
       ["opacity", "1"],
       ["filter", "none"],
       ["clip-path", "none"],

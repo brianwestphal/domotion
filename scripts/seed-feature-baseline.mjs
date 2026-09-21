@@ -25,7 +25,10 @@ function arg(name, fallback = null) {
 }
 
 const os = arg("--os");
-if (os == null) { console.error("seed-feature-baseline: --os <macos|linux|windows> is required"); process.exit(2); }
+if (os == null) {
+  console.error("seed-feature-baseline: --os <macos|linux|windows> is required");
+  process.exit(2);
+}
 const resultsPath = arg("--results", "tests/output/features-results.json");
 const outPath = arg("--out", `tests/baselines/features-${os}.json`);
 const image = arg("--image", os === "macos" ? "macos-local" : os === "linux" ? "playwright-noble" : "windows-local");
@@ -38,15 +41,24 @@ const image = arg("--image", os === "macos" ? "macos-local" : os === "linux" ? "
 let commit = arg("--commit", null);
 if (commit == null) {
   commit = "unknown";
-  try { commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { /* not a repo */ }
+  try {
+    commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  } catch {
+    /* not a repo */
+  }
 }
 
 const doc = JSON.parse(readFileSync(resultsPath, "utf8"));
 const results = Array.isArray(doc.results) ? doc.results : Array.isArray(doc) ? doc : [];
-if (results.length === 0) { console.error(`seed-feature-baseline: no results in ${resultsPath}`); process.exit(1); }
+if (results.length === 0) {
+  console.error(`seed-feature-baseline: no results in ${resultsPath}`);
+  process.exit(1);
+}
 
 const fixtures = {};
-let pass = 0, fail = 0, skipped = 0;
+let pass = 0,
+  fail = 0,
+  skipped = 0;
 for (const r of results.sort((a, b) => a.name.localeCompare(b.name))) {
   fixtures[r.name] = {
     pass: !!r.pass,
@@ -55,7 +67,9 @@ for (const r of results.sort((a, b) => a.name.localeCompare(b.name))) {
     worstTilePct: r.worstTilePct ?? 0,
     regionCount: r.regionCount ?? 0,
   };
-  if (r.skipped) skipped++; else if (r.pass) pass++; else fail++;
+  if (r.skipped) skipped++;
+  else if (r.pass) pass++;
+  else fail++;
 }
 
 // DM-1972: record WHICH CONFIGURATION produced these numbers, not just which
@@ -81,8 +95,11 @@ if (helper != null && helper !== "yes" && helper !== "no") {
 const envPath = arg("--env", null);
 let env = null;
 if (envPath != null) {
-  try { env = JSON.parse(readFileSync(envPath, "utf8")); }
-  catch { console.error(`seed-feature-baseline: could not read --env ${envPath}; recording without it`); }
+  try {
+    env = JSON.parse(readFileSync(envPath, "utf8"));
+  } catch {
+    console.error(`seed-feature-baseline: could not read --env ${envPath}; recording without it`);
+  }
 }
 
 const baseline = {
@@ -100,8 +117,13 @@ const baseline = {
 };
 
 writeFileSync(outPath, JSON.stringify(baseline, null, 2) + "\n");
-console.log(`Wrote ${outPath}: ${pass} pass, ${fail} fail, ${skipped} skipped (${results.length} fixtures) @ ${commit.slice(0, 8)}`);
+console.log(
+  `Wrote ${outPath}: ${pass} pass, ${fail} fail, ${skipped} skipped (${results.length} fixtures) @ ${commit.slice(0, 8)}`,
+);
 if (fail > 0) {
-  console.log("Known-failing fixtures recorded in the baseline (the gate will allow these, block only NEW regressions):");
-  for (const [n, f] of Object.entries(fixtures)) if (!f.pass && !f.skipped) console.log(`  - ${n}  diff=${(f.diffPct).toFixed?.(2) ?? f.diffPct}%`);
+  console.log(
+    "Known-failing fixtures recorded in the baseline (the gate will allow these, block only NEW regressions):",
+  );
+  for (const [n, f] of Object.entries(fixtures))
+    if (!f.pass && !f.skipped) console.log(`  - ${n}  diff=${f.diffPct.toFixed?.(2) ?? f.diffPct}%`);
 }

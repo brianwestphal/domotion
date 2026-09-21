@@ -39,7 +39,8 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): Eas
     for (let i = 0; i < 24; i++) {
       const xErr = sampleX(u) - x;
       if (Math.abs(xErr) < 1e-6) break;
-      if (xErr > 0) hi = u; else lo = u;
+      if (xErr > 0) hi = u;
+      else lo = u;
       u = (lo + hi) / 2;
     }
     return u;

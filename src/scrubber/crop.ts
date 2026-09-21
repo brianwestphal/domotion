@@ -69,7 +69,10 @@ export function cropSvgViewBox(svg: string, crop: CropRect): string {
     attrs += ` style="overflow:hidden"`;
   }
 
-  const x = num(crop.x), y = num(crop.y), w = num(crop.w), h = num(crop.h);
+  const x = num(crop.x),
+    y = num(crop.y),
+    w = num(crop.w),
+    h = num(crop.h);
   const rebuilt = `<svg${attrs} viewBox="${x} ${y} ${w} ${h}" width="${w}" height="${h}">`;
   return svg.slice(0, m.index) + rebuilt + svg.slice(m.index + openTag.length);
 }
@@ -89,12 +92,24 @@ const _clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.
  */
 export function fitRectToAspect(rect: CropRect, ar: number, frameW: number, frameH: number): CropRect {
   if (!(ar > 0)) return rect;
-  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
-  let w = rect.w, h = w / ar;
-  if (h > rect.h) { h = rect.h; w = h * ar; }   // fit inside the current box
-  if (w > frameW) { w = frameW; h = w / ar; }    // fit inside the frame
-  if (h > frameH) { h = frameH; w = h * ar; }
-  const x = _clamp(cx - w / 2, 0, frameW - w), y = _clamp(cy - h / 2, 0, frameH - h);
+  const cx = rect.x + rect.w / 2,
+    cy = rect.y + rect.h / 2;
+  let w = rect.w,
+    h = w / ar;
+  if (h > rect.h) {
+    h = rect.h;
+    w = h * ar;
+  } // fit inside the current box
+  if (w > frameW) {
+    w = frameW;
+    h = w / ar;
+  } // fit inside the frame
+  if (h > frameH) {
+    h = frameH;
+    w = h * ar;
+  }
+  const x = _clamp(cx - w / 2, 0, frameW - w),
+    y = _clamp(cy - h / 2, 0, frameH - h);
   return { x, y, w, h };
 }
 
@@ -108,24 +123,48 @@ export function fitRectToAspect(rect: CropRect, ar: number, frameW: number, fram
  * then ratio-preservingly clamped to the `[0,frameW] × [0,frameH]` frame with a
  * `minSize` floor. `free` is the already-resized, unconstrained rect.
  */
-export function constrainResizeToAspect(free: CropRect, handle: string, ar: number, frameW: number, frameH: number, minSize: number): CropRect {
+export function constrainResizeToAspect(
+  free: CropRect,
+  handle: string,
+  ar: number,
+  frameW: number,
+  frameH: number,
+  minSize: number,
+): CropRect {
   if (!(ar > 0)) return free;
-  const L = free.x, R = free.x + free.w, T = free.y, B = free.y + free.h;
-  let w = free.w, h = free.h;
+  const L = free.x,
+    R = free.x + free.w,
+    T = free.y,
+    B = free.y + free.h;
+  let w = free.w,
+    h = free.h;
   // Width authoritative for corners + e/w edges; height for n/s edges.
-  if (handle.includes("w") || handle.includes("e")) h = w / ar; else w = h * ar;
+  if (handle.includes("w") || handle.includes("e")) h = w / ar;
+  else w = h * ar;
 
   const anchorH = handle.includes("w") ? "right" : handle.includes("e") ? "left" : "center";
   const anchorV = handle.includes("n") ? "bottom" : handle.includes("s") ? "top" : "middle";
   const ax = anchorH === "right" ? R : anchorH === "left" ? L : (L + R) / 2;
   const ay = anchorV === "bottom" ? B : anchorV === "top" ? T : (T + B) / 2;
 
-  const maxW = anchorH === "right" ? ax : anchorH === "left" ? (frameW - ax) : 2 * Math.min(ax, frameW - ax);
-  const maxH = anchorV === "bottom" ? ay : anchorV === "top" ? (frameH - ay) : 2 * Math.min(ay, frameH - ay);
-  if (w > maxW) { w = maxW; h = w / ar; }
-  if (h > maxH) { h = maxH; w = h * ar; }
-  if (w < minSize) { w = minSize; h = w / ar; }
-  if (h < minSize) { h = minSize; w = h * ar; }
+  const maxW = anchorH === "right" ? ax : anchorH === "left" ? frameW - ax : 2 * Math.min(ax, frameW - ax);
+  const maxH = anchorV === "bottom" ? ay : anchorV === "top" ? frameH - ay : 2 * Math.min(ay, frameH - ay);
+  if (w > maxW) {
+    w = maxW;
+    h = w / ar;
+  }
+  if (h > maxH) {
+    h = maxH;
+    w = h * ar;
+  }
+  if (w < minSize) {
+    w = minSize;
+    h = w / ar;
+  }
+  if (h < minSize) {
+    h = minSize;
+    w = h * ar;
+  }
 
   let x = anchorH === "right" ? ax - w : anchorH === "left" ? ax : ax - w / 2;
   let y = anchorV === "bottom" ? ay - h : anchorV === "top" ? ay : ay - h / 2;

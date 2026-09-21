@@ -3,9 +3,7 @@
   "width": 420,
   "height": 300,
   "cursor": {
-    "events": [
-      { "frame": 0, "at": 200, "type": "move", "selector": "#account" }
-    ]
+    "events": [{ "frame": 0, "at": 200, "type": "move", "selector": "#account" }]
   },
   "frames": [
     {

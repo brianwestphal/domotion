@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2620","DM-2327","DM-526","DM-547","DM-549","DM-550"]
-code: ["src/render/conic-raster.ts","src/render/element-tree-to-svg.ts","src/render/gradients.ts"]
-aliases: ["docs/28-conic-gradient.md","doc-28"]
+tickets: ["DM-2620", "DM-2327", "DM-526", "DM-547", "DM-549", "DM-550"]
+code: ["src/render/conic-raster.ts", "src/render/element-tree-to-svg.ts", "src/render/gradients.ts"]
+aliases: ["docs/28-conic-gradient.md", "doc-28"]
 ---
 
 # 28 — Conic-gradient backgrounds
@@ -116,10 +116,7 @@ export interface ConicGradient {
 }
 
 export function parseConicGradient(text: string | null | undefined): ConicGradient | null;
-export function rasterizeConic(
-  gradient: ConicGradient,
-  width: number, height: number,
-): Buffer; // raw RGBA, width × height × 4
+export function rasterizeConic(gradient: ConicGradient, width: number, height: number): Buffer; // raw RGBA, width × height × 4
 ```
 
 `rasterizeConic` is synchronous and pure CPU. It exists to keep unsupported
@@ -137,9 +134,7 @@ Stops use `<angle>` (e.g. `red 0deg, blue 90deg`) or `<percentage>` (e.g. `red 0
 ```ts
 export type AnyGradient = LinearGradient | RadialGradient | ConicGradient;
 export function parseGradient(text: string | undefined | null): AnyGradient | null {
-  return parseLinearGradient(text)
-      ?? parseRadialGradient(text)
-      ?? parseConicGradient(text);
+  return parseLinearGradient(text) ?? parseRadialGradient(text) ?? parseConicGradient(text);
 }
 ```
 

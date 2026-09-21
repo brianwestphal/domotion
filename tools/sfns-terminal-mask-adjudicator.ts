@@ -51,8 +51,7 @@ import {
   type SfnsValidationRec,
 } from "./sfns-pinned-chromium-validation-schema.js";
 
-export const SFNS_TERMINAL_ADJUDICATOR_ABI =
-  "domotion-sfns-terminal-mask-adjudicator-v3";
+export const SFNS_TERMINAL_ADJUDICATOR_ABI = "domotion-sfns-terminal-mask-adjudicator-v3";
 
 interface InputFileIdentity {
   path: string;
@@ -157,16 +156,20 @@ interface ComparableObservation {
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value != null && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-      .filter(([, entry]) => entry !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, canonicalize(entry)]));
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, canonicalize(entry)]),
+    );
   }
   return value;
 }
 
 function hashJson(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(value)))
+    .digest("hex");
 }
 
 function shaBytes(value: string | Uint8Array): string {
@@ -216,9 +219,7 @@ function decodeBase64(valueToDecode: string): Buffer | null {
   }
 }
 
-function recordWithoutRuntimeTypeface(
-  rec: SfnsRecEvidence | SfnsValidationRec,
-): unknown {
+function recordWithoutRuntimeTypeface(rec: SfnsRecEvidence | SfnsValidationRec): unknown {
   const bytes = decodeBase64(rec.bytesBase64);
   if (bytes == null || bytes.length < 4) {
     return { invalidBase64: true, byteLength: rec.byteLength };
@@ -331,17 +332,18 @@ function validationGlyph(
       subpixelOffsetFixed: mask?.glyph.subpixelOffsetFixed ?? null,
     },
     metrics: mask?.glyph.metrics ?? null,
-    mask: mask == null ? null : {
-      encoding: mask.glyph.mask.encoding,
-      bytes: mask.glyph.mask.bytes,
-      sha256: mask.glyph.mask.sha256,
-    },
+    mask:
+      mask == null
+        ? null
+        : {
+            encoding: mask.glyph.mask.encoding,
+            bytes: mask.glyph.mask.bytes,
+            sha256: mask.glyph.mask.sha256,
+          },
   };
 }
 
-function proposalComparable(
-  observation: SfnsPinnedObservation,
-): ComparableObservation {
+function proposalComparable(observation: SfnsPinnedObservation): ComparableObservation {
   return {
     source: {
       chromiumRevision: observation.source.chromiumRevision,
@@ -381,9 +383,7 @@ function proposalComparable(
   };
 }
 
-function validationComparable(
-  observation: SfnsValidationObservation,
-): ComparableObservation {
+function validationComparable(observation: SfnsValidationObservation): ComparableObservation {
   const evidence = selectedValidationEvidence(observation);
   const shape = evidence.shape.payload as SfnsShapePayload;
   const raw = evidence.raw.payload as SfnsRawPayload;
@@ -429,13 +429,15 @@ function validationComparable(
     smoothBehavior: filtered.smoothBehavior,
     gamma,
     fontMetrics: observation.coreTextMetrics,
-    glyphs: run.glyphs.map((glyph, index) => validationGlyph(
-      glyph,
-      shape.glyphs[index]!,
-      run.rounding,
-      masks,
-      observation.coreTextMetrics.normalized.baseline,
-    )),
+    glyphs: run.glyphs.map((glyph, index) =>
+      validationGlyph(
+        glyph,
+        shape.glyphs[index]!,
+        run.rounding,
+        masks,
+        observation.coreTextMetrics.normalized.baseline,
+      ),
+    ),
   };
 }
 
@@ -476,8 +478,18 @@ function compareObservation(
   const proposal = proposalComparable(proposalObservation);
   const validation = validationComparable(validationObservation);
   for (const group of [
-    "source", "typeface", "font", "paint", "surfaceProps", "scalerContextFlags",
-    "rawRec", "filteredRec", "matrices", "smoothBehavior", "gamma", "fontMetrics",
+    "source",
+    "typeface",
+    "font",
+    "paint",
+    "surfaceProps",
+    "scalerContextFlags",
+    "rawRec",
+    "filteredRec",
+    "matrices",
+    "smoothBehavior",
+    "gamma",
+    "fontMetrics",
   ] as const) {
     addComparison(mismatches, caseId, pair, group, proposal[group], validation[group]);
   }
@@ -487,17 +499,16 @@ function compareObservation(
     const left = proposal.glyphs[index];
     const right = validation.glyphs[index];
     for (const group of [
-      "identity", "shapedAdvance", "shapedOffset", "strikeAdvance",
-      "placement", "phase", "metrics", "mask",
+      "identity",
+      "shapedAdvance",
+      "shapedOffset",
+      "strikeAdvance",
+      "placement",
+      "phase",
+      "metrics",
+      "mask",
     ] as const) {
-      addComparison(
-        mismatches,
-        caseId,
-        pair,
-        `glyph-${index}-${group}`,
-        left?.[group] ?? null,
-        right?.[group] ?? null,
-      );
+      addComparison(mismatches, caseId, pair, `glyph-${index}-${group}`, left?.[group] ?? null, right?.[group] ?? null);
     }
   }
   return {
@@ -509,8 +520,7 @@ function compareObservation(
 }
 
 function reportDigest(
-  report: Omit<SfnsTerminalMaskAdjudicationReport, "reportDigest">
-    | SfnsTerminalMaskAdjudicationReport,
+  report: Omit<SfnsTerminalMaskAdjudicationReport, "reportDigest"> | SfnsTerminalMaskAdjudicationReport,
 ): string {
   const { reportDigest: ignored, ...payload } = report as SfnsTerminalMaskAdjudicationReport;
   void ignored;
@@ -540,16 +550,36 @@ export function adjudicateSfnsTerminalMasks(
   if (!distinctAuthorities) inputIntegrityErrors.push("independence:same-authority");
   if (!distinctBuildIdentities) inputIntegrityErrors.push("independence:same-build-identity");
   if (!distinctBinaryDigests) inputIntegrityErrors.push("independence:same-binary-digest");
-  if (!exact(proposal.scenarios.map((scenario) => scenario.id), SFNS_PINNED_SCENARIOS)) {
+  if (
+    !exact(
+      proposal.scenarios.map((scenario) => scenario.id),
+      SFNS_PINNED_SCENARIOS,
+    )
+  ) {
     inputIntegrityErrors.push("proposal:scenario-order");
   }
-  if (!exact(validation.scenarios.map((scenario) => scenario.id), SFNS_VALIDATION_SCENARIOS)) {
+  if (
+    !exact(
+      validation.scenarios.map((scenario) => scenario.id),
+      SFNS_VALIDATION_SCENARIOS,
+    )
+  ) {
     inputIntegrityErrors.push("validation:scenario-order");
   }
-  if (!exact(proposal.controls.map((control) => control.id), SFNS_CONTROL_IDS)) {
+  if (
+    !exact(
+      proposal.controls.map((control) => control.id),
+      SFNS_CONTROL_IDS,
+    )
+  ) {
     inputIntegrityErrors.push("proposal:control-order");
   }
-  if (!exact(validation.controls.map((control) => control.id), SFNS_VALIDATION_CONTROLS)) {
+  if (
+    !exact(
+      validation.controls.map((control) => control.id),
+      SFNS_VALIDATION_CONTROLS,
+    )
+  ) {
     inputIntegrityErrors.push("validation:control-order");
   }
 
@@ -561,33 +591,31 @@ export function adjudicateSfnsTerminalMasks(
         const proposalScenario = proposal.scenarios.find((scenario) => scenario.id === id)!;
         const validationScenario = validation.scenarios.find((scenario) => scenario.id === id)!;
         for (let index = 0; index < 4; index += 1) {
-          observationPairs.push(compareObservation(
-            id,
-            proposalScenario.observations[index],
-            validationScenario.observations[index],
-            mismatches,
-          ));
+          observationPairs.push(
+            compareObservation(
+              id,
+              proposalScenario.observations[index],
+              validationScenario.observations[index],
+              mismatches,
+            ),
+          );
         }
       }
       for (const id of SFNS_CONTROL_IDS) {
         const proposalControl = proposal.controls.find((control) => control.id === id)!;
         const validationControl = validation.controls.find((control) => control.id === id)!;
-        observationPairs.push(compareObservation(
-          `control-${id}`,
-          proposalControl.observation,
-          validationControl.observation,
-          mismatches,
-        ));
+        observationPairs.push(
+          compareObservation(`control-${id}`, proposalControl.observation, validationControl.observation, mismatches),
+        );
       }
     } catch (error) {
-      inputIntegrityErrors.push(
-        `cross-arm-extraction:${error instanceof Error ? error.message : String(error)}`,
-      );
+      inputIntegrityErrors.push(`cross-arm-extraction:${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   const proposalIds = new Set(
-    proposal.scenarios.flatMap((scenario) => scenario.observations.map((observation) => observation.observationId))
+    proposal.scenarios
+      .flatMap((scenario) => scenario.observations.map((observation) => observation.observationId))
       .concat(proposal.controls.map((control) => control.observation.observationId)),
   );
   const validationIds = validation.scenarios
@@ -598,19 +626,21 @@ export function adjudicateSfnsTerminalMasks(
     inputIntegrityErrors.push("independence:observation-id-overlap");
   }
 
-  const proposalCancellation = proposal.scenarios
-    .find((scenario) => scenario.id === "zoom-2-transform-half")?.observations
-    .map((observation) => observation.matrices.scale) ?? [];
-  const validationCancellation = validation.scenarios
-    .find((scenario) => scenario.id === "zoom-2-transform-half")?.observations
-    .map((observation) => {
-      const filtered = selectedValidationEvidence(observation).filtered.payload as SfnsFilteredPayload;
-      return filtered.matrices.scale;
-    }) ?? [];
-  const exactCancellation = proposalCancellation.length === 4
-    && validationCancellation.length === 4
-    && [...proposalCancellation, ...validationCancellation]
-      .every((scale) => exact(scale, [13, 13]));
+  const proposalCancellation =
+    proposal.scenarios
+      .find((scenario) => scenario.id === "zoom-2-transform-half")
+      ?.observations.map((observation) => observation.matrices.scale) ?? [];
+  const validationCancellation =
+    validation.scenarios
+      .find((scenario) => scenario.id === "zoom-2-transform-half")
+      ?.observations.map((observation) => {
+        const filtered = selectedValidationEvidence(observation).filtered.payload as SfnsFilteredPayload;
+        return filtered.matrices.scale;
+      }) ?? [];
+  const exactCancellation =
+    proposalCancellation.length === 4 &&
+    validationCancellation.length === 4 &&
+    [...proposalCancellation, ...validationCancellation].every((scale) => exact(scale, [13, 13]));
   if (!exactCancellation) inputIntegrityErrors.push("cancellation:not-exact-13px-scaler");
 
   const payload: Omit<SfnsTerminalMaskAdjudicationReport, "reportDigest"> = {
@@ -685,20 +715,16 @@ function runCli(): void {
   }
   const proposal = readArtifact<SfnsPinnedSkiaProposalArtifact>(proposalPath);
   const validation = readArtifact<SfnsPinnedChromiumValidationArtifact>(validationPath);
-  const report = adjudicateSfnsTerminalMasks(
-    proposal.artifact,
-    validation.artifact,
-    proposal.file,
-    validation.file,
-  );
+  const report = adjudicateSfnsTerminalMasks(proposal.artifact, validation.artifact, proposal.file, validation.file);
   const reportPath = argumentValue(argv, "--report");
   if (reportPath != null) {
     writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
   }
-  const summary = `SFNS terminal-mask adjudication: ${report.ready ? "READY" : "NOT READY"}; `
-    + `${report.observationPairs.length} observation pairs, `
-    + `${report.inputIntegrityErrors.length} integrity errors, `
-    + `${report.mismatches.length} exact mismatches; report ${report.reportDigest}`;
+  const summary =
+    `SFNS terminal-mask adjudication: ${report.ready ? "READY" : "NOT READY"}; ` +
+    `${report.observationPairs.length} observation pairs, ` +
+    `${report.inputIntegrityErrors.length} integrity errors, ` +
+    `${report.mismatches.length} exact mismatches; report ${report.reportDigest}`;
   console.log(summary);
   if (!report.ready && !argv.includes("--allow-not-ready")) process.exitCode = 1;
 }

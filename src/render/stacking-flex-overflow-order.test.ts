@@ -3,8 +3,16 @@ import type { CapturedElement } from "../capture/types.js";
 import { gatherStackingContextChildren } from "./stacking.js";
 
 function node(display: string, children: CapturedElement[] = []): CapturedElement {
-  return { tag: "div", text: "", x: 0, y: 0, width: 100, height: 100,
-    styles: { display, position: "static", zIndex: "auto", float: "none" }, children } as CapturedElement;
+  return {
+    tag: "div",
+    text: "",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    styles: { display, position: "static", zIndex: "auto", float: "none" },
+    children,
+  } as CapturedElement;
 }
 
 describe("stacking-context gathering for ordinary flex items", () => {
@@ -14,8 +22,7 @@ describe("stacking-context gathering for ordinary flex items", () => {
     const later = node("block");
     const hoisted = new Set<CapturedElement>();
 
-    expect(gatherStackingContextChildren([flex, later], hoisted, "block"))
-      .toEqual([flex, later]);
+    expect(gatherStackingContextChildren([flex, later], hoisted, "block")).toEqual([flex, later]);
     expect(hoisted.has(item)).toBe(false);
   });
 });

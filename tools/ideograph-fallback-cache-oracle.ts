@@ -59,7 +59,7 @@ function row(scenario: string, chromiumPostScript: string | null, domotionKey: s
     scenario,
     chromiumPostScript,
     domotionKey,
-    domotionPostScript: domotionKey == null ? null : resolveFontSpec(domotionKey)?.postscriptName ?? null,
+    domotionPostScript: domotionKey == null ? null : (resolveFontSpec(domotionKey)?.postscriptName ?? null),
   };
 }
 
@@ -82,15 +82,18 @@ async function main(): Promise<void> {
 
     const browser = await chromium.launch({ headless: true });
     const ordered = await freshContext(browser);
-    await ordered.page.setContent(`<span id="seed" style="${CSS}">${String.fromCodePoint(...DENSE_EXT_A)}</span><span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`);
+    await ordered.page.setContent(
+      `<span id="seed" style="${CSS}">${String.fromCodePoint(...DENSE_EXT_A)}</span><span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`,
+    );
     const rendererSession = createFontRendererSession();
     const orderedKey = withFontRendererSession(rendererSession, () => {
       beginCharacterFallbackDocument();
       try {
         for (const cp of DENSE_EXT_A) domotionAsk(cp);
         return domotionAsk(TARGET);
+      } finally {
+        endCharacterFallbackDocument();
       }
-      finally { endCharacterFallbackDocument(); }
     });
     rows.push(row("same-renderer ordered sequence", await selectedPostScript(ordered.page, "#target"), orderedKey));
 
@@ -99,8 +102,11 @@ async function main(): Promise<void> {
     await ordered.page.setContent(`<span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`);
     const navigationKey = withFontRendererSession(rendererSession, () => {
       beginCharacterFallbackDocument();
-      try { return domotionAsk(TARGET); }
-      finally { endCharacterFallbackDocument(); }
+      try {
+        return domotionAsk(TARGET);
+      } finally {
+        endCharacterFallbackDocument();
+      }
     });
     rows.push(row("same-renderer navigation", await selectedPostScript(ordered.page, "#target"), navigationKey));
     await ordered.context.close();
@@ -111,8 +117,10 @@ async function main(): Promise<void> {
       domotionSequenceMoved: rows[0].domotionKey !== rows[1].domotionKey,
       domotionNavigationReused: rows[1].domotionKey === rows[2].domotionKey,
     };
-    const enabledOkay = activation.chromiumSequenceMoved && activation.domotionSequenceMoved && activation.domotionNavigationReused;
-    const disabledOkay = activation.chromiumSequenceMoved && !activation.domotionSequenceMoved && activation.domotionNavigationReused;
+    const enabledOkay =
+      activation.chromiumSequenceMoved && activation.domotionSequenceMoved && activation.domotionNavigationReused;
+    const disabledOkay =
+      activation.chromiumSequenceMoved && !activation.domotionSequenceMoved && activation.domotionNavigationReused;
     if ((!disabledArm && !enabledOkay) || (disabledArm && !disabledOkay)) {
       throw new Error(`Ideograph fallback-cache oracle mismatch: ${JSON.stringify({ rows, activation })}`);
     }

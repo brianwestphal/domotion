@@ -17,7 +17,8 @@ async function main() {
     deviceScaleFactor: 1,
     isMobile: true,
     hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
   await context.routeFromHAR(resolve(CACHE_DIR, "slashdot-mobile.har"), { url: "**/*", notFound: "fallback" });
   const page = await context.newPage();
@@ -29,7 +30,11 @@ async function main() {
     const out: any[] = [];
     for (const sheet of Array.from(document.styleSheets)) {
       let rules: CSSRuleList;
-      try { rules = sheet.cssRules; } catch { continue; }
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
       for (const rule of Array.from(rules)) {
         if (rule instanceof CSSFontFaceRule) {
           out.push({
@@ -50,7 +55,13 @@ async function main() {
   const docFonts = await page.evaluate(() => {
     const out: any[] = [];
     document.fonts.forEach((ff) => {
-      out.push({ family: ff.family, style: ff.style, weight: ff.weight, status: ff.status, unicodeRange: ff.unicodeRange });
+      out.push({
+        family: ff.family,
+        style: ff.style,
+        weight: ff.weight,
+        status: ff.status,
+        unicodeRange: ff.unicodeRange,
+      });
     });
     return out;
   });
@@ -65,7 +76,10 @@ async function main() {
     probe.style.cssText = "position:absolute;visibility:hidden;font-size:14px;font-style:italic;white-space:pre;";
     probe.textContent = "The settlement will resolve a 2025 lawsuit";
     document.body.appendChild(probe);
-    const measure = (ff: string) => { probe.style.fontFamily = ff; return probe.getBoundingClientRect().width; };
+    const measure = (ff: string) => {
+      probe.style.fontFamily = ff;
+      return probe.getBoundingClientRect().width;
+    };
     const out = {
       openSansChain: measure(`"Open Sans", "Droid Sans", Helvetica`),
       openSansOnly: measure(`"Open Sans"`),

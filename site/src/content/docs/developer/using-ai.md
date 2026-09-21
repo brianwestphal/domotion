@@ -4,7 +4,7 @@ description: Domotion is built for AI agents — a declarative surface plus a de
 ---
 
 Domotion faithfully renders whatever HTML/CSS and timing you give it. Whether the
-result is *good* is a design problem — and Domotion is built so an AI agent can
+result is _good_ is a design problem — and Domotion is built so an AI agent can
 own that loop end to end.
 
 ## Point your agent at `llms.txt`
@@ -27,13 +27,13 @@ portable JSON inside the explicitly scoped workspace.
 
 ## You don't have to hand-write the markup
 
-Because Domotion renders whatever markup it's given and an agent can *look at the
-result and iterate*, you can describe the demo you want — "a pricing page with
+Because Domotion renders whatever markup it's given and an agent can _look at the
+result and iterate_, you can describe the demo you want — "a pricing page with
 three tiers, the middle one highlighted, that assembles top-down" — and let the
 agent write the HTML/CSS, render it, check the pixels, and refine. Designers and
 non-coders get a polished, on-brand demo without touching the markup themselves.
 
-## Work the loop: build → render → *look* → critique → iterate
+## Work the loop: build → render → _look_ → critique → iterate
 
 The output is an ordinary, standards-compliant SVG, so an agent can look at it
 cheaply and judge it:
@@ -68,7 +68,7 @@ The `llms.txt` design section distills established practice (Disney's principles
 Material/HIG motion specs, WCAG contrast, Tufte) into Domotion's actual levers:
 override `linear` easing on every animation; hold frames long enough to read;
 one focal motion at a time; one accent color, 60-30-10, real contrast; pick the
-transition for what the cut *means*; and default to restraint.
+transition for what the cut _means_; and default to restraint.
 
 This site's own [showcase](/domotion/showcase/) and the built-in chart defaults
 follow that playbook — e.g. single-series charts emphasize one bar in the accent

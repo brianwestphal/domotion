@@ -31,9 +31,12 @@ export interface HelperRequest {
     // terminal-mask correction. Coordinates are FreeType 26.6 pixels, y-up.
     // Older helpers answer "unknown query type" and the caller falls back.
     | {
-        type: "hintedGlyphs"; fontRef: string; fontSizePx: number;
+        type: "hintedGlyphs";
+        fontRef: string;
+        fontSizePx: number;
         hintStyle: "none" | "slight" | "normal" | "full";
-        forceAutoHint: boolean; useBitmaps: boolean;
+        forceAutoHint: boolean;
+        useBitmaps: boolean;
         glyphs: Array<{ cp?: number; id?: number }>;
       }
     // `cssWeight` / `bold` / `italic` drive the in-family re-selection the macOS
@@ -43,9 +46,15 @@ export interface HelperRequest {
     // `MapCharacters` arguments (DM-1871 / DM-1896); the macOS and Linux helpers
     // ignore both.
     | {
-        type: "fallback"; fontRef: string; cps: number[];
-        cssWeight?: number; bold?: boolean; italic?: boolean;
-        baseFamilyName?: string; locale?: string; monoEmoji?: boolean;
+        type: "fallback";
+        fontRef: string;
+        cps: number[];
+        cssWeight?: number;
+        bold?: boolean;
+        italic?: boolean;
+        baseFamilyName?: string;
+        locale?: string;
+        monoEmoji?: boolean;
       }
     // DM-1878: the style fields pick the CUT within the family — on Windows
     // `GetFirstMatchingFont(weight, stretch, style)`, i.e. what
@@ -54,8 +63,12 @@ export interface HelperRequest {
     // `matchFamilyStyle(name, SkFontStyle())` asks for, so omitting them is the
     // correct transcription for a presence check rather than just a fallback.
     | {
-        type: "family"; name: string;
-        cssWeight?: number; italic?: boolean; cssSlant?: number; cssStretch?: number;
+        type: "family";
+        name: string;
+        cssWeight?: number;
+        italic?: boolean;
+        cssSlant?: number;
+        cssStretch?: number;
       }
     // macOS declared-family style match — Blink's `BestStyleMatchForFamilyNS`
     // over `NSFontManager.availableMembersOfFontFamily`, compared with
@@ -64,11 +77,17 @@ export interface HelperRequest {
     // 147.0.7727.15, the build Playwright pins). This is the step that picks
     // WHICH CUT of a declared family a run opens; the `family` query above is
     // name resolution and does not run it.
-    | { type: "familyMatch"; family: string; cssWeight?: number; italic?: boolean; bold?: boolean;
+    | {
+        type: "familyMatch";
+        family: string;
+        cssWeight?: number;
+        italic?: boolean;
+        bold?: boolean;
         /** CSS `font-stretch` as a percentage (100 = `normal`). The helper turns
          *  it into the condensed / expanded symbolic trait the way Blink's
          *  `ComputeDesiredTraits` does. Absent = 100, i.e. the previous behavior. */
-        cssWidth?: number }
+        cssWidth?: number;
+      }
     | { type: "shape"; fontRef: string; text: string }
     // DM-1886 (Linux): per-codepoint fallback via fontconfig sort-and-walk.
     | { type: "fcfallback"; lang: string; cps: number[] }
@@ -151,9 +170,13 @@ export interface FamilyMatchResponse {
   weight?: number;
   /** Every family member the matcher scanned, in enumeration order. */
   candidates?: Array<{
-    name: string; weight: number; descriptorWeight: number;
+    name: string;
+    weight: number;
+    descriptorWeight: number;
     /** `CTFontSymbolicTraits` masked to italic / bold / condensed / expanded. */
-    traits: number; appKitWeight: number; appKitTraits: number;
+    traits: number;
+    appKitWeight: number;
+    appKitTraits: number;
   }>;
   // Linux helper only (the fontconfig transcription of Skia's
   // `SkFontConfigInterfaceDirect::matchFamilyName`): the resolved file, its
@@ -178,16 +201,28 @@ export interface HelperResponse {
     | {
         type: "fcfallback";
         fonts?: Array<{
-          cp: number; found: boolean; path?: string; index?: number;
-          isBold?: boolean; isItalic?: boolean; family?: string;
+          cp: number;
+          found: boolean;
+          path?: string;
+          index?: number;
+          isBold?: boolean;
+          isItalic?: boolean;
+          family?: string;
         }>;
         error?: string;
       }
     | {
-        type: "fcdiagnostic"; before: string; after: string; fingerprint: string;
+        type: "fcdiagnostic";
+        before: string;
+        after: string;
+        fingerprint: string;
         candidates?: Array<{
-          rank: number; path: string; index: number; family?: string;
-          postscriptName?: string; covers: number[];
+          rank: number;
+          path: string;
+          index: number;
+          family?: string;
+          postscriptName?: string;
+          covers: number[];
         }>;
         error?: string;
       }

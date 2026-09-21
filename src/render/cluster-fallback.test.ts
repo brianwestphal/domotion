@@ -12,12 +12,20 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
 import {
-  chooseHintIndex, collectHintChars, clusterFallbackEnabled,
-  splitTextIntoFontRunsShaped, _clusterFallbackCounters, _isBlinkVariationSequenceForTest,
+  chooseHintIndex,
+  collectHintChars,
+  clusterFallbackEnabled,
+  splitTextIntoFontRunsShaped,
+  _clusterFallbackCounters,
+  _isBlinkVariationSequenceForTest,
   _effectiveFallbackPriorityForTest,
 } from "./cluster-fallback.js";
 import {
-  resolveFont, resolveFontKey, resolveFontKeyChain, registerWebfont, clearWebfonts,
+  resolveFont,
+  resolveFontKey,
+  resolveFontKeyChain,
+  registerWebfont,
+  clearWebfonts,
   type FontVariantEmojiOverride,
 } from "./font-resolution.js";
 import { isIcuHelperAvailable } from "./icu-helper.js";
@@ -27,15 +35,28 @@ import * as fontkit from "fontkit";
 const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
 function split(
-  fam: string, text: string, fontVariantEmoji?: FontVariantEmojiOverride,
+  fam: string,
+  text: string,
+  fontVariantEmoji?: FontVariantEmojiOverride,
 ): Array<{ text: string; key: string }> | null {
   const key = resolveFontKey(fam);
   const font = resolveFont(fam, 400, 32, 0);
   expect(font).not.toBeNull();
   const chain = resolveFontKeyChain(fam);
   const runs = splitTextIntoFontRunsShaped(
-    text, font!, key, 400, 32, 0, undefined, undefined, chain,
-    false, 100, fontVariantEmoji, fam,
+    text,
+    font!,
+    key,
+    400,
+    32,
+    0,
+    undefined,
+    undefined,
+    chain,
+    false,
+    100,
+    fontVariantEmoji,
+    fam,
   );
   return runs == null ? null : runs.map((r) => ({ text: r.text, key: r.fontKey }));
 }
@@ -43,7 +64,7 @@ function split(
 describe("chooseHintIndex (FontFallbackIterator::ChooseHintIndex port)", () => {
   it("picks the first index >= 1 with a likely script, else 0", () => {
     // Single hint → 0.
-    expect(chooseHintIndex([0x0E48])).toBe(0);
+    expect(chooseHintIndex([0x0e48])).toBe(0);
     // Leading Common punctuation, then Thai: the Thai char is the hint —
     // crbug.com/618178's Myanmar-run case, the reason the rule exists.
     expect(chooseHintIndex([0x0028, 0x1000])).toBe(1);
@@ -51,8 +72,8 @@ describe("chooseHintIndex (FontFallbackIterator::ChooseHintIndex port)", () => {
     expect(chooseHintIndex([0x0028, 0x0301, 0x0020])).toBe(0);
     // The loop starts at index 1, so a likely-script char there wins even when
     // index 0 has one too (U+094D is Script=Devanagari, not Inherited).
-    expect(chooseHintIndex([0x0915, 0x094D])).toBe(1);
-    expect(chooseHintIndex([0x094D, 0x0915])).toBe(1);
+    expect(chooseHintIndex([0x0915, 0x094d])).toBe(1);
+    expect(chooseHintIndex([0x094d, 0x0915])).toBe(1);
     // A truly Inherited mark at index 1 (combining acute) falls back to 0.
     expect(chooseHintIndex([0x0915, 0x0301])).toBe(0);
   });
@@ -69,16 +90,16 @@ describe("collectHintChars (CollectFallbackHintChars port)", () => {
   it("stops at the first likely-script codepoint by default", () => {
     // "(ก x" queued whole: pushes '(' (Common), then ก (Thai, likely) → stop.
     const hints = collectHintChars("(ก x", [{ start: 0, end: 4 }]);
-    expect(hints).toEqual([0x28, 0x0E01]);
+    expect(hints).toEqual([0x28, 0x0e01]);
   });
   it("collects the full list when a segmented face needs it", () => {
     const hints = collectHintChars("(ก", [{ start: 0, end: 2 }], true);
-    expect(hints).toEqual([0x28, 0x0E01]);
+    expect(hints).toEqual([0x28, 0x0e01]);
   });
   it("walks queued ranges in order and handles astral codepoints", () => {
     const text = "a\u{1D400}b";
     const hints = collectHintChars(text, [{ start: 0, end: text.length }], true);
-    expect(hints).toEqual([0x61, 0x1D400, 0x62]);
+    expect(hints).toEqual([0x61, 0x1d400, 0x62]);
   });
 });
 
@@ -86,7 +107,7 @@ describe("Character::IsVariationSequence transcription", () => {
   it("accepts emoji, standardized, and undecomposed ideographic sequences", () => {
     expect(_isBlinkVariationSequenceForTest(0x2764, 0xfe0f)).toBe(true); // emoji VS16
     expect(_isBlinkVariationSequenceForTest(0x0030, 0xfe00)).toBe(true); // standardized short zero
-    expect(_isBlinkVariationSequenceForTest(0x845B, 0xe0100)).toBe(true); // ideographic IVS
+    expect(_isBlinkVariationSequenceForTest(0x845b, 0xe0100)).toBe(true); // ideographic IVS
   });
 
   it("rejects selectors that Blink leaves as ordinary default-ignorables", () => {
@@ -135,13 +156,24 @@ describe("candidate-local HarfBuzz materialization failure", () => {
     // candidate; an implementation-wide legacy restart would change both the
     // mechanism and the assignment algorithm.
     const opened = fontkit.openSync("assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf");
-    const font = ("fonts" in opened
-      ? (opened as unknown as { fonts: Array<typeof opened> }).fonts[0]
-      : opened) as Parameters<typeof splitTextIntoFontRunsShaped>[1];
+    const font = (
+      "fonts" in opened ? (opened as unknown as { fonts: Array<typeof opened> }).fonts[0] : opened
+    ) as Parameters<typeof splitTextIntoFontRunsShaped>[1];
     const text = "\uE000";
     const runs = splitTextIntoFontRunsShaped(
-      text, font, "dm-unopenable", 400, 32, 0, undefined, undefined,
-      ["dm-unopenable"], false, 100, undefined, "DM Unopenable",
+      text,
+      font,
+      "dm-unopenable",
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      ["dm-unopenable"],
+      false,
+      100,
+      undefined,
+      "DM Unopenable",
     );
 
     expect(runs).toHaveLength(1);
@@ -159,9 +191,7 @@ describe("candidate-local HarfBuzz materialization failure", () => {
 (MACOS_FONTS ? describe : describe.skip)("shape-then-requeue vs Chrome ground truth (docs/113 §2)", () => {
   it("requeues valid variation sequences but ignores invalid base+selector pairs", () => {
     const before = _clusterFallbackCounters();
-    expect(split("STIX Two Math", "0\uFE00")).toEqual([
-      { text: "0\uFE00", key: "sysfb:STIXTwoMath-Regular" },
-    ]); // positive cmap-14: the selected face owns the sequence
+    expect(split("STIX Two Math", "0\uFE00")).toEqual([{ text: "0\uFE00", key: "sysfb:STIXTwoMath-Regular" }]); // positive cmap-14: the selected face owns the sequence
     const afterPositiveCmap14 = _clusterFallbackCounters();
     expect(afterPositiveCmap14.vsRequeued).toBe(before.vsRequeued);
 
@@ -302,37 +332,40 @@ describe("candidate-local HarfBuzz materialization failure", () => {
   });
 });
 
-(MACOS_FONTS ? describe : describe.skip)("webfont primary at cluster granularity (docs/113 §2, partial-conjunct case)", () => {
-  // A partially-covered webfont: क (U+0915) and ् (U+094D) retained, ष
-  // (U+0937) subset away — the realistic subsetted-webfont shape. Chrome
-  // shapes क्ष with it, keeps the unligated ष in its own cluster, and
-  // re-queues EXACTLY that cluster to fallback (webfont x2 + Kohinoor x1).
-  let subset: Buffer | null = null;
-  beforeAll(() => {
-    const path = "/System/Library/Fonts/Supplemental/Kohinoor.ttc";
-    if (!fs.existsSync(path)) return;
-    const f0 = fontkit.openSync(path);
-    const face = ("fonts" in f0 ? (f0 as unknown as { fonts: Array<typeof f0> }).fonts[0] : f0) as {
-      glyphForCodePoint(cp: number): { id: number };
-    };
-    const gidK = face.glyphForCodePoint(0x915).id;
-    const gidVirama = face.glyphForCodePoint(0x94D).id;
-    if (gidK === 0 || gidVirama === 0) return;
-    subset = hbSubsetRetainGids(fs.readFileSync(path), [0, gidK, gidVirama], 0, true, null);
-  });
-  afterAll(() => clearWebfonts());
+(MACOS_FONTS ? describe : describe.skip)(
+  "webfont primary at cluster granularity (docs/113 §2, partial-conjunct case)",
+  () => {
+    // A partially-covered webfont: क (U+0915) and ् (U+094D) retained, ष
+    // (U+0937) subset away — the realistic subsetted-webfont shape. Chrome
+    // shapes क्ष with it, keeps the unligated ष in its own cluster, and
+    // re-queues EXACTLY that cluster to fallback (webfont x2 + Kohinoor x1).
+    let subset: Buffer | null = null;
+    beforeAll(() => {
+      const path = "/System/Library/Fonts/Supplemental/Kohinoor.ttc";
+      if (!fs.existsSync(path)) return;
+      const f0 = fontkit.openSync(path);
+      const face = ("fonts" in f0 ? (f0 as unknown as { fonts: Array<typeof f0> }).fonts[0] : f0) as {
+        glyphForCodePoint(cp: number): { id: number };
+      };
+      const gidK = face.glyphForCodePoint(0x915).id;
+      const gidVirama = face.glyphForCodePoint(0x94d).id;
+      if (gidK === 0 || gidVirama === 0) return;
+      subset = hbSubsetRetainGids(fs.readFileSync(path), [0, gidK, gidVirama], 0, true, null);
+    });
+    afterAll(() => clearWebfonts());
 
-  it("shapes with the webfont face and requeues exactly the uncovered cluster", () => {
-    if (subset == null) return; // Kohinoor not present on this host
-    registerWebfont("DM2029 Partial Deva", 400, "normal", subset);
-    const runs = split('"DM2029 Partial Deva"', "क्ष");
-    expect(runs).not.toBeNull();
-    expect(runs).toHaveLength(2);
-    expect(runs![0]).toMatchObject({ text: "क्", key: "webfont:dm2029 partial deva" });
-    expect(runs![1].text).toBe("ष");
-    expect(runs![1].key).toContain("Kohinoor");
-  });
-});
+    it("shapes with the webfont face and requeues exactly the uncovered cluster", () => {
+      if (subset == null) return; // Kohinoor not present on this host
+      registerWebfont("DM2029 Partial Deva", 400, "normal", subset);
+      const runs = split('"DM2029 Partial Deva"', "क्ष");
+      expect(runs).not.toBeNull();
+      expect(runs).toHaveLength(2);
+      expect(runs![0]).toMatchObject({ text: "क्", key: "webfont:dm2029 partial deva" });
+      expect(runs![1].text).toBe("ष");
+      expect(runs![1].key).toContain("Kohinoor");
+    });
+  },
+);
 
 (MACOS_FONTS ? describe : describe.skip)("variation sequence across @font-face unicode-range", () => {
   afterAll(() => clearWebfonts());
@@ -345,9 +378,7 @@ describe("candidate-local HarfBuzz materialization failure", () => {
     // not independently to its `variation_selector` (U+FE00).
     registerWebfont("DM VS Base Range", 400, "normal", fs.readFileSync(path), [[0x30, 0x30]]);
     const before = _clusterFallbackCounters();
-    expect(split('"DM VS Base Range"', "0\uFE00")).toEqual([
-      { text: "0\uFE00", key: "webfont:dm vs base range" },
-    ]);
+    expect(split('"DM VS Base Range"', "0\uFE00")).toEqual([{ text: "0\uFE00", key: "webfont:dm vs base range" }]);
     const after = _clusterFallbackCounters();
     expect(after.vsRequeued).toBe(before.vsRequeued);
   });

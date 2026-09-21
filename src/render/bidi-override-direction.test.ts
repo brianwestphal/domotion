@@ -20,7 +20,7 @@ import { bidiLevelsFor, segmentForShaping, needsSegmentation } from "./script-se
  * the region detector only caught it because two words happened not to overlap
  * cleanly. Direction is the thing to assert, so direction is what is asserted.
  */
-const HEB = "שלום";          // שלום
+const HEB = "שלום"; // שלום
 const LAT = "hello";
 const OVERRIDE_LTR = { direction: "ltr" as const, unicodeBidi: "bidi-override" };
 const OVERRIDE_RTL = { direction: "rtl" as const, unicodeBidi: "bidi-override" };

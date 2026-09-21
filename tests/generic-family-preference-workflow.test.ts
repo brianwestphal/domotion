@@ -19,8 +19,9 @@ describe("DM-2351 generic preference workflow", () => {
     expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain("xvfb-run -a npm run fonts:generic-preferences");
     expect(workflow.match(/--allow-headed-browser/g)).toHaveLength(2);
-    expect(packageJson.scripts?.["fonts:generic-preferences"])
-      .toBe("node --import tsx tools/generic-family-preference-oracle.ts");
+    expect(packageJson.scripts?.["fonts:generic-preferences"]).toBe(
+      "node --import tsx tools/generic-family-preference-oracle.ts",
+    );
     expect(workflow).not.toContain("--allow-missing-full-chrome");
     expect(workflow).not.toContain("continue-on-error");
   });

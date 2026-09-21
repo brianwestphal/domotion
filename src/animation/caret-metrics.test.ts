@@ -61,24 +61,56 @@ describe("firstLineBaseline (DM-1750)", () => {
   it("block/textarea content: line box from the content top", () => {
     // lineH 20, text box round(12 + 4) = 16 → boxTop = 100 + (20−16)/2 = 102,
     // baseline = 102 + 12 = 114.
-    const r = firstLineBaseline({ fontSize: 14, lineHeightPx: 20, fontAscentPx: 12, fontDescentPx: 4, contentTop: 100, contentHeight: 60, centerInContentBox: false });
+    const r = firstLineBaseline({
+      fontSize: 14,
+      lineHeightPx: 20,
+      fontAscentPx: 12,
+      fontDescentPx: 4,
+      contentTop: 100,
+      contentHeight: 60,
+      centerInContentBox: false,
+    });
     expect(r).toEqual({ baselineY: 114, ascentPx: 12, descentPx: 4 });
   });
 
   it("single-line input: line box centered in the content box", () => {
     // lineTop = 100 + (30 − 20)/2 = 105 → boxTop = 107, baseline = 119.
-    const r = firstLineBaseline({ fontSize: 14, lineHeightPx: 20, fontAscentPx: 12, fontDescentPx: 4, contentTop: 100, contentHeight: 30, centerInContentBox: true });
+    const r = firstLineBaseline({
+      fontSize: 14,
+      lineHeightPx: 20,
+      fontAscentPx: 12,
+      fontDescentPx: 4,
+      contentTop: 100,
+      contentHeight: 30,
+      centerInContentBox: true,
+    });
     expect(r.baselineY).toBe(119);
   });
 
   it("line-height: normal (0) falls back to the font box", () => {
     // lineH = fontBox = 16, text box 16 → boxTop = contentTop, baseline = top + ascent.
-    const r = firstLineBaseline({ fontSize: 14, lineHeightPx: 0, fontAscentPx: 12, fontDescentPx: 4, contentTop: 50, contentHeight: 40, centerInContentBox: false });
+    const r = firstLineBaseline({
+      fontSize: 14,
+      lineHeightPx: 0,
+      fontAscentPx: 12,
+      fontDescentPx: 4,
+      contentTop: 50,
+      contentHeight: 40,
+      centerInContentBox: false,
+    });
     expect(r.baselineY).toBe(62);
   });
 
   it("no font box (0/0) falls back to the 1.15-em split (0.9 asc + 0.25 desc)", () => {
-    const r = firstLineBaseline({ fontSize: 20, lineHeightPx: 0, fontAscentPx: 0, fontDescentPx: 0, contentTop: 0, contentHeight: 40, centerInContentBox: false });
+    const r = firstLineBaseline({
+      fontSize: 20,
+      lineHeightPx: 0,
+      fontAscentPx: 0,
+      fontDescentPx: 0,
+      contentTop: 0,
+      contentHeight: 40,
+      centerInContentBox: false,
+    });
     expect(r.ascentPx).toBe(18);
     expect(r.descentPx).toBe(5);
     // lineH = 20 × 1.2 = 24, text box 18 + 5 = 23 → an ODD leading of 1, whose
@@ -99,14 +131,30 @@ describe("firstLineBaseline (DM-1750)", () => {
     // measures ascent 12 + descent 4 = 16, leaving an odd leading of 3. Chrome
     // paints the baseline at 73; an even split gives 73.5, which rounds to a
     // full pixel of ink displacement.
-    const r = firstLineBaseline({ fontSize: 12.5, lineHeightPx: 19, fontAscentPx: 12, fontDescentPx: 4, contentTop: 60, contentHeight: 19, centerInContentBox: false });
+    const r = firstLineBaseline({
+      fontSize: 12.5,
+      lineHeightPx: 19,
+      fontAscentPx: 12,
+      fontDescentPx: 4,
+      contentTop: 60,
+      contentHeight: 19,
+      centerInContentBox: false,
+    });
     expect(r.baselineY).toBe(73);
   });
 
   it("floors a NEGATIVE leading too, when the text box overflows the line box (DM-1981)", () => {
     // Same fixture at 16px/19px: ascent 15 + descent 5 = 20 overflows the 19px
     // line box, so the leading is −1 and floors to −1 (not −0.5). Chrome: 74.
-    const r = firstLineBaseline({ fontSize: 16, lineHeightPx: 19, fontAscentPx: 15, fontDescentPx: 5, contentTop: 60, contentHeight: 19, centerInContentBox: false });
+    const r = firstLineBaseline({
+      fontSize: 16,
+      lineHeightPx: 19,
+      fontAscentPx: 15,
+      fontDescentPx: 5,
+      contentTop: 60,
+      contentHeight: 19,
+      centerInContentBox: false,
+    });
     expect(r.baselineY).toBe(74);
   });
 
@@ -114,7 +162,15 @@ describe("firstLineBaseline (DM-1750)", () => {
     // Menlo at 12.5px/19px on macOS: ascent 12 + descent 3 = 15, leaving an
     // even 4. Chrome paints 74 and did before this change too, which is the
     // guard that the floor is a Linux-visible fix and not a macOS regression.
-    const r = firstLineBaseline({ fontSize: 12.5, lineHeightPx: 19, fontAscentPx: 12, fontDescentPx: 3, contentTop: 60, contentHeight: 19, centerInContentBox: false });
+    const r = firstLineBaseline({
+      fontSize: 12.5,
+      lineHeightPx: 19,
+      fontAscentPx: 12,
+      fontDescentPx: 3,
+      contentTop: 60,
+      contentHeight: 19,
+      centerInContentBox: false,
+    });
     expect(r.baselineY).toBe(74);
   });
 });
@@ -152,7 +208,16 @@ describe("caretShapeRect — RTL insertion points", () => {
 // `cellWidthPx` the cell's extent DOWN the column, `columnWidthPx` its cross
 // extent.
 describe("caretShapeRect — vertical writing modes", () => {
-  const base = { x: 430, baselineY: 92, ascentPx: 21, descentPx: 3, cellWidthPx: 24, fontSize: 24, columnWidthPx: 24, vertical: true } as const;
+  const base = {
+    x: 430,
+    baselineY: 92,
+    ascentPx: 21,
+    descentPx: 3,
+    cellWidthPx: 24,
+    fontSize: 24,
+    columnWidthPx: 24,
+    vertical: true,
+  } as const;
 
   it("turns the bar caret HORIZONTAL across the column", () => {
     const bar = caretShapeRect({ ...base, shape: "bar", barWidthPx: 2 });

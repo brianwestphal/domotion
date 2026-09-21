@@ -100,27 +100,54 @@ describe("multi-layer same-document SVG mask fragments (DM-2520)", () => {
       const rendered = await context.newPage();
       try {
         await source.setContent(sourceHtml(), { waitUntil: "load" });
-        await source.waitForFunction(() => document.querySelector("iframe")?.contentDocument?.querySelectorAll(".case").length === 4);
+        await source.waitForFunction(
+          () => document.querySelector("iframe")?.contentDocument?.querySelectorAll(".case").length === 4,
+        );
         const expected = await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
-        const capture = await captureElementTreeWithWarnings(source, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+        const capture = await captureElementTreeWithWarnings(source, "body", {
+          x: 0,
+          y: 0,
+          width: WIDTH,
+          height: HEIGHT,
+        });
         expect(capture.warnings.filter((warning) => /did not resolve to an inline/.test(warning.detail))).toEqual([]);
 
         const masked = consumers(capture.tree);
         expect(masked).toHaveLength(8);
-        expect(masked.every((node) => node.maskFragmentReferences
-          ?.every((reference, index) => reference.layerIndex === index && reference.id === ["a", "b", "c"][index]))).toBe(true);
+        expect(
+          masked.every((node) =>
+            node.maskFragmentReferences?.every(
+              (reference, index) => reference.layerIndex === index && reference.id === ["a", "b", "c"][index],
+            ),
+          ),
+        ).toBe(true);
         expect(masked.filter((node) => node.maskFragmentReferences?.length === 3)).toHaveLength(2);
-        expect(masked.every((node) => new Set(node.maskFragmentReferences?.map((reference) => reference.scope)).size === 1)).toBe(true);
-        expect(new Set(masked.flatMap((node) => node.maskFragmentReferences?.map((reference) => reference.scope) ?? [])).size).toBe(2);
+        expect(
+          masked.every((node) => new Set(node.maskFragmentReferences?.map((reference) => reference.scope)).size === 1),
+        ).toBe(true);
+        expect(
+          new Set(masked.flatMap((node) => node.maskFragmentReferences?.map((reference) => reference.scope) ?? []))
+            .size,
+        ).toBe(2);
         expect(masked.filter((node) => node.fragmentReferenceZoom === 2)).toHaveLength(4);
 
         const root = capture.tree[0];
         expect((root.maskDefs ?? []).filter((definition) => definition.id === "a")).toHaveLength(2);
         expect((root.maskDefs ?? []).filter((definition) => definition.id === "b")).toHaveLength(2);
         expect((root.maskDefs ?? []).filter((definition) => definition.id === "c")).toHaveLength(2);
-        expect((root.maskDefs ?? []).find((definition) => definition.id === "a")?.maskContentUnits).toBe("objectBoundingBox");
-        expect((root.maskDefs ?? []).filter((definition) => definition.id === "b").map((definition) => definition.userSpaceRegion))
-          .toEqual(expect.arrayContaining([{ x: 20, y: 0, width: 60, height: 60 }, { x: 0, y: 0, width: 30, height: 30 }]));
+        expect((root.maskDefs ?? []).find((definition) => definition.id === "a")?.maskContentUnits).toBe(
+          "objectBoundingBox",
+        );
+        expect(
+          (root.maskDefs ?? [])
+            .filter((definition) => definition.id === "b")
+            .map((definition) => definition.userSpaceRegion),
+        ).toEqual(
+          expect.arrayContaining([
+            { x: 20, y: 0, width: 60, height: 60 },
+            { x: 0, y: 0, width: 30, height: 30 },
+          ]),
+        );
 
         const actual = await render(rendered, capture.tree);
         expect(await changedChannels(expected, actual)).toBe(0);

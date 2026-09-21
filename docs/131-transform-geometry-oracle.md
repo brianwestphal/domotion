@@ -3,11 +3,17 @@ id: "requirements/transform-geometry-oracle"
 title: "131 — Transform, projection, and reflection geometry oracle"
 kind: "evidence"
 status: "current"
-owners: ["layout","platform-release"]
+owners: ["layout", "platform-release"]
 platforms: []
 tickets: []
-code: ["src/capture/script/index.ts","src/render/element-tree-to-svg.ts","tools/transform-geometry-oracle.ts","tools/parity-program.json"]
-aliases: ["docs/131-transform-geometry-oracle.md","doc-131"]
+code:
+  [
+    "src/capture/script/index.ts",
+    "src/render/element-tree-to-svg.ts",
+    "tools/transform-geometry-oracle.ts",
+    "tools/parity-program.json",
+  ]
+aliases: ["docs/131-transform-geometry-oracle.md", "doc-131"]
 ---
 
 # 131 — Transform, projection, and reflection geometry oracle

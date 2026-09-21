@@ -15,10 +15,12 @@ import { captureElementTree } from "../src/capture/index.ts";
 
 const OUT = process.argv[2] ?? "tools/scratch/capture-manifest.json";
 const DIR = "external/html-test";
-const all = readdirSync(DIR).filter((f) => f.endsWith(".html")).sort();
+const all = readdirSync(DIR)
+  .filter((f) => f.endsWith(".html"))
+  .sort();
 // Curate: everything touched by item 2 (forms/fieldset/column) + a stride sample.
-const picked = all.filter((f, i) =>
-  /form|fieldset|legend|column|multicol|input|table|text|inline|float|list/.test(f) || i % 7 === 0,
+const picked = all.filter(
+  (f, i) => /form|fieldset|legend|column|multicol|input|table|text|inline|float|list/.test(f) || i % 7 === 0,
 );
 
 const browser = await chromium.launch();

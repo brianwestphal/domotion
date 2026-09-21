@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  planPseudoBackdropIsolation,
-  type PseudoBackdropSnapshotNode,
-} from "./pseudo-backdrop-isolation.js";
+import { planPseudoBackdropIsolation, type PseudoBackdropSnapshotNode } from "./pseudo-backdrop-isolation.js";
 
 const node = (
   backendNodeId: number,
@@ -61,8 +58,6 @@ describe("DM-2488 pseudo backdrop paint-slot isolation", () => {
 
   it("fails closed when the pseudo has no independent painted snapshot row", () => {
     expect(planPseudoBackdropIsolation([], 99)).toBeNull();
-    expect(planPseudoBackdropIsolation([
-      { backendNodeId: 99, parentIndex: -1, nodeType: 1 },
-    ], 99)).toBeNull();
+    expect(planPseudoBackdropIsolation([{ backendNodeId: 99, parentIndex: -1, nodeType: 1 }], 99)).toBeNull();
   });
 });

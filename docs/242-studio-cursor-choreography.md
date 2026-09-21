@@ -3,11 +3,18 @@ id: "requirements/studio-cursor-choreography"
 title: "Domotion Studio cursor choreography"
 kind: "contract"
 status: "current"
-owners: ["studio","animation"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "animation"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2686"]
-code: ["src/studio/cursor-choreography.ts","src/studio/cursor-choreography.test.ts","src/studio/cursor-choreography.e2e.test.ts","src/studio/interactions.ts","src/animation/cursor-overlay.ts"]
-aliases: ["docs/242-studio-cursor-choreography.md","doc-242"]
+code:
+  [
+    "src/studio/cursor-choreography.ts",
+    "src/studio/cursor-choreography.test.ts",
+    "src/studio/cursor-choreography.e2e.test.ts",
+    "src/studio/interactions.ts",
+    "src/animation/cursor-overlay.ts",
+  ]
+aliases: ["docs/242-studio-cursor-choreography.md", "doc-242"]
 ---
 
 # Domotion Studio cursor choreography

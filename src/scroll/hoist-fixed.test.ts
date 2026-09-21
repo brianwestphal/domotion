@@ -42,11 +42,17 @@ describe("extractFixedSubtrees", () => {
 
   it("hoists a fixed subtree nested inside a normal-positioned ancestor", () => {
     const fixedNav = el({ tag: "nav", x: 0, y: 0, width: 800, height: 50 }, "fixed");
-    const root = el({
-      tag: "body",
-      x: 0, y: 0, width: 800, height: 600,
-      children: [fixedNav, el({ tag: "section", x: 0, y: 100 }, "static")],
-    }, "static");
+    const root = el(
+      {
+        tag: "body",
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 600,
+        children: [fixedNav, el({ tag: "section", x: 0, y: 100 }, "static")],
+      },
+      "static",
+    );
     const r = extractFixedSubtrees([root]);
     expect(r.fixed).toEqual([fixedNav]);
     // body shallow-copied with the nav stripped out
@@ -61,11 +67,17 @@ describe("extractFixedSubtrees", () => {
     // dropdown is part of the header's stacking context; we shouldn't try
     // to extract it separately.
     const innerFixed = el({ tag: "div", x: 10, y: 10 }, "fixed");
-    const outerFixed = el({
-      tag: "header",
-      x: 0, y: 0, width: 800, height: 60,
-      children: [innerFixed],
-    }, "fixed");
+    const outerFixed = el(
+      {
+        tag: "header",
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 60,
+        children: [innerFixed],
+      },
+      "fixed",
+    );
     const r = extractFixedSubtrees([outerFixed]);
     expect(r.fixed).toEqual([outerFixed]);
     expect(r.fixed[0].children).toContain(innerFixed);
@@ -73,11 +85,15 @@ describe("extractFixedSubtrees", () => {
 
   it("does not mutate the input tree when stripping", () => {
     const fixedChild = el({ tag: "div", x: 0, y: 0 }, "fixed");
-    const original = el({
-      tag: "body",
-      x: 0, y: 0,
-      children: [fixedChild, el({ tag: "p", x: 0, y: 20 }, "static")],
-    }, "static");
+    const original = el(
+      {
+        tag: "body",
+        x: 0,
+        y: 0,
+        children: [fixedChild, el({ tag: "p", x: 0, y: 20 }, "static")],
+      },
+      "static",
+    );
     const originalChildren = original.children;
     extractFixedSubtrees([original]);
     // The original wasn't mutated — its children array reference and contents are intact.
@@ -88,24 +104,18 @@ describe("extractFixedSubtrees", () => {
 
 describe("dedupeFixedAcrossSegments", () => {
   it("returns first occurrence per (tag, position, size) key", () => {
-    const segA: CapturedElement[] = [
-      el({ tag: "header", x: 0, y: 0, width: 800, height: 60, text: "v1" }, "fixed"),
-    ];
-    const segB: CapturedElement[] = [
-      el({ tag: "header", x: 0, y: 0, width: 800, height: 60, text: "v2" }, "fixed"),
-    ];
+    const segA: CapturedElement[] = [el({ tag: "header", x: 0, y: 0, width: 800, height: 60, text: "v1" }, "fixed")];
+    const segB: CapturedElement[] = [el({ tag: "header", x: 0, y: 0, width: 800, height: 60, text: "v2" }, "fixed")];
     const r = dedupeFixedAcrossSegments([segA, segB]);
     expect(r).toHaveLength(1);
     expect(r[0].text).toBe("v1");
   });
 
   it("keeps distinct fixed elements that differ in size or position", () => {
-    const segA: CapturedElement[] = [
-      el({ tag: "header", x: 0, y: 0, width: 800, height: 60 }, "fixed"),
-    ];
+    const segA: CapturedElement[] = [el({ tag: "header", x: 0, y: 0, width: 800, height: 60 }, "fixed")];
     const segB: CapturedElement[] = [
       el({ tag: "header", x: 0, y: 0, width: 800, height: 60 }, "fixed"),
-      el({ tag: "div",    x: 0, y: 540, width: 800, height: 60 }, "fixed"),
+      el({ tag: "div", x: 0, y: 540, width: 800, height: 60 }, "fixed"),
     ];
     const r = dedupeFixedAcrossSegments([segA, segB]);
     expect(r).toHaveLength(2);

@@ -26,14 +26,21 @@ function findId(node, id) {
       if (node.attributes[i] === "id" && node.attributes[i + 1] === id) return node.nodeId;
     }
   }
-  if (node.children) for (const ch of node.children) { const r = findId(ch, id); if (r) return r; }
+  if (node.children)
+    for (const ch of node.children) {
+      const r = findId(ch, id);
+      if (r) return r;
+    }
   return null;
 }
 const measureNodes = ["t", "t1", "t2"];
 for (const id of measureNodes) {
   const nodeId = findId(docResp.root, id);
   const fonts = await client.send("CSS.getPlatformFontsForNode", { nodeId });
-  console.log(`#${id} fonts:`, fonts.fonts.map(f => `${f.familyName} (${f.glyphCount}gly ${(f.fontVariationAxes ?? []).length}axes)`));
+  console.log(
+    `#${id} fonts:`,
+    fonts.fonts.map((f) => `${f.familyName} (${f.glyphCount}gly ${(f.fontVariationAxes ?? []).length}axes)`),
+  );
 }
 
 // 2/3: bounding rects per character via Range API.
@@ -43,7 +50,9 @@ const rects = await page.evaluate(() => {
     const t = el.firstChild;
     const out = [];
     for (let i = 0; i < t.length; i++) {
-      const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i+1);
+      const r = document.createRange();
+      r.setStart(t, i);
+      r.setEnd(t, i + 1);
       const rr = r.getBoundingClientRect();
       out.push({ char: t.data[i], cp: t.data.charCodeAt(i).toString(16), x: rr.x, y: rr.y, w: rr.width, h: rr.height });
     }
@@ -54,7 +63,8 @@ const rects = await page.evaluate(() => {
 console.log("\nRange.getBoundingClientRect per char:");
 for (const k of Object.keys(rects)) {
   console.log(`  #${k}:`);
-  for (const r of rects[k]) console.log(`    ${r.char} U+${r.cp}: x=${r.x.toFixed(3)} w=${r.w.toFixed(3)} h=${r.h.toFixed(3)}`);
+  for (const r of rects[k])
+    console.log(`    ${r.char} U+${r.cp}: x=${r.x.toFixed(3)} w=${r.w.toFixed(3)} h=${r.h.toFixed(3)}`);
 }
 // distance between the two char x's in #t to determine actual advance:
 if (rects.t.length === 2) {
@@ -64,8 +74,8 @@ if (rects.t.length === 2) {
 // fontkit: per-font advance + LSB at 22px
 const fontPaths = {
   "Apple Symbols": "/System/Library/Fonts/Apple Symbols.ttf",
-  "Menlo": "/System/Library/Fonts/Menlo.ttc",
-  "HiraginoSansGB": "/System/Library/Fonts/Hiragino Sans GB.ttc",
+  Menlo: "/System/Library/Fonts/Menlo.ttc",
+  HiraginoSansGB: "/System/Library/Fonts/Hiragino Sans GB.ttc",
   "Lucida Grande": "/System/Library/Fonts/LucidaGrande.ttc",
 };
 const SIZE = 22;
@@ -77,20 +87,30 @@ for (const [name, p] of Object.entries(fontPaths)) {
       // pick first that has glyphForCodePoint(0x2654) returning non-zero
       for (const sub of f.fonts) {
         const g = sub.glyphForCodePoint(0x2654);
-        if (g && g.id !== 0) { f = sub; break; }
+        if (g && g.id !== 0) {
+          f = sub;
+          break;
+        }
       }
     }
     const scale = SIZE / f.unitsPerEm;
-    for (const cp of [0x2654, 0x265A]) {
+    for (const cp of [0x2654, 0x265a]) {
       const g = f.glyphForCodePoint(cp);
-      if (!g || g.id === 0) { console.log(`  ${name} U+${cp.toString(16)}: no glyph`); continue; }
+      if (!g || g.id === 0) {
+        console.log(`  ${name} U+${cp.toString(16)}: no glyph`);
+        continue;
+      }
       const adv = (g.advanceWidth ?? 0) * scale;
       const bbox = g.bbox;
       const lsb = (bbox?.minX ?? 0) * scale;
       const inked = ((bbox?.maxX ?? 0) - (bbox?.minX ?? 0)) * scale;
-      console.log(`  ${name} U+${cp.toString(16)}: advance=${adv.toFixed(3)} lsb=${lsb.toFixed(3)} inkedW=${inked.toFixed(3)}`);
+      console.log(
+        `  ${name} U+${cp.toString(16)}: advance=${adv.toFixed(3)} lsb=${lsb.toFixed(3)} inkedW=${inked.toFixed(3)}`,
+      );
     }
-  } catch (e) { console.log(`  ${name}: ${e.message}`); }
+  } catch (e) {
+    console.log(`  ${name}: ${e.message}`);
+  }
 }
 
 await browser.close();

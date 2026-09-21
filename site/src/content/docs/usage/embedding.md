@@ -5,7 +5,7 @@ description: How to embed a Domotion SVG in Markdown, MDX, docs sites, and HTML 
 
 A Domotion output is one self-contained SVG file, so embedding it is the same as
 embedding any image. The one thing worth knowing up front: the file embeds
-**everywhere**, but whether its CSS animation *plays* depends on the host — and
+**everywhere**, but whether its CSS animation _plays_ depends on the host — and
 for the surfaces that don't animate SVG, you export a still or a video from the
 same file.
 
@@ -30,19 +30,19 @@ MDX / Astro / Docusaurus — reference a file in your `public/` (or import it):
 ```
 
 Want the underlying text in the DOM, or need the animation to run in a context
-that only animates *inline* SVG? Paste the file's contents inline as `<svg>…</svg>`
+that only animates _inline_ SVG? Paste the file's contents inline as `<svg>…</svg>`
 (and name it with [`--title`/`--desc`](/domotion/usage/accessibility/) at capture
 time, since an inline `<svg>` has no `alt`).
 
 ## Where the animation plays
 
-| Surface                                              | Embeds | Animation                          |
-| ---------------------------------------------------- | :----: | ---------------------------------- |
-| Your own web page / docs site (`<img>` or inline)    |   ✓    | **plays**                          |
-| Landing page, GitLab Pages, self-hosted HTML         |   ✓    | **plays**                          |
-| GitHub README / npm package page                     |   ✓    | static first frame (SVG sanitized) |
-| Email                                                |   ~    | usually stripped entirely          |
-| Slide decks / PDF                                     |   ✓    | usually static                     |
+| Surface                                           | Embeds | Animation                          |
+| ------------------------------------------------- | :----: | ---------------------------------- |
+| Your own web page / docs site (`<img>` or inline) |   ✓    | **plays**                          |
+| Landing page, GitLab Pages, self-hosted HTML      |   ✓    | **plays**                          |
+| GitHub README / npm package page                  |   ✓    | static first frame (SVG sanitized) |
+| Email                                             |   ~    | usually stripped entirely          |
+| Slide decks / PDF                                 |   ✓    | usually static                     |
 
 It's the same one-file, dependency-free SVG in every case — the only question is
 motion.

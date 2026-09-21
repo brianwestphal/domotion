@@ -10,7 +10,10 @@ import { colorStr, parseColor, type RGBA } from "./colors.js";
 import { r, stopFmt } from "./format.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 
-export interface GradientStop { color: RGBA; pos: number }
+export interface GradientStop {
+  color: RGBA;
+  pos: number;
+}
 
 export interface RadialGradientDomain {
   innerRadius: number;
@@ -50,7 +53,8 @@ export function normalizeRadialGradientDomain(
           const s = value / 255;
           return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
         };
-        const toSrgb = (value: number) => value <= 0.0031308 ? value * 12.92 : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+        const toSrgb = (value: number) =>
+          value <= 0.0031308 ? value * 12.92 : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
         return Math.round(toSrgb(toLinear(a) + (toLinear(b) - toLinear(a)) * t) * 255);
       };
       stops[lastNegative].color = {
@@ -72,8 +76,24 @@ export function normalizeRadialGradientDomain(
     const clamped = Math.max(0, Math.min(1, first));
     const solid = stops[stops.length - 1];
     return repeating
-      ? { innerRadius: 0, outerRadius: endRadius, stops: [{ ...solid, pos: 0 }, { ...solid, pos: 1 }], repeat: false }
-      : { innerRadius: endRadius * clamped, outerRadius: endRadius * clamped, stops: [{ ...stops[0], pos: clamped }, { ...solid, pos: clamped }], repeat: false };
+      ? {
+          innerRadius: 0,
+          outerRadius: endRadius,
+          stops: [
+            { ...solid, pos: 0 },
+            { ...solid, pos: 1 },
+          ],
+          repeat: false,
+        }
+      : {
+          innerRadius: endRadius * clamped,
+          outerRadius: endRadius * clamped,
+          stops: [
+            { ...stops[0], pos: clamped },
+            { ...solid, pos: clamped },
+          ],
+          repeat: false,
+        };
   }
 
   const normalized = stops.map((stop) => ({ ...stop, pos: (stop.pos - first) / span }));
@@ -101,7 +121,15 @@ function consumeNativeInterpolationClause(value: string): { value: string; attri
  * w/h are the element box dimensions — needed to compute corner-to-corner
  * directional keywords ('to top right' etc.) which are aspect-ratio-dependent,
  * not always 45deg. */
-export function buildLinearGradientDef(id: string, args: string, repeating: boolean, w: number = 1, h: number = 1, elX: number = 0, elY: number = 0): string {
+export function buildLinearGradientDef(
+  id: string,
+  args: string,
+  repeating: boolean,
+  w: number = 1,
+  h: number = 1,
+  elX: number = 0,
+  elY: number = 0,
+): string {
   const parts = splitTopLevelCommas(args).map((p) => p.trim());
   let angleDeg = 180; // default 'to bottom'
   let stopsStart = 0;
@@ -174,7 +202,10 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
   // the [0,1] range of the gradient vector, so a tile defined inside [0, 0.07]
   // of the full L would leave most of the box solid. Setting the vector to
   // one period instead makes the entire [0,1] range one tile.
-  let vx1 = x1, vy1 = y1, vx2 = x2, vy2 = y2;
+  let vx1 = x1,
+    vy1 = y1,
+    vx2 = x2,
+    vy2 = y2;
   let emitStops = stops;
   if (repeating && stops.length >= 2) {
     const first = stops[0].pos;
@@ -188,7 +219,10 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
       emitStops = stops.map((s) => ({ ...s, pos: (s.pos - first) / period }));
     } else {
       const final = stops[stops.length - 1];
-      emitStops = [{ ...final, pos: 0 }, { ...final, pos: 1 }];
+      emitStops = [
+        { ...final, pos: 0 },
+        { ...final, pos: 1 },
+      ];
       repeating = false;
     }
   }
@@ -196,7 +230,9 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
   const spread = repeating ? ` spreadMethod="repeat"` : "";
   // Stop offsets need 4 decimals of precision — rounding 0.33 to 0.3 would turn
   // three equal thirds into uneven bands. Use stopFmt, not r(), here.
-  const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
+  const stopsMarkup = normalizeTransparentStops(emitStops)
+    .map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`)
+    .join("");
   return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(vx1)}" y1="${stopFmt(vy1)}" x2="${stopFmt(vx2)}" y2="${stopFmt(vy2)}"${spread}${interpolation.attribute}>${stopsMarkup}</linearGradient>`;
 }
 
@@ -251,7 +287,6 @@ function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): 
   return out;
 }
 
-
 /** Parse radial-gradient args and emit an SVG <radialGradient>.
  *
  * Emits in userSpaceOnUse so we can honor CSS shape (circle vs ellipse),
@@ -270,7 +305,10 @@ function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): 
  * horizontal / vertical keyword.
  */
 export function parseBgPositionPx(posCss: string): [number, number] {
-  const toks = posCss.trim().split(/\s+/).filter((t) => t !== "");
+  const toks = posCss
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t !== "");
   if (toks.length === 0) return [0, 0];
   const px = (t: string): number | null => {
     const m = /^(-?\d+(?:\.\d+)?)px$/.exec(t);
@@ -278,13 +316,16 @@ export function parseBgPositionPx(posCss: string): [number, number] {
   };
   // Edge-offset form: keyword followed by an optional px length, per axis.
   if (toks.some((t) => /^(left|right|top|bottom|center)$/i.test(t)) && toks.length > 2) {
-    let x = 0, y = 0;
+    let x = 0,
+      y = 0;
     for (let i = 0; i < toks.length; i++) {
       const kw = toks[i].toLowerCase();
       const next = i + 1 < toks.length ? px(toks[i + 1]) : null;
-      if (kw === "right" && next != null) x = -next;       // offset from the right edge
+      if (kw === "right" && next != null)
+        x = -next; // offset from the right edge
       else if (kw === "left" && next != null) x = next;
-      else if (kw === "bottom" && next != null) y = -next; // offset from the bottom edge
+      else if (kw === "bottom" && next != null)
+        y = -next; // offset from the bottom edge
       else if (kw === "top" && next != null) y = next;
     }
     return [x, y];
@@ -293,9 +334,15 @@ export function parseBgPositionPx(posCss: string): [number, number] {
 }
 
 export function buildRadialGradientDef(
-  id: string, args: string, repeating: boolean,
-  elX: number, elY: number, w: number, h: number,
-  offsetX: number = 0, offsetY: number = 0,
+  id: string,
+  args: string,
+  repeating: boolean,
+  elX: number,
+  elY: number,
+  w: number,
+  h: number,
+  offsetX: number = 0,
+  offsetY: number = 0,
 ): string {
   const parts = splitTopLevelCommas(args).map((p) => p.trim());
   const interpolation = consumeNativeInterpolationClause(parts[0]);
@@ -307,7 +354,8 @@ export function buildRadialGradientDef(
   let explicitSizeKeyword = false;
   let explicitRx: number | null = null;
   let explicitRy: number | null = null;
-  let cxFrac = 0.5, cyFrac = 0.5;
+  let cxFrac = 0.5,
+    cyFrac = 0.5;
 
   // First argument can be: 'circle' | 'ellipse' [size-keyword] [at <pos>], OR
   // explicit size (one length, or two lengths for ellipse), optionally with shape, at <pos>.
@@ -319,7 +367,9 @@ export function buildRadialGradientDef(
   //   '100px'
   const first = parts[0];
   // Try to detect if first arg is shape/size info (no parens / no color chars)
-  const isLikelyStopsStart = /#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|transparent|[a-z]{3,}$/i.test(first) && !/\b(circle|ellipse|closest|farthest|at\b)/i.test(first);
+  const isLikelyStopsStart =
+    /#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|transparent|[a-z]{3,}$/i.test(first) &&
+    !/\b(circle|ellipse|closest|farthest|at\b)/i.test(first);
   if (!isLikelyStopsStart) {
     stopsStart = 1;
     // Parse 'at <pos>' suffix.
@@ -353,9 +403,13 @@ export function buildRadialGradientDef(
     const explicitSizes: string[] = [];
     const tokens = beforeAt.split(/\s+/).filter((t) => t !== "");
     for (const t of tokens) {
-      if (t === "circle") { shape = "circle"; explicitShape = true; }
-      else if (t === "ellipse") { shape = "ellipse"; explicitShape = true; }
-      else if (t === "closest-side" || t === "closest-corner" || t === "farthest-side" || t === "farthest-corner") {
+      if (t === "circle") {
+        shape = "circle";
+        explicitShape = true;
+      } else if (t === "ellipse") {
+        shape = "ellipse";
+        explicitShape = true;
+      } else if (t === "closest-side" || t === "closest-corner" || t === "farthest-side" || t === "farthest-corner") {
         sizeKeyword = t;
         explicitSizeKeyword = true;
       } else if (/^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[a-z%]+)?$/i.test(t) || /^calc\(/i.test(t)) {
@@ -400,10 +454,10 @@ export function buildRadialGradientDef(
   const cy = elY + offsetY + cyFrac * h;
 
   // Compute effective radii per shape + size keyword.
-  const dxL = cxFrac * w;        // distance to left side
-  const dxR = (1 - cxFrac) * w;  // to right
-  const dyT = cyFrac * h;        // to top
-  const dyB = (1 - cyFrac) * h;  // to bottom
+  const dxL = cxFrac * w; // distance to left side
+  const dxR = (1 - cxFrac) * w; // to right
+  const dyT = cyFrac * h; // to top
+  const dyB = (1 - cyFrac) * h; // to bottom
   const closestX = Math.min(dxL, dxR);
   const farthestX = Math.max(dxL, dxR);
   const closestY = Math.min(dyT, dyB);
@@ -416,11 +470,19 @@ export function buildRadialGradientDef(
   } else if (shape === "circle") {
     let r0: number;
     switch (sizeKeyword) {
-      case "closest-side":   r0 = Math.min(closestX, closestY); break;
-      case "farthest-side":  r0 = Math.max(farthestX, farthestY); break;
-      case "closest-corner": r0 = Math.sqrt(closestX * closestX + closestY * closestY); break;
+      case "closest-side":
+        r0 = Math.min(closestX, closestY);
+        break;
+      case "farthest-side":
+        r0 = Math.max(farthestX, farthestY);
+        break;
+      case "closest-corner":
+        r0 = Math.sqrt(closestX * closestX + closestY * closestY);
+        break;
       case "farthest-corner":
-      default:               r0 = Math.sqrt(farthestX * farthestX + farthestY * farthestY); break;
+      default:
+        r0 = Math.sqrt(farthestX * farthestX + farthestY * farthestY);
+        break;
     }
     rx = r0;
     ry = r0;
@@ -428,9 +490,13 @@ export function buildRadialGradientDef(
     // ellipse
     switch (sizeKeyword) {
       case "closest-side":
-        rx = closestX; ry = closestY; break;
+        rx = closestX;
+        ry = closestY;
+        break;
       case "farthest-side":
-        rx = farthestX; ry = farthestY; break;
+        rx = farthestX;
+        ry = farthestY;
+        break;
       case "closest-corner":
       case "farthest-corner":
       default: {
@@ -475,18 +541,19 @@ export function buildRadialGradientDef(
   const useRepeat = domain.repeat;
 
   const spread = useRepeat ? ` spreadMethod="repeat"` : "";
-  const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
+  const stopsMarkup = normalizeTransparentStops(emitStops)
+    .map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`)
+    .join("");
 
   // SVG radialGradient has a single r — use rx as r and scale Y via gradientTransform
   // to stretch it into an ellipse matching (rx, ry).
   const rScale = rx > 0 ? ry / rx : 1;
-  const gradientTransform = Math.abs(rScale - 1) > 0.001
-    ? ` gradientTransform="translate(0 ${stopFmt(cy * (1 - rScale))}) scale(1 ${stopFmt(rScale)})"`
-    : "";
+  const gradientTransform =
+    Math.abs(rScale - 1) > 0.001
+      ? ` gradientTransform="translate(0 ${stopFmt(cy * (1 - rScale))}) scale(1 ${stopFmt(rScale)})"`
+      : "";
 
-  const focal = innerR > 0
-    ? ` fx="${stopFmt(cx)}" fy="${stopFmt(cy)}" fr="${stopFmt(innerR)}"`
-    : "";
+  const focal = innerR > 0 ? ` fx="${stopFmt(cx)}" fy="${stopFmt(cy)}" fr="${stopFmt(innerR)}"` : "";
   return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${stopFmt(cx)}" cy="${stopFmt(cy)}" r="${stopFmt(Math.max(outerR, Number.EPSILON))}"${focal}${spread}${gradientTransform}${interpolation.attribute}>${stopsMarkup}</radialGradient>`;
 }
 
@@ -506,7 +573,9 @@ function resolvePosFraction(token: string, axis: "h" | "v"): number {
 
 function splitGradientSpaces(text: string): string[] {
   const out: string[] = [];
-  let depth = 0, start = 0, active = false;
+  let depth = 0,
+    start = 0,
+    active = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (ch === "(") depth++;
@@ -524,8 +593,10 @@ function splitGradientSpaces(text: string): string[] {
 }
 
 function looksLikeGradientPosition(token: string): boolean {
-  return /^calc\(/i.test(token)
-    || /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|pt|pc|in|cm|mm|q|em|rem|vh|vw|vmin|vmax)?$/i.test(token);
+  return (
+    /^calc\(/i.test(token) ||
+    /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|pt|pc|in|cm|mm|q|em|rem|vh|vw|vmin|vmax)?$/i.test(token)
+  );
 }
 
 /** Resolve the computed-value grammar Blink leaves at capture: px, %, exact
@@ -552,7 +623,7 @@ function parseResolvedLengthPercentage(token: string, basis: number): number | n
     if (unit === "" && value !== 0) return null;
     const f = factor(unit);
     if (f == null || basis <= 0) return basis === 0 && f != null ? value * f : null;
-    return value * f / basis;
+    return (value * f) / basis;
   };
   const calc = /^calc\(\s*(.*?)\s*\)$/i.exec(token);
   if (calc == null) return resolveTerm(token);
@@ -616,7 +687,10 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
       stops.push({ color: r.color, pos: NaN });
       stopColorIdx.push(i);
     } else {
-      for (const p of r.positions) { stops.push({ color: r.color, pos: p }); stopColorIdx.push(i); }
+      for (const p of r.positions) {
+        stops.push({ color: r.color, pos: p });
+        stopColorIdx.push(i);
+      }
     }
   }
   if (isNaN(stops[0].pos)) stops[0].pos = 0;
@@ -626,7 +700,10 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
   // resolved neighbors — matches CSS behavior for implicit stops.
   let i = 0;
   while (i < stops.length) {
-    if (!isNaN(stops[i].pos)) { i++; continue; }
+    if (!isNaN(stops[i].pos)) {
+      i++;
+      continue;
+    }
     let j = i;
     while (j < stops.length && isNaN(stops[j].pos)) j++;
     const left = stops[i - 1].pos;
@@ -664,7 +741,8 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
         const span = b.pos - a.pos;
         if (span <= 0) continue;
         const hRel = (h.pos - a.pos) / span;
-        const ca = a.color, cb = b.color;
+        const ca = a.color,
+          cb = b.color;
         const sameColor = ca.r === cb.r && ca.g === cb.g && ca.b === cb.b && ca.a === cb.a;
         if (sameColor || Math.abs(hRel - 0.5) < 1e-6) continue;
         if (hRel <= 1e-6) {
@@ -681,9 +759,9 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
         const positions: number[] = [];
         if (leftDist > rightDist) {
           for (let y = 0; y < 7; y++) positions.push(a.pos + leftDist * ((7 + y) / 13));
-          positions.push(h.pos + rightDist / 3, h.pos + rightDist * 2 / 3);
+          positions.push(h.pos + rightDist / 3, h.pos + (rightDist * 2) / 3);
         } else {
-          positions.push(a.pos + leftDist / 3, a.pos + leftDist * 2 / 3);
+          positions.push(a.pos + leftDist / 3, a.pos + (leftDist * 2) / 3);
           for (let y = 0; y < 7; y++) positions.push(h.pos + rightDist * (y / 13));
         }
         for (const pos of positions) {
@@ -726,7 +804,7 @@ function cssDirectionToAngle(dir: string, w: number = 1, h: number = 1): number 
   if (hasBottom && !hasLeft && !hasRight) return 180;
   if (hasRight && !hasTop && !hasBottom) return 90;
   if (hasLeft && !hasTop && !hasBottom) return 270;
-  const cornerAngle = 90 - Math.atan2(w, h) * 180 / Math.PI;
+  const cornerAngle = 90 - (Math.atan2(w, h) * 180) / Math.PI;
   if (hasTop && hasRight) return cornerAngle;
   if (hasBottom && hasRight) return 180 - cornerAngle;
   if (hasBottom && hasLeft) return 180 + cornerAngle;

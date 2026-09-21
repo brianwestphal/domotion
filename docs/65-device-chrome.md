@@ -4,10 +4,10 @@ title: "65 — Device chrome (--chrome <device>)"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1206","DM-1211","DM-1212","DM-1308","DM-1323","DM-1559","DM-1577","DM-217"]
-code: ["examples/composite-desktop.ts","src/cli/capture.ts","src/render/device-chrome.ts"]
-aliases: ["docs/65-device-chrome.md","doc-65"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1206", "DM-1211", "DM-1212", "DM-1308", "DM-1323", "DM-1559", "DM-1577", "DM-217"]
+code: ["examples/composite-desktop.ts", "src/cli/capture.ts", "src/render/device-chrome.ts"]
+aliases: ["docs/65-device-chrome.md", "doc-65"]
 ---
 
 # 65 — Device chrome (`--chrome <device>`)
@@ -21,11 +21,11 @@ editor.
 
 > **`capture --chrome` is static; animated nesting now has a path.** The
 > `--chrome` flag wraps a **single still capture**. But the underlying
-> `wrapInDeviceChrome` *nests* the screen as a child `<svg>` (it doesn't
+> `wrapInDeviceChrome` _nests_ the screen as a child `<svg>` (it doesn't
 > re-render), so it preserves animation when given an animated screen — exposed
 > via the `device-mockup` template's `screenSvg` param and, more generally, the
 > `composite` primitive / `domotion composite` verb (DM-1323, doc 77), which
-> draws this bezel around an *animated* layer (a cast, a scroll capture, another
+> draws this bezel around an _animated_ layer (a cast, a scroll capture, another
 > animated SVG) and keeps it animating. The terminal-window-on-a-desktop demo is
 > `examples/composite-desktop.ts`.
 
@@ -72,17 +72,17 @@ traffic-light colors are unchanged in both.
 
 ## Devices
 
-| Device | Bezel |
-|---|---|
-| `phone` | iPhone-class: rounded titanium body, dynamic-island notch, home indicator. Pure shapes (no text). |
+| Device    | Bezel                                                                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `phone`   | iPhone-class: rounded titanium body, dynamic-island notch, home indicator. Pure shapes (no text).                                      |
 | `browser` | macOS-style window: rounded corners, three traffic-light buttons, and a URL pill with a lock + the `--chrome-label` address. 44px bar. |
-| `window` | plain rounded window: traffic-light buttons + a centered `--chrome-label` title. 36px bar. |
+| `window`  | plain rounded window: traffic-light buttons + a centered `--chrome-label` title. 36px bar.                                             |
 
 ## How it works
 
 - **`src/render/device-chrome.ts`** owns the bezel geometry and exports
   `wrapInDeviceChrome(captureSvg, device, screenW, screenH, opts?) → { svg,
-  width, height }` (where `opts.label` is the browser URL / window title), plus
+width, height }` (where `opts.label` is the browser URL / window title), plus
   `isDeviceChrome()` / `DEVICE_CHROMES` for validation. It is re-exported from
   the render barrel and the package root.
 - The CLI (`src/cli/capture.ts`) validates `--chrome` up front, then wraps the

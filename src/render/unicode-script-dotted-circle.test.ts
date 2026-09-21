@@ -32,8 +32,8 @@ const NO_CIRCLE_FAMILY = "DM2522 Arial Unicode No Circle";
 const CASES = [
   { cp: 0x16120, script: "Gukh", ids: [4285, 0], width: 2 },
   // The ticket text transposed this as U+1D77; run 32626096295 contains U+1CF7.
-  { cp: 0x1CF7, script: "Beng", ids: [4285, 0], width: 1 },
-  { cp: 0x113C8, script: "Tutg", ids: [0, 4285], width: 2 },
+  { cp: 0x1cf7, script: "Beng", ids: [4285, 0], width: 1 },
+  { cp: 0x113c8, script: "Tutg", ids: [0, 4285], width: 2 },
   { cp: 0x11930, script: "Diak", ids: [4285, 0], width: 2 },
   { cp: 0x11941, script: "Diak", ids: [4285, 0], width: 2 },
 ] as const;
@@ -47,7 +47,10 @@ interface ExactLogicalGlyph {
 
 function exactGlyphs(glyphs: TextRunProvenanceDiagnostic["glyphs"]): ExactLogicalGlyph[] {
   return glyphs.map(({ id, cluster, sourceSpan, sourceCodepointSpan }) => ({
-    id, cluster, sourceSpan, sourceCodepointSpan,
+    id,
+    cluster,
+    sourceSpan,
+    sourceCodepointSpan,
   }));
 }
 
@@ -87,7 +90,7 @@ function renderRecord(cp: number, family = FAMILY): TextRunProvenanceDiagnostic 
   beforeAll(() => {
     bytes = readFileSync(ARIAL_UNICODE);
     const face = fontkit.openSync(ARIAL_UNICODE);
-    expect(face.glyphForCodePoint(0x25CC).id).toBe(4285);
+    expect(face.glyphForCodePoint(0x25cc).id).toBe(4285);
     // Keep one ordinary cmap entry so fontkit can open the mutation face, but
     // remove U+25CC. `retain_gids=true` preserves every surviving gid number.
     noCircleBytes = hbSubsetRetainGids(bytes, [0, face.glyphForCodePoint(0x41).id], 0, true, null);

@@ -9,7 +9,12 @@
  * groove / ridge / inset / outset bevels.
  */
 
-export interface RGBA { r: number; g: number; b: number; a: number }
+export interface RGBA {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
 
 export function parseColor(css: string): RGBA | null {
   if (css === "" || css === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
@@ -20,7 +25,12 @@ export function parseColor(css: string): RGBA | null {
   const h = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(css);
   if (h != null) {
     const a = h[2] != null ? parseInt(h[2], 16) / 255 : 1;
-    return { r: parseInt(h[1].slice(0, 2), 16), g: parseInt(h[1].slice(2, 4), 16), b: parseInt(h[1].slice(4, 6), 16), a };
+    return {
+      r: parseInt(h[1].slice(0, 2), 16),
+      g: parseInt(h[1].slice(2, 4), 16),
+      b: parseInt(h[1].slice(4, 6), 16),
+      a,
+    };
   }
   // #rgb / #rgba — short hex (each digit doubles per CSS spec: #abc → #aabbcc).
   const hs = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/i.exec(css);
@@ -52,7 +62,10 @@ export function parseColor(css: string): RGBA | null {
   // value is near zero in some channel; without `[eE][+-]?\d+`, parseColor
   // returns null and the renderer drops the fill (visible on
   // `19-deep-color-mix` srgb-linear swatch — bg silently empty).
-  const cs = /^color\(srgb\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(css);
+  const cs =
+    /^color\(srgb\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(
+      css,
+    );
   if (cs != null) {
     const clamp = (v: number): number => Math.max(0, Math.min(1, v));
     return {
@@ -69,7 +82,10 @@ export function parseColor(css: string): RGBA | null {
   // transform (linear → sRGB) so 0.215 in linear becomes 0.5 in srgb (i.e.
   // ~128/255), matching Chromium's painted output for `color-mix(in
   // srgb-linear, red, blue)`.
-  const csl = /^color\(srgb-linear\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(css);
+  const csl =
+    /^color\(srgb-linear\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(
+      css,
+    );
   if (csl != null) {
     const clamp = (v: number): number => Math.max(0, Math.min(1, v));
     const linToSrgb = (lin: number): number => {
@@ -116,7 +132,9 @@ export function sameColor(a: RGBA, b: RGBA): boolean {
  * lightened or darkened per side to produce the 3D bevel look Chromium paints.
  */
 export function shadeColor(c: RGBA, delta: number): RGBA {
-  const r255 = c.r / 255, g255 = c.g / 255, b255 = c.b / 255;
+  const r255 = c.r / 255,
+    g255 = c.g / 255,
+    b255 = c.b / 255;
   const max = Math.max(r255, g255, b255);
   const min = Math.min(r255, g255, b255);
   const l = (max + min) / 2;
@@ -126,9 +144,14 @@ export function shadeColor(c: RGBA, delta: number): RGBA {
   if (d !== 0) {
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
-      case r255: h = ((g255 - b255) / d + (g255 < b255 ? 6 : 0)) / 6; break;
-      case g255: h = ((b255 - r255) / d + 2) / 6; break;
-      default:   h = ((r255 - g255) / d + 4) / 6;
+      case r255:
+        h = ((g255 - b255) / d + (g255 < b255 ? 6 : 0)) / 6;
+        break;
+      case g255:
+        h = ((b255 - r255) / d + 2) / 6;
+        break;
+      default:
+        h = ((r255 - g255) / d + 4) / 6;
     }
   }
   const newL = Math.max(0, Math.min(1, l + delta / 100));

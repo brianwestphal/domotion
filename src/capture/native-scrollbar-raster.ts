@@ -47,9 +47,7 @@ function intersectRect(a: CapturedScrollbarRect, b: CapturedScrollbarRect): Capt
   const top = Math.max(a.y, b.y);
   const right = Math.min(a.x + a.width, b.x + b.width);
   const bottom = Math.min(a.y + a.height, b.y + b.height);
-  return right > left && bottom > top
-    ? { x: left, y: top, width: right - left, height: bottom - top }
-    : null;
+  return right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null;
 }
 
 async function decodeFrame(input: Buffer | string): Promise<NativeScrollbarFrame | null> {
@@ -75,11 +73,11 @@ export async function captureNativeScrollbarSourceFrame(
   sourceImagePath?: string,
 ): Promise<NativeScrollbarFrame | null> {
   const supplied = sourceImagePath == null ? null : await decodeFrame(sourceImagePath);
-  if (supplied != null && nativeControlPixelCrop(
-    { x: 0, y: 0, width: viewport.width, height: viewport.height },
-    viewport,
-    supplied,
-  ) != null) return supplied;
+  if (
+    supplied != null &&
+    nativeControlPixelCrop({ x: 0, y: 0, width: viewport.width, height: viewport.height }, viewport, supplied) != null
+  )
+    return supplied;
   try {
     const png = await page.screenshot({ clip: viewport, type: "png" });
     return decodeFrame(Buffer.from(png));
@@ -89,9 +87,7 @@ export async function captureNativeScrollbarSourceFrame(
 }
 
 /** Build the non-portable platform/browser identity attached to every crop. */
-export async function captureNativeScrollbarFingerprint(
-  page: Page,
-): Promise<CapturedScrollbarPlatformFingerprint> {
+export async function captureNativeScrollbarFingerprint(page: Page): Promise<CapturedScrollbarPlatformFingerprint> {
   const require = createRequire(import.meta.url);
   const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
   let chromiumRevision = "unknown";
@@ -109,7 +105,7 @@ export async function captureNativeScrollbarFingerprint(
   try {
     const session = await page.context().newCDPSession(page);
     try {
-      const commandLine = await session.send("Browser.getBrowserCommandLine") as { arguments?: string[] };
+      const commandLine = (await session.send("Browser.getBrowserCommandLine")) as { arguments?: string[] };
       launchArguments = commandLine.arguments ?? [];
     } finally {
       await session.detach();
@@ -194,9 +190,15 @@ export function analyzeNativeOverlayInk(
   clip: CapturedScrollbarRect | null,
   viewport: CapturedScrollbarRect,
 ): NativeOverlayInkAnalysis {
-  if (source == null || underlay == null || restored == null
-      || source.width !== underlay.width || source.height !== underlay.height
-      || source.width !== restored.width || source.height !== restored.height) {
+  if (
+    source == null ||
+    underlay == null ||
+    restored == null ||
+    source.width !== underlay.width ||
+    source.height !== underlay.height ||
+    source.width !== restored.width ||
+    source.height !== restored.height
+  ) {
     return { verdict: "unavailable", rects: [] };
   }
   const plan = pixelCropForRect(rect, clip, viewport, source);
@@ -208,19 +210,20 @@ export function analyzeNativeOverlayInk(
     return { verdict: "unavailable", rects: [] };
   }
   if (equalBytes(sourceCrop, underlayCrop)) {
-    return equalBytes(sourceCrop, restoredCrop)
-      ? { verdict: "empty", rects: [] }
-      : { verdict: "unstable", rects: [] };
+    return equalBytes(sourceCrop, restoredCrop) ? { verdict: "empty", rects: [] } : { verdict: "unstable", rects: [] };
   }
 
   const pixelCount = plan.pixel.width * plan.pixel.height;
   const changed = new Uint8Array(pixelCount);
   for (let pixel = 0; pixel < pixelCount; pixel++) {
     const offset = pixel * 4;
-    if (sourceCrop[offset] !== underlayCrop[offset]
-        || sourceCrop[offset + 1] !== underlayCrop[offset + 1]
-        || sourceCrop[offset + 2] !== underlayCrop[offset + 2]
-        || sourceCrop[offset + 3] !== underlayCrop[offset + 3]) changed[pixel] = 1;
+    if (
+      sourceCrop[offset] !== underlayCrop[offset] ||
+      sourceCrop[offset + 1] !== underlayCrop[offset + 1] ||
+      sourceCrop[offset + 2] !== underlayCrop[offset + 2] ||
+      sourceCrop[offset + 3] !== underlayCrop[offset + 3]
+    )
+      changed[pixel] = 1;
   }
   // A platform animator may legitimately advance the scrollbar alpha while
   // width:none is restored. Accept that only when every source/restored delta
@@ -228,10 +231,11 @@ export function analyzeNativeOverlayInk(
   // changed backdrop pixel remains an incoherent-frame failure.
   for (let pixel = 0; pixel < pixelCount; pixel++) {
     const offset = pixel * 4;
-    const restoredChanged = sourceCrop[offset] !== restoredCrop[offset]
-      || sourceCrop[offset + 1] !== restoredCrop[offset + 1]
-      || sourceCrop[offset + 2] !== restoredCrop[offset + 2]
-      || sourceCrop[offset + 3] !== restoredCrop[offset + 3];
+    const restoredChanged =
+      sourceCrop[offset] !== restoredCrop[offset] ||
+      sourceCrop[offset + 1] !== restoredCrop[offset + 1] ||
+      sourceCrop[offset + 2] !== restoredCrop[offset + 2] ||
+      sourceCrop[offset + 3] !== restoredCrop[offset + 3];
     if (restoredChanged && changed[pixel] === 0) return { verdict: "unstable", rects: [] };
   }
 
@@ -257,16 +261,17 @@ export function analyzeNativeOverlayInk(
       maxX = Math.max(maxX, x);
       maxY = Math.max(maxY, y);
       pixels++;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        const nextX = x + dx;
-        const nextY = y + dy;
-        if (nextX < 0 || nextX >= plan.pixel.width || nextY < 0 || nextY >= plan.pixel.height) continue;
-        const next = nextY * plan.pixel.width + nextX;
-        if (changed[next] === 0 || seen[next] !== 0) continue;
-        seen[next] = 1;
-        queue.push(next);
-      }
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nextX = x + dx;
+          const nextY = y + dy;
+          if (nextX < 0 || nextX >= plan.pixel.width || nextY < 0 || nextY >= plan.pixel.height) continue;
+          const next = nextY * plan.pixel.width + nextX;
+          if (changed[next] === 0 || seen[next] !== 0) continue;
+          seen[next] = 1;
+          queue.push(next);
+        }
     }
     // Single-pixel changes are indistinguishable from compositor/readback
     // noise and cannot define a platform owner rectangle.
@@ -278,9 +283,7 @@ export function analyzeNativeOverlayInk(
       height: (maxY - minY + 1) / scaleY,
     });
   }
-  return rects.length === 0
-    ? { verdict: "unavailable", rects: [] }
-    : { verdict: "visible", rects };
+  return rects.length === 0 ? { verdict: "unavailable", rects: [] } : { verdict: "visible", rects };
 }
 
 /** Encode one exact pixel crop without resampling or cross-platform paint. */
@@ -313,7 +316,9 @@ export async function materializeNativeScrollbarRaster(
   if (rgba == null) return null;
   const png = await sharp(Buffer.from(rgba), {
     raw: { width: plan.pixel.width, height: plan.pixel.height, channels: 4 },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
   return {
     ...base,
     cropSha256: sha256(png),

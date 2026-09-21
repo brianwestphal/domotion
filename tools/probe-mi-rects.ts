@@ -12,7 +12,7 @@ await page.waitForTimeout(500);
 const result = await page.evaluate(() => {
   const out: any[] = [];
   // Find first matrix row's mi a, mi b
-  const mis = document.querySelectorAll('mi');
+  const mis = document.querySelectorAll("mi");
   for (let i = 0; i < Math.min(mis.length, 6); i++) {
     const mi = mis[i];
     const r = (mi as Element).getBoundingClientRect();

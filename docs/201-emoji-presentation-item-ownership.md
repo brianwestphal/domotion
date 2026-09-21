@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["linux"]
-tickets: ["DM-2502","DM-2507"]
-code: [".github/workflows/emoji-presentation-ownership-audit.yml","tools/emoji-presentation-ownership-audit.ts"]
-aliases: ["docs/201-emoji-presentation-item-ownership.md","doc-201"]
+tickets: ["DM-2502", "DM-2507"]
+code: [".github/workflows/emoji-presentation-ownership-audit.yml", "tools/emoji-presentation-ownership-audit.ts"]
+aliases: ["docs/201-emoji-presentation-item-ownership.md", "doc-201"]
 ---
 
 # Emoji presentation shaping-item ownership and closure
@@ -51,11 +51,11 @@ priority but cannot erase the source boundary or merge two iterators.
 
 For the exact 52-code-unit fixture line, Blink's item ownership is:
 
-| UTF-16 range | source | priority |
-| --- | --- | --- |
-| `[0,43)` | `Status: done ✓ and flagged ✗ with emphasis ` | text |
-| `[43,44)` | `❗` | emoji |
-| `[44,52)` | ` nearby.` | text |
+| UTF-16 range | source                                        | priority |
+| ------------ | --------------------------------------------- | -------- |
+| `[0,43)`     | `Status: done ✓ and flagged ✗ with emphasis ` | text     |
+| `[43,44)`    | `❗`                                          | emoji    |
+| `[44,52)`    | ` nearby.`                                    | text     |
 
 Declared faces still precede the priority face inside each iterator. A blanket
 "Emoji_Presentation means Noto" rule would therefore be wrong: a declared
@@ -89,26 +89,26 @@ before running it.
 
 The exact helper digests used by the retained run and the reproduction are:
 
-| input | SHA-256 |
-| --- | --- |
+| input              | SHA-256                                                            |
+| ------------------ | ------------------------------------------------------------------ |
 | arm64 glyph helper | `68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250` |
-| arm64 ICU helper | `dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf` |
-| ICU 78.2 data | `9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe` |
+| arm64 ICU helper   | `dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf` |
+| ICU 78.2 data      | `9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe` |
 
 The pre-fix result was order-sensitive, which a raster-floor explanation could
 not produce. After DM-2507, the schema-2 discriminator requires the exact
 source split and this order-invariant native result:
 
-| case | selected U+2757 face | representation | priority asks |
-| --- | --- | --- | ---: |
-| retained fixture order | Noto Color Emoji | CBDT bitmap | 1 |
-| `✗ ❗` | Noto Color Emoji | CBDT bitmap | 1 |
-| `❗ ✗` | Noto Color Emoji | CBDT bitmap | 1 |
-| `✗ ❗️` with CSS text | Noto Color Emoji | CBDT bitmap | 1 |
-| `✗ ❗︎` with CSS emoji | FreeSans | outline | ≥1 (text-priority selector) |
-| bare U+2757 with `font-variant-emoji:text` | FreeSans | outline | 0 |
-| declared FreeSans, normal | FreeSans | outline | 0 |
-| declared FreeSans, CSS emoji | Noto Color Emoji | CBDT bitmap | 1 |
+| case                                       | selected U+2757 face | representation |               priority asks |
+| ------------------------------------------ | -------------------- | -------------- | --------------------------: |
+| retained fixture order                     | Noto Color Emoji     | CBDT bitmap    |                           1 |
+| `✗ ❗`                                     | Noto Color Emoji     | CBDT bitmap    |                           1 |
+| `❗ ✗`                                     | Noto Color Emoji     | CBDT bitmap    |                           1 |
+| `✗ ❗️` with CSS text                       | Noto Color Emoji     | CBDT bitmap    |                           1 |
+| `✗ ❗︎` with CSS emoji                      | FreeSans             | outline        | ≥1 (text-priority selector) |
+| bare U+2757 with `font-variant-emoji:text` | FreeSans             | outline        |                           0 |
+| declared FreeSans, normal                  | FreeSans             | outline        |                           0 |
+| declared FreeSans, CSS emoji               | Noto Color Emoji     | CBDT bitmap    |                           1 |
 
 The pinned ICU helper returns binary properties `0x98` for U+2757, including
 both `Emoji` and `Emoji_Presentation`; classification and helper transport are

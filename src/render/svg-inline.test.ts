@@ -4,34 +4,82 @@ import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
 
 const BASE_STYLES = {
-  backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", backgroundSize: "auto",
-  backgroundPosition: "0% 0%", backgroundRepeat: "repeat", backgroundClip: "border-box",
-  backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
-  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
-  color: "rgb(0,0,0)", fontSize: "16px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
-  lineHeight: "20px", letterSpacing: "normal", textAlign: "left", textTransform: "none",
-  whiteSpace: "normal", direction: "ltr", writingMode: "horizontal-tb",
-  overflowX: "visible", overflowY: "visible", opacity: "1", transform: "none", transformOrigin: "50% 50%", visibility: "visible",
-  objectFit: "fill", objectPosition: "50% 50%", display: "inline",
-  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0", position: "static",
+  backgroundColor: "rgba(0, 0, 0, 0)",
+  backgroundImage: "none",
+  backgroundSize: "auto",
+  backgroundPosition: "0% 0%",
+  backgroundRepeat: "repeat",
+  backgroundClip: "border-box",
+  backgroundOrigin: "padding-box",
+  backgroundAttachment: "scroll",
+  borderColor: "rgb(0,0,0)",
+  borderWidth: "0",
+  borderRadius: "0",
+  borderTopLeftRadius: "0",
+  borderTopRightRadius: "0",
+  borderBottomRightRadius: "0",
+  borderBottomLeftRadius: "0",
+  borderTopWidth: "0",
+  borderRightWidth: "0",
+  borderBottomWidth: "0",
+  borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)",
+  borderRightColor: "rgb(0,0,0)",
+  borderBottomColor: "rgb(0,0,0)",
+  borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none",
+  borderRightStyle: "none",
+  borderBottomStyle: "none",
+  borderLeftStyle: "none",
+  color: "rgb(0,0,0)",
+  fontSize: "16px",
+  fontFamily: "sans-serif",
+  fontWeight: "400",
+  fontStyle: "normal",
+  lineHeight: "20px",
+  letterSpacing: "normal",
+  textAlign: "left",
+  textTransform: "none",
+  whiteSpace: "normal",
+  direction: "ltr",
+  writingMode: "horizontal-tb",
+  overflowX: "visible",
+  overflowY: "visible",
+  opacity: "1",
+  transform: "none",
+  transformOrigin: "50% 50%",
+  visibility: "visible",
+  objectFit: "fill",
+  objectPosition: "50% 50%",
+  display: "inline",
+  paddingTop: "0",
+  paddingRight: "0",
+  paddingBottom: "0",
+  paddingLeft: "0",
+  position: "static",
 } as unknown as CapturedElement["styles"];
 
-const imgEl = (imageSrc: string, styleOver: Record<string, string> = {}): CapturedElement => ({
-  tag: "img", text: "", x: 10, y: 10, width: 80, height: 80, children: [],
-  imageSrc, styles: { ...BASE_STYLES, ...styleOver } as CapturedElement["styles"],
-} as unknown as CapturedElement);
+const imgEl = (imageSrc: string, styleOver: Record<string, string> = {}): CapturedElement =>
+  ({
+    tag: "img",
+    text: "",
+    x: 10,
+    y: 10,
+    width: 80,
+    height: 80,
+    children: [],
+    imageSrc,
+    styles: { ...BASE_STYLES, ...styleOver } as CapturedElement["styles"],
+  }) as unknown as CapturedElement;
 
-const SVG_URI = (svg: string): string =>
-  `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-const PNG_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+const SVG_URI = (svg: string): string => `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+const PNG_URI =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 
 describe("prefixSvgIds — namespace ids / refs to avoid cross-document collisions (DM-1588)", () => {
   it("prefixes id, url(#…), href, and xlink:href (both quote styles)", () => {
-    const svg = `<linearGradient id="g1"/><rect fill="url(#g1)"/>` +
+    const svg =
+      `<linearGradient id="g1"/><rect fill="url(#g1)"/>` +
       `<use href="#g1"/><use xlink:href="#g1"/><clipPath id='c1'/><path clip-path="url(#c1)"/>`;
     const out = prefixSvgIds(svg, "P-");
     expect(out).toContain(`id="P-g1"`);
@@ -48,8 +96,9 @@ describe("prefixSvgIds — namespace ids / refs to avoid cross-document collisio
   });
 
   it("prefixes URL references whose style-attribute quotes were outerHTML-encoded", () => {
-    const svg = `<clipPath id="clip" clipPathUnits="objectBoundingBox"/>`
-      + `<rect clip-path="url(#clip)" style="clip-path: url(&quot;#clip&quot;);"/>`;
+    const svg =
+      `<clipPath id="clip" clipPathUnits="objectBoundingBox"/>` +
+      `<rect clip-path="url(#clip)" style="clip-path: url(&quot;#clip&quot;);"/>`;
     const out = prefixSvgIds(svg, "P-");
     expect(out).toContain(`id="P-clip"`);
     expect(out).toContain(`clip-path="url(#P-clip)"`);
@@ -74,8 +123,7 @@ describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", (
   });
 
   it("namespaces internal ids so gradients/clipPaths/filters can't collide", () => {
-    const src = `<svg viewBox="0 0 10 10"><defs><linearGradient id="grad"/></defs>` +
-      `<rect fill="url(#grad)"/></svg>`;
+    const src = `<svg viewBox="0 0 10 10"><defs><linearGradient id="grad"/></defs>` + `<rect fill="url(#grad)"/></svg>`;
     const out = inlineImgSvg(src, P)!;
     expect(out).toContain(`id="P-grad"`);
     expect(out).toContain(`fill="url(#P-grad)"`);
@@ -131,8 +179,11 @@ describe("paintImage — <img src=svg> inlines natively; raster stays <image> (D
   it("wraps a border-radius SVG img in a rounded clip group", () => {
     const svg = `<svg viewBox="0 0 24 24"><rect width="24" height="24"/></svg>`;
     const el = imgEl(SVG_URI(svg), {
-      borderRadius: "12px", borderTopLeftRadius: "12px", borderTopRightRadius: "12px",
-      borderBottomRightRadius: "12px", borderBottomLeftRadius: "12px",
+      borderRadius: "12px",
+      borderTopLeftRadius: "12px",
+      borderTopRightRadius: "12px",
+      borderBottomRightRadius: "12px",
+      borderBottomLeftRadius: "12px",
     });
     const out = elementTreeToSvgInner([el], 200, 200);
     expect(out).toMatch(/<g clip-path="url\(#[^)]*\)"><svg[^>]*viewBox="0 0 24 24"/);
@@ -165,7 +216,9 @@ describe("paintImage — object-fit: none SVG img inlines natively at intrinsic 
     const out = elementTreeToSvgInner([el], 200, 200);
     expect(out).not.toMatch(/<image[^>]*data:image\/svg\+xml/);
     // Native <svg> at intrinsic size, positioned by object-position, clip-wrapped.
-    expect(out).toMatch(/<g clip-path="url\(#[^)]*\)"><svg[^>]*x="50" y="10" width="40" height="40" viewBox="0 0 40 40"/);
+    expect(out).toMatch(
+      /<g clip-path="url\(#[^)]*\)"><svg[^>]*x="50" y="10" width="40" height="40" viewBox="0 0 40 40"/,
+    );
   });
 
   it("keeps a raster (PNG) object-fit:none img on the <image> path", () => {
@@ -179,8 +232,8 @@ describe("paintImage — object-fit: none SVG img inlines natively at intrinsic 
 
 describe("prefixSvgClasses — namespace CSS class names in <style>-bearing SVGs (DM-1593)", () => {
   it("prefixes class selectors in <style> and matching class= attributes", () => {
-    const svg = `<style>.cls-1{fill:#f00}.a .cls-2{stroke:#00f}</style>` +
-      `<rect class="cls-1"/><g class="cls-2 extra"/>`;
+    const svg =
+      `<style>.cls-1{fill:#f00}.a .cls-2{stroke:#00f}</style>` + `<rect class="cls-1"/><g class="cls-2 extra"/>`;
     const out = prefixSvgClasses(svg, "P-");
     expect(out).toContain(`.P-cls-1{fill:#f00}`);
     expect(out).toContain(`.P-a .P-cls-2{stroke:#00f}`);
@@ -208,7 +261,8 @@ describe("inlineImgSvg — class namespacing (DM-1593)", () => {
   });
 
   it("two inlined SVGs with colliding .cls-1 get distinct scoped classes", () => {
-    const mk = (color: string) => `<svg viewBox="0 0 10 10"><style>.cls-1{fill:${color}}</style><rect class="cls-1"/></svg>`;
+    const mk = (color: string) =>
+      `<svg viewBox="0 0 10 10"><style>.cls-1{fill:${color}}</style><rect class="cls-1"/></svg>`;
     const a = inlineImgSvg(mk("#f00"), { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "A-" })!;
     const b = inlineImgSvg(mk("#00f"), { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "B-" })!;
     // Each SVG's rule + usage carry its OWN prefix, so A's rule can't style B's rect.
@@ -222,13 +276,22 @@ describe("inlineImgSvg — class namespacing (DM-1593)", () => {
 });
 
 describe("paintInlineSvg — DOM inline <svg> class namespacing (DM-1595)", () => {
-  const svgEl = (svgContent: string, x: number): CapturedElement => ({
-    tag: "svg", text: "", x, y: 0, width: 40, height: 40, children: [],
-    svgContent, styles: { ...BASE_STYLES } as CapturedElement["styles"],
-  } as unknown as CapturedElement);
+  const svgEl = (svgContent: string, x: number): CapturedElement =>
+    ({
+      tag: "svg",
+      text: "",
+      x,
+      y: 0,
+      width: 40,
+      height: 40,
+      children: [],
+      svgContent,
+      styles: { ...BASE_STYLES } as CapturedElement["styles"],
+    }) as unknown as CapturedElement;
 
   it("scopes colliding .cls-1 across two DOM inline SVGs so they render independently", () => {
-    const content = (c: string) => `<svg viewBox="0 0 40 40"><style>.cls-1{fill:${c}}</style><rect class="cls-1" width="40" height="40"/></svg>`;
+    const content = (c: string) =>
+      `<svg viewBox="0 0 40 40"><style>.cls-1{fill:${c}}</style><rect class="cls-1" width="40" height="40"/></svg>`;
     const out = elementTreeToSvgInner([svgEl(content("#e00000"), 0), svgEl(content("#0000e0"), 60)], 120, 60);
     // Each inline SVG's rule + usage carries its own unique prefix.
     expect(out).toMatch(/\.[\w-]*svgic0[\w-]*cls-1\{fill:#e00000\}/);
@@ -259,11 +322,19 @@ describe("prefixSvgIds scope-complete references", () => {
   });
 
   it("uses one namespace for inline SVGs from one captured scope and separates another scope", () => {
-    const mk = (scope: number, x: number): CapturedElement => ({
-      tag: "svg", text: "", x, y: 0, width: 40, height: 40, children: [], svgReferenceScope: scope,
-      svgContent: `<svg viewBox="0 0 40 40"><path id="shared" d="M0 0H40"/><use href="#shared"/></svg>`,
-      styles: { ...BASE_STYLES },
-    } as unknown as CapturedElement);
+    const mk = (scope: number, x: number): CapturedElement =>
+      ({
+        tag: "svg",
+        text: "",
+        x,
+        y: 0,
+        width: 40,
+        height: 40,
+        children: [],
+        svgReferenceScope: scope,
+        svgContent: `<svg viewBox="0 0 40 40"><path id="shared" d="M0 0H40"/><use href="#shared"/></svg>`,
+        styles: { ...BASE_STYLES },
+      }) as unknown as CapturedElement;
     const out = elementTreeToSvgInner([mk(0, 0), mk(0, 50), mk(1, 100)], 150, 50);
     expect(out.match(/id="svgscope0-shared"/g)).toHaveLength(2);
     expect(out).toContain(`id="svgscope1-shared"`);
@@ -278,23 +349,29 @@ describe("isSvgSafeToFlatten — the gate (DM-K0S6ZS)", () => {
     expect(isSvgSafeToFlatten(`<path d="M0 0h10v10z" fill="red"/><circle cx="5" cy="5" r="2"/>`)).toBe(true);
   });
   it("accepts a gradient icon with objectBoundingBox (default) % offsets", () => {
-    expect(isSvgSafeToFlatten(
-      `<defs><linearGradient id="g"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient></defs>` +
-      `<rect width="10" height="10" fill="url(#g)"/>`,
-    )).toBe(true);
+    expect(
+      isSvgSafeToFlatten(
+        `<defs><linearGradient id="g"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient></defs>` +
+          `<rect width="10" height="10" fill="url(#g)"/>`,
+      ),
+    ).toBe(true);
   });
   it("rejects viewport-relative % on painted geometry", () => {
     expect(isSvgSafeToFlatten(`<rect x="0" y="0" width="50%" height="100%" fill="red"/>`)).toBe(false);
   });
   it("rejects a userSpaceOnUse gradient with %", () => {
-    expect(isSvgSafeToFlatten(
-      `<defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0%" x2="100%"><stop offset="0"/></linearGradient></defs><rect width="10" height="10"/>`,
-    )).toBe(false);
+    expect(
+      isSvgSafeToFlatten(
+        `<defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0%" x2="100%"><stop offset="0"/></linearGradient></defs><rect width="10" height="10"/>`,
+      ),
+    ).toBe(false);
   });
   it("rejects <use>, <symbol>, a nested <svg>, <foreignObject>, and <image>", () => {
     expect(isSvgSafeToFlatten(`<symbol id="s"><path d="M0 0h1v1z"/></symbol><use href="#s"/>`)).toBe(false);
     expect(isSvgSafeToFlatten(`<svg viewBox="0 0 5 5"><rect width="5" height="5"/></svg>`)).toBe(false);
-    expect(isSvgSafeToFlatten(`<foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject>`)).toBe(false);
+    expect(isSvgSafeToFlatten(`<foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject>`)).toBe(
+      false,
+    );
     expect(isSvgSafeToFlatten(`<image href="x.png" width="10" height="10"/>`)).toBe(false);
   });
   it("rejects non-scaling-stroke", () => {

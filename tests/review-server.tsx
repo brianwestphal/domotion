@@ -31,7 +31,16 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, copyFileSync, writeFileSync } from "node:fs";
+import {
+  readFileSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  copyFileSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -50,7 +59,11 @@ import {
   LOGICAL_CLASSIFICATIONS,
   parseLogicalClassification,
 } from "../src/review/logical-classification.js";
-import { relevantStageEvidence, type RelevantStageEvidence, type StageEvidenceManifest } from "../src/review/stage-evidence.js";
+import {
+  relevantStageEvidence,
+  type RelevantStageEvidence,
+  type StageEvidenceManifest,
+} from "../src/review/stage-evidence.js";
 import { classifyLinuxUnicodeFixtureEvidence } from "../src/review/linux-unicode-evidence.js";
 import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-builder.js";
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
@@ -77,20 +90,26 @@ type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "
 // real-world/). `local-macos` maps to the plain `tests/output/` the local suites
 // write to (overridable via REVIEW_OUTPUT_DIR, kept for back-compat / DM-1216);
 // the CI sources live under `tests/output/review/ci-<os>/`.
-interface Source { id: string; label: string; root: string }
+interface Source {
+  id: string;
+  label: string;
+  root: string;
+}
 // REVIEW_CI_BASE overrides where the CI sources live (default tests/output/review/)
 // — lets the e2e test isolate them from the real download folder.
-const REVIEW_BASE = process.env.REVIEW_CI_BASE != null && process.env.REVIEW_CI_BASE !== ""
-  ? resolve(process.env.REVIEW_CI_BASE)
-  : resolve(DEFAULT_OUTPUT_DIR, "review");
-const LOCAL_MACOS_ROOT = process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
-  ? resolve(process.env.REVIEW_OUTPUT_DIR)
-  : DEFAULT_OUTPUT_DIR;
+const REVIEW_BASE =
+  process.env.REVIEW_CI_BASE != null && process.env.REVIEW_CI_BASE !== ""
+    ? resolve(process.env.REVIEW_CI_BASE)
+    : resolve(DEFAULT_OUTPUT_DIR, "review");
+const LOCAL_MACOS_ROOT =
+  process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
+    ? resolve(process.env.REVIEW_OUTPUT_DIR)
+    : DEFAULT_OUTPUT_DIR;
 const SOURCES: Source[] = [
   { id: "local-macos", label: "Local · macOS", root: LOCAL_MACOS_ROOT },
-  { id: "ci-macos",    label: "CI · macOS",    root: resolve(REVIEW_BASE, "ci-macos") },
-  { id: "ci-linux",    label: "CI · Linux",    root: resolve(REVIEW_BASE, "ci-linux") },
-  { id: "ci-windows",  label: "CI · Windows",  root: resolve(REVIEW_BASE, "ci-windows") },
+  { id: "ci-macos", label: "CI · macOS", root: resolve(REVIEW_BASE, "ci-macos") },
+  { id: "ci-linux", label: "CI · Linux", root: resolve(REVIEW_BASE, "ci-linux") },
+  { id: "ci-windows", label: "CI · Windows", root: resolve(REVIEW_BASE, "ci-windows") },
 ];
 
 // The per-suite manifest files + image dirs under a given source root.
@@ -104,11 +123,11 @@ function suiteLayout(root: string): {
   return {
     dirs: { features: root, showcase: root, "html-test": htmlDir, "html-test-unicode": uniDir, "real-world": rwDir },
     manifests: [
-      { suite: "features",          path: resolve(root,    "features-results.json"), isBareArray: false },
-      { suite: "showcase",          path: resolve(root,    "showcase-results.json"), isBareArray: false },
-      { suite: "html-test",         path: resolve(htmlDir, "results.json"),          isBareArray: true  },
-      { suite: "html-test-unicode", path: resolve(uniDir,  "results.json"),          isBareArray: true  },
-      { suite: "real-world",        path: resolve(rwDir,   "results.json"),          isBareArray: false },
+      { suite: "features", path: resolve(root, "features-results.json"), isBareArray: false },
+      { suite: "showcase", path: resolve(root, "showcase-results.json"), isBareArray: false },
+      { suite: "html-test", path: resolve(htmlDir, "results.json"), isBareArray: true },
+      { suite: "html-test-unicode", path: resolve(uniDir, "results.json"), isBareArray: true },
+      { suite: "real-world", path: resolve(rwDir, "results.json"), isBareArray: false },
     ],
   };
 }
@@ -125,7 +144,10 @@ function sourceById(id: string | null): Source {
 
 // ── Config ──
 
-interface Settings { port: number; secret: string }
+interface Settings {
+  port: number;
+  secret: string;
+}
 // Hot Sheet's API `port` + `secret` enable the optional "file a ticket" button;
 // browsing the expected/actual/diff PNGs works without them. Resolve from the
 // current Hot Sheet layout — the secret lives in `.hotsheet/secret.json` and the
@@ -136,8 +158,11 @@ function loadSettings(): Settings | null {
   let port: number | undefined;
   let secret: string | undefined;
   const readJson = (p: string): Record<string, unknown> => {
-    try { return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown> : {}; }
-    catch { return {}; }
+    try {
+      return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
   };
   // Preferred: secret.json (current) + worklist API port. Then settings.json (legacy).
   secret = readJson(SECRET_PATH).secret as string | undefined;
@@ -149,7 +174,9 @@ function loadSettings(): Settings | null {
     if (m != null) port = parseInt(m[1], 10);
   }
   if (port == null || secret == null) {
-    console.warn("⚠ Hot Sheet port/secret not found — the 'file a ticket' button is disabled (browsing diffs still works).");
+    console.warn(
+      "⚠ Hot Sheet port/secret not found — the 'file a ticket' button is disabled (browsing diffs still works).",
+    );
     return null;
   }
   return { port, secret };
@@ -203,7 +230,7 @@ interface ReviewTest {
 }
 
 interface ReviewManifest {
-  generatedAt: string;   // most recent across all suites
+  generatedAt: string; // most recent across all suites
   suites: Record<SuiteName, { present: boolean; generatedAt?: string; count: number }>;
   tests: ReviewTest[];
   // DM-1660: which source this manifest was built from, and the full toggle list
@@ -229,11 +256,11 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   const manifestFiles = suiteLayout(root).manifests;
   const tests: ReviewTest[] = [];
   const suites: ReviewManifest["suites"] = {
-    features:            { present: false, count: 0 },
-    showcase:            { present: false, count: 0 },
-    "html-test":         { present: false, count: 0 },
+    features: { present: false, count: 0 },
+    showcase: { present: false, count: 0 },
+    "html-test": { present: false, count: 0 },
     "html-test-unicode": { present: false, count: 0 },
-    "real-world":        { present: false, count: 0 },
+    "real-world": { present: false, count: 0 },
   };
   const timestamps: string[] = [];
   let manifestPlatform: string | null = null;
@@ -245,18 +272,26 @@ function loadManifest(activeSourceId: string): ReviewManifest {
     const activationPath = resolve(dirname(m.path), "activation-evidence.json");
     if (activationEvidence == null && existsSync(activationPath)) {
       try {
-        const evidence = JSON.parse(readFileSync(activationPath, "utf8")) as { platform?: string; mechanisms?: unknown[] };
+        const evidence = JSON.parse(readFileSync(activationPath, "utf8")) as {
+          platform?: string;
+          mechanisms?: unknown[];
+        };
         if (typeof evidence.platform === "string" && Array.isArray(evidence.mechanisms)) {
           activationEvidence = { platform: evidence.platform, mechanismCount: evidence.mechanisms.length };
         }
-      } catch { /* CI validates the evidence file; malformed legacy artifacts simply omit the badge. */ }
+      } catch {
+        /* CI validates the evidence file; malformed legacy artifacts simply omit the badge. */
+      }
     }
     const stageEvidencePath = resolve(dirname(m.path), "stage-evidence.json");
     if (stageEvidenceManifest == null && existsSync(stageEvidencePath)) {
       try {
         const evidence = JSON.parse(readFileSync(stageEvidencePath, "utf8")) as StageEvidenceManifest;
-        if (evidence.schemaVersion === 1 && Array.isArray(evidence.reports) && Array.isArray(evidence.rules)) stageEvidenceManifest = evidence;
-      } catch { /* Older/local artifacts remain reviewable without stage evidence. */ }
+        if (evidence.schemaVersion === 1 && Array.isArray(evidence.reports) && Array.isArray(evidence.rules))
+          stageEvidenceManifest = evidence;
+      } catch {
+        /* Older/local artifacts remain reviewable without stage evidence. */
+      }
     }
     suites[m.suite].present = true;
     const raw = JSON.parse(readFileSync(m.path, "utf8")) as unknown;
@@ -294,7 +329,8 @@ function loadManifest(activeSourceId: string): ReviewManifest {
             diffPct: typeof c["diffPct"] === "number" ? c["diffPct"] : 0,
             sigPixelPct: typeof c["sigPixelPct"] === "number" ? c["sigPixelPct"] : 0,
             worstTilePct: typeof c["worstTilePct"] === "number" ? c["worstTilePct"] : 0,
-            worstTileSignificantPct: typeof c["worstTileSignificantPct"] === "number" ? c["worstTileSignificantPct"] : 0,
+            worstTileSignificantPct:
+              typeof c["worstTileSignificantPct"] === "number" ? c["worstTileSignificantPct"] : 0,
             regionCount: typeof c["regionCount"] === "number" ? c["regionCount"] : undefined,
             totalChangedArea: typeof c["totalChangedArea"] === "number" ? c["totalChangedArea"] : undefined,
             maxRegionSeverity: typeof c["maxRegionSeverity"] === "number" ? c["maxRegionSeverity"] : undefined,
@@ -312,7 +348,8 @@ function loadManifest(activeSourceId: string): ReviewManifest {
         error: typeof r["error"] === "string" ? r["error"] : undefined,
         sigPixelPct: typeof r["sigPixelPct"] === "number" ? r["sigPixelPct"] : undefined,
         worstTilePct: typeof r["worstTilePct"] === "number" ? r["worstTilePct"] : undefined,
-        worstTileSignificantPct: typeof r["worstTileSignificantPct"] === "number" ? r["worstTileSignificantPct"] : undefined,
+        worstTileSignificantPct:
+          typeof r["worstTileSignificantPct"] === "number" ? r["worstTileSignificantPct"] : undefined,
         regionCount: typeof r["regionCount"] === "number" ? r["regionCount"] : undefined,
         totalChangedArea: typeof r["totalChangedArea"] === "number" ? r["totalChangedArea"] : undefined,
         maxRegionSeverity: typeof r["maxRegionSeverity"] === "number" ? r["maxRegionSeverity"] : undefined,
@@ -345,20 +382,38 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   const newest = timestamps.sort().pop() ?? new Date().toISOString();
   // CI sources are always selectable — the server fetches their metadata from the
   // latest completed run on demand (DM-1662), so "no local data" ≠ "unavailable".
-  const sources = SOURCES.map((s) => ({ id: s.id, label: s.label, present: s.id.startsWith("ci-") ? true : sourceIsPresent(s.root) }));
+  const sources = SOURCES.map((s) => ({
+    id: s.id,
+    label: s.label,
+    present: s.id.startsWith("ci-") ? true : sourceIsPresent(s.root),
+  }));
   const sourceFetchNeeded = activeSourceId.startsWith("ci-") && tests.length === 0;
   // DM-1802: only meaningful for a LOCAL source — a CI source is *expected* to
   // hold another platform's artifacts, that is the whole point of the toggle.
-  const platformMismatch = !activeSourceId.startsWith("ci-") && manifestPlatform != null && manifestPlatform !== process.platform
-    ? { manifest: manifestPlatform, host: process.platform }
-    : undefined;
-  const stageEvidence = stageEvidenceManifest == null ? undefined : {
-    generatedAt: stageEvidenceManifest.generatedAt,
-    sourceRevision: stageEvidenceManifest.sourceRevision,
-    platform: stageEvidenceManifest.platform,
-    environmentFingerprint: stageEvidenceManifest.environmentFingerprint,
+  const platformMismatch =
+    !activeSourceId.startsWith("ci-") && manifestPlatform != null && manifestPlatform !== process.platform
+      ? { manifest: manifestPlatform, host: process.platform }
+      : undefined;
+  const stageEvidence =
+    stageEvidenceManifest == null
+      ? undefined
+      : {
+          generatedAt: stageEvidenceManifest.generatedAt,
+          sourceRevision: stageEvidenceManifest.sourceRevision,
+          platform: stageEvidenceManifest.platform,
+          environmentFingerprint: stageEvidenceManifest.environmentFingerprint,
+        };
+  return {
+    generatedAt: newest,
+    suites,
+    tests,
+    activeSource: activeSourceId,
+    sources,
+    sourceFetchNeeded,
+    ...(platformMismatch != null ? { platformMismatch } : {}),
+    ...(activationEvidence != null ? { activationEvidence } : {}),
+    ...(stageEvidence != null ? { stageEvidence } : {}),
   };
-  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded, ...(platformMismatch != null ? { platformMismatch } : {}), ...(activationEvidence != null ? { activationEvidence } : {}), ...(stageEvidence != null ? { stageEvidence } : {}) };
 }
 
 function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
@@ -390,18 +445,25 @@ interface CiSourceMeta {
 const CI_IMAGES_REPO = "brianwestphal/domotion-ci-images";
 async function resolveImagesRepoSha(ciSuite: string, os: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync("gh", ["api", `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${os}`,
-      "--jq", ".object.sha"], { ...GH_OPTS, encoding: "utf8" });
+    const { stdout } = await execFileAsync(
+      "gh",
+      ["api", `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${os}`, "--jq", ".object.sha"],
+      { ...GH_OPTS, encoding: "utf8" },
+    );
     const sha = stdout.trim();
     return /^[0-9a-f]{40}$/.test(sha) ? sha : null;
-  } catch { return null; } // branch absent (no full run pushed yet) / gh unavailable
+  } catch {
+    return null;
+  } // branch absent (no full run pushed yet) / gh unavailable
 }
 async function fetchImagesRepoFile(sha: string, fname: string): Promise<Buffer | null> {
   try {
     const r = await fetch(`https://raw.githubusercontent.com/${CI_IMAGES_REPO}/${sha}/${fname}`);
     if (!r.ok) return null;
     return Buffer.from(await r.arrayBuffer());
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function readCiSourceMeta(root: string, suite: SuiteName): CiSourceMeta | null {
@@ -414,7 +476,9 @@ function readCiSourceMeta(root: string, suite: SuiteName): CiSourceMeta | null {
       // per-file CDN fetch vs the whole-shard artifact fallback.
       return { runId: m.runId, os: m.os, suite: suite, sha: typeof m.sha === "string" ? m.sha : undefined };
     }
-  } catch { /* malformed — treat as no lazy source */ }
+  } catch {
+    /* malformed — treat as no lazy source */
+  }
   return null;
 }
 
@@ -425,7 +489,10 @@ function wipeCachedPngs(dest: string): void {
   if (!existsSync(dest)) return;
   let n = 0;
   for (const f of readdirSync(dest)) {
-    if (f.endsWith(".png")) { rmSync(resolve(dest, f), { force: true }); n++; }
+    if (f.endsWith(".png")) {
+      rmSync(resolve(dest, f), { force: true });
+      n++;
+    }
   }
   if (n > 0) console.log(`  · cleared ${n} cached PNGs (new run adopted)`);
 }
@@ -437,7 +504,9 @@ function shardForFixture(root: string, suite: SuiteName, fixtureBase: string): n
     const arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ name?: string; shard?: number }>;
     const hit = arr.find((r) => r.name === fixtureBase);
     return typeof hit?.shard === "number" ? hit.shard : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // Download one shard's artifact + cache its PNGs into the source dir. In-flight
@@ -453,8 +522,11 @@ function fetchShard(root: string, suite: SuiteName, meta: CiSourceMeta, shard: n
     const tmp = mkdtempSync(resolve(tmpdir(), "review-shard-"));
     try {
       console.log(`  ↓ lazy-fetching ${meta.os} shard ${shard} (run ${meta.runId})…`);
-      await execFileAsync("gh", ["run", "download", meta.runId, "--dir", tmp,
-        "--pattern", `results-${meta.os}-shard${shard}`], GH_OPTS);
+      await execFileAsync(
+        "gh",
+        ["run", "download", meta.runId, "--dir", tmp, "--pattern", `results-${meta.os}-shard${shard}`],
+        GH_OPTS,
+      );
       const walk = (d: string): void => {
         for (const ent of readdirSync(d, { withFileTypes: true })) {
           const full = resolve(d, ent.name);
@@ -496,9 +568,22 @@ async function resolveLatestRun(ciSuite: string): Promise<string | null> {
   const task = (async (): Promise<string | null> => {
     let runId: string | null = null;
     try {
-      const { stdout } = await execFileAsync("gh", ["run", "list", "--workflow", "visual-tests.yml",
-        "--status", "completed", "--limit", "40",
-        "--json", "databaseId,displayTitle,conclusion"], { ...GH_OPTS, encoding: "utf8" });
+      const { stdout } = await execFileAsync(
+        "gh",
+        [
+          "run",
+          "list",
+          "--workflow",
+          "visual-tests.yml",
+          "--status",
+          "completed",
+          "--limit",
+          "40",
+          "--json",
+          "databaseId,displayTitle,conclusion",
+        ],
+        { ...GH_OPTS, encoding: "utf8" },
+      );
       const runs = JSON.parse(stdout) as Array<{ databaseId: number; displayTitle?: string }>;
       // Runs come newest-first; take the first whose title names this suite.
       // DM-1734: skip PARTIAL (--only) debug dispatches — they share the suite
@@ -510,7 +595,9 @@ async function resolveLatestRun(ciSuite: string): Promise<string | null> {
         return t.includes(`· ${ciSuite} ·`) && !t.includes("· only=");
       });
       if (hit != null) runId = String(hit.databaseId);
-    } catch { /* gh unavailable — leave null */ }
+    } catch {
+      /* gh unavailable — leave null */
+    }
     runResolveCache.set(ciSuite, { runId, at: Date.now() });
     inflightRunResolves.delete(ciSuite);
     return runId;
@@ -537,7 +624,11 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
     ]);
     if (results != null) {
       let runId = sha.slice(0, 12);
-      try { runId = String((JSON.parse(metaBuf?.toString("utf8") ?? "{}") as { runId?: string }).runId ?? runId); } catch { /* keep sha tag */ }
+      try {
+        runId = String((JSON.parse(metaBuf?.toString("utf8") ?? "{}") as { runId?: string }).runId ?? runId);
+      } catch {
+        /* keep sha tag */
+      }
       if (existing != null && existing.sha !== sha) wipeCachedPngs(dest);
       mkdirSync(dest, { recursive: true });
       writeFileSync(resolve(dest, "results.json"), results);
@@ -577,10 +668,14 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
             const oldCount = (JSON.parse(readFileSync(existingResults, "utf8")) as unknown[]).length;
             if (newCount < oldCount * 0.5) {
               skipAdopt = true;
-              console.log(`  · keeping staged ${os} ${ciSuite} metadata (${oldCount} fixtures) — latest run ${runId} looks partial (${newCount})`);
+              console.log(
+                `  · keeping staged ${os} ${ciSuite} metadata (${oldCount} fixtures) — latest run ${runId} looks partial (${newCount})`,
+              );
             }
           }
-        } catch { /* unreadable — adopt as before */ }
+        } catch {
+          /* unreadable — adopt as before */
+        }
         if (!skipAdopt) {
           if (existing != null && existing.runId !== runId) wipeCachedPngs(dest);
           mkdirSync(dest, { recursive: true });
@@ -622,13 +717,20 @@ function startShardPrefetch(sourceId: string): void {
       let shards: number[] = [];
       try {
         const arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ shard?: number }>;
-        shards = [...new Set(arr.map((r) => r.shard).filter((n): n is number => typeof n === "number"))].sort((a, b) => a - b);
-      } catch { continue; }
+        shards = [...new Set(arr.map((r) => r.shard).filter((n): n is number => typeof n === "number"))].sort(
+          (a, b) => a - b,
+        );
+      } catch {
+        continue;
+      }
       if (shards.length === 0) continue;
       console.log(`  ↓ prefetching ${shards.length} ${meta.os} ${meta.suite} shard(s) in the background…`);
       for (const shard of shards) {
-        try { await fetchShard(root, suite, meta, shard); }
-        catch (e) { console.warn(`  prefetch of shard ${shard} failed: ${e instanceof Error ? e.message : String(e)}`); }
+        try {
+          await fetchShard(root, suite, meta, shard);
+        } catch (e) {
+          console.warn(`  prefetch of shard ${shard} failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
       console.log(`  ✓ ${meta.os} ${meta.suite} shards cached — images now serve instantly`);
     }
@@ -640,8 +742,13 @@ async function refreshCiSource(sourceId: string): Promise<void> {
   if (!sourceId.startsWith("ci-")) return;
   const os = sourceId.slice("ci-".length);
   const root = sourceById(sourceId).root;
-  await Promise.all((["html-test-unicode", "html-test"] as SuiteName[])
-    .map((s) => ensureCiMetadata(root, os, s).catch((e) => console.warn(`  metadata fetch failed: ${e instanceof Error ? e.message : String(e)}`))));
+  await Promise.all(
+    (["html-test-unicode", "html-test"] as SuiteName[]).map((s) =>
+      ensureCiMetadata(root, os, s).catch((e) =>
+        console.warn(`  metadata fetch failed: ${e instanceof Error ? e.message : String(e)}`),
+      ),
+    ),
+  );
 }
 
 // ── HTTP helpers ──
@@ -679,7 +786,7 @@ async function createHotSheetTicket(
     body: JSON.stringify({ title, defaults: { category: "bug", up_next: false, details } }),
   });
   if (!resp.ok) throw new Error(`Hot Sheet ticket create failed: ${resp.status} ${resp.statusText}`);
-  return await resp.json() as { id: number; ticket_number: string };
+  return (await resp.json()) as { id: number; ticket_number: string };
 }
 
 async function attachFileToTicket(settings: Settings, ticketId: number, filePath: string): Promise<void> {
@@ -838,51 +945,77 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
             {/* DM-1660: toggle the result source (local macOS + the 3 CI platforms).
                 Options a source hasn't been populated for are disabled. Changing it
                 reloads with ?source=<id> (the client wires the onchange). */}
-            <label>Source: <select id="source">
-              {manifest.sources.map((s) => (
-                <option value={s.id} selected={s.id === manifest.activeSource} disabled={!s.present}>
-                  {`${s.label}${s.present ? "" : " (no data)"}`}
-                </option>
-              ))}
-            </select></label>
+            <label>
+              Source:{" "}
+              <select id="source">
+                {manifest.sources.map((s) => (
+                  <option value={s.id} selected={s.id === manifest.activeSource} disabled={!s.present}>
+                    {`${s.label}${s.present ? "" : " (no data)"}`}
+                  </option>
+                ))}
+              </select>
+            </label>
             {/* DM-1665: re-pull the latest CI run's metadata for the active source. */}
-            <button id="refresh-source" className="refresh-btn" title="Re-fetch the latest CI run for this source">↻</button>
+            <button id="refresh-source" className="refresh-btn" title="Re-fetch the latest CI run for this source">
+              ↻
+            </button>
             {/* DM-1802: a LOCAL source holding another platform's artifacts —
                 e.g. a container run wrote Linux results into tests/output/.
                 Say so, rather than leaving it to be inferred from per-platform
                 failure signatures. */}
             {manifest.platformMismatch != null ? (
-              <span className="platform-warn" title="Re-run the suite on this host to regenerate, or use the platform-specific output dir (DOMOTION_OUTPUT_DIR)">
+              <span
+                className="platform-warn"
+                title="Re-run the suite on this host to regenerate, or use the platform-specific output dir (DOMOTION_OUTPUT_DIR)"
+              >
                 {`⚠ these artifacts were produced on ${manifest.platformMismatch.manifest}, not ${manifest.platformMismatch.host}`}
               </span>
-            ) : ""}
+            ) : (
+              ""
+            )}
             {manifest.activationEvidence != null ? (
-              <span className="activation-evidence" title="Positive, negative, and mutation controls linked for specialized renderer paths">
+              <span
+                className="activation-evidence"
+                title="Positive, negative, and mutation controls linked for specialized renderer paths"
+              >
                 {`activation ${manifest.activationEvidence.mechanismCount} · ${manifest.activationEvidence.platform}`}
               </span>
-            ) : ""}
-            <label>Filter: <select id="filter">
-              <option value="fail">Failing</option>
-              <option value="all">All</option>
-              <option value="pass">Passing</option>
-            </select></label>
-            <label>Suite: <select id="suite">
-              <option value="all">All suites</option>
-              <option value="features">features</option>
-              <option value="showcase">showcase</option>
-              <option value="html-test">html-test</option>
-              <option value="html-test-unicode">html-test-unicode</option>
-              <option value="real-world">real-world</option>
-            </select></label>
-            <label>Sort: <select id="sort">
-              <option value="verdict-desc">Verdict (worst first)</option>
-              <option value="coverage-desc">Coverage % (largest first)</option>
-              <option value="regions-desc">Regions (most first)</option>
-              <option value="diff-desc">Avg diff % (worst first)</option>
-              <option value="diff-asc">Avg diff % (best first)</option>
-              <option value="name">Name (A→Z)</option>
-            </select></label>
-            <label className="toggle"><input type="checkbox" id="show-live-svg" /> Live SVG</label>
+            ) : (
+              ""
+            )}
+            <label>
+              Filter:{" "}
+              <select id="filter">
+                <option value="fail">Failing</option>
+                <option value="all">All</option>
+                <option value="pass">Passing</option>
+              </select>
+            </label>
+            <label>
+              Suite:{" "}
+              <select id="suite">
+                <option value="all">All suites</option>
+                <option value="features">features</option>
+                <option value="showcase">showcase</option>
+                <option value="html-test">html-test</option>
+                <option value="html-test-unicode">html-test-unicode</option>
+                <option value="real-world">real-world</option>
+              </select>
+            </label>
+            <label>
+              Sort:{" "}
+              <select id="sort">
+                <option value="verdict-desc">Verdict (worst first)</option>
+                <option value="coverage-desc">Coverage % (largest first)</option>
+                <option value="regions-desc">Regions (most first)</option>
+                <option value="diff-desc">Avg diff % (worst first)</option>
+                <option value="diff-asc">Avg diff % (best first)</option>
+                <option value="name">Name (A→Z)</option>
+              </select>
+            </label>
+            <label className="toggle">
+              <input type="checkbox" id="show-live-svg" /> Live SVG
+            </label>
             <span className="stats" id="stats"></span>
           </div>
           <div className="suite-summary" id="suite-summary"></div>
@@ -900,8 +1033,10 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
             <svg className="region-overlay" id="lb-overlay" preserveAspectRatio="none"></svg>
           </div>
         </div>
-        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- payload passes through safeJsonForScript() which escapes "<" so "</script" cannot terminate the tag */}
-        <script type="application/json" id="manifest-data">{raw(manifestJson)}</script>
+        <script type="application/json" id="manifest-data">
+          {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- payload passes through safeJsonForScript() which escapes "<" so "</script" cannot terminate the tag */}
+          {raw(manifestJson)}
+        </script>
         <script type="module" src="/client.js"></script>
       </body>
     </html>
@@ -915,7 +1050,15 @@ function renderReviewPage(manifest: ReviewManifest): string {
 
 // ── Regions (DM-572 / DM-573) ──
 
-interface ServerRect { index: number; image?: string; x: number; y: number; w: number; h: number; caption?: string }
+interface ServerRect {
+  index: number;
+  image?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  caption?: string;
+}
 
 function sanitizeRegions(raw: unknown): ServerRect[] {
   if (!Array.isArray(raw)) return [];
@@ -1012,7 +1155,10 @@ async function main(): Promise<void> {
       if (req.method === "GET" && url.pathname.startsWith("/img/")) {
         // /img/<source>/<suite>/<filename>
         const parts = url.pathname.slice(5).split("/");
-        if (parts.length !== 3) { send(res, 400, "text/plain", "bad path"); return; }
+        if (parts.length !== 3) {
+          send(res, 400, "text/plain", "bad path");
+          return;
+        }
         const [sourceId, suite, fname] = parts;
         if (fname.includes("..") || decodeURIComponent(fname).includes("/")) {
           send(res, 400, "text/plain", "bad path");
@@ -1042,8 +1188,9 @@ async function main(): Promise<void> {
             const fixtureBase = decodeURIComponent(fname).replace(/-(expected|actual|diff)\.png$/, "");
             const shard = shardForFixture(root, suite as SuiteName, fixtureBase);
             if (shard != null) {
-              const fetchP = fetchShard(root, suite as SuiteName, meta, shard)
-                .catch((e) => console.warn(`  lazy fetch failed: ${e instanceof Error ? e.message : String(e)}`));
+              const fetchP = fetchShard(root, suite as SuiteName, meta, shard).catch((e) =>
+                console.warn(`  lazy fetch failed: ${e instanceof Error ? e.message : String(e)}`),
+              );
               await Promise.race([fetchP, new Promise((r) => setTimeout(r, 2_500))]);
               if (!existsSync(filePath)) {
                 res.setHeader("Retry-After", "10");
@@ -1072,7 +1219,9 @@ async function main(): Promise<void> {
           source = p.source ?? defaultSource;
           // Manual ↻ Refresh busts the 60s run-resolution cache so a newer run is picked up.
           if (p.force) runResolveCache.clear();
-        } catch { /* default */ }
+        } catch {
+          /* default */
+        }
         const src = sourceById(source).id;
         try {
           if (src.startsWith("ci-")) await refreshCiSource(src);
@@ -1085,7 +1234,14 @@ async function main(): Promise<void> {
 
       if (req.method === "POST" && url.pathname === "/api/file-ticket") {
         const body = await readBody(req);
-        const parsed = JSON.parse(body) as { source?: string; suite?: string; name?: string; classification?: unknown; comment?: string; regions?: unknown };
+        const parsed = JSON.parse(body) as {
+          source?: string;
+          suite?: string;
+          name?: string;
+          classification?: unknown;
+          comment?: string;
+          regions?: unknown;
+        };
         const source = sourceById(parsed.source ?? defaultSource);
         const manifest = loadManifest(source.id);
         const suite = parsed.suite as SuiteName | undefined;
@@ -1093,7 +1249,9 @@ async function main(): Promise<void> {
         const comment = parsed.comment ?? "";
         const classification = parseLogicalClassification(parsed.classification);
         if (classification == null) {
-          sendJson(res, 400, { error: `Invalid logical-stage classification. Expected one of: ${Object.keys(LOGICAL_CLASSIFICATIONS).join(", ")}` });
+          sendJson(res, 400, {
+            error: `Invalid logical-stage classification. Expected one of: ${Object.keys(LOGICAL_CLASSIFICATIONS).join(", ")}`,
+          });
           return;
         }
         const regions = sanitizeRegions(parsed.regions);
@@ -1106,34 +1264,50 @@ async function main(): Promise<void> {
         // external ticket service. Otherwise the same bad request is a 400 on
         // a configured workstation but a misleading 503 in clean CI.
         if (settings == null) {
-          sendJson(res, 503, { error: "Hot Sheet isn't configured (no port/secret found) — the 'file a ticket' button is unavailable. Browsing the diffs still works." });
+          sendJson(res, 503, {
+            error:
+              "Hot Sheet isn't configured (no port/secret found) — the 'file a ticket' button is unavailable. Browsing the diffs still works.",
+          });
           return;
         }
         // Lead the title with the qualitative verdict (clean/trivial/minor/
         // moderate/major) + region count + coverage %. Falls back to raw
         // diff% only for manifests written before the verdict landed.
-        const titleScore = match.verdict != null && match.coveragePct != null && match.regionCount != null
-          ? `${match.verdict} · ${match.regionCount} regions · ${match.coveragePct.toFixed(2)}% of image`
-          : `${match.diffPct.toFixed(2)}% diff`;
+        const titleScore =
+          match.verdict != null && match.coveragePct != null && match.regionCount != null
+            ? `${match.verdict} · ${match.regionCount} regions · ${match.coveragePct.toFixed(2)}% of image`
+            : `${match.diffPct.toFixed(2)}% diff`;
         const classificationInfo = LOGICAL_CLASSIFICATIONS[classification];
         const title = `SVG demo test [${classificationInfo.ticketPrefix}] [${match.suite}]: ${name} (${titleScore})`;
         const regionsBlock = serializeRegions(regions);
-        const regionLine = match.regionCount != null
-          ? `Score: ${match.verdict ?? "?"} · ${match.regionCount} region${match.regionCount === 1 ? "" : "s"} · ${match.coveragePct != null ? match.coveragePct.toFixed(2) + "%" : "?"} of image · max severity ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
-          : null;
-        const evidenceLines = match.stageEvidence == null ? ["Stage evidence: unavailable for this artifact"] : [
-          `Semantic transitions: ${match.stageEvidence.transitionIds.map((id) => `\`${id}\``).join(", ")}`,
-          `Stage scope: **${match.stageEvidence.scope}**${match.stageEvidence.scope === "fixture" ? " (authoritative over suite-global reports)" : ""}`,
-          "Authoritative stage reports:",
-          ...match.stageEvidence.reports.map((report) => `- ${report.area}: **${report.status}**${report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} — \`${report.oracle}\``),
-          ...(match.stageEvidence.supersededReports == null ? [] : [
-            "Superseded suite-global reports:",
-            ...match.stageEvidence.supersededReports.map((report) => `- ${report.area}: ${report.status} — \`${report.oracle}\``),
-          ]),
-        ];
-        const environmentLine = manifest.stageEvidence == null
-          ? "Environment fingerprint: unavailable for this artifact"
-          : `Environment fingerprint: \`${JSON.stringify(manifest.stageEvidence.environmentFingerprint)}\` · source \`${manifest.stageEvidence.sourceRevision}\``;
+        const regionLine =
+          match.regionCount != null
+            ? `Score: ${match.verdict ?? "?"} · ${match.regionCount} region${match.regionCount === 1 ? "" : "s"} · ${match.coveragePct != null ? match.coveragePct.toFixed(2) + "%" : "?"} of image · max severity ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
+            : null;
+        const evidenceLines =
+          match.stageEvidence == null
+            ? ["Stage evidence: unavailable for this artifact"]
+            : [
+                `Semantic transitions: ${match.stageEvidence.transitionIds.map((id) => `\`${id}\``).join(", ")}`,
+                `Stage scope: **${match.stageEvidence.scope}**${match.stageEvidence.scope === "fixture" ? " (authoritative over suite-global reports)" : ""}`,
+                "Authoritative stage reports:",
+                ...match.stageEvidence.reports.map(
+                  (report) =>
+                    `- ${report.area}: **${report.status}**${report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} — \`${report.oracle}\``,
+                ),
+                ...(match.stageEvidence.supersededReports == null
+                  ? []
+                  : [
+                      "Superseded suite-global reports:",
+                      ...match.stageEvidence.supersededReports.map(
+                        (report) => `- ${report.area}: ${report.status} — \`${report.oracle}\``,
+                      ),
+                    ]),
+              ];
+        const environmentLine =
+          manifest.stageEvidence == null
+            ? "Environment fingerprint: unavailable for this artifact"
+            : `Environment fingerprint: \`${JSON.stringify(manifest.stageEvidence.environmentFingerprint)}\` · source \`${manifest.stageEvidence.sourceRevision}\``;
         const detailsParts = [
           `Suite: \`${match.suite}\``,
           `Test: \`${name}\``,
@@ -1152,10 +1326,7 @@ async function main(): Promise<void> {
         }
         if (!match.skipped) {
           const relPath = suiteDir(source.root, match.suite);
-          detailsParts.push(
-            "",
-            "Source files:",
-          );
+          detailsParts.push("", "Source files:");
           // Real-world tests don't have a local .html input — the source
           // is a remote URL, captured live each run. Other suites do.
           if (match.suite !== "real-world") {
@@ -1203,9 +1374,13 @@ async function main(): Promise<void> {
     console.log(`\nSVG Demo Test Review — sources:`);
     for (const s of SOURCES) {
       const present = sourceIsPresent(s.root);
-      console.log(`  ${present ? (s.id === defaultSource ? "▶" : "•") : "·"} ${s.label.padEnd(14)} ${present ? "" : "(no data)"}`);
+      console.log(
+        `  ${present ? (s.id === defaultSource ? "▶" : "•") : "·"} ${s.label.padEnd(14)} ${present ? "" : "(no data)"}`,
+      );
     }
-    console.log(`\n  active [${defaultSource}] — ${failing} failing · ${skipped} skipped · ${manifest.tests.length} total`);
+    console.log(
+      `\n  active [${defaultSource}] — ${failing} failing · ${skipped} skipped · ${manifest.tests.length} total`,
+    );
     console.log(`  ${url}`);
     console.log(`  (toggle source in the header · Ctrl+C to stop)`);
     // REVIEW_NO_OPEN skips the browser auto-open (used by the e2e test).

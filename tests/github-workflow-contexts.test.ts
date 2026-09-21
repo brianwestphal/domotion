@@ -2,14 +2,12 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  lintWorkflowDirectory,
-  lintWorkflowSource,
-} from "../tools/check-github-workflows.mjs";
+import { lintWorkflowDirectory, lintWorkflowSource } from "../tools/check-github-workflows.mjs";
 
 describe("GitHub workflow expression contexts (DM-2665)", () => {
   it("rejects runner context in a pre-runner job name", () => {
-    const problems = lintWorkflowSource(`
+    const problems = lintWorkflowSource(
+      `
 name: Invalid job name
 on: workflow_dispatch
 jobs:
@@ -21,17 +19,23 @@ jobs:
     runs-on: \${{ matrix.os }}
     steps:
       - run: echo ok
-`, "invalid.yml");
+`,
+      "invalid.yml",
+    );
 
-    expect(problems).toEqual([{
-      file: "invalid.yml",
-      line: 6,
-      message: "jobs.parity.name cannot use the 'runner' context; allowed contexts: github, inputs, matrix, needs, strategy, vars",
-    }]);
+    expect(problems).toEqual([
+      {
+        file: "invalid.yml",
+        line: 6,
+        message:
+          "jobs.parity.name cannot use the 'runner' context; allowed contexts: github, inputs, matrix, needs, strategy, vars",
+      },
+    ]);
   });
 
   it("accepts matrix context in a job name and runner context after allocation", () => {
-    const problems = lintWorkflowSource(`
+    const problems = lintWorkflowSource(
+      `
 name: Valid contexts
 on: workflow_dispatch
 jobs:
@@ -44,13 +48,16 @@ jobs:
     steps:
       - name: Verify \${{ runner.os }}
         run: echo ok
-`, "valid.yml");
+`,
+      "valid.yml",
+    );
 
     expect(problems).toEqual([]);
   });
 
   it("validates other pre-runner job fields without matching context names inside strings", () => {
-    const problems = lintWorkflowSource(`
+    const problems = lintWorkflowSource(
+      `
 name: Invalid pre-runner field
 on: workflow_dispatch
 jobs:
@@ -63,13 +70,17 @@ jobs:
         os: [ubuntu-latest]
     steps:
       - run: echo ok
-`, "invalid-if.yml");
+`,
+      "invalid-if.yml",
+    );
 
-    expect(problems).toEqual([{
-      file: "invalid-if.yml",
-      line: 6,
-      message: "jobs.parity.if cannot use the 'runner' context; allowed contexts: github, inputs, needs, vars",
-    }]);
+    expect(problems).toEqual([
+      {
+        file: "invalid-if.yml",
+        line: 6,
+        message: "jobs.parity.if cannot use the 'runner' context; allowed contexts: github, inputs, needs, vars",
+      },
+    ]);
   });
 
   it("reports YAML parser errors", () => {

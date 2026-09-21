@@ -15,11 +15,23 @@ describe("DM-2465 broken-image fallback hard-gate contract", () => {
   it("keeps the independently specified corpus complete and internally valid", () => {
     expect(validateBrokenImageGateCorpus()).toEqual([]);
     expect(BROKEN_IMAGE_GATE_CASES).toHaveLength(27);
-    expect(new Set(BROKEN_IMAGE_GATE_CASES.map(({ family }) => family))).toEqual(new Set([
-      "source-state", "alt-title", "threshold", "direction", "writing-mode",
-      "sizing-mode", "author-box", "clipping", "mixed-text", "zoom",
-      "transform", "raster-negative", "icon-content",
-    ]));
+    expect(new Set(BROKEN_IMAGE_GATE_CASES.map(({ family }) => family))).toEqual(
+      new Set([
+        "source-state",
+        "alt-title",
+        "threshold",
+        "direction",
+        "writing-mode",
+        "sizing-mode",
+        "author-box",
+        "clipping",
+        "mixed-text",
+        "zoom",
+        "transform",
+        "raster-negative",
+        "icon-content",
+      ]),
+    );
   });
 
   it("contains positive icon ownership plus all required negative controls", () => {
@@ -49,11 +61,21 @@ describe("DM-2465 broken-image fallback hard-gate contract", () => {
     expect(BROKEN_IMAGE_GATE_SOURCE_REVISIONS.skiaPinnedByChromium).toMatch(/^[0-9a-f]{40}$/);
     expect(BROKEN_IMAGE_GATE_SOURCE_REVISIONS.harfbuzz).toMatch(/^[0-9a-f]{40}$/);
     expect(REQUIRED_BROKEN_IMAGE_MUTATIONS).toEqual([
-      "load-error-success", "alt-missing-empty-text-title", "threshold-17-18",
-      "ltr-rtl", "horizontal-vertical", "standards-quirks",
-      "one-both-aspect-ratio", "author-box-offset", "long-container-clipping",
-      "astral-utf16", "zoom-icon-size", "dpr-resource-switch",
-      "light-dark-text-only", "gray-mountain-substitution", "reuse-1x-at-2x",
+      "load-error-success",
+      "alt-missing-empty-text-title",
+      "threshold-17-18",
+      "ltr-rtl",
+      "horizontal-vertical",
+      "standards-quirks",
+      "one-both-aspect-ratio",
+      "author-box-offset",
+      "long-container-clipping",
+      "astral-utf16",
+      "zoom-icon-size",
+      "dpr-resource-switch",
+      "light-dark-text-only",
+      "gray-mountain-substitution",
+      "reuse-1x-at-2x",
     ]);
   });
 });

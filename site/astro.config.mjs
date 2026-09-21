@@ -26,9 +26,7 @@ export default defineConfig({
           attrs: { rel: "mask-icon", href: "/domotion/mask-icon.svg", color: "#ec4899" },
         },
       ],
-      social: [
-        { icon: "github", label: "GitHub", href: "https://github.com/brianwestphal/domotion" },
-      ],
+      social: [{ icon: "github", label: "GitHub", href: "https://github.com/brianwestphal/domotion" }],
       customCss: ["./src/styles/site.css"],
       // Extend the default page footer with a license / version / source line.
       components: {

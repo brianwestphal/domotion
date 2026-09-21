@@ -14,7 +14,15 @@ import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, fsNum, fitOdometerCell, resolveCardTheme } from "./text-card-common.js";
+import {
+  CARD_FONT_STACK,
+  cardHeadCss,
+  cardScaleFactor,
+  fs,
+  fsNum,
+  fitOdometerCell,
+  resolveCardTheme,
+} from "./text-card-common.js";
 import { planOdometer, buildOdometerMarkup } from "./odometer.js";
 import type { SafeInset } from "../formats.js";
 
@@ -25,11 +33,14 @@ const PADDING = 96;
 export const statParamsSchema = z.object({
   value: z.coerce.number().describe("The KPI value (required)."),
   label: z.string().optional().describe("Caption under the value."),
-  delta: z.string().optional().describe("Trend chip text (e.g. \"8.1%\"). Shown with an arrow."),
-  deltaDir: z.enum(DELTA_DIRS).default("auto").describe('Trend direction: "up" | "down" | "auto" (parse sign from delta).'),
+  delta: z.string().optional().describe('Trend chip text (e.g. "8.1%"). Shown with an arrow.'),
+  deltaDir: z
+    .enum(DELTA_DIRS)
+    .default("auto")
+    .describe('Trend direction: "up" | "down" | "auto" (parse sign from delta).'),
   animateValue: z.coerce.boolean().default(true).describe("Roll the value up from 0 (else show it static)."),
-  prefix: z.string().optional().describe("Text before the value (e.g. \"$\")."),
-  suffix: z.string().optional().describe("Text after the value (e.g. \"%\" or \"K\")."),
+  prefix: z.string().optional().describe('Text before the value (e.g. "$").'),
+  suffix: z.string().optional().describe('Text after the value (e.g. "%" or "K").'),
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places."),
   grouping: z.coerce.boolean().default(true).describe("Insert a thousands separator."),
   durationMs: z.coerce.number().int().positive().default(1500).describe("Value roll duration in ms."),
@@ -69,11 +80,16 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
   const start = p.animateValue ? 0 : p.value;
   const plan = planOdometer(start, p.value, { decimals: p.decimals, grouping: p.grouping });
   const cols = plan.columns.length + (blank(p.prefix)?.length ?? 0) + (blank(p.suffix)?.length ?? 0);
-  const availableW = safeInset != null
-    ? p.width - Math.max(PADDING, safeInset.left) - Math.max(PADDING, safeInset.right)
-    : 0; // 0 disables the clamp (no format → byte-identical)
+  const availableW =
+    safeInset != null ? p.width - Math.max(PADDING, safeInset.left) - Math.max(PADDING, safeInset.right) : 0; // 0 disables the clamp (no format → byte-identical)
   const cellPx = fitOdometerCell(fsNum(p.fontSize, sf), cols, availableW);
-  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx, durationMs: p.durationMs, easing: "cubic-bezier(0.22,1,0.36,1)", staggerMs: 60 });
+  const od = buildOdometerMarkup(plan, {
+    prefix: "od",
+    cellPx,
+    durationMs: p.durationMs,
+    easing: "cubic-bezier(0.22,1,0.36,1)",
+    staggerMs: 60,
+  });
   const prefix = blank(p.prefix) != null ? `<span class="st-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="st-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const label = blank(p.label) != null ? `<div class="st-label">${escapeHtml(p.label!)}</div>` : "";
@@ -89,8 +105,16 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
     deltaMarkup = `<div class="st-delta"><span class="st-arrow">${arrow}</span> ${escapeHtml(deltaText)}</div>`;
     // The chip fades in after the value has settled.
     const rollEnd = p.durationMs + Math.max(0, od.animations.length - 1) * 60;
-    animations.push({ selector: ".st-delta", property: "opacity", from: "0", to: "1", duration: 400, delay: rollEnd + 150, easing: "ease-out",
-      fuse: [{ property: "translateY", from: "8px", to: "0px" }] });
+    animations.push({
+      selector: ".st-delta",
+      property: "opacity",
+      from: "0",
+      to: "1",
+      duration: 400,
+      delay: rollEnd + 150,
+      easing: "ease-out",
+      fuse: [{ property: "translateY", from: "8px", to: "0px" }],
+    });
   }
 
   const html = `<!doctype html>
@@ -128,7 +152,9 @@ export const statTemplate: Template<StatParams> = {
     const { html, animations } = buildStatHtml(params, ctx.safeInset);
     const rollEnd = params.durationMs + 8 * 60; // generous: roll + stagger + chip
     const holdMs = Math.max(params.holdMs, rollEnd + 900);
-    ctx.log(`template stat: ${params.value}${params.delta != null ? ` (${params.delta})` : ""}, ${params.width}×${params.height}`);
+    ctx.log(
+      `template stat: ${params.value}${params.delta != null ? ` (${params.delta})` : ""}, ${params.width}×${params.height}`,
+    );
     return runSingleFrameGenerator(ctx, {
       name: "stat",
       html,

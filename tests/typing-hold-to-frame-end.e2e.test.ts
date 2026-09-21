@@ -26,16 +26,33 @@ const FRAME1_MS = 2000; // the cut sits here
 
 function makeSvg(holdToFrameEnd: boolean): string {
   const overlay = {
-    kind: "typing", text: TEXT, x: 40, y: 70, fontSize: 20, color: "#111111",
-    delay: 200, speed: 40, ...(holdToFrameEnd ? { holdToFrameEnd: true } : {}),
+    kind: "typing",
+    text: TEXT,
+    x: 40,
+    y: 70,
+    fontSize: 20,
+    color: "#111111",
+    delay: 200,
+    speed: 40,
+    ...(holdToFrameEnd ? { holdToFrameEnd: true } : {}),
   } as unknown as AnimationOverlay;
   return generateAnimatedSvg({
-    width: W, height: H,
+    width: W,
+    height: H,
     frames: [
-      { svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/>`, duration: FRAME1_MS, transition: { type: "cut", duration: 0 }, overlays: [overlay] },
+      {
+        svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/>`,
+        duration: FRAME1_MS,
+        transition: { type: "cut", duration: 0 },
+        overlays: [overlay],
+      },
       // Frame 2 carries the IDENTICAL text as real page content at the same
       // baseline / font — the seamless-handoff scenario the flag exists for.
-      { svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/><text x="40" y="70" font-size="20" font-family="${FONT.replace(/'/g, "&#39;")}" fill="#111111">${TEXT}</text>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+      {
+        svgContent: `<rect width="${W}" height="${H}" fill="#ffffff"/><text x="40" y="70" font-size="20" font-family="${FONT.replace(/'/g, "&#39;")}" fill="#111111">${TEXT}</text>`,
+        duration: 1000,
+        transition: { type: "cut", duration: 0 },
+      },
     ],
   });
 }
@@ -56,12 +73,17 @@ async function rawPixels(buf: Buffer): Promise<{ data: Buffer; n: number }> {
 async function ink(buf: Buffer): Promise<{ count: number; minX: number; minY: number; maxX: number; maxY: number }> {
   const { data, n } = await rawPixels(buf);
   const width = CROP.width;
-  let count = 0, minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+  let count = 0,
+    minX = Infinity,
+    minY = Infinity,
+    maxX = -1,
+    maxY = -1;
   for (let i = 0; i < n; i++) {
     const o = i * 4;
     if ((data[o] + data[o + 1] + data[o + 2]) / 3 < 128) {
       count++;
-      const x = i % width, y = Math.floor(i / width);
+      const x = i % width,
+        y = Math.floor(i / width);
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -88,9 +110,11 @@ async function inkIoU(a: Buffer, b: Buffer, dx = 0): Promise<number> {
   const width = CROP.width;
   const isInk = (d: Uint8Array | Uint8ClampedArray, i: number): boolean =>
     (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3 < 128;
-  let inter = 0, union = 0;
+  let inter = 0,
+    union = 0;
   for (let i = 0; i < ra.n; i++) {
-    const x = i % width, y = Math.floor(i / width);
+    const x = i % width,
+      y = Math.floor(i / width);
     const xb = x - dx;
     const A = isInk(ra.data, i);
     const B = xb >= 0 && xb < width ? isInk(rb.data, y * width + xb) : false;

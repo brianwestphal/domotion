@@ -63,7 +63,10 @@ async function main(): Promise<void> {
       help: { type: "boolean", short: "h", default: false },
     },
   });
-  if (values.help) { process.stdout.write(HELP); return; }
+  if (values.help) {
+    process.stdout.write(HELP);
+    return;
+  }
 
   let initialSvg: string | undefined;
   let initialName: string | undefined;
@@ -95,13 +98,18 @@ async function main(): Promise<void> {
 
   let closing = false;
   const shutdown = async (): Promise<void> => {
-    if (closing) return; closing = true;
+    if (closing) return;
+    closing = true;
     process.stderr.write("\nshutting down…\n");
     await server.close();
     process.exit(0);
   };
-  process.on("SIGINT", () => { void shutdown(); });
-  process.on("SIGTERM", () => { void shutdown(); });
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
 }
 
 main().catch((err) => {

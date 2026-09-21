@@ -8,8 +8,9 @@ describe("DM-2358/DM-2538 generated SVG effect workflow", () => {
   it("runs deterministic logical coverage before DPR 1 and 2", () => {
     expect(pkg.scripts["paint:svg-effect-combinations"]).toContain("svg-effect-combination-oracle.ts");
     expect(workflow).toContain("--dpr 1,2");
-    expect(workflow.indexOf("Run deterministic corpus and workflow guards"))
-      .toBeLessThan(workflow.indexOf("Capture DPR 1/2 native SVG and mutation evidence"));
+    expect(workflow.indexOf("Run deterministic corpus and workflow guards")).toBeLessThan(
+      workflow.indexOf("Capture DPR 1/2 native SVG and mutation evidence"),
+    );
     expect(workflow).toContain('"tests/svg-effect-combination-workflow.test.ts"');
     expect(workflow).not.toContain("continue-on-error");
   });

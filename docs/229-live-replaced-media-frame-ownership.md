@@ -7,7 +7,7 @@ owners: ["images-media"]
 platforms: []
 tickets: ["DM-2542"]
 code: ["tools/animated-image-frame-selection-audit.ts"]
-aliases: ["docs/229-live-replaced-media-frame-ownership.md","doc-229"]
+aliases: ["docs/229-live-replaced-media-frame-ownership.md", "doc-229"]
 ---
 
 # 229 — Live replaced-media frame ownership
@@ -95,7 +95,7 @@ advances it only when a sync tree is created
 `cc/trees/image_animation_controller.cc:177-199,299-430`). Consequently,
 pausing an `<img>` can retain a compositor-selected frame and stopping/default
 policy can suppress continuation, but neither authenticates arbitrary frame
-*N*. `BitmapImage::ImageForDefaultFrame()` merely disables repetition
+_N_. `BitmapImage::ImageForDefaultFrame()` merely disables repetition
 (`bitmap_image.cc:597-614`); the normal generator backing uses default frame
 index zero (`cc/paint/paint_image.cc:233-252`).
 

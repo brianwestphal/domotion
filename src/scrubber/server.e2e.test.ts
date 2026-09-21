@@ -12,7 +12,11 @@ import { closeSafely } from "../test-support/close-browser-safely.js";
  */
 
 let chromiumAvailable = true;
-try { /* probe lazily in beforeAll */ } catch { chromiumAvailable = false; }
+try {
+  /* probe lazily in beforeAll */
+} catch {
+  chromiumAvailable = false;
+}
 
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width="100" height="60">
 <style>@keyframes m{0%{transform:translateX(0)}100%{transform:translateX(60px)}}
@@ -42,7 +46,9 @@ describe("svg-scrubber server (DM-1040)", () => {
 
   const post = (path: string, body: unknown) =>
     fetch(srv!.url.replace(/\/$/, "") + path, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
     });
 
   it("serves the HTML shell and the client bundle", async () => {
@@ -59,7 +65,11 @@ describe("svg-scrubber server (DM-1040)", () => {
 
   it("/timing derives the single-loop duration + intrinsic size", async () => {
     if (!chromiumAvailable) return;
-    const t = await (await post("/timing", { svg: SVG })).json() as { durationMs: number | null; width: number; height: number };
+    const t = (await (await post("/timing", { svg: SVG })).json()) as {
+      durationMs: number | null;
+      width: number;
+      height: number;
+    };
     expect(t.durationMs).toBe(2000); // 2s loop
     expect(t.width).toBe(100);
     expect(t.height).toBe(60);
@@ -67,8 +77,11 @@ describe("svg-scrubber server (DM-1040)", () => {
 
   it("/trim window-slices the period-spanning animation to the window", async () => {
     if (!chromiumAvailable) return;
-    const r = await (await post("/trim", { svg: SVG, startMs: 500, endMs: 1500, periodMs: 2000 })).json() as
-      { svg: string; slicedCss: number; shiftedCss: number };
+    const r = (await (await post("/trim", { svg: SVG, startMs: 500, endMs: 1500, periodMs: 2000 })).json()) as {
+      svg: string;
+      slicedCss: number;
+      shiftedCss: number;
+    };
     expect(r.slicedCss).toBe(1); // `m` (2s ≈ period, infinite) is period-spanning → sliced
     expect(r.svg).toContain("@keyframes m"); // kept (sliced in place)
     expect(r.svg).toMatch(/animation:\s*m 1s/); // duration → the 1s window
@@ -86,8 +99,12 @@ describe("svg-scrubber server (DM-1040)", () => {
 
   it("two different seek times produce different frames (the seek actually moves)", async () => {
     if (!chromiumAvailable) return;
-    const a = Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60 })).arrayBuffer());
-    const b = Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 1000, width: 100, height: 60 })).arrayBuffer());
+    const a = Buffer.from(
+      await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60 })).arrayBuffer(),
+    );
+    const b = Buffer.from(
+      await (await post("/export-frame", { svg: SVG, timeMs: 1000, width: 100, height: 60 })).arrayBuffer(),
+    );
     expect(a.equals(b)).toBe(false); // the rect has translated, so the PNGs differ
   });
 
@@ -95,7 +112,7 @@ describe("svg-scrubber server (DM-1040)", () => {
     if (!chromiumAvailable) return;
     const r = await post("/export-range-video", { svg: SVG, startMs: 500, endMs: 500, width: 100, height: 60 });
     expect(r.status).toBe(400);
-    expect((await r.json() as { error: string }).error).toMatch(/empty range/);
+    expect(((await r.json()) as { error: string }).error).toMatch(/empty range/);
   });
 
   it("/export-range-video renders the window to an MP4 (DM-1042)", async () => {
@@ -103,8 +120,11 @@ describe("svg-scrubber server (DM-1040)", () => {
     // Needs ffmpeg; skip the body (not the assertion) when it isn't installed so
     // a CI box without ffmpeg stays green rather than failing.
     let hasFfmpeg = true;
-    try { (await import("node:child_process")).execFileSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"]); }
-    catch { hasFfmpeg = false; }
+    try {
+      (await import("node:child_process")).execFileSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"]);
+    } catch {
+      hasFfmpeg = false;
+    }
     if (!hasFfmpeg) return;
     const r = await post("/export-range-video", { svg: SVG, startMs: 0, endMs: 1000, width: 100, height: 60 });
     expect(r.status).toBe(200);
@@ -134,19 +154,20 @@ describe("svg-scrubber server (DM-1040)", () => {
       await page.goto(s2.url, { waitUntil: "load" });
       await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
       await page.waitForTimeout(400); // let Fit + ResizeObserver settle
-      const centered = async () => page.evaluate(() => {
-        const st = document.querySelector(".stage")!.getBoundingClientRect();
-        const sv = document.querySelector(".svg-host svg")!.getBoundingClientRect();
-        return {
-          dy: Math.abs((sv.y + sv.height / 2) - (st.y + st.height / 2)),
-          dx: Math.abs((sv.x + sv.width / 2) - (st.x + st.width / 2)),
-          fitsH: sv.height <= st.height + 2,
-        };
-      });
+      const centered = async () =>
+        page.evaluate(() => {
+          const st = document.querySelector(".stage")!.getBoundingClientRect();
+          const sv = document.querySelector(".svg-host svg")!.getBoundingClientRect();
+          return {
+            dy: Math.abs(sv.y + sv.height / 2 - (st.y + st.height / 2)),
+            dx: Math.abs(sv.x + sv.width / 2 - (st.x + st.width / 2)),
+            fitsH: sv.height <= st.height + 2,
+          };
+        });
       const fit = await centered();
       expect(fit.dy).toBeLessThan(3); // vertically centered (the reported bug)
       expect(fit.dx).toBeLessThan(3); // horizontally centered
-      expect(fit.fitsH).toBe(true);   // Fit accounts for the footer (stage excludes it)
+      expect(fit.fitsH).toBe(true); // Fit accounts for the footer (stage excludes it)
       // Pan away, then Center → centered again on both axes.
       await page.locator(".stage").hover();
       await page.mouse.wheel(80, 120);
@@ -177,7 +198,9 @@ describe("svg-scrubber server (DM-1040)", () => {
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
     let releaseTiming!: () => void;
-    const timingGate = new Promise<void>((resolve) => { releaseTiming = resolve; });
+    const timingGate = new Promise<void>((resolve) => {
+      releaseTiming = resolve;
+    });
     await page.route("**/timing", async (route) => {
       await timingGate;
       await route.continue();
@@ -190,10 +213,7 @@ describe("svg-scrubber server (DM-1040)", () => {
       // cannot accept an action that load completion immediately resets.
       expect(await page.locator("button[data-action=play]").isDisabled()).toBe(true);
       releaseTiming();
-      await expect.poll(
-        () => page.locator("button[data-action=play]").isEnabled(),
-        { timeout: 10_000 },
-      ).toBe(true);
+      await expect.poll(() => page.locator("button[data-action=play]").isEnabled(), { timeout: 10_000 }).toBe(true);
       const label0 = await page.locator(".time").textContent();
       await page.locator("button[data-action=play]").click();
       await page.waitForTimeout(450); // let the play-toggle re-render + ResizeObserver-driven re-renders settle
@@ -208,12 +228,13 @@ describe("svg-scrubber server (DM-1040)", () => {
       });
       await page.waitForTimeout(800); // ~48 playback frames
       const marker = await page.evaluate(() =>
-        document.querySelector(".row .grp button[data-action=setin]")!.getAttribute("data-dm1730-marker"));
+        document.querySelector(".row .grp button[data-action=setin]")!.getAttribute("data-dm1730-marker"),
+      );
       const label1 = await page.locator(".time").textContent();
       await page.locator("button[data-action=play]").click(); // pause
       expect(label1).not.toBe(label0); // the computed hole tracks the playhead
       expect(label1).toContain(" / "); // static siblings of the bound hole survive (KF-374 regression pin)
-      expect(marker).toBe("alive");    // no per-frame transport morph
+      expect(marker).toBe("alive"); // no per-frame transport morph
     } finally {
       await ctx.close().catch(() => {});
       await closeSafely(() => s2.close(), b2, 6_000);
@@ -225,9 +246,24 @@ describe("svg-scrubber server (DM-1040)", () => {
   it("/export-frame crops the PNG to the requested rect", async () => {
     if (!chromiumAvailable) return;
     const sharp = (await import("sharp")).default;
-    const full = await sharp(Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60 })).arrayBuffer())).metadata();
-    expect(full.width).toBe(100); expect(full.height).toBe(60);
-    const cropped = await sharp(Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60, crop: { x: 10, y: 5, w: 40, h: 30 } })).arrayBuffer())).metadata();
+    const full = await sharp(
+      Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60 })).arrayBuffer()),
+    ).metadata();
+    expect(full.width).toBe(100);
+    expect(full.height).toBe(60);
+    const cropped = await sharp(
+      Buffer.from(
+        await (
+          await post("/export-frame", {
+            svg: SVG,
+            timeMs: 0,
+            width: 100,
+            height: 60,
+            crop: { x: 10, y: 5, w: 40, h: 30 },
+          })
+        ).arrayBuffer(),
+      ),
+    ).metadata();
     expect(cropped.width).toBe(40);
     expect(cropped.height).toBe(30);
   });
@@ -235,19 +271,40 @@ describe("svg-scrubber server (DM-1040)", () => {
   it("/export-frame ignores a degenerate / off-canvas crop (full frame)", async () => {
     if (!chromiumAvailable) return;
     const sharp = (await import("sharp")).default;
-    const m = await sharp(Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60, crop: { x: 500, y: 0, w: 40, h: 30 } })).arrayBuffer())).metadata();
-    expect(m.width).toBe(100); expect(m.height).toBe(60);
+    const m = await sharp(
+      Buffer.from(
+        await (
+          await post("/export-frame", {
+            svg: SVG,
+            timeMs: 0,
+            width: 100,
+            height: 60,
+            crop: { x: 500, y: 0, w: 40, h: 30 },
+          })
+        ).arrayBuffer(),
+      ),
+    ).metadata();
+    expect(m.width).toBe(100);
+    expect(m.height).toBe(60);
   });
 
   it("/export-frame rejects a non-positive crop size (400)", async () => {
     if (!chromiumAvailable) return;
-    const r = await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60, crop: { x: 0, y: 0, w: 0, h: 10 } });
+    const r = await post("/export-frame", {
+      svg: SVG,
+      timeMs: 0,
+      width: 100,
+      height: 60,
+      crop: { x: 0, y: 0, w: 0, h: 10 },
+    });
     expect(r.status).toBe(400);
   });
 
   it("/trim vector-crops the trimmed SVG via the root viewBox", async () => {
     if (!chromiumAvailable) return;
-    const r = await (await post("/trim", { svg: SVG, startMs: 0, endMs: 1000, periodMs: 2000, crop: { x: 10, y: 5, w: 40, h: 30 } })).json() as { svg: string };
+    const r = (await (
+      await post("/trim", { svg: SVG, startMs: 0, endMs: 1000, periodMs: 2000, crop: { x: 10, y: 5, w: 40, h: 30 } })
+    ).json()) as { svg: string };
     expect(r.svg).toMatch(/viewBox="10 5 40 30"/);
     expect(r.svg).toMatch(/width="40"/);
     expect(r.svg).toMatch(/height="30"/);
@@ -257,12 +314,22 @@ describe("svg-scrubber server (DM-1040)", () => {
   it("/export-range-video crops each frame to even dims (DM-1104)", async () => {
     if (!chromiumAvailable) return;
     let hasFfmpeg = true;
-    try { (await import("node:child_process")).execFileSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"]); }
-    catch { hasFfmpeg = false; }
+    try {
+      (await import("node:child_process")).execFileSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"]);
+    } catch {
+      hasFfmpeg = false;
+    }
     if (!hasFfmpeg) return;
     // Odd crop dims (41×31) must round DOWN to even (40×30) for yuv420p so ffmpeg
     // doesn't reject the stream — a 200 + ftyp proves the pipe succeeded.
-    const r = await post("/export-range-video", { svg: SVG, startMs: 0, endMs: 500, width: 100, height: 60, crop: { x: 8, y: 4, w: 41, h: 31 } });
+    const r = await post("/export-range-video", {
+      svg: SVG,
+      startMs: 0,
+      endMs: 500,
+      width: 100,
+      height: 60,
+      crop: { x: 8, y: 4, w: 41, h: 31 },
+    });
     expect(r.status).toBe(200);
     expect(r.headers.get("content-type")).toBe("video/mp4");
     const buf = Buffer.from(await r.arrayBuffer());
@@ -300,7 +367,12 @@ describe("svg-scrubber server (DM-1040)", () => {
   it("supports keyboard file entry and keeps region drawing armed across repeated drags (DM-2599)", async () => {
     if (!chromiumAvailable) return;
     const b2 = await chromium.launch({ headless: true });
-    const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: SVG, initialName: "anim.svg", review: true });
+    const s2 = await startScrubberServer({
+      launchBrowser: async () => b2,
+      initialSvg: SVG,
+      initialName: "anim.svg",
+      review: true,
+    });
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
     try {

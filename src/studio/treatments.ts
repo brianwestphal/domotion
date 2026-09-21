@@ -46,13 +46,19 @@ export class StudioTreatmentError extends Error {
   }
 }
 
-const defaultTiming = (): StudioTreatmentTiming => ({ startMs: 0, durationMs: 500, easing: "cubic-bezier(0.22,1,0.36,1)" });
+const defaultTiming = (): StudioTreatmentTiming => ({
+  startMs: 0,
+  durationMs: 500,
+  easing: "cubic-bezier(0.22,1,0.36,1)",
+});
 
 /** Validate presets and expose the lower-level layer/mask/transform/overlay/timing plan they expand into. */
 export function resolveStudioTreatmentPlan(raw: unknown, brand: Brand = {}): StudioTreatmentPlan {
   const parsed = studioTreatmentsSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new StudioTreatmentError(`invalid Studio treatment: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
+    throw new StudioTreatmentError(
+      `invalid Studio treatment: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
+    );
   }
   const layers: StudioTreatmentLayerPrimitive[] = [];
   const masks: StudioTreatmentMaskPrimitive[] = [];
@@ -65,18 +71,43 @@ export function resolveStudioTreatmentPlan(raw: unknown, brand: Brand = {}): Stu
       transition = treatment.transition;
       return;
     }
-    const timing = treatment.kind === "zoom-pan" || treatment.kind === "spotlight" || treatment.kind === "callout" || treatment.kind === "title-card" || treatment.kind === "logo-reveal"
-      ? (treatment.timing ?? defaultTiming())
-      : undefined;
+    const timing =
+      treatment.kind === "zoom-pan" ||
+      treatment.kind === "spotlight" ||
+      treatment.kind === "callout" ||
+      treatment.kind === "title-card" ||
+      treatment.kind === "logo-reveal"
+        ? (treatment.timing ?? defaultTiming())
+        : undefined;
     layers.push({ id: `treatment-${index}-${treatment.kind}`, opacity: 1, blendMode: "normal" });
     if (timing != null) timings.push(timing);
     if (treatment.kind === "zoom-pan") transforms.push(treatment.transform);
     if (treatment.kind === "spotlight") masks.push(treatment.mask);
-    if (treatment.kind === "spotlight") overlays.push({ region: treatment.mask.region, fill: treatment.color, strokeWidth: 2 });
-    if (treatment.kind === "callout") overlays.push({ region: treatment.box, fill: treatment.fill ?? brand.palette?.background ?? "#111827", stroke: treatment.accent ?? brand.palette?.accent ?? brand.palette?.primary ?? "#7c3aed", strokeWidth: 2 });
-    if (treatment.kind === "title-card") overlays.push({ region: { x: 0, y: 0, width: 1, height: 1 }, fill: treatment.background ?? brand.background ?? brand.palette?.background ?? "#0b1020", strokeWidth: 2 });
+    if (treatment.kind === "spotlight")
+      overlays.push({ region: treatment.mask.region, fill: treatment.color, strokeWidth: 2 });
+    if (treatment.kind === "callout")
+      overlays.push({
+        region: treatment.box,
+        fill: treatment.fill ?? brand.palette?.background ?? "#111827",
+        stroke: treatment.accent ?? brand.palette?.accent ?? brand.palette?.primary ?? "#7c3aed",
+        strokeWidth: 2,
+      });
+    if (treatment.kind === "title-card")
+      overlays.push({
+        region: { x: 0, y: 0, width: 1, height: 1 },
+        fill: treatment.background ?? brand.background ?? brand.palette?.background ?? "#0b1020",
+        strokeWidth: 2,
+      });
   });
-  return { treatments: parsed.data, layers, masks, transforms, overlays, timings, ...(transition != null ? { transition } : {}) };
+  return {
+    treatments: parsed.data,
+    layers,
+    masks,
+    transforms,
+    overlays,
+    timings,
+    ...(transition != null ? { transition } : {}),
+  };
 }
 
 function escapeXml(value: string): string {
@@ -98,13 +129,13 @@ function wrap(width: number, height: number, content: string, overlay: string, s
 }
 
 function nestableSvg(svg: string): string {
-  return svg
-    .replace(/^\s*<\?xml[^>]*\?>\s*/i, "")
-    .replace(/^\s*<!doctype[^>]*>\s*/i, "");
+  return svg.replace(/^\s*<\?xml[^>]*\?>\s*/i, "").replace(/^\s*<!doctype[^>]*>\s*/i, "");
 }
 
 function svgPaint(value: string, token: string): { fill: string; defs?: string } {
-  const gradient = value.match(/^linear-gradient\(\s*(?:(?:[-\d.]+deg|to\s+[^,]+)\s*,\s*)?([^,]+)\s*,\s*([^,)]+)\s*\)$/i);
+  const gradient = value.match(
+    /^linear-gradient\(\s*(?:(?:[-\d.]+deg|to\s+[^,]+)\s*,\s*)?([^,]+)\s*,\s*([^,)]+)\s*\)$/i,
+  );
   if (gradient == null) return { fill: value };
   const id = `${token}background`;
   return {
@@ -115,7 +146,10 @@ function svgPaint(value: string, token: string): { fill: string; defs?: string }
 
 function assertSelfContainedSvg(svg: string): void {
   const withoutNamespace = svg.replace(/\sxmlns(?::\w+)?=["'][^"']+["']/gi, "");
-  if (/(?:href|src)\s*=\s*["'](?:https?:)?\/\//i.test(withoutNamespace) || /(?:url\(|@import\s+)["']?(?:https?:)?\/\//i.test(withoutNamespace)) {
+  if (
+    /(?:href|src)\s*=\s*["'](?:https?:)?\/\//i.test(withoutNamespace) ||
+    /(?:url\(|@import\s+)["']?(?:https?:)?\/\//i.test(withoutNamespace)
+  ) {
     throw new StudioTreatmentError("logo-reveal SVG contains a remote resource and is not self-contained");
   }
 }
@@ -137,7 +171,9 @@ function embedLogo(source: string, assetDir: string): string {
     return source;
   }
   if (/^https?:\/\//i.test(source)) {
-    throw new StudioTreatmentError("logo-reveal requires an inline data URL or local asset so the output stays self-contained");
+    throw new StudioTreatmentError(
+      "logo-reveal requires an inline data URL or local asset so the output stays self-contained",
+    );
   }
   if (source.trimStart().startsWith("<svg")) {
     assertSelfContainedSvg(source);
@@ -150,11 +186,16 @@ function embedLogo(source: string, assetDir: string): string {
   } catch (error) {
     throw new StudioTreatmentError(`logo-reveal could not read ${path}`, { cause: error });
   }
-  const mime = extname(path).toLowerCase() === ".svg" ? "image/svg+xml"
-    : extname(path).toLowerCase() === ".png" ? "image/png"
-      : extname(path).toLowerCase() === ".webp" ? "image/webp"
-        : extname(path).toLowerCase() === ".jpg" || extname(path).toLowerCase() === ".jpeg" ? "image/jpeg"
-          : "application/octet-stream";
+  const mime =
+    extname(path).toLowerCase() === ".svg"
+      ? "image/svg+xml"
+      : extname(path).toLowerCase() === ".png"
+        ? "image/png"
+        : extname(path).toLowerCase() === ".webp"
+          ? "image/webp"
+          : extname(path).toLowerCase() === ".jpg" || extname(path).toLowerCase() === ".jpeg"
+            ? "image/jpeg"
+            : "application/octet-stream";
   if (mime === "image/svg+xml") assertSelfContainedSvg(bytes.toString("utf8"));
   return `data:${mime};base64,${bytes.toString("base64")}`;
 }
@@ -170,7 +211,8 @@ export function applyStudioTreatments(
   const intrinsic = parseSvgIntrinsicSize(svg);
   let width: number = options.width ?? intrinsic?.w ?? Number.NaN;
   let height: number = options.height ?? intrinsic?.h ?? Number.NaN;
-  if (!(width > 0) || !(height > 0)) throw new StudioTreatmentError("treated SVG needs an intrinsic viewBox/size or explicit width and height");
+  if (!(width > 0) || !(height > 0))
+    throw new StudioTreatmentError("treated SVG needs an intrinsic viewBox/size or explicit width and height");
   let current = svg;
 
   plan.treatments.forEach((treatment, index) => {
@@ -178,18 +220,33 @@ export function applyStudioTreatments(
     const token = `st${index}_`;
     current = namespaceEmbeddedAnimatedSvg(current, token);
     if (treatment.kind === "device-frame") {
-      const framed = wrapInDeviceChrome(current, treatment.device, width, height, { label: treatment.label, theme: treatment.theme });
-      current = framed.svg; width = framed.width; height = framed.height;
+      const framed = wrapInDeviceChrome(current, treatment.device, width, height, {
+        label: treatment.label,
+        theme: treatment.theme,
+      });
+      current = framed.svg;
+      width = framed.width;
+      height = framed.height;
       return;
     }
     if (treatment.kind === "browser-chrome") {
-      const framed = wrapInDeviceChrome(current, "browser", width, height, { label: treatment.label, theme: treatment.theme });
-      current = framed.svg; width = framed.width; height = framed.height;
+      const framed = wrapInDeviceChrome(current, "browser", width, height, {
+        label: treatment.label,
+        theme: treatment.theme,
+      });
+      current = framed.svg;
+      width = framed.width;
+      height = framed.height;
       return;
     }
     if (treatment.kind === "terminal-chrome") {
-      const framed = wrapInDeviceChrome(current, "window", width, height, { label: treatment.title, theme: treatment.theme });
-      current = framed.svg; width = framed.width; height = framed.height;
+      const framed = wrapInDeviceChrome(current, "window", width, height, {
+        label: treatment.title,
+        theme: treatment.theme,
+      });
+      current = framed.svg;
+      width = framed.width;
+      height = framed.height;
       return;
     }
 
@@ -201,7 +258,13 @@ export function applyStudioTreatments(
       const ox = origin?.x ?? width / 2;
       const oy = origin?.y ?? height / 2;
       const style = `@keyframes ${animation}{from{transform:translate(${from.x}px,${from.y}px) scale(${from.scale})}to{transform:translate(${to.x}px,${to.y}px) scale(${to.scale})}}`;
-      current = wrap(width, height, `<g style="transform-origin:${ox}px ${oy}px;${animationStyle(animation, timing)}">${nested}</g>`, "", style);
+      current = wrap(
+        width,
+        height,
+        `<g style="transform-origin:${ox}px ${oy}px;${animationStyle(animation, timing)}">${nested}</g>`,
+        "",
+        style,
+      );
       return;
     }
     if (treatment.kind === "spotlight") {
@@ -234,7 +297,10 @@ export function applyStudioTreatments(
       const anchor = treatment.align === "center" ? "middle" : "start";
       const x = treatment.align === "center" ? width / 2 : Math.max(40, width * 0.08);
       const style = `@keyframes ${animation}{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}`;
-      const subtitle = treatment.subtitle == null ? "" : `<text x="${x}" y="${height / 2 + 42}" text-anchor="${anchor}" fill="${escapeXml(color)}" opacity=".72" font-family="system-ui,sans-serif" font-size="22">${escapeXml(treatment.subtitle)}</text>`;
+      const subtitle =
+        treatment.subtitle == null
+          ? ""
+          : `<text x="${x}" y="${height / 2 + 42}" text-anchor="${anchor}" fill="${escapeXml(color)}" opacity=".72" font-family="system-ui,sans-serif" font-size="22">${escapeXml(treatment.subtitle)}</text>`;
       const overlay = `<g style="${animationStyle(animation, timing)}"><rect width="${width}" height="${height}" fill="${escapeXml(backgroundPaint.fill)}"/><rect x="${x - (treatment.align === "center" ? 36 : 0)}" y="${height / 2 - 54}" width="72" height="5" rx="2.5" fill="${escapeXml(accent)}"/><text x="${x}" y="${height / 2}" text-anchor="${anchor}" fill="${escapeXml(color)}" font-family="system-ui,sans-serif" font-size="44" font-weight="700">${escapeXml(treatment.title)}</text>${subtitle}</g>`;
       current = wrap(width, height, nested, overlay, style, backgroundPaint.defs);
       return;

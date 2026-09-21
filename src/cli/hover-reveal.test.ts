@@ -47,16 +47,32 @@ describe("expandHoverReveal (DM-1562)", () => {
     // A long rest hold → the move starts late enough to arrive at the hold's end
     // (duration − the 400ms glide). This is per-frame, so any real config gets
     // correct arrival timing, not just the demos.
-    const long = expandHoverReveal(make({ frames: [{ input: "./x.html", duration: 2000, hoverReveal: { selector: ".b" } }] }));
+    const long = expandHoverReveal(
+      make({ frames: [{ input: "./x.html", duration: 2000, hoverReveal: { selector: ".b" } }] }),
+    );
     expect(long.cursor).toEqual({ events: [{ frame: 0, at: 1600, type: "move", selector: ".b" }] });
     // A hold shorter than the glide clamps to 0 (start gliding immediately).
-    const short = expandHoverReveal(make({ frames: [{ input: "./x.html", duration: 300, hoverReveal: { selector: ".b" } }] }));
+    const short = expandHoverReveal(
+      make({ frames: [{ input: "./x.html", duration: 300, hoverReveal: { selector: ".b" } }] }),
+    );
     expect(short.cursor).toEqual({ events: [{ frame: 0, at: 0, type: "move", selector: ".b" }] });
   });
 
   it("honors crossfadeMs / hoverMs / states / cursor:false overrides", () => {
     const cfg = make({
-      frames: [{ input: "./card.html", duration: 1000, hoverReveal: { selector: "#f", states: ["focus", "focus-visible"], crossfadeMs: 250, hoverMs: 2000, cursor: false } }],
+      frames: [
+        {
+          input: "./card.html",
+          duration: 1000,
+          hoverReveal: {
+            selector: "#f",
+            states: ["focus", "focus-visible"],
+            crossfadeMs: 250,
+            hoverMs: 2000,
+            cursor: false,
+          },
+        },
+      ],
     });
     const out = expandHoverReveal(cfg);
     expect(out.frames[0].transition).toEqual({ type: "crossfade", duration: 250 });
@@ -68,7 +84,12 @@ describe("expandHoverReveal (DM-1562)", () => {
   it("carries the frame's own transition out of the reveal pair", () => {
     const cfg = make({
       frames: [
-        { input: "./a.html", duration: 1000, hoverReveal: { selector: ".cta" }, transition: { type: "push-left", duration: 300 } },
+        {
+          input: "./a.html",
+          duration: 1000,
+          hoverReveal: { selector: ".cta" },
+          transition: { type: "push-left", duration: 300 },
+        },
         { input: "./b.html", duration: 800 },
       ],
     });
@@ -101,32 +122,56 @@ describe("expandHoverReveal (DM-1562)", () => {
 
 describe("hoverReveal / hoverDetect validation (DM-1562 / DM-1563)", () => {
   it("accepts a hoverReveal frame", () => {
-    expect(() => make({ frames: [{ input: "./x.html", duration: 1000, hoverReveal: { selector: ".cta" } }] })).not.toThrow();
+    expect(() =>
+      make({ frames: [{ input: "./x.html", duration: 1000, hoverReveal: { selector: ".cta" } }] }),
+    ).not.toThrow();
   });
 
   it("rejects hoverReveal combined with forceState", () => {
     expect(() =>
-      make({ frames: [{ input: "./x.html", duration: 1000, hoverReveal: { selector: ".cta" }, forceState: [{ selector: ".cta", states: ["hover"] }] }] }),
+      make({
+        frames: [
+          {
+            input: "./x.html",
+            duration: 1000,
+            hoverReveal: { selector: ".cta" },
+            forceState: [{ selector: ".cta", states: ["hover"] }],
+          },
+        ],
+      }),
     ).toThrow(/hoverReveal.*forceState/i);
   });
 
   it("rejects hoverReveal on a template frame", () => {
-    expect(() => make({ frames: [{ template: "lower-third", duration: 1000, hoverReveal: { selector: ".cta" } }] })).toThrow(/hoverReveal.*cast.*template/i);
+    expect(() =>
+      make({ frames: [{ template: "lower-third", duration: 1000, hoverReveal: { selector: ".cta" } }] }),
+    ).toThrow(/hoverReveal.*cast.*template/i);
   });
 
   it("rejects hoverReveal and hoverDetect on the same frame", () => {
     expect(() =>
-      make({ frames: [{ input: "./x.html", duration: 1000, hoverReveal: { selector: ".a" }, hoverDetect: { selector: ".a" } }] }),
+      make({
+        frames: [
+          { input: "./x.html", duration: 1000, hoverReveal: { selector: ".a" }, hoverDetect: { selector: ".a" } },
+        ],
+      }),
     ).toThrow(/hoverReveal.*hoverDetect|both/i);
   });
 
   it("rejects hoverDetect on a continue frame (needs an input to probe)", () => {
     expect(() =>
-      make({ frames: [{ input: "./x.html", duration: 1000 }, { continue: true, duration: 1000, hoverDetect: { selector: ".a" } }] }),
+      make({
+        frames: [
+          { input: "./x.html", duration: 1000 },
+          { continue: true, duration: 1000, hoverDetect: { selector: ".a" } },
+        ],
+      }),
     ).toThrow(/hoverDetect.*requires an .input/i);
   });
 
   it("accepts a hoverDetect frame with an input", () => {
-    expect(() => make({ frames: [{ input: "./x.html", duration: 1000, hoverDetect: { selector: ".cta" } }] })).not.toThrow();
+    expect(() =>
+      make({ frames: [{ input: "./x.html", duration: 1000, hoverDetect: { selector: ".cta" } }] }),
+    ).not.toThrow();
   });
 });

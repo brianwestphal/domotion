@@ -32,15 +32,18 @@ describe("CoreText design-outline eligibility (DM-2567)", () => {
     ["static source", { ...exactSource, variationAxes: null }, "darwin", "static-source"],
     ["unknown collection member", { ...exactSource, faceIndex: null }, "darwin", "face-index-unknown"],
     ["unmatched face", { ...exactSource, nameMatched: false }, "darwin", "face-name-unmatched"],
-    ["unnamed nonzero member", { ...exactSource, postscriptName: undefined, faceIndex: 2 }, "darwin", "face-reopen-unaddressable"],
+    [
+      "unnamed nonzero member",
+      { ...exactSource, postscriptName: undefined, faceIndex: 2 },
+      "darwin",
+      "face-reopen-unaddressable",
+    ],
   ] as const)("classifies %s without widening the native route", (_label, source, platform, expected) => {
     expect(coreTextDesignOutlineEligibility(source, platform)).toBe(expected);
   });
 });
 
-const macHelperAvailable = process.platform === "darwin"
-  && existsSync(SFNS)
-  && isGlyphHelperAvailable();
+const macHelperAvailable = process.platform === "darwin" && existsSync(SFNS) && isGlyphHelperAvailable();
 const describeMacHelper = macHelperAvailable ? describe : describe.skip;
 
 describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
@@ -52,7 +55,10 @@ describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
       __clearGlyphFallbackCaches();
 
       const iteration: { base: unknown[]; mutation: unknown[] } = { base: [], mutation: [] };
-      for (const [label, axes] of [["base", BASE_AXES], ["mutation", MUTATION_AXES]] as const) {
+      for (const [label, axes] of [
+        ["base", BASE_AXES],
+        ["mutation", MUTATION_AXES],
+      ] as const) {
         const font = getFontInstance("sf-pro", 700, 13, 0, axes, 100, true);
         expect(font, `${label} font`).not.toBeNull();
         const source = getFontSourceInfo(font);
@@ -69,29 +75,15 @@ describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
         const layout = font!.layout(TEXT);
         const nativeLayout = native!.layout(TEXT);
         expect(layout.glyphs).toHaveLength([...TEXT].length);
-        expect(layout.glyphs.map((glyph) => glyph.id)).toEqual(
-          nativeLayout.glyphs.map((glyph) => glyph.id),
-        );
+        expect(layout.glyphs.map((glyph) => glyph.id)).toEqual(nativeLayout.glyphs.map((glyph) => glyph.id));
         expect(layout.glyphs.every((glyph) => glyph.id !== 0)).toBe(true);
 
-        const cold = layout.glyphs.map((glyph, index) => resolveGlyphCommands(
-          glyph,
-          "sf-pro",
-          700,
-          13,
-          0,
-          [TEXT.codePointAt(index)!],
-          font!,
-        ));
-        const warm = layout.glyphs.map((glyph, index) => resolveGlyphCommands(
-          glyph,
-          "sf-pro",
-          700,
-          13,
-          0,
-          [TEXT.codePointAt(index)!],
-          font!,
-        ));
+        const cold = layout.glyphs.map((glyph, index) =>
+          resolveGlyphCommands(glyph, "sf-pro", 700, 13, 0, [TEXT.codePointAt(index)!], font!),
+        );
+        const warm = layout.glyphs.map((glyph, index) =>
+          resolveGlyphCommands(glyph, "sf-pro", 700, 13, 0, [TEXT.codePointAt(index)!], font!),
+        );
         const expected = layout.glyphs.map((glyph) => native!.getGlyph(glyph.id).path.commands);
 
         expect(cold.map((result) => result.disposition)).toEqual(Array(6).fill("helper-outline"));

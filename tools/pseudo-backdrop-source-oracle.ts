@@ -30,16 +30,26 @@ export const PSEUDO_BACKDROP_SOURCE_PINS = {
 } as const;
 
 export const PSEUDO_BACKDROP_REQUIRED_STATES = [
-  "active", "none", "hidden", "empty",
-  "before", "after", "checkmark",
-  "positioned", "negative", "positive",
-  "ancestor-root", "zoom", "nested", "overlapping",
+  "active",
+  "none",
+  "hidden",
+  "empty",
+  "before",
+  "after",
+  "checkmark",
+  "positioned",
+  "negative",
+  "positive",
+  "ancestor-root",
+  "zoom",
+  "nested",
+  "overlapping",
 ] as const;
 
 export const PSEUDO_BACKDROP_THRESHOLDS = {
   sourceMeanAbsoluteChannelDelta: 7,
   changedPixelChannel: 4,
-  mutationMinChangedFraction: .002,
+  mutationMinChangedFraction: 0.002,
   mutationMinChannelDelta: 16,
 } as const;
 
@@ -79,7 +89,7 @@ export const PSEUDO_BACKDROP_VIEWPORT = {
 } as const;
 
 function cell(spec: CaseSpec, index: number): string {
-  const style = `left:${index % COLUMNS * CELL_WIDTH}px;top:${Math.floor(index / COLUMNS) * CELL_HEIGHT}px`;
+  const style = `left:${(index % COLUMNS) * CELL_WIDTH}px;top:${Math.floor(index / COLUMNS) * CELL_HEIGHT}px`;
   if (spec.id === "checkmark") {
     return `<section class="case case-${spec.id}" style="${style}"><div class="under"></div><input id="${spec.id}" data-domotion-anim="${spec.id}" type="checkbox" checked></section>`;
   }
@@ -126,7 +136,12 @@ export function pseudoBackdropFixtureHtml(): string {
   </main></body></html>`;
 }
 
-interface DecodedImage { width: number; height: number; channels: number; data: Buffer }
+interface DecodedImage {
+  width: number;
+  height: number;
+  channels: number;
+  data: Buffer;
+}
 export interface PseudoBackdropPixelComparison {
   pixels: number;
   changedPixels: number;
@@ -154,18 +169,19 @@ export function comparePseudoBackdropRegion(
   let changedPixels = 0;
   let sum = 0;
   let maximum = 0;
-  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-    const offset = (y * left.width + x) * left.channels;
-    let pixelMax = 0;
-    for (let channel = 0; channel < 4; channel++) {
-      const delta = Math.abs(left.data[offset + channel] - right.data[offset + channel]);
-      sum += delta;
-      maximum = Math.max(maximum, delta);
-      pixelMax = Math.max(pixelMax, delta);
+  for (let y = y0; y < y1; y++)
+    for (let x = x0; x < x1; x++) {
+      const offset = (y * left.width + x) * left.channels;
+      let pixelMax = 0;
+      for (let channel = 0; channel < 4; channel++) {
+        const delta = Math.abs(left.data[offset + channel] - right.data[offset + channel]);
+        sum += delta;
+        maximum = Math.max(maximum, delta);
+        pixelMax = Math.max(pixelMax, delta);
+      }
+      if (pixelMax > PSEUDO_BACKDROP_THRESHOLDS.changedPixelChannel) changedPixels++;
+      pixels++;
     }
-    if (pixelMax > PSEUDO_BACKDROP_THRESHOLDS.changedPixelChannel) changedPixels++;
-    pixels++;
-  }
   return {
     pixels,
     changedPixels,
@@ -176,8 +192,10 @@ export function comparePseudoBackdropRegion(
 }
 
 function mutationDiscriminates(comparison: PseudoBackdropPixelComparison): boolean {
-  return comparison.changedFraction >= PSEUDO_BACKDROP_THRESHOLDS.mutationMinChangedFraction
-    && comparison.maxChannelDelta >= PSEUDO_BACKDROP_THRESHOLDS.mutationMinChannelDelta;
+  return (
+    comparison.changedFraction >= PSEUDO_BACKDROP_THRESHOLDS.mutationMinChangedFraction &&
+    comparison.maxChannelDelta >= PSEUDO_BACKDROP_THRESHOLDS.mutationMinChannelDelta
+  );
 }
 
 function flatten(tree: CapturedElement[]): CapturedElement[] {
@@ -194,29 +212,44 @@ function pseudoRecords(tree: CapturedElement[]): CapturedPseudoFragmentSet[] {
 
 async function replaceWithFinalCrops(tree: CapturedElement[], source: Buffer, dpr: number): Promise<void> {
   const metadata = await sharp(source).metadata();
-  await Promise.all(pseudoRecords(tree).flatMap((record) => {
-    const raster = record.backdropFilterRaster;
-    if (raster == null) return [];
-    const left = Math.max(0, Math.floor(raster.rect.x * dpr));
-    const top = Math.max(0, Math.floor(raster.rect.y * dpr));
-    const right = Math.min(metadata.width ?? 0, Math.ceil((raster.rect.x + raster.rect.width) * dpr));
-    const bottom = Math.min(metadata.height ?? 0, Math.ceil((raster.rect.y + raster.rect.height) * dpr));
-    if (right <= left || bottom <= top) return [];
-    return [sharp(source).extract({ left, top, width: right - left, height: bottom - top }).png().toBuffer()
-      .then((png) => { raster.dataUri = `data:image/png;base64,${png.toString("base64")}`; })];
-  }));
+  await Promise.all(
+    pseudoRecords(tree).flatMap((record) => {
+      const raster = record.backdropFilterRaster;
+      if (raster == null) return [];
+      const left = Math.max(0, Math.floor(raster.rect.x * dpr));
+      const top = Math.max(0, Math.floor(raster.rect.y * dpr));
+      const right = Math.min(metadata.width ?? 0, Math.ceil((raster.rect.x + raster.rect.width) * dpr));
+      const bottom = Math.min(metadata.height ?? 0, Math.ceil((raster.rect.y + raster.rect.height) * dpr));
+      if (right <= left || bottom <= top) return [];
+      return [
+        sharp(source)
+          .extract({ left, top, width: right - left, height: bottom - top })
+          .png()
+          .toBuffer()
+          .then((png) => {
+            raster.dataUri = `data:image/png;base64,${png.toString("base64")}`;
+          }),
+      ];
+    }),
+  );
 }
 
 async function renderSvg(page: Page, svg: string): Promise<Buffer> {
   const uri = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-  await page.setContent(`<!doctype html><style>html,body{margin:0;background:transparent}img{display:block;width:${PSEUDO_BACKDROP_VIEWPORT.width}px;height:${PSEUDO_BACKDROP_VIEWPORT.height}px}</style><img id="render" src="${uri}">`);
+  await page.setContent(
+    `<!doctype html><style>html,body{margin:0;background:transparent}img{display:block;width:${PSEUDO_BACKDROP_VIEWPORT.width}px;height:${PSEUDO_BACKDROP_VIEWPORT.height}px}</style><img id="render" src="${uri}">`,
+  );
   await page.locator("#render").evaluate((image) => (image as HTMLImageElement).decode());
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  return Buffer.from(await page.screenshot({
-    clip: { x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height },
-    omitBackground: true,
-    type: "png",
-  }));
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  return Buffer.from(
+    await page.screenshot({
+      clip: { x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height },
+      omitBackground: true,
+      type: "png",
+    }),
+  );
 }
 
 export interface PseudoBackdropOracleRow {
@@ -263,19 +296,27 @@ export async function runPseudoBackdropSourceOracle(
       const renderPage = await context.newPage();
       try {
         await sourcePage.setContent(pseudoBackdropFixtureHtml(), { waitUntil: "load" });
-        await sourcePage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-        const source = Buffer.from(await sourcePage.screenshot({
-          clip: { x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height },
-          omitBackground: true,
-          type: "png",
-        }));
+        await sourcePage.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
+        const source = Buffer.from(
+          await sourcePage.screenshot({
+            clip: { x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height },
+            omitBackground: true,
+            type: "png",
+          }),
+        );
         const capture = await captureElementTreeWithWarnings(sourcePage, "#stage", {
-          x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height,
+          x: 0,
+          y: 0,
+          width: PSEUDO_BACKDROP_VIEWPORT.width,
+          height: PSEUDO_BACKDROP_VIEWPORT.height,
         });
         warnings.push(...capture.warnings.map((warning) => `DPR${dpr}:${JSON.stringify(warning)}`));
         const svg = elementTreeToSvg(capture.tree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
         const underTree = structuredClone(capture.tree);
-        for (const record of pseudoRecords(underTree)) if (record.backdropFilterRaster != null) record.backdropFilterRaster.dataUri = undefined;
+        for (const record of pseudoRecords(underTree))
+          if (record.backdropFilterRaster != null) record.backdropFilterRaster.dataUri = undefined;
         const underSvg = elementTreeToSvg(underTree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
         const overTree = structuredClone(capture.tree);
         await replaceWithFinalCrops(overTree, source, dpr);
@@ -284,7 +325,10 @@ export async function runPseudoBackdropSourceOracle(
         const under = await renderSvg(renderPage, underSvg);
         const over = await renderSvg(renderPage, overSvg);
         const [sourceImage, renderedImage, underImage, overImage] = await Promise.all([
-          decode(source), decode(rendered), decode(under), decode(over),
+          decode(source),
+          decode(rendered),
+          decode(under),
+          decode(over),
         ]);
 
         for (const spec of PSEUDO_BACKDROP_CASES) {
@@ -295,25 +339,39 @@ export async function runPseudoBackdropSourceOracle(
           const expectedRasterOwners = spec.active ? 1 : 0;
           const actualSlot = record == null ? null : pseudoFragmentPaintSlot(record);
           const rect = raster?.rect ?? record?.boxFragments[0]?.physicalRect ?? null;
-          const sourceVsRendered = rect == null ? null : comparePseudoBackdropRegion(sourceImage, renderedImage, rect, dpr);
-          const underComparison = rect == null ? null : comparePseudoBackdropRegion(renderedImage, underImage, rect, dpr);
+          const sourceVsRendered =
+            rect == null ? null : comparePseudoBackdropRegion(sourceImage, renderedImage, rect, dpr);
+          const underComparison =
+            rect == null ? null : comparePseudoBackdropRegion(renderedImage, underImage, rect, dpr);
           const overComparison = rect == null ? null : comparePseudoBackdropRegion(renderedImage, overImage, rect, dpr);
           const recordMarkup = record == null ? "" : renderPseudoFragmentRecord(record, { imageHref: (url) => url });
           const rasterAt = raster?.dataUri == null ? -1 : recordMarkup.indexOf(raster.dataUri);
-          const backdropOwnerAt = raster?.dataUri == null ? -1 : recordMarkup.lastIndexOf("data-domotion-pseudo-backdrop-owner", rasterAt);
-          const vectorAt = backdropOwnerAt < 0 ? -1 : recordMarkup.indexOf("data-domotion-pseudo-vector-owner", rasterAt);
+          const backdropOwnerAt =
+            raster?.dataUri == null ? -1 : recordMarkup.lastIndexOf("data-domotion-pseudo-backdrop-owner", rasterAt);
+          const vectorAt =
+            backdropOwnerAt < 0 ? -1 : recordMarkup.indexOf("data-domotion-pseudo-vector-owner", rasterAt);
           const findings: string[] = [];
           if (record == null && spec.id !== "empty") findings.push("missing source-owned pseudo record");
-          if (actualSlot != null && actualSlot !== spec.slot) findings.push(`slot ${actualSlot}, expected ${spec.slot}`);
-          if (actualRasterOwners !== expectedRasterOwners) findings.push(`serialized ${actualRasterOwners}/${expectedRasterOwners} pseudo backdrop owners`);
+          if (actualSlot != null && actualSlot !== spec.slot)
+            findings.push(`slot ${actualSlot}, expected ${spec.slot}`);
+          if (actualRasterOwners !== expectedRasterOwners)
+            findings.push(`serialized ${actualRasterOwners}/${expectedRasterOwners} pseudo backdrop owners`);
           if (host?.backdropFilterRaster != null) findings.push("backdrop was flattened onto the host");
-          if (spec.active && sourceVsRendered != null
-              && sourceVsRendered.meanAbsoluteChannelDelta > PSEUDO_BACKDROP_THRESHOLDS.sourceMeanAbsoluteChannelDelta) {
-            findings.push(`source/render drift ${sourceVsRendered.changedFraction.toFixed(4)} changed, ${sourceVsRendered.meanAbsoluteChannelDelta.toFixed(3)} mean delta`);
+          if (
+            spec.active &&
+            sourceVsRendered != null &&
+            sourceVsRendered.meanAbsoluteChannelDelta > PSEUDO_BACKDROP_THRESHOLDS.sourceMeanAbsoluteChannelDelta
+          ) {
+            findings.push(
+              `source/render drift ${sourceVsRendered.changedFraction.toFixed(4)} changed, ${sourceVsRendered.meanAbsoluteChannelDelta.toFixed(3)} mean delta`,
+            );
           }
-          if (spec.active && (underComparison == null || !mutationDiscriminates(underComparison))) findings.push("under-capture mutation was inert");
-          if (spec.active && (overComparison == null || !mutationDiscriminates(overComparison))) findings.push("final-composite over-capture mutation was inert");
-          if (spec.active && !(backdropOwnerAt >= 0 && vectorAt > rasterAt)) findings.push("pseudo vector did not follow its backdrop boundary");
+          if (spec.active && (underComparison == null || !mutationDiscriminates(underComparison)))
+            findings.push("under-capture mutation was inert");
+          if (spec.active && (overComparison == null || !mutationDiscriminates(overComparison)))
+            findings.push("final-composite over-capture mutation was inert");
+          if (spec.active && !(backdropOwnerAt >= 0 && vectorAt > rasterAt))
+            findings.push("pseudo vector did not follow its backdrop boundary");
           rows.push({
             id: spec.id,
             pseudo: spec.pseudo,
@@ -324,8 +382,16 @@ export async function runPseudoBackdropSourceOracle(
             actualRasterOwners,
             noHostWideRaster: host?.backdropFilterRaster == null,
             sourceVsRendered,
-            underCapture: { applicable: spec.active, comparison: underComparison, discriminated: spec.active && underComparison != null && mutationDiscriminates(underComparison) },
-            overCapture: { applicable: spec.active, comparison: overComparison, discriminated: spec.active && overComparison != null && mutationDiscriminates(overComparison) },
+            underCapture: {
+              applicable: spec.active,
+              comparison: underComparison,
+              discriminated: spec.active && underComparison != null && mutationDiscriminates(underComparison),
+            },
+            overCapture: {
+              applicable: spec.active,
+              comparison: overComparison,
+              discriminated: spec.active && overComparison != null && mutationDiscriminates(overComparison),
+            },
             rasterBeforeVector: spec.active ? backdropOwnerAt >= 0 && vectorAt > rasterAt : null,
             findings,
             pass: findings.length === 0,
@@ -352,7 +418,8 @@ export async function runPseudoBackdropSourceOracle(
 
   for (const dpr of dprs) {
     const states = new Set(PSEUDO_BACKDROP_CASES.flatMap((spec) => spec.states));
-    for (const state of PSEUDO_BACKDROP_REQUIRED_STATES) if (!states.has(state)) blockers.push(`DPR${dpr}:missing state ${state}`);
+    for (const state of PSEUDO_BACKDROP_REQUIRED_STATES)
+      if (!states.has(state)) blockers.push(`DPR${dpr}:missing state ${state}`);
   }
   blockers.push(...warnings.filter((warning) => warning.includes("backdrop")));
   blockers.push(...rows.filter((row) => !row.pass).map((row) => `DPR${row.dpr}:${row.id}:${row.findings.join("; ")}`));
@@ -374,7 +441,13 @@ async function main(): Promise<void> {
   const dprAt = args.indexOf("--dpr");
   const jsonAt = args.indexOf("--json");
   const artifactAt = args.indexOf("--artifact-dir");
-  const dprs = dprAt < 0 ? [1, 2] : args[dprAt + 1].split(",").map(Number).filter((value) => value > 0 && Number.isFinite(value));
+  const dprs =
+    dprAt < 0
+      ? [1, 2]
+      : args[dprAt + 1]
+          .split(",")
+          .map(Number)
+          .filter((value) => value > 0 && Number.isFinite(value));
   const jsonPath = jsonAt < 0 ? undefined : args[jsonAt + 1];
   const artifactDir = artifactAt < 0 ? undefined : args[artifactAt + 1];
   const report = await runPseudoBackdropSourceOracle(dprs, artifactDir);

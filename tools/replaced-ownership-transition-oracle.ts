@@ -7,13 +7,7 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 import sharp from "sharp";
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type Page,
-  type Route,
-} from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page, type Route } from "playwright";
 
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
@@ -145,19 +139,20 @@ async function colorRectFromPng(
       // Skia anti-aliases a fractional/scaled box against the white fixture;
       // a strict RGB equality scan moves the observed edge inward by a whole
       // device pixel and makes a correct Blink physical quad look 1.5px late.
-      const targetDistance = (data[offset] - rgb[0]) ** 2
-        + (data[offset + 1] - rgb[1]) ** 2
-        + (data[offset + 2] - rgb[2]) ** 2;
-      const whiteDistance = (data[offset] - 255) ** 2
-        + (data[offset + 1] - 255) ** 2
-        + (data[offset + 2] - 255) ** 2;
+      const targetDistance =
+        (data[offset] - rgb[0]) ** 2 + (data[offset + 1] - rgb[1]) ** 2 + (data[offset + 2] - rgb[2]) ** 2;
+      const whiteDistance = (data[offset] - 255) ** 2 + (data[offset + 1] - 255) ** 2 + (data[offset + 2] - 255) ** 2;
       if (targetDistance > whiteDistance) continue;
-      if (competingColors.some((candidate) => {
-        const candidateDistance = (data[offset] - candidate[0]) ** 2
-          + (data[offset + 1] - candidate[1]) ** 2
-          + (data[offset + 2] - candidate[2]) ** 2;
-        return candidateDistance < targetDistance;
-      })) continue;
+      if (
+        competingColors.some((candidate) => {
+          const candidateDistance =
+            (data[offset] - candidate[0]) ** 2 +
+            (data[offset + 1] - candidate[1]) ** 2 +
+            (data[offset + 2] - candidate[2]) ** 2;
+          return candidateDistance < targetDistance;
+        })
+      )
+        continue;
       mask[y * info.width + x] = 1;
     }
   }
@@ -232,17 +227,121 @@ interface ObjectCase {
 }
 
 const OBJECT_CASES: readonly ObjectCase[] = [
-  { id: "fill", pairId: "object.fit-mode", pairRole: "fill", fit: "fill", position: "50% 50%", intrinsic: { width: 80, height: 40 }, width: 200, height: 120 },
-  { id: "contain", pairId: "object.fit-mode", pairRole: "contain", fit: "contain", position: "25% 75%", intrinsic: { width: 80, height: 40 }, width: 200, height: 120 },
-  { id: "cover", pairId: "object.fit-mode", pairRole: "cover", fit: "cover", position: "calc(100% - 10px) calc(100% - 20px)", intrinsic: { width: 80, height: 40 }, width: 200, height: 120 },
-  { id: "none", pairId: "object.fit-mode", pairRole: "none", fit: "none", position: "right 10px bottom 20px", intrinsic: { width: 80, height: 40 }, width: 200, height: 120 },
-  { id: "scale-down-large", pairId: "object.fit-mode", pairRole: "scale-down-contain", fit: "scale-down", position: "30% 80%", intrinsic: { width: 320, height: 180 }, width: 200, height: 120 },
-  { id: "intrinsic-landscape", pairId: "object.intrinsic-dimensions", pairRole: "landscape", fit: "contain", position: "50% 50%", intrinsic: { width: 160, height: 60 }, width: 200, height: 120 },
-  { id: "intrinsic-portrait", pairId: "object.intrinsic-dimensions", pairRole: "portrait", fit: "contain", position: "50% 50%", intrinsic: { width: 60, height: 160 }, width: 200, height: 120 },
-  { id: "zoom-1", pairId: "object.effective-zoom", pairRole: "1x", fit: "none", position: "50% 50%", intrinsic: { width: 80, height: 40 }, width: 200, height: 120, zoom: 1 },
-  { id: "zoom-1_25", pairId: "object.effective-zoom", pairRole: "1.25x", fit: "none", position: "50% 50%", intrinsic: { width: 80, height: 40 }, width: 200, height: 120, zoom: 1.25 },
-  { id: "vertical-rtl", pairId: "object.axis-position", pairRole: "vertical-rtl", fit: "contain", position: "right 13px bottom 9px", intrinsic: { width: 80, height: 40 }, width: 200, height: 120, writingMode: "vertical-rl", direction: "rtl" },
-  { id: "fractional-calc", pairId: "object.axis-position", pairRole: "fractional-calc", fit: "none", position: "calc(37% + 4.25px) calc(63% - 2.5px)", intrinsic: { width: 91, height: 53 }, width: 201.5, height: 119.25, fractional: true },
+  {
+    id: "fill",
+    pairId: "object.fit-mode",
+    pairRole: "fill",
+    fit: "fill",
+    position: "50% 50%",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "contain",
+    pairId: "object.fit-mode",
+    pairRole: "contain",
+    fit: "contain",
+    position: "25% 75%",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "cover",
+    pairId: "object.fit-mode",
+    pairRole: "cover",
+    fit: "cover",
+    position: "calc(100% - 10px) calc(100% - 20px)",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "none",
+    pairId: "object.fit-mode",
+    pairRole: "none",
+    fit: "none",
+    position: "right 10px bottom 20px",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "scale-down-large",
+    pairId: "object.fit-mode",
+    pairRole: "scale-down-contain",
+    fit: "scale-down",
+    position: "30% 80%",
+    intrinsic: { width: 320, height: 180 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "intrinsic-landscape",
+    pairId: "object.intrinsic-dimensions",
+    pairRole: "landscape",
+    fit: "contain",
+    position: "50% 50%",
+    intrinsic: { width: 160, height: 60 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "intrinsic-portrait",
+    pairId: "object.intrinsic-dimensions",
+    pairRole: "portrait",
+    fit: "contain",
+    position: "50% 50%",
+    intrinsic: { width: 60, height: 160 },
+    width: 200,
+    height: 120,
+  },
+  {
+    id: "zoom-1",
+    pairId: "object.effective-zoom",
+    pairRole: "1x",
+    fit: "none",
+    position: "50% 50%",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+    zoom: 1,
+  },
+  {
+    id: "zoom-1_25",
+    pairId: "object.effective-zoom",
+    pairRole: "1.25x",
+    fit: "none",
+    position: "50% 50%",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+    zoom: 1.25,
+  },
+  {
+    id: "vertical-rtl",
+    pairId: "object.axis-position",
+    pairRole: "vertical-rtl",
+    fit: "contain",
+    position: "right 13px bottom 9px",
+    intrinsic: { width: 80, height: 40 },
+    width: 200,
+    height: 120,
+    writingMode: "vertical-rl",
+    direction: "rtl",
+  },
+  {
+    id: "fractional-calc",
+    pairId: "object.axis-position",
+    pairRole: "fractional-calc",
+    fit: "none",
+    position: "calc(37% + 4.25px) calc(63% - 2.5px)",
+    intrinsic: { width: 91, height: 53 },
+    width: 201.5,
+    height: 119.25,
+    fractional: true,
+  },
 ];
 
 async function objectGeometryRows(context: BrowserContext, dpr: number): Promise<ReplacedOwnershipTransitionRow[]> {
@@ -252,12 +351,15 @@ async function objectGeometryRows(context: BrowserContext, dpr: number): Promise
     for (const test of OBJECT_CASES) {
       const src = imageSvg(test.intrinsic.width, test.intrinsic.height, "rgb(237,18,52)");
       const margin = test.fractional ? 30.25 : 30;
-      await page.setContent(`<!doctype html><style>
+      await page.setContent(
+        `<!doctype html><style>
         html,body{margin:0;background:white}
         img{display:block;margin:${margin}px;width:${test.width}px;height:${test.height}px;
           object-fit:${test.fit};object-position:${test.position};zoom:${test.zoom ?? 1};
           writing-mode:${test.writingMode ?? "horizontal-tb"};direction:${test.direction ?? "ltr"}}
-      </style><img src="${src}">`, { waitUntil: "load" });
+      </style><img src="${src}">`,
+        { waitUntil: "load" },
+      );
       await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
       const [png, browserFacts] = await Promise.all([
         page.screenshot({ type: "png" }),
@@ -288,9 +390,8 @@ async function objectGeometryRows(context: BrowserContext, dpr: number): Promise
         browserFacts.position,
       );
       const capturedGeometry = intersectRect(concrete, browserFacts.rect);
-      const maxDevicePixelDelta = sourcePixels == null
-        ? Number.POSITIVE_INFINITY
-        : rectDelta(sourcePixels, capturedGeometry) * dpr;
+      const maxDevicePixelDelta =
+        sourcePixels == null ? Number.POSITIVE_INFINITY : rectDelta(sourcePixels, capturedGeometry) * dpr;
       rows.push({
         id: `object.${test.id}`,
         family: "object-geometry",
@@ -299,7 +400,8 @@ async function objectGeometryRows(context: BrowserContext, dpr: number): Promise
         pairMode: "geometry-transition",
         expectedOwner: "vector-image",
         actualOwner: "vector-image",
-        source: "Chromium LayoutReplaced::ComputeObjectFitAndPositionRect + LayoutImage::GetNaturalDimensions(EffectiveZoom)",
+        source:
+          "Chromium LayoutReplaced::ComputeObjectFitAndPositionRect + LayoutImage::GetNaturalDimensions(EffectiveZoom)",
         facts: { ...browserFacts, sourcePixels, capturedGeometry },
         exactCapture: sourcePixels != null,
         maxDevicePixelDelta,
@@ -342,25 +444,139 @@ interface ControlCase {
 }
 
 const CONTROL_CASES: readonly ControlCase[] = [
-  { id: "checkbox-auto", pairId: "control.checkbox", pairRole: "native-auto", pairMode: "ownership-transition", expectedOwner: "whole-host-raster" },
-  { id: "checkbox-none", pairId: "control.checkbox", pairRole: "appearance-none", pairMode: "ownership-transition", expectedOwner: "structural-vector" },
-  { id: "checkbox-base", pairId: "control.checkbox", pairRole: "appearance-base", pairMode: "ownership-transition", expectedOwner: "generated-pseudo-vector" },
-  { id: "radio-auto", pairId: "control.radio", pairRole: "native-auto", pairMode: "ownership-transition", expectedOwner: "whole-host-raster" },
-  { id: "radio-none", pairId: "control.radio", pairRole: "appearance-none", pairMode: "ownership-transition", expectedOwner: "structural-vector" },
-  { id: "button-auto", pairId: "control.button", pairRole: "native-auto", pairMode: "ownership-transition", expectedOwner: "whole-host-raster" },
-  { id: "button-author", pairId: "control.button", pairRole: "author-background-border", pairMode: "ownership-transition", expectedOwner: "structural-vector" },
-  { id: "select-auto", pairId: "control.select", pairRole: "native-auto", pairMode: "ownership-transition", expectedOwner: "whole-host-raster" },
-  { id: "select-author", pairId: "control.select", pairRole: "menulist-button", pairMode: "ownership-transition", expectedOwner: "partial-decoration-raster" },
-  { id: "progress-auto", pairId: "control.progress", pairRole: "native-auto", pairMode: "ownership-transition", expectedOwner: "whole-host-raster" },
-  { id: "progress-author", pairId: "control.progress", pairRole: "author-track-value", pairMode: "ownership-transition", expectedOwner: "structural-vector" },
-  { id: "meter-auto", pairId: "control.meter", pairRole: "native-auto", pairMode: "ownership-transition", expectedOwner: "whole-host-raster" },
-  { id: "meter-author", pairId: "control.meter", pairRole: "author-bar-value", pairMode: "ownership-transition", expectedOwner: "structural-vector" },
-  { id: "accent-red", pairId: "control.accent-color", pairRole: "red", pairMode: "state-mutation", expectedOwner: "whole-host-raster" },
-  { id: "accent-blue", pairId: "control.accent-color", pairRole: "blue", pairMode: "state-mutation", expectedOwner: "whole-host-raster" },
-  { id: "scheme-light", pairId: "control.color-scheme", pairRole: "light", pairMode: "state-mutation", expectedOwner: "whole-host-raster" },
-  { id: "scheme-dark", pairId: "control.color-scheme", pairRole: "dark", pairMode: "state-mutation", expectedOwner: "whole-host-raster" },
-  { id: "zoom-checkbox", pairId: "control.axis-zoom", pairRole: "zoom-1.25", pairMode: "state-mutation", expectedOwner: "whole-host-raster" },
-  { id: "vertical-range", pairId: "control.axis-zoom", pairRole: "vertical-rl-rtl", pairMode: "state-mutation", expectedOwner: "whole-host-raster" },
+  {
+    id: "checkbox-auto",
+    pairId: "control.checkbox",
+    pairRole: "native-auto",
+    pairMode: "ownership-transition",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "checkbox-none",
+    pairId: "control.checkbox",
+    pairRole: "appearance-none",
+    pairMode: "ownership-transition",
+    expectedOwner: "structural-vector",
+  },
+  {
+    id: "checkbox-base",
+    pairId: "control.checkbox",
+    pairRole: "appearance-base",
+    pairMode: "ownership-transition",
+    expectedOwner: "generated-pseudo-vector",
+  },
+  {
+    id: "radio-auto",
+    pairId: "control.radio",
+    pairRole: "native-auto",
+    pairMode: "ownership-transition",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "radio-none",
+    pairId: "control.radio",
+    pairRole: "appearance-none",
+    pairMode: "ownership-transition",
+    expectedOwner: "structural-vector",
+  },
+  {
+    id: "button-auto",
+    pairId: "control.button",
+    pairRole: "native-auto",
+    pairMode: "ownership-transition",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "button-author",
+    pairId: "control.button",
+    pairRole: "author-background-border",
+    pairMode: "ownership-transition",
+    expectedOwner: "structural-vector",
+  },
+  {
+    id: "select-auto",
+    pairId: "control.select",
+    pairRole: "native-auto",
+    pairMode: "ownership-transition",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "select-author",
+    pairId: "control.select",
+    pairRole: "menulist-button",
+    pairMode: "ownership-transition",
+    expectedOwner: "partial-decoration-raster",
+  },
+  {
+    id: "progress-auto",
+    pairId: "control.progress",
+    pairRole: "native-auto",
+    pairMode: "ownership-transition",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "progress-author",
+    pairId: "control.progress",
+    pairRole: "author-track-value",
+    pairMode: "ownership-transition",
+    expectedOwner: "structural-vector",
+  },
+  {
+    id: "meter-auto",
+    pairId: "control.meter",
+    pairRole: "native-auto",
+    pairMode: "ownership-transition",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "meter-author",
+    pairId: "control.meter",
+    pairRole: "author-bar-value",
+    pairMode: "ownership-transition",
+    expectedOwner: "structural-vector",
+  },
+  {
+    id: "accent-red",
+    pairId: "control.accent-color",
+    pairRole: "red",
+    pairMode: "state-mutation",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "accent-blue",
+    pairId: "control.accent-color",
+    pairRole: "blue",
+    pairMode: "state-mutation",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "scheme-light",
+    pairId: "control.color-scheme",
+    pairRole: "light",
+    pairMode: "state-mutation",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "scheme-dark",
+    pairId: "control.color-scheme",
+    pairRole: "dark",
+    pairMode: "state-mutation",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "zoom-checkbox",
+    pairId: "control.axis-zoom",
+    pairRole: "zoom-1.25",
+    pairMode: "state-mutation",
+    expectedOwner: "whole-host-raster",
+  },
+  {
+    id: "vertical-range",
+    pairId: "control.axis-zoom",
+    pairRole: "vertical-rl-rtl",
+    pairMode: "state-mutation",
+    expectedOwner: "whole-host-raster",
+  },
 ];
 
 function controlFixture(): string {
@@ -415,20 +631,23 @@ async function nativeControlRows(context: BrowserContext): Promise<ReplacedOwner
       const element = byAnimId(captured.tree, test.id);
       const raster = element?.nativeControlRaster;
       const decoration = element?.nativeControlDecorationRaster;
-      const relevantWarnings = captured.warnings.filter((warning) => {
-        const requiredFeature = warning.feature === "native-control-raster"
-          || warning.feature === "native-control-decoration-raster"
-          || warning.feature === "effective-appearance-cascade"
-          || (test.expectedOwner === "generated-pseudo-vector"
-            && warning.feature === "generated-pseudo-fragment-geometry");
-        if (!requiredFeature) return false;
-        // Candidate-local warnings belong only to that source owner. A setup
-        // failure has a document/root selector and therefore remains global.
-        if (warning.feature === "generated-pseudo-fragment-geometry") {
-          return warning.selector.includes(`#${test.id}`);
-        }
-        return !warning.selector.includes("#") || warning.selector.includes(`#${test.id}`);
-      }).map((warning) => `${warning.selector}|${warning.feature}:${warning.detail}`);
+      const relevantWarnings = captured.warnings
+        .filter((warning) => {
+          const requiredFeature =
+            warning.feature === "native-control-raster" ||
+            warning.feature === "native-control-decoration-raster" ||
+            warning.feature === "effective-appearance-cascade" ||
+            (test.expectedOwner === "generated-pseudo-vector" &&
+              warning.feature === "generated-pseudo-fragment-geometry");
+          if (!requiredFeature) return false;
+          // Candidate-local warnings belong only to that source owner. A setup
+          // failure has a document/root selector and therefore remains global.
+          if (warning.feature === "generated-pseudo-fragment-geometry") {
+            return warning.selector.includes(`#${test.id}`);
+          }
+          return !warning.selector.includes("#") || warning.selector.includes(`#${test.id}`);
+        })
+        .map((warning) => `${warning.selector}|${warning.feature}:${warning.detail}`);
       return {
         id: `control.${test.id}`,
         family: "native-control",
@@ -438,18 +657,21 @@ async function nativeControlRows(context: BrowserContext): Promise<ReplacedOwner
         expectedOwner: test.expectedOwner,
         actualOwner: element == null ? "unpainted" : actualControlOwner(element),
         source: "Chromium LayoutTheme::AdjustAppearanceWithAuthorStyle + ThemePainter EffectiveAppearance dispatch",
-        facts: element == null ? { missing: true } : {
-          inputAppearance: element.styles.inputAppearance,
-          effectiveAppearance: element.styles.effectiveAppearance,
-          writingMode: element.styles.writingMode,
-          direction: element.styles.direction,
-          transform: element.styles.transform,
-          rasterSha256: raster?.dataUri == null ? null : sha256(raster.dataUri),
-          rasterEmpty: raster?.empty === true,
-          decorationKinds: decoration?.kinds ?? [],
-          decorationSha256: decoration?.dataUri == null ? null : sha256(decoration.dataUri),
-          pseudoStatuses: (element.pseudoFragments ?? []).map((record) => `${record.pseudo}:${record.status}`),
-        },
+        facts:
+          element == null
+            ? { missing: true }
+            : {
+                inputAppearance: element.styles.inputAppearance,
+                effectiveAppearance: element.styles.effectiveAppearance,
+                writingMode: element.styles.writingMode,
+                direction: element.styles.direction,
+                transform: element.styles.transform,
+                rasterSha256: raster?.dataUri == null ? null : sha256(raster.dataUri),
+                rasterEmpty: raster?.empty === true,
+                decorationKinds: decoration?.kinds ?? [],
+                decorationSha256: decoration?.dataUri == null ? null : sha256(decoration.dataUri),
+                pseudoStatuses: (element.pseudoFragments ?? []).map((record) => `${record.pseudo}:${record.status}`),
+              },
         exactCapture: element != null && controlExact(element, test.expectedOwner),
         unexpectedWarnings: relevantWarnings,
       };
@@ -464,7 +686,10 @@ async function nativeControlRows(context: BrowserContext): Promise<ReplacedOwner
     };
     markMutation("accent-blue", digest("accent-red") != null && digest("accent-red") !== digest("accent-blue"));
     markMutation("scheme-dark", digest("scheme-light") != null && digest("scheme-light") !== digest("scheme-dark"));
-    markMutation("vertical-range", digest("zoom-checkbox") != null && digest("zoom-checkbox") !== digest("vertical-range"));
+    markMutation(
+      "vertical-range",
+      digest("zoom-checkbox") != null && digest("zoom-checkbox") !== digest("vertical-range"),
+    );
     return rows;
   } finally {
     await page.close();
@@ -476,9 +701,13 @@ async function imageDecodingRows(context: BrowserContext): Promise<ReplacedOwner
   const pendingUrl = "https://dm2364.invalid/pending-image.png";
   let pendingRoute: Route | null = null;
   let routeSeenResolve: (() => void) | undefined;
-  const routeSeen = new Promise<void>((resolve) => { routeSeenResolve = resolve; });
+  const routeSeen = new Promise<void>((resolve) => {
+    routeSeenResolve = resolve;
+  });
   let releaseRoute: (() => void) | undefined;
-  const routeHold = new Promise<void>((resolve) => { releaseRoute = resolve; });
+  const routeHold = new Promise<void>((resolve) => {
+    releaseRoute = resolve;
+  });
   await page.route(pendingUrl, async (route) => {
     pendingRoute = route;
     routeSeenResolve?.();
@@ -486,18 +715,23 @@ async function imageDecodingRows(context: BrowserContext): Promise<ReplacedOwner
     await route.abort().catch(() => undefined);
   });
   try {
-    await page.setContent(`<!doctype html><style>html,body{margin:0;background:white}#stage{padding:24px;display:flex;gap:18px}img{width:120px;height:80px;border:1px solid #555}</style>
+    await page.setContent(
+      `<!doctype html><style>html,body{margin:0;background:white}#stage{padding:24px;display:flex;gap:18px}img{width:120px;height:80px;border:1px solid #555}</style>
       <main id="stage">
         <img data-domotion-anim="decode-loaded" id="decode-loaded" alt="loaded" src="${imageSvg(80, 40, "rgb(237,18,52)")}">
         <img data-domotion-anim="decode-failed" id="decode-failed" alt="failed" src="data:image/png;base64,not-a-png">
         <img data-domotion-anim="decode-loading" id="decode-loading" alt="loading">
-      </main>`, { waitUntil: "load" });
+      </main>`,
+      { waitUntil: "load" },
+    );
     await page.evaluate((src) => {
       (document.querySelector("#decode-loading") as HTMLImageElement).src = src;
     }, pendingUrl);
     await Promise.race([
       routeSeen,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("pending image request was not observed")), 5_000)),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("pending image request was not observed")), 5_000),
+      ),
     ]);
     await page.waitForFunction(() => {
       const image = document.querySelector<HTMLImageElement>("#decode-loading");
@@ -513,11 +747,14 @@ async function imageDecodingRows(context: BrowserContext): Promise<ReplacedOwner
     return cases.map((test): ReplacedOwnershipTransitionRow => {
       const element = byAnimId(captured.tree, test.id);
       const record = element?.brokenImageFallback;
-      const actualOwner: ReplacedOwnership = record?.paintOwnership === "hybrid-icon-raster-vector-text"
-        ? "broken-image-hybrid"
-        : record?.paintOwnership === "none"
-          ? record.loadState === "loaded" ? "vector-image" : "unpainted"
-          : "unpainted";
+      const actualOwner: ReplacedOwnership =
+        record?.paintOwnership === "hybrid-icon-raster-vector-text"
+          ? "broken-image-hybrid"
+          : record?.paintOwnership === "none"
+            ? record.loadState === "loaded"
+              ? "vector-image"
+              : "unpainted"
+            : "unpainted";
       return {
         id: `image.${test.role}`,
         family: "image-decoding",
@@ -527,15 +764,18 @@ async function imageDecodingRows(context: BrowserContext): Promise<ReplacedOwner
         expectedOwner: test.expectedOwner,
         actualOwner,
         source: "Chromium ImageLoader state + LayoutImage broken-image UA-shadow paint ownership",
-        facts: record == null ? { missing: true } : {
-          loadState: record.loadState,
-          disposition: record.disposition,
-          captureStatus: record.captureStatus,
-          paintOwnership: record.paintOwnership,
-          complete: record.source.complete,
-          naturalWidth: record.source.naturalWidth,
-          naturalHeight: record.source.naturalHeight,
-        },
+        facts:
+          record == null
+            ? { missing: true }
+            : {
+                loadState: record.loadState,
+                disposition: record.disposition,
+                captureStatus: record.captureStatus,
+                paintOwnership: record.paintOwnership,
+                complete: record.source.complete,
+                naturalWidth: record.source.naturalWidth,
+                naturalHeight: record.source.naturalHeight,
+              },
         exactCapture: record?.captureStatus === "exact" && record.loadState === test.loadState,
         unexpectedWarnings: relevantWarnings,
       };
@@ -550,16 +790,18 @@ async function imageDecodingRows(context: BrowserContext): Promise<ReplacedOwner
 
 function snapshotFacts(element: CapturedElement | undefined): Record<string, unknown> {
   const snapshot = element?.replacedSnapshot;
-  return snapshot == null ? { missing: true } : {
-    x: snapshot.x,
-    y: snapshot.y,
-    width: snapshot.width,
-    height: snapshot.height,
-    pngSha256: snapshot.dataUri == null ? null : sha256(snapshot.dataUri),
-    rasterToOutput: snapshot.rasterToOutput,
-    transform: element?.styles.transform,
-    writingMode: element?.styles.writingMode,
-  };
+  return snapshot == null
+    ? { missing: true }
+    : {
+        x: snapshot.x,
+        y: snapshot.y,
+        width: snapshot.width,
+        height: snapshot.height,
+        pngSha256: snapshot.dataUri == null ? null : sha256(snapshot.dataUri),
+        rasterToOutput: snapshot.rasterToOutput,
+        transform: element?.styles.transform,
+        writingMode: element?.styles.writingMode,
+      };
 }
 
 async function dynamicSurfaceRows(context: BrowserContext): Promise<ReplacedOwnershipTransitionRow[]> {
@@ -567,14 +809,17 @@ async function dynamicSurfaceRows(context: BrowserContext): Promise<ReplacedOwne
   try {
     const posterA = imageSvg(96, 64, "rgb(220,40,70)");
     const posterB = imageSvg(96, 64, "rgb(20,90,220)");
-    await page.setContent(`<!doctype html><style>
+    await page.setContent(
+      `<!doctype html><style>
       html,body{margin:0;background:white}#stage{padding:36px;writing-mode:vertical-rl}
       #nest{transform:matrix(1,0.08,-0.06,1,7.25,5.5);transform-origin:0 0;zoom:1.1;display:flex;gap:24px}
       canvas,video{display:block;width:96px;height:64px;border:3px solid rgb(30,30,30)}
     </style><main id="stage"><div id="nest">
       <canvas data-domotion-anim="surface-canvas" id="surface-canvas" width="96" height="64"></canvas>
       <video data-domotion-anim="surface-video" id="surface-video" width="96" height="64" poster="${posterA}"></video>
-    </div></main>`, { waitUntil: "load" });
+    </div></main>`,
+      { waitUntil: "load" },
+    );
     await page.evaluate(() => {
       const canvas = document.querySelector<HTMLCanvasElement>("#surface-canvas")!;
       const context2d = canvas.getContext("2d")!;
@@ -592,13 +837,19 @@ async function dynamicSurfaceRows(context: BrowserContext): Promise<ReplacedOwne
     }, posterB);
     const second = await captureElementTreeWithWarnings(page, "#stage", { x: 0, y: 0, ...VIEWPORT });
     const rows: ReplacedOwnershipTransitionRow[] = [];
-    for (const [id, pairId] of [["surface-canvas", "surface.canvas-frame"], ["surface-video", "surface.video-frame"]] as const) {
+    for (const [id, pairId] of [
+      ["surface-canvas", "surface.canvas-frame"],
+      ["surface-video", "surface.video-frame"],
+    ] as const) {
       const firstElement = byAnimId(first.tree, id);
       const secondElement = byAnimId(second.tree, id);
       const firstFacts = snapshotFacts(firstElement);
       const secondFacts = snapshotFacts(secondElement);
       const changed = firstFacts.pngSha256 != null && firstFacts.pngSha256 !== secondFacts.pngSha256;
-      for (const [role, element, facts] of [["frame-a", firstElement, firstFacts], ["frame-b", secondElement, secondFacts]] as const) {
+      for (const [role, element, facts] of [
+        ["frame-a", firstElement, firstFacts],
+        ["frame-b", secondElement, secondFacts],
+      ] as const) {
         const snapshot = element?.replacedSnapshot;
         rows.push({
           id: `${pairId}.${role}`,
@@ -640,7 +891,8 @@ const GENERATED_CASES: readonly GeneratedCase[] = [
 async function generatedBoxRows(context: BrowserContext, dpr: number): Promise<ReplacedOwnershipTransitionRow[]> {
   const page = await context.newPage();
   try {
-    await page.setContent(`<!doctype html><style>
+    await page.setContent(
+      `<!doctype html><style>
       html,body{margin:0;background:white}#stage{position:relative;width:900px;height:600px;background:white}
       article,aside,section,nav,figure{position:absolute;margin:0;background:transparent}
       article{left:30px;top:30px;width:180px;height:100px}article::before{content:"";position:absolute;left:17px;top:23px;width:41px;height:29px;background:rgb(201,17,73)}
@@ -655,28 +907,35 @@ async function generatedBoxRows(context: BrowserContext, dpr: number): Promise<R
       <section data-domotion-anim="generated-flow"></section>
       <nav data-domotion-anim="generated-vertical"></nav>
       <div id="affine"><figure data-domotion-anim="generated-transform"></figure></div>
-    </main>`, { waitUntil: "load" });
+    </main>`,
+      { waitUntil: "load" },
+    );
     const sourcePng = Buffer.from(await page.screenshot({ type: "png" }));
     const sourceRects = new Map<string, Rect | null>();
     const palette = GENERATED_CASES.map((test) => test.color);
     for (const test of GENERATED_CASES) {
-      sourceRects.set(test.id, await colorRectFromPng(
-        sourcePng,
-        test.color,
-        dpr,
-        palette.filter((color) => color !== test.color),
-      ));
+      sourceRects.set(
+        test.id,
+        await colorRectFromPng(
+          sourcePng,
+          test.color,
+          dpr,
+          palette.filter((color) => color !== test.color),
+        ),
+      );
     }
     const captured = await captureElementTreeWithWarnings(page, "#stage", { x: 0, y: 0, ...VIEWPORT });
     const relevantWarnings = warningStrings(captured.warnings, ["generated-pseudo-fragment-geometry"]);
     return GENERATED_CASES.map((test): ReplacedOwnershipTransitionRow => {
       const element = byAnimId(captured.tree, test.id);
       const record = element?.pseudoFragments?.find((candidate) => candidate.pseudo === test.pseudo);
-      const capturedRect = record == null ? null : unionRects(record.boxFragments.map((fragment) => fragment.physicalRect));
+      const capturedRect =
+        record == null ? null : unionRects(record.boxFragments.map((fragment) => fragment.physicalRect));
       const sourceRect = sourceRects.get(test.id) ?? null;
-      const maxDevicePixelDelta = sourceRect == null || capturedRect == null
-        ? Number.POSITIVE_INFINITY
-        : rectDelta(sourceRect, capturedRect) * dpr;
+      const maxDevicePixelDelta =
+        sourceRect == null || capturedRect == null
+          ? Number.POSITIVE_INFINITY
+          : rectDelta(sourceRect, capturedRect) * dpr;
       return {
         id: `generated.${test.role}`,
         family: "generated-box",
@@ -686,15 +945,18 @@ async function generatedBoxRows(context: BrowserContext, dpr: number): Promise<R
         expectedOwner: "generated-pseudo-vector",
         actualOwner: record == null ? "unpainted" : "generated-pseudo-vector",
         source: "Chromium DOMSnapshot generated layout + DOM.getContentQuads physical pseudo fragments",
-        facts: record == null ? { missing: true, sourceRect } : {
-          pseudo: record.pseudo,
-          status: record.status,
-          writingMode: record.writingMode,
-          direction: record.direction,
-          boxFragments: record.boxFragments,
-          sourceRect,
-          capturedRect,
-        },
+        facts:
+          record == null
+            ? { missing: true, sourceRect }
+            : {
+                pseudo: record.pseudo,
+                status: record.status,
+                writingMode: record.writingMode,
+                direction: record.direction,
+                boxFragments: record.boxFragments,
+                sourceRect,
+                capturedRect,
+              },
         exactCapture: record?.status === "exact" && sourceRect != null && capturedRect != null,
         maxDevicePixelDelta,
         unexpectedWarnings: relevantWarnings,
@@ -714,11 +976,11 @@ async function runWithBrowser(browser: Browser, deviceScaleFactor: number): Prom
   });
   try {
     const rows = [
-      ...await objectGeometryRows(context, deviceScaleFactor),
-      ...await nativeControlRows(context),
-      ...await imageDecodingRows(context),
-      ...await dynamicSurfaceRows(context),
-      ...await generatedBoxRows(context, deviceScaleFactor),
+      ...(await objectGeometryRows(context, deviceScaleFactor)),
+      ...(await nativeControlRows(context)),
+      ...(await imageDecodingRows(context)),
+      ...(await dynamicSurfaceRows(context)),
+      ...(await generatedBoxRows(context, deviceScaleFactor)),
     ];
     const fingerprint = canonicalFingerprint(browser, deviceScaleFactor);
     const adjudication = adjudicateReplacedOwnershipTransitions(rows, fingerprint, REPLACED_OWNERSHIP_REQUIREMENTS);
@@ -767,16 +1029,22 @@ export async function runReplacedOwnershipGate(
 
 async function main(): Promise<void> {
   const dprIndex = process.argv.indexOf("--dpr");
-  const dprs = dprIndex >= 0 && process.argv[dprIndex + 1] != null
-    ? process.argv[dprIndex + 1].split(",").map(Number).filter((value) => Number.isFinite(value) && value > 0)
-    : [1];
+  const dprs =
+    dprIndex >= 0 && process.argv[dprIndex + 1] != null
+      ? process.argv[dprIndex + 1]
+          .split(",")
+          .map(Number)
+          .filter((value) => Number.isFinite(value) && value > 0)
+      : [1];
   const report = await runReplacedOwnershipGate(dprs);
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
     writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);
   }
   for (const run of report.runs) {
-    console.log(`replaced ownership oracle DPR${run.fingerprint.deviceScaleFactor}: ${run.adjudication.passedRows}/${run.adjudication.totalRows}`);
+    console.log(
+      `replaced ownership oracle DPR${run.fingerprint.deviceScaleFactor}: ${run.adjudication.passedRows}/${run.adjudication.totalRows}`,
+    );
     for (const error of run.adjudication.errors) console.log(`FAIL DPR${run.fingerprint.deviceScaleFactor} ${error}`);
   }
   if (report.verdict !== "source-exact") process.exitCode = 1;

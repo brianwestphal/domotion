@@ -4,10 +4,19 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const root = new URL("../", import.meta.url);
 const chromium = new URL("external/chromium/", root);
-const header = readFileSync(new URL("third_party/blink/renderer/platform/text/character_property_data.h", chromium), "utf8");
+const header = readFileSync(
+  new URL("third_party/blink/renderer/platform/text/character_property_data.h", chromium),
+  "utf8",
+);
 const ucd = readFileSync(new URL("third_party/icu/source/data/unidata/ppucd.txt", chromium), "utf8");
-const emojiSequences = readFileSync(new URL("third_party/icu/source/data/unidata/emoji-sequences.txt", chromium), "utf8");
-const emojiZwjSequences = readFileSync(new URL("third_party/icu/source/data/unidata/emoji-zwj-sequences.txt", chromium), "utf8");
+const emojiSequences = readFileSync(
+  new URL("third_party/icu/source/data/unidata/emoji-sequences.txt", chromium),
+  "utf8",
+);
+const emojiZwjSequences = readFileSync(
+  new URL("third_party/icu/source/data/unidata/emoji-zwj-sequences.txt", chromium),
+  "utf8",
+);
 
 const MAX = 0x10ffff;
 const selected = new Uint8Array(MAX + 1);

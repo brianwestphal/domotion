@@ -2,14 +2,10 @@ import type { AnimationFrame } from "../animation/index.js";
 import type { CapturedElement } from "../capture/types.js";
 import type { AnimateFrameCfg } from "./animate-orchestrator.js";
 
-export type LiveFrameNavigation =
-  | { kind: "continue" }
-  | { kind: "load"; input: string };
+export type LiveFrameNavigation = { kind: "continue" } | { kind: "load"; input: string };
 
 export type CapturedFrameStage =
-  | { kind: "cast" }
-  | { kind: "template" }
-  | { kind: "live"; navigation: LiveFrameNavigation };
+  { kind: "cast" } | { kind: "template" } | { kind: "live"; navigation: LiveFrameNavigation };
 
 export interface LiveCapturedFrameResult {
   frame: AnimationFrame;
@@ -32,10 +28,7 @@ export interface CapturedFrameStageHandlers {
  * live frame without an input continues the existing browser page; frame zero
  * always requires an input unless an embedded cast/template owns it.
  */
-export function resolveCapturedFrameStage(
-  frame: AnimateFrameCfg,
-  index: number,
-): CapturedFrameStage {
+export function resolveCapturedFrameStage(frame: AnimateFrameCfg, index: number): CapturedFrameStage {
   if (frame.cast != null) return { kind: "cast" };
   if (frame.template != null) return { kind: "template" };
   if (index > 0 && (frame.continue === true || frame.input == null)) {
@@ -60,5 +53,5 @@ export async function buildCapturedFrame(
   if (stage.kind === "template") {
     return { kind: "embedded", source: "template", frame: handlers.template() };
   }
-  return { kind: "live", ...await handlers.live(stage.navigation) };
+  return { kind: "live", ...(await handlers.live(stage.navigation)) };
 }

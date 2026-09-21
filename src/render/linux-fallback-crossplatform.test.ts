@@ -69,7 +69,8 @@ const describeIf = haveCassette || process.env.FONT_CASSETTE_MODE === "record" ?
 describeIf("Linux per-codepoint fallback, replayed on any host (DM-1980)", () => {
   it("resolves each script to a face, with the platform overridden", () => {
     const answers = host.withHostPlatform("linux", () =>
-      CASES.map((c) => ({ ...c, key: fonts.__resolveSystemFallbackKeyForCpForTest(c.cp, 400, 0, 16, "helvetica") })));
+      CASES.map((c) => ({ ...c, key: fonts.__resolveSystemFallbackKeyForCpForTest(c.cp, 400, 0, 16, "helvetica") })),
+    );
 
     for (const a of answers) {
       expect(a.key, `${a.name} (${a.why}) resolved to nothing`).not.toBeNull();
@@ -82,9 +83,10 @@ describeIf("Linux per-codepoint fallback, replayed on any host (DM-1980)", () =>
     // DISCRIMINATION: four scripts must not all land on one face. If they do,
     // the resolver is answering from something script-blind and every assertion
     // above would pass against it.
-    expect(new Set(answers.map((a) => a.key)).size,
-      `all four scripts resolved to the same face: ${answers.map((a) => a.key).join(", ")}`)
-      .toBeGreaterThan(1);
+    expect(
+      new Set(answers.map((a) => a.key)).size,
+      `all four scripts resolved to the same face: ${answers.map((a) => a.key).join(", ")}`,
+    ).toBeGreaterThan(1);
   });
 
   it("gives the emoji codepoint a COLOR face, not the text primary", () => {
@@ -95,7 +97,8 @@ describeIf("Linux per-codepoint fallback, replayed on any host (DM-1980)", () =>
     // the primary. This is that regression, catchable off-Linux for the first
     // time.
     const key = host.withHostPlatform("linux", () =>
-      fonts.__resolveSystemFallbackKeyForCpForTest(0x1f600, 400, 0, 16, "helvetica"));
+      fonts.__resolveSystemFallbackKeyForCpForTest(0x1f600, 400, 0, 16, "helvetica"),
+    );
     expect(key).not.toBeNull();
     expect(key!.toLowerCase()).toContain("emoji");
   });
@@ -107,7 +110,8 @@ describeIf("Linux per-codepoint fallback, replayed on any host (DM-1980)", () =>
     // assertion above is about this machine rather than about Linux.
     if (host.hostPlatform() === "linux") return; // on Linux they legitimately agree
     const asLinux = host.withHostPlatform("linux", () =>
-      fonts.__resolveSystemFallbackKeyForCpForTest(0x4e2d, 400, 0, 16, "helvetica"));
+      fonts.__resolveSystemFallbackKeyForCpForTest(0x4e2d, 400, 0, 16, "helvetica"),
+    );
     const asHost = fonts.__resolveSystemFallbackKeyForCpForTest(0x4e2d, 400, 0, 16, "helvetica");
     expect(asLinux).not.toBe(asHost);
   });

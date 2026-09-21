@@ -1,10 +1,7 @@
 {
   "generatedAt": "harvested:v2:c4d398bbd23d229e",
   "platform": "darwin",
-  "sources": [
-    "external/html-test",
-    "../html-test/unicode"
-  ],
+  "sources": ["external/html-test", "../html-test/unicode"],
   "stacks": [
     {
       "fontFamily": "Times",

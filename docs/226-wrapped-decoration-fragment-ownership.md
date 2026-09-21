@@ -3,11 +3,11 @@ id: "requirements/wrapped-decoration-fragment-ownership"
 title: "Wrapped text-decoration fragment ownership"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","layout"]
-platforms: ["macos","linux","windows"]
+owners: ["text-fonts", "layout"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2527"]
 code: ["tools/wrapped-decoration-fragment-oracle.ts"]
-aliases: ["docs/226-wrapped-decoration-fragment-ownership.md","doc-226"]
+aliases: ["docs/226-wrapped-decoration-fragment-ownership.md", "doc-226"]
 ---
 
 # Wrapped text-decoration fragment ownership

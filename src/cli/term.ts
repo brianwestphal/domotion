@@ -147,9 +147,7 @@ export async function runTerm(argv: string[]): Promise<void> {
       // flow unvalidated into the renderer.
       const parsed = terminalThemeSpecSchema.safeParse(raw);
       if (!parsed.success) {
-        const detail = parsed.error.issues
-          .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
-          .join("; ");
+        const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
         cliFail("domotion term", `--theme-file has an invalid theme shape: ${detail}`, "usage");
       }
       spec = parsed.data;
@@ -190,8 +188,9 @@ export async function runTerm(argv: string[]): Promise<void> {
 
     // Default output: <cast>.svg for a file input; `term.svg` for the live path
     // (stdout already carried the live session). stdin-cast (`-`) → stdout.
-    const outPath = values.output
-      ?? (live ? "term.svg" : (castPath !== "-" ? `${(castPath as string).replace(/\.cast$/i, "")}.svg` : null));
+    const outPath =
+      values.output ??
+      (live ? "term.svg" : castPath !== "-" ? `${(castPath as string).replace(/\.cast$/i, "")}.svg` : null);
     if (outPath == null) {
       process.stdout.write(svg);
     } else {
@@ -201,7 +200,9 @@ export async function runTerm(argv: string[]): Promise<void> {
       // `animate` cast frame's `duration` should be sized to this value, not the
       // recording's wall time. Surfacing it here saves the author a parse of the
       // output SVG's animation duration.
-      process.stderr.write(`Wrote ${resolve(outPath)} — ${frameCount} frames, ${width}×${height}px, ${(totalDurationMs / 1000).toFixed(2)}s play length, ${(svg.length / 1024).toFixed(1)} KB\n`);
+      process.stderr.write(
+        `Wrote ${resolve(outPath)} — ${frameCount} frames, ${width}×${height}px, ${(totalDurationMs / 1000).toFixed(2)}s play length, ${(svg.length / 1024).toFixed(1)} KB\n`,
+      );
     }
   } finally {
     await browser.close();

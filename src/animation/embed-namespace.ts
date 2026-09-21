@@ -102,8 +102,15 @@ export function namespaceEmbeddedAnimatedSvg(svg: string, token: string, opts: N
   for (const m of out.matchAll(/\sclass="([^"]+)"/g)) {
     for (const t of m[1].split(/\s+/)) if (t !== "") classes.add(t);
   }
-  out = out.replace(/(\sclass=")([^"]+)(")/g, (_full, a: string, cls: string, c: string) =>
-    a + cls.split(/\s+/).map((t) => (t !== "" ? token + t : t)).join(" ") + c,
+  out = out.replace(
+    /(\sclass=")([^"]+)(")/g,
+    (_full, a: string, cls: string, c: string) =>
+      a +
+      cls
+        .split(/\s+/)
+        .map((t) => (t !== "" ? token + t : t))
+        .join(" ") +
+      c,
   );
   for (const name of [...classes].sort(byLengthDesc)) {
     out = out.replace(new RegExp(`\\.${escapeRe(name)}(?![\\w-])`, "g"), `.${token}${name}`);

@@ -34,8 +34,16 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
           await page.locator("main").evaluate((element) => element.setAttribute("data-scene-hook", "ready"));
         }
       };
-      const runHook = async ({ page, input }: { page: import("@playwright/test").Page; input?: Record<string, unknown> }) => {
-        await page.locator("#panel").evaluate((element, text) => { element.textContent = String(text); }, input?.text);
+      const runHook = async ({
+        page,
+        input,
+      }: {
+        page: import("@playwright/test").Page;
+        input?: Record<string, unknown>;
+      }) => {
+        await page.locator("#panel").evaluate((element, text) => {
+          element.textContent = String(text);
+        }, input?.text);
       };
       const first = await compileStudioInteractiveProject(browser, authored, {
         projectDir: fixtureDir,
@@ -49,7 +57,11 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       expect(first.segments).toHaveLength(1);
       expect(first.segments[0].sceneId).toBe("scene-live");
       expect(first.segments[0].evidence.map((item) => item.eventId)).toEqual([
-        "event-open", "event-type", "event-expand", "event-hook", "event-scroll",
+        "event-open",
+        "event-type",
+        "event-expand",
+        "event-hook",
+        "event-scroll",
       ]);
       expect(first.segments[0].evidence.every((item) => item.meaningful)).toBe(true);
       expect(first.segments[0].cursor.interactions).toHaveLength(4);
@@ -60,8 +72,11 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       const ids = [...firstSegmentSvg.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
       expect(new Set(ids).size, "live segment ids must be document-unique").toBe(ids.length);
       const idSet = new Set(ids);
-      const localReferences = [...firstSegmentSvg.matchAll(/(?:href="|url\(#)([^"\)]+)["\)]/g)].map((match) => match[1].replace(/^#/, ""));
-      for (const reference of localReferences) expect(idSet, `missing local SVG reference ${reference}`).toContain(reference);
+      const localReferences = [...firstSegmentSvg.matchAll(/(?:href="|url\(#)([^"\)]+)["\)]/g)].map((match) =>
+        match[1].replace(/^#/, ""),
+      );
+      for (const reference of localReferences)
+        expect(idSet, `missing local SVG reference ${reference}`).toContain(reference);
       expect(first.svg).toContain("interactive-followup-marker");
       expect(first.svg).toContain("Details hooked");
       expect(first.svg).toContain("sb0_cursor-overlay");
@@ -75,7 +90,10 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
         derivedFromArtifactIds: ["artifact-scene-live-evidence"],
         sha256: first.segments[0].sha256,
       });
-      const persistedEvidence = JSON.parse(readFileSync(first.segments[0].evidencePath, "utf8")) as { sourceRevisionId: string; observations: unknown[] };
+      const persistedEvidence = JSON.parse(readFileSync(first.segments[0].evidencePath, "utf8")) as {
+        sourceRevisionId: string;
+        observations: unknown[];
+      };
       expect(persistedEvidence.sourceRevisionId).toBe("revision-1");
       expect(persistedEvidence.observations).toHaveLength(5);
 
@@ -90,20 +108,24 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       });
       expect(second.segments[0].sha256).toBe(first.segments[0].sha256);
       expect(scenePhases).toEqual(["beforeCapture", "afterCapture", "beforeCompile", "afterCompile"]);
-      expect(second.project.artifacts.map((artifact) => artifact.id).sort()).toEqual(first.project.artifacts.map((artifact) => artifact.id).sort());
+      expect(second.project.artifacts.map((artifact) => artifact.id).sort()).toEqual(
+        first.project.artifacts.map((artifact) => artifact.id).sort(),
+      );
       expect(readdirSync(artifactDir).filter((name) => name.endsWith(".svg"))).toHaveLength(1);
 
       const stableSegment = readFileSync(second.segments[0].path, "utf8");
       const broken = structuredClone(authored);
       const target = broken.scenes[0].tracks![0].events[0];
       if ("target" in target && target.target != null) target.target = { role: "button", name: "Missing action" };
-      await expect(compileStudioInteractiveProject(browser, broken, {
-        projectDir: fixtureDir,
-        artifactDir,
-        generatedAt,
-        runSceneHook,
-        runHook,
-      })).rejects.toThrow(/Missing action.*matched no element/);
+      await expect(
+        compileStudioInteractiveProject(browser, broken, {
+          projectDir: fixtureDir,
+          artifactDir,
+          generatedAt,
+          runSceneHook,
+          runHook,
+        }),
+      ).rejects.toThrow(/Missing action.*matched no element/);
       expect(readFileSync(second.segments[0].path, "utf8")).toBe(stableSegment);
       expect(readdirSync(artifactDir).some((name) => name.startsWith(".studio-stage-"))).toBe(false);
       expect(browser.contexts()).toHaveLength(0);

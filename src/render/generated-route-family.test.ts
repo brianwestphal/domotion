@@ -16,8 +16,7 @@ import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.
 
 describe("generated darwin route table carries family provenance (DM-1844)", () => {
   it("every routed key exists in the paths table", () => {
-    const missing = [...new Set(UNICODE_FONT_RANGES.map(([, , k]) => k))]
-      .filter((k) => UNICODE_FONT_PATHS[k] == null);
+    const missing = [...new Set(UNICODE_FONT_RANGES.map(([, , k]) => k))].filter((k) => UNICODE_FONT_PATHS[k] == null);
     expect(missing, `routes reference keys with no path entry: ${missing.join(", ")}`).toEqual([]);
   });
 
@@ -27,8 +26,8 @@ describe("generated darwin route table carries family provenance (DM-1844)", () 
       .map(([k]) => k);
     expect(
       noFamily,
-      "a route with no family bypasses the availability gate and will be used even on a machine "
-      + `where Chrome cannot pick it. Missing on: ${noFamily.join(", ")}`,
+      "a route with no family bypasses the availability gate and will be used even on a machine " +
+        `where Chrome cannot pick it. Missing on: ${noFamily.join(", ")}`,
     ).toEqual([]);
   });
 

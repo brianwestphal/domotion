@@ -29,7 +29,9 @@ async function main(): Promise<void> {
             const b = quads[0].getBounds();
             markerRect = { x: b.left, y: b.top, w: b.width, h: b.height };
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+          /* ignore */
+        }
       }
       const range = document.createRange();
       range.selectNodeContents(li);
@@ -40,9 +42,9 @@ async function main(): Promise<void> {
         textRange: { x: tr.left, y: tr.top, w: tr.width, h: tr.height },
         markerBox: markerRect,
         markerCs: {
-          color: getComputedStyle(li, '::marker').color,
-          fontSize: getComputedStyle(li, '::marker').fontSize,
-          fontFamily: getComputedStyle(li, '::marker').fontFamily,
+          color: getComputedStyle(li, "::marker").color,
+          fontSize: getComputedStyle(li, "::marker").fontSize,
+          fontFamily: getComputedStyle(li, "::marker").fontFamily,
         },
         listStyleType: getComputedStyle(li).listStyleType,
       });
@@ -55,15 +57,17 @@ async function main(): Promise<void> {
   const cap = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 1024, height: 768 });
   console.log("\nCAPTURED LI (with their text rects):");
   function walk(n: any): void {
-    if (n.tag === 'li' && n.y > 350 && n.y < 500) {
-      console.log(`  <li> rect=(${n.x.toFixed(1)}, ${n.y.toFixed(1)}, ${n.width.toFixed(1)}, ${n.height.toFixed(1)}) text="${n.text?.slice(0, 20)}" textLeft=${n.textLeft} textTop=${n.textTop} idx=${n.listItemIndex} lst=${n.styles?.listStyleType}`);
+    if (n.tag === "li" && n.y > 350 && n.y < 500) {
+      console.log(
+        `  <li> rect=(${n.x.toFixed(1)}, ${n.y.toFixed(1)}, ${n.width.toFixed(1)}, ${n.height.toFixed(1)}) text="${n.text?.slice(0, 20)}" textLeft=${n.textLeft} textTop=${n.textTop} idx=${n.listItemIndex} lst=${n.styles?.listStyleType}`,
+      );
       if (n.textSegments) {
         for (const seg of n.textSegments.slice(0, 2)) {
           console.log(`    seg: "${seg.text?.slice(0, 15)}" x=${seg.x} y=${seg.y}`);
         }
       }
     }
-    for (const c of (n.children ?? [])) walk(c);
+    for (const c of n.children ?? []) walk(c);
   }
   for (const root of cap.tree) walk(root);
   await browser.close();

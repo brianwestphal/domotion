@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "../html-test/unicode");
 const OUT_PATH = process.env.UNICODE_FONTS_OUT ?? `${process.env.TMPDIR ?? "/tmp"}/unicode-fonts.json`;
 const files = readdirSync(UNICODE_DIR)
-  .filter(f => f.endsWith(".html") && f !== "index.html")
+  .filter((f) => f.endsWith(".html") && f !== "index.html")
   .sort();
 
 const browser = await chromium.launch();
@@ -31,7 +31,10 @@ for (const file of files) {
   await page.waitForLoadState("domcontentloaded");
   const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
   const gNodes = [];
-  function flat(n) { if (n.nodeName === "G") gNodes.push(n); for (const c of n.children || []) flat(c); }
+  function flat(n) {
+    if (n.nodeName === "G") gNodes.push(n);
+    for (const c of n.children || []) flat(c);
+  }
   flat(root);
 
   const sampled = gNodes.slice(0, 3); // sample first 3 cells of each block
@@ -45,7 +48,9 @@ for (const file of files) {
           familiesHere.add(f.familyName);
         }
       }
-    } catch (e) { /* nodeId may have stalised, ignore */ }
+    } catch (e) {
+      /* nodeId may have stalised, ignore */
+    }
   }
   blockToFamilies.set(block, [...familiesHere]);
 }
@@ -56,9 +61,16 @@ console.log("=== Font families used by Chrome across all unicode blocks ===");
 const sorted = [...familyCount.entries()].sort((a, b) => b[1] - a[1]);
 for (const [f, c] of sorted) console.log(`  ${c.toString().padStart(8)}  ${f}`);
 
-writeFileSync(OUT_PATH, JSON.stringify({
-  platform: process.platform,
-  familyCount: Object.fromEntries(sorted),
-  blockToFamilies: Object.fromEntries(blockToFamilies),
-}, null, 2));
+writeFileSync(
+  OUT_PATH,
+  JSON.stringify(
+    {
+      platform: process.platform,
+      familyCount: Object.fromEntries(sorted),
+      blockToFamilies: Object.fromEntries(blockToFamilies),
+    },
+    null,
+    2,
+  ),
+);
 console.log(`\nSaved ${OUT_PATH}`);

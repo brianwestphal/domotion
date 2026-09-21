@@ -3,11 +3,11 @@ id: "requirements/background-clip-text-native-parity"
 title: "228 — Native background-clip:text parity"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","paint-effects","platform-release","product-tooling"]
-platforms: ["macos","linux","windows"]
+owners: ["text-fonts", "paint-effects", "platform-release", "product-tooling"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2530"]
 code: [".github/workflows/background-clip-text-native-parity.yml"]
-aliases: ["docs/228-background-clip-text-native-parity.md","doc-228"]
+aliases: ["docs/228-background-clip-text-native-parity.md", "doc-228"]
 ---
 
 # 228 — Native `background-clip:text` parity

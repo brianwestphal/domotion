@@ -14,7 +14,8 @@ async function main() {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 1,
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
   await context.routeFromHAR(resolve(CACHE_DIR, "google-desktop.har"), { url: "**/*", notFound: "fallback" });
   const page = await context.newPage();
@@ -32,7 +33,9 @@ async function main() {
     if (ix < ax && iy < ay) {
       const text = (n.text ?? "").slice(0, 30);
       const styles = n.styles ?? {};
-      console.log(`[${depth}] <${n.tag}> rect=(${n.x?.toFixed?.(0)},${n.y?.toFixed?.(0)} ${n.width?.toFixed?.(0)}×${n.height?.toFixed?.(0)}) bg=${styles.backgroundColor?.slice?.(0, 30)} color=${styles.color?.slice?.(0, 30)} bgImage=${styles.backgroundImage?.slice?.(0, 80) ?? "none"} text=${JSON.stringify(text)} replSnap=${n.replacedSnapshot != null} imgSrc=${n.imageSrc?.slice?.(0, 60)} maskImage=${styles.maskImage?.slice?.(0, 40)}`);
+      console.log(
+        `[${depth}] <${n.tag}> rect=(${n.x?.toFixed?.(0)},${n.y?.toFixed?.(0)} ${n.width?.toFixed?.(0)}×${n.height?.toFixed?.(0)}) bg=${styles.backgroundColor?.slice?.(0, 30)} color=${styles.color?.slice?.(0, 30)} bgImage=${styles.backgroundImage?.slice?.(0, 80) ?? "none"} text=${JSON.stringify(text)} replSnap=${n.replacedSnapshot != null} imgSrc=${n.imageSrc?.slice?.(0, 60)} maskImage=${styles.maskImage?.slice?.(0, 40)}`,
+      );
     }
     for (const c of n.children ?? []) walk(c, depth + 1);
   }

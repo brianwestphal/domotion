@@ -56,7 +56,10 @@ export function comparability(runMeta, baseMeta) {
   //
   // "Cannot tell" (a field absent, e.g. an older baseline) and "known blended"
   // are different verdicts, and only the first is safe to skip.
-  for (const side of [["run", runMeta], ["baseline", baseMeta]]) {
+  for (const side of [
+    ["run", runMeta],
+    ["baseline", baseMeta],
+  ]) {
     for (const c of side[1]?.envConflicts ?? []) {
       const parts = (c.values ?? []).map((v) => `${v.value} (${(v.shards ?? []).join(", ")})`);
       reasons.push(`${side[0]}'s shards disagree on ${c.field}: ${parts.join(" vs ")}`);
@@ -82,8 +85,17 @@ export function comparability(runMeta, baseMeta) {
     cmp("parity environment", JSON.stringify(runMeta.parityEnvironment), JSON.stringify(baseMeta.parityEnvironment));
   }
   for (const k of [
-    "codepoints", "stacks", "includePua", "ranges", "sampleByte",
-    "stackShardTotal", "codepointShardTotal", "strictAlias", "lang", "oracleIsolation", "stackFilter",
+    "codepoints",
+    "stacks",
+    "includePua",
+    "ranges",
+    "sampleByte",
+    "stackShardTotal",
+    "codepointShardTotal",
+    "strictAlias",
+    "lang",
+    "oracleIsolation",
+    "stackFilter",
   ]) {
     cmp(`slice.${k}`, runMeta?.slice?.[k], baseMeta?.slice?.[k]);
   }
@@ -98,7 +110,10 @@ export function stackDelta(now, base) {
   const removed = [];
   for (const [stack, count] of Object.entries(now)) {
     const b = base[stack];
-    if (b == null) { if (count > 0) added.push({ stack, count }); continue; }
+    if (b == null) {
+      if (count > 0) added.push({ stack, count });
+      continue;
+    }
     if (count > b) worse.push({ stack, now: count, base: b });
     else if (count < b) better.push({ stack, now: count, base: b });
   }
@@ -113,7 +128,13 @@ function emit(lines) {
   const text = `${lines.join("\n")}\n`;
   process.stdout.write(text);
   const f = process.env.GITHUB_STEP_SUMMARY;
-  if (f) { try { writeFileSync(f, text, { flag: "a" }); } catch { /* not on a runner */ } }
+  if (f) {
+    try {
+      writeFileSync(f, text, { flag: "a" });
+    } catch {
+      /* not on a runner */
+    }
+  }
 }
 
 function baselineFrom(run) {
@@ -145,7 +166,10 @@ function baselineFrom(run) {
     // is dominated by the primary — unassigned / PUA / noncharacter codepoints
     // terminate on it — so one stack flipping moves ~108k answers and looks
     // identical to a broad drift.
-    stackPrimaries: (run.meta?.stackPrimaries ?? []).map((s) => ({ key: `${s.fontFamily}@${s.fontSize}/${s.fontWeight}/${s.fontStyle}`, chromePrimary: s.chromePrimary })),
+    stackPrimaries: (run.meta?.stackPrimaries ?? []).map((s) => ({
+      key: `${s.fontFamily}@${s.fontSize}/${s.fontWeight}/${s.fontStyle}`,
+      chromePrimary: s.chromePrimary,
+    })),
     // Shard-keyed digests of Domotion's complete answer stream, independent of
     // Chrome. This distinguishes oracle wobble from a resolver change.
     resolverAnswerDigests: { ...(run.resolverAnswerDigests ?? {}) },
@@ -182,14 +206,20 @@ export function oracleMovement(runFaces, baseCounts) {
   let total = 0;
   for (const face of keys) {
     const delta = (runFaces[face] ?? 0) - (baseCounts[face] ?? 0);
-    if (delta !== 0) { moved.push({ face, delta }); total += Math.abs(delta); }
+    if (delta !== 0) {
+      moved.push({ face, delta });
+      total += Math.abs(delta);
+    }
   }
   moved.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   return { comparable: true, total, moved };
 }
 
 function main() {
-  if (resultsPath == null) { process.stderr.write("--results is required\n"); process.exit(2); }
+  if (resultsPath == null) {
+    process.stderr.write("--results is required\n");
+    process.exit(2);
+  }
   const run = JSON.parse(readFileSync(resultsPath, "utf8"));
   const md = [`## ${label}`, ""];
 
@@ -198,7 +228,8 @@ function main() {
   const routes = run.summary?.distinctMismatchPairs ?? 0;
   const pctOf = comparisons > 0 ? ((total / comparisons) * 100).toFixed(3) : "0.000";
   md.push(
-    `| metric | value |`, `| --- | --- |`,
+    `| metric | value |`,
+    `| --- | --- |`,
     `| comparisons | ${comparisons.toLocaleString()} |`,
     `| mismatches | **${total.toLocaleString()}** (${pctOf}%) |`,
     `| distinct disagreeing routes | ${routes.toLocaleString()} |`,
@@ -213,9 +244,9 @@ function main() {
   // An incomplete merge is not a score. Say so before anything is compared.
   if (run.meta?.complete === false) {
     md.push(
-      `> **INCOMPLETE — verdict withheld.** merged ${run.meta.shardsMerged}/${run.meta.shardsExpected} shard reports`
-      + `${run.meta.missingShards?.length ? ` (missing: ${run.meta.missingShards.join(", ")})` : ""}.`
-      + ` The totals above cover part of the sweep only.`,
+      `> **INCOMPLETE — verdict withheld.** merged ${run.meta.shardsMerged}/${run.meta.shardsExpected} shard reports` +
+        `${run.meta.missingShards?.length ? ` (missing: ${run.meta.missingShards.join(", ")})` : ""}.` +
+        ` The totals above cover part of the sweep only.`,
       "",
     );
     emit(md);
@@ -223,7 +254,10 @@ function main() {
   }
 
   if (update) {
-    if (baselinePath == null) { process.stderr.write("--update-baseline needs --baseline\n"); process.exit(2); }
+    if (baselinePath == null) {
+      process.stderr.write("--update-baseline needs --baseline\n");
+      process.exit(2);
+    }
     // Refuse to enshrine a run whose own shards disagreed. Everything after this
     // point is graded against the baseline, so a blend poisons every later
     // comparison — and it does so invisibly, because the merged `meta` presents
@@ -284,11 +318,11 @@ function main() {
   const goneP = Object.keys(base.byPair ?? {}).filter((p) => run.byPair?.[p] == null);
 
   md.push(
-    `**${total.toLocaleString()} mismatches now vs ${baseTotal.toLocaleString()} in baseline `
-    + `(${total - baseTotal >= 0 ? "+" : ""}${(total - baseTotal).toLocaleString()}); `
-    + `${routes} routes vs ${baseRoutes}.** `
-    + `${d.worse.length} stack(s) worse, ${d.better.length} better, ${d.added.length} newly disagreeing, `
-    + `${newPairs.length} new route(s).`,
+    `**${total.toLocaleString()} mismatches now vs ${baseTotal.toLocaleString()} in baseline ` +
+      `(${total - baseTotal >= 0 ? "+" : ""}${(total - baseTotal).toLocaleString()}); ` +
+      `${routes} routes vs ${baseRoutes}.** ` +
+      `${d.worse.length} stack(s) worse, ${d.better.length} better, ${d.added.length} newly disagreeing, ` +
+      `${newPairs.length} new route(s).`,
     "",
   );
 
@@ -314,7 +348,8 @@ function main() {
       "",
     );
   } else if (oracle.total > 0) {
-    const rows = oracle.moved.slice(0, 10)
+    const rows = oracle.moved
+      .slice(0, 10)
       .map((m) => `> - \`${m.face}\` ${m.delta >= 0 ? "+" : ""}${m.delta.toLocaleString()}`);
     md.push(
       `> ⚠️ **The oracle moved.** Chrome answered differently than in the baseline for`,
@@ -343,10 +378,14 @@ function main() {
     } else if ((base.stackPrimaries ?? []).length === 0) {
       md.push(`> ℹ️ The baseline predates per-stack primary tracking, so this cannot say which stack moved.`, "");
     }
-    const h = run.meta?.host, inv = run.meta?.fontInventory;
+    const h = run.meta?.host,
+      inv = run.meta?.fontInventory;
     if (h != null) {
-      md.push(`> Measured on \`${h.name}\` (${h.cpus} cpus, ${h.arch})`
-        + (inv != null ? `, font inventory \`${inv.digest}\` (${inv.count} entries).` : "."), "");
+      md.push(
+        `> Measured on \`${h.name}\` (${h.cpus} cpus, ${h.arch})` +
+          (inv != null ? `, font inventory \`${inv.digest}\` (${inv.count} entries).` : "."),
+        "",
+      );
     }
     if (oracle.total >= mismatchDelta && mismatchDelta > 0) {
       if (resolver.comparable && resolver.same) {
@@ -377,9 +416,7 @@ function main() {
     if (rows.length === 0) return;
     md.push(`### ${title} (${rows.length})`, "", `| ${cols.join(" | ")} |`, `| ${cols.map(() => "---").join(" | ")} |`);
     for (const r of rows.slice(0, 40)) {
-      md.push(cols.length === 3
-        ? `| \`${r.stack}\` | ${r.now} | ${r.base} |`
-        : `| \`${r.stack}\` | ${r.count} |`);
+      md.push(cols.length === 3 ? `| \`${r.stack}\` | ${r.now} | ${r.base} |` : `| \`${r.stack}\` | ${r.count} |`);
     }
     md.push("");
   };
@@ -398,9 +435,12 @@ function main() {
   if (goneP.length) md.push(`_${goneP.length} route(s) in the baseline no longer disagree._`, "");
 
   const regressed = d.worse.length > 0 || d.added.length > 0 || newPairs.length > 0;
-  md.push(regressed
-    ? "🔴 **Regression vs this platform's baseline.**"
-    : "✅ **No regression vs this platform's baseline.** (The absolute count is tracked, not enforced.)", "");
+  md.push(
+    regressed
+      ? "🔴 **Regression vs this platform's baseline.**"
+      : "✅ **No regression vs this platform's baseline.** (The absolute count is tracked, not enforced.)",
+    "",
+  );
 
   emit(md);
   if (strict && regressed) process.exit(1);

@@ -16,7 +16,10 @@ import {
 } from "../src/render/text-to-path.js";
 import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
 import { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "../src/render/glyph-helper.js";
-import { helperAvailabilityContract, helperRouteLedgerEnvironment } from "../src/render/helper-availability-contract.js";
+import {
+  helperAvailabilityContract,
+  helperRouteLedgerEnvironment,
+} from "../src/render/helper-availability-contract.js";
 import { parityEnvironment } from "./parity-environment.js";
 import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
 import bidiFactory from "bidi-js";
@@ -67,16 +70,42 @@ const cases: OracleCase[] = [
   // the declared/text face. The disabled twin is a negative activation arm:
   // it must traverse the legacy mechanism, proving the default record was not
   // produced by an unconditional/common path.
-  { id: "emoji-sequence-text", text: "❤️ ⚡️ VS16 wins", mode: "paths", fontFamily: "Helvetica", fontVariantEmoji: "text" },
-  { id: "emoji-sequence-text-disabled", text: "❤️ ⚡️ VS16 wins", mode: "paths", fontFamily: "Helvetica", fontVariantEmoji: "text", clusterFallback: false, gradeFaces: false },
+  {
+    id: "emoji-sequence-text",
+    text: "❤️ ⚡️ VS16 wins",
+    mode: "paths",
+    fontFamily: "Helvetica",
+    fontVariantEmoji: "text",
+  },
+  {
+    id: "emoji-sequence-text-disabled",
+    text: "❤️ ⚡️ VS16 wins",
+    mode: "paths",
+    fontFamily: "Helvetica",
+    fontVariantEmoji: "text",
+    clusterFallback: false,
+    gradeFaces: false,
+  },
   { id: "bidi-digits", text: "L אב 123 R", mode: "paths", fontFamily: "Arial" },
   { id: "bidi-digits-legacy", text: "L אב 123 R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
   { id: "bidi-pointed-hebrew", text: "L שָׁלוֹם R", mode: "paths", fontFamily: "Arial" },
   { id: "bidi-pointed-hebrew-legacy", text: "L שָׁלוֹם R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
   { id: "bidi-adjacent-scripts", text: "L אבمرحبا R", mode: "paths", fontFamily: "Arial" },
-  { id: "bidi-adjacent-scripts-legacy", text: "L אבمرحبا R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
+  {
+    id: "bidi-adjacent-scripts-legacy",
+    text: "L אבمرحبا R",
+    mode: "paths",
+    fontFamily: "Arial",
+    clusterFallback: false,
+  },
   { id: "bidi-mirrored-brackets", text: "L אב(12) R", mode: "paths", fontFamily: "Arial" },
-  { id: "bidi-mirrored-brackets-legacy", text: "L אב(12) R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
+  {
+    id: "bidi-mirrored-brackets-legacy",
+    text: "L אב(12) R",
+    mode: "paths",
+    fontFamily: "Arial",
+    clusterFallback: false,
+  },
 ];
 
 const outputAt = process.argv.indexOf("--json");
@@ -84,7 +113,9 @@ const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
 const family = "Helvetica, Arial, sans-serif";
 const bidi = bidiFactory();
 
-function normalizeFace(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function normalizeFace(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 function graphemeCandidates(text: string): Array<{ start: number; end: number }> {
   const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -96,36 +127,54 @@ function graphemeCandidates(text: string): Array<{ start: number; end: number }>
 async function main(): Promise<number> {
   const helperObserved = isGlyphHelperAvailable();
   const helperPath = resolvedGlyphHelperPathForEvidence();
-  const helperImplementationIdentity = helperPath == null
-    ? ""
-    : createHash("sha256")
-      .update(execFileSync(helperPath, ["--version"], { encoding: "utf8" }).trim())
-      .update("\0")
-      .update(readFileSync(helperPath))
-      .digest("hex");
-  const helperEnvironment = helperRouteLedgerEnvironment(helperAvailabilityContract({
-    platform: process.platform as "darwin" | "linux" | "win32",
-    helperObserved,
-    explicitlyDisabled: process.env.DOMOTION_DISABLE_HELPER === "1",
-    implementationIdentity: helperImplementationIdentity,
-  }));
+  const helperImplementationIdentity =
+    helperPath == null
+      ? ""
+      : createHash("sha256")
+          .update(execFileSync(helperPath, ["--version"], { encoding: "utf8" }).trim())
+          .update("\0")
+          .update(readFileSync(helperPath))
+          .digest("hex");
+  const helperEnvironment = helperRouteLedgerEnvironment(
+    helperAvailabilityContract({
+      platform: process.platform as "darwin" | "linux" | "win32",
+      helperObserved,
+      explicitlyDisabled: process.env.DOMOTION_DISABLE_HELPER === "1",
+      implementationIdentity: helperImplementationIdentity,
+    }),
+  );
   setTextRunProvenanceEnabled(true);
   const domotion = [];
   const previousCluster = process.env.DOMOTION_CLUSTER_FALLBACK;
   try {
     for (const item of cases) {
-      clearEmbeddedFonts(); clearGlyphDefs(); resetTextRunProvenance(); setRenderTextMode(item.mode);
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      resetTextRunProvenance();
+      setRenderTextMode(item.mode);
       if (item.clusterFallback === false) process.env.DOMOTION_CLUSTER_FALLBACK = "0";
       else delete process.env.DOMOTION_CLUSTER_FALLBACK;
       const markup = renderTextAsPath(item.text, 0, 0, {
-        fontSize: 24, fontFamily: item.fontFamily ?? family, fontWeight: "400", fill: "#000", features: item.features,
+        fontSize: 24,
+        fontFamily: item.fontFamily ?? family,
+        fontWeight: "400",
+        fill: "#000",
+        features: item.features,
         fontVariantEmoji: item.fontVariantEmoji,
       });
       const rasterSpans = selectedGlyphRasterSpans(item.text, graphemeCandidates(item.text), {
-        fontSize: 24, fontFamily: item.fontFamily ?? family, fontWeight: "400",
-        features: item.features, fontVariantEmoji: item.fontVariantEmoji,
+        fontSize: 24,
+        fontFamily: item.fontFamily ?? family,
+        fontWeight: "400",
+        features: item.features,
+        fontVariantEmoji: item.fontVariantEmoji,
       });
-      domotion.push({ id: item.id, markupStatus: markup == null ? "declined" : "emitted", rasterSpans, ...getTextRunProvenance() });
+      domotion.push({
+        id: item.id,
+        markupStatus: markup == null ? "declined" : "emitted",
+        rasterSpans,
+        ...getTextRunProvenance(),
+      });
     }
   } finally {
     setTextRunProvenanceEnabled(false);
@@ -139,21 +188,30 @@ async function main(): Promise<number> {
     const context = await browser.newContext({ viewport: { width: 1000, height: 500 } });
     const page = await context.newPage();
     await page.setContent("<!doctype html><main></main>");
-    await page.locator("main").evaluate((main, input) => {
-      for (const item of input) {
-        const span = document.createElement("span");
-        span.id = item.id; span.textContent = item.text;
-        span.style.cssText = `display:inline-block;margin:3px;font-family:${item.family};font-size:24px`;
-        span.style.fontFeatureSettings = item.features == null ? "normal"
-          : item.features.map((feature) => `"${feature.replace(/^[+-]/, "")}" ${feature.startsWith("-") ? 0 : 1}`).join(",");
-        if (item.fontVariantEmoji != null) {
-          (span.style as CSSStyleDeclaration & { fontVariantEmoji: string }).fontVariantEmoji = item.fontVariantEmoji;
+    await page.locator("main").evaluate(
+      (main, input) => {
+        for (const item of input) {
+          const span = document.createElement("span");
+          span.id = item.id;
+          span.textContent = item.text;
+          span.style.cssText = `display:inline-block;margin:3px;font-family:${item.family};font-size:24px`;
+          span.style.fontFeatureSettings =
+            item.features == null
+              ? "normal"
+              : item.features
+                  .map((feature) => `"${feature.replace(/^[+-]/, "")}" ${feature.startsWith("-") ? 0 : 1}`)
+                  .join(",");
+          if (item.fontVariantEmoji != null) {
+            (span.style as CSSStyleDeclaration & { fontVariantEmoji: string }).fontVariantEmoji = item.fontVariantEmoji;
+          }
+          main.append(span);
         }
-        main.append(span);
-      }
-    }, cases.map((item) => ({ ...item, family: item.fontFamily ?? family })));
+      },
+      cases.map((item) => ({ ...item, family: item.fontFamily ?? family })),
+    );
     const cdp = await context.newCDPSession(page);
-    await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
     const { root } = await cdp.send("DOM.getDocument");
     const records = [];
     for (const item of cases) {
@@ -162,12 +220,24 @@ async function main(): Promise<number> {
       const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
       const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
       const origins = await page.locator(selector).evaluate((span) => {
-        const text = span.firstChild; if (text == null) return [];
-        const result = []; let start = 0;
+        const text = span.firstChild;
+        if (text == null) return [];
+        const result = [];
+        let start = 0;
         for (const scalar of span.textContent ?? "") {
-          const end = start + scalar.length; const range = document.createRange();
-          range.setStart(text, start); range.setEnd(text, end); const rect = range.getBoundingClientRect();
-          result.push({ utf16Span: [start, end], left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }); start = end;
+          const end = start + scalar.length;
+          const range = document.createRange();
+          range.setStart(text, start);
+          range.setEnd(text, end);
+          const rect = range.getBoundingClientRect();
+          result.push({
+            utf16Span: [start, end],
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+          });
+          start = end;
         }
         return result;
       });
@@ -202,28 +272,48 @@ async function main(): Promise<number> {
     const byId = new Map(records.map((record) => [record.input.id, record]));
     const mechanisms = [...new Set(records.flatMap((record) => record.domotion.runs.map((run) => run.mechanism)))];
     const dm2387ExactRows = [
-      "dotted-orphan", "dotted-explicit", "canonical-composition",
-      "cluster-latin", "cluster-arabic", "cluster-devanagari",
-      "cluster-bengali", "cluster-thai", "cluster-myanmar",
-      "cluster-khmer", "cluster-brahmi",
+      "dotted-orphan",
+      "dotted-explicit",
+      "canonical-composition",
+      "cluster-latin",
+      "cluster-arabic",
+      "cluster-devanagari",
+      "cluster-bengali",
+      "cluster-thai",
+      "cluster-myanmar",
+      "cluster-khmer",
+      "cluster-brahmi",
     ];
     const hasExactGlyphRecord = (id: string): boolean => {
       const record = byId.get(id);
-      return record != null && record.domotion.runs.length > 0
-        && record.domotion.runs.every((run) => run.glyphs.length > 0
-          && run.glyphs.every((glyph) => Number.isInteger(glyph.id)
-            && Number.isInteger(glyph.cluster)
-            && Number.isFinite(glyph.xAdvance)
-            && Number.isFinite(glyph.yAdvance)
-            && Number.isFinite(glyph.xOffset)
-            && Number.isFinite(glyph.yOffset)
-            && glyph.sourceSpan[0] >= run.sourceSpan[0]
-            && glyph.sourceSpan[1] <= run.sourceSpan[1]));
+      return (
+        record != null &&
+        record.domotion.runs.length > 0 &&
+        record.domotion.runs.every(
+          (run) =>
+            run.glyphs.length > 0 &&
+            run.glyphs.every(
+              (glyph) =>
+                Number.isInteger(glyph.id) &&
+                Number.isInteger(glyph.cluster) &&
+                Number.isFinite(glyph.xAdvance) &&
+                Number.isFinite(glyph.yAdvance) &&
+                Number.isFinite(glyph.xOffset) &&
+                Number.isFinite(glyph.yOffset) &&
+                glyph.sourceSpan[0] >= run.sourceSpan[0] &&
+                glyph.sourceSpan[1] <= run.sourceSpan[1],
+            ),
+        )
+      );
     };
     const sourceIsUnsubstituted = (id: string): boolean => {
       const record = byId.get(id);
-      return record != null && record.domotion.runs.every((run) =>
-        run.emittedText === record.input.text.slice(run.sourceSpan[0], run.sourceSpan[1]));
+      return (
+        record != null &&
+        record.domotion.runs.every(
+          (run) => run.emittedText === record.input.text.slice(run.sourceSpan[0], run.sourceSpan[1]),
+        )
+      );
     };
     const chromeGlyphCountsAgree = (id: string): boolean => {
       const record = byId.get(id);
@@ -240,52 +330,79 @@ async function main(): Promise<number> {
         const key = normalizeFace(name);
         ours.set(key, (ours.get(key) ?? 0) + run.glyphs.length);
       }
-      return chrome.size === ours.size
-        && [...chrome].every(([key, count]) => ours.get(key) === count);
+      return chrome.size === ours.size && [...chrome].every(([key, count]) => ours.get(key) === count);
     };
     const controls = {
-      emitter: byId.get("declared-paths")!.domotion.runs.some((run) => run.emitter === "paths")
-        && byId.get("embedded")!.domotion.runs.some((run) => run.emitter === "embedded-font"),
-      clusterFallback: byId.get("legacy-disabled")!.domotion.runs.some((run) => run.mechanism === "cluster-disabled-legacy"),
-      emojiWholeSequence: byId.get("emoji-sequence-text")!.domotion.rasterSpans.length === 2
-        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[0]?.start === 0
-        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[0]?.end === 2
-        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[1]?.start === 3
-        && byId.get("emoji-sequence-text")!.domotion.rasterSpans[1]?.end === 5
-        && byId.get("emoji-sequence-text")!.domotion.runs.every((run) => run.request.fontVariantEmoji === "text"),
-      emojiDisabledRoute: byId.get("emoji-sequence-text-disabled")!.domotion.runs
-        .some((run) => run.mechanism === "cluster-disabled-legacy")
-        && JSON.stringify(byId.get("emoji-sequence-text-disabled")!.domotion.rasterSpans)
-          !== JSON.stringify(byId.get("emoji-sequence-text")!.domotion.rasterSpans),
-      features: JSON.stringify(byId.get("feature-on")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id)))
-        !== JSON.stringify(byId.get("feature-off")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),
+      emitter:
+        byId.get("declared-paths")!.domotion.runs.some((run) => run.emitter === "paths") &&
+        byId.get("embedded")!.domotion.runs.some((run) => run.emitter === "embedded-font"),
+      clusterFallback: byId
+        .get("legacy-disabled")!
+        .domotion.runs.some((run) => run.mechanism === "cluster-disabled-legacy"),
+      emojiWholeSequence:
+        byId.get("emoji-sequence-text")!.domotion.rasterSpans.length === 2 &&
+        byId.get("emoji-sequence-text")!.domotion.rasterSpans[0]?.start === 0 &&
+        byId.get("emoji-sequence-text")!.domotion.rasterSpans[0]?.end === 2 &&
+        byId.get("emoji-sequence-text")!.domotion.rasterSpans[1]?.start === 3 &&
+        byId.get("emoji-sequence-text")!.domotion.rasterSpans[1]?.end === 5 &&
+        byId.get("emoji-sequence-text")!.domotion.runs.every((run) => run.request.fontVariantEmoji === "text"),
+      emojiDisabledRoute:
+        byId
+          .get("emoji-sequence-text-disabled")!
+          .domotion.runs.some((run) => run.mechanism === "cluster-disabled-legacy") &&
+        JSON.stringify(byId.get("emoji-sequence-text-disabled")!.domotion.rasterSpans) !==
+          JSON.stringify(byId.get("emoji-sequence-text")!.domotion.rasterSpans),
+      features:
+        JSON.stringify(byId.get("feature-on")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))) !==
+        JSON.stringify(byId.get("feature-off")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),
       exactGlyphClusterAdvanceRecords: dm2387ExactRows.every(hasExactGlyphRecord),
       chromiumGlyphCountAgreement: dm2387ExactRows.every(chromeGlyphCountsAgree),
       sourceOwnedNormalization: dm2387ExactRows.every(sourceIsUnsubstituted),
-      noImplicitLegacyRestart: cases.filter((item) => item.clusterFallback !== false).every((item) =>
-        byId.get(item.id)!.domotion.runs.every((run) => run.mechanism !== "cluster-disabled-legacy")),
+      noImplicitLegacyRestart: cases
+        .filter((item) => item.clusterFallback !== false)
+        .every((item) => byId.get(item.id)!.domotion.runs.every((run) => run.mechanism !== "cluster-disabled-legacy")),
       dottedCircleSeparation: (() => {
         const orphan = byId.get("dotted-orphan")!;
         const explicit = byId.get("dotted-explicit")!;
-        const signature = (record: typeof orphan) => JSON.stringify(record.domotion.runs.map((run) => ({
-          face: run.selected.instantiatedPostscriptName ?? run.selected.postscriptName,
-          glyphs: run.glyphs.map((glyph) => [glyph.id, glyph.cluster, glyph.xAdvance, glyph.xOffset]),
-        })));
-        return sourceIsUnsubstituted("dotted-orphan")
-          && sourceIsUnsubstituted("dotted-explicit")
-          && signature(orphan) !== signature(explicit);
+        const signature = (record: typeof orphan) =>
+          JSON.stringify(
+            record.domotion.runs.map((run) => ({
+              face: run.selected.instantiatedPostscriptName ?? run.selected.postscriptName,
+              glyphs: run.glyphs.map((glyph) => [glyph.id, glyph.cluster, glyph.xAdvance, glyph.xOffset]),
+            })),
+          );
+        return (
+          sourceIsUnsubstituted("dotted-orphan") &&
+          sourceIsUnsubstituted("dotted-explicit") &&
+          signature(orphan) !== signature(explicit)
+        );
       })(),
       broadScriptCounterexamples: [
-        "cluster-latin", "cluster-arabic", "cluster-devanagari",
-        "cluster-bengali", "cluster-thai", "cluster-myanmar",
-        "cluster-khmer", "cluster-brahmi",
+        "cluster-latin",
+        "cluster-arabic",
+        "cluster-devanagari",
+        "cluster-bengali",
+        "cluster-thai",
+        "cluster-myanmar",
+        "cluster-khmer",
+        "cluster-brahmi",
       ].every(hasExactGlyphRecord),
       paintedOrigins: records.every((record) => record.chrome.origins.length > 0),
-      bidiBothFallbackModes: ["digits", "pointed-hebrew", "adjacent-scripts", "mirrored-brackets"].every((name) =>
-        byId.get(`bidi-${name}`)!.domotion.runs.length > 0 && byId.get(`bidi-${name}-legacy`)!.domotion.runs.length > 0),
+      bidiBothFallbackModes: ["digits", "pointed-hebrew", "adjacent-scripts", "mirrored-brackets"].every(
+        (name) =>
+          byId.get(`bidi-${name}`)!.domotion.runs.length > 0 &&
+          byId.get(`bidi-${name}-legacy`)!.domotion.runs.length > 0,
+      ),
       bidiBoundaryMutation: (() => {
         const record = byId.get("bidi-adjacent-scripts")!;
-        const original = JSON.stringify(record.logical.segments.map((segment) => [segment.sourceSpan, segment.bidiLevel, segment.direction, segment.script]));
+        const original = JSON.stringify(
+          record.logical.segments.map((segment) => [
+            segment.sourceSpan,
+            segment.bidiLevel,
+            segment.direction,
+            segment.script,
+          ]),
+        );
         const coalesced = JSON.stringify([[[0, record.input.text.length], 0, "ltr", "Latin"]]);
         return original !== coalesced && record.logical.segments.length > 1;
       })(),
@@ -293,31 +410,51 @@ async function main(): Promise<number> {
         const text = byId.get("bidi-mirrored-brackets")!.input.text;
         const levels = bidi.getEmbeddingLevels(text, "ltr").levels;
         let mirrored = "";
-        for (let i = 0; i < text.length; i++) mirrored += levels[i] % 2 === 1 ? (bidi.getMirroredCharacter(text[i]) ?? text[i]) : text[i];
+        for (let i = 0; i < text.length; i++)
+          mirrored += levels[i] % 2 === 1 ? (bidi.getMirroredCharacter(text[i]) ?? text[i]) : text[i];
         return mirrored !== text;
       })(),
     };
-    const complete = records.every((record) => record.domotion.runs.length > 0 || record.domotion.transitions.length > 0)
-      && records.every((record) => !record.comparison.graded
-        || record.comparison.faceAgreement.every((agreement) => agreement === true))
-      && Object.values(controls).every(Boolean);
+    const complete =
+      records.every((record) => record.domotion.runs.length > 0 || record.domotion.transitions.length > 0) &&
+      records.every(
+        (record) =>
+          !record.comparison.graded || record.comparison.faceAgreement.every((agreement) => agreement === true),
+      ) &&
+      Object.values(controls).every(Boolean);
     const report = {
       schemaVersion: 3,
       stage: "production-text-run-provenance",
       sourceRevision: "chromium:7d859f271cbda744098ac69f44978d4edfa62be3",
       verdict: complete
-        ? helperEnvironment.helper.mode === "helper-present" ? "evidence-complete" : "degraded-evidence-complete"
+        ? helperEnvironment.helper.mode === "helper-present"
+          ? "evidence-complete"
+          : "degraded-evidence-complete"
         : "verdict-withheld",
-      environment: parityEnvironment({ corpusIdentity: "renderer-font-route-v3", sampleIdentity: cases.map((item) => item.id).join(",") }),
+      environment: parityEnvironment({
+        corpusIdentity: "renderer-font-route-v3",
+        sampleIdentity: cases.map((item) => item.id).join(","),
+      }),
       routeEnvironment: helperEnvironment,
       mechanisms,
       controls,
       records,
     };
     if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
-    console.log(`renderer font-route evidence: ${records.length} cases; mechanisms ${mechanisms.join(", ")}; controls ${JSON.stringify(controls)}`);
+    console.log(
+      `renderer font-route evidence: ${records.length} cases; mechanisms ${mechanisms.join(", ")}; controls ${JSON.stringify(controls)}`,
+    );
     return complete ? 0 : 1;
-  } finally { await browser.close(); }
+  } finally {
+    await browser.close();
+  }
 }
 
-main().then((code) => { process.exitCode = code; }).catch((error: unknown) => { console.error(error); process.exitCode = 2; });
+main()
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 2;
+  });

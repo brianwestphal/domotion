@@ -3,11 +3,19 @@ id: "requirements/url-background-image-geometry-audit"
 title: "URL background image geometry audit"
 kind: "evidence"
 status: "current"
-owners: ["images-media","layout","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2365","DM-2370","DM-2477","DM-2478","DM-2479","DM-2480","DM-2668"]
-code: [".github/workflows/url-background-geometry-parity.yml","src/capture/background-image-sizing.ts","src/capture/script/walker/background-attachment.ts","src/capture/script/walker/fragmentation.ts","src/render/background-attachment.ts","src/render/image-pattern.ts"]
-aliases: ["docs/163-url-background-image-geometry-audit.md","doc-163"]
+owners: ["images-media", "layout", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2365", "DM-2370", "DM-2477", "DM-2478", "DM-2479", "DM-2480", "DM-2668"]
+code:
+  [
+    ".github/workflows/url-background-geometry-parity.yml",
+    "src/capture/background-image-sizing.ts",
+    "src/capture/script/walker/background-attachment.ts",
+    "src/capture/script/walker/fragmentation.ts",
+    "src/render/background-attachment.ts",
+    "src/render/image-pattern.ts",
+  ]
+aliases: ["docs/163-url-background-image-geometry-audit.md", "doc-163"]
 ---
 
 # URL background image geometry audit
@@ -284,34 +292,34 @@ mutation pair as SHA-256-addressed lossless evidence. Reports fingerprint the
 pinned sources, Chromium, Playwright, Node, OS/architecture, GitHub runner
 image, viewport, and DPR.
 
-| Row | DPR 1 mismatch / bound | DPR 2 mismatch / bound | Route |
-| --- | ---: | ---: | --- |
-| explicit 32×20 repeat | 0.00% / 0 | 0.00% / 0 | strict |
-| intrinsic auto/auto | 0.00% / 0 | 0.00% / 0 | strict |
-| auto width from 37 px height | 0.00% / 0 | 0.00% / 0 | strict |
-| calculated two-axis size | 0.00% / 0 | 0.00% / 0 | strict |
-| contain in fractional area | 3.11% / 1 | 1.06% / 1 | SVG sampling / exact bounds |
-| cover + 37%/63% position | 0.00% / 0 | 0.00% / 0 | strict |
-| calculated position | 0.00% / 0 | 0.00% / 0 | strict |
-| round + orthogonal auto | 6.32% / 1 | 5.22% / 1 | SVG sampling / exact bounds |
-| space with multiple tiles | 0.00% / 0 | 0.00% / 0 | strict |
-| space single-tile fallback | 0.00% / 0 | 0.00% / 0 | strict |
-| content origin + padding clip | 0.00% / 0 | 0.00% / 0 | strict |
-| fixed viewport | 0.00% / 0 | 0.00% / 0 | strict |
-| fixed under transformed ancestor | 0.00% / 0 | 0.00% / 0 | strict |
-| local after x/y scroll | 0.00% / 0 | 0.00% / 0 | strict |
-| zoom 1.25 + intrinsic auto | 0.00% / 0 | 0.00% / 0 | strict |
-| affine transformed local space | 4.25% / 0 | 2.12% / 0 | SVG sampling / exact bounds |
-| four images + two-value lists | 0.00% / 0 | 0.00% / 0 | strict |
-| wrapped inline clone | 0.00% / 0 | 0.31% / 0 | strict |
-| wrapped inline slice | 0.00% / 0 | 0.22% / 0 | strict |
-| wrapped inline RTL slice | 0.00% / 0 | 0.30% / 0 | strict |
-| wrapped inline origin/clip slice | 0.00% / 0 | 0.26% / 0 | strict |
-| wrapped inline fixed slice | 0.00% / 0 | 0.11% / 0 | strict |
-| wrapped inline vertical-rl slice | 0.00% / 0 | 0.00% / 0 | strict |
-| multicol block clone | 0.00% / 0 | 0.00% / 0 | strict |
-| multicol block slice | 0.00% / 0 | 0.00% / 0 | strict |
-| multicol vertical-rl block slice | 0.00% / 0 | 0.00% / 0 | strict |
+| Row                              | DPR 1 mismatch / bound | DPR 2 mismatch / bound | Route                       |
+| -------------------------------- | ---------------------: | ---------------------: | --------------------------- |
+| explicit 32×20 repeat            |              0.00% / 0 |              0.00% / 0 | strict                      |
+| intrinsic auto/auto              |              0.00% / 0 |              0.00% / 0 | strict                      |
+| auto width from 37 px height     |              0.00% / 0 |              0.00% / 0 | strict                      |
+| calculated two-axis size         |              0.00% / 0 |              0.00% / 0 | strict                      |
+| contain in fractional area       |              3.11% / 1 |              1.06% / 1 | SVG sampling / exact bounds |
+| cover + 37%/63% position         |              0.00% / 0 |              0.00% / 0 | strict                      |
+| calculated position              |              0.00% / 0 |              0.00% / 0 | strict                      |
+| round + orthogonal auto          |              6.32% / 1 |              5.22% / 1 | SVG sampling / exact bounds |
+| space with multiple tiles        |              0.00% / 0 |              0.00% / 0 | strict                      |
+| space single-tile fallback       |              0.00% / 0 |              0.00% / 0 | strict                      |
+| content origin + padding clip    |              0.00% / 0 |              0.00% / 0 | strict                      |
+| fixed viewport                   |              0.00% / 0 |              0.00% / 0 | strict                      |
+| fixed under transformed ancestor |              0.00% / 0 |              0.00% / 0 | strict                      |
+| local after x/y scroll           |              0.00% / 0 |              0.00% / 0 | strict                      |
+| zoom 1.25 + intrinsic auto       |              0.00% / 0 |              0.00% / 0 | strict                      |
+| affine transformed local space   |              4.25% / 0 |              2.12% / 0 | SVG sampling / exact bounds |
+| four images + two-value lists    |              0.00% / 0 |              0.00% / 0 | strict                      |
+| wrapped inline clone             |              0.00% / 0 |              0.31% / 0 | strict                      |
+| wrapped inline slice             |              0.00% / 0 |              0.22% / 0 | strict                      |
+| wrapped inline RTL slice         |              0.00% / 0 |              0.30% / 0 | strict                      |
+| wrapped inline origin/clip slice |              0.00% / 0 |              0.26% / 0 | strict                      |
+| wrapped inline fixed slice       |              0.00% / 0 |              0.11% / 0 | strict                      |
+| wrapped inline vertical-rl slice |              0.00% / 0 |              0.00% / 0 | strict                      |
+| multicol block clone             |              0.00% / 0 |              0.00% / 0 | strict                      |
+| multicol block slice             |              0.00% / 0 |              0.00% / 0 | strict                      |
+| multicol vertical-rl block slice |              0.00% / 0 |              0.00% / 0 | strict                      |
 
 Both runs pass 26/26 rows. Held-out controls require
 all source palettes to decode, every positive row to remain tight, fixed and

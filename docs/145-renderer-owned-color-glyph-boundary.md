@@ -3,18 +3,18 @@ id: "requirements/renderer-owned-color-glyph-boundary"
 title: "Renderer-owned color-glyph boundary"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","paint-effects"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2350","DM-2392","DM-2507","DM-2508","DM-2509","DM-2510","DM-2534"]
+owners: ["text-fonts", "paint-effects"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2350", "DM-2392", "DM-2507", "DM-2508", "DM-2509", "DM-2510", "DM-2534"]
 code: ["tools/unicode-font-route-trace.ts"]
-aliases: ["docs/145-renderer-owned-color-glyph-boundary.md","doc-145"]
+aliases: ["docs/145-renderer-owned-color-glyph-boundary.md", "doc-145"]
 ---
 
 # Renderer-owned color-glyph boundary
 
 DM-2392 removes Unicode block lists, named emoji exceptions, font-name checks,
 and the canvas two-fill probe from the raster-glyph decision. Those mechanisms
-answered what a codepoint or a second paint *usually* looks like; Chromium asks
+answered what a codepoint or a second paint _usually_ looks like; Chromium asks
 which face and glyph the actual run selected.
 
 ## Chromium decision chain
@@ -32,7 +32,7 @@ emoji-segmenter, ICU, HarfBuzz, and Skia revisions:
 3. A face contradicts VS15/VS16 only when cmap14 has no exact sequence, the
    base glyph exists, and its physical table directory says color or
    monochrome. Blink's color predicate is exactly `sbix || (COLR && CPAL) ||
-   (CBDT && CBLC)`; OpenType SVG is intentionally not part of this selector
+(CBDT && CBLC)`; OpenType SVG is intentionally not part of this selector
    predicate. An unmatched sequence requeues, and exhaustion resets the entire
    iterator once while ignoring the selector.
 4. After shaping, Domotion separately asks whether the selected glyph can be

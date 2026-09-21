@@ -83,7 +83,11 @@ function parseFlags(argv: string[]): ReviewFlags | { help: true } {
   };
 }
 
-async function rasteriseSvg(browser: Browser, svgPath: string, outPng: string): Promise<{ width: number; height: number }> {
+async function rasteriseSvg(
+  browser: Browser,
+  svgPath: string,
+  outPng: string,
+): Promise<{ width: number; height: number }> {
   if (!existsSync(svgPath)) throw new Error(`svg-review: actual SVG not found: ${svgPath}`);
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
@@ -110,7 +114,11 @@ async function rasteriseSvg(browser: Browser, svgPath: string, outPng: string): 
     throw new Error(`svg-review: couldn't determine SVG dimensions from ${svgPath}`);
   }
   await page.setViewportSize({ width: Math.ceil(dims.width), height: Math.ceil(dims.height) });
-  await page.screenshot({ path: outPng, clip: { x: 0, y: 0, width: dims.width, height: dims.height }, omitBackground: false });
+  await page.screenshot({
+    path: outPng,
+    clip: { x: 0, y: 0, width: dims.width, height: dims.height },
+    omitBackground: false,
+  });
   await ctx.close();
   return dims;
 }
@@ -164,7 +172,9 @@ async function main(): Promise<void> {
     const page = await ctx.newPage();
     const cmp = await comparePngs(page, expectedPng, actualPng, diffPng);
     await ctx.close();
-    process.stderr.write(`svg-review: ${cmp.verdict} · ${cmp.regionCount} region(s) · ${cmp.coveragePct.toFixed(2)}% of image\n`);
+    process.stderr.write(
+      `svg-review: ${cmp.verdict} · ${cmp.regionCount} region(s) · ${cmp.coveragePct.toFixed(2)}% of image\n`,
+    );
 
     const server = await startReviewServer({
       expectedPng,
@@ -189,13 +199,21 @@ async function main(): Promise<void> {
       await browser.close();
       process.exit(0);
     };
-    process.on("SIGINT", () => { void shutdown(); });
-    process.on("SIGTERM", () => { void shutdown(); });
+    process.on("SIGINT", () => {
+      void shutdown();
+    });
+    process.on("SIGTERM", () => {
+      void shutdown();
+    });
     // Keep the event loop busy — the server holds the loop open anyway,
     // but be explicit so the user can read the printed URL.
-    await new Promise(() => { /* never resolves; SIGINT exits the process */ });
+    await new Promise(() => {
+      /* never resolves; SIGINT exits the process */
+    });
   } catch (e) {
-    await browser.close().catch(() => { /* ignore */ });
+    await browser.close().catch(() => {
+      /* ignore */
+    });
     cliFail("svg-review", (e as Error).message, "runtime");
   }
 }

@@ -59,7 +59,13 @@ describe("resolveTypeResampleSpec (DM-1556)", () => {
 
   it("respects explicit overrides, including falsy ones (clear:false, caret:false, delay:0)", () => {
     const spec = resolveTypeResampleSpec({
-      selector: "#f", text: "ab", speed: 40, delay: 0, tailMs: 100, clear: false, caret: false,
+      selector: "#f",
+      text: "ab",
+      speed: 40,
+      delay: 0,
+      tailMs: 100,
+      clear: false,
+      caret: false,
     });
     expect(spec.speed).toBe(40);
     expect(spec.delay).toBe(0);
@@ -71,6 +77,8 @@ describe("resolveTypeResampleSpec (DM-1556)", () => {
   it("DM-1591: caretShape defaults to 'auto' and accepts a forced shape", () => {
     expect(resolveTypeResampleSpec({ selector: "#f", text: "x" }).caretShape).toBe("auto");
     expect(resolveTypeResampleSpec({ selector: "#f", text: "x", caretShape: "block" }).caretShape).toBe("block");
-    expect(resolveTypeResampleSpec({ selector: "#f", text: "x", caretShape: "underscore" }).caretShape).toBe("underscore");
+    expect(resolveTypeResampleSpec({ selector: "#f", text: "x", caretShape: "underscore" }).caretShape).toBe(
+      "underscore",
+    );
   });
 });

@@ -3,22 +3,34 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
 const page = await ctx.newPage();
 const cdp = await ctx.newCDPSession(page);
-await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
-const cps = [0x21D0, 0x21D1, 0x21D2, 0x21D3, 0x21D4, 0x21D5];
-const html = `<style>div{font:32px sans-serif;background:white;color:black}</style>` +
-  cps.map(cp => `<div id="c${cp.toString(16)}">${String.fromCodePoint(cp)}</div>`).join("\n");
+await cdp.send("DOM.enable");
+await cdp.send("CSS.enable");
+const cps = [0x21d0, 0x21d1, 0x21d2, 0x21d3, 0x21d4, 0x21d5];
+const html =
+  `<style>div{font:32px sans-serif;background:white;color:black}</style>` +
+  cps.map((cp) => `<div id="c${cp.toString(16)}">${String.fromCodePoint(cp)}</div>`).join("\n");
 await page.setContent(html);
 await page.waitForLoadState("networkidle");
 const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
-function flat(n,a=[]){a.push(n);for(const c of n.children||[])flat(c,a);return a;}
-const divs = flat(root).filter(n => n.nodeName === "DIV");
+function flat(n, a = []) {
+  a.push(n);
+  for (const c of n.children || []) flat(c, a);
+  return a;
+}
+const divs = flat(root).filter((n) => n.nodeName === "DIV");
 for (let i = 0; i < cps.length; i++) {
   const cp = cps[i];
   const fonts = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: divs[i].nodeId });
-  const w = await page.evaluate((id) => {
-    const r = document.createRange(); r.selectNodeContents(document.getElementById(id));
-    return r.getBoundingClientRect().width;
-  }, `c${cp.toString(16)}`);
-  console.log(`U+${cp.toString(16).toUpperCase()}  ${String.fromCodePoint(cp)}  Chrome: ${fonts.fonts.map(f=>`${f.familyName}×${f.glyphCount}`).join(", ")}  paint-width: ${w.toFixed(2)}px`);
+  const w = await page.evaluate(
+    (id) => {
+      const r = document.createRange();
+      r.selectNodeContents(document.getElementById(id));
+      return r.getBoundingClientRect().width;
+    },
+    `c${cp.toString(16)}`,
+  );
+  console.log(
+    `U+${cp.toString(16).toUpperCase()}  ${String.fromCodePoint(cp)}  Chrome: ${fonts.fonts.map((f) => `${f.familyName}×${f.glyphCount}`).join(", ")}  paint-width: ${w.toFixed(2)}px`,
+  );
 }
 await browser.close();

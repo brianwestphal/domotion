@@ -7,10 +7,19 @@ import type { CapturedElement, CapturedTreeEnvelope } from "../src/capture/types
 import { promoteCapturedSubtree } from "../src/capture/tree-envelope.js";
 import { capturedSessionGenericFamilies, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { getSessionGenericFamilyOverrides, setSessionGenericFamilyOverrides } from "../src/render/font-resolution.js";
-import { ensureSessionGenericFamilyOverrides, probePageGenericFamilies, probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
+import {
+  ensureSessionGenericFamilyOverrides,
+  probePageGenericFamilies,
+  probeSessionGenericFamilies,
+} from "../src/capture/generic-font-probe.js";
 
-async function defaultCommonFamilyNames(context: BrowserContext, page: import("@playwright/test").Page): Promise<{ serif: string; sans: string; mono: string }> {
-  await page.setContent("<!doctype html><body><span id=s style='font:32px serif'>A</span><span id=n style='font:32px sans-serif'>A</span><span id=m style='font:32px monospace'>A</span></body>");
+async function defaultCommonFamilyNames(
+  context: BrowserContext,
+  page: import("@playwright/test").Page,
+): Promise<{ serif: string; sans: string; mono: string }> {
+  await page.setContent(
+    "<!doctype html><body><span id=s style='font:32px serif'>A</span><span id=n style='font:32px sans-serif'>A</span><span id=m style='font:32px monospace'>A</span></body>",
+  );
   const cdp = await context.newCDPSession(page);
   try {
     await cdp.send("DOM.enable");
@@ -19,7 +28,10 @@ async function defaultCommonFamilyNames(context: BrowserContext, page: import("@
     const read = async (selector: string): Promise<string> => {
       const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
       const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-      return fonts.reduce((best, font) => best == null || font.glyphCount > best.glyphCount ? font : best, null as (typeof fonts)[number] | null)!.familyName;
+      return fonts.reduce(
+        (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
+        null as (typeof fonts)[number] | null,
+      )!.familyName;
     };
     return { serif: await read("#s"), sans: await read("#n"), mono: await read("#m") };
   } finally {
@@ -46,13 +58,24 @@ describe("the live session generic-family probe", () => {
     const result = await probeSessionGenericFamilies(context!);
     expect(result).not.toBeNull();
     expect([...result!.common.keys()]).toEqual([
-      "standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
+      "standard",
+      "serif",
+      "sans-serif",
+      "monospace",
+      "cursive",
+      "fantasy",
+      "math",
     ]);
-    for (const script of [
-      "KATAKANA_OR_HIRAGANA", "HANGUL", "SIMPLIFIED_HAN", "TRADITIONAL_HAN",
-    ]) {
-      expect([...result!.byScript.get(script)!.keys()])
-        .toEqual(["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"]);
+    for (const script of ["KATAKANA_OR_HIRAGANA", "HANGUL", "SIMPLIFIED_HAN", "TRADITIONAL_HAN"]) {
+      expect([...result!.byScript.get(script)!.keys()]).toEqual([
+        "standard",
+        "serif",
+        "sans-serif",
+        "monospace",
+        "cursive",
+        "fantasy",
+        "math",
+      ]);
     }
   });
 
@@ -61,8 +84,7 @@ describe("the live session generic-family probe", () => {
     const families = await defaultCommonFamilyNames(context!, page);
     const before = await ensureSessionGenericFamilyOverrides(page);
     const beforeJpan = before!.byScript.get("KATAKANA_OR_HIRAGANA")!;
-    const jpanMutationFamily = [...new Set(beforeJpan.values())]
-      .find((family) => family !== beforeJpan.get("serif"));
+    const jpanMutationFamily = [...new Set(beforeJpan.values())].find((family) => family !== beforeJpan.get("serif"));
     const session = await context!.newCDPSession(page);
     try {
       await session.send("Page.setFontFamilies", {
@@ -75,10 +97,15 @@ describe("the live session generic-family probe", () => {
           fantasy: families.serif,
           math: families.sans,
         },
-        forScripts: jpanMutationFamily == null ? [] : [{
-          script: "jpan",
-          fontFamilies: { serif: jpanMutationFamily },
-        }],
+        forScripts:
+          jpanMutationFamily == null
+            ? []
+            : [
+                {
+                  script: "jpan",
+                  fontFamilies: { serif: jpanMutationFamily },
+                },
+              ],
       });
       const result = await ensureSessionGenericFamilyOverrides(page);
       expect(result).not.toBeNull();
@@ -89,11 +116,9 @@ describe("the live session generic-family probe", () => {
         // A limited host can paint every Japanese generic through one fallback
         // face, leaving no non-inert installed mutation candidate. The Common
         // mutations above remain mandatory and non-vacuous.
-        expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif"))
-          .toBe(beforeJpan.get("serif"));
+        expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif")).toBe(beforeJpan.get("serif"));
       } else {
-        expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif"))
-          .toBe(jpanMutationFamily);
+        expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif")).toBe(jpanMutationFamily);
       }
     } finally {
       await session.detach();
@@ -105,12 +130,15 @@ describe("the live session generic-family probe", () => {
     const page = await context!.newPage();
     await page.setContent("<!doctype html><body>clean</body>");
     const clean = await probePageGenericFamilies(page);
-    await page.setContent("<!doctype html><style>html,body,*{display:none!important;visibility:hidden!important;content-visibility:hidden!important;font-family:fantasy!important;font-size:3px!important}</style><body>hostile</body>");
+    await page.setContent(
+      "<!doctype html><style>html,body,*{display:none!important;visibility:hidden!important;content-visibility:hidden!important;font-family:fantasy!important;font-size:3px!important}</style><body>hostile</body>",
+    );
     const hostile = await probePageGenericFamilies(page);
     expect(hostile).not.toBeNull();
     expect([...hostile!.common]).toEqual([...clean!.common]);
-    expect([...hostile!.byScript].map(([script, families]) => [script, [...families]]))
-      .toEqual([...clean!.byScript].map(([script, families]) => [script, [...families]]));
+    expect([...hostile!.byScript].map(([script, families]) => [script, [...families]])).toEqual(
+      [...clean!.byScript].map(([script, families]) => [script, [...families]]),
+    );
   });
 
   it("does not hang when a reused page navigates to a srcdoc iframe", async () => {
@@ -123,10 +151,9 @@ describe("the live session generic-family probe", () => {
       </body>`);
       const result = await Promise.race([
         probePageGenericFamilies(page),
-        new Promise<never>((_resolve, reject) => setTimeout(
-          () => reject(new Error("generic-family probe hung on a srcdoc child frame")),
-          10_000,
-        )),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("generic-family probe hung on a srcdoc child frame")), 10_000),
+        ),
       ]);
       expect(result).not.toBeNull();
       expect(result!.byScript.get("THAI")).toBeDefined();
@@ -145,10 +172,9 @@ describe("the live session generic-family probe", () => {
       </body>`);
       const tree = await Promise.race([
         captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 120 }),
-        new Promise<never>((_resolve, reject) => setTimeout(
-          () => reject(new Error("capture hung while probing a local srcdoc target")),
-          10_000,
-        )),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("capture hung while probing a local srcdoc target")), 10_000),
+        ),
       ]);
       expect(tree.length).toBeGreaterThan(0);
     } finally {
@@ -192,14 +218,12 @@ describe("the live session generic-family probe", () => {
 
   it("retains Page authority through JSON and descendant promotion into a render root", async () => {
     const page = await context!.newPage();
-    await page.setContent("<!doctype html><body><main><section><span style='font:32px serif'>promoted</span></section></main></body>");
+    await page.setContent(
+      "<!doctype html><body><main><section><span style='font:32px serif'>promoted</span></section></main></body>",
+    );
     setSessionGenericFamilyOverrides(null);
     try {
-      const captured = await captureElementTreeEnvelope(
-        page,
-        "body",
-        { x: 0, y: 0, width: 400, height: 120 },
-      );
+      const captured = await captureElementTreeEnvelope(page, "body", { x: 0, y: 0, width: 400, height: 120 });
       const parsed = JSON.parse(JSON.stringify(captured)) as CapturedTreeEnvelope;
       const find = (nodes: CapturedElement[]): CapturedElement | undefined => {
         for (const node of nodes) {
@@ -214,8 +238,9 @@ describe("the live session generic-family probe", () => {
       const promoted = promoteCapturedSubtree(parsed, descendant!);
       expect(promoted.sessionGenericFamilies).toEqual(parsed.sessionGenericFamilies);
       expect(promoted.tree[0].sessionGenericFamilies).toBeUndefined();
-      expect(capturedSessionGenericFamilies(promoted)?.common.get("serif"))
-        .toBe(parsed.sessionGenericFamilies!.common.serif);
+      expect(capturedSessionGenericFamilies(promoted)?.common.get("serif")).toBe(
+        parsed.sessionGenericFamilies!.common.serif,
+      );
       expect(elementTreeToSvgInner(promoted, 400, 120)).toContain("promoted");
       expect(getSessionGenericFamilyOverrides()).toBeNull();
     } finally {
@@ -239,13 +264,29 @@ describe("the live session generic-family probe", () => {
       await page.goto(`http://127.0.0.1:${port}/`);
       const result = await probePageGenericFamilies(page);
       expect(result).not.toBeNull();
-      expect([...result!.byScript.get("THAI")!.keys()])
-        .toEqual(["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"]);
-      expect([...result!.byScript.get("GEORGIAN")!.keys()])
-        .toEqual(["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"]);
+      expect([...result!.byScript.get("THAI")!.keys()]).toEqual([
+        "standard",
+        "serif",
+        "sans-serif",
+        "monospace",
+        "cursive",
+        "fantasy",
+        "math",
+      ]);
+      expect([...result!.byScript.get("GEORGIAN")!.keys()]).toEqual([
+        "standard",
+        "serif",
+        "sans-serif",
+        "monospace",
+        "cursive",
+        "fantasy",
+        "math",
+      ]);
     } finally {
       await page.close();
-      await new Promise<void>((resolve, reject) => server.close((error) => error == null ? resolve() : reject(error)));
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error == null ? resolve() : reject(error))),
+      );
     }
   });
 });

@@ -5,8 +5,7 @@ const box = { x: 10, y: 20, width: 80, height: 40 };
 
 describe("wrapPseudoPaintEffects", () => {
   it("leaves an unfiltered pseudo paint unchanged", () => {
-    expect(wrapPseudoPaintEffects({ ...box, filter: "none" }, "<rect/>"))
-      .toBe("<rect/>");
+    expect(wrapPseudoPaintEffects({ ...box, filter: "none" }, "<rect/>")).toBe("<rect/>");
   });
 
   it.each([
@@ -31,9 +30,7 @@ describe("wrapPseudoPaintEffects", () => {
     const second = "drop-shadow(rgb(0, 0, 0) 2px 4px 3px) opacity(0.35)";
     expect(wrapPseudoPaintEffects({ ...box, filter: first }, "<path/>")).toContain(first);
     expect(wrapPseudoPaintEffects({ ...box, filter: second }, "<path/>")).toContain(second);
-    expect(
-      wrapPseudoPaintEffects({ ...box, filter: 'url("#a&b")' }, "<path/>"),
-    ).toContain("url(&quot;#a&amp;b&quot;)");
+    expect(wrapPseudoPaintEffects({ ...box, filter: 'url("#a&b")' }, "<path/>")).toContain("url(&quot;#a&amp;b&quot;)");
   });
 
   it("nests filter inside transform inside opacity", () => {
@@ -54,25 +51,17 @@ describe("wrapPseudoPaintEffects", () => {
   });
 
   it("does not round captured group opacity", () => {
-    expect(wrapPseudoPaintEffects({ ...box, opacity: 0.45 }, "<rect/>"))
-      .toBe('<g opacity="0.45"><rect/></g>');
+    expect(wrapPseudoPaintEffects({ ...box, opacity: 0.45 }, "<rect/>")).toBe('<g opacity="0.45"><rect/></g>');
   });
 
   it("uses the border-box center for an unavailable transform origin", () => {
-    expect(
-      wrapPseudoPaintEffects(
-        { ...box, transform: "scale(2)", transformOrigin: "not-resolved" },
-        "<rect/>",
-      ),
-    ).toBe(
+    expect(wrapPseudoPaintEffects({ ...box, transform: "scale(2)", transformOrigin: "not-resolved" }, "<rect/>")).toBe(
       '<g transform="translate(50 40) scale(2) translate(-50 -40)"><rect/></g>',
     );
   });
 
   it("retains identity filters because they still establish an effect node", () => {
-    expect(wrapPseudoPaintEffects({ ...box, filter: "blur(0px)" }, "<rect/>"))
-      .not.toBe("<rect/>");
-    expect(wrapPseudoPaintEffects({ ...box, filter: "opacity(1)" }, "<rect/>"))
-      .not.toBe("<rect/>");
+    expect(wrapPseudoPaintEffects({ ...box, filter: "blur(0px)" }, "<rect/>")).not.toBe("<rect/>");
+    expect(wrapPseudoPaintEffects({ ...box, filter: "opacity(1)" }, "<rect/>")).not.toBe("<rect/>");
   });
 });

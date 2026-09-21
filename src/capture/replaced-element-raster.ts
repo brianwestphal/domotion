@@ -8,12 +8,7 @@ import {
 } from "./replaced-snapshot-geometry.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
-export type ReplacedElementRasterFailurePhase =
-  | "target-lookup"
-  | "geometry"
-  | "isolation"
-  | "screenshot"
-  | "cleanup";
+export type ReplacedElementRasterFailurePhase = "target-lookup" | "geometry" | "isolation" | "screenshot" | "cleanup";
 
 export interface ReplacedElementRasterFailure {
   rid?: string;
@@ -80,8 +75,9 @@ export async function rasterizeReplacedElements(
     inheritedProjectiveOwner: boolean,
   ): void => {
     for (const el of nodes) {
-      const serializedTransform = inheritedSerializedTransform
-        || (el.styles.transform != null && el.styles.transform !== "" && el.styles.transform !== "none");
+      const serializedTransform =
+        inheritedSerializedTransform ||
+        (el.styles.transform != null && el.styles.transform !== "" && el.styles.transform !== "none");
       const projectiveOwner = inheritedProjectiveOwner || el.transformSubtreeRaster != null;
       if (el.replacedSnapshot != null) {
         targets.push({
@@ -102,7 +98,7 @@ export async function rasterizeReplacedElements(
     skippedProjectiveCount: targets.filter((target) => target.projectiveOwner).length,
     failures: [],
   };
-  const errorDetail = (error: unknown): string => error instanceof Error ? error.message : String(error);
+  const errorDetail = (error: unknown): string => (error instanceof Error ? error.message : String(error));
   const recordFailure = (
     target: Target | undefined,
     phase: ReplacedElementRasterFailurePhase,
@@ -125,12 +121,10 @@ export async function rasterizeReplacedElements(
   const cleanupMarkers = async (): Promise<void> => {
     try {
       await page.evaluate(() => {
-        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
-          (el) => el.removeAttribute("data-domotion-snapshot-target"),
-        );
-        document.querySelectorAll("[data-domotion-rid]").forEach(
-          (el) => el.removeAttribute("data-domotion-rid"),
-        );
+        document
+          .querySelectorAll("[data-domotion-snapshot-target]")
+          .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+        document.querySelectorAll("[data-domotion-rid]").forEach((el) => el.removeAttribute("data-domotion-rid"));
       });
     } catch (error) {
       recordFailure(undefined, "cleanup", `could not remove snapshot markers: ${errorDetail(error)}`);
@@ -160,16 +154,24 @@ export async function rasterizeReplacedElements(
   }
 
   const rectQuad = (rect: { x: number; y: number; width: number; height: number }): CssQuad => [
-    rect.x, rect.y,
-    rect.x + rect.width, rect.y,
-    rect.x + rect.width, rect.y + rect.height,
-    rect.x, rect.y + rect.height,
+    rect.x,
+    rect.y,
+    rect.x + rect.width,
+    rect.y,
+    rect.x + rect.width,
+    rect.y + rect.height,
+    rect.x,
+    rect.y + rect.height,
   ];
   const localizeQuad = (quad: CssQuad): CssQuad => [
-    quad[0] - viewport.x, quad[1] - viewport.y,
-    quad[2] - viewport.x, quad[3] - viewport.y,
-    quad[4] - viewport.x, quad[5] - viewport.y,
-    quad[6] - viewport.x, quad[7] - viewport.y,
+    quad[0] - viewport.x,
+    quad[1] - viewport.y,
+    quad[2] - viewport.x,
+    quad[3] - viewport.y,
+    quad[4] - viewport.x,
+    quad[5] - viewport.y,
+    quad[6] - viewport.x,
+    quad[7] - viewport.y,
   ];
   const boxQuad = async (target: Target): Promise<CssQuad | null> => {
     if (cdp != null && rootNodeId != null) {
@@ -230,10 +232,9 @@ export async function rasterizeReplacedElements(
   // truly opaque-replaced — there's no light-DOM content to double-paint —
   // so the image crop is clean. Split targets accordingly.
   const _replacedTagSet = new Set(["iframe", "canvas", "video", "object", "embed"]);
-  const cropTargets = activeTargets.filter((target) =>
-    opts?.sourceImagePath != null
-    && _replacedTagSet.has(target.tag)
-    && !target.serializedTransform);
+  const cropTargets = activeTargets.filter(
+    (target) => opts?.sourceImagePath != null && _replacedTagSet.has(target.tag) && !target.serializedTransform,
+  );
   const screenshotTargets = activeTargets.filter((target) => !cropTargets.includes(target));
 
   // DM-562: when the caller supplies a `sourceImagePath` (the expected.png
@@ -259,20 +260,21 @@ export async function rasterizeReplacedElements(
             screenshotTargets.push(target);
             continue;
           }
-          const mapped = mapCssRectToSourcePixels({
-            x: bounds.x - viewport.x,
-            y: bounds.y - viewport.y,
-            width: bounds.width,
-            height: bounds.height,
-          }, viewport, sourceSize);
+          const mapped = mapCssRectToSourcePixels(
+            {
+              x: bounds.x - viewport.x,
+              y: bounds.y - viewport.y,
+              width: bounds.width,
+              height: bounds.height,
+            },
+            viewport,
+            sourceSize,
+          );
           if (mapped == null) {
             screenshotTargets.push(target);
             continue;
           }
-          const buf = await sharp(opts.sourceImagePath)
-            .extract(mapped.crop)
-            .png()
-            .toBuffer();
+          const buf = await sharp(opts.sourceImagePath).extract(mapped.crop).png().toBuffer();
           installRaster(
             target,
             `data:image/png;base64,${buf.toString("base64")}`,
@@ -296,7 +298,9 @@ export async function rasterizeReplacedElements(
     }
   }
   if (screenshotTargets.length === 0) {
-    try { await cdp?.detach(); } catch (error) {
+    try {
+      await cdp?.detach();
+    } catch (error) {
       recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
     }
     await cleanupMarkers();
@@ -350,13 +354,17 @@ export async function rasterizeReplacedElements(
             const transform = style.transform;
             let needsRendererTransform = false;
             const matrix = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,/.exec(transform);
-            if (matrix != null
-                && (Math.abs(parseFloat(matrix[2])) > 1e-6 || Math.abs(parseFloat(matrix[3])) > 1e-6)) {
+            if (matrix != null && (Math.abs(parseFloat(matrix[2])) > 1e-6 || Math.abs(parseFloat(matrix[3])) > 1e-6)) {
               needsRendererTransform = true;
             }
-            const matrix3d = /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,/.exec(transform);
-            if (matrix3d != null
-                && (Math.abs(parseFloat(matrix3d[2])) > 1e-6 || Math.abs(parseFloat(matrix3d[3])) > 1e-6)) {
+            const matrix3d =
+              /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,/.exec(
+                transform,
+              );
+            if (
+              matrix3d != null &&
+              (Math.abs(parseFloat(matrix3d[2])) > 1e-6 || Math.abs(parseFloat(matrix3d[3])) > 1e-6)
+            ) {
               needsRendererTransform = true;
             }
             if (style.rotate != null && style.rotate !== "" && style.rotate !== "none") {
@@ -364,9 +372,14 @@ export async function rasterizeReplacedElements(
               if (angle != null) {
                 const value = parseFloat(angle[1]);
                 const unit = angle[2]?.toLowerCase() ?? "deg";
-                const degrees = unit === "rad" ? value * 180 / Math.PI
-                  : unit === "grad" ? value * 0.9
-                    : unit === "turn" ? value * 360 : value;
+                const degrees =
+                  unit === "rad"
+                    ? (value * 180) / Math.PI
+                    : unit === "grad"
+                      ? value * 0.9
+                      : unit === "turn"
+                        ? value * 360
+                        : value;
                 if (Math.abs(degrees % 360) > 1e-6) needsRendererTransform = true;
               }
             }
@@ -426,9 +439,11 @@ export async function rasterizeReplacedElements(
           };
           const state = host[stateKey];
           if (state == null) return false;
-          for (let ancestor = state.target.parentElement;
+          for (
+            let ancestor = state.target.parentElement;
             ancestor != null && ancestor !== document.documentElement;
-            ancestor = ancestor.parentElement) {
+            ancestor = ancestor.parentElement
+          ) {
             const style = getComputedStyle(ancestor);
             const properties: SavedProperty[] = [];
             const scrollLeft = ancestor.scrollLeft;
@@ -525,60 +540,65 @@ export async function rasterizeReplacedElements(
           }
         }
         if (dx !== 0 || dy !== 0) {
-          await page.evaluate(({ dx, dy }) => {
-            type SavedProperty = { name: string; value: string; priority: string };
-            type SavedElement = {
-              element: HTMLElement;
-              properties: SavedProperty[];
-              scrollLeft?: number;
-              scrollTop?: number;
-            };
-            type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
-            const stateKey = "__domotionReplacedSnapshotState";
-            const host = globalThis as unknown as {
-              __domotionReplacedSnapshotState?: SnapshotState;
-            };
-            const state = host[stateKey];
-            if (state == null) return;
-            if (!state.saved.some((entry) => entry.element === state.target)) {
-              state.saved.push({
-                element: state.target,
-                properties: [{
-                  name: "translate",
-                  value: state.target.style.getPropertyValue("translate"),
-                  priority: state.target.style.getPropertyPriority("translate"),
-                }],
-              });
-            }
-            const computed = getComputedStyle(state.target).translate;
-            const parts: string[] = [];
-            if (computed !== "none" && computed !== "") {
-              let start = 0;
-              let depth = 0;
-              const value = computed.trim();
-              for (let i = 0; i <= value.length; i++) {
-                const character = value[i];
-                if (character === "(") depth++;
-                else if (character === ")") depth--;
-                if (i === value.length || (depth === 0 && character != null && /\s/.test(character))) {
-                  if (i > start) parts.push(value.slice(start, i));
-                  while (i + 1 < value.length && /\s/.test(value[i + 1])) i++;
-                  start = i + 1;
+          await page.evaluate(
+            ({ dx, dy }) => {
+              type SavedProperty = { name: string; value: string; priority: string };
+              type SavedElement = {
+                element: HTMLElement;
+                properties: SavedProperty[];
+                scrollLeft?: number;
+                scrollTop?: number;
+              };
+              type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
+              const stateKey = "__domotionReplacedSnapshotState";
+              const host = globalThis as unknown as {
+                __domotionReplacedSnapshotState?: SnapshotState;
+              };
+              const state = host[stateKey];
+              if (state == null) return;
+              if (!state.saved.some((entry) => entry.element === state.target)) {
+                state.saved.push({
+                  element: state.target,
+                  properties: [
+                    {
+                      name: "translate",
+                      value: state.target.style.getPropertyValue("translate"),
+                      priority: state.target.style.getPropertyPriority("translate"),
+                    },
+                  ],
+                });
+              }
+              const computed = getComputedStyle(state.target).translate;
+              const parts: string[] = [];
+              if (computed !== "none" && computed !== "") {
+                let start = 0;
+                let depth = 0;
+                const value = computed.trim();
+                for (let i = 0; i <= value.length; i++) {
+                  const character = value[i];
+                  if (character === "(") depth++;
+                  else if (character === ")") depth--;
+                  if (i === value.length || (depth === 0 && character != null && /\s/.test(character))) {
+                    if (i > start) parts.push(value.slice(start, i));
+                    while (i + 1 < value.length && /\s/.test(value[i + 1])) i++;
+                    start = i + 1;
+                  }
                 }
               }
-            }
-            const x = parts[0] ?? "0px";
-            const y = parts[1] ?? "0px";
-            const z = parts[2];
-            const shiftedX = dx === 0 ? x : `calc(${x} + ${dx}px)`;
-            const shiftedY = dy === 0 ? y : `calc(${y} + ${dy}px)`;
-            state.target.style.setProperty(
-              "translate",
-              `${shiftedX} ${shiftedY}${z == null ? "" : ` ${z}`}`,
-              "important",
-            );
-            void state.target.getBoundingClientRect();
-          }, { dx, dy });
+              const x = parts[0] ?? "0px";
+              const y = parts[1] ?? "0px";
+              const z = parts[2];
+              const shiftedX = dx === 0 ? x : `calc(${x} + ${dx}px)`;
+              const shiftedY = dy === 0 ? y : `calc(${y} + ${dy}px)`;
+              state.target.style.setProperty(
+                "translate",
+                `${shiftedX} ${shiftedY}${z == null ? "" : ` ${z}`}`,
+                "important",
+              );
+              void state.target.getBoundingClientRect();
+            },
+            { dx, dy },
+          );
         }
 
         const sampledQuad = await boxQuad(target);
@@ -600,12 +620,19 @@ export async function rasterizeReplacedElements(
           recordFailure(target, "screenshot", "Chromium returned an empty bitmap");
           continue;
         }
-        installRaster(target, `data:image/png;base64,${Buffer.from(buf).toString("base64")}`, {
-          x: mapping.output.x - viewport.x,
-          y: mapping.output.y - viewport.y,
-          width: mapping.output.width,
-          height: mapping.output.height,
-        }, outputQuad, pixelWidth, pixelHeight);
+        installRaster(
+          target,
+          `data:image/png;base64,${Buffer.from(buf).toString("base64")}`,
+          {
+            x: mapping.output.x - viewport.x,
+            y: mapping.output.y - viewport.y,
+            width: mapping.output.width,
+            height: mapping.output.height,
+          },
+          outputQuad,
+          pixelWidth,
+          pixelHeight,
+        );
         report.rasterizedCount++;
       } catch (error) {
         // A detached/mutating live node leaves the normal element box in place.
@@ -647,8 +674,7 @@ export async function rasterizeReplacedElements(
     }
   } catch (error) {
     for (const target of screenshotTargets) {
-      if (target.snapshot.dataUri == null
-          && !report.failures.some((failure) => failure.rid === target.snapshot.rid)) {
+      if (target.snapshot.dataUri == null && !report.failures.some((failure) => failure.rid === target.snapshot.rid)) {
         recordFailure(target, "isolation", `could not initialize raster isolation: ${errorDetail(error)}`);
       }
     }
@@ -659,11 +685,17 @@ export async function rasterizeReplacedElements(
     // tests inspect the page after capture).
     await cleanupMarkers();
     if (styleHandle != null) {
-      try { await styleHandle.evaluate((node: Element) => { node.remove(); }); } catch (error) {
+      try {
+        await styleHandle.evaluate((node: Element) => {
+          node.remove();
+        });
+      } catch (error) {
         recordFailure(undefined, "cleanup", `could not remove raster isolation style: ${errorDetail(error)}`);
       }
     }
-    try { await cdp?.detach(); } catch (error) {
+    try {
+      await cdp?.detach();
+    } catch (error) {
       recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
     }
   }

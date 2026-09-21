@@ -36,12 +36,12 @@ describe("composed real-world and metamorphic parity corpus", () => {
     expect(new Set(COMPOSED_PARITY_FIXTURES.flatMap((fixture) => fixture.axes))).toEqual(
       new Set(REQUIRED_METAMORPHIC_AXES),
     );
-    expect(new Set(COMPOSED_PARITY_FIXTURES.map((fixture) => fixture.name)).size).toBe(
-      COMPOSED_PARITY_FIXTURES.length,
-    );
+    expect(new Set(COMPOSED_PARITY_FIXTURES.map((fixture) => fixture.name)).size).toBe(COMPOSED_PARITY_FIXTURES.length);
     for (const fixture of COMPOSED_PARITY_FIXTURES) {
       expect(fixture.decisions.length, `${fixture.name} must cross independent decisions`).toBeGreaterThanOrEqual(4);
-      expect(fixture.dependencyTriples.length, `${fixture.name} must name a dependency-driven triple`).toBeGreaterThan(0);
+      expect(fixture.dependencyTriples.length, `${fixture.name} must name a dependency-driven triple`).toBeGreaterThan(
+        0,
+      );
       for (const triple of fixture.dependencyTriples) {
         expect(triple).toHaveLength(3);
         expect(triple.every((decision) => fixture.decisions.includes(decision))).toBe(true);
@@ -54,16 +54,23 @@ describe("composed real-world and metamorphic parity corpus", () => {
     const manifest = JSON.parse(readFileSync("tools/composed-parity-corpus.json", "utf8")) as ComposedManifest;
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.htmlTestFixture).toBe(PINNED_FILE);
-    expect(manifest.repositoryFixtures).toEqual(COMPOSED_PARITY_FIXTURES.map((fixture) => ({
-      name: fixture.name,
-      family: fixture.family,
-      axes: fixture.axes,
-      dependencyTriples: fixture.dependencyTriples,
-    })));
+    expect(manifest.repositoryFixtures).toEqual(
+      COMPOSED_PARITY_FIXTURES.map((fixture) => ({
+        name: fixture.name,
+        family: fixture.family,
+        axes: fixture.axes,
+        dependencyTriples: fixture.dependencyTriples,
+      })),
+    );
   });
 
   it("keeps destructive controls attached to every dependency-driven family", () => {
-    const controls = new Map(COMPOSED_PARITY_FIXTURES.map((fixture) => [fixture.family, fixture.axes.length > 0 && fixture.dependencyTriples.length > 0]));
+    const controls = new Map(
+      COMPOSED_PARITY_FIXTURES.map((fixture) => [
+        fixture.family,
+        fixture.axes.length > 0 && fixture.dependencyTriples.length > 0,
+      ]),
+    );
     expect([...controls.values()].every(Boolean)).toBe(true);
     const retired = new Map(controls);
     retired.set("svg-effects", false);
@@ -75,7 +82,7 @@ describe("composed real-world and metamorphic parity corpus", () => {
     expect(html).toContain("display:contents");
     expect(html).toContain("grid-template-columns:1fr auto");
     expect(html).toContain("grid:auto / 1fr auto");
-    expect(html).toContain("data-variant=\"node-split\"");
+    expect(html).toContain('data-variant="node-split"');
     expect(html).toContain("transform:translate(18px,12px)");
     expect(html).toContain("transform:scale(1.25)");
     expect(html).toMatch(/data-variant="dom-order"[\s\S]*data-layer="front"[\s\S]*data-layer="back"/);

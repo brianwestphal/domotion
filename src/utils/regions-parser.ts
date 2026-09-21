@@ -15,7 +15,8 @@ export type ParseResult = {
 };
 
 const REGIONS_HEADER = /^REGIONS:\s*$/m;
-const ENTRY_LINE = /^-\s*(?:\[(\d+)\]\s*)?(?:image=(\S+?)\s+)?\(x=(-?\d+)\s+y=(-?\d+)\s+w=(-?\d+)\s+h=(-?\d+)\)(?:\s*[—-]+\s*(.+?))?\s*$/;
+const ENTRY_LINE =
+  /^-\s*(?:\[(\d+)\]\s*)?(?:image=(\S+?)\s+)?\(x=(-?\d+)\s+y=(-?\d+)\s+w=(-?\d+)\s+h=(-?\d+)\)(?:\s*[—-]+\s*(.+?))?\s*$/;
 
 export function parseRegionsBlock(noteBody: string): ParseResult {
   const warnings: string[] = [];

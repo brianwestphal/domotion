@@ -42,9 +42,9 @@ describe("renderer-owned cull wrappers for atomic Chromium surfaces", () => {
     (kind) => {
       const svg = elementTreeToSvgInner([atomic(kind)], 800, 200);
       expect(svg.split(DATA_URI)).toHaveLength(2);
-      expect(svg).toMatch(new RegExp(
-        `<g class="cull-20_000-80_000" style="display:none"><g class="anim-move-${kind}"><image`,
-      ));
+      expect(svg).toMatch(
+        new RegExp(`<g class="cull-20_000-80_000" style="display:none"><g class="anim-move-${kind}"><image`),
+      );
       // The screenshot already owns Chromium's frozen static transform. Only
       // the later live animation belongs on its SVG wrapper.
       expect(svg).not.toContain('transform="matrix(0 1 -1 0');

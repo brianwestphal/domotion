@@ -3,11 +3,21 @@ id: "requirements/color-emoji-rendering"
 title: "Domotion: Color emoji rendering"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","paint-effects"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1198","DM-2350","DM-2502","DM-2507","DM-2508","DM-2509","DM-2510","DM-2534","DM-278","DM-334","DM-335"]
-code: ["src/capture/emoji.ts","src/capture/script/emoji-detect.test.ts","src/capture/script/emoji-detect.ts","src/render/emoji-raster-kind.test.ts","src/render/text-to-path.test.ts","tests/win32-glyph-extractor.test.ts","tools/font-palette-ownership-audit.ts"]
-aliases: ["docs/15-color-emoji-rendering.md","doc-15"]
+owners: ["text-fonts", "paint-effects"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  ["DM-1198", "DM-2350", "DM-2502", "DM-2507", "DM-2508", "DM-2509", "DM-2510", "DM-2534", "DM-278", "DM-334", "DM-335"]
+code:
+  [
+    "src/capture/emoji.ts",
+    "src/capture/script/emoji-detect.test.ts",
+    "src/capture/script/emoji-detect.ts",
+    "src/render/emoji-raster-kind.test.ts",
+    "src/render/text-to-path.test.ts",
+    "tests/win32-glyph-extractor.test.ts",
+    "tools/font-palette-ownership-audit.ts",
+  ]
+aliases: ["docs/15-color-emoji-rendering.md", "doc-15"]
 ---
 
 # Domotion: Color emoji rendering
@@ -99,7 +109,7 @@ both the screenshot and the embedded strike for their ink bboxes, and
 - **demotes to the screenshot pixels** when, even aligned, the mean RGBA
   difference over the inked union exceeds a threshold (redrawn-per-strike
   artwork — bell/x-ray): exact at 1× (the fidelity target), at the cost of
-  >1× sharpness for that rare glyph;
+  > 1× sharpness for that rare glyph;
 - leaves strike-invariant artwork (the overwhelming majority) byte-identical
   via a sub-quarter-pixel guard.
 

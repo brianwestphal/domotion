@@ -14,10 +14,10 @@ async function main() {
   const result = await page.evaluate(() => {
     const out: any[] = [];
     // Find the 2×2 matrix row at the top
-    const rows = document.querySelectorAll('.row');
+    const rows = document.querySelectorAll(".row");
     for (let ri = 0; ri < Math.min(rows.length, 5); ri++) {
       const row = rows[ri];
-      const mos = row.querySelectorAll('mo');
+      const mos = row.querySelectorAll("mo");
       for (let mi = 0; mi < Math.min(mos.length, 3); mi++) {
         const mo = mos[mi];
         const r = (mo as Element).getBoundingClientRect();
@@ -53,4 +53,7 @@ async function main() {
   console.log(JSON.stringify(result, null, 2));
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

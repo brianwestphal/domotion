@@ -6,8 +6,8 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
 tickets: ["DM-1763"]
-code: ["examples/animate/compressed-run/","examples/animate/editor-session/","tests/editor-session.e2e.test.ts"]
-aliases: ["docs/102-editing-page-rig-cookbook.md","doc-102"]
+code: ["examples/animate/compressed-run/", "examples/animate/editor-session/", "tests/editor-session.e2e.test.ts"]
+aliases: ["docs/102-editing-page-rig-cookbook.md", "doc-102"]
 ---
 
 # 102 — The editing-page rig cookbook: typed reveals + per-state editing pages
@@ -32,13 +32,13 @@ markup.
 
 ## Choosing a pattern
 
-| The moment | Pattern | Why |
-|---|---|---|
-| A line/word typed at the END of existing content (append-only) | **Typed reveal** (pattern A) | One capture; the overlay paints on top and hands off at the cut. Cheapest by far. |
-| An edit that RE-FLOWS captured text (mid-line insert, delete, replace) | **Per-state editing page** (pattern B) | Overlays paint *over* the frame — they cannot move captured pixels. Only re-captured page states show real reflow. |
-| A caret parked/moving over captured text, a selection sweep | **`textTracks`** (docs/43 §12) | Declarative, anchored to Chromium's own painted `xOffsets` — never page-side caret/selection markup. |
-| Colorize-on-completion (plain typed text snapping to its tokenized form) | A final **recolor state** inside the pattern-B run — or, for a whole typed line, just the next frame's page text (pattern A's handoff IS the colorize). | Glyph-identical recolors pair exactly; the compressor emits them as fill steps in place. |
-| Per-state pointer motion, non-text scene changes | Ordinary frames / cursor overlay | A `states` run has no pointer (docs/43 §11); big scene changes don't pair anyway. |
+| The moment                                                               | Pattern                                                                                                                                                 | Why                                                                                                                |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| A line/word typed at the END of existing content (append-only)           | **Typed reveal** (pattern A)                                                                                                                            | One capture; the overlay paints on top and hands off at the cut. Cheapest by far.                                  |
+| An edit that RE-FLOWS captured text (mid-line insert, delete, replace)   | **Per-state editing page** (pattern B)                                                                                                                  | Overlays paint _over_ the frame — they cannot move captured pixels. Only re-captured page states show real reflow. |
+| A caret parked/moving over captured text, a selection sweep              | **`textTracks`** (docs/43 §12)                                                                                                                          | Declarative, anchored to Chromium's own painted `xOffsets` — never page-side caret/selection markup.               |
+| Colorize-on-completion (plain typed text snapping to its tokenized form) | A final **recolor state** inside the pattern-B run — or, for a whole typed line, just the next frame's page text (pattern A's handoff IS the colorize). | Glyph-identical recolors pair exactly; the compressor emits them as fill steps in place.                           |
+| Per-state pointer motion, non-text scene changes                         | Ordinary frames / cursor overlay                                                                                                                        | A `states` run has no pointer (docs/43 §11); big scene changes don't pair anyway.                                  |
 
 ## Pattern A — typed reveal (`holdToFrameEnd` + `anchor.baseline`)
 
@@ -48,15 +48,26 @@ from the page; the NEXT frame's page carries the finished line as real
 page-side machinery:
 
 ```jsonc
-{ "continue": true, "duration": 1250,
+{
+  "continue": true,
+  "duration": 1250,
   "transition": { "type": "cut", "duration": 0 },
-  "actions": [{ "type": "evaluate", "script": "state(1)" }],   // page shows the PREVIOUS line's final form
+  "actions": [{ "type": "evaluate", "script": "state(1)" }], // page shows the PREVIOUS line's final form
   "overlays": [
-    { "kind": "typing", "text": "const count = signal(0);",
+    {
+      "kind": "typing",
+      "text": "const count = signal(0);",
       "anchor": { "selector": "[data-line='3']", "at": "top-left", "baseline": true },
-      "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-      "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
-  ] }
+      "fontFamily": "anchor",
+      "color": "#e2e8f0",
+      "caret": true,
+      "speed": 24,
+      "jitter": 0.12,
+      "delay": 300,
+      "holdToFrameEnd": true,
+    },
+  ],
+}
 ```
 
 - **`holdToFrameEnd: true`** (docs/93) — the typed text holds at full opacity
@@ -104,13 +115,21 @@ strings; `STATES` is the ordered list of document states; the config steps
 ```html
 <script>
   /* ---- the reusable editing-page rig (docs/102) ---------------------- */
-  const tok = (c, s) => '<span class="' + c + '">' + s + '</span>';
-  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const tok = (c, s) => '<span class="' + c + '">' + s + "</span>";
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   function renderRows(rows) {
-    document.getElementById('code').innerHTML = rows
-      .map((html, i) => '<div class="ln"><span class="no">' + (i + 1) +
-        '</span><span class="src" data-line="' + (i + 1) + '">' + (html ?? '') + '</span></div>')
-      .join('');
+    document.getElementById("code").innerHTML = rows
+      .map(
+        (html, i) =>
+          '<div class="ln"><span class="no">' +
+          (i + 1) +
+          '</span><span class="src" data-line="' +
+          (i + 1) +
+          '">' +
+          (html ?? "") +
+          "</span></div>",
+      )
+      .join("");
   }
   // withRow(rows, n, html): rows with 1-based row n replaced.
   const withRow = (rows, n, html) => rows.map((r, i) => (i === n - 1 ? html : r));
@@ -126,10 +145,13 @@ Building a mid-line insert progression is then one loop (from the flagship —
 ` computed,` typed into an import line, one keystroke per state):
 
 ```js
-const insRow = keystrokes(K('import') + " { signal,", " computed,",
-  " mount } " + K('from') + " " + S("'kerfjs'") + ";");
+const insRow = keystrokes(
+  K("import") + " { signal,",
+  " computed,",
+  " mount } " + K("from") + " " + S("'kerfjs'") + ";",
+);
 for (let k = 1; k <= 10; k++) STATES.push(withRow(V1, 1, insRow(k)));
-STATES.push(withRow(V1, 1, R1_RETOKENIZED));   // colorize-on-completion
+STATES.push(withRow(V1, 1, R1_RETOKENIZED)); // colorize-on-completion
 ```
 
 This generalizes the bespoke helpers the kerf capture hand-rolled
@@ -151,16 +173,19 @@ Style notes that matter to the compressor:
 ### The config side
 
 ```jsonc
-{ "continue": true, "duration": 2300,
+{
+  "continue": true,
+  "duration": 2300,
   "transition": { "type": "cut", "duration": 0 },
-  "caret": { "color": "#e2e8f0" },                     // the run's auto-caret
+  "caret": { "color": "#e2e8f0" }, // the run's auto-caret
   "states": [
-    { "duration": 300 },                                // state 0: the frame's own post-actions state
+    { "duration": 300 }, // state 0: the frame's own post-actions state
     { "actions": [{ "type": "evaluate", "script": "state(6)" }], "duration": 120 },
     { "actions": [{ "type": "evaluate", "script": "state(7)" }], "duration": 120 },
     // … one state per keystroke …
-    { "actions": [{ "type": "evaluate", "script": "state(16)" }], "duration": 800 }  // colorize: a paired recolor, held
-  ] }
+    { "actions": [{ "type": "evaluate", "script": "state(16)" }], "duration": 800 }, // colorize: a paired recolor, held
+  ],
+}
 ```
 
 - `caret: true | { shape, color }` — the auto-caret rides the derived edit
@@ -181,16 +206,22 @@ The select-then-replace moment is a `textTracks` frame (docs/43 §12) followed
 by a `states` run frame:
 
 ```jsonc
-{ "continue": true, "duration": 2400,
+{
+  "continue": true,
+  "duration": 2400,
   "transition": { "type": "cut", "duration": 0 },
   "textTracks": [
-    { "selector": "[data-line='6'] .str",              // the "btn" token span
+    {
+      "selector": "[data-line='6'] .str", // the "btn" token span
       "color": "#e2e8f0",
       "events": [
         { "type": "park", "at": 250, "charOffset": 5 },
         { "type": "move", "at": 700, "charOffset": 0 },
-        { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 }
-      ] } ] }
+        { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 },
+      ],
+    },
+  ],
+}
 ```
 
 Two authoring rules learned from the flagship:
@@ -206,7 +237,7 @@ Two authoring rules learned from the flagship:
   synthesizes the trailing `clearSelection` + `hide` at the frame's `duration`
   for you: the sweep above declares no terminal events and still clears
   cleanly at the cut into the replacement run. You only reach for an explicit
-  end when you want it at a *non*-cut time; and `"persist": true` on the track
+  end when you want it at a _non_-cut time; and `"persist": true` on the track
   opts out of the auto-end entirely, deliberately carrying the caret/selection
   past the cut (docs/43 §12). (The rule inverted: tracks auto-end; use
   `persist` to carry over.)
@@ -244,11 +275,11 @@ mode; "old way" = cover-rect underlays + reveal animations + hand-tuned
 baseline `dy` + page-side caret spans/selection markup + one evaluate+capture
 frame per edit step, the kerf getting-started stack):
 
-| Build | Frames | Raw | Gzip | Live DOM elements | Compose time |
-|---|---|---|---|---|---|
-| **New primitives** (per-keystroke) | 11 | 184.1 KB | 30.0 KB | 2,284 | ~4.9 s |
-| Old way @ kerf's per-2-char granularity | 19 | 257.7 KB | 28.8 KB | 3,825 | ~6.1 s |
-| Old way @ matched per-keystroke granularity | 26 | 336.9 KB | 31.4 KB | 5,236 | ~7.8 s |
+| Build                                       | Frames | Raw      | Gzip    | Live DOM elements | Compose time |
+| ------------------------------------------- | ------ | -------- | ------- | ----------------- | ------------ |
+| **New primitives** (per-keystroke)          | 11     | 184.1 KB | 30.0 KB | 2,284             | ~4.9 s       |
+| Old way @ kerf's per-2-char granularity     | 19     | 257.7 KB | 28.8 KB | 3,825             | ~6.1 s       |
+| Old way @ matched per-keystroke granularity | 26     | 336.9 KB | 31.4 KB | 5,236             | ~7.8 s       |
 
 - **On the editing runs themselves** the compressor delivers the predicted
   ~5× raw: the insert run measured 121.1 KB → 22.8 KB (5.3×), the replace run

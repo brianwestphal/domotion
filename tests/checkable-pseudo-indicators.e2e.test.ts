@@ -30,7 +30,11 @@ describe("DM-2459 source-owned checkable indicators", () => {
         <input data-domotion-anim="auto" id="auto" type="radio" checked>
       </main>`);
       const result = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, width: 520, height: 220 });
-      const byId = new Map(flatten(result.tree).filter((element) => element.animId != null).map((element) => [element.animId!, element]));
+      const byId = new Map(
+        flatten(result.tree)
+          .filter((element) => element.animId != null)
+          .map((element) => [element.animId!, element]),
+      );
 
       expect(byId.get("before")?.pseudoFragments?.map((record) => record.pseudo)).toEqual(["::before"]);
       expect(byId.get("after")?.pseudoFragments?.map((record) => record.pseudo)).toEqual(["::after"]);

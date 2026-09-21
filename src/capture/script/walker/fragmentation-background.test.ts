@@ -32,11 +32,16 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     };
     const captured = capturedWithUrlBackground();
 
-    detectInlineFragments(el, {
-      display: "inline",
-      direction: "ltr",
-      writingMode: "horizontal-tb",
-    }, { x: 5, y: 2 }, captured);
+    detectInlineFragments(
+      el,
+      {
+        display: "inline",
+        direction: "ltr",
+        writingMode: "horizontal-tb",
+      },
+      { x: 5, y: 2 },
+      captured,
+    );
 
     expect(captured.inlineFragments).toMatchObject([
       {
@@ -60,16 +65,23 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     };
     const captured = capturedWithUrlBackground();
 
-    detectInlineFragments(el, {
-      display: "inline",
-      direction: "rtl",
-      writingMode: "horizontal-tb",
-    }, { x: 0, y: 0 }, captured);
+    detectInlineFragments(
+      el,
+      {
+        display: "inline",
+        direction: "rtl",
+        writingMode: "horizontal-tb",
+      },
+      { x: 0, y: 0 },
+      captured,
+    );
 
-    expect(captured.inlineFragments.map((fragment: any) => ({
-      offset: fragment.backgroundOffsetInStitchedBox,
-      area: fragment.backgroundPositioningArea,
-    }))).toEqual([
+    expect(
+      captured.inlineFragments.map((fragment: any) => ({
+        offset: fragment.backgroundOffsetInStitchedBox,
+        area: fragment.backgroundPositioningArea,
+      })),
+    ).toEqual([
       { offset: { x: 50, y: 0 }, area: { x: -10, y: 10, width: 80, height: 12 } },
       { offset: { x: 0, y: 0 }, area: { x: 15, y: 30, width: 80, height: 12 } },
     ]);
@@ -81,11 +93,16 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     };
     const captured = capturedWithUrlBackground();
 
-    detectInlineFragments(el, {
-      display: "inline",
-      direction: "ltr",
-      writingMode: "vertical-rl",
-    }, { x: 0, y: 0 }, captured);
+    detectInlineFragments(
+      el,
+      {
+        display: "inline",
+        direction: "ltr",
+        writingMode: "vertical-rl",
+      },
+      { x: 0, y: 0 },
+      captured,
+    );
 
     expect(captured.inlineFragments[1]).toMatchObject({
       backgroundOffsetInStitchedBox: { x: 0, y: 25 },
@@ -104,11 +121,16 @@ describe("fragmented background positioning capture (DM-2365)", () => {
       getClientRects: () => [rect(10, 20, 70, 40), rect(100, 20, 70, 60)],
     };
     const horizontalCapture = capturedWithUrlBackground();
-    detectInlineFragments(horizontal, {
-      display: "block",
-      direction: "ltr",
-      writingMode: "horizontal-tb",
-    }, { x: 0, y: 0 }, horizontalCapture);
+    detectInlineFragments(
+      horizontal,
+      {
+        display: "block",
+        direction: "ltr",
+        writingMode: "horizontal-tb",
+      },
+      { x: 0, y: 0 },
+      horizontalCapture,
+    );
 
     expect(horizontalCapture.fragmentAxis).toBe("block");
     expect(horizontalCapture.inlineFragments[1]).toMatchObject({
@@ -122,16 +144,23 @@ describe("fragmented background positioning capture (DM-2365)", () => {
       getClientRects: () => [rect(110, 10, 35, 70), rect(60, 10, 55, 70)],
     };
     const verticalCapture = capturedWithUrlBackground();
-    detectInlineFragments(vertical, {
-      display: "block",
-      direction: "ltr",
-      writingMode: "vertical-rl",
-    }, { x: 0, y: 0 }, verticalCapture);
+    detectInlineFragments(
+      vertical,
+      {
+        display: "block",
+        direction: "ltr",
+        writingMode: "vertical-rl",
+      },
+      { x: 0, y: 0 },
+      verticalCapture,
+    );
 
-    expect(verticalCapture.inlineFragments.map((fragment: any) => ({
-      offset: fragment.backgroundOffsetInStitchedBox,
-      area: fragment.backgroundPositioningArea,
-    }))).toEqual([
+    expect(
+      verticalCapture.inlineFragments.map((fragment: any) => ({
+        offset: fragment.backgroundOffsetInStitchedBox,
+        area: fragment.backgroundPositioningArea,
+      })),
+    ).toEqual([
       { offset: { x: 55, y: 0 }, area: { x: 55, y: 10, width: 90, height: 70 } },
       { offset: { x: 0, y: 0 }, area: { x: 60, y: 10, width: 90, height: 70 } },
     ]);

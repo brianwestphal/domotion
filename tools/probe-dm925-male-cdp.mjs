@@ -13,7 +13,8 @@ const { root } = await client.send("DOM.getDocument", { depth: -1 });
 function walk(node) {
   if (node.nodeValue && node.nodeValue.includes("♂")) return node;
   for (const c of node.children ?? []) {
-    const r = walk(c); if (r) return r;
+    const r = walk(c);
+    if (r) return r;
   }
   return null;
 }

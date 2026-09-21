@@ -73,18 +73,24 @@ describe("Blink BackgroundImageGeometry transcription", () => {
   });
 
   it("resolves percentage-plus-length sizes against the positioning area", () => {
-    expect(geometry({
-      size: "calc(37% + 9px) calc(24% + 5px)",
-      repeat: "no-repeat",
-    }).tileSize).toEqual({ width: 68.1875, height: 29 });
+    expect(
+      geometry({
+        size: "calc(37% + 9px) calc(24% + 5px)",
+        repeat: "no-repeat",
+      }).tileSize,
+    ).toEqual({ width: 68.1875, height: 29 });
   });
 
   it("uses snapped contain rounding but LayoutUnit-precise cover clamping", () => {
     const positioningArea = { x: 20, y: 20, width: 157.5, height: 93.5 };
-    expect(geometry({ positioningArea, paintingArea: positioningArea, size: "contain" }).tileSize)
-      .toEqual({ width: 150, height: 94 });
-    expect(geometry({ positioningArea, paintingArea: positioningArea, size: "cover" }).tileSize)
-      .toEqual({ width: 158, height: 98.75 });
+    expect(geometry({ positioningArea, paintingArea: positioningArea, size: "contain" }).tileSize).toEqual({
+      width: 150,
+      height: 94,
+    });
+    expect(geometry({ positioningArea, paintingArea: positioningArea, size: "cover" }).tileSize).toEqual({
+      width: 158,
+      height: 98.75,
+    });
   });
 
   it("resolves calc position over available space before no-repeat destination movement", () => {
@@ -182,39 +188,59 @@ describe("Blink BackgroundImageGeometry transcription", () => {
       height: null,
       ratio: null,
     };
-    expect(resolveBlinkBackgroundImageGeometry({
-      positioningArea: box,
-      paintingArea: box,
-      size: "auto auto",
-      position: "0% 0%",
-      repeat: "repeat",
-      natural: unknown,
-    })).toBeNull();
-    expect(resolveBlinkBackgroundImageGeometry({
-      positioningArea: box,
-      paintingArea: box,
-      size: "32px 20px",
-      position: "0% 0%",
-      repeat: "repeat",
-      natural: unknown,
-    })?.tileSize).toEqual({ width: 32, height: 20 });
+    expect(
+      resolveBlinkBackgroundImageGeometry({
+        positioningArea: box,
+        paintingArea: box,
+        size: "auto auto",
+        position: "0% 0%",
+        repeat: "repeat",
+        natural: unknown,
+      }),
+    ).toBeNull();
+    expect(
+      resolveBlinkBackgroundImageGeometry({
+        positioningArea: box,
+        paintingArea: box,
+        size: "32px 20px",
+        position: "0% 0%",
+        repeat: "repeat",
+        natural: unknown,
+      })?.tileSize,
+    ).toEqual({ width: 32, height: 20 });
   });
 
   it("cycles every shorter longhand list instead of pinning later layers to index zero", () => {
-    expect([0, 1, 2, 3, 4].map((index) => cyclicBackgroundLayer(["a", "b"], index, "z")))
-      .toEqual(["a", "b", "a", "b", "a"]);
+    expect([0, 1, 2, 3, 4].map((index) => cyclicBackgroundLayer(["a", "b"], index, "z"))).toEqual([
+      "a",
+      "b",
+      "a",
+      "b",
+      "a",
+    ]);
   });
 
   it("encodes no-repeat with the exact painting-area cell, never a fake oversized period", () => {
     const def = buildImagePatternDef(
-      "bg", "data:image/png;base64,AA==",
-      40, 35, 100, 60,
-      "32px 20px", "5px 7px", "no-repeat",
-      { w: 32, h: 20 }, "scroll", null, null,
+      "bg",
+      "data:image/png;base64,AA==",
+      40,
+      35,
+      100,
+      60,
+      "32px 20px",
+      "5px 7px",
+      "no-repeat",
+      { w: 32, h: 20 },
+      "scroll",
+      null,
+      null,
       { x: 20, y: 20, width: 140, height: 90 },
     );
     expect(def).toContain('x="20" y="20" width="140" height="90"');
-    expect(def).toContain('<image href="data:image/png;base64,AA==" x="25" y="22" width="32" height="20" preserveAspectRatio="none"');
+    expect(def).toContain(
+      '<image href="data:image/png;base64,AA==" x="25" y="22" width="32" height="20" preserveAspectRatio="none"',
+    );
     expect(def).not.toContain('width="280"');
   });
 
@@ -240,21 +266,18 @@ describe("Blink BackgroundImageGeometry transcription", () => {
       loadState: "loaded" as const,
       naturalSizingState: "resolved" as const,
     };
-    const build = (size: string, repeat: string) => buildImagePatternDef(
-      "svg-bg", href, 20, 20, 240, 160, size, "0% 0%", repeat,
-      null, "scroll", null, selected,
-    );
+    const build = (size: string, repeat: string) =>
+      buildImagePatternDef("svg-bg", href, 20, 20, 240, 160, size, "0% 0%", repeat, null, "scroll", null, selected);
 
-    expect(build("auto", "no-repeat"))
-      .toContain('<pattern id="svg-bg" patternUnits="userSpaceOnUse" x="20" y="20" width="240" height="160"><image href=');
-    expect(build("auto", "repeat-x"))
-      .toContain('x="20" y="20" width="96" height="160"><image href=');
-    expect(build("auto", "repeat-y"))
-      .toContain('x="20" y="20" width="240" height="32"><image href=');
-    expect(build("contain", "repeat-x"))
-      .toMatch(/x="20" y="20" width="240" height="160"><image href=.* width="240" height="80"/);
-    expect(build("48px auto", "repeat-y"))
-      .toContain('x="20" y="20" width="240" height="16"><image href=');
+    expect(build("auto", "no-repeat")).toContain(
+      '<pattern id="svg-bg" patternUnits="userSpaceOnUse" x="20" y="20" width="240" height="160"><image href=',
+    );
+    expect(build("auto", "repeat-x")).toContain('x="20" y="20" width="96" height="160"><image href=');
+    expect(build("auto", "repeat-y")).toContain('x="20" y="20" width="240" height="32"><image href=');
+    expect(build("contain", "repeat-x")).toMatch(
+      /x="20" y="20" width="240" height="160"><image href=.* width="240" height="80"/,
+    );
+    expect(build("48px auto", "repeat-y")).toContain('x="20" y="20" width="240" height="16"><image href=');
     for (const def of [
       build("auto", "no-repeat"),
       build("auto", "repeat-x"),

@@ -11,12 +11,15 @@ async function alphaTile(): Promise<string> {
   const width = 50;
   const height = 30;
   const pixels = Buffer.alloc(width * height * 4);
-  for (let y = 0; y < height; y++) for (let x = 0; x < 23; x++) {
-    const offset = (y * width + x) * 4;
-    pixels[offset] = 255;
-    pixels[offset + 3] = 255;
-  }
-  const png = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < 23; x++) {
+      const offset = (y * width + x) * 4;
+      pixels[offset] = 255;
+      pixels[offset + 3] = 255;
+    }
+  const png = await sharp(pixels, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
   return `data:image/png;base64,${png.toString("base64")}`;
 }
 
@@ -93,9 +96,9 @@ function collapsePatternPaintingArea(svg: string): string {
   const mutated = svg.replace(/<pattern\b[^>]*>[\s\S]*?<\/pattern>/g, (block) => {
     patterns++;
     return block
-      .replace(/^<pattern\b[^>]*>/, (tag) => tag
-        .replace(/\by="[^"]*"/, 'y="40"')
-        .replace(/\bheight="[^"]*"/, 'height="80"'))
+      .replace(/^<pattern\b[^>]*>/, (tag) =>
+        tag.replace(/\by="[^"]*"/, 'y="40"').replace(/\bheight="[^"]*"/, 'height="80"'),
+      )
       .replace(/<image\b[^>]*>/, (tag) => tag.replace(/\by="[^"]*"/, 'y="37.5"'));
   });
   expect(patterns).toBe(2);
@@ -114,20 +117,22 @@ describe("URL mask round/space painting-area ownership (DM-2494)", () => {
       const mutated = await context.newPage();
       try {
         await source.setContent(fixture(), { waitUntil: "load" });
-        const rects = await source.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".case")).map((element) => {
-          const rect = element.getBoundingClientRect();
-          const style = getComputedStyle(element);
-          return {
-            id: element.id,
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-            repeat: style.maskRepeat,
-            origin: style.maskOrigin,
-            clip: style.maskClip,
-          };
-        }));
+        const rects = await source.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>(".case")).map((element) => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return {
+              id: element.id,
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              repeat: style.maskRepeat,
+              origin: style.maskOrigin,
+              clip: style.maskClip,
+            };
+          }),
+        );
         expect(rects.map(({ id, repeat, origin, clip }) => ({ id, repeat, origin, clip }))).toEqual([
           { id: "round", repeat: "round no-repeat", origin: "content-box", clip: "border-box" },
           { id: "space", repeat: "space no-repeat", origin: "content-box", clip: "border-box" },
@@ -140,17 +145,21 @@ describe("URL mask round/space painting-area ownership (DM-2494)", () => {
         expect(svg.match(/<pattern\b[^>]*\by="20"[^>]*\bheight="120"/g)).toHaveLength(2);
 
         await rendered.setContent(`<body style="margin:0;background:white">${svg}</body>`, { waitUntil: "load" });
-        await mutated.setContent(`<body style="margin:0;background:white">${collapsePatternPaintingArea(svg)}</body>`, { waitUntil: "load" });
+        await mutated.setContent(`<body style="margin:0;background:white">${collapsePatternPaintingArea(svg)}</body>`, {
+          waitUntil: "load",
+        });
         const [actualPng, mutatedPng] = await Promise.all([rendered.screenshot(), mutated.screenshot()]);
         const [expected, actual, wrong] = await Promise.all([rgb(expectedPng), rgb(actualPng), rgb(mutatedPng)]);
         for (const { id, repeat: _repeat, origin: _origin, clip: _clip, ...rect } of rects) {
           const expectedRuns = inkRuns(expected, rect, rect.y + 70, dpr);
           const actualRuns = inkRuns(actual, rect, rect.y + 70, dpr);
           expect(actualRuns, `${id}: source/SVG tile count diverged`).toHaveLength(expectedRuns.length);
-          const edgeError = Math.max(...actualRuns.flatMap((run, index) => [
-            Math.abs(run[0] - expectedRuns[index][0]),
-            Math.abs(run[1] - expectedRuns[index][1]),
-          ]));
+          const edgeError = Math.max(
+            ...actualRuns.flatMap((run, index) => [
+              Math.abs(run[0] - expectedRuns[index][0]),
+              Math.abs(run[1] - expectedRuns[index][1]),
+            ]),
+          );
           expect(edgeError, `${id}: source/SVG tile edges diverged in device pixels`).toBeLessThanOrEqual(1);
 
           // The retired call gave the pattern the content-box as both origin
@@ -159,8 +168,10 @@ describe("URL mask round/space painting-area ownership (DM-2494)", () => {
           const topY = rect.y + 4;
           expect(inkCountAtRow(expected, rect, topY, dpr), `${id}: source top control`).toBe(0);
           expect(inkCountAtRow(actual, rect, topY, dpr), `${id}: SVG top control`).toBe(0);
-          expect(inkCountAtRow(wrong, rect, topY, dpr), `${id}: collapsed painting-area mutation was vacuous`)
-            .toBeGreaterThan(10 * dpr);
+          expect(
+            inkCountAtRow(wrong, rect, topY, dpr),
+            `${id}: collapsed painting-area mutation was vacuous`,
+          ).toBeGreaterThan(10 * dpr);
         }
       } finally {
         await context.close();

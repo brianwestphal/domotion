@@ -42,26 +42,62 @@ describe("Studio semantic interaction browser execution (DM-2683)", () => {
     const testPage = page;
     await testPage.setContent(fixture);
     const hookCalls: string[] = [];
-    await runStudioSemanticTracks(testPage, [{
-      id: "demo",
-      kind: "semantic-interactions",
-      events: [
-        { id: "click", atMs: 0, kind: "click", target: { role: "button", name: "Launch demo", selector: ".never-used" }, button: "right", clickCount: 2 },
-        { id: "hover", atMs: 0, kind: "hover", target: { text: "Hover here" } },
-        { id: "replace", atMs: 0, kind: "type", target: { label: "Name" }, text: "Ada" },
-        { id: "append", atMs: 0, kind: "type", target: { label: "Name" }, text: " Lovelace", replace: false, durationMs: 10 },
-        { id: "checked", atMs: 10, kind: "waitForState", target: { domId: "agree" }, state: "checked", timeoutMs: 1_000 },
-        { id: "text", atMs: 10, kind: "waitForState", target: { domId: "drop" }, state: "text", value: "Ready", timeoutMs: 1_000 },
-        { id: "drag", atMs: 10, kind: "drag", target: { domId: "drag" }, to: { target: { domId: "drop" } } },
-        { id: "scroll", atMs: 10, kind: "scrollTo", target: { testId: "scroll-destination" }, behavior: "instant" },
-        { id: "position", atMs: 10, kind: "scrollTo", position: { x: 0, y: 0 } },
-        { id: "hook", atMs: 10, kind: "scriptHook", hookId: "seed-demo", input: { mode: "stable" } },
+    await runStudioSemanticTracks(
+      testPage,
+      [
+        {
+          id: "demo",
+          kind: "semantic-interactions",
+          events: [
+            {
+              id: "click",
+              atMs: 0,
+              kind: "click",
+              target: { role: "button", name: "Launch demo", selector: ".never-used" },
+              button: "right",
+              clickCount: 2,
+            },
+            { id: "hover", atMs: 0, kind: "hover", target: { text: "Hover here" } },
+            { id: "replace", atMs: 0, kind: "type", target: { label: "Name" }, text: "Ada" },
+            {
+              id: "append",
+              atMs: 0,
+              kind: "type",
+              target: { label: "Name" },
+              text: " Lovelace",
+              replace: false,
+              durationMs: 10,
+            },
+            {
+              id: "checked",
+              atMs: 10,
+              kind: "waitForState",
+              target: { domId: "agree" },
+              state: "checked",
+              timeoutMs: 1_000,
+            },
+            {
+              id: "text",
+              atMs: 10,
+              kind: "waitForState",
+              target: { domId: "drop" },
+              state: "text",
+              value: "Ready",
+              timeoutMs: 1_000,
+            },
+            { id: "drag", atMs: 10, kind: "drag", target: { domId: "drag" }, to: { target: { domId: "drop" } } },
+            { id: "scroll", atMs: 10, kind: "scrollTo", target: { testId: "scroll-destination" }, behavior: "instant" },
+            { id: "position", atMs: 10, kind: "scrollTo", position: { x: 0, y: 0 } },
+            { id: "hook", atMs: 10, kind: "scriptHook", hookId: "seed-demo", input: { mode: "stable" } },
+          ],
+        },
       ],
-    }], {
-      runHook: ({ hookId, input }) => {
-        hookCalls.push(`${hookId}:${String(input?.mode)}`);
+      {
+        runHook: ({ hookId, input }) => {
+          hookCalls.push(`${hookId}:${String(input?.mode)}`);
+        },
       },
-    });
+    );
 
     expect(await testPage.locator("input").first().inputValue()).toBe("Ada Lovelace");
     expect(await testPage.evaluate(() => (window as unknown as { events: string[] }).events)).toEqual([
@@ -78,21 +114,29 @@ describe("Studio semantic interaction browser execution (DM-2683)", () => {
   it("fails exact-match ambiguity and undeclared hook execution with authored paths", async () => {
     if (!available || page == null) return;
     await page.setContent(fixture);
-    await expect(runStudioSemanticTracks(page, [{
-      id: "bad",
-      kind: "semantic-interactions",
-      events: [{ id: "ambiguous", atMs: 0, kind: "click", target: { text: "Duplicate" } }],
-    }])).rejects.toMatchObject({
+    await expect(
+      runStudioSemanticTracks(page, [
+        {
+          id: "bad",
+          kind: "semantic-interactions",
+          events: [{ id: "ambiguous", atMs: 0, kind: "click", target: { text: "Duplicate" } }],
+        },
+      ]),
+    ).rejects.toMatchObject({
       path: "$.tracks[0].events[0].target",
       eventId: "ambiguous",
       message: expect.stringContaining("ambiguous (2 matches)"),
     });
 
-    await expect(runStudioSemanticTracks(page, [{
-      id: "hook",
-      kind: "semantic-interactions",
-      events: [{ id: "script", atMs: 0, kind: "scriptHook", hookId: "unsafe" }],
-    }])).rejects.toThrow('script hook "unsafe" requires an explicit runHook handler');
+    await expect(
+      runStudioSemanticTracks(page, [
+        {
+          id: "hook",
+          kind: "semantic-interactions",
+          events: [{ id: "script", atMs: 0, kind: "scriptHook", hookId: "unsafe" }],
+        },
+      ]),
+    ).rejects.toThrow('script hook "unsafe" requires an explicit runHook handler');
   });
 
   it("waits across attachment lifecycle changes while preserving exact-match failures", async () => {
@@ -109,25 +153,62 @@ describe("Studio semantic interaction browser execution (DM-2683)", () => {
         setTimeout(() => document.querySelector("#departing")?.remove(), 80);
       </script>`);
 
-    await runStudioSemanticTracks(page, [{
-      id: "lifecycle",
-      kind: "semantic-interactions",
-      events: [
-        { id: "attach", atMs: 0, kind: "waitForState", target: { domId: "late" }, state: "attached", timeoutMs: 1_000 },
-        { id: "detach", atMs: 0, kind: "waitForState", target: { domId: "departing" }, state: "detached", timeoutMs: 1_000 },
+    await runStudioSemanticTracks(
+      page,
+      [
+        {
+          id: "lifecycle",
+          kind: "semantic-interactions",
+          events: [
+            {
+              id: "attach",
+              atMs: 0,
+              kind: "waitForState",
+              target: { domId: "late" },
+              state: "attached",
+              timeoutMs: 1_000,
+            },
+            {
+              id: "detach",
+              atMs: 0,
+              kind: "waitForState",
+              target: { domId: "departing" },
+              state: "detached",
+              timeoutMs: 1_000,
+            },
+          ],
+        },
       ],
-    }], { path: "$.scenes[0].tracks" });
+      { path: "$.scenes[0].tracks" },
+    );
 
     expect(await page.locator("#late").count()).toBe(1);
     expect(await page.locator("#departing").count()).toBe(0);
     expect(await page.locator("[data-domotion-studio-target]").count()).toBe(0);
 
     await page.setContent('<div class="duplicate"></div><div class="duplicate"></div>');
-    await expect(runStudioSemanticTracks(page, [{
-      id: "ambiguous-lifecycle",
-      kind: "semantic-interactions",
-      events: [{ id: "attach", atMs: 0, kind: "waitForState", target: { selector: ".duplicate" }, state: "attached", timeoutMs: 50 }],
-    }], { path: "$.scenes[2].tracks" })).rejects.toMatchObject({
+    await expect(
+      runStudioSemanticTracks(
+        page,
+        [
+          {
+            id: "ambiguous-lifecycle",
+            kind: "semantic-interactions",
+            events: [
+              {
+                id: "attach",
+                atMs: 0,
+                kind: "waitForState",
+                target: { selector: ".duplicate" },
+                state: "attached",
+                timeoutMs: 50,
+              },
+            ],
+          },
+        ],
+        { path: "$.scenes[2].tracks" },
+      ),
+    ).rejects.toMatchObject({
       path: "$.scenes[2].tracks[0].events[0].target",
       eventId: "attach",
       message: expect.stringContaining("ambiguous (2 matches)"),

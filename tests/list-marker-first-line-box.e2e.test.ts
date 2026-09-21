@@ -14,7 +14,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // marker shift as a "minor" sub-3% diff, so assert the captured first-line-box
 // metrics directly.
 
-const W = 360, H = 160;
+const W = 360,
+  H = 160;
 // First li: a tall emoji `::after` raises the li box above the text line.
 // Second li: plain text — the text line starts at the li top (dy ≈ 0).
 const HTML =
@@ -83,9 +84,7 @@ describeBrowser("DM-1270: list marker aligns to the first text line, not the li 
           range.selectNodeContents(li);
           const rects = range.getClientRects();
           const first = rects[0];
-          out.push(first
-            ? { dy: first.top - liTop, height: first.height }
-            : { dy: 0, height: 0 });
+          out.push(first ? { dy: first.top - liTop, height: first.height } : { dy: 0, height: 0 });
         }
         return out;
       });

@@ -27,6 +27,7 @@ route, and explicitly degraded per-codepoint route.
 
 Related requirement docs (this diagram synthesizes them; each is the narrative
 source of truth for its slice):
+
 - [03 — CSS font-family chain resolution](03-font-family-chain.md)
 - [30 — webfont `unicode-range` partitioning](30-webfont-unicode-range.md)
 - [40 — cross-platform font-path discovery](40-cross-platform-font-paths.md)
@@ -40,7 +41,7 @@ source of truth for its slice):
 ## Legend
 
 - **Logical key** — an internal string (`helvetica`, `times`, `cjk`, `sf-arabic`,
-  `pingfang-sc`, `u-noto-sans`, …) that names a *role*, not a file. The platform
+  `pingfang-sc`, `u-noto-sans`, …) that names a _role_, not a file. The platform
   layer maps a key → an actual font file. `webfont:<family>`, `localalias:<family>`,
   `sysfb:<postscriptName>`, `u-…` (darwin generated), and `un-…` (Linux Noto
   generated) are namespaced key families.
@@ -99,11 +100,11 @@ switch (`currentRenderTextMode` / `withRenderTextMode`) in
 
 ### Render-text mode (embedded-font vs paths vs system-font)
 
-| Mode | Default? | Output | Fidelity | Generation-scoped state |
-|---|---|---|---|---|
-| `embedded-font` | **yes** (DM-839) | `<text>` against a `@font-face` subset **glyf** TTF (svg2ttf; NOT CFF — DM-1666), addressed by private-use codepoints (consumer browser does zero shaping) | consumer browser rasterizes (its own hinting/AA) — smaller/faster, not byte-identical across browsers | `embeddedFonts` map + `embedded-font-builder` (`clearEmbeddedFonts`) |
-| `paths` | no | `<use href="#gN">` into per-glyph `<path>` defs | per-pixel-faithful to Chromium; used for visual-regression diffing | `glyphDefs` registry (`clearGlyphDefs`) |
-| `system-font` (DM-2716) | no | ordinary painted `<text>` with the AUTHORED `font-family` stack + size/weight/style/stretch/fill/stroke; run-anchor-only position; NO embed, NO paths (`renderTextAsSystemFont`) | **not pixel-faithful** — the CONSUMER's installed fonts paint it; positions drift under font substitution; browser owns bidi (`applyBidi`/`applyBidiAt` skip mirroring). Opt-in departure from the parity contract; see docs 261 | none (touches no font file / registry) |
+| Mode                    | Default?         | Output                                                                                                                                                                           | Fidelity                                                                                                                                                                                                                         | Generation-scoped state                                              |
+| ----------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `embedded-font`         | **yes** (DM-839) | `<text>` against a `@font-face` subset **glyf** TTF (svg2ttf; NOT CFF — DM-1666), addressed by private-use codepoints (consumer browser does zero shaping)                       | consumer browser rasterizes (its own hinting/AA) — smaller/faster, not byte-identical across browsers                                                                                                                            | `embeddedFonts` map + `embedded-font-builder` (`clearEmbeddedFonts`) |
+| `paths`                 | no               | `<use href="#gN">` into per-glyph `<path>` defs                                                                                                                                  | per-pixel-faithful to Chromium; used for visual-regression diffing                                                                                                                                                               | `glyphDefs` registry (`clearGlyphDefs`)                              |
+| `system-font` (DM-2716) | no               | ordinary painted `<text>` with the AUTHORED `font-family` stack + size/weight/style/stretch/fill/stroke; run-anchor-only position; NO embed, NO paths (`renderTextAsSystemFont`) | **not pixel-faithful** — the CONSUMER's installed fonts paint it; positions drift under font substitution; browser owns bidi (`applyBidi`/`applyBidiAt` skip mirroring). Opt-in departure from the parity contract; see docs 261 | none (touches no font file / registry)                               |
 
 The two fidelity modes (`embedded-font`, `paths`) share the resolver + splitter
 described below. `system-font` short-circuits BEFORE the run-splitting / shaping
@@ -242,14 +243,14 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > only when it was unquoted AND spelled in canonical lowercase
 > (`FontFamily::InferredTypeFor`'s case-sensitive set — cursive / fantasy /
 > monospace / sans-serif / serif / system-ui / math — `platform/fonts/
-> font_family.cc:63-74`, rev 7d859f27; the computed style delivers the
+font_family.cc:63-74`, rev 7d859f27; the computed style delivers the
 > distinction because `SerializeFontFamily` force-quotes literal names that
 > collide with generic spellings, `core/css/css_markup.cc:224-230`). Every
 > generic route in `matchFamilyNameToKey` — the session-probe override, the
 > Linux settings substitution, and the calibrated static generic arms — is
 > gated on that bit, mirroring `FamilyNameFromSettings`' quoted-generic
 > refusal (`platform/fonts/font_selector.cc:25-32`): `font-family:
-> "monospace", Menlo` paints Menlo, never Courier. The one exception is
+"monospace", Menlo` paints Menlo, never Courier. The one exception is
 > `system-ui`, whose dispatch Blink keys on the family NAME rather than the
 > generic bit (`font_cache.cc:161-166`, `font_cache_mac.mm:402-417`), so both
 > spellings resolve the platform UI font — measured live: Chrome paints
@@ -469,18 +470,18 @@ flowchart TD
 
 **Why generics resolve where they do (macOS calibration — Blink `font_cache_mac.mm`):**
 
-| CSS generic / keyword | Key | Actual macOS font |
-|---|---|---|
-| `sans-serif`, `Helvetica` | `helvetica` | Helvetica.ttc (NOT SF Pro) |
-| `serif`, `Times`, UA default | `times` | Times.ttc (Apple Times, NOT Times New Roman) |
-| `monospace`, `Courier` | `courier` | Courier.ttc (NOT SF Mono/Menlo) |
-| `Courier New` | `courier-new` | Supplemental/Courier New.ttf (direct match; Courier alias is a lookup-failure retry only — `font_platform_data_cache.cc:74-105`) |
-| `Consolas` | — | no pin: uninstalled → walk on; installed (MS Office Mac) → `sysfb:` via the installed-font probe |
-| `cursive` | `apple-chancery` | Apple Chancery (NOT Snell Roundhand) |
-| `fantasy` | `papyrus` | Papyrus |
-| `system-ui`, `BlinkMacSystemFont` (darwin only — the `system-ui` rewrite is `#if BUILDFLAG(IS_MAC)`; off macOS the name is unmatchable and walks on) | `sf-pro` | SFNS.ttf |
-| literal installed `SF Pro`, `SF Pro Text`, `SF Pro Display` | `sysfb:<exact PostScript>` | exact family descriptor/file; unavailable → next stack entry |
-| `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system` | `null` | **skipped** (not in Blink's keyword table — `css_value_keywords.json5:173-181`; Chrome walks the stack, ultimately to `times`) |
+| CSS generic / keyword                                                                                                                                | Key                        | Actual macOS font                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `sans-serif`, `Helvetica`                                                                                                                            | `helvetica`                | Helvetica.ttc (NOT SF Pro)                                                                                                       |
+| `serif`, `Times`, UA default                                                                                                                         | `times`                    | Times.ttc (Apple Times, NOT Times New Roman)                                                                                     |
+| `monospace`, `Courier`                                                                                                                               | `courier`                  | Courier.ttc (NOT SF Mono/Menlo)                                                                                                  |
+| `Courier New`                                                                                                                                        | `courier-new`              | Supplemental/Courier New.ttf (direct match; Courier alias is a lookup-failure retry only — `font_platform_data_cache.cc:74-105`) |
+| `Consolas`                                                                                                                                           | —                          | no pin: uninstalled → walk on; installed (MS Office Mac) → `sysfb:` via the installed-font probe                                 |
+| `cursive`                                                                                                                                            | `apple-chancery`           | Apple Chancery (NOT Snell Roundhand)                                                                                             |
+| `fantasy`                                                                                                                                            | `papyrus`                  | Papyrus                                                                                                                          |
+| `system-ui`, `BlinkMacSystemFont` (darwin only — the `system-ui` rewrite is `#if BUILDFLAG(IS_MAC)`; off macOS the name is unmatchable and walks on) | `sf-pro`                   | SFNS.ttf                                                                                                                         |
+| literal installed `SF Pro`, `SF Pro Text`, `SF Pro Display`                                                                                          | `sysfb:<exact PostScript>` | exact family descriptor/file; unavailable → next stack entry                                                                     |
+| `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system`                                              | `null`                     | **skipped** (not in Blink's keyword table — `css_value_keywords.json5:173-181`; Chrome walks the stack, ultimately to `times`)   |
 
 **Source of truth:** `matchFamilyNameToKey` / `resolveFontKey` /
 `resolveFontKeyChain` / `splitFontFamilyNames` in `src/render/font-resolution.ts`.
@@ -632,7 +633,7 @@ flowchart TD
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**
 fontkit is primary; the **native glyph helper** (macOS CoreText / Linux FreeType /
 Windows DirectWrite, dispatched by `process.platform` in `src/render/glyph-helper-transport.ts`)
-is the fallback for a *helper-eligible* font (`extractor: "native"`) that fontkit
+is the fallback for a _helper-eligible_ font (`extractor: "native"`) that fontkit
 can't open OR opens with no outline table (PingFang's outlines live in Apple's
 private `hvgl` table). A finer **per-glyph** tier (`commandsFor` → `helperGlyphOutline`,
 DM-891, doc [52](52-embedded-mode-glyph-fallback.md)) supplies a single glyph's
@@ -693,7 +694,7 @@ PingFang SC members across the CSS weights and seven Hiragino Sans ones
 and Apple SD Gothic Neo reaches Thin, Medium, SemiBold and ExtraBold. The
 `key` / `key-bold` pair below cannot represent that, and the gap is not
 cosmetic — a declared `"PingFang SC"` resolved to `PingFangSC-Regular` at
-*every* weight, measuring 725 units/em where Chrome paints 736.09 at CSS 500
+_every_ weight, measuring 725 units/em where Chrome paints 736.09 at CSS 500
 and 749.06 at 700 (~1.75% per glyph, accumulating along the line).
 
 So for a declared family the cut comes from Blink's own selection rather than
@@ -717,7 +718,7 @@ Three properties are load-bearing:
   marks both the dynamic `sysfb:` keys its `resolveInstalledFont(name)` tail
   registers and exact-descriptor keys preserved after a calibrated nomination
   (how `font-family: "PingFang SC"` becomes
-  `sysfb:PingFangSC-Regular`). The per-codepoint FALLBACK path is a *different*
+  `sysfb:PingFangSC-Regular`). The per-codepoint FALLBACK path is a _different_
   Blink call — `CTFontCreateForString` then `GetAlternateFontPlatformData`'s
   in-family re-selection — which `fallbackFamilyCutKey` already mirrors on the
   chain candidates (§7). Running both on one decision would layer two
@@ -846,11 +847,11 @@ key the matchers decline, and under `DOMOTION_SYSTEM_FALLBACK=0` on Linux.
 Three rules, applied in order, calibrated by asking Chromium which face it
 painted (`CSS.getPlatformFontsForNode` over 100…900 in 10-point steps):
 
-| Family key | Measured Chrome behavior |
-| --- | --- |
-| `helvetica` | 100-300 → `Helvetica-Light`, 310-590 → `Helvetica`, 600-900 → `Helvetica-Bold`; oblique column parallel |
-| `lucida-grande` | 100-440 → `LucidaGrande`, 450-900 → `LucidaGrande-Bold` |
-| `arial` / `times` / `georgia` / `courier` / `menlo` / … | regular below 600, bold at 600+ (no other cut installed) |
+| Family key                                              | Measured Chrome behavior                                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `helvetica`                                             | 100-300 → `Helvetica-Light`, 310-590 → `Helvetica`, 600-900 → `Helvetica-Bold`; oblique column parallel |
+| `lucida-grande`                                         | 100-440 → `LucidaGrande`, 450-900 → `LucidaGrande-Bold`                                                 |
+| `arial` / `times` / `georgia` / `courier` / `menlo` / … | regular below 600, bold at 600+ (no other cut installed)                                                |
 
 1. the `weight ≥ 600` bold split plus the italic sibling (the long-standing
    rule, still the default for every regular/bold-only family);
@@ -876,7 +877,7 @@ therefore DEGRADED-MODE ONLY on an armed host: every rule above, including the
 predicate — `font_selection_types.h:182,212` — never a cut selector) and the
 nearest-`usWeightClass` Hiragino ladder (wrong at 510-590 and 650, where
 Chrome's trait-mask ladder is non-monotonic), is a sampled seed the matcher's
-answer replaces, base face included. The rows above record what the *table*
+answer replaces, base face included. The rows above record what the _table_
 encodes and remain accurate for the hosts that still use it.
 
 Every suffixed key is adopted **only when `resolveFontSpec` resolves it on the
@@ -984,8 +985,7 @@ gives you", and on a collection that is member 0, i.e. the vendor's ordering
 rather than anything a routing table meant. `NotoSansMyanmar.ttc` has 18 members
 and member 0 is **Black**, so every Myanmar run painted at weight 900 whatever
 the CSS asked for, while Chrome (asked over CDP) answers
-`NotoSansMyanmar-Regular` at weight 400 — U+1000 advance 1124 against Black's
-1121. `src/render/font-path-postscript-names.test.ts` sweeps the table and fails
+`NotoSansMyanmar-Regular` at weight 400 — U+1000 advance 1124 against Black's 1121. `src/render/font-path-postscript-names.test.ts` sweeps the table and fails
 on any key that resolves to a multi-member collection without a name.
 
 Entries under the `u-` namespace come from the generated per-block table, which
@@ -1003,72 +1003,72 @@ control ref run twice, by a mechanism not yet found — it is inert in every loc
 measurement, so the divergence is specific to the runner's font inventory. They
 are deliberately left unnamed until that is explained.
 
-| Key(s) | File | Notes |
-|---|---|---|
-| `sf-pro` / `sf-pro-italic` | SFNS.ttf / SFNSItalic.ttf | system-ui; italic is a sibling file, not a `slnt` axis |
-| `sf-mono(-italic)` | SFNSMono(Italic).ttf | |
-| `helvetica*` | Helvetica.ttc | `sans-serif` generic |
-| `helvetica-neue*` | HelveticaNeue.ttc | distinct face from Helvetica (DM-1189) |
-| `arial*` | Supplemental/Arial*.ttf | |
-| `times*` | Times.ttc | `serif` generic + UA default |
-| `times-new-roman*` | Supplemental/Times New Roman*.ttf | explicit name only |
-| `georgia*` | Supplemental/Georgia*.ttf | |
-| `courier*` | Courier.ttc | `monospace` generic |
-| `courier-new*` | Supplemental/Courier New*.ttf | explicit name only (like `times-new-roman*`) |
-| `menlo*` / `monaco` | Menlo.ttc / Monaco.ttf | |
-| `cjk(-bold)` | Hiragino Sans GB.ttc (W3/W6) | sans CJK fallback |
-| `cjk-serif(-bold)` | Supplemental/Songti.ttc (STSongti-SC-Light/Bold) | serif-primary CJK |
-| `pingfang-{sc,tc,hk,mo}(-bold)` | PingFang.ttc | Han ideographs; **`extractor: native`** (hvgl) |
-| `hiragino-jp` + `hiragino-jp-w0…w9` | ヒラギノ角ゴシック W0–W9 (**HiraginoSans-W\***) | JP kana + wide symbols. Chrome picks the cut whose `OS/2.usWeightClass` matches the CSS weight exactly — measured 100→W0 200→W1 300→W3 400→W4 500→W5 600→W6 700→W7 800→W8 900→W9 (W2 is usWeightClass 250, unreachable from CSS). The base key is **W4**. Previously pinned to `HiraKakuProN-W3`, which is a different FAMILY (Hiragino Kaku Gothic ProN) that merely shares the W3 `.ttc` container — wrong at all nine weights, and wrong in family besides. DM-1854. |
-| `hiragino-mincho(-bold)` | ヒラギノ明朝 ProN | JP serif, explicit-name only |
-| `korean(-bold)` | AppleSDGothicNeo.ttc | Hangul |
-| `thai` | ThonburiUI.ttc | |
-| `devanagari` | Kohinoor.ttc | |
-| `sf-arabic` | GeezaPro.ttc | Arabic (Geeza Pro, not SF Arabic) |
-| `sf-hebrew` | SFHebrew.ttf | |
-| `symbols` | Apple Symbols.ttf | math operators / misc technical |
-| `zapf-dingbats` | ZapfDingbats.ttf | Dingbats block |
-| `stix-math` | Supplemental/STIXTwoMath.otf | Math Alphanumeric |
-| `lucida-grande` | LucidaGrande.ttc | specific arrows / shapes |
-| `snell` / `apple-chancery` / `papyrus` | Supplemental/… | cursive / fantasy |
-| `last-resort` | LastResort.otf (macOS) / bundled LastResortHE (else) | per-block tofu frame |
-| `u-…` (319 block routes) | `unicode-font-routing.darwin.generated.ts` | DM-983 CDP sweep — **availability-gated, see below** |
+| Key(s)                                 | File                                                 | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sf-pro` / `sf-pro-italic`             | SFNS.ttf / SFNSItalic.ttf                            | system-ui; italic is a sibling file, not a `slnt` axis                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `sf-mono(-italic)`                     | SFNSMono(Italic).ttf                                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `helvetica*`                           | Helvetica.ttc                                        | `sans-serif` generic                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `helvetica-neue*`                      | HelveticaNeue.ttc                                    | distinct face from Helvetica (DM-1189)                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `arial*`                               | Supplemental/Arial*.ttf                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `times*`                               | Times.ttc                                            | `serif` generic + UA default                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `times-new-roman*`                     | Supplemental/Times New Roman*.ttf                    | explicit name only                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `georgia*`                             | Supplemental/Georgia*.ttf                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `courier*`                             | Courier.ttc                                          | `monospace` generic                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `courier-new*`                         | Supplemental/Courier New*.ttf                        | explicit name only (like `times-new-roman*`)                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `menlo*` / `monaco`                    | Menlo.ttc / Monaco.ttf                               |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `cjk(-bold)`                           | Hiragino Sans GB.ttc (W3/W6)                         | sans CJK fallback                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `cjk-serif(-bold)`                     | Supplemental/Songti.ttc (STSongti-SC-Light/Bold)     | serif-primary CJK                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `pingfang-{sc,tc,hk,mo}(-bold)`        | PingFang.ttc                                         | Han ideographs; **`extractor: native`** (hvgl)                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `hiragino-jp` + `hiragino-jp-w0…w9`    | ヒラギノ角ゴシック W0–W9 (**HiraginoSans-W\***)      | JP kana + wide symbols. Chrome picks the cut whose `OS/2.usWeightClass` matches the CSS weight exactly — measured 100→W0 200→W1 300→W3 400→W4 500→W5 600→W6 700→W7 800→W8 900→W9 (W2 is usWeightClass 250, unreachable from CSS). The base key is **W4**. Previously pinned to `HiraKakuProN-W3`, which is a different FAMILY (Hiragino Kaku Gothic ProN) that merely shares the W3 `.ttc` container — wrong at all nine weights, and wrong in family besides. DM-1854. |
+| `hiragino-mincho(-bold)`               | ヒラギノ明朝 ProN                                    | JP serif, explicit-name only                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `korean(-bold)`                        | AppleSDGothicNeo.ttc                                 | Hangul                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `thai`                                 | ThonburiUI.ttc                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `devanagari`                           | Kohinoor.ttc                                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `sf-arabic`                            | GeezaPro.ttc                                         | Arabic (Geeza Pro, not SF Arabic)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `sf-hebrew`                            | SFHebrew.ttf                                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `symbols`                              | Apple Symbols.ttf                                    | math operators / misc technical                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `zapf-dingbats`                        | ZapfDingbats.ttf                                     | Dingbats block                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `stix-math`                            | Supplemental/STIXTwoMath.otf                         | Math Alphanumeric                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `lucida-grande`                        | LucidaGrande.ttc                                     | specific arrows / shapes                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `snell` / `apple-chancery` / `papyrus` | Supplemental/…                                       | cursive / fantasy                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `last-resort`                          | LastResort.otf (macOS) / bundled LastResortHE (else) | per-block tofu frame                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `u-…` (319 block routes)               | `unicode-font-routing.darwin.generated.ts`           | DM-983 CDP sweep — **availability-gated, see below**                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 #### Generated block routes are gated on the family being installed (DM-1844)
 
-The `u-…` table records which family Chrome's CoreText fallback picked **per Unicode block, as sampled on one Mac**. It is therefore a snapshot of that machine's font inventory, and several of its families are *not* stock — `SF Pro Text` and `Noto Sans` are separate Apple / Google downloads, and the Cyrillic route (among 18 others) names `SF Pro Text`.
+The `u-…` table records which family Chrome's CoreText fallback picked **per Unicode block, as sampled on one Mac**. It is therefore a snapshot of that machine's font inventory, and several of its families are _not_ stock — `SF Pro Text` and `Noto Sans` are separate Apple / Google downloads, and the Cyrillic route (among 18 others) names `SF Pro Text`.
 
 So each entry now carries the `family` it was sampled from, and `fallbackFontChain` uses a route only when `resolveInstalledFont(family)` succeeds here (`generatedRouteUsable`). On a machine without that family Chrome cannot pick it either, and a route to a face Chrome will never choose defeats the table's whole purpose.
 
 The generator also marks author-installed paths and paths absent on the generation host as `optionalInstall`. Apple can remove a Supplemental font between macOS releases (for example Noto Sans Brahmi on macOS 27), so the path-integrity audit must accept that inventory change. This does not make the route authoritative when absent: the live family gate above still rejects it and puts the current CoreText answer at the head of the chain.
 
-**A file-existence check is not sufficient** and was the trap: the Cyrillic route's `/System/Library/Fonts/SFNS.ttf` exists on every macOS. What varies is whether the *family* is installed — which is what decides Chrome's pick. Same rule the family→key map already applies to `"SF Pro Text"`.
+**A file-existence check is not sufficient** and was the trap: the Cyrillic route's `/System/Library/Fonts/SFNS.ttf` exists on every macOS. What varies is whether the _family_ is installed — which is what decides Chrome's pick. Same rule the family→key map already applies to `"SF Pro Text"`.
 
-When a route is rejected, the **live resolver** supplies the replacement and is placed at the chain HEAD. Merely dropping the route would be worse than the original bug: the static tail ends in `last-resort`, whose LastResort.otf has a block-frame glyph for *every* codepoint, so it would win and paint tofu — and `u-noto-sans` sitting in that tail is itself a non-stock download that gets skipped when absent. If the OS has no answer either, the generated route is kept: a face Chrome might not pick still beats guaranteed tofu.
+When a route is rejected, the **live resolver** supplies the replacement and is placed at the chain HEAD. Merely dropping the route would be worse than the original bug: the static tail ends in `last-resort`, whose LastResort.otf has a block-frame glyph for _every_ codepoint, so it would win and paint tofu — and `u-noto-sans` sitting in that tail is itself a non-stock download that gets skipped when absent. If the OS has no answer either, the generated route is kept: a face Chrome might not pick still beats guaranteed tofu.
 
-Measured with `tools/chrome-font-agreement.ts` (FONTAGREE), which asks Chrome via CDP `CSS.getPlatformFontsForNode` and our resolver the same per-codepoint question on the same machine. On the GitHub macOS runner this went **6/10 → 10/10**: U+04FA–U+04FC now resolve to `sysfb:.NewYork-Regular`, matching the `.New York` Chrome paints there, and U+1D00 to Lucida Grande, instead of the route's SFNS. On a developer Mac — which *has* the sampled fonts — nothing changes and it stays 10/10. `src/render/generated-route-family.test.ts` pins the family provenance the gate depends on.
+Measured with `tools/chrome-font-agreement.ts` (FONTAGREE), which asks Chrome via CDP `CSS.getPlatformFontsForNode` and our resolver the same per-codepoint question on the same machine. On the GitHub macOS runner this went **6/10 → 10/10**: U+04FA–U+04FC now resolve to `sysfb:.NewYork-Regular`, matching the `.New York` Chrome paints there, and U+1D00 to Lucida Grande, instead of the route's SFNS. On a developer Mac — which _has_ the sampled fonts — nothing changes and it stays 10/10. `src/render/generated-route-family.test.ts` pins the family provenance the gate depends on.
 
 Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same comparison is **`tools/font-conformance.ts`** (`npm run fonts:conformance`, [doc 107](./107-font-conformance-oracle.md)): every assigned Unicode codepoint × every font stack the fixture corpus uses, asked of both Chrome and this diagram's resolver, with a JSON report and a non-zero exit on any disagreement. Anything in this diagram that is a sampled approximation rather than a transcription of Blink's own logic shows up there as a mismatch count.
 
 ### Linux (`LINUX_FONT_PATHS`, bare CI image) & Windows (`WIN32_FONT_PATHS`)
 
-| Key | Linux (Playwright noble image) | Windows |
-|---|---|---|
-| `helvetica`/`arial`/`sf-pro` | Liberation Sans | Arial / (sf-pro→Segoe UI) |
-| `times` | Liberation Serif | Times New Roman |
-| `courier`/`menlo`/`monaco`/`sf-mono` | WenQuanYi Zen Hei Mono | Courier New / Consolas |
-| `courier-new` | Liberation Mono (fontconfig metric class) | Courier New (cour.ttf) |
-| `cjk` | WenQuanYi Zen Hei | Microsoft YaHei |
-| `cjk-serif` | (Noto profile / generated) | SimSun |
-| `hiragino-jp` | IPAGothic (generated) | Yu Gothic |
-| `korean` | WenQuanYi (generated) | Malgun Gothic |
-| `sf-arabic` | FreeSerif | Segoe UI |
-| `sf-hebrew` | (Liberation Sans covers) | Segoe UI |
-| `devanagari` | FreeSans | Nirmala UI |
-| `thai` | Loma | Tahoma / Leelawadee UI |
-| `symbols`/`zapf-dingbats` | FreeSans / FreeSerif | Segoe UI Symbol |
-| `stix-math` | FreeSans / FreeSerif | Cambria Math |
-| `u-…`/`un-…` generated | `unicode-font-routing.{linux,noto-linux}.generated.ts` | `unicode-font-routing.win32.generated.ts` |
+| Key                                  | Linux (Playwright noble image)                         | Windows                                   |
+| ------------------------------------ | ------------------------------------------------------ | ----------------------------------------- |
+| `helvetica`/`arial`/`sf-pro`         | Liberation Sans                                        | Arial / (sf-pro→Segoe UI)                 |
+| `times`                              | Liberation Serif                                       | Times New Roman                           |
+| `courier`/`menlo`/`monaco`/`sf-mono` | WenQuanYi Zen Hei Mono                                 | Courier New / Consolas                    |
+| `courier-new`                        | Liberation Mono (fontconfig metric class)              | Courier New (cour.ttf)                    |
+| `cjk`                                | WenQuanYi Zen Hei                                      | Microsoft YaHei                           |
+| `cjk-serif`                          | (Noto profile / generated)                             | SimSun                                    |
+| `hiragino-jp`                        | IPAGothic (generated)                                  | Yu Gothic                                 |
+| `korean`                             | WenQuanYi (generated)                                  | Malgun Gothic                             |
+| `sf-arabic`                          | FreeSerif                                              | Segoe UI                                  |
+| `sf-hebrew`                          | (Liberation Sans covers)                               | Segoe UI                                  |
+| `devanagari`                         | FreeSans                                               | Nirmala UI                                |
+| `thai`                               | Loma                                                   | Tahoma / Leelawadee UI                    |
+| `symbols`/`zapf-dingbats`            | FreeSans / FreeSerif                                   | Segoe UI Symbol                           |
+| `stix-math`                          | FreeSans / FreeSerif                                   | Cambria Math                              |
+| `u-…`/`un-…` generated               | `unicode-font-routing.{linux,noto-linux}.generated.ts` | `unicode-font-routing.win32.generated.ts` |
 
 **Linux profile detection** (`linuxFontProfile`): `fc-match "sans-serif:charset=4e00"`
 → if the path matches `/noto/i`, use the **Noto** calibrated table
@@ -1135,6 +1135,7 @@ flowchart TD
 ```
 
 Notes:
+
 - `instanceFor(key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
@@ -1281,24 +1282,24 @@ Notes:
   glyph or position difference in**, each landed as its own commit with its
   own full macOS unicode sweep and a control ref swept twice:
 
-  | script | ranges | disagreements | what actually differed |
-  | --- | --- | ---: | --- |
-  | Thai | 0E00–0E7F | 32 | **glyph ids** — the U+F704 / U+F714 shift-left PUA forms |
-  | Telugu | 0C00–0C7F | 10 | cluster map (ink cancels) |
-  | Hangul | 1100–11FF, 3130–318F, A960–A97F, AC00–D7FF | 2 | **glyph count** — CoreText decomposes syllables |
-  | Devanagari | 0900–097F | 44 | cluster map, and it is REORDERED |
-  | Hebrew | 0590–05FF, FB1D–FB4F | 76 | cluster map (advance/offset are two encodings of one ink) |
-  | Arabic | 0600–06FF, 0750–077F, 0870–089F, 08A0–08FF, FB50–FDFF, FE70–FEFF | 75 | cluster map; 8 glyph-count on an unreachable face |
+  | script     | ranges                                                           | disagreements | what actually differed                                    |
+  | ---------- | ---------------------------------------------------------------- | ------------: | --------------------------------------------------------- |
+  | Thai       | 0E00–0E7F                                                        |            32 | **glyph ids** — the U+F704 / U+F714 shift-left PUA forms  |
+  | Telugu     | 0C00–0C7F                                                        |            10 | cluster map (ink cancels)                                 |
+  | Hangul     | 1100–11FF, 3130–318F, A960–A97F, AC00–D7FF                       |             2 | **glyph count** — CoreText decomposes syllables           |
+  | Devanagari | 0900–097F                                                        |            44 | cluster map, and it is REORDERED                          |
+  | Hebrew     | 0590–05FF, FB1D–FB4F                                             |            76 | cluster map (advance/offset are two encodings of one ink) |
+  | Arabic     | 0600–06FF, 0750–077F, 0870–089F, 08A0–08FF, FB50–FDFF, FE70–FEFF |            75 | cluster map; 8 glyph-count on an unreachable face         |
 
   Of the original four "cluster-map-only, not authorized" holdouts —
   **Myanmar, Bengali, Khmer, Tamil** — three have since moved, on a
   DIFFERENT measurement basis than the CoreText comparison above:
 
-  | script | ranges | measurement | what actually differed |
-  | --- | --- | --- | --- |
-  | Myanmar | 1000–109F, AA60–AA7F, A9E0–A9FF, 116D0–116FF | fontkit-vs-HarfBuzz, direct | **nothing found** — measured inert; rerouted for parity-by-construction (fontkit has no `mymr` shaper entry at all) |
-  | Khmer | 1780–17FF, 19E0–19FF | fontkit-vs-HarfBuzz, direct | **nothing found** — measured inert; rerouted for parity-by-construction (fontkit sends `khmr` to `IndicShaper`, HarfBuzz uses a dedicated Khmer shaper) |
-  | Bengali | 0980–09FF | fontkit-vs-HarfBuzz, direct | **glyph count** — HarfBuzz's vowel-constraint preprocessing inserts a mid-sequence U+25CC fontkit's `IndicShaper` never does |
+  | script  | ranges                                       | measurement                 | what actually differed                                                                                                                                  |
+  | ------- | -------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Myanmar | 1000–109F, AA60–AA7F, A9E0–A9FF, 116D0–116FF | fontkit-vs-HarfBuzz, direct | **nothing found** — measured inert; rerouted for parity-by-construction (fontkit has no `mymr` shaper entry at all)                                     |
+  | Khmer   | 1780–17FF, 19E0–19FF                         | fontkit-vs-HarfBuzz, direct | **nothing found** — measured inert; rerouted for parity-by-construction (fontkit sends `khmr` to `IndicShaper`, HarfBuzz uses a dedicated Khmer shaper) |
+  | Bengali | 0980–09FF                                    | fontkit-vs-HarfBuzz, direct | **glyph count** — HarfBuzz's vowel-constraint preprocessing inserts a mid-sequence U+25CC fontkit's `IndicShaper` never does                            |
 
   These three moved because their BASE BLOCKS route to a font key that is not
   `extractor: "native"` on macOS (`u-myanmar-sangam-mn`, `u-khmer-sangam-mn`,
@@ -1327,7 +1328,7 @@ Notes:
   is unreached on this platform regardless of any comparison's result.
 
   The reason a script is on this list is a measurement, not an assumption: `npm
-  run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
+run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   every resolvable face and reports 366 disagreements spread across **all ten**
   dedicated-shaper scripts, so the claim the exclusion used to rest on — "macOS
   CoreText already matches Chrome for them" — is false everywhere it was
@@ -1411,6 +1412,7 @@ Notes:
   oblique, `postscriptName`) plus its
   `fontSourceMap` entry — without which two optical instances of one face
   collapse into a single embedded TTF.
+
 - **Why the OS is asked first (step 2a before 2b).** Blink has exactly ONE stage
   here and it is the OS. `FontFallbackIterator::Next`
   (`font_fallback_iterator.cc:120-157`, Chromium rev `7d859f27`) runs
@@ -1431,6 +1433,7 @@ Notes:
   result with the `system-ui` cascade base armed, which was still off by default
   when that was written — see the 2×2 in §8a. Neither flag is scoreable alone,
   and 84,382 of the 84,938 rows require both.
+
 - **Private-use and noncharacter codepoints skip system fallback entirely.**
   Blink's `FontCache::FallbackFontForCharacter`
   (`platform/fonts/font_cache.cc:229-244`, rev `7d859f27`) returns null before it
@@ -1461,6 +1464,7 @@ Notes:
   The declared-family stages are deliberately NOT gated: macOS Helvetica has a
   real U+F8FF (the Apple logo), and an author's icon webfont covers its own PUA
   range, both of which Chrome paints from the family that carries them.
+
 - **Step 2b is a DEGRADED-MODE net on macOS/Linux — it never answers while the
   live resolver is in the loop.** Blink has no such stage
   (`font_fallback_iterator.cc:120-157`, rev `7d859f27`), and measured behind the
@@ -1474,7 +1478,7 @@ Notes:
   helper binary is absent or the resolver is flagged off
   (`DOMOTION_SYSTEM_FALLBACK=0`) — the hosts where dropping it would drop every
   fallback answer, which is why it is gated rather than deleted. A codepoint
-  the OS *declines* on a live host now falls to the uncovered terminal,
+  the OS _declines_ on a live host now falls to the uncovered terminal,
   Chrome's own answer. The chain FUNCTION (`fallbackFontChain`) stays ungated
   for its non-resolver consumers: the dotted-circle U+25CC advance candidates
   and the batch glyph-warm.
@@ -1500,7 +1504,7 @@ Notes:
   100-300, Regular at 400, Bold at 500-700 and Black at 800-900 for the same
   character; Apple SD Gothic Neo runs all nine steps; and every crossover sits on
   an xx50 boundary, because Blink buckets the CSS weight with `(weight - 50) /
-  100` integer division before handing CoreText a weight trait — Chrome moves
+100` integer division before handing CoreText a weight trait — Chrome moves
   Lucida Grande and Songti SC at 450, not 500. (The hand-tuned
   `lucida-grande` heuristic had that boundary right for that one family; the
   mechanism has it right for all of them.) `fallbackFamilyCutKey`
@@ -1519,6 +1523,7 @@ Notes:
   SC at CSS 300, CoreText's re-selection answers Light where Chrome paints
   Thin), so neither can stand in for the other, and neither runs on the other's
   keys.
+
 - **Canonical decomposition is not predicted in supported resolution.** Blink
   hands the cluster to HarfBuzz, whose `decompose_current_character`
   (`hb-ot-shape-normalize.cc:150-201`, rev `4de187d`) tests the current face and
@@ -1661,7 +1666,7 @@ On Windows, `FontCache::PlatformFallbackFontForCharacter` asks a **hardcoded
 table first** and only falls through to DirectWrite when that table produces
 nothing usable (`platform/fonts/win/font_cache_skia_win.cc:286-296`, Chromium rev
 `7d859f27`). An implementation built only on
-`IDWriteFontFallback::MapCharacters` therefore answers Chrome's *second* question,
+`IDWriteFontFallback::MapCharacters` therefore answers Chrome's _second_ question,
 and on a machine with a complete font set Chrome never asks it — whole scripts can
 diverge with no font-set explanation available.
 
@@ -1726,7 +1731,7 @@ flowchart TD
 Two properties of the adapter that are load-bearing rather than incidental:
 
 - **The script table contributes at most ONE family.** Blink takes the first
-  *installed* entry, then checks `FontContainsCharacter`, and on a coverage miss
+  _installed_ entry, then checks `FontContainsCharacter`, and on a coverage miss
   goes to the **pan-Unicode probe list** — not to the script list's second slot.
   Emitting one key preserves that control flow, because the walker's own
   `glyphIdForCp` check is `FontContainsCharacter`.
@@ -1775,12 +1780,12 @@ Two properties of the adapter that are load-bearing rather than incidental:
 
   Verified on a Win11 host against the routes the oracle reported Chrome picking:
 
-  | asked | resolved |
-  |---|---|
-  | Segoe UI, no style | `SegoeUI` / `SEGOEUI.TTF` (unchanged) |
-  | Segoe UI @300 / @600 / @700 / @900 | `-Light` / `-Semibold` / `-Bold` / `Black` |
-  | Segoe UI @400 italic / @700 italic | `-Italic` / `-BoldItalic` |
-  | Microsoft YaHei / Malgun Gothic / Nirmala UI / Ebrima / Gadugi @700 | each family's real `-Bold` |
+  | asked                                                               | resolved                                   |
+  | ------------------------------------------------------------------- | ------------------------------------------ |
+  | Segoe UI, no style                                                  | `SegoeUI` / `SEGOEUI.TTF` (unchanged)      |
+  | Segoe UI @300 / @600 / @700 / @900                                  | `-Light` / `-Semibold` / `-Bold` / `Black` |
+  | Segoe UI @400 italic / @700 italic                                  | `-Italic` / `-BoldItalic`                  |
+  | Microsoft YaHei / Malgun Gothic / Nirmala UI / Ebrima / Gadugi @700 | each family's real `-Bold`                 |
 
   That ladder is also why a two-slot `-bold` sibling entry could not have been
   made correct: Segoe UI ships six upright weights plus five italics, so a
@@ -1902,15 +1907,15 @@ mixed bitmap/vector font inventory — the roadmapped Noto desktop calibration.
 Every branch above is a round-trip to a native helper binary. Binary discovery,
 serve/one-shot selection, synchronous I/O, and reset lifecycle are owned by
 `src/render/glyph-helper-transport.ts`; typed request/response shapes are owned
-by `src/render/glyph-helper-protocol.ts`. The *carrier*
+by `src/render/glyph-helper-protocol.ts`. The _carrier_
 differs per platform in a way that has twice turned out to be load-bearing rather
 than incidental.
 
-| Platform | Transport | Per-call cost |
-| --- | --- | --- |
-| macOS | persistent `--serve` over spawned stdio | ~0.4 ms |
-| Linux | persistent `--serve` over spawned stdio | ~0.4 ms |
-| Windows | persistent `--serve-pipe` over a **named pipe** (DM-1889) | ~0.5 ms (was ~42 ms, one process per call) |
+| Platform | Transport                                                 | Per-call cost                              |
+| -------- | --------------------------------------------------------- | ------------------------------------------ |
+| macOS    | persistent `--serve` over spawned stdio                   | ~0.4 ms                                    |
+| Linux    | persistent `--serve` over spawned stdio                   | ~0.4 ms                                    |
+| Windows  | persistent `--serve-pipe` over a **named pipe** (DM-1889) | ~0.5 ms (was ~42 ms, one process per call) |
 
 The macOS channel retains its process-lifetime cache for glyph, metadata, and
 shaping requests, but fallback envelopes mark the cascade base `requestScoped`.
@@ -1924,7 +1929,7 @@ descriptor — because the whole resolution path is synchronous. On Windows, Nod
 reports a spawned child's stdio pipes as fd `-1`, so that channel could not be
 driven there and every call fell back to spawning the binary afresh. The
 conclusion drawn at the time was that Windows cannot have a persistent channel.
-The narrower truth is that it cannot have one *over spawned stdio*: `fs.openSync`
+The narrower truth is that it cannot have one _over spawned stdio_: `fs.openSync`
 on a named-pipe path does yield a real fd. So the helper also serves over a named
 pipe it creates, with the parent connecting as client — same protocol, same font
 cache, byte-identical responses, ~83x cheaper per call as measured on a Windows 11
@@ -1933,7 +1938,7 @@ host.
 **The envelope is not uniform across platforms, and must not be made so.**
 macOS and Linux declare a base font; Windows declares none. That is not an
 optimisation but a correctness requirement in both directions: `CTFontCreateForString`
-resolves *from* a base face, so dropping it changes every macOS answer; DirectWrite
+resolves _from_ a base face, so dropping it changes every macOS answer; DirectWrite
 takes no base at all, and declaring an unopenable one is fatal in one-shot mode —
 which is precisely how the Windows resolver came to answer "no fallback font" for
 every codepoint while appearing healthy. Pinned by
@@ -1950,8 +1955,7 @@ family** at the requested symbolic traits and weight, building a descriptor from
 the family name plus `kCTFontSymbolicTrait` / `kCTFontWeightTrait` and resolving
 it with `CTFontCreateWithFontDescriptor`; it adopts the result only when the
 face actually moved and still covers the character. So the same character in the
-same stack resolves to Songti SC Regular at weight 400 and Songti SC Black at
-900.
+same stack resolves to Songti SC Regular at weight 400 and Songti SC Black at 900.
 
 Transcribed from `GetAlternateFontPlatformData` and
 `CreateCopyWithTraitsAndWeightFromFont` in
@@ -1998,6 +2002,7 @@ Three consequences worth holding onto:
   handed to `CTFontCreateForString` (`mac/font_cache_mac.mm:137-147`, rev
   `7d859f27`). `fallbackBaseFor`'s registry-key/no-spec arm therefore answers
   `Times-Roman`, not Helvetica.
+
 - **The CSS description is part of the cache key**, not just the codepoint —
   `systemFallbackKeyCache` and the helper's own memo both carry weight, italic,
   size **and the base**. A codepoint-only key served whichever weight (or base)
@@ -2008,7 +2013,7 @@ Three consequences worth holding onto:
   injective in it — every registry key shares one cascade-base name.
 - **A cascade base must be opened from its FILE, never looked up by name alone,
   whenever it may be one of Apple's hidden `.`-prefixed faces.** CoreText refuses
-  those names and answers with Times New Roman *without erroring*, so a name-only
+  those names and answers with Times New Roman _without erroring_, so a name-only
   base silently walks Times' cascade — which is how `.ThonburiUI-Regular` briefly
   reported the unrelated public Thonburi family as its own bold cut. The
   `basePath` field on the request carries the file; the helper now errors on a
@@ -2060,7 +2065,7 @@ Three consequences worth holding onto:
   base is categorised `EMOJI_MODIFIER_BASE` whatever its presentation property
   says — and the ragel grammar's `emoji_presentation` rule admits that whole
   category. Lone `Emoji_Modifier`s and lone regional indicators are excluded for
-  the mirror-image reason: their categories are *absent* from that rule.
+  the mirror-image reason: their categories are _absent_ from that rule.
 
   **Read the grammar at the revision `DEPS` pins.** Chromium pins
   google/emoji-segmenter `955936be…` (`DEPS:378`), where the rule reads
@@ -2094,6 +2099,7 @@ Three consequences worth holding onto:
   on Linux (~6,038 sweep rows), Segoe UI Emoji vs Segoe UI Symbol on Windows
   (~3,958), Apple Color Emoji vs HiraMinProN/STIX Two Math on macOS (250 rows in
   a 5M-comparison slice, now 1).
+
 - **A TEXT-presentation emoji DOES reach the cascade, and Blink re-asks it from a
   monochrome base** — `GetSubstituteFont`'s replacement (`mac/font_cache_mac.mm:163-184`).
   When the cascade answers with an Apple color emoji face and the character is
@@ -2103,7 +2109,7 @@ Three consequences worth holding onto:
 
   So the gate is `isEmojiCharCp(cp)` alone, and a DEFAULT run over a
   text-presentation-default emoji reaches it exactly as a `font-variant-emoji:
-  text` run does. It was narrower than that for a while — restricted to the
+text` run does. It was narrower than that for a while — restricted to the
   override — which was not a transcription of anything, just where the rule had
   been left while its effect went unmeasured.
 
@@ -2129,13 +2135,14 @@ Three consequences worth holding onto:
   to the narrow gate. The middle arm is what proves the widened gate is live
   rather than inert; the outer two are what say the guard restores exactly the
   rows it disturbed.
+
 - **A `system-ui` run's base is the UI FONT, and it is not nameable** (DM-1859).
   `system-ui` never enters the normal family matcher: `mac/font_cache_mac.mm:409-412`
   routes it to `MatchSystemUIFont`, which builds the font with
   `CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, nullptr)`, applies
   bold/italic as symbolic traits, and — above weight 400 or width 100 — applies
   `wght`/`wdth` variation axes clamped to the face's own ranges
-  (`mac/font_matcher_mac.mm:540-588`). Fallback then walks from *that* font, and
+  (`mac/font_matcher_mac.mm:540-588`). Fallback then walks from _that_ font, and
   Blink's own comment names the consequence
   (`mac/font_cache_mac.mm:156-159`): the system API "might also return '.Apple
   Color Emoji UI' when starting from system-ui". That is why Chrome paints Apple's
@@ -2176,19 +2183,20 @@ Three consequences worth holding onto:
   so the base it would have been asked with cannot matter. Conformance oracle, CJK
   slice (226,472 comparisons), one revision, one instrument:
 
-  |            | chain-first      | OS-first (default) |
-  | ---------- | ---------------- | ------------------ |
-  | base OFF   | 113,963 / 27 rts | 113,407 / 16 rts   |
-  | base ON    | 113,908 / 23 rts | **29,025 / 4 rts** |
+  |          | chain-first      | OS-first (default) |
+  | -------- | ---------------- | ------------------ |
+  | base OFF | 113,963 / 27 rts | 113,407 / 16 rts   |
+  | base ON  | 113,908 / 23 rts | **29,025 / 4 rts** |
 
   Against the all-off cell: this base alone is −55 rows, the ordering alone is
   −556, both together are **−84,938 (−75%)**. Only 611 of that is explained by
   the two flags separately; the remaining **84,327 rows exist only when both are
   on**. All three `.PingFangUI*` routes go to zero (the `system-ui` stack: 84,567
   mismatches → 185).
+
 - **This is NOT the same matcher as the declared-family path.** Chrome resolves
   `font-family: "Euphemia UCAS"; font-weight: 500` to the regular face but a
-  *fallback* to the same family at weight 500 to `EuphemiaUCAS-Bold`; declared
+  _fallback_ to the same family at weight 500 to `EuphemiaUCAS-Bold`; declared
   `"Songti SC"` at 500 is Regular where the fallback is Bold. The declared path
   runs Blink's AppKit matcher (`BestStyleMatchForFamilyNS`, mirrored by
   `darwinPrimaryCutKey`; `SUB_BOLD_WEIGHT_CUTS` and `HIRAGINO_CUTS` are its
@@ -2198,7 +2206,7 @@ Three consequences worth holding onto:
 
 Windows had the same shape of gap and now closes it, though by a different
 mechanism. There is no second in-family re-selection step on Windows — DirectWrite
-picks the cut inside `MapCharacters` — so the style has to be *in the call*. It
+picks the cut inside `MapCharacters` — so the style has to be _in the call_. It
 now is: `resolveSystemFallbackKeyForCp` passes the run's weight and slant, and the
 win32 helper converts them with `dwriteWeightFromCss` / `dwriteSlantFromCss` /
 `dwriteStretchFromCss`, which transcribe `FontDescription::SkiaFontStyle()`
@@ -2219,7 +2227,7 @@ constants:
   what lets that family's own font linking participate. `resolveSystemFallbackKeyForCp`
   now derives it from the file the primary key resolves to (`system-ui` from the
   OS, since it has no literal name).
-- **`locale`** — Blink resolves a fallback locale *per codepoint*
+- **`locale`** — Blink resolves a fallback locale _per codepoint_
   (`FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`,
   `win/font_cache_skia_win.cc:228-240`) and pushes it into
   `matchFamilyStyleCharacter`'s one-element bcp47 vector; Skia hands it to
@@ -2435,6 +2443,7 @@ still fall back to svg2ttf when the source cannot be subset safely.
    `resolveFaceInfoForFile` supplies `namedInstances` and
    `memberPostscriptName`, and the HarfBuzz shaping proxy forwards the stamp
    (`carryFontInstanceMetadata`) so a shaped-script override does not strip it.
+
 2. **Linux target-strike svg2ttf** (twelve narrow exceptions): the allowlist is
    exactly `WenQuanYiZenHeiMono` 17/400 and 26/700;
    `WenQuanYiZenHei` 32/700; `LiberationSans` 16/400 and 32/400;
@@ -2459,6 +2468,7 @@ still fall back to svg2ttf when the source cannot be subset safely.
    DM-2662 proves only Liberation Serif 13/18/44 at weight 400. In particular
    WQY UI 32/400 and the focused 36/25 and 72/50 controls remain negatives. See
    doc 99 for the measured deltas and the complete evidence boundary.
+
 3. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-oblique bakes, per-glyph helper outlines, CFF/CFF2 faces (the
@@ -2483,11 +2493,11 @@ requested face can actually be located inside the file, so
 `resolveFaceInfoForFile` resolves the requested PostScript name in three tiers
 and reports which one applied:
 
-| Tier | Condition | `faceIndex` | `nameMatched` | Axis pin |
-|---|---|---|---|---|
-| Direct member | the name is a physical sfnt member | that member's index | `true` | CSS-derived (`resolveAxisLocationForFile`) |
-| **fvar named instance** | the name is a named instance of a member | the **owning member's** index | `true` | the **instance's own coordinates**, except `opsz` |
-| Unresolvable | neither | **`null`** | `false` | none (`null`) |
+| Tier                    | Condition                                | `faceIndex`                   | `nameMatched` | Axis pin                                          |
+| ----------------------- | ---------------------------------------- | ----------------------------- | ------------- | ------------------------------------------------- |
+| Direct member           | the name is a physical sfnt member       | that member's index           | `true`        | CSS-derived (`resolveAxisLocationForFile`)        |
+| **fvar named instance** | the name is a named instance of a member | the **owning member's** index | `true`        | the **instance's own coordinates**, except `opsz` |
+| Unresolvable            | neither                                  | **`null`**                    | `false`       | none (`null`)                                     |
 
 The named-instance tier is not an edge case — it is how most Apple system faces
 are addressed. `PingFangSC-Regular` is instance 0 of member 20
@@ -2500,7 +2510,7 @@ alone misses them. Resolving them matters twice over:
   resolve to members 20 and 22; a member-name search reports 0 for both, which
   reads as "SC and HK resolved to the same face" and is what `hb_face_create`
   would then subset.
-- **The axis pin becomes exact.** The instance's coordinates *are* the face, so
+- **The axis pin becomes exact.** The instance's coordinates _are_ the face, so
   they replace a location re-derived from CSS weight, which only coincides when
   the CSS weight happens to equal the cut's own. `opsz` is deliberately excluded:
   CoreText applies automatic optical sizing on top of a named instance, and the
@@ -2540,7 +2550,7 @@ That matters more on macOS than it sounds, because Apple ships system faces with
 `morx` and **no `GSUB` whatsoever** — GeezaPro (the Arabic face), Helvetica,
 Al Nile and Baghdad. HarfBuzz decides by the face, not the script:
 `_hb_apply_morx` (`hb-ot-shape.cc:60-65`) uses `morx` whenever the face has it
-and the run is horizontal, *ignoring `GSUB` even when present*. So on GeezaPro
+and the run is horizontal, _ignoring `GSUB` even when present_. So on GeezaPro
 the `HB_TINY` build returned the unjoined isolated forms — 647/1415/1292/902/900
 font units against real HarfBuzz's 647/656/1359/700/971, well-formed output that
 is simply a different word.
@@ -2549,8 +2559,8 @@ is simply a different word.
 `dist/harfbuzz.wasm` rebuilt from source using the HarfBuzz configuration
 **Chromium ships**, transcribed from `third_party/harfbuzz/BUILD.gn:462-518`
 (Chromium rev `7d859f27`). Chromium's own `README.chromium` for HarfBuzz states
-the reason directly: it no longer builds `hb-coretext` *"as we rely on
-HarfBuzz' built-in AAT shaping"*. Both projects pin the same HarfBuzz release
+the reason directly: it no longer builds `hb-coretext` _"as we rely on
+HarfBuzz' built-in AAT shaping"_. Both projects pin the same HarfBuzz release
 (14.2.1), so the configuration was the only variable, and with it matched the
 build reproduces `hb-shape` exactly on both an AAT-only face (GeezaPro
 `647 656 1359 700 971`) and a `GSUB` face (Arial Unicode `559 498 1323 893 985`).
@@ -2590,12 +2600,12 @@ Compact, SF Hebrew, SF Pro Text, and every PingFang cut. Helvetica and Times do
 **not**; their collection members carry `morx` and `kern` and neither table.
 Measured on PingFang, first advance of `fi fl ffi` in font units:
 
-| ptem | advance |
-| --- | --- |
-| unset | 398 |
-| 16 | 397 |
-| 32 | 386 |
-| 1000 | 381 |
+| ptem  | advance |
+| ----- | ------- |
+| unset | 398     |
+| 16    | 397     |
+| 32    | 386     |
+| 1000  | 381     |
 
 The font object is cached per (file, face index) and shared across runs of every
 size, so the size is set on **every** shape call rather than at open time — a
@@ -2616,7 +2626,7 @@ That is true of the **`shape`** query only. A run advance is a typeset advance �
 kerning, GPOS and tracking together — and no design-unit API reproduces those, so
 the query keeps CoreText's answer and the HarfBuzz reroute above is what makes it
 Chrome's. The **`glyphs`** and **`notdef`** queries are a different case and are
-no longer tracked at all: they report a per-glyph *design* advance, which by
+no longer tracked at all: they report a per-glyph _design_ advance, which by
 definition cannot contain a size-dependent term, so they read it from the CTFont's
 CGFont (`CTFontCopyGraphicsFont` + `CGFontGetGlyphAdvances`, scaled by
 `pointSize / unitsPerEm`) rather than from `CTFontGetAdvancesForGlyphs`. Before
@@ -2683,7 +2693,7 @@ shapes with the Medium master it is an instance of.
 ### A contrary direction reverses the characters before shaping
 
 `unicode-bidi: bidi-override` is the one place a run's direction is
-authoritative *against* its own script, and it does not reach the shaper as a
+authoritative _against_ its own script, and it does not reach the shaper as a
 direction at all. Blink implements the property by injecting U+202D LRO /
 U+202E RLO plus a trailing U+202C PDF and running the ordinary bidi algorithm
 (`core/layout/inline/inline_items_builder.cc:1501-1505`). HarfBuzz then refuses
@@ -2824,9 +2834,9 @@ overshot by a size-dependent amount because its strength had no size term at all
 (`src/render/synthesis-decision.ts`) own the WHETHER; the modes differ only in
 the HOW:
 
-| | embedded-font mode | paths mode |
-|---|---|---|
-| bold | ordered fill/stroke attributes on emitted `<text>` passes | the same ordered passes on each per-run `<g scale(s,-s)>`, with widths converted by **that run's** scale |
+|         | embedded-font mode                                                                | paths mode                                                                                                |
+| ------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| bold    | ordered fill/stroke attributes on emitted `<text>` passes                         | the same ordered passes on each per-run `<g scale(s,-s)>`, with widths converted by **that run's** scale  |
 | oblique | shear baked into the outline (`shearPathCommands`) before `trackGlyphInEmbedFont` | `matrix(1,0,-0.25,1,0,0)` on the outer group, composed after the `translate` so it pivots on the baseline |
 
 Paths mode carried NEITHER until DM-1984 — a `font-weight: 700` run on a face
@@ -2892,6 +2902,7 @@ genuinely different rules rather than one rule with a special case:
   those non-CSS-comparable numbers into `naturalWeight` would corrupt it, so
   `hasWeightAxis` stays false there and the base-face OS/2 / CoreText reads
   stand.
+
 - **Oblique — system fonts** (`faceNeedsSyntheticOblique`, DM-2016) — also
   per-platform, and also NOT the same predicate on all three; the shipped
   version before DM-2016 tested a single un-dispatched signal (the face's own
@@ -2899,10 +2910,10 @@ genuinely different rules rather than one rule with a special case:
   the platforms' actual disagreement. macOS tests `Style()` TRUTHY — ANY
   nonzero requested slope, `italic` or an explicit `oblique <angle>` alike —
   against the CoreText trait: `desired_italic && !(traits &
-  kCTFontTraitItalic)` (`mac/font_cache_mac.mm:431-436`). Windows and Linux
+kCTFontTraitItalic)` (`mac/font_cache_mac.mm:431-436`). Windows and Linux
   are byte-identical to each other and stricter: `Style() ==
-  kItalicSlopeValue && !typeface->isItalic()` (`win/font_cache_skia_win.cc:
-  490-493`, `skia/font_cache_skia.cc:341-345`) — an EQUALITY test against the
+kItalicSlopeValue && !typeface->isItalic()` (`win/font_cache_skia_win.cc:
+490-493`, `skia/font_cache_skia.cc:341-345`) — an EQUALITY test against the
   sentinel angle (14, `font_selection_types.h:171`) that `italic` and bare
   `oblique` both resolve to, so an explicit `oblique 30deg` synthesizes on
   macOS and must NOT on Windows/Linux. `requestedSlopeDegrees` (computed by
@@ -2929,9 +2940,10 @@ genuinely different rules rather than one rule with a special case:
   every platform used exclusively before this fix (`hasSlantAxis` /
   `isRoutedItalicCut` / `resolvedItalicAngle`) rather than a half-plumbed
   trait signal.
+
 - **Webfonts** — `webfontSyntheticBold(FontInstance.webfontFace, requestedWeight)`
   and its DM-2016 mirror `webfontSyntheticItalic(FontInstance.webfontFace,
-  requestedSlopeDegrees)`, both platform-independent, decided by the
+requestedSlopeDegrees)`, both platform-independent, decided by the
   `@font-face` `font-weight` / `font-style` descriptors rather than by the
   file (see the descriptor section above). A webfont run never reaches the
   per-platform branches: `naturalWeight` / `faceIsBoldTrait` /
@@ -2942,7 +2954,7 @@ genuinely different rules rather than one rule with a special case:
   italic either. `webfontSyntheticItalic` is `webfontSyntheticBold`'s exact
   style/slope counterpart: `WebfontSynthesisFace.declaredStyleCaps` (the
   `font-style` descriptor as slope capabilities — `core/css/font_face.cc:
-  776-858`), `slntAxisMin` (the buffer's own `slnt` fvar axis MINIMUM, in the
+776-858`), `slntAxisMin` (the buffer's own `slnt` fvar axis MINIMUM, in the
   axis's OWN OpenType sign convention — negative = right-leaning, opposite of
   CSS), and `baseIsItalic` (`SkTypeface::isItalic()`,
   `fontStyle().slant() != kUpright_Slant` — Domotion's proxy is OS/2
@@ -2954,7 +2966,7 @@ genuinely different rules rather than one rule with a special case:
   `local()`-probe path, so it cannot tell "explicitly declared normal" apart
   from "no descriptor at all", and only the latter is eligible for the
   variable-`slnt`-axis exemption (`font_custom_platform_data.cc:130, 188-193,
-  291-292`). Both `discoverAndRegisterWebfonts`' page-side and Node-side
+291-292`). Both `discoverAndRegisterWebfonts`' page-side and Node-side
   `@font-face` parsers carry the raw `font-style` value through as
   `FaceRule.styleDesc` (`""` = auto/absent, mirroring `weight`/`weightDesc`'s
   existing convention) for exactly this reason.
@@ -2966,7 +2978,7 @@ genuinely different rules rather than one rule with a special case:
   `is_bold` / `is_italic` classification of the CHOSEN candidate
   (`linux/font_cache_linux.cc:106-125`) — a BINARY test shaped like the Windows
   rule (`!is_bold && Weight() >= 600` for bold; `!is_italic && Style() ==
-  kItalicSlopeValue` — an EQUALITY test, same sentinel as the general
+kItalicSlopeValue` — an EQUALITY test, same sentinel as the general
   Windows/Linux rule above — for italic), not the delta
   `CreateFontPlatformData` would otherwise have computed internally.
   `resolveFcFallbackFonts` parses these bits off the helper's `fcfallback`
@@ -3001,7 +3013,7 @@ before the property was modeled.
 Measured against Chrome on macOS at 64px Papyrus (one upright regular cut, no
 `smcp`, so all three fire) as the 1× ink integral — the only observable, since
 synthetic bold moves neither the advance nor the reported platform face: weight
-700 `auto` 7069.1 against `none` 5822.0, which is *exactly* the weight-400
+700 `auto` 7069.1 against `none` 5822.0, which is _exactly_ the weight-400
 control; italic `auto` 5868.5 against `none` 5822.0, exactly the upright control;
 small-caps `auto` 4018.4 against `none` 5822.0, exactly the no-caps control.
 
@@ -3044,30 +3056,30 @@ see the two-mode table above.
 
 ## Caches & lifecycle (summary)
 
-| Cache / registry | Scope | Bounded-memory trim | Font-environment invalidation |
-|---|---|---|---|
-| `fontInstanceCache`; `resolvedSpecCache`; Linux `fcMatchCache` (exact fontconfig pattern, including misses/errors) | process | `clearFontResolutionCaches` † | yes (invalidation starts with the trim) |
-| `systemFallbackKeyCache`; `fallbackFamilyCutCache`; `fallbackBaseCache` | process, partly per codepoint | `clearFontResolutionCaches` † | yes |
-| `darwinPrimaryCutCache`; `linuxPrimaryCutCache`; `win32PrimaryCutCache`; `win32FamilyKeyCache` | process, family/style | `clearFontResolutionCaches` † | yes |
-| `fileFaceInfoCache`; `_famAvailCache`; `darwinHandleAxesMap` | process, face/inventory | `clearFontResolutionCaches` † | yes |
-| `helperFontCache`; `helperOutlineCache` | process, source face/glyph | `clearFontResolutionCaches` † | yes |
-| `coverageBitsets` (font file + physical face → 136 KB cmap bitset); `_sysfbCoverage` (sysfb key + cp → covered?) | process | `clearFontResolutionCaches` † | yes |
-| `_systemFallbackCache` (macOS/Windows); `_fcFallbackCache` (Linux) — helper-owned per-codepoint memos one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † via `clearGlyphHelperCodepointMemos` | yes via `clearGlyphHelperCache` |
-| helper availability/path/transport (`glyph-helper-transport.ts`); `_installedFontCache`; `_familyStyleMatchCache`; `_linuxFamilyMatchCache`; `_traitBoldCache`; `_traitItalicCache`; Windows `_systemUiFamily` preference (`glyph-helper.ts`) | process, host environment | no | `clearGlyphHelperCache` delegates transport reset and clears resolver memos |
-| HarfBuzz `hbFontCache`; `trakStatCache` | process, source face | no | `_clearHbFontCache` / `_clearTrakStatCache` |
-| shaped-cluster `verdictCache` | process, bounded LRU | no | registered higher-layer invalidator |
-| `dynamicSystemFontPaths` (dynamic key → FontPath); `declaredFamilyForKey`; `win32SuffixDeclaredForKey`; Darwin system-UI warm state | process, derived registry | deliberately preserved | cleared/reset directly |
-| ideograph document/renderer cache (base+weight+style+size → first sysfb answer, § 8b) | **document / renderer session** | no | scope/session lifetime — modeled Blink state, not a memo |
-| `webfontRegistry` | capture session, caller supplied | preserved | preserved; `clearWebfonts` owns it |
-| `localFontAliasRegistry` | capture session, installed-face derived | preserved | cleared directly (also by `clearWebfonts`) |
-| `linuxTargetStrikeCache` (`linux-target-strike.ts`); embedded-builder `hintedOutlineGuardMemo` | process, exact source path/face/strike | no | no; source-identity memo, test seam/process exit only |
-| `glyphDefs` (paths mode) | generation | n/a | n/a; `clearGlyphDefs` / `resetGeneration` |
-| `embeddedFonts` + subset builder | generation | n/a | n/a; `clearEmbeddedFonts` / `resetGeneration` |
+| Cache / registry                                                                                                                                                                                                                              | Scope                                   | Bounded-memory trim                                                | Font-environment invalidation                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `fontInstanceCache`; `resolvedSpecCache`; Linux `fcMatchCache` (exact fontconfig pattern, including misses/errors)                                                                                                                            | process                                 | `clearFontResolutionCaches` †                                      | yes (invalidation starts with the trim)                                     |
+| `systemFallbackKeyCache`; `fallbackFamilyCutCache`; `fallbackBaseCache`                                                                                                                                                                       | process, partly per codepoint           | `clearFontResolutionCaches` †                                      | yes                                                                         |
+| `darwinPrimaryCutCache`; `linuxPrimaryCutCache`; `win32PrimaryCutCache`; `win32FamilyKeyCache`                                                                                                                                                | process, family/style                   | `clearFontResolutionCaches` †                                      | yes                                                                         |
+| `fileFaceInfoCache`; `_famAvailCache`; `darwinHandleAxesMap`                                                                                                                                                                                  | process, face/inventory                 | `clearFontResolutionCaches` †                                      | yes                                                                         |
+| `helperFontCache`; `helperOutlineCache`                                                                                                                                                                                                       | process, source face/glyph              | `clearFontResolutionCaches` †                                      | yes                                                                         |
+| `coverageBitsets` (font file + physical face → 136 KB cmap bitset); `_sysfbCoverage` (sysfb key + cp → covered?)                                                                                                                              | process                                 | `clearFontResolutionCaches` †                                      | yes                                                                         |
+| `_systemFallbackCache` (macOS/Windows); `_fcFallbackCache` (Linux) — helper-owned per-codepoint memos one layer below `systemFallbackKeyCache`                                                                                                | process                                 | `clearFontResolutionCaches` † via `clearGlyphHelperCodepointMemos` | yes via `clearGlyphHelperCache`                                             |
+| helper availability/path/transport (`glyph-helper-transport.ts`); `_installedFontCache`; `_familyStyleMatchCache`; `_linuxFamilyMatchCache`; `_traitBoldCache`; `_traitItalicCache`; Windows `_systemUiFamily` preference (`glyph-helper.ts`) | process, host environment               | no                                                                 | `clearGlyphHelperCache` delegates transport reset and clears resolver memos |
+| HarfBuzz `hbFontCache`; `trakStatCache`                                                                                                                                                                                                       | process, source face                    | no                                                                 | `_clearHbFontCache` / `_clearTrakStatCache`                                 |
+| shaped-cluster `verdictCache`                                                                                                                                                                                                                 | process, bounded LRU                    | no                                                                 | registered higher-layer invalidator                                         |
+| `dynamicSystemFontPaths` (dynamic key → FontPath); `declaredFamilyForKey`; `win32SuffixDeclaredForKey`; Darwin system-UI warm state                                                                                                           | process, derived registry               | deliberately preserved                                             | cleared/reset directly                                                      |
+| ideograph document/renderer cache (base+weight+style+size → first sysfb answer, § 8b)                                                                                                                                                         | **document / renderer session**         | no                                                                 | scope/session lifetime — modeled Blink state, not a memo                    |
+| `webfontRegistry`                                                                                                                                                                                                                             | capture session, caller supplied        | preserved                                                          | preserved; `clearWebfonts` owns it                                          |
+| `localFontAliasRegistry`                                                                                                                                                                                                                      | capture session, installed-face derived | preserved                                                          | cleared directly (also by `clearWebfonts`)                                  |
+| `linuxTargetStrikeCache` (`linux-target-strike.ts`); embedded-builder `hintedOutlineGuardMemo`                                                                                                                                                | process, exact source path/face/strike  | no                                                                 | no; source-identity memo, test seam/process exit only                       |
+| `glyphDefs` (paths mode)                                                                                                                                                                                                                      | generation                              | n/a                                                                | n/a; `clearGlyphDefs` / `resetGeneration`                                   |
+| `embeddedFonts` + subset builder                                                                                                                                                                                                              | generation                              | n/a                                                                | n/a; `clearEmbeddedFonts` / `resetGeneration`                               |
 
 † **`clearFontResolutionCaches()` is for bounded-memory batch work, not for
 rendering.** Normal generation never calls it: these memoize deterministic
 lookups over immutable system fonts, so keeping them is free correctness-wise
-and expensive to give up. It exists because a process that sweeps the *entire*
+and expensive to give up. It exists because a process that sweeps the _entire_
 codepoint space accumulates without bound — fontkit memoizes a `Glyph` per
 glyph id for the life of a `Font`, and `fontInstanceCache` keeps the `Font`
 alive, so a full-universe run exhausted the heap partway through and reported
@@ -3084,8 +3096,8 @@ runs every registered higher-layer invalidator. Downloaded webfonts survive;
 installed-face-backed `local()` aliases do not.
 
 **Both per-codepoint layers have to be dropped together, and for a while only
-one was.** `systemFallbackKeyCache` memoizes the *decision*; the platform
-*answer* it is derived from lives in the `glyph-helper.ts` fallback facade's own map, keyed on
+one was.** `systemFallbackKeyCache` memoizes the _decision_; the platform
+_answer_ it is derived from lives in the `glyph-helper.ts` fallback facade's own map, keyed on
 `(base face, codepoint, weight, style, size, locale, …)`. That one had no caller
 outside the unit tests, so it retained an entry per codepoint per base for the
 life of the process — invisible in a render, invisible at the conformance
@@ -3113,11 +3125,11 @@ output bytes. See doc
 
 ## Cross-platform calibration status (as of this writing)
 
-| Platform | Path discovery | Fallback-chain calibration | Live resolver |
-|---|---|---|---|
-| macOS (CoreText) | ✅ `FONT_PATHS` | ✅ pixel-exact (`regionCount === 0`) | ✅ always on |
-| Linux (fontconfig) | ✅ `LINUX_FONT_PATHS` + `fc-match` | ✅ within ≤1% native-hinting floor (bare + Noto profiles) | ✅ default-on (DM-1416) |
-| Windows (DirectWrite) | ✅ `WIN32_FONT_PATHS` | ✅ Blink's hardcoded stage transcribed (§7c), then DirectWrite | ✅ default-on, now style-aware |
+| Platform              | Path discovery                     | Fallback-chain calibration                                     | Live resolver                  |
+| --------------------- | ---------------------------------- | -------------------------------------------------------------- | ------------------------------ |
+| macOS (CoreText)      | ✅ `FONT_PATHS`                    | ✅ pixel-exact (`regionCount === 0`)                           | ✅ always on                   |
+| Linux (fontconfig)    | ✅ `LINUX_FONT_PATHS` + `fc-match` | ✅ within ≤1% native-hinting floor (bare + Noto profiles)      | ✅ default-on (DM-1416)        |
+| Windows (DirectWrite) | ✅ `WIN32_FONT_PATHS`              | ✅ Blink's hardcoded stage transcribed (§7c), then DirectWrite | ✅ default-on, now style-aware |
 
 The residual per-platform gap is unhinted-outline-vs-native-raster hinting, not
 missing routing. See doc [42](42-cross-platform-fallback-calibration.md) and the
@@ -3129,7 +3141,7 @@ measurement, not only by the visual fixture suites: the conformance oracle (doc
 with its own stack corpus, its own font inventory and its own committed baseline
 under `tests/baselines/font-conformance-<os>.json`. The Windows stage in §7c is
 correct **by construction** — it is Blink's algorithm, transcribed with
-citations — and is now also *scored*.
+citations — and is now also _scored_.
 
 Two things about those numbers that must not be rounded away. They are **not
 comparable across platforms**: the three columns run different Blink code over

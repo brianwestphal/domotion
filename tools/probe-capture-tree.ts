@@ -66,18 +66,34 @@ async function main() {
       const summary: any = {
         depth,
         tag: el.tag,
-        x: el.x, y: el.y, w: el.width, h: el.height,
+        x: el.x,
+        y: el.y,
+        w: el.width,
+        h: el.height,
         text: el.text ? el.text.slice(0, 40) : undefined,
-        textSegments: Array.isArray(el.textSegments) ? el.textSegments.map((s: any) => ({
-          text: typeof s.text === "string" ? s.text.slice(0, 30) : "",
-          textChars: typeof s.text === "string" ? s.text.split("").map((c: string) => "U+" + c.charCodeAt(0).toString(16)).join(" ") : "",
-          x: s.x, y: s.y, w: s.width, h: s.height,
-          fontFamily: s.fontFamily,
-          fontSize: s.fontSize,
-          color: s.color,
-          rasterRect: s.rasterRect,
-          rasterDataUri: s.rasterDataUri ? `${s.rasterDataUri.slice(0, 50)}...(${s.rasterDataUri.length}b)` : undefined,
-        })) : undefined,
+        textSegments: Array.isArray(el.textSegments)
+          ? el.textSegments.map((s: any) => ({
+              text: typeof s.text === "string" ? s.text.slice(0, 30) : "",
+              textChars:
+                typeof s.text === "string"
+                  ? s.text
+                      .split("")
+                      .map((c: string) => "U+" + c.charCodeAt(0).toString(16))
+                      .join(" ")
+                  : "",
+              x: s.x,
+              y: s.y,
+              w: s.width,
+              h: s.height,
+              fontFamily: s.fontFamily,
+              fontSize: s.fontSize,
+              color: s.color,
+              rasterRect: s.rasterRect,
+              rasterDataUri: s.rasterDataUri
+                ? `${s.rasterDataUri.slice(0, 50)}...(${s.rasterDataUri.length}b)`
+                : undefined,
+            }))
+          : undefined,
         pseudoImages: el.pseudoImages,
         pseudoBoxes: el.pseudoBoxes,
         imageSrc: el.imageSrc,
@@ -87,11 +103,15 @@ async function main() {
         isPlaceholderText: el.isPlaceholderText,
         textLeft: el.textLeft,
         textTop: el.textTop,
-        elementRaster: el.elementRaster ? {
-          x: el.elementRaster.x, y: el.elementRaster.y,
-          width: el.elementRaster.width, height: el.elementRaster.height,
-          dataUriBytes: el.elementRaster.dataUri ? el.elementRaster.dataUri.length : null,
-        } : undefined,
+        elementRaster: el.elementRaster
+          ? {
+              x: el.elementRaster.x,
+              y: el.elementRaster.y,
+              width: el.elementRaster.width,
+              height: el.elementRaster.height,
+              dataUriBytes: el.elementRaster.dataUri ? el.elementRaster.dataUri.length : null,
+            }
+          : undefined,
       };
       // Drop noisy huge fields
       hits.push(summary);
@@ -106,7 +126,7 @@ async function main() {
   console.log("=== Sample leaf element (first text-bearing element) ===");
   const findLeaf = (el: any): any => {
     if (el?.text && el.text.length > 0) return el;
-    for (const c of (el?.children ?? [])) {
+    for (const c of el?.children ?? []) {
       const r = findLeaf(c);
       if (r) return r;
     }
@@ -125,19 +145,28 @@ async function main() {
   console.log("=== Root tree[0] x/y/width/height ===");
   if (tree[0]) {
     const t = tree[0] as any;
-    console.log(`x=${JSON.stringify(t.x)} y=${JSON.stringify(t.y)} w=${t.width} h=${t.height} children=${t.children?.length}`);
+    console.log(
+      `x=${JSON.stringify(t.x)} y=${JSON.stringify(t.y)} w=${t.width} h=${t.height} children=${t.children?.length}`,
+    );
     // Print first 3 leaf-like children for shape inspection
     let scout = t.children?.[0];
     let depth = 0;
     while (scout && depth < 6) {
-      console.log(`  L${depth}: tag=${scout.tag} x=${JSON.stringify(scout.x)} y=${JSON.stringify(scout.y)} w=${scout.width} h=${scout.height} children=${scout.children?.length}`);
+      console.log(
+        `  L${depth}: tag=${scout.tag} x=${JSON.stringify(scout.x)} y=${JSON.stringify(scout.y)} w=${scout.width} h=${scout.height} children=${scout.children?.length}`,
+      );
       scout = scout.children?.[0];
       depth++;
     }
   }
-  console.log(`\nFound ${hits.length} captured elements intersecting rect (${TARGET_X},${TARGET_Y},${TARGET_W},${TARGET_H})`);
+  console.log(
+    `\nFound ${hits.length} captured elements intersecting rect (${TARGET_X},${TARGET_Y},${TARGET_W},${TARGET_H})`,
+  );
   console.log(JSON.stringify(hits, null, 2));
   await browser.close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

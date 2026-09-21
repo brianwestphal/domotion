@@ -21,7 +21,6 @@ export type CropPlan = {
   imageBasename: string;
 };
 
-
 export type PlanOptions = {
   regions: Region[];
   attachmentPaths: string[];
@@ -62,10 +61,7 @@ export function planRegionCrops(opts: PlanOptions): PlanResult {
     }
     for (const sourcePath of matches) {
       const imageBasename = shortBasename(sourcePath);
-      const outputPath = path.join(
-        dir,
-        `[${region.index}]-${imageBasename}.png`,
-      );
+      const outputPath = path.join(dir, `[${region.index}]-${imageBasename}.png`);
       plans.push({ region, sourcePath, outputPath, imageBasename });
     }
   }
@@ -73,11 +69,7 @@ export function planRegionCrops(opts: PlanOptions): PlanResult {
   return { plans, warnings };
 }
 
-function resolveAttachments(
-  region: Region,
-  attachmentPaths: string[],
-  fanOut: string[],
-): string[] {
+function resolveAttachments(region: Region, attachmentPaths: string[], fanOut: string[]): string[] {
   if (region.image) {
     return attachmentPaths.filter((p) => path.basename(p).includes(region.image!));
   }
@@ -120,10 +112,7 @@ export async function executeRegionCrops(opts: ExecuteOptions): Promise<ExecuteR
       continue;
     }
     await fs.mkdir(path.dirname(plan.outputPath), { recursive: true });
-    await sharp(plan.sourcePath)
-      .extract({ left: x, top: y, width: w, height: h })
-      .png()
-      .toFile(plan.outputPath);
+    await sharp(plan.sourcePath).extract({ left: x, top: y, width: w, height: h }).png().toFile(plan.outputPath);
     cropped.push(plan);
   }
 

@@ -1,6 +1,17 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { __bidiMirrorLinesForTest, emphasisGraphemeSpans, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveChwsFeature, resolveFontVariantAlternates, resolveFontVariantFeatures } from "./text.js";
+import {
+  __bidiMirrorLinesForTest,
+  emphasisGraphemeSpans,
+  parseFontFeatureSettings,
+  parseFontVariationSettings,
+  parseTextEmphasisMark,
+  rasterGlyphOverlays,
+  renderSingleLineText,
+  resolveChwsFeature,
+  resolveFontVariantAlternates,
+  resolveFontVariantFeatures,
+} from "./text.js";
 import { featureListNeedsHbShaping } from "./font-features.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -48,12 +59,17 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
   // out to the full line-box.
   const seg: any = {
     text: "😀",
-    x: 347.7, y: 695.4, width: 23, height: 25,
-    rasterGlyphs: [{
-      charIndex: 0,
-      rect: { x: 347.7, y: 695.4, width: 23, height: 25 },
-      dataUri: "data:image/png;base64,iVBORw0KGgo="
-    }]
+    x: 347.7,
+    y: 695.4,
+    width: 23,
+    height: 25,
+    rasterGlyphs: [
+      {
+        charIndex: 0,
+        rect: { x: 347.7, y: 695.4, width: 23, height: 25 },
+        dataUri: "data:image/png;base64,iVBORw0KGgo=",
+      },
+    ],
   };
 
   it("emits the bitmap at the captured rect coords + dims (DM-401 / DM-411 / DM-414)", () => {
@@ -103,30 +119,51 @@ describe("selected raster glyphs retain shaped advances (DM-2410)", () => {
     textDecorationStyle: "solid",
   } as any;
   const segment = {
-    text, x: 16, y: 20, width: 205, height: 29, fontAscent: 23, xOffsets,
-  };
-  const element = (rasterGlyphs?: any[]): CapturedElement => ({
-    tag: "div",
-    x: 16, y: 20, width: 205, height: 29,
-    textLeft: 16, textTop: 20, textWidth: 205, textHeight: 29,
-    fontAscent: 23,
     text,
-    textSegments: [{ ...segment, rasterGlyphs }],
-    styles,
-  } as any);
+    x: 16,
+    y: 20,
+    width: 205,
+    height: 29,
+    fontAscent: 23,
+    xOffsets,
+  };
+  const element = (rasterGlyphs?: any[]): CapturedElement =>
+    ({
+      tag: "div",
+      x: 16,
+      y: 20,
+      width: 205,
+      height: 29,
+      textLeft: 16,
+      textTop: 20,
+      textWidth: 205,
+      textHeight: 29,
+      fontAscent: 23,
+      text,
+      textSegments: [{ ...segment, rasterGlyphs }],
+      styles,
+    }) as any;
 
   it.skipIf(!MACOS_FONTS)("keeps the original whole sequence in vector shaping while overlays own only paint", () => {
-    const render = (el: CapturedElement) => renderSingleLineText({
-      el, idPrefix: "dm2410", clipId: "dm2410-clip", fillColor: styles.color,
-    });
+    const render = (el: CapturedElement) =>
+      renderSingleLineText({
+        el,
+        idPrefix: "dm2410",
+        clipId: "dm2410-clip",
+        fillColor: styles.color,
+      });
     const overlays = [
       {
-        charIndex: 0, charLength: 2, suppressGlyph: true,
+        charIndex: 0,
+        charLength: 2,
+        suppressGlyph: true,
         rect: { x: 16, y: 20, width: 24, height: 24 },
         dataUri: "data:image/png;base64,AA==",
       },
       {
-        charIndex: 3, charLength: 2, suppressGlyph: true,
+        charIndex: 3,
+        charLength: 2,
+        suppressGlyph: true,
         rect: { x: 46, y: 20, width: 25, height: 25 },
         dataUri: "data:image/png;base64,BB==",
       },
@@ -170,20 +207,30 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     textDecorationStyle: "solid",
   } as any;
 
-  const makeEl = (seg: any): CapturedElement => ({
-    tag: "span",
-    x: 100, y: 50, width: 200, height: 80,
-    textLeft: seg.x, textTop: seg.y, textWidth: seg.width, textHeight: seg.height,
-    fontAscent: seg.fontAscent,
-    text: seg.text,
-    textSegments: [seg],
-    styles: baseStyles,
-  } as any);
+  const makeEl = (seg: any): CapturedElement =>
+    ({
+      tag: "span",
+      x: 100,
+      y: 50,
+      width: 200,
+      height: 80,
+      textLeft: seg.x,
+      textTop: seg.y,
+      textWidth: seg.width,
+      textHeight: seg.height,
+      fontAscent: seg.fontAscent,
+      text: seg.text,
+      textSegments: [seg],
+      styles: baseStyles,
+    }) as any;
 
   it.skipIf(!MACOS_FONTS)("renders the pseudo's own color, not the host's color", () => {
     const seg = {
       text: "TAG",
-      x: 108, y: 56, width: 22, height: 11,
+      x: 108,
+      y: 56,
+      width: 22,
+      height: 11,
       color: "rgb(255, 255, 255)",
       fontSize: 11,
       fontWeight: "400",
@@ -202,7 +249,10 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
   it.skipIf(!MACOS_FONTS)("anchors the path at the pseudo's x/y, not at the SVG origin", () => {
     const seg = {
       text: "TAG",
-      x: 108, y: 56, width: 22, height: 11,
+      x: 108,
+      y: 56,
+      width: 22,
+      height: 11,
       color: "rgb(255, 255, 255)",
       fontSize: 11,
       fontWeight: "400",
@@ -222,7 +272,10 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
   it.skipIf(!MACOS_FONTS)("uses the pseudo's fontSize when set, not the host's", () => {
     const seg = {
       text: "T",
-      x: 108, y: 56, width: 8, height: 11,
+      x: 108,
+      y: 56,
+      width: 8,
+      height: 11,
       color: "rgb(255, 255, 255)",
       fontSize: 11,
       fontWeight: "400",
@@ -240,13 +293,16 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     // ~2048), 11/2048 ≈ 0.00537; 16/2048 ≈ 0.00781. Spot-check the small one.
     expect(outAt11).toMatch(/scale\(0\.00[0-9]+,/);
     // Negative comparison: the host-fontSize scale shouldn't appear.
-    expect(outAt11).not.toContain('scale(0.00781,');
+    expect(outAt11).not.toContain("scale(0.00781,");
   });
 
   it("falls back to host fillColor when seg.color is absent", () => {
     const seg = {
       text: "TAG",
-      x: 108, y: 56, width: 22, height: 11,
+      x: 108,
+      y: 56,
+      width: 22,
+      height: 11,
       fontAscent: 9,
     };
     const out = renderSingleLineText({
@@ -278,8 +334,14 @@ describe("parseFontFeatureSettings (DM-564)", () => {
 
   it("parses framer.com's Inter Variable feature stack verbatim", () => {
     // Captured live from www.framer.com body P getComputedStyle().
-    expect(parseFontFeatureSettings('"cv01", "cv05", "cv09", "cv11", "ss03", "ss07"'))
-      .toEqual(["cv01", "cv05", "cv09", "cv11", "ss03", "ss07"]);
+    expect(parseFontFeatureSettings('"cv01", "cv05", "cv09", "cv11", "ss03", "ss07"')).toEqual([
+      "cv01",
+      "cv05",
+      "cv09",
+      "cv11",
+      "ss03",
+      "ss07",
+    ]);
   });
 
   it("honors `on` / explicit value / `1` as enabled", () => {
@@ -338,10 +400,13 @@ describe("resolveFontVariantAlternates (DM-2160)", () => {
   };
 
   it("transcribes Blink's category-to-OpenType mapping and value rules", () => {
-    expect(resolveFontVariantAlternates(
-      "historical-forms stylistic(fancy) styleset(display) character-variant(open closed) swash(ornate) ornaments(fleurons) annotation(circled)",
-      "'Source Serif Pro', serif", tables,
-    )).toEqual(["swsh=5", "cswh=5", "ornm=6", "nalt=8", "salt=2", "ss01", "ss03", "cv04", "cv07=3", "hist"]);
+    expect(
+      resolveFontVariantAlternates(
+        "historical-forms stylistic(fancy) styleset(display) character-variant(open closed) swash(ornate) ornaments(fleurons) annotation(circled)",
+        "'Source Serif Pro', serif",
+        tables,
+      ),
+    ).toEqual(["swsh=5", "cswh=5", "ornm=6", "nalt=8", "salt=2", "ss01", "ss03", "cv04", "cv07=3", "hist"]);
   });
 
   it("scopes aliases to the requested family", () => {
@@ -409,10 +474,8 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
       // for common ligatures AND Chrome shapes without them.
       expect(f("common-ligatures", "1px")).toEqual(["-liga", "-clig", "-calt"]);
       // …and the enables are suppressed rather than merely outvoted.
-      expect(f("discretionary-ligatures historical-ligatures", "1px"))
-        .toEqual(["-liga", "-clig", "-calt"]);
-      expect(f("discretionary-ligatures historical-ligatures"))
-        .toEqual(["dlig", "hlig"]);
+      expect(f("discretionary-ligatures historical-ligatures", "1px")).toEqual(["-liga", "-clig", "-calt"]);
+      expect(f("discretionary-ligatures historical-ligatures")).toEqual(["dlig", "hlig"]);
     });
 
     it("matches the keyword CASE-INSENSITIVELY, which is how it actually arrives", () => {
@@ -433,8 +496,7 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
       // …but an explicit enable DOES survive optimizeSpeed, unlike
       // letter-spacing: that term only fires in the `normal` state.
       expect(f("common-ligatures contextual", "normal", "optimizeSpeed")).toBeUndefined();
-      expect(f("discretionary-ligatures", "normal", "optimizeSpeed"))
-        .toEqual(["-liga", "-clig", "dlig", "-calt"]);
+      expect(f("discretionary-ligatures", "normal", "optimizeSpeed")).toEqual(["-liga", "-clig", "dlig", "-calt"]);
     });
 
     it("leaves the other text-rendering values alone", () => {
@@ -456,8 +518,10 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
     // inside them — `-` is a word boundary).
     expect(resolveFontVariantFeatures(undefined, undefined, "no-discretionary-ligatures")).toBeUndefined();
     expect(resolveFontVariantFeatures(undefined, undefined, "no-historical-ligatures")).toBeUndefined();
-    expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures no-discretionary-ligatures"))
-      .toEqual(["-liga", "-clig"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures no-discretionary-ligatures")).toEqual([
+      "-liga",
+      "-clig",
+    ]);
   });
 
   // The upstream shape: `FontFeatureRange::FromFontDescription`,
@@ -467,23 +531,26 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
   // `docs/reference/raster-image-fallback-cases.md` E6); `kNormalKerning` and
   // `kAutoKerning` push nothing (kern is on by default in HarfBuzz).
   it("font-kerning: none pushes -kern (font_features.cc:39-50)", () => {
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "none"))
-      .toEqual(["-kern"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "none")).toEqual([
+      "-kern",
+    ]);
   });
 
   it("font-kerning: normal / auto push nothing", () => {
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "normal"))
-      .toBeUndefined();
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "auto"))
-      .toBeUndefined();
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined))
-      .toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "normal")).toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "auto")).toBeUndefined();
+    expect(
+      resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined),
+    ).toBeUndefined();
   });
 
   // `-kern` is a HarfBuzz-only disable — the routing predicate must see it.
   it("font-kerning: none routes the run through HarfBuzz shaping", () => {
-    expect(featureListNeedsHbShaping(resolveFontVariantFeatures(
-      undefined, undefined, undefined, undefined, undefined, "none"))).toBe(true);
+    expect(
+      featureListNeedsHbShaping(
+        resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "none"),
+      ),
+    ).toBe(true);
   });
 
   // `FontFeatureRange::FromFontDescription`, `font_features.cc:230-239`, rev
@@ -491,14 +558,18 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
   // The two are mutually exclusive (Chrome's computed `font-variant-position`
   // is a single keyword), so only one tag is ever pushed.
   it("font-variant-position maps sub/super to subs/sups (font_features.cc:230-239)", () => {
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "sub"))
-      .toEqual(["subs"]);
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "super"))
-      .toEqual(["sups"]);
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "normal"))
-      .toBeUndefined();
-    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, undefined))
-      .toBeUndefined();
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "sub")).toEqual(
+      ["subs"],
+    );
+    expect(
+      resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "super"),
+    ).toEqual(["sups"]);
+    expect(
+      resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, "normal"),
+    ).toBeUndefined();
+    expect(
+      resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, undefined, undefined),
+    ).toBeUndefined();
   });
 });
 
@@ -555,13 +626,11 @@ describe("parseFontVariationSettings (DM-578)", () => {
 
   it("parses framer.com body P verbatim", () => {
     // Captured live from www.framer.com body P `font-variation-settings`.
-    expect(parseFontVariationSettings('"opsz" 30, "wght" 450'))
-      .toEqual({ opsz: 30, wght: 450 });
+    expect(parseFontVariationSettings('"opsz" 30, "wght" 450')).toEqual({ opsz: 30, wght: 450 });
   });
 
   it("parses fractional axis values", () => {
-    expect(parseFontVariationSettings('"wght" 437.5, "slnt" -9.99'))
-      .toEqual({ wght: 437.5, slnt: -9.99 });
+    expect(parseFontVariationSettings('"wght" 437.5, "slnt" -9.99')).toEqual({ wght: 437.5, slnt: -9.99 });
   });
 
   it("parses negative slant values", () => {
@@ -569,13 +638,11 @@ describe("parseFontVariationSettings (DM-578)", () => {
   });
 
   it("supports both single and double quotes around tags", () => {
-    expect(parseFontVariationSettings(`'wght' 450, "opsz" 16`))
-      .toEqual({ wght: 450, opsz: 16 });
+    expect(parseFontVariationSettings(`'wght' 450, "opsz" 16`)).toEqual({ wght: 450, opsz: 16 });
   });
 
   it("handles custom axis tags (e.g. Recursive's CASL, MONO, CRSV)", () => {
-    expect(parseFontVariationSettings('"CASL" 0.5, "MONO" 1, "CRSV" 0.5'))
-      .toEqual({ CASL: 0.5, MONO: 1, CRSV: 0.5 });
+    expect(parseFontVariationSettings('"CASL" 0.5, "MONO" 1, "CRSV" 0.5')).toEqual({ CASL: 0.5, MONO: 1, CRSV: 0.5 });
   });
 });
 
@@ -618,6 +685,10 @@ describe("emphasisGraphemeSpans (DM-2156)", () => {
   it("keeps combining sequences, surrogate pairs, and ZWJ emoji atomic", () => {
     const spans = emphasisGraphemeSpans("A\u0301😀👩‍💻");
     expect(spans.map((span) => span.text)).toEqual(["A\u0301", "😀", "👩‍💻"]);
-    expect(spans.map((span) => [span.start, span.end])).toEqual([[0, 2], [2, 4], [4, 9]]);
+    expect(spans.map((span) => [span.start, span.end])).toEqual([
+      [0, 2],
+      [2, 4],
+      [4, 9],
+    ]);
   });
 });

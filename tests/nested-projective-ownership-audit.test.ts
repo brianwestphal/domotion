@@ -53,8 +53,7 @@ describe("DM-2356 Blink projective context model", () => {
       fact("plane", "inner", { activationPlane: true, nonAffine: true }),
     ]);
     expect(shared.ownerIds).toEqual(["outer"]);
-    expect(shared.contexts.map((context) => context.renderingContextRootId))
-      .toEqual(["outer", "outer", "outer"]);
+    expect(shared.contexts.map((context) => context.renderingContextRootId)).toEqual(["outer", "outer", "outer"]);
 
     const broken = resolveProjectiveOwnership([
       fact("outer", null, { computedPreserve3d: true }),
@@ -63,8 +62,12 @@ describe("DM-2356 Blink projective context model", () => {
       fact("plane", "inner", { activationPlane: true, nonAffine: true }),
     ]);
     expect(broken.ownerIds).toEqual(["inner"]);
-    expect(broken.contexts.map((context) => context.renderingContextRootId))
-      .toEqual(["outer", "outer", "inner", "inner"]);
+    expect(broken.contexts.map((context) => context.renderingContextRootId)).toEqual([
+      "outer",
+      "outer",
+      "inner",
+      "inner",
+    ]);
   });
 
   it("forces computed preserve-3d flat for every pinned grouping family", () => {
@@ -90,10 +93,10 @@ describe("DM-2356 Blink projective context model", () => {
     for (const [label, overrides, expected] of rows) {
       expect(projectiveGroupingReasons({ ...emptyGrouping(), ...overrides }), label).toContain(expected);
     }
-    expect(projectiveGroupingReasons({ ...emptyGrouping(), position: "static", cssClip: "rect(0px, 10px, 10px, 0px)" }))
-      .not.toContain("css-clip");
-    expect(projectiveGroupingReasons({ ...emptyGrouping(), willChange: "transform, clip-path, mask" }))
-      .toEqual([]);
+    expect(
+      projectiveGroupingReasons({ ...emptyGrouping(), position: "static", cssClip: "rect(0px, 10px, 10px, 0px)" }),
+    ).not.toContain("css-clip");
+    expect(projectiveGroupingReasons({ ...emptyGrouping(), willChange: "transform, clip-path, mask" })).toEqual([]);
   });
 
   it("starts a fresh context below an explicit or grouping-property flatten", () => {
@@ -140,8 +143,9 @@ describe("DM-2356 Blink projective context model", () => {
   });
 
   it("ships every requested composed family without text/font dependence", () => {
-    expect(new Set(NESTED_PROJECTIVE_CASES.map((row) => row.family)))
-      .toEqual(new Set(NESTED_PROJECTIVE_REQUIRED_FAMILIES));
+    expect(new Set(NESTED_PROJECTIVE_CASES.map((row) => row.family))).toEqual(
+      new Set(NESTED_PROJECTIVE_REQUIRED_FAMILIES),
+    );
     const fixture = nestedProjectiveAuditFixtureHtml();
     expect(fixture).toContain("perspective:280px");
     expect(fixture).toContain("transform-style:preserve-3d");
@@ -166,6 +170,7 @@ describe("DM-2356 Blink projective context model", () => {
       { ...passing, rasterOccurrences: 2 },
       { ...passing, vectorSentinelRetained: false },
       { ...passing, staticTransformApplications: 2 },
-    ]) expect(adjudicateProjectiveOwnership(expected, mutation).pass).toBe(false);
+    ])
+      expect(adjudicateProjectiveOwnership(expected, mutation).pass).toBe(false);
   });
 });

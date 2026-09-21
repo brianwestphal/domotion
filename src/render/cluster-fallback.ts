@@ -53,10 +53,17 @@
 // either result before `ShapeRange` bypasses the state machine that owns it.
 
 import {
-  FontInstance, FontRun,
-  getFontInstance, getFontSourceInfo, shapingFaceFor, webfontShapingFace,
-  webfontVariantsInDeclarationOrder, unicodeRangeCovers,
-  resolveColorEmojiKeyForCp, isEmojiCharCp, isEmojiPresentationCp,
+  FontInstance,
+  FontRun,
+  getFontInstance,
+  getFontSourceInfo,
+  shapingFaceFor,
+  webfontShapingFace,
+  webfontVariantsInDeclarationOrder,
+  unicodeRangeCovers,
+  resolveColorEmojiKeyForCp,
+  isEmojiCharCp,
+  isEmojiPresentationCp,
   resolveFontForCodepoint,
   resolveSystemFallbackKeyForCp,
   fontHasSupportedColorTable,
@@ -70,10 +77,7 @@ import {
 import { hostPlatform } from "./host-platform.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
 import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
-import {
-  applyFontVariantEmojiToPriority,
-  type SourceFallbackPriority,
-} from "./emoji-presentation-priority.js";
+import { applyFontVariantEmojiToPriority, type SourceFallbackPriority } from "./emoji-presentation-priority.js";
 import { STANDARDIZED_VARIATION_SEQUENCES } from "./standardized-variation-sequences.generated.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import { icuCodepointProperties } from "./icu-helper.js";
@@ -96,22 +100,34 @@ let _priorityAnswered = 0;
 let _vsRequeued = 0;
 let _vsResets = 0;
 export function _clusterFallbackCounters(): {
-  invoked: number; accepted: number; priorityAsked: number; priorityAnswered: number;
-  vsRequeued: number; vsResets: number;
+  invoked: number;
+  accepted: number;
+  priorityAsked: number;
+  priorityAnswered: number;
+  vsRequeued: number;
+  vsResets: number;
 } {
   return {
-    invoked: _invoked, accepted: _accepted,
-    priorityAsked: _priorityAsked, priorityAnswered: _priorityAnswered,
-    vsRequeued: _vsRequeued, vsResets: _vsResets,
+    invoked: _invoked,
+    accepted: _accepted,
+    priorityAsked: _priorityAsked,
+    priorityAnswered: _priorityAnswered,
+    vsRequeued: _vsRequeued,
+    vsResets: _vsResets,
   };
 }
 if (process.env.DOMOTION_CLUSTER_FALLBACK_DEBUG === "1") {
   process.on("exit", () => {
-    console.error(`[cluster-fallback] invoked=${_invoked} accepted=${_accepted} priorityAsked=${_priorityAsked} priorityAnswered=${_priorityAnswered}`);
+    console.error(
+      `[cluster-fallback] invoked=${_invoked} accepted=${_accepted} priorityAsked=${_priorityAsked} priorityAnswered=${_priorityAnswered}`,
+    );
   });
 }
 
-interface QueueRange { start: number; end: number }
+interface QueueRange {
+  start: number;
+  end: number;
+}
 interface Assignment {
   start: number;
   end: number;
@@ -213,7 +229,11 @@ export function collectHintChars(text: string, queue: QueueRange[], needsFullLis
   return hints;
 }
 
-interface HbFace { path: string; faceIndex: number | null; axes: Record<string, number> | null }
+interface HbFace {
+  path: string;
+  faceIndex: number | null;
+  axes: Record<string, number> | null;
+}
 
 /** Resolve the on-disk (or in-buffer) face HarfBuzz can open for a font
  *  key/instance — the instance's own source file first (agreement with the
@@ -221,15 +241,20 @@ interface HbFace { path: string; faceIndex: number | null; axes: Record<string, 
  *  `@font-face` bytes last (`webfontShapingFace`, so webfont primaries and
  *  variants shape instead of declining). */
 function hbFaceFor(
-  inst: FontInstance | null, key: string, weight: number, fontSize: number, slant: number,
+  inst: FontInstance | null,
+  key: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
   variationSettings: Record<string, number> | undefined,
 ): HbFace | null {
   const src = getFontSourceInfo(inst);
   if (src != null && src.nameMatched && src.faceIndex != null) {
     return { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null };
   }
-  return shapingFaceFor(key, weight, fontSize, slant, variationSettings)
-    ?? (inst != null ? webfontShapingFace(inst) : null);
+  return (
+    shapingFaceFor(key, weight, fontSize, slant, variationSettings) ?? (inst != null ? webfontShapingFace(inst) : null)
+  );
 }
 
 // ── Shape-verdict cache (docs/113 §6) ────────────────────────────────────────
@@ -254,9 +279,15 @@ interface ClusterVerdict {
 }
 const verdictCache = new Map<string, ClusterVerdict[] | null>();
 const VERDICT_CACHE_CAP = 4096;
-export function _clearClusterVerdictCache(): void { verdictCache.clear(); }
-export function _clusterVerdictCacheSizeForTest(): number { return verdictCache.size; }
-export function _seedClusterVerdictCacheForTest(): void { verdictCache.set("test", null); }
+export function _clearClusterVerdictCache(): void {
+  verdictCache.clear();
+}
+export function _clusterVerdictCacheSizeForTest(): number {
+  return verdictCache.size;
+}
+export function _seedClusterVerdictCacheForTest(): void {
+  verdictCache.set("test", null);
+}
 registerFontEnvironmentInvalidator(_clearClusterVerdictCache);
 
 const CONTEXT_UNITS = 5;
@@ -366,9 +397,12 @@ interface VsSequence {
 }
 
 function isVariationSelectorCp(cp: number): boolean {
-  return (cp >= 0xFE00 && cp <= 0xFE0F)
-    || (cp >= 0xE0100 && cp <= 0xE01EF)
-    || (cp >= 0x180B && cp <= 0x180D) || cp === 0x180F; // Mongolian FVS1-4
+  return (
+    (cp >= 0xfe00 && cp <= 0xfe0f) ||
+    (cp >= 0xe0100 && cp <= 0xe01ef) ||
+    (cp >= 0x180b && cp <= 0x180d) ||
+    cp === 0x180f
+  ); // Mongolian FVS1-4
 }
 
 function hasStandardizedVariationSequence(base: number, selector: number): boolean {
@@ -395,7 +429,10 @@ export function _isBlinkVariationSequenceForTest(base: number, selector: number)
 }
 
 function collectVsSequences(
-  text: string, start: number, end: number, fve: FontVariantEmojiOverride | undefined,
+  text: string,
+  start: number,
+  end: number,
+  fve: FontVariantEmojiOverride | undefined,
 ): VsSequence[] {
   const out: VsSequence[] = [];
   let prevIndex = -1;
@@ -404,17 +441,20 @@ function collectVsSequences(
   while (i < end) {
     const cp = text.codePointAt(i)!;
     const len = cp > 0xffff ? 2 : 1;
-    if (isVariationSelectorCp(cp) && prevIndex >= 0 && !isVariationSelectorCp(prevCp)
-      && _isBlinkVariationSequenceForTest(prevCp, cp)) {
+    if (
+      isVariationSelectorCp(cp) &&
+      prevIndex >= 0 &&
+      !isVariationSelectorCp(prevCp) &&
+      _isBlinkVariationSequenceForTest(prevCp, cp)
+    ) {
       out.push({ index: prevIndex, base: prevCp, selector: cp });
     } else if (fve != null && isEmojiCharCp(cp)) {
       // `GetVariationSelectorModeFromFontVariantEmoji`: text synthesizes VS15,
       // emoji VS16, and unicode selects VS15/VS16 from the codepoint's default.
       // An explicit selector follows wins (`HasVSFallbackPriority`).
       const nextCp = i + len < end ? text.codePointAt(i + len)! : 0;
-      if (nextCp !== 0xFE0E && nextCp !== 0xFE0F) {
-        const selector = fve === "text" || (fve === "unicode" && !isEmojiPresentationCp(cp))
-          ? 0xFE0E : 0xFE0F;
+      if (nextCp !== 0xfe0e && nextCp !== 0xfe0f) {
+        const selector = fve === "text" || (fve === "unicode" && !isEmojiPresentationCp(cp)) ? 0xfe0e : 0xfe0f;
         out.push({ index: i, base: cp, selector });
       }
     }
@@ -432,11 +472,11 @@ function vsUnmatchedInFace(face: HbFace, font: FontInstance, fontKey: string, se
   if (q == null) return false;
   if (q.variationGlyph(seq.base, seq.selector) !== 0) return false; // cmap-14 has it
   if (q.nominalGlyph(seq.base) === 0) return false; // base absent → plain .notdef path
-  if (seq.selector === 0xFE0E || seq.selector === 0xFE0F) {
+  if (seq.selector === 0xfe0e || seq.selector === 0xfe0f) {
     // Presentation rule (`harfbuzz_face.cc:189-206`): unmatched only when the
     // face's presentation contradicts the request.
     const color = fontHasSupportedColorTable(font, fontKey);
-    return (color && seq.selector === 0xFE0E) || (!color && seq.selector === 0xFE0F);
+    return (color && seq.selector === 0xfe0e) || (!color && seq.selector === 0xfe0f);
   }
   return true; // non-emoji VS: base-only coverage is an unmatched sequence
 }
@@ -483,9 +523,7 @@ function lastResortKeys(
   semanticContext: FontFallbackSemanticContext,
   platform: NodeJS.Platform = hostPlatform(),
 ): string[] {
-  const rawQuestions = skiaLastResortFamilyQuestionOrder(
-    semanticContext.genericFamily, platform,
-  );
+  const rawQuestions = skiaLastResortFamilyQuestionOrder(semanticContext.genericFamily, platform);
   const tail = platform === "win32" ? "arial" : "helvetica";
   const initialOwnerByQuestion = new Map<string, string>([
     ["sans-serif", "helvetica"],
@@ -498,7 +536,7 @@ function lastResortKeys(
     if (platform === "darwin") {
       return question === "Times" ? "times" : "lucida-grande";
     }
-    return index === 0 ? initialOwnerByQuestion.get(question) ?? tail : tail;
+    return index === 0 ? (initialOwnerByQuestion.get(question) ?? tail) : tail;
   });
   return owners.filter((owner, index) => owners.indexOf(owner) === index);
 }
@@ -543,7 +581,22 @@ export function splitTextIntoFontRunsShaped(
   if (text.length === 0) return [];
   const semanticContext = opts?.semanticContext ?? createFontFallbackSemanticContext(fontFamily);
   _invoked++;
-  const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { ...opts, semanticContext });
+  const runs = splitShapedInner(
+    text,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    fontKeyChain,
+    systemUiPrimary,
+    stretch,
+    fontVariantEmoji,
+    fontFamily,
+    { ...opts, semanticContext },
+  );
   _accepted++;
   return runs;
 }
@@ -646,7 +699,14 @@ function splitShapedInner(
 
     const needsFullHints = familyCycle.some((f) => f.key.startsWith("webfont:"));
 
-    const candidateFor = (key: string, font: FontInstance, isPrimary: boolean, clampRanges: Array<[number, number]> | null, mechanism: NonNullable<FontRun["routeMechanism"]>, vs?: Record<string, number>): Candidate => {
+    const candidateFor = (
+      key: string,
+      font: FontInstance,
+      isPrimary: boolean,
+      clampRanges: Array<[number, number]> | null,
+      mechanism: NonNullable<FontRun["routeMechanism"]>,
+      vs?: Record<string, number>,
+    ): Candidate => {
       const face = isPrimary ? primaryFace : hbFaceFor(font, key, weight, fontSize, slant, vs);
       return { key, font, face, isPrimary, mechanism, clampRanges };
     };
@@ -671,19 +731,35 @@ function splitShapedInner(
               const family = entry.key.slice("webfont:".length);
               let state = segmentedWebfonts.get(entry.key);
               if (state == null) {
-                state = { faces: webfontVariantsInDeclarationOrder(family, weight, fontSize, slant,
-                  entry.key === primaryFontKey ? variationSettings : undefined, stretch), index: 0 };
+                state = {
+                  faces: webfontVariantsInDeclarationOrder(
+                    family,
+                    weight,
+                    fontSize,
+                    slant,
+                    entry.key === primaryFontKey ? variationSettings : undefined,
+                    stretch,
+                  ),
+                  index: 0,
+                };
                 segmentedWebfonts.set(entry.key, state);
               }
               while (state.index < state.faces.length) {
                 let v = state.faces[state.index++];
                 const ranges = v.webfontUnicodeRange;
                 if (ranges != null && !hints.some((cp) => unicodeRangeCovers(ranges, cp))) continue;
-                const isPrimaryInstance = entry.key === primaryFontKey
-                  && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
+                const isPrimaryInstance =
+                  entry.key === primaryFontKey && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
                 if (isPrimaryInstance) v = primaryFont;
                 const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);
-                const cand: Candidate = { key: entry.key, font: v, face, isPrimary: entry.key === primaryFontKey, mechanism: "declared-family", clampRanges: ranges ?? null };
+                const cand: Candidate = {
+                  key: entry.key,
+                  font: v,
+                  face,
+                  isPrimary: entry.key === primaryFontKey,
+                  mechanism: "declared-family",
+                  clampRanges: ranges ?? null,
+                };
                 const identity = candidateIdentity(cand);
                 const subsetted = v.webfontUnicodeRange != null;
                 if (!subsetted) {
@@ -701,13 +777,19 @@ function splitShapedInner(
               break;
             }
             familyIndex++;
-            const inst = entry.inst ?? getFontInstance(
-              entry.key, weight, fontSize, slant, undefined, 100,
-              false, undefined, semanticContext,
-            );
+            const inst =
+              entry.inst ??
+              getFontInstance(entry.key, weight, fontSize, slant, undefined, 100, false, undefined, semanticContext);
             if (inst == null) break;
             const isPrimary = entry.key === primaryFontKey && inst === primaryFont;
-            const cand = candidateFor(entry.key, inst, isPrimary, inst.webfontUnicodeRange ?? null, "declared-family", isPrimary ? variationSettings : undefined);
+            const cand = candidateFor(
+              entry.key,
+              inst,
+              isPrimary,
+              inst.webfontUnicodeRange ?? null,
+              "declared-family",
+              isPrimary ? variationSettings : undefined,
+            );
             const identity = candidateIdentity(cand);
             if (cand.clampRanges == null) {
               if (returnedFaces.has(identity)) break;
@@ -723,13 +805,23 @@ function splitShapedInner(
             iter.stage = "system";
             _priorityAsked++;
             const hint = hints[0];
-            const key = effectivePriority === "emoji" || effectivePriority === "emoji-vs"
-              ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
-              : resolveSystemFallbackKeyForCp(
-                  hint, weight, slant, fontSize, primaryFontKey,
-                  systemUiPrimary, lang, stretch, "text", semanticContext.declaredFamily,
-                  opts?.fallbackRawSlope, opts?.fallbackOrientation,
-                );
+            const key =
+              effectivePriority === "emoji" || effectivePriority === "emoji-vs"
+                ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
+                : resolveSystemFallbackKeyForCp(
+                    hint,
+                    weight,
+                    slant,
+                    fontSize,
+                    primaryFontKey,
+                    systemUiPrimary,
+                    lang,
+                    stretch,
+                    "text",
+                    semanticContext.declaredFamily,
+                    opts?.fallbackRawSlope,
+                    opts?.fallbackOrientation,
+                  );
             if (key == null) break;
             const font = getFontInstance(key, weight, fontSize, slant);
             if (font == null) break;
@@ -746,34 +838,66 @@ function splitShapedInner(
             // asked at most once. A duplicate answer recurses into Next with
             // the same (now-consumed) hint, which returns nothing — so both
             // "already asked" and "duplicate answer" advance to last-resort.
-            if (hints.length === 0) { iter.stage = "lastResort"; break; }
+            if (hints.length === 0) {
+              iter.stage = "lastResort";
+              break;
+            }
             const hint = hints[chooseHintIndex(hints)];
-            if (hint === 0 || previouslyAskedHints.has(hint)) { iter.stage = "lastResort"; break; }
+            if (hint === 0 || previouslyAskedHints.has(hint)) {
+              iter.stage = "lastResort";
+              break;
+            }
             previouslyAskedHints.add(hint);
             // Explicit VS source priorities win over CSS for the whole item.
             // The post-reset pass ignores the selector during glyph lookup but
             // preserves this iterator's source/effective priority, as Blink's
             // FontFallbackIterator::Reset does.
-            const effFve: FontVariantEmojiOverride | undefined = ignoreVS ? undefined
-              : seg.sourcePriority === "emoji-vs" ? "emoji"
-              : seg.sourcePriority === "text-vs" ? "text"
-              : fontVariantEmoji;
+            const effFve: FontVariantEmojiOverride | undefined = ignoreVS
+              ? undefined
+              : seg.sourcePriority === "emoji-vs"
+                ? "emoji"
+                : seg.sourcePriority === "text-vs"
+                  ? "text"
+                  : fontVariantEmoji;
             const res = resolveFontForCodepoint(
-              hint, primaryFont, primaryFontKey, weight, fontSize, slant,
-              variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
-              effFve, fontFamily, opts?.fallbackRawSlope, opts?.fallbackOrientation,
+              hint,
+              primaryFont,
+              primaryFontKey,
+              weight,
+              fontSize,
+              slant,
+              variationSettings,
+              lang,
+              fontKeyChain,
+              systemUiPrimary,
+              stretch,
+              effFve,
+              fontFamily,
+              opts?.fallbackRawSlope,
+              opts?.fallbackOrientation,
               semanticContext,
             );
-            if (!res.covered) { iter.stage = "lastResort"; break; }
-            const font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
-            if (font == null) { iter.stage = "lastResort"; break; }
+            if (!res.covered) {
+              iter.stage = "lastResort";
+              break;
+            }
+            const font =
+              res.fontOverride ??
+              (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
+            if (font == null) {
+              iter.stage = "lastResort";
+              break;
+            }
             // `res.decomposed` is coverage evidence for the selected face, not
             // an alternate commit operation. HarfBuzz shapes the ORIGINAL
             // queued source range below and owns whether canonical pieces are
             // emitted (`hb-ot-shape-normalize.cc:108-200`).
             const cand = candidateFor(res.key, font, false, null, "system-resolver");
             const identity = candidateIdentity(cand);
-            if (returnedFaces.has(identity)) { iter.stage = "lastResort"; break; }
+            if (returnedFaces.has(identity)) {
+              iter.stage = "lastResort";
+              break;
+            }
             returnedFaces.add(identity);
             if (firstCandidate == null) firstCandidate = cand;
             return cand;
@@ -787,8 +911,15 @@ function splitShapedInner(
             iter.stage = "firstCandidate";
             for (const key of lastResortKeys(semanticContext)) {
               const inst = getFontInstance(
-                key, weight, fontSize, slant, undefined, 100,
-                false, undefined, semanticContext,
+                key,
+                weight,
+                fontSize,
+                slant,
+                undefined,
+                100,
+                false,
+                undefined,
+                semanticContext,
               );
               if (inst == null) continue;
               const cand = candidateFor(key, inst, false, null, "last-resort");
@@ -840,11 +971,31 @@ function splitShapedInner(
         // fallback passes WITH the run's features (`ShapeRange(buffer,
         // font_features, …)`), and a `-liga`/letter-spacing veto can flip a
         // cluster's coverage verdict.
-        const verdicts = current.face == null ? null : shapeVerdicts(current.face, seg.rtl ? rtlVerdictText : text, range, seg.rtl, scriptTag, lang, fontSize, opts?.features);
+        const verdicts =
+          current.face == null
+            ? null
+            : shapeVerdicts(
+                current.face,
+                seg.rtl ? rtlVerdictText : text,
+                range,
+                seg.rtl,
+                scriptTag,
+                lang,
+                fontSize,
+                opts?.features,
+              );
         if (verdicts == null) {
           // Unshapeable with this font — the whole range stays queued (or
           // terminally commits to the first candidate below when isLast).
-          if (isLast) assignments.push({ start: range.start, end: range.end, key: current.key, font: current.font, isPrimary: current.isPrimary, mechanism: current.mechanism });
+          if (isLast)
+            assignments.push({
+              start: range.start,
+              end: range.end,
+              key: current.key,
+              font: current.font,
+              isPrimary: current.isPrimary,
+              mechanism: current.mechanism,
+            });
           else nextQueue.push(range);
           continue;
         }
@@ -859,8 +1010,9 @@ function splitShapedInner(
           if (ok && current.clampRanges != null) {
             for (let i = abs.start; i < abs.end;) {
               const cp = text.codePointAt(i)!;
-              const selectorBelongsToPreviousBase = rangeVs.some((seq) =>
-                seq.index + String.fromCodePoint(seq.base).length === i && seq.selector === cp);
+              const selectorBelongsToPreviousBase = rangeVs.some(
+                (seq) => seq.index + String.fromCodePoint(seq.base).length === i && seq.selector === cp,
+              );
               // HarfBuzz's variation-glyph callback receives (base, selector)
               // together and Blink applies unicode-range to `unicode` (the
               // base), not independently to `variation_selector`.
@@ -884,7 +1036,13 @@ function splitShapedInner(
             }
           }
           if (ok || isLast) {
-            assignments.push({ ...abs, key: current.key, font: current.font, isPrimary: current.isPrimary, mechanism: current.mechanism });
+            assignments.push({
+              ...abs,
+              key: current.key,
+              font: current.font,
+              isPrimary: current.isPrimary,
+              mechanism: current.mechanism,
+            });
           } else {
             nextQueue.push(abs);
           }
@@ -917,7 +1075,14 @@ function splitShapedInner(
     // candidate's `.notdef` (kFirstCandidateForNotdefGlyph's terminal).
     for (const r of queue) {
       const fc = firstCandidate ?? { key: primaryFontKey, font: primaryFont, isPrimary: true };
-      assignments.push({ start: r.start, end: r.end, key: fc.key, font: fc.font, isPrimary: fc.isPrimary, mechanism: "first-candidate-notdef" });
+      assignments.push({
+        start: r.start,
+        end: r.end,
+        key: fc.key,
+        font: fc.font,
+        isPrimary: fc.isPrimary,
+        mechanism: "first-candidate-notdef",
+      });
     }
   }
 
@@ -956,13 +1121,28 @@ function splitShapedInner(
     const shapingDirection = segment.rtl ? "rtl" : "ltr";
     const shapingScript = SCRIPT_NAME_TO_ISO15924[segment.script];
     const last = runs[runs.length - 1];
-    if (last != null && lastRunSegmentIndex === segmentIndex
-        && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start
-        && last.routeMechanism === a.mechanism) {
+    if (
+      last != null &&
+      lastRunSegmentIndex === segmentIndex &&
+      last.fontKey === a.key &&
+      last.font === a.font &&
+      last.endIdx === a.start &&
+      last.routeMechanism === a.mechanism
+    ) {
       last.endIdx = a.end;
       last.text += aText;
     } else {
-      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, shapingScript, routeMechanism: a.mechanism });
+      runs.push({
+        fontKey: a.key,
+        font: a.font,
+        text: aText,
+        startIdx: a.start,
+        endIdx: a.end,
+        isPrimary: a.isPrimary,
+        shapingDirection,
+        shapingScript,
+        routeMechanism: a.mechanism,
+      });
       lastRunSegmentIndex = segmentIndex;
     }
   }
@@ -973,7 +1153,16 @@ function splitShapedInner(
   // identity — the renderer's run-grouping invariant. Native/fontkit objects
   // remain outline and metric providers only; they no longer decide glyphs.
   for (const run of runs) {
-    run.font = harfbuzzShapedRunOverride(run.font, run.fontKey, weight, fontSize, slant, run.isPrimary ? variationSettings : undefined, run.text, opts?.features);
+    run.font = harfbuzzShapedRunOverride(
+      run.font,
+      run.fontKey,
+      weight,
+      fontSize,
+      slant,
+      run.isPrimary ? variationSettings : undefined,
+      run.text,
+      opts?.features,
+    );
   }
   return runs;
 }

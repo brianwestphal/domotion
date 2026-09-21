@@ -5,9 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2171","DM-2490","DM-463","DM-465","DM-466"]
-code: ["src/capture/backdrop-raster-diagnostics.test.ts","src/capture/script/walker/borders-backgrounds.ts","src/render/element-tree-to-svg.ts"]
-aliases: ["docs/19-frosted-backdrop-fallback.md","doc-19"]
+tickets: ["DM-2171", "DM-2490", "DM-463", "DM-465", "DM-466"]
+code:
+  [
+    "src/capture/backdrop-raster-diagnostics.test.ts",
+    "src/capture/script/walker/borders-backgrounds.ts",
+    "src/render/element-tree-to-svg.ts",
+  ]
+aliases: ["docs/19-frosted-backdrop-fallback.md", "doc-19"]
 ---
 
 # 19 — Backdrop-filter raster fallback and diagnostics
@@ -25,7 +30,7 @@ Modern marketing sites (Stripe, Apple, Resend) use a "frosted glass" pattern for
 ```css
 nav {
   position: fixed;
-  background-color: rgba(255, 255, 255, 0);  /* or some near-transparent value */
+  background-color: rgba(255, 255, 255, 0); /* or some near-transparent value */
   backdrop-filter: saturate(180%) blur(20px);
 }
 ```
@@ -53,14 +58,14 @@ descendants remain vector above it.
 
 The diagnostic follows the materialization result, not the computed property:
 
-| Node outcome | Retained output | Warning |
-| --- | --- | --- |
-| Token maps, every hide owner resolves, screenshot succeeds | isolated Chromium crop | none |
-| Token has no painted layout mapping | unisolated Chromium page crop | `status: "partial"`, planner miss |
-| `DOMSnapshot` is unavailable | unisolated Chromium page crop | `status: "partial"`, snapshot unavailable |
+| Node outcome                                               | Retained output                  | Warning                                     |
+| ---------------------------------------------------------- | -------------------------------- | ------------------------------------------- |
+| Token maps, every hide owner resolves, screenshot succeeds | isolated Chromium crop           | none                                        |
+| Token has no painted layout mapping                        | unisolated Chromium page crop    | `status: "partial"`, planner miss           |
+| `DOMSnapshot` is unavailable                               | unisolated Chromium page crop    | `status: "partial"`, snapshot unavailable   |
 | One or more planned hide owners cannot be resolved/mutated | partially isolated Chromium crop | `status: "partial"`, unresolved-owner count |
-| Token is missing | vector box/background | `status: "unavailable"`, missing token |
-| Screenshot fails | vector box/background | `status: "unavailable"`, screenshot failure |
+| Token is missing                                           | vector box/background            | `status: "unavailable"`, missing token      |
+| Screenshot fails                                           | vector box/background            | `status: "unavailable"`, screenshot failure |
 
 Every partial/unavailable `backdrop-filter` warning names the retained output in
 `detail`; its optional `status` field is machine-readable. A successful host or
@@ -100,7 +105,7 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 2. **CapturedElement.styles** — add `frostedBgFallback?: string` to the `Styles` interface.
 
-3. **Renderer** (`renderElement` in `elementTreeToSvg`) — after computing `bgColor`, the real background-color is painted whenever `bgColor.a > 0.01` (`paintBackgroundColor`, `src/render/element-tree-to-svg.ts`); only in the `else` (null or alpha ≤ 0.01) AND with `el.styles.frostedBgFallback` set does the renderer paint the fallback `<rect>` (respecting `border-radius`) before any background-image layers. Note the two thresholds differ by design: capture *stores* `frostedBgFallback` at alpha ≤ 0.1 (`src/capture/script/walker/borders-backgrounds.ts`), but the renderer only *substitutes* it below 0.01 — so a background-color with 0.01 < alpha ≤ 0.1 keeps its (barely-there) real translucent color rather than the fallback.
+3. **Renderer** (`renderElement` in `elementTreeToSvg`) — after computing `bgColor`, the real background-color is painted whenever `bgColor.a > 0.01` (`paintBackgroundColor`, `src/render/element-tree-to-svg.ts`); only in the `else` (null or alpha ≤ 0.01) AND with `el.styles.frostedBgFallback` set does the renderer paint the fallback `<rect>` (respecting `border-radius`) before any background-image layers. Note the two thresholds differ by design: capture _stores_ `frostedBgFallback` at alpha ≤ 0.1 (`src/capture/script/walker/borders-backgrounds.ts`), but the renderer only _substitutes_ it below 0.01 — so a background-color with 0.01 < alpha ≤ 0.1 keeps its (barely-there) real translucent color rather than the fallback.
 
 ## Remaining limits
 

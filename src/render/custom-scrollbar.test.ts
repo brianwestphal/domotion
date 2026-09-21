@@ -55,21 +55,18 @@ function set(parts: CapturedScrollbarPart[]): CapturedScrollbarSet {
 
 describe("author custom scrollbar paint planning", () => {
   it("uses Blink's background/buttons/track/pieces/thumb order, not marker scan order", () => {
-    expect(orderedCustomScrollbarParts(bar([
-      part("thumb", 50),
-      part("forward-track", 70),
-      part("background", 10),
-      part("track", 20),
-      part("back-button", 10),
-      part("back-track", 30),
-    ])).map(({ kind }) => kind)).toEqual([
-      "background",
-      "back-button",
-      "track",
-      "back-track",
-      "forward-track",
-      "thumb",
-    ]);
+    expect(
+      orderedCustomScrollbarParts(
+        bar([
+          part("thumb", 50),
+          part("forward-track", 70),
+          part("background", 10),
+          part("track", 20),
+          part("back-button", 10),
+          part("back-track", 30),
+        ]),
+      ).map(({ kind }) => kind),
+    ).toEqual(["background", "back-button", "track", "back-track", "forward-track", "thumb"]);
   });
 
   it("clips the route once and keeps a dynamic fallback confined to its owning part", () => {
@@ -84,11 +81,16 @@ describe("author custom scrollbar paint planning", () => {
       `${indent}<rect data-vector="${item.part.kind}" />`,
     ]);
     const defsParts: string[] = [];
-    const svg = paintCustomScrollbars({
-      defsParts,
-      nextId: () => "clip1",
-      paintVectorPart: vector,
-    }, { w: 120, h: 90 }, { scrollbars: set([part("track", 20), raster]) } as CapturedElement, "  ").join("\n");
+    const svg = paintCustomScrollbars(
+      {
+        defsParts,
+        nextId: () => "clip1",
+        paintVectorPart: vector,
+      },
+      { w: 120, h: 90 },
+      { scrollbars: set([part("track", 20), raster]) } as CapturedElement,
+      "  ",
+    ).join("\n");
 
     expect(defsParts.join("\n")).toContain('id="clip1"');
     expect(svg).toContain('data-domotion-scrollbar-route="author-custom"');
@@ -109,8 +111,15 @@ describe("author custom scrollbar paint planning", () => {
     unavailable.status = "unavailable";
     const vector = vi.fn(() => ["<rect />"]);
     const context = { defsParts: [], nextId: () => "clip", paintVectorPart: vector };
-    expect(paintCustomScrollbars(context, { w: 120, h: 90 }, { scrollbars: unavailable } as CapturedElement, "")).toEqual([]);
-    const output = paintCustomScrollbars(context, { w: 120, h: 90 }, { scrollbars: set([missing]) } as CapturedElement, "").join("");
+    expect(
+      paintCustomScrollbars(context, { w: 120, h: 90 }, { scrollbars: unavailable } as CapturedElement, ""),
+    ).toEqual([]);
+    const output = paintCustomScrollbars(
+      context,
+      { w: 120, h: 90 },
+      { scrollbars: set([missing]) } as CapturedElement,
+      "",
+    ).join("");
     expect(output).not.toContain("<image");
     expect(vector).not.toHaveBeenCalled();
   });

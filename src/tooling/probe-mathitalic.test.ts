@@ -14,15 +14,16 @@ describe("math italic font probe", () => {
   it("uses an argv-based find call and suppresses diagnostic stderr", () => {
     const run = vi.fn(() => "/fonts/STIXTwoMath-Regular.otf\n");
     expect(findStixFonts("/fonts", run, () => true)).toBe("/fonts/STIXTwoMath-Regular.otf\n");
-    expect(run).toHaveBeenCalledWith(
-      "find",
-      ["/fonts", "-iname", "*STIX*"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-    );
+    expect(run).toHaveBeenCalledWith("find", ["/fonts", "-iname", "*STIX*"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
   });
 
   it("treats an unreadable search root like the old redirected shell probe", () => {
-    const run = vi.fn(() => { throw new Error("permission denied"); });
+    const run = vi.fn(() => {
+      throw new Error("permission denied");
+    });
     expect(findStixFonts("/fonts", run, () => true)).toBeNull();
   });
 });

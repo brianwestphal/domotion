@@ -3,7 +3,13 @@ import type { Page } from "@playwright/test";
 import { launchChromium, captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs } from "../src/render/index.js";
-import { generateAnimatedSvg, resolveTextTrack, resolveCaretPoint, resolveRangeRects, addressableLength } from "../src/animation/index.js";
+import {
+  generateAnimatedSvg,
+  resolveTextTrack,
+  resolveCaretPoint,
+  resolveRangeRects,
+  addressableLength,
+} from "../src/animation/index.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { loadSeekableSvg } from "./flipbook-parity.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -43,7 +49,12 @@ async function chromeCaret(page: Page, id: string, offset: number): Promise<{ x:
 }
 
 /** Chrome's own client rects for a logical range. */
-async function chromeRangeRects(page: Page, id: string, start: number, end: number): Promise<Array<{ x: number; y: number; w: number; h: number }>> {
+async function chromeRangeRects(
+  page: Page,
+  id: string,
+  start: number,
+  end: number,
+): Promise<Array<{ x: number; y: number; w: number; h: number }>> {
   return page.evaluate(`(() => {
     var tn = document.getElementById(${JSON.stringify(id)}).firstChild;
     var r = document.createRange(); r.setStart(tn, ${start}); r.setEnd(tn, ${end});
@@ -64,7 +75,12 @@ async function chromeRangeRects(page: Page, id: string, start: number, end: numb
  *  scan enough to blow a 3px thickness bound. Subtracting a baseline frame is
  *  exact rather than a tuned threshold — the text does not move, so whatever the
  *  platform's antialiasing does, it cancels. */
-async function scanInk(page: Page, png: Buffer, mode: "red" | "selection", exclude?: ReadonlySet<string>): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number; keys: string[] }> {
+async function scanInk(
+  page: Page,
+  png: Buffer,
+  mode: "red" | "selection",
+  exclude?: ReadonlySet<string>,
+): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number; keys: string[] }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
   const test = mode === "red" ? "r > 180 && gg < 100 && b < 100" : "b > 180 && b - r > 60 && b - gg > 30";
   return page.evaluate(`(async () => {
@@ -132,7 +148,10 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
           const p = resolveCaretPoint(tree, { animId: c.id }, o);
           expect(p, `${c.id}@${o}`).not.toBeNull();
           expect(p!.vertical, `${c.id}@${o} mode`).toBe(c.mode);
-          expect(Math.abs(p!.baselineY - expected.y), `${c.id}@${o} y (ours ${p!.baselineY} vs chrome ${expected.y})`).toBeLessThanOrEqual(1);
+          expect(
+            Math.abs(p!.baselineY - expected.y),
+            `${c.id}@${o} y (ours ${p!.baselineY} vs chrome ${expected.y})`,
+          ).toBeLessThanOrEqual(1);
           expect(Math.abs(p!.x - expected.x), `${c.id}@${o} column x`).toBeLessThanOrEqual(1);
           expect(Math.abs((p!.columnWidthPx ?? 0) - expected.w), `${c.id}@${o} column width`).toBeLessThanOrEqual(1);
         }
@@ -178,7 +197,10 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
         expect(Math.abs(r.x - chromeRects[0].x), `${c.id} rect x`).toBeLessThanOrEqual(1);
         expect(Math.abs(r.width - chromeRects[0].w), `${c.id} rect width`).toBeLessThanOrEqual(1);
         expect(Math.abs(r.y - chromeRects[0].y), `${c.id} rect y`).toBeLessThanOrEqual(1);
-        expect(Math.abs(r.height - chromeRects[0].h), `${c.id} rect height (ours ${r.height} vs chrome ${chromeRects[0].h})`).toBeLessThanOrEqual(1.5);
+        expect(
+          Math.abs(r.height - chromeRects[0].h),
+          `${c.id} rect height (ours ${r.height} vs chrome ${chromeRects[0].h})`,
+        ).toBeLessThanOrEqual(1.5);
         // Edges step DOWNWARD and the last one is the rect's bottom.
         //
         // DM-1977: non-decreasing rather than strictly increasing, for the same
@@ -229,7 +251,9 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
         ],
       });
       const svg = generateAnimatedSvg({
-        width: W, height: H, background: "#ffffff",
+        width: W,
+        height: H,
+        background: "#ffffff",
         frames: [{ svgContent: frameSvg, duration: 4200 }],
         textTracks: [track],
       });
@@ -255,8 +279,8 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
       const red400 = await scanInk(viewer, await shot(400), "red", redBaseline);
       expect(red400.count).toBeGreaterThan(10);
       expect(Math.abs(red400.minY - p0.baselineY)).toBeLessThanOrEqual(1.5);
-      expect(red400.maxY - red400.minY).toBeLessThanOrEqual(3);          // thin along the column
-      expect(red400.maxX - red400.minX).toBeGreaterThan(10);             // wide across it
+      expect(red400.maxY - red400.minY).toBeLessThanOrEqual(3); // thin along the column
+      expect(red400.maxX - red400.minX).toBeGreaterThan(10); // wide across it
       expect(Math.abs(red400.minX - p0.x)).toBeLessThanOrEqual(1.5);
 
       // t=1300 / t=2200: the caret moved DOWN the column, staying in it.
@@ -282,14 +306,17 @@ describeBrowser("vertical-writing-mode caret + selection addressing (docs/101)",
       for (const t of [3000, 3100, 3200, 3300]) {
         const s = await scanInk(viewer, await shot(t), "selection", selBaseline);
         const h = s.maxY - s.minY;
-        if (s.count > 50 && h > 2 && h < rect.height - 2) { mid = s; break; }
+        if (s.count > 50 && h > 2 && h < rect.height - 2) {
+          mid = s;
+          break;
+        }
       }
       // Still required: SOME frame inside the sweep is strictly partial. If none
       // is, the sweep is not growing and this check has not been weakened away.
       expect(mid.count, "no partially-grown selection frame during the sweep").toBeGreaterThan(50);
       expect(Math.abs(mid.minY - rect.y)).toBeLessThanOrEqual(2);
       expect(Math.abs(mid.minX - rect.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs((mid.maxX - mid.minX) - rect.width)).toBeLessThanOrEqual(2);
+      expect(Math.abs(mid.maxX - mid.minX - rect.width)).toBeLessThanOrEqual(2);
       const midHeight = mid.maxY - mid.minY;
       expect(midHeight).toBeGreaterThan(2);
       expect(midHeight).toBeLessThan(rect.height - 2);

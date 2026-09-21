@@ -5,7 +5,7 @@ description: Turn real HTML/CSS into one self-contained, animated SVG — accura
 
 **Domotion turns real HTML/CSS into a single self-contained, animated SVG.** It
 renders your markup exactly as a browser paints it, then emits one SVG file —
-with optional animation and *simulated interaction* (recorded clicks, typing,
+with optional animation and _simulated interaction_ (recorded clicks, typing,
 and navigation) baked in.
 
 The output is:

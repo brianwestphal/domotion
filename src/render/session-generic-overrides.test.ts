@@ -33,9 +33,8 @@ const sameResolvedPath = (left: string | undefined, right: string | undefined): 
 };
 
 describe("setSessionGenericFamilyOverrides", () => {
-  const installedTestFamily = hostPlatform() === "darwin"
-    ? "Menlo"
-    : hostPlatform() === "win32" ? "Arial" : "Liberation Serif";
+  const installedTestFamily =
+    hostPlatform() === "darwin" ? "Menlo" : hostPlatform() === "win32" ? "Arial" : "Liberation Serif";
 
   const installedTestPath = (): string | undefined => {
     const key = resolveFontKey(installedTestFamily);
@@ -72,10 +71,9 @@ describe("setSessionGenericFamilyOverrides", () => {
       common: new Map([["standard", "Times"]]),
       byScript: new Map([["ARABIC", new Map([["standard", installedTestFamily]])]]),
     });
-    expect(sameResolvedPath(
-      __resolveFontSpecForTest(resolveFontKey("DoesNotExist", "ar")!)?.path,
-      installedTestPath(),
-    )).toBe(true);
+    expect(
+      sameResolvedPath(__resolveFontSpecForTest(resolveFontKey("DoesNotExist", "ar")!)?.path, installedTestPath()),
+    ).toBe(true);
   });
 
   it("falls back to the static route when the probed family is unrecognized", () => {
@@ -113,10 +111,12 @@ describe("setSessionGenericFamilyOverrides", () => {
     const second = { common: new Map([["standard", installedTestFamily]]), byScript: new Map() };
     setSessionGenericFamilyOverrides(prior);
 
-    expect(withSessionGenericFamilyOverrides(first, () => {
-      expect(getSessionGenericFamilyOverrides()).toBe(first);
-      return withSessionGenericFamilyOverrides(second, () => getSessionGenericFamilyOverrides());
-    })).toBe(second);
+    expect(
+      withSessionGenericFamilyOverrides(first, () => {
+        expect(getSessionGenericFamilyOverrides()).toBe(first);
+        return withSessionGenericFamilyOverrides(second, () => getSessionGenericFamilyOverrides());
+      }),
+    ).toBe(second);
     expect(getSessionGenericFamilyOverrides()).toBe(prior);
   });
 
@@ -124,9 +124,11 @@ describe("setSessionGenericFamilyOverrides", () => {
     const prior = { common: new Map([["serif", installedTestFamily]]), byScript: new Map() };
     const captured = { common: new Map([["monospace", installedTestFamily]]), byScript: new Map() };
     setSessionGenericFamilyOverrides(prior);
-    expect(() => withSessionGenericFamilyOverrides(captured, () => {
-      throw new Error("render failed");
-    })).toThrow("render failed");
+    expect(() =>
+      withSessionGenericFamilyOverrides(captured, () => {
+        throw new Error("render failed");
+      }),
+    ).toThrow("render failed");
     expect(getSessionGenericFamilyOverrides()).toBe(prior);
   });
 });

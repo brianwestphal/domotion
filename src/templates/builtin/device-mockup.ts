@@ -19,16 +19,41 @@ import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../../animation/
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 
 export const deviceMockupParamsSchema = z.object({
-  input: z.string().optional().describe("URL or local HTML file to capture (the screen content). Omit when using screenSvg."),
+  input: z
+    .string()
+    .optional()
+    .describe("URL or local HTML file to capture (the screen content). Omit when using screenSvg."),
   // DM-1323: an already-rendered (possibly ANIMATED) SVG to nest as the screen,
   // instead of capturing `input` to a static frame. The bezel nests it with its
   // animation intact (the screen's global names are namespaced first so they
   // can't collide). Takes precedence over `input`.
-  screenSvg: z.string().optional().describe("Path to a pre-rendered SVG (e.g. a cast/scroll/animate output) to nest as the screen, animation preserved."),
-  screenDurationMs: z.coerce.number().int().positive().optional().describe("Play length (ms) of the animated screenSvg, so a `template` frame can size it. Auto-detected from --scene-dur when omitted."),
+  screenSvg: z
+    .string()
+    .optional()
+    .describe(
+      "Path to a pre-rendered SVG (e.g. a cast/scroll/animate output) to nest as the screen, animation preserved.",
+    ),
+  screenDurationMs: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Play length (ms) of the animated screenSvg, so a `template` frame can size it. Auto-detected from --scene-dur when omitted.",
+    ),
   device: z.enum(DEVICE_CHROMES).default("browser").describe('Bezel: "phone" | "browser" | "window".'),
-  width: z.coerce.number().int().positive().default(960).describe("Inner screen width in px (ignored when screenSvg sets its own size)."),
-  height: z.coerce.number().int().positive().default(600).describe("Inner screen height in px (ignored when screenSvg sets its own size)."),
+  width: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(960)
+    .describe("Inner screen width in px (ignored when screenSvg sets its own size)."),
+  height: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(600)
+    .describe("Inner screen height in px (ignored when screenSvg sets its own size)."),
   label: z.string().optional().describe("Chrome-bar text (browser URL / window title; ignored by phone)."),
   theme: z.enum(CHROME_THEMES).default("dark").describe('Bezel theme for browser/window: "dark" | "light".'),
   mobile: z.coerce.boolean().default(false).describe("Emulate a mobile device for the capture (use with phone)."),
@@ -47,7 +72,8 @@ function resolveInput(input: string): string {
 
 export const deviceMockupTemplate: Template<DeviceMockupParams> = {
   name: "device-mockup",
-  description: "Wrap a captured URL/page (or a pre-rendered animated SVG) in a device bezel (phone, browser window, or app window).",
+  description:
+    "Wrap a captured URL/page (or a pre-rendered animated SVG) in a device bezel (phone, browser window, or app window).",
   paramsSchema: deviceMockupParamsSchema,
   async render(params: DeviceMockupParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     // DM-1323: nest a pre-rendered, possibly ANIMATED screen instead of capturing
@@ -60,14 +86,21 @@ export const deviceMockupTemplate: Template<DeviceMockupParams> = {
       const screen = readFileSync(resolve(params.screenSvg), "utf8");
       const size = parseSvgIntrinsicSize(screen) ?? { w: params.width, h: params.height };
       const namespaced = namespaceEmbeddedAnimatedSvg(screen, "dms_");
-      ctx.log(`template device-mockup: ${params.device} bezel around an animated ${size.w}×${size.h} screen (${params.screenSvg})`);
-      const framed = wrapInDeviceChrome(namespaced, params.device, size.w, size.h, { label: params.label, theme: params.theme });
+      ctx.log(
+        `template device-mockup: ${params.device} bezel around an animated ${size.w}×${size.h} screen (${params.screenSvg})`,
+      );
+      const framed = wrapInDeviceChrome(namespaced, params.device, size.w, size.h, {
+        label: params.label,
+        theme: params.theme,
+      });
       const durationMs = params.screenDurationMs ?? detectAnimationPeriodMs(screen);
       return { svg: framed.svg, width: framed.width, height: framed.height, durationMs };
     }
 
     if (params.input == null || params.input === "") {
-      throw new Error('device-mockup: provide either "input" (a page to capture) or "screenSvg" (a pre-rendered SVG to nest).');
+      throw new Error(
+        'device-mockup: provide either "input" (a page to capture) or "screenSvg" (a pre-rendered SVG to nest).',
+      );
     }
     ctx.log(`template device-mockup: ${params.device} bezel around ${params.width}×${params.height} capture`);
     // Capture the page to a STATIC SVG (not the animate pipeline) — a static SVG

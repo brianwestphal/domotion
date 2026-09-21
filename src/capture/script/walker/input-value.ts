@@ -60,38 +60,53 @@
 import { sideWidths } from "../utils.js";
 
 const SKIP_VALUE_TYPES = new Set([
-  'range', 'color', 'checkbox', 'radio',
-  'file', 'image', 'hidden',
-  'date', 'time', 'datetime-local', 'month', 'week',
+  "range",
+  "color",
+  "checkbox",
+  "radio",
+  "file",
+  "image",
+  "hidden",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
 ]);
 
 const NOT_APPLIED = { applied: false };
 
-export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fontFamilyStackFor, valueTextGeometryKey }) => {
+export const createInputValueHandler = ({
+  vp,
+  normColor,
+  measureFontMetrics,
+  fontFamilyStackFor,
+  valueTextGeometryKey,
+}) => {
   const captureInputValue = (el, cs, tag, rect) => {
-    if (tag !== 'input' && tag !== 'textarea') return NOT_APPLIED;
-    const inputType = tag === 'input' ? (el.type || 'text') : '';
+    if (tag !== "input" && tag !== "textarea") return NOT_APPLIED;
+    const inputType = tag === "input" ? el.type || "text" : "";
     if (SKIP_VALUE_TYPES.has(inputType)) return NOT_APPLIED;
 
     let isPlaceholderCapture = false;
-    let text = '';
+    let text = "";
     if (!el.value) {
-      const placeholder = el.getAttribute && el.getAttribute('placeholder');
-      if (placeholder != null && placeholder !== '') {
+      const placeholder = el.getAttribute && el.getAttribute("placeholder");
+      if (placeholder != null && placeholder !== "") {
         isPlaceholderCapture = true;
         text = placeholder;
       } else {
         return NOT_APPLIED;
       }
     } else {
-      text = inputType === 'password' ? '•'.repeat(el.value.length) : el.value;
+      text = inputType === "password" ? "•".repeat(el.value.length) : el.value;
     }
 
     const pl = parseFloat(cs.paddingLeft) || 0;
     const pt = parseFloat(cs.paddingTop) || 0;
     const pr = parseFloat(cs.paddingRight) || 0;
     const pb = parseFloat(cs.paddingBottom) || 0;
-    const { left: bl, top: bt, right: br, bottom: bb } = sideWidths(cs, 'border', 'Width');
+    const { left: bl, top: bt, right: br, bottom: bb } = sideWidths(cs, "border", "Width");
     let textLeft = rect.left - vp.x + bl + pl;
     let textTop = rect.top - vp.y + bt + pt;
     const textHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
@@ -115,7 +130,8 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // these button types here keeps the renderer's textTop = line-box-top
     // contract intact.
     const display = cs.display;
-    const isFlexLike = display === 'flex' || display === 'inline-flex' || display === 'grid' || display === 'inline-grid';
+    const isFlexLike =
+      display === "flex" || display === "inline-flex" || display === "grid" || display === "inline-grid";
     // DM-1587: Chrome vertically centers a single-line `<input>`'s value text within
     // its content box for EVERY input type (the text-field editing host centers its
     // single line), not just submit/button/reset (DM-666) or flex/align-center
@@ -124,11 +140,11 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // (height 42, font 16, no vertical padding → the value sat ~10px too high). A
     // `<textarea>` lays multiple lines from the top, so it stays top-anchored unless
     // it's an explicit flex/align-center container.
-    const isSingleLineInput = tag === 'input';
-    if (isSingleLineInput || (isFlexLike && cs.alignItems === 'center')) {
+    const isSingleLineInput = tag === "input";
+    if (isSingleLineInput || (isFlexLike && cs.alignItems === "center")) {
       const contentH = rect.height - bt - bb - pt - pb;
       if (contentH > textHeight + 0.5) {
-        textTop = (rect.top - vp.y + bt + pt) + (contentH - textHeight) / 2;
+        textTop = rect.top - vp.y + bt + pt + (contentH - textHeight) / 2;
       }
     }
     const metrics = measureFontMetrics(cs);
@@ -146,7 +162,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // and every line paints ~half-leading too low (14px/21px monospace textareas
     // rendered a uniform ~3px down, clipping the last visible line).
     const textTopLineBox = textTop;
-    if (cs.lineHeight !== 'normal' && textHeight > fontH + 0.5) {
+    if (cs.lineHeight !== "normal" && textHeight > fontH + 0.5) {
       // DM-1259: an EXPLICIT line-height TALLER than the font → positive
       // half-leading; the single line's text is centered in the line box, LOWER
       // than the line-box top (`06-deep-input-baseline`'s `line-height:35.2` /
@@ -172,15 +188,17 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // 0.5 CSS px low, which rasterized one device pixel low). Prefer the
     // pierced, same-frame text quad when the host dimensions prove there was no
     // scale/rotation between the retained quad and this neutral capture.
-    const usedTextGeometry = typeof valueTextGeometryKey === 'string' && valueTextGeometryKey !== ''
-      ? el[valueTextGeometryKey] : null;
-    if (tag === 'input'
-        && usedTextGeometry?.source === 'chromium-ua-shadow-text-quad-v1'
-        && isFinite(usedTextGeometry.hostWidth)
-        && isFinite(usedTextGeometry.hostHeight)
-        && isFinite(usedTextGeometry.textTopOffset)
-        && Math.abs(rect.width - usedTextGeometry.hostWidth) <= 0.05
-        && Math.abs(rect.height - usedTextGeometry.hostHeight) <= 0.05) {
+    const usedTextGeometry =
+      typeof valueTextGeometryKey === "string" && valueTextGeometryKey !== "" ? el[valueTextGeometryKey] : null;
+    if (
+      tag === "input" &&
+      usedTextGeometry?.source === "chromium-ua-shadow-text-quad-v1" &&
+      isFinite(usedTextGeometry.hostWidth) &&
+      isFinite(usedTextGeometry.hostHeight) &&
+      isFinite(usedTextGeometry.textTopOffset) &&
+      Math.abs(rect.width - usedTextGeometry.hostWidth) <= 0.05 &&
+      Math.abs(rect.height - usedTextGeometry.hostHeight) <= 0.05
+    ) {
       textTop = rect.top - vp.y + usedTextGeometry.textTopOffset;
     }
 
@@ -192,13 +210,13 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // xOffsets live inside `textSegments`).
     let textSegments;
     let inputXOffsets;
-    if (text.length > 0 && tag === 'input') {
-      const probe = document.createElement('span');
-      probe.style.position = 'absolute';
-      probe.style.left = '-9999px';
-      probe.style.top = '-9999px';
-      probe.style.visibility = 'hidden';
-      probe.style.whiteSpace = 'pre';
+    if (text.length > 0 && tag === "input") {
+      const probe = document.createElement("span");
+      probe.style.position = "absolute";
+      probe.style.left = "-9999px";
+      probe.style.top = "-9999px";
+      probe.style.visibility = "hidden";
+      probe.style.whiteSpace = "pre";
       probe.style.fontFamily = cs.fontFamily;
       probe.style.fontSize = cs.fontSize;
       probe.style.fontWeight = cs.fontWeight;
@@ -218,7 +236,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
         let i = 0;
         while (i < text.length) {
           const code = text.charCodeAt(i);
-          const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length;
+          const isHigh = code >= 0xd800 && code <= 0xdbff && i + 1 < text.length;
           const step = isHigh ? 2 : 1;
           const rng = document.createRange();
           rng.setStart(probeNode, i);
@@ -235,8 +253,9 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
         const dir = cs.direction;
         let shift = 0;
         if (slack > 0) {
-          if (align === 'center') shift = slack / 2;
-          else if (align === 'right' || (align === 'end' && dir !== 'rtl') || (align === 'start' && dir === 'rtl')) shift = slack;
+          if (align === "center") shift = slack / 2;
+          else if (align === "right" || (align === "end" && dir !== "rtl") || (align === "start" && dir === "rtl"))
+            shift = slack;
         }
         if (shift !== 0) {
           textLeft += shift;
@@ -258,23 +277,23 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     // some browsers short-circuit Range.getBoundingClientRect for
     // visually-clipped subtrees). `left: 0; top: -100000px` keeps the
     // probe at width-honoring layout while keeping it visually offscreen.
-    if (text.length > 0 && tag === 'textarea') {
+    if (text.length > 0 && tag === "textarea") {
       const contentBoxW = rect.width - bl - br - pl - pr;
       const contentBoxH = rect.height - bt - bb - pt - pb;
-      const probe = document.createElement('div');
-      probe.style.position = 'absolute';
-      probe.style.left = '0';
-      probe.style.top = '-100000px';
-      probe.style.visibility = 'hidden';
-      probe.style.boxSizing = 'content-box';
-      probe.style.width = contentBoxW + 'px';
+      const probe = document.createElement("div");
+      probe.style.position = "absolute";
+      probe.style.left = "0";
+      probe.style.top = "-100000px";
+      probe.style.visibility = "hidden";
+      probe.style.boxSizing = "content-box";
+      probe.style.width = contentBoxW + "px";
       // No height constraint — let the probe grow to fit; Chrome's textarea
       // scrolls if the content exceeds its height, but the painted positions
       // for the visible chars match what an unscrolled tall box would
       // produce (per-line positions are independent of scroll).
-      probe.style.padding = '0';
-      probe.style.margin = '0';
-      probe.style.border = '0';
+      probe.style.padding = "0";
+      probe.style.margin = "0";
+      probe.style.border = "0";
       probe.style.fontFamily = cs.fontFamily;
       probe.style.fontSize = cs.fontSize;
       probe.style.fontWeight = cs.fontWeight;
@@ -295,13 +314,13 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
       // textarea's computed value — the textarea's UA stylesheet pins this
       // and we want the probe to match regardless of any page-author
       // override that didn't actually apply.
-      probe.style.whiteSpace = 'pre-wrap';
-      probe.style.wordWrap = cs.wordWrap || 'normal';
-      probe.style.overflowWrap = cs.overflowWrap || 'normal';
-      probe.style.wordBreak = cs.wordBreak || 'normal';
+      probe.style.whiteSpace = "pre-wrap";
+      probe.style.wordWrap = cs.wordWrap || "normal";
+      probe.style.overflowWrap = cs.overflowWrap || "normal";
+      probe.style.wordBreak = cs.wordBreak || "normal";
       // hyphens — only matters when soft-hyphen / hyphens: auto are used;
       // mirror to match the real textarea's wrapping.
-      probe.style.hyphens = cs.hyphens || 'manual';
+      probe.style.hyphens = cs.hyphens || "manual";
       probe.textContent = text;
       document.body.appendChild(probe);
       const probeNode = probe.firstChild;
@@ -319,12 +338,15 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
           const ch = text[i];
           // Skip the newline itself — it's a hard break, not a painted
           // glyph. The next visible char starts a new line via cur === null.
-          if (ch === '\n') {
-            if (cur != null) { lines.push(cur); cur = null; }
+          if (ch === "\n") {
+            if (cur != null) {
+              lines.push(cur);
+              cur = null;
+            }
             continue;
           }
           const code = text.charCodeAt(i);
-          const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length;
+          const isHigh = code >= 0xd800 && code <= 0xdbff && i + 1 < text.length;
           const step = isHigh ? 2 : 1;
           const rng = document.createRange();
           rng.setStart(probeNode, i);
@@ -333,7 +355,10 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
           // Zero-width / zero-height rect → invisible (e.g. a trailing
           // space at a wrap point). Skip; the next visible char tells us
           // where the new line starts.
-          if (cr.width === 0 && cr.height === 0) { i += step - 1; continue; }
+          if (cr.width === 0 && cr.height === 0) {
+            i += step - 1;
+            continue;
+          }
           const charLeft = cr.left - probeOriginX;
           const charTop = cr.top - probeOriginY;
           const charRight = cr.right - probeOriginX;
@@ -341,7 +366,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
           // New line if we haven't started one, or the Y jumped down.
           if (cur == null || charTop - cur.top > Math.max(1, (cur.bottom - cur.top) * 0.5)) {
             if (cur != null) lines.push(cur);
-            cur = { text: '', xOffsets: [], top: charTop, bottom: charBottom, left: charLeft, right: charRight };
+            cur = { text: "", xOffsets: [], top: charTop, bottom: charBottom, left: charLeft, right: charRight };
           }
           for (let k = 0; k < step; k++) {
             cur.text += text[i + k];
@@ -354,7 +379,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
         if (cur != null) lines.push(cur);
         // Emit textSegments — one per visual line. y is viewport-relative
         // (textTop + offset within the probe).
-        textSegments = lines.map(ln => ({
+        textSegments = lines.map((ln) => ({
           text: ln.text,
           x: textLeft + ln.left,
           // Snap to a whole pixel: Chrome positions glyphs with SUBPIXEL
@@ -390,12 +415,12 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
     let placeholderFontFamily;
     let placeholderFontFamilyStack;
     if (isPlaceholderCapture) {
-      const phCs = window.getComputedStyle(el, '::placeholder');
+      const phCs = window.getComputedStyle(el, "::placeholder");
       placeholderColor = normColor(phCs.color || cs.color);
       placeholderFontStyle = phCs.fontStyle;
       placeholderFontWeight = phCs.fontWeight;
       placeholderFontFamily = phCs.fontFamily;
-      placeholderFontFamilyStack = fontFamilyStackFor(el, phCs.fontFamily, '::placeholder');
+      placeholderFontFamilyStack = fontFamilyStackFor(el, phCs.fontFamily, "::placeholder");
     }
 
     return {

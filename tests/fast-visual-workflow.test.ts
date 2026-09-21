@@ -2,18 +2,9 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const workflow = readFileSync(
-  resolve(__dirname, "..", ".github", "workflows", "fast-visual-tests.yml"),
-  "utf8",
-);
-const driver = readFileSync(
-  resolve(__dirname, "..", "scripts", "ci-run-fast-visuals.mjs"),
-  "utf8",
-);
-const baselineDriver = readFileSync(
-  resolve(__dirname, "..", "scripts", "ci-fast-baselines.mjs"),
-  "utf8",
-);
+const workflow = readFileSync(resolve(__dirname, "..", ".github", "workflows", "fast-visual-tests.yml"), "utf8");
+const driver = readFileSync(resolve(__dirname, "..", "scripts", "ci-run-fast-visuals.mjs"), "utf8");
+const baselineDriver = readFileSync(resolve(__dirname, "..", "scripts", "ci-fast-baselines.mjs"), "utf8");
 
 describe("all-platform fast visual workflow", () => {
   const jobs = (() => {

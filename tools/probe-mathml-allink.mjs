@@ -26,11 +26,22 @@ for (const it of items) {
       for (let x = 0; x < it.w; x++) if (buf[y * it.w + x] < 128) dark++;
       rows.push(dark);
     }
-    let firstY = -1, lastY = -1;
-    for (let y = 0; y < it.h; y++) { if (rows[y] > 0) { firstY = y; break; } }
-    for (let y = it.h - 1; y >= 0; y--) { if (rows[y] > 0) { lastY = y; break; } }
+    let firstY = -1,
+      lastY = -1;
+    for (let y = 0; y < it.h; y++) {
+      if (rows[y] > 0) {
+        firstY = y;
+        break;
+      }
+    }
+    for (let y = it.h - 1; y >= 0; y--) {
+      if (rows[y] > 0) {
+        lastY = y;
+        break;
+      }
+    }
     const topY = it.y0 + firstY;
     const botY = it.y0 + lastY;
-    console.log(`  ${variant}: ink y=${topY} to ${botY} (h=${botY-topY+1}); center=${(topY+botY)/2}`);
+    console.log(`  ${variant}: ink y=${topY} to ${botY} (h=${botY - topY + 1}); center=${(topY + botY) / 2}`);
   }
 }

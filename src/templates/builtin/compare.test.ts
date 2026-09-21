@@ -6,7 +6,12 @@ const parse = (v: unknown): ReturnType<typeof compareParamsSchema.parse> => comp
 
 describe("compare — clip reveal geometry (DM-1533)", () => {
   it("horizontal directions use clipScaleX with the anchored origin", () => {
-    expect(revealAnimation("right", 1000)).toMatchObject({ property: "clipScaleX", from: 0, to: 1, transformOrigin: "left" });
+    expect(revealAnimation("right", 1000)).toMatchObject({
+      property: "clipScaleX",
+      from: 0,
+      to: 1,
+      transformOrigin: "left",
+    });
     expect(revealAnimation("left", 1000)).toMatchObject({ property: "clipScaleX", transformOrigin: "right" });
   });
 
@@ -26,7 +31,9 @@ describe("compare — clip reveal geometry (DM-1533)", () => {
 
 describe("compare — overlay markup (DM-1533)", () => {
   it("renders only the labels that are provided", () => {
-    const both = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old", afterLabel: "New" }));
+    const both = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", beforeLabel: "Old", afterLabel: "New" }),
+    );
     expect(both).toContain(">Old<");
     expect(both).toContain(">New<");
     const none = compareOverlayMarkup(parse({ before: "a.png", after: "b.png" }));
@@ -47,23 +54,33 @@ describe("compare — overlay markup (DM-1533)", () => {
   });
 
   it("the horizontal divider sweeps translateX 0→W; vertical uses translateY 0→H", () => {
-    const right = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", mode: "slide", direction: "right", width: 800 }));
+    const right = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", mode: "slide", direction: "right", width: 800 }),
+    );
     expect(right).toContain("translateX(0px)");
     expect(right).toContain("translateX(800px)");
-    const down = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", mode: "slide", direction: "down", height: 600 }));
+    const down = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", mode: "slide", direction: "down", height: 600 }),
+    );
     expect(down).toContain("translateY(0px)");
     expect(down).toContain("translateY(600px)");
   });
 
   it("a single label crossfades before→after over the reveal (not two fixed labels)", () => {
-    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old", afterLabel: "New", durationMs: 1000, holdMs: 4000 }));
+    const m = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", beforeLabel: "Old", afterLabel: "New", durationMs: 1000, holdMs: 4000 }),
+    );
     // Both texts share one pill (one <rect>), each on its own crossfade class.
     expect((m.match(/rx="22"/g) ?? []).length).toBe(1);
     expect(m).toContain('class="cmp-lbl-b"'); // before: 1→0
     expect(m).toContain('class="cmp-lbl-a"'); // after: 0→1
     // reveal ends at 25% of the loop; the swap is a short flip around its midpoint.
-    expect(m).toContain("@keyframes cmp-lbl-b{0%,10.50%{opacity:1;transform:translateY(0)}14.50%,100%{opacity:0;transform:translateY(-9px)}}");
-    expect(m).toContain("@keyframes cmp-lbl-a{0%,10.50%{opacity:0;transform:translateY(9px)}14.50%,100%{opacity:1;transform:translateY(0)}}");
+    expect(m).toContain(
+      "@keyframes cmp-lbl-b{0%,10.50%{opacity:1;transform:translateY(0)}14.50%,100%{opacity:0;transform:translateY(-9px)}}",
+    );
+    expect(m).toContain(
+      "@keyframes cmp-lbl-a{0%,10.50%{opacity:0;transform:translateY(9px)}14.50%,100%{opacity:1;transform:translateY(0)}}",
+    );
   });
 
   it("with only one label, shows it statically (no crossfade)", () => {
@@ -79,13 +96,17 @@ describe("compare — overlay markup (DM-1533)", () => {
 
   it("the divider hold point is the reveal duration as a % of the total", () => {
     // durationMs 1000 of holdMs 4000 → the divider reaches the far edge at 25%.
-    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", mode: "slide", durationMs: 1000, holdMs: 4000 }));
+    const m = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", mode: "slide", durationMs: 1000, holdMs: 4000 }),
+    );
     expect(m).toContain("25.00%");
   });
 
   it("adaptive scale + safe area (DM-1541/DM-1538): a reel format enlarges the pill and nudges it inside the safe inset", () => {
     const reel = resolveFormat("reel"); // 1080×1920, safe inset {230,65,346,65}
-    const base = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old", width: reel.width, height: reel.height }));
+    const base = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", beforeLabel: "Old", width: reel.width, height: reel.height }),
+    );
     const framed = compareOverlayMarkup(
       parse({ before: "a.png", after: "b.png", beforeLabel: "Old", width: reel.width, height: reel.height }),
       reel.safeInset,

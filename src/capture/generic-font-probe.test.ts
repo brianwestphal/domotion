@@ -29,11 +29,19 @@ describe("genericFamilyProbeTargets", () => {
     expect(new Set(targets.map((target) => target.id)).size).toBe(targets.length);
 
     const scripted = targets.filter((target) => target.lang != null);
-    expect(new Set(scripted.map((target) => target.lang)))
-      .toEqual(new Set(["ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el", "en", "he", "hi"]));
+    expect(new Set(scripted.map((target) => target.lang))).toEqual(
+      new Set(["ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el", "en", "he", "hi"]),
+    );
     for (const lang of ["ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el", "en", "he", "hi"]) {
-      expect(scripted.filter((target) => target.lang === lang).map((target) => target.generic))
-        .toEqual(["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"]);
+      expect(scripted.filter((target) => target.lang === lang).map((target) => target.generic)).toEqual([
+        "standard",
+        "serif",
+        "sans-serif",
+        "monospace",
+        "cursive",
+        "fantasy",
+        "math",
+      ]);
     }
   });
 
@@ -66,12 +74,14 @@ describe("genericFamilyProbeTargets", () => {
   it("extracts response and flattened shadow-tree language facts from DOMSnapshot", () => {
     const snapshot = {
       strings: ["th", "lang", "ka", "xml:lang", "hy", "class", "ignored"],
-      documents: [{
-        contentLanguage: 0,
-        nodes: {
-          attributes: [[], [1, 2], [3, 4], [5, 6]],
+      documents: [
+        {
+          contentLanguage: 0,
+          nodes: {
+            attributes: [[], [1, 2], [3, 4], [5, 6]],
+          },
         },
-      }],
+      ],
     };
     expect(languagesFromDomSnapshot(snapshot)).toEqual(["th", "ka", "hy"]);
   });
@@ -97,9 +107,7 @@ describe("genericFamilyProbeTargets", () => {
       common: { serif: "SourceSerifPS" },
       byScript: { ARABIC: { "sans-serif": "SourceArabicPS" } },
     });
-    const restored = deserializeSessionGenericFamilyProbe(
-      JSON.parse(JSON.stringify(serialized)),
-    );
+    const restored = deserializeSessionGenericFamilyProbe(JSON.parse(JSON.stringify(serialized)));
     expect([...restored.common]).toEqual([...live.common]);
     expect([...restored.byScript.get("ARABIC")!]).toEqual([...live.byScript.get("ARABIC")!]);
   });

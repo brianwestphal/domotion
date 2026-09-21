@@ -49,10 +49,30 @@ const EDITOR_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 const DURATIONS = [300, 150, 150, 150, 300];
 const FRAMES = [
   { input: "./editor.html", duration: DURATIONS[0], transition: { type: "cut", duration: 0 } },
-  { continue: true, duration: DURATIONS[1], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "ins(3)" }] },
-  { continue: true, duration: DURATIONS[2], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "ins(6)" }] },
-  { continue: true, duration: DURATIONS[3], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "ins(10)" }] },
-  { continue: true, duration: DURATIONS[4], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "colorize()" }] },
+  {
+    continue: true,
+    duration: DURATIONS[1],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "ins(3)" }],
+  },
+  {
+    continue: true,
+    duration: DURATIONS[2],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "ins(6)" }],
+  },
+  {
+    continue: true,
+    duration: DURATIONS[3],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "ins(10)" }],
+  },
+  {
+    continue: true,
+    duration: DURATIONS[4],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "colorize()" }],
+  },
 ];
 
 async function setup() {
@@ -143,7 +163,9 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
     const splitFrames = [
       { input: "./editor.html", duration: durations[0], transition: { type: "cut", duration: 0 } },
       ...scripts.map((script, k) => ({
-        continue: true, duration: durations[k + 1], transition: { type: "cut", duration: 0 },
+        continue: true,
+        duration: durations[k + 1],
+        transition: { type: "cut", duration: 0 },
         actions: [{ type: "evaluate", script }],
       })),
     ];
@@ -163,7 +185,11 @@ describeBrowser("autoCompress: pixel-identical to the flipbook (DM-1757)", () =>
     expect(comp.frames[0].embeddedAnimationPeriodMs).toBe(durations[0] + durations[1] + durations[2]);
     expect(comp.frames[1].embeddedAnimationPeriodMs).toBeUndefined(); // plain captured frame
     expect(comp.frames[2].embeddedAnimationPeriodMs).toBe(durations[4] + durations[5] + durations[6]);
-    expect(compLogs.some((l) => /auto-compress: leaving frame 3 uncompressed — an explicit cursor event addresses frame 3/.test(l))).toBe(true);
+    expect(
+      compLogs.some((l) =>
+        /auto-compress: leaving frame 3 uncompressed — an explicit cursor event addresses frame 3/.test(l),
+      ),
+    ).toBe(true);
     expect(compLogs.some((l) => /auto-compress: collapsed frames 0–2 into a states run/.test(l))).toBe(true);
     expect(compLogs.some((l) => /auto-compress: collapsed frames 4–6 into a states run/.test(l))).toBe(true);
 

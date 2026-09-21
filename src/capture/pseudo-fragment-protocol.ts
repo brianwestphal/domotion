@@ -8,12 +8,7 @@
  */
 
 export type PseudoType = "checkmark" | "before" | "after";
-export type WritingMode =
-  | "horizontal-tb"
-  | "vertical-rl"
-  | "vertical-lr"
-  | "sideways-rl"
-  | "sideways-lr";
+export type WritingMode = "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr";
 
 export interface Point {
   x: number;
@@ -43,9 +38,12 @@ export function generatedImageIntrinsicPaintExceedsSlot({
   contentBoxHeight,
   naturalSizes,
 }: GeneratedImageIntrinsicPaintInput): boolean {
-  return naturalSizes.some((size) => size != null
-    && ((contentBoxWidth != null && Math.abs(contentBoxWidth - size.width) > 0.5)
-      || (contentBoxHeight != null && Math.abs(contentBoxHeight - size.height) > 0.5)));
+  return naturalSizes.some(
+    (size) =>
+      size != null &&
+      ((contentBoxWidth != null && Math.abs(contentBoxWidth - size.width) > 0.5) ||
+        (contentBoxHeight != null && Math.abs(contentBoxHeight - size.height) > 0.5)),
+  );
 }
 
 export type Quad = [Point, Point, Point, Point];
@@ -183,7 +181,9 @@ function finite(value: number): boolean {
 }
 
 function validRect(rect: Rect): boolean {
-  return finite(rect.x) && finite(rect.y) && finite(rect.width) && finite(rect.height) && rect.width >= 0 && rect.height >= 0;
+  return (
+    finite(rect.x) && finite(rect.y) && finite(rect.width) && finite(rect.height) && rect.width >= 0 && rect.height >= 0
+  );
 }
 
 function validQuad(quad: Quad): boolean {
@@ -207,9 +207,12 @@ function unionRects(rects: Rect[]): Rect {
 }
 
 function contains(outer: Rect, inner: Rect): boolean {
-  return inner.x >= outer.x - EPSILON && inner.y >= outer.y - EPSILON &&
+  return (
+    inner.x >= outer.x - EPSILON &&
+    inner.y >= outer.y - EPSILON &&
     inner.x + inner.width <= outer.x + outer.width + EPSILON &&
-    inner.y + inner.height <= outer.y + outer.height + EPSILON;
+    inner.y + inner.height <= outer.y + outer.height + EPSILON
+  );
 }
 
 function isVertical(writingMode: WritingMode): boolean {
@@ -221,16 +224,16 @@ function inlineAdvance(rect: Rect, writingMode: WritingMode): number {
 }
 
 function blockInterval(rect: Rect, writingMode: WritingMode): [number, number] {
-  return isVertical(writingMode)
-    ? [rect.x, rect.x + rect.width]
-    : [rect.y, rect.y + rect.height];
+  return isVertical(writingMode) ? [rect.x, rect.x + rect.width] : [rect.y, rect.y + rect.height];
 }
 
 function axisAligned(quad: Quad): boolean {
-  return Math.abs(quad[0].y - quad[1].y) <= EPSILON &&
+  return (
+    Math.abs(quad[0].y - quad[1].y) <= EPSILON &&
     Math.abs(quad[1].x - quad[2].x) <= EPSILON &&
     Math.abs(quad[2].y - quad[3].y) <= EPSILON &&
-    Math.abs(quad[3].x - quad[0].x) <= EPSILON;
+    Math.abs(quad[3].x - quad[0].x) <= EPSILON
+  );
 }
 
 function addEdges(a: PhysicalEdges, b: PhysicalEdges): PhysicalEdges {
@@ -338,15 +341,25 @@ export function blinkTextPaintBaseline(
 
 function selectAggregateRow(rows: SnapshotLayoutRow[]): SnapshotLayoutRow | null {
   if (rows.length === 0) return null;
-  const candidates = rows.filter((row) => row.text == null && rows.every((other) => row === other || contains(row.bounds, other.bounds)));
-  return (candidates.length > 0 ? candidates : rows.filter((row) => row.text == null))
-    .sort((a, b) => a.layoutIndex - b.layoutIndex)[0] ?? null;
+  const candidates = rows.filter(
+    (row) => row.text == null && rows.every((other) => row === other || contains(row.bounds, other.bounds)),
+  );
+  return (
+    (candidates.length > 0 ? candidates : rows.filter((row) => row.text == null)).sort(
+      (a, b) => a.layoutIndex - b.layoutIndex,
+    )[0] ?? null
+  );
 }
 
-function buildItemsAndEvents(rows: SnapshotLayoutRow[], aggregate: SnapshotLayoutRow | null): {
-  contentItems: PseudoContentItem[];
-  events: FragmentEvent[];
-} | { error: string } {
+function buildItemsAndEvents(
+  rows: SnapshotLayoutRow[],
+  aggregate: SnapshotLayoutRow | null,
+):
+  | {
+      contentItems: PseudoContentItem[];
+      events: FragmentEvent[];
+    }
+  | { error: string } {
   const contentRows = rows.filter((row) => row !== aggregate).sort((a, b) => a.layoutIndex - b.layoutIndex);
   const contentItems: PseudoContentItem[] = [];
   const events: FragmentEvent[] = [];
@@ -367,7 +380,12 @@ function buildItemsAndEvents(rows: SnapshotLayoutRow[], aggregate: SnapshotLayou
     for (const box of row.textBoxes) {
       if (!validRect(box.bounds)) return { error: `invalid text-box bounds at ${row.layoutIndex}` };
       const end = box.startUtf16 + box.lengthUtf16;
-      if (!Number.isInteger(box.startUtf16) || !Number.isInteger(box.lengthUtf16) || box.startUtf16 < 0 || end > row.text!.length) {
+      if (
+        !Number.isInteger(box.startUtf16) ||
+        !Number.isInteger(box.lengthUtf16) ||
+        box.startUtf16 < 0 ||
+        end > row.text!.length
+      ) {
         return { error: `invalid UTF-16 range ${box.startUtf16}:${end} for layout ${row.layoutIndex}` };
       }
       events.push({
@@ -390,22 +408,26 @@ function groupEvents(events: FragmentEvent[], writingMode: WritingMode): Fragmen
   let currentBlock: [number, number] | null = null;
   for (const event of events) {
     const block = blockInterval(event.localRect, writingMode);
-    const overlaps = currentBlock != null && Math.min(currentBlock[1], block[1]) >= Math.max(currentBlock[0], block[0]) - EPSILON;
+    const overlaps =
+      currentBlock != null && Math.min(currentBlock[1], block[1]) >= Math.max(currentBlock[0], block[0]) - EPSILON;
     if (current.length > 0 && !overlaps) {
       groups.push(current);
       current = [];
       currentBlock = null;
     }
     current.push(event);
-    currentBlock = currentBlock == null
-      ? block
-      : [Math.min(currentBlock[0], block[0]), Math.max(currentBlock[1], block[1])];
+    currentBlock =
+      currentBlock == null ? block : [Math.min(currentBlock[0], block[0]), Math.max(currentBlock[1], block[1])];
   }
   if (current.length > 0) groups.push(current);
   return groups;
 }
 
-function ambiguous(input: PseudoProtocolInput, reason: string, contentItems: PseudoContentItem[] = []): DecodedPseudoFragmentSet {
+function ambiguous(
+  input: PseudoProtocolInput,
+  reason: string,
+  contentItems: PseudoContentItem[] = [],
+): DecodedPseudoFragmentSet {
   return {
     hostCorrelationId: input.hostCorrelationId,
     pseudo: input.pseudo,
@@ -427,13 +449,27 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
     direction: input.style.direction,
   };
   if (input.protocolAvailable === false) {
-    return { ...base, status: "protocol-unavailable", reason: "Chromium protocol unavailable", contentItems: [], boxFragments: [], fragments: [] };
+    return {
+      ...base,
+      status: "protocol-unavailable",
+      reason: "Chromium protocol unavailable",
+      contentItems: [],
+      boxFragments: [],
+      fragments: [],
+    };
   }
   if (input.layoutRows.some((row) => !validRect(row.bounds)) || input.contentQuads.some((quad) => !validQuad(quad))) {
     return ambiguous(input, "non-finite or negative protocol geometry");
   }
   if (input.layoutRows.length === 0 || input.contentQuads.length === 0) {
-    return { ...base, status: "unpainted", reason: "pseudo has no observable layout fragments", contentItems: [], boxFragments: [], fragments: [] };
+    return {
+      ...base,
+      status: "unpainted",
+      reason: "pseudo has no observable layout fragments",
+      contentItems: [],
+      boxFragments: [],
+      fragments: [],
+    };
   }
 
   const aggregate = selectAggregateRow(input.layoutRows);
@@ -443,9 +479,16 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
 
   // An empty decorative box has no anonymous child rows but remains a real
   // box fragment. All non-empty rows must pair one-for-one with ordered quads.
-  const groups = events.length === 0 ? input.contentQuads.map(() => [] as FragmentEvent[]) : groupEvents(events, input.style.writingMode);
+  const groups =
+    events.length === 0
+      ? input.contentQuads.map(() => [] as FragmentEvent[])
+      : groupEvents(events, input.style.writingMode);
   if (groups.length !== input.contentQuads.length) {
-    return ambiguous(input, `ordered fragment cardinality mismatch: ${groups.length} snapshot groups, ${input.contentQuads.length} quads`, contentItems);
+    return ambiguous(
+      input,
+      `ordered fragment cardinality mismatch: ${groups.length} snapshot groups, ${input.contentQuads.length} quads`,
+      contentItems,
+    );
   }
 
   const boxFragments: PseudoBoxFragment[] = [];
@@ -465,15 +508,21 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
     // this unfragmented case. Fragmented inline/multicol pseudos still require
     // the per-group content union + owned edge insets because their aggregate
     // row spans several independently translated fragments.
-    const localBorderRect = contentRect == null
-      ? aggregate?.bounds ?? null
-      : input.contentQuads.length === 1 && aggregate != null
-        ? aggregate.bounds
-        : expand(contentRect, insets);
-    if (localBorderRect == null) return ambiguous(input, "box quad has no matching aggregate or content geometry", contentItems);
+    const localBorderRect =
+      contentRect == null
+        ? (aggregate?.bounds ?? null)
+        : input.contentQuads.length === 1 && aggregate != null
+          ? aggregate.bounds
+          : expand(contentRect, insets);
+    if (localBorderRect == null)
+      return ambiguous(input, "box quad has no matching aggregate or content geometry", contentItems);
 
     let translation: Point | null = null;
-    if (axisAligned(quad) && Math.abs(localBorderRect.width - physicalRect.width) <= EPSILON && Math.abs(localBorderRect.height - physicalRect.height) <= EPSILON) {
+    if (
+      axisAligned(quad) &&
+      Math.abs(localBorderRect.width - physicalRect.width) <= EPSILON &&
+      Math.abs(localBorderRect.height - physicalRect.height) <= EPSILON
+    ) {
       translation = { x: physicalRect.x - localBorderRect.x, y: physicalRect.y - localBorderRect.y };
     }
     boxFragments.push({
@@ -503,7 +552,12 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
       }
       const protocolAdvance = inlineAdvance(event.localRect, input.style.writingMode);
       const shapedAdvance = event.shapedAdvance ?? protocolAdvance;
-      const localBaseline = blinkTextPaintBaseline(event.localRect, input.style.writingMode, input.style.primaryFontAscent, shapedAdvance);
+      const localBaseline = blinkTextPaintBaseline(
+        event.localRect,
+        input.style.writingMode,
+        input.style.primaryFontAscent,
+        shapedAdvance,
+      );
       const physicalBaseline = {
         origin: mapPoint(localBaseline.origin, localBorderRect, quad),
         end: mapPoint(localBaseline.end, localBorderRect, quad),
@@ -536,9 +590,11 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
 export function protocolRecordErrors(input: PseudoProtocolInput, record: DecodedPseudoFragmentSet): string[] {
   const errors: string[] = [];
   if (record.status !== "exact") return [`record is ${record.status}: ${record.reason ?? "unknown"}`];
-  if (record.boxFragments.length !== input.contentQuads.length) errors.push("box-fragment cardinality differs from content quads");
+  if (record.boxFragments.length !== input.contentQuads.length)
+    errors.push("box-fragment cardinality differs from content quads");
   for (let i = 0; i < Math.min(record.boxFragments.length, input.contentQuads.length); i++) {
-    if (JSON.stringify(record.boxFragments[i].physicalQuad) !== JSON.stringify(input.contentQuads[i])) errors.push(`box fragment ${i} does not retain its protocol quad`);
+    if (JSON.stringify(record.boxFragments[i].physicalQuad) !== JSON.stringify(input.contentQuads[i]))
+      errors.push(`box fragment ${i} does not retain its protocol quad`);
   }
   const aggregate = selectAggregateRow(input.layoutRows);
   const built = buildItemsAndEvents(input.layoutRows, aggregate);
@@ -549,32 +605,51 @@ export function protocolRecordErrors(input: PseudoProtocolInput, record: Decoded
     const actual = record.fragments[i];
     const expected = built.events[i];
     if (actual.kind !== expected.kind) errors.push(`fragment ${i} changed anonymous child kind`);
-    if (actual.contentItemIndex !== expected.contentItemIndex) errors.push(`fragment ${i} changed content-item ownership`);
+    if (actual.contentItemIndex !== expected.contentItemIndex)
+      errors.push(`fragment ${i} changed content-item ownership`);
     if (actual.visualOrder !== i) errors.push(`fragment ${i} changed protocol visual order`);
     if (actual.kind === "text" && expected.kind === "text") {
-      if (actual.sourceStartUtf16 !== expected.startUtf16 || actual.sourceEndUtf16 !== expected.endUtf16 || actual.text !== expected.text) {
+      if (
+        actual.sourceStartUtf16 !== expected.startUtf16 ||
+        actual.sourceEndUtf16 !== expected.endUtf16 ||
+        actual.text !== expected.text
+      ) {
         errors.push(`fragment ${i} changed its UTF-16 source slice`);
       }
-      const local = blinkTextPaintBaseline(expected.localRect, input.style.writingMode, input.style.primaryFontAscent, actual.shapedInlineAdvance);
+      const local = blinkTextPaintBaseline(
+        expected.localRect,
+        input.style.writingMode,
+        input.style.primaryFontAscent,
+        actual.shapedInlineAdvance,
+      );
       const box = record.boxFragments[actual.boxFragmentIndex];
       if (box?.localBorderRect != null) {
         const expectedOrigin = mapPoint(local.origin, box.localBorderRect, box.physicalQuad);
         const expectedEnd = mapPoint(local.end, box.localBorderRect, box.physicalQuad);
-        if (Math.hypot(actual.baseline.origin.x - expectedOrigin.x, actual.baseline.origin.y - expectedOrigin.y) > EPSILON) errors.push(`fragment ${i} baseline does not use primary ascent/writing transform`);
-        if (Math.hypot(actual.baseline.end.x - expectedEnd.x, actual.baseline.end.y - expectedEnd.y) > EPSILON) errors.push(`fragment ${i} baseline advance does not use the writing transform`);
+        if (
+          Math.hypot(actual.baseline.origin.x - expectedOrigin.x, actual.baseline.origin.y - expectedOrigin.y) > EPSILON
+        )
+          errors.push(`fragment ${i} baseline does not use primary ascent/writing transform`);
+        if (Math.hypot(actual.baseline.end.x - expectedEnd.x, actual.baseline.end.y - expectedEnd.y) > EPSILON)
+          errors.push(`fragment ${i} baseline advance does not use the writing transform`);
       }
     }
   }
   for (let i = 0; i < record.boxFragments.length; i++) {
     const expected = edgeOwnership(i, record.boxFragments.length, input.style.boxDecorationBreak);
-    if (JSON.stringify(record.boxFragments[i].edgeOwnership) !== JSON.stringify(expected)) errors.push(`box fragment ${i} changed logical edge ownership`);
+    if (JSON.stringify(record.boxFragments[i].edgeOwnership) !== JSON.stringify(expected))
+      errors.push(`box fragment ${i} changed logical edge ownership`);
     const local = record.boxFragments[i].localBorderRect;
     const quad = input.contentQuads[i];
     if (local != null && axisAligned(quad)) {
       const rect = rectFromQuad(quad);
-      const expectsTranslation = Math.abs(local.width - rect.width) <= EPSILON && Math.abs(local.height - rect.height) <= EPSILON;
+      const expectsTranslation =
+        Math.abs(local.width - rect.width) <= EPSILON && Math.abs(local.height - rect.height) <= EPSILON;
       const tx = record.boxFragments[i].fragmentainerTranslation;
-      if (expectsTranslation && (tx == null || Math.abs(tx.x - (rect.x - local.x)) > EPSILON || Math.abs(tx.y - (rect.y - local.y)) > EPSILON)) {
+      if (
+        expectsTranslation &&
+        (tx == null || Math.abs(tx.x - (rect.x - local.x)) > EPSILON || Math.abs(tx.y - (rect.y - local.y)) > EPSILON)
+      ) {
         errors.push(`box fragment ${i} lost fragmentainer translation`);
       }
     }

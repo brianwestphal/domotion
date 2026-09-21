@@ -25,11 +25,11 @@ Requires `cmake`, a C++17 compiler, and FreeType + fontconfig dev headers
 (fontconfig is REQUIRED — it backs the `fcfallback` per-codepoint query, and a
 helper built without it would answer "unknown query type"):
 
-| Distro | Install |
-| --- | --- |
+| Distro        | Install                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------- |
 | Debian/Ubuntu | `sudo apt-get install -y build-essential cmake libfreetype-dev libfontconfig-dev pkg-config` |
-| Fedora | `sudo dnf install -y gcc-c++ cmake freetype-devel fontconfig-devel pkgconf-pkg-config` |
-| Arch | `sudo pacman -S --needed base-devel cmake freetype2 fontconfig pkgconf` |
+| Fedora        | `sudo dnf install -y gcc-c++ cmake freetype-devel fontconfig-devel pkgconf-pkg-config`       |
+| Arch          | `sudo pacman -S --needed base-devel cmake freetype2 fontconfig pkgconf`                      |
 
 The binary links `libfreetype.so.6` and `libfontconfig.so.1` **dynamically**.
 That is safe by construction: the helper only runs in an environment that also

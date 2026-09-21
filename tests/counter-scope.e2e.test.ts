@@ -19,7 +19,11 @@ function segmentTexts(nodes: CapturedElement[]): string[] {
 }
 
 async function setup(): Promise<Awaited<ReturnType<typeof launchChromium>> | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await setup();
 afterAll(async () => closeBrowserSafely(browser), 15_000);
@@ -47,6 +51,8 @@ describeBrowser("DM-2157: CSS counter scope follows tree order", () => {
       expect(text).toContain("A4");
       expect(text).toContain("N4.8 ");
       expect(text).toContain("B5 ");
-    } finally { await page.close(); }
+    } finally {
+      await page.close();
+    }
   });
 });

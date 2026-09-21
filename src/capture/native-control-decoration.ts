@@ -25,11 +25,9 @@ export const NATIVE_CONTROL_DECORATION_KINDS = [
   "file-selector-button",
 ] as const;
 
-export type NativeControlDecorationKind = typeof NATIVE_CONTROL_DECORATION_KINDS[number];
+export type NativeControlDecorationKind = (typeof NATIVE_CONTROL_DECORATION_KINDS)[number];
 
-const TEMPORAL_INPUT_TYPES = new Set([
-  "date", "datetime-local", "month", "time", "week",
-]);
+const TEMPORAL_INPUT_TYPES = new Set(["date", "datetime-local", "month", "time", "week"]);
 
 /**
  * Return only the decoration owners which survive after the host stops being
@@ -50,9 +48,12 @@ export function nativeControlDecorationKinds(
   // source route and fail closed later. A positively CSS-owned child is the
   // only state which leaves the existing structural pseudo renderer active.
   if (tag === "input" && type === "file") {
-    if (fileSelectorButtonAppearance === "none"
-        || fileSelectorButtonAppearance === "base"
-        || fileSelectorButtonAppearance === "base-select") return [];
+    if (
+      fileSelectorButtonAppearance === "none" ||
+      fileSelectorButtonAppearance === "base" ||
+      fileSelectorButtonAppearance === "base-select"
+    )
+      return [];
     return ["file-selector-button"];
   }
 
@@ -91,13 +92,27 @@ export function decorationFingerprintMatches(
 ): boolean {
   if (expected.kind !== actual.kind) return false;
   const numbers = [
-    expected.x, expected.y, expected.width, expected.height,
-    actual.x, actual.y, actual.width, actual.height,
+    expected.x,
+    expected.y,
+    expected.width,
+    expected.height,
+    actual.x,
+    actual.y,
+    actual.width,
+    actual.height,
   ];
-  if (!numbers.every(Number.isFinite) || expected.width <= 0 || expected.height <= 0
-      || actual.width <= 0 || actual.height <= 0) return false;
-  return Math.abs(expected.x - actual.x) <= tolerance
-    && Math.abs(expected.y - actual.y) <= tolerance
-    && Math.abs(expected.width - actual.width) <= tolerance
-    && Math.abs(expected.height - actual.height) <= tolerance;
+  if (
+    !numbers.every(Number.isFinite) ||
+    expected.width <= 0 ||
+    expected.height <= 0 ||
+    actual.width <= 0 ||
+    actual.height <= 0
+  )
+    return false;
+  return (
+    Math.abs(expected.x - actual.x) <= tolerance &&
+    Math.abs(expected.y - actual.y) <= tolerance &&
+    Math.abs(expected.width - actual.width) <= tolerance &&
+    Math.abs(expected.height - actual.height) <= tolerance
+  );
 }

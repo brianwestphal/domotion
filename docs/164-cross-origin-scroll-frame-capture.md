@@ -6,8 +6,8 @@ status: "current"
 owners: ["layout"]
 platforms: []
 tickets: []
-code: ["src/cli/capture.ts","src/scroll/executor.ts","tests/cross-origin-iframe-recursion.e2e.test.ts"]
-aliases: ["docs/164-cross-origin-scroll-frame-capture.md","doc-164"]
+code: ["src/cli/capture.ts", "src/scroll/executor.ts", "tests/cross-origin-iframe-recursion.e2e.test.ts"]
+aliases: ["docs/164-cross-origin-scroll-frame-capture.md", "doc-164"]
 ---
 
 # 164 — Cross-origin iframe recursion during scroll capture

@@ -81,8 +81,10 @@ export interface CoverageMap {
 
 export interface GlyphCompareMetrics {
   /** Ink bbox dims per image. */
-  inkWidthA: number; inkHeightA: number;
-  inkWidthB: number; inkHeightB: number;
+  inkWidthA: number;
+  inkHeightA: number;
+  inkWidthB: number;
+  inkHeightB: number;
   /** max(|Δw|, |Δh|) in px. */
   sizeDiffPx: number;
   /** max dimension ratio (≥ 1). */
@@ -92,13 +94,16 @@ export interface GlyphCompareMetrics {
   /** Peak normalized cross-correlation after alignment (0..1). */
   ncc: number;
   /** Alignment applied to B, px (diagnostic). */
-  alignDx: number; alignDy: number;
+  alignDx: number;
+  alignDy: number;
   /** Fraction of A's ink pixels farther than `outlineTolerancePx` from B's
    *  ink (and vice versa), after alignment. The AA-excluded shape signal. */
-  unexplainedA: number; unexplainedB: number;
+  unexplainedA: number;
+  unexplainedB: number;
   /** 95th-percentile / max distance (px) from each image's ink to the
    *  other's ink. */
-  d95: number; dMax: number;
+  d95: number;
+  dMax: number;
   /** Max 3×3-box-blurred |Δcoverage| after alignment. Local shape-evidence
    *  hotspot: a residual subpixel edge shift blurs to ≲ 0.2, a real patch of
    *  redistributed ink (different terminal cut, tail, spur) blurs to ≳ 0.4 —
@@ -107,17 +112,22 @@ export interface GlyphCompareMetrics {
   /** Mean stroke width per image (px), estimated as 4 × mean distance-to-
    *  background over all ink pixels (exact for a long ribbon; stable under
    *  subpixel phase, unlike ridge medians which quantize). + ln ratio. */
-  strokeWidthA: number; strokeWidthB: number; strokeLogRatio: number;
+  strokeWidthA: number;
+  strokeWidthB: number;
+  strokeLogRatio: number;
   /** p90/p10 ridge-width modulation per image + ln ratio. DIAGNOSTIC ONLY —
    *  ridge sampling quantizes too coarsely at text sizes to gate on (the
    *  same-pair noise reaches ln 2); weight/design changes are gated via
    *  mass + strokeWidth instead. */
-  strokeContrastA: number; strokeContrastB: number; contrastLogRatio: number;
+  strokeContrastA: number;
+  strokeContrastB: number;
+  contrastLogRatio: number;
   /** L1 distance between magnitude-weighted 16-bin edge-orientation
    *  histograms (0..2). */
   orientL1: number;
   /** Counter (hole) counts. */
-  holesA: number; holesB: number;
+  holesA: number;
+  holesB: number;
   /** RMS difference of 5×5 zone mean coverages (0..1). */
   zoningL2: number;
 }
@@ -262,20 +272,25 @@ export function extractCoverage(
   // Background = median of the border ring (robust to a few ink pixels
   // touching the crop edge).
   const border: number[] = [];
-  for (let x = 0; x < width; x++) { border.push(lum[x], lum[(height - 1) * width + x]); }
-  for (let y = 1; y < height - 1; y++) { border.push(lum[y * width], lum[y * width + width - 1]); }
+  for (let x = 0; x < width; x++) {
+    border.push(lum[x], lum[(height - 1) * width + x]);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    border.push(lum[y * width], lum[y * width + width - 1]);
+  }
   border.sort((a, b) => a - b);
   const bg = border[border.length >> 1];
   const borderSpread = border[Math.floor(border.length * 0.98)] - border[Math.floor(border.length * 0.02)];
   if (borderSpread > 40) {
     notes.push(
-      `non-uniform background (border luminance spread ${borderSpread.toFixed(0)}) — `
-      + "crop may clip the glyph or contain neighboring content",
+      `non-uniform background (border luminance spread ${borderSpread.toFixed(0)}) — ` +
+        "crop may clip the glyph or contain neighboring content",
     );
   }
 
   // Ink = the luminance extreme farthest from the background.
-  let minL = Infinity, maxL = -Infinity;
+  let minL = Infinity,
+    maxL = -Infinity;
   for (let i = 0; i < n; i++) {
     if (lum[i] < minL) minL = lum[i];
     if (lum[i] > maxL) maxL = lum[i];
@@ -296,7 +311,11 @@ export function extractCoverage(
   }
 
   // Ink bbox at coverage ≥ 0.5 + total mass.
-  let x0 = width, y0 = height, x1 = -1, y1 = -1, inkSum = 0;
+  let x0 = width,
+    y0 = height,
+    x1 = -1,
+    y1 = -1,
+    inkSum = 0;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const c = cov[y * width + x];
@@ -309,9 +328,7 @@ export function extractCoverage(
       }
     }
   }
-  const inkBox = x1 >= 0
-    ? { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
-    : { x: 0, y: 0, w: 0, h: 0 };
+  const inkBox = x1 >= 0 ? { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } : { x: 0, y: 0, w: 0, h: 0 };
   return { width, height, cov, inkBox, inkSum, notes };
 }
 
@@ -326,10 +343,10 @@ function dt1d(f: Float64Array, n: number, d: Float64Array, v: Int32Array, z: Flo
   z[0] = -INF;
   z[1] = INF;
   for (let q = 1; q < n; q++) {
-    let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+    let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
     while (s <= z[k]) {
       k--;
-      s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
     }
     k++;
     v[k] = q;
@@ -386,9 +403,11 @@ function centerOnCanvas(src: CoverageMap, cw: number, ch: number): Float32Array 
   // Copy a margin around the ink box too (AA skirt lives outside the ≥0.5
   // bbox); clamp to source bounds.
   const M = 4;
-  const sx0 = Math.max(0, x - M), sy0 = Math.max(0, y - M);
-  const sx1 = Math.min(src.width - 1, x + w - 1 + M), sy1 = Math.min(src.height - 1, y + h - 1 + M);
-  const dx = Math.round(cw / 2 - (x + w / 2)) ;
+  const sx0 = Math.max(0, x - M),
+    sy0 = Math.max(0, y - M);
+  const sx1 = Math.min(src.width - 1, x + w - 1 + M),
+    sy1 = Math.min(src.height - 1, y + h - 1 + M);
+  const dx = Math.round(cw / 2 - (x + w / 2));
   const dy = Math.round(ch / 2 - (y + h / 2));
   for (let sy = sy0; sy <= sy1; sy++) {
     const ty = sy + dy;
@@ -404,13 +423,21 @@ function centerOnCanvas(src: CoverageMap, cw: number, ch: number): Float32Array 
 
 /** Normalized cross-correlation of two same-size coverage arrays. */
 function nccOf(a: Float32Array, b: Float32Array): number {
-  let sa = 0, sb = 0;
+  let sa = 0,
+    sb = 0;
   const n = a.length;
-  for (let i = 0; i < n; i++) { sa += a[i]; sb += b[i]; }
-  const ma = sa / n, mb = sb / n;
-  let num = 0, da = 0, db = 0;
   for (let i = 0; i < n; i++) {
-    const xa = a[i] - ma, xb = b[i] - mb;
+    sa += a[i];
+    sb += b[i];
+  }
+  const ma = sa / n,
+    mb = sb / n;
+  let num = 0,
+    da = 0,
+    db = 0;
+  for (let i = 0; i < n; i++) {
+    const xa = a[i] - ma,
+      xb = b[i] - mb;
     num += xa * xb;
     da += xa * xa;
     db += xb * xb;
@@ -476,12 +503,24 @@ export function countHoles(mask: Uint8Array, w: number, h: number, minArea = 4):
   const stack = new Int32Array(w * h);
   // Flood the border-connected background first.
   let sp = 0;
-  const push = (p: number): void => { if (!mask[p] && !label[p]) { label[p] = 1; stack[sp++] = p; } };
-  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
-  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  const push = (p: number): void => {
+    if (!mask[p] && !label[p]) {
+      label[p] = 1;
+      stack[sp++] = p;
+    }
+  };
+  for (let x = 0; x < w; x++) {
+    push(x);
+    push((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    push(y * w);
+    push(y * w + w - 1);
+  }
   while (sp > 0) {
     const p = stack[--sp];
-    const y = (p / w) | 0, x = p - y * w;
+    const y = (p / w) | 0,
+      x = p - y * w;
     if (x > 0) push(p - 1);
     if (x < w - 1) push(p + 1);
     if (y > 0) push(p - w);
@@ -496,11 +535,28 @@ export function countHoles(mask: Uint8Array, w: number, h: number, minArea = 4):
     stack[sp++] = p;
     while (sp > 0) {
       const q = stack[--sp];
-      const y = (q / w) | 0, x = q - y * w;
-      if (x > 0 && !mask[q - 1] && !label[q - 1]) { label[q - 1] = 1; stack[sp++] = q - 1; area++; }
-      if (x < w - 1 && !mask[q + 1] && !label[q + 1]) { label[q + 1] = 1; stack[sp++] = q + 1; area++; }
-      if (y > 0 && !mask[q - w] && !label[q - w]) { label[q - w] = 1; stack[sp++] = q - w; area++; }
-      if (y < h - 1 && !mask[q + w] && !label[q + w]) { label[q + w] = 1; stack[sp++] = q + w; area++; }
+      const y = (q / w) | 0,
+        x = q - y * w;
+      if (x > 0 && !mask[q - 1] && !label[q - 1]) {
+        label[q - 1] = 1;
+        stack[sp++] = q - 1;
+        area++;
+      }
+      if (x < w - 1 && !mask[q + 1] && !label[q + 1]) {
+        label[q + 1] = 1;
+        stack[sp++] = q + 1;
+        area++;
+      }
+      if (y > 0 && !mask[q - w] && !label[q - w]) {
+        label[q - w] = 1;
+        stack[sp++] = q - w;
+        area++;
+      }
+      if (y < h - 1 && !mask[q + w] && !label[q + w]) {
+        label[q + w] = 1;
+        stack[sp++] = q + w;
+        area++;
+      }
     }
     if (area >= minArea) holes++;
   }
@@ -519,9 +575,13 @@ export function meanStrokeWidth(mask: Uint8Array, w: number, h: number): number 
   const bg = new Uint8Array(mask.length);
   for (let i = 0; i < mask.length; i++) bg[i] = mask[i] ? 0 : 1;
   const dt = distanceTransform(bg, w, h);
-  let sum = 0, n = 0;
+  let sum = 0,
+    n = 0;
   for (let i = 0; i < mask.length; i++) {
-    if (mask[i]) { sum += dt[i]; n++; }
+    if (mask[i]) {
+      sum += dt[i];
+      n++;
+    }
   }
   return n > 0 ? (4 * sum) / n : 0;
 }
@@ -543,10 +603,14 @@ export function ridgeStrokeWidths(mask: Uint8Array, w: number, h: number): numbe
       if (d <= 0.5) continue;
       // 8-neighborhood local maximum (ties allowed — plateau ridges count).
       if (
-        d >= dt[p - 1] && d >= dt[p + 1]
-        && d >= dt[p - w] && d >= dt[p + w]
-        && d >= dt[p - w - 1] && d >= dt[p - w + 1]
-        && d >= dt[p + w - 1] && d >= dt[p + w + 1]
+        d >= dt[p - 1] &&
+        d >= dt[p + 1] &&
+        d >= dt[p - w] &&
+        d >= dt[p + w] &&
+        d >= dt[p - w - 1] &&
+        d >= dt[p - w + 1] &&
+        d >= dt[p + w - 1] &&
+        d >= dt[p + w + 1]
       ) {
         widths.push(2 * d);
       }
@@ -563,12 +627,8 @@ export function orientationHistogram(cov: Float32Array, w: number, h: number): F
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const p = y * w + x;
-      const gx =
-        (cov[p - w + 1] + 2 * cov[p + 1] + cov[p + w + 1])
-        - (cov[p - w - 1] + 2 * cov[p - 1] + cov[p + w - 1]);
-      const gy =
-        (cov[p + w - 1] + 2 * cov[p + w] + cov[p + w + 1])
-        - (cov[p - w - 1] + 2 * cov[p - w] + cov[p - w + 1]);
+      const gx = cov[p - w + 1] + 2 * cov[p + 1] + cov[p + w + 1] - (cov[p - w - 1] + 2 * cov[p - 1] + cov[p + w - 1]);
+      const gy = cov[p + w - 1] + 2 * cov[p + w] + cov[p + w + 1] - (cov[p - w - 1] + 2 * cov[p - w] + cov[p - w + 1]);
       const mag = Math.sqrt(gx * gx + gy * gy);
       if (mag < 0.05) continue;
       let angle = Math.atan2(gy, gx); // -π..π
@@ -590,11 +650,15 @@ export function orientationHistogram(cov: Float32Array, w: number, h: number): F
  *  with a 0.4 px residual alignment error (a DM-1686 calibration
  *  false-mismatch source). */
 function zoningVector(
-  cov: Float32Array, w: number, h: number,
+  cov: Float32Array,
+  w: number,
+  h: number,
   box: { x: number; y: number; w: number; h: number },
-  zonesX: number, zonesY: number,
+  zonesX: number,
+  zonesY: number,
 ): Float64Array {
-  const ZX = zonesX, ZY = zonesY;
+  const ZX = zonesX,
+    ZY = zonesY;
   const out = new Float64Array(ZX * ZY);
   for (let zy = 0; zy < ZY; zy++) {
     const y0 = box.y + Math.floor((zy * box.h) / ZY);
@@ -602,7 +666,8 @@ function zoningVector(
     for (let zx = 0; zx < ZX; zx++) {
       const x0 = box.x + Math.floor((zx * box.w) / ZX);
       const x1 = box.x + Math.floor(((zx + 1) * box.w) / ZX);
-      let sum = 0, count = 0;
+      let sum = 0,
+        count = 0;
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
           if (x < 0 || x >= w || y < 0 || y >= h) continue;
@@ -625,9 +690,15 @@ function hotspotOf(a: Float32Array, b: Float32Array, w: number, h: number): numb
     for (let x = 1; x < w - 1; x++) {
       const p = y * w + x;
       const s =
-        diff[p - w - 1] + diff[p - w] + diff[p - w + 1]
-        + diff[p - 1] + diff[p] + diff[p + 1]
-        + diff[p + w - 1] + diff[p + w] + diff[p + w + 1];
+        diff[p - w - 1] +
+        diff[p - w] +
+        diff[p - w + 1] +
+        diff[p - 1] +
+        diff[p] +
+        diff[p + 1] +
+        diff[p + w - 1] +
+        diff[p + w] +
+        diff[p + w + 1];
       const m = s / 9;
       if (m > best) best = m;
     }
@@ -637,7 +708,10 @@ function hotspotOf(a: Float32Array, b: Float32Array, w: number, h: number): numb
 
 /** Ink bbox (cov ≥ 0.5) of a raw coverage array. */
 function bboxOf(cov: Float32Array, w: number, h: number): { x: number; y: number; w: number; h: number } {
-  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  let x0 = w,
+    y0 = h,
+    x1 = -1,
+    y1 = -1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (cov[y * w + x] >= 0.5) {
@@ -671,14 +745,14 @@ export function compareGlyphCoverage(
   const maxInkB = Math.max(b.inkBox.w, b.inkBox.h);
   if (maxInkA < thresholds.minInkPx || maxInkB < thresholds.minInkPx) {
     throw new Error(
-      `glyph-compare: ink too small to classify (${maxInkA}px / ${maxInkB}px; need ≥ ${thresholds.minInkPx}px). `
-      + "Re-crop at a higher scale.",
+      `glyph-compare: ink too small to classify (${maxInkA}px / ${maxInkB}px; need ≥ ${thresholds.minInkPx}px). ` +
+        "Re-crop at a higher scale.",
     );
   }
   if (Math.max(a.inkBox.h, b.inkBox.h) < thresholds.recommendedInkPx) {
     warnings.push(
-      `ink height below the recommended ${thresholds.recommendedInkPx}px — verdicts are less reliable at this `
-      + "resolution; prefer 2×+ crops",
+      `ink height below the recommended ${thresholds.recommendedInkPx}px — verdicts are less reliable at this ` +
+        "resolution; prefer 2×+ crops",
     );
   }
 
@@ -690,13 +764,15 @@ export function compareGlyphCoverage(
   let cb = centerOnCanvas(b, cw, ch);
 
   // ── Alignment: integer NCC search ±3 px, then parabolic subpixel refine ──
-  let bestDx = 0, bestDy = 0, bestNcc = -Infinity;
+  let bestDx = 0,
+    bestDy = 0,
+    bestNcc = -Infinity;
   const nccAt = new Map<string, number>();
   const evalShift = (dx: number, dy: number): number => {
     const key = `${dx},${dy}`;
     const cached = nccAt.get(key);
     if (cached != null) return cached;
-    const shifted = (dx === 0 && dy === 0) ? cb : shiftBilinear(cb, cw, ch, dx, dy);
+    const shifted = dx === 0 && dy === 0 ? cb : shiftBilinear(cb, cw, ch, dx, dy);
     const v = nccOf(ca, shifted);
     nccAt.set(key, v);
     return v;
@@ -704,14 +780,18 @@ export function compareGlyphCoverage(
   for (let dy = -3; dy <= 3; dy++) {
     for (let dx = -3; dx <= 3; dx++) {
       const v = evalShift(dx, dy);
-      if (v > bestNcc) { bestNcc = v; bestDx = dx; bestDy = dy; }
+      if (v > bestNcc) {
+        bestNcc = v;
+        bestDx = dx;
+        bestDy = dy;
+      }
     }
   }
   // Parabolic refinement per axis from the integer peak.
   const refine = (m1: number, c0: number, p1: number): number => {
     const den = m1 - 2 * c0 + p1;
     if (den >= 0) return 0; // not a peak — keep integer
-    const off = 0.5 * (m1 - p1) / den;
+    const off = (0.5 * (m1 - p1)) / den;
     return Math.max(-0.5, Math.min(0.5, off));
   };
   let fx = refine(evalShift(bestDx - 1, bestDy), evalShift(bestDx, bestDy), evalShift(bestDx + 1, bestDy));
@@ -742,8 +822,10 @@ export function compareGlyphCoverage(
   // −frac/2 to A, +frac/2 to B (the integer part stays on B; integer shifts
   // don't resample) — gives both images identical softening while keeping
   // the relative shift exact.
-  const intDx = Math.round(alignDx), intDy = Math.round(alignDy);
-  const fracDx = alignDx - intDx, fracDy = alignDy - intDy;
+  const intDx = Math.round(alignDx),
+    intDy = Math.round(alignDy);
+  const fracDx = alignDx - intDx,
+    fracDy = alignDy - intDy;
   if (fracDx !== 0 || fracDy !== 0) {
     ca = shiftBilinear(ca, cw, ch, -fracDx / 2, -fracDy / 2);
   }
@@ -757,7 +839,10 @@ export function compareGlyphCoverage(
   const dtToA = distanceTransform(ma, cw, ch);
   const distsA: number[] = [];
   const distsB: number[] = [];
-  let unexplA = 0, nA = 0, unexplB = 0, nB = 0;
+  let unexplA = 0,
+    nA = 0,
+    unexplB = 0,
+    nB = 0;
   for (let p = 0; p < cw * ch; p++) {
     if (ma[p]) {
       nA++;
@@ -783,12 +868,12 @@ export function compareGlyphCoverage(
   // ── Stroke geometry ──
   const strokeWidthA = meanStrokeWidth(ma, cw, ch);
   const strokeWidthB = meanStrokeWidth(mb, cw, ch);
-  const strokeLogRatio = (strokeWidthA > 0 && strokeWidthB > 0)
-    ? Math.log(strokeWidthA / strokeWidthB) : 0;
+  const strokeLogRatio = strokeWidthA > 0 && strokeWidthB > 0 ? Math.log(strokeWidthA / strokeWidthB) : 0;
   // Ridge-based modulation stays as a DIAGNOSTIC (quantizes too coarsely at
   // text sizes to gate on — see the metric's doc comment).
   const contrast = (ws: number[]): number => {
-    const lo = percentile(ws, 10), hi = percentile(ws, 90);
+    const lo = percentile(ws, 10),
+      hi = percentile(ws, 90);
     return lo > 0 ? hi / lo : 1;
   };
   const strokeContrastA = contrast(ridgeStrokeWidths(ma, cw, ch));
@@ -828,7 +913,10 @@ export function compareGlyphCoverage(
   const za = zoningVector(ca, cw, ch, ubox, zonesX, zonesY);
   const zb = zoningVector(cb, cw, ch, ubox, zonesX, zonesY);
   let zsum = 0;
-  for (let i = 0; i < za.length; i++) { const d = za[i] - zb[i]; zsum += d * d; }
+  for (let i = 0; i < za.length; i++) {
+    const d = za[i] - zb[i];
+    zsum += d * d;
+  }
   const zoningL2 = Math.sqrt(zsum / za.length);
 
   // ── Size ──
@@ -840,14 +928,31 @@ export function compareGlyphCoverage(
   const inkLogRatio = Math.log(a.inkSum / b.inkSum);
 
   const metrics: GlyphCompareMetrics = {
-    inkWidthA: a.inkBox.w, inkHeightA: a.inkBox.h,
-    inkWidthB: b.inkBox.w, inkHeightB: b.inkBox.h,
-    sizeDiffPx, sizeRatio, inkLogRatio, ncc,
-    alignDx, alignDy,
-    unexplainedA, unexplainedB, d95, dMax, hotspotMax,
-    strokeWidthA, strokeWidthB, strokeLogRatio,
-    strokeContrastA, strokeContrastB, contrastLogRatio,
-    orientL1, holesA, holesB, zoningL2,
+    inkWidthA: a.inkBox.w,
+    inkHeightA: a.inkBox.h,
+    inkWidthB: b.inkBox.w,
+    inkHeightB: b.inkBox.h,
+    sizeDiffPx,
+    sizeRatio,
+    inkLogRatio,
+    ncc,
+    alignDx,
+    alignDy,
+    unexplainedA,
+    unexplainedB,
+    d95,
+    dMax,
+    hotspotMax,
+    strokeWidthA,
+    strokeWidthB,
+    strokeLogRatio,
+    strokeContrastA,
+    strokeContrastB,
+    contrastLogRatio,
+    orientL1,
+    holesA,
+    holesB,
+    zoningL2,
   };
 
   return decide(metrics, thresholds, warnings);
@@ -855,11 +960,7 @@ export function compareGlyphCoverage(
 
 /** Apply thresholds to a metric set → verdict. Exported so the calibration
  *  harness can re-decide stored metrics under candidate thresholds. */
-export function decide(
-  m: GlyphCompareMetrics,
-  t: GlyphCompareThresholds,
-  warnings: string[] = [],
-): GlyphCompareResult {
+export function decide(m: GlyphCompareMetrics, t: GlyphCompareThresholds, warnings: string[] = []): GlyphCompareResult {
   const hardSignals: string[] = [];
   const softSignals: string[] = [];
   const reasons: string[] = [];
@@ -877,25 +978,61 @@ export function decide(
     }
   };
 
-  check("size", m.sizeDiffPx, sizeAllow, (v) =>
-    `ink bounding boxes differ by ${v.toFixed(1)}px (${m.inkWidthA}×${m.inkHeightA} vs ${m.inkWidthB}×${m.inkHeightB}) — size / width-class / x-height mismatch`);
-  check("mass", Math.abs(m.inkLogRatio), t.inkLogRatio, () =>
-    `ink mass differs ×${Math.exp(Math.abs(m.inkLogRatio)).toFixed(2)} (${m.inkLogRatio > 0 ? "A heavier" : "B heavier"}) — weight mismatch (bold vs regular?)`);
-  check("outline", Math.max(m.unexplainedA, m.unexplainedB), t.unexplainedFrac, (v) =>
-    `${(v * 100).toFixed(1)}% of ink is farther than ${t.outlineTolerancePx}px from the other image's ink — different glyph outline`);
-  check("d95", m.d95, t.d95Px, (v) =>
-    `95th-percentile edge distance ${v.toFixed(2)}px exceeds the AA/subpixel noise band — shape difference`);
-  check("hotspot", m.hotspotMax, maxH >= t.recommendedInkPx ? t.hotspotMax : t.hotspotMaxSmall, (v) =>
-    `local coverage hotspot ${v.toFixed(2)} — a concentrated patch of ink is present in one render and absent in the other (terminal / tail / spur difference)`);
-  check("stroke", Math.abs(m.strokeLogRatio), t.strokeLogRatio, () =>
-    `mean stroke width ${m.strokeWidthA.toFixed(2)}px vs ${m.strokeWidthB.toFixed(2)}px — weight/design mismatch`);
+  check(
+    "size",
+    m.sizeDiffPx,
+    sizeAllow,
+    (v) =>
+      `ink bounding boxes differ by ${v.toFixed(1)}px (${m.inkWidthA}×${m.inkHeightA} vs ${m.inkWidthB}×${m.inkHeightB}) — size / width-class / x-height mismatch`,
+  );
+  check(
+    "mass",
+    Math.abs(m.inkLogRatio),
+    t.inkLogRatio,
+    () =>
+      `ink mass differs ×${Math.exp(Math.abs(m.inkLogRatio)).toFixed(2)} (${m.inkLogRatio > 0 ? "A heavier" : "B heavier"}) — weight mismatch (bold vs regular?)`,
+  );
+  check(
+    "outline",
+    Math.max(m.unexplainedA, m.unexplainedB),
+    t.unexplainedFrac,
+    (v) =>
+      `${(v * 100).toFixed(1)}% of ink is farther than ${t.outlineTolerancePx}px from the other image's ink — different glyph outline`,
+  );
+  check(
+    "d95",
+    m.d95,
+    t.d95Px,
+    (v) => `95th-percentile edge distance ${v.toFixed(2)}px exceeds the AA/subpixel noise band — shape difference`,
+  );
+  check(
+    "hotspot",
+    m.hotspotMax,
+    maxH >= t.recommendedInkPx ? t.hotspotMax : t.hotspotMaxSmall,
+    (v) =>
+      `local coverage hotspot ${v.toFixed(2)} — a concentrated patch of ink is present in one render and absent in the other (terminal / tail / spur difference)`,
+  );
+  check(
+    "stroke",
+    Math.abs(m.strokeLogRatio),
+    t.strokeLogRatio,
+    () => `mean stroke width ${m.strokeWidthA.toFixed(2)}px vs ${m.strokeWidthB.toFixed(2)}px — weight/design mismatch`,
+  );
   // Stroke-modulation (contrastLogRatio) is intentionally NOT gated — ridge
   // sampling quantizes too coarsely at text sizes (same-pair noise reaches
   // ln 2); it stays in the metrics as a human-readable diagnostic.
-  check("orientation", m.orientL1, t.orientL1, (v) =>
-    `edge-orientation histograms differ (L1 ${v.toFixed(2)}) — slant / serif / terminal-shape difference`);
-  check("zoning", m.zoningL2, t.zoningL2, (v) =>
-    `ink mass distribution differs (zoning RMS ${v.toFixed(3)}) — x-height / midline / aperture difference`);
+  check(
+    "orientation",
+    m.orientL1,
+    t.orientL1,
+    (v) => `edge-orientation histograms differ (L1 ${v.toFixed(2)}) — slant / serif / terminal-shape difference`,
+  );
+  check(
+    "zoning",
+    m.zoningL2,
+    t.zoningL2,
+    (v) => `ink mass distribution differs (zoning RMS ${v.toFixed(3)}) — x-height / midline / aperture difference`,
+  );
   if (m.ncc < t.nccMin) {
     hardSignals.push("ncc");
     reasons.push(`normalized cross-correlation ${m.ncc.toFixed(3)} below the ${t.nccMin} same-render floor`);
@@ -913,7 +1050,9 @@ export function decide(
       reasons.push(`counter (hole) counts differ: ${m.holesA} vs ${m.holesB} — structurally different glyph`);
     } else {
       softSignals.push("topology");
-      reasons.push(`counter (hole) counts differ: ${m.holesA} vs ${m.holesB} (soft — ink below the ${t.recommendedInkPx}px floor where thin counters AA-flicker)`);
+      reasons.push(
+        `counter (hole) counts differ: ${m.holesA} vs ${m.holesB} (soft — ink below the ${t.recommendedInkPx}px floor where thin counters AA-flicker)`,
+      );
     }
   }
 
@@ -931,14 +1070,14 @@ export function decide(
   // difference also trips size / mass / stroke / hotspot / orientation /
   // zoning / topology / ncc.
   if (
-    hardSignals.length > 0
-    && hardSignals.every((s) => s === "outline" || s === "d95")
-    && m.ncc >= t.nccThinDetailFloor
+    hardSignals.length > 0 &&
+    hardSignals.every((s) => s === "outline" || s === "d95") &&
+    m.ncc >= t.nccThinDetailFloor
   ) {
     reasons.push(
-      `outline / edge-distance disagreement is confined to thin high-frequency detail `
-      + `(NCC ${m.ncc.toFixed(3)} ≥ ${t.nccThinDetailFloor} — glyphs globally near-identical); `
-      + `reattributed to anti-aliasing phase drift on a dashed / hairline enclosure, not a font difference`,
+      `outline / edge-distance disagreement is confined to thin high-frequency detail ` +
+        `(NCC ${m.ncc.toFixed(3)} ≥ ${t.nccThinDetailFloor} — glyphs globally near-identical); ` +
+        `reattributed to anti-aliasing phase drift on a dashed / hairline enclosure, not a font difference`,
     );
     return {
       verdict: "match",
@@ -987,9 +1126,6 @@ export async function compareGlyphPngs(
   },
 ): Promise<GlyphCompareResult> {
   const thresholds = { ...DEFAULT_THRESHOLDS, ...(opts?.thresholds ?? {}) };
-  const [a, b] = await Promise.all([
-    loadGlyphCoverage(sourceA, opts?.rectA),
-    loadGlyphCoverage(sourceB, opts?.rectB),
-  ]);
+  const [a, b] = await Promise.all([loadGlyphCoverage(sourceA, opts?.rectA), loadGlyphCoverage(sourceB, opts?.rectB)]);
   return compareGlyphCoverage(a, b, thresholds);
 }

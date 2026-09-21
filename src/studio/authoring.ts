@@ -1,16 +1,20 @@
-import type {
-  StudioLayer,
-  StudioProject,
-  StudioReviewAnnotation,
-  StudioScene,
-} from "./project-schema.js";
+import type { StudioLayer, StudioProject, StudioReviewAnnotation, StudioScene } from "./project-schema.js";
 
 export type StudioAuthoringCommand =
   | { kind: "scene.add"; afterSceneId?: string; scene?: StudioScene }
   | { kind: "scene.duplicate"; sceneId: string }
   | { kind: "scene.remove"; sceneId: string }
   | { kind: "scene.move"; sceneId: string; toIndex: number }
-  | { kind: "scene.update"; sceneId: string; patch: Partial<Pick<StudioScene, "title" | "description" | "generationInstructions" | "narrativeBeatIds" | "render" | "treatments" | "tracks">> }
+  | {
+      kind: "scene.update";
+      sceneId: string;
+      patch: Partial<
+        Pick<
+          StudioScene,
+          "title" | "description" | "generationInstructions" | "narrativeBeatIds" | "render" | "treatments" | "tracks"
+        >
+      >;
+    }
   | { kind: "beat.add"; afterBeatId?: string; title?: string }
   | { kind: "beat.update"; beatId: string; title?: string; summary?: string | null }
   | { kind: "beat.remove"; beatId: string }
@@ -45,8 +49,10 @@ function defaultId(prefix: string): string {
 
 /** The newest content revision; later review-only revisions do not stale a render. */
 export function studioContentRevisionId(project: StudioProject): string {
-  return [...project.review.revisions].reverse().find((revision) => revision.kind !== "review")?.id
-    ?? project.review.revisions[0].id;
+  return (
+    [...project.review.revisions].reverse().find((revision) => revision.kind !== "review")?.id ??
+    project.review.revisions[0].id
+  );
 }
 
 function authoredJson(project: StudioProject): string {
@@ -66,7 +72,9 @@ export function commitStudioAuthoringRevision(
   const current = structuredClone(rawCurrent);
   const proposed = structuredClone(rawProposed);
   if (current.review.headRevisionId !== options.expectedHeadRevisionId) {
-    throw new StudioAuthoringError(`stale authoring change: expected review head ${options.expectedHeadRevisionId}, found ${current.review.headRevisionId}`);
+    throw new StudioAuthoringError(
+      `stale authoring change: expected review head ${options.expectedHeadRevisionId}, found ${current.review.headRevisionId}`,
+    );
   }
   if (JSON.stringify(proposed.review) !== JSON.stringify(current.review)) {
     throw new StudioAuthoringError("review history must be changed through /api/annotation");
@@ -98,10 +106,11 @@ export function commitStudioAuthoringRevision(
 
 function uniqueId(project: StudioProject, prefix: string, id: (prefix: string) => string): string {
   const occupied = new Set<string>();
-  const layers = (values: readonly StudioLayer[]): void => values.forEach((layer) => {
-    occupied.add(layer.id);
-    if (layer.kind === "composition") layers(layer.composition.layers);
-  });
+  const layers = (values: readonly StudioLayer[]): void =>
+    values.forEach((layer) => {
+      occupied.add(layer.id);
+      if (layer.kind === "composition") layers(layer.composition.layers);
+    });
   project.scenes.forEach((scene) => {
     occupied.add(scene.id);
     scene.tracks?.forEach((track) => {
@@ -131,14 +140,17 @@ function annotationReferencesScene(annotation: StudioReviewAnnotation, scene: St
   const trackIds = new Set(scene.tracks?.map((track) => track.id) ?? []);
   const eventIds = new Set(scene.tracks?.flatMap((track) => track.events.map((event) => event.id)) ?? []);
   const layerIds = new Set<string>();
-  const collect = (layers: readonly StudioLayer[]): void => layers.forEach((layer) => {
-    layerIds.add(layer.id);
-    if (layer.kind === "composition") collect(layer.composition.layers);
-  });
+  const collect = (layers: readonly StudioLayer[]): void =>
+    layers.forEach((layer) => {
+      layerIds.add(layer.id);
+      if (layer.kind === "composition") collect(layer.composition.layers);
+    });
   if (scene.render.kind === "composition") collect(scene.render.composition.layers);
-  return (target?.trackId != null && trackIds.has(target.trackId))
-    || (target?.eventId != null && eventIds.has(target.eventId))
-    || (target?.layerId != null && layerIds.has(target.layerId));
+  return (
+    (target?.trackId != null && trackIds.has(target.trackId)) ||
+    (target?.eventId != null && eventIds.has(target.eventId)) ||
+    (target?.layerId != null && layerIds.has(target.layerId))
+  );
 }
 
 function duplicateScene(project: StudioProject, source: StudioScene, id: (prefix: string) => string): StudioScene {
@@ -147,12 +159,15 @@ function duplicateScene(project: StudioProject, source: StudioScene, id: (prefix
   copy.title = `${source.title ?? "Scene"} copy`;
   copy.tracks?.forEach((track) => {
     track.id = uniqueId(project, "track", id);
-    track.events.forEach((event) => { event.id = uniqueId(project, "event", id); });
+    track.events.forEach((event) => {
+      event.id = uniqueId(project, "event", id);
+    });
   });
-  const remapLayers = (layers: StudioLayer[]): void => layers.forEach((layer) => {
-    layer.id = uniqueId(project, "layer", id);
-    if (layer.kind === "composition") remapLayers(layer.composition.layers);
-  });
+  const remapLayers = (layers: StudioLayer[]): void =>
+    layers.forEach((layer) => {
+      layer.id = uniqueId(project, "layer", id);
+      if (layer.kind === "composition") remapLayers(layer.composition.layers);
+    });
   if (copy.render.kind === "composition") remapLayers(copy.render.composition.layers);
   return copy;
 }
@@ -178,8 +193,12 @@ function applySceneCommand(next: StudioProject, command: SceneCommand, id: (pref
   switch (command.kind) {
     case "scene.add": {
       const scene = command.scene == null ? defaultScene(next, id) : structuredClone(command.scene);
-      if (next.scenes.some((candidate) => candidate.id === scene.id)) throw new StudioAuthoringError(`scene id already exists: ${scene.id}`);
-      const after = command.afterSceneId == null ? next.scenes.length - 1 : next.scenes.findIndex((candidate) => candidate.id === command.afterSceneId);
+      if (next.scenes.some((candidate) => candidate.id === scene.id))
+        throw new StudioAuthoringError(`scene id already exists: ${scene.id}`);
+      const after =
+        command.afterSceneId == null
+          ? next.scenes.length - 1
+          : next.scenes.findIndex((candidate) => candidate.id === command.afterSceneId);
       if (after < 0) throw new StudioAuthoringError(`unknown scene id: ${command.afterSceneId}`);
       next.scenes.splice(after + 1, 0, scene);
       for (const beatId of scene.narrativeBeatIds ?? []) {
@@ -203,10 +222,14 @@ function applySceneCommand(next: StudioProject, command: SceneCommand, id: (pref
       if (next.scenes.length === 1) throw new StudioAuthoringError("a Studio project must keep at least one scene");
       const scene = sceneById(next, command.sceneId);
       if (next.review.annotations.some((annotation) => annotationReferencesScene(annotation, scene))) {
-        throw new StudioAuthoringError(`scene ${scene.id} has review annotations; move or resolve their scope before removing it`);
+        throw new StudioAuthoringError(
+          `scene ${scene.id} has review annotations; move or resolve their scope before removing it`,
+        );
       }
       next.scenes = next.scenes.filter((candidate) => candidate.id !== scene.id);
-      next.narrative.beats.forEach((beat) => { beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== scene.id); });
+      next.narrative.beats.forEach((beat) => {
+        beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== scene.id);
+      });
       next.artifacts = next.artifacts.filter((artifact) => artifact.sceneIds?.includes(scene.id) !== true);
       return;
     }
@@ -217,7 +240,9 @@ function applySceneCommand(next: StudioProject, command: SceneCommand, id: (pref
       const [scene] = next.scenes.splice(from, 1);
       next.scenes.splice(to, 0, scene);
       next.narrative.beats.forEach((beat) => {
-        beat.sceneIds = next.scenes.filter((candidate) => beat.sceneIds.includes(candidate.id)).map((candidate) => candidate.id);
+        beat.sceneIds = next.scenes
+          .filter((candidate) => beat.sceneIds.includes(candidate.id))
+          .map((candidate) => candidate.id);
       });
       return;
     }
@@ -234,9 +259,17 @@ function applySceneCommand(next: StudioProject, command: SceneCommand, id: (pref
 function applyBeatCommand(next: StudioProject, command: BeatCommand, id: (prefix: string) => string): void {
   switch (command.kind) {
     case "beat.add": {
-      const beat = { id: uniqueId(next, "beat", id), title: command.title?.trim() || "New beat", sceneIds: [] as string[] };
-      const after = command.afterBeatId == null ? next.narrative.beats.length - 1 : next.narrative.beats.findIndex((candidate) => candidate.id === command.afterBeatId);
-      if (command.afterBeatId != null && after < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.afterBeatId}`);
+      const beat = {
+        id: uniqueId(next, "beat", id),
+        title: command.title?.trim() || "New beat",
+        sceneIds: [] as string[],
+      };
+      const after =
+        command.afterBeatId == null
+          ? next.narrative.beats.length - 1
+          : next.narrative.beats.findIndex((candidate) => candidate.id === command.afterBeatId);
+      if (command.afterBeatId != null && after < 0)
+        throw new StudioAuthoringError(`unknown narrative beat id: ${command.afterBeatId}`);
       next.narrative.beats.splice(after + 1, 0, beat);
       return;
     }
@@ -268,9 +301,7 @@ export function applyStudioAuthoringCommand(
   options: ApplyStudioAuthoringOptions = {},
 ): StudioAuthoringResult {
   const before = structuredClone(rawProject);
-  const next = command.kind === "restore"
-    ? structuredClone(command.project)
-    : structuredClone(before);
+  const next = command.kind === "restore" ? structuredClone(command.project) : structuredClone(before);
   const id = options.id ?? defaultId;
   switch (command.kind) {
     case "scene.add":
@@ -289,6 +320,7 @@ export function applyStudioAuthoringCommand(
       break;
   }
 
-  if (JSON.stringify(before) === JSON.stringify(next)) throw new StudioAuthoringError("the authoring command did not change the project");
+  if (JSON.stringify(before) === JSON.stringify(next))
+    throw new StudioAuthoringError("the authoring command did not change the project");
   return { project: next, undo: { kind: "restore", project: before } };
 }

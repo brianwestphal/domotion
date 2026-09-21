@@ -12,7 +12,8 @@ import sharp from "sharp";
 // `transform`; without composing it the dots rendered full-size. Render a
 // `::before { scale: 0.5 }` circle and assert it paints at HALF its layout size.
 
-const W = 200, H = 120;
+const W = 200,
+  H = 120;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}` +
   `.dot{position:relative;display:inline-block;width:40px;height:40px;margin:20px}` +
@@ -20,10 +21,16 @@ const HTML =
   `</style></head><body><span class="dot"></span></body></html>`;
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("DM-1268: pseudo `scale` property shrinks the rendered ::before", () => {
@@ -38,10 +45,15 @@ describeBrowser("DM-1268: pseudo `scale` property shrinks the rendered ::before"
       await raster.setContent(`<body style="margin:0">${svg}</body>`, { waitUntil: "load" });
       const buf = await raster.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
       const { data, info } = await sharp(buf).greyscale().raw().toBuffer({ resolveWithObject: true });
-      let minx = 1e9, maxx = -1;
-      for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
-        if (data[y * info.width + x] < 100) { if (x < minx) minx = x; if (x > maxx) maxx = x; }
-      }
+      let minx = 1e9,
+        maxx = -1;
+      for (let y = 0; y < info.height; y++)
+        for (let x = 0; x < info.width; x++) {
+          if (data[y * info.width + x] < 100) {
+            if (x < minx) minx = x;
+            if (x > maxx) maxx = x;
+          }
+        }
       const diameter = maxx - minx + 1;
       // scale:0.5 on a 40px box → ~20px painted circle (not 40px). Allow AA slack.
       expect(diameter).toBeGreaterThan(15);

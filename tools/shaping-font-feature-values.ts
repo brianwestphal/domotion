@@ -12,11 +12,7 @@ import type {
   FontFeatureValueTable,
   FontFeatureValueTables,
 } from "../src/font-feature-values-cascade.js";
-import {
-  harfbuzzShapeRun,
-  registerHbBufferSource,
-  type ShapeResult,
-} from "../src/render/harfbuzz-shaper.js";
+import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import { resolveFontVariantAlternates } from "../src/render/text.js";
 
 export type {
@@ -76,11 +72,13 @@ export function resolvedFeatureValueList(
   fontFamily: string,
   tables: FontFeatureValueTables | undefined,
 ): string[] {
-  return resolveFontVariantAlternates(
-    alternates,
-    fontFamily,
-    tables as Parameters<typeof resolveFontVariantAlternates>[2],
-  ) ?? [];
+  return (
+    resolveFontVariantAlternates(
+      alternates,
+      fontFamily,
+      tables as Parameters<typeof resolveFontVariantAlternates>[2],
+    ) ?? []
+  );
 }
 
 export interface ExactFeatureValueGlyph {
@@ -115,10 +113,7 @@ function record(result: ShapeResult, text: string, features: string[]): ExactFea
     glyphs: result.glyphs.map((glyph, index) => ({
       id: glyph.id,
       cluster: result.clusters[index],
-      sourceSpan: [
-        result.clusters[index],
-        sourceEnd(text, result.clusters[index], result.clusters),
-      ],
+      sourceSpan: [result.clusters[index], sourceEnd(text, result.clusters[index], result.clusters)],
       xAdvance: result.positions[index].xAdvance,
       yAdvance: result.positions[index].yAdvance,
       xOffset: result.positions[index].xOffset,
@@ -140,34 +135,27 @@ export function exactWebfontFeatureRecord(
   fontSizePx = 32,
   faceIndex = 0,
 ): ExactFeatureValueRecord {
-  const result = harfbuzzShapeRun(
-    registerHbBufferSource(bytes),
-    faceIndex,
-    text,
-    "ltr",
-    fontSizePx,
-    null,
-    features,
-    {
-      script: "Latn",
-      language: "en",
-      bufferFlags: BufferFlag.BOT | BufferFlag.EOT,
-      clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,
-    },
-  );
+  const result = harfbuzzShapeRun(registerHbBufferSource(bytes), faceIndex, text, "ltr", fontSizePx, null, features, {
+    script: "Latn",
+    language: "en",
+    bufferFlags: BufferFlag.BOT | BufferFlag.EOT,
+    clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,
+  });
   if (result == null) throw new Error("font-feature-values fixture could not be shaped");
   return record(result, text, features);
 }
 
 export function exactFeatureValueSignature(value: ExactFeatureValueRecord): string {
-  return JSON.stringify(value.glyphs.map((glyph) => [
-    glyph.id,
-    glyph.cluster,
-    glyph.sourceSpan,
-    glyph.xAdvance,
-    glyph.yAdvance,
-    glyph.xOffset,
-    glyph.yOffset,
-    glyph.flags,
-  ]));
+  return JSON.stringify(
+    value.glyphs.map((glyph) => [
+      glyph.id,
+      glyph.cluster,
+      glyph.sourceSpan,
+      glyph.xAdvance,
+      glyph.yAdvance,
+      glyph.xOffset,
+      glyph.yOffset,
+      glyph.flags,
+    ]),
+  );
 }

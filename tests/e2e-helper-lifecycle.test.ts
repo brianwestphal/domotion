@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const source = (relative: string): string =>
-  readFileSync(new URL(relative, import.meta.url), "utf8");
+const source = (relative: string): string => readFileSync(new URL(relative, import.meta.url), "utf8");
 
 describe("E2E native-helper lifecycle (DM-2672)", () => {
   it("keeps the production persistent transport enabled and tears it down per test file", () => {

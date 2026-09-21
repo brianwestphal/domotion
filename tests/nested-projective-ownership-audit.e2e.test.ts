@@ -12,8 +12,7 @@ describe("DM-2356 live nested projective ownership audit", () => {
     expect(report.verdict).toBe("investigation-complete");
     expect(report.blockers).toEqual([]);
     expect(report.rows).toHaveLength(NESTED_PROJECTIVE_CASES.length);
-    expect(new Set(report.rows.map((row) => row.family)))
-      .toEqual(new Set(NESTED_PROJECTIVE_REQUIRED_FAMILIES));
+    expect(new Set(report.rows.map((row) => row.family))).toEqual(new Set(NESTED_PROJECTIVE_REQUIRED_FAMILIES));
     expect(report.rows.every((row) => row.sourceModelMatchesDesign)).toBe(true);
     expect(report.rows.every((row) => row.atomicOneApplication)).toBe(true);
     expect(report.restorationExact).toBe(true);
@@ -21,8 +20,12 @@ describe("DM-2356 live nested projective ownership audit", () => {
     expect(report.mutations).toHaveLength(9);
     expect(report.mutations.every((mutation) => mutation.killed)).toBe(true);
 
-    expect(report.rows.every((row) => row.ownerMinimal && row.vectorSentinelRetained
-      && !row.sentinelBakedIntoRaster && row.atomicOneApplication)).toBe(true);
+    expect(
+      report.rows.every(
+        (row) =>
+          row.ownerMinimal && row.vectorSentinelRetained && !row.sentinelBakedIntoRaster && row.atomicOneApplication,
+      ),
+    ).toBe(true);
     expect(report.productionGaps).toEqual([]);
     expect(report.sourceVsSvgChangedFraction.dpr1).toBeGreaterThan(0);
     expect(report.sourceVsSvgChangedFraction.dpr1).toBeLessThan(1);

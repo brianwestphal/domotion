@@ -3,11 +3,11 @@ id: "requirements/shaped-origin-oracle"
 title: "Shaped-origin provenance oracle"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2329","DM-2444","DM-2445"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2329", "DM-2444", "DM-2445"]
 code: ["tools/shaped-origin-oracle.ts"]
-aliases: ["docs/151-shaped-origin-oracle.md","doc-151"]
+aliases: ["docs/151-shaped-origin-oracle.md", "doc-151"]
 ---
 
 # Shaped-origin provenance oracle
@@ -38,11 +38,11 @@ treated as a logical tolerance.
 
 The same commit was rerun through all three pinned CI feature pipelines:
 
-| Platform | Run | `regionCount` | `diffPct` | non-AA pixels |
-| --- | ---: | ---: | ---: | ---: |
-| macOS | `32460833804` | 0 | 0.0035733121927208514 | 39 |
-| Linux | `32460836438` | 0 | 0.047651018887152084 | 471 |
-| Windows | `32460838994` | 0 | 0.08174824177372704 | 683 |
+| Platform |           Run | `regionCount` |             `diffPct` | non-AA pixels |
+| -------- | ------------: | ------------: | --------------------: | ------------: |
+| macOS    | `32460833804` |             0 | 0.0035733121927208514 |            39 |
+| Linux    | `32460836438` |             0 |  0.047651018887152084 |           471 |
+| Windows  | `32460838994` |             0 |   0.08174824177372704 |           683 |
 
 All three target feature suites and baseline gates passed. The Linux and
 macOS workflows subsequently reported unrelated broad-suite failures (host

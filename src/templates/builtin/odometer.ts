@@ -154,7 +154,10 @@ function placeIndices(text: string): number[] {
   let place = 0;
   for (let i = text.length - 1; i >= 0; i--) {
     const c = text[i];
-    if (c >= "0" && c <= "9") { out[i] = place; place++; }
+    if (c >= "0" && c <= "9") {
+      out[i] = place;
+      place++;
+    }
   }
   return out;
 }
@@ -241,32 +244,38 @@ export function buildOdometerMarkup(plan: OdometerPlan, opts: OdometerMarkupOpti
 
   const animations: Anims = [];
   let digitOrder = 0;
-  const cols = plan.columns.map((col, i) => {
-    if (col.type === "static") {
-      return `<span class="${prefix}-static">${escapeHtml(col.char)}</span>`;
-    }
-    if (col.steps === 0) {
-      // Unchanged digit — no reel needed.
-      return `<span class="${prefix}-cell"><span class="${prefix}-d">${col.endDigit}</span></span>`;
-    }
-    // Build the digit sequence the reel passes through, laid out so index 0 (the
-    // resting position, translateY 0) is the FINAL digit and index `steps` is the
-    // start. Rolling from -steps*cell up to 0 sweeps start → … → end.
-    const seq: number[] = [];
-    for (let j = 0; j <= col.steps; j++) {
-      seq.push(col.up ? (col.startDigit + j) % 10 : ((col.startDigit - j) % 10 + 10) % 10);
-    }
-    seq.reverse(); // index 0 = end (rest), index steps = start
-    const cls = `${prefix}-s${i}`;
-    const stripInner = seq.map((d) => `<span class="${prefix}-d">${d}</span>`).join("");
-    animations.push({
-      selector: `.${cls}`, property: "translateY",
-      from: `-${col.steps * cell}px`, to: "0px",
-      duration: opts.durationMs, delay: digitOrder * stagger, easing,
-    });
-    digitOrder++;
-    return `<span class="${prefix}-cell"><span class="${prefix}-strip ${cls}">${stripInner}</span></span>`;
-  }).join("");
+  const cols = plan.columns
+    .map((col, i) => {
+      if (col.type === "static") {
+        return `<span class="${prefix}-static">${escapeHtml(col.char)}</span>`;
+      }
+      if (col.steps === 0) {
+        // Unchanged digit — no reel needed.
+        return `<span class="${prefix}-cell"><span class="${prefix}-d">${col.endDigit}</span></span>`;
+      }
+      // Build the digit sequence the reel passes through, laid out so index 0 (the
+      // resting position, translateY 0) is the FINAL digit and index `steps` is the
+      // start. Rolling from -steps*cell up to 0 sweeps start → … → end.
+      const seq: number[] = [];
+      for (let j = 0; j <= col.steps; j++) {
+        seq.push(col.up ? (col.startDigit + j) % 10 : (((col.startDigit - j) % 10) + 10) % 10);
+      }
+      seq.reverse(); // index 0 = end (rest), index steps = start
+      const cls = `${prefix}-s${i}`;
+      const stripInner = seq.map((d) => `<span class="${prefix}-d">${d}</span>`).join("");
+      animations.push({
+        selector: `.${cls}`,
+        property: "translateY",
+        from: `-${col.steps * cell}px`,
+        to: "0px",
+        duration: opts.durationMs,
+        delay: digitOrder * stagger,
+        easing,
+      });
+      digitOrder++;
+      return `<span class="${prefix}-cell"><span class="${prefix}-strip ${cls}">${stripInner}</span></span>`;
+    })
+    .join("");
 
   const css = `.${prefix}-row { display: inline-flex; align-items: flex-start; line-height: 1; font-variant-numeric: tabular-nums; }
   .${prefix}-cell { display: inline-block; height: ${cell}px; overflow: hidden; }

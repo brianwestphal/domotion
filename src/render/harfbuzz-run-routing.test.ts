@@ -23,8 +23,13 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { existsSync } from "node:fs";
 import {
-  clearFontResolutionCaches, getFontInstance, resolveFontKey, resolveFontKeyChain,
-  fontFeatureValueShapingOverride, harfbuzzShapedRunOverride, ensureGlyphDef,
+  clearFontResolutionCaches,
+  getFontInstance,
+  resolveFontKey,
+  resolveFontKeyChain,
+  fontFeatureValueShapingOverride,
+  harfbuzzShapedRunOverride,
+  ensureGlyphDef,
 } from "./font-resolution.js";
 import { splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { textToPathMarkup, clearGlyphDefs } from "./text-to-path.js";
@@ -34,7 +39,10 @@ const onDarwin = process.platform === "darwin";
 const describeMac = onDarwin && existsSync(ARIAL_UNICODE) ? describe : describe.skip;
 
 const savedClusterFlag = process.env.DOMOTION_CLUSTER_FALLBACK;
-beforeEach(() => { clearFontResolutionCaches(); clearGlyphDefs(); });
+beforeEach(() => {
+  clearFontResolutionCaches();
+  clearGlyphDefs();
+});
 afterEach(() => {
   if (savedClusterFlag == null) delete process.env.DOMOTION_CLUSTER_FALLBACK;
   else process.env.DOMOTION_CLUSTER_FALLBACK = savedClusterFlag;
@@ -48,7 +56,21 @@ function splitArabic(text: string): NonNullable<ReturnType<typeof splitTextIntoF
   const key = resolveFontKey("Arial Unicode MS");
   const primary = getFontInstance(key, 400, 16, 0);
   if (primary == null) throw new Error("Arial Unicode MS did not open");
-  const runs = splitTextIntoFontRunsShaped(text, primary, key, 400, 16, 0, undefined, undefined, resolveFontKeyChain("Arial Unicode MS"), false, 100, undefined, "Arial Unicode MS");
+  const runs = splitTextIntoFontRunsShaped(
+    text,
+    primary,
+    key,
+    400,
+    16,
+    0,
+    undefined,
+    undefined,
+    resolveFontKeyChain("Arial Unicode MS"),
+    false,
+    100,
+    undefined,
+    "Arial Unicode MS",
+  );
   if (runs == null) throw new Error("shaped splitter declined");
   return runs;
 }
@@ -153,13 +175,27 @@ describeMac("run-level reroute — Bengali vowel constraint on a covering primar
     const key = "u-kohinoor-bangla";
     const primary = getFontInstance(key, 400, 16, 0);
     if (primary == null) throw new Error("u-kohinoor-bangla did not open");
-    const runs = splitTextIntoFontRunsShaped("অা", primary, key, 400, 16, 0, undefined, undefined, [key], false, 100, undefined, undefined);
+    const runs = splitTextIntoFontRunsShaped(
+      "অা",
+      primary,
+      key,
+      400,
+      16,
+      0,
+      undefined,
+      undefined,
+      [key],
+      false,
+      100,
+      undefined,
+      undefined,
+    );
     if (runs == null) throw new Error("shaped splitter declined");
     expect(runs.length).toBe(1);
     const hb = runs[0].font.layout("অা");
     expect(primary.layout("অা").glyphs.length).toBe(2); // base engine: no circle
-    expect(hb.glyphs.length).toBe(3);                    // HarfBuzz: base, ◌, vowel sign
-    const circleId = primary.glyphForCodePoint(0x25CC).id;
+    expect(hb.glyphs.length).toBe(3); // HarfBuzz: base, ◌, vowel sign
+    const circleId = primary.glyphForCodePoint(0x25cc).id;
     expect(circleId).not.toBe(0);
     expect(hb.glyphs[1].id).toBe(circleId);
   });
@@ -207,7 +243,9 @@ describeMac("RTL mirror domain — hb-shaped runs paint the same bracket applyBi
     // the hb proxy, `singleFontMarkup` layouts the whole text with no explicit
     // direction, and hb's own guess makes the buffer RTL. Without the
     // mirror-domain adapter this painted the logical `(` as `(`.
-    const res = textToPathMarkup(PREMIRRORED, 16, "Arial Unicode MS", "400", undefined, [0, 10, 20], undefined, ["-liga"]);
+    const res = textToPathMarkup(PREMIRRORED, 16, "Arial Unicode MS", "400", undefined, [0, 10, 20], undefined, [
+      "-liga",
+    ]);
     expect(res).not.toBeNull();
     const ids = bracketDefIds();
     expect(res!.markup.includes(`href="#${ids.close}"`)).toBe(true);

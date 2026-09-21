@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from "playwright";
 const html = `<!DOCTYPE html><html><head><style>
 .drop {
   position: relative;
@@ -18,17 +18,22 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 800, height: 400 }, deviceScaleFactor: 1 });
 await page.setContent(html);
 const data = await page.evaluate(() => {
-  const el = document.getElementById('d');
+  const el = document.getElementById("d");
   const cs = window.getComputedStyle(el);
   const r = el.getBoundingClientRect();
-  const rects = Array.from(el.getClientRects()).map(r => ({ x: r.x, y: r.y, w: r.width, h: r.height }));
+  const rects = Array.from(el.getClientRects()).map((r) => ({ x: r.x, y: r.y, w: r.width, h: r.height }));
   return {
-    display: cs.display, position: cs.position, padding: cs.padding,
+    display: cs.display,
+    position: cs.position,
+    padding: cs.padding,
     rect: { x: r.x, y: r.y, w: r.width, h: r.height },
     rects,
-    offsetWidth: el.offsetWidth, offsetHeight: el.offsetHeight,
-    clientWidth: el.clientWidth, clientHeight: el.clientHeight,
-    scrollWidth: el.scrollWidth, scrollHeight: el.scrollHeight,
+    offsetWidth: el.offsetWidth,
+    offsetHeight: el.offsetHeight,
+    clientWidth: el.clientWidth,
+    clientHeight: el.clientHeight,
+    scrollWidth: el.scrollWidth,
+    scrollHeight: el.scrollHeight,
   };
 });
 console.log(data);

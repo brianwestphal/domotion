@@ -12,7 +12,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // Deterministic capture-level guard — the perceptual diff reads an ~8px marker
 // shift amid lots of text as a single sub-% region.
 
-const W = 600, H = 200;
+const W = 600,
+  H = 200;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font-family:system-ui,sans-serif}` +
   `summary{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid #ccc;list-style:none}` +
@@ -32,7 +33,10 @@ function findSummaryAfter(tree: CapturedElement[]) {
       if (n.tag === "summary") {
         const record = n.pseudoFragments?.find((entry) => entry.pseudo === "::after");
         const fragment = record?.fragments.find((entry) => entry.kind === "text" && entry.text.includes("+"));
-        if (fragment?.kind === "text") { hit = { rect: fragment.physicalRect, el: n }; return; }
+        if (fragment?.kind === "text") {
+          hit = { rect: fragment.physicalRect, el: n };
+          return;
+        }
       }
       if (n.children) visit(n.children as CapturedElement[]);
       if (hit) return;
@@ -43,10 +47,16 @@ function findSummaryAfter(tree: CapturedElement[]) {
 }
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("DM-1256: flex space-between ::after is anchored at the content-right edge", () => {

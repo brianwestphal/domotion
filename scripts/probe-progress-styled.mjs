@@ -43,12 +43,16 @@ const b64 = buf.toString("base64");
 const result = await page.evaluate(async (b64) => {
   const img = new Image();
   img.src = "data:image/png;base64," + b64;
-  await new Promise((r) => { img.onload = r; });
+  await new Promise((r) => {
+    img.onload = r;
+  });
   const cvs = document.createElement("canvas");
-  cvs.width = img.width; cvs.height = img.height;
+  cvs.width = img.width;
+  cvs.height = img.height;
   const cx = cvs.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const w = img.width, h = img.height;
+  const w = img.width,
+    h = img.height;
   const id = cx.getImageData(0, 0, w, h).data;
   const isWhite = (x, y) => {
     const i = (y * w + x) * 4;
@@ -62,12 +66,19 @@ const result = await page.evaluate(async (b64) => {
     // For each y in [bbox.y - 2, bbox.y + bbox.h + 2], find leftmost and rightmost non-white x within [bbox.x - 2, bbox.x + bbox.w + 2]
     const out = [];
     for (let y = Math.floor(bbox.y) - 2; y <= Math.ceil(bbox.y + bbox.h) + 2; y++) {
-      let left = -1, right = -1;
+      let left = -1,
+        right = -1;
       for (let x = Math.floor(bbox.x) - 2; x <= Math.ceil(bbox.x + bbox.w) + 2; x++) {
-        if (!isWhite(x, y)) { left = x; break; }
+        if (!isWhite(x, y)) {
+          left = x;
+          break;
+        }
       }
       for (let x = Math.ceil(bbox.x + bbox.w) + 2; x >= Math.floor(bbox.x) - 2; x--) {
-        if (!isWhite(x, y)) { right = x; break; }
+        if (!isWhite(x, y)) {
+          right = x;
+          break;
+        }
       }
       out.push({ y, left, right });
     }
@@ -89,19 +100,29 @@ const result = await page.evaluate(async (b64) => {
 for (const [name, data] of Object.entries(result)) {
   const { bbox, rows } = data;
   const painted = rows.filter((r) => r.left >= 0);
-  if (painted.length === 0) { console.log(`${name}: no paint`); continue; }
-  const yTop = painted[0].y, yBot = painted[painted.length - 1].y;
+  if (painted.length === 0) {
+    console.log(`${name}: no paint`);
+    continue;
+  }
+  const yTop = painted[0].y,
+    yBot = painted[painted.length - 1].y;
   const xLeft = Math.min(...painted.map((r) => r.left));
   const xRight = Math.max(...painted.map((r) => r.right));
   console.log(`\n=== ${name} ===`);
   console.log(`  bbox: x=${bbox.x.toFixed(1)} y=${bbox.y.toFixed(1)} w=${bbox.w.toFixed(1)} h=${bbox.h.toFixed(1)}`);
-  console.log(`  painted bbox: y=[${yTop}..${yBot}] (h=${yBot - yTop + 1}) x=[${xLeft}..${xRight}] (w=${xRight - xLeft + 1})`);
-  console.log(`  inset top=${yTop - bbox.y} bottom=${(bbox.y + bbox.h) - yBot - 1} left=${xLeft - bbox.x} right=${(bbox.x + bbox.w) - xRight - 1}`);
+  console.log(
+    `  painted bbox: y=[${yTop}..${yBot}] (h=${yBot - yTop + 1}) x=[${xLeft}..${xRight}] (w=${xRight - xLeft + 1})`,
+  );
+  console.log(
+    `  inset top=${yTop - bbox.y} bottom=${bbox.y + bbox.h - yBot - 1} left=${xLeft - bbox.x} right=${bbox.x + bbox.w - xRight - 1}`,
+  );
   console.log(`  per-row left/right (showing ends and center):`);
   for (let i = 0; i < painted.length; i++) {
     const r = painted[i];
     if (i < 3 || i > painted.length - 4 || i === Math.floor(painted.length / 2)) {
-      console.log(`    y=${r.y}: left=${r.left} right=${r.right} (inset L=${r.left - bbox.x}, R=${(bbox.x + bbox.w) - r.right - 1})`);
+      console.log(
+        `    y=${r.y}: left=${r.left} right=${r.right} (inset L=${r.left - bbox.x}, R=${bbox.x + bbox.w - r.right - 1})`,
+      );
     }
   }
 }

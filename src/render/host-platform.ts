@@ -1,7 +1,4 @@
-import {
-  invokeSynchronousCallback,
-  type SynchronousCallback,
-} from "./synchronous-scope.js";
+import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
 
 /**
  * The platform the renderer resolves fonts FOR — as an input, not an ambient

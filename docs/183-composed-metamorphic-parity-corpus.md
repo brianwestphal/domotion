@@ -4,10 +4,18 @@ title: "183 — Composed real-world and metamorphic parity corpus"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: [".github/workflows/composed-parity-corpus.yml","scripts/run-composed-parity.mjs","tests/composed-parity-corpus.e2e.test.ts","tests/composed-parity-fixtures.ts","tests/fixtures/html-test/36-composed-metamorphic-parity.html","tools/html-test-parity-corpus.json"]
-aliases: ["docs/183-composed-metamorphic-parity-corpus.md","doc-183"]
+code:
+  [
+    ".github/workflows/composed-parity-corpus.yml",
+    "scripts/run-composed-parity.mjs",
+    "tests/composed-parity-corpus.e2e.test.ts",
+    "tests/composed-parity-fixtures.ts",
+    "tests/fixtures/html-test/36-composed-metamorphic-parity.html",
+    "tools/html-test-parity-corpus.json",
+  ]
+aliases: ["docs/183-composed-metamorphic-parity-corpus.md", "doc-183"]
 ---
 
 # 183 — Composed real-world and metamorphic parity corpus

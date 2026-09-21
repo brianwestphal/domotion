@@ -11,8 +11,10 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { existsSync } from "node:fs";
 import {
-  resolveFontKey, resolveFontSpec,
-  getSystemFallbackResolution, setSystemFallbackResolution,
+  resolveFontKey,
+  resolveFontSpec,
+  getSystemFallbackResolution,
+  setSystemFallbackResolution,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
 
@@ -20,20 +22,28 @@ import { withHostPlatform } from "./host-platform.js";
 // these tests assert the platform-independent pin/walk logic, so pin the
 // resolver off for the whole file (same pattern as text-to-path.test.ts).
 let prevResolver: boolean;
-beforeAll(() => { prevResolver = getSystemFallbackResolution(); setSystemFallbackResolution(false); });
-afterAll(() => { setSystemFallbackResolution(prevResolver); });
+beforeAll(() => {
+  prevResolver = getSystemFallbackResolution();
+  setSystemFallbackResolution(false);
+});
+afterAll(() => {
+  setSystemFallbackResolution(prevResolver);
+});
 
 describe("Consolas has no pin (alternate_font_family.h:72-105 — no alias; uninstalled names are walked past)", () => {
-  it.runIf(process.platform === "darwin")("walks past an uninstalled Consolas to the next family instead of pinning Courier", () => {
-    withHostPlatform("darwin", () => {
-      const key = resolveFontKey("Consolas, Menlo, monospace");
-      // Chrome paints Menlo here on a Mac without Consolas; on an MS-Office
-      // Mac it resolves Consolas itself (a dynamic sysfb: key via the
-      // installed-font probe). Either answer is Chrome's; Courier is not.
-      expect(key).not.toBe("courier");
-      expect(key === "menlo" || key.startsWith("sysfb:")).toBe(true);
-    });
-  });
+  it.runIf(process.platform === "darwin")(
+    "walks past an uninstalled Consolas to the next family instead of pinning Courier",
+    () => {
+      withHostPlatform("darwin", () => {
+        const key = resolveFontKey("Consolas, Menlo, monospace");
+        // Chrome paints Menlo here on a Mac without Consolas; on an MS-Office
+        // Mac it resolves Consolas itself (a dynamic sysfb: key via the
+        // installed-font probe). Either answer is Chrome's; Courier is not.
+        expect(key).not.toBe("courier");
+        expect(key === "menlo" || key.startsWith("sysfb:")).toBe(true);
+      });
+    },
+  );
 });
 
 describe("Courier New is a direct match; the Courier alias fires only on lookup failure (font_platform_data_cache.cc:74-105)", () => {
@@ -102,7 +112,9 @@ describe("BlinkMacSystemFont → system-ui is #if BUILDFLAG(IS_MAC) (style_build
         // darwin: BlinkMacSystemFont → sf-pro. win32/linux: it walks on, and
         // "Segoe UI"/Helvetica pick up the stack (the sf-pro key IS Segoe UI
         // on win32) — matching Chrome's convergence, not by accident anymore.
-        expect(key === "sf-pro" || key === "helvetica" || key.startsWith("sysfb:") || key.startsWith("winfam:")).toBe(true);
+        expect(key === "sf-pro" || key === "helvetica" || key.startsWith("sysfb:") || key.startsWith("winfam:")).toBe(
+          true,
+        );
       });
     }
   });

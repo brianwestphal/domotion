@@ -110,11 +110,12 @@ export function expectFlipbookParity(cmp: CompareResult, label: string): void {
   // First, so a run that trips an assertion below still reports its numbers —
   // measuring a deliberately-broken build is half of sizing the caps.
   recordMetrics(cmp, label);
-  const detail = `strict ${cmp.strictRegionCount} region(s), ${cmp.strictRegionArea} px total, `
-    + `${cmp.strictMaxRegionArea} px largest (regions ${cmp.regionCount}, nonAa ${cmp.nonAaPixels}, `
-    + `primaryArea ${cmp.totalChangedArea}, primaryMaxSeverity ${cmp.maxRegionSeverity.toFixed(1)}%, `
-    + `shifted ${cmp.shiftedPixels}, verdict ${cmp.verdict}, `
-    + `primaryRegions ${JSON.stringify(cmp.regions)})`;
+  const detail =
+    `strict ${cmp.strictRegionCount} region(s), ${cmp.strictRegionArea} px total, ` +
+    `${cmp.strictMaxRegionArea} px largest (regions ${cmp.regionCount}, nonAa ${cmp.nonAaPixels}, ` +
+    `primaryArea ${cmp.totalChangedArea}, primaryMaxSeverity ${cmp.maxRegionSeverity.toFixed(1)}%, ` +
+    `shifted ${cmp.shiftedPixels}, verdict ${cmp.verdict}, ` +
+    `primaryRegions ${JSON.stringify(cmp.regions)})`;
   // A single block-sized component: content moved, or two elements swapped
   // paint order. This deliberately reads the severity-inclusive aggregate;
   // the default regionCount bucket can change when host rasterization moves a
@@ -124,10 +125,9 @@ export function expectFlipbookParity(cmp: CompareResult, label: string): void {
     `${label}: a block-sized suppressed region — content moved or swapped paint order. ${detail}`,
   ).toBeLessThanOrEqual(STRICT_CAPS.maxRegionArea);
   // ...and the backstop, for a bug that scatters mid-sized components instead.
-  expect(
-    cmp.strictRegionArea,
-    `${label}: too much suppressed change in total. ${detail}`,
-  ).toBeLessThanOrEqual(STRICT_CAPS.totalRegionArea);
+  expect(cmp.strictRegionArea, `${label}: too much suppressed change in total. ${detail}`).toBeLessThanOrEqual(
+    STRICT_CAPS.totalRegionArea,
+  );
 }
 
 /**
@@ -153,8 +153,8 @@ export function expectFlipbookParity(cmp: CompareResult, label: string): void {
  */
 export async function loadSeekableSvg(page: Page, svg: string): Promise<void> {
   await page.setContent(
-    `<!doctype html><html><head><style>*{animation-play-state:paused!important;}</style></head>`
-    + `<body style="margin:0">${svg}</body></html>`,
+    `<!doctype html><html><head><style>*{animation-play-state:paused!important;}</style></head>` +
+      `<body style="margin:0">${svg}</body></html>`,
     { waitUntil: "domcontentloaded" },
   );
   await page.evaluate(() => document.fonts.ready);

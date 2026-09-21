@@ -29,9 +29,7 @@ const old = Object.fromEntries(
   await Promise.all(
     platforms.map(async (platform) => [
       platform,
-      JSON.parse(
-        await readFile(resolve(oldRoot, `results-${platform}.json`), "utf8"),
-      ),
+      JSON.parse(await readFile(resolve(oldRoot, `results-${platform}.json`), "utf8")),
     ]),
   ),
 );
@@ -39,30 +37,16 @@ const current = Object.fromEntries(
   await Promise.all(
     platforms.map(async (platform) => [
       platform,
-      JSON.parse(
-        await readFile(
-          resolve(reviewRoot, `ci-${platform}/html-test/results.json`),
-          "utf8",
-        ),
-      ),
+      JSON.parse(await readFile(resolve(reviewRoot, `ci-${platform}/html-test/results.json`), "utf8")),
     ]),
   ),
 );
 
 const failedSets = platforms.map(
-  (platform) =>
-    new Set(
-      old[platform]
-        .filter((row) => !row.pass && !row.skipped)
-        .map((row) => row.name),
-    ),
+  (platform) => new Set(old[platform].filter((row) => !row.pass && !row.skipped).map((row) => row.name)),
 );
 const names = [...failedSets[0]]
-  .filter(
-    (name) =>
-      failedSets.slice(1).every((set) => set.has(name)) &&
-      !wideImageFixtures.has(name),
-  )
+  .filter((name) => failedSets.slice(1).every((set) => set.has(name)) && !wideImageFixtures.has(name))
   .sort();
 
 const implementationTickets = {
@@ -78,16 +62,12 @@ const rows = names.map((name) => {
       regionCount: row.regionCount,
       coveragePct: row.coveragePct,
       chromeFaces: row.chromeFaces,
-      embeddedFaces: row.embeddedFontBuilds.map(
-        (build) => build.sourcePostscriptName,
-      ),
+      embeddedFaces: row.embeddedFontBuilds.map((build) => build.sourcePostscriptName),
     };
   });
   return {
     name,
-    disposition: implementationTickets[name]
-      ? "functional-defect"
-      : "functionally-clean-raster-residual",
+    disposition: implementationTickets[name] ? "functional-defect" : "functionally-clean-raster-residual",
     implementationTicket: implementationTickets[name] ?? null,
     platformEvidence,
   };
@@ -111,12 +91,9 @@ const output = {
     "Functional correctness is required on all three platforms; coincident geometry/content with native raster differences is not an implementation defect.",
   counts: {
     total: rows.length,
-    functionalDefects: rows.filter(
-      (row) => row.disposition === "functional-defect",
-    ).length,
-    functionallyCleanRasterResiduals: rows.filter(
-      (row) => row.disposition === "functionally-clean-raster-residual",
-    ).length,
+    functionalDefects: rows.filter((row) => row.disposition === "functional-defect").length,
+    functionallyCleanRasterResiduals: rows.filter((row) => row.disposition === "functionally-clean-raster-residual")
+      .length,
   },
   rows,
 };

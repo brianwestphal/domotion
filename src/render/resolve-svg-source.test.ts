@@ -24,7 +24,8 @@ describe("resolveSvgSource — DM-1588", () => {
   });
 
   it("returns null for a raster (PNG) data URI — stays on the <image> path", () => {
-    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
     expect(resolveSvgSource(png)).toBeNull();
   });
 
@@ -51,9 +52,9 @@ describe("resolveSvgSource — DM-1588", () => {
   });
 
   it("converts Windows drive and UNC file URLs with Windows semantics (DM-2292)", () => {
-    expect(fileUrlToLocalPath("file:///C:/fixtures/orange%20asset.svg", "win32"))
-      .toBe("C:\\fixtures\\orange asset.svg");
-    expect(fileUrlToLocalPath("file://server/share/orange.svg", "win32"))
-      .toBe("\\\\server\\share\\orange.svg");
+    expect(fileUrlToLocalPath("file:///C:/fixtures/orange%20asset.svg", "win32")).toBe(
+      "C:\\fixtures\\orange asset.svg",
+    );
+    expect(fileUrlToLocalPath("file://server/share/orange.svg", "win32")).toBe("\\\\server\\share\\orange.svg");
   });
 });

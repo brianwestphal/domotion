@@ -19,7 +19,9 @@ const LATER = "2026-09-06T02:05:00.000Z";
 describe("Studio workspace paths", () => {
   it("normalizes POSIX and Windows project paths inside their workspace", () => {
     expect(resolveStudioWorkspacePath("/work/demo", "projects/tour.json", posix)).toBe("/work/demo/projects/tour.json");
-    expect(resolveStudioWorkspacePath("C:\\work\\demo", "projects\\tour.json", win32)).toBe("C:\\work\\demo\\projects\\tour.json");
+    expect(resolveStudioWorkspacePath("C:\\work\\demo", "projects\\tour.json", win32)).toBe(
+      "C:\\work\\demo\\projects\\tour.json",
+    );
   });
 
   it("rejects traversal, absolute escapes, and non-JSON project files on both platforms", () => {
@@ -31,8 +33,12 @@ describe("Studio workspace paths", () => {
   });
 
   it("resolves only workspace-contained SVG preview artifacts", () => {
-    expect(resolveStudioWorkspaceSvgPath("/work/demo", "generated/scene.svg", posix)).toBe("/work/demo/generated/scene.svg");
-    expect(resolveStudioWorkspaceSvgPath("C:\\work\\demo", "generated\\scene.svg", win32)).toBe("C:\\work\\demo\\generated\\scene.svg");
+    expect(resolveStudioWorkspaceSvgPath("/work/demo", "generated/scene.svg", posix)).toBe(
+      "/work/demo/generated/scene.svg",
+    );
+    expect(resolveStudioWorkspaceSvgPath("C:\\work\\demo", "generated\\scene.svg", win32)).toBe(
+      "C:\\work\\demo\\generated\\scene.svg",
+    );
     expect(() => resolveStudioWorkspaceSvgPath("/work/demo", "../secret.svg", posix)).toThrow(/stay inside/);
     expect(() => resolveStudioWorkspaceSvgPath("/work/demo", "generated/scene.html", posix)).toThrow(/\.svg extension/);
   });
@@ -50,7 +56,9 @@ describe("Studio project file operations", () => {
     const created = createStudioProjectFile(root, "nested/tour.studio.json", { title: "Acme Tour", createdAt: NOW });
     expect(created.relativePath).toBe(join("nested", "tour.studio.json"));
     expect(created.project.narrative.title).toBe("Acme Tour");
-    expect(() => createStudioProjectFile(root!, "nested/tour.studio.json", { title: "Duplicate" })).toThrow(/already exists/);
+    expect(() => createStudioProjectFile(root!, "nested/tour.studio.json", { title: "Duplicate" })).toThrow(
+      /already exists/,
+    );
 
     const edited = structuredClone(created.project);
     edited.narrative.title = "Acme Tour — revised";
@@ -82,7 +90,7 @@ describe("Studio project file operations", () => {
         body: JSON.stringify({ path: "broken.json" }),
       });
       expect(response.status).toBe(400);
-      const body = await response.json() as { issues: Array<{ path: string; code: string }> };
+      const body = (await response.json()) as { issues: Array<{ path: string; code: string }> };
       expect(body.issues).toContainEqual(expect.objectContaining({ path: "$.version", code: "unsupported_version" }));
 
       const escaped = await fetch(new URL("/api/open", server.url), {
@@ -91,7 +99,7 @@ describe("Studio project file operations", () => {
         body: JSON.stringify({ path: "../outside.json" }),
       });
       expect(escaped.status).toBe(400);
-      expect((await escaped.json() as { error: string }).error).toMatch(/stay inside/);
+      expect(((await escaped.json()) as { error: string }).error).toMatch(/stay inside/);
     } finally {
       if (server != null) await server.close();
     }
@@ -137,7 +145,9 @@ describe("Studio project file operations", () => {
         body: JSON.stringify({ path: "preview.json", selection: { kind: "scene", sceneId: "scene-opening" } }),
       });
       expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining("outside the Studio workspace") });
+      await expect(response.json()).resolves.toMatchObject({
+        error: expect.stringContaining("outside the Studio workspace"),
+      });
     } finally {
       await server?.close();
       rmSync(outside, { recursive: true, force: true });
@@ -154,13 +164,21 @@ describe("Studio project file operations", () => {
         workspaceRoot: root,
         generate: async (input) => {
           observedPolicy = input.aiPolicy;
-          return { status: "clarification", question: "Which account should the demo use?", reason: "Two authenticated accounts are available." };
+          return {
+            status: "clarification",
+            question: "Which account should the demo use?",
+            reason: "Two authenticated accounts are available.",
+          };
         },
       });
       const response = await fetch(new URL("/api/generate", server.url), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ path: "generate.json", expectedHeadRevisionId: created.project.review.headRevisionId, selection: { kind: "scene", sceneId: "scene-opening" } }),
+        body: JSON.stringify({
+          path: "generate.json",
+          expectedHeadRevisionId: created.project.review.headRevisionId,
+          selection: { kind: "scene", sceneId: "scene-opening" },
+        }),
       });
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({
@@ -185,7 +203,9 @@ describe("Studio project file operations", () => {
       viewport: { width: 800, height: 600 },
       sourceUrls: ["https://example.test/app"],
       redactions: 0,
-      events: [{ sequence: 0, atMs: 10, url: "https://example.test/app", kind: "navigation", navigationKind: "initial" }],
+      events: [
+        { sequence: 0, atMs: 10, url: "https://example.test/app", kind: "navigation", navigationKind: "initial" },
+      ],
     };
     let healed = false;
     let reviewed = false;
@@ -204,29 +224,51 @@ describe("Studio project file operations", () => {
               scene: {
                 id: "scene-imported",
                 title: "Imported",
-                render: { kind: "storyboard", recipe: { capture: { url: "https://example.test/app" }, duration: 1000 } },
-                tracks: [{ id: "track-imported", kind: "semantic-interactions", events: [{ id: "event-imported", kind: "click", atMs: 100, target: { testId: "continue" } }] }],
+                render: {
+                  kind: "storyboard",
+                  recipe: { capture: { url: "https://example.test/app" }, duration: 1000 },
+                },
+                tracks: [
+                  {
+                    id: "track-imported",
+                    kind: "semantic-interactions",
+                    events: [{ id: "event-imported", kind: "click", atMs: 100, target: { testId: "continue" } }],
+                  },
+                ],
               },
             };
           },
           review: async () => {
             reviewed = true;
-            return { kind: "accept", summary: "Accepted the editable semantic scene.", evidence: { summary: "Replay intent is explicit." } };
+            return {
+              kind: "accept",
+              summary: "Accepted the editable semantic scene.",
+              evidence: { summary: "Replay intent is explicit." },
+            };
           },
         },
       });
       const response = await fetch(new URL("/api/recording/import", server.url), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ path: "recording.json", expectedHeadRevisionId: created.project.review.headRevisionId, recording }),
+        body: JSON.stringify({
+          path: "recording.json",
+          expectedHeadRevisionId: created.project.review.headRevisionId,
+          recording,
+        }),
       });
       expect(response.status).toBe(200);
-      const body = await response.json() as { recordingImportResult: { status: string; evidencePath: string }; project: { scenes: unknown[] } };
+      const body = (await response.json()) as {
+        recordingImportResult: { status: string; evidencePath: string };
+        project: { scenes: unknown[] };
+      };
       expect(body.recordingImportResult.status).toBe("imported");
       expect(body.project.scenes).toHaveLength(2);
       expect(healed).toBe(true);
       expect(reviewed).toBe(true);
-      expect(readFileSync(join(root, body.recordingImportResult.evidencePath), "utf8")).toContain(STUDIO_INTERACTION_RECORDING_FORMAT);
+      expect(readFileSync(join(root, body.recordingImportResult.evidencePath), "utf8")).toContain(
+        STUDIO_INTERACTION_RECORDING_FORMAT,
+      );
       expect(openStudioProjectFile(root, "recording.json").project.scenes.at(-1)?.id).toBe("scene-imported");
     } finally {
       await server?.close();

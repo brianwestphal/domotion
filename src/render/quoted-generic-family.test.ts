@@ -19,9 +19,11 @@
 // assertion below fails against that code.
 import { describe, expect, it, beforeAll, afterAll, afterEach } from "vitest";
 import {
-  resolveFontKey, resolveFontKeyChain,
+  resolveFontKey,
+  resolveFontKeyChain,
   setSessionGenericFamilyOverrides,
-  getSystemFallbackResolution, setSystemFallbackResolution,
+  getSystemFallbackResolution,
+  setSystemFallbackResolution,
   clearFontResolutionCaches,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
@@ -29,9 +31,17 @@ import { withHostPlatform } from "./host-platform.js";
 // Pin the live resolvers off: these tests assert the platform-independent
 // keyword-vs-literal logic (same rig as family-pin-parity.test.ts).
 let prevResolver: boolean;
-beforeAll(() => { prevResolver = getSystemFallbackResolution(); setSystemFallbackResolution(false); });
-afterAll(() => { setSystemFallbackResolution(prevResolver); });
-afterEach(() => { setSessionGenericFamilyOverrides(null); clearFontResolutionCaches(); });
+beforeAll(() => {
+  prevResolver = getSystemFallbackResolution();
+  setSystemFallbackResolution(false);
+});
+afterAll(() => {
+  setSystemFallbackResolution(prevResolver);
+});
+afterEach(() => {
+  setSessionGenericFamilyOverrides(null);
+  clearFontResolutionCaches();
+});
 
 describe("quoted generic spellings are literal family names (font_selector.cc:25-32)", () => {
   it.runIf(process.platform === "darwin")('walks past a quoted "monospace" to the next declared family', () => {
@@ -83,16 +93,19 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
     });
   });
 
-  it.runIf(process.platform === "darwin")("a case-variant spelling is a literal family name — the keyword serializes canonically lowercase", () => {
-    withHostPlatform("darwin", () => {
-      // `FontFamily::InferredTypeFor` compares by case-sensitive AtomicString
-      // equality, and generic keywords compute to canonical lowercase — so an
-      // unquoted `Monospace` in a computed stack can only be a literal family
-      // (e.g. a webfont named "Monospace", which `FontFamilyNeedsQuoting`
-      // serializes unquoted).
-      expect(resolveFontKey("Monospace, Menlo")).toBe("menlo");
-    });
-  });
+  it.runIf(process.platform === "darwin")(
+    "a case-variant spelling is a literal family name — the keyword serializes canonically lowercase",
+    () => {
+      withHostPlatform("darwin", () => {
+        // `FontFamily::InferredTypeFor` compares by case-sensitive AtomicString
+        // equality, and generic keywords compute to canonical lowercase — so an
+        // unquoted `Monospace` in a computed stack can only be a literal family
+        // (e.g. a webfont named "Monospace", which `FontFamilyNeedsQuoting`
+        // serializes unquoted).
+        expect(resolveFontKey("Monospace, Menlo")).toBe("menlo");
+      });
+    },
+  );
 
   it("preserves the case-sensitive system-ui platform intercept", () => {
     withHostPlatform("darwin", () => {
@@ -110,15 +123,18 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
     });
   });
 
-  it.runIf(process.platform === "darwin")("a quoted spelling bypasses the session-probed generic override; the keyword takes it", () => {
-    withHostPlatform("darwin", () => {
-      setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
-      // Keyword: routed through the probed override to Menlo.
-      expect(resolveFontKey("monospace")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
-      // Literal name: never consults the override — walks past to Georgia.
-      expect(resolveFontKey('"monospace", Georgia')).toBe("georgia");
-    });
-  });
+  it.runIf(process.platform === "darwin")(
+    "a quoted spelling bypasses the session-probed generic override; the keyword takes it",
+    () => {
+      withHostPlatform("darwin", () => {
+        setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
+        // Keyword: routed through the probed override to Menlo.
+        expect(resolveFontKey("monospace")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
+        // Literal name: never consults the override — walks past to Georgia.
+        expect(resolveFontKey('"monospace", Georgia')).toBe("georgia");
+      });
+    },
+  );
 });
 
 describe("math stays on the walk-past route (settings value 'Latin Modern Math' is uninstalled — measured, not routed to STIX)", () => {

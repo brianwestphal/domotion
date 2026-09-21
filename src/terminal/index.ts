@@ -14,7 +14,14 @@
 import type { Browser } from "@playwright/test";
 import { parseCast } from "./cast.js";
 import { TerminalEmulator } from "./emulator.js";
-import { buildFrames, gridToHtml, makeReferenceGrid, measureTermCanvas, type FrameBuildOptions, type HtmlRenderOptions } from "./render.js";
+import {
+  buildFrames,
+  gridToHtml,
+  makeReferenceGrid,
+  measureTermCanvas,
+  type FrameBuildOptions,
+  type HtmlRenderOptions,
+} from "./render.js";
 import { resolveTheme, type TerminalThemeSpec } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
@@ -122,8 +129,13 @@ export async function castToTermFrames(
   const resizes = honorResizes ? cast.resizes : [];
   let maxCols = cols;
   let maxRows = rows;
-  for (const rz of resizes) { if (rz.cols > maxCols) maxCols = rz.cols; if (rz.rows > maxRows) maxRows = rz.rows; }
-  log(`term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`);
+  for (const rz of resizes) {
+    if (rz.cols > maxCols) maxCols = rz.cols;
+    if (rz.rows > maxRows) maxRows = rz.rows;
+  }
+  log(
+    `term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`,
+  );
 
   const manageFonts = opts.manageFonts !== false;
   // Embedded-font mode accumulates glyphs into one growing custom TTF across
@@ -132,7 +144,10 @@ export async function castToTermFrames(
   // WITHOUT the font CSS and collect the finished font ONCE at the end (the
   // same trick `composeAnimateFrames` uses). When we own the lifecycle, clear
   // the shared builder first so this cast's font is self-contained.
-  if (manageFonts) { clearEmbeddedFonts(); clearGlyphDefs(); } // DM-1338: glyph registry shares the lifecycle
+  if (manageFonts) {
+    clearEmbeddedFonts();
+    clearGlyphDefs();
+  } // DM-1338: glyph registry shares the lifecycle
 
   const emu = new TerminalEmulator(cols, rows, theme);
   let frames;
@@ -204,7 +219,13 @@ export async function castToAnimatedSvg(
   // animation); `mode: "full"` keeps the per-settle-point full-frame path.
   if (opts.mode !== "full") {
     const r = await composeIncrementalTermSvg(castText, browser, opts);
-    return { svg: r.svg, width: r.width, height: r.height, frameCount: r.lineCount, totalDurationMs: r.totalDurationMs };
+    return {
+      svg: r.svg,
+      width: r.width,
+      height: r.height,
+      frameCount: r.lineCount,
+      totalDurationMs: r.totalDurationMs,
+    };
   }
   const { frames, width, height, totalDurationMs, fontFaceCss } = await castToTermFrames(castText, browser, opts);
   const svg = generateAnimatedSvg({ width, height, frames, fontFaceCss });

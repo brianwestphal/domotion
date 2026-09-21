@@ -148,8 +148,17 @@ export class TerminalEmulator {
 export function gridSignature(grid: TermGrid): string {
   const cellSig = (c: TermCell): string => {
     if (c.char === " " && c.fg == null && c.bg == null && !c.bold && !c.italic && !c.dim && !c.underline) return " ";
-    return c.char + "|" + (c.fg ?? "") + "|" + (c.bg ?? "")
-      + (c.bold ? "b" : "") + (c.italic ? "i" : "") + (c.dim ? "d" : "") + (c.underline ? "u" : "");
+    return (
+      c.char +
+      "|" +
+      (c.fg ?? "") +
+      "|" +
+      (c.bg ?? "") +
+      (c.bold ? "b" : "") +
+      (c.italic ? "i" : "") +
+      (c.dim ? "d" : "") +
+      (c.underline ? "u" : "")
+    );
   };
   return grid
     .map((row) => row.map(cellSig).join("").replace(/ +$/, ""))

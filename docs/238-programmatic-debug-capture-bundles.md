@@ -4,10 +4,10 @@ title: "Programmatic debug capture bundles"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2635"]
-code: ["src/capture/debug-bundle.ts","src/capture/index.ts","src/index.ts","tests/capture-debug-api.e2e.test.ts"]
-aliases: ["docs/238-programmatic-debug-capture-bundles.md","doc-238"]
+code: ["src/capture/debug-bundle.ts", "src/capture/index.ts", "src/index.ts", "tests/capture-debug-api.e2e.test.ts"]
+aliases: ["docs/238-programmatic-debug-capture-bundles.md", "doc-238"]
 ---
 
 # Programmatic debug capture bundles
@@ -19,17 +19,9 @@ adopting the CLI's directory names or filesystem lifecycle.
 ## Capture and render
 
 ```ts
-import {
-  assembleCaptureDebugBundle,
-  captureElementTreeWithDebug,
-  elementTreeToSvg,
-} from "domotion-svg";
+import { assembleCaptureDebugBundle, captureElementTreeWithDebug, elementTreeToSvg } from "domotion-svg";
 
-const result = await captureElementTreeWithDebug(
-  page,
-  "body",
-  { x: 0, y: 0, width: 1024, height: 768 },
-);
+const result = await captureElementTreeWithDebug(page, "body", { x: 0, y: 0, width: 1024, height: 768 });
 const actualSvg = elementTreeToSvg(result.tree, 1024, 768);
 const bundle = assembleCaptureDebugBundle(result.debug, actualSvg);
 ```

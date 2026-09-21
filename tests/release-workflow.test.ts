@@ -18,7 +18,7 @@ describe("release.yml", () => {
     expect(yaml).toContain("^v[0-9]+\\.[0-9]+\\.[0-9]+(-beta\\.[0-9]+)?$");
 
     const checkoutCount = [...yaml.matchAll(/uses: actions\/checkout@v4/g)].length;
-    const releaseRefCheckoutCount = [...yaml.matchAll(/with: \{ ref: '\$\{\{ env\.RELEASE_REF \}\}' \}/g)].length;
+    const releaseRefCheckoutCount = [...yaml.matchAll(/with: \{ ref: ["']\$\{\{ env\.RELEASE_REF \}\}["'] \}/g)].length;
     expect(releaseRefCheckoutCount, "every checkout must read the requested release tag").toBe(checkoutCount);
   });
 
@@ -31,11 +31,13 @@ describe("release.yml", () => {
     expect(testJob).toContain('SWIFT_ARCH="$(uname -m)"');
     expect(testJob).toContain('swift build -c release --arch "$SWIFT_ARCH"');
     expect(testJob.indexOf("npx playwright install chromium")).toBeLessThan(testJob.indexOf("npm test"));
-    expect(yaml).toContain("DOMOTION_NO_OPEN: '1'");
+    expect(yaml).toMatch(/DOMOTION_NO_OPEN: ["']1["']/);
   });
 
   it("creates the release before invoking retained helper publication", () => {
-    expect(yaml).toMatch(/\n  release-helpers:\n    needs: create-release\n    uses: \.\/\.github\/workflows\/release-helpers\.yml/);
+    expect(yaml).toMatch(
+      /\n  release-helpers:\n    needs: create-release\n    uses: \.\/\.github\/workflows\/release-helpers\.yml/,
+    );
     expect(yaml).toContain("tag: ${{ inputs.release_ref || github.ref_name }}");
     expect(yaml).toContain("secrets: inherit");
     expect(yaml).toContain("needs: [create-release, detect, release-helpers]");

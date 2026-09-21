@@ -18,19 +18,26 @@ import type { Template, TemplateOutput, TemplateRenderContext } from "../types.j
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 /** One message, after parsing. `me` = right-aligned accent bubble. */
-export interface ChatMessage { from: "me" | "them"; text: string; }
+export interface ChatMessage {
+  from: "me" | "them";
+  text: string;
+}
 
 /** Messages as a JSON array of `{from, text}` OR a compact string where each
  *  line is `me: …` / `them: …` (so the CLI `--messages` flag works). */
 const messagesSchema = z
   .union([
     z.string().transform((s): ChatMessage[] =>
-      s.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
-        const m = /^(me|them|1|2)\s*:\s*(.*)$/i.exec(line);
-        if (m == null) return { from: "them" as const, text: line };
-        const who = m[1].toLowerCase();
-        return { from: who === "me" || who === "1" ? "me" : "them", text: m[2] };
-      }),
+      s
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const m = /^(me|them|1|2)\s*:\s*(.*)$/i.exec(line);
+          if (m == null) return { from: "them" as const, text: line };
+          const who = m[1].toLowerCase();
+          return { from: who === "me" || who === "1" ? "me" : "them", text: m[2] };
+        }),
     ),
     z.array(z.object({ from: z.enum(["me", "them"]), text: z.string() })),
   ])
@@ -53,9 +60,17 @@ export const chatParamsSchema = z.object({
   background: z.string().default("#ffffff").describe("Thread background (CSS color)."),
   width: z.coerce.number().int().positive().default(560).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(760).describe("Output height in px."),
-  fontFamily: z.string().default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif").describe("CSS font-family."),
+  fontFamily: z
+    .string()
+    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
+    .describe("CSS font-family."),
   typing: z.coerce.boolean().default(true).describe('Show a "…" typing indicator before each "them" message.'),
-  typingMs: z.coerce.number().int().positive().default(900).describe("How long the typing indicator shows before the message in ms."),
+  typingMs: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(900)
+    .describe("How long the typing indicator shows before the message in ms."),
   popMs: z.coerce.number().int().positive().default(360).describe("Pop-in duration per message in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(650).describe("Delay between messages in ms."),
   holdMs: z.coerce.number().int().positive().default(2000).describe("Hold after the last message in ms."),
@@ -63,12 +78,14 @@ export const chatParamsSchema = z.object({
 
 export type ChatParams = z.infer<typeof chatParamsSchema>;
 
-
 /** When each message pops, and (for typing-enabled `them` messages) when its
  *  typing indicator appears. A `them` message with typing shows the indicator for
  *  `typingMs` first, so the whole thread runs sequentially: type, send, type,
  *  send. Pure. */
-export interface ChatTimeline { popStart: number[]; typingStart: (number | null)[]; }
+export interface ChatTimeline {
+  popStart: number[];
+  typingStart: (number | null)[];
+}
 
 export function chatTimeline(p: ChatParams): ChatTimeline {
   const popStart: number[] = [];
@@ -92,12 +109,13 @@ export function chatTimeline(p: ChatParams): ChatTimeline {
 /** Standalone HTML for the chat thread. Pure — unit-testable without a browser. */
 export function buildChatHtml(p: ChatParams, safeInset?: SafeInset): string {
   const padding = safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, safeInset);
-  const header = p.title != null && p.title !== ""
-    ? `<div class="ct-head">
+  const header =
+    p.title != null && p.title !== ""
+      ? `<div class="ct-head">
          <div class="ct-avatar">${escapeHtml(p.title.trim().charAt(0).toUpperCase() || "•")}</div>
          <div class="ct-name">${escapeHtml(p.title)}</div>
        </div>`
-    : "";
+      : "";
 
   const rows = p.messages
     .map((m, i) => {
@@ -105,13 +123,14 @@ export function buildChatHtml(p: ChatParams, safeInset?: SafeInset): string {
       // For a `them` message with typing on, a "…" bubble overlays the bottom-left
       // of the row (where the bubble lands) and is covered by the message when it
       // pops. It comes BEFORE the message in the DOM so the message paints on top.
-      const typing = p.typing && m.from === "them"
-        ? `<div class="ct-typing-wrap ct-typing-wrap-${i}">
+      const typing =
+        p.typing && m.from === "them"
+          ? `<div class="ct-typing-wrap ct-typing-wrap-${i}">
           <div class="ct-typing-inner ct-typing-inner-${i}">
             <div class="ct-typing-bubble"><span class="ct-dot ct-dot-${i}-0"></span><span class="ct-dot ct-dot-${i}-1"></span><span class="ct-dot ct-dot-${i}-2"></span></div>
           </div>
         </div>`
-        : "";
+          : "";
       // wrapper carries the pop (scale, origin at the bubble's anchored corner);
       // inner bubble carries the fade — two elements, one animation each.
       return `<div class="ct-row ${side}">
@@ -166,13 +185,23 @@ export function buildChatAnimations(p: ChatParams): Anims {
     // Scale up from the bubble's anchored corner (the side it sits on), so it
     // grows out of its tail rather than from the SVG origin.
     anims.push({
-      selector: `.ct-pop-${i}`, property: "scale", from: "0.6", to: "1",
-      duration: p.popMs, delay, easing: ease,
+      selector: `.ct-pop-${i}`,
+      property: "scale",
+      from: "0.6",
+      to: "1",
+      duration: p.popMs,
+      delay,
+      easing: ease,
       transformOrigin: m.from === "me" ? "bottom right" : "bottom left",
     });
     anims.push({
-      selector: `.ct-bubble-${i}`, property: "opacity", from: "0", to: "1",
-      duration: Math.round(p.popMs * 0.6), delay, easing: "ease-out",
+      selector: `.ct-bubble-${i}`,
+      property: "opacity",
+      from: "0",
+      to: "1",
+      duration: Math.round(p.popMs * 0.6),
+      delay,
+      easing: "ease-out",
     });
 
     const ts = typingStart[i];
@@ -180,14 +209,36 @@ export function buildChatAnimations(p: ChatParams): Anims {
       // The indicator: a nested fade IN (wrapper) + fade OUT (inner) so it appears
       // for the typing window and is gone by the time the message pops — the
       // from/to animation model can't do in-and-out on one element.
-      anims.push({ selector: `.ct-typing-wrap-${i}`, property: "opacity", from: "0", to: "1", duration: 200, delay: ts, easing: "ease-out" });
-      anims.push({ selector: `.ct-typing-inner-${i}`, property: "opacity", from: "1", to: "0", duration: 180, delay: delay - 80, easing: "ease-out" });
+      anims.push({
+        selector: `.ct-typing-wrap-${i}`,
+        property: "opacity",
+        from: "0",
+        to: "1",
+        duration: 200,
+        delay: ts,
+        easing: "ease-out",
+      });
+      anims.push({
+        selector: `.ct-typing-inner-${i}`,
+        property: "opacity",
+        from: "1",
+        to: "0",
+        duration: 180,
+        delay: delay - 80,
+        easing: "ease-out",
+      });
       // Three bouncing dots, phase-offset.
       for (let d = 0; d < 3; d++) {
         anims.push({
-          selector: `.ct-dot-${i}-${d}`, property: "translateY", from: "0px", to: "-7px",
-          duration: 360, delay: ts + d * 140, easing: "ease-in-out",
-          repeat: "infinite", alternate: true,
+          selector: `.ct-dot-${i}-${d}`,
+          property: "translateY",
+          from: "0px",
+          to: "-7px",
+          duration: 360,
+          delay: ts + d * 140,
+          easing: "ease-in-out",
+          repeat: "infinite",
+          alternate: true,
         });
       }
     }

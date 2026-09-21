@@ -80,12 +80,12 @@ Optional fields carry the rest of what Chrome passes `MapCharacters`. Each one
 defaults to the value the query used before it existed, so an older caller
 degrades to the previous behavior rather than mismatching:
 
-| field | `MapCharacters` argument | default when absent |
-| --- | --- | --- |
-| `cssWeight` / `italic` / `cssSlant` / `cssStretch` | the style triple | `NORMAL` / `NORMAL` / `NORMAL` |
-| `baseFamilyName` | the run's primary family | `nullptr` (pure system fallback) |
-| `locale` | the analysis source's locale name | `en-us` |
-| `diagnostics` | response-only raw mapped weight/stretch/style/simulation tuple | omitted |
+| field                                              | `MapCharacters` argument                                       | default when absent              |
+| -------------------------------------------------- | -------------------------------------------------------------- | -------------------------------- |
+| `cssWeight` / `italic` / `cssSlant` / `cssStretch` | the style triple                                               | `NORMAL` / `NORMAL` / `NORMAL`   |
+| `baseFamilyName`                                   | the run's primary family                                       | `nullptr` (pure system fallback) |
+| `locale`                                           | the analysis source's locale name                              | `en-us`                          |
+| `diagnostics`                                      | response-only raw mapped weight/stretch/style/simulation tuple | omitted                          |
 
 `diagnostics:true` does not change selection. It adds the raw `IDWriteFont`
 style tuple needed to compare `MapCharacters` with Blink's subsequent

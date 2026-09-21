@@ -46,7 +46,8 @@ describe("composite-config JSON Schema", () => {
       expect(layer, `missing layer property: ${key}`).toHaveProperty(key);
     }
     // The layer-animation `property` enum carries the resize-by-clip ops.
-    const anim = (layer.animations as { items: { properties: { property: { enum: string[] } } } }).items.properties.property;
+    const anim = (layer.animations as { items: { properties: { property: { enum: string[] } } } }).items.properties
+      .property;
     expect(anim.enum).toEqual(expect.arrayContaining(["scale", "translateX", "opacity", "clipScaleX", "clipScaleY"]));
   });
 });

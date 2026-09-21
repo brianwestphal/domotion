@@ -6,7 +6,7 @@ const page = await ctx.newPage();
 
 // F900..FAD9 (CJK Compatibility Ideographs, BMP). Skip the FADA..FAFF gap reserveds.
 const cps = [];
-for (let cp = 0xF900; cp <= 0xFAD9; cp++) cps.push(cp);
+for (let cp = 0xf900; cp <= 0xfad9; cp++) cps.push(cp);
 
 await page.setContent(`<!doctype html><meta charset=utf-8><body style="margin:0;font:64px serif"></body>`);
 await page.waitForLoadState("networkidle");
@@ -14,7 +14,8 @@ await page.waitForLoadState("networkidle");
 const result = await page.evaluate((cps) => {
   const out = [];
   const cnv = document.createElement("canvas");
-  cnv.width = 80; cnv.height = 80;
+  cnv.width = 80;
+  cnv.height = 80;
   const g = cnv.getContext("2d", { willReadFrequently: true });
   function sig(str) {
     g.clearRect(0, 0, 80, 80);
@@ -23,10 +24,14 @@ const result = await page.evaluate((cps) => {
     g.textBaseline = "top";
     g.fillText(str, 4, 4);
     const d = g.getImageData(0, 0, 80, 80).data;
-    let ink = 0, hash = 0;
+    let ink = 0,
+      hash = 0;
     for (let i = 0; i < d.length; i += 4) {
       const a = d[i + 3];
-      if (a > 32) { ink++; hash = (hash * 31 + ((i >> 2) | a)) | 0; }
+      if (a > 32) {
+        ink++;
+        hash = (hash * 31 + ((i >> 2) | a)) | 0;
+      }
     }
     return { ink, hash };
   }
@@ -47,5 +52,9 @@ for (const r of result) {
 const clusters = [...byHash.entries()].sort((a, b) => b[1] - a[1]);
 console.log("F900 block total:", result.length);
 console.log("Distinct glyph signatures:", clusters.length);
-console.log("Largest cluster:", clusters[0][1], `(${(100 * clusters[0][1] / result.length).toFixed(1)}% — would be tofu if this dominates)`);
+console.log(
+  "Largest cluster:",
+  clusters[0][1],
+  `(${((100 * clusters[0][1]) / result.length).toFixed(1)}% — would be tofu if this dominates)`,
+);
 console.log("Blank (ink 0):", result.filter((r) => r.ink === 0).length);

@@ -31,9 +31,7 @@ export interface AnimateFrameCaptureResult {
 }
 
 /** Capture an ordinary DOM frame without owning cross-frame orchestration. */
-export async function captureAnimateFrame(
-  request: AnimateFrameCaptureRequest,
-): Promise<AnimateFrameCaptureResult> {
+export async function captureAnimateFrame(request: AnimateFrameCaptureRequest): Promise<AnimateFrameCaptureResult> {
   const tree = await captureElementTreeSelfContained(request.page, request.selector, {
     x: 0,
     y: 0,
@@ -51,7 +49,16 @@ export async function captureAnimateFrame(
   );
   return {
     tree,
-    svgContent: elementTreeToSvgInner(tree, request.width, request.height, request.framePrefix, true, 2, false, request.realText === true),
+    svgContent: elementTreeToSvgInner(
+      tree,
+      request.width,
+      request.height,
+      request.framePrefix,
+      true,
+      2,
+      false,
+      request.realText === true,
+    ),
     cullCss: cull.css,
     rootBackground: tree[0]?.styles?.rootBgComputed,
   };

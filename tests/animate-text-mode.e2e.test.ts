@@ -26,12 +26,19 @@ const browser = await canLaunch();
 if (browser) await closeBrowserSafely(browser); // runAnimate owns its own browser; we only probe launchability.
 
 const dir = mkdtempSync(join(tmpdir(), "domotion-animate-text-mode-"));
-const style = `*{margin:0}body{background:#fff;color:#0d1117}` +
+const style =
+  `*{margin:0}body{background:#fff;color:#0d1117}` +
   `.a{padding:24px;font:600 26px/1.4 'Helvetica Neue',Arial,sans-serif;text-decoration:underline}`;
 const frame1 = join(dir, "frame1.html");
 const frame2 = join(dir, "frame2.html");
-writeFileSync(frame1, `<!doctype html><meta charset="utf-8"><style>${style}</style><div class="a">FirstFrameText</div>`);
-writeFileSync(frame2, `<!doctype html><meta charset="utf-8"><style>${style}</style><div class="a">SecondFrameText</div>`);
+writeFileSync(
+  frame1,
+  `<!doctype html><meta charset="utf-8"><style>${style}</style><div class="a">FirstFrameText</div>`,
+);
+writeFileSync(
+  frame2,
+  `<!doctype html><meta charset="utf-8"><style>${style}</style><div class="a">SecondFrameText</div>`,
+);
 
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -46,13 +53,17 @@ afterEach(() => {
 
 async function animate(args: string[]): Promise<string> {
   const cfgPath = join(dir, `cfg-${Math.random().toString(36).slice(2)}.json`);
-  writeFileSync(cfgPath, JSON.stringify({
-    width: 480, height: 160,
-    frames: [
-      { input: frame1, duration: 400 },
-      { input: frame2, duration: 400 },
-    ],
-  }));
+  writeFileSync(
+    cfgPath,
+    JSON.stringify({
+      width: 480,
+      height: 160,
+      frames: [
+        { input: frame1, duration: 400 },
+        { input: frame2, duration: 400 },
+      ],
+    }),
+  );
   const out = join(dir, `out-${Math.random().toString(36).slice(2)}.svg`);
   await runAnimate([cfgPath, "--quiet", "-o", out, ...args], "");
   return readFileSync(out, "utf8");
@@ -64,8 +75,9 @@ describeBrowser("animate --text-mode (DM-FJZQ34)", () => {
   it("rejects an out-of-enum --text-mode before launching a browser", async () => {
     const cfgPath = join(dir, "cfg-bad.json");
     writeFileSync(cfgPath, JSON.stringify({ width: 480, height: 160, frames: [{ input: frame1, duration: 400 }] }));
-    await expect(runAnimate([cfgPath, "--text-mode", "bogus", "-o", join(dir, "x.svg")], ""))
-      .rejects.toThrow(/--text-mode expects one of/);
+    await expect(runAnimate([cfgPath, "--text-mode", "bogus", "-o", join(dir, "x.svg")], "")).rejects.toThrow(
+      /--text-mode expects one of/,
+    );
   });
 
   it("system-font mode emits authored <text> per frame, no @font-face, no glyph <path>", async () => {

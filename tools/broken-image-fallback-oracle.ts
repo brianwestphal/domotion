@@ -47,11 +47,12 @@ export const BROKEN_IMAGE_GATE_THRESHOLDS = {
 
 const VIEWPORT = { width: 440, height: 250 } as const;
 const BROKEN = "data:image/png;base64,AAAA";
-const GOOD = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+const GOOD =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 const PENDING_URL = "https://dm2465-pending.invalid/image.png";
 
-type Platform = typeof BROKEN_IMAGE_GATE_PLATFORMS[number];
-type Scheme = typeof BROKEN_IMAGE_GATE_SCHEMES[number];
+type Platform = (typeof BROKEN_IMAGE_GATE_PLATFORMS)[number];
+type Scheme = (typeof BROKEN_IMAGE_GATE_SCHEMES)[number];
 type Disposition = CapturedBrokenImageFallback["disposition"];
 type LoadState = CapturedBrokenImageFallback["loadState"];
 type Rect = { x: number; y: number; width: number; height: number };
@@ -90,38 +91,337 @@ export interface BrokenImageGateCase {
 }
 
 export const BROKEN_IMAGE_GATE_CASES: readonly BrokenImageGateCase[] = [
-  { id: "src-loading", family: "source-state", src: "pending", alt: "pending image", expectedDisposition: "loading", expectedLoadState: "loading", expectedIcon: false, expectedText: false, expectedIgnored: false },
-  { id: "src-error", family: "source-state", src: "broken", alt: "failed image", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "src-success", family: "source-state", src: "good", alt: "successful image", width: 24, height: 24, expectedDisposition: "primary", expectedLoadState: "loaded", expectedIcon: false, expectedText: false, expectedIgnored: false },
-  { id: "src-missing-with-alt", family: "source-state", src: "missing", alt: "no source", expectedDisposition: "non-replaced-fallback", expectedLoadState: "no-source", expectedIcon: true, expectedText: true, expectedIgnored: false },
+  {
+    id: "src-loading",
+    family: "source-state",
+    src: "pending",
+    alt: "pending image",
+    expectedDisposition: "loading",
+    expectedLoadState: "loading",
+    expectedIcon: false,
+    expectedText: false,
+    expectedIgnored: false,
+  },
+  {
+    id: "src-error",
+    family: "source-state",
+    src: "broken",
+    alt: "failed image",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "src-success",
+    family: "source-state",
+    src: "good",
+    alt: "successful image",
+    width: 24,
+    height: 24,
+    expectedDisposition: "primary",
+    expectedLoadState: "loaded",
+    expectedIcon: false,
+    expectedText: false,
+    expectedIgnored: false,
+  },
+  {
+    id: "src-missing-with-alt",
+    family: "source-state",
+    src: "missing",
+    alt: "no source",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "no-source",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
 
-  { id: "alt-missing", family: "alt-title", src: "broken", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: false, expectedIgnored: false },
-  { id: "alt-empty-auto", family: "alt-title", src: "broken", alt: "", expectedDisposition: "empty-inline", expectedLoadState: "failed", expectedIcon: false, expectedText: false, expectedIgnored: true },
-  { id: "alt-text", family: "alt-title", src: "broken", alt: "Alternative name", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "title-fallback", family: "alt-title", src: "broken", title: "Title name", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
+  {
+    id: "alt-missing",
+    family: "alt-title",
+    src: "broken",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: false,
+    expectedIgnored: false,
+  },
+  {
+    id: "alt-empty-auto",
+    family: "alt-title",
+    src: "broken",
+    alt: "",
+    expectedDisposition: "empty-inline",
+    expectedLoadState: "failed",
+    expectedIcon: false,
+    expectedText: false,
+    expectedIgnored: true,
+  },
+  {
+    id: "alt-text",
+    family: "alt-title",
+    src: "broken",
+    alt: "Alternative name",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "title-fallback",
+    family: "alt-title",
+    src: "broken",
+    title: "Title name",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
 
-  { id: "threshold-17", family: "threshold", src: "broken", alt: "", width: 17, height: 17, expectedDisposition: "replaced-flow-root-fallback", expectedLoadState: "failed", expectedIcon: false, expectedText: false, expectedIgnored: true },
-  { id: "threshold-18", family: "threshold", src: "broken", alt: "", width: 18, height: 18, expectedDisposition: "replaced-flow-root-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: false, expectedIgnored: true },
+  {
+    id: "threshold-17",
+    family: "threshold",
+    src: "broken",
+    alt: "",
+    width: 17,
+    height: 17,
+    expectedDisposition: "replaced-flow-root-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: false,
+    expectedText: false,
+    expectedIgnored: true,
+  },
+  {
+    id: "threshold-18",
+    family: "threshold",
+    src: "broken",
+    alt: "",
+    width: 18,
+    height: 18,
+    expectedDisposition: "replaced-flow-root-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: false,
+    expectedIgnored: true,
+  },
 
-  { id: "direction-ltr", family: "direction", src: "broken", alt: "LTR label", css: "direction:ltr", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "direction-rtl", family: "direction", src: "broken", alt: "مرحبا", css: "direction:rtl", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "writing-horizontal", family: "writing-mode", src: "broken", alt: "horizontal", css: "writing-mode:horizontal-tb", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "writing-vertical", family: "writing-mode", src: "broken", alt: "縦書き", css: "writing-mode:vertical-rl", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
+  {
+    id: "direction-ltr",
+    family: "direction",
+    src: "broken",
+    alt: "LTR label",
+    css: "direction:ltr",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "direction-rtl",
+    family: "direction",
+    src: "broken",
+    alt: "مرحبا",
+    css: "direction:rtl",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "writing-horizontal",
+    family: "writing-mode",
+    src: "broken",
+    alt: "horizontal",
+    css: "writing-mode:horizontal-tb",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "writing-vertical",
+    family: "writing-mode",
+    src: "broken",
+    alt: "縦書き",
+    css: "writing-mode:vertical-rl",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
 
-  { id: "standards-one-dimension", family: "sizing-mode", src: "broken", alt: "one dimension", width: 72, expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "standards-both-text", family: "sizing-mode", src: "broken", alt: "both dimensions", width: 96, height: 30, expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "standards-both-empty", family: "sizing-mode", src: "broken", alt: "", width: 96, height: 30, expectedDisposition: "replaced-flow-root-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: false, expectedIgnored: true },
-  { id: "standards-aspect-ratio", family: "sizing-mode", src: "broken", alt: "", width: 96, css: "aspect-ratio:3/1", expectedDisposition: "replaced-flow-root-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: false, expectedIgnored: true },
-  { id: "quirks-one-dimension", family: "sizing-mode", quirks: true, src: "broken", alt: "quirks one dimension", width: 72, expectedDisposition: "replaced-flow-root-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
+  {
+    id: "standards-one-dimension",
+    family: "sizing-mode",
+    src: "broken",
+    alt: "one dimension",
+    width: 72,
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "standards-both-text",
+    family: "sizing-mode",
+    src: "broken",
+    alt: "both dimensions",
+    width: 96,
+    height: 30,
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "standards-both-empty",
+    family: "sizing-mode",
+    src: "broken",
+    alt: "",
+    width: 96,
+    height: 30,
+    expectedDisposition: "replaced-flow-root-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: false,
+    expectedIgnored: true,
+  },
+  {
+    id: "standards-aspect-ratio",
+    family: "sizing-mode",
+    src: "broken",
+    alt: "",
+    width: 96,
+    css: "aspect-ratio:3/1",
+    expectedDisposition: "replaced-flow-root-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: false,
+    expectedIgnored: true,
+  },
+  {
+    id: "quirks-one-dimension",
+    family: "sizing-mode",
+    quirks: true,
+    src: "broken",
+    alt: "quirks one dimension",
+    width: 72,
+    expectedDisposition: "replaced-flow-root-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
 
-  { id: "author-box", family: "author-box", src: "broken", alt: "author box", css: "border:3px solid rgb(20,70,130);padding:4px 7px;background:rgb(235,242,252);box-shadow:2px 3px 0 rgba(4,8,12,.3)", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "long-clipped-quirks", family: "clipping", quirks: true, src: "broken", alt: "a very long alternative label that must stay clipped by the captured UA container", width: 104, height: 28, css: "white-space:nowrap", expectedDisposition: "replaced-flow-root-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "mixed-astral-bidi", family: "mixed-text", src: "broken", alt: "A😀ב alternative", css: "font-style:italic;font-weight:700", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "zoom-1", family: "zoom", src: "broken", alt: "zoom", css: "zoom:1", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "zoom-1-5", family: "zoom", src: "broken", alt: "zoom", css: "zoom:1.5", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "author-affine-transform", family: "transform", src: "broken", alt: "transformed", css: "transform:translate(7px,5px) scale(1.1);transform-origin:0 0", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: true, expectedIgnored: false },
-  { id: "ordinary-author-raster", family: "raster-negative", src: "good", alt: "ordinary raster", width: 28, height: 22, css: "image-rendering:pixelated", expectedDisposition: "primary", expectedLoadState: "loaded", expectedIcon: false, expectedText: false, expectedIgnored: false },
-  { id: "icon-content", family: "icon-content", src: "broken", expectedDisposition: "non-replaced-fallback", expectedLoadState: "failed", expectedIcon: true, expectedText: false, expectedIgnored: false },
+  {
+    id: "author-box",
+    family: "author-box",
+    src: "broken",
+    alt: "author box",
+    css: "border:3px solid rgb(20,70,130);padding:4px 7px;background:rgb(235,242,252);box-shadow:2px 3px 0 rgba(4,8,12,.3)",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "long-clipped-quirks",
+    family: "clipping",
+    quirks: true,
+    src: "broken",
+    alt: "a very long alternative label that must stay clipped by the captured UA container",
+    width: 104,
+    height: 28,
+    css: "white-space:nowrap",
+    expectedDisposition: "replaced-flow-root-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "mixed-astral-bidi",
+    family: "mixed-text",
+    src: "broken",
+    alt: "A😀ב alternative",
+    css: "font-style:italic;font-weight:700",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "zoom-1",
+    family: "zoom",
+    src: "broken",
+    alt: "zoom",
+    css: "zoom:1",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "zoom-1-5",
+    family: "zoom",
+    src: "broken",
+    alt: "zoom",
+    css: "zoom:1.5",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "author-affine-transform",
+    family: "transform",
+    src: "broken",
+    alt: "transformed",
+    css: "transform:translate(7px,5px) scale(1.1);transform-origin:0 0",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: true,
+    expectedIgnored: false,
+  },
+  {
+    id: "ordinary-author-raster",
+    family: "raster-negative",
+    src: "good",
+    alt: "ordinary raster",
+    width: 28,
+    height: 22,
+    css: "image-rendering:pixelated",
+    expectedDisposition: "primary",
+    expectedLoadState: "loaded",
+    expectedIcon: false,
+    expectedText: false,
+    expectedIgnored: false,
+  },
+  {
+    id: "icon-content",
+    family: "icon-content",
+    src: "broken",
+    expectedDisposition: "non-replaced-fallback",
+    expectedLoadState: "failed",
+    expectedIcon: true,
+    expectedText: false,
+    expectedIgnored: false,
+  },
 ] as const;
 
 export const REQUIRED_BROKEN_IMAGE_MUTATIONS = [
@@ -142,7 +442,7 @@ export const REQUIRED_BROKEN_IMAGE_MUTATIONS = [
   "reuse-1x-at-2x",
 ] as const;
 
-export type BrokenImageMutationKind = typeof REQUIRED_BROKEN_IMAGE_MUTATIONS[number];
+export type BrokenImageMutationKind = (typeof REQUIRED_BROKEN_IMAGE_MUTATIONS)[number];
 
 interface CdpNode {
   nodeId: number;
@@ -375,7 +675,8 @@ async function boxFor(session: CDPSession, node: CdpNode | null): Promise<Captur
 async function frontendNodeId(session: CDPSession, node: CdpNode): Promise<number> {
   if (node.nodeId !== 0) return node.nodeId;
   const result = await session.send("DOM.pushNodesByBackendIdsToFrontend", { backendNodeIds: [node.backendNodeId] });
-  if (result.nodeIds[0] == null || result.nodeIds[0] === 0) throw new Error(`could not push backend node ${node.backendNodeId}`);
+  if (result.nodeIds[0] == null || result.nodeIds[0] === 0)
+    throw new Error(`could not push backend node ${node.backendNodeId}`);
   return result.nodeIds[0];
 }
 
@@ -462,9 +763,7 @@ async function independentFacts(page: Page, session: CDPSession): Promise<Indepe
   const container = findById(host, "alttext-container");
   const icon = findById(host, "alttext-image");
   const textElement = findById(host, "alttext");
-  const textNode = textElement == null
-    ? null
-    : descendants(textElement).find((node) => node.nodeType === 3) ?? null;
+  const textNode = textElement == null ? null : (descendants(textElement).find((node) => node.nodeType === 3) ?? null);
   let accessibility: IndependentFacts["accessibility"] = null;
   try {
     const ax = await session.send("Accessibility.getPartialAXTree", {
@@ -528,8 +827,10 @@ function imageMarkup(test: BrokenImageGateCase): string {
   if (test.src === "broken") attrs.push(`src="${BROKEN}"`);
   if (test.src === "good") attrs.push(`src="${GOOD}"`);
   if (test.src === "pending") attrs.push(`src="${PENDING_URL}"`);
-  if (test.alt != null) attrs.push(`alt="${test.alt.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}"`);
-  if (test.title != null) attrs.push(`title="${test.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}"`);
+  if (test.alt != null)
+    attrs.push(`alt="${test.alt.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}"`);
+  if (test.title != null)
+    attrs.push(`title="${test.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}"`);
   if (test.width != null) attrs.push(`width="${test.width}"`);
   if (test.height != null) attrs.push(`height="${test.height}"`);
   if (test.css != null) attrs.push(`style="${test.css}"`);
@@ -565,8 +866,13 @@ interface OutputFacts {
 }
 
 async function readOutputFacts(page: Page, svg: string, resolvedText: string): Promise<OutputFacts> {
-  await page.setContent(`<style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;overflow:hidden;background:transparent}svg{display:block}</style>${svg}`, { waitUntil: "load" });
-  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+  await page.setContent(
+    `<style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;overflow:hidden;background:transparent}svg{display:block}</style>${svg}`,
+    { waitUntil: "load" },
+  );
+  await page.evaluate(
+    () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  );
   return page.evaluate((expectedText) => {
     const markers = Array.from(document.querySelectorAll<SVGGraphicsElement>("[data-broken-image-icon]"));
     const marker = markers[0] ?? null;
@@ -582,8 +888,9 @@ async function readOutputFacts(page: Page, svg: string, resolvedText: string): P
       iconMarkerCount: markers.length,
       vectorTextMarkerCount: document.querySelectorAll('[data-broken-image-text="vector"]').length,
       legacyMountainCount: document.querySelectorAll("polyline").length,
-      rawAlternativeTextCount: Array.from(document.querySelectorAll("text"))
-        .filter((node) => node.textContent === expectedText).length,
+      rawAlternativeTextCount: Array.from(document.querySelectorAll("text")).filter(
+        (node) => node.textContent === expectedText,
+      ).length,
       markerRect: rect == null ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       markerHref,
     };
@@ -611,21 +918,41 @@ async function isolateIndependentIcon(
       const entries: Array<{ element: HTMLElement; property: string; value: string; priority: string }> = [];
       scope[key] = entries;
       for (const element of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
-        entries.push({ element, property: "visibility", value: element.style.getPropertyValue("visibility"), priority: element.style.getPropertyPriority("visibility") });
+        entries.push({
+          element,
+          property: "visibility",
+          value: element.style.getPropertyValue("visibility"),
+          priority: element.style.getPropertyPriority("visibility"),
+        });
         element.style.setProperty("visibility", "hidden", "important");
       }
       const target = document.querySelector<HTMLElement>("#target");
       if (target == null) throw new Error("independent icon target disappeared");
       for (const [property, value] of [
-        ["visibility", "visible"], ["opacity", "1"], ["filter", "none"],
-        ["mix-blend-mode", "normal"], ["background", "transparent"],
-        ["border-color", "transparent"], ["box-shadow", "none"], ["outline", "none"],
+        ["visibility", "visible"],
+        ["opacity", "1"],
+        ["filter", "none"],
+        ["mix-blend-mode", "normal"],
+        ["background", "transparent"],
+        ["border-color", "transparent"],
+        ["box-shadow", "none"],
+        ["outline", "none"],
       ]) {
-        entries.push({ element: target, property, value: target.style.getPropertyValue(property), priority: target.style.getPropertyPriority(property) });
+        entries.push({
+          element: target,
+          property,
+          value: target.style.getPropertyValue(property),
+          priority: target.style.getPropertyPriority(property),
+        });
         target.style.setProperty(property, value, "important");
       }
       for (const canvas of [document.documentElement, document.body]) {
-        entries.push({ element: canvas, property: "background", value: canvas.style.getPropertyValue("background"), priority: canvas.style.getPropertyPriority("background") });
+        entries.push({
+          element: canvas,
+          property: "background",
+          value: canvas.style.getPropertyValue("background"),
+          priority: canvas.style.getPropertyPriority("background"),
+        });
         canvas.style.setProperty("background", "transparent", "important");
       }
     }, restoreKey);
@@ -660,10 +987,11 @@ async function isolateIndependentIcon(
     return Buffer.from(await page.screenshot({ clip: rect, omitBackground: true, type: "png", animations: "allow" }));
   } finally {
     if (objectId != null && uaRestore != null) {
-      await session.send("Runtime.callFunctionOn", {
-        objectId,
-        arguments: [{ value: uaRestore }],
-        functionDeclaration: `function(entries) {
+      await session
+        .send("Runtime.callFunctionOn", {
+          objectId,
+          arguments: [{ value: uaRestore }],
+          functionDeclaration: `function(entries) {
           const root = this.getRootNode();
           for (let index = entries.length - 1; index >= 0; index--) {
             const entry = entries[index];
@@ -673,19 +1001,23 @@ async function isolateIndependentIcon(
             else element.style.setProperty(entry.property, entry.value, entry.priority);
           }
         }`,
-      }).catch(() => undefined);
+        })
+        .catch(() => undefined);
     }
     if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
-    await page.evaluate((key) => {
-      const scope = globalThis as typeof globalThis & Record<string, unknown>;
-      const entries = scope[key] as Array<{ element: HTMLElement; property: string; value: string; priority: string }> | undefined;
-      for (let index = (entries?.length ?? 0) - 1; index >= 0; index--) {
-        const entry = entries![index];
-        if (entry.value === "" && entry.priority === "") entry.element.style.removeProperty(entry.property);
-        else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
-      }
-      delete scope[key];
-    }, restoreKey).catch(() => undefined);
+    await page
+      .evaluate((key) => {
+        const scope = globalThis as typeof globalThis & Record<string, unknown>;
+        const entries = scope[key] as
+          Array<{ element: HTMLElement; property: string; value: string; priority: string }> | undefined;
+        for (let index = (entries?.length ?? 0) - 1; index >= 0; index--) {
+          const entry = entries![index];
+          if (entry.value === "" && entry.priority === "") entry.element.style.removeProperty(entry.property);
+          else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
+        }
+        delete scope[key];
+      }, restoreKey)
+      .catch(() => undefined);
   }
 }
 
@@ -718,7 +1050,10 @@ function alphaBounds(image: DecodedRgba): Rect | null {
   return maxX < minX ? null : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
-async function compareIconPng(sourcePng: Buffer, emittedPng: Buffer): Promise<Omit<BrokenImageIconComparison, "sourceArtifact" | "emittedArtifact">> {
+async function compareIconPng(
+  sourcePng: Buffer,
+  emittedPng: Buffer,
+): Promise<Omit<BrokenImageIconComparison, "sourceArtifact" | "emittedArtifact">> {
   const [source, emitted] = await Promise.all([decodeRgba(sourcePng), decodeRgba(emittedPng)]);
   let total = 0;
   let mismatched = 0;
@@ -738,15 +1073,19 @@ async function compareIconPng(sourcePng: Buffer, emittedPng: Buffer): Promise<Om
   const pixelMismatchFraction = sameDimensions ? mismatched / Math.max(1, pixels) : 1;
   const sourceBounds = alphaBounds(source);
   const emittedBounds = alphaBounds(emitted);
-  const alphaBoundDeltaDevicePx = sourceBounds == null || emittedBounds == null
-    ? sourceBounds === emittedBounds ? 0 : null
-    : rectDelta(sourceBounds, emittedBounds);
+  const alphaBoundDeltaDevicePx =
+    sourceBounds == null || emittedBounds == null
+      ? sourceBounds === emittedBounds
+        ? 0
+        : null
+      : rectDelta(sourceBounds, emittedBounds);
   const exactRgba = sameDimensions && source.data.equals(emitted.data);
-  const pass = sameDimensions
-    && alphaBoundDeltaDevicePx != null
-    && alphaBoundDeltaDevicePx <= BROKEN_IMAGE_GATE_THRESHOLDS.iconBoundDevicePx
-    && rgbaMeanError <= BROKEN_IMAGE_GATE_THRESHOLDS.iconRgbaMeanError
-    && pixelMismatchFraction <= BROKEN_IMAGE_GATE_THRESHOLDS.iconPixelMismatchFraction;
+  const pass =
+    sameDimensions &&
+    alphaBoundDeltaDevicePx != null &&
+    alphaBoundDeltaDevicePx <= BROKEN_IMAGE_GATE_THRESHOLDS.iconBoundDevicePx &&
+    rgbaMeanError <= BROKEN_IMAGE_GATE_THRESHOLDS.iconRgbaMeanError &&
+    pixelMismatchFraction <= BROKEN_IMAGE_GATE_THRESHOLDS.iconPixelMismatchFraction;
   return {
     sourcePngSha256: createHash("sha256").update(sourcePng).digest("hex"),
     emittedPngSha256: createHash("sha256").update(emittedPng).digest("hex"),
@@ -774,7 +1113,12 @@ async function iconComparison(
   if (independent.iconBackendNodeId == null || independent.iconBox == null || output.markerHref == null) {
     throw new Error("icon-content row lacks independent source or emitted payload");
   }
-  const sourcePng = await isolateIndependentIcon(page, session, independent.iconBackendNodeId, independent.iconBox.rect);
+  const sourcePng = await isolateIndependentIcon(
+    page,
+    session,
+    independent.iconBackendNodeId,
+    independent.iconBox.rect,
+  );
   const emittedPng = dataUriBuffer(output.markerHref);
   const sourceName = `icon-${scheme}-${dpr}x-source.png`;
   const emittedName = `icon-${scheme}-${dpr}x-emitted.png`;
@@ -783,7 +1127,7 @@ async function iconComparison(
   writeFileSync(resolve(artifactRoot, emittedName), emittedPng);
   return {
     comparison: {
-      ...await compareIconPng(sourcePng, emittedPng),
+      ...(await compareIconPng(sourcePng, emittedPng)),
       sourceArtifact: sourceName,
       emittedArtifact: emittedName,
     },
@@ -798,48 +1142,63 @@ function recordTextBox(record: CapturedBrokenImageFallback): Rect | null {
 
 function sourceMatches(test: BrokenImageGateCase, record: CapturedBrokenImageFallback): boolean {
   const expectedSrcPresent = test.src !== "missing";
-  return record.source.src.present === expectedSrcPresent
-    && record.source.alt.present === (test.alt != null)
-    && record.source.title.present === (test.title != null)
-    && record.source.resolvedText === expectedResolvedText(test);
+  return (
+    record.source.src.present === expectedSrcPresent &&
+    record.source.alt.present === (test.alt != null) &&
+    record.source.title.present === (test.title != null) &&
+    record.source.resolvedText === expectedResolvedText(test)
+  );
 }
 
 function styleMatches(record: CapturedBrokenImageFallback, live: IndependentFacts): boolean {
-  if (record.container == null || live.containerStyle == null) return record.container == null && live.containerStyle == null;
+  if (record.container == null || live.containerStyle == null)
+    return record.container == null && live.containerStyle == null;
   const iconStyle = live.iconStyle;
-  return record.container.display === live.containerStyle.display
-    && record.container.float === live.containerStyle.float
-    && record.container.overflowX === live.containerStyle["overflow-x"]
-    && record.container.overflowY === live.containerStyle["overflow-y"]
-    && record.container.direction === live.containerStyle.direction
-    && record.container.writingMode === live.containerStyle["writing-mode"]
-    && Math.abs(record.container.border.top - numberStyle(live.containerStyle, "border-top-width")) <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx
-    && Math.abs(record.container.padding.top - numberStyle(live.containerStyle, "padding-top")) <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx
-    && (record.icon == null || iconStyle == null || (
-      record.icon.display === iconStyle.display
-      && record.icon.float === iconStyle.float
-      && record.icon.visible === (iconStyle.display !== "none")
-    ));
+  return (
+    record.container.display === live.containerStyle.display &&
+    record.container.float === live.containerStyle.float &&
+    record.container.overflowX === live.containerStyle["overflow-x"] &&
+    record.container.overflowY === live.containerStyle["overflow-y"] &&
+    record.container.direction === live.containerStyle.direction &&
+    record.container.writingMode === live.containerStyle["writing-mode"] &&
+    Math.abs(record.container.border.top - numberStyle(live.containerStyle, "border-top-width")) <=
+      BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
+    Math.abs(record.container.padding.top - numberStyle(live.containerStyle, "padding-top")) <=
+      BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
+    (record.icon == null ||
+      iconStyle == null ||
+      (record.icon.display === iconStyle.display &&
+        record.icon.float === iconStyle.float &&
+        record.icon.visible === (iconStyle.display !== "none")))
+  );
 }
 
 function textMatches(record: CapturedBrokenImageFallback, live: IndependentFacts): boolean {
-  if (record.text == null || live.text == null) return record.text == null && (live.text == null || live.text.value === "");
-  return record.text.value === live.text.value
-    && record.text.style.color === live.text.color
-    && record.text.style.fontFamily === live.text.fontFamily
-    && record.text.style.writingMode === live.text.writingMode
-    && record.text.style.direction === live.text.direction
-    && record.text.codepoints.length === live.text.codepoints.length
-    && record.text.codepoints.every((point, index) => point.text === live.text!.codepoints[index]?.text
-      && point.start === live.text!.codepoints[index]?.start
-      && point.end === live.text!.codepoints[index]?.end);
+  if (record.text == null || live.text == null)
+    return record.text == null && (live.text == null || live.text.value === "");
+  return (
+    record.text.value === live.text.value &&
+    record.text.style.color === live.text.color &&
+    record.text.style.fontFamily === live.text.fontFamily &&
+    record.text.style.writingMode === live.text.writingMode &&
+    record.text.style.direction === live.text.direction &&
+    record.text.codepoints.length === live.text.codepoints.length &&
+    record.text.codepoints.every(
+      (point, index) =>
+        point.text === live.text!.codepoints[index]?.text &&
+        point.start === live.text!.codepoints[index]?.start &&
+        point.end === live.text!.codepoints[index]?.end,
+    )
+  );
 }
 
 function accessibilityMatches(record: CapturedBrokenImageFallback, live: IndependentFacts): boolean {
   if ("unavailableReason" in record.accessibility || live.accessibility == null) return false;
-  return record.accessibility.ignored === live.accessibility.ignored
-    && record.accessibility.role === live.accessibility.role
-    && record.accessibility.name === live.accessibility.name;
+  return (
+    record.accessibility.ignored === live.accessibility.ignored &&
+    record.accessibility.role === live.accessibility.role &&
+    record.accessibility.name === live.accessibility.name
+  );
 }
 
 async function prepareCase(page: Page, test: BrokenImageGateCase): Promise<Route | null> {
@@ -848,16 +1207,21 @@ async function prepareCase(page: Page, test: BrokenImageGateCase): Promise<Route
     return null;
   }
   let pending: Route | null = null;
-  await page.route(PENDING_URL, (route) => { pending = route; });
+  await page.route(PENDING_URL, (route) => {
+    pending = route;
+  });
   const withoutImage = htmlFor({ ...test, src: "missing" }).replace(imageMarkup({ ...test, src: "missing" }), "");
   await page.setContent(withoutImage, { waitUntil: "load" });
-  await page.evaluate(({ src, alt }) => {
-    const image = document.createElement("img");
-    image.id = "target";
-    image.src = src;
-    image.alt = alt;
-    document.querySelector("#stage")?.append(image);
-  }, { src: PENDING_URL, alt: test.alt ?? "" });
+  await page.evaluate(
+    ({ src, alt }) => {
+      const image = document.createElement("img");
+      image.id = "target";
+      image.src = src;
+      image.alt = alt;
+      document.querySelector("#stage")?.append(image);
+    },
+    { src: PENDING_URL, alt: test.alt ?? "" },
+  );
   await page.waitForFunction(() => {
     const image = document.querySelector<HTMLImageElement>("#target");
     return image != null && !image.complete;
@@ -878,11 +1242,14 @@ async function runCase(input: {
   const pending = await prepareCase(page, test);
   try {
     await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+    await page.evaluate(
+      () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+    );
     const result = await captureElementTreeWithWarnings(page, "#stage", { x: 0, y: 0, ...VIEWPORT });
     const image = flatten(result.tree).find((element) => element.tag === "img");
     const record = image?.brokenImageFallback;
-    if (image == null || record == null) throw new Error(`${test.id}: production capture omitted the target image record`);
+    if (image == null || record == null)
+      throw new Error(`${test.id}: production capture omitted the target image record`);
     const live = await independentFacts(page, session);
     const svg = elementTreeToSvg(result.tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: dpr });
     const output = await readOutputFacts(generatedPage, svg, expectedResolvedText(test));
@@ -892,12 +1259,18 @@ async function runCase(input: {
       boxDelta(record.icon?.box ?? null, live.iconBox),
       rectDelta(recordTextBox(record), live.text?.rect ?? null),
     );
-    const baselineDeltaCssPx = record.text?.segments[0]?.baseline == null || live.text?.baseline == null
-      ? record.text?.segments[0]?.baseline == null && live.text?.baseline == null ? 0 : Number.POSITIVE_INFINITY
-      : Math.abs(record.text.segments[0].baseline - live.text.baseline);
-    const markerRectDeltaCssPx = output.markerRect == null || live.iconBox == null
-      ? output.markerRect == null && !test.expectedIcon ? 0 : null
-      : rectDelta(output.markerRect, live.iconBox.rect);
+    const baselineDeltaCssPx =
+      record.text?.segments[0]?.baseline == null || live.text?.baseline == null
+        ? record.text?.segments[0]?.baseline == null && live.text?.baseline == null
+          ? 0
+          : Number.POSITIVE_INFINITY
+        : Math.abs(record.text.segments[0].baseline - live.text.baseline);
+    const markerRectDeltaCssPx =
+      output.markerRect == null || live.iconBox == null
+        ? output.markerRect == null && !test.expectedIcon
+          ? 0
+          : null
+        : rectDelta(output.markerRect, live.iconBox.rect);
     let direct: { sourcePng: Buffer; emittedPng: Buffer } | undefined;
     let directComparison: BrokenImageIconComparison | null = null;
     if (test.id === "icon-content") {
@@ -907,24 +1280,26 @@ async function runCase(input: {
     }
     const exactAx = "unavailableReason" in record.accessibility ? null : record.accessibility;
     const iconVisible = record.icon?.visible === true;
-    const structuralPass = record.captureStatus === "exact"
-      && record.disposition === test.expectedDisposition
-      && record.loadState === test.expectedLoadState
-      && iconVisible === test.expectedIcon
-      && (record.icon?.raster != null) === test.expectedIcon
-      && (record.text != null && record.text.segments.length > 0) === test.expectedText
-      && exactAx?.ignored === test.expectedIgnored
-      && output.iconMarkerCount === (test.expectedIcon ? 1 : 0)
-      && output.vectorTextMarkerCount === (test.expectedText ? 1 : 0)
-      && output.legacyMountainCount === 0
-      && output.rawAlternativeTextCount === 0;
-    const comparisonsPass = sourceMatches(test, record)
-      && styleMatches(record, live)
-      && textMatches(record, live)
-      && accessibilityMatches(record, live)
-      && maxGeometryDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx
-      && baselineDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx
-      && (markerRectDeltaCssPx ?? Number.POSITIVE_INFINITY) <= BROKEN_IMAGE_GATE_THRESHOLDS.cropEnvelopeCssPx;
+    const structuralPass =
+      record.captureStatus === "exact" &&
+      record.disposition === test.expectedDisposition &&
+      record.loadState === test.expectedLoadState &&
+      iconVisible === test.expectedIcon &&
+      (record.icon?.raster != null) === test.expectedIcon &&
+      (record.text != null && record.text.segments.length > 0) === test.expectedText &&
+      exactAx?.ignored === test.expectedIgnored &&
+      output.iconMarkerCount === (test.expectedIcon ? 1 : 0) &&
+      output.vectorTextMarkerCount === (test.expectedText ? 1 : 0) &&
+      output.legacyMountainCount === 0 &&
+      output.rawAlternativeTextCount === 0;
+    const comparisonsPass =
+      sourceMatches(test, record) &&
+      styleMatches(record, live) &&
+      textMatches(record, live) &&
+      accessibilityMatches(record, live) &&
+      maxGeometryDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
+      baselineDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
+      (markerRectDeltaCssPx ?? Number.POSITIVE_INFINITY) <= BROKEN_IMAGE_GATE_THRESHOLDS.cropEnvelopeCssPx;
     const row: BrokenImageGateRow = {
       id: test.id,
       family: test.family,
@@ -964,7 +1339,10 @@ async function runCase(input: {
         ignored: exactAx?.ignored ?? null,
         axRole: exactAx?.role ?? null,
         axName: exactAx?.name ?? null,
-        resolvedFonts: record.text?.resolvedFonts.map((font) => `${font.familyName}|${font.postScriptName}|${font.isCustomFont ? "custom" : "system"}`) ?? [],
+        resolvedFonts:
+          record.text?.resolvedFonts.map(
+            (font) => `${font.familyName}|${font.postScriptName}|${font.isCustomFont ? "custom" : "system"}`,
+          ) ?? [],
       },
       independent: {
         shadowPresent: live.shadowPresent,
@@ -1013,21 +1391,35 @@ async function runCase(input: {
 }
 
 function rowAt(rows: BrokenImageGateRow[], id: string, dpr = 1, scheme: Scheme = "light"): BrokenImageGateRow {
-  const row = rows.find((candidate) => candidate.id === id && candidate.deviceScaleFactor === dpr && candidate.colorScheme === scheme);
+  const row = rows.find(
+    (candidate) => candidate.id === id && candidate.deviceScaleFactor === dpr && candidate.colorScheme === scheme,
+  );
   if (row == null) throw new Error(`missing gate row ${id}@${dpr}x/${scheme}`);
   return row;
 }
 
 async function mountainPng(dpr: number): Promise<Buffer> {
   const size = 16 * dpr;
-  return sharp(Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="none" stroke="gray"/><polyline points="3,12 6,7 9,10 13,12" fill="none" stroke="gray"/></svg>`)).png().toBuffer();
+  return sharp(
+    Buffer.from(
+      `<svg width="${size}" height="${size}" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="none" stroke="gray"/><polyline points="3,12 6,7 9,10 13,12" fill="none" stroke="gray"/></svg>`,
+    ),
+  )
+    .png()
+    .toBuffer();
 }
 
 async function buildMutations(
   rows: BrokenImageGateRow[],
   direct: Map<string, { sourcePng: Buffer; emittedPng: Buffer }>,
 ): Promise<BrokenImageMutationResult[]> {
-  const result = (kind: BrokenImageMutationKind, discriminator: string, baseline: string | number | boolean, mutated: string | number | boolean, moved: boolean): BrokenImageMutationResult => ({
+  const result = (
+    kind: BrokenImageMutationKind,
+    discriminator: string,
+    baseline: string | number | boolean,
+    mutated: string | number | boolean,
+    moved: boolean,
+  ): BrokenImageMutationResult => ({
     id: `mutation.${kind}`,
     kind,
     discriminator,
@@ -1068,24 +1460,128 @@ async function buildMutations(
   if (source1 == null || source2 == null) throw new Error("direct icon mutation inputs are missing");
   const grayComparison = await compareIconPng(source1, await mountainPng(1));
   const source1Decoded = await decodeRgba(source1);
-  const upscaled1 = await sharp(source1).resize(source1Decoded.width * 2, source1Decoded.height * 2, { kernel: "nearest" }).png().toBuffer();
+  const upscaled1 = await sharp(source1)
+    .resize(source1Decoded.width * 2, source1Decoded.height * 2, { kernel: "nearest" })
+    .png()
+    .toBuffer();
   const reuseComparison = await compareIconPng(source2, upscaled1);
   return [
-    result("load-error-success", "The same source role crosses no fallback -> icon+text fallback -> ordinary decoded image.", `${loading.captured.disposition}/${failed.captured.disposition}`, success.captured.disposition, loading.output.iconMarkerCount === 0 && failed.output.iconMarkerCount === 1 && success.output.iconMarkerCount === 0),
-    result("alt-missing-empty-text-title", "Attribute presence, not the DOM alt property, separates icon-only, decorative, visible alt, and title fallback.", `${missing.output.iconMarkerCount}/${empty.output.iconMarkerCount}`, `${text.output.vectorTextMarkerCount}/${title.captured.axName}`, missing.captured.textValue == null && empty.captured.ignored === true && text.captured.textValue === "Alternative name" && title.captured.textValue === "Title name"),
-    result("threshold-17-18", "Blink's strict 18 CSS-pixel predicate turns on both the UA border and icon.", threshold17.output.iconMarkerCount, threshold18.output.iconMarkerCount, threshold17.output.iconMarkerCount === 0 && threshold18.output.iconMarkerCount === 1),
-    result("ltr-rtl", "The UA icon float follows direction and must cross physical sides.", ltr.captured.float ?? "missing", rtl.captured.float ?? "missing", ltr.captured.float === "left" && rtl.captured.float === "right"),
-    result("horizontal-vertical", "Writing-mode changes the captured hidden-text axis/orientation rather than reusing horizontal origins.", horizontal.captured.writingMode ?? "missing", vertical.captured.writingMode ?? "missing", horizontal.captured.writingMode === "horizontal-tb" && vertical.captured.writingMode === "vertical-rl"),
-    result("standards-quirks", "One authored dimension stays non-replaced in standards mode but is mirrored/replaced in quirks mode.", standards.captured.disposition, quirks.captured.disposition, standards.captured.disposition !== quirks.captured.disposition),
-    result("one-both-aspect-ratio", "Two dimensions or one dimension plus aspect-ratio activates replaced empty-alt fallback; one dimension alone does not.", one.captured.disposition, `${both.captured.disposition}/${ratio.captured.disposition}`, one.captured.disposition !== both.captured.disposition && both.captured.disposition === ratio.captured.disposition),
-    result("author-box-offset", "Author border/padding moves the live icon without being baked into the Chromium icon payload.", plain.output.markerRect?.x ?? -1, author.output.markerRect?.x ?? -1, (author.output.markerRect?.x ?? 0) - (plain.output.markerRect?.x ?? 0) >= 9),
-    result("long-container-clipping", "A replaced long label retains a text range wider than its UA overflow clip while output keeps one vector marker.", clipped.output.vectorTextMarkerCount, clipped.comparison.maxGeometryDeltaCssPx, clipped.output.vectorTextMarkerCount === 1 && clipped.pass),
-    result("astral-utf16", "The astral scalar occupies two UTF-16 indices but one captured code-point row.", astral.captured.textCodepoints.find((point) => point.text === "😀")?.start ?? -1, astral.captured.textCodepoints.find((point) => point.text === "😀")?.end ?? -1, astral.captured.textCodepoints.some((point) => point.text === "😀" && point.end - point.start === 2)),
-    result("zoom-icon-size", "Effective zoom scales the live 16 CSS-pixel icon to 24 CSS pixels before DPR multiplication.", zoom1.output.markerRect?.width ?? -1, zoom15.output.markerRect?.width ?? -1, Math.abs((zoom1.output.markerRect?.width ?? 0) * 1.5 - (zoom15.output.markerRect?.width ?? 0)) <= 1 / 64),
-    result("dpr-resource-switch", "LayoutImageResource selects the 200% GRIT resource at DPR 2 and the device payload doubles in each axis.", `${dpr1.captured.resourceScale}/${dpr1.captured.iconPixelWidth}`, `${dpr2.captured.resourceScale}/${dpr2.captured.iconPixelWidth}`, dpr1.captured.resourceScale === 1 && dpr2.captured.resourceScale === 2 && dpr2.captured.iconPixelWidth === (dpr1.captured.iconPixelWidth ?? 0) * 2 && dpr1.iconComparison?.sourceRgbaSha256 !== dpr2.iconComparison?.sourceRgbaSha256),
-    result("light-dark-text-only", "Color scheme changes inherited alternative-text color while the shared GRIT icon bytes remain invariant.", light.captured.textColor ?? "missing", dark.captured.textColor ?? "missing", light.captured.textColor !== dark.captured.textColor && rowAt(rows, "icon-content", 1, "light").iconComparison?.sourceRgbaSha256 === rowAt(rows, "icon-content", 1, "dark").iconComparison?.sourceRgbaSha256),
-    result("gray-mountain-substitution", "A fixed gray framed mountain must fail the independent live icon-content comparison.", dpr1.iconComparison?.pass ?? false, grayComparison.pass, dpr1.iconComparison?.pass === true && grayComparison.pass === false),
-    result("reuse-1x-at-2x", "Upscaling the 100% crop must fail against Chromium's independently selected 200% resource.", dpr2.iconComparison?.pass ?? false, reuseComparison.pass, dpr2.iconComparison?.pass === true && reuseComparison.pass === false),
+    result(
+      "load-error-success",
+      "The same source role crosses no fallback -> icon+text fallback -> ordinary decoded image.",
+      `${loading.captured.disposition}/${failed.captured.disposition}`,
+      success.captured.disposition,
+      loading.output.iconMarkerCount === 0 &&
+        failed.output.iconMarkerCount === 1 &&
+        success.output.iconMarkerCount === 0,
+    ),
+    result(
+      "alt-missing-empty-text-title",
+      "Attribute presence, not the DOM alt property, separates icon-only, decorative, visible alt, and title fallback.",
+      `${missing.output.iconMarkerCount}/${empty.output.iconMarkerCount}`,
+      `${text.output.vectorTextMarkerCount}/${title.captured.axName}`,
+      missing.captured.textValue == null &&
+        empty.captured.ignored === true &&
+        text.captured.textValue === "Alternative name" &&
+        title.captured.textValue === "Title name",
+    ),
+    result(
+      "threshold-17-18",
+      "Blink's strict 18 CSS-pixel predicate turns on both the UA border and icon.",
+      threshold17.output.iconMarkerCount,
+      threshold18.output.iconMarkerCount,
+      threshold17.output.iconMarkerCount === 0 && threshold18.output.iconMarkerCount === 1,
+    ),
+    result(
+      "ltr-rtl",
+      "The UA icon float follows direction and must cross physical sides.",
+      ltr.captured.float ?? "missing",
+      rtl.captured.float ?? "missing",
+      ltr.captured.float === "left" && rtl.captured.float === "right",
+    ),
+    result(
+      "horizontal-vertical",
+      "Writing-mode changes the captured hidden-text axis/orientation rather than reusing horizontal origins.",
+      horizontal.captured.writingMode ?? "missing",
+      vertical.captured.writingMode ?? "missing",
+      horizontal.captured.writingMode === "horizontal-tb" && vertical.captured.writingMode === "vertical-rl",
+    ),
+    result(
+      "standards-quirks",
+      "One authored dimension stays non-replaced in standards mode but is mirrored/replaced in quirks mode.",
+      standards.captured.disposition,
+      quirks.captured.disposition,
+      standards.captured.disposition !== quirks.captured.disposition,
+    ),
+    result(
+      "one-both-aspect-ratio",
+      "Two dimensions or one dimension plus aspect-ratio activates replaced empty-alt fallback; one dimension alone does not.",
+      one.captured.disposition,
+      `${both.captured.disposition}/${ratio.captured.disposition}`,
+      one.captured.disposition !== both.captured.disposition &&
+        both.captured.disposition === ratio.captured.disposition,
+    ),
+    result(
+      "author-box-offset",
+      "Author border/padding moves the live icon without being baked into the Chromium icon payload.",
+      plain.output.markerRect?.x ?? -1,
+      author.output.markerRect?.x ?? -1,
+      (author.output.markerRect?.x ?? 0) - (plain.output.markerRect?.x ?? 0) >= 9,
+    ),
+    result(
+      "long-container-clipping",
+      "A replaced long label retains a text range wider than its UA overflow clip while output keeps one vector marker.",
+      clipped.output.vectorTextMarkerCount,
+      clipped.comparison.maxGeometryDeltaCssPx,
+      clipped.output.vectorTextMarkerCount === 1 && clipped.pass,
+    ),
+    result(
+      "astral-utf16",
+      "The astral scalar occupies two UTF-16 indices but one captured code-point row.",
+      astral.captured.textCodepoints.find((point) => point.text === "😀")?.start ?? -1,
+      astral.captured.textCodepoints.find((point) => point.text === "😀")?.end ?? -1,
+      astral.captured.textCodepoints.some((point) => point.text === "😀" && point.end - point.start === 2),
+    ),
+    result(
+      "zoom-icon-size",
+      "Effective zoom scales the live 16 CSS-pixel icon to 24 CSS pixels before DPR multiplication.",
+      zoom1.output.markerRect?.width ?? -1,
+      zoom15.output.markerRect?.width ?? -1,
+      Math.abs((zoom1.output.markerRect?.width ?? 0) * 1.5 - (zoom15.output.markerRect?.width ?? 0)) <= 1 / 64,
+    ),
+    result(
+      "dpr-resource-switch",
+      "LayoutImageResource selects the 200% GRIT resource at DPR 2 and the device payload doubles in each axis.",
+      `${dpr1.captured.resourceScale}/${dpr1.captured.iconPixelWidth}`,
+      `${dpr2.captured.resourceScale}/${dpr2.captured.iconPixelWidth}`,
+      dpr1.captured.resourceScale === 1 &&
+        dpr2.captured.resourceScale === 2 &&
+        dpr2.captured.iconPixelWidth === (dpr1.captured.iconPixelWidth ?? 0) * 2 &&
+        dpr1.iconComparison?.sourceRgbaSha256 !== dpr2.iconComparison?.sourceRgbaSha256,
+    ),
+    result(
+      "light-dark-text-only",
+      "Color scheme changes inherited alternative-text color while the shared GRIT icon bytes remain invariant.",
+      light.captured.textColor ?? "missing",
+      dark.captured.textColor ?? "missing",
+      light.captured.textColor !== dark.captured.textColor &&
+        rowAt(rows, "icon-content", 1, "light").iconComparison?.sourceRgbaSha256 ===
+          rowAt(rows, "icon-content", 1, "dark").iconComparison?.sourceRgbaSha256,
+    ),
+    result(
+      "gray-mountain-substitution",
+      "A fixed gray framed mountain must fail the independent live icon-content comparison.",
+      dpr1.iconComparison?.pass ?? false,
+      grayComparison.pass,
+      dpr1.iconComparison?.pass === true && grayComparison.pass === false,
+    ),
+    result(
+      "reuse-1x-at-2x",
+      "Upscaling the 100% crop must fail against Chromium's independently selected 200% resource.",
+      dpr2.iconComparison?.pass ?? false,
+      reuseComparison.pass,
+      dpr2.iconComparison?.pass === true && reuseComparison.pass === false,
+    ),
   ];
 }
 
@@ -1097,13 +1593,53 @@ export function validateBrokenImageGateCorpus(): string[] {
     ids.add(test.id);
   }
   const families = new Set(BROKEN_IMAGE_GATE_CASES.map((test) => test.family));
-  for (const family of ["source-state", "alt-title", "threshold", "direction", "writing-mode", "sizing-mode", "author-box", "clipping", "mixed-text", "zoom", "transform", "raster-negative", "icon-content"] as const) {
+  for (const family of [
+    "source-state",
+    "alt-title",
+    "threshold",
+    "direction",
+    "writing-mode",
+    "sizing-mode",
+    "author-box",
+    "clipping",
+    "mixed-text",
+    "zoom",
+    "transform",
+    "raster-negative",
+    "icon-content",
+  ] as const) {
     if (!families.has(family)) errors.push(`missing case family: ${family}`);
   }
-  for (const id of ["src-loading", "src-error", "src-success", "alt-missing", "alt-empty-auto", "alt-text", "title-fallback", "threshold-17", "threshold-18", "direction-ltr", "direction-rtl", "writing-horizontal", "writing-vertical", "standards-one-dimension", "standards-both-empty", "standards-aspect-ratio", "quirks-one-dimension", "author-box", "long-clipped-quirks", "mixed-astral-bidi", "zoom-1", "zoom-1-5", "ordinary-author-raster", "icon-content"]) {
+  for (const id of [
+    "src-loading",
+    "src-error",
+    "src-success",
+    "alt-missing",
+    "alt-empty-auto",
+    "alt-text",
+    "title-fallback",
+    "threshold-17",
+    "threshold-18",
+    "direction-ltr",
+    "direction-rtl",
+    "writing-horizontal",
+    "writing-vertical",
+    "standards-one-dimension",
+    "standards-both-empty",
+    "standards-aspect-ratio",
+    "quirks-one-dimension",
+    "author-box",
+    "long-clipped-quirks",
+    "mixed-astral-bidi",
+    "zoom-1",
+    "zoom-1-5",
+    "ordinary-author-raster",
+    "icon-content",
+  ]) {
     if (!ids.has(id)) errors.push(`missing required case: ${id}`);
   }
-  if (new Set(REQUIRED_BROKEN_IMAGE_MUTATIONS).size !== REQUIRED_BROKEN_IMAGE_MUTATIONS.length) errors.push("mutation kinds are not unique");
+  if (new Set(REQUIRED_BROKEN_IMAGE_MUTATIONS).size !== REQUIRED_BROKEN_IMAGE_MUTATIONS.length)
+    errors.push("mutation kinds are not unique");
   return errors;
 }
 
@@ -1112,27 +1648,40 @@ async function chromiumRevision(): Promise<{ playwrightVersion: string; chromium
   const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
   try {
     const packagePath = require.resolve("playwright-core/package.json");
-    const browsers = JSON.parse(readFileSync(resolve(dirname(packagePath), "browsers.json"), "utf8")) as { browsers?: Array<{ name?: string; revision?: string }> };
-    return { playwrightVersion, chromiumRevision: browsers.browsers?.find(({ name }) => name === "chromium")?.revision ?? "unknown" };
+    const browsers = JSON.parse(readFileSync(resolve(dirname(packagePath), "browsers.json"), "utf8")) as {
+      browsers?: Array<{ name?: string; revision?: string }>;
+    };
+    return {
+      playwrightVersion,
+      chromiumRevision: browsers.browsers?.find(({ name }) => name === "chromium")?.revision ?? "unknown",
+    };
   } catch {
     return { playwrightVersion, chromiumRevision: "unknown" };
   }
 }
 
-export async function runBrokenImageFallbackOracle(options: {
-  deviceScaleFactors?: number[];
-  colorSchemes?: Scheme[];
-  artifactRoot?: string;
-} = {}): Promise<BrokenImageGateReport> {
+export async function runBrokenImageFallbackOracle(
+  options: {
+    deviceScaleFactors?: number[];
+    colorSchemes?: Scheme[];
+    artifactRoot?: string;
+  } = {},
+): Promise<BrokenImageGateReport> {
   const corpusErrors = validateBrokenImageGateCorpus();
   if (corpusErrors.length > 0) throw new Error(`invalid broken-image corpus:\n${corpusErrors.join("\n")}`);
   const currentPlatform = platform();
-  if (!BROKEN_IMAGE_GATE_PLATFORMS.includes(currentPlatform as Platform)) throw new Error(`unsupported gate platform: ${currentPlatform}`);
+  if (!BROKEN_IMAGE_GATE_PLATFORMS.includes(currentPlatform as Platform))
+    throw new Error(`unsupported gate platform: ${currentPlatform}`);
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
-  const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [...BROKEN_IMAGE_GATE_DPRS])].sort((a, b) => a - b);
+  const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [...BROKEN_IMAGE_GATE_DPRS])].sort(
+    (a, b) => a - b,
+  );
   const colorSchemes = [...new Set(options.colorSchemes ?? [...BROKEN_IMAGE_GATE_SCHEMES])];
-  const artifactRoot = resolve(options.artifactRoot ?? `tests/output/broken-image-fallback-${currentPlatform}/artifacts`);
-  if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0)) throw new Error("--dpr requires positive finite values");
+  const artifactRoot = resolve(
+    options.artifactRoot ?? `tests/output/broken-image-fallback-${currentPlatform}/artifacts`,
+  );
+  if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0))
+    throw new Error("--dpr requires positive finite values");
   if (colorSchemes.length === 0) throw new Error("at least one color scheme is required");
   const browser = await launchChromium();
   try {
@@ -1148,10 +1697,16 @@ export async function runBrokenImageFallbackOracle(options: {
         const generatedPage = await context.newPage();
         const session = await context.newCDPSession(page);
         try {
-          await Promise.all([session.send("DOM.enable"), session.send("CSS.enable"), session.send("Accessibility.enable")]);
+          await Promise.all([
+            session.send("DOM.enable"),
+            session.send("CSS.enable"),
+            session.send("Accessibility.enable"),
+          ]);
           if (userAgent === "") userAgent = await page.evaluate(() => navigator.userAgent);
           if (launchArguments.length === 0) {
-            const command = await session.send("Browser.getBrowserCommandLine").catch(() => ({ arguments: [] as string[] }));
+            const command = await session
+              .send("Browser.getBrowserCommandLine")
+              .catch(() => ({ arguments: [] as string[] }));
             launchArguments = command.arguments ?? [];
           }
           for (const test of BROKEN_IMAGE_GATE_CASES) {
@@ -1168,19 +1723,46 @@ export async function runBrokenImageFallbackOracle(options: {
     }
     const mutations = await buildMutations(rows, direct);
     const controls = {
-      everyScenarioHasEveryCase: deviceScaleFactors.every((dpr) => colorSchemes.every((scheme) =>
-        rows.filter((row) => row.deviceScaleFactor === dpr && row.colorScheme === scheme).length === BROKEN_IMAGE_GATE_CASES.length)),
+      everyScenarioHasEveryCase: deviceScaleFactors.every((dpr) =>
+        colorSchemes.every(
+          (scheme) =>
+            rows.filter((row) => row.deviceScaleFactor === dpr && row.colorScheme === scheme).length ===
+            BROKEN_IMAGE_GATE_CASES.length,
+        ),
+      ),
       everyProductionRowPasses: rows.every((row) => row.pass),
       onlyVisibleBrokenIconsRasterize: rows.every((row) => row.output.iconMarkerCount === (row.expected.icon ? 1 : 0)),
-      alternativeTextAlwaysVector: rows.every((row) => row.output.vectorTextMarkerCount === (row.expected.text ? 1 : 0)),
-      successfulLoadingHiddenStayNegative: rows.filter((row) => ["src-loading", "src-success", "alt-empty-auto", "threshold-17", "ordinary-author-raster"].includes(row.id)).every((row) => row.output.iconMarkerCount === 0),
-      noLegacyMountainOrRawText: rows.every((row) => row.output.legacyMountainCount === 0 && row.output.rawAlternativeTextCount === 0),
-      directIconContentPasses: rows.filter((row) => row.id === "icon-content").every((row) => row.iconComparison?.pass === true),
-      dprResourceSwitchObserved: rowAt(rows, "icon-content", 1).captured.resourceScale === 1 && rowAt(rows, "icon-content", 2).captured.resourceScale === 2,
-      schemeKeepsSharedIcon: colorSchemes.length < 2 || deviceScaleFactors.every((dpr) => rowAt(rows, "icon-content", dpr, "light").iconComparison?.sourceRgbaSha256 === rowAt(rows, "icon-content", dpr, "dark").iconComparison?.sourceRgbaSha256),
-      everyRequiredMutationMoves: mutations.length === REQUIRED_BROKEN_IMAGE_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
+      alternativeTextAlwaysVector: rows.every(
+        (row) => row.output.vectorTextMarkerCount === (row.expected.text ? 1 : 0),
+      ),
+      successfulLoadingHiddenStayNegative: rows
+        .filter((row) =>
+          ["src-loading", "src-success", "alt-empty-auto", "threshold-17", "ordinary-author-raster"].includes(row.id),
+        )
+        .every((row) => row.output.iconMarkerCount === 0),
+      noLegacyMountainOrRawText: rows.every(
+        (row) => row.output.legacyMountainCount === 0 && row.output.rawAlternativeTextCount === 0,
+      ),
+      directIconContentPasses: rows
+        .filter((row) => row.id === "icon-content")
+        .every((row) => row.iconComparison?.pass === true),
+      dprResourceSwitchObserved:
+        rowAt(rows, "icon-content", 1).captured.resourceScale === 1 &&
+        rowAt(rows, "icon-content", 2).captured.resourceScale === 2,
+      schemeKeepsSharedIcon:
+        colorSchemes.length < 2 ||
+        deviceScaleFactors.every(
+          (dpr) =>
+            rowAt(rows, "icon-content", dpr, "light").iconComparison?.sourceRgbaSha256 ===
+            rowAt(rows, "icon-content", dpr, "dark").iconComparison?.sourceRgbaSha256,
+        ),
+      everyRequiredMutationMoves:
+        mutations.length === REQUIRED_BROKEN_IMAGE_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
     };
-    const pass = rows.every((row) => row.pass) && mutations.every((mutation) => mutation.moved) && Object.values(controls).every(Boolean);
+    const pass =
+      rows.every((row) => row.pass) &&
+      mutations.every((mutation) => mutation.moved) &&
+      Object.values(controls).every(Boolean);
     const revision = await chromiumRevision();
     return {
       schemaVersion: 1,
@@ -1237,11 +1819,16 @@ async function main(): Promise<number> {
   const report = await runBrokenImageFallbackOracle({ deviceScaleFactors: dprs, colorSchemes: schemes, artifactRoot });
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`broken-image fallback gate: ${report.summary.rowsPassed}/${report.rows.length} rows, ${report.summary.mutationsMoved}/${report.mutations.length} mutations; ${report.verdict}`);
+  console.log(
+    `broken-image fallback gate: ${report.summary.rowsPassed}/${report.rows.length} rows, ${report.summary.mutationsMoved}/${report.mutations.length} mutations; ${report.verdict}`,
+  );
   for (const row of report.rows.filter((candidate) => !candidate.pass)) {
-    console.log(`FAIL ${row.colorScheme}/${row.deviceScaleFactor}x ${row.id}: geometry=${row.comparison.maxGeometryDeltaCssPx}, baseline=${row.comparison.baselineDeltaCssPx}, marker=${row.comparison.markerRectDeltaCssPx}, warnings=${row.warnings.join(" | ")}`);
+    console.log(
+      `FAIL ${row.colorScheme}/${row.deviceScaleFactor}x ${row.id}: geometry=${row.comparison.maxGeometryDeltaCssPx}, baseline=${row.comparison.baselineDeltaCssPx}, marker=${row.comparison.markerRectDeltaCssPx}, warnings=${row.warnings.join(" | ")}`,
+    );
   }
-  for (const mutation of report.mutations) if (!mutation.moved) console.log(`FAIL ${mutation.id}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`);
+  for (const mutation of report.mutations)
+    if (!mutation.moved) console.log(`FAIL ${mutation.id}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`);
   console.log(`controls: ${JSON.stringify(report.controls)}`);
   console.log(`report: ${relative(process.cwd(), reportPath)}`);
   return report.verdict === "hard-broken-image-fallback-parity" ? 0 : 1;

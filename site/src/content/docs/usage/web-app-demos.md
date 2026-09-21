@@ -203,7 +203,7 @@ described above.
   animates the keystrokes; `fill` on the following frame commits the value so it
   persists as the flow continues. Anchor the overlay to the field so it follows
   layout, and use a `mask` color if you need it to cover a placeholder.
-- **`cut` between steps.** A frame's image is the *result* of its actions, so
+- **`cut` between steps.** A frame's image is the _result_ of its actions, so
   `cut` (or a short `crossfade`) reads as "the page just updated" between
   interaction steps.
 

@@ -9,29 +9,49 @@ import {
 import type { PaintCtx, RenderState } from "./element-tree-to-svg.js";
 
 const corners = {
-  tl: { h: 8, v: 8 }, tr: { h: 7, v: 7 },
-  br: { h: 6, v: 6 }, bl: { h: 5, v: 5 }, uniform: false,
+  tl: { h: 8, v: 8 },
+  tr: { h: 7, v: 7 },
+  br: { h: 6, v: 6 },
+  bl: { h: 5, v: 5 },
+  uniform: false,
 };
 
 function paintContext(): PaintCtx {
   let index = 0;
   return {
-    svgParts: [], defsParts: [], idPrefix: "t-",
+    svgParts: [],
+    defsParts: [],
+    idPrefix: "t-",
     nextClipId: (prefix) => `t-${prefix}${index++}`,
     peekClipIdx: () => index,
-    advanceClipIdx: (count) => { index += count; },
+    advanceClipIdx: (count) => {
+      index += count;
+    },
     emittedTextCtm: new Map(),
   };
 }
 
-function element(styles: Record<string, unknown>, inlineFragments?: CapturedElement["inlineFragments"]): CapturedElement {
+function element(
+  styles: Record<string, unknown>,
+  inlineFragments?: CapturedElement["inlineFragments"],
+): CapturedElement {
   return {
-    x: 10, y: 20, width: 100, height: 40,
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 40,
     tag: "span",
     styles: {
-      backgroundImage: "none", backgroundColor: "rgba(0, 0, 0, 0)",
-      borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-      paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
+      backgroundImage: "none",
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderTopWidth: "0",
+      borderRightWidth: "0",
+      borderBottomWidth: "0",
+      borderLeftWidth: "0",
+      paddingTop: "0",
+      paddingRight: "0",
+      paddingBottom: "0",
+      paddingLeft: "0",
       ...styles,
     },
     inlineFragments,
@@ -41,10 +61,16 @@ function element(styles: Record<string, unknown>, inlineFragments?: CapturedElem
 describe("background and inline-fragment paint owners", () => {
   it("suppresses slice corners on the correct fragmentation axis", () => {
     expect(deriveFragmentCorners(corners, true, false, false, false)).toMatchObject({
-      tl: corners.tl, bl: corners.bl, tr: { h: 0, v: 0 }, br: { h: 0, v: 0 },
+      tl: corners.tl,
+      bl: corners.bl,
+      tr: { h: 0, v: 0 },
+      br: { h: 0, v: 0 },
     });
     expect(deriveFragmentCorners(corners, false, true, false, true)).toMatchObject({
-      tl: { h: 0, v: 0 }, tr: { h: 0, v: 0 }, bl: corners.bl, br: corners.br,
+      tl: { h: 0, v: 0 },
+      tr: { h: 0, v: 0 },
+      bl: corners.bl,
+      br: corners.br,
     });
     expect(deriveFragmentCorners(corners, false, false, true, true)).toBe(corners);
   });

@@ -3,11 +3,28 @@ id: "requirements/pseudo-generated-fragment-geometry-audit"
 title: "157 — Generated pseudo fragment and baseline geometry audit"
 kind: "evidence"
 status: "current"
-owners: ["layout","platform-release"]
-platforms: ["macos","linux"]
-tickets: ["DM-2382","DM-2383","DM-2466","DM-2467","DM-2468","DM-2633"]
-code: [".github/workflows/pseudo-fragment-render-parity.yml","src/capture/pseudo-fragment-cdp.ts","src/capture/pseudo-fragment-protocol.ts","src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","src/render/pseudo-fragments.test.ts","src/render/pseudo-fragments.ts","tests/generated-pseudo-layout-probe.e2e.test.ts","tests/pseudo-fragment-capture.e2e.test.ts","tests/pseudo-fragment-protocol.test.ts","tests/pseudo-fragment-render-oracle.e2e.test.ts","tools/pseudo-fragment-geometry-oracle.ts","tools/pseudo-fragment-render-oracle.ts","tools/replaced-geometry-oracle.ts"]
-aliases: ["docs/157-pseudo-generated-fragment-geometry-audit.md","doc-157"]
+owners: ["layout", "platform-release"]
+platforms: ["macos", "linux"]
+tickets: ["DM-2382", "DM-2383", "DM-2466", "DM-2467", "DM-2468", "DM-2633"]
+code:
+  [
+    ".github/workflows/pseudo-fragment-render-parity.yml",
+    "src/capture/pseudo-fragment-cdp.ts",
+    "src/capture/pseudo-fragment-protocol.ts",
+    "src/capture/script/index.ts",
+    "src/capture/script/walker/pseudo-content.ts",
+    "src/capture/script/walker/pseudo-inject.ts",
+    "src/render/pseudo-fragments.test.ts",
+    "src/render/pseudo-fragments.ts",
+    "tests/generated-pseudo-layout-probe.e2e.test.ts",
+    "tests/pseudo-fragment-capture.e2e.test.ts",
+    "tests/pseudo-fragment-protocol.test.ts",
+    "tests/pseudo-fragment-render-oracle.e2e.test.ts",
+    "tools/pseudo-fragment-geometry-oracle.ts",
+    "tools/pseudo-fragment-render-oracle.ts",
+    "tools/replaced-geometry-oracle.ts",
+  ]
+aliases: ["docs/157-pseudo-generated-fragment-geometry-audit.md", "doc-157"]
 ---
 
 # 157 — Generated pseudo fragment and baseline geometry audit
@@ -119,18 +136,18 @@ fragment's physical origin, baseline, visual order, or fragmentainer.
 The source boundary is split across Blink layout, HarfBuzz shaping, and Skia
 paint:
 
-| Decision | Source owner | Consequence for capture |
-| --- | --- | --- |
-| Pseudo existence and computed style | Blink `core/dom/pseudo_element.cc` | `::before`/`::after` are internal elements with resolved styles, not text decorations on the host. |
-| Generated content children | Blink `core/style/content_data.cc` and `pseudo_element.cc` | Each text/counter/image content item becomes a separate anonymous layout child. Preserve content-item identity and order. |
-| Inline/atomic class | Blink `core/layout/layout_object.cc` | The computed `display` can produce inline, atomic inline, block, flex, grid, table, or list-item layout. Do not force every pseudo into an inline string. |
-| Line construction and bidi | Blink `core/layout/inline/logical_line_builder.cc` and `inline_layout_algorithm.cc` | Fragments are assigned to lines, then reordered visually and relatively positioned. Capture visual fragments after this stage. |
-| Font strut and used-font metrics | Blink `core/layout/inline/inline_box_state.cc` and `line_utils.cc` | Leading comes from actual font metrics; `line-height: normal` can union used-font metrics from shaped results. |
-| `vertical-align` | Blink `core/layout/inline/inline_box_state.cc` | `baseline`, `middle`, `sub`, `super`, `text-top`, `text-bottom`, `top`, `bottom`, lengths, and percentages move actual logical fragments using different parents/metrics. |
-| Border/padding/margin edges | Blink `core/layout/inline/inline_box_state.cc` | Inline positions and line metrics include edge ownership and fragment decoration. A text-range union is not an inline box. |
-| Text origin and writing transform | Blink `core/paint/text_fragment_painter.cc` | Paint takes the physical fragment, selected font ascent, and writing-mode rotation. Baseline is a fragment-relative paint fact. |
-| Glyphs, clusters, advances, offsets | HarfBuzz `src/hb-shape.cc` | Shape each captured fragment through the selected face using the normal Domotion text route. |
-| Device-space glyph paint | Skia `src/core/SkGlyph.cpp`, `SkFont.cpp`, and `SkCanvas.cpp` | Baseline snap/subpixel paint remains a downstream paint concern; it cannot repair a wrong Blink fragment origin. |
+| Decision                            | Source owner                                                                        | Consequence for capture                                                                                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pseudo existence and computed style | Blink `core/dom/pseudo_element.cc`                                                  | `::before`/`::after` are internal elements with resolved styles, not text decorations on the host.                                                                        |
+| Generated content children          | Blink `core/style/content_data.cc` and `pseudo_element.cc`                          | Each text/counter/image content item becomes a separate anonymous layout child. Preserve content-item identity and order.                                                 |
+| Inline/atomic class                 | Blink `core/layout/layout_object.cc`                                                | The computed `display` can produce inline, atomic inline, block, flex, grid, table, or list-item layout. Do not force every pseudo into an inline string.                 |
+| Line construction and bidi          | Blink `core/layout/inline/logical_line_builder.cc` and `inline_layout_algorithm.cc` | Fragments are assigned to lines, then reordered visually and relatively positioned. Capture visual fragments after this stage.                                            |
+| Font strut and used-font metrics    | Blink `core/layout/inline/inline_box_state.cc` and `line_utils.cc`                  | Leading comes from actual font metrics; `line-height: normal` can union used-font metrics from shaped results.                                                            |
+| `vertical-align`                    | Blink `core/layout/inline/inline_box_state.cc`                                      | `baseline`, `middle`, `sub`, `super`, `text-top`, `text-bottom`, `top`, `bottom`, lengths, and percentages move actual logical fragments using different parents/metrics. |
+| Border/padding/margin edges         | Blink `core/layout/inline/inline_box_state.cc`                                      | Inline positions and line metrics include edge ownership and fragment decoration. A text-range union is not an inline box.                                                |
+| Text origin and writing transform   | Blink `core/paint/text_fragment_painter.cc`                                         | Paint takes the physical fragment, selected font ascent, and writing-mode rotation. Baseline is a fragment-relative paint fact.                                           |
+| Glyphs, clusters, advances, offsets | HarfBuzz `src/hb-shape.cc`                                                          | Shape each captured fragment through the selected face using the normal Domotion text route.                                                                              |
+| Device-space glyph paint            | Skia `src/core/SkGlyph.cpp`, `SkFont.cpp`, and `SkCanvas.cpp`                       | Baseline snap/subpixel paint remains a downstream paint concern; it cannot repair a wrong Blink fragment origin.                                                          |
 
 Relevant source observations at the pinned revisions are:
 
@@ -163,14 +180,14 @@ A focused CDP probe ran on macOS with Playwright Chromium
 `DOMSnapshot.captureSnapshot`. The temporary evidence image was inspected
 locally and was not added to the repository.
 
-| Case | Chromium observation | Heuristic falsified |
-| --- | --- | --- |
-| `::before`, Georgia 20/38, `vertical-align: super`, 2 px border, asymmetric padding/margin | Border quad `(41,25)–(182.203125,53)`; text row `(46,28,131.203125,22)` | Host top plus `(38-20)/2` does not yield the painted text fragment, and the fragment has independent box edges. |
-| Wrapped `::after`, 13 px normal, `vertical-align: middle` | Text row `(78.6875,112.671875,88.921875,15)` with three text boxes | An aggregate width and bottom-gap threshold cannot preserve the three actual fragments or middle alignment. |
-| RTL `::before` containing `LTR xyz אבג` | Visual boxes are `start=7,length=5,x=83.5625` followed by `start=0,length=7,x=116.515625` | Logical string order and host-edge insertion are not visual order. |
-| `vertical-rl ::after` containing `縦書き pseudo tail` | Ordered quads occupy two columns: `(74,321.625)–(94,375.625)` and `(42,235.328125)–(62,322.40625)` | One horizontal `(x,y,width)` segment cannot represent vertical columns or their physical order. |
-| Long multicolumn `::before` | Eight ordered fragments translate across physical x positions `36`, `153`, and `270`; snapshot text rows repeat fragmentainer-local x `36` | Snapshot text boxes alone are not physical coordinates. They must be joined with ordered content quads. |
-| `content: "A " url(12×8) " B"` | One pseudo node has ordered rows for aggregate box, text A `(36,506.171875,14.234375,17)`, image `(50.234375,512.171875,12,8)`, and text B `(62.234375,506.171875,15.125,17)` | Generated content is not one string and one separate, independently anchored image. Text offsets restart per anonymous text child. |
+| Case                                                                                       | Chromium observation                                                                                                                                                          | Heuristic falsified                                                                                                                |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `::before`, Georgia 20/38, `vertical-align: super`, 2 px border, asymmetric padding/margin | Border quad `(41,25)–(182.203125,53)`; text row `(46,28,131.203125,22)`                                                                                                       | Host top plus `(38-20)/2` does not yield the painted text fragment, and the fragment has independent box edges.                    |
+| Wrapped `::after`, 13 px normal, `vertical-align: middle`                                  | Text row `(78.6875,112.671875,88.921875,15)` with three text boxes                                                                                                            | An aggregate width and bottom-gap threshold cannot preserve the three actual fragments or middle alignment.                        |
+| RTL `::before` containing `LTR xyz אבג`                                                    | Visual boxes are `start=7,length=5,x=83.5625` followed by `start=0,length=7,x=116.515625`                                                                                     | Logical string order and host-edge insertion are not visual order.                                                                 |
+| `vertical-rl ::after` containing `縦書き pseudo tail`                                      | Ordered quads occupy two columns: `(74,321.625)–(94,375.625)` and `(42,235.328125)–(62,322.40625)`                                                                            | One horizontal `(x,y,width)` segment cannot represent vertical columns or their physical order.                                    |
+| Long multicolumn `::before`                                                                | Eight ordered fragments translate across physical x positions `36`, `153`, and `270`; snapshot text rows repeat fragmentainer-local x `36`                                    | Snapshot text boxes alone are not physical coordinates. They must be joined with ordered content quads.                            |
+| `content: "A " url(12×8) " B"`                                                             | One pseudo node has ordered rows for aggregate box, text A `(36,506.171875,14.234375,17)`, image `(50.234375,512.171875,12,8)`, and text B `(62.234375,506.171875,15.125,17)` | Generated content is not one string and one separate, independently anchored image. Text offsets restart per anonymous text child. |
 
 CDP exposes pseudo nodes with `pseudoType` and the originating host relation.
 Within the snapshot, `textBoxes.start` and `length` are UTF-16 offsets into
@@ -193,38 +210,38 @@ ordinary host text segment:
 
 ```ts
 interface CapturedPseudoFragmentSet {
-  hostCaptureId: string
-  pseudo: 'before' | 'after'
-  computedStyle: CapturedPseudoStyle
-  contentItems: CapturedPseudoContentItem[]
-  boxFragments: CapturedPseudoBoxFragment[]
-  fragments: CapturedPseudoFragment[]
+  hostCaptureId: string;
+  pseudo: "before" | "after";
+  computedStyle: CapturedPseudoStyle;
+  contentItems: CapturedPseudoContentItem[];
+  boxFragments: CapturedPseudoBoxFragment[];
+  fragments: CapturedPseudoFragment[];
 }
 
 interface CapturedPseudoTextFragment {
-  kind: 'text'
-  contentItemIndex: number
-  sourceStartUtf16: number
-  sourceEndUtf16: number
-  text: string
-  visualOrder: number
-  physicalQuad: [Point, Point, Point, Point]
-  physicalRect: Rect
-  baseline: CapturedFragmentBaseline
-  inlineStart: number
-  shapedAdvance: number
-  writingMode: string
-  direction: 'ltr' | 'rtl'
-  font: CapturedFontAssignment
+  kind: "text";
+  contentItemIndex: number;
+  sourceStartUtf16: number;
+  sourceEndUtf16: number;
+  text: string;
+  visualOrder: number;
+  physicalQuad: [Point, Point, Point, Point];
+  physicalRect: Rect;
+  baseline: CapturedFragmentBaseline;
+  inlineStart: number;
+  shapedAdvance: number;
+  writingMode: string;
+  direction: "ltr" | "rtl";
+  font: CapturedFontAssignment;
 }
 
 interface CapturedPseudoImageFragment {
-  kind: 'image'
-  contentItemIndex: number
-  visualOrder: number
-  resolvedUrl: string
-  physicalQuad: [Point, Point, Point, Point]
-  physicalRect: Rect
+  kind: "image";
+  contentItemIndex: number;
+  visualOrder: number;
+  resolvedUrl: string;
+  physicalQuad: [Point, Point, Point, Point];
+  physicalRect: Rect;
 }
 ```
 
@@ -360,7 +377,7 @@ layout fragments paint. Neither layer should infer the other's facts.
 ## Source references
 
 - Chromium `third_party/blink/renderer/core/dom/pseudo_element.cc:344-438,
-  525-683`, pseudo identity/style, layout attachment, and per-content-item
+525-683`, pseudo identity/style, layout attachment, and per-content-item
   generated-child creation.
 - Chromium `third_party/blink/renderer/core/style/content_data.cc`, anonymous
   text/image layout object construction at lines 82-104.
@@ -373,14 +390,14 @@ layout fragments paint. Neither layer should infer the other's facts.
   baseline, fragment placement, and bidi reorder.
 - Chromium
   `third_party/blink/renderer/core/layout/inline/inline_box_state.cc:109-163,
-  843-1023, 1140-1437`, strut, used-font metrics, logical edges, relative
+843-1023, 1140-1437`, strut, used-font metrics, logical edges, relative
   positioning, and `vertical-align`.
 - Chromium
   `third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc`,
   line construction and final fragment positioning.
 - Chromium
   `third_party/blink/renderer/core/paint/text_fragment_painter.cc:342-379,
-  506-529` and `core/layout/inline/fragment_item.cc`, final physical fragment,
+506-529` and `core/layout/inline/fragment_item.cc`, final physical fragment,
   writing transform, selected font, ascent, and text-paint inputs.
 - HarfBuzz `src/hb-shape.cc:127-150`, cached shape-plan execution for each
   selected-face run.

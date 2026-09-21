@@ -45,10 +45,38 @@ body { width: ${W}px; height: ${H}px; background: #0a0f1e; color: #eef1fb; font-
 </div></body></html>`;
 }
 
-const S0 = scene({ bg: "radial-gradient(130% 130% at 0% 0%, #11315c 0%, #0a0f1e 62%)", accent: "#7c9cff", kicker: "Scene 1", title: "Chained transitions", sub: "One SVG, four scenes, four different transition types in a row.", via: "exits via <b>crossfade →</b>" });
-const S1 = scene({ bg: "radial-gradient(130% 130% at 100% 0%, #0c3a2a 0%, #0a0f1e 62%)", accent: "#4ade80", kicker: "Scene 2", title: "It fades in", sub: "Entered from a crossfade, so it dissolves in — then it will push left.", via: "enters <b>fade</b> · exits <b>push-left →</b>" });
-const S2 = scene({ bg: "radial-gradient(130% 130% at 100% 100%, #3a2c0c 0%, #0a0f1e 62%)", accent: "#fbbf24", kicker: "Scene 3", title: "It slides in", sub: "Entered from a push, it slides in from the right — then it will scroll up.", via: "enters <b>slide ←</b> · exits <b>scroll ↑</b>" });
-const S3 = scene({ bg: "radial-gradient(130% 130% at 0% 100%, #2a1450 0%, #0a0f1e 62%)", accent: "#c4a3ff", kicker: "Scene 4", title: "Composed, not cut", sub: "Each entrance follows the previous transition; each exit is its own.", via: "enters as scene 3 scrolls up · exits <b>crossfade ↺</b>" });
+const S0 = scene({
+  bg: "radial-gradient(130% 130% at 0% 0%, #11315c 0%, #0a0f1e 62%)",
+  accent: "#7c9cff",
+  kicker: "Scene 1",
+  title: "Chained transitions",
+  sub: "One SVG, four scenes, four different transition types in a row.",
+  via: "exits via <b>crossfade →</b>",
+});
+const S1 = scene({
+  bg: "radial-gradient(130% 130% at 100% 0%, #0c3a2a 0%, #0a0f1e 62%)",
+  accent: "#4ade80",
+  kicker: "Scene 2",
+  title: "It fades in",
+  sub: "Entered from a crossfade, so it dissolves in — then it will push left.",
+  via: "enters <b>fade</b> · exits <b>push-left →</b>",
+});
+const S2 = scene({
+  bg: "radial-gradient(130% 130% at 100% 100%, #3a2c0c 0%, #0a0f1e 62%)",
+  accent: "#fbbf24",
+  kicker: "Scene 3",
+  title: "It slides in",
+  sub: "Entered from a push, it slides in from the right — then it will scroll up.",
+  via: "enters <b>slide ←</b> · exits <b>scroll ↑</b>",
+});
+const S3 = scene({
+  bg: "radial-gradient(130% 130% at 0% 100%, #2a1450 0%, #0a0f1e 62%)",
+  accent: "#c4a3ff",
+  kicker: "Scene 4",
+  title: "Composed, not cut",
+  sub: "Each entrance follows the previous transition; each exit is its own.",
+  via: "enters as scene 3 scrolls up · exits <b>crossfade ↺</b>",
+});
 
 async function cap(pg: Page, html: string, prefix: string): Promise<string> {
   const tmp = resolve(OUT_DIR, `tour-tmp-${prefix}.html`);
@@ -74,14 +102,21 @@ async function main(): Promise<void> {
     const c3 = await cap(pg, S3, "t3-");
     frames = [
       { svgContent: c0, duration: 1700, transition: { type: "crossfade", duration: 650 } }, // → crossfade
-      { svgContent: c1, duration: 1700, transition: { type: "push-left", duration: 650 } },  // enters fade, exits push
-      { svgContent: c2, duration: 1700, transition: { type: "scroll", duration: 700 } },     // enters slide (cross-axis), exits scroll
-      { svgContent: c3, duration: 1900, transition: { type: "crossfade", duration: 650 } },  // exits crossfade → loop
+      { svgContent: c1, duration: 1700, transition: { type: "push-left", duration: 650 } }, // enters fade, exits push
+      { svgContent: c2, duration: 1700, transition: { type: "scroll", duration: 700 } }, // enters slide (cross-axis), exits scroll
+      { svgContent: c3, duration: 1900, transition: { type: "crossfade", duration: 650 } }, // exits crossfade → loop
     ];
   } finally {
     await browser.close();
   }
-  let svg = generateAnimatedSvg({ width: W, height: H, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: "#0a0f1e", loopFade: true });
+  let svg = generateAnimatedSvg({
+    width: W,
+    height: H,
+    frames,
+    fontFaceCss: getEmbeddedFontFaceCss(),
+    background: "#0a0f1e",
+    loopFade: true,
+  });
   svg = optimizeSvg(svg);
   writeFileSync(OUTPUT, svg);
   console.log(`Generated: ${OUTPUT} (${(svg.length / 1024).toFixed(1)} KB)`);

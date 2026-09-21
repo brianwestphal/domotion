@@ -17,11 +17,7 @@ function style(...cssProperties: CdpCssPropertyLike[]) {
   return { cssProperties };
 }
 
-function rule(
-  origin: string,
-  cssProperties: CdpCssPropertyLike[],
-  layer?: string,
-) {
+function rule(origin: string, cssProperties: CdpCssPropertyLike[], layer?: string) {
   return {
     rule: {
       origin,
@@ -47,9 +43,14 @@ describe("Blink EffectiveAppearance ownership", () => {
     expect(autoAppearanceForControl({ tag: "input", type: "file" })).toBe("none");
     expect(autoAppearanceForControl({ tag: "select", selectSize: 0 })).toBe("menulist");
     expect(autoAppearanceForControl({ tag: "select", multiple: true, selectSize: 0 })).toBe("listbox");
-    expect(autoAppearanceForControl({
-      tag: "select", multiple: true, selectSize: 1, selectHasSizeAttribute: true,
-    })).toBe("menulist");
+    expect(
+      autoAppearanceForControl({
+        tag: "select",
+        multiple: true,
+        selectSize: 1,
+        selectHasSizeAttribute: true,
+      }),
+    ).toBe("menulist");
   });
 
   it("applies the exact author-background/border switches", () => {
@@ -70,51 +71,39 @@ describe("Blink EffectiveAppearance ownership", () => {
   });
 
   it("turns menulist into menulist-button and opts text controls out for a shadow", () => {
-    expect(effectiveAppearanceForControl(
-      "auto", { tag: "select" }, available(), true,
-    )).toBe("menulist-button");
-    for (const control of [
-      { tag: "input", type: "search" },
-      { tag: "input", type: "text" },
-      { tag: "textarea" },
-    ]) {
+    expect(effectiveAppearanceForControl("auto", { tag: "select" }, available(), true)).toBe("menulist-button");
+    for (const control of [{ tag: "input", type: "search" }, { tag: "input", type: "text" }, { tag: "textarea" }]) {
       expect(effectiveAppearanceForControl("auto", control, available(), true)).toBe("none");
     }
   });
 
   it("keeps checkbox/radio/range native under author box styles and accent changes", () => {
     for (const type of ["checkbox", "radio", "range"]) {
-      const effective = effectiveAppearanceForControl(
-        "auto", { tag: "input", type }, available(true, true), true,
-      );
+      const effective = effectiveAppearanceForControl("auto", { tag: "input", type }, available(true, true), true);
       expect(effective).toBe(type === "range" ? "slider-horizontal" : type);
       expect(isWholeHostNativeAppearance(effective!)).toBe(true);
     }
   });
 
   it("applies Blink's element-type restrictions before author-style adjustment", () => {
-    expect(effectiveAppearanceForControl(
-      "button", { tag: "input", type: "checkbox" }, available(true, true), false,
-    )).toBe("checkbox");
-    expect(effectiveAppearanceForControl(
-      "checkbox", { tag: "button" }, available(true, true), false,
-    )).toBe("none");
-    expect(effectiveAppearanceForControl(
-      "button", { tag: "input", type: "submit" }, available(), false,
-    )).toBe("button");
-    expect(effectiveAppearanceForControl(
-      "menulist-button", { tag: "select" }, available(), false,
-    )).toBe("menulist-button");
-    expect(effectiveAppearanceForControl(
-      "textfield", { tag: "input", type: "search" }, available(), false,
-    )).toBe("textfield");
+    expect(
+      effectiveAppearanceForControl("button", { tag: "input", type: "checkbox" }, available(true, true), false),
+    ).toBe("checkbox");
+    expect(effectiveAppearanceForControl("checkbox", { tag: "button" }, available(true, true), false)).toBe("none");
+    expect(effectiveAppearanceForControl("button", { tag: "input", type: "submit" }, available(), false)).toBe(
+      "button",
+    );
+    expect(effectiveAppearanceForControl("menulist-button", { tag: "select" }, available(), false)).toBe(
+      "menulist-button",
+    );
+    expect(effectiveAppearanceForControl("textfield", { tag: "input", type: "search" }, available(), false)).toBe(
+      "textfield",
+    );
   });
 
   it("keeps explicit none/base/base-select structurally CSS-owned", () => {
     for (const appearance of ["none", "base", "base-select"]) {
-      expect(effectiveAppearanceForControl(
-        appearance, { tag: "button" }, undefined, true,
-      )).toBe(appearance);
+      expect(effectiveAppearanceForControl(appearance, { tag: "button" }, undefined, true)).toBe(appearance);
       expect(isWholeHostNativeAppearance(appearance)).toBe(false);
     }
     expect(isWholeHostNativeAppearance("menulist-button")).toBe(false);
@@ -122,7 +111,9 @@ describe("Blink EffectiveAppearance ownership", () => {
 
   it("returns unavailable only when an appearance actually needs author flags", () => {
     expect(effectiveAppearanceForControl("auto", { tag: "button" }, undefined, false)).toBeNull();
-    expect(effectiveAppearanceForControl("auto", { tag: "input", type: "checkbox" }, undefined, false)).toBe("checkbox");
+    expect(effectiveAppearanceForControl("auto", { tag: "input", type: "checkbox" }, undefined, false)).toBe(
+      "checkbox",
+    );
     expect(effectiveAppearanceForControl("none", { tag: "button" }, undefined, false)).toBe("none");
   });
 });
@@ -140,31 +131,41 @@ describe("Blink author background/border cascade flags", () => {
   });
 
   it("expands shorthands and preserves inline author origin", () => {
-    expect(authorControlStyleFactsFromMatchedStyles({
-      matchedCSSRules: [],
-      inlineStyle: style({
-        name: "background",
-        value: "red",
-        longhandProperties: [{ name: "background-color", value: "red" }],
+    expect(
+      authorControlStyleFactsFromMatchedStyles({
+        matchedCSSRules: [],
+        inlineStyle: style({
+          name: "background",
+          value: "red",
+          longhandProperties: [{ name: "background-color", value: "red" }],
+        }),
       }),
-    })).toEqual(available(true, false));
-    expect(authorControlStyleFactsFromMatchedStyles({
-      matchedCSSRules: [rule("regular", [{
-        name: "border",
-        value: "1px solid red",
-        longhandProperties: [{ name: "border-top-width", value: "1px" }],
-      }])],
-    })).toEqual(available(false, true));
+    ).toEqual(available(true, false));
+    expect(
+      authorControlStyleFactsFromMatchedStyles({
+        matchedCSSRules: [
+          rule("regular", [
+            {
+              name: "border",
+              value: "1px solid red",
+              longhandProperties: [{ name: "border-top-width", value: "1px" }],
+            },
+          ]),
+        ],
+      }),
+    ).toEqual(available(false, true));
   });
 
   it("does not confuse font/color/padding/text-shadow with theme box ownership", () => {
     const facts = authorControlStyleFactsFromMatchedStyles({
-      matchedCSSRules: [rule("regular", [
-        { name: "font", value: "20px sans-serif" },
-        { name: "color", value: "red" },
-        { name: "padding", value: "20px" },
-        { name: "text-shadow", value: "0 0 2px red" },
-      ])],
+      matchedCSSRules: [
+        rule("regular", [
+          { name: "font", value: "20px sans-serif" },
+          { name: "color", value: "red" },
+          { name: "padding", value: "20px" },
+          { name: "text-shadow", value: "0 0 2px red" },
+        ]),
+      ],
     });
     expect(facts).toEqual(available(false, false));
   });
@@ -206,12 +207,17 @@ describe("Blink author background/border cascade flags", () => {
   });
 
   it("maps logical border winners through direction and writing mode", () => {
-    const facts = authorControlStyleFactsFromMatchedStyles({
-      matchedCSSRules: [rule("regular", [
-        { name: "border-inline-start-color", value: "red" },
-        { name: "border-start-end-radius", value: "3px" },
-      ])],
-    }, { direction: "rtl", writingMode: "vertical-rl" });
+    const facts = authorControlStyleFactsFromMatchedStyles(
+      {
+        matchedCSSRules: [
+          rule("regular", [
+            { name: "border-inline-start-color", value: "red" },
+            { name: "border-start-end-radius", value: "3px" },
+          ]),
+        ],
+      },
+      { direction: "rtl", writingMode: "vertical-rl" },
+    );
     expect(facts).toEqual(available(false, true));
   });
 
@@ -223,10 +229,12 @@ describe("Blink author background/border cascade flags", () => {
     expect(animatedOnly).toEqual(available(false, false));
 
     const otherAuthorLonghand = authorControlStyleFactsFromMatchedStyles({
-      matchedCSSRules: [rule("regular", [
-        { name: "background-color", value: "red" },
-        { name: "background-image", value: "linear-gradient(red, blue)" },
-      ])],
+      matchedCSSRules: [
+        rule("regular", [
+          { name: "background-color", value: "red" },
+          { name: "background-image", value: "linear-gradient(red, blue)" },
+        ]),
+      ],
       transitionsStyle: style({ name: "background-color", value: "blue" }),
     });
     expect(otherAuthorLonghand).toEqual(available(true, false));

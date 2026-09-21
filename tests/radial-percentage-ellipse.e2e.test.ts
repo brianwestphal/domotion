@@ -1,11 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 
-import {
-  captureElementTreeWithWarnings,
-  elementTreeToSvg,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg, launchChromium } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const W = 300;
@@ -23,7 +19,11 @@ async function meanAbsoluteError(left: Buffer, right: Buffer): Promise<number> {
 }
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -43,14 +43,16 @@ describeBrowser("body-propagated percentage radial gradient (DM-2649)", () => {
       </style>`);
       const expected = await source.screenshot();
       const capture = await captureElementTreeWithWarnings(source, "body", {
-        x: 0, y: 0, width: W, height: H,
+        x: 0,
+        y: 0,
+        width: W,
+        height: H,
       });
-      expect(capture.tree[0]?.styles.backgroundAttachmentGeometry?.canvas?.owner)
-        .toBe("body-propagated");
+      expect(capture.tree[0]?.styles.backgroundAttachmentGeometry?.canvas?.owner).toBe("body-propagated");
       const svg = elementTreeToSvg(capture.tree, W, H);
       expect(svg).toContain("<radialGradient");
       expect(svg).toContain('r="360"');
-      expect(svg).toContain('scale(1 0.65)');
+      expect(svg).toContain("scale(1 0.65)");
 
       await generated.setContent(`<style>html,body{margin:0}</style>${svg}`);
       const actual = await generated.screenshot();

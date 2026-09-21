@@ -1,5 +1,8 @@
 import type { CapturedElement, PropagatedDecoration } from "../capture/types.js";
-import { buildDecorationFragmentRecords, type DecorationFragmentCarrier } from "../render/decoration-fragment-ownership.js";
+import {
+  buildDecorationFragmentRecords,
+  type DecorationFragmentCarrier,
+} from "../render/decoration-fragment-ownership.js";
 
 /**
  * DM-1723/DM-1725: propagate `text-decoration` from decorating boxes to their
@@ -67,12 +70,7 @@ export function propagateTextDecorations(elements: CapturedElement[]): void {
 /** Atomic inline-level display values that block decoration propagation.
  *  Chrome's computed `display` uses the legacy single-keyword serialization
  *  for these (e.g. `inline-block`, never `inline flow-root`). */
-const ATOMIC_INLINE_DISPLAYS = new Set([
-  "inline-block",
-  "inline-table",
-  "inline-flex",
-  "inline-grid",
-]);
+const ATOMIC_INLINE_DISPLAYS = new Set(["inline-block", "inline-table", "inline-flex", "inline-grid"]);
 
 function hasDecoration(line: string | undefined): line is string {
   return line != null && line !== "" && line !== "none";
@@ -108,7 +106,9 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
       const ascent = el.fontAscent ?? (parseFloat(s.fontSize) || 14);
       let baselines: number[] | undefined;
       if (el.textSegments != null && el.textSegments.length > 0) {
-        baselines = [...new Set(el.textSegments.map((seg) => Math.round(seg.baseline ?? (seg.y + (seg.fontAscent ?? ascent)))))];
+        baselines = [
+          ...new Set(el.textSegments.map((seg) => Math.round(seg.baseline ?? seg.y + (seg.fontAscent ?? ascent)))),
+        ];
       } else if (el.textTop != null && el.text !== "") {
         baselines = [Math.round(el.textTop + ascent)];
       }
@@ -121,16 +121,16 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
         fontDescent: el.fontDescent,
         line: s.textDecorationLine,
         style: s.textDecorationStyle,
-        color: (s.textDecorationColor != null && s.textDecorationColor !== "" && s.textDecorationColor !== "currentcolor")
-          ? s.textDecorationColor
-          : s.color,
+        color:
+          s.textDecorationColor != null && s.textDecorationColor !== "" && s.textDecorationColor !== "currentcolor"
+            ? s.textDecorationColor
+            : s.color,
         thickness: s.textDecorationThickness,
         underlineOffset: s.textUnderlineOffset,
         lengthScale: (() => {
           const logical = parseFloat(s.fontLogicalSize ?? s.fontSize);
           const effective = parseFloat(s.fontSize);
-          return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective)
-            ? effective / logical : 1;
+          return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective) ? effective / logical : 1;
         })(),
         fontFamily: s.fontFamily,
         fontSize: parseFloat(s.fontSize) || 14,
@@ -140,11 +140,17 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
       // A wrapped decorating inline owns its box FragmentItems, not merely
       // the direct text nodes it happens to contain. Capture's getClientRects
       // record is the CSSOM exposure of those ordered physical fragments.
-      const fragmentWitnesses = el.inlineFragments?.map((fragment) => ({
-        text: "", ...fragment,
-      })) ?? el.textSegments;
+      const fragmentWitnesses =
+        el.inlineFragments?.map((fragment) => ({
+          text: "",
+          ...fragment,
+        })) ?? el.textSegments;
       entry.decorationFragments = buildDecorationFragmentRecords(
-        fragmentWitnesses, s.writingMode, s.direction, ascent, el.fontDescent,
+        fragmentWitnesses,
+        s.writingMode,
+        s.direction,
+        ascent,
+        el.fontDescent,
       );
       next = [...(next ?? []), entry];
     }

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  replacedMediaOwnerFactDifferences,
-  type ComparableReplacedMediaOwnerFact,
-} from "./replaced-media-frame.js";
+import { replacedMediaOwnerFactDifferences, type ComparableReplacedMediaOwnerFact } from "./replaced-media-frame.js";
 
 const exact: ComparableReplacedMediaOwnerFact = {
   rid: "dr0",

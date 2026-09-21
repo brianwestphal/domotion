@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  EASING_PRESETS, easingPresetNames, resolveEasingPreset,
-  motionPresetNames, resolveMotionPreset,
+  EASING_PRESETS,
+  easingPresetNames,
+  resolveEasingPreset,
+  motionPresetNames,
+  resolveMotionPreset,
 } from "./motion-presets.js";
 
 describe("easing presets (DM-1526)", () => {
@@ -34,7 +37,10 @@ describe("easing presets (DM-1526)", () => {
     // spring-bouncy carries a real overshoot (a baked value > 1); the plain
     // `spring` bezier stays a single-overshoot cubic-bezier.
     const bouncy = resolveEasingPreset("spring-bouncy")!;
-    const nums = bouncy.slice("linear(".length, -1).split(",").map((s) => parseFloat(s));
+    const nums = bouncy
+      .slice("linear(".length, -1)
+      .split(",")
+      .map((s) => parseFloat(s));
     expect(Math.max(...nums)).toBeGreaterThan(1.2);
     expect(resolveEasingPreset("spring")).toBe("cubic-bezier(0.34,1.56,0.64,1)");
   });
@@ -48,24 +54,38 @@ describe("motion presets (DM-1526)", () => {
   });
 
   it("fade-down comes from above (negative translateY)", () => {
-    expect(resolveMotionPreset("fade-down", { distance: 20 })).toMatchObject({ property: "translateY", from: "-20px", to: "0px" });
+    expect(resolveMotionPreset("fade-down", { distance: 20 })).toMatchObject({
+      property: "translateY",
+      from: "-20px",
+      to: "0px",
+    });
   });
 
   it("pop: center-origin scale overshoot with fused opacity", () => {
     const m = resolveMotionPreset("pop", { scaleFrom: 0.5 });
-    expect(m).toMatchObject({ property: "scale", from: "0.5", to: "1", transformOrigin: "center", easing: EASING_PRESETS["back-out"] });
+    expect(m).toMatchObject({
+      property: "scale",
+      from: "0.5",
+      to: "1",
+      transformOrigin: "center",
+      easing: EASING_PRESETS["back-out"],
+    });
     expect(m.fuse?.[0]).toMatchObject({ property: "opacity" });
   });
 
   it("slide-in-<dir> enters from the named side", () => {
-    expect(resolveMotionPreset("slide-in-left").from).toBe("-48px");   // from the left
-    expect(resolveMotionPreset("slide-in-right").from).toBe("48px");   // from the right
-    expect(resolveMotionPreset("slide-in-up")).toMatchObject({ property: "translateY", from: "48px" });   // from below
+    expect(resolveMotionPreset("slide-in-left").from).toBe("-48px"); // from the left
+    expect(resolveMotionPreset("slide-in-right").from).toBe("48px"); // from the right
+    expect(resolveMotionPreset("slide-in-up")).toMatchObject({ property: "translateY", from: "48px" }); // from below
     expect(resolveMotionPreset("slide-in-down")).toMatchObject({ property: "translateY", from: "-48px" }); // from above
   });
 
   it("wipe-in: a left→right clip-path reveal (no box motion)", () => {
-    expect(resolveMotionPreset("wipe-in")).toMatchObject({ property: "clipPath", from: "inset(0 100% 0 0)", to: "inset(0 0 0 0)" });
+    expect(resolveMotionPreset("wipe-in")).toMatchObject({
+      property: "clipPath",
+      from: "inset(0 100% 0 0)",
+      to: "inset(0 0 0 0)",
+    });
   });
 
   it("exit reverses from/to (and its fused tracks)", () => {
@@ -83,7 +103,17 @@ describe("motion presets (DM-1526)", () => {
 
   it("motionPresetNames covers the documented vocabulary", () => {
     const names = motionPresetNames();
-    for (const n of ["fade", "fade-up", "fade-down", "pop", "slide-in-left", "slide-in-right", "slide-in-up", "slide-in-down", "wipe-in"]) {
+    for (const n of [
+      "fade",
+      "fade-up",
+      "fade-down",
+      "pop",
+      "slide-in-left",
+      "slide-in-right",
+      "slide-in-up",
+      "slide-in-down",
+      "wipe-in",
+    ]) {
       expect(names).toContain(n);
     }
   });

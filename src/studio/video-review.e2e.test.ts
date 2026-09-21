@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { STUDIO_VIDEO_REVIEW_DIMENSIONS, renderAndReviewStudioVideo } from "./video-review.js";
 import { STUDIO_PROJECT_FORMAT, STUDIO_PROJECT_VERSION, type StudioProject } from "./project-schema.js";
 
-const describeWithFfmpeg = spawnSync("ffmpeg", ["-version"], { encoding: "utf8" }).status === 0 ? describe : describe.skip;
+const describeWithFfmpeg =
+  spawnSync("ffmpeg", ["-version"], { encoding: "utf8" }).status === 0 ? describe : describe.skip;
 
 function project(): StudioProject {
   return {
@@ -16,10 +17,18 @@ function project(): StudioProject {
     createdAt: "2026-09-06T00:00:00.000Z",
     canvas: { width: 100, height: 100, background: "#ffffff" },
     narrative: { title: "Motion", beats: [{ id: "beat", title: "Move", sceneIds: ["scene"] }] },
-    scenes: [{ id: "scene", narrativeBeatIds: ["beat"], render: { kind: "storyboard", recipe: { svg: "source.svg", duration: 500 } } }],
+    scenes: [
+      {
+        id: "scene",
+        narrativeBeatIds: ["beat"],
+        render: { kind: "storyboard", recipe: { svg: "source.svg", duration: 500 } },
+      },
+    ],
     review: {
       headRevisionId: "revision-1",
-      revisions: [{ id: "revision-1", createdAt: "2026-09-06T00:00:00.000Z", author: { kind: "human" }, summary: "Created." }],
+      revisions: [
+        { id: "revision-1", createdAt: "2026-09-06T00:00:00.000Z", author: { kind: "human" }, summary: "Created." },
+      ],
       annotations: [],
     },
     artifacts: [],

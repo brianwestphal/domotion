@@ -47,7 +47,6 @@ export const lowerThirdParamsSchema = z.object({
 
 export type LowerThirdParams = z.infer<typeof lowerThirdParamsSchema>;
 
-
 /** Flex alignment for the chosen corner. */
 function alignmentFor(position: LowerThirdParams["position"]): { justify: string; align: string } {
   const [v, h] = position.split("-");
@@ -72,9 +71,7 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
   const titleColor = isDark ? "#f5f7fa" : "#0d1117";
   const subColor = isDark ? "#aeb6c2" : "#57606a";
   const shadow = isDark ? "0 6px 24px rgba(0,0,0,0.45)" : "0 6px 24px rgba(0,0,0,0.18)";
-  const subtitle = p.subtitle != null && p.subtitle !== ""
-    ? `<div class="lt-sub">${escapeHtml(p.subtitle)}</div>`
-    : "";
+  const subtitle = p.subtitle != null && p.subtitle !== "" ? `<div class="lt-sub">${escapeHtml(p.subtitle)}</div>` : "";
   // DM-1545: an optional brand mark rides on the banner (the brand kit's `logo`
   // token maps here). It sits inside `.lt-panel`, so it slides + fades in with
   // the panel and rests at identity; the panel itself already honors `safeInset`
@@ -85,16 +82,15 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
   // CORNER. The corner mark is absolutely positioned at the safe-area inset (so it
   // stays inside the safe area) and rests at identity (a static opacity fade-in).
   const onPanel = p.logoPosition === "panel";
-  const panelLogo = hasLogo && onPanel
-    ? `<img class="lt-logo" src="${escapeHtml(logoSrc)}" alt="">`
-    : "";
+  const panelLogo = hasLogo && onPanel ? `<img class="lt-logo" src="${escapeHtml(logoSrc)}" alt="">` : "";
   // Corner inset offsets = the same per-side safe padding the body uses.
   const insetTop = safeInset != null ? Math.max(d, safeInset.top) : d;
   const insetLeft = safeInset != null ? Math.max(d, safeInset.left) : d;
   const insetRight = safeInset != null ? Math.max(d, safeInset.right) : d;
-  const cornerLogo = hasLogo && !onPanel
-    ? `<img class="lt-logo-corner" src="${escapeHtml(logoSrc)}" alt="" style="top:${insetTop}px;${p.logoPosition === "top-right" ? `right:${insetRight}px` : `left:${insetLeft}px`}">`
-    : "";
+  const cornerLogo =
+    hasLogo && !onPanel
+      ? `<img class="lt-logo-corner" src="${escapeHtml(logoSrc)}" alt="" style="top:${insetTop}px;${p.logoPosition === "top-right" ? `right:${insetRight}px` : `left:${insetLeft}px`}">`
+      : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
@@ -172,7 +168,15 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
       // Firefox's off-main-thread compositing under load. The fade rides the
       // slide's 600ms/cubic window (was a separate 450ms/ease-out track).
       animations: [
-        { selector: ".lt-panel", property: "translateY", from: rise, to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)", fuse: [{ property: "opacity", from: "0", to: "1" }] },
+        {
+          selector: ".lt-panel",
+          property: "translateY",
+          from: rise,
+          to: "0px",
+          duration: 600,
+          easing: "cubic-bezier(0.22,1,0.36,1)",
+          fuse: [{ property: "opacity", from: "0", to: "1" }],
+        },
       ],
     });
   },

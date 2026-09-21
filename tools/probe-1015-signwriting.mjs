@@ -16,7 +16,7 @@ const stacks = [
   // The signwriting fixture's exact stack
   '"Arial Unicode MS","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif',
   // Just sans-serif
-  'sans-serif',
+  "sans-serif",
   // Just SF Compact
   'SFCompact, "SF Compact"',
   // Apple Symbols
@@ -28,9 +28,13 @@ for (const stack of stacks) {
   await page.setContent(html);
   const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
   function findById(n, id) {
-    if (n.attributes) for (let j = 0; j < n.attributes.length - 1; j += 2)
-      if (n.attributes[j] === "id" && n.attributes[j+1] === id) return n;
-    for (const c of n.children || []) { const f = findById(c, id); if (f) return f; }
+    if (n.attributes)
+      for (let j = 0; j < n.attributes.length - 1; j += 2)
+        if (n.attributes[j] === "id" && n.attributes[j + 1] === id) return n;
+    for (const c of n.children || []) {
+      const f = findById(c, id);
+      if (f) return f;
+    }
     return null;
   }
   const n = findById(root, "t");
@@ -49,6 +53,7 @@ for (const stack of stacks) {
   }
   console.log(`\nstack=${stack}`);
   console.log(`  glyph rect: ${rect.w}x${rect.h} → ${path}`);
-  for (const f of fonts) console.log(`  family=${f.familyName} ps=${f.postScriptName ?? "?"} glyphCount=${f.glyphCount}`);
+  for (const f of fonts)
+    console.log(`  family=${f.familyName} ps=${f.postScriptName ?? "?"} glyphCount=${f.glyphCount}`);
 }
 await browser.close();

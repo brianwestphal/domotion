@@ -1,16 +1,14 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { createServer } from "node:http";
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
-import {
-  installCaptureRafClock,
-  reverifyCaptureRafClock,
-  sampleCaptureRafClock,
-} from "../src/capture/raf-clock.js";
+import { installCaptureRafClock, reverifyCaptureRafClock, sampleCaptureRafClock } from "../src/capture/raf-clock.js";
 
 const browser = await launchChromium({ headless: true, args: ["--site-per-process"] }).catch(() => null);
 
 describe.skipIf(browser == null)("authenticated capture rAF clock", () => {
-  afterAll(async () => { await browser?.close(); });
+  afterAll(async () => {
+    await browser?.close();
+  });
 
   it("installs before navigation, drains once at one time, and remains stable", async () => {
     const context = await browser!.newContext();
@@ -91,7 +89,9 @@ describe.skipIf(browser == null)("authenticated capture rAF clock", () => {
       } else {
         const address = server.address();
         const port = typeof address === "object" && address != null ? address.port : 0;
-        response.end(`<script>globalThis.samples=[];requestAnimationFrame(t=>samples.push(t))</script><iframe src="http://localhost:${port}/child"></iframe>`);
+        response.end(
+          `<script>globalThis.samples=[];requestAnimationFrame(t=>samples.push(t))</script><iframe src="http://localhost:${port}/child"></iframe>`,
+        );
       }
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -110,7 +110,9 @@ describe.skipIf(browser == null)("authenticated capture rAF clock", () => {
       iframe.src = childUrl;
       document.body.append(iframe);
     }, `http://localhost:${port}/child?second=1`);
-    await expect(reverifyCaptureRafClock(page, handle, state)).rejects.toThrow(/target state changed|target set changed/);
+    await expect(reverifyCaptureRafClock(page, handle, state)).rejects.toThrow(
+      /target state changed|target set changed/,
+    );
     await context.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });

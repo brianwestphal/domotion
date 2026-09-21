@@ -3,11 +3,16 @@ id: "requirements/portable-exact-shaping-controls"
 title: "Portable exact-shaping applicability controls"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","layout","product-tooling"]
+owners: ["text-fonts", "layout", "product-tooling"]
 platforms: ["linux"]
 tickets: ["DM-2500"]
-code: ["tests/fixtures/variable-axis/variable-axis.html","tools/exact-shaping-control-fixtures.ts","tools/exact-shaping-oracle.ts"]
-aliases: ["docs/199-portable-exact-shaping-controls.md","doc-199"]
+code:
+  [
+    "tests/fixtures/variable-axis/variable-axis.html",
+    "tools/exact-shaping-control-fixtures.ts",
+    "tools/exact-shaping-oracle.ts",
+  ]
+aliases: ["docs/199-portable-exact-shaping-controls.md", "doc-199"]
 ---
 
 # Portable exact-shaping applicability controls
@@ -48,11 +53,11 @@ Pinned HarfBuzz enables tracking only when both `trak` and `STAT` exist
 `tools/exact-shaping-control-fixtures.ts` therefore runs three omission-shaped
 rows rather than arbitrary perturbations:
 
-| Required input | Truthful baseline | Destructive mutation | Expected advances |
-| --- | --- | --- | --- |
-| `wght` | Open Sans `wght=800, wdth=100` | omit axes (defaults) | complete 15-glyph stream changes |
-| `wdth` | Open Sans `wght=400, wdth=75` | omit axes (defaults) | complete 15-glyph stream changes |
-| `ptem` | upstream `TRAK.ttf`, `ptem=9` | unset `ptem` | `1060,1060,1060` → `1000,1000,1000` |
+| Required input | Truthful baseline              | Destructive mutation | Expected advances                   |
+| -------------- | ------------------------------ | -------------------- | ----------------------------------- |
+| `wght`         | Open Sans `wght=800, wdth=100` | omit axes (defaults) | complete 15-glyph stream changes    |
+| `wdth`         | Open Sans `wght=400, wdth=75`  | omit axes (defaults) | complete 15-glyph stream changes    |
+| `ptem`         | upstream `TRAK.ttf`, `ptem=9`  | unset `ptem`         | `1060,1060,1060` → `1000,1000,1000` |
 
 A row passes only when both complete logical streams match their pinned
 expected arrays and SHA-256 digests and `changedFields` is exactly

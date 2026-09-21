@@ -24,7 +24,9 @@ export async function startLocalServer(
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>,
   port = 0,
 ): Promise<LocalServer> {
-  const server = createServer((req, res) => { void handler(req, res); });
+  const server = createServer((req, res) => {
+    void handler(req, res);
+  });
   const boundPort = await new Promise<number>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", () => {
@@ -36,7 +38,11 @@ export async function startLocalServer(
     server,
     url: `http://127.0.0.1:${boundPort}/`,
     port: boundPort,
-    close: () => new Promise<void>((resolve) => { server.close(() => resolve()); server.closeIdleConnections(); }),
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeIdleConnections();
+      }),
   };
 }
 

@@ -27,13 +27,14 @@ const describeBrowser = env ? describe : describe.skip;
 // A box with ASYMMETRIC border + padding so the border-box center and the
 // content-box center differ on BOTH axes (a symmetric inset would collapse the
 // distinction to zero and pass trivially).
-const W = 400, H = 300;
+const W = 400,
+  H = 300;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>` +
   `*{margin:0;box-sizing:border-box}` +
   `#pad{position:absolute;left:50px;top:40px;width:200px;height:120px;` +
   `border-style:solid;border-width:10px 30px 10px 10px;` + // L10 R30 T10 B10
-  `padding:20px 0 0 40px;background:#eee}` +              // T20 L40
+  `padding:20px 0 0 40px;background:#eee}` + // T20 L40
   `</style></head><body><div id="pad"></div></body></html>`;
 
 describeBrowser("borderBox + resolveCursorTarget (DM-1139)", () => {
@@ -64,10 +65,10 @@ describeBrowser("borderBox + resolveCursorTarget (DM-1139)", () => {
       // The crux: border-box center ≠ content-box center on BOTH axes.
       const bbCenter = (await borderBox(page, "#pad", { at: "center" })).at;
       const cbCenter = (await contentBox(page, "#pad", { at: "center" })).at;
-      expect(bbCenter[0]).toBeCloseTo(50 + 100, 1);       // 150
-      expect(bbCenter[1]).toBeCloseTo(40 + 60, 1);        // 100
-      expect(cbCenter[0]).toBeCloseTo(100 + 120 / 2, 1);  // 160
-      expect(cbCenter[1]).toBeCloseTo(70 + 80 / 2, 1);    // 110
+      expect(bbCenter[0]).toBeCloseTo(50 + 100, 1); // 150
+      expect(bbCenter[1]).toBeCloseTo(40 + 60, 1); // 100
+      expect(cbCenter[0]).toBeCloseTo(100 + 120 / 2, 1); // 160
+      expect(cbCenter[1]).toBeCloseTo(70 + 80 / 2, 1); // 110
       expect(bbCenter[0]).not.toBeCloseTo(cbCenter[0], 1);
       expect(bbCenter[1]).not.toBeCloseTo(cbCenter[1], 1);
     } finally {

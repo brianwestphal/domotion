@@ -14,20 +14,29 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import type { CapturedElement } from "../src/capture/types.js";
-import {
-  formControlRenderRoute,
-  renderFormControl,
-  type FormControlRenderRoute,
-} from "../src/render/form-controls.js";
+import { formControlRenderRoute, renderFormControl, type FormControlRenderRoute } from "../src/render/form-controls.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const BANNED_SAMPLED_TOKENS = [
-  "STOCK_LIGHT", "STOCK_DARK", "stockPalette", "unfilledTrackColor",
-  "resolveAccent", "ACCENT_BLUE", "TRACK_BG", "TRACK_FG", "METER_GREEN",
-  "METER_YELLOW", "METER_RED", "DISABLED_BORDER", "renderDatePicker",
-  "renderCalendarIcon", "renderClockIcon", "renderNumberInput",
-  "renderSearchInput", "renderCustomCheckboxOrSwitch",
+  "STOCK_LIGHT",
+  "STOCK_DARK",
+  "stockPalette",
+  "unfilledTrackColor",
+  "resolveAccent",
+  "ACCENT_BLUE",
+  "TRACK_BG",
+  "TRACK_FG",
+  "METER_GREEN",
+  "METER_YELLOW",
+  "METER_RED",
+  "DISABLED_BORDER",
+  "renderDatePicker",
+  "renderCalendarIcon",
+  "renderClockIcon",
+  "renderNumberInput",
+  "renderSearchInput",
+  "renderCustomCheckboxOrSwitch",
 ] as const;
 
 const BANNED_SAMPLED_LITERALS = [
@@ -38,10 +47,7 @@ const BANNED_SAMPLED_LITERALS = [
   /Choose File|No file chosen/,
 ] as const;
 
-export function auditNativeControlFallbackSources(
-  formControlsSource: string,
-  emitterSource: string,
-): string[] {
+export function auditNativeControlFallbackSources(formControlsSource: string, emitterSource: string): string[] {
   const errors: string[] = [];
   for (const token of BANNED_SAMPLED_TOKENS) {
     if (formControlsSource.includes(token)) errors.push(`sampled native fallback token remains: ${token}`);
@@ -71,12 +77,14 @@ export function auditNativeControlFallbackSources(
   // helper. Source order no longer matches runtime order: the helper definition
   // precedes renderElement, while its call remains after the terminal raster
   // guard. Audit that actual driver edge instead of the declaration position.
-  const contentPhaseCall = emitterSource.indexOf(
-    "paintElementContentPhase(elementPaintContext",
-    terminalGuard,
-  );
-  if (nativeRecord < 0 || terminalGuard < 0 || structuralDispatch < 0 || contentPhaseCall < 0
-      || !(nativeRecord < terminalGuard && terminalGuard < contentPhaseCall)) {
+  const contentPhaseCall = emitterSource.indexOf("paintElementContentPhase(elementPaintContext", terminalGuard);
+  if (
+    nativeRecord < 0 ||
+    terminalGuard < 0 ||
+    structuralDispatch < 0 ||
+    contentPhaseCall < 0 ||
+    !(nativeRecord < terminalGuard && terminalGuard < contentPhaseCall)
+  ) {
     errors.push("native-control raster must terminate emission before renderFormControl");
   }
   return errors;
@@ -103,13 +111,20 @@ export const FORM_CONTROL_ROUTE_ROWS: RouteRow[] = [
     ["date-native", "input", "textfield"],
     ["select-native", "select", "menulist"],
   ].map(([name, tag, appearance]): RouteRow => ({
-    name: `${name}-materialized`, tag: tag as CapturedElement["tag"],
+    name: `${name}-materialized`,
+    tag: tag as CapturedElement["tag"],
     inputType: tag === "input" ? name.split("-")[0] : undefined,
-    appearance, raster: "materialized", expected: "native-raster",
+    appearance,
+    raster: "materialized",
+    expected: "native-raster",
   })),
   {
-    name: "checkbox-authoritative-empty", tag: "input", inputType: "checkbox",
-    appearance: "checkbox", raster: "empty", expected: "native-raster",
+    name: "checkbox-authoritative-empty",
+    tag: "input",
+    inputType: "checkbox",
+    appearance: "checkbox",
+    raster: "empty",
+    expected: "native-raster",
   },
   ...[
     ["checkbox", "input", "checkbox"],
@@ -120,9 +135,12 @@ export const FORM_CONTROL_ROUTE_ROWS: RouteRow[] = [
     ["date", "input", "textfield"],
     ["select", "select", "menulist"],
   ].map(([name, tag, appearance]): RouteRow => ({
-    name: `${name}-missing`, tag: tag as CapturedElement["tag"],
+    name: `${name}-missing`,
+    tag: tag as CapturedElement["tag"],
     inputType: tag === "input" ? name : undefined,
-    appearance, raster: "missing", expected: "missing-native-raster",
+    appearance,
+    raster: "missing",
+    expected: "missing-native-raster",
   })),
   { name: "unknown-old-tree", tag: "input", inputType: "checkbox", expected: "missing-native-raster" },
   { name: "author-none", tag: "input", inputType: "range", appearance: "none", expected: "structural" },
@@ -141,14 +159,21 @@ function elementFor(row: RouteRow): CapturedElement {
     width: 20,
     height: 20,
     children: [],
-    ...(row.raster === "materialized" ? {
-      nativeControlRaster: {
-        x: 0, y: 0, width: 20, height: 20,
-        dataUri: "data:image/png;base64,AA==",
-      },
-    } : row.raster === "empty" ? {
-      nativeControlRaster: { x: 0, y: 0, width: 20, height: 20, empty: true },
-    } : {}),
+    ...(row.raster === "materialized"
+      ? {
+          nativeControlRaster: {
+            x: 0,
+            y: 0,
+            width: 20,
+            height: 20,
+            dataUri: "data:image/png;base64,AA==",
+          },
+        }
+      : row.raster === "empty"
+        ? {
+            nativeControlRaster: { x: 0, y: 0, width: 20, height: 20, empty: true },
+          }
+        : {}),
     styles: {
       inputType: row.inputType,
       effectiveAppearance: row.appearance,
@@ -165,8 +190,7 @@ export function auditFormControlRoutes(): string[] {
       const element = elementFor(row);
       const actual = formControlRenderRoute(element);
       if (actual !== row.expected) errors.push(`${row.name}: expected ${row.expected}, got ${actual}`);
-      if ((actual === "native-raster" || actual === "missing-native-raster")
-          && renderFormControl(element, "") !== "") {
+      if ((actual === "native-raster" || actual === "missing-native-raster") && renderFormControl(element, "") !== "") {
         errors.push(`${row.name}: native route emitted sampled vector paint`);
       }
       if (actual === "not-form-control" && renderFormControl(element, "") !== "") {
@@ -182,10 +206,7 @@ export function auditFormControlRoutes(): string[] {
 export function runNativeControlFallbackGate(): { ok: boolean; errors: string[]; routeRows: number } {
   const formSource = readFileSync(resolve(ROOT, "src/render/form-controls.ts"), "utf8");
   const emitterSource = readFileSync(resolve(ROOT, "src/render/element-tree-to-svg.ts"), "utf8");
-  const errors = [
-    ...auditNativeControlFallbackSources(formSource, emitterSource),
-    ...auditFormControlRoutes(),
-  ];
+  const errors = [...auditNativeControlFallbackSources(formSource, emitterSource), ...auditFormControlRoutes()];
   return { ok: errors.length === 0, errors, routeRows: FORM_CONTROL_ROUTE_ROWS.length };
 }
 

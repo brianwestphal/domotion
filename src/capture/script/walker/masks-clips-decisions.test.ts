@@ -17,25 +17,28 @@ describe("mask and clip capture decisions", () => {
   });
 
   it("preserves nested commas while splitting CSS image layers", () => {
-    expect(splitCssLayers("url(#a), linear-gradient(red, blue), element(#source)"))
-      .toEqual(["url(#a)", " linear-gradient(red, blue)", " element(#source)"]);
+    expect(splitCssLayers("url(#a), linear-gradient(red, blue), element(#source)")).toEqual([
+      "url(#a)",
+      " linear-gradient(red, blue)",
+      " element(#source)",
+    ]);
   });
 
   it("classifies local, same-document, safe data, and external fragment references", () => {
     const base = "https://example.test/page/index.html";
-    expect(classifyFragmentReference("#clip%20one", base, base))
-      .toEqual({ status: "local", target: "clip one" });
-    expect(classifyFragmentReference("./index.html#mask", base, base))
-      .toEqual({ status: "local", target: "mask" });
-    expect(classifyFragmentReference("data:image/svg+xml,%3Csvg/%3E", base, base))
-      .toEqual({ status: "safe" });
-    expect(classifyFragmentReference("./other.svg#mask", base, base))
-      .toEqual({ status: "external", target: "./other.svg#mask" });
+    expect(classifyFragmentReference("#clip%20one", base, base)).toEqual({ status: "local", target: "clip one" });
+    expect(classifyFragmentReference("./index.html#mask", base, base)).toEqual({ status: "local", target: "mask" });
+    expect(classifyFragmentReference("data:image/svg+xml,%3Csvg/%3E", base, base)).toEqual({ status: "safe" });
+    expect(classifyFragmentReference("./other.svg#mask", base, base)).toEqual({
+      status: "external",
+      target: "./other.svg#mask",
+    });
   });
 
   it("rewrites only URL references accepted by the caller", () => {
-    expect(replaceCssUrls('url("#a") url(https://example.test/x.svg#b)', (raw: string) => raw === "#a" ? "token" : null))
-      .toBe("url(#token) url(https://example.test/x.svg#b)");
+    expect(
+      replaceCssUrls('url("#a") url(https://example.test/x.svg#b)', (raw: string) => (raw === "#a" ? "token" : null)),
+    ).toBe("url(#token) url(https://example.test/x.svg#b)");
   });
 
   it("normalizes SVG units and length fallbacks", () => {
@@ -48,11 +51,13 @@ describe("mask and clip capture decisions", () => {
   });
 
   it("reports resolved dependency cycles without treating missing edges as cycles", () => {
-    expect(fragmentCycles(0, 3, [
-      { from: 0, to: 1, status: "resolved" },
-      { from: 1, to: 2, status: "resolved" },
-      { from: 2, to: 0, status: "resolved" },
-      { from: 2, to: 1, status: "missing" },
-    ])).toEqual([[0, 1, 2, 0]]);
+    expect(
+      fragmentCycles(0, 3, [
+        { from: 0, to: 1, status: "resolved" },
+        { from: 1, to: 2, status: "resolved" },
+        { from: 2, to: 0, status: "resolved" },
+        { from: 2, to: 1, status: "missing" },
+      ]),
+    ).toEqual([[0, 1, 2, 0]]);
   });
 });

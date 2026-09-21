@@ -88,36 +88,32 @@ function shardFontInventory(): { digest: string; count: number; source: string }
   }
 }
 
-export function helperImplementationDigest(
-  platform: NodeJS.Platform = process.platform,
-  root = ".",
-): string | null {
+export function helperImplementationDigest(platform: NodeJS.Platform = process.platform, root = "."): string | null {
   // Locally-built executables are not reproducible artifacts: PE/COFF embeds a
   // linker timestamp (and other toolchains may carry build IDs), so hashing the
   // binary made identical source builds disagree across CI shards. Hash the
   // native implementation and the build recipe that defines it instead. The OS
   // and architecture remain separate fields in the parity fingerprint.
-  const relative = platform === "darwin"
-    ? [
-        "tools/macos-glyph-extractor/Package.swift",
-        "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift",
-      ]
-    : platform === "linux"
+  const relative =
+    platform === "darwin"
       ? [
-          "tools/linux-glyph-extractor/CMakeLists.txt",
-          "tools/linux-glyph-extractor/src/main.cpp",
+          "tools/macos-glyph-extractor/Package.swift",
+          "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift",
         ]
-      : platform === "win32"
-        ? [
-            "tools/win32-glyph-extractor/build-msvc-direct.bat",
-            "tools/win32-glyph-extractor/src/main.cpp",
-          ]
-        : [];
+      : platform === "linux"
+        ? ["tools/linux-glyph-extractor/CMakeLists.txt", "tools/linux-glyph-extractor/src/main.cpp"]
+        : platform === "win32"
+          ? ["tools/win32-glyph-extractor/build-msvc-direct.bat", "tools/win32-glyph-extractor/src/main.cpp"]
+          : [];
   if (relative.length === 0) return null;
   try {
     const digest = createHash("sha256");
     for (const file of relative) {
-      digest.update(file).update("\0").update(readFileSync(join(root, file))).update("\0");
+      digest
+        .update(file)
+        .update("\0")
+        .update(readFileSync(join(root, file)))
+        .update("\0");
     }
     return digest.digest("hex");
   } catch {
@@ -342,11 +338,19 @@ const HARVEST_IDENTITY_VERSION = 2;
  */
 export function harvestedCorpusIdentity(stacks: StackSpec[], platform: string = process.platform): string {
   const questions = stacks
-    .map((s) => JSON.stringify([
-      s.fontFamily, s.fontSize, s.fontWeight, s.fontStyle,
-      s.fontStretch ?? "", s.fontVariationSettings ?? "", s.fontFeatureSettings ?? "",
-      s.fontVariantAlternates ?? "", s.fontVariantEmoji ?? "",
-    ]))
+    .map((s) =>
+      JSON.stringify([
+        s.fontFamily,
+        s.fontSize,
+        s.fontWeight,
+        s.fontStyle,
+        s.fontStretch ?? "",
+        s.fontVariationSettings ?? "",
+        s.fontFeatureSettings ?? "",
+        s.fontVariantAlternates ?? "",
+        s.fontVariantEmoji ?? "",
+      ]),
+    )
     .sort();
   const h = createHash("sha256")
     .update(`harvested-stacks/v${HARVEST_IDENTITY_VERSION}\n`)
@@ -674,7 +678,7 @@ export function verdictForCodepoint(
 /** Mirrors `slantForStyle` in src/render/text-to-path.ts (not exported there). */
 export function slantForStyle(style: string): number {
   const s = style.toLowerCase();
-  return (s === "italic" || s.startsWith("oblique")) ? ITALIC_SLNT : 0;
+  return s === "italic" || s.startsWith("oblique") ? ITALIC_SLNT : 0;
 }
 
 export interface ResolvedStack {
@@ -751,7 +755,12 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
   const primary = getFontInstance(primaryKey, spec.fontWeight, spec.fontSize, slant, variations, stretch);
   if (primary == null) return null;
   const rs: ResolvedStack = {
-    spec, chain, primaryKey, primary, slant, stretch,
+    spec,
+    chain,
+    primaryKey,
+    primary,
+    slant,
+    stretch,
     faceCache: new Map(),
     // Placeholder — `faceFor` needs the stack, so the real donor is filled in
     // immediately below.
@@ -794,7 +803,9 @@ export function faceFor(rs: ResolvedStack, key: string, covered: boolean, overri
   if (hit !== undefined) return { key, path: hit.path, postscriptName: hit.postscriptName, covered };
 
   const materialize = (): FontInstance | null =>
-    key === rs.primaryKey ? rs.primary : getFontInstance(key, rs.spec.fontWeight, rs.spec.fontSize, rs.slant, undefined, rs.stretch);
+    key === rs.primaryKey
+      ? rs.primary
+      : getFontInstance(key, rs.spec.fontWeight, rs.spec.fontSize, rs.slant, undefined, rs.stretch);
   let inst = override ?? materialize();
   let src = getFontSourceInfo(inst);
   // An override with no identity of its own (a synthetic shaping wrapper) tells
@@ -809,7 +820,12 @@ export function faceFor(rs: ResolvedStack, key: string, covered: boolean, overri
   const fromKey = key.startsWith("sysfb:") ? key.slice("sysfb:".length) : null;
   const meta = {
     path: src?.path ?? spec?.path ?? null,
-    postscriptName: inst?.instantiatedPostscriptName ?? inst?.postscriptName ?? src?.postscriptName ?? spec?.postscriptName ?? fromKey,
+    postscriptName:
+      inst?.instantiatedPostscriptName ??
+      inst?.postscriptName ??
+      src?.postscriptName ??
+      spec?.postscriptName ??
+      fromKey,
   };
   if (cacheable) rs.faceCache.set(key, meta);
   return { key, path: meta.path, postscriptName: meta.postscriptName, covered };
@@ -877,19 +893,18 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
  */
 export function probePageHtml(cps: number[], spec: StackSpec, lang: string): string {
   const stackLang = spec.lang ?? lang;
-  const cells = cps
-    .map((cp) => `<i class=c lang="${stackLang}">&#x${cp.toString(16)};</i>`)
-    .join("");
+  const cells = cps.map((cp) => `<i class=c lang="${stackLang}">&#x${cp.toString(16)};</i>`).join("");
   // The computed `font-family` is already valid CSS and goes into a <style>
   // element, not an attribute — so it is embedded verbatim. Rewriting its
   // quotes would corrupt any family name that legitimately contains one.
   const family = spec.fontFamily;
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>`
-    + `body{margin:0}`
-    + `#w{display:flex;flex-wrap:wrap;font-family:${family};font-size:${spec.fontSize}px;`
-    + `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};`
-    + `font-stretch:${spec.fontStretch ?? "normal"};`
-    + `font-variation-settings:${spec.fontVariationSettings ?? "normal"};`
+  return (
+    `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>` +
+    `body{margin:0}` +
+    `#w{display:flex;flex-wrap:wrap;font-family:${family};font-size:${spec.fontSize}px;` +
+    `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};` +
+    `font-stretch:${spec.fontStretch ?? "normal"};` +
+    `font-variation-settings:${spec.fontVariationSettings ?? "normal"};` +
     // Declared even though Blink does NOT select a face on it — `feature_settings_`
     // is absent from `FontDescription::CacheKey` and is read only by
     // `FontFeatures::Initialize` at shaping time. It belongs here anyway,
@@ -897,7 +912,7 @@ export function probePageHtml(cps: number[], spec: StackSpec, lang: string): str
     // features the fixture declares switched off, and a feature that
     // substitutes glyphs (`smcp`, `frac`, `tnum`) changes what Chrome paints
     // and therefore which faces it reports having used.
-    + `font-feature-settings:${spec.fontFeatureSettings ?? "normal"};`
+    `font-feature-settings:${spec.fontFeatureSettings ?? "normal"};` +
     // Declared for the same reason as `font-feature-settings` above: it resolves
     // to OpenType features rather than to a different face, so it does not move
     // the reported face — but leaving it out renders the fixture's text with the
@@ -909,21 +924,22 @@ export function probePageHtml(cps: number[], spec: StackSpec, lang: string): str
     // and this page therefore does not carry. Those values round-trip as
     // computed values and activate no feature here. `historical-forms` needs no
     // at-rule and is fully faithful.
-    + `font-variant-alternates:${spec.fontVariantAlternates ?? "normal"};`
+    `font-variant-alternates:${spec.fontVariantAlternates ?? "normal"};` +
     // This one genuinely selects a face — it overrides the run's
     // `FontFallbackPriority`, which is what picks a color-emoji face over a text
     // face — so omitting it would sweep an emoji-presentation question as its
     // opposite.
-    + `font-variant-emoji:${spec.fontVariantEmoji ?? "normal"}}`
+    `font-variant-emoji:${spec.fontVariantEmoji ?? "normal"}}` +
     // `white-space:pre` is load-bearing: without it a cell holding U+0020 (or
     // any other space separator) collapses to nothing, Chrome paints no
     // glyph, and the oracle reports a mismatch that only exists because of
     // how the probe page was written.
     // `font-style:inherit` undoes the UA italic on `<i>` — the cell must be
     // rendered in the style the corpus entry declares, not in the tag's.
-    + `.c{display:inline-block;width:${spec.fontSize + 8}px;height:${spec.fontSize + 8}px;`
-    + `overflow:hidden;font-style:inherit;white-space:pre}`
-    + `</style></head><body><div id=w>${cells}</div></body></html>`;
+    `.c{display:inline-block;width:${spec.fontSize + 8}px;height:${spec.fontSize + 8}px;` +
+    `overflow:hidden;font-style:inherit;white-space:pre}` +
+    `</style></head><body><div id=w>${cells}</div></body></html>`
+  );
 }
 
 /** See `layOutBatch`. Generous rather than tuned — it exists to distinguish a
@@ -1012,9 +1028,7 @@ class ChromeOracle {
     const out: ChromeFace[][] = [];
     for (let i = 0; i < nodeIds.length; i += this.concurrency) {
       const slice = nodeIds.slice(i, i + this.concurrency);
-      const rs = await Promise.all(
-        slice.map((nodeId) => this.cdp.send("CSS.getPlatformFontsForNode", { nodeId })),
-      );
+      const rs = await Promise.all(slice.map((nodeId) => this.cdp.send("CSS.getPlatformFontsForNode", { nodeId })));
       for (const r of rs) out.push(r.fonts as ChromeFace[]);
     }
     return out;
@@ -1103,29 +1117,34 @@ export async function extractStacks(browser: Browser, dirs: string[], outFile: s
       for (const el of Array.from(document.querySelectorAll("*"))) {
         let hasText = false;
         for (const node of Array.from(el.childNodes)) {
-          if (node.nodeType === 3 && (node.textContent ?? "").trim() !== "") { hasText = true; break; }
+          if (node.nodeType === 3 && (node.textContent ?? "").trim() !== "") {
+            hasText = true;
+            break;
+          }
         }
         if (!hasText) continue;
         const cs = getComputedStyle(el);
-        seen.add(JSON.stringify({
-          fontFamily: cs.fontFamily,
-          fontSize: Math.round(parseFloat(cs.fontSize)),
-          fontWeight: parseInt(cs.fontWeight, 10) || 400,
-          fontStyle: cs.fontStyle,
-          // DM-1858: previously absent from the key, so every condensed face and
-          // every explicit axis location swept as though it were the default.
-          fontStretch: cs.fontStretch,
-          fontVariationSettings: cs.fontVariationSettings,
-          // Not a face-selection input in Blink (see `StackSpec`), but leaving
-          // it out meant the probe page rendered a fixture's text with the
-          // features the fixture declares switched off.
-          fontFeatureSettings: cs.fontFeatureSettings,
-          // Resolves to features rather than to a face, like the line above.
-          fontVariantAlternates: cs.fontVariantAlternates,
-          // This one DOES select a face: it overrides the run's fallback
-          // priority, which is what chooses a color-emoji face over a text one.
-          fontVariantEmoji: cs.fontVariantEmoji,
-        }));
+        seen.add(
+          JSON.stringify({
+            fontFamily: cs.fontFamily,
+            fontSize: Math.round(parseFloat(cs.fontSize)),
+            fontWeight: parseInt(cs.fontWeight, 10) || 400,
+            fontStyle: cs.fontStyle,
+            // DM-1858: previously absent from the key, so every condensed face and
+            // every explicit axis location swept as though it were the default.
+            fontStretch: cs.fontStretch,
+            fontVariationSettings: cs.fontVariationSettings,
+            // Not a face-selection input in Blink (see `StackSpec`), but leaving
+            // it out meant the probe page rendered a fixture's text with the
+            // features the fixture declares switched off.
+            fontFeatureSettings: cs.fontFeatureSettings,
+            // Resolves to features rather than to a face, like the line above.
+            fontVariantAlternates: cs.fontVariantAlternates,
+            // This one DOES select a face: it overrides the run's fallback
+            // priority, which is what chooses a color-emoji face over a text one.
+            fontVariantEmoji: cs.fontVariantEmoji,
+          }),
+        );
       }
       return Array.from(seen);
     });
@@ -1166,10 +1185,13 @@ export function loadAllowlist(file: string): CompiledAllowlist {
   const raw = JSON.parse(readFileSync(file, "utf-8")) as { entries?: AllowlistEntry[] };
   const entries = (raw.entries ?? []).map((e, i) => {
     if (typeof e.reason !== "string" || e.reason.trim().length < 10) {
-      throw new Error(`allowlist entry ${i} (${e.cp}) has no usable \`reason\`. Every accepted divergence must say why.`);
+      throw new Error(
+        `allowlist entry ${i} (${e.cp}) has no usable \`reason\`. Every accepted divergence must say why.`,
+      );
     }
     const m = /^\s*(0x[0-9a-fA-F]+)\s*(?:-\s*(0x[0-9a-fA-F]+))?\s*$/.exec(e.cp);
-    if (m == null) throw new Error(`allowlist entry ${i}: \`cp\` must be "0xNNNN" or "0xNNNN-0xNNNN", got ${JSON.stringify(e.cp)}`);
+    if (m == null)
+      throw new Error(`allowlist entry ${i}: \`cp\` must be "0xNNNN" or "0xNNNN-0xNNNN", got ${JSON.stringify(e.cp)}`);
     const lo = parseInt(m[1], 16);
     const hi = m[2] != null ? parseInt(m[2], 16) : lo;
     return { lo, hi, stack: e.stack, reason: e.reason };
@@ -1246,9 +1268,17 @@ export function parseArgs(argv: string[]): Options {
       return v;
     };
     switch (a) {
-      case "--stacks": o.stacksFile = next(); break;
-      case "--extract-stacks": o.extractStacks = true; break;
-      case "--source": o.sources = next().split(",").map((s) => s.trim()); break;
+      case "--stacks":
+        o.stacksFile = next();
+        break;
+      case "--extract-stacks":
+        o.extractStacks = true;
+        break;
+      case "--source":
+        o.sources = next()
+          .split(",")
+          .map((s) => s.trim());
+        break;
       case "--range": {
         o.ranges ??= [];
         for (const part of next().split(",")) {
@@ -1267,7 +1297,9 @@ export function parseArgs(argv: string[]): Options {
         o.sampleByte = parseInt(value, 16);
         break;
       }
-      case "--no-pua": o.includePua = false; break;
+      case "--no-pua":
+        o.includePua = false;
+        break;
       case "--shard": {
         const m = /^(\d+)\/(\d+)$/.exec(next());
         if (m == null) throw new Error("--shard wants i/N");
@@ -1280,22 +1312,45 @@ export function parseArgs(argv: string[]): Options {
         o.stackShard = [parseInt(m[1], 10), parseInt(m[2], 10)];
         break;
       }
-      case "--batch": o.batch = parseInt(next(), 10); break;
-      case "--concurrency": o.concurrency = parseInt(next(), 10); break;
-      case "--out": o.outDir = next(); break;
-      case "--allowlist": o.allowlistFile = next(); break;
-      case "--strict-alias": o.strictAlias = true; break;
-      case "--max-stacks": o.maxStacks = parseInt(next(), 10); break;
-      case "--stack-filter": o.stackFilter = next(); break;
-      case "--max-rows": o.maxRows = parseInt(next(), 10); break;
-      case "--reset-every": o.resetEvery = parseInt(next(), 10); break;
-      case "--allow-foreign-corpus": o.allowForeignCorpus = true; break;
-      case "--lang": o.lang = next(); break;
+      case "--batch":
+        o.batch = parseInt(next(), 10);
+        break;
+      case "--concurrency":
+        o.concurrency = parseInt(next(), 10);
+        break;
+      case "--out":
+        o.outDir = next();
+        break;
+      case "--allowlist":
+        o.allowlistFile = next();
+        break;
+      case "--strict-alias":
+        o.strictAlias = true;
+        break;
+      case "--max-stacks":
+        o.maxStacks = parseInt(next(), 10);
+        break;
+      case "--stack-filter":
+        o.stackFilter = next();
+        break;
+      case "--max-rows":
+        o.maxRows = parseInt(next(), 10);
+        break;
+      case "--reset-every":
+        o.resetEvery = parseInt(next(), 10);
+        break;
+      case "--allow-foreign-corpus":
+        o.allowForeignCorpus = true;
+        break;
+      case "--lang":
+        o.lang = next();
+        break;
       case "-h":
       case "--help":
         process.stdout.write(readFileSync(new URL(import.meta.url).pathname, "utf-8").split("*/")[0]);
         process.exit(0);
-      default: throw new Error(`unknown option ${a}`);
+      default:
+        throw new Error(`unknown option ${a}`);
     }
   }
   if (o.sampleByte != null && o.ranges != null) {
@@ -1325,8 +1380,8 @@ async function main(): Promise<number> {
 
     if (!existsSync(opts.stacksFile)) {
       process.stderr.write(
-        `no stack corpus at ${opts.stacksFile} — run with --extract-stacks first `
-        + `(the corpus is per-platform; see --allow-foreign-corpus)\n`,
+        `no stack corpus at ${opts.stacksFile} — run with --extract-stacks first ` +
+          `(the corpus is per-platform; see --allow-foreign-corpus)\n`,
       );
       return 2;
     }
@@ -1347,11 +1402,11 @@ async function main(): Promise<number> {
       const what = corpus.platform ?? "(unrecorded)";
       if (!opts.allowForeignCorpus) {
         process.stderr.write(
-          `stack corpus ${opts.stacksFile} was extracted on ${what}, this host is ${process.platform}.\n`
-          + `A corpus is not portable: the computed font-family of an element that declares none is\n`
-          + `Chrome's per-platform default-font preference (macOS "Times" vs Linux "Times New Roman"),\n`
-          + `so sweeping it here would ask about stacks no page on this platform renders.\n`
-          + `Re-extract with --extract-stacks, or pass --allow-foreign-corpus to sweep it anyway.\n`,
+          `stack corpus ${opts.stacksFile} was extracted on ${what}, this host is ${process.platform}.\n` +
+            `A corpus is not portable: the computed font-family of an element that declares none is\n` +
+            `Chrome's per-platform default-font preference (macOS "Times" vs Linux "Times New Roman"),\n` +
+            `so sweeping it here would ask about stacks no page on this platform renders.\n` +
+            `Re-extract with --extract-stacks, or pass --allow-foreign-corpus to sweep it anyway.\n`,
         );
         return 2;
       }
@@ -1385,8 +1440,8 @@ async function main(): Promise<number> {
     }
 
     process.stdout.write(
-      `font-conformance: ${universe.length.toLocaleString()} codepoints × ${stacks.length} stacks `
-      + `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
+      `font-conformance: ${universe.length.toLocaleString()} codepoints × ${stacks.length} stacks ` +
+        `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
     );
 
     // One document scope for the macOS ideograph fallback cache, spanning the
@@ -1429,7 +1484,7 @@ async function main(): Promise<number> {
       "agree-alias": 0,
       "agree-tofu": 0,
       "agree-not-painted": 0,
-      "mismatch": 0,
+      mismatch: 0,
       "mismatch-we-paint": 0,
       "mismatch-we-tofu": 0,
     };
@@ -1455,13 +1510,13 @@ async function main(): Promise<number> {
      * out — and a baseline built on that key cannot see either.
      */
     const stackKey = (s: StackSpec): string =>
-      `${s.fontFamily} @${s.fontSize}/${s.fontWeight}/${s.fontStyle}`
-      + (s.fontStretch != null && s.fontStretch !== "100%" ? `/${s.fontStretch}` : "")
-      + (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "")
-      + (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "")
-      + (s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal" ? `/${s.fontVariantAlternates}` : "")
-      + (s.fontVariantEmoji != null && s.fontVariantEmoji !== "normal" ? `/${s.fontVariantEmoji}` : "")
-      + ` lang=${s.lang ?? opts.lang}`;
+      `${s.fontFamily} @${s.fontSize}/${s.fontWeight}/${s.fontStyle}` +
+      (s.fontStretch != null && s.fontStretch !== "100%" ? `/${s.fontStretch}` : "") +
+      (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "") +
+      (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "") +
+      (s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal" ? `/${s.fontVariantAlternates}` : "") +
+      (s.fontVariantEmoji != null && s.fontVariantEmoji !== "normal" ? `/${s.fontVariantEmoji}` : "") +
+      ` lang=${s.lang ?? opts.lang}`;
     /**
      * Every distinct face Chrome named during the sweep, with how often.
      *
@@ -1472,8 +1527,14 @@ async function main(): Promise<number> {
      */
     const chromeFaceTally = new Map<string, number>();
     /** Per stack: the primary Chrome resolved, beside the key we resolved. */
-    const stackPrimaries: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string;
-                                  chromePrimary: string | null; ourPrimaryKey: string }> = [];
+    const stackPrimaries: Array<{
+      fontFamily: string;
+      fontSize: number;
+      fontWeight: number;
+      fontStyle: string;
+      chromePrimary: string | null;
+      ourPrimaryKey: string;
+    }> = [];
     const classCounts = { "different-family": 0, "same-family-different-cut": 0 };
     // Independent fingerprint of OUR side of every comparison. Mismatch counts
     // move when Chrome moves, so they cannot by themselves say whether the
@@ -1498,16 +1559,22 @@ async function main(): Promise<number> {
         continue;
       }
       process.stdout.write(
-        `  stack ${stackIndex + 1}/${stacks.length}: ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}`
-        + ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(", ")}]\n`,
+        `  stack ${stackIndex + 1}/${stacks.length}: ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}` +
+          ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(", ")}]\n`,
       );
       // Ask Chrome for this stack's primary before sweeping it, and record it.
       // See `resolvedPrimary` — this is the quantity that flips, and inferring
       // it from the tally afterwards is what made the last occurrence
       // unattributable.
       const chromePrimary = await oracle.resolvedPrimary(spec);
-      stackPrimaries.push({ fontFamily: spec.fontFamily, fontSize: spec.fontSize, fontWeight: spec.fontWeight,
-                            fontStyle: spec.fontStyle, chromePrimary, ourPrimaryKey: rs.primaryKey });
+      stackPrimaries.push({
+        fontFamily: spec.fontFamily,
+        fontSize: spec.fontSize,
+        fontWeight: spec.fontWeight,
+        fontStyle: spec.fontStyle,
+        chromePrimary,
+        ourPrimaryKey: rs.primaryKey,
+      });
       process.stdout.write(`    chrome primary: ${chromePrimary ?? "(none)"}   ours: ${rs.primaryKey}\n`);
       let batchNo = 0;
       for (let i = 0; i < universe.length; i += opts.batch) {
@@ -1554,9 +1621,9 @@ async function main(): Promise<number> {
           // PingFang TC, ja → Hiragino). Passing it to only one side would make
           // `--lang ja` move Chrome's answer and not ours.
           const ours = ourFaceFor(cp, rs, spec.lang ?? opts.lang);
-          resolverAnswerHash.update(`${JSON.stringify([
-            stackKey(spec), cp, ours.key, ours.postscriptName, ours.path, ours.covered,
-          ])}\n`);
+          resolverAnswerHash.update(
+            `${JSON.stringify([stackKey(spec), cp, ours.key, ours.postscriptName, ours.path, ours.covered])}\n`,
+          );
 
           // CDP names Chrome's selected face, including the `.notdef` face for
           // uncovered characters. `verdictForCodepoint` also handles the one
@@ -1590,7 +1657,9 @@ async function main(): Promise<number> {
                   class: cls,
                   chrome: chromeName,
                   chromeFamily: chrome?.familyName ?? "(none)",
-                  chromeAllFaces: chromeFaces.map((f) => `${f.postScriptName ?? f.familyName}×${f.glyphCount}`).join("+"),
+                  chromeAllFaces: chromeFaces
+                    .map((f) => `${f.postScriptName ?? f.familyName}×${f.glyphCount}`)
+                    .join("+"),
                   chromeFile: chrome != null ? chromeFaceFile(chrome) : null,
                   ourKey: ours.key,
                   ourPostscript: ours.postscriptName,
@@ -1619,8 +1688,8 @@ async function main(): Promise<number> {
         const memoEntries = glyphHelperCodepointMemoSize();
         if (memoEntries > peakMemoEntries) peakMemoEntries = memoEntries;
         process.stdout.write(
-          `    ${done}/${universe.length}  mismatches=${mismatchRowsSeen}  `
-          + `rss=${rssMb}MB  memo=${memoEntries}  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
+          `    ${done}/${universe.length}  mismatches=${mismatchRowsSeen}  ` +
+            `rss=${rssMb}MB  memo=${memoEntries}  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
         );
       }
     }
@@ -1739,33 +1808,47 @@ async function main(): Promise<number> {
     lines.push(`font-conformance — ${process.platform} ${process.arch}, Unicode ${process.versions.unicode}`);
     lines.push(`corpus             ${opts.stacksFile} (extracted on ${corpus.platform ?? "?"})`);
     lines.push(`chrome faces seen  ${chromeFaceTally.size}`);
-    lines.push(`comparisons        ${comparisons.toLocaleString()}  (${universe.length.toLocaleString()} cps × ${stacks.length - skippedStacks} stacks)`);
-    lines.push(`wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`);
+    lines.push(
+      `comparisons        ${comparisons.toLocaleString()}  (${universe.length.toLocaleString()} cps × ${stacks.length - skippedStacks} stacks)`,
+    );
+    lines.push(
+      `wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`,
+    );
     lines.push(`throughput         ${Math.round((comparisons / wallMs) * 1000).toLocaleString()} comparisons/s`);
     lines.push(`peak rss           ${peakRssMb} MB  (memo reset every ${opts.resetEvery || "never"} batches)`);
     // Retained, not transient. A figure near the batch size means the reset is
     // reaching the per-codepoint memos; one near `codepoints × stacks` means it
     // is not, and the run is on its way to the heap limit however healthy the
     // peak RSS above looks.
-    lines.push(`peak fallback memo ${peakMemoEntries.toLocaleString()} entries  (batch ${opts.batch.toLocaleString()})`);
+    lines.push(
+      `peak fallback memo ${peakMemoEntries.toLocaleString()} entries  (batch ${opts.batch.toLocaleString()})`,
+    );
     lines.push("");
     lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
     lines.push(`agree same-file    ${counts["agree-same-file"].toLocaleString()}  ${pct(counts["agree-same-file"])}`);
     lines.push(`agree alias        ${counts["agree-alias"].toLocaleString()}  ${pct(counts["agree-alias"])}`);
     lines.push(`agree tofu         ${counts["agree-tofu"].toLocaleString()}  ${pct(counts["agree-tofu"])}`);
-    lines.push(`agree not-painted  ${counts["agree-not-painted"].toLocaleString()}  ${pct(counts["agree-not-painted"])}`);
+    lines.push(
+      `agree not-painted  ${counts["agree-not-painted"].toLocaleString()}  ${pct(counts["agree-not-painted"])}`,
+    );
     lines.push(`allowlisted        ${allowlistedCount.toLocaleString()}`);
     lines.push("");
     lines.push(`MISMATCH wrong face      ${counts.mismatch.toLocaleString()}  ${pct(counts.mismatch)}`);
-    lines.push(`MISMATCH we paint, Chrome doesn't  ${counts["mismatch-we-paint"].toLocaleString()}  ${pct(counts["mismatch-we-paint"])}`);
-    lines.push(`MISMATCH we tofu, Chrome paints    ${counts["mismatch-we-tofu"].toLocaleString()}  ${pct(counts["mismatch-we-tofu"])}`);
+    lines.push(
+      `MISMATCH we paint, Chrome doesn't  ${counts["mismatch-we-paint"].toLocaleString()}  ${pct(counts["mismatch-we-paint"])}`,
+    );
+    lines.push(
+      `MISMATCH we tofu, Chrome paints    ${counts["mismatch-we-tofu"].toLocaleString()}  ${pct(counts["mismatch-we-tofu"])}`,
+    );
     lines.push(`MISMATCH total     ${mismatchTotal.toLocaleString()}  ${pct(mismatchTotal)}`);
     lines.push(`  of which different family       ${classCounts["different-family"].toLocaleString()}`);
     lines.push(`  of which same family, other cut ${classCounts["same-family-different-cut"].toLocaleString()}`);
     lines.push(`  distinct disagreeing routes     ${pairCounts.size.toLocaleString()}`);
     lines.push(
-      `example rows in report.json     ${mismatches.length.toLocaleString()}`
-      + (mismatchRowsSeen > mismatches.length ? ` (${(mismatchRowsSeen - mismatches.length).toLocaleString()} more not kept — raise --max-rows)` : ""),
+      `example rows in report.json     ${mismatches.length.toLocaleString()}` +
+        (mismatchRowsSeen > mismatches.length
+          ? ` (${(mismatchRowsSeen - mismatches.length).toLocaleString()} more not kept — raise --max-rows)`
+          : ""),
     );
     if (topStacks.length > 0) {
       lines.push("");
@@ -1793,12 +1876,13 @@ async function main(): Promise<number> {
 // Only sweep when run as a script. The pure pieces above (`buildUniverse`,
 // `identifyFace`, `mismatchClass`, `loadAllowlist`, …) are imported by
 // `tests/font-conformance.test.ts`, which must not launch a browser.
-const invokedDirectly = process.argv[1] != null
-  && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (invokedDirectly) {
   main().then(
-    (code) => { process.exitCode = code; },
+    (code) => {
+      process.exitCode = code;
+    },
     (err: unknown) => {
       process.stderr.write(`font-conformance failed: ${String(err instanceof Error ? err.stack : err)}\n`);
       process.exitCode = 2;

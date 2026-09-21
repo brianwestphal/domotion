@@ -4,7 +4,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateAnimatedSvg, dedupeFrameIds, overlayWindowEndMs, consolidateKeyframeOffsets, linearWipeClip } from "./animator.js";
+import {
+  generateAnimatedSvg,
+  dedupeFrameIds,
+  overlayWindowEndMs,
+  consolidateKeyframeOffsets,
+  linearWipeClip,
+} from "./animator.js";
 import type { IntraFrameAnimation } from "./animator.js";
 import type { CapturedElement } from "../capture/types.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/viewbox-culling.js";
@@ -16,13 +22,21 @@ import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
 // when the font resolves. A resolution failure is a labeled source-owned group,
 // never authored `<text>`; these helpers read the glyph group's accessible name.
 function decodeXml(s: string): string {
-  return s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 function typedLineTexts(svg: string, id = "t0"): string[] {
-  return [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`, "g"))].map((m) => decodeXml(m[1]));
+  return [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`, "g"))].map((m) =>
+    decodeXml(m[1]),
+  );
 }
 function typedLineBaselines(svg: string, id = "t0"): number[] {
-  return [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g transform="translate\\([\\d.]+,([\\d.]+)\\)`, "g"))].map((m) => Number(m[1]));
+  return [
+    ...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g transform="translate\\([\\d.]+,([\\d.]+)\\)`, "g")),
+  ].map((m) => Number(m[1]));
 }
 
 // DM-1145: cross-frame id de-duplication. A caller that reuses identical
@@ -34,7 +48,8 @@ function typedLineBaselines(svg: string, id = "t0"): number[] {
 // `loopFade` flag restores the cross-dissolve back to frame 0.
 describe("last-frame loop fade (DM-1148)", () => {
   const cfg = (loopFade?: boolean) => ({
-    width: 100, height: 100,
+    width: 100,
+    height: 100,
     frames: [
       { svgContent: `<rect id="a" width="100" height="100" fill="red"/>`, duration: 500 },
       { svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`, duration: 500 },
@@ -88,10 +103,19 @@ describe("generated SVG formatting", () => {
 // (transform 0, opacity 1) to 100%, and the loop hard-cuts back to frame 0.
 describe("push-left / scroll last-frame hold (DM-1207)", () => {
   const cfg = (type: "push-left" | "scroll", loopFade?: boolean) => ({
-    width: 100, height: 100,
+    width: 100,
+    height: 100,
     frames: [
-      { svgContent: `<rect id="a" width="100" height="100" fill="red"/>`, duration: 500, transition: { type, duration: 300 } as const },
-      { svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`, duration: 500, transition: { type, duration: 300 } as const },
+      {
+        svgContent: `<rect id="a" width="100" height="100" fill="red"/>`,
+        duration: 500,
+        transition: { type, duration: 300 } as const,
+      },
+      {
+        svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`,
+        duration: 500,
+        transition: { type, duration: 300 } as const,
+      },
     ],
     ...(loopFade != null ? { loopFade } : {}),
   });
@@ -122,10 +146,19 @@ describe("push-left / scroll last-frame hold (DM-1207)", () => {
 
   it("does not affect a NON-last push-left frame (frame 0 still slides out)", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
-        { svgContent: `<rect id="a" width="100" height="100"/>`, duration: 500, transition: { type: "push-left", duration: 300 } },
-        { svgContent: `<rect id="b" width="100" height="100"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
+        {
+          svgContent: `<rect id="a" width="100" height="100"/>`,
+          duration: 500,
+          transition: { type: "push-left", duration: 300 },
+        },
+        {
+          svgContent: `<rect id="b" width="100" height="100"/>`,
+          duration: 500,
+          transition: { type: "cut", duration: 0 },
+        },
       ],
     });
     const fp0 = block(svg, "fp-0");
@@ -181,8 +214,15 @@ describe("animator: canvas background", () => {
   // just "transparent" / "rgba(0, 0, 0, 0)" / "". The inline check used to treat
   // "none", zero-alpha hex, and unspaced rgba as opaque and paint a rect.
   for (const transparent of [
-    "transparent", "rgba(0, 0, 0, 0)", "",
-    "none", "#0000", "#00000000", "rgba(0,0,0,0)", "  TRANSPARENT  ", "hsla(0, 0%, 0%, 0)",
+    "transparent",
+    "rgba(0, 0, 0, 0)",
+    "",
+    "none",
+    "#0000",
+    "#00000000",
+    "rgba(0,0,0,0)",
+    "  TRANSPARENT  ",
+    "hsla(0, 0%, 0%, 0)",
   ]) {
     it(`paints no background rect when background is ${JSON.stringify(transparent)}`, () => {
       const svg = generateAnimatedSvg({ width: 200, height: 100, frames: FR, background: transparent });
@@ -209,7 +249,8 @@ describe("embedded-animation timeline offset (DM-1319)", () => {
     // Frame 0 holds 2s (+300ms default transition); the 4s cast starts at 2300ms
     // in a (2000+300 + 4000+300) = 6600ms master loop. offset = 2300/6600 ≈ 34.8%.
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect id="a" width="10" height="10"/>`, duration: 2000 },
         { svgContent: nested(4), duration: 4000, embeddedAnimationPeriodMs: 4000 },
@@ -224,7 +265,8 @@ describe("embedded-animation timeline offset (DM-1319)", () => {
 
   it("leaves frames without embeddedAnimationPeriodMs untouched", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect id="a" width="10" height="10"/>`, duration: 2000 },
         { svgContent: nested(4), duration: 4000 },
@@ -242,9 +284,7 @@ describe("animator", () => {
       width: 100,
       height: 100,
       sharedDefs: `<path id="g0" d="M0 0L1 1Z"/>`,
-      frames: [
-        { svgContent: `<use href="#g0"/>`, duration: 200 },
-      ],
+      frames: [{ svgContent: `<use href="#g0"/>`, duration: 200 }],
     });
     // The sharedDefs markup should appear inside the top-level <defs> block,
     // immediately after the viewport clip, NOT inside any frame's <g class="f">.
@@ -265,8 +305,16 @@ describe("animator", () => {
       width: 100,
       height: 100,
       frames: [
-        { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "crossfade", duration: 200 } },
-        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "crossfade", duration: 200 } },
+        {
+          svgContent: `<rect fill="red" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "crossfade", duration: 200 },
+        },
+        {
+          svgContent: `<rect fill="blue" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "crossfade", duration: 200 },
+        },
       ],
     });
     expect(svg).toMatch(/@keyframes fv-/);
@@ -286,8 +334,16 @@ describe("animator", () => {
       width: 100,
       height: 100,
       frames: [
-        { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
-        { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
+        {
+          svgContent: `<rect width="50" height="50" fill="green"/>`,
+          duration: 500,
+          transition: { type: "cut", duration: 0 },
+        },
+        {
+          svgContent: `<rect width="50" height="50" fill="green"/>`,
+          duration: 500,
+          transition: { type: "cut", duration: 0 },
+        },
       ],
     });
     expect((svg.match(/<rect width="50" height="50" fill="green"\/>/g) ?? []).length).toBe(2);
@@ -301,7 +357,8 @@ describe("animator", () => {
     // outgoing frame slides up off the top while the next slides up from
     // the bottom. We verify by checking for translateY in the emitted CSS.
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "scroll", duration: 200 } },
         { svgContent: `<rect/>`, duration: 1000 },
@@ -318,7 +375,8 @@ describe("animator", () => {
 
   it("DM-898: magic-move emits the bridge composite + slide/fade keyframes", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         {
           svgContent: `<rect class="prev"/>`,
@@ -350,7 +408,8 @@ describe("animator", () => {
 
   it("DM-898: magic-move with no bridge layer falls back to a crossfade-style fade (never throws)", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         // type is magic-move but magicMove is null → must degrade gracefully.
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "magic-move", duration: 200 }, magicMove: null },
@@ -381,14 +440,16 @@ describe("animator", () => {
     // bloat the scene). Compare a 9999-duration cut against a 0-duration cut:
     // they should produce the same scene length.
     const a = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect fill="red"/>`, duration: 1000, transition: { type: "cut", duration: 9999 } },
         { svgContent: `<rect fill="blue"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
       ],
     });
     const b = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect fill="red"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         { svgContent: `<rect fill="blue"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
@@ -401,11 +462,24 @@ describe("animator", () => {
 
   it("cut transition: composites with per-frame fv-N groups (DM-865 — no element merge)", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
-        { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
-        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
-        { svgContent: `<rect fill="green" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        {
+          svgContent: `<rect fill="red" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
+        {
+          svgContent: `<rect fill="blue" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
+        {
+          svgContent: `<rect fill="green" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
       ],
     });
     expect(svg).toMatch(/@keyframes fv-/);
@@ -420,21 +494,24 @@ describe("animator", () => {
     // @keyframes block whose timing maps onto the global scene clock,
     // gated by the frame's start position.
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         {
           svgContent: `<rect/>`,
           duration: 2000,
           transition: { type: "cut", duration: 0 },
-          animations: [{
-            animId: "bar",
-            property: "width",
-            from: "0%",
-            to: "100%",
-            duration: 2000,
-            easing: "ease-out",
-          }],
+          animations: [
+            {
+              animId: "bar",
+              property: "width",
+              from: "0%",
+              to: "100%",
+              duration: 2000,
+              easing: "ease-out",
+            },
+          ],
         },
       ],
     });
@@ -457,14 +534,26 @@ describe("animator", () => {
         {
           svgContent: `<rect class="anim-caret"/>`,
           duration: 2000,
-          animations: [{ animId: "caret", property: "opacity", from: "1", to: "0", duration: 530, repeat: "infinite", alternate: true }],
+          animations: [
+            {
+              animId: "caret",
+              property: "opacity",
+              from: "1",
+              to: "0",
+              duration: 530,
+              repeat: "infinite",
+              alternate: true,
+            },
+          ],
         },
       ],
     });
     // Loops on its own 530ms clock, infinite + alternating — NOT the global scene clock.
     // DM-1289: timing-function / delay / fill-mode live inside the `animation`
     // shorthand (so the optimizer can't hoist fill-mode out and reset it).
-    expect(svg).toMatch(/\.anim-caret\s*{[^}]*animation:\s*f0-caret-0\s+530ms\s+linear\s+0ms\s+infinite\s+alternate\s+both/);
+    expect(svg).toMatch(
+      /\.anim-caret\s*{[^}]*animation:\s*f0-caret-0\s+530ms\s+linear\s+0ms\s+infinite\s+alternate\s+both/,
+    );
     // Simple two-stop from→to cycle (no 4-stop global-clock hold).
     expect(svg).toMatch(/@keyframes f0-caret-0\s*{\s*0%\s*{\s*opacity:\s*1;\s*}\s*100%\s*{\s*opacity:\s*0;\s*}\s*}/);
   });
@@ -489,7 +578,13 @@ describe("animator", () => {
     const svg = generateAnimatedSvg({
       width: 200,
       height: 80,
-      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }] }],
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 3000,
+          overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }],
+        },
+      ],
     });
     expect(svg).toContain(`class="t0-caret"`);
     expect(svg).toMatch(/@keyframes t0-caret-pos/);
@@ -500,16 +595,35 @@ describe("animator", () => {
   });
 
   it("DM-1578: `kern` shapes proportional typing (GPOS) without ever widening or unlocking the caret", () => {
-    const gen = (kern: boolean) => generateAnimatedSvg({
-      width: 500, height: 100,
-      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [
-        { kind: "typing", text: "AVATAR To Wave", x: 10, y: 40, fontSize: 40, fontFamily: "Helvetica, Arial, sans-serif", caret: true, ...(kern ? { kern: true } : {}) }] }],
-    });
+    const gen = (kern: boolean) =>
+      generateAnimatedSvg({
+        width: 500,
+        height: 100,
+        frames: [
+          {
+            svgContent: `<rect/>`,
+            duration: 3000,
+            overlays: [
+              {
+                kind: "typing",
+                text: "AVATAR To Wave",
+                x: 10,
+                y: 40,
+                fontSize: 40,
+                fontFamily: "Helvetica, Arial, sans-serif",
+                caret: true,
+                ...(kern ? { kern: true } : {}),
+              },
+            ],
+          },
+        ],
+      });
     const revWidth = (svg: string): number => {
       const b = svg.match(/@keyframes t0-rev0 \{([\s\S]*?)\.t0-rev0/)?.[1] ?? "";
       return Math.max(0, ...[...b.matchAll(/width:\s*([\d.]+)px/g)].map((m) => parseFloat(m[1])));
     };
-    const off = gen(false), on = gen(true);
+    const off = gen(false),
+      on = gen(true);
     // Default (no kern) is byte-identical to before this feature.
     expect(gen(false)).toBe(off);
     // Kerning never WIDENS the line (it tightens pairs, or is a no-op if the font
@@ -518,7 +632,9 @@ describe("animator", () => {
     // The caret parks at the fully-revealed edge in BOTH modes — it rides the same
     // `cum` as the reveal, so it stays flush whether or not kerning is applied.
     for (const svg of [off, on]) {
-      const caretEnd = parseFloat(/@keyframes t0-caret-pos \{[\s\S]*?100% \{ transform: translate\(([\d.]+)px/.exec(svg)?.[1] ?? "NaN");
+      const caretEnd = parseFloat(
+        /@keyframes t0-caret-pos \{[\s\S]*?100% \{ transform: translate\(([\d.]+)px/.exec(svg)?.[1] ?? "NaN",
+      );
       expect(caretEnd).toBeCloseTo(revWidth(svg) - 1, 1); // reveal adds +1px slack over the caret edge
     }
   });
@@ -527,8 +643,15 @@ describe("animator", () => {
     const fontSize = 14;
     const baseline = 40;
     const svg = generateAnimatedSvg({
-      width: 300, height: 80,
-      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: baseline, caret: true }] }],
+      width: 300,
+      height: 80,
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 3000,
+          overlays: [{ kind: "typing", text: "hi there", x: 10, y: baseline, caret: true }],
+        },
+      ],
     });
     const caret = /<rect class="t0-caret"[^>]*>/.exec(svg)?.[0] ?? "";
     const y = parseFloat(/\by="([-\d.]+)"/.exec(caret)?.[1] ?? "NaN");
@@ -556,14 +679,18 @@ describe("animator", () => {
 
   it("DM-1596: two typing overlays in one frame get distinct ids and both reveal (no collision)", () => {
     const svg = generateAnimatedSvg({
-      width: 300, height: 120,
-      frames: [{
-        svgContent: `<rect/>`, duration: 3000,
-        overlays: [
-          { kind: "typing", text: "alpha", x: 10, y: 30, caret: true },
-          { kind: "typing", text: "bravo", x: 10, y: 70, caret: true },
-        ],
-      }],
+      width: 300,
+      height: 120,
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 3000,
+          overlays: [
+            { kind: "typing", text: "alpha", x: 10, y: 30, caret: true },
+            { kind: "typing", text: "bravo", x: 10, y: 70, caret: true },
+          ],
+        },
+      ],
     });
     // First overlay keeps the byte-identical `t0` id; the second is disambiguated
     // to `t0_1` — so their reveal clips + carets + @keyframes no longer collide.
@@ -574,15 +701,21 @@ describe("animator", () => {
     expect(svg).toMatch(/class="t0-caret"/);
     expect(svg).toMatch(/class="t0_1-caret"/);
     // Each overlay reveals its OWN text (both glyph runs present, independently).
-    expect(decodeXml(svg)).toContain("aria-label=\"alpha\"");
-    expect(decodeXml(svg)).toContain("aria-label=\"bravo\"");
+    expect(decodeXml(svg)).toContain('aria-label="alpha"');
+    expect(decodeXml(svg)).toContain('aria-label="bravo"');
   });
 
   it("DM-1518: reveal clip steps per keystroke and the caret parks exactly at the measured text edge", () => {
     const svg = generateAnimatedSvg({
       width: 200,
       height: 80,
-      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }] }],
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 3000,
+          overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }],
+        },
+      ],
     });
     // The reveal clip is a per-keystroke staircase (step-end), locked to the
     // caret's own step-end track — one shared plan, so they can't desync.
@@ -597,7 +730,9 @@ describe("animator", () => {
     // it as the old uniform 0.6em estimate left it (the reported lag). Platform-
     // independent: it ties the two tracks together rather than pinning a metric.
     const holdWidth = Math.max(...widthStops);
-    const parkedCaretX = parseFloat(svg.match(/t0-caret-pos\s*{[\s\S]*?100%\s*{\s*transform:\s*translate\(([\d.]+)px/)?.[1] ?? "NaN");
+    const parkedCaretX = parseFloat(
+      svg.match(/t0-caret-pos\s*{[\s\S]*?100%\s*{\s*transform:\s*translate\(([\d.]+)px/)?.[1] ?? "NaN",
+    );
     expect(Math.abs(parkedCaretX + 1 - holdWidth)).toBeLessThan(0.1);
   });
 
@@ -605,7 +740,13 @@ describe("animator", () => {
     const svg = generateAnimatedSvg({
       width: 300,
       height: 80,
-      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hello world", x: 10, y: 40, delay: 200, mode: "paste", caret: true }] }],
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 3000,
+          overlays: [{ kind: "typing", text: "hello world", x: 10, y: 40, delay: 200, mode: "paste", caret: true }],
+        },
+      ],
     });
     // The reveal jumps hidden → full within a hair of the paste instant (no
     // per-glyph staircase): the width block has a single grown stop.
@@ -620,11 +761,18 @@ describe("animator", () => {
   });
 
   it("DM-1518: jitter humanizes the cadence deterministically", () => {
-    const mk = (jitter?: number): string => generateAnimatedSvg({
-      width: 200,
-      height: 80,
-      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "the quick brown fox", x: 10, y: 40, jitter, caret: true }] }],
-    });
+    const mk = (jitter?: number): string =>
+      generateAnimatedSvg({
+        width: 200,
+        height: 80,
+        frames: [
+          {
+            svgContent: `<rect/>`,
+            duration: 3000,
+            overlays: [{ kind: "typing", text: "the quick brown fox", x: 10, y: 40, jitter, caret: true }],
+          },
+        ],
+      });
     // Same input → byte-identical output (seeded PRNG): the SVG stays stable.
     expect(mk(0.5)).toBe(mk(0.5));
     // Jitter perturbs the reveal timing away from the even cadence.
@@ -636,10 +784,28 @@ describe("animator", () => {
       width: 320,
       height: 140,
       // wrapWidth forces wrapping into multiple lines.
-      frames: [{ svgContent: `<rect/>`, duration: 6000, overlays: [{ kind: "typing", text: "hello world this is a long first line second", x: 10, y: 30, fontSize: 14, caret: true, wrapWidth: 220 }] }],
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 6000,
+          overlays: [
+            {
+              kind: "typing",
+              text: "hello world this is a long first line second",
+              x: 10,
+              y: 30,
+              fontSize: 14,
+              caret: true,
+              wrapWidth: 220,
+            },
+          ],
+        },
+      ],
     });
     const block = svg.match(/@keyframes t0-caret-pos\s*{([\s\S]*?)}\s*@keyframes/)?.[1] ?? "";
-    const stops = [...block.matchAll(/([\d.]+)%(?:,\s*[\d.]+%)*\s*{\s*transform:\s*translate\(([\d.]+)px,\s*([\d.]+)px\)/g)].map((m) => ({
+    const stops = [
+      ...block.matchAll(/([\d.]+)%(?:,\s*[\d.]+%)*\s*{\s*transform:\s*translate\(([\d.]+)px,\s*([\d.]+)px\)/g),
+    ].map((m) => ({
       pct: parseFloat(m[1]),
       x: parseFloat(m[2]),
       y: parseFloat(m[3]),
@@ -664,7 +830,23 @@ describe("animator", () => {
     const svg = generateAnimatedSvg({
       width: 320,
       height: 140,
-      frames: [{ svgContent: `<rect/>`, duration: 6000, overlays: [{ kind: "typing", text: "hello world this is a long first line second", x: 10, y: 30, fontSize: 14, caret: true, wrapWidth: 220 }] }],
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 6000,
+          overlays: [
+            {
+              kind: "typing",
+              text: "hello world this is a long first line second",
+              x: 10,
+              y: 30,
+              fontSize: 14,
+              caret: true,
+              wrapWidth: 220,
+            },
+          ],
+        },
+      ],
     });
     // WebKit/Safari treats a zero-area clip path as "no clip" and paints the
     // whole element, so a `width: 0` hidden state made not-yet-typed lines show
@@ -686,10 +868,25 @@ describe("animator", () => {
     // is interior to the loop and the epsilon-after stop is distinguishable.
     const mk = (overlay: Record<string, unknown>): string =>
       generateAnimatedSvg({
-        width: 300, height: 80,
+        width: 300,
+        height: 80,
         frames: [
-          { svgContent: `<rect/>`, duration: 2000, transition: { type: "cut", duration: 0 },
-            overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true, mask: { color: "#fff" }, ...overlay } as never] },
+          {
+            svgContent: `<rect/>`,
+            duration: 2000,
+            transition: { type: "cut", duration: 0 },
+            overlays: [
+              {
+                kind: "typing",
+                text: "hi there",
+                x: 10,
+                y: 40,
+                caret: true,
+                mask: { color: "#fff" },
+                ...overlay,
+              } as never,
+            ],
+          },
           { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         ],
       });
@@ -737,9 +934,18 @@ describe("animator", () => {
       // nothing about this overlay, so a graceful fade still reads better than
       // a hard cut — and there is no handoff to protect.
       const svg = generateAnimatedSvg({
-        width: 300, height: 80,
-        frames: [{ svgContent: `<rect/>`, duration: 2000, transition: { type: "cut", duration: 0 },
-          overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true, mask: { color: "#fff" } } as never] }],
+        width: 300,
+        height: 80,
+        frames: [
+          {
+            svgContent: `<rect/>`,
+            duration: 2000,
+            transition: { type: "cut", duration: 0 },
+            overlays: [
+              { kind: "typing", text: "hi there", x: 10, y: 40, caret: true, mask: { color: "#fff" } } as never,
+            ],
+          },
+        ],
       });
       // holdEnd = 2000 − 150 = 1850 ms (92.5%), fade completes at 1950 ms (97.5%).
       expect(kfLine(svg, "t0-vis")).toContain("92.50% { opacity: 1; } 97.50%, 100% { opacity: 0; }");
@@ -751,10 +957,15 @@ describe("animator", () => {
       // its cross-dissolve. Riding the same window is what stops the overlay
       // popping off ahead of the frame it sits on.
       const svg = generateAnimatedSvg({
-        width: 300, height: 80,
+        width: 300,
+        height: 80,
         frames: [
-          { svgContent: `<rect/>`, duration: 2000, transition: { type: "crossfade", duration: 400 },
-            overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40 } as never] },
+          {
+            svgContent: `<rect/>`,
+            duration: 2000,
+            transition: { type: "crossfade", duration: 400 },
+            overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40 } as never],
+          },
           { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         ],
       });
@@ -769,10 +980,13 @@ describe("animator", () => {
     // whenever something takes over there. Anything less is the reported bug.
     it("DM-1796: never goes transparent before the handoff instant", () => {
       const kf = kfLine(mk({}), "t0-vis");
-      const stops = [...kf.matchAll(/([\d.]+)% \{ opacity: (\d)/g)].map((m) => ({ pct: parseFloat(m[1]), op: Number(m[2]) }));
-      const boundaryPct = 2000 / 3000 * 100;
+      const stops = [...kf.matchAll(/([\d.]+)% \{ opacity: (\d)/g)].map((m) => ({
+        pct: parseFloat(m[1]),
+        op: Number(m[2]),
+      }));
+      const boundaryPct = (2000 / 3000) * 100;
       for (const s of stops) {
-        if (s.pct <= boundaryPct + 1e-9) continue;      // at/before the handoff
+        if (s.pct <= boundaryPct + 1e-9) continue; // at/before the handoff
         expect(s.pct, `first zero-opacity stop must be past ${boundaryPct}%`).toBeGreaterThan(boundaryPct);
       }
       // The last stop at or before the boundary is fully opaque.
@@ -787,10 +1001,15 @@ describe("animator", () => {
       // LATER. (On an interior frame the two are now identical, above.)
       const tight = (overlay: Record<string, unknown>): number[] => {
         const svg = generateAnimatedSvg({
-          width: 300, height: 80,
+          width: 300,
+          height: 80,
           frames: [
-            { svgContent: `<rect/>`, duration: 500, transition: { type: "cut", duration: 0 },
-              overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, delay: 100, ...overlay } as never] },
+            {
+              svgContent: `<rect/>`,
+              duration: 500,
+              transition: { type: "cut", duration: 0 },
+              overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, delay: 100, ...overlay } as never],
+            },
           ],
         });
         const rev = svg.split("\n").find((l) => l.includes("@keyframes t0-rev0 ")) ?? "";
@@ -816,9 +1035,17 @@ describe("animator", () => {
   describe("typing mistakes (DM-1555)", () => {
     const mk = (overlay: Record<string, unknown>): string =>
       generateAnimatedSvg({
-        width: 400, height: 120,
-        frames: [{ svgContent: `<rect width="400" height="120" fill="#0d1117"/>`, duration: 4000,
-          overlays: [{ kind: "typing", text: "hello world", x: 20, y: 50, fontSize: 24, caret: true, ...overlay } as never] }],
+        width: 400,
+        height: 120,
+        frames: [
+          {
+            svgContent: `<rect width="400" height="120" fill="#0d1117"/>`,
+            duration: 4000,
+            overlays: [
+              { kind: "typing", text: "hello world", x: 20, y: 50, fontSize: 24, caret: true, ...overlay } as never,
+            ],
+          },
+        ],
       });
     const caretEdges = (svg: string): number[] => {
       const pos = svg.match(/@keyframes t0-caret-pos\s*{([\s\S]*?)}\s*@keyframes/)?.[1] ?? "";
@@ -856,8 +1083,8 @@ describe("animator", () => {
     it("rate-driven mistakes are deterministic (byte-stable) and honor the rate", () => {
       const a = mk({ mistakes: 0.5 });
       const b = mk({ mistakes: 0.5 });
-      expect(a).toBe(b);                       // same seed → identical SVG
-      expect(a).toContain("t0-mis0");          // at 0.5 over 11 chars, at least one fires
+      expect(a).toBe(b); // same seed → identical SVG
+      expect(a).toContain("t0-mis0"); // at 0.5 over 11 chars, at least one fires
       expect(mk({ mistakes: 0 })).not.toContain("t0-mis0"); // rate 0 → none
     });
 
@@ -877,11 +1104,18 @@ describe("animator", () => {
   // its glyph defs hoisted into the top-level <defs>, and the whole thing is
   // byte-stable across repeat generations.
   describe("typing glyph-path rendering (DM-1557)", () => {
-    const mk = (): string => generateAnimatedSvg({
-      width: 300, height: 90,
-      frames: [{ svgContent: `<rect width="300" height="90" fill="#0d1117"/>`, duration: 3000,
-        overlays: [{ kind: "typing", text: "hello", x: 20, y: 50, fontSize: 28, caret: true }] }],
-    });
+    const mk = (): string =>
+      generateAnimatedSvg({
+        width: 300,
+        height: 90,
+        frames: [
+          {
+            svgContent: `<rect width="300" height="90" fill="#0d1117"/>`,
+            duration: 3000,
+            overlays: [{ kind: "typing", text: "hello", x: 20, y: 50, fontSize: 28, caret: true }],
+          },
+        ],
+      });
 
     it("paints the line as glyph <use> refs, not a <text> element", () => {
       const svg = mk();
@@ -905,7 +1139,9 @@ describe("animator", () => {
 
     it("the parked caret sits at the measured trailing edge of the glyph run", () => {
       const svg = mk();
-      const parked = parseFloat(svg.match(/t0-caret-pos\s*{[\s\S]*?100%\s*{\s*transform:\s*translate\(([\d.]+)px/)?.[1] ?? "NaN");
+      const parked = parseFloat(
+        svg.match(/t0-caret-pos\s*{[\s\S]*?100%\s*{\s*transform:\s*translate\(([\d.]+)px/)?.[1] ?? "NaN",
+      );
       // 5 monospace glyphs at 28px (~0.618em ≈ 17.3px each) → ~86px.
       expect(parked).toBeGreaterThan(60);
       expect(parked).toBeLessThan(110);
@@ -917,11 +1153,30 @@ describe("animator", () => {
   // proportionally via the glyph-path path (DM-1557).
   describe("typing fontFamily override (DM-1558)", () => {
     const text = "Wire Wave William milliliter";
-    const mk = (fontFamily?: string): string => generateAnimatedSvg({
-      width: 360, height: 140,
-      frames: [{ svgContent: `<rect width="360" height="140" fill="#fff"/>`, duration: 4000,
-        overlays: [{ kind: "typing", text, x: 20, y: 40, fontSize: 26, color: "#111", caret: true, wrapWidth: 220, ...(fontFamily != null ? { fontFamily } : {}) }] }],
-    });
+    const mk = (fontFamily?: string): string =>
+      generateAnimatedSvg({
+        width: 360,
+        height: 140,
+        frames: [
+          {
+            svgContent: `<rect width="360" height="140" fill="#fff"/>`,
+            duration: 4000,
+            overlays: [
+              {
+                kind: "typing",
+                text,
+                x: 20,
+                y: 40,
+                fontSize: 26,
+                color: "#111",
+                caret: true,
+                wrapWidth: 220,
+                ...(fontFamily != null ? { fontFamily } : {}),
+              },
+            ],
+          },
+        ],
+      });
 
     it("a proportional family wraps by measured pixel width, not char count", () => {
       const prop = typedLineTexts(mk("Georgia, serif"));
@@ -965,7 +1220,15 @@ describe("animator", () => {
     const svg = generateAnimatedSvg({
       width: 100,
       height: 100,
-      frames: [{ svgContent: `<rect/>`, duration: 2000, overlays: [{ kind: "blink", x: 10, y: 10, width: 12, height: 12, periodMs: 800, color: "#ef4444", radius: 6 }] }],
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 2000,
+          overlays: [
+            { kind: "blink", x: 10, y: 10, width: 12, height: 12, periodMs: 800, color: "#ef4444", radius: 6 },
+          ],
+        },
+      ],
     });
     expect(svg).toMatch(/<rect class="blink0"[^>]*fill="#ef4444"/);
     expect(svg).toContain('rx="6"');
@@ -975,18 +1238,21 @@ describe("animator", () => {
 
   it("intra-frame animation: translateY desugars to transform: translateY()", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         {
           svgContent: `<rect/>`,
           duration: 1000,
-          animations: [{
-            animId: "slide",
-            property: "translateY",
-            from: "240px",
-            to: "0px",
-            duration: 400,
-          }],
+          animations: [
+            {
+              animId: "slide",
+              property: "translateY",
+              from: "240px",
+              to: "0px",
+              duration: 400,
+            },
+          ],
         },
       ],
     });
@@ -996,19 +1262,22 @@ describe("animator", () => {
 
   it("DM-1297: scale desugars to transform: scale(), and transformOrigin emits transform-box: fill-box", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         {
           svgContent: `<rect/>`,
           duration: 1000,
-          animations: [{
-            animId: "pop",
-            property: "scale",
-            from: "0.3",
-            to: "1",
-            duration: 400,
-            transformOrigin: "center",
-          }],
+          animations: [
+            {
+              animId: "pop",
+              property: "scale",
+              from: "0.3",
+              to: "1",
+              duration: 400,
+              transformOrigin: "center",
+            },
+          ],
         },
       ],
     });
@@ -1020,23 +1289,28 @@ describe("animator", () => {
   });
 
   it("DM-2460: emits the selected stroke/view reference box without changing the fill-box default", () => {
-    const render = (animId: string, transformBox?: "fill-box" | "stroke-box" | "view-box") => generateAnimatedSvg({
-      width: 100,
-      height: 100,
-      frames: [{
-        svgContent: "<rect/>",
-        duration: 1000,
-        animations: [{
-          animId,
-          property: "scale",
-          from: "1",
-          to: ".5",
-          duration: 400,
-          transformOrigin: "right bottom",
-          transformBox,
-        }],
-      }],
-    });
+    const render = (animId: string, transformBox?: "fill-box" | "stroke-box" | "view-box") =>
+      generateAnimatedSvg({
+        width: 100,
+        height: 100,
+        frames: [
+          {
+            svgContent: "<rect/>",
+            duration: 1000,
+            animations: [
+              {
+                animId,
+                property: "scale",
+                from: "1",
+                to: ".5",
+                duration: 400,
+                transformOrigin: "right bottom",
+                transformBox,
+              },
+            ],
+          },
+        ],
+      });
     expect(render("default")).toContain("transform-box: fill-box; transform-origin: right bottom");
     expect(render("stroke", "stroke-box")).toContain("transform-box: stroke-box; transform-origin: right bottom");
     expect(render("view", "view-box")).toContain("transform-box: view-box; transform-origin: right bottom");
@@ -1044,8 +1318,15 @@ describe("animator", () => {
 
   it("DM-1297: no transformOrigin → no transform-box decl (unchanged for translate)", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
-      frames: [{ svgContent: `<rect/>`, duration: 1000, animations: [{ animId: "t", property: "translateX", from: "0px", to: "10px", duration: 200 }] }],
+      width: 100,
+      height: 100,
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 1000,
+          animations: [{ animId: "t", property: "translateX", from: "0px", to: "10px", duration: 200 }],
+        },
+      ],
     });
     expect(svg).not.toContain("transform-box");
   });
@@ -1060,7 +1341,8 @@ describe("animator", () => {
     // the render tree) to `visibility` (which keeps the element rendered
     // but skips painting it).
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "push-left", duration: 200 } },
         { svgContent: `<rect/>`, duration: 1000 },
@@ -1089,9 +1371,10 @@ describe("animator", () => {
     // Three explicit `cut` frames with a non-mergeable transition mixed in
     // (push-left) so this routes through the unmerged path's cut branch.
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
-        { svgContent: `<rect fill="red"/>`,  duration: 1000, transition: { type: "push-left", duration: 100 } },
+        { svgContent: `<rect fill="red"/>`, duration: 1000, transition: { type: "push-left", duration: 100 } },
         { svgContent: `<rect fill="blue"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         { svgContent: `<rect fill="green"/>`, duration: 1000 },
       ],
@@ -1114,11 +1397,24 @@ describe("animator", () => {
     // paint-cull gate so adjacent frames' paint windows overlap past any
     // compositor slop — no instant where both neighbors are visibility:hidden.
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
-        { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
-        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
-        { svgContent: `<rect fill="green" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        {
+          svgContent: `<rect fill="red" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
+        {
+          svgContent: `<rect fill="blue" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
+        {
+          svgContent: `<rect fill="green" width="50" height="50"/>`,
+          duration: 1000,
+          transition: { type: "cut", duration: 0 },
+        },
       ],
     });
     const fv1 = svg.match(/@keyframes fv-1\s*{[\s\S]*?\n\s*}/)![0];
@@ -1143,7 +1439,8 @@ describe("animator", () => {
     // the same visibility-off-the-opacity-clock race as the multi-frame cut flash.
     // A single frame must still keep visibility in its OWN fd-0 track.
     const svg = generateAnimatedSvg({
-      width: 200, height: 200,
+      width: 200,
+      height: 200,
       frames: [{ svgContent: `<rect width="200" height="200" fill="#123"/>`, duration: 2650 }],
     });
     const fv0 = svg.match(/@keyframes fv-0\s*{[\s\S]*?\n\s*}/)![0];
@@ -1161,16 +1458,26 @@ describe("animator", () => {
     // animator should emit transform AND opacity in the SAME keyframe stops,
     // driven by one `.anim-<id>` rule (one @keyframes name).
     const svg = generateAnimatedSvg({
-      width: 200, height: 200,
-      frames: [{
-        svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
-        duration: 2000,
-        animations: [{
-          animId: "f0a0", property: "scale", from: "0.3", to: "1", duration: 500,
-          easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center",
-          fuse: [{ property: "opacity", from: "0", to: "1" }],
-        }],
-      }],
+      width: 200,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
+          duration: 2000,
+          animations: [
+            {
+              animId: "f0a0",
+              property: "scale",
+              from: "0.3",
+              to: "1",
+              duration: 500,
+              easing: "cubic-bezier(0.34,1.56,0.64,1)",
+              transformOrigin: "center",
+              fuse: [{ property: "opacity", from: "0", to: "1" }],
+            },
+          ],
+        },
+      ],
     });
     const kf = svg.match(/@keyframes f0-f0a0-0\s*{[\s\S]*?\n\s*}/)![0];
     // Both properties present in the fused keyframes.
@@ -1189,15 +1496,27 @@ describe("animator", () => {
 
   it("DM-1512/1513: multiple transform tracks compose into one transform declaration", () => {
     const svg = generateAnimatedSvg({
-      width: 200, height: 200,
-      frames: [{
-        svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
-        duration: 2000,
-        animations: [{
-          animId: "f0a0", property: "scale", from: "0.3", to: "1", duration: 500,
-          fuse: [{ property: "translateY", from: "20px", to: "0px" }, { property: "opacity", from: "0", to: "1" }],
-        }],
-      }],
+      width: 200,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
+          duration: 2000,
+          animations: [
+            {
+              animId: "f0a0",
+              property: "scale",
+              from: "0.3",
+              to: "1",
+              duration: 500,
+              fuse: [
+                { property: "translateY", from: "20px", to: "0px" },
+                { property: "opacity", from: "0", to: "1" },
+              ],
+            },
+          ],
+        },
+      ],
     });
     const kf = svg.match(/@keyframes f0-f0a0-0\s*{[\s\S]*?\n\s*}/)![0];
     const startStop = kf.match(/0%\s*{([^}]*)}/)![1];
@@ -1212,15 +1531,25 @@ describe("animator", () => {
     // have different windows AND easings, so the animator samples both into ONE
     // @keyframes with `linear` timing (easing baked) — still one timeline.
     const svg = generateAnimatedSvg({
-      width: 200, height: 200,
-      frames: [{
-        svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
-        duration: 2000,
-        animations: [{
-          animId: "f0a0", property: "translateY", from: "24px", to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)",
-          fuse: [{ property: "opacity", from: "0", to: "1", duration: 200, easing: "ease-out" }],
-        }],
-      }],
+      width: 200,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
+          duration: 2000,
+          animations: [
+            {
+              animId: "f0a0",
+              property: "translateY",
+              from: "24px",
+              to: "0px",
+              duration: 600,
+              easing: "cubic-bezier(0.22,1,0.36,1)",
+              fuse: [{ property: "opacity", from: "0", to: "1", duration: 200, easing: "ease-out" }],
+            },
+          ],
+        },
+      ],
     });
     const rule = svg.match(/\.anim-f0a0\s*{[^}]*}/)![0];
     // ONE animation, timing baked to linear.
@@ -1246,7 +1575,8 @@ describe("animator", () => {
     // browser. The fix swapped both sites onto `visibility`. This test pins
     // the fix on every code path that emits keyframes for the animator.
     const cutSvg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
@@ -1257,7 +1587,8 @@ describe("animator", () => {
     expect(cutSvg).not.toMatch(/display:\s*inline/);
 
     const pushSvg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect/>`, duration: 1000, transition: { type: "push-left", duration: 100 } },
         { svgContent: `<rect/>`, duration: 1000 },
@@ -1271,7 +1602,8 @@ describe("animator", () => {
     // For two frames each held 1000ms with cut transitions and no overlap,
     // the visibility flip should land at exactly 50% of the scene.
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       frames: [
         { svgContent: `<rect fill="red"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         { svgContent: `<rect fill="blue"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
@@ -1289,15 +1621,26 @@ describe("animator", () => {
 
     function typedSvg(opts: { bgWidth?: number }): string {
       return generateAnimatedSvg({
-        width: 400, height: 200,
-        frames: [{
-          svgContent: `<rect width="400" height="200" fill="#fff"/>`,
-          duration: 4000,
-          overlays: [{
-            kind: "typing", text: longText, x: 20, y: 40,
-            fontSize: 14, bgColor: "#fff", bgWidth: opts.bgWidth, bgHeight: 24,
-          }],
-        }],
+        width: 400,
+        height: 200,
+        frames: [
+          {
+            svgContent: `<rect width="400" height="200" fill="#fff"/>`,
+            duration: 4000,
+            overlays: [
+              {
+                kind: "typing",
+                text: longText,
+                x: 20,
+                y: 40,
+                fontSize: 14,
+                bgColor: "#fff",
+                bgWidth: opts.bgWidth,
+                bgHeight: 24,
+              },
+            ],
+          },
+        ],
       });
     }
 
@@ -1360,9 +1703,15 @@ describe("animator", () => {
     };
     const make = (overlay: Record<string, unknown>): string =>
       generateAnimatedSvg({
-        width: 400, height: 200,
-        frames: [{ svgContent: `<rect width="400" height="200" fill="#fff"/>`, duration: 4000,
-          overlays: [{ kind: "typing", text: longText, x: 20, y: 40, fontSize: 14, ...overlay } as never] }],
+        width: 400,
+        height: 200,
+        frames: [
+          {
+            svgContent: `<rect width="400" height="200" fill="#fff"/>`,
+            duration: 4000,
+            overlays: [{ kind: "typing", text: longText, x: 20, y: 40, fontSize: 14, ...overlay } as never],
+          },
+        ],
       });
 
     it("`wrapWidth` wraps identically to the legacy `bgWidth`", () => {
@@ -1375,8 +1724,8 @@ describe("animator", () => {
     it("`mask.width` sizes the cover INDEPENDENTLY of the wrap width", () => {
       // Wrap at 120 (text breaks to several lines) but mask 300 wide.
       const svg = make({ wrapWidth: 120, mask: { width: 300, color: "#fff" } });
-      expect(typedLines(svg).length).toBeGreaterThan(1);     // still wraps at 120
-      expect(bgRect(svg)!.width).toBe(300);                  // mask is the wider 300
+      expect(typedLines(svg).length).toBeGreaterThan(1); // still wraps at 120
+      expect(bgRect(svg)!.width).toBe(300); // mask is the wider 300
     });
 
     it("`mask.color` paints the cover; `mask.height` sets its height floor", () => {
@@ -1394,8 +1743,8 @@ describe("animator", () => {
     it("new `mask` overrides the legacy aliases when both are present", () => {
       const svg = make({ bgWidth: 120, bgColor: "#000", bgHeight: 24, mask: { width: 260, color: "rgb(9,9,9)" } });
       const bg = bgRect(svg)!;
-      expect(bg.width).toBe(260);          // mask.width wins over bgWidth
-      expect(bg.fill).toBe("rgb(9,9,9)");  // mask.color wins over bgColor
+      expect(bg.width).toBe(260); // mask.width wins over bgWidth
+      expect(bg.fill).toBe("rgb(9,9,9)"); // mask.color wins over bgColor
     });
 
     // DM-1344: the placeholder mask must VERTICALLY STRADDLE the typed text's
@@ -1434,16 +1783,28 @@ describe("animator", () => {
 // INTO the `animation:` shorthand (one declaration, nothing to reorder).
 describe("optimizer preserves hard-cut step-end timing (DM-1454)", () => {
   const cutCfg = {
-    width: 100, height: 100,
+    width: 100,
+    height: 100,
     frames: [
-      { svgContent: `<rect width="100" height="100" fill="red"/>`, duration: 1000, transition: { type: "cut" as const, duration: 0 } },
-      { svgContent: `<rect width="100" height="100" fill="green"/>`, duration: 1000, transition: { type: "cut" as const, duration: 0 } },
-      { svgContent: `<rect width="100" height="100" fill="blue"/>`, duration: 1000, transition: { type: "cut" as const, duration: 0 } },
+      {
+        svgContent: `<rect width="100" height="100" fill="red"/>`,
+        duration: 1000,
+        transition: { type: "cut" as const, duration: 0 },
+      },
+      {
+        svgContent: `<rect width="100" height="100" fill="green"/>`,
+        duration: 1000,
+        transition: { type: "cut" as const, duration: 0 },
+      },
+      {
+        svgContent: `<rect width="100" height="100" fill="blue"/>`,
+        duration: 1000,
+        transition: { type: "cut" as const, duration: 0 },
+      },
     ],
   };
 
-  const frameRules = (svg: string): string[] =>
-    [...svg.matchAll(/\.f-\d+\s*\{[^}]*\}/g)].map((m) => m[0]);
+  const frameRules = (svg: string): string[] => [...svg.matchAll(/\.f-\d+\s*\{[^}]*\}/g)].map((m) => m[0]);
 
   it("emits step-end inside the animation shorthand (no separate declaration)", () => {
     const rules = frameRules(generateAnimatedSvg(cutCfg));
@@ -1477,15 +1838,33 @@ describe("scene-wide cull keyframes composition", () => {
   // exit window (visible [0%, 25%]), frame B an enter window ([75%, 100%]),
   // frame C repeats frame A's window exactly.
   const cullFrames = () => {
-    const mkTree = (animId: string) => ({
-      tag: "div", text: "", x: 100, y: 100, width: 100, height: 100,
-      styles: { backgroundColor: "rgb(255, 0, 0)" } as CapturedElement["styles"], children: [], animId,
-    } as CapturedElement);
+    const mkTree = (animId: string) =>
+      ({
+        tag: "div",
+        text: "",
+        x: 100,
+        y: 100,
+        width: 100,
+        height: 100,
+        styles: { backgroundColor: "rgb(255, 0, 0)" } as CapturedElement["styles"],
+        children: [],
+        animId,
+      }) as CapturedElement;
     const exitAnim: IntraFrameAnimation = {
-      animId: "out", property: "translateY", from: "0px", to: "1000px", duration: 1000, easing: "linear",
+      animId: "out",
+      property: "translateY",
+      from: "0px",
+      to: "1000px",
+      duration: 1000,
+      easing: "linear",
     };
     const enterAnim: IntraFrameAnimation = {
-      animId: "in", property: "translateY", from: "-1000px", to: "0px", duration: 1000, easing: "linear",
+      animId: "in",
+      property: "translateY",
+      from: "-1000px",
+      to: "0px",
+      duration: 1000,
+      easing: "linear",
     };
     const treeA = mkTree("out");
     const { css: cssA } = cullElementsOutsideViewBox(treeA, 800, 600, [exitAnim], 0, 4000);
@@ -1500,7 +1879,8 @@ describe("scene-wide cull keyframes composition", () => {
     const { classA, classB, cssA, cssB, cssC } = cullFrames();
     const rect = (id: string) => `<rect id="${id}" width="100" height="100" fill="red"/>`;
     const svg = generateAnimatedSvg({
-      width: 800, height: 600,
+      width: 800,
+      height: 600,
       frames: [
         { svgContent: rect("a"), duration: 1000, cullCss: cssA },
         { svgContent: rect("b"), duration: 1000, cullCss: cssB },
@@ -1528,8 +1908,10 @@ describe("scene-wide cull keyframes composition", () => {
 describe("root svg accessible name (DM-1488)", () => {
   it("emits role=img + <title>/<desc> on the root svg when an accessible name is given", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
-      title: "Product flow", desc: "A dashboard assembling itself",
+      width: 100,
+      height: 100,
+      title: "Product flow",
+      desc: "A dashboard assembling itself",
       frames: [
         { svgContent: `<rect/>`, duration: 1000 },
         { svgContent: `<rect/>`, duration: 1000 },
@@ -1541,8 +1923,12 @@ describe("root svg accessible name (DM-1488)", () => {
 
   it("default animated output has no root role/title", () => {
     const svg = generateAnimatedSvg({
-      width: 100, height: 100,
-      frames: [{ svgContent: `<rect/>`, duration: 1000 }, { svgContent: `<rect/>`, duration: 1000 }],
+      width: 100,
+      height: 100,
+      frames: [
+        { svgContent: `<rect/>`, duration: 1000 },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
     });
     expect(svg).toMatch(/viewBox="0 0 100 100" width="100" height="100">/);
   });
@@ -1552,13 +1938,23 @@ describe("root svg accessible name (DM-1488)", () => {
 // express motion via transform / clip-path / opacity / gradients only — never an
 // animated CSS `filter` (Chromium-only inside <img>, docs/84).
 describe("transition expansion (DM-1524)", () => {
-  const twoFrame = (type: string) => generateAnimatedSvg({
-    width: 400, height: 200,
-    frames: [
-      { svgContent: `<rect id="a" width="400" height="200" fill="red"/>`, duration: 500, transition: { type, duration: 400 } as never },
-      { svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`, duration: 500, transition: { type, duration: 400 } as never },
-    ],
-  });
+  const twoFrame = (type: string) =>
+    generateAnimatedSvg({
+      width: 400,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<rect id="a" width="400" height="200" fill="red"/>`,
+          duration: 500,
+          transition: { type, duration: 400 } as never,
+        },
+        {
+          svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`,
+          duration: 500,
+          transition: { type, duration: 400 } as never,
+        },
+      ],
+    });
 
   it("never animates a CSS filter in ANY new transition (cross-engine-safe)", () => {
     for (const type of ["push-right", "push-up", "push-down", "wipe", "iris", "zoom-in", "zoom-out", "shine"]) {
@@ -1624,12 +2020,15 @@ describe("transition expansion (DM-1524)", () => {
 
   it("a shine OVERLAY renders a clipped repeating shimmer over a box", () => {
     const svg = generateAnimatedSvg({
-      width: 400, height: 200,
-      frames: [{
-        svgContent: `<rect width="400" height="200" fill="#333"/>`,
-        duration: 1500,
-        overlays: [{ kind: "shine", x: 20, y: 30, width: 200, height: 60, repeat: "infinite" }],
-      }],
+      width: 400,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<rect width="400" height="200" fill="#333"/>`,
+          duration: 1500,
+          overlays: [{ kind: "shine", x: 20, y: 30, width: 200, height: 60, repeat: "infinite" }],
+        },
+      ],
     });
     expect(svg).toContain(`<clipPath id="shine-clip-sh0">`);
     expect(svg).toContain("shine-grad-sh0");
@@ -1640,12 +2039,15 @@ describe("transition expansion (DM-1524)", () => {
   // pill/button's corners instead of showing square edges.
   it("a shine overlay's radius rounds the clip rect", () => {
     const svg = generateAnimatedSvg({
-      width: 400, height: 200,
-      frames: [{
-        svgContent: `<rect width="400" height="200" fill="#333"/>`,
-        duration: 1500,
-        overlays: [{ kind: "shine", x: 20, y: 30, width: 200, height: 60, radius: 8, repeat: "infinite" }],
-      }],
+      width: 400,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<rect width="400" height="200" fill="#333"/>`,
+          duration: 1500,
+          overlays: [{ kind: "shine", x: 20, y: 30, width: 200, height: 60, radius: 8, repeat: "infinite" }],
+        },
+      ],
     });
     expect(svg).toContain(`rx="8" ry="8"`);
   });
@@ -1657,13 +2059,23 @@ describe("transition expansion (DM-1524)", () => {
 // that drives the NEXT frame's entrance. It's applied to the reveal/dolly SEGMENT
 // via a per-keyframe `animation-timing-function`, leaving the holds linear.
 describe("reveal/zoom easing (DM-1550)", () => {
-  const twoFrameEased = (type: string, easing?: string) => generateAnimatedSvg({
-    width: 400, height: 200,
-    frames: [
-      { svgContent: `<rect id="a" width="400" height="200" fill="red"/>`, duration: 500, transition: { type, duration: 400, easing } as never },
-      { svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`, duration: 500, transition: { type, duration: 400 } as never },
-    ],
-  });
+  const twoFrameEased = (type: string, easing?: string) =>
+    generateAnimatedSvg({
+      width: 400,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<rect id="a" width="400" height="200" fill="red"/>`,
+          duration: 500,
+          transition: { type, duration: 400, easing } as never,
+        },
+        {
+          svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`,
+          duration: 500,
+          transition: { type, duration: 400 } as never,
+        },
+      ],
+    });
   const frBlock = (svg: string) => svg.match(/@keyframes fr-1 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
   const fzBlock = (svg: string) => svg.match(/@keyframes fz-1 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
 
@@ -1700,13 +2112,23 @@ describe("reveal/zoom easing (DM-1550)", () => {
 // "clock hand" polygon sweep. Both express motion via clip-path only — never an
 // animated conic mask, never an animated filter (cross-engine-safe, docs/84).
 describe("radial / clock wipe transitions (DM-1547)", () => {
-  const twoFrame = (type: string) => generateAnimatedSvg({
-    width: 400, height: 200,
-    frames: [
-      { svgContent: `<rect id="a" width="400" height="200" fill="red"/>`, duration: 500, transition: { type, duration: 400 } as never },
-      { svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`, duration: 500, transition: { type, duration: 400 } as never },
-    ],
-  });
+  const twoFrame = (type: string) =>
+    generateAnimatedSvg({
+      width: 400,
+      height: 200,
+      frames: [
+        {
+          svgContent: `<rect id="a" width="400" height="200" fill="red"/>`,
+          duration: 500,
+          transition: { type, duration: 400 } as never,
+        },
+        {
+          svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`,
+          duration: 500,
+          transition: { type, duration: 400 } as never,
+        },
+      ],
+    });
 
   it("wipe-radial reveals via an expanding circle (same geometry as iris)", () => {
     const svg = twoFrame("wipe-radial");
@@ -1745,7 +2167,9 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
   it("wipe-clock starts hidden (degenerate) and rests at the full-rectangle polygon", () => {
     const svg = twoFrame("wipe-clock");
     // Hidden: the sweep collapses to the 12-o'clock point (all vertices at 200,0).
-    expect(svg).toContain("polygon(200.00px 100.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px)");
+    expect(svg).toContain(
+      "polygon(200.00px 100.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px)",
+    );
     // Fully revealed (rest): the polygon threads all four corners.
     expect(svg).toContain("400.00px 0.00px, 400.00px 200.00px, 0.00px 200.00px, 0.00px 0.00px");
   });
@@ -1767,13 +2191,23 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
   });
 
   it("DM-1583: a cubic-bezier easing time-remaps the clock sweep; springs/linear stay linear", () => {
-    const clock = (easing?: string) => generateAnimatedSvg({
-      width: 400, height: 200,
-      frames: [
-        { svgContent: `<rect width="400" height="200" fill="red"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400, ...(easing != null ? { easing } : {}) } as never },
-        { svgContent: `<rect width="400" height="200" fill="blue"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400 } as never },
-      ],
-    });
+    const clock = (easing?: string) =>
+      generateAnimatedSvg({
+        width: 400,
+        height: 200,
+        frames: [
+          {
+            svgContent: `<rect width="400" height="200" fill="red"/>`,
+            duration: 500,
+            transition: { type: "wipe-clock", duration: 400, ...(easing != null ? { easing } : {}) } as never,
+          },
+          {
+            svgContent: `<rect width="400" height="200" fill="blue"/>`,
+            duration: 500,
+            transition: { type: "wipe-clock", duration: 400 } as never,
+          },
+        ],
+      });
     const linear = clock();
     // A monotonic cubic-bezier easing reshapes the sweep → output differs.
     expect(clock("ease-in-out")).not.toBe(linear);
@@ -1789,13 +2223,23 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
   });
 
   it("DM-1585: wipe-clock honors a start angle + counterclockwise sweep", () => {
-    const clock = (extra: Record<string, unknown>) => generateAnimatedSvg({
-      width: 400, height: 200,
-      frames: [
-        { svgContent: `<rect width="400" height="200" fill="red"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400, ...extra } as never },
-        { svgContent: `<rect width="400" height="200" fill="blue"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400 } as never },
-      ],
-    });
+    const clock = (extra: Record<string, unknown>) =>
+      generateAnimatedSvg({
+        width: 400,
+        height: 200,
+        frames: [
+          {
+            svgContent: `<rect width="400" height="200" fill="red"/>`,
+            duration: 500,
+            transition: { type: "wipe-clock", duration: 400, ...extra } as never,
+          },
+          {
+            svgContent: `<rect width="400" height="200" fill="blue"/>`,
+            duration: 500,
+            transition: { type: "wipe-clock", duration: 400 } as never,
+          },
+        ],
+      });
     const def = clock({});
     // The sweep-start vertex is the fixed 2nd polygon point. Default = 12 o'clock
     // (200,0); startAngle 90° starts the hand at 3 o'clock (400,100).
@@ -1812,14 +2256,18 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
 // hover / focus / press treatment over a region with no real CSS state. It fades
 // in a fill / ring / scale-pop, then RESTS at identity. transform + opacity only.
 describe("interaction-feedback overlay (DM-1565)", () => {
-  const withOverlay = (overlay: Record<string, unknown>) => generateAnimatedSvg({
-    width: 300, height: 160,
-    frames: [{
-      svgContent: `<rect width="300" height="160" fill="#111"/>`,
-      duration: 2000,
-      overlays: [{ kind: "interact", x: 40, y: 50, width: 160, height: 44, ...overlay } as never],
-    }],
-  });
+  const withOverlay = (overlay: Record<string, unknown>) =>
+    generateAnimatedSvg({
+      width: 300,
+      height: 160,
+      frames: [
+        {
+          svgContent: `<rect width="300" height="160" fill="#111"/>`,
+          duration: 2000,
+          overlays: [{ kind: "interact", x: 40, y: 50, width: 160, height: 44, ...overlay } as never],
+        },
+      ],
+    });
 
   it("hover paints a translucent fill + scale pop, fused into one animation", () => {
     const svg = withOverlay({ treatment: "hover" });
@@ -1845,7 +2293,9 @@ describe("interaction-feedback overlay (DM-1565)", () => {
     // Loops on a 1600ms period, 3 iterations, `both` fill-mode (holds rest before + after).
     expect(svg).toMatch(/\.ix0 \{ animation: ix0 1600ms linear \d+ms 3 both;/);
     // "infinite" also accepted.
-    expect(withOverlay({ treatment: "hover", repeat: "infinite" })).toMatch(/animation: ix0 \d+ms linear \d+ms infinite both;/);
+    expect(withOverlay({ treatment: "hover", repeat: "infinite" })).toMatch(
+      /animation: ix0 \d+ms linear \d+ms infinite both;/,
+    );
     // Still rests at identity at BOTH cycle boundaries (opacity 0 / scale 1).
     const block = svg.match(/@keyframes ix0 \{[\s\S]*?\n {4}\}/)?.[0] ?? "";
     expect(block).toMatch(/0% \{ opacity: 0; transform: scale\(1\);/);
@@ -1866,7 +2316,7 @@ describe("interaction-feedback overlay (DM-1565)", () => {
     expect(svg).toMatch(/fill="#000000"/);
   });
 
-  it("fill:\"none\" omits the fill rect; ring can be added to any treatment", () => {
+  it('fill:"none" omits the fill rect; ring can be added to any treatment', () => {
     const svg = withOverlay({ treatment: "hover", fill: "none", ring: "#ff0000" });
     expect(svg).not.toContain("fill-opacity");
     expect(svg).toMatch(/stroke="#ff0000"/);
@@ -1881,7 +2331,6 @@ describe("interaction-feedback overlay (DM-1565)", () => {
   });
 });
 
-
 // ── DM-1767 (docs/104): the explicit per-overlay window ─────────────────────
 //
 // Every overlay's lifetime used to be frame-scoped. `endAt` decouples it: an
@@ -1894,7 +2343,8 @@ describe("per-overlay window — `endAt` (DM-1767)", () => {
   // a keyframe stop's percentage reads directly as a fraction of the window.
   const cut = { type: "cut", duration: 0 } as const;
   const frameOf = (overlay: Record<string, unknown>, duration = 4000) => ({
-    width: 300, height: 120,
+    width: 300,
+    height: 120,
     frames: [{ svgContent: `<rect/>`, duration, transition: cut, overlays: [overlay as never] }],
   });
   /** The stop percentages of the named `@keyframes` block (one per line). */
@@ -1903,8 +2353,7 @@ describe("per-overlay window — `endAt` (DM-1767)", () => {
     return [...line.matchAll(/([\d.]+)%/g)].map((m) => parseFloat(m[1]));
   };
   /** The last stop BEFORE the trailing 100% park — i.e. when the effect ends. */
-  const endPct = (svg: string, name: string): number =>
-    Math.max(0, ...stopsOf(svg, name).filter((n) => n < 100));
+  const endPct = (svg: string, name: string): number => Math.max(0, ...stopsOf(svg, name).filter((n) => n < 100));
 
   it("resolves to the frame's duration when unset, and clamps to it when over", () => {
     const ov = { kind: "typing", text: "hi", x: 0, y: 0 } as const;
@@ -1956,27 +2405,53 @@ describe("per-overlay window — `endAt` (DM-1767)", () => {
     const full = generateAnimatedSvg(frameOf({ kind: "tap", x: 5, y: 5, delay: 100 }));
     const cutShort = generateAnimatedSvg(frameOf({ kind: "tap", x: 5, y: 5, delay: 100, endAt: 300 }));
     expect(endPct(cutShort, "tap0")).toBeLessThan(endPct(full, "tap0"));
-    expect(endPct(cutShort, "tap0")).toBeCloseTo(300 / 4000 * 100, 1);
+    expect(endPct(cutShort, "tap0")).toBeCloseTo((300 / 4000) * 100, 1);
     // A window that closes before the tap's own delay leaves nothing to show.
     expect(generateAnimatedSvg(frameOf({ kind: "tap", x: 5, y: 5, delay: 900, endAt: 400 }))).not.toContain("tap0");
   });
 
   it("an svg overlay's `delay` shifts its appear time and `endAt` closes it early", () => {
-    const mk = (extra: Record<string, unknown>) => generateAnimatedSvg({
-      width: 300, height: 120,
-      frames: [{ svgContent: `<rect/>`, duration: 4000, transition: cut, overlays: [
-        { kind: "svg", innerSvg: `<circle r="4"/>`, x: 0, y: 0, width: 40, height: 40, animId: "pip", ...extra } as never] }],
-    });
+    const mk = (extra: Record<string, unknown>) =>
+      generateAnimatedSvg({
+        width: 300,
+        height: 120,
+        frames: [
+          {
+            svgContent: `<rect/>`,
+            duration: 4000,
+            transition: cut,
+            overlays: [
+              {
+                kind: "svg",
+                innerSvg: `<circle r="4"/>`,
+                x: 0,
+                y: 0,
+                width: 40,
+                height: 40,
+                animId: "pip",
+                ...extra,
+              } as never,
+            ],
+          },
+        ],
+      });
     // Default (no delay) — the overlay appears with the frame, as it always has.
     expect(mk({})).toBe(mk({ delay: 0 }));
     // The visibility track is hidden through appear-1ms, visible on the
     // half-open [appear, end) window, and hidden exactly at end.
     const opacityStops = (svg: string): Array<{ pct: number; opacity: number }> => {
       const line = svg.split("\n").find((l) => l.includes("@keyframes ov-0-pip-vis ")) ?? "";
-      return [...line.matchAll(/([\d.]+)%\s*\{\s*opacity:\s*([01])/g)]
-        .map((m) => ({ pct: parseFloat(m[1]), opacity: parseFloat(m[2]) }));
+      return [...line.matchAll(/([\d.]+)%\s*\{\s*opacity:\s*([01])/g)].map((m) => ({
+        pct: parseFloat(m[1]),
+        opacity: parseFloat(m[2]),
+      }));
     };
-    const appearPct = (svg: string): number => Math.min(...opacityStops(svg).filter((s) => s.opacity === 1).map((s) => s.pct));
+    const appearPct = (svg: string): number =>
+      Math.min(
+        ...opacityStops(svg)
+          .filter((s) => s.opacity === 1)
+          .map((s) => s.pct),
+      );
     const closePct = (svg: string): number => {
       const stops = opacityStops(svg);
       const appear = Math.min(...stops.filter((s) => s.opacity === 1).map((s) => s.pct));
@@ -2009,7 +2484,9 @@ describe("duplicate animation offsets", () => {
           svgContent: "<rect/>",
           duration: 1000,
           transition: cut,
-          overlays: [{ kind: "svg", innerSvg: "<circle/>", x: 0, y: 0, width: 20, height: 20, animId: "x", endAt: 1000 }],
+          overlays: [
+            { kind: "svg", innerSvg: "<circle/>", x: 0, y: 0, width: 20, height: 20, animId: "x", endAt: 1000 },
+          ],
         },
         { svgContent: "<path/>", duration: 1000, transition: cut },
       ],
@@ -2029,7 +2506,8 @@ describe("duplicate animation offsets", () => {
   });
 
   it("merges properties and preserves semicolons inside CSS strings", () => {
-    const css = "<style>@keyframes ov-0-x-vis{0%{opacity:0;content:'a;b'}0.000%{opacity:1;transform:scale(1)}100%{opacity:0}}</style>";
+    const css =
+      "<style>@keyframes ov-0-x-vis{0%{opacity:0;content:'a;b'}0.000%{opacity:1;transform:scale(1)}100%{opacity:0}}</style>";
     const out = consolidateKeyframeOffsets(css);
     expect(out).toContain("0% { opacity: 1; content: 'a;b'; transform: scale(1); }");
     expect((out.match(/(?:^|\s)0% \{/g) ?? []).length).toBe(1);
@@ -2037,14 +2515,19 @@ describe("duplicate animation offsets", () => {
 });
 
 describe("angled linear wipe (DM-2041)", () => {
-  const render = (wipeAngle?: number) => generateAnimatedSvg({
-    width: 400,
-    height: 200,
-    frames: [
-      { svgContent: "<rect/>", duration: 500, transition: { type: "wipe", duration: 400, ...(wipeAngle == null ? {} : { wipeAngle }) } },
-      { svgContent: "<path/>", duration: 500, transition: { type: "cut", duration: 0 } },
-    ],
-  });
+  const render = (wipeAngle?: number) =>
+    generateAnimatedSvg({
+      width: 400,
+      height: 200,
+      frames: [
+        {
+          svgContent: "<rect/>",
+          duration: 500,
+          transition: { type: "wipe", duration: 400, ...(wipeAngle == null ? {} : { wipeAngle }) },
+        },
+        { svgContent: "<path/>", duration: 500, transition: { type: "cut", duration: 0 } },
+      ],
+    });
 
   it("keeps the default 0-degree wipe byte-identical", () => {
     expect(render(0)).toBe(render());

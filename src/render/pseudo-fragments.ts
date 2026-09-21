@@ -12,17 +12,8 @@ import bidiFactory from "bidi-js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { resolveCharOrientation } from "../vertical-orientation.js";
 
-import type {
-  CapturedElement,
-  CapturedPseudoFragmentSet,
-  CapturedTextPaintAffine,
-} from "../capture/types.js";
-import type {
-  Point,
-  PseudoBoxFragment,
-  PseudoTextFragment,
-  Rect,
-} from "../capture/pseudo-fragment-protocol.js";
+import type { CapturedElement, CapturedPseudoFragmentSet, CapturedTextPaintAffine } from "../capture/types.js";
+import type { Point, PseudoBoxFragment, PseudoTextFragment, Rect } from "../capture/pseudo-fragment-protocol.js";
 import { esc, r } from "./format.js";
 import { visualTextSemantics } from "./real-text-layer.js";
 import {
@@ -36,12 +27,7 @@ import { blinkFontOrientation } from "./vertical-text.js";
 import { renderTextAsPath } from "./text-to-path.js";
 import { IDENTITY_TEXT_AFFINE, invertTextAffine, serializeTextPaintMatrix, textAffineEquals } from "./text-affine.js";
 
-export type PseudoFragmentPaintSlot =
-  | "negative"
-  | "before"
-  | "after"
-  | "positioned"
-  | "positive";
+export type PseudoFragmentPaintSlot = "negative" | "before" | "after" | "positioned" | "positive";
 
 export interface PseudoBackgroundPaint {
   record: CapturedPseudoFragmentSet;
@@ -72,10 +58,15 @@ const EPSILON = 0.8;
 const bidi = bidiFactory();
 
 function finiteRect(rect: Rect | null): rect is Rect {
-  return rect != null
-    && Number.isFinite(rect.x) && Number.isFinite(rect.y)
-    && Number.isFinite(rect.width) && Number.isFinite(rect.height)
-    && rect.width > 0 && rect.height > 0;
+  return (
+    rect != null &&
+    Number.isFinite(rect.x) &&
+    Number.isFinite(rect.y) &&
+    Number.isFinite(rect.width) &&
+    Number.isFinite(rect.height) &&
+    rect.width > 0 &&
+    rect.height > 0
+  );
 }
 
 function finitePoint(point: Point): boolean {
@@ -86,20 +77,25 @@ function hasDegenerateCssTransform(transform: string): boolean {
   const match = /^matrix\(([^)]+)\)$/.exec(transform.trim());
   if (match == null) return false;
   const values = match[1].split(",").map(Number);
-  return values.length === 6 && values.every(Number.isFinite)
-    && Math.abs(values[0] * values[3] - values[1] * values[2]) < 1e-12;
+  return (
+    values.length === 6 &&
+    values.every(Number.isFinite) &&
+    Math.abs(values[0] * values[3] - values[1] * values[2]) < 1e-12
+  );
 }
 
 /** Source-owned non-paint activation shared by validation and emission. */
 export function pseudoFragmentIsUnpainted(record: CapturedPseudoFragmentSet): boolean {
-  return record.status === "unpainted"
-    || record.paint.visibility === "hidden"
-    || record.paint.visibility === "collapse"
-    || record.paint.opacity === 0
+  return (
+    record.status === "unpainted" ||
+    record.paint.visibility === "hidden" ||
+    record.paint.visibility === "collapse" ||
+    record.paint.opacity === 0 ||
     // A scale(0) generated indicator still has a real Blink pseudo and an
     // authoritative empty paint result. Its collapsed quad is not a protocol
     // failure and must not reopen compatibility indicator synthesis.
-    || hasDegenerateCssTransform(record.paint.transform);
+    hasDegenerateCssTransform(record.paint.transform)
+  );
 }
 
 function distance(a: Point, b: Point): number {
@@ -117,7 +113,10 @@ export function pseudoFragmentAffine(box: PseudoBoxFragment): Affine | null {
   const d = (quad[3].y - quad[0].y) / local.height;
   const e = quad[0].x - a * local.x - c * local.y;
   const f = quad[0].y - b * local.x - d * local.y;
-  const predicted = { x: quad[0].x + a * local.width + c * local.height, y: quad[0].y + b * local.width + d * local.height };
+  const predicted = {
+    x: quad[0].x + a * local.width + c * local.height,
+    y: quad[0].y + b * local.width + d * local.height,
+  };
   if (distance(predicted, quad[2]) > EPSILON || Math.abs(a * d - b * c) < 1e-8) return null;
   return { a, b, c, d, e, f };
 }
@@ -190,8 +189,8 @@ function textOptions(
     features: fontFeatures(record),
     lang: typography.language,
     variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
-    fontVariantEmoji: variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode"
-      ? variantEmoji : undefined,
+    fontVariantEmoji:
+      variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode" ? variantEmoji : undefined,
     bidiOverride: visualOrder
       ? { direction: "ltr" as const, unicodeBidi: "bidi-override" }
       : { direction: record.direction, unicodeBidi },
@@ -206,12 +205,8 @@ function textOptions(
  * spaces and RTL letters at logical x positions (`אבג (12) xyz` became
  * `xyz(12אבג )`) even though every fragment boundary was authoritative.
  */
-function visualBidiFragment(
-  record: CapturedPseudoFragmentSet,
-  text: string,
-): { text: string; projected: boolean } {
-  const override = record.paint.unicodeBidi === "bidi-override"
-    || record.paint.unicodeBidi === "isolate-override";
+function visualBidiFragment(record: CapturedPseudoFragmentSet, text: string): { text: string; projected: boolean } {
+  const override = record.paint.unicodeBidi === "bidi-override" || record.paint.unicodeBidi === "isolate-override";
   if (override || (record.direction === "ltr" && !/[֐-ࣿיִ-ﻼ]/.test(text))) {
     return { text: mirrorBidiBrackets(text, record.direction), projected: false };
   }
@@ -246,8 +241,11 @@ function baselineMatrix(
   if (record.writingMode === "horizontal-tb") {
     const box = record.boxFragments[fragment.boxFragmentIndex];
     const quad = box?.physicalQuad;
-    if (box != null && quad?.length === 4
-        && (Math.abs(quad[1].y - quad[0].y) > 1e-5 || Math.abs(quad[3].x - quad[0].x) > 1e-5)) {
+    if (
+      box != null &&
+      quad?.length === 4 &&
+      (Math.abs(quad[1].y - quad[0].y) > 1e-5 || Math.abs(quad[3].x - quad[0].x) > 1e-5)
+    ) {
       // DOMSnapshot text bounds are post-transform AABBs, so AABB -> quad
       // scaling is not a source paint matrix. Recover both affine axes from
       // the authoritative box quad divided by the logical anonymous-child
@@ -258,13 +256,19 @@ function baselineMatrix(
       const siblings = record.fragments
         .filter((candidate) => candidate.boxFragmentIndex === fragment.boxFragmentIndex)
         .sort((left, right) => left.visualOrder - right.visualOrder);
-      const inlineAdvanceOf = (candidate: typeof siblings[number]): number =>
+      const inlineAdvanceOf = (candidate: (typeof siblings)[number]): number =>
         candidate.kind === "text" ? candidate.shapedInlineAdvance : candidate.localRect.width;
       const contentInline = siblings.reduce((sum, candidate) => sum + inlineAdvanceOf(candidate), 0);
-      const contentBlock = siblings.reduce((maximum, candidate) => Math.max(maximum,
-        candidate.kind === "text"
-          ? record.typography.primaryFontAscent + record.typography.primaryFontDescent
-          : candidate.localRect.height), 0);
+      const contentBlock = siblings.reduce(
+        (maximum, candidate) =>
+          Math.max(
+            maximum,
+            candidate.kind === "text"
+              ? record.typography.primaryFontAscent + record.typography.primaryFontDescent
+              : candidate.localRect.height,
+          ),
+        0,
+      );
       const logicalInline = owned("left") + contentInline + owned("right");
       const logicalBlock = owned("top") + contentBlock + owned("bottom");
       if (logicalInline > 0 && logicalBlock > 0) {
@@ -272,8 +276,9 @@ function baselineMatrix(
         b = (quad[1].y - quad[0].y) / logicalInline;
         c = (quad[3].x - quad[0].x) / logicalBlock;
         d = (quad[3].y - quad[0].y) / logicalBlock;
-        const preceding = siblings.slice(0, siblings.indexOf(fragment)).reduce(
-          (sum, candidate) => sum + inlineAdvanceOf(candidate), 0);
+        const preceding = siblings
+          .slice(0, siblings.indexOf(fragment))
+          .reduce((sum, candidate) => sum + inlineAdvanceOf(candidate), 0);
         const inlineOffset = owned("left") + preceding;
         const blockOffset = owned("top") + fragment.baseline.ascent;
         e = quad[0].x + a * inlineOffset + c * blockOffset;
@@ -330,15 +335,22 @@ function renderVerticalMixed(
     if (uprightVertical(unit)) {
       const x = fragment.localRect.x + (fragment.localRect.width - record.typography.paintFontSize) / 2;
       const opts = textOptions(record);
-      pieces.push(renderTextAsPath(unit, x, y, {
-        ...opts,
-        features: mergeFeatureLists(opts.features, ["vert"]),
-      }));
+      pieces.push(
+        renderTextAsPath(unit, x, y, {
+          ...opts,
+          features: mergeFeatureLists(opts.features, ["vert"]),
+        }),
+      );
     } else {
       const originX = fragment.localRect.x + fragment.localRect.width - record.typography.primaryFontAscent;
       const originY = y;
       const localRotate: Affine = { a: 0, b: 1, c: -1, d: 0, e: originX, f: originY };
-      pieces.push(wrapMatrix(localRotate, renderTextAsPath(unit, 0, -record.typography.primaryFontAscent, textOptions(record, cell))));
+      pieces.push(
+        wrapMatrix(
+          localRotate,
+          renderTextAsPath(unit, 0, -record.typography.primaryFontAscent, textOptions(record, cell)),
+        ),
+      );
     }
     cursor += cell;
   }
@@ -380,12 +392,13 @@ function physicalSides(record: CapturedPseudoFragmentSet): {
   blockStart: "top" | "right" | "bottom" | "left";
   blockEnd: "top" | "right" | "bottom" | "left";
 } {
-  if (record.writingMode === "horizontal-tb") return {
-    inlineStart: record.direction === "ltr" ? "left" : "right",
-    inlineEnd: record.direction === "ltr" ? "right" : "left",
-    blockStart: "top",
-    blockEnd: "bottom",
-  };
+  if (record.writingMode === "horizontal-tb")
+    return {
+      inlineStart: record.direction === "ltr" ? "left" : "right",
+      inlineEnd: record.direction === "ltr" ? "right" : "left",
+      blockStart: "top",
+      blockEnd: "bottom",
+    };
   const reverseInline = record.writingMode === "sideways-lr" ? record.direction === "ltr" : record.direction === "rtl";
   return {
     inlineStart: reverseInline ? "bottom" : "top",
@@ -395,30 +408,49 @@ function physicalSides(record: CapturedPseudoFragmentSet): {
   };
 }
 
-function ownsSide(record: CapturedPseudoFragmentSet, box: PseudoBoxFragment, side: "top" | "right" | "bottom" | "left"): boolean {
+function ownsSide(
+  record: CapturedPseudoFragmentSet,
+  box: PseudoBoxFragment,
+  side: "top" | "right" | "bottom" | "left",
+): boolean {
   const sides = physicalSides(record);
-  return (sides.inlineStart === side && box.edgeOwnership.inlineStart)
-    || (sides.inlineEnd === side && box.edgeOwnership.inlineEnd)
-    || (sides.blockStart === side && box.edgeOwnership.blockStart)
-    || (sides.blockEnd === side && box.edgeOwnership.blockEnd);
+  return (
+    (sides.inlineStart === side && box.edgeOwnership.inlineStart) ||
+    (sides.inlineEnd === side && box.edgeOwnership.inlineEnd) ||
+    (sides.blockStart === side && box.edgeOwnership.blockStart) ||
+    (sides.blockEnd === side && box.edgeOwnership.blockEnd)
+  );
 }
 
 function opaque(color: string): boolean {
   return color !== "" && color !== "transparent" && color !== "rgba(0, 0, 0, 0)";
 }
 
-function borderLine(rect: Rect, side: "top" | "right" | "bottom" | "left", width: number, color: string, style: string): string {
+function borderLine(
+  rect: Rect,
+  side: "top" | "right" | "bottom" | "left",
+  width: number,
+  color: string,
+  style: string,
+): string {
   if (!(width > 0) || !opaque(color) || style === "none" || style === "hidden") return "";
   const snappedCenter = (value: number): number => {
     const integralWidth = Math.round(width);
     if (Math.abs(width - integralWidth) > 1e-6) return value;
     return integralWidth % 2 === 1 ? Math.floor(value) + 0.5 : Math.round(value);
   };
-  const dash = style === "dashed" ? ` stroke-dasharray="${r(width * 3)},${r(width * 3)}"`
-    : style === "dotted" ? ` stroke-dasharray="0,${r(width * 2)}" stroke-linecap="round"` : "";
-  if (side === "top") return `<line x1="${r(rect.x)}" y1="${r(snappedCenter(rect.y + width / 2))}" x2="${r(rect.x + rect.width)}" y2="${r(snappedCenter(rect.y + width / 2))}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
-  if (side === "right") return `<line x1="${r(snappedCenter(rect.x + rect.width - width / 2))}" y1="${r(rect.y)}" x2="${r(snappedCenter(rect.x + rect.width - width / 2))}" y2="${r(rect.y + rect.height)}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
-  if (side === "bottom") return `<line x1="${r(rect.x)}" y1="${r(snappedCenter(rect.y + rect.height - width / 2))}" x2="${r(rect.x + rect.width)}" y2="${r(snappedCenter(rect.y + rect.height - width / 2))}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
+  const dash =
+    style === "dashed"
+      ? ` stroke-dasharray="${r(width * 3)},${r(width * 3)}"`
+      : style === "dotted"
+        ? ` stroke-dasharray="0,${r(width * 2)}" stroke-linecap="round"`
+        : "";
+  if (side === "top")
+    return `<line x1="${r(rect.x)}" y1="${r(snappedCenter(rect.y + width / 2))}" x2="${r(rect.x + rect.width)}" y2="${r(snappedCenter(rect.y + width / 2))}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
+  if (side === "right")
+    return `<line x1="${r(snappedCenter(rect.x + rect.width - width / 2))}" y1="${r(rect.y)}" x2="${r(snappedCenter(rect.x + rect.width - width / 2))}" y2="${r(rect.y + rect.height)}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
+  if (side === "bottom")
+    return `<line x1="${r(rect.x)}" y1="${r(snappedCenter(rect.y + rect.height - width / 2))}" x2="${r(rect.x + rect.width)}" y2="${r(snappedCenter(rect.y + rect.height - width / 2))}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
   return `<line x1="${r(snappedCenter(rect.x + width / 2))}" y1="${r(rect.y)}" x2="${r(snappedCenter(rect.x + width / 2))}" y2="${r(rect.y + rect.height)}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
 }
 
@@ -443,7 +475,12 @@ function roundedUniformBorder(
   // A single inset SVG stroke has the same outer/inner circular contours as
   // Blink's uniform solid rounded border. Mixed edges and dash phase retain
   // the explicit per-side path below.
-  if (!opaque(color) || !colors.every((candidate) => candidate === color) || !styles.every((candidate) => candidate === "solid")) return null;
+  if (
+    !opaque(color) ||
+    !colors.every((candidate) => candidate === color) ||
+    !styles.every((candidate) => candidate === "solid")
+  )
+    return null;
 
   const inset = width / 2;
   const strokeWidth = Math.max(0, rect.width - width);
@@ -464,14 +501,26 @@ function renderBox(
   const radiusAttr = radius > 0 ? ` rx="${r(radius)}" ry="${r(radius)}"` : "";
   const pieces: string[] = [];
   if (opaque(paint.backgroundColor)) {
-    pieces.push(`<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radiusAttr} fill="${esc(paint.backgroundColor)}"/>`);
+    pieces.push(
+      `<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radiusAttr} fill="${esc(paint.backgroundColor)}"/>`,
+    );
   }
   if (paint.backgroundImage !== "" && paint.backgroundImage !== "none") {
     pieces.push(options.emitBackgroundImage?.({ record, rect, borderRadius: radius }) ?? "");
   }
   const edges = record.edges.border;
-  const colors = { top: paint.borderTopColor, right: paint.borderRightColor, bottom: paint.borderBottomColor, left: paint.borderLeftColor };
-  const styles = { top: paint.borderTopStyle, right: paint.borderRightStyle, bottom: paint.borderBottomStyle, left: paint.borderLeftStyle };
+  const colors = {
+    top: paint.borderTopColor,
+    right: paint.borderRightColor,
+    bottom: paint.borderBottomColor,
+    left: paint.borderLeftColor,
+  };
+  const styles = {
+    top: paint.borderTopStyle,
+    right: paint.borderRightStyle,
+    bottom: paint.borderBottomStyle,
+    left: paint.borderLeftStyle,
+  };
   const roundedBorder = roundedUniformBorder(record, box, rect, radius);
   if (roundedBorder != null) {
     pieces.push(roundedBorder);
@@ -496,22 +545,36 @@ export function pseudoFragmentRecordErrors(record: CapturedPseudoFragmentSet): s
   const orders = new Set<number>();
   for (let index = 0; index < record.fragments.length; index++) {
     const fragment = record.fragments[index];
-    if (fragment.boxFragmentIndex < 0 || matrices[fragment.boxFragmentIndex] == null) errors.push(`fragment ${index} has no paintable box owner`);
-    if (!finiteRect(fragment.localRect) || fragment.physicalQuad.length !== 4 || !fragment.physicalQuad.every(finitePoint)) errors.push(`fragment ${index} has invalid geometry`);
-    if (!Number.isInteger(fragment.visualOrder) || orders.has(fragment.visualOrder)) errors.push(`fragment ${index} has duplicate/invalid visual order`);
+    if (fragment.boxFragmentIndex < 0 || matrices[fragment.boxFragmentIndex] == null)
+      errors.push(`fragment ${index} has no paintable box owner`);
+    if (
+      !finiteRect(fragment.localRect) ||
+      fragment.physicalQuad.length !== 4 ||
+      !fragment.physicalQuad.every(finitePoint)
+    )
+      errors.push(`fragment ${index} has invalid geometry`);
+    if (!Number.isInteger(fragment.visualOrder) || orders.has(fragment.visualOrder))
+      errors.push(`fragment ${index} has duplicate/invalid visual order`);
     orders.add(fragment.visualOrder);
-    if (fragment.kind === "text" && fragment.text !== "" && baselineMatrix(record, fragment, matrices[fragment.boxFragmentIndex] ?? { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 }) == null) {
+    if (
+      fragment.kind === "text" &&
+      fragment.text !== "" &&
+      baselineMatrix(record, fragment, matrices[fragment.boxFragmentIndex] ?? { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 }) ==
+        null
+    ) {
       errors.push(`fragment ${index} has a collapsed baseline`);
     }
   }
-  if ([...orders].sort((a, b) => a - b).some((value, index) => value !== index)) errors.push("visual order is not contiguous");
+  if ([...orders].sort((a, b) => a - b).some((value, index) => value !== index))
+    errors.push("visual order is not contiguous");
   return errors;
 }
 
 export function pseudoFragmentPaintSlot(record: CapturedPseudoFragmentSet): PseudoFragmentPaintSlot {
   if ((record.paint.zIndex ?? 0) < 0) return "negative";
   if ((record.paint.zIndex ?? 0) > 0) return "positive";
-  if (record.paint.position === "absolute" || record.paint.position === "fixed" || record.paint.zIndex === 0) return "positioned";
+  if (record.paint.position === "absolute" || record.paint.position === "fixed" || record.paint.zIndex === 0)
+    return "positioned";
   // Blink's generated-child order is ::checkmark, ::before, host content,
   // ::after. Checkmark therefore shares the before slot; capture order keeps
   // it ahead of a simultaneously authored ::before record.
@@ -524,14 +587,20 @@ export function renderPseudoFragmentRecord(
   options: RenderPseudoFragmentsOptions = {},
 ): string {
   if (pseudoFragmentIsUnpainted(record)) return "";
-  const label = record.contentItems.filter((item) => item.kind === "text").map((item) => item.text ?? "").join("");
+  const label = record.contentItems
+    .filter((item) => item.kind === "text")
+    .map((item) => item.text ?? "")
+    .join("");
   const attrs = `data-domotion-pseudo-source="${record.source}" data-domotion-pseudo="${record.pseudo}"`;
   if (record.status === "terminal-raster") {
     const raster = record.terminalRaster;
-    if (raster?.dataUri == null || !(raster.rect.width > 0) || !(raster.rect.height > 0)) return `<g ${attrs} data-domotion-pseudo-boundary="terminal-empty"/>`;
+    if (raster?.dataUri == null || !(raster.rect.width > 0) || !(raster.rect.height > 0))
+      return `<g ${attrs} data-domotion-pseudo-boundary="terminal-empty"/>`;
     const rasterMarkup = `<g ${attrs} data-domotion-pseudo-owner="chromium-raster"><image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none"/></g>`;
-    return compensateEmittedCtm(rasterMarkup, options.emittedCtm)
-      ?? `<g ${attrs} data-domotion-pseudo-boundary="singular-emitted-ctm"/>`;
+    return (
+      compensateEmittedCtm(rasterMarkup, options.emittedCtm) ??
+      `<g ${attrs} data-domotion-pseudo-boundary="singular-emitted-ctm"/>`
+    );
   }
   const errors = pseudoFragmentRecordErrors(record);
   if (errors.length > 0) return `<g ${attrs} data-domotion-pseudo-boundary="${esc(errors.join("; "))}"/>`;
@@ -544,13 +613,17 @@ export function renderPseudoFragmentRecord(
     // This viewport-space Chromium crop is therefore the first paint inside
     // the pseudo's captured slot; box/text/image vectors remain direct and
     // retain their existing generated-child order above the boundary.
-    pieces.push(`<g data-domotion-pseudo-backdrop-owner="${backdrop.source}"><image href="${esc(backdrop.dataUri)}" x="${r(backdrop.rect.x)}" y="${r(backdrop.rect.y)}" width="${r(backdrop.rect.width)}" height="${r(backdrop.rect.height)}" preserveAspectRatio="none"/></g>`);
+    pieces.push(
+      `<g data-domotion-pseudo-backdrop-owner="${backdrop.source}"><image href="${esc(backdrop.dataUri)}" x="${r(backdrop.rect.x)}" y="${r(backdrop.rect.y)}" width="${r(backdrop.rect.width)}" height="${r(backdrop.rect.height)}" preserveAspectRatio="none"/></g>`,
+    );
   }
   const vectorStart = pieces.length;
   pieces.push(...record.boxFragments.map((box, index) => renderBox(record, box, matrices[index], options)));
   const bitmapText = record.bitmapTextRaster;
   if (bitmapText?.dataUri != null && finiteRect(bitmapText.rect)) {
-    pieces.push(`<g data-domotion-pseudo-text-owner="${bitmapText.source}"><image href="${esc(bitmapText.dataUri)}" x="${r(bitmapText.rect.x)}" y="${r(bitmapText.rect.y)}" width="${r(bitmapText.rect.width)}" height="${r(bitmapText.rect.height)}" preserveAspectRatio="none"/></g>`);
+    pieces.push(
+      `<g data-domotion-pseudo-text-owner="${bitmapText.source}"><image href="${esc(bitmapText.dataUri)}" x="${r(bitmapText.rect.x)}" y="${r(bitmapText.rect.y)}" width="${r(bitmapText.rect.width)}" height="${r(bitmapText.rect.height)}" preserveAspectRatio="none"/></g>`,
+    );
   }
   const fragments = [...record.fragments].sort((a, b) => a.visualOrder - b.visualOrder);
   for (const fragment of fragments) {
@@ -562,7 +635,8 @@ export function renderPseudoFragmentRecord(
     }
     const item = record.contentItems[fragment.contentItemIndex];
     if (item?.kind !== "image" || item.resolvedUrl == null) continue;
-    const href = options.imageHref?.(item.resolvedUrl, fragment.localRect.width, fragment.localRect.height) ?? item.resolvedUrl;
+    const href =
+      options.imageHref?.(item.resolvedUrl, fragment.localRect.width, fragment.localRect.height) ?? item.resolvedUrl;
     const image = `<image href="${esc(href)}" x="${r(fragment.localRect.x)}" y="${r(fragment.localRect.y)}" width="${r(fragment.localRect.width)}" height="${r(fragment.localRect.height)}" preserveAspectRatio="xMidYMid meet"/>`;
     pieces.push(wrapMatrix(boxMatrix, image));
   }
@@ -572,12 +646,16 @@ export function renderPseudoFragmentRecord(
   }
   const effectAttrs = [
     record.paint.opacity < 1 ? ` opacity="${r(record.paint.opacity)}"` : "",
-    record.paint.filter !== "" && record.paint.filter !== "none" ? ` style="${esc(`filter:${record.paint.filter}`)}"` : "",
+    record.paint.filter !== "" && record.paint.filter !== "none"
+      ? ` style="${esc(`filter:${record.paint.filter}`)}"`
+      : "",
   ].join("");
   const aria = label === "" ? "" : visualTextSemantics(label, false).attrs;
   const markup = `<g ${attrs} data-domotion-pseudo-owner="source-fragments"${aria}${effectAttrs}>${pieces.join("")}</g>`;
-  return compensateEmittedCtm(markup, options.emittedCtm)
-    ?? `<g ${attrs} data-domotion-pseudo-boundary="singular-emitted-ctm"/>`;
+  return (
+    compensateEmittedCtm(markup, options.emittedCtm) ??
+    `<g ${attrs} data-domotion-pseudo-boundary="singular-emitted-ctm"/>`
+  );
 }
 
 /** Render only records assigned to one explicit host-paint slot. */

@@ -7,16 +7,16 @@ import { resolvedFaceNeedsHarfbuzzShaping } from "./font-resolution.js";
 // USE. The test pins the resolved-face seam, not a second shaper implementation.
 describe("Linux Unifont GSUB-aware HarfBuzz dispatch", () => {
   const measured = [
-    [0x0F40, "u-unifont"],       // Tibetan
-    [0x07CA, "u-unifont"],       // NKo
-    [0x0840, "u-unifont"],       // Mandaic
-    [0xA840, "u-unifont"],       // Phags-pa
-    [0x1B05, "u-unifont"],       // Balinese
-    [0xA984, "u-unifont"],       // Javanese
+    [0x0f40, "u-unifont"], // Tibetan
+    [0x07ca, "u-unifont"], // NKo
+    [0x0840, "u-unifont"], // Mandaic
+    [0xa840, "u-unifont"], // Phags-pa
+    [0x1b05, "u-unifont"], // Balinese
+    [0xa984, "u-unifont"], // Javanese
     [0x11083, "u-unifont-upper"], // Kaithi
     [0x11005, "u-unifont-upper"], // Brahmi
-    [0x1E900, "u-unifont-upper"], // Adlam
-    [0x10A10, "u-unifont-upper"], // Kharoshthi
+    [0x1e900, "u-unifont-upper"], // Adlam
+    [0x10a10, "u-unifont-upper"], // Kharoshthi
   ] as const;
 
   it("routes all ten measured Unifont faces through real HarfBuzz on Linux", () => {
@@ -24,12 +24,12 @@ describe("Linux Unifont GSUB-aware HarfBuzz dispatch", () => {
   });
 
   it("still shapes FreeSerif Sinhala, while its GSUB selects sinh → USE", () => {
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0D9A, "u-free-serif", "linux")).toBe(true);
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0d9a, "u-free-serif", "linux")).toBe(true);
   });
 
   it("does not confuse universal shaping with the narrower DFLT classification", () => {
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0F40, "u-free-serif", "linux")).toBe(true);
-    expect(resolvedFaceNeedsHarfbuzzShaping(0x0F40, "u-unifont", "darwin")).toBe(true);
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0f40, "u-free-serif", "linux")).toBe(true);
+    expect(resolvedFaceNeedsHarfbuzzShaping(0x0f40, "u-unifont", "darwin")).toBe(true);
     expect(resolvedFaceNeedsHarfbuzzShaping(0x0041, "u-unifont", "linux")).toBe(true);
   });
 });

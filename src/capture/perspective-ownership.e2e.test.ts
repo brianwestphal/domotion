@@ -102,7 +102,8 @@ describeBrowser("DM-2385 perspective capture and fixed containing-block ownershi
           hinted: fact("hinted"),
           originOnly: fact("origin-only"),
           inline: fact("inline-owner"),
-          inlineStackTop: document.elementsFromPoint(560, 360)
+          inlineStackTop: document
+            .elementsFromPoint(560, 360)
             .map((node) => node.id)
             .find((id) => id === "inline-deep" || id === "inline-cover"),
         };
@@ -150,20 +151,20 @@ describeBrowser("DM-2385 perspective capture and fixed containing-block ownershi
       });
       const nodes = walk(tree);
       const active = nodes.find((node) => node.styles.perspective === "420px");
-      const inactive = nodes.find((node) =>
-        node.x === 300 && node.y === 40 && node.styles.perspective === "none");
+      const inactive = nodes.find((node) => node.x === 300 && node.y === 40 && node.styles.perspective === "none");
       const preserve = nodes.find((node) => node.styles.transformStyle === "preserve-3d");
       const hinted = nodes.find((node) => node.styles.willChange === "perspective");
-      const inline = nodes.find((node) =>
-        node.styles.display === "inline" && node.styles.perspective === "420px");
-      const inlineStack = nodes.find((node) =>
-        node.styles.display === "inline"
-        && node.styles.position === "relative"
-        && node.styles.perspective === "420px");
-      const inlineFiltered = nodes.find((node) =>
-        node.styles.display === "inline"
-        && node.styles.filter === "blur(0px)"
-        && node.styles.perspective === "420px");
+      const inline = nodes.find((node) => node.styles.display === "inline" && node.styles.perspective === "420px");
+      const inlineStack = nodes.find(
+        (node) =>
+          node.styles.display === "inline" &&
+          node.styles.position === "relative" &&
+          node.styles.perspective === "420px",
+      );
+      const inlineFiltered = nodes.find(
+        (node) =>
+          node.styles.display === "inline" && node.styles.filter === "blur(0px)" && node.styles.perspective === "420px",
+      );
 
       expect(active?.styles.perspectiveOrigin).toBe("30px 84px");
       // Perspective still establishes the fixed containing block, but property
@@ -214,9 +215,7 @@ describeBrowser("DM-2385 perspective capture and fixed containing-block ownershi
       expect(clipState(svg, "rgb(201, 121, 31)")).toBe("trapped");
       expect(clipState(svg, "rgb(151, 31, 201)")).toBe("escaped");
       expect(clipState(svg, "rgb(31, 151, 201)")).toBe("escaped");
-      expect(svg.indexOf('fill="rgb(231,41,41)"')).toBeLessThan(
-        svg.indexOf('fill="rgb(41,41,231)"'),
-      );
+      expect(svg.indexOf('fill="rgb(231,41,41)"')).toBeLessThan(svg.indexOf('fill="rgb(41,41,231)"'));
     } finally {
       await page.close();
     }

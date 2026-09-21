@@ -15,12 +15,10 @@ import {
   sfnsTerminalMaskManifestDigest,
 } from "../tools/sfns-terminal-mask-manifest.js";
 
-const retained = JSON.parse(readFileSync(
-  new URL("../.pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json", import.meta.url),
-  "utf8",
-)) as SfnsPinnedSkiaProposalArtifact;
-const fileSha = (path: string): string => createHash("sha256")
-  .update(readFileSync(path)).digest("hex");
+const retained = JSON.parse(
+  readFileSync(new URL("../.pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json", import.meta.url), "utf8"),
+) as SfnsPinnedSkiaProposalArtifact;
+const fileSha = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 function evidence(): SfnsPinnedSkiaProposalArtifact {
   return structuredClone(retained);
@@ -60,9 +58,7 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
     expect(retained.ots.metadataLogicalDigest).toBe(sfnsOtsMetadataDigest(retained.ots.metadata));
     expect(retained.build.source).toEqual({
       builderSha256: fileSha("tools/build-sfns-pinned-skia-collector.mjs"),
-      cppSha256: fileSha(
-        "tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp",
-      ),
+      cppSha256: fileSha("tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp"),
       buildGnSha256: fileSha("tools/sfns-pinned-skia-collector/BUILD.gn"),
       manifestSha256: fileSha("tools/sfns-terminal-mask-manifest.ts"),
       schemaSha256: fileSha("tools/sfns-pinned-skia-mask-schema.ts"),
@@ -70,16 +66,14 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
     });
     expect(retained.ots.metadata.sources).toMatchObject({
       builderSha256: fileSha("tools/build-sfns-pinned-ots-sanitizer.mjs"),
-      sanitizerCppSha256: fileSha(
-        "tools/sfns-pinned-ots-sanitizer/sfns_pinned_ots_sanitizer.cc",
-      ),
+      sanitizerCppSha256: fileSha("tools/sfns-pinned-ots-sanitizer/sfns_pinned_ots_sanitizer.cc"),
       sanitizerBuildGnSha256: fileSha("tools/sfns-pinned-ots-sanitizer/BUILD.gn"),
     });
-    const observations = retained.scenarios.flatMap((scenario) => scenario.observations)
+    const observations = retained.scenarios
+      .flatMap((scenario) => scenario.observations)
       .concat(retained.controls.map((control) => control.observation));
     expect(observations).toHaveLength(26);
-    expect(observations.every((observation) => observation.observationId.startsWith("proposal-")))
-      .toBe(true);
+    expect(observations.every((observation) => observation.observationId.startsWith("proposal-"))).toBe(true);
     expect(new Set(observations.map((observation) => observation.observationId)).size).toBe(26);
   });
 
@@ -97,7 +91,9 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
       });
       expect(observation.paint).toEqual({ color: 0xffff_ffff, style: 0 });
       expect(observation.surfaceProps).toMatchObject({
-        flags: 0, textContrast: 0, textGamma: 0,
+        flags: 0,
+        textContrast: 0,
+        textGamma: 0,
       });
       expect(observation.matrices.device).toEqual(observation.request.run.liveDeviceMatrix);
       expect(observation.coreTextMetrics.normalized).toMatchObject({
@@ -106,30 +102,37 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
       });
       expect(Buffer.from(observation.rawRec.bytesBase64, "base64")).toHaveLength(56);
       expect(Buffer.from(observation.filteredRec.bytesBase64, "base64")).toHaveLength(56);
-      expect(Buffer.from(observation.gamma.tableBytesBase64, "base64"))
-        .toHaveLength(observation.gamma.tableByteLength);
+      expect(Buffer.from(observation.gamma.tableBytesBase64, "base64")).toHaveLength(observation.gamma.tableByteLength);
       for (const channel of ["R", "G", "B"] as const) {
-        expect(Buffer.from(observation.gamma[`preblend${channel}256Base64`], "base64"))
-          .toHaveLength(observation.gamma.preblendByteLength);
+        expect(Buffer.from(observation.gamma[`preblend${channel}256Base64`], "base64")).toHaveLength(
+          observation.gamma.preblendByteLength,
+        );
       }
       expect(observation.glyphs).toHaveLength(6);
       for (const glyph of observation.glyphs) {
-        expect(glyph).toEqual(expect.objectContaining({
-          shapedOffset: [0, 0],
-          deviceBaseline: observation.request.run.deviceBaseline,
-          subpixelOffsetFixed: [glyph.phase.x << 14, glyph.phase.y << 14],
-        }));
+        expect(glyph).toEqual(
+          expect.objectContaining({
+            shapedOffset: [0, 0],
+            deviceBaseline: observation.request.run.deviceBaseline,
+            subpixelOffsetFixed: [glyph.phase.x << 14, glyph.phase.y << 14],
+          }),
+        );
         expect(Buffer.from(glyph.mask.bytes, "base64")).toHaveLength(glyph.metrics.imageSize);
       }
     }
-    expect(retained.scenarios.find((entry) => entry.id === "zoom-2-transform-half")!
-      .observations[0].matrices.scale).toEqual([13, 13]);
-    expect(retained.scenarios.find((entry) => entry.id === "zoom-2")!
-      .observations.map((observation) => observation.typeface.postscriptName))
-      .toEqual(Array(4).fill(".SFNS-Bold"));
-    expect(retained.scenarios.find((entry) => entry.id === "opsz-26-mutation")!
-      .observations.map((observation) => observation.typeface.postscriptName))
-      .toEqual(Array(4).fill(".SFNS-Regular_wdth_opsz1A0000_GRAD_wght2BC0000"));
+    expect(
+      retained.scenarios.find((entry) => entry.id === "zoom-2-transform-half")!.observations[0].matrices.scale,
+    ).toEqual([13, 13]);
+    expect(
+      retained.scenarios
+        .find((entry) => entry.id === "zoom-2")!
+        .observations.map((observation) => observation.typeface.postscriptName),
+    ).toEqual(Array(4).fill(".SFNS-Bold"));
+    expect(
+      retained.scenarios
+        .find((entry) => entry.id === "opsz-26-mutation")!
+        .observations.map((observation) => observation.typeface.postscriptName),
+    ).toEqual(Array(4).fill(".SFNS-Regular_wdth_opsz1A0000_GRAD_wght2BC0000"));
   });
 
   it("requires two cold and two warm exact observations per scenario", () => {
@@ -148,7 +151,9 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
     {
       name: "manifest identity",
       expected: "manifest-identity",
-      mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => { artifact.manifest.digest = "0".repeat(64); },
+      mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
+        artifact.manifest.digest = "0".repeat(64);
+      },
     },
     {
       name: "independent OTS identity",
@@ -250,14 +255,14 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
     const artifact = evidence();
     mutate(artifact);
     seal(artifact);
-    expect(validateSfnsPinnedSkiaProposal(artifact).some((error) => error.includes(expected)))
-      .toBe(true);
+    expect(validateSfnsPinnedSkiaProposal(artifact).some((error) => error.includes(expected))).toBe(true);
   });
 
   it("returns a fail-closed error for a structurally malformed artifact", () => {
     const malformed = evidence() as unknown as Record<string, unknown>;
     delete malformed.build;
-    expect(validateSfnsPinnedSkiaProposal(malformed as unknown as SfnsPinnedSkiaProposalArtifact))
-      .toEqual([expect.stringContaining("malformed-artifact:")]);
+    expect(validateSfnsPinnedSkiaProposal(malformed as unknown as SfnsPinnedSkiaProposalArtifact)).toEqual([
+      expect.stringContaining("malformed-artifact:"),
+    ]);
   });
 });

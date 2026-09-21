@@ -34,7 +34,9 @@ export const CVT_CONTENTS = Buffer.from([0x00, 0x32, 0x00, 0x64, 0x00, 0xc8, 0x0
 
 const UPEM = 1000;
 
-function pad4(n: number): number { return (n + 3) & ~3; }
+function pad4(n: number): number {
+  return (n + 3) & ~3;
+}
 
 function tableChecksum(buf: Buffer): number {
   let s = 0;
@@ -57,7 +59,9 @@ export function buildSfnt(tables: Record<string, Buffer>): Buffer {
   dir.writeUInt16BE(n, 4);
   const es = Math.floor(Math.log2(n));
   const sr = (1 << es) * 16;
-  dir.writeUInt16BE(sr, 6); dir.writeUInt16BE(es, 8); dir.writeUInt16BE(n * 16 - sr, 10);
+  dir.writeUInt16BE(sr, 6);
+  dir.writeUInt16BE(es, 8);
+  dir.writeUInt16BE(n * 16 - sr, 10);
   const body: Buffer[] = [];
   let off = dirLen;
   let di = 12;
@@ -90,13 +94,18 @@ export function buildSfnt(tables: Record<string, Buffer>): Buffer {
  *  signature. Points: (xMin,0) (xMax,0) (xMax,700) (xMin,700), all on-curve,
  *  16-bit coordinate deltas. */
 function rectGlyph(xMin: number, xMax: number): Buffer {
-  const yMin = 0, yMax = 700;
+  const yMin = 0,
+    yMax = 700;
   const head = Buffer.alloc(10);
   head.writeInt16BE(1, 0); // numberOfContours
-  head.writeInt16BE(xMin, 2); head.writeInt16BE(yMin, 4);
-  head.writeInt16BE(xMax, 6); head.writeInt16BE(yMax, 8);
-  const endPts = Buffer.alloc(2); endPts.writeUInt16BE(3, 0);
-  const instrLen = Buffer.alloc(2); instrLen.writeUInt16BE(GLYPH_INSTRUCTIONS.length, 0);
+  head.writeInt16BE(xMin, 2);
+  head.writeInt16BE(yMin, 4);
+  head.writeInt16BE(xMax, 6);
+  head.writeInt16BE(yMax, 8);
+  const endPts = Buffer.alloc(2);
+  endPts.writeUInt16BE(3, 0);
+  const instrLen = Buffer.alloc(2);
+  instrLen.writeUInt16BE(GLYPH_INSTRUCTIONS.length, 0);
   const flags = Buffer.from([0x01, 0x01, 0x01, 0x01]); // 4 on-curve points, long coords
   const xs = Buffer.alloc(8);
   const dxs = [xMin, xMax - xMin, 0, -(xMax - xMin)];
@@ -137,57 +146,61 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   const numGlyphs = opts.withComposite ? 4 : 3; // .notdef (empty), A, B [, composite-of-A]
 
   const head = Buffer.alloc(54);
-  head.writeUInt32BE(0x00010000, 0);      // version 1.0
-  head.writeUInt32BE(0x00010000, 4);      // fontRevision
-  head.writeUInt32BE(0, 8);               // checkSumAdjustment (patched in buildSfnt)
-  head.writeUInt32BE(0x5f0f3cf5, 12);     // magicNumber
-  head.writeUInt16BE(0, 16);              // flags
-  head.writeUInt16BE(UPEM, 18);           // unitsPerEm
+  head.writeUInt32BE(0x00010000, 0); // version 1.0
+  head.writeUInt32BE(0x00010000, 4); // fontRevision
+  head.writeUInt32BE(0, 8); // checkSumAdjustment (patched in buildSfnt)
+  head.writeUInt32BE(0x5f0f3cf5, 12); // magicNumber
+  head.writeUInt16BE(0, 16); // flags
+  head.writeUInt16BE(UPEM, 18); // unitsPerEm
   // created/modified stay zero (deterministic)
-  head.writeInt16BE(50, 36);              // xMin
-  head.writeInt16BE(0, 38);               // yMin
+  head.writeInt16BE(50, 36); // xMin
+  head.writeInt16BE(0, 38); // yMin
   head.writeInt16BE(Math.max(aXMax, 550), 40); // xMax
-  head.writeInt16BE(700, 42);             // yMax
-  head.writeUInt16BE(0, 44);              // macStyle
-  head.writeUInt16BE(8, 46);              // lowestRecPPEM
-  head.writeInt16BE(2, 48);               // fontDirectionHint
-  head.writeInt16BE(1, 50);               // indexToLocFormat: long
-  head.writeInt16BE(0, 52);               // glyphDataFormat
+  head.writeInt16BE(700, 42); // yMax
+  head.writeUInt16BE(0, 44); // macStyle
+  head.writeUInt16BE(8, 46); // lowestRecPPEM
+  head.writeInt16BE(2, 48); // fontDirectionHint
+  head.writeInt16BE(1, 50); // indexToLocFormat: long
+  head.writeInt16BE(0, 52); // glyphDataFormat
 
   const hhea = Buffer.alloc(36);
   hhea.writeUInt32BE(0x00010000, 0);
-  hhea.writeInt16BE(800, 4);              // ascender
-  hhea.writeInt16BE(-200, 6);             // descender
-  hhea.writeInt16BE(0, 8);                // lineGap
-  hhea.writeUInt16BE(700, 10);            // advanceWidthMax
-  hhea.writeInt16BE(50, 12);              // minLeftSideBearing
-  hhea.writeInt16BE(50, 14);              // minRightSideBearing
+  hhea.writeInt16BE(800, 4); // ascender
+  hhea.writeInt16BE(-200, 6); // descender
+  hhea.writeInt16BE(0, 8); // lineGap
+  hhea.writeUInt16BE(700, 10); // advanceWidthMax
+  hhea.writeInt16BE(50, 12); // minLeftSideBearing
+  hhea.writeInt16BE(50, 14); // minRightSideBearing
   hhea.writeInt16BE(Math.max(aXMax, 550), 16); // xMaxExtent
-  hhea.writeInt16BE(1, 18);               // caretSlopeRise
-  hhea.writeInt16BE(0, 20);               // caretSlopeRun
+  hhea.writeInt16BE(1, 18); // caretSlopeRise
+  hhea.writeInt16BE(0, 20); // caretSlopeRun
   // caretOffset + 4 reserved stay zero
-  hhea.writeInt16BE(0, 32);               // metricDataFormat
-  hhea.writeUInt16BE(numGlyphs, 34);      // numberOfHMetrics
+  hhea.writeInt16BE(0, 32); // metricDataFormat
+  hhea.writeUInt16BE(numGlyphs, 34); // numberOfHMetrics
 
   const maxp = Buffer.alloc(32);
   maxp.writeUInt32BE(0x00010000, 0);
   maxp.writeUInt16BE(numGlyphs, 4);
-  maxp.writeUInt16BE(4, 6);               // maxPoints
-  maxp.writeUInt16BE(1, 8);               // maxContours
-  maxp.writeUInt16BE(0, 10); maxp.writeUInt16BE(0, 12); // composite
-  maxp.writeUInt16BE(2, 14);              // maxZones
-  maxp.writeUInt16BE(4, 16);              // maxTwilightPoints
-  maxp.writeUInt16BE(4, 18);              // maxStorage
-  maxp.writeUInt16BE(4, 20);              // maxFunctionDefs
-  maxp.writeUInt16BE(0, 22);              // maxInstructionDefs
-  maxp.writeUInt16BE(64, 24);             // maxStackElements
-  maxp.writeUInt16BE(32, 26);             // maxSizeOfInstructions
+  maxp.writeUInt16BE(4, 6); // maxPoints
+  maxp.writeUInt16BE(1, 8); // maxContours
+  maxp.writeUInt16BE(0, 10);
+  maxp.writeUInt16BE(0, 12); // composite
+  maxp.writeUInt16BE(2, 14); // maxZones
+  maxp.writeUInt16BE(4, 16); // maxTwilightPoints
+  maxp.writeUInt16BE(4, 18); // maxStorage
+  maxp.writeUInt16BE(4, 20); // maxFunctionDefs
+  maxp.writeUInt16BE(0, 22); // maxInstructionDefs
+  maxp.writeUInt16BE(64, 24); // maxStackElements
+  maxp.writeUInt16BE(32, 26); // maxSizeOfInstructions
   // maxComponentElements / Depth stay zero
 
   const hmtx = Buffer.alloc(numGlyphs * 4);
   const advances = [500, aXMax + 50, 600, 1200];
   const lsbs = [0, 50, 50, 650];
-  for (let i = 0; i < numGlyphs; i++) { hmtx.writeUInt16BE(advances[i], i * 4); hmtx.writeInt16BE(lsbs[i], i * 4 + 2); }
+  for (let i = 0; i < numGlyphs; i++) {
+    hmtx.writeUInt16BE(advances[i], i * 4);
+    hmtx.writeInt16BE(lsbs[i], i * 4 + 2);
+  }
 
   // glyf + long loca: gid0 empty, gid1 "A" rect, gid2 "B" rect
   // [, gid3 composite: gid1 shifted +600 x, with instruction bytecode]
@@ -196,55 +209,72 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   const glyphs: Buffer[] = [gA, gB];
   if (opts.withComposite) {
     const comp = Buffer.alloc(10 + 8 + 2 + GLYPH_INSTRUCTIONS.length);
-    comp.writeInt16BE(-1, 0);             // numberOfContours: composite
-    comp.writeInt16BE(650, 2); comp.writeInt16BE(0, 4);           // bbox
-    comp.writeInt16BE(aXMax + 600, 6); comp.writeInt16BE(700, 8);
+    comp.writeInt16BE(-1, 0); // numberOfContours: composite
+    comp.writeInt16BE(650, 2);
+    comp.writeInt16BE(0, 4); // bbox
+    comp.writeInt16BE(aXMax + 600, 6);
+    comp.writeInt16BE(700, 8);
     comp.writeUInt16BE(0x0001 | 0x0002 | 0x0100, 10); // WORDS | XY_VALUES | INSTRUCTIONS
-    comp.writeUInt16BE(1, 12);            // component: gid 1
-    comp.writeInt16BE(600, 14);           // dx
-    comp.writeInt16BE(0, 16);             // dy
+    comp.writeUInt16BE(1, 12); // component: gid 1
+    comp.writeInt16BE(600, 14); // dx
+    comp.writeInt16BE(0, 16); // dy
     comp.writeUInt16BE(GLYPH_INSTRUCTIONS.length, 18);
     GLYPH_INSTRUCTIONS.copy(comp, 20);
     glyphs.push(comp.length % 2 === 0 ? comp : Buffer.concat([comp, Buffer.alloc(1)]));
   }
   const glyf = Buffer.concat(glyphs);
   const loca = Buffer.alloc((numGlyphs + 1) * 4);
-  loca.writeUInt32BE(0, 0);               // .notdef: zero length
+  loca.writeUInt32BE(0, 0); // .notdef: zero length
   loca.writeUInt32BE(0, 4);
   let acc = 0;
-  glyphs.forEach((g, i) => { acc += g.length; loca.writeUInt32BE(acc, (i + 2) * 4); });
+  glyphs.forEach((g, i) => {
+    acc += g.length;
+    loca.writeUInt32BE(acc, (i + 2) * 4);
+  });
 
   // cmap: format 4, 'A'(0x41)→gid1, 'B'(0x42)→gid2 [, 'C'(0x43)→gid3]
   const lastCp = opts.withComposite ? 0x43 : 0x42;
   const segCount = 2; // [0x41..lastCp], [0xFFFF terminator]
   const sub = Buffer.alloc(16 + segCount * 8);
-  sub.writeUInt16BE(4, 0);                // format
+  sub.writeUInt16BE(4, 0); // format
   sub.writeUInt16BE(sub.length, 2);
-  sub.writeUInt16BE(0, 4);                // language
-  sub.writeUInt16BE(segCount * 2, 6);     // segCountX2
-  sub.writeUInt16BE(2, 8);                // searchRange
-  sub.writeUInt16BE(1, 10);               // entrySelector
-  sub.writeUInt16BE(2, 12);               // rangeShift
+  sub.writeUInt16BE(0, 4); // language
+  sub.writeUInt16BE(segCount * 2, 6); // segCountX2
+  sub.writeUInt16BE(2, 8); // searchRange
+  sub.writeUInt16BE(1, 10); // entrySelector
+  sub.writeUInt16BE(2, 12); // rangeShift
   let p = 14;
-  sub.writeUInt16BE(lastCp, p); sub.writeUInt16BE(0xffff, p + 2); p += 4; // endCodes
-  p += 2;                                   // reservedPad
-  sub.writeUInt16BE(0x41, p); sub.writeUInt16BE(0xffff, p + 2); p += 4; // startCodes
-  sub.writeInt16BE(1 - 0x41, p); sub.writeInt16BE(1, p + 2); p += 4;    // idDelta (gid1 at 0x41; 0xFFFF maps to gid0)
-  sub.writeUInt16BE(0, p); sub.writeUInt16BE(0, p + 2);                 // idRangeOffsets
+  sub.writeUInt16BE(lastCp, p);
+  sub.writeUInt16BE(0xffff, p + 2);
+  p += 4; // endCodes
+  p += 2; // reservedPad
+  sub.writeUInt16BE(0x41, p);
+  sub.writeUInt16BE(0xffff, p + 2);
+  p += 4; // startCodes
+  sub.writeInt16BE(1 - 0x41, p);
+  sub.writeInt16BE(1, p + 2);
+  p += 4; // idDelta (gid1 at 0x41; 0xFFFF maps to gid0)
+  sub.writeUInt16BE(0, p);
+  sub.writeUInt16BE(0, p + 2); // idRangeOffsets
   const cmapHdr = Buffer.alloc(12);
-  cmapHdr.writeUInt16BE(0, 0); cmapHdr.writeUInt16BE(1, 2);
-  cmapHdr.writeUInt16BE(3, 4); cmapHdr.writeUInt16BE(1, 6);  // (3,1) Windows BMP
+  cmapHdr.writeUInt16BE(0, 0);
+  cmapHdr.writeUInt16BE(1, 2);
+  cmapHdr.writeUInt16BE(3, 4);
+  cmapHdr.writeUInt16BE(1, 6); // (3,1) Windows BMP
   cmapHdr.writeUInt32BE(12, 8);
   const cmap = Buffer.concat([cmapHdr, sub]);
 
   const post = Buffer.alloc(32);
-  post.writeUInt32BE(0x00030000, 0);      // version 3.0 (no glyph names)
-  post.writeInt16BE(-75, 8);              // underlinePosition
-  post.writeInt16BE(50, 10);              // underlineThickness
+  post.writeUInt32BE(0x00030000, 0); // version 3.0 (no glyph names)
+  post.writeInt16BE(-75, 8); // underlinePosition
+  post.writeInt16BE(50, 10); // underlineThickness
 
   // name: family(1), subfamily(2), full(4), postscript(6) — Windows (3,1) en-US
   const nameRecords: Array<[number, string]> = [
-    [1, family], [2, "Regular"], [4, family], [6, family.replace(/\s+/g, "")],
+    [1, family],
+    [2, "Regular"],
+    [4, family],
+    [6, family.replace(/\s+/g, "")],
     ...(opts.extraNameRecords ?? []),
   ];
   const strs = nameRecords.map(([, s]) => Buffer.from(s, "utf16le").swap16());
@@ -255,9 +285,9 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   let strOff = 0;
   nameRecords.forEach(([id], i) => {
     const o = 6 + i * 12;
-    nameHdr.writeUInt16BE(3, o);          // platformID
-    nameHdr.writeUInt16BE(1, o + 2);      // encodingID
-    nameHdr.writeUInt16BE(0x409, o + 4);  // languageID en-US
+    nameHdr.writeUInt16BE(3, o); // platformID
+    nameHdr.writeUInt16BE(1, o + 2); // encodingID
+    nameHdr.writeUInt16BE(0x409, o + 4); // languageID en-US
     nameHdr.writeUInt16BE(id, o + 6);
     nameHdr.writeUInt16BE(strs[i].length, o + 8);
     nameHdr.writeUInt16BE(strOff, o + 10);
@@ -266,7 +296,15 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   const name = Buffer.concat([nameHdr, ...strs]);
 
   return {
-    head, hhea, maxp, hmtx, glyf, loca, cmap, post, name,
+    head,
+    hhea,
+    maxp,
+    hmtx,
+    glyf,
+    loca,
+    cmap,
+    post,
+    name,
     "cvt ": Buffer.from(CVT_CONTENTS),
     fpgm: Buffer.from(FPGM_CONTENTS),
     prep: Buffer.from(PREP_CONTENTS),
@@ -307,25 +345,26 @@ export function buildVariableHintedFont(opts: SynthOptions = {}): Buffer {
   // carry a postScriptNameID, so instanceSize is 4 + axisCount*4 + 2.
   const instanceSize = 4 + 1 * 4 + 2;
   const fvar = Buffer.alloc(16 + 20 + instanceIds.length * instanceSize);
-  fvar.writeUInt16BE(1, 0); fvar.writeUInt16BE(0, 2);   // version 1.0
-  fvar.writeUInt16BE(16, 4);                            // axesArrayOffset
-  fvar.writeUInt16BE(2, 6);                             // reserved
-  fvar.writeUInt16BE(1, 8);                             // axisCount
-  fvar.writeUInt16BE(20, 10);                           // axisSize
-  fvar.writeUInt16BE(instanceIds.length, 12);           // instanceCount
-  fvar.writeUInt16BE(instanceSize, 14);                 // instanceSize
+  fvar.writeUInt16BE(1, 0);
+  fvar.writeUInt16BE(0, 2); // version 1.0
+  fvar.writeUInt16BE(16, 4); // axesArrayOffset
+  fvar.writeUInt16BE(2, 6); // reserved
+  fvar.writeUInt16BE(1, 8); // axisCount
+  fvar.writeUInt16BE(20, 10); // axisSize
+  fvar.writeUInt16BE(instanceIds.length, 12); // instanceCount
+  fvar.writeUInt16BE(instanceSize, 14); // instanceSize
   fvar.write("wght", 16, "latin1");
-  fvar.writeInt32BE(100 << 16, 20);                     // min 100.0
-  fvar.writeInt32BE(400 << 16, 24);                     // default 400.0
-  fvar.writeInt32BE(900 << 16, 28);                     // max 900.0
-  fvar.writeUInt16BE(0, 32);                            // flags
-  fvar.writeUInt16BE(256, 34);                          // axisNameID
+  fvar.writeInt32BE(100 << 16, 20); // min 100.0
+  fvar.writeInt32BE(400 << 16, 24); // default 400.0
+  fvar.writeInt32BE(900 << 16, 28); // max 900.0
+  fvar.writeUInt16BE(0, 32); // flags
+  fvar.writeUInt16BE(256, 34); // axisNameID
   instanceIds.forEach((inst, i) => {
     const o = 36 + i * instanceSize;
-    fvar.writeUInt16BE(inst.subfamilyId, o);            // subfamilyNameID
-    fvar.writeUInt16BE(0, o + 2);                       // flags
+    fvar.writeUInt16BE(inst.subfamilyId, o); // subfamilyNameID
+    fvar.writeUInt16BE(0, o + 2); // flags
     fvar.writeInt32BE(Math.round(inst.wght * 65536), o + 4); // coordinate (Fixed)
-    fvar.writeUInt16BE(inst.psId, o + 8);               // postScriptNameID
+    fvar.writeUInt16BE(inst.psId, o + 8); // postScriptNameID
   });
   tables.fvar = fvar;
 
@@ -343,30 +382,31 @@ export function buildVariableHintedFont(opts: SynthOptions = {}): Buffer {
     xPacked.writeUInt8(0x40 | (xDeltas.length - 1), 0);
     xDeltas.forEach((d, i) => xPacked.writeInt16BE(d, 1 + i * 2));
     const serialized = Buffer.concat([
-      Buffer.from([0x00]),                              // point numbers: all
-      xPacked,                                          // X: 8 word-size deltas
-      Buffer.from([0x87]),                              // Y: 8 zero deltas
+      Buffer.from([0x00]), // point numbers: all
+      xPacked, // X: 8 word-size deltas
+      Buffer.from([0x87]), // Y: 8 zero deltas
     ]);
     const hdr = Buffer.alloc(4 + 4 + 2);
-    hdr.writeUInt16BE(1, 0);                            // tupleVariationCount
-    hdr.writeUInt16BE(hdr.length, 2);                   // offset to serialized data
-    hdr.writeUInt16BE(serialized.length, 4);            // variationDataSize
-    hdr.writeUInt16BE(0x8000 | 0x2000, 6);              // EMBEDDED_PEAK | PRIVATE_POINTS
-    hdr.writeInt16BE(0x4000, 8);                        // peak tuple: wght = +1.0 (F2DOT14)
+    hdr.writeUInt16BE(1, 0); // tupleVariationCount
+    hdr.writeUInt16BE(hdr.length, 2); // offset to serialized data
+    hdr.writeUInt16BE(serialized.length, 4); // variationDataSize
+    hdr.writeUInt16BE(0x8000 | 0x2000, 6); // EMBEDDED_PEAK | PRIVATE_POINTS
+    hdr.writeInt16BE(0x4000, 8); // peak tuple: wght = +1.0 (F2DOT14)
     const data = Buffer.concat([hdr, serialized]);
     return data.length % 2 === 0 ? data : Buffer.concat([data, Buffer.alloc(1)]);
   };
   const gA = glyphVarData(100);
   const gB = glyphVarData(200);
-  const gvarHdr = Buffer.alloc(20 + 4 * 4);             // header + (glyphCount+1) long offsets
-  gvarHdr.writeUInt16BE(1, 0); gvarHdr.writeUInt16BE(0, 2); // version 1.0
-  gvarHdr.writeUInt16BE(1, 4);                          // axisCount
-  gvarHdr.writeUInt16BE(0, 6);                          // sharedTupleCount
-  gvarHdr.writeUInt32BE(20 + 4 * 4, 8);                 // sharedTuplesOffset (empty, points at data)
-  gvarHdr.writeUInt16BE(3, 12);                         // glyphCount
-  gvarHdr.writeUInt16BE(1, 14);                         // flags: long offsets
-  gvarHdr.writeUInt32BE(20 + 4 * 4, 16);                // glyphVariationDataArrayOffset
-  gvarHdr.writeUInt32BE(0, 20);                         // gid0: empty
+  const gvarHdr = Buffer.alloc(20 + 4 * 4); // header + (glyphCount+1) long offsets
+  gvarHdr.writeUInt16BE(1, 0);
+  gvarHdr.writeUInt16BE(0, 2); // version 1.0
+  gvarHdr.writeUInt16BE(1, 4); // axisCount
+  gvarHdr.writeUInt16BE(0, 6); // sharedTupleCount
+  gvarHdr.writeUInt32BE(20 + 4 * 4, 8); // sharedTuplesOffset (empty, points at data)
+  gvarHdr.writeUInt16BE(3, 12); // glyphCount
+  gvarHdr.writeUInt16BE(1, 14); // flags: long offsets
+  gvarHdr.writeUInt32BE(20 + 4 * 4, 16); // glyphVariationDataArrayOffset
+  gvarHdr.writeUInt32BE(0, 20); // gid0: empty
   gvarHdr.writeUInt32BE(0, 24);
   gvarHdr.writeUInt32BE(gA.length, 28);
   gvarHdr.writeUInt32BE(gA.length + gB.length, 32);
@@ -381,7 +421,8 @@ export function wrapInTtc(fonts: Buffer[]): Buffer {
   const headerLen = 12 + fonts.length * 4;
   const header = Buffer.alloc(headerLen);
   header.write("ttcf", 0, "latin1");
-  header.writeUInt16BE(1, 4); header.writeUInt16BE(0, 6); // version 1.0
+  header.writeUInt16BE(1, 4);
+  header.writeUInt16BE(0, 6); // version 1.0
   header.writeUInt32BE(fonts.length, 8);
   const rebased: Buffer[] = [];
   let base = headerLen;

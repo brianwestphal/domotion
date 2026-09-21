@@ -3,11 +3,21 @@ id: "requirements/studio-embedded-scrubber-preview"
 title: "Embedded SVG Scrubber preview in Domotion Studio"
 kind: "contract"
 status: "current"
-owners: ["studio","scrubber","ui"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "scrubber", "ui"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2689"]
-code: ["src/scrubber/embed.ts","src/scrubber/client.tsx","src/studio/app-projects.ts","src/studio/server.ts","src/studio/client.tsx","src/scrubber/embed.test.ts","src/studio/app-projects.test.ts","src/studio/server.e2e.test.ts"]
-aliases: ["docs/250-studio-embedded-scrubber-preview.md","doc-250"]
+code:
+  [
+    "src/scrubber/embed.ts",
+    "src/scrubber/client.tsx",
+    "src/studio/app-projects.ts",
+    "src/studio/server.ts",
+    "src/studio/client.tsx",
+    "src/scrubber/embed.test.ts",
+    "src/studio/app-projects.test.ts",
+    "src/studio/server.e2e.test.ts",
+  ]
+aliases: ["docs/250-studio-embedded-scrubber-preview.md", "doc-250"]
 ---
 
 # Embedded SVG Scrubber preview in Domotion Studio

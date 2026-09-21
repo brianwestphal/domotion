@@ -7,15 +7,14 @@
 
 // CSS keywords that mean "no author-set value" in a getComputedStyle longhand.
 // The 'inherit' / 'initial' / 'unset' / 'revert' set is per CSS Cascade L4.
-export const isUnsetCssValue = (v) =>
-  v === '' || v === 'initial' || v === 'inherit' || v === 'unset' || v === 'revert';
+export const isUnsetCssValue = (v) => v === "" || v === "initial" || v === "inherit" || v === "unset" || v === "revert";
 
 // True when a computed-style value is present and meaningful — not null/undefined,
 // not the empty string, not the `none` keyword. Collapses the recurring
 // `v && v !== 'none' && v !== ''` / `v != null && v !== '' && v !== 'none'` triple
 // (equivalent for CSS string values, which are never falsy other than ''). NOT the
 // inverse of `isUnsetCssValue` — that tests the cascade keywords; this tests none/empty.
-export const hasCssValue = (v) => v != null && v !== '' && v !== 'none';
+export const hasCssValue = (v) => v != null && v !== "" && v !== "none";
 
 // Extract the url() target from a CSS image value (border-image-source,
 // mask-box-image-source, background-image, image-set candidate, …). Handles all
@@ -28,11 +27,11 @@ export const hasCssValue = (v) => v != null && v !== '' && v !== 'none';
 // read 0. This is the escaped-quote-aware extractor, shared so all the
 // intrinsic-dimension probes stay consistent. Pure (no DOM).
 export const extractCssUrl = (value) => {
-  const u = /\burl\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(value || '');
+  const u = /\burl\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(value || "");
   if (u == null) return null;
-  const raw = u[1] || u[2] || u[3] || '';
-  if (raw === '') return null;
-  return raw.replace(/\\(.)/g, '$1');
+  const raw = u[1] || u[2] || u[3] || "";
+  if (raw === "") return null;
+  return raw.replace(/\\(.)/g, "$1");
 };
 
 // Read a computed-style box's four physical-side longhands into
@@ -43,10 +42,10 @@ export const extractCssUrl = (value) => {
 // border{Top,Right,Bottom,Left}Width; sideWidths(cs, 'padding', '') reads
 // padding{Top,Right,Bottom,Left}.
 export const sideWidths = (cs, prop, suffix) => ({
-  top: parseFloat(cs[prop + 'Top' + suffix]) || 0,
-  right: parseFloat(cs[prop + 'Right' + suffix]) || 0,
-  bottom: parseFloat(cs[prop + 'Bottom' + suffix]) || 0,
-  left: parseFloat(cs[prop + 'Left' + suffix]) || 0,
+  top: parseFloat(cs[prop + "Top" + suffix]) || 0,
+  right: parseFloat(cs[prop + "Right" + suffix]) || 0,
+  bottom: parseFloat(cs[prop + "Bottom" + suffix]) || 0,
+  left: parseFloat(cs[prop + "Left" + suffix]) || 0,
 });
 
 // First-color extractor for a CSS background-shorthand: picks the *color* layer
@@ -68,7 +67,7 @@ export const firstColorRe = new RegExp(
 // Text-presenting <input> types: the ones Chrome's UA stylesheet gives a `text`
 // (I-beam) cursor and where `auto` would resolve to I-beam. Excludes button-like
 // (button/submit/reset/checkbox/radio/range/color/file/image) which get `default`.
-const _TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'password', 'number']);
+const _TEXT_INPUT_TYPES = new Set(["text", "search", "url", "tel", "email", "password", "number"]);
 
 /**
  * DM-1106: resolve an element's EFFECTIVE cursor — the concrete keyword Chrome
@@ -85,34 +84,37 @@ const _TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'pas
  * Returns a single CSS cursor keyword.
  */
 export const resolveElementCursor = (el, cs) => {
-  let c = (cs.cursor || 'auto').trim();
-  if (c.indexOf('url(') !== -1) {
+  let c = (cs.cursor || "auto").trim();
+  if (c.indexOf("url(") !== -1) {
     // Keep only the comma-separated keyword fallback (last token).
-    const parts = c.split(',');
+    const parts = c.split(",");
     c = parts[parts.length - 1].trim();
   }
-  if (c !== 'auto') return c;
+  if (c !== "auto") return c;
   // `auto` resolution (Blink SelectAutoCursor).
   const tag = el.tagName;
-  const editable = el.isContentEditable === true
-    || tag === 'TEXTAREA'
-    || (tag === 'INPUT' && _TEXT_INPUT_TYPES.has((el.getAttribute('type') || 'text').toLowerCase()));
+  const editable =
+    el.isContentEditable === true ||
+    tag === "TEXTAREA" ||
+    (tag === "INPUT" && _TEXT_INPUT_TYPES.has((el.getAttribute("type") || "text").toLowerCase()));
   let selectableText = false;
   if (!editable) {
-    const us = cs.userSelect || cs.webkitUserSelect || '';
-    if (us !== 'none') {
+    const us = cs.userSelect || cs.webkitUserSelect || "";
+    if (us !== "none") {
       // Selectable only if this element directly bears non-whitespace text.
       for (let i = 0; i < el.childNodes.length; i++) {
         const n = el.childNodes[i];
-        if (n.nodeType === 3 && n.textContent && n.textContent.trim() !== '') { selectableText = true; break; }
+        if (n.nodeType === 3 && n.textContent && n.textContent.trim() !== "") {
+          selectableText = true;
+          break;
+        }
       }
     }
   }
   if (editable || selectableText) {
-    return (cs.writingMode || '').indexOf('vertical') === 0 ? 'vertical-text' : 'text';
+    return (cs.writingMode || "").indexOf("vertical") === 0 ? "vertical-text" : "text";
   }
-  return 'default';
+  return "default";
 };
 export const isOutsideCaptureViewport = (rect, vp) =>
-  rect.right < vp.x || rect.bottom < vp.y
-  || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;
+  rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;

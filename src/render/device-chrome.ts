@@ -54,26 +54,36 @@ export interface DeviceChromeOptions {
 
 /** Color palette for the browser / window chrome, per theme. */
 interface ChromePalette {
-  bar: string;       // chrome-bar / window body fill
-  screen: string;    // letterbox backdrop behind the nested capture
-  border: string;    // outer window border
-  hairline: string;  // separator under the bar
+  bar: string; // chrome-bar / window body fill
+  screen: string; // letterbox backdrop behind the nested capture
+  border: string; // outer window border
+  hairline: string; // separator under the bar
   hairlineOpacity: string;
-  pill: string;      // browser URL-pill fill
+  pill: string; // browser URL-pill fill
   pillBorder: string | null; // URL-pill border (light theme needs one for contrast)
-  glyph: string;     // lock glyph + label text
+  glyph: string; // lock glyph + label text
 }
 
 const PALETTES: Record<ChromeTheme, ChromePalette> = {
   dark: {
-    bar: "#2b2b2e", screen: "#0d1117", border: "#3a3a3c",
-    hairline: "#000000", hairlineOpacity: "0.4",
-    pill: "#1c1c1e", pillBorder: null, glyph: "#8b949e",
+    bar: "#2b2b2e",
+    screen: "#0d1117",
+    border: "#3a3a3c",
+    hairline: "#000000",
+    hairlineOpacity: "0.4",
+    pill: "#1c1c1e",
+    pillBorder: null,
+    glyph: "#8b949e",
   },
   light: {
-    bar: "#e8e8ea", screen: "#ffffff", border: "#d1d1d6",
-    hairline: "#c6c6c8", hairlineOpacity: "1",
-    pill: "#ffffff", pillBorder: "#d1d1d6", glyph: "#6e6e73",
+    bar: "#e8e8ea",
+    screen: "#ffffff",
+    border: "#d1d1d6",
+    hairline: "#c6c6c8",
+    hairlineOpacity: "1",
+    pill: "#ffffff",
+    pillBorder: "#d1d1d6",
+    glyph: "#6e6e73",
   },
 };
 
@@ -90,11 +100,7 @@ const MONO = "ui-monospace, 'SF Mono', Menlo, monospace";
 const SANS = "-apple-system, system-ui, 'Segoe UI', sans-serif";
 
 function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /**
@@ -176,10 +182,16 @@ function phoneBezel(inner: string, screenW: number, screenH: number): FramedSvg 
   const rim = q(14);
   const radius = q(56);
   const innerRadius = radius - rim;
-  const edge = q(3);           // inner rim-highlight inset
-  const edgeStroke = q(1.5);   // inner rim-highlight stroke width
-  const notchW = q(112), notchH = q(30), notchRx = q(15), notchTop = rim + q(9);
-  const homeW = q(130), homeH = q(5), homeRx = q(2.5), homeGap = q(12);
+  const edge = q(3); // inner rim-highlight inset
+  const edgeStroke = q(1.5); // inner rim-highlight stroke width
+  const notchW = q(112),
+    notchH = q(30),
+    notchRx = q(15),
+    notchTop = rim + q(9);
+  const homeW = q(130),
+    homeH = q(5),
+    homeRx = q(2.5),
+    homeGap = q(12);
   const outerW = screenW + rim * 2;
   const outerH = screenH + rim * 2;
 
@@ -280,13 +292,11 @@ function windowFrame(
       `<rect x="${pillX}" y="${cy - q(11)}" width="${pillW}" height="${q(22)}" rx="${q(11)}" fill="${p.pill}"${pillStroke}/>` +
       lockGlyph(pillX + q(12), cy, p.glyph, q);
     if (label != null && label !== "") {
-      barContent +=
-        `<text x="${pillX + q(28)}" y="${cy + q(4)}" font-family="${MONO}" font-size="${q(12)}" fill="${p.glyph}">${escapeXml(label)}</text>`;
+      barContent += `<text x="${pillX + q(28)}" y="${cy + q(4)}" font-family="${MONO}" font-size="${q(12)}" fill="${p.glyph}">${escapeXml(label)}</text>`;
     }
   } else if (label != null && label !== "") {
     // Centered window title.
-    barContent +=
-      `<text x="${outerW / 2}" y="${BAR / 2 + q(4)}" text-anchor="middle" font-family="${SANS}" font-size="${q(13)}" font-weight="600" fill="${p.glyph}">${escapeXml(label)}</text>`;
+    barContent += `<text x="${outerW / 2}" y="${BAR / 2 + q(4)}" text-anchor="middle" font-family="${SANS}" font-size="${q(13)}" font-weight="600" fill="${p.glyph}">${escapeXml(label)}</text>`;
   }
 
   const svg =

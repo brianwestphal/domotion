@@ -28,21 +28,33 @@ function hbIsDefaultIgnorable(ch) {
   if (plane === 0) {
     const page = ch >>> 8;
     switch (page) {
-      case 0x00: return ch === 0x00AD;
-      case 0x03: return ch === 0x034F;
-      case 0x06: return ch === 0x061C;
-      case 0x17: return ch >= 0x17B4 && ch <= 0x17B5;
-      case 0x18: return ch >= 0x180B && ch <= 0x180E;
-      case 0x20: return (ch >= 0x200B && ch <= 0x200F) || (ch >= 0x202A && ch <= 0x202E) || (ch >= 0x2060 && ch <= 0x206F);
-      case 0xFE: return (ch >= 0xFE00 && ch <= 0xFE0F) || ch === 0xFEFF;
-      case 0xFF: return ch >= 0xFFF0 && ch <= 0xFFF8;
-      default: return false;
+      case 0x00:
+        return ch === 0x00ad;
+      case 0x03:
+        return ch === 0x034f;
+      case 0x06:
+        return ch === 0x061c;
+      case 0x17:
+        return ch >= 0x17b4 && ch <= 0x17b5;
+      case 0x18:
+        return ch >= 0x180b && ch <= 0x180e;
+      case 0x20:
+        return (ch >= 0x200b && ch <= 0x200f) || (ch >= 0x202a && ch <= 0x202e) || (ch >= 0x2060 && ch <= 0x206f);
+      case 0xfe:
+        return (ch >= 0xfe00 && ch <= 0xfe0f) || ch === 0xfeff;
+      case 0xff:
+        return ch >= 0xfff0 && ch <= 0xfff8;
+      default:
+        return false;
     }
   } else {
     switch (plane) {
-      case 0x01: return ch >= 0x1D173 && ch <= 0x1D17A;
-      case 0x0E: return ch >= 0xE0000 && ch <= 0xE0FFF;
-      default: return false;
+      case 0x01:
+        return ch >= 0x1d173 && ch <= 0x1d17a;
+      case 0x0e:
+        return ch >= 0xe0000 && ch <= 0xe0fff;
+      default:
+        return false;
     }
   }
 }

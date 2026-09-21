@@ -9,7 +9,16 @@
       "duration": 1900,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "typing", "text": "Ada Lovelace", "x": 102, "y": 181, "fontSize": 14, "color": "#e6edf3", "speed": 85, "caret": true }
+        {
+          "kind": "typing",
+          "text": "Ada Lovelace",
+          "x": 102,
+          "y": 181,
+          "fontSize": 14,
+          "color": "#e6edf3",
+          "speed": 85,
+          "caret": true
+        }
       ]
     },
     {
@@ -21,7 +30,16 @@
       "duration": 2200,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "typing", "text": "ada@analytical.dev", "x": 102, "y": 257, "fontSize": 14, "color": "#e6edf3", "speed": 75, "caret": true }
+        {
+          "kind": "typing",
+          "text": "ada@analytical.dev",
+          "x": 102,
+          "y": 257,
+          "fontSize": 14,
+          "color": "#e6edf3",
+          "speed": 75,
+          "caret": true
+        }
       ]
     },
     {
@@ -33,7 +51,16 @@
       "duration": 1700,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "typing", "text": "•••••••••••", "x": 102, "y": 333, "fontSize": 14, "color": "#e6edf3", "speed": 75, "caret": true }
+        {
+          "kind": "typing",
+          "text": "•••••••••••",
+          "x": 102,
+          "y": 333,
+          "fontSize": 14,
+          "color": "#e6edf3",
+          "speed": 75,
+          "caret": true
+        }
       ]
     },
     {

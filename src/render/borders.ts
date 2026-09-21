@@ -76,11 +76,17 @@ export function uniformDoubleBorderStripeBoxes(
 }
 
 /** Port of Skia/Blink SelectBestDashGap for open or closed strokes. */
-export function selectBestDashGap(strokeLength: number, dashLength: number, gapLength: number, closedPath: boolean): number {
+export function selectBestDashGap(
+  strokeLength: number,
+  dashLength: number,
+  gapLength: number,
+  closedPath: boolean,
+): number {
   const available = strokeLength + (closedPath ? 0 : gapLength);
   const minDashes = Math.max(1, Math.floor(available / (dashLength + gapLength)));
   const gapFor = (n: number) => (strokeLength - n * dashLength) / Math.max(1, closedPath ? n : n - 1);
-  const a = gapFor(minDashes), b = gapFor(minDashes + 1);
+  const a = gapFor(minDashes),
+    b = gapFor(minDashes + 1);
   if (b <= 0) return a;
   return Math.abs(a - gapLength) < Math.abs(b - gapLength) ? a : b;
 }
@@ -140,10 +146,11 @@ export function findOffGridCollapsedCells(cells: CollapseCellRect[]): boolean[] 
   };
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
-    result[i] = hasShiftedConsensus(c.x, vEdges)
-      || hasShiftedConsensus(c.x + c.width, vEdges)
-      || hasShiftedConsensus(c.y, hEdges)
-      || hasShiftedConsensus(c.y + c.height, hEdges);
+    result[i] =
+      hasShiftedConsensus(c.x, vEdges) ||
+      hasShiftedConsensus(c.x + c.width, vEdges) ||
+      hasShiftedConsensus(c.y, hEdges) ||
+      hasShiftedConsensus(c.y + c.height, hEdges);
   }
   return result;
 }
@@ -271,7 +278,17 @@ function _parsePair(v: string | undefined): CornerRadiusPair {
  *  the legacy single `borderRadius` shorthand when the per-corner longhands
  *  weren't captured (older snapshots). */
 export function parseCornerRadii(
-  styles: { borderTopLeftRadius?: string; borderTopRightRadius?: string; borderBottomRightRadius?: string; borderBottomLeftRadius?: string; borderRadius?: string; cornerTopLeftShape?: string; cornerTopRightShape?: string; cornerBottomRightShape?: string; cornerBottomLeftShape?: string },
+  styles: {
+    borderTopLeftRadius?: string;
+    borderTopRightRadius?: string;
+    borderBottomRightRadius?: string;
+    borderBottomLeftRadius?: string;
+    borderRadius?: string;
+    cornerTopLeftShape?: string;
+    cornerTopRightShape?: string;
+    cornerBottomRightShape?: string;
+    cornerBottomLeftShape?: string;
+  },
   width: number,
   height: number,
 ): CornerRadii {
@@ -314,13 +331,24 @@ export function parseCornerRadii(
     const factor = concaveRadiiConstraintFactor(width, height, { tl, tr, br, bl }, curvature);
     if (factor < 1) {
       const scale = (pair: CornerRadiusPair) => ({ h: pair.h * factor, v: pair.v * factor });
-      tl = scale(tl); tr = scale(tr); br = scale(br); bl = scale(bl);
+      tl = scale(tl);
+      tr = scale(tr);
+      br = scale(br);
+      bl = scale(bl);
     }
   }
-  const uniform = curvature.tl === ROUND_CURVATURE && curvature.tr === ROUND_CURVATURE
-    && curvature.br === ROUND_CURVATURE && curvature.bl === ROUND_CURVATURE
-    && tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
-    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  const uniform =
+    curvature.tl === ROUND_CURVATURE &&
+    curvature.tr === ROUND_CURVATURE &&
+    curvature.br === ROUND_CURVATURE &&
+    curvature.bl === ROUND_CURVATURE &&
+    tl.h === tl.v &&
+    tl.h === tr.h &&
+    tl.h === tr.v &&
+    tl.h === br.h &&
+    tl.h === br.v &&
+    tl.h === bl.h &&
+    tl.h === bl.v;
   return { tl, tr, br, bl, uniform, curvature };
 }
 
@@ -329,23 +357,39 @@ export function parseCornerRadii(
  *  border has eaten into the corner) and inner border strokes. CSS specifies
  *  that the inner corner is the outer corner pulled in by the adjacent border
  *  widths (top + left for TL, top + right for TR, etc.). */
-export function insetCornerRadii(c: CornerRadii, top: number, right: number, bottom: number, left: number): CornerRadii {
+export function insetCornerRadii(
+  c: CornerRadii,
+  top: number,
+  right: number,
+  bottom: number,
+  left: number,
+): CornerRadii {
   const tl = { h: Math.max(0, c.tl.h - left), v: Math.max(0, c.tl.v - top) };
   const tr = { h: Math.max(0, c.tr.h - right), v: Math.max(0, c.tr.v - top) };
   const br = { h: Math.max(0, c.br.h - right), v: Math.max(0, c.br.v - bottom) };
   const bl = { h: Math.max(0, c.bl.h - left), v: Math.max(0, c.bl.v - bottom) };
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
-    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  const nonRound = c.curvature != null && Object.values(c.curvature).some(value => value !== ROUND_CURVATURE);
+  const uniform =
+    tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  const nonRound = c.curvature != null && Object.values(c.curvature).some((value) => value !== ROUND_CURVATURE);
   const previous = c.contourInsets ?? { top: 0, right: 0, bottom: 0, left: 0 };
   return {
-    tl, tr, br, bl,
+    tl,
+    tr,
+    br,
+    bl,
     uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,
     curvature: c.curvature,
-    ...(nonRound ? {
-      originRadii: c.originRadii ?? { tl: c.tl, tr: c.tr, br: c.br, bl: c.bl },
-      contourInsets: { top: previous.top + top, right: previous.right + right, bottom: previous.bottom + bottom, left: previous.left + left },
-    } : {}),
+    ...(nonRound
+      ? {
+          originRadii: c.originRadii ?? { tl: c.tl, tr: c.tr, br: c.br, bl: c.bl },
+          contourInsets: {
+            top: previous.top + top,
+            right: previous.right + right,
+            bottom: previous.bottom + bottom,
+            left: previous.left + left,
+          },
+        }
+      : {}),
   };
 }
 
@@ -366,26 +410,53 @@ export function outsetCornerRadiiForShadow(c: CornerRadii, spread: number): Corn
   const tr = grow(c.tr);
   const br = grow(c.br);
   const bl = grow(c.bl);
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
-    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE, curvature: c.curvature };
+  const uniform =
+    tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return {
+    tl,
+    tr,
+    br,
+    bl,
+    uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,
+    curvature: c.curvature,
+  };
 }
 
 /** Blink FloatRoundedRect::Radii::OutsetWithCornerCorrection. Margin-box
  * corners use the CSS corner-shaping correction independently per axis so a
  * small radius approaches a sharp corner continuously instead of simply
  * adding the whole margin outset. */
-export function outsetCornerRadiiWithCorrection(c: CornerRadii, top: number, right: number, bottom: number, left: number): CornerRadii {
+export function outsetCornerRadiiWithCorrection(
+  c: CornerRadii,
+  top: number,
+  right: number,
+  bottom: number,
+  left: number,
+): CornerRadii {
   const adjusted = (radius: number, outset: number): number => {
     if (radius === 0 || outset === 0) return radius;
     const magnitude = Math.abs(outset);
     const factor = radius < magnitude ? 1 + (radius / magnitude - 1) ** 3 : 1;
     return Math.max(0, radius + factor * outset);
   };
-  const corner = (value: CornerRadiusPair, horizontal: number, vertical: number): CornerRadiusPair => ({ h: adjusted(value.h, horizontal), v: adjusted(value.v, vertical) });
-  const tl = corner(c.tl, left, top), tr = corner(c.tr, right, top), br = corner(c.br, right, bottom), bl = corner(c.bl, left, bottom);
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE, curvature: c.curvature };
+  const corner = (value: CornerRadiusPair, horizontal: number, vertical: number): CornerRadiusPair => ({
+    h: adjusted(value.h, horizontal),
+    v: adjusted(value.v, vertical),
+  });
+  const tl = corner(c.tl, left, top),
+    tr = corner(c.tr, right, top),
+    br = corner(c.br, right, bottom),
+    bl = corner(c.bl, left, bottom);
+  const uniform =
+    tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return {
+    tl,
+    tr,
+    br,
+    bl,
+    uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,
+    curvature: c.curvature,
+  };
 }
 
 /**
@@ -434,10 +505,13 @@ export function outsetCornerRadiiWithCoverageCorrection(
   const tr = corner(c.tr, right, top);
   const br = corner(c.br, right, bottom);
   const bl = corner(c.bl, left, bottom);
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
-    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  const uniform =
+    tl.h === tl.v && tl.h === tr.h && tl.h === tr.v && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
   return {
-    tl, tr, br, bl,
+    tl,
+    tr,
+    br,
+    bl,
     uniform: uniform && (c.curvature?.tl ?? ROUND_CURVATURE) === ROUND_CURVATURE,
     curvature: c.curvature,
   };
@@ -448,13 +522,22 @@ type CornerGeometry = { start: Point; outer: Point; end: Point; center: Point; c
 
 function mapCornerPoint(corner: CornerGeometry, normalized: Point): Point {
   return {
-    x: corner.center.x + (corner.outer.x - corner.start.x) * normalized.x + (corner.start.x - corner.center.x) * normalized.y,
-    y: corner.center.y + (corner.outer.y - corner.start.y) * normalized.x + (corner.start.y - corner.center.y) * normalized.y,
+    x:
+      corner.center.x +
+      (corner.outer.x - corner.start.x) * normalized.x +
+      (corner.start.x - corner.center.x) * normalized.y,
+    y:
+      corner.center.y +
+      (corner.outer.y - corner.start.y) * normalized.x +
+      (corner.start.y - corner.center.y) * normalized.y,
   };
 }
 
 function lineIntersection(a: Point, b: Point, c: Point, d: Point): Point | null {
-  const abx = b.x - a.x, aby = b.y - a.y, cdx = d.x - c.x, cdy = d.y - c.y;
+  const abx = b.x - a.x,
+    aby = b.y - a.y,
+    cdx = d.x - c.x,
+    cdy = d.y - c.y;
   const denominator = abx * cdy - aby * cdx;
   if (Math.abs(denominator) < 1e-9) return null;
   const t = ((c.x - a.x) * cdy - (c.y - a.y) * cdx) / denominator;
@@ -477,13 +560,21 @@ function hullQuad(corner: CornerGeometry): Point[] {
 function quadsIntersect(a: Point[], b: Point[]): boolean {
   for (const polygon of [a, b]) {
     for (let i = 0; i < polygon.length; i++) {
-      const edge = { x: polygon[(i + 1) % polygon.length].x - polygon[i].x, y: polygon[(i + 1) % polygon.length].y - polygon[i].y };
+      const edge = {
+        x: polygon[(i + 1) % polygon.length].x - polygon[i].x,
+        y: polygon[(i + 1) % polygon.length].y - polygon[i].y,
+      };
       const axis = { x: -edge.y, y: edge.x };
-      const project = (points: Point[]) => points.reduce((range, point) => {
-        const value = point.x * axis.x + point.y * axis.y;
-        return { min: Math.min(range.min, value), max: Math.max(range.max, value) };
-      }, { min: Infinity, max: -Infinity });
-      const pa = project(a), pb = project(b);
+      const project = (points: Point[]) =>
+        points.reduce(
+          (range, point) => {
+            const value = point.x * axis.x + point.y * axis.y;
+            return { min: Math.min(range.min, value), max: Math.max(range.max, value) };
+          },
+          { min: Infinity, max: -Infinity },
+        );
+      const pa = project(a),
+        pb = project(b);
       if (pa.max <= pb.min || pb.max <= pa.min) return false;
     }
   }
@@ -491,18 +582,24 @@ function quadsIntersect(a: Point[], b: Point[]): boolean {
 }
 
 function scaledQuad(quad: Point[], origin: Point, scale: number): Point[] {
-  return quad.map(point => ({ x: origin.x + (point.x - origin.x) * scale, y: origin.y + (point.y - origin.y) * scale }));
+  return quad.map((point) => ({
+    x: origin.x + (point.x - origin.x) * scale,
+    y: origin.y + (point.y - origin.y) * scale,
+  }));
 }
 
 function opposingHullScale(a: CornerGeometry, b: CornerGeometry): number {
-  const boxesOverlap = Math.max(a.start.x, a.end.x) > Math.min(b.start.x, b.end.x)
-    && Math.max(b.start.x, b.end.x) > Math.min(a.start.x, a.end.x)
-    && Math.max(a.start.y, a.end.y) > Math.min(b.start.y, b.end.y)
-    && Math.max(b.start.y, b.end.y) > Math.min(a.start.y, a.end.y);
+  const boxesOverlap =
+    Math.max(a.start.x, a.end.x) > Math.min(b.start.x, b.end.x) &&
+    Math.max(b.start.x, b.end.x) > Math.min(a.start.x, a.end.x) &&
+    Math.max(a.start.y, a.end.y) > Math.min(b.start.y, b.end.y) &&
+    Math.max(b.start.y, b.end.y) > Math.min(a.start.y, a.end.y);
   if (!boxesOverlap) return 1;
-  const ah = hullQuad(a), bh = hullQuad(b);
+  const ah = hullQuad(a),
+    bh = hullQuad(b);
   if (!quadsIntersect(ah, bh)) return 1;
-  let min = 0, max = 1;
+  let min = 0,
+    max = 1;
   while (max - min > 0.05) {
     const check = (min + max) / 2;
     if (quadsIntersect(scaledQuad(ah, a.outer, check), scaledQuad(bh, b.outer, check))) max = check;
@@ -518,16 +615,45 @@ function concaveRadiiConstraintFactor(
   radii: Pick<CornerRadii, "tl" | "tr" | "br" | "bl">,
   curvature: NonNullable<CornerRadii["curvature"]>,
 ): number {
-  const tl: CornerGeometry = { start: { x: 0, y: radii.tl.v }, outer: { x: 0, y: 0 }, end: { x: radii.tl.h, y: 0 }, center: { x: radii.tl.h, y: radii.tl.v }, curvature: curvature.tl };
-  const tr: CornerGeometry = { start: { x: width - radii.tr.h, y: 0 }, outer: { x: width, y: 0 }, end: { x: width, y: radii.tr.v }, center: { x: width - radii.tr.h, y: radii.tr.v }, curvature: curvature.tr };
-  const br: CornerGeometry = { start: { x: width, y: height - radii.br.v }, outer: { x: width, y: height }, end: { x: width - radii.br.h, y: height }, center: { x: width - radii.br.h, y: height - radii.br.v }, curvature: curvature.br };
-  const bl: CornerGeometry = { start: { x: radii.bl.h, y: height }, outer: { x: 0, y: height }, end: { x: 0, y: height - radii.bl.v }, center: { x: radii.bl.h, y: height - radii.bl.v }, curvature: curvature.bl };
+  const tl: CornerGeometry = {
+    start: { x: 0, y: radii.tl.v },
+    outer: { x: 0, y: 0 },
+    end: { x: radii.tl.h, y: 0 },
+    center: { x: radii.tl.h, y: radii.tl.v },
+    curvature: curvature.tl,
+  };
+  const tr: CornerGeometry = {
+    start: { x: width - radii.tr.h, y: 0 },
+    outer: { x: width, y: 0 },
+    end: { x: width, y: radii.tr.v },
+    center: { x: width - radii.tr.h, y: radii.tr.v },
+    curvature: curvature.tr,
+  };
+  const br: CornerGeometry = {
+    start: { x: width, y: height - radii.br.v },
+    outer: { x: width, y: height },
+    end: { x: width - radii.br.h, y: height },
+    center: { x: width - radii.br.h, y: height - radii.br.v },
+    curvature: curvature.br,
+  };
+  const bl: CornerGeometry = {
+    start: { x: radii.bl.h, y: height },
+    outer: { x: 0, y: height },
+    end: { x: 0, y: height - radii.bl.v },
+    center: { x: radii.bl.h, y: height - radii.bl.v },
+    curvature: curvature.bl,
+  };
   return Math.min(1, opposingHullScale(tl, br), opposingHullScale(bl, tr));
 }
 
 /** Chromium `ApproximateSuperellipseHalfCornerAsBezierCurve`. */
-function superellipseControls(curvature: number): [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] {
-  const p = [1.2430920942724248, 2.010479023614843, 0.32922901179443753, 0.2823023142212073, 1.3473704261055421, 2.9149468637949814, 0.9106507102917086];
+function superellipseControls(
+  curvature: number,
+): [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] {
+  const p = [
+    1.2430920942724248, 2.010479023614843, 0.32922901179443753, 0.2823023142212073, 1.3473704261055421,
+    2.9149468637949814, 0.9106507102917086,
+  ];
   const s = Math.log2(curvature);
   const slope = p[0] + (p[6] - p[0]) * 0.5 * (1 + Math.tanh(p[5] * (s - p[1])));
   const base = 1 / (1 + Math.exp(-slope * (0 - p[1])));
@@ -535,7 +661,11 @@ function superellipseControls(curvature: number): [{ x: number; y: number }, { x
   const a = (logistic - base) / (1 - base);
   const b = p[2] * Math.exp(-p[3] * Math.pow(s, p[4]));
   const half = Math.pow(0.5, 1 / Math.max(NOTCH_CURVATURE, Math.min(STRAIGHT_CURVATURE, curvature)));
-  return [{ x: a, y: 1 }, { x: half - b, y: half + b }, { x: half, y: half }];
+  return [
+    { x: a, y: 1 },
+    { x: half - b, y: half + b },
+    { x: half, y: half },
+  ];
 }
 
 function cornerCommands(start: Point, outer: Point, end: Point, center: Point, rawCurvature: number): string[] {
@@ -550,12 +680,16 @@ function cornerCommands(start: Point, outer: Point, end: Point, center: Point, r
   if (curvature >= STRAIGHT_CURVATURE) return [`L${point(start)}`, `L${point(outer)}`, `L${point(end)}`];
   if (curvature === 1) return [`L${point(start)}`, `L${point(end)}`];
   if (curvature === ROUND_CURVATURE) {
-    const radiusX = Math.abs(start.x - end.x), radiusY = Math.abs(start.y - end.y);
+    const radiusX = Math.abs(start.x - end.x),
+      radiusY = Math.abs(start.y - end.y);
     return [`L${point(start)}`, `A${r(radiusX)},${r(radiusY)} 0 0 ${concave ? 0 : 1} ${point(end)}`];
   }
   const [p1, p2, p3] = superellipseControls(curvature);
-  const q1 = map(p1), q2 = map(p2), q3 = map(p3);
-  const q4 = map({ x: p2.y, y: p2.x }), q5 = map({ x: p1.y, y: p1.x });
+  const q1 = map(p1),
+    q2 = map(p2),
+    q3 = map(p3);
+  const q4 = map({ x: p2.y, y: p2.x }),
+    q5 = map({ x: p1.y, y: p1.x });
   return [`L${point(start)}`, `C${point(q1)} ${point(q2)} ${point(q3)}`, `C${point(q4)} ${point(q5)} ${point(end)}`];
 }
 
@@ -565,11 +699,22 @@ function normalized(vector: Point): Point {
 }
 
 /** Chromium `ContouredRect::Corner::AlignedToOrigin`. */
-function alignedCorner(target: CornerGeometry, origin: CornerGeometry, thicknessStart: number, thicknessEnd: number): CornerGeometry {
-  if ((origin.start.x === origin.end.x && origin.start.y === origin.end.y)
-    || (target.start.x === origin.start.x && target.start.y === origin.start.y
-      && target.outer.x === origin.outer.x && target.outer.y === origin.outer.y
-      && target.end.x === origin.end.x && target.end.y === origin.end.y)) return target;
+function alignedCorner(
+  target: CornerGeometry,
+  origin: CornerGeometry,
+  thicknessStart: number,
+  thicknessEnd: number,
+): CornerGeometry {
+  if (
+    (origin.start.x === origin.end.x && origin.start.y === origin.end.y) ||
+    (target.start.x === origin.start.x &&
+      target.start.y === origin.start.y &&
+      target.outer.x === origin.outer.x &&
+      target.outer.y === origin.outer.y &&
+      target.end.x === origin.end.x &&
+      target.end.y === origin.end.y)
+  )
+    return target;
   const half = Math.pow(0.5, 1 / Math.max(0.5, Math.min(2, origin.curvature)));
   const hull = normalized({ x: 2 * half - 0.5, y: 1.5 - 2 * half });
   const adjusted = { x: hull.x, y: -hull.y };
@@ -583,28 +728,89 @@ function alignedCorner(target: CornerGeometry, origin: CornerGeometry, thickness
   const v4 = offset(origin.center, origin.start, thicknessEnd * adjusted.y);
   const add = (point: Point, a: Point, b: Point): Point => ({ x: point.x + a.x + b.x, y: point.y + a.y + b.y });
   return {
-    start: add(origin.start, v1, v2), outer: add(origin.outer, v2, v3),
-    end: add(origin.end, v3, v4), center: add(origin.center, v4, v1), curvature: origin.curvature,
+    start: add(origin.start, v1, v2),
+    outer: add(origin.outer, v2, v3),
+    end: add(origin.end, v3, v4),
+    center: add(origin.center, v4, v1),
+    curvature: origin.curvature,
   };
 }
 
-function contouredCornerGeometries(x: number, y: number, w: number, h: number, c: CornerRadii): { tl: CornerGeometry; tr: CornerGeometry; br: CornerGeometry; bl: CornerGeometry } {
+function contouredCornerGeometries(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+): { tl: CornerGeometry; tr: CornerGeometry; br: CornerGeometry; bl: CornerGeometry } {
   const tl = { h: Math.min(c.tl.h, w), v: Math.min(c.tl.v, h) };
   const tr = { h: Math.min(c.tr.h, w), v: Math.min(c.tr.v, h) };
   const br = { h: Math.min(c.br.h, w), v: Math.min(c.br.v, h) };
   const bl = { h: Math.min(c.bl.h, w), v: Math.min(c.bl.v, h) };
   const curvature = c.curvature ?? { tl: 2, tr: 2, br: 2, bl: 2 };
-  let tlCorner: CornerGeometry = { start: { x, y: y + tl.v }, outer: { x, y }, end: { x: x + tl.h, y }, center: { x: x + tl.h, y: y + tl.v }, curvature: curvature.tl };
-  let trCorner: CornerGeometry = { start: { x: x + w - tr.h, y }, outer: { x: x + w, y }, end: { x: x + w, y: y + tr.v }, center: { x: x + w - tr.h, y: y + tr.v }, curvature: curvature.tr };
-  let brCorner: CornerGeometry = { start: { x: x + w, y: y + h - br.v }, outer: { x: x + w, y: y + h }, end: { x: x + w - br.h, y: y + h }, center: { x: x + w - br.h, y: y + h - br.v }, curvature: curvature.br };
-  let blCorner: CornerGeometry = { start: { x: x + bl.h, y: y + h }, outer: { x, y: y + h }, end: { x, y: y + h - bl.v }, center: { x: x + bl.h, y: y + h - bl.v }, curvature: curvature.bl };
+  let tlCorner: CornerGeometry = {
+    start: { x, y: y + tl.v },
+    outer: { x, y },
+    end: { x: x + tl.h, y },
+    center: { x: x + tl.h, y: y + tl.v },
+    curvature: curvature.tl,
+  };
+  let trCorner: CornerGeometry = {
+    start: { x: x + w - tr.h, y },
+    outer: { x: x + w, y },
+    end: { x: x + w, y: y + tr.v },
+    center: { x: x + w - tr.h, y: y + tr.v },
+    curvature: curvature.tr,
+  };
+  let brCorner: CornerGeometry = {
+    start: { x: x + w, y: y + h - br.v },
+    outer: { x: x + w, y: y + h },
+    end: { x: x + w - br.h, y: y + h },
+    center: { x: x + w - br.h, y: y + h - br.v },
+    curvature: curvature.br,
+  };
+  let blCorner: CornerGeometry = {
+    start: { x: x + bl.h, y: y + h },
+    outer: { x, y: y + h },
+    end: { x, y: y + h - bl.v },
+    center: { x: x + bl.h, y: y + h - bl.v },
+    curvature: curvature.bl,
+  };
   if (c.originRadii != null && c.contourInsets != null) {
-    const inset = c.contourInsets, origin = c.originRadii;
-    const ox = x - inset.left, oy = y - inset.top, ow = w + inset.left + inset.right, oh = h + inset.top + inset.bottom;
-    const originTl: CornerGeometry = { start: { x: ox, y: oy + origin.tl.v }, outer: { x: ox, y: oy }, end: { x: ox + origin.tl.h, y: oy }, center: { x: ox + origin.tl.h, y: oy + origin.tl.v }, curvature: curvature.tl };
-    const originTr: CornerGeometry = { start: { x: ox + ow - origin.tr.h, y: oy }, outer: { x: ox + ow, y: oy }, end: { x: ox + ow, y: oy + origin.tr.v }, center: { x: ox + ow - origin.tr.h, y: oy + origin.tr.v }, curvature: curvature.tr };
-    const originBr: CornerGeometry = { start: { x: ox + ow, y: oy + oh - origin.br.v }, outer: { x: ox + ow, y: oy + oh }, end: { x: ox + ow - origin.br.h, y: oy + oh }, center: { x: ox + ow - origin.br.h, y: oy + oh - origin.br.v }, curvature: curvature.br };
-    const originBl: CornerGeometry = { start: { x: ox + origin.bl.h, y: oy + oh }, outer: { x: ox, y: oy + oh }, end: { x: ox, y: oy + oh - origin.bl.v }, center: { x: ox + origin.bl.h, y: oy + oh - origin.bl.v }, curvature: curvature.bl };
+    const inset = c.contourInsets,
+      origin = c.originRadii;
+    const ox = x - inset.left,
+      oy = y - inset.top,
+      ow = w + inset.left + inset.right,
+      oh = h + inset.top + inset.bottom;
+    const originTl: CornerGeometry = {
+      start: { x: ox, y: oy + origin.tl.v },
+      outer: { x: ox, y: oy },
+      end: { x: ox + origin.tl.h, y: oy },
+      center: { x: ox + origin.tl.h, y: oy + origin.tl.v },
+      curvature: curvature.tl,
+    };
+    const originTr: CornerGeometry = {
+      start: { x: ox + ow - origin.tr.h, y: oy },
+      outer: { x: ox + ow, y: oy },
+      end: { x: ox + ow, y: oy + origin.tr.v },
+      center: { x: ox + ow - origin.tr.h, y: oy + origin.tr.v },
+      curvature: curvature.tr,
+    };
+    const originBr: CornerGeometry = {
+      start: { x: ox + ow, y: oy + oh - origin.br.v },
+      outer: { x: ox + ow, y: oy + oh },
+      end: { x: ox + ow - origin.br.h, y: oy + oh },
+      center: { x: ox + ow - origin.br.h, y: oy + oh - origin.br.v },
+      curvature: curvature.br,
+    };
+    const originBl: CornerGeometry = {
+      start: { x: ox + origin.bl.h, y: oy + oh },
+      outer: { x: ox, y: oy + oh },
+      end: { x: ox, y: oy + oh - origin.bl.v },
+      center: { x: ox + origin.bl.h, y: oy + oh - origin.bl.v },
+      curvature: curvature.bl,
+    };
     trCorner = alignedCorner(trCorner, originTr, inset.top, inset.right);
     brCorner = alignedCorner(brCorner, originBr, inset.right, inset.bottom);
     blCorner = alignedCorner(blCorner, originBl, inset.bottom, inset.left);
@@ -619,17 +825,35 @@ function contouredCornerGeometries(x: number, y: number, w: number, h: number, c
  * path-intersection command, so callers nest these four vector clip paths in
  * the same order. `null` means this is an origin contour and needs one path.
  */
-export function contouredRectIntersectionPaths(x: number, y: number, w: number, h: number, c: CornerRadii): string[] | null {
+export function contouredRectIntersectionPaths(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+): string[] | null {
   if (c.originRadii == null || c.contourInsets == null) return null;
   const corners = contouredCornerGeometries(x, y, w, h, c);
   const pad = Math.max(w, h, 1) * 4 + 1;
-  const left = x - pad, top = y - pad, right = x + w + pad, bottom = y + h + pad;
-  const curve = (corner: CornerGeometry) => cornerCommands(corner.start, corner.outer, corner.end, corner.center, corner.curvature);
+  const left = x - pad,
+    top = y - pad,
+    right = x + w + pad,
+    bottom = y + h + pad;
+  const curve = (corner: CornerGeometry) =>
+    cornerCommands(corner.start, corner.outer, corner.end, corner.center, corner.curvature);
   return [
-    [`M${r(left)},${r(top)}`, ...curve(corners.tr), `L${r(right)},${r(bottom)}`, `L${r(left)},${r(bottom)}`, "Z"].join(" "),
-    [`M${r(right)},${r(top)}`, ...curve(corners.br), `L${r(left)},${r(bottom)}`, `L${r(left)},${r(top)}`, "Z"].join(" "),
-    [`M${r(right)},${r(bottom)}`, ...curve(corners.bl), `L${r(left)},${r(top)}`, `L${r(right)},${r(top)}`, "Z"].join(" "),
-    [`M${r(left)},${r(bottom)}`, ...curve(corners.tl), `L${r(right)},${r(top)}`, `L${r(right)},${r(bottom)}`, "Z"].join(" "),
+    [`M${r(left)},${r(top)}`, ...curve(corners.tr), `L${r(right)},${r(bottom)}`, `L${r(left)},${r(bottom)}`, "Z"].join(
+      " ",
+    ),
+    [`M${r(right)},${r(top)}`, ...curve(corners.br), `L${r(left)},${r(bottom)}`, `L${r(left)},${r(top)}`, "Z"].join(
+      " ",
+    ),
+    [`M${r(right)},${r(bottom)}`, ...curve(corners.bl), `L${r(left)},${r(top)}`, `L${r(right)},${r(top)}`, "Z"].join(
+      " ",
+    ),
+    [`M${r(left)},${r(bottom)}`, ...curve(corners.tl), `L${r(right)},${r(top)}`, `L${r(right)},${r(bottom)}`, "Z"].join(
+      " ",
+    ),
   ];
 }
 
@@ -668,7 +892,9 @@ export function roundedRectPath(x: number, y: number, w: number, h: number, c: C
     `L${r(x)},${r(y + tl.v)}`,
     tl.h > 0 || tl.v > 0 ? `A${r(tl.h)},${r(tl.v)} 0 0 1 ${r(x + tl.h)},${r(y)}` : "",
     `Z`,
-  ].filter(s => s !== "").join(" ");
+  ]
+    .filter((s) => s !== "")
+    .join(" ");
 }
 
 /** Emit a rounded-rect SVG element. Uses `<rect rx>` when the corners are
@@ -683,9 +909,17 @@ export function roundedRectSvg(x: number, y: number, w: number, h: number, c: Co
   return `<path d="${roundedRectPath(x, y, w, h, c)}" ${attrs} />`;
 }
 
-export interface BorderSide { w: number; style: string; color: RGBA }
+export interface BorderSide {
+  w: number;
+  style: string;
+  color: RGBA;
+}
 
-export function parseSide(widthCss: string | undefined, styleCss: string | undefined, colorCss: string | undefined): BorderSide | null {
+export function parseSide(
+  widthCss: string | undefined,
+  styleCss: string | undefined,
+  colorCss: string | undefined,
+): BorderSide | null {
   if (widthCss == null || styleCss == null || colorCss == null) return null;
   const w = parseFloat(widthCss) || 0;
   const color = parseColor(colorCss);
@@ -726,10 +960,14 @@ export function parseSide(widthCss: string | undefined, styleCss: string | undef
  * within the box bounds (since the same caller has all the geometry already).
  */
 export interface WedgeApexes {
-  apexTopX: number; apexTopY: number;
-  apexRightX: number; apexRightY: number;
-  apexBottomX: number; apexBottomY: number;
-  apexLeftX: number; apexLeftY: number;
+  apexTopX: number;
+  apexTopY: number;
+  apexRightX: number;
+  apexRightY: number;
+  apexBottomX: number;
+  apexBottomY: number;
+  apexLeftX: number;
+  apexLeftY: number;
 }
 
 /**
@@ -746,46 +984,63 @@ export interface WedgeApexes {
  */
 export function roundBorderSideClipPolygon(
   side: "top" | "right" | "bottom" | "left",
-  bxL: number, bxT: number, bxR: number, bxB: number,
+  bxL: number,
+  bxT: number,
+  bxR: number,
+  bxB: number,
   corners: CornerRadii,
-  tw: number, rw: number, bw: number, lw: number,
+  tw: number,
+  rw: number,
+  bw: number,
+  lw: number,
 ): string {
   const inner = insetCornerRadii(corners, tw, rw, bw, lw);
-  const innerL = bxL + lw, innerT = bxT + tw;
-  const innerR = bxR - rw, innerB = bxB - bw;
+  const innerL = bxL + lw,
+    innerT = bxT + tw;
+  const innerR = bxR - rw,
+    innerB = bxB - bw;
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   const point = (x: number, y: number) => `${r(x)},${r(y)}`;
   const fullBox = `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)}`;
-  if ((side === "top" && tw <= 0) || (side === "right" && rw <= 0)
-    || (side === "bottom" && bw <= 0) || (side === "left" && lw <= 0)) return fullBox;
+  if (
+    (side === "top" && tw <= 0) ||
+    (side === "right" && rw <= 0) ||
+    (side === "bottom" && bw <= 0) ||
+    (side === "left" && lw <= 0)
+  )
+    return fullBox;
   const apexes = computeWedgeApexes(bxL, bxT, bxR, bxB, tw, rw, bw, lw);
 
   if (side === "top") {
     if (lw === 0 && rw === 0) return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)}`;
     const cut = clamp(innerB - Math.max(inner.bl.v, inner.br.v), bxT, bxB);
-    if (apexes.apexTopY <= cut) return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(apexes.apexTopX, apexes.apexTopY)}`;
+    if (apexes.apexTopY <= cut)
+      return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(apexes.apexTopX, apexes.apexTopY)}`;
     const dy = cut - bxT;
-    return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(clamp(bxR - rw * dy / tw, bxL, bxR), cut)} ${point(clamp(bxL + lw * dy / tw, bxL, bxR), cut)}`;
+    return `${point(bxL, bxT)} ${point(bxR, bxT)} ${point(clamp(bxR - (rw * dy) / tw, bxL, bxR), cut)} ${point(clamp(bxL + (lw * dy) / tw, bxL, bxR), cut)}`;
   }
   if (side === "bottom") {
     if (lw === 0 && rw === 0) return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(bxL, bxT)} ${point(bxR, bxT)}`;
     const cut = clamp(innerT + Math.max(inner.tl.v, inner.tr.v), bxT, bxB);
-    if (apexes.apexBottomY >= cut) return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(apexes.apexBottomX, apexes.apexBottomY)}`;
+    if (apexes.apexBottomY >= cut)
+      return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(apexes.apexBottomX, apexes.apexBottomY)}`;
     const dy = bxB - cut;
-    return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(clamp(bxL + lw * dy / bw, bxL, bxR), cut)} ${point(clamp(bxR - rw * dy / bw, bxL, bxR), cut)}`;
+    return `${point(bxR, bxB)} ${point(bxL, bxB)} ${point(clamp(bxL + (lw * dy) / bw, bxL, bxR), cut)} ${point(clamp(bxR - (rw * dy) / bw, bxL, bxR), cut)}`;
   }
   if (side === "right") {
     if (tw === 0 && bw === 0) return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(bxL, bxB)} ${point(bxL, bxT)}`;
     const cut = clamp(innerL + Math.max(inner.tl.h, inner.bl.h), bxL, bxR);
-    if (apexes.apexRightX >= cut) return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(apexes.apexRightX, apexes.apexRightY)}`;
+    if (apexes.apexRightX >= cut)
+      return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(apexes.apexRightX, apexes.apexRightY)}`;
     const dx = bxR - cut;
-    return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(cut, clamp(bxB - bw * dx / rw, bxT, bxB))} ${point(cut, clamp(bxT + tw * dx / rw, bxT, bxB))}`;
+    return `${point(bxR, bxT)} ${point(bxR, bxB)} ${point(cut, clamp(bxB - (bw * dx) / rw, bxT, bxB))} ${point(cut, clamp(bxT + (tw * dx) / rw, bxT, bxB))}`;
   }
   if (tw === 0 && bw === 0) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(bxR, bxT)} ${point(bxR, bxB)}`;
   const cut = clamp(innerR - Math.max(inner.tr.h, inner.br.h), bxL, bxR);
-  if (apexes.apexLeftX <= cut) return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(apexes.apexLeftX, apexes.apexLeftY)}`;
+  if (apexes.apexLeftX <= cut)
+    return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(apexes.apexLeftX, apexes.apexLeftY)}`;
   const dx = cut - bxL;
-  return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(cut, clamp(bxT + tw * dx / lw, bxT, bxB))} ${point(cut, clamp(bxB - bw * dx / lw, bxT, bxB))}`;
+  return `${point(bxL, bxB)} ${point(bxL, bxT)} ${point(cut, clamp(bxT + (tw * dx) / lw, bxT, bxB))} ${point(cut, clamp(bxB - (bw * dx) / lw, bxT, bxB))}`;
 }
 
 /**
@@ -799,57 +1054,88 @@ export function roundBorderSideClipPolygon(
  */
 export function hyperellipseBorderSideClipPolygon(
   side: "top" | "right" | "bottom" | "left",
-  bxL: number, bxT: number, bxR: number, bxB: number,
+  bxL: number,
+  bxT: number,
+  bxR: number,
+  bxB: number,
   corners: CornerRadii,
-  tw: number, rw: number, bw: number, lw: number,
+  tw: number,
+  rw: number,
+  bw: number,
+  lw: number,
 ): string {
-  const width = bxR - bxL, height = bxB - bxT;
+  const width = bxR - bxL,
+    height = bxB - bxT;
   const inner = insetCornerRadii(corners, tw, rw, bw, lw);
   let length: number, firstAlong: number, secondAlong: number, inward: number;
   let firstRadius: CornerRadiusPair, secondRadius: CornerRadiusPair;
   let fromCanonical: (point: Point) => Point;
   if (side === "top") {
-    length = width; firstAlong = lw; secondAlong = rw; inward = tw;
-    firstRadius = inner.tl; secondRadius = inner.tr;
-    fromCanonical = p => ({ x: bxL + p.x, y: bxT + p.y });
+    length = width;
+    firstAlong = lw;
+    secondAlong = rw;
+    inward = tw;
+    firstRadius = inner.tl;
+    secondRadius = inner.tr;
+    fromCanonical = (p) => ({ x: bxL + p.x, y: bxT + p.y });
   } else if (side === "right") {
-    length = height; firstAlong = tw; secondAlong = bw; inward = rw;
-    firstRadius = { h: inner.tr.v, v: inner.tr.h }; secondRadius = { h: inner.br.v, v: inner.br.h };
-    fromCanonical = p => ({ x: bxR - p.y, y: bxT + p.x });
+    length = height;
+    firstAlong = tw;
+    secondAlong = bw;
+    inward = rw;
+    firstRadius = { h: inner.tr.v, v: inner.tr.h };
+    secondRadius = { h: inner.br.v, v: inner.br.h };
+    fromCanonical = (p) => ({ x: bxR - p.y, y: bxT + p.x });
   } else if (side === "bottom") {
-    length = width; firstAlong = rw; secondAlong = lw; inward = bw;
-    firstRadius = inner.br; secondRadius = inner.bl;
-    fromCanonical = p => ({ x: bxR - p.x, y: bxB - p.y });
+    length = width;
+    firstAlong = rw;
+    secondAlong = lw;
+    inward = bw;
+    firstRadius = inner.br;
+    secondRadius = inner.bl;
+    fromCanonical = (p) => ({ x: bxR - p.x, y: bxB - p.y });
   } else {
-    length = height; firstAlong = bw; secondAlong = tw; inward = lw;
-    firstRadius = { h: inner.bl.v, v: inner.bl.h }; secondRadius = { h: inner.tl.v, v: inner.tl.h };
-    fromCanonical = p => ({ x: bxL + p.y, y: bxB - p.x });
+    length = height;
+    firstAlong = bw;
+    secondAlong = tw;
+    inward = lw;
+    firstRadius = { h: inner.bl.v, v: inner.bl.h };
+    secondRadius = { h: inner.tl.v, v: inner.tl.h };
+    fromCanonical = (p) => ({ x: bxL + p.y, y: bxB - p.x });
   }
-  const outerStart = { x: 0, y: 0 }, outerEnd = { x: length, y: 0 };
+  const outerStart = { x: 0, y: 0 },
+    outerEnd = { x: length, y: 0 };
   let innerStart = { x: firstAlong, y: inward };
   let innerEnd = { x: length - secondAlong, y: inward };
   if (firstRadius.h !== 0 && firstRadius.v !== 0) {
-    innerStart = lineIntersection(
-      outerStart, innerStart,
-      { x: innerStart.x + firstRadius.h, y: innerStart.y },
-      { x: innerStart.x, y: innerStart.y + firstRadius.v },
-    ) ?? innerStart;
+    innerStart =
+      lineIntersection(
+        outerStart,
+        innerStart,
+        { x: innerStart.x + firstRadius.h, y: innerStart.y },
+        { x: innerStart.x, y: innerStart.y + firstRadius.v },
+      ) ?? innerStart;
   }
   if (secondRadius.h !== 0 && secondRadius.v !== 0) {
-    innerEnd = lineIntersection(
-      outerEnd, innerEnd,
-      { x: innerEnd.x - secondRadius.h, y: innerEnd.y },
-      { x: innerEnd.x, y: innerEnd.y + secondRadius.v },
-    ) ?? innerEnd;
+    innerEnd =
+      lineIntersection(
+        outerEnd,
+        innerEnd,
+        { x: innerEnd.x - secondRadius.h, y: innerEnd.y },
+        { x: innerEnd.x, y: innerEnd.y + secondRadius.v },
+      ) ?? innerEnd;
   }
   return [outerStart, innerStart, innerEnd, outerEnd]
     .map(fromCanonical)
-    .map(point => `${r(point.x)},${r(point.y)}`)
+    .map((point) => `${r(point.x)},${r(point.y)}`)
     .join(" ");
 }
 export function wedgePolygonPoints(
   side: "top" | "right" | "bottom" | "left",
-  bxL: number, bxT: number, bxR: number, bxB: number,
+  bxL: number,
+  bxT: number,
+  bxR: number,
+  bxB: number,
   a: WedgeApexes,
   /** DM-1150: the four border widths. When a side's BOTH adjacent sides have
    *  zero width, Chrome's BoxBorderPainter computes NO miter (`ComputeMiter`
@@ -876,10 +1162,14 @@ export function wedgePolygonPoints(
   const insideRight = !vertZero && a.apexRightX >= bxL && a.apexRightY >= bxT && a.apexRightY <= bxB;
   const insideBottom = !horizZero && a.apexBottomY >= bxT && a.apexBottomX >= bxL && a.apexBottomX <= bxR;
   const insideLeft = !vertZero && a.apexLeftX <= bxR && a.apexLeftY >= bxT && a.apexLeftY <= bxB;
-  const clLX = clamp(a.apexLeftX, bxL, bxR), clLY = clamp(a.apexLeftY, bxT, bxB);
-  const clRX = clamp(a.apexRightX, bxL, bxR), clRY = clamp(a.apexRightY, bxT, bxB);
-  const clTX = clamp(a.apexTopX, bxL, bxR), clTY = clamp(a.apexTopY, bxT, bxB);
-  const clBX = clamp(a.apexBottomX, bxL, bxR), clBY = clamp(a.apexBottomY, bxT, bxB);
+  const clLX = clamp(a.apexLeftX, bxL, bxR),
+    clLY = clamp(a.apexLeftY, bxT, bxB);
+  const clRX = clamp(a.apexRightX, bxL, bxR),
+    clRY = clamp(a.apexRightY, bxT, bxB);
+  const clTX = clamp(a.apexTopX, bxL, bxR),
+    clTY = clamp(a.apexTopY, bxT, bxB);
+  const clBX = clamp(a.apexBottomX, bxL, bxR),
+    clBY = clamp(a.apexBottomY, bxT, bxB);
   switch (side) {
     case "top":
       return insideTop
@@ -907,21 +1197,30 @@ export function wedgePolygonPoints(
  * for how these feed into the wedge clip polygons.
  */
 export function computeWedgeApexes(
-  bxL: number, bxT: number, bxR: number, bxB: number,
-  tw: number, rw: number, bw: number, lw: number,
+  bxL: number,
+  bxT: number,
+  bxR: number,
+  bxB: number,
+  tw: number,
+  rw: number,
+  bw: number,
+  lw: number,
 ): WedgeApexes {
-  const W = bxR - bxL, H = bxB - bxT;
-  const horizSum = lw + rw, vertSum = tw + bw;
-  const cxBox = (bxL + bxR) / 2, cyBox = (bxT + bxB) / 2;
+  const W = bxR - bxL,
+    H = bxB - bxT;
+  const horizSum = lw + rw,
+    vertSum = tw + bw;
+  const cxBox = (bxL + bxR) / 2,
+    cyBox = (bxT + bxB) / 2;
   return {
-    apexTopX:    horizSum > 0 ? bxL + lw * W / horizSum : cxBox,
-    apexTopY:    horizSum > 0 ? bxT + tw * W / horizSum : cyBox,
-    apexRightX:  vertSum > 0 ? bxR - rw * H / vertSum : cxBox,
-    apexRightY:  vertSum > 0 ? bxT + tw * H / vertSum : cyBox,
-    apexBottomX: horizSum > 0 ? bxL + lw * W / horizSum : cxBox,
-    apexBottomY: horizSum > 0 ? bxB - bw * W / horizSum : cyBox,
-    apexLeftX:   vertSum > 0 ? bxL + lw * H / vertSum : cxBox,
-    apexLeftY:   vertSum > 0 ? bxT + tw * H / vertSum : cyBox,
+    apexTopX: horizSum > 0 ? bxL + (lw * W) / horizSum : cxBox,
+    apexTopY: horizSum > 0 ? bxT + (tw * W) / horizSum : cyBox,
+    apexRightX: vertSum > 0 ? bxR - (rw * H) / vertSum : cxBox,
+    apexRightY: vertSum > 0 ? bxT + (tw * H) / vertSum : cyBox,
+    apexBottomX: horizSum > 0 ? bxL + (lw * W) / horizSum : cxBox,
+    apexBottomY: horizSum > 0 ? bxB - (bw * W) / horizSum : cyBox,
+    apexLeftX: vertSum > 0 ? bxL + (lw * H) / vertSum : cxBox,
+    apexLeftY: vertSum > 0 ? bxT + (tw * H) / vertSum : cyBox,
   };
 }
 
@@ -936,9 +1235,12 @@ export function computeWedgeApexes(
  *  (the SVG default `butt`) match Chrome's painted output. */
 export function dashArrayForStyle(style: string, width: number): string {
   switch (style) {
-    case "dashed": return `${r(width * 2)} ${r(width)}`;
-    case "dotted": return `${r(width)} ${r(width)}`;
-    default: return "";
+    case "dashed":
+      return `${r(width * 2)} ${r(width)}`;
+    case "dotted":
+      return `${r(width)} ${r(width)}`;
+    default:
+      return "";
   }
 }
 /**
@@ -962,7 +1264,6 @@ export function injectSvgSize(svgHtml: string, w: number, h: number): string {
   attrs = attrs.replace(/\s(?:width|height)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
   return `<svg${attrs} width="${r(w)}" height="${r(h)}">` + svgHtml.slice(m[0].length);
 }
-
 
 /**
  * Render a CSS border-image 9-slice around the element's border box.
@@ -1066,8 +1367,14 @@ function renderBorderImageGradient(
   // the final pixel when opposing edges abut). Build the same integer grid
   // before deriving any of the nine destination rectangles.
   const grid = snapNinePieceDestinationGrid(
-    el.x - ol, el.y - ot, el.width + ol + or_, el.height + ot + ob,
-    wl, wr, wt, wb,
+    el.x - ol,
+    el.y - ot,
+    el.width + ol + or_,
+    el.height + ot + ob,
+    wl,
+    wr,
+    wt,
+    wb,
   );
   const { x: boxX, y: boxY, width: boxW, height: boxH } = grid;
   ({ left: wl, right: wr, top: wt, bottom: wb } = grid);
@@ -1078,7 +1385,10 @@ function renderBorderImageGradient(
   const natH = boxH;
 
   // Slice: numbers = source pixels, percentages = of source dims, optional `fill`.
-  const sliceTokens = sliceRaw.replace(/\bfill\b/i, "").trim().split(/\s+/);
+  const sliceTokens = sliceRaw
+    .replace(/\bfill\b/i, "")
+    .trim()
+    .split(/\s+/);
   const sliceNums = sliceTokens.map((t) => {
     if (/%$/.test(t)) return { pct: parseFloat(t) };
     return { px: parseFloat(t) };
@@ -1091,7 +1401,8 @@ function renderBorderImageGradient(
   // Repeat policy per axis.
   const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
   const rH = normalizeBorderImageRepeat((repeatTokens[0] ?? "stretch").toLowerCase());
-  const rV = repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
+  const rV =
+    repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
 
   // Gradient def in source space (0, 0) - (natW, natH). Positioned at the
   // border-image-area's element-absolute origin (boxX, boxY) so the inner
@@ -1102,17 +1413,28 @@ function renderBorderImageGradient(
   const gid = `${idPrefix}big${clipIdx}`;
   let usedIds = 1;
   const gradRect = { x: boxX, y: boxY, w: natW, h: natH };
-  const def = grad.kind === "linear"
-    ? buildLinearGradientDef(grad, gid, gradRect)
-    : buildRadialGradientDef(grad, gid, gradRect);
+  const def =
+    grad.kind === "linear" ? buildLinearGradientDef(grad, gid, gradRect) : buildRadialGradientDef(grad, gid, gradRect);
   defsParts.push(def);
 
   // Slot geometry in element-absolute coords.
-  const x0 = boxX, x1 = boxX + wl, x2 = boxX + boxW - wr, x3 = boxX + boxW;
-  const y0 = boxY, y1 = boxY + wt, y2 = boxY + boxH - wb, y3 = boxY + boxH;
+  const x0 = boxX,
+    x1 = boxX + wl,
+    x2 = boxX + boxW - wr,
+    x3 = boxX + boxW;
+  const y0 = boxY,
+    y1 = boxY + wt,
+    y2 = boxY + boxH - wb,
+    y3 = boxY + boxH;
   // Source regions in source pixels (NB: corner rects + edge / center rects).
-  const sxL = 0, sxR = natW - sr, sxC = sl, sxW_C = natW - sl - sr;
-  const syT = 0, syB = natH - sb, syC = st, syH_C = natH - st - sb;
+  const sxL = 0,
+    sxR = natW - sr,
+    sxC = sl,
+    sxW_C = natW - sl - sr;
+  const syT = 0,
+    syB = natH - sb,
+    syC = st,
+    syH_C = natH - st - sb;
 
   const parts: string[] = [];
 
@@ -1125,15 +1447,27 @@ function renderBorderImageGradient(
   // covering (boxX, boxY) - (boxX+natW, boxY+natH) lets the gradient
   // evaluate across the full source space; the viewBox crops to the slice.
   const innerSvgForSlot = (
-    dx: number, dy: number, dw: number, dh: number,
-    sx: number, sy: number, sw: number, sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
   ): string => {
     return `<svg x="${r(dx)}" y="${r(dy)}" width="${r(dw)}" height="${r(dh)}" viewBox="${r(boxX + sx)} ${r(boxY + sy)} ${r(sw)} ${r(sh)}" preserveAspectRatio="none"><rect x="${r(boxX)}" y="${r(boxY)}" width="${r(natW)}" height="${r(natH)}" fill="url(#${gid})" /></svg>`;
   };
 
   const emitStretchedSlot = (
-    dx: number, dy: number, dw: number, dh: number,
-    sx: number, sy: number, sw: number, sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
   ): void => {
     if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
     parts.push(`${indent}${innerSvgForSlot(dx, dy, dw, dh, sx, sy, sw, sh)}`);
@@ -1143,9 +1477,16 @@ function renderBorderImageGradient(
   // fill the destination rect with that pattern. Tile phase and spacing
   // mirror NinePieceImagePainter::ComputeTileParameters.
   const emitTiledEdgeSlot = (
-    dx: number, dy: number, dw: number, dh: number,
-    sx: number, sy: number, sw: number, sh: number,
-    axis: "x" | "y", mode: "repeat" | "round" | "space",
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    axis: "x" | "y",
+    mode: "repeat" | "round" | "space",
   ): void => {
     if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
     let tileW: number, tileH: number;
@@ -1164,8 +1505,10 @@ function renderBorderImageGradient(
         tileH = dh / count;
       }
     }
-    let patternW = tileW, patternH = tileH;
-    let tileOffX = 0, tileOffY = 0;
+    let patternW = tileW,
+      patternH = tileH;
+    let tileOffX = 0,
+      tileOffY = 0;
     if (mode === "repeat") {
       if (axis === "x") tileOffX = (dw - tileW) / 2;
       else tileOffY = (dh - tileH) / 2;
@@ -1185,15 +1528,17 @@ function renderBorderImageGradient(
     }
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dx + tileOffX)}" y="${r(dy + tileOffY)}" width="${r(patternW)}" height="${r(patternH)}">${innerSvgForSlot(0, 0, tileW, tileH, sx, sy, sw, sh)}</pattern>`);
+    defsParts.push(
+      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dx + tileOffX)}" y="${r(dy + tileOffY)}" width="${r(patternW)}" height="${r(patternH)}">${innerSvgForSlot(0, 0, tileW, tileH, sx, sy, sw, sh)}</pattern>`,
+    );
     parts.push(`${indent}<rect x="${r(dx)}" y="${r(dy)}" width="${r(dw)}" height="${r(dh)}" fill="url(#${patId})" />`);
   };
 
   // 4 corners — always stretched.
-  emitStretchedSlot(x0, y0, wl, wt, sxL, syT, sl, st);   // NW
-  emitStretchedSlot(x2, y0, wr, wt, sxR, syT, sr, st);   // NE
-  emitStretchedSlot(x0, y2, wl, wb, sxL, syB, sl, sb);   // SW
-  emitStretchedSlot(x2, y2, wr, wb, sxR, syB, sr, sb);   // SE
+  emitStretchedSlot(x0, y0, wl, wt, sxL, syT, sl, st); // NW
+  emitStretchedSlot(x2, y0, wr, wt, sxR, syT, sr, st); // NE
+  emitStretchedSlot(x0, y2, wl, wb, sxL, syB, sl, sb); // SW
+  emitStretchedSlot(x2, y2, wr, wb, sxR, syB, sr, sb); // SE
   // Top + Bottom edges.
   if (rH === "stretch") {
     emitStretchedSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
@@ -1262,7 +1607,10 @@ export function renderBorderImage(
   // resolve against natW/natH. 'fill' keyword (anywhere) enables center.
   const sliceRaw = el.styles.borderImageSlice ?? "100%";
   const fillCenter = /\bfill\b/i.test(sliceRaw);
-  const sliceTokens = sliceRaw.replace(/\bfill\b/i, "").trim().split(/\s+/);
+  const sliceTokens = sliceRaw
+    .replace(/\bfill\b/i, "")
+    .trim()
+    .split(/\s+/);
   const sliceNums = sliceTokens.map((t) => {
     if (/%$/.test(t)) {
       // First two tokens measure vertically (top/bottom from natH); next two horizontally (right/left from natW).
@@ -1296,8 +1644,14 @@ export function renderBorderImage(
   const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
 
   const grid = snapNinePieceDestinationGrid(
-    el.x - ol, el.y - ot, el.width + ol + or_, el.height + ot + ob,
-    wl, wr, wt, wb,
+    el.x - ol,
+    el.y - ot,
+    el.width + ol + or_,
+    el.height + ot + ob,
+    wl,
+    wr,
+    wt,
+    wb,
   );
   const { x: boxX, y: boxY, width: boxW, height: boxH } = grid;
   ({ left: wl, right: wr, top: wt, bottom: wb } = grid);
@@ -1305,19 +1659,32 @@ export function renderBorderImage(
   // Repeat policy per axis (tokens order: H V; fallback: single token applies to both).
   const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
   const rH = normalizeBorderImageRepeat((repeatTokens[0] ?? "stretch").toLowerCase());
-  const rV = repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
+  const rV =
+    repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
 
   // Slot geometry (in element-absolute coords).
-  const x0 = boxX, x1 = boxX + wl, x2 = boxX + boxW - wr, x3 = boxX + boxW;
-  const y0 = boxY, y1 = boxY + wt, y2 = boxY + boxH - wb, y3 = boxY + boxH;
+  const x0 = boxX,
+    x1 = boxX + wl,
+    x2 = boxX + boxW - wr,
+    x3 = boxX + boxW;
+  const y0 = boxY,
+    y1 = boxY + wt,
+    y2 = boxY + boxH - wb,
+    y3 = boxY + boxH;
 
   // Corresponding source regions (in intrinsic image pixels).
   // Full image 9-slice mapping:
   //   NW = (0,0)-(sl,st); N = (sl,0)-(natW-sr,st); NE = (natW-sr,0)-(natW,st)
   //   W  = (0,st)-(sl,natH-sb); C = (sl,st)-(natW-sr,natH-sb); E = (natW-sr,st)-(natW,natH-sb)
   //   SW = (0,natH-sb)-(sl,natH); S = (sl,natH-sb)-(natW-sr,natH); SE = ...
-  const sxL = 0, sxR = natW - sr, sxC = sl, sxW_C = natW - sl - sr;
-  const syT = 0, syB = natH - sb, syC = st, syH_C = natH - st - sb;
+  const sxL = 0,
+    sxR = natW - sr,
+    sxC = sl,
+    sxW_C = natW - sl - sr;
+  const syT = 0,
+    syB = natH - sb,
+    syC = st,
+    syH_C = natH - st - sb;
 
   const parts: string[] = [];
   let usedIds = 0;
@@ -1340,9 +1707,14 @@ export function renderBorderImage(
   ): void => {
     if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
     const clipId = `${idPrefix}bi${clipIdx + usedIds++}`;
-    defsParts.push(`<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" /></clipPath>`);
-    const scaleX = dwSlot / sw, scaleY = dhSlot / sh;
-    parts.push(`${indent}<image href="${esc(sourceHref)}" x="${r(dxSlot - sx * scaleX)}" y="${r(dySlot - sy * scaleY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
+    defsParts.push(
+      `<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" /></clipPath>`,
+    );
+    const scaleX = dwSlot / sw,
+      scaleY = dhSlot / sh;
+    parts.push(
+      `${indent}<image href="${esc(sourceHref)}" x="${r(dxSlot - sx * scaleX)}" y="${r(dySlot - sy * scaleY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
+    );
   };
 
   // For edge slots with repeat/round/space, we tile along one axis. Simplest
@@ -1384,8 +1756,10 @@ export function renderBorderImage(
     // `<clipPath>` clipped to the slice region (0, 0, tileW, tileH) —
     // otherwise the image extends past the slice into the gap, painting
     // source pixels beyond the slice region instead of transparent gap.
-    let patternW = tileW, patternH = tileH;
-    let patternX = dxSlot, patternY = dySlot;
+    let patternW = tileW,
+      patternH = tileH;
+    let patternX = dxSlot,
+      patternY = dySlot;
     if (mode === "repeat") {
       if (axis === "x") patternX += (dwSlot - tileW) / 2;
       else patternY += (dhSlot - tileH) / 2;
@@ -1405,17 +1779,22 @@ export function renderBorderImage(
     }
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
-    const scaleX = tileW / sw, scaleY = tileH / sh;
+    const scaleX = tileW / sw,
+      scaleY = tileH / sh;
     const tileClip = `${idPrefix}bic${clipIdx + usedIds++}`;
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}"><clipPath id="${tileClip}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath><image href="${esc(sourceHref)}" x="${r(-sx * scaleX)}" y="${r(-sy * scaleY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none" clip-path="url(#${tileClip})" /></pattern>`);
-    parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
+    defsParts.push(
+      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}"><clipPath id="${tileClip}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath><image href="${esc(sourceHref)}" x="${r(-sx * scaleX)}" y="${r(-sy * scaleY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none" clip-path="url(#${tileClip})" /></pattern>`,
+    );
+    parts.push(
+      `${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`,
+    );
   };
 
   // Corners: always stretched (CSS spec).
-  emitStretchedSlice(x0, y0, wl, wt, sxL, syT, sl, st);                             // NW
-  emitStretchedSlice(x2, y0, wr, wt, sxR, syT, sr, st);                             // NE
-  emitStretchedSlice(x0, y2, wl, wb, sxL, syB, sl, sb);                             // SW
-  emitStretchedSlice(x2, y2, wr, wb, sxR, syB, sr, sb);                             // SE
+  emitStretchedSlice(x0, y0, wl, wt, sxL, syT, sl, st); // NW
+  emitStretchedSlice(x2, y0, wr, wt, sxR, syT, sr, st); // NE
+  emitStretchedSlice(x0, y2, wl, wb, sxL, syB, sl, sb); // SW
+  emitStretchedSlice(x2, y2, wr, wb, sxR, syB, sr, sb); // SE
 
   // Top + Bottom edges (horizontal axis).
   if (rH === "stretch") {
@@ -1450,7 +1829,8 @@ export function renderBorderImage(
       const tileHNatural = syH_C * (wl / sl);
       let tileW: number, tileH: number;
       let patternW: number, patternH: number;
-      let tileOffX = 0, tileOffY = 0;
+      let tileOffX = 0,
+        tileOffY = 0;
       // Horizontal.
       if (rH === "stretch") {
         tileW = dwCenter;
@@ -1461,12 +1841,16 @@ export function renderBorderImage(
         patternW = tileW;
       } else if (rH === "space") {
         const tiling = borderImageSpaceTiling(dwCenter, tileWNatural);
-        if (tiling == null) { tileW = 0; patternW = 0; } else {
+        if (tiling == null) {
+          tileW = 0;
+          patternW = 0;
+        } else {
           tileW = tileWNatural;
           patternW = tiling.period;
           tileOffX = tiling.spacing;
         }
-      } else { // "repeat"
+      } else {
+        // "repeat"
         tileW = tileWNatural;
         patternW = tileWNatural;
         tileOffX = (dwCenter - tileW) / 2;
@@ -1481,7 +1865,10 @@ export function renderBorderImage(
         patternH = tileH;
       } else if (rV === "space") {
         const tiling = borderImageSpaceTiling(dhCenter, tileHNatural);
-        if (tiling == null) { tileH = 0; patternH = 0; } else {
+        if (tiling == null) {
+          tileH = 0;
+          patternH = 0;
+        } else {
           tileH = tileHNatural;
           patternH = tiling.period;
           tileOffY = tiling.spacing;
@@ -1494,16 +1881,22 @@ export function renderBorderImage(
       if (tileW > 0 && tileH > 0 && patternW > 0 && patternH > 0) {
         const patId = `${idPrefix}bipc${clipIdx + usedIds}`;
         usedIds++;
-        const scaleX = tileW / sxW_C, scaleY = tileH / syH_C;
+        const scaleX = tileW / sxW_C,
+          scaleY = tileH / syH_C;
         const needsClip = rH === "space" || rV === "space";
-        let clipDef = "", imageClip = "";
+        let clipDef = "",
+          imageClip = "";
         if (needsClip) {
           const clipId = `${idPrefix}bicc${clipIdx + usedIds++}`;
           clipDef = `<clipPath id="${clipId}"><rect x="${r(tileOffX)}" y="${r(tileOffY)}" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`;
           imageClip = ` clip-path="url(#${clipId})"`;
         }
-        defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(-sxC * scaleX + tileOffX)}" y="${r(-syC * scaleY + tileOffY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none"${imageClip} /></pattern>`);
-        parts.push(`${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(dwCenter)}" height="${r(dhCenter)}" fill="url(#${patId})" />`);
+        defsParts.push(
+          `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(-sxC * scaleX + tileOffX)}" y="${r(-syC * scaleY + tileOffY)}" width="${r(natW * scaleX)}" height="${r(natH * scaleY)}" preserveAspectRatio="none"${imageClip} /></pattern>`,
+        );
+        parts.push(
+          `${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(dwCenter)}" height="${r(dhCenter)}" fill="url(#${patId})" />`,
+        );
       }
     }
   }

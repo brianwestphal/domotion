@@ -15,9 +15,11 @@ import { describe, expect, it } from "vitest";
 import { opticalCutOpszFor } from "./font-resolution.js";
 import { resolveInstalledFont, isGlyphHelperAvailable } from "./glyph-helper.js";
 
-const sfProInstalled = process.platform === "darwin" && isGlyphHelperAvailable()
-  && resolveInstalledFont("SF Pro Text") != null
-  && resolveInstalledFont("SF Pro Display") != null;
+const sfProInstalled =
+  process.platform === "darwin" &&
+  isGlyphHelperAvailable() &&
+  resolveInstalledFont("SF Pro Text") != null &&
+  resolveInstalledFont("SF Pro Display") != null;
 const describeSfPro = sfProInstalled ? describe : describe.skip;
 
 describeSfPro("opticalCutOpszFor (explicitly-named macOS optical cuts)", () => {

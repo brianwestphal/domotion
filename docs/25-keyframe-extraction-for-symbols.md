@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-499","DM-508","DM-752"]
-code: ["src/capture/script/","src/capture/script/walker/inline-svg.ts","tests/features.ts"]
-aliases: ["docs/25-keyframe-extraction-for-symbols.md","doc-25"]
+tickets: ["DM-499", "DM-508", "DM-752"]
+code: ["src/capture/script/", "src/capture/script/walker/inline-svg.ts", "tests/features.ts"]
+aliases: ["docs/25-keyframe-extraction-for-symbols.md", "doc-25"]
 ---
 
 # 25 — Animated symbol contents: t=0 paint state
@@ -42,6 +42,7 @@ This matches Domotion's existing behavior for any other time-varying content —
 The first draft of this doc proposed walking `document.styleSheets` for `@keyframes` rules, filtering to names referenced by the resolved subtree, rewriting identifiers, and emitting them into the output SVG's `<style>` block. The user's feedback was: we don't actually need to retain keyframe information; we just want the drawing correct for the moment in time.
 
 Resolving via `getComputedStyle` is much simpler:
+
 - ~20 lines of code added to `_walkBake`'s SVG branch.
 - No identifier rewriting; no `@keyframes` rule emission.
 - Easier to debug — the inlined SVG has concrete attribute values, not animation references that depend on a separate `<style>` block.

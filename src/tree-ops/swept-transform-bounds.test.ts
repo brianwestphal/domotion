@@ -23,14 +23,15 @@ const ctx = (animation: IntraFrameAnimation, start = 0, end = 100): SweptAnimati
 
 describe("conservativeSweptBoxes", () => {
   it("interpolates matching functions before reverse-order composition", () => {
-    const boxes = conservativeSweptBoxes(
-      { x: 0, y: 10, w: 20, h: 20 },
-      [ctx(anim({
-        property: "transform",
-        from: "scale(-1) translateX(-100px)",
-        to: "scale(1) translateX(100px)",
-      }))],
-    );
+    const boxes = conservativeSweptBoxes({ x: 0, y: 10, w: 20, h: 20 }, [
+      ctx(
+        anim({
+          property: "transform",
+          from: "scale(-1) translateX(-100px)",
+          to: "scale(1) translateX(100px)",
+        }),
+      ),
+    ]);
     expect(boxes).not.toBeNull();
     // At p=.45 Chromium applies translate(-10) then scale(-.1), reaching
     // x=-1..1. A composed-endpoint matrix lerp misses this entry entirely.
@@ -40,10 +41,9 @@ describe("conservativeSweptBoxes", () => {
   });
 
   it("proves a narrow between-grid crossing without finite samples", () => {
-    const boxes = conservativeSweptBoxes(
-      { x: 0, y: 10, w: 10, h: 10 },
-      [ctx(anim({ from: "-101000px", to: "99000px" }))],
-    );
+    const boxes = conservativeSweptBoxes({ x: 0, y: 10, w: 10, h: 10 }, [
+      ctx(anim({ from: "-101000px", to: "99000px" })),
+    ]);
     expect(boxes).not.toBeNull();
     expect(boxes![0].bounds.x).toBeLessThanOrEqual(0);
     expect(boxes![0].bounds.x + boxes![0].bounds.w).toBeGreaterThanOrEqual(10);
@@ -63,26 +63,33 @@ describe("conservativeSweptBoxes", () => {
   });
 
   it("includes cubic-bezier overshoot extrema, not only eased endpoints", () => {
-    const boxes = conservativeSweptBoxes(
-      { x: 100, y: 10, w: 10, h: 10 },
-      [ctx(anim({ from: "0px", to: "100px", easing: "cubic-bezier(.34,1.56,.64,1)" }))],
-    );
+    const boxes = conservativeSweptBoxes({ x: 100, y: 10, w: 10, h: 10 }, [
+      ctx(anim({ from: "0px", to: "100px", easing: "cubic-bezier(.34,1.56,.64,1)" })),
+    ]);
     expect(boxes).not.toBeNull();
     expect(boxes![0].bounds.x + boxes![0].bounds.w).toBeGreaterThan(210);
   });
 
   it("preserves CSS list order in both translate/scale permutations", () => {
     const box = { x: 0, y: 0, w: 10, h: 10 };
-    const translateThenScale = conservativeSweptBoxes(box, [ctx(anim({
-      property: "transform",
-      from: "translateX(100px) scale(2)",
-      to: "translateX(100px) scale(2)",
-    }))]);
-    const scaleThenTranslate = conservativeSweptBoxes(box, [ctx(anim({
-      property: "transform",
-      from: "scale(2) translateX(100px)",
-      to: "scale(2) translateX(100px)",
-    }))]);
+    const translateThenScale = conservativeSweptBoxes(box, [
+      ctx(
+        anim({
+          property: "transform",
+          from: "translateX(100px) scale(2)",
+          to: "translateX(100px) scale(2)",
+        }),
+      ),
+    ]);
+    const scaleThenTranslate = conservativeSweptBoxes(box, [
+      ctx(
+        anim({
+          property: "transform",
+          from: "scale(2) translateX(100px)",
+          to: "scale(2) translateX(100px)",
+        }),
+      ),
+    ]);
     expect(translateThenScale![0].bounds.x).toBeCloseTo(100, 6);
     expect(translateThenScale![0].bounds.w).toBeCloseTo(20, 6);
     expect(scaleThenTranslate![0].bounds.x).toBeCloseTo(200, 6);
@@ -90,10 +97,9 @@ describe("conservativeSweptBoxes", () => {
   });
 
   it("includes all 2D rotation-arc extrema, not only equal endpoints", () => {
-    const boxes = conservativeSweptBoxes(
-      { x: 100, y: 0, w: 10, h: 10 },
-      [ctx(anim({ property: "transform", from: "rotate(0deg)", to: "rotate(360deg)" }))],
-    );
+    const boxes = conservativeSweptBoxes({ x: 100, y: 0, w: 10, h: 10 }, [
+      ctx(anim({ property: "transform", from: "rotate(0deg)", to: "rotate(360deg)" })),
+    ]);
     expect(boxes).not.toBeNull();
     expect(boxes![0].bounds.x).toBeLessThanOrEqual(-110);
     expect(boxes![0].bounds.y).toBeLessThanOrEqual(-110);
@@ -111,13 +117,17 @@ describe("conservativeSweptBoxes", () => {
       alternate: true,
       easing: "steps(2, jump-end)",
     });
-    const boxes = conservativeSweptBoxes(
-      { x: 0, y: 0, w: 10, h: 10 },
-      [ctx(repeating, 10, 20)],
-    );
+    const boxes = conservativeSweptBoxes({ x: 0, y: 0, w: 10, h: 10 }, [ctx(repeating, 10, 20)]);
     expect(boxes).not.toBeNull();
     expect(boxes!.map(({ startPct, endPct }) => [startPct, endPct])).toEqual([
-      [0, 10], [10, 15], [15, 20], [20, 25], [25, 30], [30, 35], [35, 40], [40, 100],
+      [0, 10],
+      [10, 15],
+      [15, 20],
+      [20, 25],
+      [25, 30],
+      [30, 35],
+      [35, 40],
+      [40, 100],
     ]);
     // Three alternate iterations finish at `to`, then `both` fill holds it.
     expect(boxes!.at(-1)!.bounds.x).toBeCloseTo(100);
@@ -173,12 +183,12 @@ describe("conservativeSweptBoxes", () => {
       repeat: "infinite",
       alternate: true,
     });
-    const boxes = conservativeSweptBoxes(
-      { x: 0, y: 0, w: 10, h: 10 },
-      [ctx(animation, -25, 75)],
-    );
+    const boxes = conservativeSweptBoxes({ x: 0, y: 0, w: 10, h: 10 }, [ctx(animation, -25, 75)]);
     expect(boxes).not.toBeNull();
-    expect(boxes!.map(({ startPct, endPct }) => [startPct, endPct])).toEqual([[0, 75], [75, 100]]);
+    expect(boxes!.map(({ startPct, endPct }) => [startPct, endPct])).toEqual([
+      [0, 75],
+      [75, 100],
+    ]);
     // The first interval starts one quarter into iteration zero; the second is
     // iteration one and reverses both direction and easing.
     expect(boxes![0].bounds.x).toBeLessThanOrEqual(-50);

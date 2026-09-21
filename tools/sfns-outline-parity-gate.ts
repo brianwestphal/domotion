@@ -6,9 +6,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  validateSfnsProposalValidation, type SfnsOracleArtifact,
-} from "./sfns-mask-baseline-schema.js";
+import { validateSfnsProposalValidation, type SfnsOracleArtifact } from "./sfns-mask-baseline-schema.js";
 
 const argv = process.argv.slice(2);
 const value = (flag: string): string | undefined => {
@@ -30,7 +28,7 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `SFNS exact outline parity: ${proposal.rows.length} scenarios, `
-  + `${proposal.rows.reduce((sum, row) => sum + row.domotionGlyphIds.length, 0)} gid observations, `
-  + `proposal/validation digest ${proposal.logicalDigest}`,
+  `SFNS exact outline parity: ${proposal.rows.length} scenarios, ` +
+    `${proposal.rows.reduce((sum, row) => sum + row.domotionGlyphIds.length, 0)} gid observations, ` +
+    `proposal/validation digest ${proposal.logicalDigest}`,
 );

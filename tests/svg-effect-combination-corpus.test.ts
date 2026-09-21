@@ -28,8 +28,7 @@ describe("generated SVG effect combination corpus (DM-2358)", () => {
     expect(validateSvgEffectCombinationCorpus()).toEqual([]);
 
     for (const dimension of SVG_EFFECT_DIMENSIONS) {
-      expect(new Set(SVG_EFFECT_CASES.map((test) => test.values[dimension.name])))
-        .toEqual(new Set(dimension.values));
+      expect(new Set(SVG_EFFECT_CASES.map((test) => test.values[dimension.name]))).toEqual(new Set(dimension.values));
     }
     expect(Object.values(SVG_EFFECT_SOURCE_DECISIONS)).toHaveLength(11);
   });

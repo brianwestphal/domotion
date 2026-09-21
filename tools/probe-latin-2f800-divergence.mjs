@@ -24,7 +24,7 @@ for (const [label, stack] of Object.entries(STACKS)) {
   const offCov = rows.filter((r) => r.off?.covered).length;
   const onCov = rows.filter((r) => r.on?.covered).length;
   const newlyCovered = rows.filter((r) => !r.off?.covered && r.on?.covered);
-  const newlyDecomp = rows.filter((r) => !(r.off?.decomposed) && r.on?.decomposed);
+  const newlyDecomp = rows.filter((r) => !r.off?.decomposed && r.on?.decomposed);
   console.log(`\n=== ${label} ===`);
   console.log(`covered: OFF ${offCov}  ON ${onCov}  (+${onCov - offCov})`);
   console.log(`newly-covered by chain: ${newlyCovered.length}`);

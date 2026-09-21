@@ -53,7 +53,8 @@ const catByName = new Map();
 for (const m of machineSrc.matchAll(/^#define use_syllable_machine_ex_(\w+)\s+(\d+)u\s*$/gm)) {
   catByName.set(m[1], parseInt(m[2], 10));
 }
-if (catByName.size === 0) throw new Error("no use_syllable_machine_ex_* defines found -- hb-ot-shaper-use-machine.hh format changed?");
+if (catByName.size === 0)
+  throw new Error("no use_syllable_machine_ex_* defines found -- hb-ot-shaper-use-machine.hh format changed?");
 const VPre = catByName.get("VPre");
 const VMPre = catByName.get("VMPre");
 const O = catByName.get("O");
@@ -83,8 +84,14 @@ function parseNums(body) {
 const u8 = parseNums(firstArrayBody("hb_use_u8", "uint8_t"));
 const u16 = parseNums(firstArrayBody("hb_use_u16", "uint16_t"));
 console.error(`hb_use_u8: ${u8.length} entries, hb_use_u16: ${u16.length} entries`);
-if (u8.length !== 3343) throw new Error(`expected hb_use_u8[3343], got ${u8.length} -- table resized, re-verify the formula/offsets before trusting output`);
-if (u16.length !== 864) throw new Error(`expected hb_use_u16[864], got ${u16.length} -- table resized, re-verify the formula/offsets before trusting output`);
+if (u8.length !== 3343)
+  throw new Error(
+    `expected hb_use_u8[3343], got ${u8.length} -- table resized, re-verify the formula/offsets before trusting output`,
+  );
+if (u16.length !== 864)
+  throw new Error(
+    `expected hb_use_u16[864], got ${u16.length} -- table resized, re-verify the formula/offsets before trusting output`,
+  );
 
 // Transcribed verbatim from hb-ot-shaper-use-table.hh:376-383 (rev 4de187d).
 function hbUseB4(a, i) {
@@ -112,20 +119,59 @@ function hbUseGetCategory(u) {
 // here is the load-bearing check that the packed-table decode above is
 // correct, not merely plausible-looking.
 const PRE_DM2020_KNOWN_GOOD_RANGES = [
-  [0x93F, 0x93F], [0x94E, 0x94E], [0x9BF, 0x9BF], [0x9C7, 0x9C8],
-  [0x9CB, 0x9CC], [0xA3F, 0xA3F], [0xABF, 0xABF], [0xB47, 0xB48],
-  [0xB4B, 0xB4C], [0xBC6, 0xBC8], [0xBCA, 0xBCC], [0xD46, 0xD48],
-  [0xD4A, 0xD4C], [0xDD9, 0xDDE], [0x1031, 0x1031], [0x1084, 0x1084],
-  [0x17BE, 0x17C5], [0x1A19, 0x1A19], [0x1A6E, 0x1A72], [0x1B3E, 0x1B41],
-  [0x1BA6, 0x1BA6], [0x1C27, 0x1C29], [0xA9BA, 0xA9BB], [0xAA2F, 0xAA30],
-  [0xAAEB, 0xAAEB], [0xAAEE, 0xAAEE], [0x110B1, 0x110B1], [0x1112C, 0x1112C],
-  [0x111B4, 0x111B4], [0x111CE, 0x111CE], [0x112E1, 0x112E1], [0x11347, 0x11348],
-  [0x1134B, 0x1134C], [0x113C2, 0x113C2], [0x113C5, 0x113C5], [0x113C7, 0x113C8],
-  [0x11436, 0x11436], [0x114B1, 0x114B1], [0x114B9, 0x114B9], [0x114BB, 0x114BC],
-  [0x114BE, 0x114BE], [0x115B0, 0x115B0], [0x115B8, 0x115BB], [0x116AE, 0x116AE],
-  [0x11726, 0x11726], [0x1182D, 0x1182D], [0x11935, 0x11935], [0x11937, 0x11938],
-  [0x119D2, 0x119D2], [0x119E4, 0x119E4], [0x11CB1, 0x11CB1], [0x11EF5, 0x11EF5],
-  [0x11F3E, 0x11F3F],
+  [0x93f, 0x93f],
+  [0x94e, 0x94e],
+  [0x9bf, 0x9bf],
+  [0x9c7, 0x9c8],
+  [0x9cb, 0x9cc],
+  [0xa3f, 0xa3f],
+  [0xabf, 0xabf],
+  [0xb47, 0xb48],
+  [0xb4b, 0xb4c],
+  [0xbc6, 0xbc8],
+  [0xbca, 0xbcc],
+  [0xd46, 0xd48],
+  [0xd4a, 0xd4c],
+  [0xdd9, 0xdde],
+  [0x1031, 0x1031],
+  [0x1084, 0x1084],
+  [0x17be, 0x17c5],
+  [0x1a19, 0x1a19],
+  [0x1a6e, 0x1a72],
+  [0x1b3e, 0x1b41],
+  [0x1ba6, 0x1ba6],
+  [0x1c27, 0x1c29],
+  [0xa9ba, 0xa9bb],
+  [0xaa2f, 0xaa30],
+  [0xaaeb, 0xaaeb],
+  [0xaaee, 0xaaee],
+  [0x110b1, 0x110b1],
+  [0x1112c, 0x1112c],
+  [0x111b4, 0x111b4],
+  [0x111ce, 0x111ce],
+  [0x112e1, 0x112e1],
+  [0x11347, 0x11348],
+  [0x1134b, 0x1134c],
+  [0x113c2, 0x113c2],
+  [0x113c5, 0x113c5],
+  [0x113c7, 0x113c8],
+  [0x11436, 0x11436],
+  [0x114b1, 0x114b1],
+  [0x114b9, 0x114b9],
+  [0x114bb, 0x114bc],
+  [0x114be, 0x114be],
+  [0x115b0, 0x115b0],
+  [0x115b8, 0x115bb],
+  [0x116ae, 0x116ae],
+  [0x11726, 0x11726],
+  [0x1182d, 0x1182d],
+  [0x11935, 0x11935],
+  [0x11937, 0x11938],
+  [0x119d2, 0x119d2],
+  [0x119e4, 0x119e4],
+  [0x11cb1, 0x11cb1],
+  [0x11ef5, 0x11ef5],
+  [0x11f3e, 0x11f3f],
 ];
 const committedRanges = PRE_DM2020_KNOWN_GOOD_RANGES;
 console.error(`Known-good (pre-DM-2020) ranges: ${committedRanges.length}`);
@@ -135,13 +181,17 @@ for (const [lo, hi] of committedRanges) {
   for (let cp = lo; cp <= hi; cp++) {
     const cat = hbUseGetCategory(cp);
     if (cat !== VPre && cat !== VMPre) {
-      console.error(`SELF-CHECK FAILED: committed member U+${cp.toString(16).toUpperCase()} decodes to category ${cat}, not VPre/VMPre`);
+      console.error(
+        `SELF-CHECK FAILED: committed member U+${cp.toString(16).toUpperCase()} decodes to category ${cat}, not VPre/VMPre`,
+      );
       selfCheckFailures++;
     }
   }
 }
 if (selfCheckFailures > 0) {
-  throw new Error(`${selfCheckFailures} committed LEFT_REORDER_MATRA_RANGES member(s) disagree with the decoder -- refusing to write a table built on an unverified decode. Re-check the transcribed formula/offsets against hb-ot-shaper-use-table.hh before retrying.`);
+  throw new Error(
+    `${selfCheckFailures} committed LEFT_REORDER_MATRA_RANGES member(s) disagree with the decoder -- refusing to write a table built on an unverified decode. Re-check the transcribed formula/offsets against hb-ot-shaper-use-table.hh before retrying.`,
+  );
 }
 console.error("Self-check passed: every committed member decodes to VPre/VMPre.");
 
@@ -170,8 +220,12 @@ for (const [lo, hi] of committedRanges) for (let cp = lo; cp <= hi; cp++) commit
 const generatedSet = new Set(members);
 const added = [...generatedSet].filter((cp) => !committedSet.has(cp));
 const removed = [...committedSet].filter((cp) => !generatedSet.has(cp));
-console.error(`Added vs committed: ${added.length} — ${added.map((cp) => "U+" + cp.toString(16).toUpperCase()).join(", ")}`);
-console.error(`Removed vs committed: ${removed.length} — ${removed.map((cp) => "U+" + cp.toString(16).toUpperCase()).join(", ")}`);
+console.error(
+  `Added vs committed: ${added.length} — ${added.map((cp) => "U+" + cp.toString(16).toUpperCase()).join(", ")}`,
+);
+console.error(
+  `Removed vs committed: ${removed.length} — ${removed.map((cp) => "U+" + cp.toString(16).toUpperCase()).join(", ")}`,
+);
 
 const hex = (n) => "0x" + n.toString(16).toUpperCase();
 const lines = [];

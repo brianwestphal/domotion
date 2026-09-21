@@ -10,11 +10,16 @@ const fonts = [
 for (const [path, ps] of fonts) {
   try {
     const file = fontkit.openSync(path);
-    const font = ps && file.fonts ? file.getFont(ps) : (file.fonts ? file.fonts[0] : file);
+    const font = ps && file.fonts ? file.getFont(ps) : file.fonts ? file.fonts[0] : file;
     if (!font) continue;
-    const glyph = font.glyphForCodePoint(0x25C8);
-    if (!glyph || glyph.id === 0) { console.log(`  ${path} (${ps}): NO GLYPH`); continue; }
-    const adv = glyph.advanceWidth * 18 / font.unitsPerEm;
+    const glyph = font.glyphForCodePoint(0x25c8);
+    if (!glyph || glyph.id === 0) {
+      console.log(`  ${path} (${ps}): NO GLYPH`);
+      continue;
+    }
+    const adv = (glyph.advanceWidth * 18) / font.unitsPerEm;
     console.log(`  ${path} (${ps || font.fullName}): glyph ${glyph.id}, advance ${adv.toFixed(2)}px @ 18`);
-  } catch (e) { console.log(`  ${path}: ${e.message}`); }
+  } catch (e) {
+    console.log(`  ${path}: ${e.message}`);
+  }
 }

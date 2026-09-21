@@ -137,7 +137,6 @@ export interface CompositeResult {
   warnings?: string[];
 }
 
-
 /** Strip the XML prolog + outer `<svg…>…</svg>` wrapper, keeping inner markup (incl. `<style>`). */
 function innerOf(svg: string): string {
   return svg
@@ -159,9 +158,14 @@ function innerOf(svg: string): string {
  */
 function resolveClipOriginPx(origin: string, base: number, size: number): number {
   switch (origin) {
-    case "left": case "top": return base;
-    case "right": case "bottom": return base + size;
-    case "center": return base + size / 2;
+    case "left":
+    case "top":
+      return base;
+    case "right":
+    case "bottom":
+      return base + size;
+    case "center":
+      return base + size / 2;
   }
   const pct = /^([-\d.]+)%$/.exec(origin);
   if (pct != null) return base + (size * parseFloat(pct[1])) / 100;
@@ -171,13 +175,21 @@ function resolveClipOriginPx(origin: string, base: number, size: number): number
 }
 
 /** Render a non-clip layer-animation endpoint to its CSS value (transform string / opacity). */
-function renderAnimValue(property: "scale" | "translateX" | "translateY" | "opacity" | "transform", v: string | number): string {
+function renderAnimValue(
+  property: "scale" | "translateX" | "translateY" | "opacity" | "transform",
+  v: string | number,
+): string {
   switch (property) {
-    case "scale": return `scale(${v})`;
-    case "translateX": return `translateX(${typeof v === "number" ? `${v}px` : v})`;
-    case "translateY": return `translateY(${typeof v === "number" ? `${v}px` : v})`;
-    case "opacity": return `${v}`;
-    case "transform": return `${v}`;
+    case "scale":
+      return `scale(${v})`;
+    case "translateX":
+      return `translateX(${typeof v === "number" ? `${v}px` : v})`;
+    case "translateY":
+      return `translateY(${typeof v === "number" ? `${v}px` : v})`;
+    case "opacity":
+      return `${v}`;
+    case "transform":
+      return `${v}`;
   }
 }
 
@@ -205,9 +217,10 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
 
   // Resolve each layer's geometry + intrinsic size first so we can size the master.
   const resolved = layers.map((layer, i) => {
-    const intrinsic = (layer.contentWidth != null && layer.contentHeight != null)
-      ? { w: layer.contentWidth, h: layer.contentHeight }
-      : parseSvgIntrinsicSize(layer.svg) ?? { w: 0, h: 0 };
+    const intrinsic =
+      layer.contentWidth != null && layer.contentHeight != null
+        ? { w: layer.contentWidth, h: layer.contentHeight }
+        : (parseSvgIntrinsicSize(layer.svg) ?? { w: 0, h: 0 });
     const w = layer.width ?? intrinsic.w;
     const h = layer.height ?? intrinsic.h;
     const x = layer.x ?? 0;
@@ -225,10 +238,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     return { layer, i, intrinsic, x, y, w, h, start, mode, period, windowMs, end };
   });
 
-  const master = Math.max(
-    1,
-    opts.durationMs ?? Math.ceil(Math.max(0, ...resolved.map((r) => r.end))),
-  );
+  const master = Math.max(1, opts.durationMs ?? Math.ceil(Math.max(0, ...resolved.map((r) => r.end))));
   const masterSec = master / 1000;
 
   // `defsParts` holds `<clipPath>` defs; `styleParts` holds CSS (keyframes + rules)
@@ -250,8 +260,11 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     // 2. …then re-anchor its internal timeline to its own start within the master.
     if (r.period > 0) {
       content = offsetEmbeddedAnimatedSvgTimeline(content, {
-        periodMs: r.period, startMs: r.start, masterMs: master,
-        mode: r.mode, windowMs: r.windowMs,
+        periodMs: r.period,
+        startMs: r.start,
+        masterMs: master,
+        mode: r.mode,
+        windowMs: r.windowMs,
       });
     }
     // 3. Strip the outer wrapper and re-nest at the layer's box (a nested <svg>
@@ -263,7 +276,9 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     if (r.layer.clip === true) {
       const clipId = `${token}clip`;
       const rad = r.layer.clipRadius ?? 0;
-      defsParts.push(`<clipPath id="${clipId}"><rect x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad ? ` rx="${fmt(rad)}"` : ""}/></clipPath>`);
+      defsParts.push(
+        `<clipPath id="${clipId}"><rect x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad ? ` rx="${fmt(rad)}"` : ""}/></clipPath>`,
+      );
       nested = `<g clip-path="url(#${clipId})">${nested}</g>`;
     }
 
@@ -275,7 +290,10 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     let transformOrigin: string | null = null;
     const clipScales: CompositeLayerAnimation[] = [];
     (r.layer.animations ?? []).forEach((a, ai) => {
-      if (a.property === "clipScaleX" || a.property === "clipScaleY") { clipScales.push(a); return; }
+      if (a.property === "clipScaleX" || a.property === "clipScaleY") {
+        clipScales.push(a);
+        return;
+      }
       const name = `${token}a${ai}`;
       const sPct = clampPct(((a.start ?? 0) / master) * 100);
       const ePct = clampPct((((a.start ?? 0) + (a.duration ?? master)) / master) * 100);
@@ -286,9 +304,10 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       groupDecls.push(`${name} ${fmt(masterSec)}s ${a.easing ?? "ease"} infinite`);
       if (a.property !== "opacity" && transformOrigin == null) transformOrigin = a.transformOrigin ?? "0 0";
     });
-    const groupStyle = groupDecls.length > 0
-      ? ` style="${transformOrigin != null ? `transform-box:fill-box;transform-origin:${transformOrigin};` : ""}animation:${groupDecls.join(",")}"`
-      : "";
+    const groupStyle =
+      groupDecls.length > 0
+        ? ` style="${transformOrigin != null ? `transform-box:fill-box;transform-origin:${transformOrigin};` : ""}animation:${groupDecls.join(",")}"`
+        : "";
 
     // 5. clipScaleX/Y — resize the layer's visible BOX (not its contents) by
     //    transform-scaling a clip-rect. Robust across nested-SVG content (unlike
@@ -318,8 +337,12 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       const ox = resolveClipOriginPx(sx?.transformOrigin ?? "left", r.x, r.w);
       const oy = resolveClipOriginPx(sy?.transformOrigin ?? "top", r.y, r.h);
       const rad = r.layer.clipRadius != null ? ` rx="${fmt(r.layer.clipRadius)}"` : "";
-      defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect class="${token}clipper" x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad}/></clipPath>`);
-      styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-origin:${fmt(ox)}px ${fmt(oy)}px;animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}`);
+      defsParts.push(
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect class="${token}clipper" x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad}/></clipPath>`,
+      );
+      styleParts.push(
+        `@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-origin:${fmt(ox)}px ${fmt(oy)}px;animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}`,
+      );
       clipAttr = ` clip-path="url(#${clipId})"`;
     }
 

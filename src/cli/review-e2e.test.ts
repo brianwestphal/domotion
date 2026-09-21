@@ -151,22 +151,38 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       await page.keyboard.press("Enter");
       const lb = page.getByRole("dialog", { name: "Rendering preview" });
       await lb.waitFor({ state: "visible", timeout: 3_000 });
-      expect(await page.getByRole("button", { name: "Close" }).evaluate((el) => el === document.activeElement)).toBe(true);
+      expect(await page.getByRole("button", { name: "Close" }).evaluate((el) => el === document.activeElement)).toBe(
+        true,
+      );
       // The lightbox img should show /expected.png first.
       const lbImg = page.locator("#lightbox-inner img");
       expect(await lbImg.getAttribute("src")).toMatch(/expected\.png$/);
       // ArrowRight → actual.png
       await page.keyboard.press("ArrowRight");
-      await page.waitForFunction(() => /actual\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""), null, { timeout: 2_000 });
+      await page.waitForFunction(
+        () => /actual\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""),
+        null,
+        { timeout: 2_000 },
+      );
       // ArrowRight → diff.png
       await page.keyboard.press("ArrowRight");
-      await page.waitForFunction(() => /diff\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""), null, { timeout: 2_000 });
+      await page.waitForFunction(
+        () => /diff\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""),
+        null,
+        { timeout: 2_000 },
+      );
       // ArrowRight wraps back to expected.png
       await page.keyboard.press("ArrowRight");
-      await page.waitForFunction(() => /expected\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""), null, { timeout: 2_000 });
+      await page.waitForFunction(
+        () => /expected\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""),
+        null,
+        { timeout: 2_000 },
+      );
       // Escape closes the lightbox.
       await page.keyboard.press("Escape");
-      await page.waitForFunction(() => !document.querySelector("#lightbox")?.classList.contains("open"), null, { timeout: 2_000 });
+      await page.waitForFunction(() => !document.querySelector("#lightbox")?.classList.contains("open"), null, {
+        timeout: 2_000,
+      });
       expect(await expectedFigure.evaluate((el) => el === document.activeElement)).toBe(true);
       await closeBrowserSafely(browser);
     } catch (e) {
@@ -197,25 +213,59 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // unambiguously. Each call creates one rect and waits for it to
       // surface in the caption list before the next one.
       const drawRectViaEvents = async (x1: number, y1: number, x2: number, y2: number) => {
-        await page.evaluate(({ x1, y1, x2, y2 }) => {
-          const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
-          if (svg == null) throw new Error("no overlay");
-          const fire = (type: string, x: number, y: number) =>
-            svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
-          fire("pointerdown", x1, y1);
-          fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
-          fire("pointermove", x2, y2);
-          fire("pointerup", x2, y2);
-        }, { x1, y1, x2, y2 });
+        await page.evaluate(
+          ({ x1, y1, x2, y2 }) => {
+            const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
+            if (svg == null) throw new Error("no overlay");
+            const fire = (type: string, x: number, y: number) =>
+              svg.dispatchEvent(
+                new PointerEvent(type, {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: x,
+                  clientY: y,
+                  pointerId: 1,
+                  pointerType: "mouse",
+                  isPrimary: true,
+                }),
+              );
+            fire("pointerdown", x1, y1);
+            fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
+            fire("pointermove", x2, y2);
+            fire("pointerup", x2, y2);
+          },
+          { x1, y1, x2, y2 },
+        );
         await page.waitForTimeout(100);
       };
 
-      await drawRectViaEvents(box.x + box.width * 0.10, box.y + box.height * 0.10, box.x + box.width * 0.25, box.y + box.height * 0.20);
-      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, { timeout: 3_000 });
-      await drawRectViaEvents(box.x + box.width * 0.40, box.y + box.height * 0.40, box.x + box.width * 0.55, box.y + box.height * 0.50);
-      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 2, null, { timeout: 3_000 });
-      await drawRectViaEvents(box.x + box.width * 0.70, box.y + box.height * 0.70, box.x + box.width * 0.85, box.y + box.height * 0.80);
-      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 3, null, { timeout: 5_000 });
+      await drawRectViaEvents(
+        box.x + box.width * 0.1,
+        box.y + box.height * 0.1,
+        box.x + box.width * 0.25,
+        box.y + box.height * 0.2,
+      );
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, {
+        timeout: 3_000,
+      });
+      await drawRectViaEvents(
+        box.x + box.width * 0.4,
+        box.y + box.height * 0.4,
+        box.x + box.width * 0.55,
+        box.y + box.height * 0.5,
+      );
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 2, null, {
+        timeout: 3_000,
+      });
+      await drawRectViaEvents(
+        box.x + box.width * 0.7,
+        box.y + box.height * 0.7,
+        box.x + box.width * 0.85,
+        box.y + box.height * 0.8,
+      );
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 3, null, {
+        timeout: 5_000,
+      });
       const inputs = page.locator(".region-list input[type='text']");
       await inputs.nth(0).fill("first");
       await inputs.nth(1).fill("second");
@@ -232,13 +282,38 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // threshold isn't crossed and the click routes to "delete this
       // rect"). Rect 2 spans displayed (40%, 40%) → (55%, 50%); click
       // its center.
-      await page.evaluate(({ x, y }) => {
-        const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
-        if (svg == null) throw new Error("no overlay");
-        svg.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
-        svg.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
-      }, { x: box.x + box.width * 0.475, y: box.y + box.height * 0.45 });
-      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 2, null, { timeout: 5_000 });
+      await page.evaluate(
+        ({ x, y }) => {
+          const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
+          if (svg == null) throw new Error("no overlay");
+          svg.dispatchEvent(
+            new PointerEvent("pointerdown", {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y,
+              pointerId: 1,
+              pointerType: "mouse",
+              isPrimary: true,
+            }),
+          );
+          svg.dispatchEvent(
+            new PointerEvent("pointerup", {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y,
+              pointerId: 1,
+              pointerType: "mouse",
+              isPrimary: true,
+            }),
+          );
+        },
+        { x: box.x + box.width * 0.475, y: box.y + box.height * 0.45 },
+      );
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 2, null, {
+        timeout: 5_000,
+      });
 
       // The remaining captions should be "first" and "third" — NOT
       // "first" and "second" (which would be the buggy DM-952 case
@@ -276,21 +351,38 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
 
       // Draw a real (>threshold) rectangle. After this completes the
       // lightbox should still be CLOSED.
-      await page.evaluate(({ x1, y1, x2, y2 }) => {
-        const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
-        if (svg == null) throw new Error("no overlay");
-        const fire = (type: string, x: number, y: number) =>
-          svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
-        fire("pointerdown", x1, y1);
-        fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
-        fire("pointermove", x2, y2);
-        fire("pointerup", x2, y2);
-      }, {
-        x1: box.x + box.width * 0.30, y1: box.y + box.height * 0.30,
-        x2: box.x + box.width * 0.60, y2: box.y + box.height * 0.55,
-      });
+      await page.evaluate(
+        ({ x1, y1, x2, y2 }) => {
+          const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
+          if (svg == null) throw new Error("no overlay");
+          const fire = (type: string, x: number, y: number) =>
+            svg.dispatchEvent(
+              new PointerEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                clientX: x,
+                clientY: y,
+                pointerId: 1,
+                pointerType: "mouse",
+                isPrimary: true,
+              }),
+            );
+          fire("pointerdown", x1, y1);
+          fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
+          fire("pointermove", x2, y2);
+          fire("pointerup", x2, y2);
+        },
+        {
+          x1: box.x + box.width * 0.3,
+          y1: box.y + box.height * 0.3,
+          x2: box.x + box.width * 0.6,
+          y2: box.y + box.height * 0.55,
+        },
+      );
       // The rect renders.
-      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, { timeout: 3_000 });
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, {
+        timeout: 3_000,
+      });
       // The lightbox stays closed.
       const open = await page.locator("#lightbox").evaluate((el) => el.classList.contains("open"));
       expect(open).toBe(false);
@@ -325,31 +417,52 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       await page.mouse.click(tbox.x + tbox.width / 2, tbox.y + tbox.height / 2);
       await page.locator("#lightbox.open").waitFor({ state: "visible", timeout: 3_000 });
       // Wait for the maximised image to load and the overlay to attach.
-      await page.waitForFunction(() => {
-        const img = document.getElementById("lb-img") as HTMLImageElement | null;
-        return img != null && img.naturalWidth > 0 && img.naturalHeight > 0;
-      }, null, { timeout: 5_000 });
+      await page.waitForFunction(
+        () => {
+          const img = document.getElementById("lb-img") as HTMLImageElement | null;
+          return img != null && img.naturalWidth > 0 && img.naturalHeight > 0;
+        },
+        null,
+        { timeout: 5_000 },
+      );
 
       const lbBox = await page.locator("#lb-img").boundingBox();
       if (lbBox == null) throw new Error("lb-img has no bounding box");
 
       // Draw a rect on the lightbox overlay.
-      await page.evaluate(({ x1, y1, x2, y2 }) => {
-        const svg = document.getElementById("lb-overlay") as unknown as SVGSVGElement | null;
-        if (svg == null) throw new Error("no lb-overlay");
-        const fire = (type: string, x: number, y: number) =>
-          svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
-        fire("pointerdown", x1, y1);
-        fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
-        fire("pointermove", x2, y2);
-        fire("pointerup", x2, y2);
-      }, {
-        x1: lbBox.x + lbBox.width * 0.30, y1: lbBox.y + lbBox.height * 0.30,
-        x2: lbBox.x + lbBox.width * 0.55, y2: lbBox.y + lbBox.height * 0.55,
-      });
+      await page.evaluate(
+        ({ x1, y1, x2, y2 }) => {
+          const svg = document.getElementById("lb-overlay") as unknown as SVGSVGElement | null;
+          if (svg == null) throw new Error("no lb-overlay");
+          const fire = (type: string, x: number, y: number) =>
+            svg.dispatchEvent(
+              new PointerEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                clientX: x,
+                clientY: y,
+                pointerId: 1,
+                pointerType: "mouse",
+                isPrimary: true,
+              }),
+            );
+          fire("pointerdown", x1, y1);
+          fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
+          fire("pointermove", x2, y2);
+          fire("pointerup", x2, y2);
+        },
+        {
+          x1: lbBox.x + lbBox.width * 0.3,
+          y1: lbBox.y + lbBox.height * 0.3,
+          x2: lbBox.x + lbBox.width * 0.55,
+          y2: lbBox.y + lbBox.height * 0.55,
+        },
+      );
 
       // The rect shows up in the underlying region list (shared rects array).
-      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, { timeout: 5_000 });
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, {
+        timeout: 5_000,
+      });
       // Lightbox stays OPEN through the draw — the overlay's drag handler
       // suppresses the click-through that would normally close it.
       const stillOpen = await page.locator("#lightbox").evaluate((el) => el.classList.contains("open"));

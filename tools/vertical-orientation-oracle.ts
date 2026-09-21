@@ -142,11 +142,13 @@ function sourceRuns(
 ): VerticalOrientationRun[] {
   if (text === "") return [];
   if (textOrientation !== "mixed") {
-    return [{
-      start: 0,
-      end: text.length,
-      orientation: textOrientation === "upright" ? "upright" : "rotated",
-    }];
+    return [
+      {
+        start: 0,
+        end: text.length,
+        orientation: textOrientation === "upright" ? "upright" : "rotated",
+      },
+    ];
   }
   const runs: VerticalOrientationRun[] = [];
   let current: VerticalGlyphOrientation | undefined;
@@ -174,20 +176,19 @@ function same(value: unknown, expected: unknown): boolean {
 }
 
 function oldHandwrittenUpright(cp: number): boolean {
-  return (cp >= 0x1100 && cp <= 0x11ff)
-    || (cp >= 0x2e80 && cp <= 0xa4cf)
-    || (cp >= 0xac00 && cp <= 0xd7af)
-    || (cp >= 0xf900 && cp <= 0xfaff)
-    || (cp >= 0xfe10 && cp <= 0xfe6f)
-    || (cp >= 0xff01 && cp <= 0xff60)
-    || (cp >= 0x1f200 && cp <= 0x1f2ff)
-    || cp >= 0x20000;
+  return (
+    (cp >= 0x1100 && cp <= 0x11ff) ||
+    (cp >= 0x2e80 && cp <= 0xa4cf) ||
+    (cp >= 0xac00 && cp <= 0xd7af) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xfe10 && cp <= 0xfe6f) ||
+    (cp >= 0xff01 && cp <= 0xff60) ||
+    (cp >= 0x1f200 && cp <= 0x1f2ff) ||
+    cp >= 0x20000
+  );
 }
 
-function perScalarMutation(
-  text: string,
-  properties: Map<number, IcuCodepointProperties>,
-): VerticalOrientationRun[] {
+function perScalarMutation(text: string, properties: Map<number, IcuCodepointProperties>): VerticalOrientationRun[] {
   const runs: VerticalOrientationRun[] = [];
   for (let offset = 0; offset < text.length;) {
     const cp = text.codePointAt(offset)!;
@@ -218,19 +219,27 @@ export interface VerticalOrientationOracleReport {
   sourceCodePointMismatches: SourcePropertyMismatch[];
   scalarProbeCount: number;
   scalarMismatches: ScalarMismatch[];
-  corpus: Array<CorpusCase & { sourceRuns: VerticalOrientationRun[]; productionRuns: VerticalOrientationRun[]; matches: boolean }>;
+  corpus: Array<
+    CorpusCase & { sourceRuns: VerticalOrientationRun[]; productionRuns: VerticalOrientationRun[]; matches: boolean }
+  >;
   combine: Array<{ writingMode: string; textCombine: string; source: boolean; production: boolean; matches: boolean }>;
-  mutations: { staleRangesMoved: boolean; perScalarExtendMoved: boolean; wrongCombineOwnershipMoved: boolean; staleUnicodeVersionMoved: boolean };
+  mutations: {
+    staleRangesMoved: boolean;
+    perScalarExtendMoved: boolean;
+    wrongCombineOwnershipMoved: boolean;
+    staleUnicodeVersionMoved: boolean;
+  };
   checks: Record<string, boolean>;
 }
 
-export function buildVerticalOrientationOracle(options: {
-  sourcePath?: string;
-  requireSource?: boolean;
-} = {}): VerticalOrientationOracleReport {
+export function buildVerticalOrientationOracle(
+  options: {
+    sourcePath?: string;
+    requireSource?: boolean;
+  } = {},
+): VerticalOrientationOracleReport {
   if (!isIcuHelperAvailable()) throw new Error("DM-2525 requires the pinned ICU companion");
-  const sourcePath = resolve(options.sourcePath
-    ?? "external/chromium/third_party/icu/source/data/unidata/ppucd.txt");
+  const sourcePath = resolve(options.sourcePath ?? "external/chromium/third_party/icu/source/data/unidata/ppucd.txt");
   const sourceSha256 = sha256File(sourcePath);
   if (options.requireSource && sourceSha256 == null) throw new Error(`pinned ppucd source missing: ${sourcePath}`);
 
@@ -244,7 +253,12 @@ export function buildVerticalOrientationOracle(options: {
       if (sourceUpright !== productionUpright) {
         sourceCodePointMismatchCount++;
         if (sourceCodePointMismatches.length < 20) {
-          sourceCodePointMismatches.push({ cp, property: "Vertical_Orientation", source: sourceUpright, production: productionUpright });
+          sourceCodePointMismatches.push({
+            cp,
+            property: "Vertical_Orientation",
+            source: sourceUpright,
+            production: productionUpright,
+          });
         }
       }
       const sourceExtend = sourceProperties.graphemeExtend[cp] === 1;
@@ -252,7 +266,12 @@ export function buildVerticalOrientationOracle(options: {
       if (sourceExtend !== productionExtend) {
         sourceCodePointMismatchCount++;
         if (sourceCodePointMismatches.length < 20) {
-          sourceCodePointMismatches.push({ cp, property: "Grapheme_Extend", source: sourceExtend, production: productionExtend });
+          sourceCodePointMismatches.push({
+            cp,
+            property: "Grapheme_Extend",
+            source: sourceExtend,
+            production: productionExtend,
+          });
         }
       }
     }
@@ -281,18 +300,22 @@ export function buildVerticalOrientationOracle(options: {
     return { ...spec, sourceRuns: expected, productionRuns: actual, matches: same(actual, expected) };
   });
   const writingModes = ["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"];
-  const combine = writingModes.flatMap((writingMode) => ["none", "all"].map((textCombine) => {
-    const source = textCombine === "all" && (writingMode === "vertical-rl" || writingMode === "vertical-lr");
-    const production = blinkUsesTextCombine(writingMode, textCombine);
-    return { writingMode, textCombine, source, production, matches: source === production };
-  }));
+  const combine = writingModes.flatMap((writingMode) =>
+    ["none", "all"].map((textCombine) => {
+      const source = textCombine === "all" && (writingMode === "vertical-rl" || writingMode === "vertical-lr");
+      const production = blinkUsesTextCombine(writingMode, textCombine);
+      return { writingMode, textCombine, source, production, matches: source === production };
+    }),
+  );
   const localeRuns = corpus.filter((row) => row.id.startsWith("locale-")).map((row) => row.productionRuns);
-  const staleRangesMoved = [0x00a7, 0x2018, 0x1f0a1]
-    .every((cp) => oldHandwrittenUpright(cp) !== isMixedVerticalUpright(cp));
-  const perScalarExtendMoved = ["A\u20dd", "漢\u{e0101}"]
-    .every((text) => !same(perScalarMutation(text, properties), sourceRuns(text, "mixed", properties)));
-  const wrongCombineOwnershipMoved = blinkUsesTextCombine("sideways-rl", "all") !== true
-    && blinkUsesTextCombine("sideways-lr", "all") !== true;
+  const staleRangesMoved = [0x00a7, 0x2018, 0x1f0a1].every(
+    (cp) => oldHandwrittenUpright(cp) !== isMixedVerticalUpright(cp),
+  );
+  const perScalarExtendMoved = ["A\u20dd", "漢\u{e0101}"].every(
+    (text) => !same(perScalarMutation(text, properties), sourceRuns(text, "mixed", properties)),
+  );
+  const wrongCombineOwnershipMoved =
+    blinkUsesTextCombine("sideways-rl", "all") !== true && blinkUsesTextCombine("sideways-lr", "all") !== true;
   const staleUnicodeVersionMoved = VERTICAL_ORIENTATION_UNICODE_VERSION !== "16.0.0";
   const mutations = { staleRangesMoved, perScalarExtendMoved, wrongCombineOwnershipMoved, staleUnicodeVersionMoved };
   const checks = {
@@ -312,8 +335,18 @@ export function buildVerticalOrientationOracle(options: {
     ticket: "DM-2525",
     verdict,
     sourcePins: VERTICAL_ORIENTATION_SOURCE_PINS,
-    environment: { platform: process.platform, architecture: process.arch, node: process.version, icuHelperAvailable: true },
-    sourceImage: { path: sourcePath, sha256: sourceSha256, generatedSha256: VERTICAL_ORIENTATION_SOURCE_SHA256, unicodeVersion: VERTICAL_ORIENTATION_UNICODE_VERSION },
+    environment: {
+      platform: process.platform,
+      architecture: process.arch,
+      node: process.version,
+      icuHelperAvailable: true,
+    },
+    sourceImage: {
+      path: sourcePath,
+      sha256: sourceSha256,
+      generatedSha256: VERTICAL_ORIENTATION_SOURCE_SHA256,
+      unicodeVersion: VERTICAL_ORIENTATION_UNICODE_VERSION,
+    },
     sourceCodePointCount: 0x110000,
     sourceCodePointMismatchCount,
     sourceCodePointMismatches,

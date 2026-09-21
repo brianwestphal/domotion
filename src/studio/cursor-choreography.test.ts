@@ -3,11 +3,44 @@ import { planStudioCursorChoreography, type StudioCursorTargetEvidence } from ".
 
 const viewport = { width: 800, height: 500 };
 const evidence: StudioCursorTargetEvidence[] = [
-  { eventId: "click", kind: "click", atMs: 0, path: "$.tracks[0].events[0]", box: { x: 620, y: 70, width: 120, height: 44 }, cursor: "pointer", viewport },
-  { eventId: "hover", kind: "hover", atMs: 150, path: "$.tracks[0].events[1]", box: { x: 90, y: 220, width: 180, height: 60 }, cursor: "default", viewport },
-  { eventId: "type", kind: "type", atMs: 300, path: "$.tracks[0].events[2]", box: { x: 350, y: 380, width: 220, height: 36 }, cursor: "text", viewport },
+  {
+    eventId: "click",
+    kind: "click",
+    atMs: 0,
+    path: "$.tracks[0].events[0]",
+    box: { x: 620, y: 70, width: 120, height: 44 },
+    cursor: "pointer",
+    viewport,
+  },
+  {
+    eventId: "hover",
+    kind: "hover",
+    atMs: 150,
+    path: "$.tracks[0].events[1]",
+    box: { x: 90, y: 220, width: 180, height: 60 },
+    cursor: "default",
+    viewport,
+  },
+  {
+    eventId: "type",
+    kind: "type",
+    atMs: 300,
+    path: "$.tracks[0].events[2]",
+    box: { x: 350, y: 380, width: 220, height: 36 },
+    cursor: "text",
+    viewport,
+  },
   { eventId: "scroll", kind: "scrollTo", atMs: 450, path: "$.tracks[0].events[3]", cursor: "default", viewport },
-  { eventId: "drag", kind: "drag", atMs: 600, path: "$.tracks[0].events[4]", box: { x: 40, y: 40, width: 70, height: 50 }, destinationBox: { x: 680, y: 410, width: 90, height: 60 }, cursor: "grab", viewport },
+  {
+    eventId: "drag",
+    kind: "drag",
+    atMs: 600,
+    path: "$.tracks[0].events[4]",
+    box: { x: 40, y: 40, width: 70, height: 50 },
+    destinationBox: { x: 680, y: 410, width: 90, height: 60 },
+    cursor: "grab",
+    viewport,
+  },
 ];
 
 describe("Studio natural cursor choreography (DM-2686)", () => {
@@ -31,12 +64,18 @@ describe("Studio natural cursor choreography (DM-2686)", () => {
     }
     const click = first.interactions[0];
     const clickMoves = moves.filter((move) => move.t + (move.duration ?? 0) <= click.presentedAtMs);
-    const start = (first.overlay.events[0] as Extract<(typeof first.overlay.events)[number], { type: "show" }>);
+    const start = first.overlay.events[0] as Extract<(typeof first.overlay.events)[number], { type: "show" }>;
     const straightSlope = (click.point.y - start.y) / (click.point.x - start.x);
-    expect(clickMoves.slice(0, -1).some((move) => Math.abs((move.to!.y - start.y) - straightSlope * (move.to!.x - start.x)) > 1)).toBe(true);
-    const segmentDistances = clickMoves.map((move, index) => index === 0
-      ? Math.hypot(move.to!.x - start.x, move.to!.y - start.y)
-      : Math.hypot(move.to!.x - clickMoves[index - 1].to!.x, move.to!.y - clickMoves[index - 1].to!.y));
+    expect(
+      clickMoves
+        .slice(0, -1)
+        .some((move) => Math.abs(move.to!.y - start.y - straightSlope * (move.to!.x - start.x)) > 1),
+    ).toBe(true);
+    const segmentDistances = clickMoves.map((move, index) =>
+      index === 0
+        ? Math.hypot(move.to!.x - start.x, move.to!.y - start.y)
+        : Math.hypot(move.to!.x - clickMoves[index - 1].to!.x, move.to!.y - clickMoves[index - 1].to!.y),
+    );
     expect(segmentDistances[0]).toBeGreaterThan(segmentDistances.at(-1)!);
     expect(first.interactions.at(-1)!.destinationPoint).toBeDefined();
   });
@@ -59,16 +98,23 @@ describe("Studio natural cursor choreography (DM-2686)", () => {
 
   it("returns an empty renderer-compatible overlay when no visual actions exist", () => {
     expect(planStudioCursorChoreography([], { leadInMs: 250 })).toEqual({
-      overlay: { events: [] }, interactions: [], durationMs: 0, timeOffsetMs: 250,
+      overlay: { events: [] },
+      interactions: [],
+      durationMs: 0,
+      timeOffsetMs: 250,
     });
   });
 
   it("rejects unsafe numeric overrides instead of emitting invalid SVG timing", () => {
-    expect(() => planStudioCursorChoreography(evidence, {
-      overrides: { click: { point: { x: Number.NaN, y: 20 } } },
-    })).toThrow('override "click" point must contain finite x/y coordinates');
-    expect(() => planStudioCursorChoreography(evidence, {
-      overrides: { click: { samples: 1 } },
-    })).toThrow('override "click" samples must be an integer from 2 to 32');
+    expect(() =>
+      planStudioCursorChoreography(evidence, {
+        overrides: { click: { point: { x: Number.NaN, y: 20 } } },
+      }),
+    ).toThrow('override "click" point must contain finite x/y coordinates');
+    expect(() =>
+      planStudioCursorChoreography(evidence, {
+        overrides: { click: { samples: 1 } },
+      }),
+    ).toThrow('override "click" samples must be an integer from 2 to 32');
   });
 });

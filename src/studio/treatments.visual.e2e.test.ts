@@ -12,15 +12,24 @@ const examples = [
   { kind: "terminal-chrome", title: "Build" },
   { kind: "zoom-pan", transform: { from: { x: 0, y: 0 }, to: { x: -20, y: -10, scale: 1.2 } } },
   { kind: "spotlight", mask: { region: { x: 52, y: 42, width: 216, height: 96 } } },
-  { kind: "callout", text: "Primary action", anchor: { x: 100, y: 80 }, box: { x: 170, y: 112, width: 130, height: 44 } },
+  {
+    kind: "callout",
+    text: "Primary action",
+    anchor: { x: 100, y: 80 },
+    box: { x: 170, y: 112, width: 130, height: 44 },
+  },
   { kind: "title-card", title: "Ship clearly", subtitle: "A cinematic story" },
   { kind: "logo-reveal", logo: LOGO, width: 90 },
 ] as const;
 
 describe("Studio treatment rendered examples", () => {
   let browser: Browser;
-  beforeAll(async () => { browser = await launchChromium(); });
-  afterAll(async () => { await browser?.close(); });
+  beforeAll(async () => {
+    browser = await launchChromium();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
 
   it("renders every preset deterministically in Chromium at a fixed animation time", async () => {
     const page = await browser.newPage({ viewport: { width: 500, height: 400 } });
@@ -42,8 +51,9 @@ describe("Studio treatment rendered examples", () => {
         const first = await target.screenshot({ animations: "allow" });
         const second = await target.screenshot({ animations: "allow" });
         expect(first.length, treatment.kind).toBeGreaterThan(500);
-        expect(createHash("sha256").update(first).digest("hex"), treatment.kind)
-          .toBe(createHash("sha256").update(second).digest("hex"));
+        expect(createHash("sha256").update(first).digest("hex"), treatment.kind).toBe(
+          createHash("sha256").update(second).digest("hex"),
+        );
       }
     } finally {
       await page.close();

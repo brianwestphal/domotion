@@ -21,7 +21,8 @@ import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 // lang-independent (it is about declaredness), so the scenarios carry unique
 // ASCII text purely so the test can locate each captured node.
 
-const W = 400, H = 500;
+const W = 400,
+  H = 500;
 
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8">` +
@@ -52,7 +53,11 @@ const HTML =
   `<button lang="ja"><span>button-child</span></button>` +
   `</body></html>`;
 
-interface Node { text?: string; styles?: Record<string, string | undefined>; children?: Node[] }
+interface Node {
+  text?: string;
+  styles?: Record<string, string | undefined>;
+  children?: Node[];
+}
 
 function findByText(nodes: Node[], text: string): Node | undefined {
   for (const n of nodes) {

@@ -30,11 +30,22 @@ const data = await page.evaluate(() => {
       r.setStart(firstNode, i);
       r.setEnd(firstNode, i + 1);
       const cr = r.getBoundingClientRect();
-      chars.push({ ch: raw[i], x: +cr.x.toFixed(2), y: +cr.y.toFixed(2), w: +cr.width.toFixed(2), h: +cr.height.toFixed(2) });
+      chars.push({
+        ch: raw[i],
+        x: +cr.x.toFixed(2),
+        y: +cr.y.toFixed(2),
+        w: +cr.width.toFixed(2),
+        h: +cr.height.toFixed(2),
+      });
     }
     out.push({
       cls,
-      pRect: { x: +pRect.x.toFixed(2), y: +pRect.y.toFixed(2), w: +pRect.width.toFixed(2), h: +pRect.height.toFixed(2) },
+      pRect: {
+        x: +pRect.x.toFixed(2),
+        y: +pRect.y.toFixed(2),
+        w: +pRect.width.toFixed(2),
+        h: +pRect.height.toFixed(2),
+      },
       pStyle: { fontSize: cs.fontSize, lineHeight: cs.lineHeight, padding: cs.padding },
       pseudoFontSize: flStyle.fontSize,
       pseudoFloat: flStyle.float || flStyle.cssFloat || "",

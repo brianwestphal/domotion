@@ -25,7 +25,16 @@
 import type { Browser } from "@playwright/test";
 import { parseCast } from "./cast.js";
 import { TerminalEmulator, type TermCell } from "./emulator.js";
-import { buildFrames, gridToHtml, rowInnerHtml, makeReferenceGrid, measureTermCanvas, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
+import {
+  buildFrames,
+  gridToHtml,
+  rowInnerHtml,
+  makeReferenceGrid,
+  measureTermCanvas,
+  TERM_TYPE_DEFAULTS,
+  type TermFrame,
+  type HtmlRenderOptions,
+} from "./render.js";
 import { resolveTheme, type TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
@@ -72,7 +81,11 @@ export function detectScroll(prev: string[], cur: string[], rows: number): numbe
 }
 
 /** Thread the frame grids into tracked lines (the line pool). */
-export function trackLines(frames: TermFrame[], rows: number, theme: TerminalTheme): { lines: TrackedLine[]; totalMs: number } {
+export function trackLines(
+  frames: TermFrame[],
+  rows: number,
+  theme: TerminalTheme,
+): { lines: TrackedLine[]; totalMs: number } {
   const starts: number[] = [];
   let acc = 0;
   for (const f of frames) {
@@ -99,7 +112,7 @@ export function trackLines(frames: TermFrame[], rows: number, theme: TerminalThe
       for (const line of active.values()) line.endMs = t;
       active = new Map<number, TrackedLine>();
     }
-    const shift = (i === 0 || resized) ? 0 : detectScroll(lineRows[i - 1], cur, rows);
+    const shift = i === 0 || resized ? 0 : detectScroll(lineRows[i - 1], cur, rows);
     const newActive = new Map<number, TrackedLine>();
     const claimed = new Set<TrackedLine>();
     for (let r = 0; r < rows; r++) {
@@ -190,7 +203,10 @@ function rowPlain(cells: TermCell[]): string {
     if (c.char !== " " || c.fg != null || c.bg != null) break;
     end--;
   }
-  return cells.slice(0, end).map((c) => c.char).join("");
+  return cells
+    .slice(0, end)
+    .map((c) => c.char)
+    .join("");
 }
 
 /**
@@ -262,12 +278,16 @@ function buildCursor(
     acc += f.durationMs;
   }
   const pct = (ms: number): string => Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(4);
-  const at = (c: TermFrame["cursor"]): string => `translate(${(padding + c.x * charW).toFixed(2)}px,${(padding + c.y * linePx).toFixed(2)}px)`;
+  const at = (c: TermFrame["cursor"]): string =>
+    `translate(${(padding + c.x * charW).toFixed(2)}px,${(padding + c.y * linePx).toFixed(2)}px)`;
 
   const pos: string[] = [`0%{transform:${at(frames[0].cursor)}}`];
   for (let i = 1; i < frames.length; i++) {
     const slideStart = Math.max(starts[i - 1], starts[i] - SLIDE_MS);
-    pos.push(`${pct(slideStart)}%{transform:${at(frames[i - 1].cursor)}}`, `${pct(starts[i])}%{transform:${at(frames[i].cursor)}}`);
+    pos.push(
+      `${pct(slideStart)}%{transform:${at(frames[i - 1].cursor)}}`,
+      `${pct(starts[i])}%{transform:${at(frames[i].cursor)}}`,
+    );
   }
   pos.push(`100%{transform:${at(frames[frames.length - 1].cursor)}}`);
 
@@ -313,7 +333,6 @@ export interface IncrementalResult {
   lineCount: number;
 }
 
-
 /**
  * Compose a cast into an animated SVG via the incremental line-pool model.
  * `manageFonts: false` defers the font to a host pipeline (an `animate` `cast`
@@ -338,12 +357,17 @@ export async function composeIncrementalTermSvg(
   const resizes = honorResizes ? cast.resizes : [];
   let maxCols = cols;
   let maxRows = rows;
-  for (const rz of resizes) { if (rz.cols > maxCols) maxCols = rz.cols; if (rz.rows > maxRows) maxRows = rz.rows; }
+  for (const rz of resizes) {
+    if (rz.cols > maxCols) maxCols = rz.cols;
+    if (rz.rows > maxRows) maxRows = rz.rows;
+  }
   const fontSize = opts.fontSize ?? TERM_TYPE_DEFAULTS.fontSize;
   const padding = opts.padding ?? TERM_TYPE_DEFAULTS.padding;
   const lineHeight = TERM_TYPE_DEFAULTS.lineHeight;
   const fontFamily = opts.fontFamily ?? TERM_TYPE_DEFAULTS.fontFamily;
-  log(`term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`);
+  log(
+    `term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`,
+  );
 
   const emu = new TerminalEmulator(cols, rows, theme);
   let frames;
@@ -357,7 +381,10 @@ export async function composeIncrementalTermSvg(
   const { lines, totalMs } = trackLines(frames, maxRows, theme);
   log(`term: ${lines.length} tracked lines across ${frames.length} settle point(s) (incremental)`);
 
-  if (manageFonts) { clearEmbeddedFonts(); clearGlyphDefs(); } // DM-1338: glyph registry shares the lifecycle
+  if (manageFonts) {
+    clearEmbeddedFonts();
+    clearGlyphDefs();
+  } // DM-1338: glyph registry shares the lifecycle
 
   const htmlOpts: HtmlRenderOptions = { theme, fontSize, padding, fontFamily, lineHeight };
   const linePx = fontSize * lineHeight;
@@ -377,8 +404,9 @@ export async function composeIncrementalTermSvg(
 
     // Each line is positioned at its BIRTH row; translateY animates the delta.
     const divs = lines
-      .map((line) =>
-        `<div class="r" data-domotion-anim="ln${line.id}" style="top:${yOf(line.waypoints[0].row).toFixed(3)}px">${line.html === "" ? "&nbsp;" : line.html}</div>`,
+      .map(
+        (line) =>
+          `<div class="r" data-domotion-anim="ln${line.id}" style="top:${yOf(line.waypoints[0].row).toFixed(3)}px">${line.html === "" ? "&nbsp;" : line.html}</div>`,
       )
       .join("");
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -421,11 +449,13 @@ export async function composeIncrementalTermSvg(
   // the monospace cell advance, recovered from the measured content width.
   const shape = opts.cursor ?? "block";
   const charW = cols > 0 ? (width - 2 * padding) / cols : fontSize * MONO_ADVANCE_RATIO;
-  const cursor = shape === "none" ? null : buildCursor(frames, totalMs, charW, linePx, padding, shape, opts.cursorColor ?? theme.fg);
+  const cursor =
+    shape === "none" ? null : buildCursor(frames, totalMs, charW, linePx, padding, shape, opts.cursorColor ?? theme.fg);
 
   const fontFaceCss = manageFonts ? getEmbeddedFontFaceCss() : "";
   const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${lineKeyframes(lines, totalMs, yOf)}${cursor != null ? "\n" + cursor.css : ""}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${styleCss}</style>${inner}${cursor != null ? cursor.markup : ""}${realTextLayer}</svg>`;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<style>${styleCss}</style>${inner}${cursor != null ? cursor.markup : ""}${realTextLayer}</svg>`;
   return { svg, width, height, fontFaceCss, totalDurationMs: totalMs, lineCount: lines.length };
 }

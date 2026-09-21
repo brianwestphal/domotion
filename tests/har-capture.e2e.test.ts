@@ -33,8 +33,14 @@ describe("inferHarPageUrl", () => {
   it("returns the first 2xx text/html entry's URL", () => {
     const har = writeHar("html.har", {
       entries: [
-        { request: { url: "https://cdn.example/app.js" }, response: { status: 200, content: { mimeType: "application/javascript" } } },
-        { request: { url: "https://example.com/page" }, response: { status: 200, content: { mimeType: "text/html; charset=utf-8" } } },
+        {
+          request: { url: "https://cdn.example/app.js" },
+          response: { status: 200, content: { mimeType: "application/javascript" } },
+        },
+        {
+          request: { url: "https://example.com/page" },
+          response: { status: 200, content: { mimeType: "text/html; charset=utf-8" } },
+        },
       ],
     });
     expect(inferHarPageUrl(har)).toBe("https://example.com/page");
@@ -43,14 +49,24 @@ describe("inferHarPageUrl", () => {
   it("prefers a URL-valued pages[0].title when present", () => {
     const har = writeHar("title.har", {
       pages: [{ title: "https://example.com/home" }],
-      entries: [{ request: { url: "https://example.com/other" }, response: { status: 200, content: { mimeType: "text/html" } } }],
+      entries: [
+        {
+          request: { url: "https://example.com/other" },
+          response: { status: 200, content: { mimeType: "text/html" } },
+        },
+      ],
     });
     expect(inferHarPageUrl(har)).toBe("https://example.com/home");
   });
 
   it("falls back to the first entry's URL when no html entry exists", () => {
     const har = writeHar("nohtml.har", {
-      entries: [{ request: { url: "https://example.com/first.json" }, response: { status: 200, content: { mimeType: "application/json" } } }],
+      entries: [
+        {
+          request: { url: "https://example.com/first.json" },
+          response: { status: 200, content: { mimeType: "application/json" } },
+        },
+      ],
     });
     expect(inferHarPageUrl(har)).toBe("https://example.com/first.json");
   });
@@ -73,7 +89,13 @@ describe("inferHarPageUrl", () => {
 const HAR = path.resolve("tests/cache/real-world/google-desktop.har");
 const browserOk = await (async () => {
   if (!existsSync(HAR)) return false;
-  try { const b = await launchChromium(); await b.close(); return true; } catch { return false; }
+  try {
+    const b = await launchChromium();
+    await b.close();
+    return true;
+  } catch {
+    return false;
+  }
 })();
 const describeE2E = browserOk ? describe : describe.skip;
 

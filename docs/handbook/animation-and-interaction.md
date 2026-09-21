@@ -4,9 +4,24 @@ title: "Animation and interaction handbook"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2596","DM-2636","DM-2641","DM-2648","DM-2681","DM-2682"]
-code: ["src/animation/","src/cli/animate-artifact.ts","src/cli/animate-capture-session.ts","src/cli/animate-command.ts","src/cli/animate-debug.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts","src/cli/composite.ts","src/cli/debug-bundle.ts","src/studio/","tests/animate-debug.e2e.test.ts","tests/animate-examples.tsx"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2596", "DM-2636", "DM-2641", "DM-2648", "DM-2681", "DM-2682"]
+code:
+  [
+    "src/animation/",
+    "src/cli/animate-artifact.ts",
+    "src/cli/animate-capture-session.ts",
+    "src/cli/animate-command.ts",
+    "src/cli/animate-debug.ts",
+    "src/cli/animate-frame-capture.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate.ts",
+    "src/cli/composite.ts",
+    "src/cli/debug-bundle.ts",
+    "src/studio/",
+    "tests/animate-debug.e2e.test.ts",
+    "tests/animate-examples.tsx",
+  ]
 aliases: ["docs/handbook/animation-and-interaction.md"]
 ---
 
@@ -43,15 +58,15 @@ aliases: ["docs/handbook/animation-and-interaction.md"]
 
 ## Verified implementation map
 
-| Area | Requirements | Code and tests |
-| --- | --- | --- |
-| Frame model | [Animation model](../08-animation-model.md), [declarative config](../43-declarative-animate-config.md) | `src/animation/frame-timeline.ts`, `src/animation/svg-generator.ts`, animation tests |
-| Declarative capture | [Programmatic pipeline](../60-programmatic-animate-pipeline.md), [frame hooks](../62-frames-out-animate-pipeline.md) | `src/cli/animate-orchestrator.ts`, capture-session/frame-capture modules, compose tests |
-| CLI and artifacts | [Format targeting](../90-format-on-capture.md), [debug reproduction bundles](../237-animate-debug-reproduction-bundles.md) | `src/cli/animate-command.ts`, `src/cli/animate-artifact.ts`, `src/cli/animate-debug.ts`, CLI/E2E tests |
-| Transitions | [Parameterized built-ins](../117-parameterized-built-in-transitions.md), [custom recipes](../118-custom-transition-recipes.md) | transition schema/builders and example suite |
-| Overlays/actions | [Cursor](../13-cursor-overlay.md), [overlay SSOT](../59-overlay-schema-ssot.md), [action primitives](../63-cursor-action-primitives.md) | overlay/action modules and schema tests |
-| Composition | [Nested composition](../77-nested-animated-compositing.md), [storyboards](../89-storyboard-sequencing.md) | composite/storyboard modules and demos |
-| Studio source | [Versioned Studio project model](../239-studio-project-model.md) | `src/studio/`, generated Studio schema, static project fixture |
+| Area                | Requirements                                                                                                                            | Code and tests                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Frame model         | [Animation model](../08-animation-model.md), [declarative config](../43-declarative-animate-config.md)                                  | `src/animation/frame-timeline.ts`, `src/animation/svg-generator.ts`, animation tests                   |
+| Declarative capture | [Programmatic pipeline](../60-programmatic-animate-pipeline.md), [frame hooks](../62-frames-out-animate-pipeline.md)                    | `src/cli/animate-orchestrator.ts`, capture-session/frame-capture modules, compose tests                |
+| CLI and artifacts   | [Format targeting](../90-format-on-capture.md), [debug reproduction bundles](../237-animate-debug-reproduction-bundles.md)              | `src/cli/animate-command.ts`, `src/cli/animate-artifact.ts`, `src/cli/animate-debug.ts`, CLI/E2E tests |
+| Transitions         | [Parameterized built-ins](../117-parameterized-built-in-transitions.md), [custom recipes](../118-custom-transition-recipes.md)          | transition schema/builders and example suite                                                           |
+| Overlays/actions    | [Cursor](../13-cursor-overlay.md), [overlay SSOT](../59-overlay-schema-ssot.md), [action primitives](../63-cursor-action-primitives.md) | overlay/action modules and schema tests                                                                |
+| Composition         | [Nested composition](../77-nested-animated-compositing.md), [storyboards](../89-storyboard-sequencing.md)                               | composite/storyboard modules and demos                                                                 |
+| Studio source       | [Versioned Studio project model](../239-studio-project-model.md)                                                                        | `src/studio/`, generated Studio schema, static project fixture                                         |
 
 [Transition schema normalization](../116-transition-schema-and-normalization.md)
 remains proposed and is not silently promoted by this handbook.

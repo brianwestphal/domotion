@@ -156,13 +156,19 @@ function ublockGetCode(cp: number): Block {
   const icuBlock = icuCodepointProperties(cp)?.blockName;
   if (icuBlock != null) {
     const exact: Readonly<Record<string, Block>> = {
-      Greek_And_Coptic: Block.Greek, Armenian: Block.Armenian,
-      Arabic: Block.Arabic, Devanagari: Block.Devanagari, Kannada: Block.Kannada,
-      Thai: Block.Thai, Georgian: Block.Georgian, Arrows: Block.Arrows,
+      Greek_And_Coptic: Block.Greek,
+      Armenian: Block.Armenian,
+      Arabic: Block.Arabic,
+      Devanagari: Block.Devanagari,
+      Kannada: Block.Kannada,
+      Thai: Block.Thai,
+      Georgian: Block.Georgian,
+      Arrows: Block.Arrows,
       Mathematical_Operators: Block.MathematicalOperators,
       Miscellaneous_Technical: Block.MiscellaneousTechnical,
       Geometric_Shapes: Block.GeometricShapes,
-      Miscellaneous_Symbols: Block.MiscellaneousSymbols, Dingbats: Block.Dingbats,
+      Miscellaneous_Symbols: Block.MiscellaneousSymbols,
+      Dingbats: Block.Dingbats,
       Miscellaneous_Mathematical_Symbols_A: Block.MiscellaneousMathematicalSymbolsA,
       Supplemental_Arrows_A: Block.SupplementalArrowsA,
       Supplemental_Arrows_B: Block.SupplementalArrowsB,
@@ -170,13 +176,16 @@ function ublockGetCode(cp: number): Block {
       Supplemental_Mathematical_Operators: Block.SupplementalMathematicalOperators,
       Miscellaneous_Symbols_And_Arrows: Block.MiscellaneousSymbolsAndArrows,
       CJK_Symbols_And_Punctuation: Block.CjkSymbolsAndPunctuation,
-      Hiragana: Block.Hiragana, Katakana: Block.Katakana, Gothic: Block.Gothic,
+      Hiragana: Block.Hiragana,
+      Katakana: Block.Katakana,
+      Gothic: Block.Gothic,
       Mathematical_Alphanumeric_Symbols: Block.MathematicalAlphanumericSymbols,
       Arabic_Mathematical_Alphabetic_Symbols: Block.ArabicMathematicalAlphabeticSymbols,
       Playing_Cards: Block.PlayingCards,
       Enclosed_Alphanumeric_Supplement: Block.EnclosedAlphanumericSupplement,
       Miscellaneous_Symbols_And_Pictographs: Block.MiscellaneousSymbolsAndPictographs,
-      Emoticons: Block.Emoticons, Transport_And_Map_Symbols: Block.TransportAndMapSymbols,
+      Emoticons: Block.Emoticons,
+      Transport_And_Map_Symbols: Block.TransportAndMapSymbols,
       Alchemical_Symbols: Block.AlchemicalSymbols,
       Geometric_Shapes_Extended: Block.GeometricShapesExtended,
     };
@@ -184,40 +193,40 @@ function ublockGetCode(cp: number): Block {
   }
   // BMP first — every hot codepoint is here.
   if (cp < 0x10000) {
-    if (cp >= 0x0370 && cp <= 0x03FF) return Block.Greek;
-    if (cp >= 0x0530 && cp <= 0x058F) return Block.Armenian;
-    if (cp >= 0x0600 && cp <= 0x06FF) return Block.Arabic;
-    if (cp >= 0x0900 && cp <= 0x097F) return Block.Devanagari;
-    if (cp >= 0x0C80 && cp <= 0x0CFF) return Block.Kannada;
-    if (cp >= 0x0E00 && cp <= 0x0E7F) return Block.Thai;
-    if (cp >= 0x10A0 && cp <= 0x10FF) return Block.Georgian;
-    if (cp >= 0x2190 && cp <= 0x21FF) return Block.Arrows;
-    if (cp >= 0x2200 && cp <= 0x22FF) return Block.MathematicalOperators;
-    if (cp >= 0x2300 && cp <= 0x23FF) return Block.MiscellaneousTechnical;
-    if (cp >= 0x25A0 && cp <= 0x25FF) return Block.GeometricShapes;
-    if (cp >= 0x2600 && cp <= 0x26FF) return Block.MiscellaneousSymbols;
-    if (cp >= 0x2700 && cp <= 0x27BF) return Block.Dingbats;
-    if (cp >= 0x27C0 && cp <= 0x27EF) return Block.MiscellaneousMathematicalSymbolsA;
-    if (cp >= 0x27F0 && cp <= 0x27FF) return Block.SupplementalArrowsA;
-    if (cp >= 0x2900 && cp <= 0x297F) return Block.SupplementalArrowsB;
-    if (cp >= 0x2980 && cp <= 0x29FF) return Block.MiscellaneousMathematicalSymbolsB;
-    if (cp >= 0x2A00 && cp <= 0x2AFF) return Block.SupplementalMathematicalOperators;
-    if (cp >= 0x2B00 && cp <= 0x2BFF) return Block.MiscellaneousSymbolsAndArrows;
-    if (cp >= 0x3000 && cp <= 0x303F) return Block.CjkSymbolsAndPunctuation;
-    if (cp >= 0x3040 && cp <= 0x309F) return Block.Hiragana;
-    if (cp >= 0x30A0 && cp <= 0x30FF) return Block.Katakana;
+    if (cp >= 0x0370 && cp <= 0x03ff) return Block.Greek;
+    if (cp >= 0x0530 && cp <= 0x058f) return Block.Armenian;
+    if (cp >= 0x0600 && cp <= 0x06ff) return Block.Arabic;
+    if (cp >= 0x0900 && cp <= 0x097f) return Block.Devanagari;
+    if (cp >= 0x0c80 && cp <= 0x0cff) return Block.Kannada;
+    if (cp >= 0x0e00 && cp <= 0x0e7f) return Block.Thai;
+    if (cp >= 0x10a0 && cp <= 0x10ff) return Block.Georgian;
+    if (cp >= 0x2190 && cp <= 0x21ff) return Block.Arrows;
+    if (cp >= 0x2200 && cp <= 0x22ff) return Block.MathematicalOperators;
+    if (cp >= 0x2300 && cp <= 0x23ff) return Block.MiscellaneousTechnical;
+    if (cp >= 0x25a0 && cp <= 0x25ff) return Block.GeometricShapes;
+    if (cp >= 0x2600 && cp <= 0x26ff) return Block.MiscellaneousSymbols;
+    if (cp >= 0x2700 && cp <= 0x27bf) return Block.Dingbats;
+    if (cp >= 0x27c0 && cp <= 0x27ef) return Block.MiscellaneousMathematicalSymbolsA;
+    if (cp >= 0x27f0 && cp <= 0x27ff) return Block.SupplementalArrowsA;
+    if (cp >= 0x2900 && cp <= 0x297f) return Block.SupplementalArrowsB;
+    if (cp >= 0x2980 && cp <= 0x29ff) return Block.MiscellaneousMathematicalSymbolsB;
+    if (cp >= 0x2a00 && cp <= 0x2aff) return Block.SupplementalMathematicalOperators;
+    if (cp >= 0x2b00 && cp <= 0x2bff) return Block.MiscellaneousSymbolsAndArrows;
+    if (cp >= 0x3000 && cp <= 0x303f) return Block.CjkSymbolsAndPunctuation;
+    if (cp >= 0x3040 && cp <= 0x309f) return Block.Hiragana;
+    if (cp >= 0x30a0 && cp <= 0x30ff) return Block.Katakana;
     return Block.None;
   }
-  if (cp >= 0x10330 && cp <= 0x1034F) return Block.Gothic;
-  if (cp >= 0x1D400 && cp <= 0x1D7FF) return Block.MathematicalAlphanumericSymbols;
-  if (cp >= 0x1EE00 && cp <= 0x1EEFF) return Block.ArabicMathematicalAlphabeticSymbols;
-  if (cp >= 0x1F0A0 && cp <= 0x1F0FF) return Block.PlayingCards;
-  if (cp >= 0x1F100 && cp <= 0x1F1FF) return Block.EnclosedAlphanumericSupplement;
-  if (cp >= 0x1F300 && cp <= 0x1F5FF) return Block.MiscellaneousSymbolsAndPictographs;
-  if (cp >= 0x1F600 && cp <= 0x1F64F) return Block.Emoticons;
-  if (cp >= 0x1F680 && cp <= 0x1F6FF) return Block.TransportAndMapSymbols;
-  if (cp >= 0x1F700 && cp <= 0x1F77F) return Block.AlchemicalSymbols;
-  if (cp >= 0x1F780 && cp <= 0x1F7FF) return Block.GeometricShapesExtended;
+  if (cp >= 0x10330 && cp <= 0x1034f) return Block.Gothic;
+  if (cp >= 0x1d400 && cp <= 0x1d7ff) return Block.MathematicalAlphanumericSymbols;
+  if (cp >= 0x1ee00 && cp <= 0x1eeff) return Block.ArabicMathematicalAlphabeticSymbols;
+  if (cp >= 0x1f0a0 && cp <= 0x1f0ff) return Block.PlayingCards;
+  if (cp >= 0x1f100 && cp <= 0x1f1ff) return Block.EnclosedAlphanumericSupplement;
+  if (cp >= 0x1f300 && cp <= 0x1f5ff) return Block.MiscellaneousSymbolsAndPictographs;
+  if (cp >= 0x1f600 && cp <= 0x1f64f) return Block.Emoticons;
+  if (cp >= 0x1f680 && cp <= 0x1f6ff) return Block.TransportAndMapSymbols;
+  if (cp >= 0x1f700 && cp <= 0x1f77f) return Block.AlchemicalSymbols;
+  if (cp >= 0x1f780 && cp <= 0x1f7ff) return Block.GeometricShapesExtended;
   return Block.None;
 }
 
@@ -247,8 +256,12 @@ const kDeseretFonts = ["Segoe UI Symbol"] as const;
 const kDevanagariFonts = ["Nirmala UI", "Mangal"] as const;
 const kEgyptianHieroglyphsFonts = ["Segoe UI Historic"] as const;
 const kEthiopicFonts = [
-  "Nyala", "Abyssinica SIL", "Ethiopia Jiret", "Visual Geez Unicode",
-  "GF Zemen Unicode", "Ebrima",
+  "Nyala",
+  "Abyssinica SIL",
+  "Ethiopia Jiret",
+  "Visual Geez Unicode",
+  "GF Zemen Unicode",
+  "Ebrima",
 ] as const;
 const kGeorgianFonts = ["Sylfaen", "Segoe UI"] as const;
 const kGlagoliticFonts = ["Segoe UI Historic", "Segoe UI Symbol"] as const;
@@ -264,16 +277,18 @@ const kInscriptionalParthianFonts = ["Segoe UI Historic"] as const;
 const kJavaneseFonts = ["Javanese Text"] as const;
 const kKannadaFonts = ["Tunga", "Nirmala UI"] as const;
 const kKatakanaOrHiraganaFonts = [
-  "Noto Sans JP", "Noto Sans CJK JP", "Meiryo",
-  "Yu Gothic", "MS PGothic", "Microsoft YaHei",
+  "Noto Sans JP",
+  "Noto Sans CJK JP",
+  "Meiryo",
+  "Yu Gothic",
+  "MS PGothic",
+  "Microsoft YaHei",
 ] as const;
 const kKharoshthiFonts = ["Segoe UI Historic"] as const;
 // Try Khmer OS before Vista fonts as it goes along better with Latin
 // and looks better/larger for the same size.
 const kKhmerFonts = ["Leelawadee UI", "Khmer UI", "Khmer OS", "MoolBoran", "DaunPenh"] as const;
-const kLaoFonts = [
-  "Leelawadee UI", "Lao UI", "DokChampa", "Saysettha OT", "Phetsarath OT", "Code2000",
-] as const;
+const kLaoFonts = ["Leelawadee UI", "Lao UI", "DokChampa", "Saysettha OT", "Phetsarath OT", "Code2000"] as const;
 const kLatinFonts = ["Times New Roman"] as const;
 const kLisuFonts = ["Segoe UI"] as const;
 const kLycianFonts = ["Segoe UI Historic"] as const;
@@ -410,19 +425,38 @@ export const WIN_MATH_FONTS: readonly string[] = ["Cambria Math", "Segoe UI Symb
  * "Last resort font list : PanUnicode. CJK fonts have a pretty large repertoire."
  */
 export const WIN_PAN_UNICODE_CJK_FONTS: readonly string[] = [
-  "arial unicode ms", "ms pgothic", "simsun", "gulim", "pmingliu",
-  "wenquanyi zen hei", "ar pl shanheisun uni", "ar pl zenkai uni",
-  "han nom a", "code2000",
+  "arial unicode ms",
+  "ms pgothic",
+  "simsun",
+  "gulim",
+  "pmingliu",
+  "wenquanyi zen hei",
+  "ar pl shanheisun uni",
+  "ar pl zenkai uni",
+  "han nom a",
+  "code2000",
 ];
 
 /** `kCommonFonts` — the same list for every non-Han script
  *  (font_cache_skia_win.cc:198-204). `dejavu sasns` is Chromium's own typo for
  *  "dejavu sans"; transcribed as written. */
 export const WIN_PAN_UNICODE_COMMON_FONTS: readonly string[] = [
-  "tahoma", "arial unicode ms", "lucida sans unicode",
-  "microsoft sans serif", "palatino linotype",
-  "dejavu serif", "dejavu sasns", "freeserif", "freesans", "gentium",
-  "gentiumalt", "ms pgothic", "simsun", "gulim", "pmingliu", "code2000",
+  "tahoma",
+  "arial unicode ms",
+  "lucida sans unicode",
+  "microsoft sans serif",
+  "palatino linotype",
+  "dejavu serif",
+  "dejavu sasns",
+  "freeserif",
+  "freesans",
+  "gentium",
+  "gentiumalt",
+  "ms pgothic",
+  "simsun",
+  "gulim",
+  "pmingliu",
+  "code2000",
 ];
 
 // ---------------------------------------------------------------------------
@@ -438,8 +472,9 @@ const REAL_SCRIPTS: readonly WinScript[] = Object.keys(WIN_SCRIPT_FONT_FAMILIES)
   // on it, so it has to be distinguishable.
   .concat(["Han"]);
 
-const SCRIPT_RES: ReadonlyArray<readonly [WinScript, RegExp]> =
-  REAL_SCRIPTS.map((s) => [s, new RegExp(`\\p{Script=${s}}`, "u")] as const);
+const SCRIPT_RES: ReadonlyArray<readonly [WinScript, RegExp]> = REAL_SCRIPTS.map(
+  (s) => [s, new RegExp(`\\p{Script=${s}}`, "u")] as const,
+);
 const RE_COMMON = /\p{Script=Common}/u;
 const RE_INHERITED = /\p{Script=Inherited}/u;
 /** `Character::IsEmoji` — "Returns true if the character has a Emoji property"
@@ -456,8 +491,8 @@ export function uscriptGetScript(cp: number): WinScript {
   const icu = icuCodepointProperties(cp);
   if (icu != null) {
     const longName = icu.scriptLongName;
-    const out = longName === "Common" || longName === "Inherited" ||
-      REAL_SCRIPTS.includes(longName) ? longName : UNMAPPED_SCRIPT;
+    const out =
+      longName === "Common" || longName === "Inherited" || REAL_SCRIPTS.includes(longName) ? longName : UNMAPPED_SCRIPT;
     _scriptCache.set(cp, out);
     return out;
   }
@@ -467,7 +502,10 @@ export function uscriptGetScript(cp: number): WinScript {
   else if (RE_INHERITED.test(ch)) out = "Inherited";
   else {
     for (const [name, re] of SCRIPT_RES) {
-      if (re.test(ch)) { out = name; break; }
+      if (re.test(ch)) {
+        out = name;
+        break;
+      }
     }
   }
   _scriptCache.set(cp, out);
@@ -482,21 +520,32 @@ export function uscriptGetScript(cp: number): WinScript {
  */
 export function getScriptBasedOnUnicodeBlock(cp: number): WinScript {
   switch (ublockGetCode(cp)) {
-    case Block.CjkSymbolsAndPunctuation: return "Han";
+    case Block.CjkSymbolsAndPunctuation:
+      return "Han";
     case Block.Hiragana:
-    case Block.Katakana: return HRKT;
-    case Block.Arabic: return "Arabic";
-    case Block.Thai: return "Thai";
-    case Block.Greek: return "Greek";
+    case Block.Katakana:
+      return HRKT;
+    case Block.Arabic:
+      return "Arabic";
+    case Block.Thai:
+      return "Thai";
+    case Block.Greek:
+      return "Greek";
     // For Danda and Double Danda (U+0964, U+0965), use a Devanagari font for now
     // although they're used by other scripts as well. Without a context, we
     // can't do any better.
-    case Block.Devanagari: return "Devanagari";
-    case Block.Armenian: return "Armenian";
-    case Block.Georgian: return "Georgian";
-    case Block.Kannada: return "Kannada";
-    case Block.Gothic: return "Gothic";
-    default: return "Common";
+    case Block.Devanagari:
+      return "Devanagari";
+    case Block.Armenian:
+      return "Armenian";
+    case Block.Georgian:
+      return "Georgian";
+    case Block.Kannada:
+      return "Kannada";
+    case Block.Gothic:
+      return "Gothic";
+    default:
+      return "Common";
   }
 }
 
@@ -517,14 +566,24 @@ export function getScript(cp: number): WinScript {
  *  accepts (locale_to_script_mapping.cc:43-158). Any other 4ALPHA subtag maps to
  *  a script that fails that test, so the restriction is lossless here. */
 const HAN_SCRIPT_SUBTAGS: Readonly<Record<string, WinScript>> = {
-  hang: "Hangul", hira: HRKT, kana: HRKT, hrkt: HRKT,
-  hans: HANS, hant: HANT, jpan: HRKT, kore: "Hangul",
+  hang: "Hangul",
+  hira: HRKT,
+  kana: HRKT,
+  hrkt: HRKT,
+  hans: HANS,
+  hant: HANT,
+  jpan: HRKT,
+  kore: "Hangul",
 };
 
 /** `kRegionScriptList` in `ScriptCodeForHanFromRegion`
  *  (locale_to_script_mapping.cc:470-482). */
 const HAN_REGION_SUBTAGS: Readonly<Record<string, WinScript>> = {
-  hk: HANT, jp: HRKT, kr: "Hangul", mo: HANT, tw: HANT,
+  hk: HANT,
+  jp: HRKT,
+  kr: "Hangul",
+  mo: HANT,
+  tw: HANT,
 };
 
 /** `kLocaleScriptList`, restricted to the entries that yield an unambiguous Han
@@ -532,18 +591,42 @@ const HAN_REGION_SUBTAGS: Readonly<Record<string, WinScript>> = {
  *  maps to a non-Han script, which `IsUnambiguousHanScript` rejects — so for the
  *  Han decision this slice is the whole table. */
 const HAN_LANGUAGE_SUBTAGS: Readonly<Record<string, WinScript>> = {
-  ja: HRKT, ko: "Hangul",
+  ja: HRKT,
+  ko: "Hangul",
   zh: HANS,
   // "Encompassed languages within the Chinese macrolanguage."
-  cdo: HANS, cjy: HANS, cmn: HANS, cpx: HANS, czh: HANS, czo: HANS,
-  gan: HANS, hsn: HANS, mnp: HANS, wuu: HANS,
-  hak: HANT, lzh: HANT, nan: HANT, yue: HANT,
-  "zh-cdo": HANS, "zh-cjy": HANS, "zh-cmn": HANS, "zh-cpx": HANS,
-  "zh-czh": HANS, "zh-czo": HANS, "zh-gan": HANS, "zh-hsn": HANS,
-  "zh-mnp": HANS, "zh-wuu": HANS,
-  "zh-hak": HANT, "zh-lzh": HANT, "zh-nan": HANT, "zh-yue": HANT,
+  cdo: HANS,
+  cjy: HANS,
+  cmn: HANS,
+  cpx: HANS,
+  czh: HANS,
+  czo: HANS,
+  gan: HANS,
+  hsn: HANS,
+  mnp: HANS,
+  wuu: HANS,
+  hak: HANT,
+  lzh: HANT,
+  nan: HANT,
+  yue: HANT,
+  "zh-cdo": HANS,
+  "zh-cjy": HANS,
+  "zh-cmn": HANS,
+  "zh-cpx": HANS,
+  "zh-czh": HANS,
+  "zh-czo": HANS,
+  "zh-gan": HANS,
+  "zh-hsn": HANS,
+  "zh-mnp": HANS,
+  "zh-wuu": HANS,
+  "zh-hak": HANT,
+  "zh-lzh": HANT,
+  "zh-nan": HANT,
+  "zh-yue": HANT,
   // "Chinese with regions."
-  "zh-hk": HANT, "zh-mo": HANT, "zh-tw": HANT,
+  "zh-hk": HANT,
+  "zh-mo": HANT,
+  "zh-tw": HANT,
 };
 
 /** `IsUnambiguousHanScript` (locale_to_script_mapping.h:48-54). */
@@ -664,10 +747,10 @@ function localeForHanScript(lang: string | undefined): WinScript | null {
  * shortcut: every script that table drops is a script this one has no row for.
  */
 const SK_FONT_MGR_LOCALE: Readonly<Record<string, string>> = {
-  [HRKT]: "ja",       // USCRIPT_KATAKANA_OR_HIRAGANA
-  Hangul: "ko",       // USCRIPT_HANGUL
-  [HANS]: "zh-Hans",  // USCRIPT_SIMPLIFIED_HAN
-  [HANT]: "zh-Hant",  // USCRIPT_TRADITIONAL_HAN
+  [HRKT]: "ja", // USCRIPT_KATAKANA_OR_HIRAGANA
+  Hangul: "ko", // USCRIPT_HANGUL
+  [HANS]: "zh-Hans", // USCRIPT_SIMPLIFIED_HAN
+  [HANT]: "zh-Hant", // USCRIPT_TRADITIONAL_HAN
 };
 
 /** `kColorEmojiLocale` / `kMonoEmojiLocale` (`fonts/font_cache.cc:82-83`). */
@@ -728,13 +811,14 @@ export function localeForSkFontMgr(locale: string): string {
     // ICU is lenient where `Intl.Locale` throws. Reduce to the same shape by
     // hand rather than dropping the argument, which would silently widen the
     // query back to "no locale".
-    const parts = locale.replace(/_/g, "-").split("-").filter((p) => p !== "");
+    const parts = locale
+      .replace(/_/g, "-")
+      .split("-")
+      .filter((p) => p !== "");
     const first = parts[0];
     const language = first != null && /^[a-z]{2,3}$/i.test(first) ? first.toLowerCase() : "und";
     const sub = parts.slice(1).find((p) => /^[a-z]{4}$/i.test(p));
-    return sub != null
-      ? `${language}-${sub[0]!.toUpperCase()}${sub.slice(1).toLowerCase()}`
-      : language;
+    return sub != null ? `${language}-${sub[0]!.toUpperCase()}${sub.slice(1).toLowerCase()}` : language;
   }
 }
 
@@ -845,7 +929,9 @@ function findMonospaceFontForScript(script: WinScript): string | null {
 
 /** `GetFontFamilyForScript` (font_fallback_win.cc:459-490). */
 function getFontFamilyForScript(
-  script: WinScript, generic: WinGenericFamily, isFontPresent: IsFontPresent,
+  script: WinScript,
+  generic: WinGenericFamily,
+  isFontPresent: IsFontPresent,
 ): string | null {
   if (generic === "monospace") {
     const family = findMonospaceFontForScript(script);
@@ -926,7 +1012,9 @@ export interface WinFallbackFamily {
  * check is what decides whether the answer is used.
  */
 export function getFallbackFamily(
-  cp: number, opts: WinFallbackOptions, isFontPresent: IsFontPresent,
+  cp: number,
+  opts: WinFallbackOptions,
+  isFontPresent: IsFontPresent,
 ): WinFallbackFamily {
   const priority = opts.priority ?? "text";
   const generic = opts.generic ?? "standard";
@@ -948,7 +1036,7 @@ export function getFallbackFamily(
   // (determined in a locale-dependent way above). Full-width ASCII characters
   // are rather widely used in Japanese and Chinese documents and they're fully
   // covered by Chinese, Japanese and Korean fonts."
-  if (cp > 0xFF00 && cp < 0xFF5F) script = "Han";
+  if (cp > 0xff00 && cp < 0xff5f) script = "Han";
 
   if (script === "Common") script = getScriptBasedOnUnicodeBlock(cp);
 
@@ -965,7 +1053,7 @@ export function getFallbackFamily(
   // "TODO(kojii): Limiting GetFontFamilyForScript() only to BMP may need review
   // to match the modern environment. This was done in 2010 for
   // https://bugs.webkit.org/show_bug.cgi?id=35605."
-  if (cp <= 0xFFFF) {
+  if (cp <= 0xffff) {
     const family = getFontFamilyForScript(script, generic, isFontPresent);
     if (family != null) return { family, script: scriptOut };
   }
@@ -976,7 +1064,7 @@ export function getFallbackFamily(
   if (plane === 2) {
     // "Extension I (category IX) is part of Plane 2: U+2EBF0-U+2EE5F. As per
     // GB18030-2022, these characters must be rendered using simsun-extg."
-    if (cp >= 0x2EBF0 && cp <= 0x2EE5F) return { family: "simsun-extg", script: scriptOut };
+    if (cp >= 0x2ebf0 && cp <= 0x2ee5f) return { family: "simsun-extg", script: scriptOut };
     // "Use a Traditional Chinese ExtB font if in Traditional Chinese locale.
     // Otherwise, use a Simplified Chinese ExtB font."
     if (icuDefaultLocaleIsTraditionalChinese()) {
@@ -1001,7 +1089,9 @@ function icuDefaultLocaleIsTraditionalChinese(): boolean {
   let locale = "";
   try {
     locale = new Intl.DateTimeFormat().resolvedOptions().locale;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
   return /^zh[-_]tw\b/i.test(locale);
 }
 
@@ -1023,7 +1113,9 @@ function icuDefaultLocaleIsTraditionalChinese(): boolean {
  * FontContainsCharacter()."
  */
 export function blinkWinHardcodedFamilies(
-  cp: number, opts: WinFallbackOptions, isFontPresent: IsFontPresent,
+  cp: number,
+  opts: WinFallbackOptions,
+  isFontPresent: IsFontPresent,
 ): string[] {
   const { family, script } = getFallbackFamily(cp, opts, isFontPresent);
   const panUnicode = script === "Han" ? WIN_PAN_UNICODE_CJK_FONTS : WIN_PAN_UNICODE_COMMON_FONTS;

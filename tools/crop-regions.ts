@@ -17,17 +17,22 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  executeRegionCrops,
-  parseRegionsBlock,
-  planRegionCrops,
-  type Region,
-} from "../src/utils/region-feedback.js";
+import { executeRegionCrops, parseRegionsBlock, planRegionCrops, type Region } from "../src/utils/region-feedback.js";
 
-interface Settings { port: number; secret: string }
+interface Settings {
+  port: number;
+  secret: string;
+}
 
-interface RawAttachment { stored_path: string; original_filename: string }
-interface RawNote { id?: string; text: string; created_at?: string }
+interface RawAttachment {
+  stored_path: string;
+  original_filename: string;
+}
+interface RawNote {
+  id?: string;
+  text: string;
+  created_at?: string;
+}
 interface RawTicket {
   id: number;
   ticket_number: string;
@@ -55,7 +60,9 @@ function loadSettings(): Settings {
   }
   const raw = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as { port?: number; secret?: string };
   if (raw.port == null || raw.secret == null) {
-    throw new Error("Hot Sheet settings missing port or secret — pass HOTSHEET_PORT + HOTSHEET_SECRET env vars (newer Hot Sheet versions don't persist them in settings.json)");
+    throw new Error(
+      "Hot Sheet settings missing port or secret — pass HOTSHEET_PORT + HOTSHEET_SECRET env vars (newer Hot Sheet versions don't persist them in settings.json)",
+    );
   }
   return { port: raw.port, secret: raw.secret };
 }
@@ -95,7 +102,7 @@ async function fetchTicket(settings: Settings, id: number): Promise<RawTicket> {
     headers: { "X-Hotsheet-Secret": settings.secret },
   });
   if (!resp.ok) throw new Error(`Hot Sheet GET /api/tickets/${id} → ${resp.status} ${resp.statusText}`);
-  return await resp.json() as RawTicket;
+  return (await resp.json()) as RawTicket;
 }
 
 function pickRegionsSource(ticket: RawTicket): { source: "note" | "details"; noteId: string; body: string } | null {
@@ -131,9 +138,7 @@ function normalizeNotes(raw: RawTicket["notes"]): RawNote[] {
 
 function pngAttachments(ticket: RawTicket): string[] {
   if (!Array.isArray(ticket.attachments)) return [];
-  return ticket.attachments
-    .map((a) => a.stored_path)
-    .filter((p) => p.toLowerCase().endsWith(".png"));
+  return ticket.attachments.map((a) => a.stored_path).filter((p) => p.toLowerCase().endsWith(".png"));
 }
 
 // Canonical triplet naming from the review server: `${name}-expected.png`,
@@ -184,7 +189,9 @@ function reportRun(
 ): void {
   console.log(`${ticket.ticket_number}: ${regions.length} region(s) from ${picked.source} → ${cropped.length} crop(s)`);
   for (const c of cropped) {
-    console.log(`  [${c.region.index}] ${c.imageBasename} → ${c.outputPath}${c.region.caption != null ? `  (${c.region.caption})` : ""}`);
+    console.log(
+      `  [${c.region.index}] ${c.imageBasename} → ${c.outputPath}${c.region.caption != null ? `  (${c.region.caption})` : ""}`,
+    );
   }
   for (const w of warnings) {
     console.warn(`  ${w}`);

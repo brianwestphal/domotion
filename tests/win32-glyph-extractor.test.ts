@@ -123,7 +123,14 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
         fonts: [{ ref: "f", fontPath: ARIAL, size: 2048 }],
         queries: [{ type: "meta", fontRef: "f" }],
       });
-      const meta = resp.results[0] as { unitsPerEm: number; ascent: number; descent: number; traitItalic?: boolean; postscriptName: string; faceIndex: number };
+      const meta = resp.results[0] as {
+        unitsPerEm: number;
+        ascent: number;
+        descent: number;
+        traitItalic?: boolean;
+        postscriptName: string;
+        faceIndex: number;
+      };
       expect(meta.unitsPerEm).toBe(2048);
       expect(meta.ascent).toBeGreaterThan(0);
       expect(meta.descent).toBeLessThan(0); // negative-below-baseline convention
@@ -213,11 +220,13 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
         fontPath,
         size: 256,
       }));
-      const queries = fonts.flatMap((font) => sizes.map((fontSizePx) => ({
-        type: "meta" as const,
-        fontRef: font.ref,
-        fontSizePx,
-      })));
+      const queries = fonts.flatMap((font) =>
+        sizes.map((fontSizePx) => ({
+          type: "meta" as const,
+          fontRef: font.ref,
+          fontSizePx,
+        })),
+      );
       const results = callHelper({ fonts, queries }).results;
       const active = results.findIndex((result) => result.embeddedBitmapPaint === true);
 
@@ -228,8 +237,8 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       const fontIndex = Math.floor(active / sizes.length);
       const sizeIndex = active % sizes.length;
       console.info(
-        `Windows embedded-bitmap control: ${results[active].postscriptName} `
-        + `(${EMBEDDED_BITMAP_CANDIDATES[fontIndex]}) at ${sizes[sizeIndex]}px`,
+        `Windows embedded-bitmap control: ${results[active].postscriptName} ` +
+          `(${EMBEDDED_BITMAP_CANDIDATES[fontIndex]}) at ${sizes[sizeIndex]}px`,
       );
     });
   });
@@ -291,14 +300,15 @@ describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
   describeArial("reuses faces across requests and matches one-shot byte-for-byte", () => {
     it("serve responses equal one-shot responses", async () => {
       const FONT = { ref: "f", fontPath: ARIAL!, size: 2048 };
-      const envA = { fonts: [FONT], queries: [
-        { type: "meta", fontRef: "f" },
-        { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }, { cp: 0x65 }, { cp: 0x21 }] }
-      ] };
+      const envA = {
+        fonts: [FONT],
+        queries: [
+          { type: "meta", fontRef: "f" },
+          { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }, { cp: 0x65 }, { cp: 0x21 }] },
+        ],
+      };
       // Second envelope reuses the SAME font ref to exercise the face cache.
-      const envB = { fonts: [FONT], queries: [
-        { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x57 }, { cp: 0x6f }] }
-      ] };
+      const envB = { fonts: [FONT], queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x57 }, { cp: 0x6f }] }] };
 
       const oneShot = (req: unknown): string => {
         const p = spawnSync(HELPER, [], { input: JSON.stringify(req), encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 });
@@ -333,10 +343,13 @@ describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
           waiters.shift()?.(line);
         }
       });
-      const call = (req: unknown): Promise<string> => new Promise((resolve, reject) => {
-        waiters.push(resolve);
-        child.stdin!.write(JSON.stringify(req) + "\n", (e) => { if (e) reject(e); });
-      });
+      const call = (req: unknown): Promise<string> =>
+        new Promise((resolve, reject) => {
+          waiters.push(resolve);
+          child.stdin!.write(JSON.stringify(req) + "\n", (e) => {
+            if (e) reject(e);
+          });
+        });
       try {
         expect(await call(envA)).toBe(refA); // first request opens the face
         expect(await call(envB)).toBe(refB); // second reuses the cached face
@@ -366,10 +379,16 @@ describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
     // the shape production sends.
     const env = {
       fonts: [],
-      queries: [{
-        type: "fallback", fontRef: "base", cps: [0x4e00, 0x0600, 0x0e01],
-        cssWeight: 400, bold: false, italic: false,
-      }],
+      queries: [
+        {
+          type: "fallback",
+          fontRef: "base",
+          cps: [0x4e00, 0x0600, 0x0e01],
+          cssWeight: 400,
+          bold: false,
+          italic: false,
+        },
+      ],
     };
     const body = JSON.stringify(env);
 
@@ -379,7 +398,7 @@ describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
     // resulting error envelope as an ordinary "no fallback font" answer.
     expect(oneShot.status, oneShot.stderr).toBe(0);
     const reference = oneShot.stdout.trim();
-    expect(reference).toContain("\"type\":\"fallback\"");
+    expect(reference).toContain('"type":"fallback"');
 
     const name = String.raw`\\.\pipe\domotion-test-` + process.pid;
     const child = spawn(HELPER, ["--serve-pipe", name], { stdio: ["ignore", "ignore", "inherit"] });
@@ -387,8 +406,10 @@ describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
     try {
       const deadline = Date.now() + 10_000;
       for (;;) {
-        try { fd = openSync(name, "r+"); break; }
-        catch {
+        try {
+          fd = openSync(name, "r+");
+          break;
+        } catch {
           if (Date.now() > deadline) throw new Error("helper never created the named pipe");
           // Synchronous sleep: the connect loop cannot yield, by design.
           Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
@@ -434,10 +455,14 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
     expect(plain.diagnostics).toBeUndefined();
     const traced = fallback([0x41], { diagnostics: true }).fonts[0];
     if (!traced.found) return;
-    expect(traced.diagnostics).toEqual(expect.objectContaining({
-      mappedWeight: expect.any(Number), mappedStretch: expect.any(Number),
-      mappedStyle: expect.any(Number), mappedSimulations: expect.any(Number),
-    }));
+    expect(traced.diagnostics).toEqual(
+      expect.objectContaining({
+        mappedWeight: expect.any(Number),
+        mappedStretch: expect.any(Number),
+        mappedStyle: expect.any(Number),
+        mappedSimulations: expect.any(Number),
+      }),
+    );
   });
 
   it("reopens an italic MapCharacters nomination with Blink's converted style", () => {
@@ -447,19 +472,33 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
     // final painted cuts are regular. Diagnostics retain the raw nomination to
     // prove the test crosses that conversion rather than merely asking regular.
     const calibri = fallback([0x1df00], {
-      baseFamilyName: "Segoe UI", cssWeight: 400, italic: true, cssSlant: 1,
+      baseFamilyName: "Segoe UI",
+      cssWeight: 400,
+      italic: true,
+      cssSlant: 1,
       diagnostics: true,
     }).fonts[0];
     const segoe = fallback([0xa700], {
-      baseFamilyName: "Calibri", cssWeight: 400, italic: true, cssSlant: 1,
+      baseFamilyName: "Calibri",
+      cssWeight: 400,
+      italic: true,
+      cssSlant: 1,
       diagnostics: true,
     }).fonts[0];
-    expect(calibri).toEqual(expect.objectContaining({
-      found: true, postscriptName: "Calibri", diagnostics: expect.objectContaining({ mappedStyle: 2 }),
-    }));
-    expect(segoe).toEqual(expect.objectContaining({
-      found: true, postscriptName: "SegoeUI", diagnostics: expect.objectContaining({ mappedStyle: 2 }),
-    }));
+    expect(calibri).toEqual(
+      expect.objectContaining({
+        found: true,
+        postscriptName: "Calibri",
+        diagnostics: expect.objectContaining({ mappedStyle: 2 }),
+      }),
+    );
+    expect(segoe).toEqual(
+      expect.objectContaining({
+        found: true,
+        postscriptName: "SegoeUI",
+        diagnostics: expect.objectContaining({ mappedStyle: 2 }),
+      }),
+    );
   });
 
   // Skia builds an IDWriteNumberSubstitution from the same bcp47 tag it reports
@@ -473,8 +512,21 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
   // marker fires here instead of surfacing as universal non-coverage.
   it("accepts every locale tag shape the fallback resolver can emit", () => {
     const tags = [
-      "en-us", "und-Zsye", "und-Zsym", "zh-Hans", "zh-Hant", "ja", "ko",
-      "ar", "he", "th", "hi", "sr-Latn", "mn-Mong", "und", "zh",
+      "en-us",
+      "und-Zsye",
+      "und-Zsym",
+      "zh-Hans",
+      "zh-Hant",
+      "ja",
+      "ko",
+      "ar",
+      "he",
+      "th",
+      "hi",
+      "sr-Latn",
+      "mn-Mong",
+      "und",
+      "zh",
     ];
     for (const locale of tags) {
       const r = fallback([0x41, 0x30, 0x660], { locale });

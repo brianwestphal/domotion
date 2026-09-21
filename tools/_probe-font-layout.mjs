@@ -1,4 +1,3 @@
-
 import * as fontkit from "fontkit";
 const [path, psn, startHex, endHex] = JSON.parse(process.argv[2]);
 const f = fontkit.openSync(path);

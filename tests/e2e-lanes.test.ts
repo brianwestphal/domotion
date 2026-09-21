@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  E2E_ALL_FILES,
-  E2E_BASE_EXCLUDES,
-  E2E_HEAVY_FILES,
-  e2eLaneConfig,
-  resolveE2ELane,
-} from "./e2e-lanes.js";
+import { E2E_ALL_FILES, E2E_BASE_EXCLUDES, E2E_HEAVY_FILES, e2eLaneConfig, resolveE2ELane } from "./e2e-lanes.js";
 
 describe("browser E2E lane partition", () => {
   it("defaults direct config use to every E2E file at one worker", () => {

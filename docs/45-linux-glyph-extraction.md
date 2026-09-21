@@ -3,11 +3,45 @@ id: "requirements/linux-glyph-extraction"
 title: "Domotion: Linux native glyph-outline extraction (FreeType)"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1034","DM-2056","DM-2353","DM-258","DM-259","DM-262","DM-2623","DM-2626","DM-2627","DM-2652","DM-2662","DM-389","DM-390","DM-393","DM-837","DM-838","DM-872","DM-876","DM-881","DM-886"]
-code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","src/render/text-to-path.ts","tests/linux-glyph-extractor.test.ts","tests/linux-target-strike-small-caps.e2e.test.ts","tools/linux-glyph-extractor/","tools/linux-glyph-extractor/CMakeLists.txt","tools/linux-terminal-mask-oracle.ts"]
-aliases: ["docs/45-linux-glyph-extraction.md","doc-45"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  [
+    "DM-1034",
+    "DM-2056",
+    "DM-2353",
+    "DM-258",
+    "DM-259",
+    "DM-262",
+    "DM-2623",
+    "DM-2626",
+    "DM-2627",
+    "DM-2652",
+    "DM-2662",
+    "DM-389",
+    "DM-390",
+    "DM-393",
+    "DM-837",
+    "DM-838",
+    "DM-872",
+    "DM-876",
+    "DM-881",
+    "DM-886",
+  ]
+code:
+  [
+    ".github/workflows/release-helpers.yml",
+    "src/render/glyph-helper.test.ts",
+    "src/render/glyph-helper.ts",
+    "src/render/helper-acquire.ts",
+    "src/render/text-to-path.ts",
+    "tests/linux-glyph-extractor.test.ts",
+    "tests/linux-target-strike-small-caps.e2e.test.ts",
+    "tools/linux-glyph-extractor/",
+    "tools/linux-glyph-extractor/CMakeLists.txt",
+    "tools/linux-terminal-mask-oracle.ts",
+  ]
+aliases: ["docs/45-linux-glyph-extraction.md", "doc-45"]
 ---
 
 # Domotion: Linux native glyph-outline extraction (FreeType)
@@ -61,7 +95,7 @@ narrows that to FreeType alone for the outline walk**, with fontconfig only when
 a family name (not a file path) must be resolved:
 
 - We already have the **glyph's font file + size + glyph id / codepoint** from
-  the capture side and doc 16's envelope — we do *not* need text layout, line
+  the capture side and doc 16's envelope — we do _not_ need text layout, line
   breaking, or shaping (that's fontkit/HarfBuzz's job upstream). Pango and Cairo
   exist to do layout + rasterization; we only need outline decomposition.
 - Cairo's `cairo_glyph_path` itself decomposes via FreeType internally. Calling
@@ -82,7 +116,7 @@ but the lean FreeType path is the design baseline.
   units, y-up. The `text-to-path.ts` dispatch layer is engine-agnostic; only the
   asset filename differs.
 - **Probe-then-fallback** — fontkit first; the helper is invoked only when
-  fontkit yields a null/empty path for a codepoint the font *does* contain (a
+  fontkit yields a null/empty path for a codepoint the font _does_ contain (a
   CJK / CFF outline fontkit's walk can't reproduce — not the DM-838 case, where
   the font lacks the glyph entirely). Same `(fontFile, glyphId)` resolution cache.
 - **Trigger guards** — `process.platform === 'linux'`, helper present in the
@@ -119,7 +153,7 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
      (`FcFontMatch` on a pattern of family + weight + slant), then `FT_New_Face`
      on the matched file. (Most requests carry a `fontPath` already, so this
      branch is rare.)
-2. **Size.** *(As built — DM-872)* The outline is loaded with `FT_LOAD_NO_SCALE`
+2. **Size.** _(As built — DM-872)_ The outline is loaded with `FT_LOAD_NO_SCALE`
    (step 5), which returns coordinates in raw **font design units** regardless
    of size, so no `FT_Set_Pixel_Sizes` call is needed. This is exactly fontkit's
    convention (its `glyph.path.commands` are unscaled design units); the renderer
@@ -138,7 +172,7 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    — the extractor would handle Math-Alpha fine. The DM-838 "FreeSans lacks
    U+1D4xx" claim came from probing the `FreeSansOblique` face by mistake.)
 5. **Outline load + decompose.** `FT_Load_Glyph(face, glyphIndex,
-   FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)` →
+FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)` →
    `FT_Outline_Decompose(&face->glyph->outline, &funcs, &ctx)` with an
    `FT_Outline_Funcs` whose callbacks emit SVG path-data (below). `NO_SCALE`
    makes the outline points exact design-unit integers (no 26.6 conversion).
@@ -151,9 +185,9 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    `OS/2` table via `FT_Get_Sfnt_Table(face, FT_SFNT_OS2)` →
    `os2->yStrikeoutPosition` / `os2->yStrikeoutSize`. These map onto doc 16's
    `meta` response fields. The meta response also carries `traitItalic` from
-  FreeType's native `FT_STYLE_FLAG_ITALIC`; synthesis uses it as Linux's
-  `typeface->isItalic()` signal and falls back to the historical outline
-  heuristic when an older helper omits the optional field (DM-2056).
+   FreeType's native `FT_STYLE_FLAG_ITALIC`; synthesis uses it as Linux's
+   `typeface->isItalic()` signal and falls back to the historical outline
+   heuristic when an older helper omits the optional field (DM-2056).
 
 8. **`hintedGlyphs` query (DM-2623).** This is a separate, explicitly sized
    outline query; it does not change the normal design-unit `glyphs` contract.
@@ -190,25 +224,25 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    DEPS), including the SFNT-only validity check, the single
    `FcFontSort(trim=0)` walk, and the family/alias/metric-equivalence
    acceptance rule. Input `{type:"familyMatch", family, cssWeight?, italic?,
-   cssWidth?}` (cssWidth is CSS `font-stretch` percent); output the resolved
+cssWidth?}` (cssWidth is CSS `font-stretch` percent); output the resolved
    file, TTC index, matched family, PostScript name (via FreeType) and the
    matched face's style. Consumed by `resolveLinuxFamilyMatch` /
    `linuxPrimaryCutKey`, and scored end to end against Chrome by
    `npm run fonts:family-match:linux` (doc 110).
 
 10. **`fcdiagnostic` query (diagnostics only).** Serializes the effective
-   fallback pattern before and after `FcConfigSubstitute` plus
-   `FcDefaultSubstitute`, fingerprints the active config-file and sorted-font
-   inventory, and reports valid sorted-set entries whose `FC_CHARSET` covers
-   requested codepoints. It constructs Chromium's exact
-   `ui/gfx/font_fallback_linux.cc` question: locale + `FC_SCALABLE`, no
-   codepoint in the pattern, `FcFontSort(trim=false)`, then coverage as a
-   filter. The query never participates in production resolution. Run
-   `npm run test:linux-fallback-diagnostics` to pair U+0600/U+0700 `lang=ko`,
-   U+2200 `lang=ar`, and U+2600 `lang=ja` with same-container CDP results.
-   Candidate faces are observations, not hardcoded expectations.
+    fallback pattern before and after `FcConfigSubstitute` plus
+    `FcDefaultSubstitute`, fingerprints the active config-file and sorted-font
+    inventory, and reports valid sorted-set entries whose `FC_CHARSET` covers
+    requested codepoints. It constructs Chromium's exact
+    `ui/gfx/font_fallback_linux.cc` question: locale + `FC_SCALABLE`, no
+    codepoint in the pattern, `FcFontSort(trim=false)`, then coverage as a
+    filter. The query never participates in production resolution. Run
+    `npm run test:linux-fallback-diagnostics` to pair U+0600/U+0700 `lang=ko`,
+    U+2200 `lang=ar`, and U+2600 `lang=ja` with same-container CDP results.
+    Candidate faces are observations, not hardcoded expectations.
 
-### Persistent `--serve` mode *(DM-1034)*
+### Persistent `--serve` mode _(DM-1034)_
 
 By default the helper is one-shot: read one JSON request envelope from stdin (or
 `--input <path>`), write one JSON response to stdout, exit. Spawning the binary
@@ -247,13 +281,13 @@ one-shot until its helper grows the same loop.
 
 `FT_Outline_Decompose` takes an `FT_Outline_Funcs` with four callbacks:
 
-| FreeType callback | SVG emitted |
-| --- | --- |
-| `move_to(to)` | `M {x} {y}` |
-| `line_to(to)` | `L {x} {y}` |
-| `conic_to(ctrl, to)` | `Q {cx} {cy} {x} {y}` (TrueType quadratics) |
+| FreeType callback      | SVG emitted                                      |
+| ---------------------- | ------------------------------------------------ |
+| `move_to(to)`          | `M {x} {y}`                                      |
+| `line_to(to)`          | `L {x} {y}`                                      |
+| `conic_to(ctrl, to)`   | `Q {cx} {cy} {x} {y}` (TrueType quadratics)      |
 | `cubic_to(c1, c2, to)` | `C {c1x} {c1y} {c2x} {c2y} {x} {y}` (CFF cubics) |
-| (end of each contour) | `Z` |
+| (end of each contour)  | `Z`                                              |
 
 Unlike DirectWrite (which elevates everything to cubics), FreeType preserves the
 native curve kind — `conic_to` for TrueType quads, `cubic_to` for CFF. Emit `Q`
@@ -270,7 +304,7 @@ identical to fontkit's `glyph.path.commands`.
 
 ### Coordinate system
 
-**Emit y-UP, do NOT negate.** *(Corrected — DM-872.)* FreeType outline y points
+**Emit y-UP, do NOT negate.** _(Corrected — DM-872.)_ FreeType outline y points
 up (font convention); fontkit's `glyph.path.commands` are also y-up; the
 renderer flips to SVG y-down at draw time via its `scale(sc, -sc)` transform. So
 the helper must emit FreeType's native y-up coordinates verbatim — negating
@@ -293,7 +327,7 @@ Emit all numbers at fixed 3-decimal precision for deterministic, dedup-friendly
 output (parity with the other helpers; with `NO_SCALE` they are almost always
 integers).
 
-### Build script & portability *(as built — DM-872)*
+### Build script & portability _(as built — DM-872)_
 
 - `tools/linux-glyph-extractor/CMakeLists.txt` + `build.sh` (CMake + pkg-config
   for FreeType **and fontconfig** — fontconfig became a REQUIRED build
@@ -322,20 +356,20 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
 
 ## Validation
 
-- **Liberation Sans `H` outline parity** *(implemented)*: extract `H` via
+- **Liberation Sans `H` outline parity** _(implemented)_: extract `H` via
   fontkit and via the helper; assert the command sequence matches and
   coordinates match within tolerance — confirms y-up and the line mapping. In
   `tests/linux-glyph-extractor.test.ts` (runs only on `process.platform === 'linux'`
   with the binary built; skips otherwise). Validated via `npm run
-  test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
+test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
   Liberation Sans is the canonical line-parity oracle.)
-- **FreeSans Math-Alpha parity** *(implemented)*: extract U+1D44E 𝑎 from upright
+- **FreeSans Math-Alpha parity** _(implemented)_: extract U+1D44E 𝑎 from upright
   `FreeSans.ttf` via the helper and via fontkit and assert the outlines match —
   the upright face carries the Math-Alpha block (gid 6385 for 𝑎), so both return
   a real glyph (corrected DM-876; the earlier "empty path" claim was the
   `FreeSansOblique` face, which lacks the block). This is positive coverage, not
   an empty-regression guard.
-- **Linux target-strike parity** *(implemented)*: the Linux helper test
+- **Linux target-strike parity** _(implemented)_: the Linux helper test
   confirms that a 17 px WenQuanYi Mono `hintedGlyphs` response uses 26.6 target
   coordinates while the normal design-outline response remains unchanged. The
   terminal-mask oracle compares all 16 quarter-pixel phases and gates on no
@@ -352,17 +386,17 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
 
 ## Open questions
 
-1. **glibc floor / static strategy** — *RESOLVED (DM-872): dynamic FreeType,
-   glibc floor = `ubuntu:22.04` (2.35).* No static/musl build — `libfreetype.so.6`
+1. **glibc floor / static strategy** — _RESOLVED (DM-872): dynamic FreeType,
+   glibc floor = `ubuntu:22.04` (2.35)._ No static/musl build — `libfreetype.so.6`
    is guaranteed present alongside Chromium (see Build § / CMakeLists rationale),
    so a static link buys nothing. Revisit only if a need arises to run the helper
    on a glibc older than 2.35 or without Chromium present.
-2. **fontconfig dependency** — *RESOLVED: required.* Concrete `fontPath`
+2. **fontconfig dependency** — _RESOLVED: required._ Concrete `fontPath`
    requests remain the common outline path, while `familyMatch` and diagnostic
    fallback queries require fontconfig. Release and Docker builds therefore
    link `libfontconfig` alongside FreeType.
-3. **arm64** — *RESOLVED for distribution; live consumer gate added in
-   DM-2353.* `release-helpers.yml` builds `domotion-glyph-paths-linux-arm64` on
+3. **arm64** — _RESOLVED for distribution; live consumer gate added in
+   DM-2353._ `release-helpers.yml` builds `domotion-glyph-paths-linux-arm64` on
    `ubuntu-22.04-arm`; v0.24.0 carries the binary and sidecar. Doc 196's
    dispatch-only workflow consumes those release bytes from a never-used cache,
    verifies native AArch64 identity and exact fingerprints, and runs the parity
@@ -404,7 +438,7 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   strike-keyed fonts. Mixed synthesized caps are admitted only when every
   effective size has its own tuple. Other faces, sizes, styles, and failed
   helper probes retain the established route; none uses native font fallback.
-- ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
+- ⏳ **Remaining — the probe-then-fallback _trigger_ (separate follow-up).** The
   renderer can invoke the Linux helper through the DM-2623 target-strike route,
   but the general fontkit-empty-path trigger remains unbuilt. That follow-up
   pairs with the Linux fallback-chain calibration (DM-259) that decides which

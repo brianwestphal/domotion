@@ -29,7 +29,8 @@ const NOT_AN_SFNT = Buffer.alloc(4096);
 function buildOnce(path: string, faceIndex: number, key: string): void {
   clearEmbeddedFontBuilder();
   trackGlyphInEmbedFont(key, 1000, 800, -200, 1, [{ command: "moveTo", args: [0, 0] }], 500, {
-    italic: false, weight: 400,
+    italic: false,
+    weight: 400,
     hintedSource: { path, faceIndex, postscriptName: "Test", nameMatched: true, variationAxes: null } as never,
   });
   getBuiltEmbeddedFontFaceCss();

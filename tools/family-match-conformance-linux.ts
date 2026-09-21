@@ -58,19 +58,36 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  FAMILY_MATCH_ENV_KEYS, readBaselineSet, selectBaseline, describeRecordedEnvs, writeBaselineSet,
+  FAMILY_MATCH_ENV_KEYS,
+  readBaselineSet,
+  selectBaseline,
+  describeRecordedEnvs,
+  writeBaselineSet,
 } from "./family-match-baseline.js";
 
 const WEIGHTS = [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900] as const;
 const BASELINE = resolve("tests", "baselines", "family-match-linux.json");
 /** Fingerprint fields across which comparison is invalid (env-keyed baselines). */
 const ENV_KEYS = FAMILY_MATCH_ENV_KEYS.linux;
-const HELPER = process.env.DOMOTION_HELPER_PATH
-  ?? resolve("tools", "linux-glyph-extractor", "domotion-glyph-paths");
+const HELPER = process.env.DOMOTION_HELPER_PATH ?? resolve("tools", "linux-glyph-extractor", "domotion-glyph-paths");
 
-interface OurAnswer { found: boolean; postscriptName?: string; family?: string; path?: string }
-interface Case { family: string; css: number; ours: OurAnswer }
-interface Miss { family: string; css: number; chrome: string; ours: string }
+interface OurAnswer {
+  found: boolean;
+  postscriptName?: string;
+  family?: string;
+  path?: string;
+}
+interface Case {
+  family: string;
+  css: number;
+  ours: OurAnswer;
+}
+interface Miss {
+  family: string;
+  css: number;
+  chrome: string;
+  ours: string;
+}
 
 function sh(cmd: string, args: string[]): string {
   return execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).trim();
@@ -94,15 +111,21 @@ function runEnv(chromium_: string): Record<string, string | number> {
   let image = "unknown";
   try {
     image = readFileSync("/etc/os-release", "utf8").match(/PRETTY_NAME="([^"]+)"/)?.[1] ?? "unknown";
-  } catch { /* not linux or unreadable */ }
+  } catch {
+    /* not linux or unreadable */
+  }
   // fontconfig prints its version banner on STDERR, so fold the streams.
   const fcVersion = (() => {
     try {
       return execFileSync("sh", ["-c", "fc-list --version 2>&1"], { encoding: "utf8" }).trim();
-    } catch { return "unknown"; }
+    } catch {
+      return "unknown";
+    }
   })();
   const inventory = sh("fc-list", ["--format", "%{family[0]}|%{postscriptname}|%{file}|%{index}\n", ":"])
-    .split("\n").sort().join("\n");
+    .split("\n")
+    .sort()
+    .join("\n");
   return {
     platform: process.platform,
     arch: process.arch,
@@ -129,20 +152,40 @@ function corpusFamilies(): string[] {
         // Generic keywords resolve through Blink's settings layer, not through
         // matchFamilyName with the keyword itself — skip them. `-apple-system`
         // is a macOS-ism the corpus carries verbatim.
-        if (name === "" || ["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui", "-apple-system", "ui-monospace", "ui-sans-serif", "ui-serif", "ui-rounded", "math", "emoji"].includes(name.toLowerCase())) continue;
+        if (
+          name === "" ||
+          [
+            "serif",
+            "sans-serif",
+            "monospace",
+            "cursive",
+            "fantasy",
+            "system-ui",
+            "-apple-system",
+            "ui-monospace",
+            "ui-sans-serif",
+            "ui-serif",
+            "ui-rounded",
+            "math",
+            "emoji",
+          ].includes(name.toLowerCase())
+        )
+          continue;
         names.add(name);
       }
     }
     return [...names];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function ourAnswers(families: string[]): Map<string, Map<number, OurAnswer>> {
-  const queries = families.flatMap((family) =>
-    WEIGHTS.map((w) => ({ type: "familyMatch", family, cssWeight: w })));
+  const queries = families.flatMap((family) => WEIGHTS.map((w) => ({ type: "familyMatch", family, cssWeight: w })));
   const out = execFileSync(HELPER, {
     input: JSON.stringify({ fonts: [], queries }),
-    encoding: "utf8", maxBuffer: 256 * 1024 * 1024,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
   });
   const results = (JSON.parse(out) as { results: Array<OurAnswer & { type?: string; error?: string }> }).results;
   if (results.some((r) => r?.error === "unknown query type")) {
@@ -152,7 +195,9 @@ function ourAnswers(families: string[]): Map<string, Map<number, OurAnswer>> {
   const map = new Map<string, Map<number, OurAnswer>>();
   families.forEach((family, fi) => {
     const inner = new Map<number, OurAnswer>();
-    WEIGHTS.forEach((w, wi) => { inner.set(w, results[fi * WEIGHTS.length + wi] ?? { found: false }); });
+    WEIGHTS.forEach((w, wi) => {
+      inner.set(w, results[fi * WEIGHTS.length + wi] ?? { found: false });
+    });
     map.set(family, inner);
   });
   return map;
@@ -164,7 +209,9 @@ async function main(): Promise<void> {
   const writeBaseline = argv.includes("--write-baseline");
 
   if (process.platform !== "linux") {
-    console.error("family-match conformance (linux) must run on Linux — e.g. inside the pinned Playwright noble image.");
+    console.error(
+      "family-match conformance (linux) must run on Linux — e.g. inside the pinned Playwright noble image.",
+    );
     process.exit(2);
   }
   if (!existsSync(HELPER)) {
@@ -177,14 +224,14 @@ async function main(): Promise<void> {
   // two faces means every rule answers identically), plus the corpus's
   // declared names — which include the alias names that exercise the
   // metric-equivalence path even though they are not installed.
-  const families = [...new Set([
-    ...[...members.entries()].filter(([, ps]) => ps.size >= 2).map(([f]) => f),
-    ...corpusFamilies(),
-  ])].sort();
+  const families = [
+    ...new Set([...[...members.entries()].filter(([, ps]) => ps.size >= 2).map(([f]) => f), ...corpusFamilies()]),
+  ].sort();
 
   const ours = ourAnswers(families);
   const cases: Case[] = families.flatMap((family) =>
-    WEIGHTS.map((css) => ({ family, css, ours: ours.get(family)!.get(css)! })));
+    WEIGHTS.map((css) => ({ family, css, ours: ours.get(family)!.get(css)! })),
+  );
 
   const browser = await chromium.launch();
   const page = await browser.newPage();
@@ -193,32 +240,47 @@ async function main(): Promise<void> {
   await session.send("CSS.enable");
   await page.setContent(
     `<body style="margin:0">${cases
-      .map((d, i) => `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`)
+      .map(
+        (d, i) =>
+          `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`,
+      )
       .join("")}</body>`,
   );
   await page.waitForLoadState("networkidle");
   const { root } = await session.send("DOM.getDocument", { depth: -1 });
 
-  let scored = 0, agree = 0, skipped = 0, rejectAgree = 0;
+  let scored = 0,
+    agree = 0,
+    skipped = 0,
+    rejectAgree = 0;
   const misses: Miss[] = [];
   for (const [i, d] of cases.entries()) {
     const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#p${i}` });
     const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
     const chrome = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0]?.postScriptName;
-    if (chrome == null || chrome === "") { skipped++; continue; }
+    if (chrome == null || chrome === "") {
+      skipped++;
+      continue;
+    }
     const requestedMembers = members.get(d.family) ?? new Set<string>();
     if (!d.ours.found) {
       // Our matcher rejected the family. Chrome agreeing means its paint left
       // the requested family too (last-resort chain / next CSS family).
       scored++;
-      if (!requestedMembers.has(chrome)) { agree++; rejectAgree++; }
-      else misses.push({ family: d.family, css: d.css, chrome, ours: "(rejected)" });
+      if (!requestedMembers.has(chrome)) {
+        agree++;
+        rejectAgree++;
+      } else misses.push({ family: d.family, css: d.css, chrome, ours: "(rejected)" });
       continue;
     }
-    const matchedMembers = d.ours.family != null ? (members.get(d.ours.family) ?? new Set<string>()) : new Set<string>();
+    const matchedMembers =
+      d.ours.family != null ? (members.get(d.ours.family) ?? new Set<string>()) : new Set<string>();
     // Coverage artifact: Chrome left both the requested and the matched
     // family for the Latin probe text — not a style-matcher decision.
-    if (!requestedMembers.has(chrome) && !matchedMembers.has(chrome)) { skipped++; continue; }
+    if (!requestedMembers.has(chrome) && !matchedMembers.has(chrome)) {
+      skipped++;
+      continue;
+    }
     scored++;
     if (chrome === d.ours.postscriptName) agree++;
     else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours.postscriptName ?? "(none)" });
@@ -229,7 +291,15 @@ async function main(): Promise<void> {
   const env = runEnv(chromiumVersion);
   const report = {
     meta: { suite: "family-match", os: "linux", capturedAt: new Date().toISOString(), env, weights: WEIGHTS },
-    summary: { families: families.length, cases: cases.length, scored, agree, rejectAgree, skipped, misses: misses.length },
+    summary: {
+      families: families.length,
+      cases: cases.length,
+      scored,
+      agree,
+      rejectAgree,
+      skipped,
+      misses: misses.length,
+    },
     misses,
   };
 
@@ -239,13 +309,17 @@ async function main(): Promise<void> {
   if (asJson) console.log(JSON.stringify(report, null, 2));
   else {
     console.log(`families ${families.length}  cases ${cases.length}  scored ${scored}  skipped ${skipped}`);
-    console.log(`agreement ${agree}/${scored} (${scored > 0 ? ((agree / scored) * 100).toFixed(2) : "—"}%)  (agreed rejections: ${rejectAgree})`);
+    console.log(
+      `agreement ${agree}/${scored} (${scored > 0 ? ((agree / scored) * 100).toFixed(2) : "—"}%)  (agreed rejections: ${rejectAgree})`,
+    );
     for (const m of misses) console.log(`  ${m.family}@${m.css}: chrome=${m.chrome} ours=${m.ours}`);
   }
 
   if (writeBaseline) {
     const { replaced, total } = writeBaselineSet(BASELINE, report, ENV_KEYS);
-    console.log(`baseline ${replaced ? "replaced" : "recorded"} for this environment: ${BASELINE} (${total} environment(s) in the set)`);
+    console.log(
+      `baseline ${replaced ? "replaced" : "recorded"} for this environment: ${BASELINE} (${total} environment(s) in the set)`,
+    );
     return;
   }
 
@@ -259,7 +333,9 @@ async function main(): Promise<void> {
     console.error("REFUSING TO JUDGE: no recorded baseline matches this environment.");
     console.error(`this run: ${ENV_KEYS.map((k) => `${k}=${String(env[k])}`).join(" ")}`);
     for (const line of describeRecordedEnvs(entries, ENV_KEYS)) console.error(`recorded:  ${line}`);
-    console.error("A difference measured across two environments is not evidence about the code. Record a baseline on this environment (--write-baseline) to arm the gate here; existing environments' baselines are preserved.");
+    console.error(
+      "A difference measured across two environments is not evidence about the code. Record a baseline on this environment (--write-baseline) to arm the gate here; existing environments' baselines are preserved.",
+    );
     process.exit(3);
   }
   const baselineMissKeys = new Set(baseline.misses.map((m) => `${m.family}@${m.css}`));

@@ -13,7 +13,16 @@
 // push first — this script refuses to dispatch a ref the remote doesn't have.
 
 import { execFileSync, execFile } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  mkdirSync,
+  readdirSync,
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { waitForRunCompletion } from "./ci-run-wait.mjs";
@@ -27,7 +36,10 @@ function arg(name, fallback = null) {
 function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts }).trim();
 }
-function die(msg) { console.error(`\n✖ ${msg}`); process.exit(1); }
+function die(msg) {
+  console.error(`\n✖ ${msg}`);
+  process.exit(1);
+}
 
 const suite = arg("--suite", "unicode");
 const os = arg("--os", "macos");
@@ -76,21 +88,35 @@ if (!["unicode", "html"].includes(suite)) die(`--suite must be unicode|html (got
 if (!["macos", "linux", "windows", "all"].includes(os)) die(`--os must be macos|linux|windows|all (got ${os})`);
 
 // gh present?
-try { sh("gh", ["--version"]); } catch { die("GitHub CLI `gh` not found — install it (https://cli.github.com) and `gh auth login`."); }
+try {
+  sh("gh", ["--version"]);
+} catch {
+  die("GitHub CLI `gh` not found — install it (https://cli.github.com) and `gh auth login`.");
+}
 
 // Resolve ref to the current branch and confirm the remote has this exact commit
 // (CI runs the pushed ref, NOT your local working tree). Skipped in --run-id mode
 // (the run is already done; we're only re-staging its artifacts).
 if (ref == null) {
-  try { ref = sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]); } catch { die("not in a git repo / cannot resolve current branch"); }
+  try {
+    ref = sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+  } catch {
+    die("not in a git repo / cannot resolve current branch");
+  }
 }
 const localSha = sh("git", ["rev-parse", "HEAD"]);
 if (runIdOverride == null) {
   let remoteSha = "";
-  try { remoteSha = sh("git", ["rev-parse", `origin/${ref}`]); } catch { /* branch not on origin */ }
+  try {
+    remoteSha = sh("git", ["rev-parse", `origin/${ref}`]);
+  } catch {
+    /* branch not on origin */
+  }
   if (remoteSha !== localSha) {
-    die(`origin/${ref} ${remoteSha ? `is at ${remoteSha.slice(0, 8)} but HEAD is ${localSha.slice(0, 8)}` : "does not exist"}.\n` +
-        `  Push first:  git push -u origin ${ref}\n  (CI runs the pushed ref, not your local changes.)`);
+    die(
+      `origin/${ref} ${remoteSha ? `is at ${remoteSha.slice(0, 8)} but HEAD is ${localSha.slice(0, 8)}` : "does not exist"}.\n` +
+        `  Push first:  git push -u origin ${ref}\n  (CI runs the pushed ref, not your local changes.)`,
+    );
   }
 }
 
@@ -101,29 +127,45 @@ async function findRunId(dispatchAt) {
     await new Promise((r) => setTimeout(r, 3000));
     let json;
     try {
-      json = sh("gh", ["run", "list", "--workflow", WORKFLOW, "--branch", ref, "-L", "10",
-        "--json", "databaseId,createdAt,event,headSha,displayTitle"]);
-    } catch { continue; }
+      json = sh("gh", [
+        "run",
+        "list",
+        "--workflow",
+        WORKFLOW,
+        "--branch",
+        ref,
+        "-L",
+        "10",
+        "--json",
+        "databaseId,createdAt,event,headSha,displayTitle",
+      ]);
+    } catch {
+      continue;
+    }
     const runs = JSON.parse(json)
-      .filter((r) => r.event === "workflow_dispatch" && r.headSha === localSha
-        && new Date(r.createdAt).getTime() >= dispatchAt.getTime() - 5000
-        // DM-1926: the suite and OS must match, not just the ref and the time.
-        // Two sweeps dispatched seconds apart on one branch are the same
-        // workflow at the same sha, so time alone cannot tell them apart — and
-        // the unicode invocation attached to the html run, then compared html
-        // results against the unicode baseline and reported all 818 unicode
-        // fixtures as "dropped". The workflow's own `concurrency.group` already
-        // distinguishes them; only this lookup did not.
-        //
-        // `displayTitle` is the run name the workflow builds from its inputs
-        // ("Visual tests · unicode · os=macos"). Still not proof against two
-        // dispatches of the SAME suite racing — for that the run would need a
-        // correlation id — but it removes the case that actually occurs, and
-        // `diff-against-baseline.mjs` now refuses to grade a mismatched corpus
-        // whatever the cause.
-        && typeof r.displayTitle === "string"
-        && r.displayTitle.includes(`\u00b7 ${suite} \u00b7`)
-        && r.displayTitle.includes(`os=${os}`))
+      .filter(
+        (r) =>
+          r.event === "workflow_dispatch" &&
+          r.headSha === localSha &&
+          new Date(r.createdAt).getTime() >= dispatchAt.getTime() - 5000 &&
+          // DM-1926: the suite and OS must match, not just the ref and the time.
+          // Two sweeps dispatched seconds apart on one branch are the same
+          // workflow at the same sha, so time alone cannot tell them apart — and
+          // the unicode invocation attached to the html run, then compared html
+          // results against the unicode baseline and reported all 818 unicode
+          // fixtures as "dropped". The workflow's own `concurrency.group` already
+          // distinguishes them; only this lookup did not.
+          //
+          // `displayTitle` is the run name the workflow builds from its inputs
+          // ("Visual tests · unicode · os=macos"). Still not proof against two
+          // dispatches of the SAME suite racing — for that the run would need a
+          // correlation id — but it removes the case that actually occurs, and
+          // `diff-against-baseline.mjs` now refuses to grade a mismatched corpus
+          // whatever the cause.
+          typeof r.displayTitle === "string" &&
+          r.displayTitle.includes(`\u00b7 ${suite} \u00b7`) &&
+          r.displayTitle.includes(`os=${os}`),
+      )
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (runs.length > 0) return runs[0].databaseId;
     process.stdout.write(".");
@@ -136,17 +178,39 @@ let url;
 if (runIdOverride != null) {
   runId = runIdOverride;
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
-  console.log(`Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`);
+  console.log(
+    `Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`,
+  );
 } else {
-  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "0" ? " fallback-base=OFF" : ""}${liveFallbackFirst === "0" ? " live-fallback-first=OFF" : ""}${systemUiBase === "0" ? " system-ui-base=OFF" : ""}${trakHbShaping === "0" ? " trak-hb-shaping=OFF" : ""}`);
+  console.log(
+    `Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "0" ? " hinted-subset=OFF" : ""}${fallbackBase === "0" ? " fallback-base=OFF" : ""}${liveFallbackFirst === "0" ? " live-fallback-first=OFF" : ""}${systemUiBase === "0" ? " system-ui-base=OFF" : ""}${trakHbShaping === "0" ? " trak-hb-shaping=OFF" : ""}`,
+  );
   const dispatchAt = new Date();
-  sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
-    "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`,
-    "-f", `hinted_subset=${hintedSubset}`,
-    "-f", `fallback_base=${fallbackBase}`,
-    "-f", `live_fallback_first=${liveFallbackFirst}`,
-    "-f", `system_ui_base=${systemUiBase}`,
-    "-f", `trak_hb_shaping=${trakHbShaping}`]);
+  sh("gh", [
+    "workflow",
+    "run",
+    WORKFLOW,
+    "--ref",
+    ref,
+    "-f",
+    `os=${os}`,
+    "-f",
+    `suite=${suite}`,
+    "-f",
+    `shards=${shards}`,
+    "-f",
+    `only=${only}`,
+    "-f",
+    `hinted_subset=${hintedSubset}`,
+    "-f",
+    `fallback_base=${fallbackBase}`,
+    "-f",
+    `live_fallback_first=${liveFallbackFirst}`,
+    "-f",
+    `system_ui_base=${systemUiBase}`,
+    "-f",
+    `trak_hb_shaping=${trakHbShaping}`,
+  ]);
   runId = await findRunId(dispatchAt);
   if (runId == null) die("could not find the dispatched run — check `gh run list` / Actions tab.");
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
@@ -171,7 +235,8 @@ if (runIdOverride != null) {
     await waitForRunCompletion(
       () => JSON.parse(sh("gh", ["run", "view", String(runId), "--json", "status,conclusion"])),
       {
-        onProgress: (state) => process.stdout.write(`  workflow ${state?.status ?? "unknown"}; aggregate/artifacts not final yet\n`),
+        onProgress: (state) =>
+          process.stdout.write(`  workflow ${state?.status ?? "unknown"}; aggregate/artifacts not final yet\n`),
       },
     );
   } catch (error) {
@@ -181,11 +246,14 @@ if (runIdOverride != null) {
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
 const downloadPattern = eager ? "results-*" : "visual-tests-meta";
-console.log(`\nDownloading ${eager ? "shard image artifacts" : "merged metadata (lazy — images fetched on demand in the review UI)"} to ${dir} …`);
+console.log(
+  `\nDownloading ${eager ? "shard image artifacts" : "merged metadata (lazy — images fetched on demand in the review UI)"} to ${dir} …`,
+);
 // The workflow is terminal before this point, but Actions' artifact index can
 // lag finalization briefly. Keep a bounded retry for that publication race.
 let downloaded = false;
-const MAX_ATTEMPTS = 36, RETRY_MS = 10000;
+const MAX_ATTEMPTS = 36,
+  RETRY_MS = 10000;
 for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
   if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_MS));
   // `gh run download` errors with "file exists" if a prior partial extraction
@@ -196,11 +264,18 @@ for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
     // NOT via sh(): sh() does `.trim()` on the return, but with stdio:"inherit"
     // execFileSync returns null → `.trim()` throws a TypeError the catch below
     // would mis-report as "artifacts not ready" even when the download SUCCEEDED.
-    execFileSync("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", downloadPattern], { stdio: "inherit" });
+    execFileSync("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", downloadPattern], {
+      stdio: "inherit",
+    });
     downloaded = true;
-  } catch { process.stdout.write(`  (artifacts not ready yet, retrying… ${attempt + 1}/${MAX_ATTEMPTS})\n`); }
+  } catch {
+    process.stdout.write(`  (artifacts not ready yet, retrying… ${attempt + 1}/${MAX_ATTEMPTS})\n`);
+  }
 }
-if (!downloaded) die(`run completed, but ${downloadPattern} was not downloadable after ~${Math.round(MAX_ATTEMPTS * RETRY_MS / 60000)} min (see ${url}).`);
+if (!downloaded)
+  die(
+    `run completed, but ${downloadPattern} was not downloadable after ~${Math.round((MAX_ATTEMPTS * RETRY_MS) / 60000)} min (see ${url}).`,
+  );
 
 const here = new URL("..", import.meta.url).pathname;
 if (eager) {
@@ -215,9 +290,15 @@ if (eager) {
   let found = 0;
   for (const name of readdirSync(srcDir)) {
     const m = /^results-([a-z0-9]+)\.slim\.json$/i.exec(name);
-    if (m != null) { copyFileSync(join(srcDir, name), join(dir, `results-${m[1].toLowerCase()}.json`)); found++; }
+    if (m != null) {
+      copyFileSync(join(srcDir, name), join(dir, `results-${m[1].toLowerCase()}.json`));
+      found++;
+    }
   }
-  if (found === 0) die(`no results-<os>.slim.json in the visual-tests-meta artifact — run ${runId} may not have reached the aggregate job (see ${url}).`);
+  if (found === 0)
+    die(
+      `no results-<os>.slim.json in the visual-tests-meta artifact — run ${runId} may not have reached the aggregate job (see ${url}).`,
+    );
   // The merged per-OS environment record travels in the same artifact. Copy it
   // up beside the results so `ci-baseline-aggregate.mjs` finds it — it looks for
   // `run-env-<os>.json` in the input dir, and without it a baseline written from
@@ -225,15 +306,20 @@ if (eager) {
   let envFound = 0;
   for (const name of readdirSync(srcDir)) {
     if (/^run-env-[a-z0-9]+\.json$/i.test(name)) {
-      copyFileSync(join(srcDir, name), join(dir, name)); envFound++;
+      copyFileSync(join(srcDir, name), join(dir, name));
+      envFound++;
     }
     if (/^stage-evidence-[a-z0-9]+\.json$/i.test(name)) copyFileSync(join(srcDir, name), join(dir, name));
   }
-  console.log(`\nUsing CI slim metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`);
+  console.log(
+    `\nUsing CI slim metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`,
+  );
   if (envFound === 0) {
-    console.warn(`⚠️  No run-env-<os>.json in the meta artifact — this run predates the workflow\n`
-      + `   change that uploads it, so environment provenance is unavailable.\n`
-      + `   A baseline written from it would carry env: null; --update-baseline will refuse.\n`);
+    console.warn(
+      `⚠️  No run-env-<os>.json in the meta artifact — this run predates the workflow\n` +
+        `   change that uploads it, so environment provenance is unavailable.\n` +
+        `   A baseline written from it would carry env: null; --update-baseline will refuse.\n`,
+    );
   }
 }
 
@@ -259,21 +345,29 @@ if (eager) {
     try {
       const c = JSON.parse(readFileSync(join(srcDir, name), "utf-8"));
       if (c.complete === false) incomplete.push(c);
-    } catch { /* unreadable — treated as "cannot tell" below */ }
+    } catch {
+      /* unreadable — treated as "cannot tell" below */
+    }
   }
   if (incomplete.length > 0) {
     for (const c of incomplete) {
-      console.error(`\n🔴 INCOMPLETE RUN — ${c.os}: shard(s) ${(c.missingShards ?? []).join(", ")} of `
-        + `${c.expectedShards} are missing from the merge. ${c.fixtures} fixtures are the SURVIVORS, `
-        + `not the corpus.`);
+      console.error(
+        `\n🔴 INCOMPLETE RUN — ${c.os}: shard(s) ${(c.missingShards ?? []).join(", ")} of ` +
+          `${c.expectedShards} are missing from the merge. ${c.fixtures} fixtures are the SURVIVORS, ` +
+          `not the corpus.`,
+      );
     }
-    die(`refusing to report a baseline verdict for an incomplete run (see ${url}). `
-      + `Re-run the sweep; a partial corpus cannot be compared against a baseline or another run.`);
+    die(
+      `refusing to report a baseline verdict for an incomplete run (see ${url}). ` +
+        `Re-run the sweep; a partial corpus cannot be compared against a baseline or another run.`,
+    );
   }
   if (checked === 0) {
-    console.warn(`⚠️  No shard-completeness-<os>.json in the artifact — this run predates the\n`
-      + `   completeness check, so a lost shard would be invisible here. Verify the fixture\n`
-      + `   count against the corpus before quoting a verdict.\n`);
+    console.warn(
+      `⚠️  No shard-completeness-<os>.json in the artifact — this run predates the\n` +
+        `   completeness check, so a lost shard would be invisible here. Verify the fixture\n` +
+        `   count against the corpus before quoting a verdict.\n`,
+    );
   }
 }
 
@@ -284,10 +378,22 @@ if (eager) {
 // --update-baseline, (re)write that committed baseline from this run.
 const updateBaseline = process.argv.includes("--update-baseline");
 console.log(`\nDiffing against committed CI baseline${updateBaseline ? " (and rewriting it)" : ""}…\n`);
-execFileSync("node", [join(here, "scripts/ci-baseline-aggregate.mjs"),
-  "--input", dir, "--suite", suite, "--commit", localSha, "--out", dir,
-  ...(updateBaseline ? ["--update-baseline"] : [])],
-  { cwd: here, stdio: "inherit" });
+execFileSync(
+  "node",
+  [
+    join(here, "scripts/ci-baseline-aggregate.mjs"),
+    "--input",
+    dir,
+    "--suite",
+    suite,
+    "--commit",
+    localSha,
+    "--out",
+    dir,
+    ...(updateBaseline ? ["--update-baseline"] : []),
+  ],
+  { cwd: here, stdio: "inherit" },
+);
 if (updateBaseline) {
   // ci-baseline-aggregate wrote baseline-<suite>-<os>.json into `dir`; move each
   // into the repo's tests/baselines/ so the user can review + commit it.
@@ -308,17 +414,25 @@ if (updateBaseline) {
 // whole-shard fallback instead of serving another run's images.
 function resolveImagesSha(ciSuite, stageOs, wantRunId) {
   const CI_IMAGES_REPO = "brianwestphal/domotion-ci-images";
-  const gh = (path) => execFileSync("gh", ["api", path, "--jq", ".content"],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const gh = (path) =>
+    execFileSync("gh", ["api", path, "--jq", ".content"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
   try {
-    const sha = execFileSync("gh", ["api",
-      `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${stageOs}`, "--jq", ".object.sha"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    const sha = execFileSync(
+      "gh",
+      ["api", `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${stageOs}`, "--jq", ".object.sha"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
     if (!/^[0-9a-f]{40}$/.test(sha)) return null;
-    const meta = JSON.parse(Buffer.from(
-      gh(`repos/${CI_IMAGES_REPO}/contents/meta.json?ref=${sha}`), "base64").toString("utf8"));
+    const meta = JSON.parse(
+      Buffer.from(gh(`repos/${CI_IMAGES_REPO}/contents/meta.json?ref=${sha}`), "base64").toString("utf8"),
+    );
     return String(meta.runId) === String(wantRunId) ? sha : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // --review (default ON): stage EACH OS's shard PNGs + .svg + merged results.json
@@ -359,8 +473,14 @@ if (!process.argv.includes("--no-review")) {
     // assumed from the absence of `--only`, so a skipped or failed push is
     // caught too — omitting the field is safe (it just takes the slow path).
     const imagesSha = resolveImagesSha(suite, stageOs, String(runId));
-    writeFileSync(join(dest, ".ci-source.json"), JSON.stringify(
-      { runId: String(runId), os: stageOs, suite, ...(imagesSha != null ? { sha: imagesSha } : {}) }, null, 2));
+    writeFileSync(
+      join(dest, ".ci-source.json"),
+      JSON.stringify(
+        { runId: String(runId), os: stageOs, suite, ...(imagesSha != null ? { sha: imagesSha } : {}) },
+        null,
+        2,
+      ),
+    );
     let pngs = 0;
     if (eager) {
       for (const name of readdirSync(dir)) {
@@ -368,15 +488,22 @@ if (!process.argv.includes("--no-review")) {
         if (m == null || m[1].toLowerCase() !== stageOs) continue;
         const shardDir = join(dir, name);
         for (const f of readdirSync(shardDir)) {
-          if (f.endsWith(".png") || f.endsWith(".svg")) { copyFileSync(join(shardDir, f), join(dest, f)); pngs++; }
+          if (f.endsWith(".png") || f.endsWith(".svg")) {
+            copyFileSync(join(shardDir, f), join(dest, f));
+            pngs++;
+          }
         }
       }
     }
     staged.push(stageOs);
-    console.log(`  staged tests/output/review/ci-${stageOs}/${suiteDir}/ — metadata${eager ? ` + ${pngs} images` : " (images fetched lazily on first view)"}`);
+    console.log(
+      `  staged tests/output/review/ci-${stageOs}/${suiteDir}/ — metadata${eager ? ` + ${pngs} images` : " (images fetched lazily on first view)"}`,
+    );
   }
   if (staged.length > 0) {
-    console.log(`\nReview in the local UI (toggle Source → “CI · ${staged.map((o) => o[0].toUpperCase() + o.slice(1)).join("” / “CI · ")}”):`);
+    console.log(
+      `\nReview in the local UI (toggle Source → “CI · ${staged.map((o) => o[0].toUpperCase() + o.slice(1)).join("” / “CI · ")}”):`,
+    );
     console.log(`  npm run demos:review`);
   }
 }

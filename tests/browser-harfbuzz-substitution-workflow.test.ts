@@ -14,8 +14,9 @@ describe("browser HarfBuzz substitution-stream workflow", () => {
     expect(workflow).toContain("actions/upload-artifact@v4");
     expect(workflow).toContain("actions/download-artifact@v4");
     expect(workflow).toMatch(/ratify:\n\s+needs: exact-logical-artifacts/);
-    expect(pkg.scripts["fonts:browser-harfbuzz-substitutions"])
-      .toBe("node --import tsx tools/browser-harfbuzz-substitution-oracle.ts");
+    expect(pkg.scripts["fonts:browser-harfbuzz-substitutions"]).toBe(
+      "node --import tsx tools/browser-harfbuzz-substitution-oracle.ts",
+    );
   });
 
   it("pins source authority and blocks all raster grading until exact logic agrees", () => {

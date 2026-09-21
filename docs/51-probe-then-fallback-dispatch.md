@@ -4,10 +4,10 @@ title: "Domotion: probe-then-fallback glyph dispatch"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-259","DM-260","DM-385","DM-881","DM-886","DM-887","DM-889","DM-891","DM-892"]
-code: ["src/render/font-resolution.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts"]
-aliases: ["docs/51-probe-then-fallback-dispatch.md","doc-51"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-259", "DM-260", "DM-385", "DM-881", "DM-886", "DM-887", "DM-889", "DM-891", "DM-892"]
+code: ["src/render/font-resolution.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"]
+aliases: ["docs/51-probe-then-fallback-dispatch.md", "doc-51"]
 ---
 
 # Domotion: probe-then-fallback glyph dispatch
@@ -19,7 +19,7 @@ DM-887 (follow-up to DM-881; pairs with DM-259 / DM-260).
 
 > **Status: BOTH tiers IMPLEMENTED — whole-font (DM-887) + per-glyph (DM-891).**
 > Investigation (below) corrected a premise of the original plan — PingFang has
-> no openable file on current macOS, so the helper is a *whole-font* fallback
+> no openable file on current macOS, so the helper is a _whole-font_ fallback
 > there, not a per-glyph patch on a fontkit primary. The whole-font tier
 > ([Implemented](#implemented-dm-887)) handles that; the per-glyph tier
 > ([per-glyph tier](#the-per-glyph-tier-dm-891-implemented)) handles a font
@@ -28,18 +28,18 @@ DM-887 (follow-up to DM-881; pairs with DM-259 / DM-260).
 
 ## The gap
 
-DM-881 made the helper *resolvable + invocable* on all three platforms, but the
+DM-881 made the helper _resolvable + invocable_ on all three platforms, but the
 renderer only routes to it via the static `extractor: "native"` flag on
 `FONT_PATHS` — set on macOS PingFang keys only. So:
 
 - On Linux/Windows the helper is reachable but **nothing routes through it** (no
   `LINUX_FONT_PATHS` / `WIN32_FONT_PATHS` entry sets the flag).
-- The trigger is per-*font* (a static flag), not the per-*glyph*
+- The trigger is per-_font_ (a static flag), not the per-_glyph_
   "fontkit-empty-path → consult helper" model `docs/16` specifies.
 
 ## Current state (verified)
 
-`textToPathMarkup` (`src/render/text-to-path.ts`) builds font *runs*: for each
+`textToPathMarkup` (`src/render/text-to-path.ts`) builds font _runs_: for each
 codepoint it picks a font by **cmap coverage** — `primaryFont.glyphForCodePoint(cp).id === 0`
 → walk `fallbackFontChain`, take the first font whose `.id !== 0`. Each run is
 then shaped with `font.layout(runText)`, and each shaped glyph's
@@ -47,22 +47,22 @@ then shaped with `font.layout(runText)`, and each shaped glyph's
 
 The helper enters via `getFontInstance` (~line 1602): when the resolved spec has
 `extractor: "native"` and the helper is available, the **whole font instance**
-is swapped for a `GlyphHelperFontInstance` that routes *everything* — cmap, metrics,
+is swapped for a `GlyphHelperFontInstance` that routes _everything_ — cmap, metrics,
 shaping (`layout`), and outlines — through the helper. fontkit is not consulted
 for that font at all.
 
 This works for PingFang because **all** its outlines live in the Apple-private
-`hvgl` table, so fontkit can't read *any* of them — the font is all-or-nothing.
+`hvgl` table, so fontkit can't read _any_ of them — the font is all-or-nothing.
 
 ## The architecture fork
 
 `docs/16` specifies a **per-glyph** model; the current code is **per-font**.
 Two ways to close the gap:
 
-### Option A — per-glyph outline fallback (doc-16 aligned) *(recommended)*
+### Option A — per-glyph outline fallback (doc-16 aligned) _(recommended)_
 
 fontkit stays the primary font for cmap + metrics + shaping. Only at outline
-extraction, when a shaped glyph's `.path.commands` is empty *and* its `.id !== 0`
+extraction, when a shaped glyph's `.path.commands` is empty _and_ its `.id !== 0`
 (cmap-covered but outline-unreadable), fetch **that glyph's** outline from the
 helper by glyph id (`createGlyphHelperFont(...).getGlyph(id)`), keyed in a
 `(fontFile, glyphId) → fontkit | helper | missing` cache so each glyph is probed
@@ -79,22 +79,22 @@ once per process.
 
 ### Option B — probe-triggered whole-instance swap (incremental)
 
-Keep the `GlyphHelperFontInstance` whole-font swap, but *decide* to use it by
+Keep the `GlyphHelperFontInstance` whole-font swap, but _decide_ to use it by
 probing fontkit for empty outlines instead of reading the static flag.
 
 - Pro: smaller; preserves the PingFang path (helper still does shaping) exactly.
-- Con: per-*font*, not per-glyph — wrong for a font fontkit reads partially; and
+- Con: per-_font_, not per-glyph — wrong for a font fontkit reads partially; and
   "is this font outline-unreadable?" needs a representative-glyph probe that's
   itself fuzzy. Diverges from the doc-16 contract.
 
 In practice the only fonts we've hit with unreadable outlines are `hvgl`-based
-(all-or-nothing), so B is *adequate today* — but A is the durable design and the
+(all-or-nothing), so B is _adequate today_ — but A is the durable design and the
 one doc 16 promises consumers.
 
 ## Dependency / timing
 
 Pairs with **DM-259** (Linux) / **DM-260** (Windows) fallback calibration, which
-decide *which* fonts route through the helper. Until they land, the only glyph
+decide _which_ fonts route through the helper. Until they land, the only glyph
 that exercises any helper path is macOS PingFang — so:
 
 - Building now is **validated only by the PingFang fixture** (`text-mixed-script`,
@@ -113,7 +113,7 @@ maintainer accepted for DM-881.
    path (shaping → fontkit), so I'll prove `text-mixed-script` + any CJK showcase
    stay clean before/after.
 2. **Build now or defer to DM-259/DM-260?** Recommend **build now** (A is
-   self-contained and PingFang validates the refactor on macOS), *or* defer the
+   self-contained and PingFang validates the refactor on macOS), _or_ defer the
    build until calibration provides a non-PingFang validating fixture if you'd
    rather not touch the PingFang path until there's cross-platform payoff.
 
@@ -134,19 +134,19 @@ the plan I got the "Option A, build now" nod on:
 1. **PingFang has no openable file on current macOS.** `/System/Library/Fonts/PingFang.ttc`
    does not exist (this box has `Hiragino Sans GB`, `STHeiti` instead); a
    filesystem search finds no PingFang file at all. CoreText still resolves
-   `PingFangSC-Regular` *by name* (the helper works), but `fontkit.openSync`
+   `PingFangSC-Regular` _by name_ (the helper works), but `fontkit.openSync`
    throws `ENOENT`. So **fontkit cannot be PingFang's primary instance** — the
-   whole-instance swap isn't an optimization for PingFang, it's the *only* way
+   whole-instance swap isn't an optimization for PingFang, it's the _only_ way
    to render it. Option A therefore **coexists with** the swap; it cannot
    subsume it, and the static `extractor: "native"` flag does **not** retire.
    This is also why the swap deliberately does `return null` instead of trying
    fontkit for `extractor:"native"` fonts — fontkit would throw.
 
 2. **The naive trigger mis-fires on blank glyphs.** "empty `.path.commands` +
-   `.id !== 0`" is *also* true of a space (U+0020) and other inkless glyphs in
+   `.id !== 0`" is _also_ true of a space (U+0020) and other inkless glyphs in
    perfectly readable fonts. Routing those to the helper is at best wasted
    helper round-trips per space (the helper returns empty too, so it's a perf
-   bug, not a correctness one). The real signal is per-*font*: "this font has no
+   bug, not a correctness one). The real signal is per-_font_: "this font has no
    outline table fontkit can decode" (no `glyf`/`CFF`/`CFF2`) → then per-glyph
    the helper supplies outlines. So the trigger needs a **per-font
    outline-readability gate**, not a bare per-glyph empty-path check.
@@ -155,7 +155,7 @@ the plan I got the "Option A, build now" nod on:
    outlines from is PingFang — which has no file, so it never reaches a fontkit
    primary instance (it's on the swap). There is **no fontkit-opened,
    outline-unreadable font on macOS** for the probe to fire on, so PingFang does
-   *not* validate the new path (contrary to the "PingFang validates it on macOS"
+   _not_ validate the new path (contrary to the "PingFang validates it on macOS"
    rationale in my build-now recommendation). The genuine targets are
    Linux/Windows CFF/CJK faces — which only get routed once DM-259/DM-260 land.
 
@@ -163,7 +163,7 @@ the plan I got the "Option A, build now" nod on:
 
 - **Keep** the whole-instance swap for `extractor:"native"` / no-file fonts
   (PingFang) unchanged.
-- **Add** a probe-then-fallback that engages only for a fontkit-*opened* font
+- **Add** a probe-then-fallback that engages only for a fontkit-_opened_ font
   whose outline table is absent/undecodable (per-font gate), then fills each
   glyph from the helper by glyph id (ids match across engines for the same
   file), cached `(fontFile, glyphId)`.
@@ -176,8 +176,8 @@ is false. Given the probe is fully inert on macOS and the real validation needs
 a Linux/Windows fixture (DM-259/DM-260):
 
 - **(i) Defer** the build until DM-259/DM-260 provide a validating fixture
-  *(now recommended — avoids adding inert hot-path code with no integration
-  test; matches how DM-889 was deferred on its dependency)*, **or**
+  _(now recommended — avoids adding inert hot-path code with no integration
+  test; matches how DM-889 was deferred on its dependency)_, **or**
 - **(ii) Build now, unit-tested only** — the per-font-gated probe + cache, with
   PingFang regression-checked (stays on the swap, unchanged) and the new path
   covered by unit tests against a synthesized empty-outline glyph.
@@ -228,7 +228,7 @@ format chars (Cf), line/para/space separators (Zl/Zp/Zs), the invisible math
 operators, variation selectors, tags — i.e. ordinary text (a narrow no-break
 space, a bidi control) would spawn the helper and, on a published consumer,
 trigger the DM-886 download. `isLegitimatelyInklessCodepoint` excludes that set,
-so the fallback only fires for a glyph that's *plausibly inkable* yet came back
+so the fallback only fires for a glyph that's _plausibly inkable_ yet came back
 empty. Empirically (DM-891 probe) every macOS glyph fontkit returns empty for is
 in that inkless set **and the helper agrees it's empty**, so the tier is **inert
 on macOS by design** — it activates only for a genuinely-undecodable inkable
@@ -242,6 +242,7 @@ outline; the feature suite is unchanged on macOS and the Linux Docker visual
 baseline stays green (98/98) with the fallback active.
 
 **Follow-ups:**
+
 - **Embedded-font mode** (`renderTextAsEmbedded`, the production default) emits a
   synthesized TTF, not SVG `<path>`s. **Done (DM-892, `docs/52`):** the helper
   returns fontkit-shaped `PathCommand[]` and `trackGlyphInEmbedFont` already

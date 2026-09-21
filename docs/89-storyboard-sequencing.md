@@ -5,9 +5,20 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["macos"]
-tickets: ["DM-1319","DM-1329","DM-1331","DM-1524","DM-1527","DM-1552","DM-1553","DM-1554","DM-2688"]
-code: ["examples/output/storyboard-demo.svg","examples/storyboard-demo.ts","scripts/generate-storyboard-schema.ts","src/animation/animator.ts","src/animation/composite.ts","src/animation/embed-namespace.ts","src/cli/animate.ts","src/cli/storyboard-config-json-schema.ts","src/cli/storyboard.ts"]
-aliases: ["docs/89-storyboard-sequencing.md","doc-89"]
+tickets: ["DM-1319", "DM-1329", "DM-1331", "DM-1524", "DM-1527", "DM-1552", "DM-1553", "DM-1554", "DM-2688"]
+code:
+  [
+    "examples/output/storyboard-demo.svg",
+    "examples/storyboard-demo.ts",
+    "scripts/generate-storyboard-schema.ts",
+    "src/animation/animator.ts",
+    "src/animation/composite.ts",
+    "src/animation/embed-namespace.ts",
+    "src/cli/animate.ts",
+    "src/cli/storyboard-config-json-schema.ts",
+    "src/cli/storyboard.ts",
+  ]
+aliases: ["docs/89-storyboard-sequencing.md", "doc-89"]
 ---
 
 # 89 — Storyboard sequencing (DM-1527)
@@ -19,11 +30,11 @@ lower-third → a CTA, all in one file.
 
 It is the third multi-source composer, and it fills the gap the other two leave:
 
-| Verb | Composition model | Sources |
-| --- | --- | --- |
-| `composite` (doc 77) | **Layers** animated SVGs spatially — z-ordered, each placed, independent timelines. | cast · template · svg |
-| `animate` (doc 43 / 62 / 73) | Sequences **captured frames** of ONE evolving page (continuous session). | input · cast · template · scroll |
-| **`storyboard` (this)** | Sequences **whole, independent SCENES** — one after another with a transition between each. | template · capture · cast · svg |
+| Verb                         | Composition model                                                                           | Sources                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------- |
+| `composite` (doc 77)         | **Layers** animated SVGs spatially — z-ordered, each placed, independent timelines.         | cast · template · svg            |
+| `animate` (doc 43 / 62 / 73) | Sequences **captured frames** of ONE evolving page (continuous session).                    | input · cast · template · scroll |
+| **`storyboard` (this)**      | Sequences **whole, independent SCENES** — one after another with a transition between each. | template · capture · cast · svg  |
 
 ## CLI
 
@@ -41,40 +52,44 @@ config's `output`, `-o`, or stdout).
   "$schema": "./schemas/storyboard-config.schema.json",
   "width": 1280,
   "height": 720,
-  "background": "#0b1020",        // optional — a full-canvas rect behind every scene
-  "title": "Product tour",        // optional — a11y name  (role=img + <title>)
-  "desc": "…",                    // optional — a11y long description (<desc>)
+  "background": "#0b1020", // optional — a full-canvas rect behind every scene
+  "title": "Product tour", // optional — a11y name  (role=img + <title>)
+  "desc": "…", // optional — a11y long description (<desc>)
   "scenes": [
     {
-      "template": "title-card",   // ── one source per scene (see below) ──
+      "template": "title-card", // ── one source per scene (see below) ──
       "params": { "title": "Domotion", "subtitle": "DOM → animated SVG" },
-      "duration": 2500,           // ms on screen
-      "transition": { "type": "crossfade", "duration": 400 }   // TO the next scene
+      "duration": 2500, // ms on screen
+      "transition": { "type": "crossfade", "duration": 400 }, // TO the next scene
     },
-    { "capture": { "file": "./demo.html" }, "duration": 2000,
-      "transition": { "type": "push-left", "duration": 400 } },
-    { "cast": "./session.cast", "term": { "theme": "dark" }, "duration": 3000,
-      "transition": { "type": "scroll", "duration": 400 } },
-    { "svg": "./closing-card.svg", "duration": 2500,
-      "transition": { "type": "cut", "duration": 0 } }   // last scene loops → scene 1
+    { "capture": { "file": "./demo.html" }, "duration": 2000, "transition": { "type": "push-left", "duration": 400 } },
+    {
+      "cast": "./session.cast",
+      "term": { "theme": "dark" },
+      "duration": 3000,
+      "transition": { "type": "scroll", "duration": 400 },
+    },
+    { "svg": "./closing-card.svg", "duration": 2500, "transition": { "type": "cut", "duration": 0 } }, // last scene loops → scene 1
   ],
-  "cursor": {                     // optional — a scene-spanning cursor track (DM-1554)
-    "events": [
-      { "frame": 1, "at": 300, "type": "moveClick", "to": { "x": 640, "y": 360 } }
-    ]
-  }
+  "cursor": {
+    // optional — a scene-spanning cursor track (DM-1554)
+    "events": [{ "frame": 1, "at": 300, "type": "moveClick", "to": { "x": 640, "y": 360 } }],
+  },
 }
 ```
 
 A scene may also carry `overlays` (per-scene typing / tap / svg / blink / shine / interact):
 
 ```jsonc
-{ "capture": { "file": "./demo.html" }, "duration": 2400,
+{
+  "capture": { "file": "./demo.html" },
+  "duration": 2400,
   "transition": { "type": "wipe", "duration": 500 },
   "overlays": [
     { "kind": "typing", "text": "Typed on top", "x": 300, "y": 430, "caret": true },
-    { "kind": "tap", "x": 640, "y": 360, "delay": 1400 }
-  ] }
+    { "kind": "tap", "x": 640, "y": 360, "delay": 1400 },
+  ],
+}
 ```
 
 ### Scene sources (exactly one per scene)
@@ -83,7 +98,7 @@ A scene may also carry `overlays` (per-scene typing / tap / svg / blink / shine 
   scene. `params` is validated against that template's own schema. The template
   inherits the canvas `width`/`height` by default (so it fills the scene).
 - **`capture`** — a live capture of a URL or local file: `{ "url" | "file",
-  "selector"?, "wait"?, "waitFor"?, "mobile"?, "colorScheme"? }`. Captured
+"selector"?, "wait"?, "waitFor"?, "mobile"?, "colorScheme"? }`. Captured
   HTML/CSS → native SVG, exactly like `domotion capture`. A **static** scene.
 - **`cast`** — an asciinema v2 `.cast` rendered as an animated terminal (doc 67),
   with an optional `term` options block.
@@ -129,16 +144,16 @@ it does **not** reinvent transitions. The full **cross-engine-safe (opaque-scene
 safe)** vocabulary is exposed — the originals plus the DM-1524 expansion (docs/88),
 plumbed straight through (DM-1552; no storyboard-side machinery, just a wider enum):
 
-| `type` | Effect |
-| --- | --- |
-| `crossfade` | Fade the outgoing scene out while the incoming fades in (a dissolve). |
-| `cut` | Instant switch — no fade, no slide (`duration` ignored). |
-| `push-left` / `push-right` | The outgoing scene slides off one side; the incoming slides in from the other (horizontal directional). |
-| `scroll` (== `push-up`) / `push-down` | The vertical directional pushes (slide up-and-in-from-below, or down-and-in-from-above). |
-| `wipe` | A linear left→right `clip-path` reveal — the incoming scene unveils on top while the outgoing holds beneath. |
-| `iris` | An expanding-circle `clip-path` reveal from the center. |
-| `zoom-in` / `zoom-out` | A scale dolly under a crossfade — the incoming scene grows `0.9→1` (in) or settles `1.1→1` (out), resting at `scale(1)`. |
-| `shine` | A crossfade with a swept gradient highlight over the handoff window. |
+| `type`                                | Effect                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `crossfade`                           | Fade the outgoing scene out while the incoming fades in (a dissolve).                                                    |
+| `cut`                                 | Instant switch — no fade, no slide (`duration` ignored).                                                                 |
+| `push-left` / `push-right`            | The outgoing scene slides off one side; the incoming slides in from the other (horizontal directional).                  |
+| `scroll` (== `push-up`) / `push-down` | The vertical directional pushes (slide up-and-in-from-below, or down-and-in-from-above).                                 |
+| `wipe`                                | A linear left→right `clip-path` reveal — the incoming scene unveils on top while the outgoing holds beneath.             |
+| `iris`                                | An expanding-circle `clip-path` reveal from the center.                                                                  |
+| `zoom-in` / `zoom-out`                | A scale dolly under a crossfade — the incoming scene grows `0.9→1` (in) or settles `1.1→1` (out), resting at `scale(1)`. |
+| `shine`                               | A crossfade with a swept gradient highlight over the handoff window.                                                     |
 
 Every one is pure `transform` / `clip-path` / `opacity` / gradient (no animated CSS
 `filter`), so it plays identically on Blink and WebKit — see docs/88 for the full

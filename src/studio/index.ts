@@ -227,10 +227,7 @@ export {
   type StudioRecordingReviewDecision,
   type StudioRecordingReviewRequest,
 } from "./recording.js";
-export {
-  buildStudioProjectJsonSchema,
-  studioProjectJsonSchemaText,
-} from "./project-json-schema.js";
+export { buildStudioProjectJsonSchema, studioProjectJsonSchemaText } from "./project-json-schema.js";
 export {
   STUDIO_TIMELINE_KINDS,
   applyStudioTimelineCommand,

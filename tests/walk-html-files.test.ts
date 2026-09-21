@@ -30,10 +30,7 @@ describe("walkHtmlFiles", () => {
   });
 
   it("still walks unicode fixtures when unicode/ IS the root (the unicode suite)", () => {
-    expect(walkHtmlFiles(join(root, "unicode"))).toEqual([
-      "0000-007F-basic-latin.html",
-      "3000-303F-cjk.html",
-    ]);
+    expect(walkHtmlFiles(join(root, "unicode"))).toEqual(["0000-007F-basic-latin.html", "3000-303F-cjk.html"]);
   });
 
   it("does NOT exclude a nested (non-root) unicode/ dir", () => {

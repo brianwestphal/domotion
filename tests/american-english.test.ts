@@ -3,11 +3,10 @@ import { americanEnglishFindings, isAmericanEnglishCheckPath } from "../scripts/
 
 describe("American-English prose check", () => {
   it("reports authored British spellings with locations and original casing", () => {
-    expect(americanEnglishFindings("src/example.ts", "Color.\nBehaviour-identical and RASTERISED."))
-      .toEqual([
-        { path: "src/example.ts", line: 2, column: 1, spelling: "Behaviour" },
-        { path: "src/example.ts", line: 2, column: 25, spelling: "RASTERISED" },
-      ]);
+    expect(americanEnglishFindings("src/example.ts", "Color.\nBehaviour-identical and RASTERISED.")).toEqual([
+      { path: "src/example.ts", line: 2, column: 1, spelling: "Behaviour" },
+      { path: "src/example.ts", line: 2, column: 25, spelling: "RASTERISED" },
+    ]);
   });
 
   it("excludes generated and vendored paths", () => {
@@ -20,13 +19,13 @@ describe("American-English prose check", () => {
   });
 
   it("preserves required API, CSS, and quoted-spec literals", () => {
-    expect(americanEnglishFindings("site/scripts/generate-fidelity-proof.mjs", "png({ colours: 256 })"))
-      .toEqual([]);
-    expect(americanEnglishFindings("src/render/colors.ts", "grey: gray"))
-      .toEqual([]);
-    expect(americanEnglishFindings(
-      "docs/reference/raster-image-fallback-cases.md",
-      'The spec says "rasterise the target element\'s paint".',
-    )).toEqual([]);
+    expect(americanEnglishFindings("site/scripts/generate-fidelity-proof.mjs", "png({ colours: 256 })")).toEqual([]);
+    expect(americanEnglishFindings("src/render/colors.ts", "grey: gray")).toEqual([]);
+    expect(
+      americanEnglishFindings(
+        "docs/reference/raster-image-fallback-cases.md",
+        'The spec says "rasterise the target element\'s paint".',
+      ),
+    ).toEqual([]);
   });
 });

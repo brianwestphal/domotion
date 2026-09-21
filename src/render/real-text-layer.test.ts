@@ -3,11 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { optimizeSvg } from "../post-processing/optimize.js";
 import { wrapSvg } from "./element-tree-to-svg.js";
-import {
-  renderRealTextLayer,
-  visualTextSemantics,
-  withRealTextLayerVisualSemantics,
-} from "./real-text-layer.js";
+import { renderRealTextLayer, visualTextSemantics, withRealTextLayerVisualSemantics } from "./real-text-layer.js";
 
 function element(textSegments: TextSegment[], children: CapturedElement[] = []): CapturedElement {
   return {
@@ -24,17 +20,26 @@ function element(textSegments: TextSegment[], children: CapturedElement[] = []):
 }
 
 function mapped(text: string, source: string, node: number, x: number): TextSegment {
-  const renderedChunks = text === source
-    ? (() => {
-      const chunks = [];
-      let offset = 0;
-      for (const char of source) {
-        chunks.push({ renderedUtf16Span: [offset, offset + char.length] as [number, number], domUtf16Span: [offset, offset + char.length] as [number, number] });
-        offset += char.length;
-      }
-      return chunks;
-    })()
-    : [{ renderedUtf16Span: [0, text.length] as [number, number], domUtf16Span: [0, source.length] as [number, number] }];
+  const renderedChunks =
+    text === source
+      ? (() => {
+          const chunks = [];
+          let offset = 0;
+          for (const char of source) {
+            chunks.push({
+              renderedUtf16Span: [offset, offset + char.length] as [number, number],
+              domUtf16Span: [offset, offset + char.length] as [number, number],
+            });
+            offset += char.length;
+          }
+          return chunks;
+        })()
+      : [
+          {
+            renderedUtf16Span: [0, text.length] as [number, number],
+            domUtf16Span: [0, source.length] as [number, number],
+          },
+        ];
   return {
     text,
     sourceText: source,
@@ -50,7 +55,8 @@ function mapped(text: string, source: string, node: number, x: number): TextSegm
     y: 10,
     width: 80,
     height: 24,
-    xOffsets: text.length === source.length ? Array.from({ length: text.length }, (_, index) => x + index * 12) : undefined,
+    xOffsets:
+      text.length === source.length ? Array.from({ length: text.length }, (_, index) => x + index * 12) : undefined,
     fontAscent: 18,
   };
 }
@@ -78,11 +84,9 @@ describe("real text layer (DM-1775)", () => {
       height: 24,
       fontAscent: 18,
     };
-    const svg = renderRealTextLayer([element([
-      mapped("tail", "tail", 2, 190),
-      generated,
-      mapped("lead", "lead", 0, 10),
-    ])]);
+    const svg = renderRealTextLayer([
+      element([mapped("tail", "tail", 2, 190), generated, mapped("lead", "lead", 0, 10)]),
+    ]);
 
     expect(svg.indexOf(">lead</text>")).toBeLessThan(svg.indexOf(">generated</text>"));
     expect(svg.indexOf(">generated</text>")).toBeLessThan(svg.indexOf(">tail</text>"));

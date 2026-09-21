@@ -11,7 +11,8 @@ import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 //   Blink BoxFragmentPainter::PaintTextClipMask — slice fragments offset paint
 //   through the inline's stitched imaginary box and include descendants.
 
-const SVG_TILE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%2300d4ff' d='M0 0h6v8H0z'/%3E%3Cpath fill='%23ff3d81' d='M6 0h6v8H6z'/%3E%3C/svg%3E";
+const SVG_TILE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%2300d4ff' d='M0 0h6v8H0z'/%3E%3Cpath fill='%23ff3d81' d='M6 0h6v8H6z'/%3E%3C/svg%3E";
 
 const SELECTED_TILE: CapturedBackgroundImage = {
   layerIndex: 0,
@@ -44,22 +45,62 @@ const BASE_STYLES = {
   backgroundOrigin: "padding-box",
   backgroundAttachment: "scroll",
   backgroundBlendMode: "normal",
-  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
-  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
-  color: "rgba(0,0,0,0)", webkitTextFillColor: "rgba(0,0,0,0)",
-  fontSize: "36px", fontFamily: "sans-serif", fontWeight: "700", fontStyle: "normal", lineHeight: "44px",
-  overflowX: "visible", overflowY: "visible", display: "block",
-  outlineColor: "rgb(0,0,0)", outlineWidth: "0", outlineStyle: "none", outlineOffset: "0",
-  boxShadow: "none", textShadow: "none", filter: "none", backdropFilter: "none", mixBlendMode: "normal",
-  clipPath: "none", mask: "none", maskImage: "none", opacity: "1", transform: "none",
-  visibility: "visible", position: "static", zIndex: "auto",
+  borderColor: "rgb(0,0,0)",
+  borderWidth: "0",
+  borderRadius: "0",
+  borderTopLeftRadius: "0",
+  borderTopRightRadius: "0",
+  borderBottomRightRadius: "0",
+  borderBottomLeftRadius: "0",
+  borderTopWidth: "0",
+  borderRightWidth: "0",
+  borderBottomWidth: "0",
+  borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)",
+  borderRightColor: "rgb(0,0,0)",
+  borderBottomColor: "rgb(0,0,0)",
+  borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none",
+  borderRightStyle: "none",
+  borderBottomStyle: "none",
+  borderLeftStyle: "none",
+  paddingTop: "0",
+  paddingRight: "0",
+  paddingBottom: "0",
+  paddingLeft: "0",
+  color: "rgba(0,0,0,0)",
+  webkitTextFillColor: "rgba(0,0,0,0)",
+  fontSize: "36px",
+  fontFamily: "sans-serif",
+  fontWeight: "700",
+  fontStyle: "normal",
+  lineHeight: "44px",
+  overflowX: "visible",
+  overflowY: "visible",
+  display: "block",
+  outlineColor: "rgb(0,0,0)",
+  outlineWidth: "0",
+  outlineStyle: "none",
+  outlineOffset: "0",
+  boxShadow: "none",
+  textShadow: "none",
+  filter: "none",
+  backdropFilter: "none",
+  mixBlendMode: "normal",
+  clipPath: "none",
+  mask: "none",
+  maskImage: "none",
+  opacity: "1",
+  transform: "none",
+  visibility: "visible",
+  position: "static",
+  zIndex: "auto",
 } as unknown as CapturedElement["styles"];
 
-function element(overrides: Partial<CapturedElement["styles"]> = {}, children: CapturedElement[] = []): CapturedElement {
+function element(
+  overrides: Partial<CapturedElement["styles"]> = {},
+  children: CapturedElement[] = [],
+): CapturedElement {
   return {
     tag: "span",
     text: "VECTOR",
@@ -82,9 +123,11 @@ function visibleBody(svg: string): string {
 
 describe("background-clip:text URL and color paint stack", () => {
   it("clips a color-only background to glyph alpha instead of painting its box", () => {
-    const svg = elementTreeToSvgInner([
-      element({ backgroundColor: "rgb(241, 70, 104)", backgroundClip: "text" }),
-    ], 300, 120);
+    const svg = elementTreeToSvgInner(
+      [element({ backgroundColor: "rgb(241, 70, 104)", backgroundClip: "text" })],
+      300,
+      120,
+    );
     const body = visibleBody(svg);
     expect(svg).toContain("mask-type:alpha");
     expect(body).toMatch(/<rect[^>]+fill="rgb\(241,\s*70,\s*104\)"[^>]+mask="url\(#tbgm/);
@@ -94,24 +137,29 @@ describe("background-clip:text URL and color paint stack", () => {
   });
 
   it("paints bottom color, URL pattern, then top image layer through one glyph mask", () => {
-    const svg = elementTreeToSvgInner([
-      element({
-        backgroundColor: "rgb(10, 18, 36)",
-        backgroundImage: `linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45)), url("${SVG_TILE}")`,
-        backgroundImages: [null, { ...SELECTED_TILE, layerIndex: 1 }],
-        backgroundIntrinsic: [null, { w: 12, h: 8 }],
-        backgroundSize: "100% 100%, 12px 8px",
-        backgroundPosition: "0% 0%, 3px 5px",
-        backgroundRepeat: "no-repeat, repeat",
-        backgroundClip: "text, text",
-      }),
-    ], 300, 120);
+    const svg = elementTreeToSvgInner(
+      [
+        element({
+          backgroundColor: "rgb(10, 18, 36)",
+          backgroundImage: `linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.45)), url("${SVG_TILE}")`,
+          backgroundImages: [null, { ...SELECTED_TILE, layerIndex: 1 }],
+          backgroundIntrinsic: [null, { w: 12, h: 8 }],
+          backgroundSize: "100% 100%, 12px 8px",
+          backgroundPosition: "0% 0%, 3px 5px",
+          backgroundRepeat: "no-repeat, repeat",
+          backgroundClip: "text, text",
+        }),
+      ],
+      300,
+      120,
+    );
     const body = visibleBody(svg);
     const mask = /mask="url\(#(tbgm[^)]*)\)"/.exec(body)?.[1];
     expect(mask).toBeDefined();
     expect(svg).toContain("<pattern");
-    const masked = [...body.matchAll(new RegExp(`<rect[^>]+fill="([^"]+)"[^>]+mask="url\\(#${mask}\\)"`, "g"))]
-      .map((match) => match[1]);
+    const masked = [...body.matchAll(new RegExp(`<rect[^>]+fill="([^"]+)"[^>]+mask="url\\(#${mask}\\)"`, "g"))].map(
+      (match) => match[1],
+    );
     expect(masked).toHaveLength(3);
     expect(masked[0].replaceAll(" ", "")).toBe("rgb(10,18,36)");
     expect(masked[1]).toMatch(/^url\(#bg/);
@@ -119,16 +167,20 @@ describe("background-clip:text URL and color paint stack", () => {
   });
 
   it("paints an opaque foreground after the masked URL background", () => {
-    const svg = elementTreeToSvgInner([
-      element({
-        color: "rgb(255, 244, 214)",
-        webkitTextFillColor: "rgb(255, 244, 214)",
-        backgroundImage: `url("${SVG_TILE}")`,
-        backgroundImages: [SELECTED_TILE],
-        backgroundIntrinsic: [{ w: 12, h: 8 }],
-        backgroundClip: "text",
-      }),
-    ], 300, 120);
+    const svg = elementTreeToSvgInner(
+      [
+        element({
+          color: "rgb(255, 244, 214)",
+          webkitTextFillColor: "rgb(255, 244, 214)",
+          backgroundImage: `url("${SVG_TILE}")`,
+          backgroundImages: [SELECTED_TILE],
+          backgroundIntrinsic: [{ w: 12, h: 8 }],
+          backgroundClip: "text",
+        }),
+      ],
+      300,
+      120,
+    );
     const body = visibleBody(svg);
     const maskedIndex = body.indexOf('mask="url(#tbgm');
     const foreground = /fill="rgb\(255,\s*244,\s*214\)"/g;
@@ -140,17 +192,22 @@ describe("background-clip:text URL and color paint stack", () => {
 
   it("lets descendant glyphs consume the nearest ancestor URL/color stack", () => {
     const child = element({ backgroundImage: "none", backgroundClip: "border-box" });
-    child.x = 48; child.y = 42; child.width = 160;
-    const owner = element({
-      backgroundColor: "rgb(13, 28, 54)",
-      backgroundImage: `url("${SVG_TILE}")`,
-      backgroundImages: [SELECTED_TILE],
-      backgroundIntrinsic: [{ w: 12, h: 8 }],
-      backgroundSize: "12px 8px",
-      backgroundPosition: "4px 6px",
-      backgroundRepeat: "repeat",
-      backgroundClip: "text",
-    }, [child]);
+    child.x = 48;
+    child.y = 42;
+    child.width = 160;
+    const owner = element(
+      {
+        backgroundColor: "rgb(13, 28, 54)",
+        backgroundImage: `url("${SVG_TILE}")`,
+        backgroundImages: [SELECTED_TILE],
+        backgroundIntrinsic: [{ w: 12, h: 8 }],
+        backgroundSize: "12px 8px",
+        backgroundPosition: "4px 6px",
+        backgroundRepeat: "repeat",
+        backgroundClip: "text",
+      },
+      [child],
+    );
     owner.text = "";
     const svg = elementTreeToSvgInner([owner], 300, 140);
     const body = visibleBody(svg);

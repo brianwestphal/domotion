@@ -5,9 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos"]
-tickets: ["DM-2387","DM-2398","DM-2399","DM-2410","DM-2423","DM-2428","DM-2567"]
-code: ["src/render/cluster-fallback.ts","src/render/text-run-provenance.ts","src/render/text-run-provenance.test.ts","src/render/text-to-path.ts","tools/renderer-font-route-oracle.ts"]
-aliases: ["docs/143-production-text-run-provenance.md","doc-143"]
+tickets: ["DM-2387", "DM-2398", "DM-2399", "DM-2410", "DM-2423", "DM-2428", "DM-2567"]
+code:
+  [
+    "src/render/cluster-fallback.ts",
+    "src/render/text-run-provenance.ts",
+    "src/render/text-run-provenance.test.ts",
+    "src/render/text-to-path.ts",
+    "tools/renderer-font-route-oracle.ts",
+  ]
+aliases: ["docs/143-production-text-run-provenance.md", "doc-143"]
 ---
 
 # Production text-run provenance

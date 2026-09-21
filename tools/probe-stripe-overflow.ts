@@ -97,8 +97,22 @@ async function main() {
     const cardRect = target.getBoundingClientRect();
     return {
       found: true,
-      cardRect: cardRect ? { x: Math.round(cardRect.left), y: Math.round(cardRect.top), w: Math.round(cardRect.width), h: Math.round(cardRect.height) } : null,
-      karteRect: karteRect ? { x: Math.round(karteRect.left), y: Math.round(karteRect.top), w: Math.round(karteRect.width), h: Math.round(karteRect.height) } : null,
+      cardRect: cardRect
+        ? {
+            x: Math.round(cardRect.left),
+            y: Math.round(cardRect.top),
+            w: Math.round(cardRect.width),
+            h: Math.round(cardRect.height),
+          }
+        : null,
+      karteRect: karteRect
+        ? {
+            x: Math.round(karteRect.left),
+            y: Math.round(karteRect.top),
+            w: Math.round(karteRect.width),
+            h: Math.round(karteRect.height),
+          }
+        : null,
       path,
     };
   });
@@ -108,4 +122,7 @@ async function main() {
   await browser.close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

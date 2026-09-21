@@ -4,7 +4,11 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 
 let browser: Browser | null = null;
-try { browser = await chromium.launch(); } catch { /* browserless host */ }
+try {
+  browser = await chromium.launch();
+} catch {
+  /* browserless host */
+}
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 
 (browser == null ? describe.skip : describe)("real-world HAR timeout teardown", () => {
@@ -13,8 +17,12 @@ afterAll(async () => closeBrowserSafely(browser), 15_000);
     const page = await context.newPage();
     let entered!: () => void;
     let release!: () => void;
-    const handlerEntered = new Promise<void>((resolve) => { entered = resolve; });
-    const handlerRelease = new Promise<void>((resolve) => { release = resolve; });
+    const handlerEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const handlerRelease = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     await context.route("https://timeout.invalid/**", async (route) => {
       entered();
       await handlerRelease;

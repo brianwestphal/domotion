@@ -20,11 +20,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  captureElementTree,
-  elementTreeToSvg,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + "/..";
 const OUT = resolve(ROOT, "site/scripts/install-demo/nytimes-snapshot.svg");
@@ -96,13 +92,11 @@ async function main(): Promise<void> {
     // through the public API. The snapshot is embedded as a nested `<svg>`
     // inside the install-demo SVG, where IDs are document-global — so prefix
     // every `g{N}` def + reference now to namespace the snapshot's glyphs.
-    const prefixed = inner
-      .replace(/id="g(\d+)"/g, 'id="nyt-g$1"')
-      .replace(/href="#g(\d+)"/g, 'href="#nyt-g$1"');
+    const prefixed = inner.replace(/id="g(\d+)"/g, 'id="nyt-g$1"').replace(/href="#g(\d+)"/g, 'href="#nyt-g$1"');
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEWPORT_W} ${CAPTURE_H}" width="${VIEWPORT_W}" height="${CAPTURE_H}">`
-      + prefixed
-      + `</svg>`;
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEWPORT_W} ${CAPTURE_H}" width="${VIEWPORT_W}" height="${CAPTURE_H}">` +
+      prefixed +
+      `</svg>`;
 
     writeFileSync(OUT, svg);
     console.log(`Wrote ${OUT} (${(svg.length / 1024).toFixed(1)} KB, ${VIEWPORT_W}×${CAPTURE_H})`);

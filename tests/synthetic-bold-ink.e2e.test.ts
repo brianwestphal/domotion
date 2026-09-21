@@ -82,45 +82,58 @@ const TEXT = "Hamburgefonstiv";
  * `Weight() > 200 + typeface weight` (`skia/font_cache_skia.cc:333-339`), so
  * 800 synthesizes there.
  */
-const CANDIDATES: Array<{ family: string; weight: number }> = process.platform === "linux"
-  ? [
-      // An unavailable author name can resolve differently in Chromium and
-      // Domotion even though both sides synthesize something. Start with the
-      // calibrated installed Linux face so this oracle compares one source.
-      { family: "WenQuanYi Zen Hei", weight: 800 },
-      { family: "system-ui", weight: 800 },
-    ]
-  : [
-      { family: "Papyrus", weight: 700 },
-      { family: "system-ui", weight: 800 },
-      { family: "Comic Sans MS", weight: 700 },
-    ];
+const CANDIDATES: Array<{ family: string; weight: number }> =
+  process.platform === "linux"
+    ? [
+        // An unavailable author name can resolve differently in Chromium and
+        // Domotion even though both sides synthesize something. Start with the
+        // calibrated installed Linux face so this oracle compares one source.
+        { family: "WenQuanYi Zen Hei", weight: 800 },
+        { family: "system-ui", weight: 800 },
+      ]
+    : [
+        { family: "Papyrus", weight: 700 },
+        { family: "system-ui", weight: 800 },
+        { family: "Comic Sans MS", weight: 700 },
+      ];
 const SIZE = 100;
-const W = 1400, H = SIZE * 5, BASE_Y = SIZE * 3;
+const W = 1400,
+  H = SIZE * 5,
+  BASE_Y = SIZE * 3;
 
 let browser: Browser | null = null;
 let ctx: BrowserContext | null = null;
 try {
   browser = await chromium.launch();
   ctx = await browser.newContext({ viewport: { width: W, height: H } });
-} catch { browser = null; }
+} catch {
+  browser = null;
+}
 
-afterAll(async () => { await closeBrowserSafely(browser ?? undefined); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(browser ?? undefined);
+}, 15_000);
 
 const describeBrowser = browser != null ? describe : describe.skip;
 
 /** Total ink (1 - luminance, summed) plus the ink box, over a white field. */
 async function ink(buf: Buffer): Promise<{ mass: number; w: number; h: number }> {
   const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  let mass = 0, minX = Infinity, maxX = -1, minY = Infinity, maxY = -1;
+  let mass = 0,
+    minX = Infinity,
+    maxX = -1,
+    minY = Infinity,
+    maxY = -1;
   for (let y = 0; y < info.height; y++) {
     for (let x = 0; x < info.width; x++) {
       const o = (y * info.width + x) * 4;
       const v = (255 - (data[o] + data[o + 1] + data[o + 2]) / 3) / 255;
       if (v > 0.01) {
         mass += v;
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
       }
     }
   }
@@ -166,12 +179,14 @@ function bestIoU(
   const originDy = b.minY - a.minY;
   for (let dx = originDx - 8; dx <= originDx + 8; dx++) {
     for (let dy = originDy - 8; dy <= originDy + 8; dy++) {
-      let inter = 0, union = 0;
+      let inter = 0,
+        union = 0;
       for (let y = 0; y < a.h; y++) {
         for (let x = 0; x < a.w; x++) {
           const A = a.m[y * a.w + x];
-          const xb = x + dx, yb = y + dy;
-          const B = (xb >= 0 && xb < b.w && yb >= 0 && yb < b.h) ? b.m[yb * b.w + xb] : 0;
+          const xb = x + dx,
+            yb = y + dy;
+          const B = xb >= 0 && xb < b.w && yb >= 0 && yb < b.h ? b.m[yb * b.w + xb] : 0;
           if (A === 1 || B === 1) union++;
           if (A === 1 && B === 1) inter++;
         }
@@ -185,11 +200,14 @@ function bestIoU(
 
 async function chromeShot(family: string, weight: number, style = "normal"): Promise<Buffer> {
   const page = await ctx!.newPage();
-  await page.setContent(`<!doctype html><style>*{margin:0;padding:0}
+  await page.setContent(
+    `<!doctype html><style>*{margin:0;padding:0}
     body{background:#fff;width:${W}px;height:${H}px}
     div{position:absolute;top:0;left:0;font-family:"${family}";font-size:${SIZE}px;
         font-weight:${weight};font-style:${style};line-height:${BASE_Y * 2}px;white-space:pre;color:#000}
-    </style><div>${TEXT}</div>`, { waitUntil: "load" });
+    </style><div>${TEXT}</div>`,
+    { waitUntil: "load" },
+  );
   const buf = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
   await page.close();
   return buf;
@@ -199,8 +217,12 @@ async function chromeInk(family: string, weight: number): Promise<{ mass: number
   return ink(await chromeShot(family, weight));
 }
 
-async function ourShot(mode: RenderTextMode, family: string, weight: number, style = "normal"):
-    Promise<{ buf: Buffer; markup: string } | null> {
+async function ourShot(
+  mode: RenderTextMode,
+  family: string,
+  weight: number,
+  style = "normal",
+): Promise<{ buf: Buffer; markup: string } | null> {
   const prev = getRenderTextMode();
   setRenderTextMode(mode);
   clearEmbeddedFontBuilder();
@@ -208,8 +230,14 @@ async function ourShot(mode: RenderTextMode, family: string, weight: number, sty
   // `ascentOverride: 0` pins baselineY === y. Without it `y` is NOT the
   // baseline and the run lands ~0.9em lower — which silently made an earlier
   // version of this measurement compare different parts of two images.
-  const markup = renderTextAsPath(TEXT, 0, BASE_Y,
-    { fontSize: SIZE, fontFamily: family, fontWeight: String(weight), fontStyle: style, fill: "#000", ascentOverride: 0 });
+  const markup = renderTextAsPath(TEXT, 0, BASE_Y, {
+    fontSize: SIZE,
+    fontFamily: family,
+    fontWeight: String(weight),
+    fontStyle: style,
+    fill: "#000",
+    ascentOverride: 0,
+  });
   // Paths mode emits `<use href="#gN">`, so its `<defs>` must travel with it or
   // the page renders empty — and an empty page scores a perfectly stable ink
   // mass of zero rather than failing loudly.
@@ -218,17 +246,23 @@ async function ourShot(mode: RenderTextMode, family: string, weight: number, sty
   setRenderTextMode(prev);
   if (markup == null) return null;
   const page = await ctx!.newPage();
-  await page.setContent(`<!doctype html><style>*{margin:0;padding:0}body{background:#fff}</style>`
-    + `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><style>${css}</style>`
-    + `<defs>${defs}</defs>`
-    + `<rect width="${W}" height="${H}" fill="#fff"/>${markup}</svg>`, { waitUntil: "load" });
+  await page.setContent(
+    `<!doctype html><style>*{margin:0;padding:0}body{background:#fff}</style>` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><style>${css}</style>` +
+      `<defs>${defs}</defs>` +
+      `<rect width="${W}" height="${H}" fill="#fff"/>${markup}</svg>`,
+    { waitUntil: "load" },
+  );
   await page.evaluate(() => document.fonts.ready);
   const buf = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
   await page.close();
   return { buf, markup };
 }
 
-async function ourInk(family: string, weight: number): Promise<{ mass: number; w: number; h: number; markup: string } | null> {
+async function ourInk(
+  family: string,
+  weight: number,
+): Promise<{ mass: number; w: number; h: number; markup: string } | null> {
   const shot = await ourShot("embedded-font", family, weight);
   if (shot == null) return null;
   const m = await ink(shot.buf);
@@ -264,7 +298,10 @@ describeBrowser("synthetic bold matches Chrome's painted weight (DM-1970)", () =
       const hi = await ourInk(c.family, c.weight);
       const lo = await ourInk(c.family, 400);
       if (hi != null && lo != null && hi.markup !== lo.markup) {
-        chosen = c; ours700 = hi; ours400 = lo; break;
+        chosen = c;
+        ours700 = hi;
+        ours400 = lo;
+        break;
       }
     }
     if (chosen == null || ours700 == null || ours400 == null) {
@@ -274,9 +311,7 @@ describeBrowser("synthetic bold matches Chrome's painted weight (DM-1970)", () =
       console.warn("[synthetic-bold-ink] SKIPPED — no candidate family synthesizes on this host");
       return;
     }
-    const [chrome700, chrome400] = [
-      await chromeInk(chosen.family, chosen.weight), await chromeInk(chosen.family, 400),
-    ];
+    const [chrome700, chrome400] = [await chromeInk(chosen.family, chosen.weight), await chromeInk(chosen.family, 400)];
 
     // Precondition: the comparison is between the same painted thing. If the ink
     // boxes disagree the masses are not comparable, and two earlier versions of
@@ -318,7 +353,10 @@ describeBrowser("synthetic bold matches Chrome's painted weight (DM-1970)", () =
     let chosen: { family: string; weight: number } | null = null;
     for (const c of CANDIDATES) {
       const face = resolveFont(c.family, c.weight, SIZE, 0);
-      if (face != null && faceNeedsSyntheticBold(face, c.weight, undefined)) { chosen = c; break; }
+      if (face != null && faceNeedsSyntheticBold(face, c.weight, undefined)) {
+        chosen = c;
+        break;
+      }
     }
     if (chosen == null) {
       console.warn("[synthetic-bold-ink] paths SKIPPED — no candidate family synthesizes on this host");
@@ -328,15 +366,18 @@ describeBrowser("synthetic bold matches Chrome's painted weight (DM-1970)", () =
     const lo = await ourShot("paths", chosen.family, 400);
     expect(hi, `paths mode rendered nothing for ${chosen.family}`).not.toBeNull();
     expect(lo, `paths mode rendered nothing for ${chosen.family}@400`).not.toBeNull();
-    const hi700 = hi!.buf, lo400 = lo!.buf;
+    const hi700 = hi!.buf,
+      lo400 = lo!.buf;
 
     const [chromeBoldBuffer, chromePlainBuffer] = await Promise.all([
       chromeShot(chosen.family, chosen.weight),
       chromeShot(chosen.family, 400),
     ]);
     const [oursBold, oursPlain, chromeBold, chromePlain] = await Promise.all([
-      inkMask(hi700), inkMask(lo400),
-      inkMask(chromeBoldBuffer), inkMask(chromePlainBuffer),
+      inkMask(hi700),
+      inkMask(lo400),
+      inkMask(chromeBoldBuffer),
+      inkMask(chromePlainBuffer),
     ]);
 
     // The three references. `plainVsBold` is literally what this shipped as
@@ -345,8 +386,9 @@ describeBrowser("synthetic bold matches Chrome's painted weight (DM-1970)", () =
     const withFrame = bestIoU(oursBold, chromeBold);
     const plainVsBold = bestIoU(oursPlain, chromeBold);
     const control = bestIoU(oursPlain, chromePlain);
-    const label = `${chosen.family}@${chosen.weight}: frame=${withFrame.toFixed(4)} `
-      + `pre-fix=${plainVsBold.toFixed(4)} control=${control.toFixed(4)}`;
+    const label =
+      `${chosen.family}@${chosen.weight}: frame=${withFrame.toFixed(4)} ` +
+      `pre-fix=${plainVsBold.toFixed(4)} control=${control.toFixed(4)}`;
 
     // The control also guards the instrument: if the harness were rendering an
     // empty page, or comparing different parts of two images, every IoU would
@@ -394,7 +436,10 @@ describeBrowser("synthetic oblique matches Chrome's painted slant in paths mode 
     let family: string | null = null;
     for (const c of [...CANDIDATES.map((c) => c.family), "Papyrus", "Impact"]) {
       const face = resolveFont(c, 400, SIZE, -1);
-      if (face != null && faceNeedsSyntheticOblique(face, -1, undefined)) { family = c; break; }
+      if (face != null && faceNeedsSyntheticOblique(face, -1, undefined)) {
+        family = c;
+        break;
+      }
     }
     if (family == null) {
       console.warn("[synthetic-oblique] SKIPPED — no candidate family synthesizes an oblique on this host");
@@ -407,7 +452,8 @@ describeBrowser("synthetic oblique matches Chrome's painted slant in paths mode 
     expect(upright, `paths mode rendered nothing for ${family}`).not.toBeNull();
 
     const [oursItalic, oursUpright, chromeItalic, chromeUpright] = await Promise.all([
-      inkMask(italic!.buf), inkMask(upright!.buf),
+      inkMask(italic!.buf),
+      inkMask(upright!.buf),
       chromeShot(family, 400, "italic").then(inkMask),
       chromeShot(family, 400, "normal").then(inkMask),
     ]);
@@ -415,8 +461,8 @@ describeBrowser("synthetic oblique matches Chrome's painted slant in paths mode 
     const sheared = bestIoU(oursItalic, chromeItalic);
     const unsheared = bestIoU(oursUpright, chromeItalic);
     const control = bestIoU(oursUpright, chromeUpright);
-    const label = `${family}: sheared=${sheared.toFixed(4)} `
-      + `pre-fix=${unsheared.toFixed(4)} control=${control.toFixed(4)}`;
+    const label =
+      `${family}: sheared=${sheared.toFixed(4)} ` + `pre-fix=${unsheared.toFixed(4)} control=${control.toFixed(4)}`;
 
     expect(control, label).toBeGreaterThan(0.8);
     // The claim, and the non-vacuity floor in one: `unsheared` is what this

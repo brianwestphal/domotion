@@ -27,7 +27,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // The perceptual diff gate scores that shift as a sub-1% "minor" diff on a
 // full-page fixture, so assert against Chromium's PAINTED INK directly here.
 
-const W = 760, H = 320;
+const W = 760,
+  H = 320;
 const INK = { r: 180, g: 83, b: 9 }; // #b45309 — only the raised cap paints this
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>` +
@@ -92,8 +93,10 @@ describeBrowser("non-floated `initial-letter` raised cap", () => {
           pseudoHeight: parseFloat(fl.height),
           capRatio: h.actualBoundingBoxAscent / 100,
           pseudoWidth: parseFloat(fl.width),
-          glyphInkW100: (() => { const t = cv.measureText("T");
-            return (t.actualBoundingBoxLeft || 0) + (t.actualBoundingBoxRight || 0); })(),
+          glyphInkW100: (() => {
+            const t = cv.measureText("T");
+            return (t.actualBoundingBoxLeft || 0) + (t.actualBoundingBoxRight || 0);
+          })(),
           ascentRatio: h.fontBoundingBoxAscent / 100,
           rangeTop: range.getBoundingClientRect().top,
           float: fl.float,
@@ -106,7 +109,8 @@ describeBrowser("non-floated `initial-letter` raised cap", () => {
       // the cap's color; nothing else on the page paints it.
       const shot = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
       const { data, info } = await sharp(shot).raw().toBuffer({ resolveWithObject: true });
-      let inkTop = Infinity, inkBottom = -Infinity;
+      let inkTop = Infinity,
+        inkBottom = -Infinity;
       for (let y = 0; y < info.height; y++) {
         for (let x = 0; x < info.width; x++) {
           const i = (y * info.width + x) * info.channels;
@@ -138,7 +142,7 @@ describeBrowser("non-floated `initial-letter` raised cap", () => {
       // through to Liberation Serif, Chrome reports `height: 69` while painting
       // a 67 px cap, so the height quotient over-sized by ~4% and `fontAscent`,
       // `baseline` and `capTop` all inherited it.
-      const expectedFs = 100 * m.pseudoWidth / m.glyphInkW100;
+      const expectedFs = (100 * m.pseudoWidth) / m.glyphInkW100;
       expect(seg.fontSize!).toBeCloseTo(expectedFs, 0);
       expect(Math.abs(seg.fontSize! - m.specifiedFontSize)).toBeGreaterThan(10);
 

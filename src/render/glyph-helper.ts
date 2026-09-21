@@ -11,35 +11,22 @@
 
 import { hostPlatform } from "./host-platform.js";
 import type { MetaResponse } from "./glyph-helper-outline.js";
-import type {
-  FamilyResponse,
-  HelperRequest,
-  HelperResponse,
-} from "./glyph-helper-protocol.js";
+import type { FamilyResponse, HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
 import {
   callGlyphHelper as callHelper,
   clearGlyphHelperTransport,
   isGlyphHelperAvailable,
 } from "./glyph-helper-transport.js";
 
-export {
-  OFFSET_PROBE_GLYPHS,
-  measureOutlineOffsetY,
-} from "./glyph-helper-outline.js";
+export { OFFSET_PROBE_GLYPHS, measureOutlineOffsetY } from "./glyph-helper-outline.js";
 export type { GlyphRasterRepresentation } from "./glyph-helper-outline.js";
 export {
   __helperBinaryForPlatform,
   isGlyphHelperAvailable,
   resolvedGlyphHelperPathForEvidence,
 } from "./glyph-helper-transport.js";
-export {
-  buildGlyphHelperFontProbeEnvelope,
-  createGlyphHelperFont,
-} from "./glyph-helper-font.js";
-export type {
-  GlyphHelperFontInstance,
-  ShapedRunFallback,
-} from "./glyph-helper-font.js";
+export { buildGlyphHelperFontProbeEnvelope, createGlyphHelperFont } from "./glyph-helper-font.js";
+export type { GlyphHelperFontInstance, ShapedRunFallback } from "./glyph-helper-font.js";
 export { linuxTargetStrikeGlyphs } from "./linux-target-strike.js";
 export type { LinuxTargetStrikeGlyph } from "./linux-target-strike.js";
 
@@ -76,23 +63,23 @@ const _systemFallbackCache = new Map<string, SystemFallbackFont | null>();
 const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest): string =>
   req == null
     ? `${base}\u0000${cp}`
-    // DM-1859: `systemUi` and `stretch` join the key for the same reason the rest
-    // of the description did — they change which base the cascade is walked FROM,
-    // so a key blind to them would serve a named-family answer to a system-ui run.
-    // DM-1871: `baseFamilyName` too — on Windows the answer is a function of the
-    // run's primary family, so a key blind to it would serve whichever primary
-    // asked first to every later caller. Same hazard the cascade base already
-    // documents, one platform over.
-    // DM-1896: `locale` too, and this one is the sharpest of the set — a unified
-    // Han ideograph resolves to a Japanese face under `ja` and a Chinese one
-    // under `zh-Hans`, so a locale-blind key on a multilingual page serves
-    // whichever language asked first to every later run. Wrong quietly, in a way
-    // that reads as a font-inventory problem rather than as a cache defect.
-    // `monoEmojiReplacement` joins for the same reason the rest of the
-    // description does: it changes the answer (Apple Color Emoji vs the
-    // monochrome cascade), so a key blind to it would serve a color answer
-    // to a forced-text ask or vice versa.
-    : `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}\u0000${req.monoEmojiReplacement === true ? 1 : 0}`;
+    : // DM-1859: `systemUi` and `stretch` join the key for the same reason the rest
+      // of the description did — they change which base the cascade is walked FROM,
+      // so a key blind to them would serve a named-family answer to a system-ui run.
+      // DM-1871: `baseFamilyName` too — on Windows the answer is a function of the
+      // run's primary family, so a key blind to it would serve whichever primary
+      // asked first to every later caller. Same hazard the cascade base already
+      // documents, one platform over.
+      // DM-1896: `locale` too, and this one is the sharpest of the set — a unified
+      // Han ideograph resolves to a Japanese face under `ja` and a Chinese one
+      // under `zh-Hans`, so a locale-blind key on a multilingual page serves
+      // whichever language asked first to every later run. Wrong quietly, in a way
+      // that reads as a font-inventory problem rather than as a cache defect.
+      // `monoEmojiReplacement` joins for the same reason the rest of the
+      // description does: it changes the answer (Apple Color Emoji vs the
+      // monochrome cascade), so a key blind to it would serve a color answer
+      // to a forced-text ask or vice versa.
+      `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}\u0000${req.monoEmojiReplacement === true ? 1 : 0}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -224,15 +211,17 @@ export interface FcFallbackDiagnostic {
   after: string;
   fingerprint: string;
   candidates: Array<{
-    rank: number; path: string; index: number; family?: string;
-    postscriptName?: string; covers: number[];
+    rank: number;
+    path: string;
+    index: number;
+    family?: string;
+    postscriptName?: string;
+    covers: number[];
   }>;
 }
 
 /** Diagnostics only: serialize Blink's effective Fontconfig fallback question. */
-export function resolveFcFallbackDiagnostic(
-  cps: number[], lang: string = "en",
-): FcFallbackDiagnostic | null {
+export function resolveFcFallbackDiagnostic(cps: number[], lang: string = "en"): FcFallbackDiagnostic | null {
   if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return null;
   try {
     const resp = callHelper({ fonts: [], queries: [{ type: "fcdiagnostic", lang, cps }] });
@@ -287,17 +276,13 @@ export function __fcFallbackRendererCacheForTest(): Map<number, FcFallbackFont |
   return _fcFallbackRendererCaches.get(_fcFallbackRendererKey) ?? null;
 }
 
-export function resolveFcFallbackFonts(
-  cps: number[], lang: string = "en",
-): Map<number, FcFallbackFont | null> {
+export function resolveFcFallbackFonts(cps: number[], lang: string = "en"): Map<number, FcFallbackFont | null> {
   const out = new Map<number, FcFallbackFont | null>();
   if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return out;
   // Chromium's renderer sandbox cache is codepoint-only and first-query-wins;
   // locale affects only the miss that populates it. Outside an explicit
   // renderer scope retain the legacy (lang, cp) memo for low-level callers.
-  const rendererCache = _fcFallbackRendererDepth > 0
-    ? _fcFallbackRendererCaches.get(_fcFallbackRendererKey)!
-    : null;
+  const rendererCache = _fcFallbackRendererDepth > 0 ? _fcFallbackRendererCaches.get(_fcFallbackRendererKey)! : null;
   const need: number[] = [];
   for (const cp of cps) {
     const k = `${lang}\u0000${cp}`;
@@ -315,15 +300,16 @@ export function resolveFcFallbackFonts(
     if (r == null || r.type !== "fcfallback" || !Array.isArray(r.fonts)) return out;
     for (const e of r.fonts) {
       if (e == null || typeof e.cp !== "number") continue;
-      const resolved = e.found === true && typeof e.path === "string" && e.path !== ""
-        ? {
-            path: e.path,
-            index: typeof e.index === "number" ? e.index : 0,
-            isBold: e.isBold === true,
-            isItalic: e.isItalic === true,
-            family: typeof e.family === "string" ? e.family : undefined,
-          }
-        : null;
+      const resolved =
+        e.found === true && typeof e.path === "string" && e.path !== ""
+          ? {
+              path: e.path,
+              index: typeof e.index === "number" ? e.index : 0,
+              isBold: e.isBold === true,
+              isItalic: e.isItalic === true,
+              family: typeof e.family === "string" ? e.family : undefined,
+            }
+          : null;
       out.set(e.cp, resolved);
       if (rendererCache != null) rendererCache.set(e.cp, resolved);
       else _fcFallbackCache.set(`${lang}\u0000${e.cp}`, resolved);
@@ -369,53 +355,67 @@ export function buildFallbackEnvelope(
   platform: NodeJS.Platform,
 ): HelperRequest {
   return {
-    fonts: platform === "win32" ? [] : [{
-      ref: "base", postscriptName: basePostscriptName, size: req?.fontSize ?? 16,
-      ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
-      ...(req?.baseData != null ? { fontData: req.baseData.toString("base64") } : {}),
-      // CoreText's cascade base belongs to the current run. The persistent
-      // helper may cache ordinary opened faces, but sharing this CTFontRef
-      // between envelopes lets its cascade state leak into later Han queries.
-      ...(platform === "darwin" ? { requestScoped: true } : {}),
-      // DM-1859: the platform UI font, built the way `MatchSystemUIFont` builds
-      // it. The helper derives the symbolic traits from these CSS values itself
-      // (Blink's `kBoldThreshold` is 600 and lives on that side), so pass the
-      // numbers rather than pre-computed booleans.
-      ...(req?.systemUi === true
-        ? {
-          systemUI: true,
-          cssWeight: req.weight,
-          cssSlant: req.italic ? 1 : 0,
-          cssWidth: req.stretch ?? 100,
-        }
-        : {}),
-    }],
-    queries: [{
-      // `fontRef` is kept even on Windows, where no base is declared: the helper
-      // ignores it for this query, and the macOS/Linux helpers require it. One
-      // query shape for all three.
-      type: "fallback", fontRef: "base", cps,
-      ...(req != null
-        // `bold` mirrors Blink's `platform_data.synthetic_bold_` OR: our base
-        // font stands in for the run primary at its regular cut, so a bold
-        // request arrives as the synthetic trait rather than in the face.
-        ? {
-          cssWeight: req.weight, bold: req.weight >= 600, italic: req.italic,
-          // DM-1871: Windows only — the macOS and Linux helpers ignore it.
-          ...(req.baseFamilyName != null && req.baseFamilyName !== ""
-            ? { baseFamilyName: req.baseFamilyName } : {}),
-          // DM-1896: Windows only, same reason. An absent field leaves the
-          // helper on its own `en-us` default, which is what it did before —
-          // so an older Node side against a newer helper degrades to the
-          // previous behavior rather than to no locale at all.
-          ...(req.locale != null && req.locale !== "" ? { locale: req.locale } : {}),
-          // macOS only — Blink's monochrome-emoji replacement inside
-          // `GetSubstituteFont` (see `SystemFallbackRequest.monoEmojiReplacement`).
-          // An older helper ignores the field and answers the color font.
-          ...(req.monoEmojiReplacement === true ? { monoEmoji: true } : {}),
-        }
-        : {}),
-    }],
+    fonts:
+      platform === "win32"
+        ? []
+        : [
+            {
+              ref: "base",
+              postscriptName: basePostscriptName,
+              size: req?.fontSize ?? 16,
+              ...(req?.basePath != null ? { fontPath: req.basePath } : {}),
+              ...(req?.baseData != null ? { fontData: req.baseData.toString("base64") } : {}),
+              // CoreText's cascade base belongs to the current run. The persistent
+              // helper may cache ordinary opened faces, but sharing this CTFontRef
+              // between envelopes lets its cascade state leak into later Han queries.
+              ...(platform === "darwin" ? { requestScoped: true } : {}),
+              // DM-1859: the platform UI font, built the way `MatchSystemUIFont` builds
+              // it. The helper derives the symbolic traits from these CSS values itself
+              // (Blink's `kBoldThreshold` is 600 and lives on that side), so pass the
+              // numbers rather than pre-computed booleans.
+              ...(req?.systemUi === true
+                ? {
+                    systemUI: true,
+                    cssWeight: req.weight,
+                    cssSlant: req.italic ? 1 : 0,
+                    cssWidth: req.stretch ?? 100,
+                  }
+                : {}),
+            },
+          ],
+    queries: [
+      {
+        // `fontRef` is kept even on Windows, where no base is declared: the helper
+        // ignores it for this query, and the macOS/Linux helpers require it. One
+        // query shape for all three.
+        type: "fallback",
+        fontRef: "base",
+        cps,
+        ...(req != null
+          ? // `bold` mirrors Blink's `platform_data.synthetic_bold_` OR: our base
+            // font stands in for the run primary at its regular cut, so a bold
+            // request arrives as the synthetic trait rather than in the face.
+            {
+              cssWeight: req.weight,
+              bold: req.weight >= 600,
+              italic: req.italic,
+              // DM-1871: Windows only — the macOS and Linux helpers ignore it.
+              ...(req.baseFamilyName != null && req.baseFamilyName !== ""
+                ? { baseFamilyName: req.baseFamilyName }
+                : {}),
+              // DM-1896: Windows only, same reason. An absent field leaves the
+              // helper on its own `en-us` default, which is what it did before —
+              // so an older Node side against a newer helper degrades to the
+              // previous behavior rather than to no locale at all.
+              ...(req.locale != null && req.locale !== "" ? { locale: req.locale } : {}),
+              // macOS only — Blink's monochrome-emoji replacement inside
+              // `GetSubstituteFont` (see `SystemFallbackRequest.monoEmojiReplacement`).
+              // An older helper ignores the field and answers the color font.
+              ...(req.monoEmojiReplacement === true ? { monoEmoji: true } : {}),
+            }
+          : {}),
+      },
+    ],
   };
 }
 
@@ -428,7 +428,8 @@ export function resolveSystemFallbackFonts(
   if (!isGlyphHelperAvailable()) return out;
   const need: number[] = [];
   for (const cp of cps) {
-    if (_systemFallbackCache.has(fallbackCacheKey(basePostscriptName, cp, req))) out.set(cp, _systemFallbackCache.get(fallbackCacheKey(basePostscriptName, cp, req))!);
+    if (_systemFallbackCache.has(fallbackCacheKey(basePostscriptName, cp, req)))
+      out.set(cp, _systemFallbackCache.get(fallbackCacheKey(basePostscriptName, cp, req))!);
     else need.push(cp);
   }
   if (need.length === 0) return out;
@@ -458,10 +459,21 @@ export function resolveSystemFallbackFonts(
   const asked = new Set(need);
   let outOfDomain = 0;
   for (const e of r.fonts) {
-    if (!asked.has(e.cp)) { outOfDomain++; continue; }
-    const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
-      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path, resolvedAxes: e.axes, ctAxes: e.ctAxes, covered: e.covered }
-      : null;
+    if (!asked.has(e.cp)) {
+      outOfDomain++;
+      continue;
+    }
+    const resolved: SystemFallbackFont | null =
+      e.found && e.path && e.postscriptName
+        ? {
+            postscriptName: e.postscriptName,
+            familyName: e.familyName ?? "",
+            path: e.path,
+            resolvedAxes: e.axes,
+            ctAxes: e.ctAxes,
+            covered: e.covered,
+          }
+        : null;
     _systemFallbackCache.set(fallbackCacheKey(basePostscriptName, e.cp, req), resolved);
     out.set(e.cp, resolved);
   }
@@ -492,7 +504,12 @@ export function resolveSystemFallbackFonts(
  *
  *  Read with `takeFallbackResponseAnomalies()`; a run that reports none has
  *  eliminated the short-response candidate rather than merely not looked. */
-interface FallbackResponseAnomaly { asked: number; answered: number; missing: number; outOfDomain: number }
+interface FallbackResponseAnomaly {
+  asked: number;
+  answered: number;
+  missing: number;
+  outOfDomain: number;
+}
 const _fallbackResponseAnomalies: FallbackResponseAnomaly[] = [];
 
 /** Drain the recorded anomalies. Empty means every call answered exactly what
@@ -556,7 +573,12 @@ const _installedFontCache = new Map<string, InstalledFont | null>();
 function hiddenFamilies(): Set<string> {
   const raw = process.env.DOMOTION_HIDE_FAMILIES;
   if (raw == null || raw.trim() === "") return new Set();
-  return new Set(raw.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s !== ""));
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s !== ""),
+  );
 }
 
 /**
@@ -651,39 +673,54 @@ export function __seedSystemUiFamilyForTest(family: string): void {
   _systemUiFamily = family;
 }
 
-export function resolveInstalledFont(
-  name: string, style?: InstalledFontStyle,
-): InstalledFont | null {
+export function resolveInstalledFont(name: string, style?: InstalledFontStyle): InstalledFont | null {
   const nameKey = name.toLowerCase();
   if (hiddenFamilies().has(nameKey)) return null;
   // The style joins the cache key for the same reason the cascade base does in
   // `systemFallbackKeyCache`: the answer is a function of the style you ask
   // with, so a style-blind key would serve whichever style asked FIRST to every
   // later caller — and the presence probe (no style) usually asks first.
-  const key = style == null
-    ? nameKey
-    : `${nameKey}|${style.weight ?? 400}|${style.italic === true ? 1 : 0}|${style.slant ?? 0}|${style.stretch ?? 100}`;
+  const key =
+    style == null
+      ? nameKey
+      : `${nameKey}|${style.weight ?? 400}|${style.italic === true ? 1 : 0}|${style.slant ?? 0}|${style.stretch ?? 100}`;
   if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
   let resolved: InstalledFont | null = null;
   if (isGlyphHelperAvailable()) {
     try {
-      const resp = callHelper({ fonts: [], queries: [{
-        type: "family", name,
-        // Omitted entirely when there is no style, so the request is
-        // byte-identical to the pre-DM-1878 one and an older helper binary
-        // behaves exactly as before.
-        ...(style != null ? {
-          cssWeight: style.weight ?? 400,
-          italic: style.italic === true,
-          cssSlant: style.slant ?? 0,
-          cssStretch: style.stretch ?? 100,
-        } : {}),
-      }] });
+      const resp = callHelper({
+        fonts: [],
+        queries: [
+          {
+            type: "family",
+            name,
+            // Omitted entirely when there is no style, so the request is
+            // byte-identical to the pre-DM-1878 one and an older helper binary
+            // behaves exactly as before.
+            ...(style != null
+              ? {
+                  cssWeight: style.weight ?? 400,
+                  italic: style.italic === true,
+                  cssSlant: style.slant ?? 0,
+                  cssStretch: style.stretch ?? 100,
+                }
+              : {}),
+          },
+        ],
+      });
       const r = resp.results[0];
       if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
-        resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path, resolvedAxes: r.axes, ctAxes: r.ctAxes };
+        resolved = {
+          postscriptName: r.postscriptName,
+          familyName: r.familyName ?? "",
+          path: r.path,
+          resolvedAxes: r.axes,
+          ctAxes: r.ctAxes,
+        };
       }
-    } catch { resolved = null; }
+    } catch {
+      resolved = null;
+    }
   }
   _installedFontCache.set(key, resolved);
   return resolved;
@@ -715,19 +752,21 @@ export function resolveSystemUiFontFace(
     if (!isGlyphHelperAvailable()) return null;
     try {
       const resp = callHelper({
-        fonts: [{
-          ref: "system-ui",
-          size: style.size ?? 16,
-          systemUI: true,
-          cssWeight: weight,
-          cssSlant: slant,
-          cssWidth: stretch,
-        }],
+        fonts: [
+          {
+            ref: "system-ui",
+            size: style.size ?? 16,
+            systemUI: true,
+            cssWeight: weight,
+            cssSlant: slant,
+            cssWidth: stretch,
+          },
+        ],
         queries: [{ type: "meta", fontRef: "system-ui" }],
       });
       const r = resp.results[0];
-      if (r?.type !== "meta" || r.resolution !== "systemUI"
-          || r.postscriptName == null || r.postscriptName === "") return null;
+      if (r?.type !== "meta" || r.resolution !== "systemUI" || r.postscriptName == null || r.postscriptName === "")
+        return null;
       return {
         route: "coretext-ui-font",
         familyName: r.familyName ?? "",
@@ -815,7 +854,8 @@ const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
  * defect this call exists to fix.
  */
 export function resolveFamilyStyleMatch(
-  family: string, style?: { weight?: number; italic?: boolean; stretch?: number },
+  family: string,
+  style?: { weight?: number; italic?: boolean; stretch?: number },
 ): FamilyStyleMatch | null {
   if (hostPlatform() !== "darwin" || family === "") return null;
   const weight = style?.weight ?? 400;
@@ -835,7 +875,10 @@ export function resolveFamilyStyleMatch(
   let resolved: FamilyStyleMatch | null = null;
   if (isGlyphHelperAvailable()) {
     try {
-      const resp = callHelper({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }] });
+      const resp = callHelper({
+        fonts: [],
+        queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }],
+      });
       const r = resp.results[0];
       if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
         const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
@@ -896,7 +939,8 @@ const _linuxFamilyMatchCache = new Map<string, LinuxFamilyMatch | null>();
  * caller must keep the selection it already had.
  */
 export function resolveLinuxFamilyMatch(
-  family: string, style?: { weight?: number; italic?: boolean; stretch?: number },
+  family: string,
+  style?: { weight?: number; italic?: boolean; stretch?: number },
 ): LinuxFamilyMatch | null {
   // An EMPTY family is a real Blink request, not junk: the terminal rung of
   // `FontCache::GetLastResortFallbackFont` is `legacyMakeTypeface(nullptr,
@@ -916,10 +960,12 @@ export function resolveLinuxFamilyMatch(
   let resolved: LinuxFamilyMatch | null = null;
   if (isGlyphHelperAvailable()) {
     try {
-      const resp = callHelper({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }] });
+      const resp = callHelper({
+        fonts: [],
+        queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }],
+      });
       const r = resp.results[0];
-      if (r != null && r.type === "familyMatch" && r.found
-          && typeof r.path === "string" && r.path !== "") {
+      if (r != null && r.type === "familyMatch" && r.found && typeof r.path === "string" && r.path !== "") {
         resolved = {
           path: r.path,
           index: typeof r.index === "number" ? r.index : 0,
@@ -1000,9 +1046,7 @@ export function __helperMetaForTest(postscriptName: string): MetaResponse | null
  * helper hands back the face that was asked for.
  */
 const _traitBoldCache = new Map<string, boolean | null>();
-export function resolveFaceTraitBold(
-  postscriptName: string, path?: string,
-): boolean | null {
+export function resolveFaceTraitBold(postscriptName: string, path?: string): boolean | null {
   if (postscriptName === "") return null;
   const key = `${path ?? ""}\0${postscriptName}`;
   const hit = _traitBoldCache.get(key);
@@ -1024,7 +1068,9 @@ export function resolveFaceTraitBold(
           out = meta.traitBold;
         }
       }
-    } catch { /* helper failed — keep null so the caller falls back */ }
+    } catch {
+      /* helper failed — keep null so the caller falls back */
+    }
   }
   _traitBoldCache.set(key, out);
   return out;
@@ -1043,9 +1089,7 @@ export function resolveFaceTraitBold(
  * assuming "not italic".
  */
 const _traitItalicCache = new Map<string, boolean | null>();
-export function resolveFaceTraitItalic(
-  postscriptName: string, path?: string,
-): boolean | null {
+export function resolveFaceTraitItalic(postscriptName: string, path?: string): boolean | null {
   if (postscriptName === "") return null;
   const key = `${path ?? ""} ${postscriptName}`;
   const hit = _traitItalicCache.get(key);
@@ -1067,7 +1111,9 @@ export function resolveFaceTraitItalic(
           out = meta.traitItalic;
         }
       }
-    } catch { /* helper failed — keep null so the caller falls back */ }
+    } catch {
+      /* helper failed — keep null so the caller falls back */
+    }
   }
   _traitItalicCache.set(key, out);
   return out;

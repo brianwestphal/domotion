@@ -21,13 +21,7 @@
       "verdict": "moderate",
       "regionCount": 11,
       "coveragePct": 0.1007080078125,
-      "chromeFaces": [
-        "ArialMT:11",
-        "Consolas:66",
-        "SegoeUI-Bold:17",
-        "SegoeUI-Italic:24",
-        "SegoeUI:144"
-      ],
+      "chromeFaces": ["ArialMT:11", "Consolas:66", "SegoeUI-Bold:17", "SegoeUI-Italic:24", "SegoeUI:144"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -35,11 +29,7 @@
           "faceIndex": 0,
           "glyphCount": 13,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -47,11 +37,7 @@
           "faceIndex": 0,
           "glyphCount": 37,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -59,11 +45,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -71,11 +53,7 @@
           "faceIndex": 0,
           "glyphCount": 13,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -85,13 +63,7 @@
       "verdict": "major",
       "regionCount": 40,
       "coveragePct": 0.3662109375,
-      "chromeFaces": [
-        "ArialMT:40",
-        "Consolas:240",
-        "SegoeUI-Bold:17",
-        "SegoeUI-Italic:24",
-        "SegoeUI:164"
-      ],
+      "chromeFaces": ["ArialMT:40", "Consolas:240", "SegoeUI-Bold:17", "SegoeUI-Italic:24", "SegoeUI:164"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -99,11 +71,7 @@
           "faceIndex": 0,
           "glyphCount": 14,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -111,11 +79,7 @@
           "faceIndex": 0,
           "glyphCount": 42,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -123,11 +87,7 @@
           "faceIndex": 0,
           "glyphCount": 8,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -135,11 +95,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -149,13 +105,7 @@
       "verdict": "major",
       "regionCount": 23,
       "coveragePct": 0.2105712890625,
-      "chromeFaces": [
-        "ArialMT:95",
-        "Consolas:570",
-        "SegoeUI-Bold:17",
-        "SegoeUI-Italic:24",
-        "SegoeUI:184"
-      ],
+      "chromeFaces": ["ArialMT:95", "Consolas:570", "SegoeUI-Bold:17", "SegoeUI-Italic:24", "SegoeUI:184"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -163,11 +113,7 @@
           "faceIndex": 0,
           "glyphCount": 13,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -175,11 +121,7 @@
           "faceIndex": 0,
           "glyphCount": 46,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -187,11 +129,7 @@
           "faceIndex": 0,
           "glyphCount": 8,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -199,11 +137,7 @@
           "faceIndex": 0,
           "glyphCount": 29,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -211,11 +145,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -225,13 +155,7 @@
       "verdict": "trivial",
       "regionCount": 1,
       "coveragePct": 0.0091552734375,
-      "chromeFaces": [
-        "ArialMT:1",
-        "Consolas:546",
-        "NirmalaUI:118",
-        "SegoeUI-Bold:7",
-        "SegoeUI:175"
-      ],
+      "chromeFaces": ["ArialMT:1", "Consolas:546", "NirmalaUI:118", "SegoeUI-Bold:7", "SegoeUI:175"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -239,11 +163,7 @@
           "faceIndex": 0,
           "glyphCount": 4,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -251,11 +171,7 @@
           "faceIndex": 0,
           "glyphCount": 44,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "NirmalaUI",
@@ -263,11 +179,7 @@
           "faceIndex": 0,
           "glyphCount": 86,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -275,11 +187,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -304,11 +212,7 @@
           "faceIndex": 0,
           "glyphCount": 3,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -316,11 +220,7 @@
           "faceIndex": 0,
           "glyphCount": 43,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -328,11 +228,7 @@
           "faceIndex": 0,
           "glyphCount": 8,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "LeelawadeeUI",
@@ -340,11 +236,7 @@
           "faceIndex": 0,
           "glyphCount": 52,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -352,11 +244,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -366,12 +254,7 @@
       "verdict": "minor",
       "regionCount": 4,
       "coveragePct": 0.019211065573770492,
-      "chromeFaces": [
-        "Consolas:1182",
-        "Microsoft Himalaya:284",
-        "SegoeUI-Bold:7",
-        "SegoeUI:168"
-      ],
+      "chromeFaces": ["Consolas:1182", "Microsoft Himalaya:284", "SegoeUI-Bold:7", "SegoeUI:168"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -379,11 +262,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -391,11 +270,7 @@
           "faceIndex": 0,
           "glyphCount": 46,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Microsoft Himalaya",
@@ -403,11 +278,7 @@
           "faceIndex": 0,
           "glyphCount": 198,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -415,11 +286,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -429,13 +296,7 @@
       "verdict": "trivial",
       "regionCount": 2,
       "coveragePct": 0.01220703125,
-      "chromeFaces": [
-        "ArialMT:5",
-        "Consolas:942",
-        "MongolianBaiti:155",
-        "SegoeUI-Bold:9",
-        "SegoeUI:232"
-      ],
+      "chromeFaces": ["ArialMT:5", "Consolas:942", "MongolianBaiti:155", "SegoeUI-Bold:9", "SegoeUI:232"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -443,11 +304,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -455,11 +312,7 @@
           "faceIndex": 0,
           "glyphCount": 49,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MongolianBaiti",
@@ -467,11 +320,7 @@
           "faceIndex": 0,
           "glyphCount": 150,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -479,11 +328,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MongolianBaiti",
@@ -491,11 +336,7 @@
           "faceIndex": 0,
           "glyphCount": 3,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -520,11 +361,7 @@
           "faceIndex": 0,
           "glyphCount": 20,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -532,11 +369,7 @@
           "faceIndex": 0,
           "glyphCount": 41,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -544,11 +377,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -556,11 +385,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -585,11 +410,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -597,11 +418,7 @@
           "faceIndex": 0,
           "glyphCount": 44,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -609,11 +426,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SansSerifCollection",
@@ -629,11 +442,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -658,11 +467,7 @@
           "faceIndex": 0,
           "glyphCount": 13,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -670,11 +475,7 @@
           "faceIndex": 0,
           "glyphCount": 43,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -682,11 +483,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SansSerifCollection",
@@ -702,11 +499,7 @@
           "faceIndex": 0,
           "glyphCount": 14,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -732,11 +525,7 @@
           "faceIndex": 0,
           "glyphCount": 20,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -744,11 +533,7 @@
           "faceIndex": 0,
           "glyphCount": 48,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -756,11 +541,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -768,11 +549,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -798,11 +575,7 @@
           "faceIndex": 0,
           "glyphCount": 12,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -810,11 +583,7 @@
           "faceIndex": 0,
           "glyphCount": 48,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "CambriaMath",
@@ -822,11 +591,7 @@
           "faceIndex": 1,
           "glyphCount": 200,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -834,11 +599,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -846,11 +607,7 @@
           "faceIndex": 0,
           "glyphCount": 4,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUISymbol",
@@ -858,11 +615,7 @@
           "faceIndex": 0,
           "glyphCount": 10,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUISymbol",
@@ -870,11 +623,7 @@
           "faceIndex": 0,
           "glyphCount": 31,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "PMingLiU",
@@ -882,11 +631,7 @@
           "faceIndex": 1,
           "glyphCount": 2,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -912,11 +657,7 @@
           "faceIndex": 0,
           "glyphCount": 12,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -924,11 +665,7 @@
           "faceIndex": 0,
           "glyphCount": 47,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -936,11 +673,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "LucidaSansUnicode",
@@ -948,11 +681,7 @@
           "faceIndex": 0,
           "glyphCount": 37,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -960,11 +689,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUISymbol",
@@ -972,11 +697,7 @@
           "faceIndex": 0,
           "glyphCount": 2,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -986,13 +707,7 @@
       "verdict": "trivial",
       "regionCount": 2,
       "coveragePct": 0.018310546875,
-      "chromeFaces": [
-        "ArialMT:2",
-        "Consolas:258",
-        "MicrosoftJhengHeiRegular:41",
-        "SegoeUI-Bold:8",
-        "SegoeUI:195"
-      ],
+      "chromeFaces": ["ArialMT:2", "Consolas:258", "MicrosoftJhengHeiRegular:41", "SegoeUI-Bold:8", "SegoeUI:195"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1000,11 +715,7 @@
           "faceIndex": 0,
           "glyphCount": 5,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1012,11 +723,7 @@
           "faceIndex": 0,
           "glyphCount": 48,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MicrosoftJhengHeiRegular",
@@ -1024,11 +731,7 @@
           "faceIndex": 0,
           "glyphCount": 41,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1036,11 +739,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1050,13 +749,7 @@
       "verdict": "moderate",
       "regionCount": 14,
       "coveragePct": 0.23282368977864584,
-      "chromeFaces": [
-        "Consolas:96",
-        "PMingLiU:14",
-        "SegoeUI-Bold:6",
-        "SegoeUI:195",
-        "YuGothicUI-Regular:2"
-      ],
+      "chromeFaces": ["Consolas:96", "PMingLiU:14", "SegoeUI-Bold:6", "SegoeUI:195", "YuGothicUI-Regular:2"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1064,11 +757,7 @@
           "faceIndex": 0,
           "glyphCount": 5,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1076,11 +765,7 @@
           "faceIndex": 0,
           "glyphCount": 45,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "YuGothicUI-Regular",
@@ -1088,11 +773,7 @@
           "faceIndex": 1,
           "glyphCount": 2,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1100,11 +781,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "PMingLiU",
@@ -1112,11 +789,7 @@
           "faceIndex": 1,
           "glyphCount": 14,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1141,11 +814,7 @@
           "faceIndex": 0,
           "glyphCount": 11,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1153,11 +822,7 @@
           "faceIndex": 0,
           "glyphCount": 47,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -1165,11 +830,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MicrosoftJhengHeiRegular",
@@ -1177,11 +838,7 @@
           "faceIndex": 0,
           "glyphCount": 24,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1189,11 +846,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1203,13 +856,7 @@
       "verdict": "moderate",
       "regionCount": 6,
       "coveragePct": 0.030307112068965518,
-      "chromeFaces": [
-        "ArialMT:197",
-        "Consolas:1182",
-        "SegoeUI-Bold:16",
-        "SegoeUI-Italic:22",
-        "SegoeUI:230"
-      ],
+      "chromeFaces": ["ArialMT:197", "Consolas:1182", "SegoeUI-Bold:16", "SegoeUI-Italic:22", "SegoeUI:230"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1217,11 +864,7 @@
           "faceIndex": 0,
           "glyphCount": 11,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1229,11 +872,7 @@
           "faceIndex": 0,
           "glyphCount": 51,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -1241,11 +880,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1253,11 +888,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -1265,11 +896,7 @@
           "faceIndex": 0,
           "glyphCount": 191,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1279,12 +906,7 @@
       "verdict": "trivial",
       "regionCount": 1,
       "coveragePct": 0.007120768229166667,
-      "chromeFaces": [
-        "Consolas:288",
-        "SansSerifCollection:56",
-        "SegoeUI-Bold:8",
-        "SegoeUI:178"
-      ],
+      "chromeFaces": ["Consolas:288", "SansSerifCollection:56", "SegoeUI-Bold:8", "SegoeUI:178"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1292,11 +914,7 @@
           "faceIndex": 0,
           "glyphCount": 6,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1304,11 +922,7 @@
           "faceIndex": 0,
           "glyphCount": 50,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SansSerifCollection",
@@ -1324,11 +938,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1355,11 +965,7 @@
           "faceIndex": 0,
           "glyphCount": 23,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1367,11 +973,7 @@
           "faceIndex": 0,
           "glyphCount": 53,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -1379,11 +981,7 @@
           "faceIndex": 0,
           "glyphCount": 9,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Gulim",
@@ -1391,11 +989,7 @@
           "faceIndex": 0,
           "glyphCount": 8,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1403,11 +997,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MicrosoftYaHei",
@@ -1415,11 +1005,7 @@
           "faceIndex": 0,
           "glyphCount": 16,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MS-PGothic",
@@ -1427,11 +1013,7 @@
           "faceIndex": 2,
           "glyphCount": 80,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1441,13 +1023,7 @@
       "verdict": "major",
       "regionCount": 95,
       "coveragePct": 0.3920004401408451,
-      "chromeFaces": [
-        "ArialMT:197",
-        "Consolas:1182",
-        "SegoeUI-Bold:41",
-        "SegoeUI-Italic:22",
-        "SegoeUI:302"
-      ],
+      "chromeFaces": ["ArialMT:197", "Consolas:1182", "SegoeUI-Bold:41", "SegoeUI-Italic:22", "SegoeUI:302"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1455,11 +1031,7 @@
           "faceIndex": 0,
           "glyphCount": 21,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1467,11 +1039,7 @@
           "faceIndex": 0,
           "glyphCount": 50,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -1479,11 +1047,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -1491,11 +1055,7 @@
           "faceIndex": 0,
           "glyphCount": 155,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1503,11 +1063,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1517,13 +1073,7 @@
       "verdict": "major",
       "regionCount": 253,
       "coveragePct": 1.0439590669014085,
-      "chromeFaces": [
-        "ArialMT:197",
-        "Consolas:1182",
-        "SegoeUI-Bold:41",
-        "SegoeUI-Italic:24",
-        "SegoeUI:290"
-      ],
+      "chromeFaces": ["ArialMT:197", "Consolas:1182", "SegoeUI-Bold:41", "SegoeUI-Italic:24", "SegoeUI:290"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1531,11 +1081,7 @@
           "faceIndex": 0,
           "glyphCount": 21,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1543,11 +1089,7 @@
           "faceIndex": 0,
           "glyphCount": 48,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -1555,11 +1097,7 @@
           "faceIndex": 0,
           "glyphCount": 8,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1567,11 +1105,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -1579,11 +1113,7 @@
           "faceIndex": 0,
           "glyphCount": 5,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -1591,11 +1121,7 @@
           "faceIndex": 0,
           "glyphCount": 2,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     },
@@ -1605,13 +1131,7 @@
       "verdict": "major",
       "regionCount": 105,
       "coveragePct": 0.87890625,
-      "chromeFaces": [
-        "ArialMT:115",
-        "Consolas:666",
-        "SegoeUI-Bold:41",
-        "SegoeUI-Italic:22",
-        "SegoeUI:241"
-      ],
+      "chromeFaces": ["ArialMT:115", "Consolas:666", "SegoeUI-Bold:41", "SegoeUI-Italic:22", "SegoeUI:241"],
       "embeddedFaces": [
         {
           "postscriptName": "SegoeUI-Bold",
@@ -1619,11 +1139,7 @@
           "faceIndex": 0,
           "glyphCount": 20,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI",
@@ -1631,11 +1147,7 @@
           "faceIndex": 0,
           "glyphCount": 48,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SegoeUI-Italic",
@@ -1643,11 +1155,7 @@
           "faceIndex": 0,
           "glyphCount": 7,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Consolas",
@@ -1655,11 +1163,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "ArialMT",
@@ -1667,11 +1171,7 @@
           "faceIndex": 0,
           "glyphCount": 10,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         }
       ]
     }

@@ -20,10 +20,13 @@ guidance: |
 ---
 
 ## ⚠️ Breaking Changes
+
 <!-- Anything that requires the reader to change their code, CLI invocation, or config. Include a short migration note for each. Omit this section if there are none. -->
 
 ## 🚀 Features
+
 <!-- New capture / render / animation capabilities and CLI flags. One bullet per user-facing change. -->
 
 ## 🐛 Fixes
+
 <!-- User-visible rendering-fidelity and behavior fixes only. -->

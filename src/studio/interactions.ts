@@ -44,7 +44,7 @@ export function compileStudioSemanticTracks(
   const parsed = z.array(studioSemanticTrackSchema).safeParse(rawTracks);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const suffix = issue.path.map((part) => typeof part === "number" ? `[${part}]` : `.${String(part)}`).join("");
+    const suffix = issue.path.map((part) => (typeof part === "number" ? `[${part}]` : `.${String(part)}`)).join("");
     throw new StudioInteractionError(`${basePath}${suffix}`, issue.message);
   }
 
@@ -58,7 +58,8 @@ export function compileStudioSemanticTracks(
     seenTrackIds.add(track.id);
     track.events.forEach((event, eventIndex) => {
       const path = `${basePath}[${trackIndex}].events[${eventIndex}]`;
-      if (seenIds.has(event.id)) throw new StudioInteractionError(`${path}.id`, `duplicate event id "${event.id}"`, event.id);
+      if (seenIds.has(event.id))
+        throw new StudioInteractionError(`${path}.id`, `duplicate event id "${event.id}"`, event.id);
       seenIds.add(event.id);
       steps.push({ path, trackId: track.id, event, trackIndex, eventIndex });
     });
@@ -71,7 +72,8 @@ export function compileStudioSemanticTracks(
 }
 
 function targetDescription(target: StudioSemanticTarget): string {
-  if (target.role != null) return `role=${JSON.stringify(target.role)}${target.name == null ? "" : ` name=${JSON.stringify(target.name)}`}`;
+  if (target.role != null)
+    return `role=${JSON.stringify(target.role)}${target.name == null ? "" : ` name=${JSON.stringify(target.name)}`}`;
   if (target.label != null) return `label=${JSON.stringify(target.label)}`;
   if (target.text != null) return `text=${JSON.stringify(target.text)}`;
   if (target.testId != null) return `testId=${JSON.stringify(target.testId)}`;
@@ -87,7 +89,11 @@ function locatorForTarget(page: Page, target: StudioSemanticTarget, path: string
     });
   }
   if (target.name != null) {
-    throw new StudioInteractionError(path, "`name` requires `role`; use `label` or `text` for a standalone semantic locator", eventId);
+    throw new StudioInteractionError(
+      path,
+      "`name` requires `role`; use `label` or `text` for a standalone semantic locator",
+      eventId,
+    );
   }
   if (target.label != null) return page.getByLabel(target.label, { exact: true });
   if (target.text != null) return page.getByText(target.text, { exact: true });
@@ -108,13 +114,26 @@ async function resolveStudioSemanticTargetWithCardinality(
   try {
     count = await locator.count();
   } catch (error) {
-    throw new StudioInteractionError(path, `could not resolve ${targetDescription(target)}: ${error instanceof Error ? error.message : String(error)}`, eventId, { cause: error });
+    throw new StudioInteractionError(
+      path,
+      `could not resolve ${targetDescription(target)}: ${error instanceof Error ? error.message : String(error)}`,
+      eventId,
+      { cause: error },
+    );
   }
   if (count === 0 && options.allowMissing !== true) {
-    throw new StudioInteractionError(path, `${targetDescription(target)} matched no element; check the live accessible role/name or add an explicit selector fallback`, eventId);
+    throw new StudioInteractionError(
+      path,
+      `${targetDescription(target)} matched no element; check the live accessible role/name or add an explicit selector fallback`,
+      eventId,
+    );
   }
   if (count > 1) {
-    throw new StudioInteractionError(path, `${targetDescription(target)} is ambiguous (${count} matches); add an exact accessible name or a unique stable identifier`, eventId);
+    throw new StudioInteractionError(
+      path,
+      `${targetDescription(target)} is ambiguous (${count} matches); add an exact accessible name or a unique stable identifier`,
+      eventId,
+    );
   }
   return locator;
 }
@@ -138,7 +157,12 @@ interface MarkedTarget {
   cleanup: () => Promise<void>;
 }
 
-async function markTarget(page: Page, target: StudioSemanticTarget, path: string, eventId: string): Promise<MarkedTarget> {
+async function markTarget(
+  page: Page,
+  target: StudioSemanticTarget,
+  path: string,
+  eventId: string,
+): Promise<MarkedTarget> {
   const locator = await resolveStudioSemanticTarget(page, target, path, eventId);
 
   const marker = `dm-${Date.now().toString(36)}-${markerCounter++}`;
@@ -148,9 +172,12 @@ async function markTarget(page: Page, target: StudioSemanticTarget, path: string
     locator,
     selector,
     cleanup: async () => {
-      await page.locator(selector).evaluateAll((elements) => {
-        elements.forEach((element) => element.removeAttribute("data-domotion-studio-target"));
-      }).catch(() => {});
+      await page
+        .locator(selector)
+        .evaluateAll((elements) => {
+          elements.forEach((element) => element.removeAttribute("data-domotion-studio-target"));
+        })
+        .catch(() => {});
     },
   };
 }
@@ -177,13 +204,19 @@ async function runWaitForState(
   event: Extract<StudioSemanticEvent, { kind: "waitForState" }>,
 ): Promise<void> {
   const timeout = event.timeoutMs ?? 5_000;
-  if (event.state === "attached" || event.state === "detached" || event.state === "visible" || event.state === "hidden") {
+  if (
+    event.state === "attached" ||
+    event.state === "detached" ||
+    event.state === "visible" ||
+    event.state === "hidden"
+  ) {
     await target.locator.waitFor({ state: event.state, timeout });
     return;
   }
   await page.waitForFunction(
     ({ selector, state, value }) => {
-      const element = document.querySelector(selector) as (HTMLElement & { checked?: boolean; disabled?: boolean }) | null;
+      const element = document.querySelector(selector) as
+        (HTMLElement & { checked?: boolean; disabled?: boolean }) | null;
       if (element == null) return false;
       const disabled = element.disabled === true || element.getAttribute("aria-disabled") === "true";
       const checked = element.checked === true || element.getAttribute("aria-checked") === "true";
@@ -216,7 +249,8 @@ async function runDragEvent(
     return;
   }
   const box = await target.locator.boundingBox();
-  if (box == null) throw new StudioInteractionError(`${step.path}.target`, "drag source has no visible bounding box", event.id);
+  if (box == null)
+    throw new StudioInteractionError(`${step.path}.target`, "drag source has no visible bounding box", event.id);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(event.to.point.x, event.to.point.y, { steps: 12 });
@@ -250,7 +284,9 @@ async function executeTargetedEvent(
       } else {
         if (event.replace !== false) await target.locator.fill("");
         const characters = Array.from(event.text).length;
-        await target.locator.pressSequentially(event.text, { delay: characters === 0 ? 0 : event.durationMs / characters });
+        await target.locator.pressSequentially(event.text, {
+          delay: characters === 0 ? 0 : event.durationMs / characters,
+        });
       }
       break;
     case "waitForState":
@@ -263,24 +299,28 @@ async function executeTargetedEvent(
   if (action != null) await runActions(page, [action], log);
 }
 
-async function runTargetedEvent(
-  page: Page,
-  step: StudioSemanticStep,
-  log: (message: string) => void,
-): Promise<void> {
+async function runTargetedEvent(page: Page, step: StudioSemanticStep, log: (message: string) => void): Promise<void> {
   const event = step.event;
   if (event.kind === "scriptHook") return;
   const eventTarget = event.target;
   if (eventTarget == null) {
-    throw new StudioInteractionError(step.path, "internal plan error: positional scroll reached the targeted executor", event.id);
+    throw new StudioInteractionError(
+      step.path,
+      "internal plan error: positional scroll reached the targeted executor",
+      event.id,
+    );
   }
   if (event.kind === "waitForState" && (event.state === "attached" || event.state === "detached")) {
     const targetPath = `${step.path}.target`;
-    const locator = await resolveStudioSemanticTargetWithCardinality(page, eventTarget, targetPath, event.id, { allowMissing: true });
+    const locator = await resolveStudioSemanticTargetWithCardinality(page, eventTarget, targetPath, event.id, {
+      allowMissing: true,
+    });
     try {
       await locator.waitFor({ state: event.state, timeout: event.timeoutMs ?? 5_000 });
     } catch (error) {
-      throw new StudioInteractionError(targetPath, error instanceof Error ? error.message : String(error), event.id, { cause: error });
+      throw new StudioInteractionError(targetPath, error instanceof Error ? error.message : String(error), event.id, {
+        cause: error,
+      });
     }
     return;
   }
@@ -302,9 +342,19 @@ export async function runStudioSemanticStep(
   try {
     if (step.event.kind === "scriptHook") {
       if (options.runHook == null) {
-        throw new StudioInteractionError(step.path, `script hook "${step.event.hookId}" requires an explicit runHook handler`, step.event.id);
+        throw new StudioInteractionError(
+          step.path,
+          `script hook "${step.event.hookId}" requires an explicit runHook handler`,
+          step.event.id,
+        );
       }
-      await options.runHook({ page, hookId: step.event.hookId, input: step.event.input, event: step.event, path: step.path });
+      await options.runHook({
+        page,
+        hookId: step.event.hookId,
+        input: step.event.input,
+        event: step.event,
+        path: step.path,
+      });
     } else if (step.event.kind === "scrollTo" && step.event.position != null) {
       await runActions(page, [{ type: "scroll", x: step.event.position.x, y: step.event.position.y }], log);
     } else {
@@ -312,7 +362,9 @@ export async function runStudioSemanticStep(
     }
   } catch (error) {
     if (error instanceof StudioInteractionError) throw error;
-    throw new StudioInteractionError(step.path, error instanceof Error ? error.message : String(error), step.event.id, { cause: error });
+    throw new StudioInteractionError(step.path, error instanceof Error ? error.message : String(error), step.event.id, {
+      cause: error,
+    });
   }
 }
 

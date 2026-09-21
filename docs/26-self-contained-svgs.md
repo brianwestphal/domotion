@@ -5,9 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
-tickets: ["DM-512","DM-528","DM-529"]
-code: ["examples/showcase-rendering.ts","src/embed-remote-images.test.ts","src/post-processing/hoist-image-payloads.test.ts","tests/animate-embed-images.e2e.test.ts","tests/hoist-image-payloads.e2e.test.ts"]
-aliases: ["docs/26-self-contained-svgs.md","doc-26"]
+tickets: ["DM-512", "DM-528", "DM-529"]
+code:
+  [
+    "examples/showcase-rendering.ts",
+    "src/embed-remote-images.test.ts",
+    "src/post-processing/hoist-image-payloads.test.ts",
+    "tests/animate-embed-images.e2e.test.ts",
+    "tests/hoist-image-payloads.e2e.test.ts",
+  ]
+aliases: ["docs/26-self-contained-svgs.md", "doc-26"]
 ---
 
 # 26 — Self-contained SVGs (remote image inlining)
@@ -35,8 +42,8 @@ A new public function `embedRemoteImages(tree)` walks the captured tree, collect
 import { captureElementTree, embedRemoteImages, elementTreeToSvg } from "domotion-svg";
 
 const tree = await captureElementTree(page, "body", viewport);
-await embedRemoteImages(tree);                 // ← new pre-pass (DM-512)
-const svg = elementTreeToSvg(tree, w, h);      // every URL is now inline
+await embedRemoteImages(tree); // ← new pre-pass (DM-512)
+const svg = elementTreeToSvg(tree, w, h); // every URL is now inline
 ```
 
 Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) don't abort the capture: the URL stays as-is in the output so the rest of the SVG isn't held hostage by one broken image, AND the failure is surfaced as a `remote-image` warning via `getLastCaptureWarnings` (DM-528) so it's diagnosable. Each fetch also has a per-URL timeout (`timeoutMs`, default 10000 ms) so a stalled CDN host can't hang the capture, and transient failures (5xx / network / timeout) are retried (`retries`, default 1, with `retryBackoffMs`).
@@ -47,11 +54,13 @@ Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Typ
 
 ```ts
 const rec = new DemoRecorder("https://www.nytimes.com", {
-  width: 1280, height: 800, selfContained: true,
+  width: 1280,
+  height: 800,
+  selfContained: true,
 });
 await rec.init({ width: 1280, height: 800 });
 await rec.captureUrl("/");
-const svg = await rec.captureCurrent();        // already self-contained
+const svg = await rec.captureCurrent(); // already self-contained
 ```
 
 The distributed-demo Domotion examples (`examples/showcase-rendering.ts`, `showcase-transitions.ts`, `hero-product-demo.ts`, `domotion-word-demo.ts`, `transition-tour.ts`, `transition-mixed.ts`, `iframe-recursion.ts`) call `embedRemoteImages` unconditionally — distributed demo SVGs always load in Preview / QuickLook regardless of how they're ingested. (`terminal-demo.ts` has no remote images to embed, so it doesn't.)
@@ -69,7 +78,7 @@ const tree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, w
 
 That entry point (capture + embed) is what `animate`'s frame and compressed-run captures, the storyboard `capture` scene, the per-keystroke `typeResample` re-captures, the `jsReveal` rest/settled captures, and the scroll executor all use. `Capturer` / `DemoRecorder` runs the pass internally when `selfContained` is set, as before.
 
-Two callers deliberately keep the two calls separate, because they need to control when the fetches happen or what happens to the warnings: `domotion capture --scroll` embeds the scroll segments *after* its viewBox-cull pass (so a culled element costs no fetch) and needs to honor `--no-embed-images`, and the real-world test harness supplies its own warning sink. Both pass `embedImages: false` to the scroll executor to suppress its default.
+Two callers deliberately keep the two calls separate, because they need to control when the fetches happen or what happens to the warnings: `domotion capture --scroll` embeds the scroll segments _after_ its viewBox-cull pass (so a culled element costs no fetch) and needs to honor `--no-embed-images`, and the real-world test harness supplies its own warning sink. Both pass `embedImages: false` to the scroll executor to suppress its default.
 
 ### Repeated payloads are serialized once
 

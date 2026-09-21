@@ -14,6 +14,8 @@ describe("specialized-path activation ledger", () => {
     const ledger = await loadActivationLedger(resolve(ROOT, "tools/activation-coverage.json"));
     const invalid = structuredClone(ledger);
     invalid.mechanisms[0]!.mutation = "marker-that-does-not-exist";
-    expect(await validateActivationLedger(invalid, ROOT)).toContain(`${invalid.mechanisms[0]!.id}: stale mutation marker: marker-that-does-not-exist`);
+    expect(await validateActivationLedger(invalid, ROOT)).toContain(
+      `${invalid.mechanisms[0]!.id}: stale mutation marker: marker-that-does-not-exist`,
+    );
   });
 });

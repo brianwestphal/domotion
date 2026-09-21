@@ -156,9 +156,15 @@ export function revealEndMs(count: number, opts: RevealOpts = {}): number {
  * margin and a format's `safeInset`, DM-1537). Callers append their own rules and
  * close the `<style>`.
  */
-export function cardHeadCss(p: {
-  width: number; height: number; fontFamily: string;
-}, defaultPadding: number, safeInset: SafeInset | undefined): string {
+export function cardHeadCss(
+  p: {
+    width: number;
+    height: number;
+    fontFamily: string;
+  },
+  defaultPadding: number,
+  safeInset: SafeInset | undefined,
+): string {
   const d = defaultPadding;
   const padding = safeAreaPadding({ top: d, right: d, bottom: d, left: d }, safeInset);
   return `* { margin: 0; box-sizing: border-box; }

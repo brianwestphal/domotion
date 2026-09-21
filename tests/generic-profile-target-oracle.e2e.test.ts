@@ -4,9 +4,7 @@ import { runGenericProfileTargetOracle } from "../tools/generic-profile-target-o
 // This oracle deliberately compares headed and headless full-Chrome profile
 // persistence. Keep it out of the general local E2E sweep: it is exercised by
 // its disposable three-platform workflow, which opts in explicitly.
-const describeHeadedBrowser = process.env.DOMOTION_ALLOW_HEADED_BROWSER === "1"
-  ? describe
-  : describe.skip;
+const describeHeadedBrowser = process.env.DOMOTION_ALLOW_HEADED_BROWSER === "1" ? describe : describe.skip;
 
 describeHeadedBrowser("authenticated Chrome profile and OOPIF generic authority", () => {
   it("proves all profile fields and both mutation orders without pixels", async () => {
@@ -33,7 +31,11 @@ describeHeadedBrowser("authenticated Chrome profile and OOPIF generic authority"
     expect(report.profileOrders.map((order) => order.id)).toEqual(["headed-headless", "headless-headed"]);
     for (const order of report.profileOrders) {
       expect(order.persisted).toHaveLength(3);
-      expect(order.persisted.every((checkpoint) => checkpoint.requiredFields === 21 && checkpoint.exactFields === 21 && checkpoint.pass)).toBe(true);
+      expect(
+        order.persisted.every(
+          (checkpoint) => checkpoint.requiredFields === 21 && checkpoint.exactFields === 21 && checkpoint.pass,
+        ),
+      ).toBe(true);
       expect(order.headed).toMatchObject({ expectedRows: 21, exactRows: 21, pass: true });
       expect(order.headless).toMatchObject({ expectedRows: 21, exactRows: 21, pass: true });
       expect(order.overlay).toMatchObject({ expectedRows: 21, exactRows: 21, mismatches: [], pass: true });
@@ -46,11 +48,16 @@ describeHeadedBrowser("authenticated Chrome profile and OOPIF generic authority"
       expect(order.baselineMainChildExactFields).toBe(21);
       expect(order.mutation).toMatchObject({ requiredFieldCount: 21, nonInertFieldCount: 21, pass: true });
       expect(order.steps).toHaveLength(2);
-      expect(order.steps.every((step) => step.mutatedTargetExactFields === 21
-        && step.otherTargetStableFields === 21
-        && step.mainSystemUiStableRows === 3
-        && step.childSystemUiStableRows === 3
-        && step.pass)).toBe(true);
+      expect(
+        order.steps.every(
+          (step) =>
+            step.mutatedTargetExactFields === 21 &&
+            step.otherTargetStableFields === 21 &&
+            step.mainSystemUiStableRows === 3 &&
+            step.childSystemUiStableRows === 3 &&
+            step.pass,
+        ),
+      ).toBe(true);
       expect(order.pass).toBe(true);
     }
     expect(report.target).toMatchObject({

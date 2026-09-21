@@ -19,7 +19,11 @@ function findTag(nodes: CapturedElement[], tag: string): CapturedElement | undef
 }
 
 async function setup(): Promise<Awaited<ReturnType<typeof launchChromium>> | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await setup();
 afterAll(async () => closeBrowserSafely(browser), 15_000);
@@ -43,6 +47,8 @@ describeBrowser("DM-2158: source spans survive rendered text changes", () => {
       expect(first.text).toBe("STRASSE STAYS");
       expect(first.xOffsets).toBeUndefined();
       expect(tabs.xOffsets![2] - tabs.xOffsets![0]).toBeGreaterThan(20);
-    } finally { await page.close(); }
+    } finally {
+      await page.close();
+    }
   });
 });

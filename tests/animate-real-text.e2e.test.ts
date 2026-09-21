@@ -38,8 +38,12 @@ afterAll(() => {
 
 async function animate(realText: boolean): Promise<string> {
   const cfg = {
-    width: 480, height: 160,
-    frames: [{ input: f1, duration: 400 }, { input: f2, duration: 400 }],
+    width: 480,
+    height: 160,
+    frames: [
+      { input: f1, duration: 400 },
+      { input: f2, duration: 400 },
+    ],
     ...(realText ? { realText: true } : {}),
   };
   const cfgPath = join(dir, `cfg-${realText}-${Math.random().toString(36).slice(2)}.json`);
@@ -70,16 +74,21 @@ describeBrowser("animate --real-text (DM-6SQXGF)", () => {
       // Pause all animations so frame 0 stays the active (visibility:visible) one.
       await page.setContent(
         `<!doctype html><style>*{animation-play-state:paused !important}</style>` +
-        `<body style="margin:0;background:#fff">${svg}</body>`,
+          `<body style="margin:0;background:#fff">${svg}</body>`,
       );
       const found = await page.evaluate(() => {
-        const sel = () => { const s = window.getSelection(); s && s.removeAllRanges(); };
-        sel(); const first = window.find("FirstFrameWord");
-        sel(); const second = window.find("SecondFrameWord");
+        const sel = () => {
+          const s = window.getSelection();
+          s && s.removeAllRanges();
+        };
+        sel();
+        const first = window.find("FirstFrameWord");
+        sel();
+        const second = window.find("SecondFrameWord");
         sel();
         return { first, second };
       });
-      expect(found.first).toBe(true);   // active frame — findable
+      expect(found.first).toBe(true); // active frame — findable
       expect(found.second).toBe(false); // hidden frame — visibility:hidden, skipped
     } finally {
       await browser.close();
@@ -94,7 +103,7 @@ describeBrowser("animate --real-text (DM-6SQXGF)", () => {
         const page = await browser.newPage({ viewport: { width: 480, height: 160 } });
         await page.setContent(
           `<!doctype html><style>*{animation-play-state:paused !important}</style>` +
-          `<body style="margin:0;background:#fff">${svg}</body>`,
+            `<body style="margin:0;background:#fff">${svg}</body>`,
         );
         const buf = await page.screenshot({ clip: { x: 0, y: 0, width: 480, height: 160 } });
         await page.close();

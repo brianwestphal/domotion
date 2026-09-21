@@ -94,24 +94,19 @@ function main() {
     // disagreement reads as new, so chunk 1 would always "find" something and
     // the tool would be a slower way of learning nothing.
     process.stderr.write(
-      "font-conformance-iterate: --baseline <file> is required.\n"
-      + "  Every route is 'new' without one, so the stopping rule would fire on chunk 1 every time.\n",
+      "font-conformance-iterate: --baseline <file> is required.\n" +
+        "  Every route is 'new' without one, so the stopping rule would fire on chunk 1 every time.\n",
     );
     return 2;
   }
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
   const outRoot = mkdtempSync(join(tmpdir(), "fc-iterate-"));
 
-  process.stdout.write(
-    `font-conformance-iterate: ${chunks} strided chunks, new routes vs ${baselinePath}\n`,
-  );
+  process.stdout.write(`font-conformance-iterate: ${chunks} strided chunks, new routes vs ${baselinePath}\n`);
 
   for (let k = 1; k <= chunks; k++) {
     const outDir = join(outRoot, `chunk-${k}`);
-    const args = [
-      "tsx", "tools/font-conformance.ts",
-      "--shard", `${k}/${chunks}`, "--out", outDir, ...passthrough,
-    ];
+    const args = ["tsx", "tools/font-conformance.ts", "--shard", `${k}/${chunks}`, "--out", outDir, ...passthrough];
     const t0 = Date.now();
     // stderr is CAPTURED rather than inherited: CoreText writes a line per
     // hidden-face lookup, which drowns the per-chunk progress this tool exists
@@ -125,9 +120,7 @@ function main() {
     // "no new routes" — the same lose-data-and-look-green shape the sharded
     // gate had.
     if (res.status !== 0 && res.status !== 1) {
-      process.stderr.write(
-        `${res.stderr ?? ""}\nchunk ${k}/${chunks} died with exit ${res.status} — no verdict\n`,
-      );
+      process.stderr.write(`${res.stderr ?? ""}\nchunk ${k}/${chunks} died with exit ${res.status} — no verdict\n`);
       return 2;
     }
     const reportPath = join(outDir, "report.json");
@@ -141,10 +134,10 @@ function main() {
     process.stdout.write(`  chunk ${k}/${chunks}  ${secs}s  ${found.length} new route(s)\n`);
     if (found.length > 0) {
       process.stdout.write(
-        `\nFOUND — ${found.length} route(s) the baseline never recorded, in chunk ${k}/${chunks}:\n`
-        + found.map((r) => `    ${r}\n`).join("")
-        + `\nStopped here: the remaining ${chunks - k} chunk(s) would not change what to fix next.\n`
-        + `Report: ${reportPath}\n`,
+        `\nFOUND — ${found.length} route(s) the baseline never recorded, in chunk ${k}/${chunks}:\n` +
+          found.map((r) => `    ${r}\n`).join("") +
+          `\nStopped here: the remaining ${chunks - k} chunk(s) would not change what to fix next.\n` +
+          `Report: ${reportPath}\n`,
       );
       return 0;
     }
@@ -153,10 +146,10 @@ function main() {
   // All chunks ran, so the universe is fully covered — but the claim stays
   // scoped to what was actually compared. No total, and not "clean".
   process.stdout.write(
-    `\nNO NEW ROUTES across all ${chunks} chunks (full universe for the given flags).\n`
-    + "This says no new KIND of disagreement appeared. It does NOT say the branch is\n"
-    + "clean, and it cannot see growth in a route the baseline already records —\n"
-    + "run the full sweep for either of those.\n",
+    `\nNO NEW ROUTES across all ${chunks} chunks (full universe for the given flags).\n` +
+      "This says no new KIND of disagreement appeared. It does NOT say the branch is\n" +
+      "clean, and it cannot see growth in a route the baseline already records —\n" +
+      "run the full sweep for either of those.\n",
   );
   return 0;
 }

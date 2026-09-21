@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1132","DM-1133","DM-1793","DM-1799","DM-587"]
-code: ["src/animation/resolve-overlays.ts","src/index.ts","tests/cross-region-anchor.e2e.test.ts"]
-aliases: ["docs/61-overlay-resolution-primitive.md","doc-61"]
+tickets: ["DM-1132", "DM-1133", "DM-1793", "DM-1799", "DM-587"]
+code: ["src/animation/resolve-overlays.ts", "src/index.ts", "tests/cross-region-anchor.e2e.test.ts"]
+aliases: ["docs/61-overlay-resolution-primitive.md", "doc-61"]
 ---
 
 # 61 — Overlay resolution as a public primitive
@@ -37,9 +37,10 @@ const [overlay] = await resolveOverlays(page, [
   {
     kind: "typing",
     text,
-    x: 0, y: 0,                                   // placeholder; replaced by the anchor
+    x: 0,
+    y: 0, // placeholder; replaced by the anchor
     anchor: { selector: "#field", at: "top-left", dx: 2, dy: 2 },
-    maxWidth: "anchor",                           // → the field's content width
+    maxWidth: "anchor", // → the field's content width
     caret: true,
   },
 ]);
@@ -76,23 +77,23 @@ longer diverge.
 
 Everything above measures the anchor in **page** context. That is exact wherever
 the page can stand at the moment the overlay belongs to — which is every ordinary
-frame, and every state of a *sequential* compressed run.
+frame, and every state of a _sequential_ compressed run.
 
 It is not exact in one place: a compressed run using **per-region timing**
 (`regions` + `advances`, [docs/43 §11.1](43-declarative-animate-config.md)).
 There, states advancing disjoint regions share one whole-page capture, and each
 state's tree is **assembled** afterwards by taking each region's subtree from the
-round holding *that region's* own state. The live page never stands in the
+round holding _that region's_ own state. The live page never stands in the
 assembled configuration, so an anchor pointing into a region on a **different**
 schedule would resolve against whatever that region held in the round the state
 was driven in — off by however far that region's schedule had diverged.
 
 So the engine now has **two box producers and one arithmetic**:
 
-| | Box from | Used by |
-|---|---|---|
-| `resolveAnchoredOverlays` | `page.evaluate` — `getBoundingClientRect`, computed styles, canvas `measureText` | everything (the default) |
-| `resolveAnchoredOverlaysInTree` | a captured element in an **assembled tree** | per-state overlays of a per-region-timing run |
+|                                 | Box from                                                                         | Used by                                       |
+| ------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------- |
+| `resolveAnchoredOverlays`       | `page.evaluate` — `getBoundingClientRect`, computed styles, canvas `measureText` | everything (the default)                      |
+| `resolveAnchoredOverlaysInTree` | a captured element in an **assembled tree**                                      | per-state overlays of a per-region-timing run |
 
 Both hand their `AnchorBox` to the same `applyAnchorBox`, so the corner math,
 `maxWidth: "anchor"`, `fontFamily: "anchor"`, the baseline placement, and the
@@ -145,7 +146,7 @@ page-context resolution fails it by exactly that step, which is the DM-1793 bug.
   `borderBox` / `runActions` (`src/index.ts`; see doc 63) — rather than being
   folded into this overlay resolver. Imperative callers needing a cursor point can
   also use `boxAnchorPoint` over a measured rect (or `contentBox(page, sel, { at:
-  "center" })` for the content-box center).
+"center" })` for the content-box center).
 
 ## Related
 

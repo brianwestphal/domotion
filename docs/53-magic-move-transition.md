@@ -5,9 +5,18 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-112","DM-898","DM-899","DM-900","DM-901","DM-903"]
-code: ["examples/animate/magic-move/","src/animation/animator.ts","src/animation/magic-move.ts","src/capture/script/walker/","src/cli/animate.ts","src/scroll/executor.ts","src/tree-ops/tree-diff.ts"]
-aliases: ["docs/53-magic-move-transition.md","doc-53"]
+tickets: ["DM-112", "DM-898", "DM-899", "DM-900", "DM-901", "DM-903"]
+code:
+  [
+    "examples/animate/magic-move/",
+    "src/animation/animator.ts",
+    "src/animation/magic-move.ts",
+    "src/capture/script/walker/",
+    "src/cli/animate.ts",
+    "src/scroll/executor.ts",
+    "src/tree-ops/tree-diff.ts",
+  ]
+aliases: ["docs/53-magic-move-transition.md", "doc-53"]
 ---
 
 # Magic-move transition
@@ -26,7 +35,7 @@ across the cut. Origin: DM-112.
 >
 > **Architecture note (revised in DM-898):** the original sketch below had the
 > animator re-render from the trees. That isn't workable — the caller finalizes
-> the glyph/font `<defs>` (`getEmbeddedFontFaceCss()`) *before* calling
+> the glyph/font `<defs>` (`getEmbeddedFontFaceCss()`) _before_ calling
 > `generateAnimatedSvg`, so re-rendering inside the animator would reference
 > glyphs missing from the emitted defs. The bridge layer is therefore built
 > **caller-side** (`buildMagicMove`, invoked from `src/cli/animate.ts` while the
@@ -71,12 +80,12 @@ already finds bulk-shifted groups. The scroll-segment composer
 (translate for shifted, crossfade for added/removed). Magic-move is the same
 idea promoted to a **frame-to-frame transition type** in the animator:
 
-| Diff kind | Magic-move treatment |
-| --- | --- |
-| `static` | Emit once, hold across the transition (no animation). |
+| Diff kind                 | Magic-move treatment                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `static`                  | Emit once, hold across the transition (no animation).                                    |
 | `translated` / `modified` | Animate `translate`+`scale` from prev bbox → next bbox, plus tween color/opacity/border. |
-| `added` | Fade in (opacity 0→1) over the transition. |
-| `removed` | Fade out (opacity 1→0) over the transition. |
+| `added`                   | Fade in (opacity 0→1) over the transition.                                               |
+| `removed`                 | Fade out (opacity 1→0) over the transition.                                              |
 
 The transition therefore emits, per matched element, one CSS `@keyframes` block
 keyed to the transition window `[frameStart, frameStart+transitionDuration]`,
@@ -115,10 +124,10 @@ see `docs/08` — so this collapse is handled inline by the magic-move matcher).
 ## Contract & caveats
 
 - **What morphs:** bbox position, bbox size (via scale), `color`, `opacity`,
-  and solid `background` / `border` color. Text *content* changes are not
+  and solid `background` / `border` color. Text _content_ changes are not
   morphed — a matched element whose text differs cross-fades its glyph layer
   while its box moves (v1 simplification; revisit if a fixture needs it).
-- **Scale vs re-layout:** matched elements are *scaled* between bboxes, not
+- **Scale vs re-layout:** matched elements are _scaled_ between bboxes, not
   re-laid-out mid-transition. A block that reflows (e.g. text wrapping
   differently) will scale-distort during the transition and snap correct at the
   end — acceptable for demo blends; documented so consumers don't expect true

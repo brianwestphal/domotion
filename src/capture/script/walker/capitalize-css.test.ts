@@ -44,10 +44,16 @@ describe("transformTextWithSourceSpans (DM-2158)", () => {
   });
 
   it("uses the element language for locale-sensitive casing", () => {
-    expect(transformTextWithSourceSpans("iı", "uppercase", "tr").map((p) => p.rendered).join(""))
-      .toBe("İI");
-    expect(transformTextWithSourceSpans("ΟΣ", "lowercase", "el").map((p) => p.rendered).join(""))
-      .toBe("ος");
+    expect(
+      transformTextWithSourceSpans("iı", "uppercase", "tr")
+        .map((p) => p.rendered)
+        .join(""),
+    ).toBe("İI");
+    expect(
+      transformTextWithSourceSpans("ΟΣ", "lowercase", "el")
+        .map((p) => p.rendered)
+        .join(""),
+    ).toBe("ος");
   });
 
   it("retains UTF-16 source offsets across supplementary codepoints", () => {
@@ -58,10 +64,15 @@ describe("transformTextWithSourceSpans (DM-2158)", () => {
   });
 
   it("maps length-changing rendered chunks back to one DOM text node", () => {
-    expect(sourceMappingForTextChars([
-      { ch: "A", sourceStart: 0, sourceEnd: 1, sourceTextNodeIndex: 2, domText: "aß" },
-      { ch: "SS", sourceStart: 1, sourceEnd: 2, sourceTextNodeIndex: 2, domText: "aß" },
-    ], "ordinary")).toMatchObject({
+    expect(
+      sourceMappingForTextChars(
+        [
+          { ch: "A", sourceStart: 0, sourceEnd: 1, sourceTextNodeIndex: 2, domText: "aß" },
+          { ch: "SS", sourceStart: 1, sourceEnd: 2, sourceTextNodeIndex: 2, domText: "aß" },
+        ],
+        "ordinary",
+      ),
+    ).toMatchObject({
       sourceTextNodeIndex: 2,
       domUtf16Span: [0, 2],
       renderedChunks: [

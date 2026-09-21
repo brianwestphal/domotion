@@ -15,7 +15,8 @@ import {
   wronglyDecodePremultiplied,
 } from "../tools/mixed-reference-color-space-oracle.js";
 
-const codeDistance = (left: number, right: number): number => Math.abs(Math.round(left * 255) - Math.round(right * 255));
+const codeDistance = (left: number, right: number): number =>
+  Math.abs(Math.round(left * 255) - Math.round(right * 255));
 
 describe("DM-2535 pinned mixed reference color-space stages", () => {
   it("pins Chromium, its DEPS-owned Skia revision, and the unchanged stage bounds", () => {
@@ -44,11 +45,11 @@ describe("DM-2535 pinned mixed reference color-space stages", () => {
   });
 
   it("transcribes the pinned sRGB channel transfer at both breakpoints", () => {
-    expect(MIXED_CHANNEL_TRANSFER_FACTS.srgbHalfToLinear).toBeCloseTo(.21404114048223255, 14);
-    expect(MIXED_CHANNEL_TRANSFER_FACTS.linearHalfToSrgb).toBeCloseTo(.7353569830524495, 14);
-    expect(srgbChannelToLinear(.04045)).toBeCloseTo(.0031308049535603713, 14);
-    expect(linearChannelToSrgb(.0031308)).toBeCloseTo(.040449936, 12);
-    expect(linearChannelToSrgb(srgbChannelToLinear(.73))).toBeCloseTo(.73, 14);
+    expect(MIXED_CHANNEL_TRANSFER_FACTS.srgbHalfToLinear).toBeCloseTo(0.21404114048223255, 14);
+    expect(MIXED_CHANNEL_TRANSFER_FACTS.linearHalfToSrgb).toBeCloseTo(0.7353569830524495, 14);
+    expect(srgbChannelToLinear(0.04045)).toBeCloseTo(0.0031308049535603713, 14);
+    expect(linearChannelToSrgb(0.0031308)).toBeCloseTo(0.040449936, 12);
+    expect(linearChannelToSrgb(srgbChannelToLinear(0.73))).toBeCloseTo(0.73, 14);
   });
 
   it("records every straight and premultiplied surface around the missing transition", () => {
@@ -72,19 +73,23 @@ describe("DM-2535 pinned mixed reference color-space stages", () => {
   it("kills early-conversion, wrong-order, and premultiplied-transfer models", () => {
     const pinned = tracePinnedMixedPipeline().at(-1)!;
     const explicit = traceExplicitSrgbBoundary().at(-1)!;
-    expect(Math.max(
-      codeDistance(pinned.straight.r, explicit.straight.r),
-      codeDistance(pinned.straight.g, explicit.straight.g),
-      codeDistance(pinned.straight.b, explicit.straight.b),
-    )).toBeGreaterThanOrEqual(MUTATION_MIN_CHANNEL_DISTANCE);
+    expect(
+      Math.max(
+        codeDistance(pinned.straight.r, explicit.straight.r),
+        codeDistance(pinned.straight.g, explicit.straight.g),
+        codeDistance(pinned.straight.b, explicit.straight.b),
+      ),
+    ).toBeGreaterThanOrEqual(MUTATION_MIN_CHANNEL_DISTANCE);
 
     const correctLinear = srgbToLinear(MIXED_SOURCE);
     const wrongLinear = wronglyDecodePremultiplied(MIXED_SOURCE);
-    expect(Math.max(
-      codeDistance(correctLinear.r, wrongLinear.r),
-      codeDistance(correctLinear.g, wrongLinear.g),
-      codeDistance(correctLinear.b, wrongLinear.b),
-    )).toBeGreaterThanOrEqual(MUTATION_MIN_CHANNEL_DISTANCE);
+    expect(
+      Math.max(
+        codeDistance(correctLinear.r, wrongLinear.r),
+        codeDistance(correctLinear.g, wrongLinear.g),
+        codeDistance(correctLinear.b, wrongLinear.b),
+      ),
+    ).toBeGreaterThanOrEqual(MUTATION_MIN_CHANNEL_DISTANCE);
   });
 
   it("ships identity, explicit-boundary, ordering, blend, and isolation controls", () => {
@@ -101,6 +106,7 @@ describe("DM-2535 pinned mixed reference color-space stages", () => {
       "blend.nonisolated",
       "blend.isolated",
       "blend.local-isolated",
-    ]) expect(fixture).toContain(`data-probe="${probe}"`);
+    ])
+      expect(fixture).toContain(`data-probe="${probe}"`);
   });
 });

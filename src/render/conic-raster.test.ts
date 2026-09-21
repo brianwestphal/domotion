@@ -38,7 +38,8 @@ describe("resolveConicStops (DM-549)", () => {
 
 describe("rasterizeConic: smooth color sweep (DM-549)", () => {
   const g = parseConicGradient("conic-gradient(red, blue)")!;
-  const w = 32, h = 32;
+  const w = 32,
+    h = 32;
   const buf = rasterizeConic(g, w, h);
 
   it("produces a non-empty buffer of the right size", () => {
@@ -71,7 +72,8 @@ describe("rasterizeConic: hard-stop checkerboard (DM-549, the canonical case)", 
   // The 19-deep-color-mix tile: `repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px`
   // produces a four-quadrant alternating tile. We rasterize a 24×24 tile.
   const g = parseConicGradient("repeating-conic-gradient(#ddd 0 25%, white 0 50%)")!;
-  const w = 24, h = 24;
+  const w = 24,
+    h = 24;
   const buf = rasterizeConic(g, w, h);
 
   it("top-right quadrant (12 → 3 o'clock sweep, 0..25%) is #ddd", () => {
@@ -108,7 +110,8 @@ describe("rasterizeConic: hard-stop checkerboard (DM-549, the canonical case)", 
 
 describe("rasterizeConic: from <angle> rotates the origin (DM-549)", () => {
   const g = parseConicGradient("conic-gradient(from 90deg, red 0% 25%, blue 25% 50%)")!;
-  const w = 32, h = 32;
+  const w = 32,
+    h = 32;
   const buf = rasterizeConic(g, w, h);
 
   it("with from=90deg, the red 0..25% wedge sits at 3-6 o'clock (right side, going down)", () => {
@@ -138,15 +141,20 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     _conicTileCache.clear();
 
     // Minimal captured-tree shape with a conic-gradient bg layer.
-    const tree: any = [{
-      tagName: "div",
-      x: 0, y: 0, width: 24, height: 24,
-      styles: {
-        backgroundImage: "repeating-conic-gradient(#ddd 0 25%, white 0 50%)",
-        backgroundSize: "24px 24px",
+    const tree: any = [
+      {
+        tagName: "div",
+        x: 0,
+        y: 0,
+        width: 24,
+        height: 24,
+        styles: {
+          backgroundImage: "repeating-conic-gradient(#ddd 0 25%, white 0 50%)",
+          backgroundSize: "24px 24px",
+        },
+        children: [],
       },
-      children: [],
-    }];
+    ];
 
     await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
 
@@ -183,17 +191,26 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     const { _conicTileCache } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
 
-    const layer = "conic-gradient(from 45deg, rgb(56, 189, 248), rgb(129, 140, 248), rgb(244, 114, 182), rgb(56, 189, 248))";
-    const tree: any = [{
-      tagName: "div", x: 0, y: 0, width: 120, height: 40,
-      styles: { backgroundImage: "none" },
-      pseudoFragments: [{
-        status: "exact",
-        paint: { backgroundImage: layer, backgroundSize: "auto" },
-        boxFragments: [{ localBorderRect: { x: 0, y: 0, width: 28, height: 28 } }],
-      }],
-      children: [],
-    }];
+    const layer =
+      "conic-gradient(from 45deg, rgb(56, 189, 248), rgb(129, 140, 248), rgb(244, 114, 182), rgb(56, 189, 248))";
+    const tree: any = [
+      {
+        tagName: "div",
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 40,
+        styles: { backgroundImage: "none" },
+        pseudoFragments: [
+          {
+            status: "exact",
+            paint: { backgroundImage: layer, backgroundSize: "auto" },
+            boxFragments: [{ localBorderRect: { x: 0, y: 0, width: 28, height: 28 } }],
+          },
+        ],
+        children: [],
+      },
+    ];
 
     await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
 
@@ -205,14 +222,19 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     const { _conicTileCache } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
 
-    const tree: any = [{
-      tagName: "div",
-      x: 0, y: 0, width: 100, height: 100,
-      styles: {
-        backgroundImage: "linear-gradient(red, blue)",
+    const tree: any = [
+      {
+        tagName: "div",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        styles: {
+          backgroundImage: "linear-gradient(red, blue)",
+        },
+        children: [],
       },
-      children: [],
-    }];
+    ];
     await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
     expect(_conicTileCache.size).toBe(0);
   });
@@ -224,7 +246,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
 
     const warnings: string[] = [];
     const orig = console.warn;
-    console.warn = (msg?: unknown) => { warnings.push(String(msg)); };
+    console.warn = (msg?: unknown) => {
+      warnings.push(String(msg));
+    };
     try {
       // A syntactically-broken conic that parseConicGradient rejects, painted by
       // two sibling consumers (same layer at the same tile size) — must warn ONCE.
@@ -246,7 +270,8 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
 
 describe("rasterizeConic: at <position> moves the center (DM-549)", () => {
   const g = parseConicGradient("conic-gradient(at 0% 0%, red, blue)")!;
-  const w = 32, h = 32;
+  const w = 32,
+    h = 32;
   const buf = rasterizeConic(g, w, h);
 
   it("with center at (0,0), the bottom-right is far from origin and blends red→blue", () => {

@@ -14,11 +14,7 @@ import {
   studioProjectToStoryboardConfig,
   validateStudioProject,
 } from "./project.js";
-import {
-  STUDIO_PROJECT_FORMAT,
-  STUDIO_PROJECT_SCHEMA_ID,
-  STUDIO_PROJECT_VERSION,
-} from "./project-schema.js";
+import { STUDIO_PROJECT_FORMAT, STUDIO_PROJECT_SCHEMA_ID, STUDIO_PROJECT_VERSION } from "./project-schema.js";
 
 const NOW = "2026-09-06T01:00:00.000Z";
 
@@ -37,84 +33,98 @@ function comprehensiveProject(): unknown {
       audience: "New users",
       beats: [{ id: "beat-intro", title: "Introduce", sceneIds: ["scene-intro"] }],
     },
-    scenes: [{
-      id: "scene-intro",
-      title: "Introduction",
-      narrativeBeatIds: ["beat-intro"],
-      render: {
-        kind: "composition",
-        duration: 1200,
-        transition: { type: "crossfade", duration: 200 },
-        composition: {
-          width: 640,
-          height: 360,
+    scenes: [
+      {
+        id: "scene-intro",
+        title: "Introduction",
+        narrativeBeatIds: ["beat-intro"],
+        render: {
+          kind: "composition",
           duration: 1200,
-          layers: [{
-            id: "layer-group",
-            kind: "composition",
-            placement: { x: 20, y: 20, width: 600, height: 320 },
-            composition: {
-              width: 600,
-              height: 320,
-              duration: 1200,
-              layers: [{
-                id: "layer-title",
-                kind: "source",
-                source: { template: "title-card", params: { title: "Hello" } },
-              }],
-            },
-          }],
+          transition: { type: "crossfade", duration: 200 },
+          composition: {
+            width: 640,
+            height: 360,
+            duration: 1200,
+            layers: [
+              {
+                id: "layer-group",
+                kind: "composition",
+                placement: { x: 20, y: 20, width: 600, height: 320 },
+                composition: {
+                  width: 600,
+                  height: 320,
+                  duration: 1200,
+                  layers: [
+                    {
+                      id: "layer-title",
+                      kind: "source",
+                      source: { template: "title-card", params: { title: "Hello" } },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
         },
-      },
-      treatments: [{ kind: "spotlight", mask: { region: { x: 10, y: 10, width: 80, height: 40 } } }],
-      tracks: [{
-        id: "track-primary",
-        kind: "semantic-interactions",
-        events: [
-          { id: "event-click", kind: "click", atMs: 100, target: { role: "button", name: "Continue" } },
-          { id: "event-hook", kind: "scriptHook", atMs: 300, hookId: "hook-seed" },
+        treatments: [{ kind: "spotlight", mask: { region: { x: 10, y: 10, width: 80, height: 40 } } }],
+        tracks: [
+          {
+            id: "track-primary",
+            kind: "semantic-interactions",
+            events: [
+              { id: "event-click", kind: "click", atMs: 100, target: { role: "button", name: "Continue" } },
+              { id: "event-hook", kind: "scriptHook", atMs: 300, hookId: "hook-seed" },
+            ],
+          },
         ],
-      }],
-      scriptHooks: [{ hookId: "hook-seed", phase: "beforeCapture" }],
-    }],
+        scriptHooks: [{ hookId: "hook-seed", phase: "beforeCapture" }],
+      },
+    ],
     scriptHooks: [{ id: "hook-seed", module: "./hooks/seed.mjs", export: "seed" }],
     review: {
       headRevisionId: "revision-1",
-      revisions: [{
-        id: "revision-1",
-        createdAt: NOW,
-        author: { kind: "human", name: "Ada" },
-        summary: "Created the tour.",
-      }],
-      annotations: [{
-        id: "annotation-1",
-        status: "open",
-        body: "Pause longer on the call to action.",
-        author: { kind: "human", name: "Ada" },
-        createdAt: NOW,
-        createdRevisionId: "revision-1",
-        target: {
-          sceneId: "scene-intro",
-          trackId: "track-primary",
-          eventId: "event-click",
-          layerId: "layer-title",
-          atMs: 100,
-          endMs: 300,
-          regions: [{ x: 10, y: 10, width: 80, height: 40 }],
+      revisions: [
+        {
+          id: "revision-1",
+          createdAt: NOW,
+          author: { kind: "human", name: "Ada" },
+          summary: "Created the tour.",
         },
-        evidenceArtifactIds: ["artifact-preview"],
-      }],
+      ],
+      annotations: [
+        {
+          id: "annotation-1",
+          status: "open",
+          body: "Pause longer on the call to action.",
+          author: { kind: "human", name: "Ada" },
+          createdAt: NOW,
+          createdRevisionId: "revision-1",
+          target: {
+            sceneId: "scene-intro",
+            trackId: "track-primary",
+            eventId: "event-click",
+            layerId: "layer-title",
+            atMs: 100,
+            endMs: 300,
+            regions: [{ x: 10, y: 10, width: 80, height: 40 }],
+          },
+          evidenceArtifactIds: ["artifact-preview"],
+        },
+      ],
     },
-    artifacts: [{
-      id: "artifact-preview",
-      kind: "svg",
-      path: "./generated/preview.svg",
-      generatedAt: NOW,
-      generator: { name: "domotion", version: "0.27.1" },
-      sourceRevisionId: "revision-1",
-      sceneIds: ["scene-intro"],
-      sha256: "a".repeat(64),
-    }],
+    artifacts: [
+      {
+        id: "artifact-preview",
+        kind: "svg",
+        path: "./generated/preview.svg",
+        generatedAt: NOW,
+        generator: { name: "domotion", version: "0.27.1" },
+        sourceRevisionId: "revision-1",
+        sceneIds: ["scene-intro"],
+        sha256: "a".repeat(64),
+      },
+    ],
     exportTargets: { svgPath: "./generated/tour.svg", reviewVideoPath: "./generated/tour.mp4" },
   };
 }
@@ -216,7 +226,9 @@ describe("Studio project persistence and storyboard migration", () => {
     const scenes = raw.scenes as Array<Record<string, unknown>>;
     scenes[0].render = { kind: "storyboard", recipe: { svg: "scene.svg", duration: 1000 } };
     (raw.review as { annotations: unknown[] }).annotations = [];
-    expect(() => studioProjectToStoryboardConfig(raw)).toThrow(/treatments must be materialized by the Studio compiler/);
+    expect(() => studioProjectToStoryboardConfig(raw)).toThrow(
+      /treatments must be materialized by the Studio compiler/,
+    );
   });
 });
 

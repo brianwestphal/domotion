@@ -5,9 +5,16 @@ kind: "contract"
 status: "partial"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2357","DM-2487","DM-2490"]
-code: ["src/capture/script/index.ts","src/capture/types.ts","src/render/element-tree-to-svg.ts","src/stacking-context.test.ts","tests/html-test-suite.tsx"]
-aliases: ["docs/126-backdrop-filter-isolation.md","doc-126"]
+tickets: ["DM-2357", "DM-2487", "DM-2490"]
+code:
+  [
+    "src/capture/script/index.ts",
+    "src/capture/types.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/stacking-context.test.ts",
+    "tests/html-test-suite.tsx",
+  ]
+aliases: ["docs/126-backdrop-filter-isolation.md", "doc-126"]
 ---
 
 # 126 — Backdrop-filter isolation via Chromium snapshots

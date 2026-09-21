@@ -140,8 +140,9 @@ describe("safeAreaPadding — content within safe area (DM-1537)", () => {
   });
 
   it("mixes per side (default on one axis, inset on another)", () => {
-    expect(safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, { top: 100, right: 0, bottom: 200, left: 0 }))
-      .toBe("100px 0px 200px 0px");
+    expect(
+      safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, { top: 100, right: 0, bottom: 200, left: 0 }),
+    ).toBe("100px 0px 200px 0px");
   });
 });
 

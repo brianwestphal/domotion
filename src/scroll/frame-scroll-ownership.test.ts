@@ -1,15 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
-import {
-  capturedScrollOwnerBindingSha256,
-  sealCapturedFrameScrollState,
-} from "../capture/frame-scroll-state.js";
-import type {
-  CapturedElement,
-  CapturedFrameScrollRecord,
-  CapturedFrameScrollState,
-} from "../capture/types.js";
+import { capturedScrollOwnerBindingSha256, sealCapturedFrameScrollState } from "../capture/frame-scroll-state.js";
+import type { CapturedElement, CapturedFrameScrollRecord, CapturedFrameScrollState } from "../capture/types.js";
 import { assertScrollFrameOwnership } from "./composer.js";
 import type { ScrollSegmentCapture } from "./executor.js";
 
@@ -84,10 +77,9 @@ function segment(authority: CapturedFrameScrollState, scrollY: number): ScrollSe
 
 describe("scroll composition frame authority (DM-2537)", () => {
   it("accepts fresh exact Chromium frame/owner records per segment", () => {
-    expect(() => assertScrollFrameOwnership([
-      segment(state("capture-a", 0), 0),
-      segment(state("capture-b", 40), 40),
-    ])).not.toThrow();
+    expect(() =>
+      assertScrollFrameOwnership([segment(state("capture-a", 0), 0), segment(state("capture-b", 40), 40)]),
+    ).not.toThrow();
   });
 
   it("destructively rejects a sibling-frame owner substitution", () => {
@@ -101,25 +93,29 @@ describe("scroll composition frame authority (DM-2537)", () => {
   it("destructively rejects a frame-local scrollbar assigned to the wrong frame", () => {
     const authority = state("capture-a", 0);
     const mutated = segment(authority, 0);
-    mutated.tree = [{
-      tag: "iframe",
-      frameScrollIdentity: {
-        source: "chromium-cdp-frame-scroll-v1",
-        captureId: authority.captureId,
-        frameId: "child",
-        parentFrameId: "top",
-        access: "cross-origin-allowlisted",
-        allowlistSha256: authority.allowlist.sha256,
-      },
-      children: [{
-        tag: "div",
-        scrollbars: {
-          owner: { frameId: "top", ownerId: "top:0" },
-          horizontal: { currentPosition: 0 },
+    mutated.tree = [
+      {
+        tag: "iframe",
+        frameScrollIdentity: {
+          source: "chromium-cdp-frame-scroll-v1",
+          captureId: authority.captureId,
+          frameId: "child",
+          parentFrameId: "top",
+          access: "cross-origin-allowlisted",
+          allowlistSha256: authority.allowlist.sha256,
         },
-        children: [],
-      }],
-    }] as unknown as CapturedElement[];
+        children: [
+          {
+            tag: "div",
+            scrollbars: {
+              owner: { frameId: "top", ownerId: "top:0" },
+              horizontal: { currentPosition: 0 },
+            },
+            children: [],
+          },
+        ],
+      },
+    ] as unknown as CapturedElement[];
     expect(() => assertScrollFrameOwnership([mutated])).toThrow(/wrong Chromium frame/);
   });
 
@@ -138,10 +134,9 @@ describe("scroll composition frame authority (DM-2537)", () => {
 
   it("rejects leaked capture-local state reused by another segment", () => {
     const authority = state("capture-a", 0);
-    expect(() => assertScrollFrameOwnership([
-      segment(authority, 0),
-      segment(authority, 0),
-    ])).toThrow(/reused capture-local frame state/);
+    expect(() => assertScrollFrameOwnership([segment(authority, 0), segment(authority, 0)])).toThrow(
+      /reused capture-local frame state/,
+    );
   });
 
   it("rejects an offset mutation without resealing the source record", () => {

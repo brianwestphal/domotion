@@ -40,7 +40,10 @@ function srcFiles(): string[] {
   const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {
       const p = resolve(dir, name);
-      if (statSync(p).isDirectory()) { walk(p); continue; }
+      if (statSync(p).isDirectory()) {
+        walk(p);
+        continue;
+      }
       if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
     }
   };
@@ -92,19 +95,40 @@ describe("project conventions", () => {
   // would appear, and it is the boundary any future extraction would run along.
   it("keeps the font/text subsystem's outward contract to the allow-listed symbols (DM-1980)", () => {
     const FONT_MODULES = new Set([
-      "font-resolution", "text-to-path", "text", "glyph-helper", "embedded-font-builder",
-      "harfbuzz-shaper", "hb-subset", "unicode-classification", "script-segmentation",
-      "font-features", "win-font-fallback", "win32-family-suffix", "embolden-outline",
+      "font-resolution",
+      "text-to-path",
+      "text",
+      "glyph-helper",
+      "embedded-font-builder",
+      "harfbuzz-shaper",
+      "hb-subset",
+      "unicode-classification",
+      "script-segmentation",
+      "font-features",
+      "win-font-fallback",
+      "win32-family-suffix",
+      "embolden-outline",
       "helper-acquire",
     ]);
     const ALLOWED = new Set([
       // lifecycle / scoping
-      "beginCharacterFallbackDocument", "endCharacterFallbackDocument",
-      "createFontRendererSession", "withFontRendererSession", "FontRendererSession",
-      "resetGeneration", "snapshotGeneration", "restoreGeneration",
-      "glyphDefCount", "getGlyphDefsSince", "truncateGlyphDefs",
-      "getEmbeddedFontFaceCss", "getGlyphDefs", "withRenderTextMode", "RenderTextMode",
-      "registerWebfont", "registerLocalFontAlias",
+      "beginCharacterFallbackDocument",
+      "endCharacterFallbackDocument",
+      "createFontRendererSession",
+      "withFontRendererSession",
+      "FontRendererSession",
+      "resetGeneration",
+      "snapshotGeneration",
+      "restoreGeneration",
+      "glyphDefCount",
+      "getGlyphDefsSince",
+      "truncateGlyphDefs",
+      "getEmbeddedFontFaceCss",
+      "getGlyphDefs",
+      "withRenderTextMode",
+      "RenderTextMode",
+      "registerWebfont",
+      "registerLocalFontAlias",
       // session generic-family overrides: the capture-side probe
       // (src/capture/generic-font-probe.ts, DOMOTION_GENERIC_PROBE=1) installs
       // the session's painted generic families for the resolver to consult —
@@ -114,14 +138,17 @@ describe("project conventions", () => {
       // the exact captured feature/variation inputs. These three form one
       // renderer-owned classification boundary (DM-2392), not parallel capture
       // logic.
-      "selectedGlyphRasterSpans", "capturedTextSegmentFontFeatures",
+      "selectedGlyphRasterSpans",
+      "capturedTextSegmentFontFeatures",
       "parseFontVariationSettings",
       // DM-2421's review-side mutation adjudicator consumes the immutable
       // per-fixture build record; keeping this type at the boundary avoids a
       // second, structurally duplicated definition drifting from production.
       "EmbeddedFontBuildDiagnostic",
       // the three real queries
-      "resolveFontKey", "getFontInstance", "renderTextAsPath",
+      "resolveFontKey",
+      "getFontInstance",
+      "renderTextAsPath",
     ]);
     const re = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
     const offenders: string[] = [];
@@ -131,10 +158,18 @@ describe("project conventions", () => {
       if (rel.startsWith("src/render/")) continue;
       const code = readFileSync(file, "utf8");
       for (const m of code.matchAll(re)) {
-        const base = m[2].replace(/\.(js|ts)$/, "").split("/").pop() ?? "";
+        const base =
+          m[2]
+            .replace(/\.(js|ts)$/, "")
+            .split("/")
+            .pop() ?? "";
         if (!FONT_MODULES.has(base)) continue;
         for (const raw of m[1].split(",")) {
-          const name = raw.trim().split(/\s+as\s+/)[0].trim().replace(/^type\s+/, "");
+          const name = raw
+            .trim()
+            .split(/\s+as\s+/)[0]
+            .trim()
+            .replace(/^type\s+/, "");
           if (name !== "" && !ALLOWED.has(name)) offenders.push(`${rel}: ${name}`);
         }
       }
@@ -148,7 +183,12 @@ describe("project conventions", () => {
     for (const file of srcFiles()) {
       const code = readFileSync(file, "utf8");
       for (const m of code.matchAll(re)) {
-        const names = m[1].split(",").map((s) => s.trim().split(/\s+as\s+/)[0].trim());
+        const names = m[1].split(",").map((s) =>
+          s
+            .trim()
+            .split(/\s+as\s+/)[0]
+            .trim(),
+        );
         if (names.includes("exec") || names.includes("execSync")) {
           offenders.push(`${file.slice(ROOT.length + 1)}: ${names.join(", ")}`);
         }
@@ -181,8 +221,7 @@ describe("project conventions", () => {
    */
   it("opens URLs through the shared platform-aware helper, not a hardcoded `open` (DM-1979)", () => {
     const opener = /(?:spawn|execFile)(?:Sync)?\s*\(\s*["'](?:open|xdg-open|start)["']/;
-    const stripComments = (s: string): string =>
-      s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const stripComments = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     const scan = [...srcFiles(), resolve(ROOT, "tests", "review-server.tsx")];
     const offenders = scan
       .filter((f) => f !== resolve(ROOT, "src", "cli", "common.ts"))

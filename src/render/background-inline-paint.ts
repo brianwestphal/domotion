@@ -1,6 +1,14 @@
 import type { CapturedBackgroundImage, CapturedElement } from "../capture/types.js";
 import { resolveBackgroundAttachment, intersectBackgroundRects } from "./background-attachment.js";
-import { outsetCornerRadiiForShadow, insetCornerRadii, roundedRectSvg, parseCornerRadii, parseSide, dashArrayForStyle, type CornerRadii } from "./borders.js";
+import {
+  outsetCornerRadiiForShadow,
+  insetCornerRadii,
+  roundedRectSvg,
+  parseCornerRadii,
+  parseSide,
+  dashArrayForStyle,
+  type CornerRadii,
+} from "./borders.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { parseColor, colorStr, sameColor } from "./colors.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
@@ -58,9 +66,7 @@ export function paintBackgroundImageLayers(
   const textBgClipFragmentFills: (string[] | null)[] = [];
 
   const bgImage = el.styles.backgroundImage;
-  const imageLayers = bgImage != null && bgImage !== "none" && bgImage !== ""
-    ? splitTopLevelCommas(bgImage)
-    : [];
+  const imageLayers = bgImage != null && bgImage !== "none" && bgImage !== "" ? splitTopLevelCommas(bgImage) : [];
   if (!useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
     const layers = imageLayers;
     const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
@@ -90,7 +96,12 @@ export function paintBackgroundImageLayers(
     // content-box = border+padding inset.
     const boxFor = (key: string): { x: number; y: number; w: number; h: number } => {
       if (key === "content-box") {
-        return { x: el.x + bwL + padL, y: el.y + bwT + padT, w: el.width - bwL - bwR - padL - padR, h: el.height - bwT - bwB - padT - padB };
+        return {
+          x: el.x + bwL + padL,
+          y: el.y + bwT + padT,
+          w: el.width - bwL - bwR - padL - padR,
+          h: el.height - bwT - bwB - padT - padB,
+        };
       }
       if (key === "padding-box") {
         return { x: el.x + bwL, y: el.y + bwT, w: el.width - bwL - bwR, h: el.height - bwT - bwB };
@@ -128,18 +139,33 @@ export function paintBackgroundImageLayers(
             captureViewport,
           )
         : null;
-      const positioningBox = attachmentGeometry?.positioningBox
-        ?? { x: originBox.x, y: originBox.y, width: originBox.w, height: originBox.h };
-      const paintingBox = attachmentGeometry?.paintingBox
-        ?? { x: clipBox.x, y: clipBox.y, width: clipBox.w, height: clipBox.h };
+      const positioningBox = attachmentGeometry?.positioningBox ?? {
+        x: originBox.x,
+        y: originBox.y,
+        width: originBox.w,
+        height: originBox.h,
+      };
+      const paintingBox = attachmentGeometry?.paintingBox ?? {
+        x: clipBox.x,
+        y: clipBox.y,
+        width: clipBox.w,
+        height: clipBox.h,
+      };
       const defId = ctx.nextClipId("bg");
       // Pattern is positioned + sized relative to the origin box (where the image starts)
       // then painted into a rect clipped to the clip box. For fixed attachment
       // the origin is the viewport instead.
       const out = buildBackgroundLayerDef(
-        defId, layer,
-        positioningBox.x, positioningBox.y, positioningBox.width, positioningBox.height,
-        layerSize, layerPos, layerRepeat, layerIntrinsic,
+        defId,
+        layer,
+        positioningBox.x,
+        positioningBox.y,
+        positioningBox.width,
+        positioningBox.height,
+        layerSize,
+        layerPos,
+        layerRepeat,
+        layerIntrinsic,
         attachmentGeometry == null ? layerAttachment : "scroll",
         attachmentGeometry == null ? captureViewport : null,
         selectedImage,
@@ -163,15 +189,12 @@ export function paintBackgroundImageLayers(
       // is clipped to. For padding-box / content-box layers this matches
       // CSS's "the corner gets pulled in by the adjacent border widths"
       // semantics (rTL.h shrinks by bwL, rTL.v shrinks by bwT, etc.).
-      const innerCorners = layerClip === "border-box"
-        ? corners
-        : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
+      const innerCorners = layerClip === "border-box" ? corners : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
       // CSS Compositing §6.1: every image layer uses its corresponding
       // background-blend-mode, including the bottom image layer as it blends
       // with the background color painted beneath it.
       const layerBlend = cyclicBackgroundLayer(blendLayers, li, "normal");
-      const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
-        ? ` style="mix-blend-mode:${layerBlend}"` : "";
+      const blendAttr = layerBlend !== "normal" && layerBlend !== "" ? ` style="mix-blend-mode:${layerBlend}"` : "";
       ctx.svgParts.push(
         `${indent}${roundedRectSvg(paintingBox.x, paintingBox.y, paintingBox.width, paintingBox.height, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
       );
@@ -210,7 +233,21 @@ export function paintBackgroundImageLayers(
       const layerIntrinsic = intrinsicLayers[li] ?? null;
       const selectedImage = selectedImageLayers[li] ?? null;
       const defId = ctx.nextClipId("bg");
-      const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);
+      const out = buildBackgroundLayerDef(
+        defId,
+        layer,
+        el.x,
+        el.y,
+        el.width,
+        el.height,
+        layerSize,
+        layerPos,
+        layerRepeat,
+        layerIntrinsic,
+        layerAttachment,
+        captureViewport,
+        selectedImage,
+      );
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
       textBgClipFills[li] = `url(#${defId})`;
@@ -263,9 +300,10 @@ export function paintBackgroundImageLayers(
             perFrag.push(textBgClipFills[li]!);
             continue;
           }
-          const fixedToViewport = layerAttachment === "fixed"
-            && el.styles.backgroundAttachmentGeometry?.source === "blink-box-background-paint-context-v1"
-            && el.styles.backgroundAttachmentGeometry.fixedToViewport === true;
+          const fixedToViewport =
+            layerAttachment === "fixed" &&
+            el.styles.backgroundAttachmentGeometry?.source === "blink-box-background-paint-context-v1" &&
+            el.styles.backgroundAttachmentGeometry.fixedToViewport === true;
           const layerBorderBox = fixedToViewport ? physicalFragment : stitchedBorderBox;
           const originBox = boxFor(layerBorderBox, layerOrigin);
           const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
@@ -283,15 +321,25 @@ export function paintBackgroundImageLayers(
           const paintingBox = attachmentGeometry?.paintingBox ?? physicalFragment;
           const fid = ctx.nextClipId("bg");
           const fout = buildBackgroundLayerDef(
-            fid, layer,
-            positioningBox.x, positioningBox.y, positioningBox.width, positioningBox.height,
-            layerSize, layerPos, layerRepeat, layerIntrinsic,
+            fid,
+            layer,
+            positioningBox.x,
+            positioningBox.y,
+            positioningBox.width,
+            positioningBox.height,
+            layerSize,
+            layerPos,
+            layerRepeat,
+            layerIntrinsic,
             attachmentGeometry == null ? layerAttachment : "scroll",
             attachmentGeometry == null ? captureViewport : null,
             selectedImage,
             paintingBox,
           );
-          if (fout.def === "") { perFrag.push(textBgClipFills[li]!); continue; } // fall back to union fill
+          if (fout.def === "") {
+            perFrag.push(textBgClipFills[li]!);
+            continue;
+          } // fall back to union fill
           ctx.defsParts.push(fout.def);
           perFrag.push(`url(#${fid})`);
         }
@@ -354,19 +402,21 @@ export function deriveFragmentCorners(
   fragsAxisIsBlock: boolean,
 ): CornerRadii {
   if (clone) return corners;
-  return fragsAxisIsBlock ? {
-    tl: isFirst ? corners.tl : { h: 0, v: 0 },
-    tr: isFirst ? corners.tr : { h: 0, v: 0 },
-    bl: isLast ? corners.bl : { h: 0, v: 0 },
-    br: isLast ? corners.br : { h: 0, v: 0 },
-    uniform: corners.uniform && isFirst && isLast,
-  } : {
-    tl: isFirst ? corners.tl : { h: 0, v: 0 },
-    bl: isFirst ? corners.bl : { h: 0, v: 0 },
-    tr: isLast ? corners.tr : { h: 0, v: 0 },
-    br: isLast ? corners.br : { h: 0, v: 0 },
-    uniform: corners.uniform && isFirst && isLast,
-  };
+  return fragsAxisIsBlock
+    ? {
+        tl: isFirst ? corners.tl : { h: 0, v: 0 },
+        tr: isFirst ? corners.tr : { h: 0, v: 0 },
+        bl: isLast ? corners.bl : { h: 0, v: 0 },
+        br: isLast ? corners.br : { h: 0, v: 0 },
+        uniform: corners.uniform && isFirst && isLast,
+      }
+    : {
+        tl: isFirst ? corners.tl : { h: 0, v: 0 },
+        bl: isFirst ? corners.bl : { h: 0, v: 0 },
+        tr: isLast ? corners.tr : { h: 0, v: 0 },
+        br: isLast ? corners.br : { h: 0, v: 0 },
+        uniform: corners.uniform && isFirst && isLast,
+      };
 }
 
 /** Per-element invariants a wrapped-inline / multi-column block needs to paint
@@ -411,256 +461,308 @@ export function paintInlineFragment(
 ): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
   const {
-    element, clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
-    sbt, sbr, sbb, sbl,
-    bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
-    bgOriginLayers, bgBlendLayers,
-    bgSelectedImageLayers, bgIntrinsicLayers, bgAttachmentLayers,
+    element,
+    clone,
+    fragsAxisIsBlock,
+    hasBgImage,
+    shadows,
+    bgColor,
+    sbt,
+    sbr,
+    sbb,
+    sbl,
+    bgImageLayers,
+    bgSizeLayers,
+    bgPosLayers,
+    bgRepeatLayers,
+    bgClipLayers,
+    bgOriginLayers,
+    bgBlendLayers,
+    bgSelectedImageLayers,
+    bgIntrinsicLayers,
+    bgAttachmentLayers,
   } = ctx;
 
-    // Outset box-shadow. Clone applies shadow to each fragment; slice
-    // applies it to the joined shape which would need per-fragment
-    // clipping to express in SVG — skip for slice (rare on wrapped
-    // inlines that aren't using `clone`).
-    if (clone) {
-      for (let si = shadows.length - 1; si >= 0; si--) {
-        const sh = shadows[si];
-        if (sh.inset) continue;
-        const sx = f.x + sh.x - sh.spread;
-        const sy = f.y + sh.y - sh.spread;
-        const sw = f.width + sh.spread * 2;
-        const sh2 = f.height + sh.spread * 2;
-        if (sw <= 0 || sh2 <= 0) continue;
-        const shadowCorners = outsetCornerRadiiForShadow(fragCorners, sh.spread);
-        let filterAttr = "";
-        if (sh.blur > 0) {
-          const stdDev = sh.blur / 2;
-          const fid = paintCtx.nextClipId("sh");
-          defsParts.push(
-            `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
-          );
-          filterAttr = ` filter="url(#${fid})"`;
-        }
-        svgParts.push(
-          `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
+  // Outset box-shadow. Clone applies shadow to each fragment; slice
+  // applies it to the joined shape which would need per-fragment
+  // clipping to express in SVG — skip for slice (rare on wrapped
+  // inlines that aren't using `clone`).
+  if (clone) {
+    for (let si = shadows.length - 1; si >= 0; si--) {
+      const sh = shadows[si];
+      if (sh.inset) continue;
+      const sx = f.x + sh.x - sh.spread;
+      const sy = f.y + sh.y - sh.spread;
+      const sw = f.width + sh.spread * 2;
+      const sh2 = f.height + sh.spread * 2;
+      if (sw <= 0 || sh2 <= 0) continue;
+      const shadowCorners = outsetCornerRadiiForShadow(fragCorners, sh.spread);
+      let filterAttr = "";
+      if (sh.blur > 0) {
+        const stdDev = sh.blur / 2;
+        const fid = paintCtx.nextClipId("sh");
+        defsParts.push(
+          `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
         );
+        filterAttr = ` filter="url(#${fid})"`;
       }
-    }
-
-    // Background color.
-    if (bgColor != null && bgColor.a > 0.01 && !backgroundColorClipsToText(element)) {
       svgParts.push(
-        `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="${colorStr(bgColor)}"`)}`,
+        `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
       );
     }
+  }
 
-    // DM-2365: clone positions each layer against the physical fragment and
-    // therefore restarts its tile phase. Slice uses Blink's captured imaginary
-    // unfragmented border box, then intersects the layer clip with this
-    // physical fragment. Old captures have no stitched record and retain the
-    // previous fail-closed behavior for slice images.
-    const stitchedBorderBox = clone
-      ? { x: f.x, y: f.y, width: f.width, height: f.height }
-      : f.backgroundPositioningArea;
-    if (hasBgImage && stitchedBorderBox != null) {
-      const bwT = parseFloat(element.styles.borderTopWidth ?? "0") || 0;
-      const bwR = parseFloat(element.styles.borderRightWidth ?? "0") || 0;
-      const bwB = parseFloat(element.styles.borderBottomWidth ?? "0") || 0;
-      const bwL = parseFloat(element.styles.borderLeftWidth ?? "0") || 0;
-      const padT = parseFloat(element.styles.paddingTop ?? "0") || 0;
-      const padR = parseFloat(element.styles.paddingRight ?? "0") || 0;
-      const padB = parseFloat(element.styles.paddingBottom ?? "0") || 0;
-      const padL = parseFloat(element.styles.paddingLeft ?? "0") || 0;
-      const boxFor = (borderBox: { x: number; y: number; width: number; height: number }, key: string) => {
-        const content = key === "content-box";
-        const padding = content || key === "padding-box";
-        const top = padding ? bwT + (content ? padT : 0) : 0;
-        const right = padding ? bwR + (content ? padR : 0) : 0;
-        const bottom = padding ? bwB + (content ? padB : 0) : 0;
-        const left = padding ? bwL + (content ? padL : 0) : 0;
-        return {
-          x: borderBox.x + left,
-          y: borderBox.y + top,
-          width: Math.max(0, borderBox.width - left - right),
-          height: Math.max(0, borderBox.height - top - bottom),
-        };
+  // Background color.
+  if (bgColor != null && bgColor.a > 0.01 && !backgroundColorClipsToText(element)) {
+    svgParts.push(
+      `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="${colorStr(bgColor)}"`)}`,
+    );
+  }
+
+  // DM-2365: clone positions each layer against the physical fragment and
+  // therefore restarts its tile phase. Slice uses Blink's captured imaginary
+  // unfragmented border box, then intersects the layer clip with this
+  // physical fragment. Old captures have no stitched record and retain the
+  // previous fail-closed behavior for slice images.
+  const stitchedBorderBox = clone ? { x: f.x, y: f.y, width: f.width, height: f.height } : f.backgroundPositioningArea;
+  if (hasBgImage && stitchedBorderBox != null) {
+    const bwT = parseFloat(element.styles.borderTopWidth ?? "0") || 0;
+    const bwR = parseFloat(element.styles.borderRightWidth ?? "0") || 0;
+    const bwB = parseFloat(element.styles.borderBottomWidth ?? "0") || 0;
+    const bwL = parseFloat(element.styles.borderLeftWidth ?? "0") || 0;
+    const padT = parseFloat(element.styles.paddingTop ?? "0") || 0;
+    const padR = parseFloat(element.styles.paddingRight ?? "0") || 0;
+    const padB = parseFloat(element.styles.paddingBottom ?? "0") || 0;
+    const padL = parseFloat(element.styles.paddingLeft ?? "0") || 0;
+    const boxFor = (borderBox: { x: number; y: number; width: number; height: number }, key: string) => {
+      const content = key === "content-box";
+      const padding = content || key === "padding-box";
+      const top = padding ? bwT + (content ? padT : 0) : 0;
+      const right = padding ? bwR + (content ? padR : 0) : 0;
+      const bottom = padding ? bwB + (content ? padB : 0) : 0;
+      const left = padding ? bwL + (content ? padL : 0) : 0;
+      return {
+        x: borderBox.x + left,
+        y: borderBox.y + top,
+        width: Math.max(0, borderBox.width - left - right),
+        height: Math.max(0, borderBox.height - top - bottom),
       };
-      const physicalFragment = { x: f.x, y: f.y, width: f.width, height: f.height };
-      for (let li = bgImageLayers.length - 1; li >= 0; li--) {
-        const layer = bgImageLayers[li].trim();
-        const layerSize = cyclicBackgroundLayer(bgSizeLayers, li, "auto").trim();
-        const layerPos = cyclicBackgroundLayer(bgPosLayers, li, "0% 0%").trim();
-        const layerRepeat = cyclicBackgroundLayer(bgRepeatLayers, li, "repeat").trim();
-        const layerClip = cyclicBackgroundLayer(bgClipLayers, li, "border-box").trim();
-        const layerOrigin = cyclicBackgroundLayer(bgOriginLayers, li, "padding-box").trim();
-        const layerBlend = cyclicBackgroundLayer(bgBlendLayers, li, "normal").trim();
-        const selectedImage = bgSelectedImageLayers[li] ?? null;
-        const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
-        const layerAttachment = cyclicBackgroundLayer(bgAttachmentLayers, li, "scroll").trim();
-        if (layerClip === "text") continue;
-        // A viewport-fixed layer ignores the imaginary decoration strip: Blink
-        // positions it in the layout viewport and clips it to the current
-        // physical fragment. A transformed/inert `fixed` layer resolves to
-        // scroll and therefore continues through the stitched strip.
-        const fixedToViewport = layerAttachment === "fixed"
-          && element.styles.backgroundAttachmentGeometry?.source === "blink-box-background-paint-context-v1"
-          && element.styles.backgroundAttachmentGeometry.fixedToViewport === true;
-        const layerBorderBox = fixedToViewport ? physicalFragment : stitchedBorderBox;
-        const originBox = boxFor(layerBorderBox, layerOrigin);
-        const clipBox = boxFor(layerBorderBox, layerClip);
-        const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
-        const attachmentGeometry = isUrlBacked
-          ? resolveBackgroundAttachment(
-              layerAttachment,
-              layerBorderBox,
-              originBox,
-              clipBox,
-              element.styles.backgroundAttachmentGeometry,
-              captureViewport,
-            )
-          : null;
-        const positioningBox = attachmentGeometry?.positioningBox ?? originBox;
-        const paintingBox = attachmentGeometry?.paintingBox ?? clipBox;
-        const visiblePaintingBox = intersectBackgroundRects(physicalFragment, paintingBox);
-        if (visiblePaintingBox.width <= 0 || visiblePaintingBox.height <= 0) continue;
-        const defId = paintCtx.nextClipId("bgf");
-        const out = buildBackgroundLayerDef(
-          defId, layer,
-          positioningBox.x, positioningBox.y, positioningBox.width, positioningBox.height,
-          layerSize, layerPos, layerRepeat, layerIntrinsic,
-          attachmentGeometry == null ? layerAttachment : "scroll",
-          attachmentGeometry == null ? captureViewport : null,
-          selectedImage,
-          paintingBox,
-        );
-        if (out.def === "") continue;
-        defsParts.push(out.def);
-        const clipInsetTop = layerClip === "content-box" ? bwT + padT : layerClip === "padding-box" ? bwT : 0;
-        const clipInsetRight = layerClip === "content-box" ? bwR + padR : layerClip === "padding-box" ? bwR : 0;
-        const clipInsetBottom = layerClip === "content-box" ? bwB + padB : layerClip === "padding-box" ? bwB : 0;
-        const clipInsetLeft = layerClip === "content-box" ? bwL + padL : layerClip === "padding-box" ? bwL : 0;
-        const clipCorners = layerClip === "border-box"
+    };
+    const physicalFragment = { x: f.x, y: f.y, width: f.width, height: f.height };
+    for (let li = bgImageLayers.length - 1; li >= 0; li--) {
+      const layer = bgImageLayers[li].trim();
+      const layerSize = cyclicBackgroundLayer(bgSizeLayers, li, "auto").trim();
+      const layerPos = cyclicBackgroundLayer(bgPosLayers, li, "0% 0%").trim();
+      const layerRepeat = cyclicBackgroundLayer(bgRepeatLayers, li, "repeat").trim();
+      const layerClip = cyclicBackgroundLayer(bgClipLayers, li, "border-box").trim();
+      const layerOrigin = cyclicBackgroundLayer(bgOriginLayers, li, "padding-box").trim();
+      const layerBlend = cyclicBackgroundLayer(bgBlendLayers, li, "normal").trim();
+      const selectedImage = bgSelectedImageLayers[li] ?? null;
+      const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
+      const layerAttachment = cyclicBackgroundLayer(bgAttachmentLayers, li, "scroll").trim();
+      if (layerClip === "text") continue;
+      // A viewport-fixed layer ignores the imaginary decoration strip: Blink
+      // positions it in the layout viewport and clips it to the current
+      // physical fragment. A transformed/inert `fixed` layer resolves to
+      // scroll and therefore continues through the stitched strip.
+      const fixedToViewport =
+        layerAttachment === "fixed" &&
+        element.styles.backgroundAttachmentGeometry?.source === "blink-box-background-paint-context-v1" &&
+        element.styles.backgroundAttachmentGeometry.fixedToViewport === true;
+      const layerBorderBox = fixedToViewport ? physicalFragment : stitchedBorderBox;
+      const originBox = boxFor(layerBorderBox, layerOrigin);
+      const clipBox = boxFor(layerBorderBox, layerClip);
+      const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
+      const attachmentGeometry = isUrlBacked
+        ? resolveBackgroundAttachment(
+            layerAttachment,
+            layerBorderBox,
+            originBox,
+            clipBox,
+            element.styles.backgroundAttachmentGeometry,
+            captureViewport,
+          )
+        : null;
+      const positioningBox = attachmentGeometry?.positioningBox ?? originBox;
+      const paintingBox = attachmentGeometry?.paintingBox ?? clipBox;
+      const visiblePaintingBox = intersectBackgroundRects(physicalFragment, paintingBox);
+      if (visiblePaintingBox.width <= 0 || visiblePaintingBox.height <= 0) continue;
+      const defId = paintCtx.nextClipId("bgf");
+      const out = buildBackgroundLayerDef(
+        defId,
+        layer,
+        positioningBox.x,
+        positioningBox.y,
+        positioningBox.width,
+        positioningBox.height,
+        layerSize,
+        layerPos,
+        layerRepeat,
+        layerIntrinsic,
+        attachmentGeometry == null ? layerAttachment : "scroll",
+        attachmentGeometry == null ? captureViewport : null,
+        selectedImage,
+        paintingBox,
+      );
+      if (out.def === "") continue;
+      defsParts.push(out.def);
+      const clipInsetTop = layerClip === "content-box" ? bwT + padT : layerClip === "padding-box" ? bwT : 0;
+      const clipInsetRight = layerClip === "content-box" ? bwR + padR : layerClip === "padding-box" ? bwR : 0;
+      const clipInsetBottom = layerClip === "content-box" ? bwB + padB : layerClip === "padding-box" ? bwB : 0;
+      const clipInsetLeft = layerClip === "content-box" ? bwL + padL : layerClip === "padding-box" ? bwL : 0;
+      const clipCorners =
+        layerClip === "border-box"
           ? fragCorners
           : insetCornerRadii(fragCorners, clipInsetTop, clipInsetRight, clipInsetBottom, clipInsetLeft);
-        const blendAttr = layerBlend !== "" && layerBlend !== "normal"
-          ? ` style="mix-blend-mode:${layerBlend}"`
-          : "";
-        svgParts.push(
-          `${indent}${roundedRectSvg(
-            visiblePaintingBox.x,
-            visiblePaintingBox.y,
-            visiblePaintingBox.width,
-            visiblePaintingBox.height,
-            clipCorners,
-            `fill="url(#${defId})"${blendAttr}`,
-          )}`,
-        );
-      }
+      const blendAttr = layerBlend !== "" && layerBlend !== "normal" ? ` style="mix-blend-mode:${layerBlend}"` : "";
+      svgParts.push(
+        `${indent}${roundedRectSvg(
+          visiblePaintingBox.x,
+          visiblePaintingBox.y,
+          visiblePaintingBox.width,
+          visiblePaintingBox.height,
+          clipCorners,
+          `fill="url(#${defId})"${blendAttr}`,
+        )}`,
+      );
     }
+  }
 
-    // Per-side borders. The suppressed sides depend on fragmentation axis:
-    //   • inline-axis slice: suppress LEFT on non-first, RIGHT on non-last;
-    //     keep TOP + BOTTOM on every fragment (wrapped-inline behavior).
-    //   • block-axis slice: suppress TOP on non-first, BOTTOM on non-last;
-    //     keep LEFT + RIGHT on every fragment (multi-column block-level).
-    // Clone always keeps all four sides. Solid-style only (the typical use
-    // cases are solid); fall back to a single inset stroke for the
-    // uniform-color case.
-    const wantTop = clone || (fragsAxisIsBlock ? isFirst : true);
-    const wantBottom = clone || (fragsAxisIsBlock ? isLast : true);
-    const wantLeft = clone || (fragsAxisIsBlock ? true : isFirst);
-    const wantRight = clone || (fragsAxisIsBlock ? true : isLast);
+  // Per-side borders. The suppressed sides depend on fragmentation axis:
+  //   • inline-axis slice: suppress LEFT on non-first, RIGHT on non-last;
+  //     keep TOP + BOTTOM on every fragment (wrapped-inline behavior).
+  //   • block-axis slice: suppress TOP on non-first, BOTTOM on non-last;
+  //     keep LEFT + RIGHT on every fragment (multi-column block-level).
+  // Clone always keeps all four sides. Solid-style only (the typical use
+  // cases are solid); fall back to a single inset stroke for the
+  // uniform-color case.
+  const wantTop = clone || (fragsAxisIsBlock ? isFirst : true);
+  const wantBottom = clone || (fragsAxisIsBlock ? isLast : true);
+  const wantLeft = clone || (fragsAxisIsBlock ? true : isFirst);
+  const wantRight = clone || (fragsAxisIsBlock ? true : isLast);
 
-    const drawSide = (
-      side: typeof sbt,
-      x1: number, y1: number, x2: number, y2: number,
-    ) => {
-      if (side == null || side.w <= 0 || side.color.a < 0.01) return;
-      if (side.style === "none" || side.style === "hidden") return;
-      const dash = dashArrayForStyle(side.style, side.w);
-      const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-      const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
-      svgParts.push(
-        `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttr}${linecap} />`,
-      );
-    };
+  const drawSide = (side: typeof sbt, x1: number, y1: number, x2: number, y2: number) => {
+    if (side == null || side.w <= 0 || side.color.a < 0.01) return;
+    if (side.style === "none" || side.style === "hidden") return;
+    const dash = dashArrayForStyle(side.style, side.w);
+    const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+    const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+    svgParts.push(
+      `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttr}${linecap} />`,
+    );
+  };
 
-    // Uniform border with rounded corners: emit a clipped <path> stroke
-    // around the per-fragment outline (skipping the suppressed sides).
-    // To keep it simple, only emit the rounded-rect stroke path when all
-    // four sides are wanted (clone, or first-and-last). Otherwise fall
-    // back to four `<line>` strokes which work correctly for square
-    // corners (the slice path on middle fragments has square corners
-    // anyway).
-    const allFourWanted = wantTop && wantBottom && wantLeft && wantRight;
-    const sidesUniformColor = sbt != null && sbr != null && sbb != null && sbl != null
-      && sbt.w === sbr.w && sbr.w === sbb.w && sbb.w === sbl.w
-      && sbt.style === sbr.style && sbr.style === sbb.style && sbb.style === sbl.style
-      && sameColor(sbt.color, sbr.color) && sameColor(sbr.color, sbb.color) && sameColor(sbb.color, sbl.color);
-    const anyCorner = fragCorners.tl.h > 0 || fragCorners.tr.h > 0 || fragCorners.br.h > 0 || fragCorners.bl.h > 0;
-    if (sbt != null && sidesUniformColor && allFourWanted && anyCorner && sbt.w > 0 && sbt.style !== "none" && sbt.style !== "hidden") {
-      const half = sbt.w / 2;
-      const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
-      const dash = dashArrayForStyle(sbt.style, sbt.w);
-      const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-      const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
-      svgParts.push(
-        `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap}`)}`,
-      );
-    } else if (sbt != null && sidesUniformColor && anyCorner && sbt.w > 0 && sbt.style !== "none" && sbt.style !== "hidden"
-        && ((wantTop && wantBottom && wantLeft && !wantRight) || (wantTop && wantBottom && !wantLeft && wantRight))) {
-      // DM-937: inline-axis slice — the FIRST fragment owns top + left +
-      // bottom (with TL + BL rounded), the LAST owns top + right + bottom
-      // (with TR + BR rounded). Emit ONE open `<path>` stroke that traces
-      // the 3 wanted sides with the rounded corners — replacing the
-      // straight-line fallback that produced sharp 90° corners where
-      // Chrome paints arcs. This visibly closes the rounded-drop-zone
-      // outline (`<label>` wrapping block descendants in
-      // `06-forms-style-file`'s `.drop`).
-      const half = sbt.w / 2;
-      const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
-      const fxL = f.x + half, fxR = f.x + f.width - half;
-      const fyT = f.y + half, fyB = f.y + f.height - half;
-      const tl = strokeCorners.tl, tr = strokeCorners.tr, br = strokeCorners.br, bl = strokeCorners.bl;
-      let d: string;
-      if (wantLeft && !wantRight) {
-        // First frag: start at top-right (sharp), trace top → TL arc →
-        // left → BL arc → bottom → end at bottom-right (sharp).
-        d = `M${r(fxR)},${r(fyT)} L${r(fxL + tl.h)},${r(fyT)}`
-          + (tl.h > 0 || tl.v > 0 ? ` A${r(tl.h)},${r(tl.v)} 0 0 0 ${r(fxL)},${r(fyT + tl.v)}` : "")
-          + ` L${r(fxL)},${r(fyB - bl.v)}`
-          + (bl.h > 0 || bl.v > 0 ? ` A${r(bl.h)},${r(bl.v)} 0 0 0 ${r(fxL + bl.h)},${r(fyB)}` : "")
-          + ` L${r(fxR)},${r(fyB)}`;
-      } else {
-        // Last frag: start at top-left (sharp), trace top → TR arc →
-        // right → BR arc → bottom → end at bottom-left (sharp).
-        d = `M${r(fxL)},${r(fyT)} L${r(fxR - tr.h)},${r(fyT)}`
-          + (tr.h > 0 || tr.v > 0 ? ` A${r(tr.h)},${r(tr.v)} 0 0 1 ${r(fxR)},${r(fyT + tr.v)}` : "")
-          + ` L${r(fxR)},${r(fyB - br.v)}`
-          + (br.h > 0 || br.v > 0 ? ` A${r(br.h)},${r(br.v)} 0 0 1 ${r(fxR - br.h)},${r(fyB)}` : "")
-          + ` L${r(fxL)},${r(fyB)}`;
-      }
-      const dash = dashArrayForStyle(sbt.style, sbt.w);
-      const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-      const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
-      svgParts.push(
-        `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap} />`,
-      );
+  // Uniform border with rounded corners: emit a clipped <path> stroke
+  // around the per-fragment outline (skipping the suppressed sides).
+  // To keep it simple, only emit the rounded-rect stroke path when all
+  // four sides are wanted (clone, or first-and-last). Otherwise fall
+  // back to four `<line>` strokes which work correctly for square
+  // corners (the slice path on middle fragments has square corners
+  // anyway).
+  const allFourWanted = wantTop && wantBottom && wantLeft && wantRight;
+  const sidesUniformColor =
+    sbt != null &&
+    sbr != null &&
+    sbb != null &&
+    sbl != null &&
+    sbt.w === sbr.w &&
+    sbr.w === sbb.w &&
+    sbb.w === sbl.w &&
+    sbt.style === sbr.style &&
+    sbr.style === sbb.style &&
+    sbb.style === sbl.style &&
+    sameColor(sbt.color, sbr.color) &&
+    sameColor(sbr.color, sbb.color) &&
+    sameColor(sbb.color, sbl.color);
+  const anyCorner = fragCorners.tl.h > 0 || fragCorners.tr.h > 0 || fragCorners.br.h > 0 || fragCorners.bl.h > 0;
+  if (
+    sbt != null &&
+    sidesUniformColor &&
+    allFourWanted &&
+    anyCorner &&
+    sbt.w > 0 &&
+    sbt.style !== "none" &&
+    sbt.style !== "hidden"
+  ) {
+    const half = sbt.w / 2;
+    const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
+    const dash = dashArrayForStyle(sbt.style, sbt.w);
+    const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+    const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
+    svgParts.push(
+      `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap}`)}`,
+    );
+  } else if (
+    sbt != null &&
+    sidesUniformColor &&
+    anyCorner &&
+    sbt.w > 0 &&
+    sbt.style !== "none" &&
+    sbt.style !== "hidden" &&
+    ((wantTop && wantBottom && wantLeft && !wantRight) || (wantTop && wantBottom && !wantLeft && wantRight))
+  ) {
+    // DM-937: inline-axis slice — the FIRST fragment owns top + left +
+    // bottom (with TL + BL rounded), the LAST owns top + right + bottom
+    // (with TR + BR rounded). Emit ONE open `<path>` stroke that traces
+    // the 3 wanted sides with the rounded corners — replacing the
+    // straight-line fallback that produced sharp 90° corners where
+    // Chrome paints arcs. This visibly closes the rounded-drop-zone
+    // outline (`<label>` wrapping block descendants in
+    // `06-forms-style-file`'s `.drop`).
+    const half = sbt.w / 2;
+    const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
+    const fxL = f.x + half,
+      fxR = f.x + f.width - half;
+    const fyT = f.y + half,
+      fyB = f.y + f.height - half;
+    const tl = strokeCorners.tl,
+      tr = strokeCorners.tr,
+      br = strokeCorners.br,
+      bl = strokeCorners.bl;
+    let d: string;
+    if (wantLeft && !wantRight) {
+      // First frag: start at top-right (sharp), trace top → TL arc →
+      // left → BL arc → bottom → end at bottom-right (sharp).
+      d =
+        `M${r(fxR)},${r(fyT)} L${r(fxL + tl.h)},${r(fyT)}` +
+        (tl.h > 0 || tl.v > 0 ? ` A${r(tl.h)},${r(tl.v)} 0 0 0 ${r(fxL)},${r(fyT + tl.v)}` : "") +
+        ` L${r(fxL)},${r(fyB - bl.v)}` +
+        (bl.h > 0 || bl.v > 0 ? ` A${r(bl.h)},${r(bl.v)} 0 0 0 ${r(fxL + bl.h)},${r(fyB)}` : "") +
+        ` L${r(fxR)},${r(fyB)}`;
     } else {
-      // Per-side strokes anchored at the inner half-width inset so they
-      // sit inside the border-box (matching Chrome). For slice-mode
-      // middle fragments there are no corners so straight lines suffice.
-      const tw = sbt?.w ?? 0;
-      const rw = sbr?.w ?? 0;
-      const bw = sbb?.w ?? 0;
-      const lw = sbl?.w ?? 0;
-      const xL = f.x, xR = f.x + f.width, yT = f.y, yB = f.y + f.height;
-      // Top / bottom span the full fragment width.
-      if (wantTop) drawSide(sbt, xL, yT + tw / 2, xR, yT + tw / 2);
-      if (wantBottom) drawSide(sbb, xL, yB - bw / 2, xR, yB - bw / 2);
-      if (wantLeft) drawSide(sbl, xL + lw / 2, yT, xL + lw / 2, yB);
-      if (wantRight) drawSide(sbr, xR - rw / 2, yT, xR - rw / 2, yB);
+      // Last frag: start at top-left (sharp), trace top → TR arc →
+      // right → BR arc → bottom → end at bottom-left (sharp).
+      d =
+        `M${r(fxL)},${r(fyT)} L${r(fxR - tr.h)},${r(fyT)}` +
+        (tr.h > 0 || tr.v > 0 ? ` A${r(tr.h)},${r(tr.v)} 0 0 1 ${r(fxR)},${r(fyT + tr.v)}` : "") +
+        ` L${r(fxR)},${r(fyB - br.v)}` +
+        (br.h > 0 || br.v > 0 ? ` A${r(br.h)},${r(br.v)} 0 0 1 ${r(fxR - br.h)},${r(fyB)}` : "") +
+        ` L${r(fxL)},${r(fyB)}`;
     }
+    const dash = dashArrayForStyle(sbt.style, sbt.w);
+    const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+    const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
+    svgParts.push(
+      `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap} />`,
+    );
+  } else {
+    // Per-side strokes anchored at the inner half-width inset so they
+    // sit inside the border-box (matching Chrome). For slice-mode
+    // middle fragments there are no corners so straight lines suffice.
+    const tw = sbt?.w ?? 0;
+    const rw = sbr?.w ?? 0;
+    const bw = sbb?.w ?? 0;
+    const lw = sbl?.w ?? 0;
+    const xL = f.x,
+      xR = f.x + f.width,
+      yT = f.y,
+      yB = f.y + f.height;
+    // Top / bottom span the full fragment width.
+    if (wantTop) drawSide(sbt, xL, yT + tw / 2, xR, yT + tw / 2);
+    if (wantBottom) drawSide(sbb, xL, yB - bw / 2, xR, yB - bw / 2);
+    if (wantLeft) drawSide(sbl, xL + lw / 2, yT, xL + lw / 2, yB);
+    if (wantRight) drawSide(sbr, xR - rw / 2, yT, xR - rw / 2, yB);
+  }
 }
 
 export function renderInlineFragments(
@@ -714,17 +816,42 @@ export function renderInlineFragments(
   const bgIntrinsicLayers = el.styles.backgroundIntrinsic ?? [];
 
   const fragmentCtx: InlineFragmentCtx = {
-    element: el, clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
-    sbt, sbr, sbb, sbl,
-    bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
-    bgOriginLayers, bgBlendLayers,
-    bgSelectedImageLayers, bgIntrinsicLayers, bgAttachmentLayers,
+    element: el,
+    clone,
+    fragsAxisIsBlock,
+    hasBgImage,
+    shadows,
+    bgColor,
+    sbt,
+    sbr,
+    sbb,
+    sbl,
+    bgImageLayers,
+    bgSizeLayers,
+    bgPosLayers,
+    bgRepeatLayers,
+    bgClipLayers,
+    bgOriginLayers,
+    bgBlendLayers,
+    bgSelectedImageLayers,
+    bgIntrinsicLayers,
+    bgAttachmentLayers,
   };
   for (let fi = 0; fi < frags.length; fi++) {
     const f = frags[fi];
     const isFirst = fi === 0;
     const isLast = fi === frags.length - 1;
     const fragCorners = deriveFragmentCorners(corners, isFirst, isLast, clone, fragsAxisIsBlock);
-    paintInlineFragment(state, indent, f, fragCorners, isFirst, isLast, fragmentCtx, buildBackgroundLayerDef, backgroundColorClipsToText);
+    paintInlineFragment(
+      state,
+      indent,
+      f,
+      fragCorners,
+      isFirst,
+      isLast,
+      fragmentCtx,
+      buildBackgroundLayerDef,
+      backgroundColorClipsToText,
+    );
   }
 }

@@ -8,7 +8,7 @@ console.log("Layout glyphs:", layout.glyphs.length);
 console.log("First glyph path commands:", layout.glyphs[0]?.path?.commands?.length);
 // Layout all 100+ characters in the block
 let allChars = "";
-for (let cp = 0x0A01; cp <= 0x0A75; cp++) {
+for (let cp = 0x0a01; cp <= 0x0a75; cp++) {
   allChars += String.fromCodePoint(cp);
 }
 console.log("Charset length:", allChars.length);
@@ -19,4 +19,6 @@ try {
   let totalCommands = 0;
   for (const g of big.glyphs) totalCommands += g.path?.commands?.length || 0;
   console.log("Total path commands:", totalCommands);
-} catch(e) { console.error("Big layout failed:", e.message); }
+} catch (e) {
+  console.error("Big layout failed:", e.message);
+}

@@ -10,8 +10,23 @@ import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, renderVerticalSystemFontText, hasVerticalSegments } from "./vertical-text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
-import { beginCharacterFallbackDocument, endCharacterFallbackDocument, getRenderTextMode, withRenderTextMode, withSessionGenericFamilyOverrides, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
+import {
+  getEmbeddedFontFaceCss,
+  getGlyphDefs,
+  renderRadicalGlyph,
+  renderSourceOwnedTextBoundary,
+  pushBaselineSnapSuppression,
+  popBaselineSnapSuppression,
+} from "./text-to-path.js";
+import {
+  beginCharacterFallbackDocument,
+  endCharacterFallbackDocument,
+  getRenderTextMode,
+  withRenderTextMode,
+  withSessionGenericFamilyOverrides,
+  type RenderTextMode,
+  type SessionGenericFamilyOverrides,
+} from "./font-resolution.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
@@ -20,12 +35,36 @@ import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, parseSameDocumentClipPathUrl, translateClipPath } from "./clip-path.js";
 import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
-import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
+import {
+  buildLinearGradientDef,
+  buildRadialGradientDef,
+  parseBgPositionPx,
+  type GradientStop,
+} from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
-import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
+import {
+  isFlexOrGridContainerDisplay,
+  establishesStackingContext,
+  gatherStackingContextChildren,
+  isOverflowOnlySC,
+  isFixedContainingBlock,
+  paintOrderBuckets,
+  paintsAtomicallyAsInlineBox,
+  type PaintOrderBuckets,
+} from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
-import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, resolveFragmentMaskRegion, rewriteFragmentMaskDef, rewriteFragmentResourceGraph, type MaterializedFragmentMaskLayer } from "./mask.js";
+import {
+  buildMaskDef,
+  buildMaskBorder9Slice,
+  positionFragmentMaskDef,
+  positionFragmentClipPathDef,
+  positionObjectBoundingBoxClipPathDef,
+  resolveFragmentMaskRegion,
+  rewriteFragmentMaskDef,
+  rewriteFragmentResourceGraph,
+  type MaterializedFragmentMaskLayer,
+} from "./mask.js";
 // Re-export mask helpers used by focused geometry/emission tests.
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
@@ -68,8 +107,24 @@ import {
   buildRadialGradientDef as buildExactRadialGradientDef,
   parseLegacyWebkitGradient,
 } from "./gradients.js";
-import { blinkPhysicalSymbolMarkerRect, blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
-import type { CapturedBackgroundImage, CapturedElement, CapturedTreeInput, TextSegment, MaskFragmentDef, MaskFragmentReference, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
+import {
+  blinkPhysicalSymbolMarkerRect,
+  blinkSymbolMarkerGeometry,
+  disclosureTriangle,
+  pixelSnapRect,
+  type SymbolMarkerType,
+} from "./list-marker-geometry.js";
+import type {
+  CapturedBackgroundImage,
+  CapturedElement,
+  CapturedTreeInput,
+  TextSegment,
+  MaskFragmentDef,
+  MaskFragmentReference,
+  MaskRasterRef,
+  ClipPathFragmentDef,
+  CaptureWarning,
+} from "../capture/types.js";
 import { capturedTreeRoots, capturedTreeSessionGenericFamilies } from "../capture/tree-envelope.js";
 import {
   _dataUriCache,
@@ -80,7 +135,14 @@ import {
   withActiveHiDPIFactor,
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
-import { inlineImgSvg, flattenImgSvg, getFlattenNestedSvg, isSvgSafeToFlatten, prefixSvgClasses, prefixSvgIds } from "./svg-inline.js";
+import {
+  inlineImgSvg,
+  flattenImgSvg,
+  getFlattenNestedSvg,
+  isSvgSafeToFlatten,
+  prefixSvgClasses,
+  prefixSvgIds,
+} from "./svg-inline.js";
 import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
@@ -103,11 +165,7 @@ import {
   collectParentElements,
 } from "./render-state-collectors.js";
 import { renderBrokenImageFallback } from "./broken-image-fallback.js";
-import {
-  buildEmittedTextCtmMap,
-  prepareAffineTextPaint,
-  wrapAffineTextPaint,
-} from "./text-affine.js";
+import { buildEmittedTextCtmMap, prepareAffineTextPaint, wrapAffineTextPaint } from "./text-affine.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "./real-text-layer.js";
 import { adjustedDashAttrs, paintOutline, paintThinDottedLine } from "./outline-paint.js";
 export { thinDottedEndpointPlan } from "./outline-paint.js";
@@ -115,7 +173,14 @@ export { thinDottedEndpointPlan } from "./outline-paint.js";
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
 // should prefer importing from `../capture/{embed,warnings,index}.js` directly.
-export { _dataUriCache, _resizedDataUriCache, embedResizedDataUri, embedRemoteImages, resolveSvgSource, type EmbedRemoteImagesOptions } from "../capture/embed.js";
+export {
+  _dataUriCache,
+  _resizedDataUriCache,
+  embedResizedDataUri,
+  embedRemoteImages,
+  resolveSvgSource,
+  type EmbedRemoteImagesOptions,
+} from "../capture/embed.js";
 export { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
 export { captureElementTree, captureElementTreeWithWarnings, calibrateBaselines } from "../capture/index.js";
 
@@ -127,12 +192,7 @@ function resolvedOverflowClipMarginGeometry(
   const isReplaced = isOverflowReplacedElement(el.tag, el.styles.inputType);
   const respectsCssOverflow = isReplaced
     ? isOverflowRespectingReplacedElement(el.tag)
-    : capturedBoxRespectsCssOverflow(
-        el.tag,
-        el.styles.display,
-        el.styles.rootOverflowX,
-        el.styles.rootOverflowY,
-      );
+    : capturedBoxRespectsCssOverflow(el.tag, el.styles.display, el.styles.rootOverflowX, el.styles.rootOverflowY);
   const value = usedOverflowClipMargin(el.styles.overflowClipMargin, {
     overflowX: el.styles.overflowX,
     overflowY: el.styles.overflowY,
@@ -172,7 +232,6 @@ function resolvedOverflowClipMarginGeometry(
  */
 export const _conicTileCache = new Map<string, Map<string, string>>();
 
-
 /**
  * Wrap inner SVG markup (as returned by `elementTreeToSvg`) in a complete
  * `<svg>` document with the standard namespace, viewBox, and intrinsic size.
@@ -183,7 +242,12 @@ export const _conicTileCache = new Map<string, Map<string, string>>();
  * `<image>` emit is per-element, so a logo used in six places used to serialize
  * its bytes six times. No-op for a document with nothing repeated.
  */
-export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[]; title?: string; desc?: string; realTextLayer?: boolean }): string {
+export function wrapSvg(
+  inner: string,
+  width: number,
+  height: number,
+  opts?: { tree?: CapturedElement[]; title?: string; desc?: string; realTextLayer?: boolean },
+): string {
   const schemeAttr = opts?.tree != null ? rootSvgColorSchemeAttr(opts.tree) : "";
   // DM-554: when given the captured tree, emit a transparent-root body-bg
   // rect using the tree's resolved-by-Chromium `rootBgComputed`. Skipped
@@ -329,11 +393,14 @@ export interface RenderState {
    * `background-clip: text` fills, produced with the element's background
    * layers in the box phase and consumed by its text in the inline phase.
    */
-  bgClipTextFills: Map<CapturedElement, {
-    fills: ReturnType<typeof paintBackgroundImageLayers>["fills"];
-    fragmentFills: ReturnType<typeof paintBackgroundImageLayers>["fragmentFills"];
-    fragmentRects: ReturnType<typeof paintBackgroundImageLayers>["fragmentRects"];
-  }>;
+  bgClipTextFills: Map<
+    CapturedElement,
+    {
+      fills: ReturnType<typeof paintBackgroundImageLayers>["fills"];
+      fragmentFills: ReturnType<typeof paintBackgroundImageLayers>["fragmentFills"];
+      fragmentRects: ReturnType<typeof paintBackgroundImageLayers>["fragmentRects"];
+    }
+  >;
   /** DOM-tree ownership used to let a text-clipped ancestor's background
    *  contribute to descendant glyph masks. Blink's kTextClip paint phase
    *  walks descendants; the renderer paints each captured text owner
@@ -465,24 +532,37 @@ function paintImage(
   const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
   const intrinsic = el.imageIntrinsic;
   const capturedImageZoom = el.imageEffectiveZoom;
-  const effectiveZoom = capturedImageZoom != null && Number.isFinite(capturedImageZoom) && capturedImageZoom > 0
-    ? capturedImageZoom
-    : 1;
-  const paintIntrinsic = intrinsic == null ? null : {
-    w: intrinsic.w * effectiveZoom,
-    h: intrinsic.h * effectiveZoom,
-  };
-  const objectRect = paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
-    ? computeObjectFitRect(contentX, contentY, contentW, contentH, paintIntrinsic.w, paintIntrinsic.h, fit, el.styles.objectPosition)
-    : null;
+  const effectiveZoom =
+    capturedImageZoom != null && Number.isFinite(capturedImageZoom) && capturedImageZoom > 0 ? capturedImageZoom : 1;
+  const paintIntrinsic =
+    intrinsic == null
+      ? null
+      : {
+          w: intrinsic.w * effectiveZoom,
+          h: intrinsic.h * effectiveZoom,
+        };
+  const objectRect =
+    paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
+      ? computeObjectFitRect(
+          contentX,
+          contentY,
+          contentW,
+          contentH,
+          paintIntrinsic.w,
+          paintIntrinsic.h,
+          fit,
+          el.styles.objectPosition,
+        )
+      : null;
   // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
   // image must clip to the rounded content area — otherwise a 40×40
   // `border-radius: 50%` avatar paints as a square photo. Build a
   // rounded-content-box clip once, reuse it whether we take the
   // object-fit:none branch or the standard branch below.
-  const innerCorners = (borderRadius > 0 || (corners.tl.h + corners.tr.h + corners.bl.h + corners.br.h) > 0)
-    ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
-    : null;
+  const innerCorners =
+    borderRadius > 0 || corners.tl.h + corners.tr.h + corners.bl.h + corners.br.h > 0
+      ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
+      : null;
   // DM-2419: replaced elements that respect CSS overflow use the same
   // corrected overflow-clip-margin contour as ordinary rounded boxes. This
   // also covers the UA's `img { overflow:clip; overflow-clip-margin:
@@ -490,9 +570,17 @@ function paintImage(
   // contour to the content box. Without this branch object-fit:none was still
   // hard-clipped to the old rectangular content edge.
   const overflowMarginClip = resolvedOverflowClipMarginGeometry(el, corners);
-  const imageClip = overflowMarginClip ?? (innerCorners == null ? null : {
-    x: contentX, y: contentY, width: contentW, height: contentH, corners: innerCorners,
-  });
+  const imageClip =
+    overflowMarginClip ??
+    (innerCorners == null
+      ? null
+      : {
+          x: contentX,
+          y: contentY,
+          width: contentW,
+          height: contentH,
+          corners: innerCorners,
+        });
   const roundedClipId = imageClip != null ? ctx.nextClipId("irc") : null;
   if (imageClip != null && roundedClipId != null) {
     ctx.defsParts.push(
@@ -514,7 +602,9 @@ function paintImage(
       clipId = roundedClipId;
     } else {
       clipId = ctx.nextClipId("ifn");
-      ctx.defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
+      ctx.defsParts.push(
+        `<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`,
+      );
     }
     // DM-1592: an SVG source under `object-fit: none` inlines as a native
     // `<svg>` at its intrinsic size (iw×ih), positioned by object-position and
@@ -528,8 +618,17 @@ function paintImage(
     if (svgTextNone != null) {
       // DM-K0S6ZS: opt-in flatten to `<g transform>` (falls back to the nested
       // `<svg>` for sources that aren't safely flattenable).
-      const placement = { x: ix, y: iy, w: iw, h: ih, par: "none", intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg") };
-      inlinedNone = (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
+      const placement = {
+        x: ix,
+        y: iy,
+        w: iw,
+        h: ih,
+        par: "none",
+        intrinsic: el.imageIntrinsic,
+        idPrefix: ctx.nextClipId("svgimg"),
+      };
+      inlinedNone =
+        (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
     }
     if (inlinedNone != null) {
       ctx.svgParts.push(`${indent}<g clip-path="url(#${clipId})">${inlinedNone}</g>`);
@@ -551,8 +650,17 @@ function paintImage(
     if (svgText != null) {
       // DM-K0S6ZS: opt-in flatten to `<g transform>` (falls back to the nested
       // `<svg>` for sources that aren't safely flattenable).
-      const placement = { x: contentX, y: contentY, w: contentW, h: contentH, par, intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg") };
-      const inlined = (getFlattenNestedSvg() ? flattenImgSvg(svgText, placement) : null) ?? inlineImgSvg(svgText, placement);
+      const placement = {
+        x: contentX,
+        y: contentY,
+        w: contentW,
+        h: contentH,
+        par,
+        intrinsic: el.imageIntrinsic,
+        idPrefix: ctx.nextClipId("svgimg"),
+      };
+      const inlined =
+        (getFlattenNestedSvg() ? flattenImgSvg(svgText, placement) : null) ?? inlineImgSvg(svgText, placement);
       if (inlined != null) {
         ctx.svgParts.push(
           roundedClipId != null
@@ -598,11 +706,8 @@ function paintBackgroundColor(
   const out: string[] = [];
   if (useInlineFragments) {
     // background painted per-fragment in renderInlineFragments above
-  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01
-      && !backgroundColorClipsToText(el)) {
-    out.push(
-      `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
-    );
+  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01 && !backgroundColorClipsToText(el)) {
+    out.push(`${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`);
   } else if (!suppressEmptyCell && el.styles.frostedBgFallback != null) {
     // DM-476: backdrop-filter has no SVG equivalent, so when this element
     // would have read as a frosted-glass surface in Chromium (transparent
@@ -623,9 +728,7 @@ function paintBackgroundColor(
  *  PaintFillLayerBackground in the pinned Chromium tree. */
 function backgroundColorClipsToText(el: CapturedElement): boolean {
   const image = el.styles.backgroundImage;
-  const layerCount = image == null || image === "" || image === "none"
-    ? 0
-    : splitTopLevelCommas(image).length;
+  const layerCount = image == null || image === "" || image === "none" ? 0 : splitTopLevelCommas(image).length;
   const clips = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
   return cyclicBackgroundLayer(clips, Math.max(0, layerCount - 1), "border-box").trim() === "text";
 }
@@ -701,9 +804,12 @@ function paintSyntheticListMarker(
   // back to the lis own text color and font-size when not set.
   const markerColorSource = el.summaryMarkerGeometry?.color ?? el.markerColor;
   const markerStyleColor = markerColorSource != null ? parseColor(markerColorSource) : null;
-  const markerColor = markerStyleColor != null && markerStyleColor.a > 0.01
-    ? colorStr(markerStyleColor)
-    : (textColor != null ? colorStr(textColor) : "rgb(0,0,0)");
+  const markerColor =
+    markerStyleColor != null && markerStyleColor.a > 0.01
+      ? colorStr(markerStyleColor)
+      : textColor != null
+        ? colorStr(textColor)
+        : "rgb(0,0,0)";
   const markerFontSize = parseFloat(el.markerFontSize ?? "") || fontSizePx;
   const markerFontWeight = el.markerFontWeight ?? el.styles.fontWeight;
   // Text-marker baseline = li's text baseline. When CAPTURE_SCRIPT
@@ -717,11 +823,12 @@ function paintSyntheticListMarker(
   // tall inline on the first line — e.g. an emoji `::after` — so the text
   // line sits below `el.y`); fall back to `el.y` + the line-height guess.
   const firstLineTop = el.markerFirstLineDy != null ? el.y + el.markerFirstLineDy : el.y;
-  const firstLineH = el.markerFirstLineHeight != null && el.markerFirstLineHeight > 0
-    ? el.markerFirstLineHeight : lineHeightPx;
-  const my = (el.textTop != null && el.fontAscent != null && el.fontAscent > 0)
-    ? el.textTop + el.fontAscent
-    : firstLineTop + firstLineH * 0.72;
+  const firstLineH =
+    el.markerFirstLineHeight != null && el.markerFirstLineHeight > 0 ? el.markerFirstLineHeight : lineHeightPx;
+  const my =
+    el.textTop != null && el.fontAscent != null && el.fontAscent > 0
+      ? el.textTop + el.fontAscent
+      : firstLineTop + firstLineH * 0.72;
   // Symbol geometry below consumes the ::marker primary font's captured
   // ascent, matching ListMarker's FontMetrics input. Element ascent and the
   // old ratio remain compatibility fallbacks for pre-DM-2192 trees only.
@@ -733,10 +840,7 @@ function paintSyntheticListMarker(
   // (e.g. '"➤ "') or 'normal' for the default. Take any non-default
   // content as the marker label.
   const rawContent = el.markerContent;
-  const hasCustomContent = rawContent != null
-    && rawContent !== ""
-    && rawContent !== "normal"
-    && rawContent !== "none";
+  const hasCustomContent = rawContent != null && rawContent !== "" && rawContent !== "normal" && rawContent !== "none";
   if (hasCustomContent) {
     // Parse CSS `<string>`: strip surrounding quotes, take the first
     // string token, unescape backslash sequences. Multiple tokens
@@ -790,8 +894,13 @@ function paintSyntheticListMarker(
     out.push(
       `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}" style="font-variant-numeric:tabular-nums"${xmlSpace}>${escLabel}</text>`,
     );
-  } else if (lsType === "disc" || lsType === "circle" || lsType === "square"
-      || lsType === "disclosure-open" || lsType === "disclosure-closed") {
+  } else if (
+    lsType === "disc" ||
+    lsType === "circle" ||
+    lsType === "square" ||
+    lsType === "disclosure-open" ||
+    lsType === "disclosure-closed"
+  ) {
     // DM-2192: literal transcription of ListMarker::WidthOfSymbol /
     // RelativeSymbolMarkerRect and TextFragmentPainter's edge snapping.
     const geometry = blinkSymbolMarkerGeometry(markerAscent, markerFontSize, lsType as SymbolMarkerType);
@@ -804,39 +913,45 @@ function paintSyntheticListMarker(
     const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
     const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
     const contentEdge = el.x + borderL + padL;
-    const markerBoxX = outside
-      ? contentEdge - geometry.outsideEndMargin - geometry.markerInlineSize
-      : contentEdge + 1; // InlineMarginsForInside: margin_start = -1.
-    const sourceRect = el.tag === "summary" && el.summaryMarkerGeometry != null
-      ? blinkPhysicalSymbolMarkerRect(
-          el.summaryMarkerGeometry.fragmentRect,
-          el.summaryMarkerGeometry.fontAscent,
-          el.summaryMarkerGeometry.specifiedFontSize,
-          el.summaryMarkerGeometry.effectiveZoom,
-          lsType as SymbolMarkerType,
-          el.summaryMarkerGeometry.writingMode,
-        )
-      : {
-          x: markerBoxX + geometry.inlineOffset,
-          y: firstLineTop + geometry.blockOffset,
-          width: geometry.inlineSize,
-          height: geometry.blockSize,
-        };
+    const markerBoxX = outside ? contentEdge - geometry.outsideEndMargin - geometry.markerInlineSize : contentEdge + 1; // InlineMarginsForInside: margin_start = -1.
+    const sourceRect =
+      el.tag === "summary" && el.summaryMarkerGeometry != null
+        ? blinkPhysicalSymbolMarkerRect(
+            el.summaryMarkerGeometry.fragmentRect,
+            el.summaryMarkerGeometry.fontAscent,
+            el.summaryMarkerGeometry.specifiedFontSize,
+            el.summaryMarkerGeometry.effectiveZoom,
+            lsType as SymbolMarkerType,
+            el.summaryMarkerGeometry.writingMode,
+          )
+        : {
+            x: markerBoxX + geometry.inlineOffset,
+            y: firstLineTop + geometry.blockOffset,
+            width: geometry.inlineSize,
+            height: geometry.blockSize,
+          };
     // TextFragmentPainter computes a snapped rect for disc/circle/square, but
     // disclosure paths intentionally consume the LayoutUnit marker rect
     // directly. Keeping the fractional path is observable at DPR 2 and avoids
     // moving one antialiased edge by a device pixel.
-    const paintRect = lsType === "disclosure-open" || lsType === "disclosure-closed"
-      ? sourceRect
-      : pixelSnapRect(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
+    const paintRect =
+      lsType === "disclosure-open" || lsType === "disclosure-closed"
+        ? sourceRect
+        : pixelSnapRect(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
     const mx = paintRect.x + paintRect.width / 2;
     const markerY = paintRect.y + paintRect.height / 2;
     if (lsType === "disc") {
-      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(paintRect.width / 2)}" ry="${r(paintRect.height / 2)}" fill="${markerColor}" />`);
+      out.push(
+        `${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(paintRect.width / 2)}" ry="${r(paintRect.height / 2)}" fill="${markerColor}" />`,
+      );
     } else if (lsType === "circle") {
-      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(paintRect.width / 2)}" ry="${r(paintRect.height / 2)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
+      out.push(
+        `${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(paintRect.width / 2)}" ry="${r(paintRect.height / 2)}" fill="none" stroke="${markerColor}" stroke-width="1" />`,
+      );
     } else if (lsType === "square") {
-      out.push(`${indent}<rect x="${r(paintRect.x)}" y="${r(paintRect.y)}" width="${r(paintRect.width)}" height="${r(paintRect.height)}" fill="${markerColor}" />`);
+      out.push(
+        `${indent}<rect x="${r(paintRect.x)}" y="${r(paintRect.y)}" width="${r(paintRect.width)}" height="${r(paintRect.height)}" fill="${markerColor}" />`,
+      );
     } else {
       const points = disclosureTriangle(
         paintRect,
@@ -869,47 +984,44 @@ function paintSyntheticListMarker(
   return out;
 }
 
-function paintListMarker(
-  el: CapturedElement,
-  textColor: ReturnType<typeof parseColor>,
-  indent: string,
-): string[] {
+function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parseColor>, indent: string): string[] {
   const out: string[] = [];
-    const isListItem = el.styles.display != null
-      && el.styles.display.includes("list-item")
-      && (el.tag !== "summary" || el.summaryMarkerGeometry?.source === "blink-list-marker-v1");
-    if (isListItem) {
-      const lsImage = el.styles.listStyleImage;
-      const lsType = el.summaryMarkerGeometry?.listStyleType ?? el.styles.listStyleType ?? "disc";
-      const fontSizePx = parseFloat(el.styles.fontSize) || 14;
-      const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
-      const outside = (el.summaryMarkerGeometry?.listStylePosition ?? el.styles.listStylePosition) !== "inside";
-      if (lsImage != null && lsImage !== "none") {
-        const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(lsImage);
-        if (urlMatch != null) {
-          const intrinsic = el.listMarkerIntrinsic;
-          const markerW = intrinsic != null && intrinsic.w > 0 ? intrinsic.w : 16;
-          const markerH = intrinsic != null && intrinsic.h > 0 ? intrinsic.h : 16;
-          // Chrome's outside list-style-image marker positioning (DM-298):
-          // - Horizontal: image right edge sits ~7px to the left of the li's
-          //   inline-start edge — pixel probe of `03-lists-style-image-position`
-          //   showed Chrome's painted gap is 7-8px, not the 4px we previously
-          //   used; the previous 4 left the marker 3px too far right.
-          // - Vertical: image TOP aligns with li.top, not (el.height - markerH)/2.
-          //   Chrome stretches the li's height to fit the marker but does NOT
-          //   center it vertically — the marker is top-aligned with whatever
-          //   line box would have started there. Pixel probe confirmed the
-          //   2px Y offset that centering introduced.
-          const mx = outside ? el.x - markerW - 7 : el.x;
-          const my = outside ? el.y : el.y + (el.height - markerH) / 2;
-          out.push(
-            `${indent}<image href="${esc(embedResizedDataUri(urlMatch[1], markerW, markerH))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
-          );
-        }
-      } else if (lsType !== "none" && lsType !== "") {
-        out.push(...paintSyntheticListMarker(el, textColor, indent, fontSizePx, lineHeightPx, outside, lsType));
+  const isListItem =
+    el.styles.display != null &&
+    el.styles.display.includes("list-item") &&
+    (el.tag !== "summary" || el.summaryMarkerGeometry?.source === "blink-list-marker-v1");
+  if (isListItem) {
+    const lsImage = el.styles.listStyleImage;
+    const lsType = el.summaryMarkerGeometry?.listStyleType ?? el.styles.listStyleType ?? "disc";
+    const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+    const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
+    const outside = (el.summaryMarkerGeometry?.listStylePosition ?? el.styles.listStylePosition) !== "inside";
+    if (lsImage != null && lsImage !== "none") {
+      const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(lsImage);
+      if (urlMatch != null) {
+        const intrinsic = el.listMarkerIntrinsic;
+        const markerW = intrinsic != null && intrinsic.w > 0 ? intrinsic.w : 16;
+        const markerH = intrinsic != null && intrinsic.h > 0 ? intrinsic.h : 16;
+        // Chrome's outside list-style-image marker positioning (DM-298):
+        // - Horizontal: image right edge sits ~7px to the left of the li's
+        //   inline-start edge — pixel probe of `03-lists-style-image-position`
+        //   showed Chrome's painted gap is 7-8px, not the 4px we previously
+        //   used; the previous 4 left the marker 3px too far right.
+        // - Vertical: image TOP aligns with li.top, not (el.height - markerH)/2.
+        //   Chrome stretches the li's height to fit the marker but does NOT
+        //   center it vertically — the marker is top-aligned with whatever
+        //   line box would have started there. Pixel probe confirmed the
+        //   2px Y offset that centering introduced.
+        const mx = outside ? el.x - markerW - 7 : el.x;
+        const my = outside ? el.y : el.y + (el.height - markerH) / 2;
+        out.push(
+          `${indent}<image href="${esc(embedResizedDataUri(urlMatch[1], markerW, markerH))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
+        );
       }
+    } else if (lsType !== "none" && lsType !== "") {
+      out.push(...paintSyntheticListMarker(el, textColor, indent, fontSizePx, lineHeightPx, outside, lsType));
     }
+  }
   return out;
 }
 
@@ -923,7 +1035,12 @@ function paintListMarker(
 // closes the open wrapper groups and returns. The DM-499 0x0-host skip emits no
 // markup but still reports handled (the consumer-side <use> resolver already
 // inlined the defs SVG's contents). Reads only el + indent.
-function paintInlineSvg(el: CapturedElement, indent: string, allocClassPrefix?: () => string, idPrefix = ""): { svg: string[]; handled: boolean } {
+function paintInlineSvg(
+  el: CapturedElement,
+  indent: string,
+  allocClassPrefix?: () => string,
+  idPrefix = "",
+): { svg: string[]; handled: boolean } {
   const svg: string[] = [];
   if (el.svgContent == null) return { svg, handled: false };
   // The captured el.x/y/width/height are border-box coords. The SVG draws into
@@ -934,15 +1051,30 @@ function paintInlineSvg(el: CapturedElement, indent: string, allocClassPrefix?: 
   const btW = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
   const plW = parseFloat(el.styles.paddingLeft ?? "0") || 0;
   const ptW = parseFloat(el.styles.paddingTop ?? "0") || 0;
-  const contentW = Math.max(0, el.width - blW - (parseFloat(el.styles.borderRightWidth ?? "0") || 0) - plW - (parseFloat(el.styles.paddingRight ?? "0") || 0));
-  const contentH = Math.max(0, el.height - btW - (parseFloat(el.styles.borderBottomWidth ?? "0") || 0) - ptW - (parseFloat(el.styles.paddingBottom ?? "0") || 0));
+  const contentW = Math.max(
+    0,
+    el.width -
+      blW -
+      (parseFloat(el.styles.borderRightWidth ?? "0") || 0) -
+      plW -
+      (parseFloat(el.styles.paddingRight ?? "0") || 0),
+  );
+  const contentH = Math.max(
+    0,
+    el.height -
+      btW -
+      (parseFloat(el.styles.borderBottomWidth ?? "0") || 0) -
+      ptW -
+      (parseFloat(el.styles.paddingBottom ?? "0") || 0),
+  );
   // DM-499: hidden defs SVGs (position:absolute;width:0;height:0) capture as
   // 0x0. injectSvgSize would no-op (its w<=0/h<=0 short-circuit), the SVG would
   // fall back to its 300x150 default viewport, and the defs contents would
   // paint visibly. Skip emission for 0x0 host elements.
   if (contentW <= 0 || contentH <= 0) return { svg, handled: true };
   let sized = injectSvgSize(el.svgContent, contentW, contentH);
-  const referencePrefix = el.svgReferenceScope != null ? `${idPrefix}svgscope${el.svgReferenceScope}-` : allocClassPrefix?.();
+  const referencePrefix =
+    el.svgReferenceScope != null ? `${idPrefix}svgscope${el.svgReferenceScope}-` : allocClassPrefix?.();
   if (referencePrefix != null) sized = prefixSvgIds(sized, referencePrefix);
   // DM-1595: namespace CSS class names when this inline SVG carries a `<style>`
   // block, so two DOM inline SVGs that both define e.g. `.cls-1` can't cross-
@@ -968,13 +1100,19 @@ function paintInlineSvg(el: CapturedElement, indent: string, allocClassPrefix?: 
   // safely flattenable (which includes `<use>`/`<symbol>` sprites — those stay
   // nested and keep the DM-499 contract).
   if (getFlattenNestedSvg()) {
-    const flat = flattenCapturedInlineSvg(sized, { x: el.x + blW + plW, y: el.y + btW + ptW, w: contentW, h: contentH }, allocClassPrefix);
+    const flat = flattenCapturedInlineSvg(
+      sized,
+      { x: el.x + blW + plW, y: el.y + btW + ptW, w: contentW, h: contentH },
+      allocClassPrefix,
+    );
     if (flat != null) {
       svg.push(`${indent}<g color="${iconColor}">${flat}</g>`);
       return { svg, handled: true };
     }
   }
-  svg.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
+  svg.push(
+    `${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`,
+  );
   return { svg, handled: true };
 }
 
@@ -995,7 +1133,11 @@ function flattenCapturedInlineSvg(
   const attrs = tag[1];
   const vbMatch = /\bviewBox\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
   if (vbMatch == null) return null; // no explicit coordinate system → keep nested
-  const nums = vbMatch[1].slice(1, -1).trim().split(/[\s,]+/).map(Number);
+  const nums = vbMatch[1]
+    .slice(1, -1)
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
   if (nums.length !== 4 || !nums.every((n) => Number.isFinite(n)) || nums[2] <= 0 || nums[3] <= 0) return null;
   const rawBody = sized.slice(tag.index + tag[0].length);
   const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
@@ -1004,7 +1146,11 @@ function flattenCapturedInlineSvg(
 
   const parMatch = /\bpreserveAspectRatio\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
   const par = parMatch != null ? parMatch[1].slice(1, -1) : "xMidYMid meet";
-  const matrix = computeViewportMatrix(place, { minX: nums[0], minY: nums[1], width: nums[2], height: nums[3] }, parsePreserveAspectRatio(par));
+  const matrix = computeViewportMatrix(
+    place,
+    { minX: nums[0], minY: nums[1], width: nums[2], height: nums[3] },
+    parsePreserveAspectRatio(par),
+  );
   if (matrix == null) return null;
 
   const mf = (n: number): string => Number(n.toFixed(6)).toString();
@@ -1016,8 +1162,10 @@ function flattenCapturedInlineSvg(
   // a clip-id allocator (some direct-call test paths) we keep the nested `<svg>`.
   const clipId = allocClip?.();
   if (clipId == null) return null;
-  return `<clipPath id="${clipId}"><rect x="${r(place.x)}" y="${r(place.y)}" width="${r(place.w)}" height="${r(place.h)}"/></clipPath>`
-    + `<g clip-path="url(#${clipId})">${group}</g>`;
+  return (
+    `<clipPath id="${clipId}"><rect x="${r(place.x)}" y="${r(place.y)}" width="${r(place.w)}" height="${r(place.h)}"/></clipPath>` +
+    `<g clip-path="url(#${clipId})">${group}</g>`
+  );
 }
 
 // Inset box-shadow paint, extracted from renderElement (DM-1306) — the inset
@@ -1067,9 +1215,7 @@ function paintInsetBoxShadow(
       filterAttr = ` filter="url(#${fid})"`;
     }
     const cid = ctx.nextClipId("ishc");
-    ctx.defsParts.push(
-      `<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`,
-    );
+    ctx.defsParts.push(`<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`);
 
     // Pure-blur-centered inset (x=0, y=0, spread=0, blur>0): the donut
     // has zero area, so use the legacy stroked-rect approach which
@@ -1107,7 +1253,13 @@ function paintInsetBoxShadow(
     const outerY = Math.min(ibTop, innerT) - margin;
     const outerR = Math.max(ibLeft + ibW, innerL + innerW) + margin;
     const outerB = Math.max(ibTop + ibH, innerT + innerH) + margin;
-    const sharp: CornerRadii = { tl: { h: 0, v: 0 }, tr: { h: 0, v: 0 }, br: { h: 0, v: 0 }, bl: { h: 0, v: 0 }, uniform: true };
+    const sharp: CornerRadii = {
+      tl: { h: 0, v: 0 },
+      tr: { h: 0, v: 0 },
+      br: { h: 0, v: 0 },
+      bl: { h: 0, v: 0 },
+      uniform: true,
+    };
     const outerD = roundedRectPath(outerX, outerY, outerR - outerX, outerB - outerY, sharp);
     const innerD = roundedRectPath(innerL, innerT, innerW, innerH, innerC);
     ctx.svgParts.push(
@@ -1124,7 +1276,11 @@ function paintInsetBoxShadow(
 // read the full source text and clip with SVG, so the marker is otherwise
 // missing). Emits a background rect that erases the overflowing text plus the
 // marker glyph. Reads only el + textColor + indent; appends to no shared state.
-function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof parseColor>, indent: string): string[] {
+function paintTruncationMarker(
+  el: CapturedElement,
+  textColor: ReturnType<typeof parseColor>,
+  indent: string,
+): string[] {
   const out: string[] = [];
   const to = el.styles.textOverflow;
   const ws = el.styles.whiteSpace;
@@ -1154,22 +1310,22 @@ function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof
   const contentBoxW = Math.max(0, el.width - padLChk - padRChk - blLChk - brRChk);
   const seg0Chk = el.textSegments?.[0];
   const xOffsetsChk = seg0Chk?.xOffsets;
-  const lastEdgeX = xOffsetsChk != null && xOffsetsChk.length > 0
-    ? xOffsetsChk[xOffsetsChk.length - 1]
-    : null;
+  const lastEdgeX = xOffsetsChk != null && xOffsetsChk.length > 0 ? xOffsetsChk[xOffsetsChk.length - 1] : null;
   const segWidth = seg0Chk?.width;
-  const measuredTextW = lastEdgeX != null && seg0Chk != null
-    ? lastEdgeX - (xOffsetsChk![0] ?? 0)
-    : (segWidth ?? null);
+  const measuredTextW = lastEdgeX != null && seg0Chk != null ? lastEdgeX - (xOffsetsChk![0] ?? 0) : (segWidth ?? null);
   // Allow a 0.5 px tolerance for sub-pixel rounding so we don't paint
   // an ellipsis on a string that visually fits.
   const textFits = measuredTextW != null && measuredTextW <= contentBoxW + 0.5;
-  const isTruncated = to != null && to !== "" && to !== "clip"
-    && (ws === "nowrap" || ws === "pre")
-    && ox != null && ox !== "visible"
-    && el.text !== ""
-    && !wrappedToMultipleLines
-    && !textFits;
+  const isTruncated =
+    to != null &&
+    to !== "" &&
+    to !== "clip" &&
+    (ws === "nowrap" || ws === "pre") &&
+    ox != null &&
+    ox !== "visible" &&
+    el.text !== "" &&
+    !wrappedToMultipleLines &&
+    !textFits;
   if (isTruncated) {
     // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
     let marker = "…";
@@ -1186,9 +1342,7 @@ function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof
     // the element's text baseline (textTop + fontAscent if captured).
     const contentRightX = el.x + el.width - padR - brR;
     const tx = contentRightX;
-    const ty = (el.textTop != null && el.fontAscent != null)
-      ? el.textTop + el.fontAscent
-      : el.y + fontSizePx * 1.1;
+    const ty = el.textTop != null && el.fontAscent != null ? el.textTop + el.fontAscent : el.y + fontSizePx * 1.1;
     const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     // Paint a background rect under the marker so the overflowing text
     // behind it gets visually erased — mirrors Chrome where the
@@ -1198,8 +1352,10 @@ function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof
     // markerW: per-char ~0.95 of fontSize is a conservative width for
     // "…" in Helvetica/Arial/SF Pro; custom strings may be slightly off
     // but this is much closer than the previous 0.55 ratio.
-    const bgCol = el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
-      ? el.styles.backgroundColor : "rgb(255,255,255)";
+    const bgCol =
+      el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
+        ? el.styles.backgroundColor
+        : "rgb(255,255,255)";
     // "…" in Helvetica/Arial/SF Pro has an advance of ~1000-1100 font
     // units / em (≈1.0× fontSize). Custom strings use length × 0.55 as
     // a generic ratio.
@@ -1235,8 +1391,12 @@ function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof
     const bgY = Math.max(bgYRaw, el.y + btTop);
     const bgBottomCap = el.y + el.height - bbBot;
     const bgH = Math.max(0, Math.min(fontSizePx * 1.4, bgBottomCap - bgY));
-    out.push(`${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`);
-    out.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`);
+    out.push(
+      `${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`,
+    );
+    out.push(
+      `${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`,
+    );
   }
   return out;
 }
@@ -1245,7 +1405,7 @@ function customResizerRadius(value: string | undefined, size: number, zoom: numb
   if (value == null || value === "") return 0;
   const token = value.trim().split(/[\s/]+/)[0] ?? "0";
   const amount = parseFloat(token) || 0;
-  return Math.max(0, Math.min(size / 2, token.endsWith("%") ? size * amount / 100 : amount * zoom));
+  return Math.max(0, Math.min(size / 2, token.endsWith("%") ? (size * amount) / 100 : amount * zoom));
 }
 
 function customResizerBorder(
@@ -1253,7 +1413,9 @@ function customResizerBorder(
   zoom: number,
 ): { width: number; style: string; color: string } | null {
   if (value == null || value === "" || value === "none") return null;
-  const match = /^\s*([\d.]+)px\s+(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+?)\s*$/i.exec(value);
+  const match = /^\s*([\d.]+)px\s+(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+?)\s*$/i.exec(
+    value,
+  );
   if (match == null || match[2] === "none" || match[2] === "hidden") return null;
   return { width: (parseFloat(match[1]) || 0) * zoom, style: match[2], color: match[3] };
 }
@@ -1299,9 +1461,12 @@ function scaledScrollbarCornerLonghands(
 }
 
 function scaledScrollbarBoxShadow(value: string | undefined, zoom: number): string {
-  return parseBoxShadow(value ?? "none").map((shadow) => (
-    `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? " inset" : ""}`
-  )).join(", ");
+  return parseBoxShadow(value ?? "none")
+    .map(
+      (shadow) =>
+        `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? " inset" : ""}`,
+    )
+    .join(", ");
 }
 
 function paintCustomScrollbarVectorPart(
@@ -1373,19 +1538,28 @@ function paintCustomScrollbarVectorPart(
   paintBoxShadow(localCtx, fake, corners, contentIndent);
   const color = parseColor(style.backgroundColor || "transparent");
   if (color != null && color.a > 0) {
-    localCtx.svgParts.push(`${contentIndent}${roundedRectSvg(rect.x, rect.y, rect.width, rect.height, corners, `fill="${colorStr(color)}"`)}`);
+    localCtx.svgParts.push(
+      `${contentIndent}${roundedRectSvg(rect.x, rect.y, rect.width, rect.height, corners, `fill="${colorStr(color)}"`)}`,
+    );
   }
   if (style.backgroundImage !== "" && style.backgroundImage !== "none") {
-    const layers = buildPseudoBoxBgLayers(localCtx, captureViewport, {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-      backgroundImage: style.backgroundImage,
-    }, buildBackgroundLayerDef);
+    const layers = buildPseudoBoxBgLayers(
+      localCtx,
+      captureViewport,
+      {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        backgroundImage: style.backgroundImage,
+      },
+      buildBackgroundLayerDef,
+    );
     if (layers !== "") {
       const clipId = ctx.nextClipId("customscrollpartbg");
-      ctx.defsParts.push(`<clipPath id="${clipId}">${roundedRectSvg(rect.x, rect.y, rect.width, rect.height, corners, "")}</clipPath>`);
+      ctx.defsParts.push(
+        `<clipPath id="${clipId}">${roundedRectSvg(rect.x, rect.y, rect.width, rect.height, corners, "")}</clipPath>`,
+      );
       localCtx.svgParts.push(`${contentIndent}<g clip-path="url(#${clipId})">${layers}</g>`);
     }
   }
@@ -1429,19 +1603,31 @@ function paintResizeHandle(
     const zoom = custom.effectiveZoom > 0 ? custom.effectiveZoom : 1;
     const radius = customResizerRadius(custom.borderRadius, Math.min(handle.width, handle.height), zoom);
     const parsedShadows = parseBoxShadow(custom.boxShadow ?? "none");
-    const scaledShadowCss = parsedShadows.map((shadow) => `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? " inset" : ""}`).join(", ");
+    const scaledShadowCss = parsedShadows
+      .map(
+        (shadow) =>
+          `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? " inset" : ""}`,
+      )
+      .join(", ");
     const border = customResizerBorder(custom.border, zoom);
     const shadowElement = {
       ...el,
-      x: handle.x, y: handle.y, width: handle.width, height: handle.height,
+      x: handle.x,
+      y: handle.y,
+      width: handle.width,
+      height: handle.height,
       styles: {
         ...el.styles,
         boxShadow: scaledShadowCss,
         borderRadius: `${radius}px`,
-        borderTopLeftRadius: `${radius}px`, borderTopRightRadius: `${radius}px`,
-        borderBottomRightRadius: `${radius}px`, borderBottomLeftRadius: `${radius}px`,
-        borderLeftWidth: `${border?.width ?? 0}px`, borderRightWidth: `${border?.width ?? 0}px`,
-        borderTopWidth: `${border?.width ?? 0}px`, borderBottomWidth: `${border?.width ?? 0}px`,
+        borderTopLeftRadius: `${radius}px`,
+        borderTopRightRadius: `${radius}px`,
+        borderBottomRightRadius: `${radius}px`,
+        borderBottomLeftRadius: `${radius}px`,
+        borderLeftWidth: `${border?.width ?? 0}px`,
+        borderRightWidth: `${border?.width ?? 0}px`,
+        borderTopWidth: `${border?.width ?? 0}px`,
+        borderBottomWidth: `${border?.width ?? 0}px`,
       },
     } as CapturedElement;
     const shadowCorners = parseCornerRadii(shadowElement.styles, handle.width, handle.height);
@@ -1451,17 +1637,24 @@ function paintResizeHandle(
 
     const color = parseColor(custom.backgroundColor ?? "transparent");
     if (color != null && color.a > 0) {
-      out.push(`${indent}<rect x="${r(handle.x)}" y="${r(handle.y)}" width="${r(handle.width)}" height="${r(handle.height)}"${radius > 0 ? ` rx="${r(radius)}" ry="${r(radius)}"` : ""} fill="${colorStr(color)}" />`);
+      out.push(
+        `${indent}<rect x="${r(handle.x)}" y="${r(handle.y)}" width="${r(handle.width)}" height="${r(handle.height)}"${radius > 0 ? ` rx="${r(radius)}" ry="${r(radius)}"` : ""} fill="${colorStr(color)}" />`,
+      );
     }
     if (custom.backgroundImage != null && custom.backgroundImage !== "" && custom.backgroundImage !== "none") {
-      const layers = buildPseudoBoxBgLayers(ctx, captureViewport, {
-        x: handle.x,
-        y: handle.y,
-        width: handle.width,
-        height: handle.height,
-        backgroundImage: custom.backgroundImage,
-        borderRadius: radius,
-      }, buildBackgroundLayerDef);
+      const layers = buildPseudoBoxBgLayers(
+        ctx,
+        captureViewport,
+        {
+          x: handle.x,
+          y: handle.y,
+          width: handle.width,
+          height: handle.height,
+          backgroundImage: custom.backgroundImage,
+          borderRadius: radius,
+        },
+        buildBackgroundLayerDef,
+      );
       if (layers !== "") out.push(`${indent}${layers}`);
     }
     const backgroundParts = out.splice(0);
@@ -1472,9 +1665,13 @@ function paintResizeHandle(
       const dash = dashArrayForStyle(border.style, border.width);
       const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
       if (radius > 0) {
-        out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+        out.push(
+          `${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`,
+        );
       } else if (Math.abs(zoom - Math.round(zoom)) < 1e-7) {
-        out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+        out.push(
+          `${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`,
+        );
       } else {
         // CustomScrollbarTheme paints the fragmentless resizer through a
         // pixel-snapped foreground cull rect. At fractional zoom its leading
@@ -1482,13 +1679,24 @@ function paintResizeHandle(
         // trailing edge remains fixed. Shifting the closed border (rather than
         // deleting its top edge) preserves Blink's exact border ink area.
         const leading = handle.y + 1;
-        out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(leading + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - 1 - border.width))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+        out.push(
+          `${indent}<rect x="${r(handle.x + half)}" y="${r(leading + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - 1 - border.width))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`,
+        );
       }
     }
     if (parsedShadows.length > 0) {
       const clipId = ctx.nextClipId("resizersh");
-      ctx.defsParts.push(`<clipPath id="${clipId}">${roundedRectSvg(handle.x, handle.y, handle.width, handle.height, shadowCorners, "")}</clipPath>`);
-      return [`${indent}<g clip-path="url(#${clipId})">`, ...outerShadows.map((part) => `${indent}  ${part}`), ...backgroundParts.map((part) => `  ${part}`), ...insetShadows.map((part) => `${indent}  ${part}`), ...out.map((part) => `  ${part}`), `${indent}</g>`];
+      ctx.defsParts.push(
+        `<clipPath id="${clipId}">${roundedRectSvg(handle.x, handle.y, handle.width, handle.height, shadowCorners, "")}</clipPath>`,
+      );
+      return [
+        `${indent}<g clip-path="url(#${clipId})">`,
+        ...outerShadows.map((part) => `${indent}  ${part}`),
+        ...backgroundParts.map((part) => `  ${part}`),
+        ...insetShadows.map((part) => `${indent}  ${part}`),
+        ...out.map((part) => `  ${part}`),
+        `${indent}</g>`,
+      ];
     }
     return [...backgroundParts, ...out];
   }
@@ -1500,17 +1708,22 @@ function paintResizeHandle(
   );
   const pathData = (points: typeof strokes.dark): string =>
     `M${r(points[0].x)},${r(points[0].y)} L${r(points[1].x)},${r(points[1].y)} M${r(points[2].x)},${r(points[2].y)} L${r(points[3].x)},${r(points[3].y)}`;
-  out.push(`${indent}<path d="${pathData(strokes.dark)}" fill="none" stroke="rgb(0,0,0)" stroke-opacity="0.6" stroke-width="${r(strokes.strokeWidth)}" />`);
-  out.push(`${indent}<path d="${pathData(strokes.light)}" fill="none" stroke="rgb(255,255,255)" stroke-opacity="0.6" stroke-width="${r(strokes.strokeWidth)}" />`);
+  out.push(
+    `${indent}<path d="${pathData(strokes.dark)}" fill="none" stroke="rgb(0,0,0)" stroke-opacity="0.6" stroke-width="${r(strokes.strokeWidth)}" />`,
+  );
+  out.push(
+    `${indent}<path d="${pathData(strokes.light)}" fill="none" stroke="rgb(255,255,255)" stroke-opacity="0.6" stroke-width="${r(strokes.strokeWidth)}" />`,
+  );
 
   if (handle.hasScrollbar) {
     // Blink clips a (w+1)x(h+1) outline to CornerRect, excluding its right and
     // bottom edges. Emit the two surviving edges directly.
-    out.push(`${indent}<path d="M${r(handle.x + 0.5)},${r(handle.y + handle.height)} L${r(handle.x + 0.5)},${r(handle.y + 0.5)} L${r(handle.x + handle.width)},${r(handle.y + 0.5)}" fill="none" stroke="rgb(217,217,217)" stroke-width="1" />`);
+    out.push(
+      `${indent}<path d="M${r(handle.x + 0.5)},${r(handle.y + handle.height)} L${r(handle.x + 0.5)},${r(handle.y + 0.5)} L${r(handle.x + handle.width)},${r(handle.y + 0.5)}" fill="none" stroke="rgb(217,217,217)" stroke-width="1" />`,
+    );
   }
   return out;
 }
-
 
 /**
  * Assemble the per-render `RenderState` + paint contexts (extracted from
@@ -1547,7 +1760,9 @@ function buildRenderState(
     idPrefix,
     nextClipId: (prefix) => `${idPrefix}${prefix}${clipIdx++}`,
     peekClipIdx: () => clipIdx,
-    advanceClipIdx: (n) => { clipIdx += n; },
+    advanceClipIdx: (n) => {
+      clipIdx += n;
+    },
     emittedTextCtm: buildEmittedTextCtmMap(elements),
   };
   // Form-control gradient defs (SK-1224) — renderFormControl pushes
@@ -1742,7 +1957,14 @@ function elementTreeToSvgInnerImpl(
   // hoisting works at the document root.
   const topLevelHoistedAsInline = new Set<CapturedElement>();
   const topLevelHoistedAsZSorted = new Set<CapturedElement>();
-  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, topLevelHoistedAsInline, overflowClipForHoisted, topLevelHoistedAsZSorted);
+  const topLevelFlat = gatherStackingContextChildren(
+    elements,
+    hoistedFromAncestor,
+    undefined,
+    topLevelHoistedAsInline,
+    overflowClipForHoisted,
+    topLevelHoistedAsZSorted,
+  );
   // DM-543: position:fixed elements paint relative to the viewport stacking
   // context and escape ALL ancestor overflow clips. The standard SC-by-SC
   // hoist halts at any SC ancestor (e.g. an overflow:auto section creates an
@@ -1783,7 +2005,13 @@ function elementTreeToSvgInnerImpl(
   // stacking-context children (steps 6-7). Splitting the two block passes is
   // what lets a float in the first section paint below the text of the last
   // one — CSS 2.1 Appendix E's float step is context-wide.
-  const topBuckets = paintOrderBuckets(topLevelFlat, undefined, undefined, topLevelHoistedAsInline, topLevelHoistedAsZSorted);
+  const topBuckets = paintOrderBuckets(
+    topLevelFlat,
+    undefined,
+    undefined,
+    topLevelHoistedAsInline,
+    topLevelHoistedAsZSorted,
+  );
   const topPlan: ChildPaintPlan = { buckets: topBuckets, childDisplay: undefined, flat3d: null };
   renderChildBoxPhase(state, topPlan, 0);
   renderChildInlinePhase(state, topPlan, 0);
@@ -1840,12 +2068,26 @@ export function elementTreeToSvgInner(
     beginCharacterFallbackDocument();
     try {
       const visual = includeRealTextLayer
-        ? withRealTextLayerVisualSemantics(() => elementTreeToSvgInnerImpl(
-          elements, width, height, idPrefix, includeGlyphDefs, hiDPIFactor, includeEmbeddedFontCss,
-        ))
+        ? withRealTextLayerVisualSemantics(() =>
+            elementTreeToSvgInnerImpl(
+              elements,
+              width,
+              height,
+              idPrefix,
+              includeGlyphDefs,
+              hiDPIFactor,
+              includeEmbeddedFontCss,
+            ),
+          )
         : elementTreeToSvgInnerImpl(
-          elements, width, height, idPrefix, includeGlyphDefs, hiDPIFactor, includeEmbeddedFontCss,
-        );
+            elements,
+            width,
+            height,
+            idPrefix,
+            includeGlyphDefs,
+            hiDPIFactor,
+            includeEmbeddedFontCss,
+          );
       const realText = includeRealTextLayer ? renderRealTextLayer(elements) : "";
       return realText === "" ? visual : `${visual}\n${realText}`;
     } finally {
@@ -1854,15 +2096,11 @@ export function elementTreeToSvgInner(
   };
   return withActiveHiDPIFactor(hiDPIFactor, () => {
     const captured = capturedSessionGenericFamilies(input);
-    return captured == null
-      ? render()
-      : withSessionGenericFamilyOverrides(captured, render);
+    return captured == null ? render() : withSessionGenericFamilyOverrides(captured, render);
   });
 }
 
-export function capturedSessionGenericFamilies(
-  input: CapturedTreeInput,
-): SessionGenericFamilyOverrides | null {
+export function capturedSessionGenericFamilies(input: CapturedTreeInput): SessionGenericFamilyOverrides | null {
   const record = capturedTreeSessionGenericFamilies(input);
   if (record == null) return null;
   return {
@@ -1877,11 +2115,7 @@ export function capturedSessionGenericFamilies(
 // scope. They were nested closures capturing ~18 shared locals; they now take
 // an explicit `state: RenderState` (built once per render) and destructure the
 // fields they need. Function declarations, so call order is hoist-independent.
-function resolveFragmentClipPathRef(
-  state: RenderState,
-  clipPathCss: string,
-  el: CapturedElement,
-): string | null {
+function resolveFragmentClipPathRef(state: RenderState, clipPathCss: string, el: CapturedElement): string | null {
   const { fragmentClipPathDefs, fragmentClipPathOutputId, defsParts, idPrefix } = state;
   // A URL is an exclusive Blink ReferenceClipPathOperation. Geometry boxes
   // can accompany a basic shape or stand alone, but cannot accompany url().
@@ -1893,9 +2127,8 @@ function resolveFragmentClipPathRef(
   // Scoped consumers must never fall through to a raw-id definition from a
   // different iframe/shadow TreeScope. The raw lookup exists only for legacy
   // serialized trees that carried no scope metadata at all.
-  const def = el.fragmentReferenceScope == null
-    ? fragmentClipPathDefs.get(fragId)
-    : fragmentClipPathDefs.get(scopedFragId);
+  const def =
+    el.fragmentReferenceScope == null ? fragmentClipPathDefs.get(fragId) : fragmentClipPathDefs.get(scopedFragId);
   if (def == null) return null;
 
   const rewrite = (outId: string): { rootOuterHTML: string; dependencyOuterHTML: string[] } | null => {
@@ -1949,9 +2182,7 @@ function resolveFragmentMaskLayer(
   const fragId = reference.id;
   const referenceScope = reference.scope ?? el.fragmentReferenceScope;
   const scopedFragId = referenceScope == null ? fragId : `${referenceScope}\u0000${fragId}`;
-  const def = referenceScope == null
-    ? fragmentMaskDefs.get(fragId)
-    : fragmentMaskDefs.get(scopedFragId);
+  const def = referenceScope == null ? fragmentMaskDefs.get(fragId) : fragmentMaskDefs.get(scopedFragId);
   if (def == null) return null;
   const maskMode = layerMode.trim().toLowerCase();
   const maskType = maskMode === "alpha" || maskMode === "luminance" ? maskMode : (def.maskType ?? "luminance");
@@ -1976,9 +2207,10 @@ function resolveFragmentMaskLayer(
   // source viewport resolution and consumer zoom, while object-bbox values
   // map through the HTML border box. The CSS layer's explicit mode can
   // override the captured mask-type channel.
-  const rewritten = def.dependencyGraph == null
-    ? { rootOuterHTML: rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`), dependencyOuterHTML: [] }
-    : rewriteFragmentResourceGraph(def.outerHTML, def.dependencyGraph, outId, `${outId}-`, def.scope);
+  const rewritten =
+    def.dependencyGraph == null
+      ? { rootOuterHTML: rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`), dependencyOuterHTML: [] }
+      : rewriteFragmentResourceGraph(def.outerHTML, def.dependencyGraph, outId, `${outId}-`, def.scope);
   if (rewritten == null) return null;
   fragmentMaskOutputId.set(cacheKey, outId);
   defsParts.push(...rewritten.dependencyOuterHTML);
@@ -1988,19 +2220,17 @@ function resolveFragmentMaskLayer(
 }
 
 /** Legacy single-layer serialized trees predate `maskFragmentReferences`. */
-function resolveLegacyFragmentMaskRef(
-  state: RenderState,
-  maskImage: string,
-  el: CapturedElement,
-): string | null {
+function resolveLegacyFragmentMaskRef(state: RenderState, maskImage: string, el: CapturedElement): string | null {
   const match = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(maskImage);
   if (match == null) return null;
-  return resolveFragmentMaskLayer(
-    state,
-    { layerIndex: 0, id: match[1], scope: el.fragmentReferenceScope },
-    el,
-    splitTopLevelCommas(el.styles.maskMode || "match-source")[0] ?? "match-source",
-  )?.id ?? null;
+  return (
+    resolveFragmentMaskLayer(
+      state,
+      { layerIndex: 0, id: match[1], scope: el.fragmentReferenceScope },
+      el,
+      splitTopLevelCommas(el.styles.maskMode || "match-source")[0] ?? "match-source",
+    )?.id ?? null
+  );
 }
 
 // Resolve the element's CSS mask into an SVG <mask> def + the mask="url(#…)"
@@ -2039,25 +2269,38 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
   const mbIsSimple = mbHasSrc && mbWidthZero && mbOutsetZero && mbSliceFull;
   const usingMaskBorderUrlSimple = mbIsSimple && mbIsUrl && mbUrlHref != null;
   const usingMaskBorderGradient = mbIsSimple && mbIsGradient;
-  const usingMaskBorder9Slice = mbHasSrc && mbIsUrl && mbUrlHref != null && !mbIsSimple
-    && el.styles.maskBorderIntrinsicWidth != null && el.styles.maskBorderIntrinsicHeight != null
-    && el.styles.maskBorderIntrinsicWidth > 0 && el.styles.maskBorderIntrinsicHeight > 0;
+  const usingMaskBorder9Slice =
+    mbHasSrc &&
+    mbIsUrl &&
+    mbUrlHref != null &&
+    !mbIsSimple &&
+    el.styles.maskBorderIntrinsicWidth != null &&
+    el.styles.maskBorderIntrinsicHeight != null &&
+    el.styles.maskBorderIntrinsicWidth > 0 &&
+    el.styles.maskBorderIntrinsicHeight > 0;
   const maskImage = usingMaskBorderGradient ? mbSrc : el.styles.maskImage;
   let maskUrlId: string | null = null;
   if (usingMaskBorderUrlSimple && mbUrlHref != null) {
     const dataUri = embedResizedDataUri(mbUrlHref, el.width, el.height);
     const mid = paintCtx.nextClipId("mk");
     defsParts.push(
-      `<mask id="${mid}" maskUnits="userSpaceOnUse" mask-type="alpha">`
-        + `<image href="${esc(dataUri)}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="none" />`
-        + `</mask>`,
+      `<mask id="${mid}" maskUnits="userSpaceOnUse" mask-type="alpha">` +
+        `<image href="${esc(dataUri)}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="none" />` +
+        `</mask>`,
     );
     maskUrlId = mid;
   } else if (usingMaskBorder9Slice && mbUrlHref != null) {
     const mid = paintCtx.nextClipId("mk");
     const built = buildMaskBorder9Slice(
-      el, mbUrlHref, mbSlice, mbWidth, mbOutset, el.styles.maskBorderRepeat ?? "stretch",
-      mid, idPrefix, paintCtx.peekClipIdx(),
+      el,
+      mbUrlHref,
+      mbSlice,
+      mbWidth,
+      mbOutset,
+      el.styles.maskBorderRepeat ?? "stretch",
+      mid,
+      idPrefix,
+      paintCtx.peekClipIdx(),
     );
     if (built != null) {
       defsParts.push(built.def);
@@ -2070,18 +2313,17 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
     const fragmentMaskLayers = new Map<number, MaterializedFragmentMaskLayer>();
     for (const reference of el.maskFragmentReferences ?? []) {
       if (reference.layerIndex < 0 || reference.layerIndex >= maskLayers.length) continue;
-      const mode = maskModes.length > 0
-        ? maskModes[reference.layerIndex % maskModes.length]
-        : "match-source";
+      const mode = maskModes.length > 0 ? maskModes[reference.layerIndex % maskModes.length] : "match-source";
       const fragmentMask = resolveFragmentMaskLayer(state, reference, el, mode);
       if (fragmentMask != null) fragmentMaskLayers.set(reference.layerIndex, fragmentMask);
     }
     // Keep the historical direct single-fragment shape compact. Multi-layer
     // lists instead normalize every referenced mask to one alpha source and
     // enter the same ordered compositor as gradients/images.
-    const directFragmentId = maskLayers.length === 1
-      ? fragmentMaskLayers.get(0)?.id ?? resolveLegacyFragmentMaskRef(state, maskImage, el)
-      : null;
+    const directFragmentId =
+      maskLayers.length === 1
+        ? (fragmentMaskLayers.get(0)?.id ?? resolveLegacyFragmentMaskRef(state, maskImage, el))
+        : null;
     if (directFragmentId != null) {
       maskUrlId = directFragmentId;
     } else {
@@ -2103,18 +2345,25 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
       const side = (value: string | undefined): number => parseFloat(value ?? "0") || 0;
       const maskInsets = el.styles.maskBoxInsets ?? {
         border: {
-          top: side(el.styles.borderTopWidth), right: side(el.styles.borderRightWidth),
-          bottom: side(el.styles.borderBottomWidth), left: side(el.styles.borderLeftWidth),
+          top: side(el.styles.borderTopWidth),
+          right: side(el.styles.borderRightWidth),
+          bottom: side(el.styles.borderBottomWidth),
+          left: side(el.styles.borderLeftWidth),
         },
         padding: {
-          top: side(el.styles.paddingTop), right: side(el.styles.paddingRight),
-          bottom: side(el.styles.paddingBottom), left: side(el.styles.paddingLeft),
+          top: side(el.styles.paddingTop),
+          right: side(el.styles.paddingRight),
+          bottom: side(el.styles.paddingBottom),
+          left: side(el.styles.paddingLeft),
         },
       };
       const maskDef = buildMaskDef(
         paintCtx.nextClipId("mk"),
         maskImage,
-        el.x, el.y, el.width, el.height,
+        el.x,
+        el.y,
+        el.width,
+        el.height,
         el.styles.maskMode ?? "match-source",
         maskSize,
         maskPosition,
@@ -2157,7 +2406,13 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
 // zeroOrAuto bucket). `position:fixed` descendants are never added to
 // the map (CSS Overflow 3 §2.2 — fixed elements escape ancestor
 // overflow clipping), so they aren't wrapped here.
-function renderElementWithOverflowClip(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string, phase: PaintPhase = "all"): void {
+function renderElementWithOverflowClip(
+  state: RenderState,
+  el: CapturedElement,
+  depth: number,
+  parentDisplayForEl?: string,
+  phase: PaintPhase = "all",
+): void {
   const { overflowClipForHoisted, overflowClipPathIds, svgParts } = state;
   const overflowClipAncestor = overflowClipForHoisted.get(el);
   const clipId = overflowClipAncestor != null ? overflowClipPathIds.get(overflowClipAncestor) : undefined;
@@ -2174,118 +2429,117 @@ function renderElementWithOverflowClip(state: RenderState, el: CapturedElement, 
 function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners: CornerRadii): string | null {
   const { paintCtx, defsParts } = state;
   let clipPathUrlId: string | null = null;
-    const oxV = el.styles.overflowX;
-    const oyV = el.styles.overflowY;
-    const oxClips = oxV != null && oxV !== "visible";
-    const oyClips = oyV != null && oyV !== "visible";
-    // DM-650: per CSS Overflow Module Level 3 §3.3, when <body>'s overflow
-    // is non-visible and <html>'s overflow is visible (the default), the
-    // body's overflow is propagated to the viewport — i.e. body itself
-    // renders WITHOUT clipping, and the page-level scroll handles the
-    // overflow. This is what NYT desktop relies on: body { height: 100vh;
-    // overflow: hidden auto } but the page scrolls at the document level
-    // because <html> has overflow: visible. If we applied body's overflow
-    // as a clip on body's own bbox, scroll-mode segments at scrollY > 0
-    // would clip every descendant out (body.y becomes -scrollY < 0; the
-    // clip rect ends at body.y + 100vh = 0, so anything below would be
-    // hidden). DM-1244: <body>'s overflow only propagates to the viewport when
-    // <html> is `overflow: visible`; we now capture <html>'s overflow on the
-    // root element (`rootOverflowX/Y`), so skip the body clip only when <html>
-    // really is visible. When <html> has a non-visible overflow it is the one
-    // propagated to the viewport and <body> applies its OWN overflow clip. Old
-    // captures (no rootOverflow) fall back to the prior assume-visible default.
-    const rootOX = el.styles.rootOverflowX;
-    const rootOY = el.styles.rootOverflowY;
-    const htmlOverflowVisible = (rootOX == null && rootOY == null)
-      || ((rootOX == null || rootOX === "visible") && (rootOY == null || rootOY === "visible"));
-    const isBodyOverflowPropagated = el.tag === "body" && htmlOverflowVisible;
-    if ((oxClips || oyClips) && !isBodyOverflowPropagated) {
-      // The CSS `outline` is painted OUTSIDE the border box and is NOT
-      // affected by the element's own overflow per CSS Backgrounds 3 §3 +
-      // Basic UI 4 §8 — outline isn't part of the element's content area.
-      // Inflate the overflow-clip rect by (outline-offset + outline-width)
-      // so the outline rect (emitted later inside this same group) doesn't
-      // get clipped out. Otherwise inputs with `:valid` / `:invalid`
-      // outlines under the UA's implicit `overflow: clip` lose the entire
-      // colored outline (DM-640 / 06-forms-validation-ui).
-      const ow_ = parseFloat(el.styles.outlineWidth ?? "0") || 0;
-      const ostyle_ = el.styles.outlineStyle ?? "none";
-      const ohas = ow_ > 0 && ostyle_ !== "none" && ostyle_ !== "hidden";
-      const oOffset_ = ohas ? (parseFloat(el.styles.outlineOffset ?? "0") || 0) : 0;
-      const outlineInflate = ohas ? Math.max(0, oOffset_ + ow_) : 0;
-      // DM-745: outset box-shadow paints OUTSIDE the element's box and is
-      // also unaffected by the element's own overflow per CSS Backgrounds
-      // 3 §6.4 — only the element's content / background is clipped to
-      // its overflow region, not the decorative shadow. The popover in
-      // `niche-command-invokers` has an implicit `overflow: auto` (UA
-      // popover rule) and a `box-shadow: 0 30px 60px rgba(15, 23, 42,
-      // 0.2)`; without inflating for the shadow's max extent, the clip
-      // rect cropped the shadow ink down to a thin sliver inside the
-      // popover box. Inflate per-side by `|offset| + spread + blur` so
-      // the shadow's full painted area survives.
-      const shadowsForClip = parseBoxShadow(el.styles.boxShadow ?? "none");
-      let shadowInflateT = 0, shadowInflateR = 0, shadowInflateB = 0, shadowInflateL = 0;
-      for (const sh of shadowsForClip) {
-        if (sh.inset) continue;
-        const reach = sh.spread + sh.blur;
-        // Per-side ink extent: spread + blur, plus the shadow's offset
-        // pushed in the matching direction. Clamp to 0 so an offset that
-        // pulls the shadow away from a side doesn't shrink the inflate.
-        shadowInflateT = Math.max(shadowInflateT, reach + Math.max(0, -sh.y));
-        shadowInflateR = Math.max(shadowInflateR, reach + Math.max(0, sh.x));
-        shadowInflateB = Math.max(shadowInflateB, reach + Math.max(0, sh.y));
-        shadowInflateL = Math.max(shadowInflateL, reach + Math.max(0, -sh.x));
-      }
-      // DM-2419: Blink starts at its pixel-snapped contoured inner border,
-      // applies the selected reference-box as PHYSICAL per-side outsets, then
-      // applies the margin. Keep enough rectangular room in this renderer's
-      // synthetic outer wrapper for that exact corrected inner contour. The
-      // tight rounded shape is emitted by ensureChildOverflowClipId (or the
-      // replaced-image paint path) below.
-      const ocmGeometry = resolvedOverflowClipMarginGeometry(el, corners);
-      const ocmExtension = ocmGeometry == null
-        ? { top: 0, right: 0, bottom: 0, left: 0 }
-        : overflowClipMarginOuterExtension(
-            { x: el.x, y: el.y, width: el.width, height: el.height },
-            ocmGeometry,
-          );
-      // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start
-      // BORDER, not the scrollport — per Blink `fieldset_layout_algorithm.cc`:
-      // "the rendered legend shouldn't be part of the scrollport; the legend is
-      // essentially a part of the block-start border ... scrollbars are handled by
-      // the anonymous child box." So the fieldset's own `overflow` clip (which we
-      // bind to its border box) must NOT cut the legend, which straddles the
-      // border line and protrudes above the border-box top. Raise the clip's top
-      // edge by the legend's protrusion so it clears the legend (the block-start
-      // border strip holds nothing else). Without this, `fieldset { overflow:
-      // auto }` (resize needs overflow != visible) clipped the top half of the
-      // legend text.
-      const legendInflateT = el.fieldsetLegendNotch != null
-        ? Math.max(0, el.y - el.fieldsetLegendNotch.y)
-        : 0;
-      const inflateT = Math.max(outlineInflate, shadowInflateT, ocmExtension.top, legendInflateT);
-      const inflateR = Math.max(outlineInflate, shadowInflateR, ocmExtension.right);
-      const inflateB = Math.max(outlineInflate, shadowInflateB, ocmExtension.bottom);
-      const inflateL = Math.max(outlineInflate, shadowInflateL, ocmExtension.left);
-      // DM-787: per-axis `overflow-x: clip; overflow-y: visible` (or the
-      // inverse) needs the outer clip to NOT bind on the visible axis. A
-      // huge ±100000 extension lets descendants paint past the border-box
-      // on that axis while the clipped axis stays bounded.
-      const UNBOUNDED_CP = 100000;
-      const xVisibleCp = oxV === "visible" && oyV === "clip";
-      const yVisibleCp = oyV === "visible" && oxV === "clip";
-      const cpX = xVisibleCp ? el.x - UNBOUNDED_CP : el.x - inflateL;
-      const cpW = xVisibleCp ? el.width + UNBOUNDED_CP * 2 : el.width + inflateL + inflateR;
-      const cpY = yVisibleCp ? el.y - UNBOUNDED_CP : el.y - inflateT;
-      const cpH = yVisibleCp ? el.height + UNBOUNDED_CP * 2 : el.height + inflateT + inflateB;
-      clipPathUrlId = paintCtx.nextClipId("cp");
-      defsParts.push(
-        `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
-      );
+  const oxV = el.styles.overflowX;
+  const oyV = el.styles.overflowY;
+  const oxClips = oxV != null && oxV !== "visible";
+  const oyClips = oyV != null && oyV !== "visible";
+  // DM-650: per CSS Overflow Module Level 3 §3.3, when <body>'s overflow
+  // is non-visible and <html>'s overflow is visible (the default), the
+  // body's overflow is propagated to the viewport — i.e. body itself
+  // renders WITHOUT clipping, and the page-level scroll handles the
+  // overflow. This is what NYT desktop relies on: body { height: 100vh;
+  // overflow: hidden auto } but the page scrolls at the document level
+  // because <html> has overflow: visible. If we applied body's overflow
+  // as a clip on body's own bbox, scroll-mode segments at scrollY > 0
+  // would clip every descendant out (body.y becomes -scrollY < 0; the
+  // clip rect ends at body.y + 100vh = 0, so anything below would be
+  // hidden). DM-1244: <body>'s overflow only propagates to the viewport when
+  // <html> is `overflow: visible`; we now capture <html>'s overflow on the
+  // root element (`rootOverflowX/Y`), so skip the body clip only when <html>
+  // really is visible. When <html> has a non-visible overflow it is the one
+  // propagated to the viewport and <body> applies its OWN overflow clip. Old
+  // captures (no rootOverflow) fall back to the prior assume-visible default.
+  const rootOX = el.styles.rootOverflowX;
+  const rootOY = el.styles.rootOverflowY;
+  const htmlOverflowVisible =
+    (rootOX == null && rootOY == null) ||
+    ((rootOX == null || rootOX === "visible") && (rootOY == null || rootOY === "visible"));
+  const isBodyOverflowPropagated = el.tag === "body" && htmlOverflowVisible;
+  if ((oxClips || oyClips) && !isBodyOverflowPropagated) {
+    // The CSS `outline` is painted OUTSIDE the border box and is NOT
+    // affected by the element's own overflow per CSS Backgrounds 3 §3 +
+    // Basic UI 4 §8 — outline isn't part of the element's content area.
+    // Inflate the overflow-clip rect by (outline-offset + outline-width)
+    // so the outline rect (emitted later inside this same group) doesn't
+    // get clipped out. Otherwise inputs with `:valid` / `:invalid`
+    // outlines under the UA's implicit `overflow: clip` lose the entire
+    // colored outline (DM-640 / 06-forms-validation-ui).
+    const ow_ = parseFloat(el.styles.outlineWidth ?? "0") || 0;
+    const ostyle_ = el.styles.outlineStyle ?? "none";
+    const ohas = ow_ > 0 && ostyle_ !== "none" && ostyle_ !== "hidden";
+    const oOffset_ = ohas ? parseFloat(el.styles.outlineOffset ?? "0") || 0 : 0;
+    const outlineInflate = ohas ? Math.max(0, oOffset_ + ow_) : 0;
+    // DM-745: outset box-shadow paints OUTSIDE the element's box and is
+    // also unaffected by the element's own overflow per CSS Backgrounds
+    // 3 §6.4 — only the element's content / background is clipped to
+    // its overflow region, not the decorative shadow. The popover in
+    // `niche-command-invokers` has an implicit `overflow: auto` (UA
+    // popover rule) and a `box-shadow: 0 30px 60px rgba(15, 23, 42,
+    // 0.2)`; without inflating for the shadow's max extent, the clip
+    // rect cropped the shadow ink down to a thin sliver inside the
+    // popover box. Inflate per-side by `|offset| + spread + blur` so
+    // the shadow's full painted area survives.
+    const shadowsForClip = parseBoxShadow(el.styles.boxShadow ?? "none");
+    let shadowInflateT = 0,
+      shadowInflateR = 0,
+      shadowInflateB = 0,
+      shadowInflateL = 0;
+    for (const sh of shadowsForClip) {
+      if (sh.inset) continue;
+      const reach = sh.spread + sh.blur;
+      // Per-side ink extent: spread + blur, plus the shadow's offset
+      // pushed in the matching direction. Clamp to 0 so an offset that
+      // pulls the shadow away from a side doesn't shrink the inflate.
+      shadowInflateT = Math.max(shadowInflateT, reach + Math.max(0, -sh.y));
+      shadowInflateR = Math.max(shadowInflateR, reach + Math.max(0, sh.x));
+      shadowInflateB = Math.max(shadowInflateB, reach + Math.max(0, sh.y));
+      shadowInflateL = Math.max(shadowInflateL, reach + Math.max(0, -sh.x));
     }
+    // DM-2419: Blink starts at its pixel-snapped contoured inner border,
+    // applies the selected reference-box as PHYSICAL per-side outsets, then
+    // applies the margin. Keep enough rectangular room in this renderer's
+    // synthetic outer wrapper for that exact corrected inner contour. The
+    // tight rounded shape is emitted by ensureChildOverflowClipId (or the
+    // replaced-image paint path) below.
+    const ocmGeometry = resolvedOverflowClipMarginGeometry(el, corners);
+    const ocmExtension =
+      ocmGeometry == null
+        ? { top: 0, right: 0, bottom: 0, left: 0 }
+        : overflowClipMarginOuterExtension({ x: el.x, y: el.y, width: el.width, height: el.height }, ocmGeometry);
+    // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start
+    // BORDER, not the scrollport — per Blink `fieldset_layout_algorithm.cc`:
+    // "the rendered legend shouldn't be part of the scrollport; the legend is
+    // essentially a part of the block-start border ... scrollbars are handled by
+    // the anonymous child box." So the fieldset's own `overflow` clip (which we
+    // bind to its border box) must NOT cut the legend, which straddles the
+    // border line and protrudes above the border-box top. Raise the clip's top
+    // edge by the legend's protrusion so it clears the legend (the block-start
+    // border strip holds nothing else). Without this, `fieldset { overflow:
+    // auto }` (resize needs overflow != visible) clipped the top half of the
+    // legend text.
+    const legendInflateT = el.fieldsetLegendNotch != null ? Math.max(0, el.y - el.fieldsetLegendNotch.y) : 0;
+    const inflateT = Math.max(outlineInflate, shadowInflateT, ocmExtension.top, legendInflateT);
+    const inflateR = Math.max(outlineInflate, shadowInflateR, ocmExtension.right);
+    const inflateB = Math.max(outlineInflate, shadowInflateB, ocmExtension.bottom);
+    const inflateL = Math.max(outlineInflate, shadowInflateL, ocmExtension.left);
+    // DM-787: per-axis `overflow-x: clip; overflow-y: visible` (or the
+    // inverse) needs the outer clip to NOT bind on the visible axis. A
+    // huge ±100000 extension lets descendants paint past the border-box
+    // on that axis while the clipped axis stays bounded.
+    const UNBOUNDED_CP = 100000;
+    const xVisibleCp = oxV === "visible" && oyV === "clip";
+    const yVisibleCp = oyV === "visible" && oxV === "clip";
+    const cpX = xVisibleCp ? el.x - UNBOUNDED_CP : el.x - inflateL;
+    const cpW = xVisibleCp ? el.width + UNBOUNDED_CP * 2 : el.width + inflateL + inflateR;
+    const cpY = yVisibleCp ? el.y - UNBOUNDED_CP : el.y - inflateT;
+    const cpH = yVisibleCp ? el.height + UNBOUNDED_CP * 2 : el.height + inflateT + inflateB;
+    clipPathUrlId = paintCtx.nextClipId("cp");
+    defsParts.push(
+      `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
+    );
+  }
   return clipPathUrlId;
 }
-
 
 /**
  * True when an intra-frame animation targeting this element's `animId`
@@ -2299,8 +2553,9 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners:
  * rest state faithful to the capture by setting `from` to the captured value.
  */
 function animationOwnsOpacity(el: CapturedElement): boolean {
-  return el.animId != null && el.animId !== ""
-    && el.animatedProperties != null && el.animatedProperties.includes("opacity");
+  return (
+    el.animId != null && el.animId !== "" && el.animatedProperties != null && el.animatedProperties.includes("opacity")
+  );
 }
 
 interface BoxReflectionSpec {
@@ -2318,7 +2573,7 @@ export function parseBoxReflection(value: string | undefined, width: number, hei
   const basis = direction === "above" || direction === "below" ? height : width;
   const rawOffset = head[2];
   const n = parseFloat(rawOffset);
-  const offset = Number.isFinite(n) ? (/\%$/.test(rawOffset) ? n * basis / 100 : n) : 0;
+  const offset = Number.isFinite(n) ? (/\%$/.test(rawOffset) ? (n * basis) / 100 : n) : 0;
   let maskImage: string | undefined;
   const tail = head[3]?.trim();
   if (tail != null && tail !== "" && tail !== "none") {
@@ -2328,10 +2583,19 @@ export function parseBoxReflection(value: string | undefined, width: number, hei
       let quote = "";
       for (let i = fn[0].length - 1; i < tail.length; i++) {
         const ch = tail[i];
-        if (quote !== "") { if (ch === quote && tail[i - 1] !== "\\") quote = ""; continue; }
-        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (quote !== "") {
+          if (ch === quote && tail[i - 1] !== "\\") quote = "";
+          continue;
+        }
+        if (ch === '"' || ch === "'") {
+          quote = ch;
+          continue;
+        }
         if (ch === "(") depth++;
-        else if (ch === ")" && --depth === 0) { maskImage = tail.slice(0, i + 1); break; }
+        else if (ch === ")" && --depth === 0) {
+          maskImage = tail.slice(0, i + 1);
+          break;
+        }
       }
     }
   }
@@ -2348,10 +2612,22 @@ function appendBoxReflection(state: RenderState, el: CapturedElement, fragmentSt
   if (spec.maskImage != null) {
     const maskId = state.paintCtx.nextClipId("reflect-mask");
     const fillId = state.paintCtx.nextClipId("reflect-fill");
-    const built = buildBackgroundLayerDef(fillId, spec.maskImage, el.x, el.y, el.width, el.height, "100% 100%", "0% 0%", "no-repeat");
+    const built = buildBackgroundLayerDef(
+      fillId,
+      spec.maskImage,
+      el.x,
+      el.y,
+      el.width,
+      el.height,
+      "100% 100%",
+      "0% 0%",
+      "no-repeat",
+    );
     if (built.def !== "") {
       state.defsParts.push(built.def);
-      state.defsParts.push(`<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" style="mask-type:alpha"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="url(#${fillId})"/></mask>`);
+      state.defsParts.push(
+        `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" style="mask-type:alpha"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="url(#${fillId})"/></mask>`,
+      );
       reflected = `<g mask="url(#${maskId})">${source}</g>`;
     }
   }
@@ -2362,13 +2638,18 @@ function appendBoxReflection(state: RenderState, el: CapturedElement, fragmentSt
   state.svgParts.splice(fragmentStart, 0, markup);
 }
 
-export function boxReflectionTransform(spec: BoxReflectionSpec, x: number, y: number, width: number, height: number): string {
+export function boxReflectionTransform(
+  spec: BoxReflectionSpec,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): string {
   if (spec.direction === "below") return `matrix(1 0 0 -1 0 ${r(2 * (y + height) + spec.offset)})`;
   if (spec.direction === "above") return `matrix(1 0 0 -1 0 ${r(2 * y - spec.offset)})`;
   if (spec.direction === "right") return `matrix(-1 0 0 1 ${r(2 * (x + width) + spec.offset)} 0)`;
   return `matrix(-1 0 0 1 ${r(2 * x - spec.offset)} 0)`;
 }
-
 
 function computeGroupWrapperAttrs(
   el: CapturedElement,
@@ -2377,7 +2658,15 @@ function computeGroupWrapperAttrs(
   opacity: number,
   filterCss: string,
   blendCss: string,
-): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; localizeReferenceFilter: boolean; outerBlendStyle: string; hasTransform: boolean } {
+): {
+  needsGroup: boolean;
+  groupAttrs: string[];
+  animClass: string;
+  needsFilterOuter: boolean;
+  localizeReferenceFilter: boolean;
+  outerBlendStyle: string;
+  hasTransform: boolean;
+} {
   const projective = el.projectiveTransform;
   const hasProjectiveTransform = projective != null;
   const transformAttr = hasProjectiveTransform
@@ -2395,12 +2684,15 @@ function computeGroupWrapperAttrs(
   // is set on the group, otherwise we'd convert intentional blends into
   // no-ops.
   const explicitIsolate = el.styles.isolation === "isolate";
-  const implicitIsolate = blendCss === "" && (
-    opacity < 1
-    || (el.styles.position != null && el.styles.position !== "static"
-        && el.styles.zIndex != null && el.styles.zIndex !== "" && el.styles.zIndex !== "auto")
-    || (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain))
-  );
+  const implicitIsolate =
+    blendCss === "" &&
+    (opacity < 1 ||
+      (el.styles.position != null &&
+        el.styles.position !== "static" &&
+        el.styles.zIndex != null &&
+        el.styles.zIndex !== "" &&
+        el.styles.zIndex !== "auto") ||
+      (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain)));
   const needsIsolation = explicitIsolate || implicitIsolate;
   // DM-603: an element marked for viewBox culling forces a wrapping <g>
   // even if none of the above attributes would otherwise have demanded one,
@@ -2411,7 +2703,16 @@ function computeGroupWrapperAttrs(
   // — the animation's keyframes are the single opacity source, so a fade can
   // brighten past the captured value instead of multiplying against it.
   const bakeOpacity = opacity < 1 && !animationOwnsOpacity(el);
-  const needsGroup = bakeOpacity || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || hasProjectiveTransform || needsIsolation || needsCullWrapper;
+  const needsGroup =
+    bakeOpacity ||
+    filterCss !== "" ||
+    blendCss !== "" ||
+    clipPathUrlId != null ||
+    maskUrlId != null ||
+    transformAttr !== "" ||
+    hasProjectiveTransform ||
+    needsIsolation ||
+    needsCullWrapper;
   const groupAttrs: string[] = [];
   if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
   // Opacity is a unitless compositor coefficient, not geometry. One-decimal
@@ -2461,7 +2762,15 @@ function computeGroupWrapperAttrs(
   const outerBlendStyle = filterInsideBlend
     ? [`mix-blend-mode:${blendCss}`, ...(needsIsolation ? ["isolation:isolate"] : [])].join(";")
     : "";
-  return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform: transformAttr !== "" || hasProjectiveTransform };
+  return {
+    needsGroup,
+    groupAttrs,
+    animClass,
+    needsFilterOuter,
+    localizeReferenceFilter,
+    outerBlendStyle,
+    hasTransform: transformAttr !== "" || hasProjectiveTransform,
+  };
 }
 
 /**
@@ -2481,7 +2790,6 @@ function wrapAtomicRasterTimeline(el: CapturedElement, markup: string): string {
   if (el.displayNone === true) attrs.push('style="display:none"');
   return attrs.length === 0 ? result : `<g ${attrs.join(" ")}>${result}</g>`;
 }
-
 
 /**
  * Bucket `el`'s children by CSS 2.1 Appendix E paint step, resolved ONCE per
@@ -2507,7 +2815,14 @@ function resolveChildPlan(
   const hoistedAsInlineForEl = new Set<CapturedElement>();
   const hoistedAsZSortedForEl = new Set<CapturedElement>();
   if (establishesStackingContext(el, parentDisplayForEl)) {
-    childrenForSort = gatherStackingContextChildren(el.children, hoistedFromAncestor, childDisplay, hoistedAsInlineForEl, overflowClipForHoisted, hoistedAsZSortedForEl);
+    childrenForSort = gatherStackingContextChildren(
+      el.children,
+      hoistedFromAncestor,
+      childDisplay,
+      hoistedAsInlineForEl,
+      overflowClipForHoisted,
+      hoistedAsZSortedForEl,
+    );
   } else {
     childrenForSort = el.children.filter((c) => !hoistedFromAncestor.has(c));
   }
@@ -2515,7 +2830,14 @@ function resolveChildPlan(
   // `order` / `*-reverse` reorder of a flattened paint list keeps each
   // hoisted descendant grouped with (and painting after) its direct-item
   // ancestor instead of being reversed ahead of it.
-  const buckets = paintOrderBuckets(childrenForSort, childDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl, new Set(el.children));
+  const buckets = paintOrderBuckets(
+    childrenForSort,
+    childDisplay,
+    el.styles.flexDirection,
+    hoistedAsInlineForEl,
+    hoistedAsZSortedForEl,
+    new Set(el.children),
+  );
   // DM-751: when this element establishes a 3D rendering context
   // (`transform-style: preserve-3d`), CSS Transforms 2 §6 sorts children
   // by their Z position in 3D space — translateZ — not by z-index. Re-
@@ -2535,7 +2857,14 @@ function resolveChildPlan(
   let flat3d: CapturedElement[] | null = null;
   if (el.styles.transformStyle === "preserve-3d") {
     const zOf = (c: CapturedElement) => c.styles.translateZ ?? 0;
-    flat3d = [...buckets.negative, ...buckets.base, ...buckets.floats, ...buckets.inlines, ...buckets.zeroOrAuto, ...buckets.positive]
+    flat3d = [
+      ...buckets.negative,
+      ...buckets.base,
+      ...buckets.floats,
+      ...buckets.inlines,
+      ...buckets.zeroOrAuto,
+      ...buckets.positive,
+    ]
       .map((c, idx) => ({ c, idx, z: zOf(c) }))
       .sort((a, b) => a.z - b.z || a.idx - b.idx)
       .map((x) => x.c);
@@ -2614,10 +2943,13 @@ function renderChildInlinePhase(state: RenderState, plan: ChildPaintPlan, depth:
 /** Does the inline phase of these children emit anything at all? */
 function childInlinePhaseIsEmpty(plan: ChildPaintPlan): boolean {
   const { buckets } = plan;
-  return buckets.base.length === 0 && buckets.inlines.length === 0
-    && buckets.zeroOrAuto.length === 0 && buckets.positive.length === 0;
+  return (
+    buckets.base.length === 0 &&
+    buckets.inlines.length === 0 &&
+    buckets.zeroOrAuto.length === 0 &&
+    buckets.positive.length === 0
+  );
 }
-
 
 /**
  * Resolve the element's effective clip-path id (extracted from `renderElement`,
@@ -2680,40 +3012,44 @@ function paintCapturedPseudoFragments(
   slot: PseudoFragmentPaintSlot,
 ): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
-  svgParts.push(...renderPseudoFragmentSlot(el, slot, {
-    indent,
-    emittedCtm: paintCtx.emittedTextCtm.get(el),
-    imageHref: (url, width, height) => embedResizedDataUri(url, width, height),
-    emitBackgroundImage: ({ record, rect, borderRadius }) => {
-      const layers = splitTopLevelCommas(record.paint.backgroundImage);
-      const sizes = splitTopLevelCommas(record.paint.backgroundSize);
-      const positions = splitTopLevelCommas(record.paint.backgroundPosition);
-      const repeats = splitTopLevelCommas(record.paint.backgroundRepeat);
-      const markup: string[] = [];
-      for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
-        const id = paintCtx.nextClipId("pfbg");
-        const out = buildBackgroundLayerDef(
-          id,
-          layers[layerIndex].trim(),
-          rect.x,
-          rect.y,
-          rect.width,
-          rect.height,
-          cyclicBackgroundLayer(sizes, layerIndex, "auto").trim(),
-          cyclicBackgroundLayer(positions, layerIndex, "0% 0%").trim(),
-          cyclicBackgroundLayer(repeats, layerIndex, "repeat").trim(),
-          null,
-          "scroll",
-          captureViewport,
-        );
-        if (out.def === "") continue;
-        defsParts.push(out.def);
-        const radius = borderRadius > 0 ? ` rx="${r(borderRadius)}" ry="${r(borderRadius)}"` : "";
-        markup.push(`<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radius} fill="url(#${id})"/>`);
-      }
-      return markup.join("");
-    },
-  }));
+  svgParts.push(
+    ...renderPseudoFragmentSlot(el, slot, {
+      indent,
+      emittedCtm: paintCtx.emittedTextCtm.get(el),
+      imageHref: (url, width, height) => embedResizedDataUri(url, width, height),
+      emitBackgroundImage: ({ record, rect, borderRadius }) => {
+        const layers = splitTopLevelCommas(record.paint.backgroundImage);
+        const sizes = splitTopLevelCommas(record.paint.backgroundSize);
+        const positions = splitTopLevelCommas(record.paint.backgroundPosition);
+        const repeats = splitTopLevelCommas(record.paint.backgroundRepeat);
+        const markup: string[] = [];
+        for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
+          const id = paintCtx.nextClipId("pfbg");
+          const out = buildBackgroundLayerDef(
+            id,
+            layers[layerIndex].trim(),
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            cyclicBackgroundLayer(sizes, layerIndex, "auto").trim(),
+            cyclicBackgroundLayer(positions, layerIndex, "0% 0%").trim(),
+            cyclicBackgroundLayer(repeats, layerIndex, "repeat").trim(),
+            null,
+            "scroll",
+            captureViewport,
+          );
+          if (out.def === "") continue;
+          defsParts.push(out.def);
+          const radius = borderRadius > 0 ? ` rx="${r(borderRadius)}" ry="${r(borderRadius)}"` : "";
+          markup.push(
+            `<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radius} fill="url(#${id})"/>`,
+          );
+        }
+        return markup.join("");
+      },
+    }),
+  );
 }
 
 /** `renderMaskPhase` memoized per element — see `resolveClipPathOnce`. */
@@ -2739,7 +3075,12 @@ function renderMaskPhaseOnce(state: RenderState, el: CapturedElement): string | 
  * belongs to neither: the caller defers it to after child recursion so it wins
  * z over child text (`paintDeferredFadeOverlays`).
  */
-function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: string, select: "behind" | "inline" = "inline"): void {
+function paintPseudoBoxes(
+  state: RenderState,
+  el: CapturedElement,
+  indent: string,
+  select: "behind" | "inline" = "inline",
+): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
   if (el.pseudoBoxes != null) {
     for (const pb of el.pseudoBoxes) {
@@ -2764,11 +3105,13 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       // (`pseudo-after-down-caret-vertical-align`) stays correct.
       if (pb.pseudo === "::after" && select === "inline") {
         const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-        const hasBgColor = pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
-        const hasBorder = (pb.borderTopWidth ?? 0) > 0
-          || (pb.borderRightWidth ?? 0) > 0
-          || (pb.borderBottomWidth ?? 0) > 0
-          || (pb.borderLeftWidth ?? 0) > 0;
+        const hasBgColor =
+          pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+        const hasBorder =
+          (pb.borderTopWidth ?? 0) > 0 ||
+          (pb.borderRightWidth ?? 0) > 0 ||
+          (pb.borderBottomWidth ?? 0) > 0 ||
+          (pb.borderLeftWidth ?? 0) > 0;
         // A negative-z gradient `::after` is NOT a fade overlay (it already
         // took the `"behind"` path above), so only the auto / non-negative
         // ones defer to the on-top pass.
@@ -2779,7 +3122,9 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       const pbStart = svgParts.length;
       if (pb.backgroundColor) {
         const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
-        svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="${pb.backgroundColor}" />`);
+        svgParts.push(
+          `${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="${pb.backgroundColor}" />`,
+        );
       }
       // DM-767: pseudoBox background-image (linear-/radial-gradient).
       // Emit each comma-separated layer in reverse order so layer 0 (first
@@ -2793,13 +3138,25 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
           const layer = pbLayers[li].trim();
           const defId = paintCtx.nextClipId("pbg");
           const out = buildBackgroundLayerDef(
-            defId, layer, pb.x, pb.y, pb.width, pb.height,
-            pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
+            defId,
+            layer,
+            pb.x,
+            pb.y,
+            pb.width,
+            pb.height,
+            pb.backgroundSize ?? "auto",
+            pb.backgroundPosition ?? "0% 0%",
+            "repeat",
+            null,
+            "scroll",
+            captureViewport,
           );
           if (out.def === "") continue;
           defsParts.push(out.def);
           const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
-          svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+          svgParts.push(
+            `${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`,
+          );
         }
       }
       // CSS triangle: 0×0 box with one solid border and adjacent borders
@@ -2807,7 +3164,10 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       // a right triangle in the solid color. Detect + emit as <polygon>
       // since per-side <line> emission would draw a stub the wrong shape.
       const isOpaque = (c?: string): boolean =>
-        c != null && c !== "rgba(0, 0, 0, 0)" && c !== "transparent" && !/^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)/i.test(c);
+        c != null &&
+        c !== "rgba(0, 0, 0, 0)" &&
+        c !== "transparent" &&
+        !/^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)/i.test(c);
       const bwT = pb.borderTopWidth ?? 0;
       const bwR = pb.borderRightWidth ?? 0;
       const bwB = pb.borderBottomWidth ?? 0;
@@ -2826,9 +3186,7 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       // and we'd want per-side <line> emission instead.
       const contentW = pb.width - bwL - bwR;
       const contentH = pb.height - bwT - bwB;
-      const isTriangle = opaqueCount === 1
-        && totalBorderCount >= 2
-        && contentW <= 1 && contentH <= 1;
+      const isTriangle = opaqueCount === 1 && totalBorderCount >= 2 && contentW <= 1 && contentH <= 1;
       if (isTriangle) {
         // Identify the solid side and compute the triangle vertices.
         // Outer-box corners: (x,y), (x+w,y), (x+w,y+h), (x,y+h).
@@ -2849,16 +3207,32 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
           // (0,0) → (W,0) → (bwL, H). But for symmetric tail (left=right
           // borders equal), apex = (W/2, H). We use bwL when borders
           // differ.
-          pts = [[X, Y], [X + W, Y], [X + bwL, Y + H]];
+          pts = [
+            [X, Y],
+            [X + W, Y],
+            [X + bwL, Y + H],
+          ];
           color = pb.borderTopColor!;
         } else if (opaqueSides[1]) {
-          pts = [[X + W, Y], [X + W, Y + H], [X + W - bwR, Y + bwT]];
+          pts = [
+            [X + W, Y],
+            [X + W, Y + H],
+            [X + W - bwR, Y + bwT],
+          ];
           color = pb.borderRightColor!;
         } else if (opaqueSides[2]) {
-          pts = [[X + W, Y + H], [X, Y + H], [X + W - bwR, Y + H - bwB]];
+          pts = [
+            [X + W, Y + H],
+            [X, Y + H],
+            [X + W - bwR, Y + H - bwB],
+          ];
           color = pb.borderBottomColor!;
         } else if (opaqueSides[3]) {
-          pts = [[X, Y + H], [X, Y], [X + bwL, Y + bwT]];
+          pts = [
+            [X, Y + H],
+            [X, Y],
+            [X + bwL, Y + bwT],
+          ];
           color = pb.borderLeftColor!;
         }
         if (pts.length === 3 && color !== "") {
@@ -2877,12 +3251,16 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       // green-circle-with-darker-ring Chrome paints. Emit a single
       // stroked `<rect rx>` in that case so the outline follows the
       // background's curve.
-      const uniformBorder = bwT > 0 && bwT === bwR && bwR === bwB && bwB === bwL
-        && pb.borderTopColor != null
-        && pb.borderTopColor === pb.borderRightColor
-        && pb.borderRightColor === pb.borderBottomColor
-        && pb.borderBottomColor === pb.borderLeftColor
-        && (pb.borderTopStyle == null || pb.borderTopStyle === pb.borderRightStyle);
+      const uniformBorder =
+        bwT > 0 &&
+        bwT === bwR &&
+        bwR === bwB &&
+        bwB === bwL &&
+        pb.borderTopColor != null &&
+        pb.borderTopColor === pb.borderRightColor &&
+        pb.borderRightColor === pb.borderBottomColor &&
+        pb.borderBottomColor === pb.borderLeftColor &&
+        (pb.borderTopStyle == null || pb.borderTopStyle === pb.borderRightStyle);
       if (uniformBorder && pb.borderRadius != null && pb.borderRadius > 0 && isOpaque(pb.borderTopColor)) {
         const style = pb.borderTopStyle ?? "solid";
         if (style !== "none" && style !== "hidden") {
@@ -2896,8 +3274,15 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
           const sw = Math.max(0, pb.width - w);
           const sh = Math.max(0, pb.height - w);
           const sr = Math.max(0, pb.borderRadius - half);
-          const dash = style === "dashed" ? ` stroke-dasharray="${r(w * 2)},${r(w * 2)}"` : style === "dotted" ? ` stroke-dasharray="${r(w)},${r(w)}"` : "";
-          svgParts.push(`${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh)}" rx="${r(sr)}" fill="none" stroke="${pb.borderTopColor}" stroke-width="${r(w)}"${dash} />`);
+          const dash =
+            style === "dashed"
+              ? ` stroke-dasharray="${r(w * 2)},${r(w * 2)}"`
+              : style === "dotted"
+                ? ` stroke-dasharray="${r(w)},${r(w)}"`
+                : "";
+          svgParts.push(
+            `${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh)}" rx="${r(sr)}" fill="none" stroke="${pb.borderTopColor}" stroke-width="${r(w)}"${dash} />`,
+          );
           flushPbTransformWrap();
           continue;
         }
@@ -2906,18 +3291,62 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       // appropriate edge. For h=0 / w=0 boxes this collapses to a single
       // visible hairline — the separator case.
       const side = (
-        x1: number, y1: number, x2: number, y2: number,
-        width: number | undefined, color: string | undefined, style: string | undefined,
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+        width: number | undefined,
+        color: string | undefined,
+        style: string | undefined,
       ): void => {
         if (!width || width <= 0 || !color || color === "rgba(0, 0, 0, 0)" || color === "transparent") return;
         if (style === "none" || style === "hidden") return;
-        const dash = style === "dashed" ? ` stroke-dasharray="${r(width * 2)},${r(width * 2)}"` : style === "dotted" ? ` stroke-dasharray="${r(width)},${r(width)}"` : "";
-        svgParts.push(`${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${r(width)}"${dash} />`);
+        const dash =
+          style === "dashed"
+            ? ` stroke-dasharray="${r(width * 2)},${r(width * 2)}"`
+            : style === "dotted"
+              ? ` stroke-dasharray="${r(width)},${r(width)}"`
+              : "";
+        svgParts.push(
+          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${r(width)}"${dash} />`,
+        );
       };
-      side(pb.x, pb.y + (pb.borderTopWidth ?? 0) / 2, pb.x + pb.width, pb.y + (pb.borderTopWidth ?? 0) / 2, pb.borderTopWidth, pb.borderTopColor, pb.borderTopStyle);
-      side(pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y, pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y + pb.height, pb.borderRightWidth, pb.borderRightColor, pb.borderRightStyle);
-      side(pb.x, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.x + pb.width, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.borderBottomWidth, pb.borderBottomColor, pb.borderBottomStyle);
-      side(pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y, pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y + pb.height, pb.borderLeftWidth, pb.borderLeftColor, pb.borderLeftStyle);
+      side(
+        pb.x,
+        pb.y + (pb.borderTopWidth ?? 0) / 2,
+        pb.x + pb.width,
+        pb.y + (pb.borderTopWidth ?? 0) / 2,
+        pb.borderTopWidth,
+        pb.borderTopColor,
+        pb.borderTopStyle,
+      );
+      side(
+        pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2,
+        pb.y,
+        pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2,
+        pb.y + pb.height,
+        pb.borderRightWidth,
+        pb.borderRightColor,
+        pb.borderRightStyle,
+      );
+      side(
+        pb.x,
+        pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2,
+        pb.x + pb.width,
+        pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2,
+        pb.borderBottomWidth,
+        pb.borderBottomColor,
+        pb.borderBottomStyle,
+      );
+      side(
+        pb.x + (pb.borderLeftWidth ?? 0) / 2,
+        pb.y,
+        pb.x + (pb.borderLeftWidth ?? 0) / 2,
+        pb.y + pb.height,
+        pb.borderLeftWidth,
+        pb.borderLeftColor,
+        pb.borderLeftStyle,
+      );
       // Wrap whatever this iteration emitted (rect / lines / polygon /
       // per-side strokes) as one generated-content paint atom.
       function flushPbTransformWrap() {
@@ -2927,7 +3356,7 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
         if (!hasFilter && !hasTransform && !hasOpacity) return;
         const added = svgParts.splice(pbStart);
         if (added.length === 0) return;
-        const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+        const inner = added.map((s) => (s.startsWith(indent) ? s.slice(indent.length) : s)).join("");
         svgParts.push(`${indent}${wrapPseudoPaintEffects(pb, inner)}`);
       }
       flushPbTransformWrap();
@@ -2948,11 +3377,13 @@ function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, inde
     for (const pb of el.pseudoBoxes) {
       if (pb.pseudo !== "::after") continue;
       const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-      const hasBgColor = pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
-      const hasBorder = (pb.borderTopWidth ?? 0) > 0
-        || (pb.borderRightWidth ?? 0) > 0
-        || (pb.borderBottomWidth ?? 0) > 0
-        || (pb.borderLeftWidth ?? 0) > 0;
+      const hasBgColor =
+        pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+      const hasBorder =
+        (pb.borderTopWidth ?? 0) > 0 ||
+        (pb.borderRightWidth ?? 0) > 0 ||
+        (pb.borderBottomWidth ?? 0) > 0 ||
+        (pb.borderLeftWidth ?? 0) > 0;
       if (!(hasBgImage && !hasBgColor && !hasBorder)) continue;
       // DM-1051: a negative z-index glow was already painted behind in the
       // early loop — don't re-emit it on top here.
@@ -2963,17 +3394,29 @@ function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, inde
         const layer = pbLayers[li].trim();
         const defId = paintCtx.nextClipId("pbg");
         const out = buildBackgroundLayerDef(
-          defId, layer, pb.x, pb.y, pb.width, pb.height,
-          pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
+          defId,
+          layer,
+          pb.x,
+          pb.y,
+          pb.width,
+          pb.height,
+          pb.backgroundSize ?? "auto",
+          pb.backgroundPosition ?? "0% 0%",
+          "repeat",
+          null,
+          "scroll",
+          captureViewport,
         );
         if (out.def === "") continue;
         defsParts.push(out.def);
         const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
-        svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+        svgParts.push(
+          `${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`,
+        );
       }
       const added = svgParts.splice(pbEffectStart);
       if (added.length > 0) {
-        const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+        const inner = added.map((s) => (s.startsWith(indent) ? s.slice(indent.length) : s)).join("");
         svgParts.push(`${indent}${wrapPseudoPaintEffects(pb, inner)}`);
       }
     }
@@ -3022,8 +3465,11 @@ export function childOverflowClipGeometry(
   const ox = el.styles.overflowX;
   const oy = el.styles.overflowY;
   const containVal = el.styles.contain;
-  const containClips = containVal != null && containVal !== "" && containVal !== "none"
-    && /\b(?:paint|strict|content)\b/i.test(containVal);
+  const containClips =
+    containVal != null &&
+    containVal !== "" &&
+    containVal !== "none" &&
+    /\b(?:paint|strict|content)\b/i.test(containVal);
   const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
   // Body overflow propagates to the viewport instead of clipping body itself.
   if (!clipsOverflow || el.tag === "body" || el.children.length === 0) return null;
@@ -3051,7 +3497,10 @@ export function childOverflowClipGeometry(
   if (el.fieldsetLegendNotch != null) {
     // A rendered legend belongs to the fieldset border, not its scrollport.
     const protrude = y - el.fieldsetLegendNotch.y;
-    if (protrude > 0) { y -= protrude; height += protrude; }
+    if (protrude > 0) {
+      y -= protrude;
+      height += protrude;
+    }
   }
   const unbounded = 100000;
   // SVG has one clip shape, so model a visible axis by extending it beyond any
@@ -3089,9 +3538,16 @@ function ensureChildOverflowClipId(
   let overflowClipId: string | null = null;
   if (geometry != null) {
     overflowClipId = paintCtx.nextClipId("ov");
-    defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(
-      geometry.x, geometry.y, geometry.width, geometry.height, geometry.corners, "",
-    )}</clipPath>`);
+    defsParts.push(
+      `<clipPath id="${overflowClipId}">${roundedRectSvg(
+        geometry.x,
+        geometry.y,
+        geometry.width,
+        geometry.height,
+        geometry.corners,
+        "",
+      )}</clipPath>`,
+    );
     // DM-673: stash the clip-path id so hoisted descendants of this
     // overflow scroller can re-wrap their emission in the same clip.
     overflowClipPathIds.set(el, overflowClipId);
@@ -3123,9 +3579,7 @@ interface ElementPaintPhaseContext {
   pseudoNegativePaintsAboveHostBox: boolean;
 }
 
-type TextClipBackgroundStack = RenderState["bgClipTextFills"] extends Map<CapturedElement, infer Stack>
-  ? Stack
-  : never;
+type TextClipBackgroundStack = RenderState["bgClipTextFills"] extends Map<CapturedElement, infer Stack> ? Stack : never;
 
 interface ElementBackgroundPhaseResult {
   textBgClipStack: TextClipBackgroundStack | undefined;
@@ -3138,12 +3592,19 @@ interface ElementBackgroundPhaseResult {
  * outset shadow, background stack, native background decoration, and inset
  * shadow. Source order below is the paint contract.
  */
-function paintElementBackgroundPhase(
-  context: ElementPaintPhaseContext,
-): ElementBackgroundPhaseResult {
+function paintElementBackgroundPhase(context: ElementPaintPhaseContext): ElementBackgroundPhaseResult {
   const {
-    state, el, indent, paintBoxPhase, bgColor, corners, boxPaintEl, boxPaintCorners, suppressEmptyCell,
-    useInlineFragments, pseudoNegativePaintsAboveHostBox,
+    state,
+    el,
+    indent,
+    paintBoxPhase,
+    bgColor,
+    corners,
+    boxPaintEl,
+    boxPaintCorners,
+    suppressEmptyCell,
+    useInlineFragments,
+    pseudoNegativePaintsAboveHostBox,
   } = context;
   const { svgParts, paintCtx, captureViewport } = state;
   // A negative positioned pseudo on a host that does not itself establish a
@@ -3184,7 +3645,9 @@ function paintElementBackgroundPhase(
   // CSS layering. The background-color paints *under* all layers.
   const backgroundStackStart = svgParts.length;
   if (paintBoxPhase) {
-    svgParts.push(...paintBackgroundColor(boxPaintEl, boxPaintCorners, indent, bgColor, useInlineFragments, suppressEmptyCell));
+    svgParts.push(
+      ...paintBackgroundColor(boxPaintEl, boxPaintCorners, indent, bgColor, useInlineFragments, suppressEmptyCell),
+    );
   }
   // DM-462: when the element uses `background-clip: text`, the first
   // text-clipped layer's gradient/image is captured here and used as the
@@ -3202,16 +3665,19 @@ function paintElementBackgroundPhase(
   // in the inline phase, so they are stashed for the second pass to pick up.
   if (paintBoxPhase) {
     const backgroundImageStart = svgParts.length;
-    state.bgClipTextFills.set(el, paintBackgroundImageLayers(
-      paintCtx,
-      boxPaintEl,
-      indent,
-      boxPaintCorners,
-      useInlineFragments,
-      captureViewport,
-      buildBackgroundLayerDef,
-      backgroundColorClipsToText,
-    ));
+    state.bgClipTextFills.set(
+      el,
+      paintBackgroundImageLayers(
+        paintCtx,
+        boxPaintEl,
+        indent,
+        boxPaintCorners,
+        useInlineFragments,
+        captureViewport,
+        buildBackgroundLayerDef,
+        backgroundColorClipsToText,
+      ),
+    );
     const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
     const hasNonNormalBlend = blendLayers.some((mode) => mode.trim() !== "" && mode.trim() !== "normal");
     // Blink's BoxPainterBase opens its separate buffer around PaintFillLayers,
@@ -3250,7 +3716,9 @@ function paintElementBackgroundPhase(
     // border. Selected text is later child content. Keep this exact phase:
     // putting the transparent crop after the border/text changes overlap for
     // thick borders, inset shadows, and tight vertical controls.
-    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+    svgParts.push(
+      `${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`,
+    );
   }
 
   // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
@@ -3278,13 +3746,34 @@ function paintElementBackgroundPhase(
 /** Appendix E border phase: border image/sides, column rules, then outline. */
 function paintElementBorderPhase(context: ElementPaintPhaseContext): void {
   const {
-    state, el, indent, paintBoxPhase, borderColor, borderWidth, borderRadius,
-    boxPaintEl, boxPaintCorners, suppressEmptyCell, useInlineFragments,
+    state,
+    el,
+    indent,
+    paintBoxPhase,
+    borderColor,
+    borderWidth,
+    borderRadius,
+    boxPaintEl,
+    boxPaintCorners,
+    suppressEmptyCell,
+    useInlineFragments,
   } = context;
   const { svgParts, paintCtx, width, height, offGridCollapsedCells } = state;
 
   if (paintBoxPhase) {
-    paintBorder(paintCtx, boxPaintEl, indent, boxPaintCorners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
+    paintBorder(
+      paintCtx,
+      boxPaintEl,
+      indent,
+      boxPaintCorners,
+      width,
+      height,
+      borderWidth,
+      borderColor,
+      suppressEmptyCell,
+      useInlineFragments,
+      offGridCollapsedCells,
+    );
   }
 
   // Column rules belong to the multicol container's box-paint phase and sit
@@ -3294,17 +3783,24 @@ function paintElementBorderPhase(context: ElementPaintPhaseContext): void {
   if (paintBoxPhase && el.columnRules != null) {
     for (const rule of el.columnRules) {
       const ruleColor = colorStr(parseColor(rule.color) ?? { r: 0, g: 0, b: 0, a: 1 });
-      const dash = rule.style === "dashed"
-        ? ` stroke-dasharray="${r(rule.width * 3)},${r(rule.width * 3)}"`
-        : rule.style === "dotted"
-          ? ` stroke-dasharray="0,${r(rule.width * 2)}" stroke-linecap="round"`
-          : "";
+      const dash =
+        rule.style === "dashed"
+          ? ` stroke-dasharray="${r(rule.width * 3)},${r(rule.width * 3)}"`
+          : rule.style === "dotted"
+            ? ` stroke-dasharray="0,${r(rule.width * 2)}" stroke-linecap="round"`
+            : "";
       if (rule.style === "double" && rule.width >= 3) {
         const part = rule.width / 3;
-        svgParts.push(`${indent}<line x1="${r(rule.x - part)}" y1="${r(rule.y1)}" x2="${r(rule.x - part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
-        svgParts.push(`${indent}<line x1="${r(rule.x + part)}" y1="${r(rule.y1)}" x2="${r(rule.x + part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
+        svgParts.push(
+          `${indent}<line x1="${r(rule.x - part)}" y1="${r(rule.y1)}" x2="${r(rule.x - part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`,
+        );
+        svgParts.push(
+          `${indent}<line x1="${r(rule.x + part)}" y1="${r(rule.y1)}" x2="${r(rule.x + part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`,
+        );
       } else {
-        svgParts.push(`${indent}<line x1="${r(rule.x)}" y1="${r(rule.y1)}" x2="${r(rule.x)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(rule.width)}"${dash} />`);
+        svgParts.push(
+          `${indent}<line x1="${r(rule.x)}" y1="${r(rule.y1)}" x2="${r(rule.x)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(rule.width)}"${dash} />`,
+        );
       }
     }
   }
@@ -3326,9 +3822,7 @@ function paintElementContentPhase(
   context: ElementPaintPhaseContext,
   backgroundPhase: ElementBackgroundPhaseResult,
 ): boolean {
-  const {
-    state, el, indent, borderRadius, corners, textColor,
-  } = context;
+  const { state, el, indent, borderRadius, corners, textColor } = context;
   const { svgParts, defsParts, paintCtx, defCtx, captureViewport } = state;
   const { nativeDecoration, isMenulistButtonDecoration } = backgroundPhase;
   // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
@@ -3360,7 +3854,9 @@ function paintElementContentPhase(
     const shadow = renderFileSelectorOutsetShadow(el, indent, defCtx, true);
     if (shadow !== "") svgParts.push(shadow);
     if (nativeDecoration?.dataUri != null) {
-      svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+      svgParts.push(
+        `${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`,
+      );
     }
   }
   const fc = renderFormControl(el, indent, defCtx);
@@ -3370,7 +3866,9 @@ function paintElementContentPhase(
     // stays inside the host's normal opacity/transform/clip/filter wrappers,
     // above the structural box and value text, unlike a complete native host
     // raster which terminates rendering near the top of this function.
-    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+    svgParts.push(
+      `${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`,
+    );
   }
 
   // DM-2464: the authoritative live record owns failed/loading/no-source
@@ -3385,9 +3883,12 @@ function paintElementContentPhase(
   });
   defsParts.push(...brokenFallback.defs);
   svgParts.push(...brokenFallback.svg);
-  if (!brokenFallback.handled && el.imageBroken !== true
-      && el.imageSrc != null
-      && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
+  if (
+    !brokenFallback.handled &&
+    el.imageBroken !== true &&
+    el.imageSrc != null &&
+    (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))
+  ) {
     paintImage(paintCtx, el, borderRadius, corners, indent);
   }
 
@@ -3440,10 +3941,7 @@ function paintElementContentPhase(
 }
 
 /** Authored text and its truncation marker, kept after generated-before paint. */
-function paintElementTextPhase(
-  context: ElementPaintPhaseContext,
-  backgroundPhase: ElementBackgroundPhaseResult,
-): void {
+function paintElementTextPhase(context: ElementPaintPhaseContext, backgroundPhase: ElementBackgroundPhaseResult): void {
   const { state, el, indent, textColor } = context;
   const { svgParts, paintCtx, captureViewport } = state;
   const {
@@ -3483,10 +3981,7 @@ function paintElementTextPhase(
  * controls. Keeping these emissions in one final phase makes the "last wins"
  * invariants visible at the call site.
  */
-function paintElementOverlayPhase(
-  context: ElementPaintPhaseContext,
-  childPlan: ChildPaintPlan,
-): void {
+function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: ChildPaintPlan): void {
   const { state, el, depth, indent, corners } = context;
   const { svgParts, defsParts, paintCtx, captureViewport } = state;
   // ── Step 5 (continued) + steps 6-7: the children's inline content, then
@@ -3562,7 +4057,9 @@ function paintElementOverlayPhase(
     const barRight = el.x + el.width;
     const barY = Math.round((num.y + num.height + den.y) / 2);
     const fillCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
-    svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
+    svgParts.push(
+      `${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`,
+    );
   }
 
   // DM-809 / DM-897: MathML `<msqrt>` / `<mroot>` need their radical sign +
@@ -3581,8 +4078,17 @@ function paintElementOverlayPhase(
     const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
     const radFontSize = parseFloat(el.styles.fontSize) || 16;
     const glyphRadical = renderRadicalGlyph(
-      el.x, el.y, el.height, el.width,
-      { fontSize: radFontSize, fontFamily: el.styles.fontFamily, fontWeight: el.styles.fontWeight, fontStyle: el.styles.fontStyle, fontStretch: el.styles.fontStretch },
+      el.x,
+      el.y,
+      el.height,
+      el.width,
+      {
+        fontSize: radFontSize,
+        fontFamily: el.styles.fontFamily,
+        fontWeight: el.styles.fontWeight,
+        fontStyle: el.styles.fontStyle,
+        fontStretch: el.styles.fontStretch,
+      },
       strokeCol,
     );
     if (glyphRadical != null) {
@@ -3607,13 +4113,19 @@ function paintElementOverlayPhase(
   // horizontal, vertical, custom corner, then the separately owned resizer.
   // Geometry is already in capture-viewport coordinates and must not be
   // recomputed from scroll ranges or transformed a second time.
-  svgParts.push(...paintCustomScrollbars({
-    defsParts,
-    nextId: (prefix) => paintCtx.nextClipId(prefix),
-    paintVectorPart: (item, partIndent) => paintCustomScrollbarVectorPart(
-      paintCtx, captureViewport, el, item, partIndent,
+  svgParts.push(
+    ...paintCustomScrollbars(
+      {
+        defsParts,
+        nextId: (prefix) => paintCtx.nextClipId(prefix),
+        paintVectorPart: (item, partIndent) =>
+          paintCustomScrollbarVectorPart(paintCtx, captureViewport, el, item, partIndent),
+      },
+      captureViewport,
+      el,
+      indent,
     ),
-  }, captureViewport, el, indent));
+  );
 
   // PaintOverflowControls orders both axes and the corner before the resizer.
   // Native crops are already clipped source-frame pixels in capture-viewport
@@ -3622,7 +4134,6 @@ function paintElementOverlayPhase(
 
   svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
 }
-
 
 /**
  * Resolve terminal paint ownership before the vector pipeline opens any
@@ -3690,10 +4201,11 @@ function paintAtomicElementPhase(
     return true;
   }
 
-  const terminalBackdropComposite = el.backdropCompositeRaster?.source === "chromium-relative-effect-layer-v1"
-    && el.backdropCompositeRaster.dataUri != null
-    ? el.backdropCompositeRaster
-    : undefined;
+  const terminalBackdropComposite =
+    el.backdropCompositeRaster?.source === "chromium-relative-effect-layer-v1" &&
+    el.backdropCompositeRaster.dataUri != null
+      ? el.backdropCompositeRaster
+      : undefined;
   if (terminalBackdropComposite != null) {
     if (phase !== "inline") {
       const image = `<image data-domotion-no-hoist="effect-surface" href="${terminalBackdropComposite.dataUri}" x="${r(terminalBackdropComposite.x)}" y="${r(terminalBackdropComposite.y)}" width="${r(terminalBackdropComposite.width)}" height="${r(terminalBackdropComposite.height)}" preserveAspectRatio="none"/>`;
@@ -3705,10 +4217,23 @@ function paintAtomicElementPhase(
   return false;
 }
 
-function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string, phase: PaintPhase = "all"): void {
+function renderElement(
+  state: RenderState,
+  el: CapturedElement,
+  depth: number,
+  parentDisplayForEl?: string,
+  phase: PaintPhase = "all",
+): void {
   const {
-    svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
-    overflowClipPathIds, offGridCollapsedCells,
+    svgParts,
+    defsParts,
+    paintCtx,
+    defCtx,
+    captureViewport,
+    width,
+    height,
+    overflowClipPathIds,
+    offGridCollapsedCells,
   } = state;
   const reflectionFragmentStart = svgParts.length;
   if (paintAtomicElementPhase(state, el, depth, phase, reflectionFragmentStart)) return;
@@ -3728,13 +4253,16 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // continue to use the wrapper fragment. Keep those two ownership boxes
   // distinct instead of shrinking the captured element itself.
   const tableGridRect = el.styles.tableGridRect;
-  const boxPaintEl: CapturedElement = tableGridRect == null ? el : {
-    ...el,
-    x: tableGridRect.x,
-    y: tableGridRect.y,
-    width: tableGridRect.width,
-    height: tableGridRect.height,
-  };
+  const boxPaintEl: CapturedElement =
+    tableGridRect == null
+      ? el
+      : {
+          ...el,
+          x: tableGridRect.x,
+          y: tableGridRect.y,
+          width: tableGridRect.width,
+          height: tableGridRect.height,
+        };
   // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
   // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
   // "50px 20px" for elliptical corners). Each corner can independently be
@@ -3748,9 +4276,8 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // captures, which is acceptable for now. DM-246 (the half-extent clamp
   // for the uniform fast path) is preserved by `roundedRectSvg`.
   const corners = parseCornerRadii(el.styles, el.width, el.height);
-  const boxPaintCorners = tableGridRect == null
-    ? corners
-    : parseCornerRadii(el.styles, boxPaintEl.width, boxPaintEl.height);
+  const boxPaintCorners =
+    tableGridRect == null ? corners : parseCornerRadii(el.styles, boxPaintEl.width, boxPaintEl.height);
   const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
   const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
   const opacity = parseFloat(el.styles.opacity);
@@ -3766,16 +4293,15 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     if (paintBoxPhase) {
       const image = `<image data-domotion-no-hoist="effect-surface" href="${backdropFilterRaster.dataUri}" x="${r(backdropFilterRaster.x)}" y="${r(backdropFilterRaster.y)}" width="${r(backdropFilterRaster.width)}" height="${r(backdropFilterRaster.height)}" preserveAspectRatio="none"/>`;
       const counter = backdropFilterRaster.layerSpace?.counterTransform;
-      const mapped = counter == null
-        ? image
-        : `<g transform="matrix(${counter.map((value) => Number(value.toFixed(8))).join(" ")})">${image}</g>`;
+      const mapped =
+        counter == null
+          ? image
+          : `<g transform="matrix(${counter.map((value) => Number(value.toFixed(8))).join(" ")})">${image}</g>`;
       svgParts.push(`${indent}${mapped}`);
     }
     paintBoxPhase = false;
   }
-  const backdropCompositeRaster = el.backdropCompositeRaster?.dataUri != null
-    ? el.backdropCompositeRaster
-    : undefined;
+  const backdropCompositeRaster = el.backdropCompositeRaster?.dataUri != null ? el.backdropCompositeRaster : undefined;
   const backdropConsumedEffects = new Set(backdropCompositeRaster?.consumedEffects ?? []);
   // empty-cells: hide — suppress bg + border on empty <td>/<th>.
   const suppressEmptyCell = el.styles.emptyCellsHidden === true;
@@ -3795,9 +4321,12 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // don't need to translate filter functions into <filter> elements.
   // backdrop-filter has no equivalent in img-rendered SVG; it's captured but
   // not emitted (documented limitation).
-  const filterCss = !backdropConsumedEffects.has("filter") && el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
-  const blendCss = !backdropConsumedEffects.has("mix-blend-mode")
-    && el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
+  const filterCss =
+    !backdropConsumedEffects.has("filter") && el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
+  const blendCss =
+    !backdropConsumedEffects.has("mix-blend-mode") && el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal"
+      ? el.styles.mixBlendMode
+      : "";
   const clipPathUrlId = backdropConsumedEffects.has("clip-path") ? null : resolveClipPathOnce(state, el, corners);
   const maskUrlId = backdropConsumedEffects.has("mask") ? null : renderMaskPhaseOnce(state, el);
   // CSS 2D transform (SK-1134): wrap the elements rendered group in
@@ -3808,7 +4337,15 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const {
+    needsGroup,
+    groupAttrs,
+    animClass,
+    needsFilterOuter,
+    localizeReferenceFilter,
+    outerBlendStyle,
+    hasTransform,
+  } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
   const opened = needsGroup;
   const wrapperStart = svgParts.length;
   // Blink's general Effect/blend node is outside its Filter node. Keep a
@@ -3844,9 +4381,10 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   //     applied inside the layer does not survive to the final pixels
   //     (measured: Chrome paints this fixture's untransformed children at
   //     baseline y = 109.5 / 169.5, not 110 / 170).
-  const suppressBaselineSnap = hasTransform
-    || el.styles.transformCreatesSc === true
-    || (el.styles.transformStyle != null && el.styles.transformStyle !== "" && el.styles.transformStyle !== "flat");
+  const suppressBaselineSnap =
+    hasTransform ||
+    el.styles.transformCreatesSc === true ||
+    (el.styles.transformStyle != null && el.styles.transformStyle !== "" && el.styles.transformStyle !== "flat");
   if (suppressBaselineSnap) pushBaselineSnapSuppression();
   // Inner anim-class wrapper sits INSIDE any visibility/transform group so
   // the merger's class (added on the outer group) and our anim class can
@@ -3908,7 +4446,9 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     // phase, and retain only the outward wrappers not listed as consumed.
     svgParts.length = wrapperContentStart;
     if (paintBoxPhase) {
-      svgParts.push(`${indent}<image data-domotion-no-hoist="effect-surface" href="${backdropCompositeRaster.dataUri}" x="${r(backdropCompositeRaster.x)}" y="${r(backdropCompositeRaster.y)}" width="${r(backdropCompositeRaster.width)}" height="${r(backdropCompositeRaster.height)}" preserveAspectRatio="none"/>`);
+      svgParts.push(
+        `${indent}<image data-domotion-no-hoist="effect-surface" href="${backdropCompositeRaster.dataUri}" x="${r(backdropCompositeRaster.x)}" y="${r(backdropCompositeRaster.y)}" width="${r(backdropCompositeRaster.width)}" height="${r(backdropCompositeRaster.height)}" preserveAspectRatio="none"/>`,
+      );
     }
     closeWrappers();
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
@@ -3953,7 +4493,6 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   closeWrappers();
   appendBoxReflection(state, el, reflectionFragmentStart, depth);
 }
-
 
 /**
  * DM-950: render a CapturedElement tree into a **complete `<svg>`
@@ -4009,11 +4548,13 @@ export function elementTreeToSvg(
   const render = (): string => {
     const elements = capturedTreeRoots(input);
     const inner = elementTreeToSvgInner(
-      input, width, height,
+      input,
+      width,
+      height,
       opts?.idPrefix ?? "",
       opts?.includeGlyphDefs ?? true,
       opts?.hiDPIFactor ?? 2,
-      opts?.includeEmbeddedFontCss ?? (opts?.includeGlyphDefs ?? true),
+      opts?.includeEmbeddedFontCss ?? opts?.includeGlyphDefs ?? true,
       opts?.realTextLayer ?? false,
     );
     return wrapSvg(inner, width, height, {
@@ -4023,16 +4564,12 @@ export function elementTreeToSvg(
       realTextLayer: opts?.realTextLayer,
     });
   };
-  return opts?.renderTextMode != null
-    ? withRenderTextMode(opts.renderTextMode, render)
-    : render();
+  return opts?.renderTextMode != null ? withRenderTextMode(opts.renderTextMode, render) : render();
 }
-
 
 // Stacking-context analysis (establishesStackingContext / gatherStackingContextChildren / isOverflowOnlySC / isFlexOrGridContainerDisplay) moved to ./stacking.ts (DM-1305).
 
 // isFixedContainingBlock / sortChildrenByPaintOrder moved to ./stacking.ts (DM-1742 — the cursor hit-test reuses them for true paint-order hit-testing).
-
 
 /**
  * Turn a single background-image layer into an SVG <defs> entry. Returns
@@ -4044,9 +4581,15 @@ export function elementTreeToSvg(
  * and background-repeat (repeat/no-repeat/repeat-x/repeat-y/round/space).
  */
 function buildBackgroundLayerDef(
-  id: string, layer: string,
-  elX: number, elY: number, w: number, h: number,
-  sizeCss: string = "auto", posCss: string = "0% 0%", repeatCss: string = "repeat",
+  id: string,
+  layer: string,
+  elX: number,
+  elY: number,
+  w: number,
+  h: number,
+  sizeCss: string = "auto",
+  posCss: string = "0% 0%",
+  repeatCss: string = "repeat",
   intrinsic: { w: number; h: number } | null = null,
   attachment: string = "scroll",
   fixedViewport: { w: number; h: number } | null = null,
@@ -4057,8 +4600,11 @@ function buildBackgroundLayerDef(
   // capture record—not this renderer—owns Blink's DPR/type candidate choice.
   const imageSet = /^(?:-webkit-)?image-set\((.+)\)$/i.exec(layer);
   if (imageSet != null) {
-    if (selectedImage?.source !== "image-set" || selectedImage.selectedUrl == null
-        || selectedImage.loadState !== "loaded") {
+    if (
+      selectedImage?.source !== "image-set" ||
+      selectedImage.selectedUrl == null ||
+      selectedImage.loadState !== "loaded"
+    ) {
       console.warn("[domotion] image-set background omitted: authoritative selected candidate was unavailable");
       return { def: "" };
     }
@@ -4073,24 +4619,44 @@ function buildBackgroundLayerDef(
   // which only shows a slice through the element's window onto the
   // viewport-spanning gradient (visible color-vibrancy diff on
   // `17-deep-bg-attachment-fixed` panel 1).
-  const gradX = (attachment === "fixed" && fixedViewport != null) ? 0 : elX;
-  const gradY = (attachment === "fixed" && fixedViewport != null) ? 0 : elY;
-  const gradW = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.w : w;
-  const gradH = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.h : h;
+  const gradX = attachment === "fixed" && fixedViewport != null ? 0 : elX;
+  const gradY = attachment === "fixed" && fixedViewport != null ? 0 : elY;
+  const gradW = attachment === "fixed" && fixedViewport != null ? fixedViewport.w : w;
+  const gradH = attachment === "fixed" && fixedViewport != null ? fixedViewport.h : h;
   const legacyGradient = parseLegacyWebkitGradient(layer);
   if (legacyGradient != null) {
     const rect = { x: gradX, y: gradY, w: gradW, h: gradH };
-    return { def: legacyGradient.kind === "linear"
-      ? buildExactLinearGradientDef(legacyGradient, id, rect)
-      : buildExactRadialGradientDef(legacyGradient, id, rect) };
+    return {
+      def:
+        legacyGradient.kind === "linear"
+          ? buildExactLinearGradientDef(legacyGradient, id, rect)
+          : buildExactRadialGradientDef(legacyGradient, id, rect),
+    };
   }
   if (needsChromiumGradientRaster(layer)) {
     const tile = computeTileSize(sizeCss, gradW, gradH);
     const raster = advancedGradientTile(layer, tile.w, tile.h);
     if (raster != null) {
-      return { def: buildImagePatternDef(id, raster, elX, elY, w, h, sizeCss, posCss, repeatCss, { w: tile.w, h: tile.h }, attachment, fixedViewport) };
+      return {
+        def: buildImagePatternDef(
+          id,
+          raster,
+          elX,
+          elY,
+          w,
+          h,
+          sizeCss,
+          posCss,
+          repeatCss,
+          { w: tile.w, h: tile.h },
+          attachment,
+          fixedViewport,
+        ),
+      };
     }
-    console.warn(`[domotion] Chromium raster tile unavailable for advanced gradient; using best-effort SVG interpolation: ${layer}`);
+    console.warn(
+      `[domotion] Chromium raster tile unavailable for advanced gradient; using best-effort SVG interpolation: ${layer}`,
+    );
   }
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
   if (linear != null) {
@@ -4122,8 +4688,20 @@ function buildBackgroundLayerDef(
   const urlContent = selectedImage?.selectedUrl ?? parseCssUrl(layer);
   if (urlContent != null) {
     const def = buildImagePatternDef(
-      id, urlContent, elX, elY, w, h, sizeCss, posCss, repeatCss,
-      intrinsic, attachment, fixedViewport, selectedImage, paintingArea,
+      id,
+      urlContent,
+      elX,
+      elY,
+      w,
+      h,
+      sizeCss,
+      posCss,
+      repeatCss,
+      intrinsic,
+      attachment,
+      fixedViewport,
+      selectedImage,
+      paintingArea,
     );
     if (def === "") {
       console.warn("[domotion] URL background omitted: exact Blink tile geometry was unavailable");
@@ -4147,13 +4725,19 @@ function buildBackgroundLayerDef(
  * skips emission.
  */
 function buildConicGradientDef(
-  id: string, layer: string,
-  elX: number, elY: number, w: number, h: number,
-  sizeCss: string, posCss: string,
+  id: string,
+  layer: string,
+  elX: number,
+  elY: number,
+  w: number,
+  h: number,
+  sizeCss: string,
+  posCss: string,
 ): string {
   // Tile size: mirrors `computeTileSize` in conic-raster.ts.
   const trimmed = sizeCss.trim();
-  let tileW = w, tileH = h;
+  let tileW = w,
+    tileH = h;
   if (trimmed !== "" && trimmed !== "auto" && trimmed !== "cover" && trimmed !== "contain") {
     const parts = trimmed.split(/\s+/);
     const parseDim = (tok: string, basis: number): number => {
@@ -4253,9 +4837,7 @@ function svgTransformForElement(el: CapturedElement): string {
  * actually slice. Returns the input unchanged for raster sources or when
  * the inner SVG can't be parsed.
  */
-export function rewriteSvgDataUriPreserveAspectRatio(
-  dataUri: string, w: number, h: number, par: string,
-): string {
+export function rewriteSvgDataUriPreserveAspectRatio(dataUri: string, w: number, h: number, par: string): string {
   if (!/^data:image\/svg\+xml/i.test(dataUri)) return dataUri;
   // Decode payload: support base64 or URL-encoded forms.
   const m = /^data:image\/svg\+xml(;base64)?,(.*)$/is.exec(dataUri);
@@ -4264,7 +4846,9 @@ export function rewriteSvgDataUriPreserveAspectRatio(
   let svgText: string;
   try {
     svgText = isBase64 ? Buffer.from(m[2], "base64").toString("utf8") : decodeURIComponent(m[2]);
-  } catch { return dataUri; }
+  } catch {
+    return dataUri;
+  }
   // Find the first <svg ...> opening tag and rewrite its attrs.
   const tagMatch = /<svg\b([^>]*)>/i.exec(svgText);
   if (tagMatch == null) return dataUri;
@@ -4277,7 +4861,8 @@ export function rewriteSvgDataUriPreserveAspectRatio(
   stripAttr("height");
   stripAttr("preserveAspectRatio");
   const newAttrs = `${attrs.replace(/\s+$/, "")} width="${r(w)}" height="${r(h)}" preserveAspectRatio="${par}"`;
-  const newSvg = svgText.slice(0, tagMatch.index) + `<svg${newAttrs}>` + svgText.slice(tagMatch.index + tagMatch[0].length);
+  const newSvg =
+    svgText.slice(0, tagMatch.index) + `<svg${newAttrs}>` + svgText.slice(tagMatch.index + tagMatch[0].length);
   return `data:image/svg+xml;base64,${Buffer.from(newSvg, "utf8").toString("base64")}`;
 }
 
@@ -4296,22 +4881,28 @@ export function preserveAspectRatioFor(fit: string | undefined, pos: string | un
  * percentage has been resolved against the free space.
  */
 export function computeObjectFitRect(
-  x: number, y: number, width: number, height: number,
-  intrinsicWidth: number, intrinsicHeight: number,
-  fit: string | undefined, position: string | undefined,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  intrinsicWidth: number,
+  intrinsicHeight: number,
+  fit: string | undefined,
+  position: string | undefined,
 ): { x: number; y: number; width: number; height: number } {
   const mode = (fit ?? "fill").trim();
   let objectWidth = width;
   let objectHeight = height;
   if (mode !== "fill") {
     const containScale = Math.min(width / intrinsicWidth, height / intrinsicHeight);
-    const scale = mode === "cover"
-      ? Math.max(width / intrinsicWidth, height / intrinsicHeight)
-      : mode === "none"
-        ? 1
-        : mode === "scale-down"
-          ? Math.min(1, containScale)
-          : containScale;
+    const scale =
+      mode === "cover"
+        ? Math.max(width / intrinsicWidth, height / intrinsicHeight)
+        : mode === "none"
+          ? 1
+          : mode === "scale-down"
+            ? Math.min(1, containScale)
+            : containScale;
     objectWidth = intrinsicWidth * scale;
     objectHeight = intrinsicHeight * scale;
   }
@@ -4328,22 +4919,25 @@ function splitComputedObjectPosition(position: string): [string, string] {
   const tokens = position.trim().match(/calc\([^)]*\)|\S+/g) ?? [];
   if (tokens.length === 0) return ["50%", "50%"];
   if (tokens.length === 1) {
-    return tokens[0] === "top" || tokens[0] === "bottom"
-      ? ["50%", tokens[0]]
-      : [tokens[0], "50%"];
+    return tokens[0] === "top" || tokens[0] === "bottom" ? ["50%", tokens[0]] : [tokens[0], "50%"];
   }
   return [tokens[0]!, tokens[1]!];
 }
 
 function resolveObjectPositionAxis(token: string, freeSpace: number): number {
-  const keywordPct = token === "left" || token === "top" ? 0
-    : token === "right" || token === "bottom" ? 100
-      : token === "center" ? 50 : null;
-  if (keywordPct != null) return freeSpace * keywordPct / 100;
+  const keywordPct =
+    token === "left" || token === "top"
+      ? 0
+      : token === "right" || token === "bottom"
+        ? 100
+        : token === "center"
+          ? 50
+          : null;
+  if (keywordPct != null) return (freeSpace * keywordPct) / 100;
   const percentage = /(-?(?:\d+\.?\d*|\.\d+))%/.exec(token);
   const length = /([+-])\s*(-?(?:\d+\.?\d*|\.\d+))px/.exec(token);
   const plainPx = /^(-?(?:\d+\.?\d*|\.\d+))px$/.exec(token);
-  const pctOffset = percentage == null ? 0 : freeSpace * Number(percentage[1]) / 100;
+  const pctOffset = percentage == null ? 0 : (freeSpace * Number(percentage[1])) / 100;
   if (plainPx != null) return Number(plainPx[1]);
   if (length != null) return pctOffset + (length[1] === "-" ? -1 : 1) * Number(length[2]);
   return percentage == null ? freeSpace / 2 : pctOffset;
@@ -4385,8 +4979,10 @@ function alignFromObjectPosition(pos: string): string {
  */
 export function formatListMarker(type: string, n: number): string {
   switch (type) {
-    case "decimal": return String(n);
-    case "decimal-leading-zero": return n < 10 ? "0" + n : String(n);
+    case "decimal":
+      return String(n);
+    case "decimal-leading-zero":
+      return n < 10 ? "0" + n : String(n);
     case "lower-alpha":
     case "lower-latin":
       return alphaMarker(n, /*upper*/ false);
@@ -4450,7 +5046,10 @@ export function listMarkerSuffix(type: string): string {
 function digitSubstMarker(n: number, digits: string): string {
   if (n < 0) return "-" + digitSubstMarker(-n, digits);
   const chars = [...digits];
-  return String(n).split("").map((d) => chars[d.charCodeAt(0) - 48] ?? d).join("");
+  return String(n)
+    .split("")
+    .map((d) => chars[d.charCodeAt(0) - 48] ?? d)
+    .join("");
 }
 
 // Additive-system marker (CSS Counter Styles `system: additive`): greedily
@@ -4461,17 +5060,52 @@ function additiveMarker(n: number, table: ReadonlyArray<readonly [number, string
   let v = n;
   let s = "";
   for (const [weight, sym] of table) {
-    while (v >= weight && weight > 0) { s += sym; v -= weight; }
+    while (v >= weight && weight > 0) {
+      s += sym;
+      v -= weight;
+    }
   }
   return s;
 }
 
 // Armenian uppercase numerals (U+0531…), descending additive weights 9000…1.
 const ARMENIAN_UPPER: ReadonlyArray<readonly [number, string]> = [
-  [9000, "Ք"], [8000, "Փ"], [7000, "Ւ"], [6000, "Ց"], [5000, "Ր"], [4000, "Տ"], [3000, "Վ"], [2000, "Ս"], [1000, "Ռ"],
-  [900, "Ջ"], [800, "Պ"], [700, "Չ"], [600, "Ո"], [500, "Շ"], [400, "Ն"], [300, "Յ"], [200, "Մ"], [100, "Ճ"],
-  [90, "Ղ"], [80, "Ձ"], [70, "Հ"], [60, "Կ"], [50, "Ծ"], [40, "Խ"], [30, "Լ"], [20, "Ի"], [10, "Ժ"],
-  [9, "Թ"], [8, "Ը"], [7, "Է"], [6, "Զ"], [5, "Ե"], [4, "Դ"], [3, "Գ"], [2, "Բ"], [1, "Ա"],
+  [9000, "Ք"],
+  [8000, "Փ"],
+  [7000, "Ւ"],
+  [6000, "Ց"],
+  [5000, "Ր"],
+  [4000, "Տ"],
+  [3000, "Վ"],
+  [2000, "Ս"],
+  [1000, "Ռ"],
+  [900, "Ջ"],
+  [800, "Պ"],
+  [700, "Չ"],
+  [600, "Ո"],
+  [500, "Շ"],
+  [400, "Ն"],
+  [300, "Յ"],
+  [200, "Մ"],
+  [100, "Ճ"],
+  [90, "Ղ"],
+  [80, "Ձ"],
+  [70, "Հ"],
+  [60, "Կ"],
+  [50, "Ծ"],
+  [40, "Խ"],
+  [30, "Լ"],
+  [20, "Ի"],
+  [10, "Ժ"],
+  [9, "Թ"],
+  [8, "Ը"],
+  [7, "Է"],
+  [6, "Զ"],
+  [5, "Ե"],
+  [4, "Դ"],
+  [3, "Գ"],
+  [2, "Բ"],
+  [1, "Ա"],
 ];
 // Armenian lowercase is the uppercase set shifted +0x30 (U+0561…).
 const ARMENIAN_LOWER: ReadonlyArray<readonly [number, string]> = ARMENIAN_UPPER.map(
@@ -4479,19 +5113,75 @@ const ARMENIAN_LOWER: ReadonlyArray<readonly [number, string]> = ARMENIAN_UPPER.
 );
 // Georgian numerals (Mkhedruli), descending additive weights 10000…1.
 const GEORGIAN: ReadonlyArray<readonly [number, string]> = [
-  [10000, "ჵ"], [9000, "ჰ"], [8000, "ჯ"], [7000, "ჴ"], [6000, "ხ"], [5000, "ჭ"], [4000, "წ"], [3000, "ძ"], [2000, "ც"], [1000, "ჩ"],
-  [900, "შ"], [800, "ყ"], [700, "ღ"], [600, "ქ"], [500, "ფ"], [400, "ჳ"], [300, "ტ"], [200, "ს"], [100, "რ"],
-  [90, "ჟ"], [80, "პ"], [70, "ო"], [60, "ჲ"], [50, "ნ"], [40, "მ"], [30, "ლ"], [20, "კ"], [10, "ი"],
-  [9, "თ"], [8, "ჱ"], [7, "ზ"], [6, "ვ"], [5, "ე"], [4, "დ"], [3, "გ"], [2, "ბ"], [1, "ა"],
+  [10000, "ჵ"],
+  [9000, "ჰ"],
+  [8000, "ჯ"],
+  [7000, "ჴ"],
+  [6000, "ხ"],
+  [5000, "ჭ"],
+  [4000, "წ"],
+  [3000, "ძ"],
+  [2000, "ც"],
+  [1000, "ჩ"],
+  [900, "შ"],
+  [800, "ყ"],
+  [700, "ღ"],
+  [600, "ქ"],
+  [500, "ფ"],
+  [400, "ჳ"],
+  [300, "ტ"],
+  [200, "ს"],
+  [100, "რ"],
+  [90, "ჟ"],
+  [80, "პ"],
+  [70, "ო"],
+  [60, "ჲ"],
+  [50, "ნ"],
+  [40, "მ"],
+  [30, "ლ"],
+  [20, "კ"],
+  [10, "ი"],
+  [9, "თ"],
+  [8, "ჱ"],
+  [7, "ზ"],
+  [6, "ვ"],
+  [5, "ე"],
+  [4, "დ"],
+  [3, "გ"],
+  [2, "ბ"],
+  [1, "ა"],
 ];
 // Hebrew numerals, descending additive weights. 15 and 16 use טו / טז (not יה /
 // יו) to avoid spelling forms of the divine name — explicit entries so the
 // greedy walk picks them over 10+5 / 10+6.
 const HEBREW: ReadonlyArray<readonly [number, string]> = [
-  [400, "ת"], [300, "ש"], [200, "ר"], [100, "ק"],
-  [90, "צ"], [80, "פ"], [70, "ע"], [60, "ס"], [50, "נ"], [40, "מ"], [30, "ל"], [20, "כ"],
-  [19, "יט"], [18, "יח"], [17, "יז"], [16, "טז"], [15, "טו"], [10, "י"],
-  [9, "ט"], [8, "ח"], [7, "ז"], [6, "ו"], [5, "ה"], [4, "ד"], [3, "ג"], [2, "ב"], [1, "א"],
+  [400, "ת"],
+  [300, "ש"],
+  [200, "ר"],
+  [100, "ק"],
+  [90, "צ"],
+  [80, "פ"],
+  [70, "ע"],
+  [60, "ס"],
+  [50, "נ"],
+  [40, "מ"],
+  [30, "ל"],
+  [20, "כ"],
+  [19, "יט"],
+  [18, "יח"],
+  [17, "יז"],
+  [16, "טז"],
+  [15, "טו"],
+  [10, "י"],
+  [9, "ט"],
+  [8, "ח"],
+  [7, "ז"],
+  [6, "ו"],
+  [5, "ה"],
+  [4, "ד"],
+  [3, "ג"],
+  [2, "ב"],
+  [1, "א"],
 ];
 
 function alphaMarker(n: number, upper: boolean): string {
@@ -4530,7 +5220,10 @@ function romanMarker(n: number): string {
   const syms = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];
   let s = "";
   for (let i = 0; i < vals.length; i++) {
-    while (n >= vals[i]) { s += syms[i]; n -= vals[i]; }
+    while (n >= vals[i]) {
+      s += syms[i];
+      n -= vals[i];
+    }
   }
   return s;
 }

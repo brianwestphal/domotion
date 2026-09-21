@@ -19,25 +19,30 @@ describe("helper route cache invalidation", () => {
     delete process.env.DOMOTION_DISABLE_HELPER;
     clearGlyphHelperCache();
     const presentObserved = isGlyphHelperAvailable();
-    const present = helperRouteLedgerEnvironment(helperAvailabilityContract({
-      platform: process.platform as "darwin" | "linux" | "win32",
-      helperObserved: presentObserved,
-      explicitlyDisabled: false,
-      implementationIdentity: presentObserved ? "authenticated-test-helper" : "",
-    }));
+    const present = helperRouteLedgerEnvironment(
+      helperAvailabilityContract({
+        platform: process.platform as "darwin" | "linux" | "win32",
+        helperObserved: presentObserved,
+        explicitlyDisabled: false,
+        implementationIdentity: presentObserved ? "authenticated-test-helper" : "",
+      }),
+    );
 
     process.env.DOMOTION_DISABLE_HELPER = "1";
     clearGlyphHelperCache();
     expect(isGlyphHelperAvailable()).toBe(false);
-    const absent = helperRouteLedgerEnvironment(helperAvailabilityContract({
-      platform: process.platform as "darwin" | "linux" | "win32",
-      helperObserved: false,
-      explicitlyDisabled: true,
-      implementationIdentity: "",
-    }));
+    const absent = helperRouteLedgerEnvironment(
+      helperAvailabilityContract({
+        platform: process.platform as "darwin" | "linux" | "win32",
+        helperObserved: false,
+        explicitlyDisabled: true,
+        implementationIdentity: "",
+      }),
+    );
 
     expect(absent.helper.cacheIdentity).not.toBe(present.helper.cacheIdentity);
-    expect(() => assertComparableHelperRouteLedgers(present, absent))
-      .toThrow(/different helper availability identities/);
+    expect(() => assertComparableHelperRouteLedgers(present, absent)).toThrow(
+      /different helper availability identities/,
+    );
   });
 });

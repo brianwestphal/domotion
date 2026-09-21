@@ -32,7 +32,10 @@ const result = await page.evaluate(() => {
     const r = v.getBoundingClientRect();
     out.push({
       tag: "video",
-      x: r.x, y: r.y + window.scrollY, w: r.width, h: r.height,
+      x: r.x,
+      y: r.y + window.scrollY,
+      w: r.width,
+      h: r.height,
       src: v.currentSrc || v.src || "",
       poster: v.poster || "",
       paused: v.paused,
@@ -51,7 +54,10 @@ const result = await page.evaluate(() => {
         tag: el.tagName.toLowerCase(),
         id: el.id || "",
         cls: typeof el.className === "string" ? el.className.slice(0, 60) : "",
-        x: r.x, y: ay, w: r.width, h: r.height,
+        x: r.x,
+        y: ay,
+        w: r.width,
+        h: r.height,
       });
     }
   }
@@ -97,7 +103,10 @@ const result = await page.evaluate(() => {
     if (ay >= 5050 && ay <= 5500) {
       const cs = getComputedStyle(img);
       imgsInZone.push({
-        x: r.x, y: ay, w: r.width, h: r.height,
+        x: r.x,
+        y: ay,
+        w: r.width,
+        h: r.height,
         src: img.currentSrc || img.src,
         display: cs.display,
         visibility: cs.visibility,
@@ -109,13 +118,23 @@ const result = await page.evaluate(() => {
     }
   }
 
-  return { videos: out, big: big.slice(0, 15), bodyH: document.body.scrollHeight, containerInfo, imgsInZone, betamaxes, figsInZone };
+  return {
+    videos: out,
+    big: big.slice(0, 15),
+    bodyH: document.body.scrollHeight,
+    containerInfo,
+    imgsInZone,
+    betamaxes,
+    figsInZone,
+  };
 });
 
 console.log("body scrollHeight:", result.bodyH);
 console.log("\nVideo elements:");
 for (const v of result.videos) {
-  console.log(`  y=${v.y.toFixed(0)} w=${v.w.toFixed(0)} h=${v.h.toFixed(0)} src=${v.src.slice(0, 80)} poster=${v.poster.slice(0, 60)} readyState=${v.readyState} hasShadow=${v.hasShadow}`);
+  console.log(
+    `  y=${v.y.toFixed(0)} w=${v.w.toFixed(0)} h=${v.h.toFixed(0)} src=${v.src.slice(0, 80)} poster=${v.poster.slice(0, 60)} readyState=${v.readyState} hasShadow=${v.hasShadow}`,
+  );
 }
 console.log("\nBig elements in y=5050-5500:");
 for (const e of result.big) {
@@ -134,7 +153,9 @@ for (const f of result.figsInZone) {
 }
 console.log("\nImages in y=5050-5500:");
 for (const img of result.imgsInZone) {
-  console.log(`  <img> y=${img.y.toFixed(0)} w=${img.w.toFixed(0)} h=${img.h.toFixed(0)} display=${img.display} vis=${img.visibility} cv=${img.contentVisibility} complete=${img.complete} natural=${img.naturalW}x${img.naturalH}`);
+  console.log(
+    `  <img> y=${img.y.toFixed(0)} w=${img.w.toFixed(0)} h=${img.h.toFixed(0)} display=${img.display} vis=${img.visibility} cv=${img.contentVisibility} complete=${img.complete} natural=${img.naturalW}x${img.naturalH}`,
+  );
   console.log(`    src=${img.src.slice(0, 80)}`);
 }
 

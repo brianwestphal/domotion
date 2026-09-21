@@ -3,11 +3,11 @@ id: "requirements/paint-order-oracle"
 title: "132 — Compositing and paint-order transition oracle"
 kind: "evidence"
 status: "current"
-owners: ["paint-effects","platform-release"]
+owners: ["paint-effects", "platform-release"]
 platforms: []
 tickets: []
-code: ["tools/paint-order-oracle.ts","tools/parity-program.json"]
-aliases: ["docs/132-paint-order-oracle.md","doc-132"]
+code: ["tools/paint-order-oracle.ts", "tools/parity-program.json"]
+aliases: ["docs/132-paint-order-oracle.md", "doc-132"]
 ---
 
 # 132 — Compositing and paint-order transition oracle

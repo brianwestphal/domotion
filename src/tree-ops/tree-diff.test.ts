@@ -5,7 +5,17 @@ import { diffTrees, dominantTranslate, entriesOfKind } from "./tree-diff.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function el(opts: Partial<CapturedElement> & { tag: string; x: number; y: number; width?: number; height?: number; text?: string; children?: CapturedElement[] }): CapturedElement {
+function el(
+  opts: Partial<CapturedElement> & {
+    tag: string;
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    text?: string;
+    children?: CapturedElement[];
+  },
+): CapturedElement {
   return {
     text: "",
     width: 100,
@@ -20,14 +30,16 @@ function el(opts: Partial<CapturedElement> & { tag: string; x: number; y: number
 
 describe("diffTrees: static", () => {
   it("identical trees → every entry is static", () => {
-    const prev = el({ tag: "body", x: 0, y: 0, children: [
-      el({ tag: "h1", x: 10, y: 10, text: "Title" }),
-      el({ tag: "p",  x: 10, y: 40, text: "Hello" }),
-    ]});
+    const prev = el({
+      tag: "body",
+      x: 0,
+      y: 0,
+      children: [el({ tag: "h1", x: 10, y: 10, text: "Title" }), el({ tag: "p", x: 10, y: 40, text: "Hello" })],
+    });
     const next = JSON.parse(JSON.stringify(prev));
     const diff = diffTrees(prev, next);
     expect(diff.entries.every((e) => e.kind === "static")).toBe(true);
-    expect(diff.entries).toHaveLength(3);   // root + 2 children
+    expect(diff.entries).toHaveLength(3); // root + 2 children
   });
 
   it("identical trees with sub-pixel drift still static", () => {
@@ -42,14 +54,18 @@ describe("diffTrees: static", () => {
 
 describe("diffTrees: pure translation", () => {
   it("every element shifted by the same dy → all translated", () => {
-    const prev = el({ tag: "body", x: 0, y: 0, children: [
-      el({ tag: "h1", x: 10, y: 10, text: "Title" }),
-      el({ tag: "p",  x: 10, y: 40, text: "Body" }),
-    ]});
-    const next = el({ tag: "body", x: 0, y: -300, children: [
-      el({ tag: "h1", x: 10, y: -290, text: "Title" }),
-      el({ tag: "p",  x: 10, y: -260, text: "Body" }),
-    ]});
+    const prev = el({
+      tag: "body",
+      x: 0,
+      y: 0,
+      children: [el({ tag: "h1", x: 10, y: 10, text: "Title" }), el({ tag: "p", x: 10, y: 40, text: "Body" })],
+    });
+    const next = el({
+      tag: "body",
+      x: 0,
+      y: -300,
+      children: [el({ tag: "h1", x: 10, y: -290, text: "Title" }), el({ tag: "p", x: 10, y: -260, text: "Body" })],
+    });
     const diff = diffTrees(prev, next);
     expect(diff.entries.filter((e) => e.kind === "translated")).toHaveLength(3);
     for (const e of diff.entries) {
@@ -59,16 +75,26 @@ describe("diffTrees: pure translation", () => {
   });
 
   it("dominantTranslate detects whole-subtree shift", () => {
-    const prev = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "Row 1" }),
-      el({ tag: "li", x: 10, y: 30, text: "Row 2" }),
-      el({ tag: "li", x: 10, y: 50, text: "Row 3" }),
-    ]});
-    const next = el({ tag: "ul", x: 0, y: -500, children: [
-      el({ tag: "li", x: 10, y: -490, text: "Row 1" }),
-      el({ tag: "li", x: 10, y: -470, text: "Row 2" }),
-      el({ tag: "li", x: 10, y: -450, text: "Row 3" }),
-    ]});
+    const prev = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "li", x: 10, y: 10, text: "Row 1" }),
+        el({ tag: "li", x: 10, y: 30, text: "Row 2" }),
+        el({ tag: "li", x: 10, y: 50, text: "Row 3" }),
+      ],
+    });
+    const next = el({
+      tag: "ul",
+      x: 0,
+      y: -500,
+      children: [
+        el({ tag: "li", x: 10, y: -490, text: "Row 1" }),
+        el({ tag: "li", x: 10, y: -470, text: "Row 2" }),
+        el({ tag: "li", x: 10, y: -450, text: "Row 3" }),
+      ],
+    });
     const diff = diffTrees(prev, next);
     const dt = dominantTranslate(diff);
     expect(dt).not.toBeNull();
@@ -82,26 +108,41 @@ describe("diffTrees: pure translation", () => {
 
 describe("diffTrees: partial translation (sticky header + scrolled body)", () => {
   it("header stays put, body shifts", () => {
-    const prev = el({ tag: "div", x: 0, y: 0, children: [
-      el({ tag: "header", x: 0, y: 0,  text: "Nav", children: [
-        el({ tag: "a", x: 10, y: 10, text: "Home" }),
-      ]}),
-      el({ tag: "main",   x: 0, y: 60, text: "",    children: [
-        el({ tag: "p", x: 10, y: 70,  text: "Para 1" }),
-        el({ tag: "p", x: 10, y: 100, text: "Para 2" }),
-      ]}),
-    ]});
-    const next = el({ tag: "div", x: 0, y: 0, children: [
-      el({ tag: "header", x: 0, y: 0,    text: "Nav", children: [
-        el({ tag: "a", x: 10, y: 10, text: "Home" }),
-      ]}),
-      el({ tag: "main",   x: 0, y: -240, text: "",    children: [
-        el({ tag: "p", x: 10, y: -230, text: "Para 1" }),
-        el({ tag: "p", x: 10, y: -200, text: "Para 2" }),
-      ]}),
-    ]});
+    const prev = el({
+      tag: "div",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "header", x: 0, y: 0, text: "Nav", children: [el({ tag: "a", x: 10, y: 10, text: "Home" })] }),
+        el({
+          tag: "main",
+          x: 0,
+          y: 60,
+          text: "",
+          children: [el({ tag: "p", x: 10, y: 70, text: "Para 1" }), el({ tag: "p", x: 10, y: 100, text: "Para 2" })],
+        }),
+      ],
+    });
+    const next = el({
+      tag: "div",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "header", x: 0, y: 0, text: "Nav", children: [el({ tag: "a", x: 10, y: 10, text: "Home" })] }),
+        el({
+          tag: "main",
+          x: 0,
+          y: -240,
+          text: "",
+          children: [
+            el({ tag: "p", x: 10, y: -230, text: "Para 1" }),
+            el({ tag: "p", x: 10, y: -200, text: "Para 2" }),
+          ],
+        }),
+      ],
+    });
     const diff = diffTrees(prev, next);
-    const statics    = entriesOfKind(diff, "static");
+    const statics = entriesOfKind(diff, "static");
     const translated = entriesOfKind(diff, "translated");
     // Root div is static (same x=0, y=0).
     expect(statics.some((e) => e.prev?.tag === "div")).toBe(true);
@@ -118,15 +159,22 @@ describe("diffTrees: partial translation (sticky header + scrolled body)", () =>
 
 describe("diffTrees: added / removed", () => {
   it("row inserted at the end", () => {
-    const prev = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "A" }),
-      el({ tag: "li", x: 10, y: 30, text: "B" }),
-    ]});
-    const next = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "A" }),
-      el({ tag: "li", x: 10, y: 30, text: "B" }),
-      el({ tag: "li", x: 10, y: 50, text: "C" }),
-    ]});
+    const prev = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [el({ tag: "li", x: 10, y: 10, text: "A" }), el({ tag: "li", x: 10, y: 30, text: "B" })],
+    });
+    const next = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "li", x: 10, y: 10, text: "A" }),
+        el({ tag: "li", x: 10, y: 30, text: "B" }),
+        el({ tag: "li", x: 10, y: 50, text: "C" }),
+      ],
+    });
     const diff = diffTrees(prev, next);
     const added = entriesOfKind(diff, "added");
     expect(added).toHaveLength(1);
@@ -134,13 +182,13 @@ describe("diffTrees: added / removed", () => {
   });
 
   it("row removed from the end", () => {
-    const prev = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "A" }),
-      el({ tag: "li", x: 10, y: 30, text: "B" }),
-    ]});
-    const next = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "A" }),
-    ]});
+    const prev = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [el({ tag: "li", x: 10, y: 10, text: "A" }), el({ tag: "li", x: 10, y: 30, text: "B" })],
+    });
+    const next = el({ tag: "ul", x: 0, y: 0, children: [el({ tag: "li", x: 10, y: 10, text: "A" })] });
     const diff = diffTrees(prev, next);
     const removed = entriesOfKind(diff, "removed");
     expect(removed).toHaveLength(1);
@@ -148,18 +196,29 @@ describe("diffTrees: added / removed", () => {
   });
 
   it("multiple adds and removes mixed with statics", () => {
-    const prev = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "Keep" }),
-      el({ tag: "li", x: 10, y: 30, text: "Drop1" }),
-      el({ tag: "li", x: 10, y: 50, text: "Drop2" }),
-    ]});
-    const next = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 10, y: 10, text: "Keep" }),
-      el({ tag: "li", x: 10, y: 30, text: "New1" }),
-    ]});
+    const prev = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "li", x: 10, y: 10, text: "Keep" }),
+        el({ tag: "li", x: 10, y: 30, text: "Drop1" }),
+        el({ tag: "li", x: 10, y: 50, text: "Drop2" }),
+      ],
+    });
+    const next = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [el({ tag: "li", x: 10, y: 10, text: "Keep" }), el({ tag: "li", x: 10, y: 30, text: "New1" })],
+    });
     const diff = diffTrees(prev, next);
     expect(entriesOfKind(diff, "added").map((e) => e.next?.text)).toEqual(["New1"]);
-    expect(entriesOfKind(diff, "removed").map((e) => e.prev?.text).sort()).toEqual(["Drop1", "Drop2"]);
+    expect(
+      entriesOfKind(diff, "removed")
+        .map((e) => e.prev?.text)
+        .sort(),
+    ).toEqual(["Drop1", "Drop2"]);
     expect(entriesOfKind(diff, "static").some((e) => e.prev?.text === "Keep")).toBe(true);
   });
 });
@@ -173,7 +232,7 @@ describe("diffTrees: modified", () => {
     // differs. Without animId, the fallback rule treats text-different
     // path-same elements as add+remove, not modified — see next test.
     const prev = el({ tag: "p", x: 10, y: 10, text: "Loading...", animId: "status" });
-    const next = el({ tag: "p", x: 10, y: 10, text: "Done",       animId: "status" });
+    const next = el({ tag: "p", x: 10, y: 10, text: "Done", animId: "status" });
     const diff = diffTrees(prev, next);
     expect(diff.entries).toHaveLength(1);
     expect(diff.entries[0].kind).toBe("modified");
@@ -195,12 +254,8 @@ describe("diffTrees: modified", () => {
     // Parent's text is empty in both, so the Pass-2 text-equality rule lets
     // the parent match as modified. Child's text differs and there's no
     // animId, so it doesn't match the rule → falls through to add+remove.
-    const prev = el({ tag: "section", x: 0, y: 0, children: [
-      el({ tag: "p", x: 10, y: 10, text: "old" }),
-    ]});
-    const next = el({ tag: "section", x: 0, y: 0, children: [
-      el({ tag: "p", x: 10, y: 10, text: "new" }),
-    ]});
+    const prev = el({ tag: "section", x: 0, y: 0, children: [el({ tag: "p", x: 10, y: 10, text: "old" })] });
+    const next = el({ tag: "section", x: 0, y: 0, children: [el({ tag: "p", x: 10, y: 10, text: "new" })] });
     const diff = diffTrees(prev, next);
     const mods = entriesOfKind(diff, "modified");
     expect(mods).toHaveLength(1);
@@ -218,14 +273,24 @@ describe("diffTrees: animId-keyed matching", () => {
   it("animId disambiguates two elements with otherwise identical fingerprints", () => {
     // Without animId, two identical elements could swap match order. With
     // animId, each gets a stable identity.
-    const prev = el({ tag: "div", x: 0, y: 0, children: [
-      el({ tag: "p", x: 10, y: 10, text: "Same", animId: "first" }),
-      el({ tag: "p", x: 10, y: 30, text: "Same", animId: "second" }),
-    ]});
-    const next = el({ tag: "div", x: 0, y: 0, children: [
-      el({ tag: "p", x: 10, y: 40, text: "Same", animId: "first" }),    // moved down
-      el({ tag: "p", x: 10, y: 10, text: "Same", animId: "second" }),   // moved up
-    ]});
+    const prev = el({
+      tag: "div",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "p", x: 10, y: 10, text: "Same", animId: "first" }),
+        el({ tag: "p", x: 10, y: 30, text: "Same", animId: "second" }),
+      ],
+    });
+    const next = el({
+      tag: "div",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "p", x: 10, y: 40, text: "Same", animId: "first" }), // moved down
+        el({ tag: "p", x: 10, y: 10, text: "Same", animId: "second" }), // moved up
+      ],
+    });
     const diff = diffTrees(prev, next);
     const firstMatch = diff.entries.find((e) => e.prev?.animId === "first" && e.next?.animId === "first");
     const secondMatch = diff.entries.find((e) => e.prev?.animId === "second" && e.next?.animId === "second");
@@ -250,14 +315,8 @@ describe("diffTrees: animId-keyed matching", () => {
 
 describe("diffTrees: sibling-forest input", () => {
   it("accepts arrays of roots", () => {
-    const prev = [
-      el({ tag: "div", x: 0, y: 0, text: "A" }),
-      el({ tag: "div", x: 0, y: 50, text: "B" }),
-    ];
-    const next = [
-      el({ tag: "div", x: 0, y: 0, text: "A" }),
-      el({ tag: "div", x: 0, y: 50, text: "B" }),
-    ];
+    const prev = [el({ tag: "div", x: 0, y: 0, text: "A" }), el({ tag: "div", x: 0, y: 50, text: "B" })];
+    const next = [el({ tag: "div", x: 0, y: 0, text: "A" }), el({ tag: "div", x: 0, y: 50, text: "B" })];
     const diff = diffTrees(prev, next);
     expect(diff.entries.every((e) => e.kind === "static")).toBe(true);
     expect(diff.entries).toHaveLength(2);
@@ -275,21 +334,31 @@ describe("dominantTranslate", () => {
 
   it("picks the largest bucket when translations vary", () => {
     // 4 elements: 3 move by dy=-100, 1 moves by dy=-50.
-    const prev = el({ tag: "ul", x: 0, y: 0, children: [
-      el({ tag: "li", x: 0, y: 10, text: "A" }),
-      el({ tag: "li", x: 0, y: 30, text: "B" }),
-      el({ tag: "li", x: 0, y: 50, text: "C" }),
-      el({ tag: "li", x: 0, y: 70, text: "D" }),
-    ]});
-    const next = el({ tag: "ul", x: 0, y: -100, children: [
-      el({ tag: "li", x: 0, y: -90, text: "A" }),
-      el({ tag: "li", x: 0, y: -70, text: "B" }),
-      el({ tag: "li", x: 0, y: -50, text: "C" }),
-      el({ tag: "li", x: 0, y: 20, text: "D" }),    // moved only by dy=-50
-    ]});
+    const prev = el({
+      tag: "ul",
+      x: 0,
+      y: 0,
+      children: [
+        el({ tag: "li", x: 0, y: 10, text: "A" }),
+        el({ tag: "li", x: 0, y: 30, text: "B" }),
+        el({ tag: "li", x: 0, y: 50, text: "C" }),
+        el({ tag: "li", x: 0, y: 70, text: "D" }),
+      ],
+    });
+    const next = el({
+      tag: "ul",
+      x: 0,
+      y: -100,
+      children: [
+        el({ tag: "li", x: 0, y: -90, text: "A" }),
+        el({ tag: "li", x: 0, y: -70, text: "B" }),
+        el({ tag: "li", x: 0, y: -50, text: "C" }),
+        el({ tag: "li", x: 0, y: 20, text: "D" }), // moved only by dy=-50
+      ],
+    });
     const dt = dominantTranslate(diffTrees(prev, next));
     expect(dt).not.toBeNull();
     expect(dt!.dy).toBe(-100);
-    expect(dt!.fraction).toBeCloseTo(4 / 5, 2);  // 4 of 5 moving entries (root counts too)
+    expect(dt!.fraction).toBeCloseTo(4 / 5, 2); // 4 of 5 moving entries (root counts too)
   });
 });

@@ -35,9 +35,17 @@ interface PtyProcess {
   kill(signal?: string): void;
 }
 interface PtyModule {
-  spawn(file: string, args: string[], opts: {
-    name?: string; cols?: number; rows?: number; cwd?: string; env?: NodeJS.ProcessEnv;
-  }): PtyProcess;
+  spawn(
+    file: string,
+    args: string[],
+    opts: {
+      name?: string;
+      cols?: number;
+      rows?: number;
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+    },
+  ): PtyProcess;
 }
 
 export interface PtyCaptureOptions {
@@ -116,10 +124,10 @@ async function loadNodePty(): Promise<PtyModule> {
     return (mod.default ?? mod) as PtyModule;
   } catch (e) {
     throw new Error(
-      "Live terminal capture (`domotion term -- <cmd>`) needs the optional `node-pty` "
-      + "dependency, which isn't installed or failed to build.\n"
-      + "Install it with:  npm install node-pty\n"
-      + `(underlying error: ${(e as Error).message})`,
+      "Live terminal capture (`domotion term -- <cmd>`) needs the optional `node-pty` " +
+        "dependency, which isn't installed or failed to build.\n" +
+        "Install it with:  npm install node-pty\n" +
+        `(underlying error: ${(e as Error).message})`,
     );
   }
 }
@@ -167,7 +175,11 @@ export async function recordPtySession(
   const onResize = (): void => {
     const c = process.stdout.columns || cols;
     const r = process.stdout.rows || rows;
-    try { term.resize(c, r); } catch { /* pty may have exited */ }
+    try {
+      term.resize(c, r);
+    } catch {
+      /* pty may have exited */
+    }
   };
   if (stdin != null) {
     if (stdin.isTTY && stdin.setRawMode != null) stdin.setRawMode(true);

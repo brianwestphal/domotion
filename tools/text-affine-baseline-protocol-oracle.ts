@@ -36,9 +36,7 @@ export const TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX = 1 / 64;
 /** SVG coordinates are serialized to hundredths before the browser rebuilds a CTM. */
 export const TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX = 1 / 32;
 
-type ExpectedDisposition =
-  | "decoded-vector"
-  | "decoded-fragments";
+type ExpectedDisposition = "decoded-vector" | "decoded-fragments";
 
 export interface TextBaselineProtocolCase {
   id: string;
@@ -72,25 +70,29 @@ export const TEXT_BASELINE_PROTOCOL_CASES: readonly TextBaselineProtocolCase[] =
     id: "vertical-rl-plane",
     text: "Vertical RL",
     expectedDisposition: "decoded-vector",
-    targetCss: "writing-mode:vertical-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+    targetCss:
+      "writing-mode:vertical-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
   {
     id: "vertical-lr-plane",
     text: "Vertical LR",
     expectedDisposition: "decoded-vector",
-    targetCss: "writing-mode:vertical-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+    targetCss:
+      "writing-mode:vertical-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
   {
     id: "sideways-rl-plane",
     text: "Sideways RL",
     expectedDisposition: "decoded-vector",
-    targetCss: "writing-mode:sideways-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+    targetCss:
+      "writing-mode:sideways-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
   {
     id: "sideways-lr-plane",
     text: "Sideways LR",
     expectedDisposition: "decoded-vector",
-    targetCss: "writing-mode:sideways-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+    targetCss:
+      "writing-mode:sideways-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
 ] as const;
 
@@ -115,8 +117,16 @@ export const REQUIRED_TEXT_BASELINE_MUTATIONS: readonly TextBaselineMutationKind
   "drop-fragment-relative-top",
 ] as const;
 
-interface Point { x: number; y: number }
-interface Rect { x: number; y: number; width: number; height: number }
+interface Point {
+  x: number;
+  y: number;
+}
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 interface BrowserTextState {
   rangeBounds: Rect;
@@ -210,13 +220,18 @@ export function validateTextBaselineProtocolCorpus(): string[] {
   const errors: string[] = [];
   const ids = TEXT_BASELINE_PROTOCOL_CASES.map((row) => row.id);
   if (new Set(ids).size !== ids.length) errors.push("case ids must be unique");
-  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "fractional-horizontal")) errors.push("fractional horizontal row is required");
-  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "nested-zoom-horizontal")) errors.push("nested zoom row is required");
-  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.expectedDisposition === "decoded-fragments")) errors.push("decoded mixed-fragment row is required");
+  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "fractional-horizontal"))
+    errors.push("fractional horizontal row is required");
+  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "nested-zoom-horizontal"))
+    errors.push("nested zoom row is required");
+  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.expectedDisposition === "decoded-fragments"))
+    errors.push("decoded mixed-fragment row is required");
   for (const mode of ["vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"]) {
-    if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.targetCss.includes(`writing-mode:${mode}`))) errors.push(`${mode} row is required`);
+    if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.targetCss.includes(`writing-mode:${mode}`)))
+      errors.push(`${mode} row is required`);
   }
-  if (new Set(REQUIRED_TEXT_BASELINE_MUTATIONS).size !== REQUIRED_TEXT_BASELINE_MUTATIONS.length) errors.push("mutation ids must be unique");
+  if (new Set(REQUIRED_TEXT_BASELINE_MUTATIONS).size !== REQUIRED_TEXT_BASELINE_MUTATIONS.length)
+    errors.push("mutation ids must be unique");
   return errors;
 }
 
@@ -235,9 +250,11 @@ function walk(nodes: readonly CapturedElement[]): CapturedElement[] {
 }
 
 function ownerFor(tree: readonly CapturedElement[], text: string): CapturedElement | null {
-  return walk(tree).find((node) => node.textSegments?.some((segment) => segment.text.includes(text)) === true)
-    ?? walk(tree).find((node) => node.text.includes(text))
-    ?? null;
+  return (
+    walk(tree).find((node) => node.textSegments?.some((segment) => segment.text.includes(text)) === true) ??
+    walk(tree).find((node) => node.text.includes(text)) ??
+    null
+  );
 }
 
 function pointDistance(left: Point | null, right: Point | null): number {
@@ -246,8 +263,13 @@ function pointDistance(left: Point | null, right: Point | null): number {
 }
 
 function capturedWritingMode(value: string): CapturedTextWritingMode | null {
-  return value === "horizontal-tb" || value === "vertical-rl" || value === "vertical-lr"
-    || value === "sideways-rl" || value === "sideways-lr" ? value : null;
+  return value === "horizontal-tb" ||
+    value === "vertical-rl" ||
+    value === "vertical-lr" ||
+    value === "sideways-rl" ||
+    value === "sideways-lr"
+    ? value
+    : null;
 }
 
 function maxNumericDelta(left: readonly number[], right: readonly number[]): number {
@@ -303,11 +325,12 @@ export function decodeBlinkTextLineOrigin(
   const width = neutralQuad[2] - neutralQuad[0];
   const height = neutralQuad[7] - neutralQuad[1];
   const lineRelative = { x: left, y: top + ascent };
-  const rotation: CapturedTextPaintAffine = writingMode === "horizontal-tb"
-    ? [1, 0, 0, 1, 0, 0]
-    : writingMode === "sideways-lr"
-      ? [0, -1, 1, 0, left - top, left + top + height]
-      : [0, 1, -1, 0, left + top + width, top - left];
+  const rotation: CapturedTextPaintAffine =
+    writingMode === "horizontal-tb"
+      ? [1, 0, 0, 1, 0, 0]
+      : writingMode === "sideways-lr"
+        ? [0, -1, 1, 0, left - top, left + top + height]
+        : [0, 1, -1, 0, left + top + width, top - left];
   return { lineRelative, rotation, physical: mapTextBaselinePoint(rotation, lineRelative) };
 }
 
@@ -341,17 +364,24 @@ function sourceSpans(state: BrowserTextState): Array<{ fragmentIndex: number; so
   return state.rangeClientRects.map((fragmentRect, fragmentIndex) => ({
     fragmentIndex,
     sourceOffsets: state.codeUnitRects.flatMap((rects, sourceOffset) =>
-      rects.some((rect) => rectDelta(rect, fragmentRect) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX
-        || (rect.x + rect.width / 2 >= fragmentRect.x - TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX
-          && rect.x + rect.width / 2 <= fragmentRect.x + fragmentRect.width + TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX
-          && rect.y + rect.height / 2 >= fragmentRect.y - TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX
-          && rect.y + rect.height / 2 <= fragmentRect.y + fragmentRect.height + TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX))
-        ? [sourceOffset] : []),
+      rects.some(
+        (rect) =>
+          rectDelta(rect, fragmentRect) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX ||
+          (rect.x + rect.width / 2 >= fragmentRect.x - TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX &&
+            rect.x + rect.width / 2 <= fragmentRect.x + fragmentRect.width + TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX &&
+            rect.y + rect.height / 2 >= fragmentRect.y - TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX &&
+            rect.y + rect.height / 2 <= fragmentRect.y + fragmentRect.height + TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),
+      )
+        ? [sourceOffset]
+        : [],
+    ),
   }));
 }
 
 async function animationFrame(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))));
+  await page.evaluate(
+    () => new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))),
+  );
 }
 
 async function browserState(page: Page, session: CDPSession): Promise<BrowserTextState> {
@@ -371,7 +401,8 @@ async function browserState(page: Page, session: CDPSession): Promise<BrowserTex
       unit.setStart(text, index);
       unit.setEnd(text, index + 1);
       const rects: Rect[] = [];
-      for (const rect of unit.getClientRects()) rects.push({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+      for (const rect of unit.getClientRects())
+        rects.push({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
       codeUnitRects.push(rects);
     }
     const markerRect = target.querySelector<HTMLElement>(".baseline-probe")!.getBoundingClientRect();
@@ -418,7 +449,10 @@ async function browserState(page: Page, session: CDPSession): Promise<BrowserTex
 }
 
 async function emittedState(page: Page, svg: string): Promise<EmittedTextState> {
-  await page.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}svg{display:block}</style>${svg}`, { waitUntil: "load" });
+  await page.setContent(
+    `<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}svg{display:block}</style>${svg}`,
+    { waitUntil: "load" },
+  );
   await page.evaluate(() => document.fonts.ready);
   return page.evaluate(() => {
     const texts = Array.from(document.querySelectorAll<SVGTextElement>("svg text"));
@@ -445,7 +479,8 @@ async function emittedState(page: Page, svg: string): Promise<EmittedTextState> 
     const localBaselines: number[] = [];
     for (const text of texts) localBaselines.push(Number.parseFloat(text.getAttribute("y") ?? "NaN"));
     const transformAttributes: string[] = [];
-    for (const node of document.querySelectorAll<SVGGraphicsElement>("svg [transform]")) transformAttributes.push(node.getAttribute("transform") ?? "");
+    for (const node of document.querySelectorAll<SVGGraphicsElement>("svg [transform]"))
+      transformAttributes.push(node.getAttribute("transform") ?? "");
     return {
       textCount: texts.length,
       imageCount: document.querySelectorAll("svg image").length,
@@ -457,7 +492,11 @@ async function emittedState(page: Page, svg: string): Promise<EmittedTextState> 
   });
 }
 
-function capturedState(tree: readonly CapturedElement[], text: string, warnings: readonly unknown[]): CapturedTextState {
+function capturedState(
+  tree: readonly CapturedElement[],
+  text: string,
+  warnings: readonly unknown[],
+): CapturedTextState {
   const owner = ownerFor(tree, text);
   return {
     segmentCount: owner?.textSegments?.length ?? 0,
@@ -471,7 +510,8 @@ function capturedState(tree: readonly CapturedElement[], text: string, warnings:
     })),
     fragments: owner?.textPaintGeometry?.fragments ?? [],
     rasterOwnerCount: walk(tree).filter((node) => node.transformSubtreeRaster?.dataUri != null).length,
-    relevantWarnings: warnings.map((warning) => typeof warning === "string" ? warning : JSON.stringify(warning))
+    relevantWarnings: warnings
+      .map((warning) => (typeof warning === "string" ? warning : JSON.stringify(warning)))
       .filter((warning) => /text-fragment|outer raster|outer.*surface/i.test(warning)),
   };
 }
@@ -490,7 +530,10 @@ async function runCase(
   try {
     await Promise.all([session.send("DOM.enable"), session.send("Runtime.enable")]);
     const live = await browserState(source, session);
-    neutralStyle = await source.addStyleTag({ content: "[data-affine-owner]{transform:none!important;translate:none!important;rotate:none!important;scale:none!important}" });
+    neutralStyle = await source.addStyleTag({
+      content:
+        "[data-affine-owner]{transform:none!important;translate:none!important;rotate:none!important;scale:none!important}",
+    });
     await animationFrame(source);
     const neutral = await browserState(source, session);
     await neutralStyle.evaluate((style) => style.remove());
@@ -498,33 +541,44 @@ async function runCase(
     await animationFrame(source);
     const restored = await browserState(source, session);
 
-    const captureResult = await capture.captureElementTreeWithWarnings(source, "#scene", { x: 0, y: 0, width: 900, height: 520 });
+    const captureResult = await capture.captureElementTreeWithWarnings(source, "#scene", {
+      x: 0,
+      y: 0,
+      width: 900,
+      height: 520,
+    });
     const captured = capturedState(captureResult.tree, test.text, captureResult.warnings);
     const svg = render.elementTreeToSvg(captureResult.tree, 900, 520);
     const emitted = await emittedState(output, svg);
-    const independentMatrix = neutral.quads[0] == null || live.quads[0] == null
-      ? null : solveTextBaselineAffine(neutral.quads[0], live.quads[0]);
+    const independentMatrix =
+      neutral.quads[0] == null || live.quads[0] == null
+        ? null
+        : solveTextBaselineAffine(neutral.quads[0], live.quads[0]);
     const firstFragment = captured.fragments[0];
-    const sourceAscent = firstFragment?.lineOrigin.primaryFontIntegerAscent
-      ?? captured.segments[0]?.fontAscent
-      ?? neutral.canvasFontBoundingBoxAscent * neutral.computed.effectiveZoom;
+    const sourceAscent =
+      firstFragment?.lineOrigin.primaryFontIntegerAscent ??
+      captured.segments[0]?.fontAscent ??
+      neutral.canvasFontBoundingBoxAscent * neutral.computed.effectiveZoom;
     const writingMode = capturedWritingMode(neutral.computed.writingMode);
-    const decoded = writingMode != null && neutral.quads[0] != null
-      ? decodeBlinkTextLineOrigin(neutral.quads[0], sourceAscent, writingMode)
-      : null;
+    const decoded =
+      writingMode != null && neutral.quads[0] != null
+        ? decodeBlinkTextLineOrigin(neutral.quads[0], sourceAscent, writingMode)
+        : null;
     const neutralBaselinePoint = decoded?.physical ?? null;
-    const liveBaselinePoint = decoded != null && independentMatrix != null
-      ? mapTextBaselinePoint(independentMatrix, decoded.physical) : null;
+    const liveBaselinePoint =
+      decoded != null && independentMatrix != null ? mapTextBaselinePoint(independentMatrix, decoded.physical) : null;
     const capturedPhysicalBaselinePoint = firstFragment?.lineOrigin.physicalBaselinePoint ?? null;
-    const capturedPaintBaselinePoint = firstFragment != null && capturedPhysicalBaselinePoint != null
-      ? mapTextBaselinePoint(firstFragment.paintMatrix, capturedPhysicalBaselinePoint)
-      : null;
-    const maxCapturedMatrixDelta = firstFragment == null || independentMatrix == null
-      ? Number.POSITIVE_INFINITY : maxNumericDelta(firstFragment.paintMatrix, independentMatrix);
+    const capturedPaintBaselinePoint =
+      firstFragment != null && capturedPhysicalBaselinePoint != null
+        ? mapTextBaselinePoint(firstFragment.paintMatrix, capturedPhysicalBaselinePoint)
+        : null;
+    const maxCapturedMatrixDelta =
+      firstFragment == null || independentMatrix == null
+        ? Number.POSITIVE_INFINITY
+        : maxNumericDelta(firstFragment.paintMatrix, independentMatrix);
     const maxLiveCaptureBaselineDeltaCssPx = pointDistance(liveBaselinePoint, capturedPaintBaselinePoint);
-    const maxLiveEmittedBaselineDeltaCssPx = writingMode === "horizontal-tb"
-      ? pointDistance(liveBaselinePoint, emitted.firstBaselineStart)
-      : 0;
+    const maxLiveEmittedBaselineDeltaCssPx =
+      writingMode === "horizontal-tb" ? pointDistance(liveBaselinePoint, emitted.firstBaselineStart) : 0;
     const logical = {
       sourceAscent,
       neutralBaselinePoint,
@@ -542,50 +596,83 @@ async function runCase(
     const sharedControls = {
       liveAndRestoredQuadsMatch: logical.maxRestorationDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
       rangeAndCdpFragmentCountsMatch: neutral.rangeClientRects.length === neutral.quads.length,
-      everyRangeFragmentHasSourceOffsets: logical.rangeFragmentSourceSpans.every((fragment) => fragment.sourceOffsets.length > 0),
+      everyRangeFragmentHasSourceOffsets: logical.rangeFragmentSourceSpans.every(
+        (fragment) => fragment.sourceOffsets.length > 0,
+      ),
     };
     let dispositionControls: Record<string, boolean>;
     if (test.expectedDisposition === "decoded-vector" || test.expectedDisposition === "decoded-fragments") {
       const record = firstFragment?.lineOrigin;
-      const recordTop = record == null ? Infinity
-        : record.roundedContainingPaintOffsetTop + record.fragmentRelativeTop;
+      const recordTop = record == null ? Infinity : record.roundedContainingPaintOffsetTop + record.fragmentRelativeTop;
       dispositionControls = {
-        expectedSourceFragmentCardinality: test.expectedDisposition === "decoded-vector"
-          ? neutral.quads.length === 1 : neutral.quads.length > 1,
-        capturedEveryVectorFragment: captured.fragments.length === neutral.quads.length && captured.rasterOwnerCount === 0,
+        expectedSourceFragmentCardinality:
+          test.expectedDisposition === "decoded-vector" ? neutral.quads.length === 1 : neutral.quads.length > 1,
+        capturedEveryVectorFragment:
+          captured.fragments.length === neutral.quads.length && captured.rasterOwnerCount === 0,
         capturedMatrixMatchesIndependent: logical.maxCapturedMatrixDelta <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         structuredRecordPresent: record?.source === "blink-text-fragment-line-origin-v1",
-        structuredTopMatchesNeutralFragment: Math.abs(recordTop - neutral.quads[0][1]) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        structuredTopMatchesNeutralFragment:
+          Math.abs(recordTop - neutral.quads[0][1]) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         integerPrimaryAscentMatchesBrowser: record?.primaryFontIntegerAscent === Math.round(sourceAscent),
-        lineRelativeOriginMatchesIndependent: pointDistance(
-          record == null ? null : { x: record.lineRelativeTextOrigin.lineLeft, y: record.lineRelativeTextOrigin.lineOver },
-          decoded?.lineRelative ?? null,
-        ) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        writingRotationMatchesIndependent: record != null && decoded != null
-          && maxNumericDelta(record.writingModeRotation, decoded.rotation) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        physicalBaselineMatchesIndependent: pointDistance(record?.physicalBaselinePoint ?? null, decoded?.physical ?? null)
-          <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        zoomRetainedOnlyInNeutralRecord: Math.abs((record?.effectiveZoom ?? Infinity) - neutral.computed.effectiveZoom)
-          <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        lineRelativeOriginMatchesIndependent:
+          pointDistance(
+            record == null
+              ? null
+              : { x: record.lineRelativeTextOrigin.lineLeft, y: record.lineRelativeTextOrigin.lineOver },
+            decoded?.lineRelative ?? null,
+          ) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        writingRotationMatchesIndependent:
+          record != null &&
+          decoded != null &&
+          maxNumericDelta(record.writingModeRotation, decoded.rotation) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        physicalBaselineMatchesIndependent:
+          pointDistance(record?.physicalBaselinePoint ?? null, decoded?.physical ?? null) <=
+          TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        zoomRetainedOnlyInNeutralRecord:
+          Math.abs((record?.effectiveZoom ?? Infinity) - neutral.computed.effectiveZoom) <=
+          TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         pinnedProvenancePresent: record?.provenance.chromiumRevision === TEXT_BASELINE_PROTOCOL_SOURCE_PINS.chromium,
-        matrixMapsBaselineBeforeTransform: pointDistance(liveBaselinePoint, capturedPaintBaselinePoint)
-          <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        matrixMapsBaselineBeforeTransform:
+          pointDistance(liveBaselinePoint, capturedPaintBaselinePoint) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         capturedBaselineMapsToLive: logical.maxLiveCaptureBaselineDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        emittedBaselineMapsToLive: writingMode !== "horizontal-tb"
-          || logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
+        emittedBaselineMapsToLive:
+          writingMode !== "horizontal-tb" ||
+          logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
         noRelevantWarnings: captured.relevantWarnings.length === 0,
       };
     }
     const controls = { ...sharedControls, ...dispositionControls };
-    return { id: test.id, expectedDisposition: test.expectedDisposition, live, neutral, restored, independentMatrix, captured, emitted, logical, controls, pass: Object.values(controls).every(Boolean) };
+    return {
+      id: test.id,
+      expectedDisposition: test.expectedDisposition,
+      live,
+      neutral,
+      restored,
+      independentMatrix,
+      captured,
+      emitted,
+      logical,
+      controls,
+      pass: Object.values(controls).every(Boolean),
+    };
   } finally {
     if (neutralStyle != null) await neutralStyle.evaluate((style) => style.remove()).catch(() => undefined);
     await session.detach();
   }
 }
 
-function mutationResult(kind: TextBaselineMutationKind, baseline: number, mutated: number, minimum: number): TextBaselineMutationResult {
-  return { kind, baseline, mutated, moved: Number.isFinite(baseline) && Number.isFinite(mutated) && mutated - baseline > minimum };
+function mutationResult(
+  kind: TextBaselineMutationKind,
+  baseline: number,
+  mutated: number,
+  minimum: number,
+): TextBaselineMutationResult {
+  return {
+    kind,
+    baseline,
+    mutated,
+    moved: Number.isFinite(baseline) && Number.isFinite(mutated) && mutated - baseline > minimum,
+  };
 }
 
 export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtocolRow[]): TextBaselineMutationResult[] {
@@ -599,34 +686,42 @@ export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtoco
   const correct = fractional?.logical.liveBaselinePoint ?? null;
   const ascent = fractional?.logical.sourceAscent ?? Infinity;
   const postTransform = live == null ? null : { x: live.rangeBounds.x, y: live.rangeBounds.y + ascent };
-  const addAscentAfter = matrix == null || neutral == null ? null : (() => {
-    const top = mapTextBaselinePoint(matrix, { x: neutral.rangeBounds.x, y: neutral.rangeBounds.y });
-    return { x: top.x, y: top.y + ascent };
-  })();
+  const addAscentAfter =
+    matrix == null || neutral == null
+      ? null
+      : (() => {
+          const top = mapTextBaselinePoint(matrix, { x: neutral.rangeBounds.x, y: neutral.rangeBounds.y });
+          return { x: top.x, y: top.y + ascent };
+        })();
   const snapped = correct == null ? null : { x: Math.round(correct.x), y: Math.round(correct.y) };
-  const originless = matrix == null || neutral == null ? null
-    : mapTextBaselinePoint([matrix[0], matrix[1], matrix[2], matrix[3], 0, 0], {
-      x: neutral.rangeBounds.x,
-      y: neutral.rangeBounds.y + ascent,
-    });
+  const originless =
+    matrix == null || neutral == null
+      ? null
+      : mapTextBaselinePoint([matrix[0], matrix[1], matrix[2], matrix[3], 0, 0], {
+          x: neutral.rangeBounds.x,
+          y: neutral.rangeBounds.y + ascent,
+        });
 
   const zoomMatrix = zoom?.independentMatrix ?? null;
   const zoomNeutral = zoom?.neutral;
   const zoomCorrect = zoom?.logical.liveBaselinePoint ?? null;
   const zoomAscent = zoom?.logical.sourceAscent ?? Infinity;
-  const doubleZoom = zoomMatrix == null || zoomNeutral == null ? null : mapTextBaselinePoint(zoomMatrix, {
-    x: zoomNeutral.rangeBounds.x,
-    y: zoomNeutral.rangeBounds.y + zoomAscent * zoomNeutral.computed.effectiveZoom,
-  });
+  const doubleZoom =
+    zoomMatrix == null || zoomNeutral == null
+      ? null
+      : mapTextBaselinePoint(zoomMatrix, {
+          x: zoomNeutral.rangeBounds.x,
+          y: zoomNeutral.rangeBounds.y + zoomAscent * zoomNeutral.computed.effectiveZoom,
+        });
 
   const verticalRecord = vertical?.captured.fragments[0]?.lineOrigin;
-  const wrongVerticalPlane = verticalRecord == null ? Infinity : pointDistance(
-    verticalRecord.physicalBaselinePoint,
-    {
-      x: verticalRecord.lineRelativeTextOrigin.lineLeft,
-      y: verticalRecord.lineRelativeTextOrigin.lineOver,
-    },
-  );
+  const wrongVerticalPlane =
+    verticalRecord == null
+      ? Infinity
+      : pointDistance(verticalRecord.physicalBaselinePoint, {
+          x: verticalRecord.lineRelativeTextOrigin.lineLeft,
+          y: verticalRecord.lineRelativeTextOrigin.lineOver,
+        });
   const fragmentTopDelta = Math.abs(verticalRecord?.fragmentRelativeTop ?? Infinity);
   return [
     mutationResult("post-transform-aabb-plus-ascent", 0, pointDistance(correct, postTransform), 1),
@@ -637,9 +732,18 @@ export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtoco
     mutationResult("collapse-mixed-fragments", mixed?.neutral.quads.length ?? Infinity, 1, 0),
     mutationResult("vertical-horizontal-plane", 0, wrongVerticalPlane, 1),
     mutationResult("drop-fragment-relative-top", 0, fragmentTopDelta, TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),
-  ].map((mutation) => mutation.kind === "collapse-mixed-fragments"
-    ? { ...mutation, moved: Number.isFinite(mutation.baseline) && Number.isFinite(mutation.mutated) && mutation.baseline > mutation.mutated && mutation.baseline > 1 }
-    : mutation);
+  ].map((mutation) =>
+    mutation.kind === "collapse-mixed-fragments"
+      ? {
+          ...mutation,
+          moved:
+            Number.isFinite(mutation.baseline) &&
+            Number.isFinite(mutation.mutated) &&
+            mutation.baseline > mutation.mutated &&
+            mutation.baseline > 1,
+        }
+      : mutation,
+  );
 }
 
 export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselineProtocolReport> {
@@ -663,7 +767,8 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
       const controls = {
         everyRequestedRowPresent: rows.length === TEXT_BASELINE_PROTOCOL_CASES.length,
         everyRowDiscriminatorActive: rows.every((row) => row.pass),
-        everyWrongPlaneMutationMoves: mutations.length === REQUIRED_TEXT_BASELINE_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
+        everyWrongPlaneMutationMoves:
+          mutations.length === REQUIRED_TEXT_BASELINE_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
         noPixelOrScreenshotLeg: true,
       };
       const pass = Object.values(controls).every(Boolean);
@@ -696,17 +801,26 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
 async function main(): Promise<number> {
   const report = await runTextAffineBaselineProtocolOracle();
   const jsonIndex = process.argv.indexOf("--json");
-  const path = resolve(jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
-    ? process.argv[jsonIndex + 1]
-    : `tests/output/text-affine-baseline-protocol-${platform()}.json`);
+  const path = resolve(
+    jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
+      ? process.argv[jsonIndex + 1]
+      : `tests/output/text-affine-baseline-protocol-${platform()}.json`,
+  );
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`text affine baseline protocol: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`);
+  console.log(
+    `text affine baseline protocol: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`,
+  );
   for (const row of report.rows) {
-    console.log(`${row.pass ? "PASS" : "FAIL"} ${row.id}: disposition=${row.expectedDisposition}, range/cdp/capture=${row.neutral.rangeClientRects.length}/${row.neutral.quads.length}/${row.captured.fragments.length}, raster=${row.captured.rasterOwnerCount}`);
+    console.log(
+      `${row.pass ? "PASS" : "FAIL"} ${row.id}: disposition=${row.expectedDisposition}, range/cdp/capture=${row.neutral.rangeClientRects.length}/${row.neutral.quads.length}/${row.captured.fragments.length}, raster=${row.captured.rasterOwnerCount}`,
+    );
     for (const [name, pass] of Object.entries(row.controls)) if (!pass) console.log(`  FAIL control ${name}`);
   }
-  for (const mutation of report.mutations) console.log(`${mutation.moved ? "PASS" : "FAIL"} mutation ${mutation.kind}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`);
+  for (const mutation of report.mutations)
+    console.log(
+      `${mutation.moved ? "PASS" : "FAIL"} mutation ${mutation.kind}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`,
+    );
   console.log(`report: ${path}`);
   return report.verdict === "source-exact-line-origin" ? 0 : 1;
 }

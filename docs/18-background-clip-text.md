@@ -3,11 +3,11 @@ id: "requirements/background-clip-text"
 title: "18 — background-clip: text (vector-masked background stack)"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","paint-effects","product-tooling"]
+owners: ["text-fonts", "paint-effects", "product-tooling"]
 platforms: []
-tickets: ["DM-1053","DM-2366","DM-460","DM-696","DM-749","DM-908"]
-code: ["src/render/element-tree-to-svg.ts","tests/background-clip-text-oracle.e2e.test.ts","tests/features.ts"]
-aliases: ["docs/18-background-clip-text.md","doc-18"]
+tickets: ["DM-1053", "DM-2366", "DM-460", "DM-696", "DM-749", "DM-908"]
+code: ["src/render/element-tree-to-svg.ts", "tests/background-clip-text-oracle.e2e.test.ts", "tests/features.ts"]
+aliases: ["docs/18-background-clip-text.md", "doc-18"]
 ---
 
 # 18 — `background-clip: text` (vector-masked background stack)
@@ -20,7 +20,7 @@ Modern marketing pages (Stripe, Resend, Linear, Vercel, etc.) routinely render h
 h1 {
   background: linear-gradient(90deg, #22d3ee, #a855f7, #f97316);
   -webkit-background-clip: text;
-          background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
 }

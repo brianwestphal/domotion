@@ -15,17 +15,17 @@ on:
   workflow_dispatch:
     inputs:
       os:
-        description: 'Runner OS'
+        description: "Runner OS"
         type: choice
         options: [macos, linux, windows]
         default: macos
       stride:
-        description: 'Codepoint stride within each block (lower = denser sample)'
+        description: "Codepoint stride within each block (lower = denser sample)"
         type: string
-        default: '2'
+        default: "2"
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: "22"
 
 jobs:
   probe:
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
       # The inventory is the whole point of this job, so record it alongside the

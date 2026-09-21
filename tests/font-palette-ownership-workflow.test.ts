@@ -19,10 +19,12 @@ describe("DM-2510/DM-2534 cross-platform font-palette paint workflow", () => {
     expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain("if-no-files-found: error");
-    expect(packageJson.scripts?.["fonts:palette-ownership-audit"])
-      .toBe("node --import tsx tools/font-palette-ownership-audit.ts");
-    expect(packageJson.scripts?.["fonts:palette-paint-gate"])
-      .toBe("node --import tsx tools/font-palette-paint-gate.ts");
+    expect(packageJson.scripts?.["fonts:palette-ownership-audit"]).toBe(
+      "node --import tsx tools/font-palette-ownership-audit.ts",
+    );
+    expect(packageJson.scripts?.["fonts:palette-paint-gate"]).toBe(
+      "node --import tsx tools/font-palette-paint-gate.ts",
+    );
   });
 
   it("does not encode a global image percentage or adjustable pixel envelope", () => {

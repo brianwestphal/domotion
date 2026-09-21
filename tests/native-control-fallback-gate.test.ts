@@ -50,11 +50,9 @@ describe("native-control sampled fallback retirement gate (DM-2458)", () => {
   });
 
   it("kills a reordered or removed native-raster terminal guard", () => {
-    const mutatedEmitter = emitterSource().replace(
-      "if (nativeControlRaster != null)",
-      "if (false)",
+    const mutatedEmitter = emitterSource().replace("if (nativeControlRaster != null)", "if (false)");
+    expect(auditNativeControlFallbackSources(formSource(), mutatedEmitter)).toContain(
+      "native-control raster must terminate emission before renderFormControl",
     );
-    expect(auditNativeControlFallbackSources(formSource(), mutatedEmitter))
-      .toContain("native-control raster must terminate emission before renderFormControl");
   });
 });

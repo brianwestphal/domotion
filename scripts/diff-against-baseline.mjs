@@ -80,7 +80,8 @@ const current = toFixtureMap(JSON.parse(readFileSync(resultsPath, "utf8")));
 function emit(md) {
   const text = md.join("\n") + "\n";
   if (summaryTarget != null) {
-    if (summaryTarget === process.env.GITHUB_STEP_SUMMARY && existsSync(summaryTarget)) appendFileSync(summaryTarget, text);
+    if (summaryTarget === process.env.GITHUB_STEP_SUMMARY && existsSync(summaryTarget))
+      appendFileSync(summaryTarget, text);
     else writeFileSync(summaryTarget, text);
     console.log(`Wrote baseline-diff report to ${summaryTarget}`);
   }
@@ -91,7 +92,8 @@ const heading = `## Baseline diff${label ? ` — ${label}` : ""}`;
 
 if (!existsSync(baselinePath)) {
   emit([
-    heading, "",
+    heading,
+    "",
     `⚠️ No committed CI baseline at \`${baselinePath}\`.`,
     "",
     "This is a *relative* check (regressions vs the last known-good run on the same",
@@ -112,13 +114,16 @@ const meta = (baselineDoc && baselineDoc.meta) || {};
 const isFail = (r) => r != null && !r.pass && !r.skipped;
 
 const regressions = []; // passed/skipped in baseline, fails now
-const fixes = [];       // failed in baseline, passes now
+const fixes = []; // failed in baseline, passes now
 const newFixtures = []; // in current, not in baseline
-const dropped = [];     // in baseline, not in current
+const dropped = []; // in baseline, not in current
 
 for (const [name, cur] of current) {
   const base = baseline.get(name);
-  if (base == null) { newFixtures.push({ name, cur }); continue; }
+  if (base == null) {
+    newFixtures.push({ name, cur });
+    continue;
+  }
   if (isFail(cur) && !isFail(base)) regressions.push({ name, cur, base });
   else if (!isFail(cur) && isFail(base)) fixes.push({ name, cur, base });
 }
@@ -153,14 +158,17 @@ const newFailing = newFixtures.filter((f) => isFail(f.cur));
 // exercising. Real sweeps are 295 (html) and 818 (unicode).
 const CORPUS_MIN = 25;
 const overlap = [...baseline.keys()].filter((n) => current.has(n)).length;
-if (baseline.size >= CORPUS_MIN && current.size >= CORPUS_MIN
-    && overlap < Math.min(baseline.size, current.size) * 0.5) {
+if (
+  baseline.size >= CORPUS_MIN &&
+  current.size >= CORPUS_MIN &&
+  overlap < Math.min(baseline.size, current.size) * 0.5
+) {
   console.error(
-    `FATAL: this result set does not describe the baseline's corpus — only ${overlap} of `
-    + `${baseline.size} baseline fixtures are present (${current.size} in the run).\n`
-    + `  Baseline: ${baselinePath}\n`
-    + "  Most likely the staged results are from a DIFFERENT suite's run. Re-stage the\n"
-    + "  intended run explicitly:  node tools/run-ci-visual-tests.mjs --suite <s> --run-id <id>",
+    `FATAL: this result set does not describe the baseline's corpus — only ${overlap} of ` +
+      `${baseline.size} baseline fixtures are present (${current.size} in the run).\n` +
+      `  Baseline: ${baselinePath}\n` +
+      "  Most likely the staged results are from a DIFFERENT suite's run. Re-stage the\n" +
+      "  intended run explicitly:  node tools/run-ci-visual-tests.mjs --suite <s> --run-id <id>",
   );
   process.exit(2);
 }
@@ -188,7 +196,11 @@ if (metaBits.length) md.push(`Baseline: ${metaBits.join(" · ")}`, "");
 const envPath = arg("--env", null);
 let runEnv = null;
 if (envPath != null && existsSync(envPath)) {
-  try { runEnv = JSON.parse(readFileSync(envPath, "utf8")); } catch { runEnv = null; }
+  try {
+    runEnv = JSON.parse(readFileSync(envPath, "utf8"));
+  } catch {
+    runEnv = null;
+  }
 }
 const envReasons = envComparability(runEnv, meta.env ?? null);
 if (envReasons.length > 0) {
@@ -209,16 +221,21 @@ if (envReasons.length > 0) {
   );
 }
 
-md.push(`**${curFails} failing now vs ${baseFails} in baseline.** ` +
-  `${regressions.length} regression(s), ${fixes.length} fix(es), ` +
-  `${newFailing.length} new failing fixture(s), ${dropped.length} dropped.`, "");
+md.push(
+  `**${curFails} failing now vs ${baseFails} in baseline.** ` +
+    `${regressions.length} regression(s), ${fixes.length} fix(es), ` +
+    `${newFailing.length} new failing fixture(s), ${dropped.length} dropped.`,
+  "",
+);
 
 function table(title, rows, withBase) {
   if (rows.length === 0) return;
   md.push(`### ${title} (${rows.length})`, "");
-  md.push(withBase
-    ? "| fixture | moved | diff% now | worstTile% now | diff% base | worstTile% base |"
-    : "| fixture | diff% | worstTile% | regions |");
+  md.push(
+    withBase
+      ? "| fixture | moved | diff% now | worstTile% now | diff% base | worstTile% base |"
+      : "| fixture | diff% | worstTile% | regions |",
+  );
   md.push(withBase ? "|---|---|---|---|---|---|" : "|---|---|---|---|");
   for (const { name, cur, base } of rows) {
     const cd = (cur?.diffPct ?? 0).toFixed(3);
@@ -259,10 +276,14 @@ function table(title, rows, withBase) {
 // byte-identical, and all four perceptual digests were EQUAL. Digest-only
 // attribution printed "unattributed" for it.
 function movedLabel(cur, base) {
-  const eb = base?.expectedDigest, ea = cur?.expectedDigest;
-  const ab = base?.actualDigest, aa = cur?.actualDigest;
-  const ebs = base?.expectedSha256, eas = cur?.expectedSha256;
-  const abs = base?.actualSha256, aas = cur?.actualSha256;
+  const eb = base?.expectedDigest,
+    ea = cur?.expectedDigest;
+  const ab = base?.actualDigest,
+    aa = cur?.actualDigest;
+  const ebs = base?.expectedSha256,
+    eas = cur?.expectedSha256;
+  const abs = base?.actualSha256,
+    aas = cur?.actualSha256;
   const expBytesSame = !!ebs && !!eas && ebs === eas;
   const actBytesSame = !!abs && !!aas && abs === aas;
   if (expBytesSame && actBytesSame) return "neither ✓ (both byte-identical — suspect the comparator)";
@@ -290,20 +311,36 @@ function movedLabel(cur, base) {
 const oracleSide = regressions.filter((r) => movedLabel(r.cur, r.base).startsWith("**oracle**"));
 if (oracleSide.length > 0) {
   md.push(
-    `> **${oracleSide.length} of ${regressions.length} regression(s) are ORACLE-SIDE** — Chrome's expected.png`
-    + " moved and our output did not, so these are not code regressions. Re-capturing the baseline is the fix;"
-    + " bisecting is not.", "",
-    "_" + oracleSide.map((r) => r.name).join(", ") + "_", "",
+    `> **${oracleSide.length} of ${regressions.length} regression(s) are ORACLE-SIDE** — Chrome's expected.png` +
+      " moved and our output did not, so these are not code regressions. Re-capturing the baseline is the fix;" +
+      " bisecting is not.",
+    "",
+    "_" + oracleSide.map((r) => r.name).join(", ") + "_",
+    "",
   );
 }
 
 table("🔴 Regressions vs baseline", regressions, true);
-table("🆕 New failing fixtures (not in baseline)", newFailing.map((f) => ({ name: f.name, cur: f.cur })), false);
+table(
+  "🆕 New failing fixtures (not in baseline)",
+  newFailing.map((f) => ({ name: f.name, cur: f.cur })),
+  false,
+);
 table("🟢 Newly passing vs baseline", fixes, true);
 
 if (dropped.length) {
-  md.push(`### Dropped (in baseline, not in this run): ${dropped.length}`, "",
-    "_" + dropped.slice(0, 20).map((d) => d.name).join(", ") + (dropped.length > 20 ? ", …" : "") + "_", "");
+  md.push(
+    `### Dropped (in baseline, not in this run): ${dropped.length}`,
+    "",
+    "_" +
+      dropped
+        .slice(0, 20)
+        .map((d) => d.name)
+        .join(", ") +
+      (dropped.length > 20 ? ", …" : "") +
+      "_",
+    "",
+  );
 }
 
 if (regressions.length === 0 && newFailing.length === 0) {

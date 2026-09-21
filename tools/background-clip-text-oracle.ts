@@ -29,11 +29,24 @@ const SIGNALS = [
 ] as const;
 
 export const backgroundClipTextRequiredStates = [
-  "url-image", "background-color", "bottom-layer-color", "multiple-layers",
-  "transparent-fill", "opaque-fill", "text-stroke", "inherited-descendant",
-  "fragmented-inline", "slice", "clone", "background-size",
-  "background-position", "background-repeat", "background-origin",
-  "DPR:1", "DPR:2", "vector-text-only",
+  "url-image",
+  "background-color",
+  "bottom-layer-color",
+  "multiple-layers",
+  "transparent-fill",
+  "opaque-fill",
+  "text-stroke",
+  "inherited-descendant",
+  "fragmented-inline",
+  "slice",
+  "clone",
+  "background-size",
+  "background-position",
+  "background-repeat",
+  "background-origin",
+  "DPR:1",
+  "DPR:2",
+  "vector-text-only",
 ] as const;
 
 const TILE = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='16' viewBox='0 0 24 16'%3E%3Cpath fill='rgb(0,190,255)' d='M0 0h8v16H0z'/%3E%3Cpath fill='rgb(246,42,132)' d='M16 0h8v16h-8z'/%3E%3C/svg%3E`;
@@ -68,7 +81,9 @@ function sha256File(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-async function paintedFonts(page: import("@playwright/test").Page): Promise<Array<{ id: string; fonts: Array<{ familyName: string; glyphCount: number }> }>> {
+async function paintedFonts(
+  page: import("@playwright/test").Page,
+): Promise<Array<{ id: string; fonts: Array<{ familyName: string; glyphCount: number }> }>> {
   const session = await page.context().newCDPSession(page);
   await session.send("DOM.enable");
   await session.send("CSS.enable");
@@ -77,7 +92,10 @@ async function paintedFonts(page: import("@playwright/test").Page): Promise<Arra
   for (const id of ["url", "color", "stack", "opaque", "owner", "slice", "clone", "owned-geometry"]) {
     const query = await session.send("DOM.querySelector", { nodeId: document.root.nodeId, selector: `#${id}` });
     const result = await session.send("CSS.getPlatformFontsForNode", { nodeId: query.nodeId });
-    rows.push({ id, fonts: result.fonts.map((font) => ({ familyName: font.familyName, glyphCount: font.glyphCount })) });
+    rows.push({
+      id,
+      fonts: result.fonts.map((font) => ({ familyName: font.familyName, glyphCount: font.glyphCount })),
+    });
   }
   await session.detach();
   return rows;
@@ -111,7 +129,9 @@ function removeTextRasterEscape(tree: CapturedElement[]): string[] {
   return errors;
 }
 
-async function signalEdges(png: Buffer): Promise<{ width: number; height: number; edges: Uint8Array; pixels: number; count: number }> {
+async function signalEdges(
+  png: Buffer,
+): Promise<{ width: number; height: number; edges: Uint8Array; pixels: number; count: number }> {
   const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = decoded.info;
   const mask = new Uint8Array(width * height);
@@ -121,17 +141,22 @@ async function signalEdges(png: Buffer): Promise<{ width: number; height: number
     const green = decoded.data[index * channels + 1];
     const blue = decoded.data[index * channels + 2];
     const signal = SIGNALS.some(([sr, sg, sb]) => Math.hypot(red - sr, green - sg, blue - sb) <= 72);
-    if (signal) { mask[index] = 1; pixels++; }
+    if (signal) {
+      mask[index] = 1;
+      pixels++;
+    }
   }
   const edges = new Uint8Array(mask.length);
   let count = 0;
-  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
-    const index = y * width + x;
-    if (mask[index] === 0) continue;
-    if (mask[index - 1] === 0 || mask[index + 1] === 0 || mask[index - width] === 0 || mask[index + width] === 0) {
-      edges[index] = 1; count++;
+  for (let y = 1; y < height - 1; y++)
+    for (let x = 1; x < width - 1; x++) {
+      const index = y * width + x;
+      if (mask[index] === 0) continue;
+      if (mask[index - 1] === 0 || mask[index + 1] === 0 || mask[index - width] === 0 || mask[index + width] === 0) {
+        edges[index] = 1;
+        count++;
+      }
     }
-  }
   return { width, height, edges, pixels, count };
 }
 
@@ -142,18 +167,21 @@ function directedDistance(
   let max = 0;
   let misses = 0;
   const radius = EDGE_RADIUS_DEVICE_PIXELS;
-  for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
-    if (source.edges[y * source.width + x] === 0) continue;
-    let best = Number.POSITIVE_INFINITY;
-    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
-      if (dx * dx + dy * dy > radius * radius) continue;
-      const tx = x + dx, ty = y + dy;
-      if (tx < 0 || ty < 0 || tx >= target.width || ty >= target.height) continue;
-      if (target.edges[ty * target.width + tx] !== 0) best = Math.min(best, Math.hypot(dx, dy));
+  for (let y = 0; y < source.height; y++)
+    for (let x = 0; x < source.width; x++) {
+      if (source.edges[y * source.width + x] === 0) continue;
+      let best = Number.POSITIVE_INFINITY;
+      for (let dy = -radius; dy <= radius; dy++)
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx * dx + dy * dy > radius * radius) continue;
+          const tx = x + dx,
+            ty = y + dy;
+          if (tx < 0 || ty < 0 || tx >= target.width || ty >= target.height) continue;
+          if (target.edges[ty * target.width + tx] !== 0) best = Math.min(best, Math.hypot(dx, dy));
+        }
+      if (!Number.isFinite(best)) misses++;
+      else max = Math.max(max, best);
     }
-    if (!Number.isFinite(best)) misses++;
-    else max = Math.max(max, best);
-  }
   return { max, misses };
 }
 
@@ -218,12 +246,20 @@ export async function runBackgroundClipTextOracle(
       });
       if (fontEvidence.length === 0) fontEvidence = await paintedFonts(source);
       const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
-      const captured = await captureElementTreeWithWarnings(source, "#stage", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+      const captured = await captureElementTreeWithWarnings(source, "#stage", {
+        x: 0,
+        y: 0,
+        width: WIDTH,
+        height: HEIGHT,
+      });
       const flat = flatten(captured.tree);
       const structuralErrors = removeTextRasterEscape(captured.tree);
-      const urlRecords = flat.flatMap((element) => element.styles.backgroundImages ?? []).filter((record) => record != null);
+      const urlRecords = flat
+        .flatMap((element) => element.styles.backgroundImages ?? [])
+        .filter((record) => record != null);
       const loadedUrlRecords = urlRecords.filter((record) => record?.loadState === "loaded");
-      if (loadedUrlRecords.length < 5) structuralErrors.push(`expected >=5 loaded URL layer records, received ${loadedUrlRecords.length}`);
+      if (loadedUrlRecords.length < 5)
+        structuralErrors.push(`expected >=5 loaded URL layer records, received ${loadedUrlRecords.length}`);
       if (urlRecords.some((record) => record?.loadState !== "loaded" || record.naturalSizingState !== "resolved")) {
         structuralErrors.push("URL selected candidate/natural sizing record was not exact");
       }
@@ -232,15 +268,26 @@ export async function runBackgroundClipTextOracle(
       const vectorPatterns = (svg.match(/<pattern id="bg/g) ?? []).length;
       if (alphaMasks < 6) structuralErrors.push(`expected >=6 alpha glyph masks, received ${alphaMasks}`);
       if (vectorPatterns < 5) structuralErrors.push(`expected >=5 URL pattern defs, received ${vectorPatterns}`);
-      if (/<image[^>]+(?:elementRaster|transformSubtreeRaster)/.test(svg)) structuralErrors.push("text raster marker reached SVG");
-      if (!/fill="rgb\(36,\s*204,\s*112\)"[^>]+mask="url\(#tbgm/.test(svg)) structuralErrors.push("color-only masked fill missing");
-      if (!/fill="rgb\(255,\s*145,\s*0\)"[^>]+mask="url\(#tbgm/.test(svg)) structuralErrors.push("bottom-layer masked color missing");
-      if (!/clip-path=/.test(svg) || !/transform=/.test(svg)) structuralErrors.push("zoom/transform/clip ownership missing");
+      if (/<image[^>]+(?:elementRaster|transformSubtreeRaster)/.test(svg))
+        structuralErrors.push("text raster marker reached SVG");
+      if (!/fill="rgb\(36,\s*204,\s*112\)"[^>]+mask="url\(#tbgm/.test(svg))
+        structuralErrors.push("color-only masked fill missing");
+      if (!/fill="rgb\(255,\s*145,\s*0\)"[^>]+mask="url\(#tbgm/.test(svg))
+        structuralErrors.push("bottom-layer masked color missing");
+      if (!/clip-path=/.test(svg) || !/transform=/.test(svg))
+        structuralErrors.push("zoom/transform/clip ownership missing");
 
       const rendered = await context.newPage();
-      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, { waitUntil: "load" });
-      await rendered.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); });
-      const renderedPng = Buffer.from(await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
+      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, {
+        waitUntil: "load",
+      });
+      await rendered.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      const renderedPng = Buffer.from(
+        await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }),
+      );
       if (artifactDir != null) {
         mkdirSync(artifactDir, { recursive: true });
         writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
@@ -253,10 +300,14 @@ export async function runBackgroundClipTextOracle(
       const unmatchedSourceRatio = sourceSignal.count === 0 ? 1 : forward.misses / sourceSignal.count;
       const unmatchedRenderedRatio = renderedSignal.count === 0 ? 1 : reverse.misses / renderedSignal.count;
       const pixelRatio = sourceSignal.pixels === 0 ? 0 : renderedSignal.pixels / sourceSignal.pixels;
-      const pass = structuralErrors.length === 0
-        && sourceSignal.count > 0 && renderedSignal.count > 0
-        && unmatchedSourceRatio <= 0.025 && unmatchedRenderedRatio <= 0.025
-        && pixelRatio >= 0.82 && pixelRatio <= 1.18;
+      const pass =
+        structuralErrors.length === 0 &&
+        sourceSignal.count > 0 &&
+        renderedSignal.count > 0 &&
+        unmatchedSourceRatio <= 0.025 &&
+        unmatchedRenderedRatio <= 0.025 &&
+        pixelRatio >= 0.82 &&
+        pixelRatio <= 1.18;
       rows.push({
         dpr,
         capturedUrlLayers: loadedUrlRecords.length,
@@ -278,18 +329,26 @@ export async function runBackgroundClipTextOracle(
     await browser.close();
   }
   const executable = chromium.executablePath();
-  const joinedSvgFacts = rows.map((row) => `${row.capturedUrlLayers}:${row.alphaMasks}:${row.vectorPatterns}`).join("|");
+  const joinedSvgFacts = rows
+    .map((row) => `${row.capturedUrlLayers}:${row.alphaMasks}:${row.vectorPatterns}`)
+    .join("|");
   const logicalControls = {
     exactDprs: dprs.length > 0 && dprs.every((dpr) => dpr === 1 || dpr === 2) && new Set(dprs).size === dprs.length,
     authenticatedBinary: executable.length > 0 && sha256File(executable).length === 64,
-    authenticatedFonts: fontEvidence.length === 8 && fontEvidence.every((row) => row.fonts.length > 0 && row.fonts.some((font) => font.glyphCount > 0)),
+    authenticatedFonts:
+      fontEvidence.length === 8 &&
+      fontEvidence.every((row) => row.fonts.length > 0 && row.fonts.some((font) => font.glyphCount > 0)),
     urlOwnership: rows.every((row) => row.capturedUrlLayers >= 5),
     alphaMaskOwnership: rows.every((row) => row.alphaMasks >= 6),
     vectorPatternOwnership: rows.every((row) => row.vectorPatterns >= 5),
-    zoomTransformClipOwnership: rows.every((row) => !row.structuralErrors.includes("zoom/transform/clip ownership missing")),
+    zoomTransformClipOwnership: rows.every(
+      (row) => !row.structuralErrors.includes("zoom/transform/clip ownership missing"),
+    ),
     removeMaskMoves: rows.some((row) => row.alphaMasks > 0),
     removePatternMoves: rows.some((row) => row.vectorPatterns > 0),
-    removeTransformMoves: joinedSvgFacts.length > 0 && rows.every((row) => !row.structuralErrors.includes("zoom/transform/clip ownership missing")),
+    removeTransformMoves:
+      joinedSvgFacts.length > 0 &&
+      rows.every((row) => !row.structuralErrors.includes("zoom/transform/clip ownership missing")),
   };
   const logicalExact = Object.values(logicalControls).every(Boolean);
   return {
@@ -319,7 +378,10 @@ async function main(): Promise<void> {
   const dprs = dprAt >= 0 ? args[dprAt + 1].split(",").map(Number).filter(Number.isFinite) : [1, 2];
   const report = await runBackgroundClipTextOracle(dprs, artifactDir);
   const body = `${JSON.stringify(report, null, 2)}\n`;
-  if (jsonPath != null) { mkdirSync(dirname(jsonPath), { recursive: true }); writeFileSync(jsonPath, body); }
+  if (jsonPath != null) {
+    mkdirSync(dirname(jsonPath), { recursive: true });
+    writeFileSync(jsonPath, body);
+  }
   process.stdout.write(body);
   if (report.verdict !== "source-exact") process.exitCode = 1;
 }

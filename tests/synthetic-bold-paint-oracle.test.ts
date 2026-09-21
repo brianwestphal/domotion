@@ -11,15 +11,17 @@ describe("synthetic-bold paint-stage oracle", () => {
     expect(new Set(report.rows.map((row) => row.face.kind))).toEqual(new Set(["static", "variable"]));
     expect(new Set(report.rows.map((row) => row.hinting))).toEqual(new Set(["unhinted", "light", "native-full"]));
     expect(new Set(report.rows.map((row) => row.fontSizePx))).toEqual(new Set([8, 9, 18, 36, 72]));
-    expect(new Set(report.rows.map((row) => row.transform.id))).toEqual(new Set([
-      "identity", "uniform-zoom", "anisotropic-rotate",
-    ]));
+    expect(new Set(report.rows.map((row) => row.transform.id))).toEqual(
+      new Set(["identity", "uniform-zoom", "anisotropic-rotate"]),
+    );
   });
 
   it("keeps every hinting mode's outline record source-owned", () => {
     for (const row of report.rows) {
       expect(row.sourceOutlineRecord).toEqual({
-        owner: "selected-face-glyph", hinting: row.hinting, mutation: "none",
+        owner: "selected-face-glyph",
+        hinting: row.hinting,
+        mutation: "none",
       });
       expect(row.actual.outline).toBe("source");
     }

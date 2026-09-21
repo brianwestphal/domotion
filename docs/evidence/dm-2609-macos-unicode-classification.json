@@ -4,10 +4,7 @@
   "originalSourceRun": 33314760708,
   "reviewedComparisonRun": 33345443048,
   "policy": "A row is functionally clean only when direct expected/actual review confirms the same glyph or tofu inventory, advances, cluster placement, and content; native-versus-embedded raster pixels remain recorded but are not a platform-functionality defect.",
-  "sourceAuthorities": [
-    "external/chromium/third_party/blink/renderer/platform/fonts",
-    "external/harfbuzz/src"
-  ],
+  "sourceAuthorities": ["external/chromium/third_party/blink/renderer/platform/fonts", "external/harfbuzz/src"],
   "counts": {
     "total": 4,
     "functionallyCleanRasterResiduals": 4
@@ -67,11 +64,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "MalayalamSangamMN",
@@ -135,11 +128,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "SinhalaSangamMN",
@@ -195,11 +184,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "NotoSansMyanmar-Regular",
@@ -248,11 +233,7 @@
           "faceIndex": 0,
           "glyphCount": 8,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "Menlo-Regular",
@@ -260,11 +241,7 @@
           "faceIndex": 0,
           "glyphCount": 18,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "AppleSymbols",
@@ -280,11 +257,7 @@
           "faceIndex": 0,
           "glyphCount": 4,
           "selectedBuilder": "hb-subset",
-          "retainedHintTableTags": [
-            "cvt ",
-            "fpgm",
-            "prep"
-          ]
+          "retainedHintTableTags": ["cvt ", "fpgm", "prep"]
         },
         {
           "postscriptName": "STIXTwoMath-Regular",

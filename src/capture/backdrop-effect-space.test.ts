@@ -39,14 +39,18 @@ describe("DM-2487 Blink backdrop effect space", () => {
   });
 
   it("neutralizes only effects re-applied by SVG and retains an ancestor backdrop source", () => {
-    expect(backdropEffectNeutralizations(facts({
-      opacity: ".7",
-      filter: "contrast(1.2)",
-      backdropFilter: "blur(4px)",
-      clipPath: "inset(2px)",
-      maskImage: "linear-gradient(#000,#000)",
-      mixBlendMode: "screen",
-    }))).toEqual(["opacity", "filter", "clip-path", "mask"]);
+    expect(
+      backdropEffectNeutralizations(
+        facts({
+          opacity: ".7",
+          filter: "contrast(1.2)",
+          backdropFilter: "blur(4px)",
+          clipPath: "inset(2px)",
+          maskImage: "linear-gradient(#000,#000)",
+          mixBlendMode: "screen",
+        }),
+      ),
+    ).toEqual(["opacity", "filter", "clip-path", "mask"]);
   });
 
   it("matches the capture walk's rotation/skew freeze but leaves baked scale/translation live", () => {

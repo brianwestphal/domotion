@@ -39,7 +39,9 @@ export async function runStudio(args: string[]): Promise<void> {
   if (positionals.length > 1) throw new Error("domotion-studio accepts at most one project path");
 
   const suppliedProject = positionals[0] == null ? null : resolve(positionals[0]);
-  const workspaceRoot = resolve(values.workspace ?? (suppliedProject == null ? process.cwd() : dirname(suppliedProject)));
+  const workspaceRoot = resolve(
+    values.workspace ?? (suppliedProject == null ? process.cwd() : dirname(suppliedProject)),
+  );
   const initialProjectPath = suppliedProject == null ? undefined : basename(suppliedProject);
   const server = await startStudioServer({
     port: parsePort(values.port),
@@ -48,7 +50,9 @@ export async function runStudio(args: string[]): Promise<void> {
     log: (message) => process.stderr.write(`${message}\n`),
   });
 
-  process.stdout.write(`\n  Domotion Studio running at ${server.url}\n  Workspace: ${server.workspaceRoot}\n  Press Ctrl-C to stop.\n\n`);
+  process.stdout.write(
+    `\n  Domotion Studio running at ${server.url}\n  Workspace: ${server.workspaceRoot}\n  Press Ctrl-C to stop.\n\n`,
+  );
   if (!values["no-open"]) await openInBrowser(server.url);
 
   let closing = false;
@@ -59,8 +63,12 @@ export async function runStudio(args: string[]): Promise<void> {
     await server.close();
     process.exit(0);
   };
-  process.on("SIGINT", () => { void shutdown(); });
-  process.on("SIGTERM", () => { void shutdown(); });
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
 }
 
 const invokedPath = process.argv[1];

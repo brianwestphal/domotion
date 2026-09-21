@@ -111,36 +111,61 @@ export interface MotionPresetOptions {
 const MOTIONS: Record<string, (o: Required<Pick<MotionPresetOptions, "distance" | "scaleFrom">>) => ResolvedMotion> = {
   fade: () => ({ property: "opacity", from: "0", to: "1", easing: EASING_PRESETS["ease-out"] }),
   "fade-up": (o) => ({
-    property: "translateY", from: `${o.distance}px`, to: "0px", easing: EASING_PRESETS.smooth,
+    property: "translateY",
+    from: `${o.distance}px`,
+    to: "0px",
+    easing: EASING_PRESETS.smooth,
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   "fade-down": (o) => ({
-    property: "translateY", from: `-${o.distance}px`, to: "0px", easing: EASING_PRESETS.smooth,
+    property: "translateY",
+    from: `-${o.distance}px`,
+    to: "0px",
+    easing: EASING_PRESETS.smooth,
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   pop: (o) => ({
-    property: "scale", from: `${o.scaleFrom}`, to: "1", easing: EASING_PRESETS["back-out"], transformOrigin: "center",
+    property: "scale",
+    from: `${o.scaleFrom}`,
+    to: "1",
+    easing: EASING_PRESETS["back-out"],
+    transformOrigin: "center",
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   "slide-in-left": (o) => ({
-    property: "translateX", from: `-${o.distance}px`, to: "0px", easing: EASING_PRESETS.smooth,
+    property: "translateX",
+    from: `-${o.distance}px`,
+    to: "0px",
+    easing: EASING_PRESETS.smooth,
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   "slide-in-right": (o) => ({
-    property: "translateX", from: `${o.distance}px`, to: "0px", easing: EASING_PRESETS.smooth,
+    property: "translateX",
+    from: `${o.distance}px`,
+    to: "0px",
+    easing: EASING_PRESETS.smooth,
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   "slide-in-up": (o) => ({
-    property: "translateY", from: `${o.distance}px`, to: "0px", easing: EASING_PRESETS.smooth,
+    property: "translateY",
+    from: `${o.distance}px`,
+    to: "0px",
+    easing: EASING_PRESETS.smooth,
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   "slide-in-down": (o) => ({
-    property: "translateY", from: `-${o.distance}px`, to: "0px", easing: EASING_PRESETS.smooth,
+    property: "translateY",
+    from: `-${o.distance}px`,
+    to: "0px",
+    easing: EASING_PRESETS.smooth,
     fuse: [{ property: "opacity", from: "0", to: "1" }],
   }),
   // Left-to-right clip reveal (no motion of the box; the content is unveiled).
   "wipe-in": () => ({
-    property: "clipPath", from: "inset(0 100% 0 0)", to: "inset(0 0 0 0)", easing: EASING_PRESETS["ease-out-quart"],
+    property: "clipPath",
+    from: "inset(0 100% 0 0)",
+    to: "inset(0 0 0 0)",
+    easing: EASING_PRESETS["ease-out-quart"],
   }),
 };
 
@@ -176,7 +201,10 @@ export function resolveMotionPreset(name: string, opts: MotionPresetOptions = {}
   const enter = def({ distance, scaleFrom });
   const resolved = opts.exit === true ? reverse(enter) : enter;
   // An exit generally reads better easing IN (accelerating away).
-  if (opts.exit === true && (resolved.easing === EASING_PRESETS.smooth || resolved.easing === EASING_PRESETS["ease-out"])) {
+  if (
+    opts.exit === true &&
+    (resolved.easing === EASING_PRESETS.smooth || resolved.easing === EASING_PRESETS["ease-out"])
+  ) {
     return { ...resolved, easing: EASING_PRESETS["ease-in-cubic"] };
   }
   return resolved;

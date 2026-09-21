@@ -5,21 +5,31 @@
 import { readFileSync } from "node:fs";
 
 const [offPath, onPath] = process.argv.slice(2);
-if (!offPath || !onPath) { console.error("usage: ab-compare-results.mjs <off.json> <on.json>"); process.exit(1); }
+if (!offPath || !onPath) {
+  console.error("usage: ab-compare-results.mjs <off.json> <on.json>");
+  process.exit(1);
+}
 const off = JSON.parse(readFileSync(offPath, "utf-8"));
 const on = JSON.parse(readFileSync(onPath, "utf-8"));
 
 const byName = (arr) => new Map(arr.map((r) => [r.name, r]));
-const O = byName(off), N = byName(on);
+const O = byName(off),
+  N = byName(on);
 
-const newlyPass = [], newlyFail = [], improved = [], regressed = [], unchanged = [];
-let sumRegionDelta = 0, sumDiffDelta = 0;
+const newlyPass = [],
+  newlyFail = [],
+  improved = [],
+  regressed = [],
+  unchanged = [];
+let sumRegionDelta = 0,
+  sumDiffDelta = 0;
 for (const [name, o] of O) {
   const n = N.get(name);
   if (!n) continue;
   const dReg = (n.regionCount ?? 0) - (o.regionCount ?? 0);
   const dDiff = (n.diffPct ?? 0) - (o.diffPct ?? 0);
-  sumRegionDelta += dReg; sumDiffDelta += dDiff;
+  sumRegionDelta += dReg;
+  sumDiffDelta += dDiff;
   if (!o.pass && n.pass) newlyPass.push({ name, o, n });
   else if (o.pass && !n.pass) newlyFail.push({ name, o, n });
   else if (dReg < 0 || dDiff < -0.005) improved.push({ name, o, n, dReg, dDiff });
@@ -42,14 +52,19 @@ function attribution(o, n) {
   else if (expBytesSame) parts.push("RENDERER side (proven: expected byte-identical)");
   else if (actBytesSame) parts.push("ORACLE side (proven: actual byte-identical — not caused by this change)");
   else if (o.expectedDigest && n.expectedDigest && o.actualDigest && n.actualDigest) {
-    const em = o.expectedDigest !== n.expectedDigest, am = o.actualDigest !== n.actualDigest;
+    const em = o.expectedDigest !== n.expectedDigest,
+      am = o.actualDigest !== n.actualDigest;
     if (em && am) parts.push("both sides moved (digest)");
     else if (em) parts.push("oracle side (digest — unproven)");
     else if (am) parts.push("renderer side (digest — unproven)");
-    else parts.push("unattributed: no digest moved, bytes differ on both sides (sub-digest — NOT proof of 'same output')");
+    else
+      parts.push("unattributed: no digest moved, bytes differ on both sides (sub-digest — NOT proof of 'same output')");
   }
-  if (Array.isArray(o.chromeFaces) && Array.isArray(n.chromeFaces)
-      && JSON.stringify(o.chromeFaces) !== JSON.stringify(n.chromeFaces)) {
+  if (
+    Array.isArray(o.chromeFaces) &&
+    Array.isArray(n.chromeFaces) &&
+    JSON.stringify(o.chromeFaces) !== JSON.stringify(n.chromeFaces)
+  ) {
     parts.push(`Chrome painted different faces: ${JSON.stringify(o.chromeFaces)} → ${JSON.stringify(n.chromeFaces)}`);
   }
   return parts;
@@ -63,8 +78,12 @@ const fmt = (e) => {
 const offPassCount = off.filter((r) => r.pass).length;
 const onPassCount = on.filter((r) => r.pass).length;
 console.log(`\n=== DM-1083 A/B (${O.size} fixtures) ===`);
-console.log(`Pass count:  OFF ${offPassCount}  →  ON ${onPassCount}   (${onPassCount - offPassCount >= 0 ? "+" : ""}${onPassCount - offPassCount})`);
-console.log(`Σ region delta: ${sumRegionDelta >= 0 ? "+" : ""}${sumRegionDelta}    Σ diffPct delta: ${sumDiffDelta >= 0 ? "+" : ""}${sumDiffDelta.toFixed(3)}%`);
+console.log(
+  `Pass count:  OFF ${offPassCount}  →  ON ${onPassCount}   (${onPassCount - offPassCount >= 0 ? "+" : ""}${onPassCount - offPassCount})`,
+);
+console.log(
+  `Σ region delta: ${sumRegionDelta >= 0 ? "+" : ""}${sumRegionDelta}    Σ diffPct delta: ${sumDiffDelta >= 0 ? "+" : ""}${sumDiffDelta.toFixed(3)}%`,
+);
 console.log(`\nNewly PASS (${newlyPass.length}):`);
 for (const e of newlyPass) console.log("  ✅ " + fmt(e));
 console.log(`\nNewly FAIL (${newlyFail.length}):`);

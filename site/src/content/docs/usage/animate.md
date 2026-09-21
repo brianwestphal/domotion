@@ -127,13 +127,16 @@ A frame also supports:
 
 ```json
 {
-  "width": 1280, "height": 720,
+  "width": 1280,
+  "height": 720,
   "frames": [
-    { "input": "form.html",
+    {
+      "input": "form.html",
       "actions": [{ "type": "click", "selector": ".submit" }],
       "overlays": [{ "kind": "typing", "selector": "input", "text": "hello" }],
       "duration": 1500,
-      "transition": { "type": "crossfade", "duration": 300 } },
+      "transition": { "type": "crossfade", "duration": 300 }
+    },
     { "continue": true, "duration": 1500 }
   ]
 }

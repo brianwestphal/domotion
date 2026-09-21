@@ -24,14 +24,21 @@ const b64 = buf.toString("base64");
 const result = await page.evaluate(async (b64) => {
   const img = new Image();
   img.src = "data:image/png;base64," + b64;
-  await new Promise((r) => { img.onload = r; });
+  await new Promise((r) => {
+    img.onload = r;
+  });
   const cvs = document.createElement("canvas");
-  cvs.width = img.width; cvs.height = img.height;
+  cvs.width = img.width;
+  cvs.height = img.height;
   const cx = cvs.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const w = img.width, h = img.height;
+  const w = img.width,
+    h = img.height;
   const id = cx.getImageData(0, 0, w, h).data;
-  const pix = (x, y) => { const i = (y*w+x)*4; return [id[i], id[i+1], id[i+2]]; };
+  const pix = (x, y) => {
+    const i = (y * w + x) * 4;
+    return [id[i], id[i + 1], id[i + 2]];
+  };
   const isWhite = (p) => p[0] >= 250 && p[1] >= 250 && p[2] >= 250;
 
   const out = [];
@@ -52,16 +59,26 @@ const result = await page.evaluate(async (b64) => {
       }
       return samples;
     }
-    out.push({ id, r: { x: r.x, y: r.y, w: r.width, h: r.height }, cy,
-      colLeft, colRight, colMid,
-      atLeft: sampleCol(colLeft), atRight: sampleCol(colRight), atMid: sampleCol(colMid) });
+    out.push({
+      id,
+      r: { x: r.x, y: r.y, w: r.width, h: r.height },
+      cy,
+      colLeft,
+      colRight,
+      colMid,
+      atLeft: sampleCol(colLeft),
+      atRight: sampleCol(colRight),
+      atMid: sampleCol(colMid),
+    });
   }
   return out;
 }, b64);
 
 for (const d of result) {
   console.log(`\n=== ${d.id} ===`);
-  console.log(`  bbox: x=${d.r.x.toFixed(1)} y=${d.r.y.toFixed(1)} w=${d.r.w.toFixed(1)} h=${d.r.h.toFixed(1)}, cy=${d.cy}`);
+  console.log(
+    `  bbox: x=${d.r.x.toFixed(1)} y=${d.r.y.toFixed(1)} w=${d.r.w.toFixed(1)} h=${d.r.h.toFixed(1)}, cy=${d.cy}`,
+  );
   console.log(`  At left col (${d.colLeft}) — track unfilled (or filled if val>0):`);
   for (const s of d.atLeft) if (!s.white) console.log(`    y=${s.y}: ${s.p}`);
   console.log(`  At right col (${d.colRight}) — track unfilled (or filled if val=100):`);

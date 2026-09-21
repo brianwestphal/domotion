@@ -51,46 +51,55 @@ async function scanInk(
 ): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number; keys: string[] }> {
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
   const excludeKeys = exclude != null ? [...exclude] : [];
-  return page.evaluate(async (args: { dataUri: string; mode: string; excludeKeys: string[] }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const d = ctx.getImageData(0, 0, img.width, img.height).data;
-    const skip = new Set(args.excludeKeys);
-    const keys: string[] = [];
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, count = 0;
-    for (let y = 0; y < img.height; y++) {
-      for (let x = 0; x < img.width; x++) {
-        const i = (y * img.width + x) * 4;
-        const r = d[i], g = d[i + 1], b = d[i + 2];
-        let hit = false;
-        if (args.mode === "red") hit = r > 180 && g < 100 && b < 100;
-        else if (args.mode === "blue") hit = b > 180 && r < 100 && g < 100;
-        else if (args.mode === "magenta") hit = r > 180 && b > 180 && g < 100;
-        // #3b82f6 at ~2/3 alpha over white ≈ rgb(134, 176, 250): strongly
-        // blue-dominant, clearly bluer than the near-neutral text/borders.
-        else hit = b > 200 && b - r > 60 && b - g > 30;
-        if (hit && skip.has(`${x},${y}`)) hit = false;
-        if (hit) {
-          keys.push(`${x},${y}`);
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-          count++;
+  return page.evaluate(
+    async (args: { dataUri: string; mode: string; excludeKeys: string[] }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, img.width, img.height).data;
+      const skip = new Set(args.excludeKeys);
+      const keys: string[] = [];
+      let minX = Infinity,
+        maxX = -Infinity,
+        minY = Infinity,
+        maxY = -Infinity,
+        count = 0;
+      for (let y = 0; y < img.height; y++) {
+        for (let x = 0; x < img.width; x++) {
+          const i = (y * img.width + x) * 4;
+          const r = d[i],
+            g = d[i + 1],
+            b = d[i + 2];
+          let hit = false;
+          if (args.mode === "red") hit = r > 180 && g < 100 && b < 100;
+          else if (args.mode === "blue") hit = b > 180 && r < 100 && g < 100;
+          else if (args.mode === "magenta") hit = r > 180 && b > 180 && g < 100;
+          // #3b82f6 at ~2/3 alpha over white ≈ rgb(134, 176, 250): strongly
+          // blue-dominant, clearly bluer than the near-neutral text/borders.
+          else hit = b > 200 && b - r > 60 && b - g > 30;
+          if (hit && skip.has(`${x},${y}`)) hit = false;
+          if (hit) {
+            keys.push(`${x},${y}`);
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            count++;
+          }
         }
       }
-    }
-    return { minX, maxX, minY, maxY, count, keys };
-  }, { dataUri, mode, excludeKeys });
+      return { minX, maxX, minY, maxY, count, keys };
+    },
+    { dataUri, mode, excludeKeys },
+  );
 }
 
 async function setup() {
@@ -150,7 +159,8 @@ describeBrowser("caret + selection track e2e (docs/101)", () => {
       });
 
       const svg = generateAnimatedSvg({
-        width: W, height: H,
+        width: W,
+        height: H,
         background: "#ffffff",
         frames: [{ svgContent: frameSvg, duration: 4000 }],
         textTracks: [lineTrack, fieldTrack],
@@ -255,7 +265,8 @@ describeBrowser("caret + selection track e2e (docs/101)", () => {
       expect(track.waypoints[1].glyph?.char).toBe("w");
 
       const svg = generateAnimatedSvg({
-        width: W, height: H,
+        width: W,
+        height: H,
         background: "#ffffff",
         frames: [{ svgContent: frameSvg, duration: 4000 }],
         textTracks: [track],
@@ -285,14 +296,24 @@ describeBrowser("caret + selection track e2e (docs/101)", () => {
       // never the page's own near-black glyph — the block covers it.
       const cx = Math.round(p0.x + (red400.maxX - red400.minX) / 2);
       const cy = Math.round(p0.baselineY - p0.ascentPx / 2);
-      const center = await viewer.evaluate(async (args: { dataUri: string; x: number; y: number }) => {
-        const img = new Image();
-        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("decode")); img.src = args.dataUri; });
-        const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
-        const g2 = c.getContext("2d")!; g2.drawImage(img, 0, 0);
-        const d = g2.getImageData(args.x, args.y, 1, 1).data;
-        return { r: d[0], g: d[1], b: d[2] };
-      }, { dataUri: `data:image/png;base64,${at400.toString("base64")}`, x: cx, y: cy });
+      const center = await viewer.evaluate(
+        async (args: { dataUri: string; x: number; y: number }) => {
+          const img = new Image();
+          await new Promise<void>((res, rej) => {
+            img.onload = () => res();
+            img.onerror = () => rej(new Error("decode"));
+            img.src = args.dataUri;
+          });
+          const c = document.createElement("canvas");
+          c.width = img.width;
+          c.height = img.height;
+          const g2 = c.getContext("2d")!;
+          g2.drawImage(img, 0, 0);
+          const d = g2.getImageData(args.x, args.y, 1, 1).data;
+          return { r: d[0], g: d[1], b: d[2] };
+        },
+        { dataUri: `data:image/png;base64,${at400.toString("base64")}`, x: cx, y: cy },
+      );
       // Not the page's dark glyph (that would be low on all channels): the cell
       // is dominated by red (block) or blue (inverted ink).
       expect(center.r > 150 || center.b > 150).toBe(true);

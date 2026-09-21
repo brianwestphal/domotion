@@ -12,10 +12,23 @@ import { chromium, type Page } from "@playwright/test";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
-import { cssForAssignment, generatePairwiseAssignments, layoutAxes, type LayoutAssignment } from "./layout-stage-matrix.js";
+import {
+  cssForAssignment,
+  generatePairwiseAssignments,
+  layoutAxes,
+  type LayoutAssignment,
+} from "./layout-stage-matrix.js";
 
-const output = (() => { const i = process.argv.indexOf("--json"); return i >= 0 ? process.argv[i + 1] : undefined; })();
-const tolerance = Number((() => { const i = process.argv.indexOf("--tolerance"); return i >= 0 ? process.argv[i + 1] : "0.001"; })());
+const output = (() => {
+  const i = process.argv.indexOf("--json");
+  return i >= 0 ? process.argv[i + 1] : undefined;
+})();
+const tolerance = Number(
+  (() => {
+    const i = process.argv.indexOf("--tolerance");
+    return i >= 0 ? process.argv[i + 1] : "0.001";
+  })(),
+);
 const skipControl = process.argv.includes("--skip-negative-control");
 
 interface Fixture {
@@ -26,12 +39,20 @@ interface Fixture {
   normalizeScale?: number;
   metamorphicGroup?: string;
 }
-interface Origin { char: string; x: number; y: number }
-interface Geometry { box: { width: number; height: number }; origins: Origin[] }
+interface Origin {
+  char: string;
+  x: number;
+  y: number;
+}
+interface Geometry {
+  box: { width: number; height: number };
+  origins: Origin[];
+}
 
 const defaults = Object.fromEntries(layoutAxes.map((axis) => [axis.id, axis.values[0].id]));
 const matrixAssignments = generatePairwiseAssignments();
-const baseCss = "position:absolute;left:40px;top:40px;margin:0;padding:0;border:0;font:19px/27px sans-serif;width:168px;max-height:120px;transform-origin:0 0";
+const baseCss =
+  "position:absolute;left:40px;top:40px;margin:0;padding:0;border:0;font:19px/27px sans-serif;width:168px;max-height:120px;transform-origin:0 0";
 const fixtures: Fixture[] = matrixAssignments.map((assignment, i) => ({
   id: `matrix-${String(i).padStart(2, "0")}`,
   css: `${baseCss};${cssForAssignment(assignment)}`,
@@ -43,17 +64,51 @@ const metaAxes = { ...defaults };
 const metaCss = `${baseCss};${cssForAssignment(metaAxes)}`;
 fixtures.push(
   { id: "meta-plain", css: metaCss, html: "AV office", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
-  { id: "meta-neutral-wrapper", css: metaCss, html: "<span>AV office</span>", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
-  { id: "meta-node-split", css: metaCss, html: "<span>AV </span><span>office</span>", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
-  { id: "meta-longhand", css: metaCss.replace("font:19px/27px sans-serif", "font-family:sans-serif;font-size:19px;line-height:27px;font-style:normal;font-weight:400"), html: "AV office", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
-  { id: "meta-translated", css: `${metaCss};transform:translate(37px,23px)`, html: "AV office", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
-  { id: "meta-scale-2x", css: `${metaCss};transform:scale(2);transform-origin:0 0`, html: "AV office", axes: metaAxes, normalizeScale: 2, metamorphicGroup: "inline-equivalence" },
+  {
+    id: "meta-neutral-wrapper",
+    css: metaCss,
+    html: "<span>AV office</span>",
+    axes: metaAxes,
+    metamorphicGroup: "inline-equivalence",
+  },
+  {
+    id: "meta-node-split",
+    css: metaCss,
+    html: "<span>AV </span><span>office</span>",
+    axes: metaAxes,
+    metamorphicGroup: "inline-equivalence",
+  },
+  {
+    id: "meta-longhand",
+    css: metaCss.replace(
+      "font:19px/27px sans-serif",
+      "font-family:sans-serif;font-size:19px;line-height:27px;font-style:normal;font-weight:400",
+    ),
+    html: "AV office",
+    axes: metaAxes,
+    metamorphicGroup: "inline-equivalence",
+  },
+  {
+    id: "meta-translated",
+    css: `${metaCss};transform:translate(37px,23px)`,
+    html: "AV office",
+    axes: metaAxes,
+    metamorphicGroup: "inline-equivalence",
+  },
+  {
+    id: "meta-scale-2x",
+    css: `${metaCss};transform:scale(2);transform-origin:0 0`,
+    html: "AV office",
+    axes: metaAxes,
+    normalizeScale: 2,
+    metamorphicGroup: "inline-equivalence",
+  },
 );
 
 function codePointEntries(text: string): Array<{ char: string; start: number; end: number }> {
   const out = [];
   for (let start = 0; start < text.length;) {
-    const size = text.codePointAt(start)! > 0xFFFF ? 2 : 1;
+    const size = text.codePointAt(start)! > 0xffff ? 2 : 1;
     out.push({ char: text.slice(start, start + size), start, end: start + size });
     start += size;
   }
@@ -68,9 +123,10 @@ async function chromiumGeometry(page: Page, selector: string, scale: number): Pr
     for (let node = walker.nextNode(); node != null; node = walker.nextNode()) {
       const text = node.textContent ?? "";
       for (let start = 0; start < text.length;) {
-        const size = text.codePointAt(start)! > 0xFFFF ? 2 : 1;
+        const size = text.codePointAt(start)! > 0xffff ? 2 : 1;
         const range = document.createRange();
-        range.setStart(node, start); range.setEnd(node, start + size);
+        range.setStart(node, start);
+        range.setEnd(node, start + size);
         const rect = range.getBoundingClientRect();
         const char = text.slice(start, start + size);
         // Whitespace has no glyph origin for the SVG renderer to consume.
@@ -99,7 +155,8 @@ function capturedGeometry(tree: CapturedElement[], box: { x: number; y: number }
         // the renderer paints at `y + fontAscent`; ordinary ruby annotation
         // combine cells already expose their physical top and need no shift.
         const physicalY = seg.y < owner.y ? seg.y + (seg.fontAscent ?? 0) : seg.y;
-        if (x != null) origins.push({ char: entry.char, x: (seg.x + x - box.x) / scale, y: (physicalY - box.y) / scale });
+        if (x != null)
+          origins.push({ char: entry.char, x: (seg.x + x - box.x) / scale, y: (physicalY - box.y) / scale });
       } else if (seg.verticalWritingMode != null) {
         const y = seg.yOffsets?.[entry.start];
         if (y != null) origins.push({ char: entry.char, x: (seg.x - box.x) / scale, y: (y - box.y) / scale });
@@ -126,7 +183,11 @@ function geometryDelta(expected: Geometry, actual: Geometry): number {
   let delta = 0;
   for (let i = 0; i < expected.origins.length; i++) {
     if (expected.origins[i].char !== actual.origins[i].char) return Infinity;
-    delta = Math.max(delta, Math.abs(expected.origins[i].x - actual.origins[i].x), Math.abs(expected.origins[i].y - actual.origins[i].y));
+    delta = Math.max(
+      delta,
+      Math.abs(expected.origins[i].x - actual.origins[i].x),
+      Math.abs(expected.origins[i].y - actual.origins[i].y),
+    );
   }
   return delta;
 }
@@ -137,7 +198,12 @@ function signature(geometry: Geometry): string {
   });
 }
 
-function metamorphicDelta(baseExpected: Geometry, variantExpected: Geometry, baseActual: Geometry, variantActual: Geometry): number {
+function metamorphicDelta(
+  baseExpected: Geometry,
+  variantExpected: Geometry,
+  baseActual: Geometry,
+  variantActual: Geometry,
+): number {
   const lists = [baseExpected.origins, variantExpected.origins, baseActual.origins, variantActual.origins];
   if (!lists.every((list) => list.length === lists[0].length)) return Infinity;
   let delta = 0;
@@ -154,7 +220,9 @@ function metamorphicDelta(baseExpected: Geometry, variantExpected: Geometry, bas
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 900, height: 700 } });
-await page.setContent(`<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" lang="en" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`);
+await page.setContent(
+  `<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" lang="en" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`,
+);
 const chromiumVersion = browser.version();
 const records = [];
 const expectedById = new Map<string, Geometry>();
@@ -162,9 +230,14 @@ const capturedById = new Map<string, Geometry>();
 let mismatches = 0;
 for (const fixture of fixtures) {
   const selector = `#${fixture.id}`;
-  const box = await page.locator(selector).evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; });
+  const box = await page.locator(selector).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y };
+  });
   const expected = await chromiumGeometry(page, selector, fixture.normalizeScale ?? 1);
-  const raw = await page.evaluate(`(${CAPTURE_SCRIPT})({sel:${JSON.stringify(selector)},vp:{x:0,y:0,width:900,height:700},cof:""})`) as {
+  const raw = (await page.evaluate(
+    `(${CAPTURE_SCRIPT})({sel:${JSON.stringify(selector)},vp:{x:0,y:0,width:900,height:700},cof:""})`,
+  )) as {
     tree: CapturedElement[];
     warnings?: Array<{ feature?: string; detail?: string }>;
   };
@@ -177,7 +250,16 @@ for (const fixture of fixtures) {
   const route = diagnosticExpected ? "diagnostic" : "logical";
   const pass = diagnosticExpected ? diagnosticObserved : delta <= tolerance;
   if (!pass) mismatches++;
-  records.push({ id: fixture.id, axes: fixture.axes, route, diagnosticObserved, expected, actual, maxAbsDeltaCssPx: delta, pass });
+  records.push({
+    id: fixture.id,
+    axes: fixture.axes,
+    route,
+    diagnosticObserved,
+    expected,
+    actual,
+    maxAbsDeltaCssPx: delta,
+    pass,
+  });
 }
 
 const transitionControls = layoutAxes.map((axis) => {
@@ -185,28 +267,45 @@ const transitionControls = layoutAxes.map((axis) => {
   const moved = changed.filter((record) => signature(record.actual) !== signature(records[0].actual)).length;
   // Paint-only axes are proved by the pixel stage; diagnostic axes are proved
   // by the capture warning below. Neither may counterfeit a layout movement.
-  return { axis: axis.id, verdict: axis.verdict, exercisedRows: changed.length, movedRows: moved, moved: axis.verdict === "logical" ? moved > 0 : true };
+  return {
+    axis: axis.id,
+    verdict: axis.verdict,
+    exercisedRows: changed.length,
+    movedRows: moved,
+    moved: axis.verdict === "logical" ? moved > 0 : true,
+  };
 });
 const baseMeta = capturedById.get("meta-plain")!;
 const baseMetaExpected = expectedById.get("meta-plain")!;
-const metamorphic = fixtures.filter((f) => f.metamorphicGroup != null && f.id !== "meta-plain").map((fixture) => {
-  const actual = capturedById.get(fixture.id)!;
-  const expected = expectedById.get(fixture.id)!;
-  const delta = metamorphicDelta(baseMetaExpected, expected, baseMeta, actual);
-  return { id: fixture.id, group: fixture.metamorphicGroup, maxAbsDeltaCssPx: delta, pass: delta <= tolerance };
-});
+const metamorphic = fixtures
+  .filter((f) => f.metamorphicGroup != null && f.id !== "meta-plain")
+  .map((fixture) => {
+    const actual = capturedById.get(fixture.id)!;
+    const expected = expectedById.get(fixture.id)!;
+    const delta = metamorphicDelta(baseMetaExpected, expected, baseMeta, actual);
+    return { id: fixture.id, group: fixture.metamorphicGroup, maxAbsDeltaCssPx: delta, pass: delta <= tolerance };
+  });
 const movementProven = !skipControl && transitionControls.every((control) => control.moved);
 const metamorphicAgreement = metamorphic.every((row) => row.pass);
 await browser.close();
 
 const environment = parityEnvironment({
-  chromium: chromiumVersion, launchFlags: [], deviceScaleFactor: 1, zoom: 1,
-  writingMode: "generated-matrix", direction: "generated-matrix",
-  corpusIdentity: `layout-stage-v3:${fixtures.length}`, sampleIdentity: "pairwise-axis-covering-array+metamorphic-equivalences",
+  chromium: chromiumVersion,
+  launchFlags: [],
+  deviceScaleFactor: 1,
+  zoom: 1,
+  writingMode: "generated-matrix",
+  direction: "generated-matrix",
+  corpusIdentity: `layout-stage-v3:${fixtures.length}`,
+  sampleIdentity: "pairwise-axis-covering-array+metamorphic-equivalences",
 });
 const completeEnvironment = fingerprintComplete(environment);
-const verdict = !completeEnvironment || !movementProven ? "verdict-withheld"
-  : mismatches === 0 && metamorphicAgreement ? "exact-logical-agreement" : "logical-mismatch";
+const verdict =
+  !completeEnvironment || !movementProven
+    ? "verdict-withheld"
+    : mismatches === 0 && metamorphicAgreement
+      ? "exact-logical-agreement"
+      : "logical-mismatch";
 const report = {
   schemaVersion: 4,
   stage: "layout",
@@ -218,7 +317,12 @@ const report = {
   chromium: chromiumVersion,
   toleranceCssPx: tolerance,
   generatedRows: matrixAssignments.length,
-  declaredAxes: layoutAxes.map((axis) => ({ id: axis.id, verdict: axis.verdict, values: axis.values.map((value) => value.id), diagnosticFeature: axis.diagnosticFeature })),
+  declaredAxes: layoutAxes.map((axis) => ({
+    id: axis.id,
+    verdict: axis.verdict,
+    values: axis.values.map((value) => value.id),
+    diagnosticFeature: axis.diagnosticFeature,
+  })),
   metamorphicRows: metamorphic.length,
   mismatches,
   transitionControls,
@@ -227,7 +331,11 @@ const report = {
   rasterization: { status: "out-of-scope", reason: "Skia versus consumer SVG rasterizer" },
 };
 if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
-console.log(`Layout stage oracle: ${records.length} capture rows, ${metamorphic.length} metamorphic rows, ${mismatches} logical mismatches`);
-console.log(`Transition controls: ${transitionControls.map((c) => `${c.axis}=${c.movedRows}/${c.exercisedRows}`).join(", ")}`);
+console.log(
+  `Layout stage oracle: ${records.length} capture rows, ${metamorphic.length} metamorphic rows, ${mismatches} logical mismatches`,
+);
+console.log(
+  `Transition controls: ${transitionControls.map((c) => `${c.axis}=${c.movedRows}/${c.exercisedRows}`).join(", ")}`,
+);
 if (output != null) console.log(`wrote ${output}`);
 if (mismatches > 0 || !metamorphicAgreement || !completeEnvironment || !movementProven) process.exitCode = 1;

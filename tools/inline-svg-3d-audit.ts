@@ -39,10 +39,7 @@ type Matrix2D = [number, number, number, number, number, number];
 type Point = { x: number; y: number };
 type Quad = [Point, Point, Point, Point];
 
-export type ExpectedRoute =
-  | "clone-equivalent"
-  | "outer-raster"
-  | "promoted-inline-svg-raster";
+export type ExpectedRoute = "clone-equivalent" | "outer-raster" | "promoted-inline-svg-raster";
 
 export interface AuditCase {
   id: string;
@@ -233,7 +230,8 @@ export const INLINE_SVG_3D_CASES: AuditCase[] = [
   {
     id: "css-rotate-3d-svg-flatten",
     expectedRoute: "clone-equivalent",
-    targetCss: "transform-box:fill-box;transform-origin:13% 86% 19px;transform:rotate3d(.3,.8,.5,41deg) translateZ(17px)",
+    targetCss:
+      "transform-box:fill-box;transform-origin:13% 86% 19px;transform:rotate3d(.3,.8,.5,41deg) translateZ(17px)",
   },
   {
     id: "css-rotate-y-stroke-box",
@@ -253,23 +251,27 @@ export const INLINE_SVG_3D_CASES: AuditCase[] = [
   {
     id: "css-perspective-function-svg-flatten",
     expectedRoute: "clone-equivalent",
-    targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:perspective(260px) rotateY(43deg) translateZ(22px)",
+    targetCss:
+      "transform-box:fill-box;transform-origin:17% 83%;transform:perspective(260px) rotateY(43deg) translateZ(22px)",
   },
   {
     id: "css-independent-3d-properties",
     expectedRoute: "clone-equivalent",
-    targetCss: "transform-box:fill-box;transform-origin:37% 61% 14px;translate:7px 11px 5px;rotate:y 31deg;scale:1.1 .85 1.2",
+    targetCss:
+      "transform-box:fill-box;transform-origin:37% 61% 14px;translate:7px 11px 5px;rotate:y 31deg;scale:1.1 .85 1.2",
   },
   {
     id: "css-motion-path-plus-3d-transform",
     expectedRoute: "clone-equivalent",
-    targetCss: 'transform-box:fill-box;transform-origin:30% 70% 8px;offset-path:path("M 0 0 C 15 30 35 -10 52 18");offset-distance:43%;offset-rotate:27deg;transform:rotateY(22deg)',
+    targetCss:
+      'transform-box:fill-box;transform-origin:30% 70% 8px;offset-path:path("M 0 0 C 15 30 35 -10 52 18");offset-distance:43%;offset-rotate:27deg;transform:rotateY(22deg)',
   },
   {
     id: "css-overrides-static-transform-attribute",
     expectedRoute: "clone-equivalent",
     targetAttrs: 'transform="translate(999 999)"',
-    targetCss: "transform-box:fill-box;transform-origin:23% 71% 29px;transform:perspective(240px) rotateY(39deg) translateZ(17px)",
+    targetCss:
+      "transform-box:fill-box;transform-origin:23% 71% 29px;transform:perspective(240px) rotateY(39deg) translateZ(17px)",
   },
   {
     id: "effective-zoom-svg-child",
@@ -464,9 +466,7 @@ function alphaBounds(data: Buffer, width: number, height: number, channels: numb
       pixels++;
     }
   }
-  return pixels === 0
-    ? null
-    : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1, pixels };
+  return pixels === 0 ? null : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1, pixels };
 }
 
 function boundsDelta(left: InkBounds | null, right: InkBounds | null): number | null {
@@ -486,7 +486,9 @@ async function compareFinalPixels(sourcePng: Buffer, generatedPng: Buffer): Prom
     sharp(generatedPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ]);
   if (source.info.width !== generated.info.width || source.info.height !== generated.info.height) {
-    throw new Error(`pixel-leg size mismatch: ${source.info.width}x${source.info.height} vs ${generated.info.width}x${generated.info.height}`);
+    throw new Error(
+      `pixel-leg size mismatch: ${source.info.width}x${source.info.height} vs ${generated.info.width}x${generated.info.height}`,
+    );
   }
   const pixels = source.info.width * source.info.height;
   let sourceAlphaPixels = 0;
@@ -514,10 +516,11 @@ async function compareFinalPixels(sourcePng: Buffer, generatedPng: Buffer): Prom
   const alphaBoundsDelta = boundsDelta(sourceAlphaBounds, generatedAlphaBounds);
   const alphaMismatchFraction = alphaUnionPixels === 0 ? 0 : alphaMismatchedPixels / alphaUnionPixels;
   const rgbaMeanError = alphaUnionPixels === 0 ? 0 : rgbaError / (alphaUnionPixels * 4 * 255);
-  const pass = alphaBoundsDelta != null
-    && alphaBoundsDelta <= MAX_ALPHA_BOUND_DELTA_PX
-    && alphaMismatchFraction <= MAX_ALPHA_MISMATCH_FRACTION
-    && rgbaMeanError <= MAX_RGBA_MEAN_ERROR;
+  const pass =
+    alphaBoundsDelta != null &&
+    alphaBoundsDelta <= MAX_ALPHA_BOUND_DELTA_PX &&
+    alphaMismatchFraction <= MAX_ALPHA_MISMATCH_FRACTION &&
+    rgbaMeanError <= MAX_RGBA_MEAN_ERROR;
   return {
     width: source.info.width,
     height: source.info.height,
@@ -591,16 +594,44 @@ async function readFacts(page: Page): Promise<DomFacts> {
       computedPerspective: style.perspective,
       bbox: { x: box.x, y: box.y, width: box.width, height: box.height },
       clientRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-      ctm: ctm == null ? null : [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] as [number, number, number, number, number, number],
-      localCtm: localCtm == null ? null : [localCtm.a, localCtm.b, localCtm.c, localCtm.d, localCtm.e, localCtm.f] as [number, number, number, number, number, number],
-      screenCtm: screenCtm == null ? null : [screenCtm.a, screenCtm.b, screenCtm.c, screenCtm.d, screenCtm.e, screenCtm.f] as [number, number, number, number, number, number],
+      ctm:
+        ctm == null
+          ? null
+          : ([ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] as [number, number, number, number, number, number]),
+      localCtm:
+        localCtm == null
+          ? null
+          : ([localCtm.a, localCtm.b, localCtm.c, localCtm.d, localCtm.e, localCtm.f] as [
+              number,
+              number,
+              number,
+              number,
+              number,
+              number,
+            ]),
+      screenCtm:
+        screenCtm == null
+          ? null
+          : ([screenCtm.a, screenCtm.b, screenCtm.c, screenCtm.d, screenCtm.e, screenCtm.f] as [
+              number,
+              number,
+              number,
+              number,
+              number,
+              number,
+            ]),
     };
   });
   return { ...facts, quad: await contentQuad(page, "#target") };
 }
 
-async function readClone(page: Page, svgContent: string): Promise<{ facts: DomFacts; transformAttribute: string | null }> {
-  await page.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svgContent}`, { waitUntil: "load" });
+async function readClone(
+  page: Page,
+  svgContent: string,
+): Promise<{ facts: DomFacts; transformAttribute: string | null }> {
+  await page.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svgContent}`, {
+    waitUntil: "load",
+  });
   const facts = await readFacts(page);
   const transformAttribute = await page.locator("#target").getAttribute("transform");
   return { facts, transformAttribute };
@@ -623,16 +654,20 @@ async function measureUnsafeMatrixMutations(page: Page): Promise<{
       const used = parent.getCTM()!.inverse().multiply(target.getCTM()!);
       const computed = getComputedStyle(target).transform;
       const matrix3d = new DOMMatrix(computed);
-      const mutation = mutationKind === "literal"
-        ? computed
-        : `matrix(${matrix3d.m11} ${matrix3d.m12} ${matrix3d.m21} ${matrix3d.m22} ${matrix3d.m41} ${matrix3d.m42})`;
+      const mutation =
+        mutationKind === "literal"
+          ? computed
+          : `matrix(${matrix3d.m11} ${matrix3d.m12} ${matrix3d.m21} ${matrix3d.m22} ${matrix3d.m41} ${matrix3d.m42})`;
       target.removeAttribute("style");
       target.setAttribute("transform", mutation);
       const actual = parent.getCTM()!.inverse().multiply(target.getCTM()!);
       return Math.max(
-        Math.abs(used.a - actual.a), Math.abs(used.b - actual.b),
-        Math.abs(used.c - actual.c), Math.abs(used.d - actual.d),
-        Math.abs(used.e - actual.e), Math.abs(used.f - actual.f),
+        Math.abs(used.a - actual.a),
+        Math.abs(used.b - actual.b),
+        Math.abs(used.c - actual.c),
+        Math.abs(used.d - actual.d),
+        Math.abs(used.e - actual.e),
+        Math.abs(used.f - actual.f),
       );
     }, kind);
   };
@@ -643,16 +678,22 @@ async function measureUnsafeMatrixMutations(page: Page): Promise<{
 }
 
 async function htmlMarkerCanMeasureSvgRoot(page: Page): Promise<boolean> {
-  await page.setContent(`<style>html,body{margin:0}#host{position:absolute;left:73px;top:41px;zoom:1.35}</style><div id="host"><svg id="marker-root" width="220" height="130" viewBox="0 0 220 130"><rect width="80" height="50"/></svg></div>`);
+  await page.setContent(
+    `<style>html,body{margin:0}#host{position:absolute;left:73px;top:41px;zoom:1.35}</style><div id="host"><svg id="marker-root" width="220" height="130" viewBox="0 0 220 130"><rect width="80" height="50"/></svg></div>`,
+  );
   return page.locator("#marker-root").evaluate((svg) => {
     const marker = document.createElement("span");
     marker.style.cssText = "position:absolute;left:11px;top:7px;width:1px;height:1px";
     svg.appendChild(marker);
     try {
       const rect = marker.getBoundingClientRect();
-      return marker.namespaceURI === "http://www.w3.org/1999/xhtml"
-        && rect.width > 0 && rect.height > 0
-        && Number.isFinite(rect.x) && Number.isFinite(rect.y);
+      return (
+        marker.namespaceURI === "http://www.w3.org/1999/xhtml" &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        Number.isFinite(rect.x) &&
+        Number.isFinite(rect.y)
+      );
     } finally {
       marker.remove();
     }
@@ -669,19 +710,20 @@ function buildMutationResults(
   const nonScaling = byId.get("css-matrix-non-scaling-stroke");
   const fill = byId.get("css-matrix-fill-box");
   const stroke = byId.get("css-matrix-stroke-box");
-  const nonScalingBaselineDelta = nonScaling == null || fill == null
-    ? Number.POSITIVE_INFINITY
-    : matrixDelta(nonScaling.source.localCtm, fill.source.localCtm);
-  const nonScalingMutantDelta = nonScaling == null || stroke == null
-    ? 0
-    : matrixDelta(nonScaling.source.localCtm, stroke.source.localCtm);
+  const nonScalingBaselineDelta =
+    nonScaling == null || fill == null
+      ? Number.POSITIVE_INFINITY
+      : matrixDelta(nonScaling.source.localCtm, fill.source.localCtm);
+  const nonScalingMutantDelta =
+    nonScaling == null || stroke == null ? 0 : matrixDelta(nonScaling.source.localCtm, stroke.source.localCtm);
   const foreign = byId.get("foreign-object-nested-projective-owner-promoted");
   const inert = byId.get("root-svg-inert-perspective-vector");
   return [
     {
       id: "mutation.literal-matrix3d-attribute",
       kind: "literal-matrix3d-attribute",
-      discriminator: "An SVG transform attribute cannot consume the computed CSS matrix3d string as Blink's used local affine.",
+      discriminator:
+        "An SVG transform attribute cannot consume the computed CSS matrix3d string as Blink's used local affine.",
       baseline: 0,
       mutated: unsafe.literalMatrix3dDelta,
       moved: unsafe.literalMatrix3dDelta > 1,
@@ -689,7 +731,8 @@ function buildMutationResults(
     {
       id: "mutation.simple-2d-submatrix",
       kind: "simple-2d-submatrix",
-      discriminator: "Selecting m11/m12/m21/m22/m41/m42 drops origin and perspective flattening and must move the used local matrix.",
+      discriminator:
+        "Selecting m11/m12/m21/m22/m41/m42 drops origin and perspective flattening and must move the used local matrix.",
       baseline: 0,
       mutated: unsafe.simpleSubmatrixDelta,
       moved: unsafe.simpleSubmatrixDelta > 1,
@@ -697,7 +740,8 @@ function buildMutationResults(
     {
       id: "mutation.non-scaling-stroke-box",
       kind: "non-scaling-stroke-box",
-      discriminator: "Blink aliases non-scaling-stroke stroke-box to fill-box; retaining stroke-box must select a distinct origin.",
+      discriminator:
+        "Blink aliases non-scaling-stroke stroke-box to fill-box; retaining stroke-box must select a distinct origin.",
       baseline: nonScalingBaselineDelta,
       mutated: nonScalingMutantDelta,
       moved: nonScalingBaselineDelta <= MATRIX_EPSILON && nonScalingMutantDelta > 1,
@@ -705,7 +749,8 @@ function buildMutationResults(
     {
       id: "mutation.html-marker-root-measurement",
       kind: "html-marker-root-measurement",
-      discriminator: "A bare HTML marker appended under an SVG root has no usable SVG paint box and cannot own root transform measurement.",
+      discriminator:
+        "A bare HTML marker appended under an SVG root has no usable SVG paint box and cannot own root transform measurement.",
       baseline: true,
       mutated: markerUsable,
       moved: markerUsable === false,
@@ -713,7 +758,8 @@ function buildMutationResults(
     {
       id: "mutation.nested-owner-below-svg-content",
       kind: "nested-owner-below-svg-content",
-      discriminator: "A projective raster left below opaque svgContent is unreachable; promotion changes effective ownership from zero to one.",
+      discriminator:
+        "A projective raster left below opaque svgContent is unreachable; promotion changes effective ownership from zero to one.",
       baseline: foreign?.effectiveRasterOwnerCount ?? 0,
       mutated: 0,
       moved: foreign?.effectiveRasterOwnerCount === 1 && foreign.capturedInlineSvg?.ownsTransformRaster === true,
@@ -721,7 +767,8 @@ function buildMutationResults(
     {
       id: "mutation.property-presence-routing",
       kind: "property-presence-routing",
-      discriminator: "Perspective/preserve-3d property presence on an SVG root is inert after used flattening and must not substitute for measured paint activation.",
+      discriminator:
+        "Perspective/preserve-3d property presence on an SVG root is inert after used flattening and must not substitute for measured paint activation.",
       baseline: inert?.rasterOwnerCount ?? -1,
       mutated: 1,
       moved: inert?.rasterOwnerCount === 0,
@@ -729,9 +776,11 @@ function buildMutationResults(
   ];
 }
 
-export async function runInlineSvg3dAudit(options: {
-  deviceScaleFactors?: number[];
-} = {}): Promise<InlineSvg3dGateReport> {
+export async function runInlineSvg3dAudit(
+  options: {
+    deviceScaleFactors?: number[];
+  } = {},
+): Promise<InlineSvg3dGateReport> {
   const corpusErrors = validateInlineSvg3dCorpus();
   if (corpusErrors.length > 0) throw new Error(`invalid inline-SVG 3D corpus:\n${corpusErrors.join("\n")}`);
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
@@ -758,7 +807,12 @@ export async function runInlineSvg3dAudit(options: {
         if (userAgent === "") userAgent = await page.evaluate(() => navigator.userAgent);
         for (const test of INLINE_SVG_3D_CASES) {
           await page.setContent(htmlFor(test), { waitUntil: "load" });
-          await page.evaluate(() => new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))));
+          await page.evaluate(
+            () =>
+              new Promise<void>((resolveFrame) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+              ),
+          );
           await page.evaluate(() => {
             const state = { htmlUnderSvg: 0 };
             const observer = new MutationObserver((records) => {
@@ -771,15 +825,13 @@ export async function runInlineSvg3dAudit(options: {
             });
             observer.observe(document, { childList: true, subtree: true });
             (globalThis as typeof globalThis & { __dm2475MutationState?: typeof state }).__dm2475MutationState = state;
-            (globalThis as typeof globalThis & { __dm2475MutationObserver?: MutationObserver }).__dm2475MutationObserver = observer;
+            (
+              globalThis as typeof globalThis & { __dm2475MutationObserver?: MutationObserver }
+            ).__dm2475MutationObserver = observer;
           });
           const sourcePng = await page.screenshot({ type: "png", omitBackground: true });
           const source = await readFacts(page);
-          const { tree, warnings } = await captureElementTreeWithWarnings(
-            page,
-            "#scene",
-            { x: 0, y: 0, ...VIEWPORT },
-          );
+          const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
           const sourceDomMutationCount = await page.evaluate(() => {
             const scope = globalThis as typeof globalThis & {
               __dm2475MutationState?: { htmlUnderSvg: number };
@@ -793,21 +845,29 @@ export async function runInlineSvg3dAudit(options: {
           });
           const inlineSvg = findInlineSvg(tree);
           const raster = rasterFacts(tree);
-          const cloneResult = inlineSvg?.svgContent == null
-            ? null
-            : await readClone(clonePage, inlineSvg.svgContent);
-          const delta = cloneResult == null
-            ? Number.POSITIVE_INFINITY
-            : matrixDelta(source.localCtm, cloneResult.facts.localCtm);
+          const cloneResult = inlineSvg?.svgContent == null ? null : await readClone(clonePage, inlineSvg.svgContent);
+          const delta =
+            cloneResult == null ? Number.POSITIVE_INFINITY : matrixDelta(source.localCtm, cloneResult.facts.localCtm);
           const transformRaster = raster.count > 0;
-          const logicalPass = test.expectedRoute === "outer-raster"
-            ? raster.effective === 1
-            : test.expectedRoute === "promoted-inline-svg-raster"
-              ? raster.count === 1 && raster.effective === 1 && inlineSvg?.transformSubtreeRaster?.dataUri != null
-              : raster.count === 0 && delta <= MATRIX_EPSILON;
-          const generatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
-          await generatedPage.setContent(`<style>html,body{margin:0;background:transparent}svg{display:block}</style>${generatedSvg}`, { waitUntil: "load" });
-          await generatedPage.evaluate(() => new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))));
+          const logicalPass =
+            test.expectedRoute === "outer-raster"
+              ? raster.effective === 1
+              : test.expectedRoute === "promoted-inline-svg-raster"
+                ? raster.count === 1 && raster.effective === 1 && inlineSvg?.transformSubtreeRaster?.dataUri != null
+                : raster.count === 0 && delta <= MATRIX_EPSILON;
+          const generatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, {
+            hiDPIFactor: deviceScaleFactor,
+          });
+          await generatedPage.setContent(
+            `<style>html,body{margin:0;background:transparent}svg{display:block}</style>${generatedSvg}`,
+            { waitUntil: "load" },
+          );
+          await generatedPage.evaluate(
+            () =>
+              new Promise<void>((resolveFrame) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+              ),
+          );
           const generatedPng = await generatedPage.screenshot({ type: "png", omitBackground: true });
           const pixels = await compareFinalPixels(sourcePng, generatedPng);
           rows.push({
@@ -823,11 +883,14 @@ export async function runInlineSvg3dAudit(options: {
             rasterOwnerCount: raster.count,
             effectiveRasterOwnerCount: raster.effective,
             rasterOwnerPaths: raster.paths,
-            capturedInlineSvg: inlineSvg == null ? null : {
-              storedTransform: inlineSvg.styles.transform ?? null,
-              projectiveTransform: inlineSvg.projectiveTransform ?? null,
-              ownsTransformRaster: inlineSvg.transformSubtreeRaster?.dataUri != null,
-            },
+            capturedInlineSvg:
+              inlineSvg == null
+                ? null
+                : {
+                    storedTransform: inlineSvg.styles.transform ?? null,
+                    projectiveTransform: inlineSvg.projectiveTransform ?? null,
+                    ownsTransformRaster: inlineSvg.transformSubtreeRaster?.dataUri != null,
+                  },
             pixels,
             sourceDomMutationCount,
             warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
@@ -859,24 +922,20 @@ export async function runInlineSvg3dAudit(options: {
       byId.get("css-matrix-stroke-box")?.source.localCtm,
       byId.get("css-matrix-view-box")?.source.localCtm,
     ];
-    const referenceBoxesDistinct = referenceMatrices.every((matrix) => matrix != null)
-      && matrixDelta(referenceMatrices[0]!, referenceMatrices[1]!) > 1
-      && matrixDelta(referenceMatrices[1]!, referenceMatrices[2]!) > 1;
+    const referenceBoxesDistinct =
+      referenceMatrices.every((matrix) => matrix != null) &&
+      matrixDelta(referenceMatrices[0]!, referenceMatrices[1]!) > 1 &&
+      matrixDelta(referenceMatrices[1]!, referenceMatrices[2]!) > 1;
     const controls = {
-      staticAttributeRoundTrips: (byId.get("native-transform-attribute-negative")?.matrixDelta ?? Infinity) <= MATRIX_EPSILON,
+      staticAttributeRoundTrips:
+        (byId.get("native-transform-attribute-negative")?.matrixDelta ?? Infinity) <= MATRIX_EPSILON,
       referenceBoxesDistinct,
       nonScalingStrokeUsesFillBox: matricesEqual(
         byId.get("css-matrix-non-scaling-stroke"),
         byId.get("css-matrix-fill-box"),
       ),
-      contentBoxUsesFillBox: matricesEqual(
-        byId.get("css-matrix-content-box-alias"),
-        byId.get("css-matrix-fill-box"),
-      ),
-      borderBoxUsesStrokeBox: matricesEqual(
-        byId.get("css-matrix-border-box-alias"),
-        byId.get("css-matrix-stroke-box"),
-      ),
+      contentBoxUsesFillBox: matricesEqual(byId.get("css-matrix-content-box-alias"), byId.get("css-matrix-fill-box")),
+      borderBoxUsesStrokeBox: matricesEqual(byId.get("css-matrix-border-box-alias"), byId.get("css-matrix-stroke-box")),
       svgPerspectivePropertyIgnored: matricesEqual(
         byId.get("svg-layer-perspective-ignored"),
         byId.get("svg-layer-flat-control"),
@@ -885,31 +944,36 @@ export async function runInlineSvg3dAudit(options: {
         byId.get("svg-layer-preserve3d-flattens"),
         byId.get("svg-layer-grouping-opacity-flattens"),
       ),
-      zOriginMovesBlinkAnswer: !matricesEqual(
-        byId.get("css-rotate-y-z-origin"),
-        byId.get("css-rotate-y-svg-flatten"),
-      ),
+      zOriginMovesBlinkAnswer: !matricesEqual(byId.get("css-rotate-y-z-origin"), byId.get("css-rotate-y-svg-flatten")),
       everyVectorTransformIsValidSvgMatrix: rows
         .filter((row) => row.expectedRoute === "clone-equivalent")
-        .every((row) => row.clonedTransformAttribute?.startsWith("matrix(") === true
-          && !row.clonedTransformAttribute.includes("matrix3d")),
+        .every(
+          (row) =>
+            row.clonedTransformAttribute?.startsWith("matrix(") === true &&
+            !row.clonedTransformAttribute.includes("matrix3d"),
+        ),
       everyOuterProjectiveRowHasOneOwner: rows
         .filter((row) => row.expectedRoute === "outer-raster")
         .every((row) => row.effectiveRasterOwnerCount === 1),
-      nestedForeignObjectOwnerIsPromoted: (byId.get("foreign-object-nested-projective-owner-promoted")?.capturedInlineSvg?.ownsTransformRaster) === true,
-      inlineSvgProjectiveRootIsOwned: (byId.get("root-svg-own-projective-transform-raster")?.capturedInlineSvg?.ownsTransformRaster) === true,
-      inertSvgPerspectiveStaysVector: (byId.get("root-svg-inert-perspective-vector")?.rasterOwnerCount) === 0
-        && (byId.get("svg-layer-perspective-ignored")?.rasterOwnerCount) === 0,
-      everyScenarioHasEveryCase: deviceScaleFactors.every((dpr) =>
-        rows.filter((row) => row.deviceScaleFactor === dpr).length === INLINE_SVG_3D_CASES.length),
+      nestedForeignObjectOwnerIsPromoted:
+        byId.get("foreign-object-nested-projective-owner-promoted")?.capturedInlineSvg?.ownsTransformRaster === true,
+      inlineSvgProjectiveRootIsOwned:
+        byId.get("root-svg-own-projective-transform-raster")?.capturedInlineSvg?.ownsTransformRaster === true,
+      inertSvgPerspectiveStaysVector:
+        byId.get("root-svg-inert-perspective-vector")?.rasterOwnerCount === 0 &&
+        byId.get("svg-layer-perspective-ignored")?.rasterOwnerCount === 0,
+      everyScenarioHasEveryCase: deviceScaleFactors.every(
+        (dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === INLINE_SVG_3D_CASES.length,
+      ),
       everyFinalSvgPixelLegPasses: rows.every((row) => row.pixels.pass),
       sourceDomWasNotPollutedByHtmlMarkers: rows.every((row) => row.sourceDomMutationCount === 0),
-      everyRequiredMutationMoves: mutations.length === REQUIRED_INLINE_SVG_3D_MUTATIONS.length
-        && mutations.every((mutation) => mutation.moved),
+      everyRequiredMutationMoves:
+        mutations.length === REQUIRED_INLINE_SVG_3D_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
     };
-    const pass = rows.every((row) => row.pass)
-      && mutations.every((mutation) => mutation.moved)
-      && Object.values(controls).every(Boolean);
+    const pass =
+      rows.every((row) => row.pass) &&
+      mutations.every((mutation) => mutation.moved) &&
+      Object.values(controls).every(Boolean);
     const logicalPassed = rows.filter((row) => row.logicalPass).length;
     const pixelsPassed = rows.filter((row) => row.pixels.pass).length;
     const mutationsMoved = mutations.filter((mutation) => mutation.moved).length;
@@ -957,14 +1021,15 @@ export async function runInlineSvg3dAudit(options: {
 
 async function main(): Promise<number> {
   const dprIndex = process.argv.indexOf("--dpr");
-  const deviceScaleFactors = dprIndex >= 0 && process.argv[dprIndex + 1] != null
-    ? process.argv[dprIndex + 1].split(",").map(Number)
-    : [1, 2];
+  const deviceScaleFactors =
+    dprIndex >= 0 && process.argv[dprIndex + 1] != null ? process.argv[dprIndex + 1].split(",").map(Number) : [1, 2];
   const report = await runInlineSvg3dAudit({ deviceScaleFactors });
   const jsonIndex = process.argv.indexOf("--json");
-  const reportPath = resolve(jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
-    ? process.argv[jsonIndex + 1]
-    : `tests/output/inline-svg-3d-gate-${platform()}.json`);
+  const reportPath = resolve(
+    jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
+      ? process.argv[jsonIndex + 1]
+      : `tests/output/inline-svg-3d-gate-${platform()}.json`,
+  );
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   const failures = report.rows.filter((row) => !row.pass);
@@ -974,14 +1039,21 @@ async function main(): Promise<number> {
     const residual = Number.isFinite(row.quadAffineResidual) ? row.quadAffineResidual.toFixed(4) : "inf";
     const alpha = (row.pixels.alphaMismatchFraction * 100).toFixed(3);
     const rgba = (row.pixels.rgbaMeanError * 100).toFixed(3);
-    console.log(`${row.pass ? "PASS" : "FAIL"} dpr=${row.deviceScaleFactor} ${row.id}: route=${row.expectedRoute}, matrix-delta=${delta}, quad-residual=${residual}, alpha-mismatch=${alpha}%, rgba-error=${rgba}%, bound-delta=${row.pixels.alphaBoundsDelta ?? "missing"}, raster-owners=${row.rasterOwnerCount}/${row.effectiveRasterOwnerCount} effective`);
+    console.log(
+      `${row.pass ? "PASS" : "FAIL"} dpr=${row.deviceScaleFactor} ${row.id}: route=${row.expectedRoute}, matrix-delta=${delta}, quad-residual=${residual}, alpha-mismatch=${alpha}%, rgba-error=${rgba}%, bound-delta=${row.pixels.alphaBoundsDelta ?? "missing"}, raster-owners=${row.rasterOwnerCount}/${row.effectiveRasterOwnerCount} effective`,
+    );
   }
-  for (const mutation of report.mutations) console.log(`${mutation.moved ? "PASS" : "FAIL"} ${mutation.id}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`);
+  for (const mutation of report.mutations)
+    console.log(
+      `${mutation.moved ? "PASS" : "FAIL"} ${mutation.id}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`,
+    );
   console.log(`controls: ${JSON.stringify(report.controls)}`);
   console.log(`report: ${reportPath}`);
-  return failures.length === 0
-    && report.mutations.every((mutation) => mutation.moved)
-    && Object.values(report.controls).every(Boolean) ? 0 : 1;
+  return failures.length === 0 &&
+    report.mutations.every((mutation) => mutation.moved) &&
+    Object.values(report.controls).every(Boolean)
+    ? 0
+    : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

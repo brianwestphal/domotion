@@ -9,22 +9,10 @@
  */
 
 export type BackdropRootReason =
-  | "document-root"
-  | "opacity"
-  | "filter"
-  | "backdrop-filter"
-  | "clip-path"
-  | "mask"
-  | "mix-blend-mode"
-  | "will-change";
+  "document-root" | "opacity" | "filter" | "backdrop-filter" | "clip-path" | "mask" | "mix-blend-mode" | "will-change";
 
 export type BackdropEffectNeutralization =
-  | "opacity"
-  | "filter"
-  | "clip-path"
-  | "mask"
-  | "mix-blend-mode"
-  | "rotate-skew";
+  "opacity" | "filter" | "clip-path" | "mask" | "mix-blend-mode" | "rotate-skew";
 
 export interface BackdropEffectStyleFacts {
   isDocumentRoot: boolean;
@@ -47,7 +35,12 @@ const active = (value: string | undefined, initial: string): boolean =>
 
 export function backdropWillChangeTokens(value: string): Set<string> {
   if (value === "" || value === "auto") return new Set();
-  return new Set(value.split(",").map((token) => token.trim().toLowerCase()).filter(Boolean));
+  return new Set(
+    value
+      .split(",")
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 /** Pinned Blink `NeedsEffect()` / auxiliary Backdrop Root triggers. */
@@ -62,16 +55,12 @@ export function backdropRootReasons(style: BackdropEffectStyleFacts): BackdropRo
   if (active(style.maskImage, "none") || active(style.maskBorderSource, "none")) reasons.push("mask");
   if (active(style.mixBlendMode, "normal")) reasons.push("mix-blend-mode");
   const willChange = backdropWillChangeTokens(style.willChange);
-  if ([
-    "opacity",
-    "filter",
-    "backdrop-filter",
-    "clip-path",
-    "mask",
-    "mask-image",
-    "mask-border",
-    "mix-blend-mode",
-  ].some((property) => willChange.has(property))) reasons.push("will-change");
+  if (
+    ["opacity", "filter", "backdrop-filter", "clip-path", "mask", "mask-image", "mask-border", "mix-blend-mode"].some(
+      (property) => willChange.has(property),
+    )
+  )
+    reasons.push("will-change");
   return reasons;
 }
 
@@ -80,9 +69,7 @@ export function backdropRootReasons(style: BackdropEffectStyleFacts): BackdropRo
  * ancestor backdrop-filter is intentionally absent: it is the prior-device
  * source seen by a nested backdrop target, rather than an effect to erase.
  */
-export function backdropEffectNeutralizations(
-  style: BackdropEffectStyleFacts,
-): BackdropEffectNeutralization[] {
+export function backdropEffectNeutralizations(style: BackdropEffectStyleFacts): BackdropEffectNeutralization[] {
   const result: BackdropEffectNeutralization[] = [];
   const opacity = Number(style.opacity);
   if (Number.isFinite(opacity) && opacity < 1) result.push("opacity");
@@ -95,10 +82,11 @@ export function backdropEffectNeutralizations(
 
 /** Mirrors the capture walk's rotation/skew freeze discriminator. */
 export function transformRotatesOrSkews(style: BackdropEffectStyleFacts): boolean {
-  const matrix2d = /^matrix\(\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)/.exec(style.transform);
+  const matrix2d = /^matrix\(\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)/.exec(
+    style.transform,
+  );
   if (matrix2d != null) {
-    if (Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6
-      || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6) return true;
+    if (Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6 || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6) return true;
   }
   const matrix3d = /^matrix3d\(([^)]+)\)/.exec(style.transform);
   if (matrix3d != null) {
@@ -108,15 +96,19 @@ export function transformRotatesOrSkews(style: BackdropEffectStyleFacts): boolea
   return active(style.rotate, "none");
 }
 
-export function willChangePropertyForNeutralization(
-  property: BackdropEffectNeutralization,
-): string | null {
+export function willChangePropertyForNeutralization(property: BackdropEffectNeutralization): string | null {
   switch (property) {
-    case "opacity": return "opacity";
-    case "filter": return "filter";
-    case "clip-path": return "clip-path";
-    case "mask": return "mask";
-    case "mix-blend-mode": return "mix-blend-mode";
-    case "rotate-skew": return "transform";
+    case "opacity":
+      return "opacity";
+    case "filter":
+      return "filter";
+    case "clip-path":
+      return "clip-path";
+    case "mask":
+      return "mask";
+    case "mix-blend-mode":
+      return "mix-blend-mode";
+    case "rotate-skew":
+      return "transform";
   }
 }

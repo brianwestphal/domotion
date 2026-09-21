@@ -29,31 +29,44 @@ import {
 } from "../tools/font-conformance-synthetic-stacks.js";
 
 /** How far a stack sits from the CSS initial state — the ordering key. */
-const distance = (s: { fontFamily: string; fontWeight: number; fontStretch: string; fontStyle: string;
-                       lang?: string }): number =>
-  (s.fontWeight === 400 ? 0 : 1) + (s.fontStretch === "100%" ? 0 : 1)
-  + (s.fontStyle === "normal" ? 0 : 1) + (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1)
-  + (s.lang == null ? 0 : 1);
+const distance = (s: {
+  fontFamily: string;
+  fontWeight: number;
+  fontStretch: string;
+  fontStyle: string;
+  lang?: string;
+}): number =>
+  (s.fontWeight === 400 ? 0 : 1) +
+  (s.fontStretch === "100%" ? 0 : 1) +
+  (s.fontStyle === "normal" ? 0 : 1) +
+  (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1) +
+  (s.lang == null ? 0 : 1);
 
 describe("the rule", () => {
   it("is exactly the six-way cross product, with nothing added or dropped", () => {
     const stacks = buildSyntheticStacks();
     expect(stacks).toHaveLength(
-      GENERIC_FAMILIES.length * WEIGHT_LADDER.length * STRETCH_KEYWORDS.length * STYLES.length
-      * FAMILY_SPELLINGS.length * LANGUAGES.length,
+      GENERIC_FAMILIES.length *
+        WEIGHT_LADDER.length *
+        STRETCH_KEYWORDS.length *
+        STYLES.length *
+        FAMILY_SPELLINGS.length *
+        LANGUAGES.length,
     );
     expect(stacks).toHaveLength(50_544);
 
     // Every combination present exactly once. A duplicate would double-count a
     // stack in the sweep; a gap would be a curated omission.
-    const seen = new Set(stacks.map((s) =>
-      `${s.fontFamily}|${s.fontWeight}|${s.fontStretch}|${s.fontStyle}|${s.lang ?? "default"}`));
+    const seen = new Set(
+      stacks.map((s) => `${s.fontFamily}|${s.fontWeight}|${s.fontStretch}|${s.fontStyle}|${s.lang ?? "default"}`),
+    );
     expect(seen.size).toBe(stacks.length);
   });
 
   it("derives literal spellings with a continuation and every Playwright script language", () => {
-    const initial = buildSyntheticStacks().filter((s) =>
-      s.fontWeight === 400 && s.fontStretch === "100%" && s.fontStyle === "normal");
+    const initial = buildSyntheticStacks().filter(
+      (s) => s.fontWeight === 400 && s.fontStretch === "100%" && s.fontStyle === "normal",
+    );
     expect(new Set(initial.map((s) => s.lang ?? null))).toEqual(new Set(LANGUAGES));
     expect(initial.some((s) => s.fontFamily === '\"monospace\", Menlo')).toBe(true);
     expect(initial.some((s) => s.fontFamily === '\"Monospace\", Menlo')).toBe(true);
@@ -68,8 +81,17 @@ describe("the rule", () => {
     // Not cosmetic: the harvested corpus stores `getComputedStyle().fontStretch`,
     // which serializes the computed percentage. Storing keywords here would make
     // the same stack look like two different stacks across the two corpora.
-    expect(STRETCH_KEYWORDS.map((s) => s.percent))
-      .toEqual(["100%", "50%", "62.5%", "75%", "87.5%", "112.5%", "125%", "150%", "200%"]);
+    expect(STRETCH_KEYWORDS.map((s) => s.percent)).toEqual([
+      "100%",
+      "50%",
+      "62.5%",
+      "75%",
+      "87.5%",
+      "112.5%",
+      "125%",
+      "150%",
+      "200%",
+    ]);
   });
 
   it("holds every stack at the CSS initial font size, and says so in the entry", () => {
@@ -110,9 +132,14 @@ describe("ordering makes a --max-stacks prefix meaningful", () => {
   });
 
   it("makes the first 351 exactly 'every generic, plus every single-axis departure'", () => {
-    const singleAxis = GENERIC_FAMILIES.length
-      * ((WEIGHT_LADDER.length - 1) + (STRETCH_KEYWORDS.length - 1) + (STYLES.length - 1)
-        + (FAMILY_SPELLINGS.length - 1) + (LANGUAGES.length - 1));
+    const singleAxis =
+      GENERIC_FAMILIES.length *
+      (WEIGHT_LADDER.length -
+        1 +
+        (STRETCH_KEYWORDS.length - 1) +
+        (STYLES.length - 1) +
+        (FAMILY_SPELLINGS.length - 1) +
+        (LANGUAGES.length - 1));
     const cut = GENERIC_FAMILIES.length + singleAxis;
     expect(cut).toBe(351);
     for (const s of stacks.slice(0, cut)) expect(distance(s)).toBeLessThanOrEqual(1);

@@ -2,11 +2,7 @@ import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
 import { clipRectForScreenshot } from "./clip-rect.js";
-import type {
-  BackdropCompositeConsumedEffect,
-  CapturedElement,
-  CapturedBackdropCompositeRaster,
-} from "./types.js";
+import type { BackdropCompositeConsumedEffect, CapturedElement, CapturedBackdropCompositeRaster } from "./types.js";
 import type { BackdropEffectNeutralization } from "./backdrop-effect-space.js";
 
 type BackdropRaster = NonNullable<CapturedElement["backdropFilterRaster"]>;
@@ -64,7 +60,8 @@ export function planBackdropRootComposites(tree: CapturedElement[]): BackdropRoo
     const reasons = effectSpace.nearestRoot.reasons;
     if (!reasons.some((reason) => reason === "opacity" || reason === "mask" || reason === "mix-blend-mode")) continue;
     let root: CapturedElement | undefined = element;
-    for (let depth = 0; depth < effectSpace.nearestRoot.depth; depth++) root = root == null ? undefined : parents.get(root);
+    for (let depth = 0; depth < effectSpace.nearestRoot.depth; depth++)
+      root = root == null ? undefined : parents.get(root);
     if (root == null) continue;
     const rootPlan = effectSpace.ancestors.find((ancestor) => ancestor.depth === effectSpace.nearestRoot.depth);
     const neutralized = (rootPlan?.neutralize ?? []).filter((effect) => effect !== "mask" && effect !== "clip-path");
@@ -113,9 +110,11 @@ export function planBackdropTerminalComposites(tree: CapturedElement[]): Backdro
   for (const element of elements) {
     const raster = element.backdropFilterRaster;
     if (raster?.token == null || raster.effectSpace?.nearestRoot.kind !== "document") continue;
-    const transformDepths = new Set(raster.effectSpace.ancestors
-      .filter((ancestor) => ancestor.neutralize.includes("rotate-skew"))
-      .map((ancestor) => ancestor.depth));
+    const transformDepths = new Set(
+      raster.effectSpace.ancestors
+        .filter((ancestor) => ancestor.neutralize.includes("rotate-skew"))
+        .map((ancestor) => ancestor.depth),
+    );
     let root: CapturedElement | undefined = element;
     let selected: { root: CapturedElement; depth: number; reason: BackdropTerminalCompositeJob["reason"] } | undefined;
     for (let depth = 1; root != null; depth++) {
@@ -165,66 +164,82 @@ async function captureMaskCalibration(
   job: BackdropRootCompositeJob,
   viewport: { x: number; y: number; width: number; height: number },
 ): Promise<MaskCalibration | null> {
-  if (!job.consumedEffects.some((effect) => effect === "mask" || effect === "mix-blend-mode")
-    || job.neutralizedEffects.length !== 0) return null;
+  if (
+    !job.consumedEffects.some((effect) => effect === "mask" || effect === "mix-blend-mode") ||
+    job.neutralizedEffects.length !== 0
+  )
+    return null;
   const token = job.targets[0]?.raster.token ?? "";
-  const facts = await page.evaluate(({ token, rootDepth }) => {
-    let target: HTMLElement | null = null;
-    const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
-    for (let index = 0; index < candidates.length; index++) {
-      if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
-        target = candidates[index];
-        break;
-      }
-    }
-    if (target == null) return null;
-    let root: HTMLElement | null = target;
-    for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-    if (root == null) return null;
-    const rect = root.getBoundingClientRect();
-    return {
-      rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-      visibility: root.style.getPropertyValue("visibility"),
-      priority: root.style.getPropertyPriority("visibility"),
-    };
-  }, { token, rootDepth: job.rootDepth }).catch(() => null);
+  const facts = await page
+    .evaluate(
+      ({ token, rootDepth }) => {
+        let target: HTMLElement | null = null;
+        const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+        for (let index = 0; index < candidates.length; index++) {
+          if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+            target = candidates[index];
+            break;
+          }
+        }
+        if (target == null) return null;
+        let root: HTMLElement | null = target;
+        for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+        if (root == null) return null;
+        const rect = root.getBoundingClientRect();
+        return {
+          rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+          visibility: root.style.getPropertyValue("visibility"),
+          priority: root.style.getPropertyPriority("visibility"),
+        };
+      },
+      { token, rootDepth: job.rootDepth },
+    )
+    .catch(() => null);
   if (facts == null || !(facts.rect.width > 0 && facts.rect.height > 0)) return null;
   const clip = clipRectForScreenshot(facts.rect, viewport);
   try {
     const source = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
-    await page.evaluate(({ token, rootDepth }) => {
-      let target: HTMLElement | null = null;
-      const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
-      for (let index = 0; index < candidates.length; index++) {
-        if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
-          target = candidates[index];
-          break;
+    await page.evaluate(
+      ({ token, rootDepth }) => {
+        let target: HTMLElement | null = null;
+        const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+        for (let index = 0; index < candidates.length; index++) {
+          if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+            target = candidates[index];
+            break;
+          }
         }
-      }
-      let root: HTMLElement | null = target;
-      for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-      root?.style.setProperty("visibility", "hidden", "important");
-    }, { token, rootDepth: job.rootDepth });
+        let root: HTMLElement | null = target;
+        for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+        root?.style.setProperty("visibility", "hidden", "important");
+      },
+      { token, rootDepth: job.rootDepth },
+    );
     const base = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
     return { clip, source, base };
   } catch {
     return null;
   } finally {
-    await page.evaluate(({ token, rootDepth, visibility, priority }) => {
-      let target: HTMLElement | null = null;
-      const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
-      for (let index = 0; index < candidates.length; index++) {
-        if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
-          target = candidates[index];
-          break;
-        }
-      }
-      let root: HTMLElement | null = target;
-      for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-      if (root == null) return;
-      if (visibility === "") root.style.removeProperty("visibility");
-      else root.style.setProperty("visibility", visibility, priority);
-    }, { token, rootDepth: job.rootDepth, visibility: facts.visibility, priority: facts.priority }).catch(() => undefined);
+    await page
+      .evaluate(
+        ({ token, rootDepth, visibility, priority }) => {
+          let target: HTMLElement | null = null;
+          const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+          for (let index = 0; index < candidates.length; index++) {
+            if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+              target = candidates[index];
+              break;
+            }
+          }
+          let root: HTMLElement | null = target;
+          for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+          if (root == null) return;
+          if (visibility === "") root.style.removeProperty("visibility");
+          else root.style.setProperty("visibility", visibility, priority);
+        },
+        { token, rootDepth: job.rootDepth, visibility: facts.visibility, priority: facts.priority },
+      )
+      .catch(() => undefined);
   }
 }
 
@@ -239,8 +254,13 @@ async function calibrateTransparentComposite(
     sharp(sourcePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(basePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ]);
-  if (alpha.info.width !== source.info.width || alpha.info.height !== source.info.height
-    || alpha.info.width !== base.info.width || alpha.info.height !== base.info.height) return alphaPng;
+  if (
+    alpha.info.width !== source.info.width ||
+    alpha.info.height !== source.info.height ||
+    alpha.info.width !== base.info.width ||
+    alpha.info.height !== base.info.height
+  )
+    return alphaPng;
   const data = Buffer.alloc(alpha.data.length);
   for (let offset = 0; offset < data.length; offset += 4) {
     let opacity = preserveCapturedCoverage ? alpha.data[offset + 3] : 0;
@@ -248,9 +268,9 @@ async function calibrateTransparentComposite(
       const backdrop = base.data[offset + channel];
       const result = source.data[offset + channel];
       if (result > backdrop && backdrop < 255) {
-        opacity = Math.max(opacity, Math.ceil((result - backdrop) * 255 / (255 - backdrop)));
+        opacity = Math.max(opacity, Math.ceil(((result - backdrop) * 255) / (255 - backdrop)));
       } else if (result < backdrop && backdrop > 0) {
-        opacity = Math.max(opacity, Math.ceil((backdrop - result) * 255 / backdrop));
+        opacity = Math.max(opacity, Math.ceil(((backdrop - result) * 255) / backdrop));
       }
     }
     opacity = Math.min(255, opacity);
@@ -264,7 +284,9 @@ async function calibrateTransparentComposite(
       data[offset + channel] = foreground;
     }
   }
-  return sharp(data, { raw: { width: alpha.info.width, height: alpha.info.height, channels: 4 } }).png().toBuffer();
+  return sharp(data, { raw: { width: alpha.info.width, height: alpha.info.height, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 /**
@@ -282,17 +304,20 @@ export async function exactCompositeDelta(sourcePng: Buffer, basePng: Buffer): P
   if (source.info.width !== base.info.width || source.info.height !== base.info.height) return sourcePng;
   const data = Buffer.alloc(source.data.length);
   for (let offset = 0; offset < data.length; offset += 4) {
-    const changed = source.data[offset] !== base.data[offset]
-      || source.data[offset + 1] !== base.data[offset + 1]
-      || source.data[offset + 2] !== base.data[offset + 2]
-      || source.data[offset + 3] !== base.data[offset + 3];
+    const changed =
+      source.data[offset] !== base.data[offset] ||
+      source.data[offset + 1] !== base.data[offset + 1] ||
+      source.data[offset + 2] !== base.data[offset + 2] ||
+      source.data[offset + 3] !== base.data[offset + 3];
     if (!changed) continue;
     data[offset] = source.data[offset];
     data[offset + 1] = source.data[offset + 1];
     data[offset + 2] = source.data[offset + 2];
     data[offset + 3] = 255;
   }
-  return sharp(data, { raw: { width: source.info.width, height: source.info.height, channels: 4 } }).png().toBuffer();
+  return sharp(data, { raw: { width: source.info.width, height: source.info.height, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 /** Capture one sparse final-space patch at a compositor/scroll paint owner. */
@@ -304,42 +329,50 @@ export async function materializeBackdropTerminalComposites(
   const covered = new Set<BackdropRaster>();
   for (const job of jobs) {
     const token = job.targets[0]?.raster.token ?? "";
-    const facts = await page.evaluate(({ token, rootDepth }) => {
-      let target: HTMLElement | null = null;
-      const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
-      for (let index = 0; index < candidates.length; index++) {
-        if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
-          target = candidates[index];
-          break;
-        }
-      }
-      let root: HTMLElement | null = target;
-      for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-      if (root == null) return null;
-      const rect = root.getBoundingClientRect();
-      return {
-        rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-        visibility: root.style.getPropertyValue("visibility"),
-        priority: root.style.getPropertyPriority("visibility"),
-      };
-    }, { token, rootDepth: job.rootDepth }).catch(() => null);
+    const facts = await page
+      .evaluate(
+        ({ token, rootDepth }) => {
+          let target: HTMLElement | null = null;
+          const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+          for (let index = 0; index < candidates.length; index++) {
+            if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+              target = candidates[index];
+              break;
+            }
+          }
+          let root: HTMLElement | null = target;
+          for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+          if (root == null) return null;
+          const rect = root.getBoundingClientRect();
+          return {
+            rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+            visibility: root.style.getPropertyValue("visibility"),
+            priority: root.style.getPropertyPriority("visibility"),
+          };
+        },
+        { token, rootDepth: job.rootDepth },
+      )
+      .catch(() => null);
     if (facts == null || !(facts.rect.width > 0 && facts.rect.height > 0)) continue;
     const clip = clipRectForScreenshot(facts.rect, viewport);
     try {
       const source = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
-      await page.evaluate(({ token, rootDepth }) => {
-        let target: HTMLElement | null = null;
-        const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
-        for (let index = 0; index < candidates.length; index++) {
-          if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
-            target = candidates[index];
-            break;
+      await page.evaluate(
+        ({ token, rootDepth }) => {
+          let target: HTMLElement | null = null;
+          const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+          for (let index = 0; index < candidates.length; index++) {
+            if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+              target = candidates[index];
+              break;
+            }
           }
-        }
-        let root: HTMLElement | null = target;
-        for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-        root?.style.setProperty("visibility", "hidden", "important");
-      }, { token, rootDepth: job.rootDepth });
+          let root: HTMLElement | null = target;
+          for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+          root?.style.setProperty("visibility", "hidden", "important");
+        },
+        { token, rootDepth: job.rootDepth },
+      );
       const base = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
       const png = await exactCompositeDelta(source, base);
       job.root.backdropCompositeRaster = {
@@ -358,7 +391,44 @@ export async function materializeBackdropTerminalComposites(
     } catch {
       // The ordinary target-boundary path remains the explicit fallback.
     } finally {
-      await page.evaluate(({ token, rootDepth, visibility, priority }) => {
+      await page
+        .evaluate(
+          ({ token, rootDepth, visibility, priority }) => {
+            let target: HTMLElement | null = null;
+            const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+            for (let index = 0; index < candidates.length; index++) {
+              if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+                target = candidates[index];
+                break;
+              }
+            }
+            let root: HTMLElement | null = target;
+            for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+            if (root == null) return;
+            if (visibility === "") root.style.removeProperty("visibility");
+            else root.style.setProperty("visibility", visibility, priority);
+          },
+          { token, rootDepth: job.rootDepth, visibility: facts.visibility, priority: facts.priority },
+        )
+        .catch(() => undefined);
+    }
+  }
+  return covered;
+}
+
+async function prepareIsolatedBackdropRoot(page: Page, job: BackdropRootCompositeJob): Promise<PreparedRoot> {
+  const token = job.targets[0]?.raster.token ?? "";
+  const restoreToken = `dm2495-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const prepared = await page
+    .evaluate(
+      ({ token, rootDepth, neutralizedEffects, restoreToken }) => {
+        type RestoreItem = { element: HTMLElement; property: string; value: string; priority: string };
+        const host = globalThis as typeof globalThis & {
+          __domotionBackdropCompositeRestores?: Record<string, RestoreItem[]>;
+        };
+        host.__domotionBackdropCompositeRestores ??= {};
+        const restores: RestoreItem[] = [];
+        host.__domotionBackdropCompositeRestores[restoreToken] = restores;
         let target: HTMLElement | null = null;
         const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
         for (let index = 0; index < candidates.length; index++) {
@@ -367,163 +437,146 @@ export async function materializeBackdropTerminalComposites(
             break;
           }
         }
+        if (target == null) return { status: "missing-target" as const };
         let root: HTMLElement | null = target;
         for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-        if (root == null) return;
-        if (visibility === "") root.style.removeProperty("visibility");
-        else root.style.setProperty("visibility", visibility, priority);
-      }, { token, rootDepth: job.rootDepth, visibility: facts.visibility, priority: facts.priority }).catch(() => undefined);
-    }
-  }
-  return covered;
-}
+        if (root == null) return { status: "detached-root" as const };
 
-async function prepareIsolatedBackdropRoot(
-  page: Page,
-  job: BackdropRootCompositeJob,
-): Promise<PreparedRoot> {
-  const token = job.targets[0]?.raster.token ?? "";
-  const restoreToken = `dm2495-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const prepared = await page.evaluate(({ token, rootDepth, neutralizedEffects, restoreToken }) => {
-    type RestoreItem = { element: HTMLElement; property: string; value: string; priority: string };
-    const host = globalThis as typeof globalThis & {
-      __domotionBackdropCompositeRestores?: Record<string, RestoreItem[]>;
-    };
-    host.__domotionBackdropCompositeRestores ??= {};
-    const restores: RestoreItem[] = [];
-    host.__domotionBackdropCompositeRestores[restoreToken] = restores;
-    let target: HTMLElement | null = null;
-    const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
-    for (let index = 0; index < candidates.length; index++) {
-      if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
-        target = candidates[index];
-        break;
-      }
-    }
-    if (target == null) return { status: "missing-target" as const };
-    let root: HTMLElement | null = target;
-    for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
-    if (root == null) return { status: "detached-root" as const };
-
-    const rootColor = getComputedStyle(root).color;
-    const rootFill = getComputedStyle(root).fill;
-    const rootStroke = getComputedStyle(root).stroke;
-    const ancestors: HTMLElement[] = [];
-    let ancestor = root.parentElement;
-    while (ancestor != null) {
-      ancestors.push(ancestor);
-      ancestor = ancestor.parentElement;
-    }
-    const elements = document.querySelectorAll<HTMLElement>("*");
-    for (let index = 0; index < elements.length; index++) {
-      const element = elements[index];
-      if (element === root || root.contains(element)) continue;
-      if (ancestors.indexOf(element) >= 0) {
-        const properties = ["background", "border-color", "box-shadow", "outline", "text-shadow", "color"];
-        const values = ["transparent", "transparent", "none", "none", "none", "transparent"];
-        for (let propertyIndex = 0; propertyIndex < properties.length; propertyIndex++) {
-          const property = properties[propertyIndex];
-          restores.push({
-            element,
-            property,
-            value: element.style.getPropertyValue(property),
-            priority: element.style.getPropertyPriority(property),
-          });
-          element.style.setProperty(property, values[propertyIndex], "important");
+        const rootColor = getComputedStyle(root).color;
+        const rootFill = getComputedStyle(root).fill;
+        const rootStroke = getComputedStyle(root).stroke;
+        const ancestors: HTMLElement[] = [];
+        let ancestor = root.parentElement;
+        while (ancestor != null) {
+          ancestors.push(ancestor);
+          ancestor = ancestor.parentElement;
         }
-      } else {
-        const property = "visibility";
-        restores.push({
-          element,
-          property,
-          value: element.style.getPropertyValue(property),
-          priority: element.style.getPropertyPriority(property),
-        });
-        element.style.setProperty(property, "hidden", "important");
-      }
-    }
-    const inheritedProperties = ["color", "fill", "stroke"];
-    const inheritedValues = [rootColor, rootFill, rootStroke];
-    for (let index = 0; index < inheritedProperties.length; index++) {
-      const property = inheritedProperties[index];
-      restores.push({
-        element: root,
-        property,
-        value: root.style.getPropertyValue(property),
-        priority: root.style.getPropertyPriority(property),
-      });
-      root.style.setProperty(property, inheritedValues[index], "important");
-    }
+        const elements = document.querySelectorAll<HTMLElement>("*");
+        for (let index = 0; index < elements.length; index++) {
+          const element = elements[index];
+          if (element === root || root.contains(element)) continue;
+          if (ancestors.indexOf(element) >= 0) {
+            const properties = ["background", "border-color", "box-shadow", "outline", "text-shadow", "color"];
+            const values = ["transparent", "transparent", "none", "none", "none", "transparent"];
+            for (let propertyIndex = 0; propertyIndex < properties.length; propertyIndex++) {
+              const property = properties[propertyIndex];
+              restores.push({
+                element,
+                property,
+                value: element.style.getPropertyValue(property),
+                priority: element.style.getPropertyPriority(property),
+              });
+              element.style.setProperty(property, values[propertyIndex], "important");
+            }
+          } else {
+            const property = "visibility";
+            restores.push({
+              element,
+              property,
+              value: element.style.getPropertyValue(property),
+              priority: element.style.getPropertyPriority(property),
+            });
+            element.style.setProperty(property, "hidden", "important");
+          }
+        }
+        const inheritedProperties = ["color", "fill", "stroke"];
+        const inheritedValues = [rootColor, rootFill, rootStroke];
+        for (let index = 0; index < inheritedProperties.length; index++) {
+          const property = inheritedProperties[index];
+          restores.push({
+            element: root,
+            property,
+            value: root.style.getPropertyValue(property),
+            priority: root.style.getPropertyPriority(property),
+          });
+          root.style.setProperty(property, inheritedValues[index], "important");
+        }
 
-    const willChange = getComputedStyle(root).willChange;
-    restores.push({
-      element: root,
-      property: "will-change",
-      value: root.style.getPropertyValue("will-change"),
-      priority: root.style.getPropertyPriority("will-change"),
-    });
-    const willChangeTokens: string[] = [];
-    if (willChange !== "auto" && willChange !== "") {
-      const parts = willChange.split(",");
-      for (let index = 0; index < parts.length; index++) {
-        const value = parts[index].trim();
-        if (value !== "" && willChangeTokens.indexOf(value) < 0) willChangeTokens.push(value);
-      }
-    }
-    for (let index = 0; index < neutralizedEffects.length; index++) {
-      const effect = neutralizedEffects[index];
-      const property = effect === "rotate-skew" ? "transform" : effect;
-      if (willChangeTokens.indexOf(property) < 0) willChangeTokens.push(property);
-    }
-    if (willChangeTokens.length > 0) root.style.setProperty("will-change", willChangeTokens.join(", "), "important");
-
-    for (let index = 0; index < neutralizedEffects.length; index++) {
-      const effect = neutralizedEffects[index];
-      const properties: string[] = [];
-      const values: string[] = [];
-      if (effect === "opacity") { properties.push("opacity"); values.push("1"); }
-      else if (effect === "filter") { properties.push("filter"); values.push("none"); }
-      else if (effect === "mix-blend-mode") { properties.push("mix-blend-mode"); values.push("normal"); }
-      else if (effect === "rotate-skew") {
-        properties.push("transform", "translate", "rotate", "scale");
-        values.push("translate(0)", "none", "none", "none");
-      }
-      for (let propertyIndex = 0; propertyIndex < properties.length; propertyIndex++) {
-        const property = properties[propertyIndex];
+        const willChange = getComputedStyle(root).willChange;
         restores.push({
           element: root,
-          property,
-          value: root.style.getPropertyValue(property),
-          priority: root.style.getPropertyPriority(property),
+          property: "will-change",
+          value: root.style.getPropertyValue("will-change"),
+          priority: root.style.getPropertyPriority("will-change"),
         });
-        root.style.setProperty(property, values[propertyIndex], "important");
-      }
-    }
-    const rect = root.getBoundingClientRect();
-    if (!(rect.width > 0 && rect.height > 0)) return { status: "empty-root" as const };
-    return { status: "exact" as const, rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height } };
-  }, { token, rootDepth: job.rootDepth, neutralizedEffects: job.neutralizedEffects, restoreToken }).catch(() => ({ status: "detached-root" as const }));
+        const willChangeTokens: string[] = [];
+        if (willChange !== "auto" && willChange !== "") {
+          const parts = willChange.split(",");
+          for (let index = 0; index < parts.length; index++) {
+            const value = parts[index].trim();
+            if (value !== "" && willChangeTokens.indexOf(value) < 0) willChangeTokens.push(value);
+          }
+        }
+        for (let index = 0; index < neutralizedEffects.length; index++) {
+          const effect = neutralizedEffects[index];
+          const property = effect === "rotate-skew" ? "transform" : effect;
+          if (willChangeTokens.indexOf(property) < 0) willChangeTokens.push(property);
+        }
+        if (willChangeTokens.length > 0)
+          root.style.setProperty("will-change", willChangeTokens.join(", "), "important");
+
+        for (let index = 0; index < neutralizedEffects.length; index++) {
+          const effect = neutralizedEffects[index];
+          const properties: string[] = [];
+          const values: string[] = [];
+          if (effect === "opacity") {
+            properties.push("opacity");
+            values.push("1");
+          } else if (effect === "filter") {
+            properties.push("filter");
+            values.push("none");
+          } else if (effect === "mix-blend-mode") {
+            properties.push("mix-blend-mode");
+            values.push("normal");
+          } else if (effect === "rotate-skew") {
+            properties.push("transform", "translate", "rotate", "scale");
+            values.push("translate(0)", "none", "none", "none");
+          }
+          for (let propertyIndex = 0; propertyIndex < properties.length; propertyIndex++) {
+            const property = properties[propertyIndex];
+            restores.push({
+              element: root,
+              property,
+              value: root.style.getPropertyValue(property),
+              priority: root.style.getPropertyPriority(property),
+            });
+            root.style.setProperty(property, values[propertyIndex], "important");
+          }
+        }
+        const rect = root.getBoundingClientRect();
+        if (!(rect.width > 0 && rect.height > 0)) return { status: "empty-root" as const };
+        return {
+          status: "exact" as const,
+          rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+        };
+      },
+      { token, rootDepth: job.rootDepth, neutralizedEffects: job.neutralizedEffects, restoreToken },
+    )
+    .catch(() => ({ status: "detached-root" as const }));
 
   let restored = false;
   const restore = async (): Promise<void> => {
     if (restored) return;
     restored = true;
-    await page.evaluate((token) => {
-      type RestoreItem = { element: HTMLElement; property: string; value: string; priority: string };
-      const host = globalThis as typeof globalThis & {
-        __domotionBackdropCompositeRestores?: Record<string, RestoreItem[]>;
-      };
-      const items = host.__domotionBackdropCompositeRestores?.[token] ?? [];
-      for (let index = items.length - 1; index >= 0; index--) {
-        const item = items[index];
-        if (item.value === "") item.element.style.removeProperty(item.property);
-        else item.element.style.setProperty(item.property, item.value, item.priority);
-      }
-      if (host.__domotionBackdropCompositeRestores != null) {
-        delete host.__domotionBackdropCompositeRestores[token];
-        if (Object.keys(host.__domotionBackdropCompositeRestores).length === 0) delete host.__domotionBackdropCompositeRestores;
-      }
-    }, restoreToken).catch(() => undefined);
+    await page
+      .evaluate((token) => {
+        type RestoreItem = { element: HTMLElement; property: string; value: string; priority: string };
+        const host = globalThis as typeof globalThis & {
+          __domotionBackdropCompositeRestores?: Record<string, RestoreItem[]>;
+        };
+        const items = host.__domotionBackdropCompositeRestores?.[token] ?? [];
+        for (let index = items.length - 1; index >= 0; index--) {
+          const item = items[index];
+          if (item.value === "") item.element.style.removeProperty(item.property);
+          else item.element.style.setProperty(item.property, item.value, item.priority);
+        }
+        if (host.__domotionBackdropCompositeRestores != null) {
+          delete host.__domotionBackdropCompositeRestores[token];
+          if (Object.keys(host.__domotionBackdropCompositeRestores).length === 0)
+            delete host.__domotionBackdropCompositeRestores;
+        }
+      }, restoreToken)
+      .catch(() => undefined);
   };
   return prepared.status === "exact"
     ? { status: "exact", rect: prepared.rect, restore }
@@ -544,11 +597,12 @@ export async function materializeBackdropRootComposites(
       if (prepared.status !== "exact" || prepared.rect == null) continue;
       const clip = clipRectForScreenshot(prepared.rect, viewport);
       const captured = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
-      const png = maskCalibration == null
-        ? captured
-        : job.consumedEffects.includes("mask")
-          ? await exactCompositeDelta(maskCalibration.source, maskCalibration.base)
-          : await calibrateTransparentComposite(captured, maskCalibration.source, maskCalibration.base, false);
+      const png =
+        maskCalibration == null
+          ? captured
+          : job.consumedEffects.includes("mask")
+            ? await exactCompositeDelta(maskCalibration.source, maskCalibration.base)
+            : await calibrateTransparentComposite(captured, maskCalibration.source, maskCalibration.base, false);
       const composite: CapturedBackdropCompositeRaster = {
         x: clip.x - viewport.x,
         y: clip.y - viewport.y,

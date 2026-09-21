@@ -1,14 +1,14 @@
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  elementTreeToSvg,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 
 const env = await setup();

@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isTemplate } from "./types.js";
-import {
-  listBuiltinTemplates,
-  getBuiltinTemplate,
-  loadTemplate,
-  templatePackageName,
-} from "./registry.js";
+import { listBuiltinTemplates, getBuiltinTemplate, loadTemplate, templatePackageName } from "./registry.js";
 import { validateTemplateParams } from "./render.js";
 import { templateParamsJsonSchema, describeTemplateParams } from "./json-schema.js";
 import { lowerThirdTemplate, buildLowerThirdHtml, lowerThirdParamsSchema } from "./builtin/lower-third.js";
@@ -64,15 +59,28 @@ import {
 } from "./builtin/subscribe.js";
 
 /** All units of a plan, flattened across lines, in index order. */
-const allUnits = (plan: { lines: KineticUnit[][][] }): KineticUnit[] =>
-  plan.lines.flat(2);
+const allUnits = (plan: { lines: KineticUnit[][][] }): KineticUnit[] => plan.lines.flat(2);
 
 describe("template registry (DM-1276)", () => {
   it("lists the built-in templates", () => {
-    const names = listBuiltinTemplates().map((t) => t.name).sort();
+    const names = listBuiltinTemplates()
+      .map((t) => t.name)
+      .sort();
     expect(names).toEqual([
-      "background-loop", "caption", "chart", "chat", "compare", "counter", "cta", "device-mockup",
-      "kinetic-text", "lower-third", "quote", "stat", "subscribe", "title-card",
+      "background-loop",
+      "caption",
+      "chart",
+      "chat",
+      "compare",
+      "counter",
+      "cta",
+      "device-mockup",
+      "kinetic-text",
+      "lower-third",
+      "quote",
+      "stat",
+      "subscribe",
+      "title-card",
     ]);
   });
 
@@ -112,7 +120,9 @@ describe("param validation + JSON-Schema projection", () => {
   });
 
   it("validateTemplateParams throws a path-specific error on a bad param", () => {
-    expect(() => validateTemplateParams(lowerThirdTemplate, {})).toThrow(/template "lower-third": invalid params.*title/s);
+    expect(() => validateTemplateParams(lowerThirdTemplate, {})).toThrow(
+      /template "lower-third": invalid params.*title/s,
+    );
     expect(() => validateTemplateParams(lowerThirdTemplate, { title: "x", theme: "purple" })).toThrow(/theme/);
   });
 
@@ -138,7 +148,9 @@ describe("param validation + JSON-Schema projection", () => {
 
 describe("lower-third HTML generation (pure, no browser)", () => {
   it("embeds the title, subtitle, and accent color", () => {
-    const html = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Jane Doe", subtitle: "CEO", accent: "#ff0000" }));
+    const html = buildLowerThirdHtml(
+      lowerThirdParamsSchema.parse({ title: "Jane Doe", subtitle: "CEO", accent: "#ff0000" }),
+    );
     expect(html).toContain("Jane Doe");
     expect(html).toContain("CEO");
     expect(html).toContain("#ff0000");
@@ -152,7 +164,7 @@ describe("lower-third HTML generation (pure, no browser)", () => {
   });
 
   it("escapes HTML-special characters in the text", () => {
-    const html = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "A <b> & \"c\"" }));
+    const html = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: 'A <b> & "c"' }));
     expect(html).toContain("A &lt;b&gt; &amp; &quot;c&quot;");
     expect(html).not.toContain("<b>");
   });
@@ -170,12 +182,16 @@ describe("lower-third HTML generation (pure, no browser)", () => {
     expect(panel).not.toContain("lt-logo-corner");
     expect(panel).not.toContain("position: relative"); // byte-identical default
 
-    const tr = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg", logoPosition: "top-right" }));
-    expect(tr).not.toMatch(/class="lt-logo"/);          // NOT on the panel
+    const tr = buildLowerThirdHtml(
+      lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg", logoPosition: "top-right" }),
+    );
+    expect(tr).not.toMatch(/class="lt-logo"/); // NOT on the panel
     expect(tr).toMatch(/lt-logo-corner[^>]*right:48px/); // absolute, top-right at the inset
-    expect(tr).toContain("position: relative");          // body positioned for the absolute mark
+    expect(tr).toContain("position: relative"); // body positioned for the absolute mark
 
-    const tl = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg", logoPosition: "top-left" }));
+    const tl = buildLowerThirdHtml(
+      lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg", logoPosition: "top-left" }),
+    );
     expect(tl).toMatch(/lt-logo-corner[^>]*left:48px/);
   });
 
@@ -268,7 +284,10 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
   it("stars plans ~16× the count of sharp twinkling points", () => {
     const stars = planStars(parse({ variant: "stars", count: 5, seed: 3 }));
     expect(stars).toHaveLength(80); // 5 × 16
-    const html = buildStarsHtml(parse({ variant: "stars", count: 1, colors: ["#abc"] }), planStars(parse({ variant: "stars", count: 1, colors: ["#abc"] })));
+    const html = buildStarsHtml(
+      parse({ variant: "stars", count: 1, colors: ["#abc"] }),
+      planStars(parse({ variant: "stars", count: 1, colors: ["#abc"] })),
+    );
     expect(html).toContain("radial-gradient(circle, #ffffff 0%"); // white-hot core
     const anims = buildStarsAnimations(stars);
     expect(anims).toHaveLength(160); // 80 stars × (scale sparkle + opacity twinkle)
@@ -331,8 +350,7 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
   it("grid colors are invariant under the one-cell diagonal shift (no seam flicker)", () => {
     const p = parse({ variant: "grid", width: 800, height: 450, colors: ["#a", "#b", "#c"] });
     const { dots, cell } = planGridDots(p);
-    const colorAt = (col: number, row: number) =>
-      dots.find((d) => d.cx === col * cell && d.cy === row * cell)?.color;
+    const colorAt = (col: number, row: number) => dots.find((d) => d.cx === col * cell && d.cy === row * cell)?.color;
     // Down-right diagonal neighbors share a color (the shift maps each onto the next).
     expect(colorAt(1, 1)).toBe(colorAt(2, 2));
     expect(colorAt(2, 1)).toBe(colorAt(3, 2));
@@ -385,7 +403,10 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
   it("splits into one unit per character (char mode), indexing across words", () => {
     const plan = planUnits(parse({ text: "Hi yo", by: "char" }));
     expect(plan.count).toBe(4); // H,i,y,o (space is a word boundary, not a unit)
-    expect(plan.lines[0].map((w) => w.map(unitText))).toEqual([["H", "i"], ["y", "o"]]);
+    expect(plan.lines[0].map((w) => w.map(unitText))).toEqual([
+      ["H", "i"],
+      ["y", "o"],
+    ]);
     expect(allUnits(plan).map((u) => u.index)).toEqual([0, 1, 2, 3]);
   });
 
@@ -425,7 +446,10 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
   it("slide uses translateX; fade has no transform animation (opacity only)", () => {
     const slide = buildKineticAnimations(parse({ text: "Hi", variant: "slide" }), planUnits(parse({ text: "Hi" })));
     expect(slide.some((a) => a.property === "translateX")).toBe(true);
-    const fade = buildKineticAnimations(parse({ text: "Hi there", variant: "fade" }), planUnits(parse({ text: "Hi there" })));
+    const fade = buildKineticAnimations(
+      parse({ text: "Hi there", variant: "fade" }),
+      planUnits(parse({ text: "Hi there" })),
+    );
     expect(fade.every((a) => a.property === "opacity")).toBe(true);
     expect(fade).toHaveLength(2); // 2 words, opacity-only
   });
@@ -437,7 +461,7 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     const wipe = anims.find((a) => a.selector === ".kt-w-0" && a.property === "clipPath")!;
     expect(wipe).toBeDefined();
     expect(wipe.from).toMatch(/100%/); // fully clipped from the right
-    expect(wipe.to).toMatch(/0%/);     // fully revealed
+    expect(wipe.to).toMatch(/0%/); // fully revealed
     expect(wipe.repeat).toBeUndefined(); // one-shot
     // The fade is fused into the wipe (not a separate inner opacity animation).
     expect(anims.some((a) => a.selector === ".kt-wi-0")).toBe(false);
@@ -472,7 +496,7 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(plan.lines[1].map((w) => w.map(unitText))).toEqual([["three"]]);
     expect(plan.count).toBe(3); // global indices continue across the line break
     const html = buildKineticHtml(parse({ text: "a\\nb" }), planUnits(parse({ text: "a\\nb" })));
-    expect((html.match(/class="kt-line"/g) ?? [])).toHaveLength(2);
+    expect(html.match(/class="kt-line"/g) ?? []).toHaveLength(2);
   });
 
   // DM-1286: light inline-markup emphasis.
@@ -503,7 +527,10 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     const loop = buildKineticAnimations(parse({ text: "Hi", loop: "loop" }), planUnits(parse({ text: "Hi" })));
     expect(loop.every((a) => a.repeat == null)).toBe(true); // default: one-shot
 
-    const boom = buildKineticAnimations(parse({ text: "Hi", loop: "boomerang" }), planUnits(parse({ text: "Hi", loop: "boomerang" })));
+    const boom = buildKineticAnimations(
+      parse({ text: "Hi", loop: "boomerang" }),
+      planUnits(parse({ text: "Hi", loop: "boomerang" })),
+    );
     expect(boom.every((a) => a.repeat === "infinite" && a.alternate === true)).toBe(true);
     // Boomerang's play time frames an assemble + disassemble cycle (no hold).
     const p = parse({ text: "a b", loop: "boomerang", staggerMs: 100, revealMs: 500, holdMs: 9999 });
@@ -521,10 +548,23 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
   const parse = (o: Record<string, unknown>) => chartParamsSchema.parse(o);
 
   it("normalizes data to series: number[] → one series, string and 2D → multi (DM-1301)", () => {
-    expect(parse({ data: "10, 20 ,30" }).data).toEqual([[10, 20, 30]]);       // single series
-    expect(parse({ data: "1,2,3;4,5,6" }).data).toEqual([[1, 2, 3], [4, 5, 6]]); // ; splits series
-    expect(parse({ data: [1, 2] }).data).toEqual([[1, 2]]);                    // number[] wrapped
-    expect(parse({ data: [[1, 2], [3, 4]] }).data).toEqual([[1, 2], [3, 4]]);  // 2D as-is
+    expect(parse({ data: "10, 20 ,30" }).data).toEqual([[10, 20, 30]]); // single series
+    expect(parse({ data: "1,2,3;4,5,6" }).data).toEqual([
+      [1, 2, 3],
+      [4, 5, 6],
+    ]); // ; splits series
+    expect(parse({ data: [1, 2] }).data).toEqual([[1, 2]]); // number[] wrapped
+    expect(
+      parse({
+        data: [
+          [1, 2],
+          [3, 4],
+        ],
+      }).data,
+    ).toEqual([
+      [1, 2],
+      [3, 4],
+    ]); // 2D as-is
     expect(parse({ data: [1, 2], labels: "a,b" }).labels).toEqual(["a", "b"]);
     expect(() => parse({ data: "x,y" })).toThrow(); // non-numeric → filtered → min(1) fails
   });
@@ -541,13 +581,19 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
   });
 
   it("grows columns with scaleY from the bottom and bars with scaleX from the left (transform + origin)", () => {
-    const col = buildChartAnimations(parse({ type: "column", data: [3, 7] }), planChart(parse({ type: "column", data: [3, 7] })));
+    const col = buildChartAnimations(
+      parse({ type: "column", data: [3, 7] }),
+      planChart(parse({ type: "column", data: [3, 7] })),
+    );
     const g = col.find((a) => a.selector === ".ch-bar-0")!;
     expect(g.property).toBe("transform");
     expect(g.from).toBe("scaleY(0)");
     expect(g.transformOrigin).toBe("bottom");
 
-    const bar = buildChartAnimations(parse({ type: "bar", data: [3, 7] }), planChart(parse({ type: "bar", data: [3, 7] })));
+    const bar = buildChartAnimations(
+      parse({ type: "bar", data: [3, 7] }),
+      planChart(parse({ type: "bar", data: [3, 7] })),
+    );
     expect(bar.find((a) => a.selector === ".ch-bar-0")!.from).toBe("scaleX(0)");
     expect(bar.find((a) => a.selector === ".ch-bar-0")!.transformOrigin).toBe("left");
   });
@@ -571,8 +617,8 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
     const p = parse({ type: "column", data: [5, 9], labels: ["A", "B"], title: "Sales", yTicks: 4 });
     const html = buildChartHtml(p, planChart(p));
     expect(html).toContain("Sales");
-    expect(html).toMatch(/class="ch-grid"/);            // gridlines
-    expect(html).toMatch(/class="ch-tick"/);            // axis tick labels
+    expect(html).toMatch(/class="ch-grid"/); // gridlines
+    expect(html).toMatch(/class="ch-tick"/); // axis tick labels
     expect(html).toMatch(/class="ch-val ch-val-0"/);
     expect(html).toContain(">A<");
     expect(html).toContain(">B<");
@@ -592,17 +638,17 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
     expect(buildChartHtml(p, plan, undefined, 1)).toBe(base);
     // sf = 1.5 scales each font-size (round): 30→45, 15→23, 19→29, 17→26, 17(legend)→26.
     const scaled = buildChartHtml(p, plan, undefined, 1.5);
-    expect(scaled).toContain("font-size: 45px");  // title 30 · 1.5
-    expect(scaled).toContain("font-size: 23px");  // tick 15 · 1.5 = 22.5 → 23
-    expect(scaled).toContain("font-size: 29px");  // value 19 · 1.5 = 28.5 → 29
-    expect(scaled).toContain("font-size: 26px");  // category 17 · 1.5 = 25.5 → 26
+    expect(scaled).toContain("font-size: 45px"); // title 30 · 1.5
+    expect(scaled).toContain("font-size: 23px"); // tick 15 · 1.5 = 22.5 → 23
+    expect(scaled).toContain("font-size: 29px"); // value 19 · 1.5 = 28.5 → 29
+    expect(scaled).toContain("font-size: 26px"); // category 17 · 1.5 = 25.5 → 26
     expect(scaled).not.toContain("font-size: 30px"); // the authored title size is gone
   });
 
   it("scales the single-series bar-thickness cap by sf (byte-identical at sf=1)", () => {
     // A wide plot + few categories hits the absolute cap (130px column / 90 bar).
     const p = parse({ type: "column", data: [10, 20], width: 1000, height: 600 });
-    const capped = planChart(p);               // sf defaults to 1
+    const capped = planChart(p); // sf defaults to 1
     expect(capped.bars.every((b) => b.width === 130)).toBe(true);
     // sf = 2 doubles the cap → 260px bars (still ≤ slot·0.7, so the cap governs).
     const scaled = planChart(p, 2);
@@ -613,17 +659,37 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
 
   // DM-1301: multi-series.
   it("grouped multi-series lays one bar per (category, series), colored per series, with a legend", () => {
-    const p = parse({ type: "column", data: [[10, 20], [30, 40]], labels: ["P", "Q"], seriesNames: ["A", "B"], layout: "grouped", colors: ["#aaa", "#bbb"] });
+    const p = parse({
+      type: "column",
+      data: [
+        [10, 20],
+        [30, 40],
+      ],
+      labels: ["P", "Q"],
+      seriesNames: ["A", "B"],
+      layout: "grouped",
+      colors: ["#aaa", "#bbb"],
+    });
     const plan = planChart(p);
     expect(plan.stacked).toBe(false);
     expect(plan.bars).toHaveLength(4); // 2 categories × 2 series
-    expect(plan.legend).toEqual([{ name: "A", color: "#aaa" }, { name: "B", color: "#bbb" }]);
+    expect(plan.legend).toEqual([
+      { name: "A", color: "#aaa" },
+      { name: "B", color: "#bbb" },
+    ]);
     expect(new Set(plan.bars.map((b) => b.color))).toEqual(new Set(["#aaa", "#bbb"])); // per-series color
     expect(buildChartHtml(p, plan)).toMatch(/class="ch-legend"/);
   });
 
   it("stacked multi-series sums per category for the axis max and grows each stack as one unit", () => {
-    const p = parse({ type: "column", data: [[10, 20], [30, 40]], layout: "stacked" });
+    const p = parse({
+      type: "column",
+      data: [
+        [10, 20],
+        [30, 40],
+      ],
+      layout: "stacked",
+    });
     const plan = planChart(p);
     expect(plan.stacked).toBe(true);
     expect(plan.maxVal).toBe(niceMaxOf(70)); // category Q total = 30+40 = 70 is the peak
@@ -651,7 +717,7 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
 
     const anims = buildChartAnimations(p, plan);
     const spin = anims.find((a) => a.selector === ".ch-pie-group")!;
-    expect(spin.property).toBe("transform");        // scale + rotate sweep-in
+    expect(spin.property).toBe("transform"); // scale + rotate sweep-in
     expect(spin.to).toMatch(/scale\(1\)/);
     expect(anims.some((a) => a.selector === ".ch-pie-slice-2" && a.property === "opacity")).toBe(true);
   });
@@ -659,7 +725,7 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
   it("donut slices are ring segments (inner + outer arc)", () => {
     const pie = planChart(parse({ type: "pie", data: [1, 1] })).slices[0].path;
     const donut = planChart(parse({ type: "donut", data: [1, 1] })).slices[0].path;
-    expect((pie.match(/A /g) ?? []).length).toBe(1);   // wedge: one arc
+    expect((pie.match(/A /g) ?? []).length).toBe(1); // wedge: one arc
     expect((donut.match(/A /g) ?? []).length).toBe(2); // ring segment: outer + inner arc
   });
 
@@ -694,18 +760,35 @@ describe("chat generation (pure, no browser) — DM-1278", () => {
   });
 
   it("renders me-bubbles right and them-bubbles left, with a header when titled", () => {
-    const html = buildChatHtml(parse({ messages: [{ from: "me", text: "A" }, { from: "them", text: "B" }], title: "Sam", accent: "#abc123" }));
+    const html = buildChatHtml(
+      parse({
+        messages: [
+          { from: "me", text: "A" },
+          { from: "them", text: "B" },
+        ],
+        title: "Sam",
+        accent: "#abc123",
+      }),
+    );
     expect(html).toMatch(/class="ct-row ct-me"/);
     expect(html).toMatch(/class="ct-row ct-them"/);
-    expect(html).toContain("#abc123");           // me-bubble accent
-    expect(html).toMatch(/class="ct-head"/);      // header present
-    expect(html).toContain(">S<");                // avatar initial
+    expect(html).toContain("#abc123"); // me-bubble accent
+    expect(html).toMatch(/class="ct-head"/); // header present
+    expect(html).toContain(">S<"); // avatar initial
     // No header when untitled.
     expect(buildChatHtml(parse({ messages: [{ from: "me", text: "x" }] }))).not.toMatch(/class="ct-head"/);
   });
 
   it("pops each message from its anchored corner (scale + origin) with a fade, staggered", () => {
-    const p = parse({ messages: [{ from: "me", text: "a" }, { from: "them", text: "b" }], staggerMs: 500, popMs: 300, typing: false });
+    const p = parse({
+      messages: [
+        { from: "me", text: "a" },
+        { from: "them", text: "b" },
+      ],
+      staggerMs: 500,
+      popMs: 300,
+      typing: false,
+    });
     const anims = buildChatAnimations(p);
     const pop0 = anims.find((a) => a.selector === ".ct-pop-0")!;
     expect(pop0.property).toBe("scale");
@@ -718,22 +801,31 @@ describe("chat generation (pure, no browser) — DM-1278", () => {
   // DM-1302: a "…" indicator precedes each them message; the thread runs
   // sequentially (type, send, type, send).
   it("inserts a typing indicator before each them message and runs the timeline sequentially", () => {
-    const p = parse({ messages: [{ from: "them", text: "a" }, { from: "me", text: "b" }, { from: "them", text: "c" }], typingMs: 900, staggerMs: 500, popMs: 300 });
+    const p = parse({
+      messages: [
+        { from: "them", text: "a" },
+        { from: "me", text: "b" },
+        { from: "them", text: "c" },
+      ],
+      typingMs: 900,
+      staggerMs: 500,
+      popMs: 300,
+    });
     const { popStart, typingStart } = chatTimeline(p);
     // them0: type[0..900], pop 900, +stagger→1400; me1: pop 1400, +stagger→1900;
     // them2: type[1900..2800], pop 2800.
     expect(typingStart).toEqual([0, null, 1900]); // them msgs type; me msg doesn't
-    expect(popStart).toEqual([900, 1400, 2800]);   // them pops after typingMs; sequential
+    expect(popStart).toEqual([900, 1400, 2800]); // them pops after typingMs; sequential
     expect(chatDurationMs(p)).toBe(2800 + 300 + p.holdMs);
 
     const html = buildChatHtml(p);
     expect(html).toMatch(/class="ct-typing-wrap ct-typing-wrap-0"/);
-    expect(html).toMatch(/ct-dot-0-2/);                 // three dots
-    expect(html).not.toMatch(/ct-typing-wrap-1/);        // not on the me message
+    expect(html).toMatch(/ct-dot-0-2/); // three dots
+    expect(html).not.toMatch(/ct-typing-wrap-1/); // not on the me message
 
     const anims = buildChatAnimations(p);
-    expect(anims.find((a) => a.selector === ".ct-typing-wrap-0")!.from).toBe("0");   // fade in
-    expect(anims.find((a) => a.selector === ".ct-typing-inner-0")!.to).toBe("0");    // fade out
+    expect(anims.find((a) => a.selector === ".ct-typing-wrap-0")!.from).toBe("0"); // fade in
+    expect(anims.find((a) => a.selector === ".ct-typing-inner-0")!.to).toBe("0"); // fade out
     const dot = anims.find((a) => a.selector === ".ct-dot-0-1")!;
     expect(dot.property).toBe("translateY"); // bouncing
     expect(dot.repeat).toBe("infinite");
@@ -755,12 +847,14 @@ describe("subscribe generation (pure, no browser) — DM-1278", () => {
   const parse = (o: Record<string, unknown>) => subscribeParamsSchema.parse(o);
 
   it("renders the name, subtitle, CTA, avatar initial, and bell (toggleable)", () => {
-    const html = buildSubscribeHtml(parse({ name: "Domotion", subtitle: "1.2M subs", action: "Subscribe", accent: "#ff0000" }));
+    const html = buildSubscribeHtml(
+      parse({ name: "Domotion", subtitle: "1.2M subs", action: "Subscribe", accent: "#ff0000" }),
+    );
     expect(html).toContain("Domotion");
     expect(html).toContain("1.2M subs");
     expect(html).toMatch(/class="sub-cta">Subscribe</);
     expect(html).toContain("#ff0000");
-    expect(html).toContain(">D<");               // avatar initial
+    expect(html).toContain(">D<"); // avatar initial
     expect(html).toMatch(/class="sub-bell"/);
     expect(buildSubscribeHtml(parse({ name: "X", showBell: false }))).not.toMatch(/class="sub-bell"/);
   });
@@ -798,8 +892,12 @@ describe("subscribe generation (pure, no browser) — DM-1278", () => {
     const anims = buildSubscribeAnimations(p);
     const out = anims.find((a) => a.selector === ".sub-state-cta")!;
     const inn = anims.find((a) => a.selector === ".sub-state-done")!;
-    expect(out.from).toBe("1"); expect(out.to).toBe("0"); expect(out.delay).toBe(1500);
-    expect(inn.from).toBe("0"); expect(inn.to).toBe("1"); expect(inn.delay).toBe(1500);
+    expect(out.from).toBe("1");
+    expect(out.to).toBe("0");
+    expect(out.delay).toBe(1500);
+    expect(inn.from).toBe("0");
+    expect(inn.to).toBe("1");
+    expect(inn.delay).toBe(1500);
     expect(anims.find((a) => a.selector === ".sub-done")!.property).toBe("scale"); // a tap pop
     expect(anims.some((a) => a.selector === ".sub-bell-on")).toBe(true);
     // duration runs to the click + cross-fade + hold (not just the pop).

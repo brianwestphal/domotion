@@ -4,10 +4,17 @@ title: "Live generic-family preference parity"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2351","DM-2637","DM-2668"]
-code: [".github/workflows/generic-family-preference-parity.yml","src/capture/generic-font-probe.ts","src/capture/generic-font-probe.test.ts","src/render/synchronous-scope.ts","src/render/synchronous-scope.test.ts"]
-aliases: ["docs/198-live-generic-family-preference-parity.md","doc-198"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2351", "DM-2637", "DM-2668"]
+code:
+  [
+    ".github/workflows/generic-family-preference-parity.yml",
+    "src/capture/generic-font-probe.ts",
+    "src/capture/generic-font-probe.test.ts",
+    "src/render/synchronous-scope.ts",
+    "src/render/synchronous-scope.test.ts",
+  ]
+aliases: ["docs/198-live-generic-family-preference-parity.md", "doc-198"]
 ---
 
 # Live generic-family preference parity
@@ -33,12 +40,12 @@ cursive, fantasy, and math.
 
 Launch shape determines who initialized those Settings:
 
-| Launch shape | Effective initialization |
-|---|---|
-| Playwright default headless | The headless shell starts with Blink Common defaults; Playwright applies its vendored Common/per-script table. |
-| Playwright bundled Chromium headed | The full browser preference layer initializes Settings; Playwright does not call `Page.setFontFamilies`. |
-| Full Chrome headed | Chrome's profile maps initialize all seven settings families and registered scripts. |
-| Full Chrome headless | Chrome profile maps initialize first; Playwright then overwrites only fields/scripts in its partial table. Math and omitted scripts therefore remain profile-owned. |
+| Launch shape                       | Effective initialization                                                                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Playwright default headless        | The headless shell starts with Blink Common defaults; Playwright applies its vendored Common/per-script table.                                                      |
+| Playwright bundled Chromium headed | The full browser preference layer initializes Settings; Playwright does not call `Page.setFontFamilies`.                                                            |
+| Full Chrome headed                 | Chrome's profile maps initialize all seven settings families and registered scripts.                                                                                |
+| Full Chrome headless               | Chrome profile maps initialize first; Playwright then overwrites only fields/scripts in its partial table. Math and omitted scripts therefore remain profile-owned. |
 
 Playwright selects the headless shell only for a headless launch without a
 channel/custom executable (`playwright-core/lib/server/chromium/chromium.js`),

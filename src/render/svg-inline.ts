@@ -34,19 +34,16 @@ import { computeViewportMatrix, parsePreserveAspectRatio, type ViewBox } from ".
 export function prefixSvgIds(svg: string, prefix: string): string {
   const ids = new Set<string>();
   for (const match of svg.matchAll(/\bid\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) ids.add(match[1] ?? match[2]);
-  const mapped = (id: string) => ids.has(id) ? `${prefix}${id}` : id;
+  const mapped = (id: string) => (ids.has(id) ? `${prefix}${id}` : id);
   let out = svg;
   out = out.replace(/\bid="([^"]+)"/g, (_m, id: string) => `id="${prefix}${id}"`);
   out = out.replace(/\bid='([^']+)'/g, (_m, id: string) => `id='${prefix}${id}'`);
+  out = out.replace(/\b(href|xlink:href)="#([^"]+)"/g, (_m, attr: string, id: string) => `${attr}="#${mapped(id)}"`);
+  out = out.replace(/\b(href|xlink:href)='#([^']+)'/g, (_m, attr: string, id: string) => `${attr}='#${mapped(id)}'`);
   out = out.replace(
-    /\b(href|xlink:href)="#([^"]+)"/g,
-    (_m, attr: string, id: string) => `${attr}="#${mapped(id)}"`,
+    /url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/gi,
+    (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`,
   );
-  out = out.replace(
-    /\b(href|xlink:href)='#([^']+)'/g,
-    (_m, attr: string, id: string) => `${attr}='#${mapped(id)}'`,
-  );
-  out = out.replace(/url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/gi, (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`);
   // DOM `outerHTML` encodes the quotes inside a serialized style attribute,
   // e.g. `style="clip-path: url(&quot;#clip&quot;)"`.  The presentation
   // attribute above is namespaced too, but the style declaration wins in the
@@ -57,17 +54,36 @@ export function prefixSvgIds(svg: string, prefix: string): string {
     /url\(\s*(&quot;|&#34;|&#x22;|&apos;|&#39;|&#x27;)#([^&)\s;]+)\1\s*\)/gi,
     (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`,
   );
-  const idRefAttrs = "aria-activedescendant|aria-controls|aria-describedby|aria-details|aria-errormessage|aria-flowto|aria-labelledby|aria-owns|for";
-  out = out.replace(new RegExp(`\\b(${idRefAttrs})=("|')([^"']*)\\2`, "gi"), (_m, attr: string, quote: string, value: string) =>
-    `${attr}=${quote}${value.split(/\s+/).map(mapped).join(" ")}${quote}`,
+  const idRefAttrs =
+    "aria-activedescendant|aria-controls|aria-describedby|aria-details|aria-errormessage|aria-flowto|aria-labelledby|aria-owns|for";
+  out = out.replace(
+    new RegExp(`\\b(${idRefAttrs})=("|')([^"']*)\\2`, "gi"),
+    (_m, attr: string, quote: string, value: string) =>
+      `${attr}=${quote}${value.split(/\s+/).map(mapped).join(" ")}${quote}`,
   );
-  out = out.replace(/\b(begin|end)=("|')([^"']*)\2/gi, (_m, attr: string, quote: string, value: string) =>
-    `${attr}=${quote}${value.split(";").map((part) => part.replace(/^(\s*)([\w:.-]+)(\.)/, (_r, space: string, id: string, dot: string) => `${space}${mapped(id)}${dot}`)).join(";")}${quote}`,
+  out = out.replace(
+    /\b(begin|end)=("|')([^"']*)\2/gi,
+    (_m, attr: string, quote: string, value: string) =>
+      `${attr}=${quote}${value
+        .split(";")
+        .map((part) =>
+          part.replace(
+            /^(\s*)([\w:.-]+)(\.)/,
+            (_r, space: string, id: string, dot: string) => `${space}${mapped(id)}${dot}`,
+          ),
+        )
+        .join(";")}${quote}`,
   );
-  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) =>
-    open + css.replace(/([^{}]*)(\{[^{}]*\})/g, (_rule, selectors: string, body: string) =>
-      selectors.replace(/#(-?[_a-zA-Z][-_a-zA-Z0-9:.]*)/g, (_s, id: string) => `#${mapped(id)}`) + body,
-    ) + close,
+  out = out.replace(
+    /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
+    (_m, open: string, css: string, close: string) =>
+      open +
+      css.replace(
+        /([^{}]*)(\{[^{}]*\})/g,
+        (_rule, selectors: string, body: string) =>
+          selectors.replace(/#(-?[_a-zA-Z][-_a-zA-Z0-9:.]*)/g, (_s, id: string) => `#${mapped(id)}`) + body,
+      ) +
+      close,
   );
   return out;
 }
@@ -94,14 +110,20 @@ export function prefixSvgClasses(svg: string, prefix: string): string {
   let out = svg;
   // (a) class selectors inside <style> … </style>, selector-portion only.
   out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
-    const rewritten = css.replace(/([^{}]*)(\{[^{}]*\})/g, (_r, sel: string, block: string) =>
-      sel.replace(/\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g, (_c, name: string) => `.${prefix}${name}`) + block,
+    const rewritten = css.replace(
+      /([^{}]*)(\{[^{}]*\})/g,
+      (_r, sel: string, block: string) =>
+        sel.replace(/\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g, (_c, name: string) => `.${prefix}${name}`) + block,
     );
     return open + rewritten + close;
   });
   // (b) class attribute tokens (single- or double-quoted).
   out = out.replace(/\bclass=("|')([^"']*)\1/gi, (_m, q: string, val: string) => {
-    const toks = val.split(/\s+/).filter(Boolean).map((t) => `${prefix}${t}`).join(" ");
+    const toks = val
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((t) => `${prefix}${t}`)
+      .join(" ");
     return `class=${q}${toks}${q}`;
   });
   return out;
@@ -113,7 +135,7 @@ function readLengthAttr(attrs: string, name: string): number | null {
   const m = new RegExp(`\\b${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, "i").exec(attrs);
   if (m == null) return null;
   let v = m[1];
-  if ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
     v = v.slice(1, -1);
   }
   v = v.trim();
@@ -135,10 +157,7 @@ function extractViewBox(attrs: string): string | null {
 function stripAttrs(attrs: string, names: string[]): string {
   let out = attrs;
   for (const name of names) {
-    out = out.replace(
-      new RegExp(`\\s${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, "gi"),
-      "",
-    );
+    out = out.replace(new RegExp(`\\s${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, "gi"), "");
   }
   return out;
 }
@@ -228,8 +247,12 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
 
 let flattenNestedSvgEnabled = false;
 /** Enable/disable opt-in nested-SVG flattening for the process (DM-K0S6ZS). */
-export function setFlattenNestedSvg(enabled: boolean): void { flattenNestedSvgEnabled = enabled; }
-export function getFlattenNestedSvg(): boolean { return flattenNestedSvgEnabled; }
+export function setFlattenNestedSvg(enabled: boolean): void {
+  flattenNestedSvgEnabled = enabled;
+}
+export function getFlattenNestedSvg(): boolean {
+  return flattenNestedSvgEnabled;
+}
 
 /** Resolve the source SVG's numeric viewBox (own viewBox, else synthesized from
  *  absolute width/height, else the `<img>` intrinsic size), or null. */
@@ -259,7 +282,10 @@ function resolveViewBoxRect(attrs: string, intrinsic?: { w: number; h: number } 
 function hasViewportRelativePercent(body: string): boolean {
   const DEF_BLOCK = /<(linearGradient|radialGradient|pattern|clipPath|mask|filter)\b[\s\S]*?<\/\1>/gi;
   const defs: string[] = [];
-  const painted = body.replace(DEF_BLOCK, (m) => { defs.push(m); return " "; });
+  const painted = body.replace(DEF_BLOCK, (m) => {
+    defs.push(m);
+    return " ";
+  });
   // Painted (non-def) geometry with any `%` resolves against the viewport.
   if (/=\s*"(?:[^"]*\s)?[-\d.]+%/.test(painted) || /=\s*'(?:[^']*\s)?[-\d.]+%/.test(painted)) return true;
   // A def in user space with any `%` is viewport-relative too.
@@ -328,11 +354,7 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
 
   const viewBox = resolveViewBoxRect(attrs, p.intrinsic);
   if (viewBox == null) return null;
-  const matrix = computeViewportMatrix(
-    { x: p.x, y: p.y, w: p.w, h: p.h },
-    viewBox,
-    parsePreserveAspectRatio(p.par),
-  );
+  const matrix = computeViewportMatrix({ x: p.x, y: p.y, w: p.w, h: p.h }, viewBox, parsePreserveAspectRatio(p.par));
   if (matrix == null) return null;
 
   // Namespace ids/classes exactly as the nested path does (DM-1588 / DM-1593).
@@ -342,7 +364,18 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   // must survive: carry a root `color`/`fill`/… by keeping the source svg's
   // presentation attrs on the group (strip layout attrs it must not carry).
   const groupAttrs = prefixSvgIds(
-    stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio", "xmlns", "xmlns:xlink", "version", "overflow"]),
+    stripAttrs(attrs, [
+      "x",
+      "y",
+      "width",
+      "height",
+      "viewBox",
+      "preserveAspectRatio",
+      "xmlns",
+      "xmlns:xlink",
+      "version",
+      "overflow",
+    ]),
     p.idPrefix,
   ).replace(/\s+$/, "");
 
@@ -355,10 +388,11 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
 
   // A nested `<svg>` clips to its viewport (overflow:hidden default); a `<g>`
   // does not. Add a rect clip at the placement rect unless overflow is visible.
-  const overflowVisible = /\boverflow\s*=\s*["']?\s*visible/i.test(attrs)
-    || /\boverflow\s*:\s*visible/i.test(attrs);
+  const overflowVisible = /\boverflow\s*=\s*["']?\s*visible/i.test(attrs) || /\boverflow\s*:\s*visible/i.test(attrs);
   if (overflowVisible) return group;
   const clipId = `${p.idPrefix}vclip`;
-  return `<clipPath id="${clipId}"><rect x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"/></clipPath>`
-    + `<g clip-path="url(#${clipId})">${group}</g>`;
+  return (
+    `<clipPath id="${clipId}"><rect x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"/></clipPath>` +
+    `<g clip-path="url(#${clipId})">${group}</g>`
+  );
 }

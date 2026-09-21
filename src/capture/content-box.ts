@@ -23,9 +23,7 @@ import type { Page } from "@playwright/test";
 
 /** Named corner / edge / center of a box — mirrors the overlay `anchor.at` vocabulary. */
 export type BoxAnchor =
-  | "top-left" | "top" | "top-right"
-  | "left" | "center" | "right"
-  | "bottom-left" | "bottom" | "bottom-right";
+  "top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right";
 
 export interface ContentBoxOptions {
   /** Which corner / edge / center of the content box to resolve as the `at` point. Default `"top-left"`. */
@@ -61,16 +59,43 @@ export function boxAnchorPoint(box: Rect, at: BoxAnchor = "top-left", dx = 0, dy
   let px: number;
   let py: number;
   switch (at) {
-    case "top":          px = cx;     py = box.y;  break;
-    case "top-right":    px = right;  py = box.y;  break;
-    case "left":         px = box.x;  py = cy;     break;
-    case "center":       px = cx;     py = cy;     break;
-    case "right":        px = right;  py = cy;     break;
-    case "bottom-left":  px = box.x;  py = bottom; break;
-    case "bottom":       px = cx;     py = bottom; break;
-    case "bottom-right": px = right;  py = bottom; break;
+    case "top":
+      px = cx;
+      py = box.y;
+      break;
+    case "top-right":
+      px = right;
+      py = box.y;
+      break;
+    case "left":
+      px = box.x;
+      py = cy;
+      break;
+    case "center":
+      px = cx;
+      py = cy;
+      break;
+    case "right":
+      px = right;
+      py = cy;
+      break;
+    case "bottom-left":
+      px = box.x;
+      py = bottom;
+      break;
+    case "bottom":
+      px = cx;
+      py = bottom;
+      break;
+    case "bottom-right":
+      px = right;
+      py = bottom;
+      break;
     case "top-left":
-    default:             px = box.x;  py = box.y;  break;
+    default:
+      px = box.x;
+      py = box.y;
+      break;
   }
   return [px + dx, py + dy];
 }
@@ -89,10 +114,14 @@ export async function contentBox(page: Page, selector: string, opts: ContentBoxO
     // Inline `parseFloat || 0` (no inner helper function) so the serialized
     // evaluate body stays self-contained — a named inner function gets an
     // esbuild `__name` reference that isn't defined in the page context.
-    const bl = parseFloat(cs.borderLeftWidth) || 0, br = parseFloat(cs.borderRightWidth) || 0;
-    const bt = parseFloat(cs.borderTopWidth) || 0, bb = parseFloat(cs.borderBottomWidth) || 0;
-    const pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
-    const pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0;
+    const bl = parseFloat(cs.borderLeftWidth) || 0,
+      br = parseFloat(cs.borderRightWidth) || 0;
+    const bt = parseFloat(cs.borderTopWidth) || 0,
+      bb = parseFloat(cs.borderBottomWidth) || 0;
+    const pl = parseFloat(cs.paddingLeft) || 0,
+      pr = parseFloat(cs.paddingRight) || 0;
+    const pt = parseFloat(cs.paddingTop) || 0,
+      pb = parseFloat(cs.paddingBottom) || 0;
     return {
       x: r.x + bl + pl,
       y: r.y + bt + pt,

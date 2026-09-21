@@ -33,7 +33,13 @@ function collectionMemberCount(path: string): number {
   } catch {
     return 0;
   } finally {
-    if (fd >= 0) { try { closeSync(fd); } catch { /* already gone */ } }
+    if (fd >= 0) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* already gone */
+      }
+    }
   }
 }
 

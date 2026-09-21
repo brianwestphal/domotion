@@ -21,9 +21,11 @@ describe("DM-2466 live Chromium pseudo-fragment protocol oracle", () => {
     expect(mixed?.imageFragments).toBe(1);
     const multicol = report.rows.find((row) => row.id === "multicol");
     expect(multicol?.boxFragments).toBeGreaterThan(3);
-    expect(multicol?.record?.boxFragments.some((fragment) =>
-      fragment.fragmentainerTranslation != null && Math.abs(fragment.fragmentainerTranslation.x) > 50
-    )).toBe(true);
+    expect(
+      multicol?.record?.boxFragments.some(
+        (fragment) => fragment.fragmentainerTranslation != null && Math.abs(fragment.fragmentainerTranslation.x) > 50,
+      ),
+    ).toBe(true);
     expect(report.verdict).toBe("source-exact");
   }, 60_000);
 });

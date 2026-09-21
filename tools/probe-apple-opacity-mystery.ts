@@ -8,10 +8,18 @@ const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   await page.goto("https://www.apple.com/", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800);
@@ -27,7 +35,7 @@ async function main() {
 
   // Probe ALL CSS rules matching the flower, including inherited
   const out = await page.evaluate(() => {
-    const f4 = document.querySelector('.mday-icon.flower04') as HTMLElement;
+    const f4 = document.querySelector(".mday-icon.flower04") as HTMLElement;
     if (!f4) return null;
     // Sample the painted pixel at flower04's position to see if Chrome actually paints there
     // We can't sample pixels from JS directly but we can check getComputedStyle and walk
@@ -40,7 +48,11 @@ async function main() {
           for (const rule of Array.from(rules)) {
             if (rule instanceof CSSStyleRule) {
               try {
-                if (rule.selectorText.includes('mday-icon') || rule.selectorText.includes('flower') || rule.selectorText.includes('mothers-day')) {
+                if (
+                  rule.selectorText.includes("mday-icon") ||
+                  rule.selectorText.includes("flower") ||
+                  rule.selectorText.includes("mothers-day")
+                ) {
                   allRules.push({
                     selector: rule.selectorText,
                     text: rule.style.cssText.slice(0, 200),
@@ -70,4 +82,7 @@ async function main() {
   console.log(JSON.stringify(out, null, 2));
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

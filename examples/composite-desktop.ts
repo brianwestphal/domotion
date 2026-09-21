@@ -53,8 +53,12 @@ function buildResizingCast(): string {
     [6.6, "o", `${ESC}[32m✓${ESC}[0m built dist/widget.js  ${ESC}[2m(48 kB)${ESC}[0m\r\n`],
     [7.6, "o", `${ESC}[1;32m➜${ESC}[0m  ${ESC}[1;36m~/widget${ESC}[0m ${ESC}[0m`],
   ];
-  return JSON.stringify({ version: 2, width: 80, height: 18, title: "build" }) + "\n" +
-    ev.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  return (
+    JSON.stringify({ version: 2, width: 80, height: 18, title: "build" }) +
+    "\n" +
+    ev.map((e) => JSON.stringify(e)).join("\n") +
+    "\n"
+  );
 }
 
 /** Static macOS-like desktop: gradient wallpaper, menu bar, dock with icons. */
@@ -62,7 +66,9 @@ function desktopSvg(W: number, H: number): string {
   const dock = ["#4f9dff", "#5be584", "#b07bff", "#ffb15b", "#ff7eb3", "#4be0d0"];
   const dockW = dock.length * 68 + 24;
   const dockX = (W - dockW) / 2;
-  const icons = dock.map((c, i) => `<rect x="${dockX + 12 + i * 68}" y="${H - 80}" width="56" height="56" rx="14" fill="${c}"/>`).join("");
+  const icons = dock
+    .map((c, i) => `<rect x="${dockX + 12 + i * 68}" y="${H - 80}" width="56" height="56" rx="14" fill="${c}"/>`)
+    .join("");
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
     `<defs><linearGradient id="wall" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a1c71"/><stop offset="0.5" stop-color="#d76d77"/><stop offset="1" stop-color="#ffaf7b"/></linearGradient></defs>` +
@@ -112,8 +118,10 @@ async function main(): Promise<void> {
     const shrinkPx = (colsBefore - colsAfter) * charW; // px the window loses on the right
 
     // STEP 2 — window layer: terminal composited into fixed-size chrome.
-    const BAR = 36, RAD = 11;
-    const Wwin = term.width, Hwin = term.height + BAR;
+    const BAR = 36,
+      RAD = 11;
+    const Wwin = term.width,
+      Hwin = term.height + BAR;
     const windowSvg = composeAnimatedLayers(
       [
         { svg: windowChrome(term.width, term.height, BAR, RAD), x: 0, y: 0, width: Wwin, height: Hwin },
@@ -124,26 +132,72 @@ async function main(): Promise<void> {
 
     // STEP 3 — desktop layer: window (clipScaleX resize, matched to the reflow) +
     // cursor dragging the right edge in sync.
-    const W = 1180, H = 760, winX = 180, winY = 110;
+    const W = 1180,
+      H = 760,
+      winX = 180,
+      winY = 110;
     const shrinkDur = 700;
-    const edgeBefore = winX + Wwin, edgeAfter = edgeBefore - shrinkPx, edgeY = winY + Hwin / 2;
+    const edgeBefore = winX + Wwin,
+      edgeAfter = edgeBefore - shrinkPx,
+      edgeY = winY + Hwin / 2;
     const layers: CompositeLayer[] = [
       { svg: desktopSvg(W, H), x: 0, y: 0, width: W, height: H },
       {
-        svg: windowSvg.svg, periodMs: windowSvg.durationMs, x: winX, y: winY, width: Wwin, height: Hwin, clipRadius: RAD,
-        animations: [{ property: "clipScaleX", from: 1, to: (Wwin - shrinkPx) / Wwin, start: reflowMs, duration: shrinkDur, easing: "ease-in-out", transformOrigin: "left" }],
+        svg: windowSvg.svg,
+        periodMs: windowSvg.durationMs,
+        x: winX,
+        y: winY,
+        width: Wwin,
+        height: Hwin,
+        clipRadius: RAD,
+        animations: [
+          {
+            property: "clipScaleX",
+            from: 1,
+            to: (Wwin - shrinkPx) / Wwin,
+            start: reflowMs,
+            duration: shrinkDur,
+            easing: "ease-in-out",
+            transformOrigin: "left",
+          },
+        ],
       },
       {
-        svg: CURSOR_SVG, x: 0, y: 0, width: 26, height: 26,
+        svg: CURSOR_SVG,
+        x: 0,
+        y: 0,
+        width: 26,
+        height: 26,
         animations: [
-          { property: "transform", from: `translate(${edgeBefore - 300}px,${edgeY - 160}px)`, to: `translate(${edgeBefore - 6}px,${edgeY}px)`, start: reflowMs - 1500, duration: 1500, easing: "ease-out" },
-          { property: "transform", from: `translate(${edgeBefore - 6}px,${edgeY}px)`, to: `translate(${edgeAfter - 6}px,${edgeY}px)`, start: reflowMs, duration: shrinkDur, easing: "ease-in-out" },
+          {
+            property: "transform",
+            from: `translate(${edgeBefore - 300}px,${edgeY - 160}px)`,
+            to: `translate(${edgeBefore - 6}px,${edgeY}px)`,
+            start: reflowMs - 1500,
+            duration: 1500,
+            easing: "ease-out",
+          },
+          {
+            property: "transform",
+            from: `translate(${edgeBefore - 6}px,${edgeY}px)`,
+            to: `translate(${edgeAfter - 6}px,${edgeY}px)`,
+            start: reflowMs,
+            duration: shrinkDur,
+            easing: "ease-in-out",
+          },
         ],
       },
     ];
-    const result = composeAnimatedLayers(layers, { width: W, height: H, background: "#000", durationMs: term.totalDurationMs });
+    const result = composeAnimatedLayers(layers, {
+      width: W,
+      height: H,
+      background: "#000",
+      durationMs: term.totalDurationMs,
+    });
     writeFileSync(OUTPUT, result.svg);
-    console.log(`Wrote ${OUTPUT} — ${result.width}×${result.height}px, ${(result.durationMs / 1000).toFixed(1)}s loop, ${(result.svg.length / 1024).toFixed(1)} KB (terminal ${colsBefore}→${colsAfter} cols at ${(reflowMs / 1000).toFixed(1)}s)`);
+    console.log(
+      `Wrote ${OUTPUT} — ${result.width}×${result.height}px, ${(result.durationMs / 1000).toFixed(1)}s loop, ${(result.svg.length / 1024).toFixed(1)} KB (terminal ${colsBefore}→${colsAfter} cols at ${(reflowMs / 1000).toFixed(1)}s)`,
+    );
   } finally {
     await browser.close();
   }

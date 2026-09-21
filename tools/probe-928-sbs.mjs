@@ -1,6 +1,6 @@
 import sharp from "sharp";
 async function sbs(e, a, out, height) {
-  await sharp({ create: { width: 2070, height: height + 20, channels: 3, background: {r:255,g:255,b:255} } })
+  await sharp({ create: { width: 2070, height: height + 20, channels: 3, background: { r: 255, g: 255, b: 255 } } })
     .composite([
       { input: e, left: 5, top: 10 },
       { input: a, left: 1035, top: 10 },

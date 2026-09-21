@@ -13,7 +13,8 @@ const r = await page.evaluate(() => {
   while ((node = tw.nextNode())) if (node.textContent.includes("😀")) break;
   const idx = node.textContent.indexOf("😀");
   const rng = document.createRange();
-  rng.setStart(node, idx); rng.setEnd(node, idx + 2);
+  rng.setStart(node, idx);
+  rng.setEnd(node, idx + 2);
   const cr = rng.getBoundingClientRect();
   return { x: cr.x, y: cr.y, w: cr.width, h: cr.height };
 });
@@ -23,11 +24,14 @@ const buf = await page.screenshot({ clip: { x: r.x - 20, y: r.y - 5, width: r.w 
 writeFileSync("/tmp/dm919-region.png", buf);
 const { data, info } = await sharp("/tmp/dm919-region.png").raw().toBuffer({ resolveWithObject: true });
 // Find leftmost colored (non-bg) pixel
-let leftEdge = -1, rightEdge = -1;
+let leftEdge = -1,
+  rightEdge = -1;
 for (let x = 0; x < info.width; x++) {
   for (let y = 0; y < info.height; y++) {
     const i = (y * info.width + x) * info.channels;
-    const r0 = data[i], g = data[i + 1], b = data[i + 2];
+    const r0 = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
     // Background appears to be light bluish — skip near-white/light
     if (r0 < 240 || g < 240 || b < 240) {
       leftEdge = x;
@@ -39,7 +43,9 @@ for (let x = 0; x < info.width; x++) {
 for (let x = info.width - 1; x >= 0; x--) {
   for (let y = 0; y < info.height; y++) {
     const i = (y * info.width + x) * info.channels;
-    const r0 = data[i], g = data[i + 1], b = data[i + 2];
+    const r0 = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
     if (r0 < 240 || g < 240 || b < 240) {
       rightEdge = x;
       break;

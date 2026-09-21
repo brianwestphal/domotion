@@ -123,8 +123,11 @@ describeMac("installHarfbuzzShaping mechanics", () => {
     const marker = { glyphs: [], positions: [], clusters: [] };
     const stub = {
       layout: () => marker,
-      unitsPerEm: 1000, ascent: 800, descent: -200,
-      underlinePosition: -100, underlineThickness: 50,
+      unitsPerEm: 1000,
+      ascent: 800,
+      descent: -200,
+      underlinePosition: -100,
+      underlineThickness: 50,
       glyphForCodePoint: () => ({ id: 1 }),
     };
     expect(installHarfbuzzShaping(stub as never, "/no/such/font.ttf", 0, 16, null)).toBe(false);

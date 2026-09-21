@@ -15,28 +15,15 @@
  * Raster output and tolerance grading are deliberately absent.
  */
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { platform } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { BufferFlag, ClusterLevel, versionString } from "../vendor/harfbuzzjs/dist/index.mjs";
-import {
-  clearWebfonts,
-  registerWebfont,
-} from "../src/render/font-resolution.js";
-import {
-  harfbuzzShapeRun,
-  registerHbBufferSource,
-  type ShapeResult,
-} from "../src/render/harfbuzz-shaper.js";
+import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
+import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import {
   clearEmbeddedFonts,
   clearGlyphDefs,
@@ -46,10 +33,7 @@ import {
   setRenderTextMode,
   setTextRunProvenanceEnabled,
 } from "../src/render/text-to-path.js";
-import {
-  embeddedVariableFontBytes,
-  sfntTableTags,
-} from "./exact-shaping-control-fixtures.js";
+import { embeddedVariableFontBytes, sfntTableTags } from "./exact-shaping-control-fixtures.js";
 
 export const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 export const HARFBUZZ_REVISION = "4de187dd0a915d13c976fa8bd474c084229f3aab";
@@ -63,10 +47,19 @@ const FIXTURE_ROOT = "tests/fixtures/exact-shaping";
 const REQUIRED_OSES = ["Linux", "macOS", "Windows"] as const;
 const REQUIRED_EVIDENCE = ["proposal", "validation"] as const;
 const REQUIRED_MUTATIONS = [
-  "disable-liga", "omit-variation-axes", "disable-required-ligature",
-  "wrong-script", "wrong-direction", "wrong-cluster-level", "wrong-language-system",
-  "wrong-source-fingerprint", "wrong-gid", "wrong-cluster",
-  "wrong-source-span", "wrong-advance", "zero-mark-offset",
+  "disable-liga",
+  "omit-variation-axes",
+  "disable-required-ligature",
+  "wrong-script",
+  "wrong-direction",
+  "wrong-cluster-level",
+  "wrong-language-system",
+  "wrong-source-fingerprint",
+  "wrong-gid",
+  "wrong-cluster",
+  "wrong-source-span",
+  "wrong-advance",
+  "zero-mark-offset",
 ] as const;
 
 export interface ExactSubstitutionGlyph {
@@ -325,10 +318,7 @@ function normalizeFontName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function exactCustomFaceAgreement(
-  fonts: BrowserFontObservation[],
-  fixture: FixtureEvidence,
-): boolean {
+function exactCustomFaceAgreement(fonts: BrowserFontObservation[], fixture: FixtureEvidence): boolean {
   if (fonts.length !== 1) return false;
   const custom = fonts.filter((font) => font.isCustomFont);
   if (custom.length !== 1) return false;
@@ -338,8 +328,9 @@ function exactCustomFaceAgreement(
   if (custom[0].postScriptName === fixture.postscriptName) return true;
   // A variable instance can expose an instance-specific PostScript name even
   // though the sole custom CSS face still comes from the authenticated bytes.
-  return fixture.tables.includes("fvar")
-    && normalizeFontName(custom[0].familyName) === normalizeFontName(fixture.familyName);
+  return (
+    fixture.tables.includes("fvar") && normalizeFontName(custom[0].familyName) === normalizeFontName(fixture.familyName)
+  );
 }
 
 function assertConfiguredSourcePins(): void {
@@ -487,10 +478,7 @@ export function logicalGlyphs(result: ShapeResult, text: string): ExactSubstitut
   });
 }
 
-function shapeFixture(
-  fixture: LoadedFixture,
-  input: SubstitutionInput,
-): ExactSubstitutionGlyph[] {
+function shapeFixture(fixture: LoadedFixture, input: SubstitutionInput): ExactSubstitutionGlyph[] {
   const source = registerHbBufferSource(fixture.bytes);
   const result = harfbuzzShapeRun(
     source,
@@ -523,9 +511,7 @@ function compareGlyphs(
   const changed = new Set<string>();
   if (expected.length !== actual.length) changed.add("glyphCount");
   const count = Math.min(expected.length, actual.length);
-  const fields = [
-    "id", "cluster", "sourceSpan", "xAdvance", "yAdvance", "xOffset", "yOffset",
-  ] as const;
+  const fields = ["id", "cluster", "sourceSpan", "xAdvance", "yAdvance", "xOffset", "yOffset"] as const;
   for (let index = 0; index < count; index++) {
     for (const field of fields) {
       if (JSON.stringify(expected[index][field]) !== JSON.stringify(actual[index][field])) {
@@ -536,10 +522,7 @@ function compareGlyphs(
   return { equal: changed.size === 0, changedFields: [...changed].sort() };
 }
 
-function productionShape(
-  spec: SubstitutionCaseSpec,
-  fixture: LoadedFixture,
-): ProductionOwnership {
+function productionShape(spec: SubstitutionCaseSpec, fixture: LoadedFixture): ProductionOwnership {
   clearWebfonts();
   clearEmbeddedFonts();
   clearGlyphDefs();
@@ -670,19 +653,17 @@ function recordMutation(
   if (baseline == null) throw new Error(`unknown mutation case ${caseId}`);
   const candidate = structuredClone(baseline);
   mutate(candidate);
-  const sourceChanged = candidate.source.sha256 !== baseline.source.sha256
-    || candidate.source.byteLength !== baseline.source.byteLength
-    || candidate.source.familyName !== baseline.source.familyName
-    || candidate.source.postscriptName !== baseline.source.postscriptName;
+  const sourceChanged =
+    candidate.source.sha256 !== baseline.source.sha256 ||
+    candidate.source.byteLength !== baseline.source.byteLength ||
+    candidate.source.familyName !== baseline.source.familyName ||
+    candidate.source.postscriptName !== baseline.source.postscriptName;
   const comparison = compareGlyphs(baseline.harfbuzz.glyphs, candidate.harfbuzz.glyphs);
   return {
     id,
     kind: "record",
     caseId,
-    changedFields: [
-      ...(sourceChanged ? ["source"] : []),
-      ...comparison.changedFields,
-    ],
+    changedFields: [...(sourceChanged ? ["source"] : []), ...comparison.changedFields],
     rejected: sourceChanged || !comparison.equal,
   };
 }
@@ -692,37 +673,55 @@ export function runHostileMutations(
   fixtures: ReturnType<typeof loadSubstitutionFixtures>,
 ): MutationEvidence[] {
   return [
-    inputMutation("disable-liga", "latin-liga-variable-axis", cases, fixtures,
-      (input) => ({ ...input, features: ["-liga"] })),
-    inputMutation("omit-variation-axes", "latin-liga-variable-axis", cases, fixtures,
-      (input) => ({ ...input, axes: null })),
-    inputMutation("disable-required-ligature", "arabic-required-ligature", cases, fixtures,
-      (input) => ({ ...input, features: ["-rlig"] })),
-    inputMutation("wrong-script", "arabic-contextual-mark-positioning", cases, fixtures,
-      (input) => ({ ...input, script: "Latn" })),
-    inputMutation("wrong-direction", "arabic-contextual-mark-positioning", cases, fixtures,
-      (input) => ({ ...input, direction: "ltr" })),
-    inputMutation("wrong-cluster-level", "arabic-contextual-mark-positioning", cases, fixtures,
-      (input) => ({ ...input, clusterLevel: ClusterLevel.MONOTONE_CHARACTERS })),
-    inputMutation("wrong-language-system", "language-system-locl", cases, fixtures,
-      (input) => ({ ...input, language: "zh" })),
-    recordMutation("wrong-source-fingerprint", "language-system-locl", cases,
-      (candidate) => { candidate.source.sha256 = "0".repeat(64); }),
-    recordMutation("wrong-gid", "language-system-locl", cases,
-      (candidate) => { candidate.harfbuzz.glyphs[0].id += 1; }),
-    recordMutation("wrong-cluster", "arabic-contextual-mark-positioning", cases,
-      (candidate) => { candidate.harfbuzz.glyphs[0].cluster = 0; }),
-    recordMutation("wrong-source-span", "arabic-contextual-mark-positioning", cases,
-      (candidate) => { candidate.harfbuzz.glyphs[0].sourceSpan = [0, 1]; }),
-    recordMutation("wrong-advance", "latin-liga-variable-axis", cases,
-      (candidate) => { candidate.harfbuzz.glyphs[0].xAdvance += 1; }),
-    recordMutation("zero-mark-offset", "arabic-contextual-mark-positioning", cases,
-      (candidate) => {
-        const glyph = candidate.harfbuzz.glyphs.find((item) => item.xOffset !== 0 || item.yOffset !== 0);
-        if (glyph == null) throw new Error("mark-offset mutation had no target");
-        glyph.xOffset = 0;
-        glyph.yOffset = 0;
-      }),
+    inputMutation("disable-liga", "latin-liga-variable-axis", cases, fixtures, (input) => ({
+      ...input,
+      features: ["-liga"],
+    })),
+    inputMutation("omit-variation-axes", "latin-liga-variable-axis", cases, fixtures, (input) => ({
+      ...input,
+      axes: null,
+    })),
+    inputMutation("disable-required-ligature", "arabic-required-ligature", cases, fixtures, (input) => ({
+      ...input,
+      features: ["-rlig"],
+    })),
+    inputMutation("wrong-script", "arabic-contextual-mark-positioning", cases, fixtures, (input) => ({
+      ...input,
+      script: "Latn",
+    })),
+    inputMutation("wrong-direction", "arabic-contextual-mark-positioning", cases, fixtures, (input) => ({
+      ...input,
+      direction: "ltr",
+    })),
+    inputMutation("wrong-cluster-level", "arabic-contextual-mark-positioning", cases, fixtures, (input) => ({
+      ...input,
+      clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,
+    })),
+    inputMutation("wrong-language-system", "language-system-locl", cases, fixtures, (input) => ({
+      ...input,
+      language: "zh",
+    })),
+    recordMutation("wrong-source-fingerprint", "language-system-locl", cases, (candidate) => {
+      candidate.source.sha256 = "0".repeat(64);
+    }),
+    recordMutation("wrong-gid", "language-system-locl", cases, (candidate) => {
+      candidate.harfbuzz.glyphs[0].id += 1;
+    }),
+    recordMutation("wrong-cluster", "arabic-contextual-mark-positioning", cases, (candidate) => {
+      candidate.harfbuzz.glyphs[0].cluster = 0;
+    }),
+    recordMutation("wrong-source-span", "arabic-contextual-mark-positioning", cases, (candidate) => {
+      candidate.harfbuzz.glyphs[0].sourceSpan = [0, 1];
+    }),
+    recordMutation("wrong-advance", "latin-liga-variable-axis", cases, (candidate) => {
+      candidate.harfbuzz.glyphs[0].xAdvance += 1;
+    }),
+    recordMutation("zero-mark-offset", "arabic-contextual-mark-positioning", cases, (candidate) => {
+      const glyph = candidate.harfbuzz.glyphs.find((item) => item.xOffset !== 0 || item.yOffset !== 0);
+      if (glyph == null) throw new Error("mark-offset mutation had no target");
+      glyph.xOffset = 0;
+      glyph.yOffset = 0;
+    }),
   ];
 }
 
@@ -736,14 +735,12 @@ function installedPlaywrightIdentity(): {
   playwrightVersion: string;
   playwrightChromiumRevision: string;
 } {
-  const packageMetadata = JSON.parse(readFileSync(
-    resolve("node_modules/playwright-core/package.json"),
-    "utf8",
-  )) as { version?: string };
-  const browserMetadata = JSON.parse(readFileSync(
-    resolve("node_modules/playwright-core/browsers.json"),
-    "utf8",
-  )) as { browsers?: { name?: string; revision?: string }[] };
+  const packageMetadata = JSON.parse(readFileSync(resolve("node_modules/playwright-core/package.json"), "utf8")) as {
+    version?: string;
+  };
+  const browserMetadata = JSON.parse(readFileSync(resolve("node_modules/playwright-core/browsers.json"), "utf8")) as {
+    browsers?: { name?: string; revision?: string }[];
+  };
   const chromiumMetadata = browserMetadata.browsers?.find((item) => item.name === "chromium");
   if (packageMetadata.version == null || chromiumMetadata?.revision == null) {
     throw new Error("installed Playwright Chromium identity is incomplete");
@@ -755,19 +752,27 @@ function installedPlaywrightIdentity(): {
 }
 
 function corpusDigest(fixtures: Record<string, LoadedFixture>): string {
-  return sha256(JSON.stringify(Object.values(fixtures)
-    .map((fixture) => [fixture.evidence.id, fixture.evidence.sha256, fixture.evidence.byteLength])
-    .sort(([a], [b]) => String(a).localeCompare(String(b)))));
+  return sha256(
+    JSON.stringify(
+      Object.values(fixtures)
+        .map((fixture) => [fixture.evidence.id, fixture.evidence.sha256, fixture.evidence.byteLength])
+        .sort(([a], [b]) => String(a).localeCompare(String(b))),
+    ),
+  );
 }
 
 function caseLogicalDigest(cases: SubstitutionCaseEvidence[]): string {
-  return sha256(JSON.stringify(cases.map((item) => ({
-    id: item.id,
-    fixture: item.fixture,
-    input: item.input,
-    source: item.source,
-    glyphs: item.harfbuzz.glyphs,
-  }))));
+  return sha256(
+    JSON.stringify(
+      cases.map((item) => ({
+        id: item.id,
+        fixture: item.fixture,
+        input: item.input,
+        source: item.source,
+        glyphs: item.harfbuzz.glyphs,
+      })),
+    ),
+  );
 }
 
 export function buildLogicalSubstitutionEvidence(): {
@@ -781,17 +786,19 @@ export function buildLogicalSubstitutionEvidence(): {
     const glyphs = shapeFixture(fixture, spec.input);
     const production = productionShape(spec, fixture);
     const comparison = compareGlyphs(glyphs, production.glyphs);
-    const requestMatches = production.request.direction === spec.input.direction
-      && production.request.fontSizePx === spec.input.fontSizePx
-      && production.request.script === spec.input.script
-      && production.request.language === spec.input.language
-      && JSON.stringify(production.request.features) === JSON.stringify(spec.input.features)
-      && JSON.stringify(production.request.variationSettings ?? null) === JSON.stringify(spec.input.axes);
-    const sourceMatches = production.sourceOwnership.sha256 === fixture.evidence.sha256
-      && production.selected.fontKey === `webfont:${fixture.evidence.family}`
-      && (fixture.evidence.postscriptName == null
-        || production.selected.postscriptName === fixture.evidence.postscriptName)
-      && production.selected.shapesWithHarfbuzz;
+    const requestMatches =
+      production.request.direction === spec.input.direction &&
+      production.request.fontSizePx === spec.input.fontSizePx &&
+      production.request.script === spec.input.script &&
+      production.request.language === spec.input.language &&
+      JSON.stringify(production.request.features) === JSON.stringify(spec.input.features) &&
+      JSON.stringify(production.request.variationSettings ?? null) === JSON.stringify(spec.input.axes);
+    const sourceMatches =
+      production.sourceOwnership.sha256 === fixture.evidence.sha256 &&
+      production.selected.fontKey === `webfont:${fixture.evidence.family}` &&
+      (fixture.evidence.postscriptName == null ||
+        production.selected.postscriptName === fixture.evidence.postscriptName) &&
+      production.selected.shapesWithHarfbuzz;
     return {
       id: spec.id,
       fixture: spec.fixture,
@@ -837,7 +844,7 @@ export async function collectBrowserOwnership(
   fixtures: ReturnType<typeof loadSubstitutionFixtures>,
   browser?: Browser,
 ): Promise<{ cases: SubstitutionCaseEvidence[]; browserVersion: string }> {
-  const ownedBrowser = browser ?? await chromium.launch({ headless: true });
+  const ownedBrowser = browser ?? (await chromium.launch({ headless: true }));
   try {
     const context = await ownedBrowser.newContext({
       viewport: { width: 1200, height: 800 },
@@ -845,41 +852,53 @@ export async function collectBrowserOwnership(
     });
     const page = await context.newPage();
     const fixtureList = Object.values(fixtures);
-    const faceCss = fixtureList.map((fixture) =>
-      `@font-face{font-family:"${fixture.evidence.family}";src:url(data:font/ttf;base64,${fixture.bytes.toString("base64")}) format("truetype");font-style:normal;font-weight:400}`,
-    ).join("\n");
-    await page.setContent(`<!doctype html><meta charset="utf-8"><style>
+    const faceCss = fixtureList
+      .map(
+        (fixture) =>
+          `@font-face{font-family:"${fixture.evidence.family}";src:url(data:font/ttf;base64,${fixture.bytes.toString("base64")}) format("truetype");font-style:normal;font-weight:400}`,
+      )
+      .join("\n");
+    await page.setContent(
+      `<!doctype html><meta charset="utf-8"><style>
       ${faceCss}
       body{margin:0}.probe{position:relative;display:block;white-space:pre;margin:8px}
-    </style><main id="root"></main>`, { waitUntil: "load" });
-    await page.locator("#root").evaluate((root, values) => {
-      for (const value of values) {
-        const span = document.createElement("span");
-        span.id = `dm2532-${value.id}`;
-        span.className = "probe";
-        span.textContent = value.input.text;
-        span.lang = value.input.language;
-        span.dir = value.input.direction;
-        span.style.fontFamily = `"${value.family}"`;
-        span.style.fontSize = `${value.input.fontSizePx}px`;
-        span.style.fontFeatureSettings = value.input.features
-          .map((feature) => {
-            const match = /^([+-]?)([A-Za-z0-9]{4})(?:=(\d+))?$/.exec(feature);
-            if (match == null) throw new Error(`unsupported fixture feature ${feature}`);
-            const setting = match[3] ?? (match[1] === "-" ? "0" : "1");
-            return `"${match[2]}" ${setting}`;
-          })
-          .join(", ");
-        span.style.fontVariationSettings = value.input.axes == null
-          ? "normal"
-          : Object.entries(value.input.axes).map(([tag, axis]) => `"${tag}" ${axis}`).join(", ");
-        root.append(span);
-      }
-    }, cases.map((item) => ({
-      id: item.id,
-      family: fixtures[item.fixture as SubstitutionCaseSpec["fixture"]].evidence.family,
-      input: item.input,
-    })));
+    </style><main id="root"></main>`,
+      { waitUntil: "load" },
+    );
+    await page.locator("#root").evaluate(
+      (root, values) => {
+        for (const value of values) {
+          const span = document.createElement("span");
+          span.id = `dm2532-${value.id}`;
+          span.className = "probe";
+          span.textContent = value.input.text;
+          span.lang = value.input.language;
+          span.dir = value.input.direction;
+          span.style.fontFamily = `"${value.family}"`;
+          span.style.fontSize = `${value.input.fontSizePx}px`;
+          span.style.fontFeatureSettings = value.input.features
+            .map((feature) => {
+              const match = /^([+-]?)([A-Za-z0-9]{4})(?:=(\d+))?$/.exec(feature);
+              if (match == null) throw new Error(`unsupported fixture feature ${feature}`);
+              const setting = match[3] ?? (match[1] === "-" ? "0" : "1");
+              return `"${match[2]}" ${setting}`;
+            })
+            .join(", ");
+          span.style.fontVariationSettings =
+            value.input.axes == null
+              ? "normal"
+              : Object.entries(value.input.axes)
+                  .map(([tag, axis]) => `"${tag}" ${axis}`)
+                  .join(", ");
+          root.append(span);
+        }
+      },
+      cases.map((item) => ({
+        id: item.id,
+        family: fixtures[item.fixture as SubstitutionCaseSpec["fixture"]].evidence.family,
+        input: item.input,
+      })),
+    );
     await page.evaluate(() => document.fonts.ready);
 
     const joined: SubstitutionCaseEvidence[] = [];
@@ -921,8 +940,7 @@ export async function collectBrowserOwnership(
       });
       const custom = browserFonts.filter((font) => font.isCustomFont);
       const faceAgreement = exactCustomFaceAgreement(browserFonts, fixture.evidence);
-      const glyphCountAgreement = custom.length === 1
-        && custom[0].glyphCount === item.harfbuzz.glyphs.length;
+      const glyphCountAgreement = custom.length === 1 && custom[0].glyphCount === item.harfbuzz.glyphs.length;
       joined.push({
         ...item,
         browser: {
@@ -946,25 +964,33 @@ export async function collectBrowserOwnership(
   }
 }
 
-export async function buildBrowserHarfBuzzSubstitutionReport(options: {
-  evidence?: "proposal" | "validation";
-  includeBrowser?: boolean;
-  browser?: Browser;
-} = {}): Promise<BrowserHarfBuzzSubstitutionReport> {
+export async function buildBrowserHarfBuzzSubstitutionReport(
+  options: {
+    evidence?: "proposal" | "validation";
+    includeBrowser?: boolean;
+    browser?: Browser;
+  } = {},
+): Promise<BrowserHarfBuzzSubstitutionReport> {
   assertConfiguredSourcePins();
   const evidence = options.evidence ?? "proposal";
   const logical = buildLogicalSubstitutionEvidence();
-  const browserResult = options.includeBrowser === false
-    ? { cases: logical.cases, browserVersion: null }
-    : await collectBrowserOwnership(logical.cases, logical.fixtures, options.browser);
+  const browserResult =
+    options.includeBrowser === false
+      ? { cases: logical.cases, browserVersion: null }
+      : await collectBrowserOwnership(logical.cases, logical.fixtures, options.browser);
   const rejected = logical.mutations.filter((mutation) => mutation.rejected).map((mutation) => mutation.id);
-  const browserComplete = options.includeBrowser === false
-    || browserResult.cases.every((item) => item.browser != null
-      && item.browser.customFaceAgreement
-      && item.browser.exactGlyphCountAgreement
-      && item.browser.origins.length === [...item.input.text].length);
-  const logicalComplete = browserResult.cases.every((item) => item.exactProductionAgreement)
-    && REQUIRED_MUTATIONS.every((id) => rejected.includes(id));
+  const browserComplete =
+    options.includeBrowser === false ||
+    browserResult.cases.every(
+      (item) =>
+        item.browser != null &&
+        item.browser.customFaceAgreement &&
+        item.browser.exactGlyphCountAgreement &&
+        item.browser.origins.length === [...item.input.text].length,
+    );
+  const logicalComplete =
+    browserResult.cases.every((item) => item.exactProductionAgreement) &&
+    REQUIRED_MUTATIONS.every((id) => rejected.includes(id));
   const report: BrowserHarfBuzzSubstitutionReport = {
     schemaVersion: 1,
     ticket: "DM-2532",
@@ -983,7 +1009,8 @@ export async function buildBrowserHarfBuzzSubstitutionReport(options: {
       harfbuzz: HARFBUZZ_REVISION,
       skia: SKIA_REVISION,
     },
-    boundary: "CDP authenticates the exact custom face and shaped glyph count; gid/cluster/span/advance/offset are owned by Blink ShapeResultRun and joined from the same bytes through pinned Chromium-configured HarfBuzz and production provenance.",
+    boundary:
+      "CDP authenticates the exact custom face and shaped glyph count; gid/cluster/span/advance/offset are owned by Blink ShapeResultRun and joined from the same bytes through pinned Chromium-configured HarfBuzz and production provenance.",
     rasterization: "blocked-until-exact-logical-agreement",
     fixtures: Object.values(logical.fixtures).map((fixture) => fixture.evidence),
     cases: browserResult.cases,
@@ -1012,8 +1039,9 @@ export function validateSubstitutionArtifacts(
   const failures: string[] = [];
   const byKey = new Map<string, BrowserHarfBuzzSubstitutionReport>();
   const local = buildLogicalSubstitutionEvidence();
-  const expectedFixtures = new Map(Object.values(local.fixtures)
-    .map((fixture) => [fixture.evidence.id, fixture.evidence]));
+  const expectedFixtures = new Map(
+    Object.values(local.fixtures).map((fixture) => [fixture.evidence.id, fixture.evidence]),
+  );
   const expectedMutations = new Map(local.mutations.map((mutation) => [mutation.id, mutation]));
   const expectedPlaywright = installedPlaywrightIdentity();
   const expectedCorpusSha256 = corpusDigest(local.fixtures);
@@ -1026,34 +1054,37 @@ export function validateSubstitutionArtifacts(
       failures.push(`${key}: wrong schema/stage`);
     }
     if (report.verdict !== "exact-logical-agreement") failures.push(`${key}: logical verdict withheld`);
-    if (!REQUIRED_OSES.includes(report.runner.os as typeof REQUIRED_OSES[number])
-      || !REQUIRED_EVIDENCE.includes(report.evidence)) {
+    if (
+      !REQUIRED_OSES.includes(report.runner.os as (typeof REQUIRED_OSES)[number]) ||
+      !REQUIRED_EVIDENCE.includes(report.evidence)
+    ) {
       failures.push(`${key}: undeclared OS/evidence arm`);
     }
     if (report.runner.browserVersion == null || report.runner.browserVersion === "") {
       failures.push(`${key}: browser version missing`);
     }
-    const expectedNodePlatform = report.runner.os === "macOS"
-      ? "darwin"
-      : report.runner.os === "Windows" ? "win32" : "linux";
-    if (report.runner.nodePlatform !== expectedNodePlatform
-      || report.runner.harfbuzzVersion !== versionString()
-      || report.runner.playwrightVersion !== expectedPlaywright.playwrightVersion
-      || report.runner.playwrightChromiumRevision
-        !== expectedPlaywright.playwrightChromiumRevision) {
+    const expectedNodePlatform =
+      report.runner.os === "macOS" ? "darwin" : report.runner.os === "Windows" ? "win32" : "linux";
+    if (
+      report.runner.nodePlatform !== expectedNodePlatform ||
+      report.runner.harfbuzzVersion !== versionString() ||
+      report.runner.playwrightVersion !== expectedPlaywright.playwrightVersion ||
+      report.runner.playwrightChromiumRevision !== expectedPlaywright.playwrightChromiumRevision
+    ) {
       failures.push(`${key}: runner/toolchain identity drift`);
     }
     if (report.rasterization !== "blocked-until-exact-logical-agreement") {
       failures.push(`${key}: raster stage was not blocked`);
     }
-    if (report.sourceAuthority.chromium !== CHROMIUM_REVISION
-      || report.sourceAuthority.harfbuzz !== HARFBUZZ_REVISION
-      || report.sourceAuthority.skia !== SKIA_REVISION) {
+    if (
+      report.sourceAuthority.chromium !== CHROMIUM_REVISION ||
+      report.sourceAuthority.harfbuzz !== HARFBUZZ_REVISION ||
+      report.sourceAuthority.skia !== SKIA_REVISION
+    ) {
       failures.push(`${key}: source authority drift`);
     }
     if (report.corpusSha256 !== expectedCorpusSha256) failures.push(`${key}: corpus digest drift`);
-    if (report.logicalSha256 !== expectedLogicalSha256
-      || report.logicalSha256 !== caseLogicalDigest(report.cases)) {
+    if (report.logicalSha256 !== expectedLogicalSha256 || report.logicalSha256 !== caseLogicalDigest(report.cases)) {
       failures.push(`${key}: logical digest drift`);
     }
 
@@ -1072,23 +1103,27 @@ export function validateSubstitutionArtifacts(
     const mutationIds = new Set(report.mutations.map((mutation) => mutation.id));
     const requiredIds = new Set(report.mutationCoverage.required);
     const rejectedIds = new Set(report.mutationCoverage.rejected);
-    if (!report.mutationCoverage.complete
-      || mutationIds.size !== REQUIRED_MUTATIONS.length
-      || requiredIds.size !== REQUIRED_MUTATIONS.length
-      || rejectedIds.size !== REQUIRED_MUTATIONS.length
-      || [...requiredMutationSet].some((id) => !mutationIds.has(id)
-        || !requiredIds.has(id) || !rejectedIds.has(id))
-      || report.mutations.some((mutation) => {
+    if (
+      !report.mutationCoverage.complete ||
+      mutationIds.size !== REQUIRED_MUTATIONS.length ||
+      requiredIds.size !== REQUIRED_MUTATIONS.length ||
+      rejectedIds.size !== REQUIRED_MUTATIONS.length ||
+      [...requiredMutationSet].some((id) => !mutationIds.has(id) || !requiredIds.has(id) || !rejectedIds.has(id)) ||
+      report.mutations.some((mutation) => {
         const expected = expectedMutations.get(mutation.id);
-        return !mutation.rejected || mutation.changedFields.length === 0
-          || expected == null || JSON.stringify(mutation) !== JSON.stringify(expected);
-      })) {
+        return (
+          !mutation.rejected ||
+          mutation.changedFields.length === 0 ||
+          expected == null ||
+          JSON.stringify(mutation) !== JSON.stringify(expected)
+        );
+      })
+    ) {
       failures.push(`${key}: mutation coverage incomplete`);
     }
 
     const caseIds = new Set(report.cases.map((item) => item.id));
-    if (caseIds.size !== SUBSTITUTION_CASES.length
-      || report.cases.length !== SUBSTITUTION_CASES.length) {
+    if (caseIds.size !== SUBSTITUTION_CASES.length || report.cases.length !== SUBSTITUTION_CASES.length) {
       failures.push(`${key}: incomplete or duplicate case corpus`);
     }
     for (const spec of SUBSTITUTION_CASES) {
@@ -1096,27 +1131,28 @@ export function validateSubstitutionArtifacts(
       const fixture = local.fixtures[spec.fixture].evidence;
       if (item == null) continue;
       const productionComparison = compareGlyphs(item.harfbuzz.glyphs, item.production.glyphs);
-      const exactRequest = item.production.request.direction === spec.input.direction
-        && item.production.request.fontSizePx === spec.input.fontSizePx
-        && item.production.request.script === spec.input.script
-        && item.production.request.language === spec.input.language
-        && JSON.stringify(item.production.request.features) === JSON.stringify(spec.input.features)
-        && JSON.stringify(item.production.request.variationSettings ?? null) === JSON.stringify(spec.input.axes);
-      const exactSource = item.fixture === spec.fixture
-        && JSON.stringify(item.claims) === JSON.stringify(spec.claims)
-        && JSON.stringify(item.input) === JSON.stringify(spec.input)
-        && item.source.sha256 === fixture.sha256
-        && item.source.byteLength === fixture.byteLength
-        && item.source.familyName === fixture.familyName
-        && item.source.postscriptName === fixture.postscriptName
-        && item.harfbuzz.revision === HARFBUZZ_REVISION
-        && item.harfbuzz.logicalSha256 === logicalDigest(item.harfbuzz.glyphs)
-        && item.production.sourceOwnership.sha256 === fixture.sha256
-        && item.production.sourceOwnership.byteLength === fixture.byteLength
-        && item.production.selected.fontKey === `webfont:${fixture.family}`
-        && item.production.selected.shapesWithHarfbuzz
-        && (fixture.postscriptName == null
-          || item.production.selected.postscriptName === fixture.postscriptName);
+      const exactRequest =
+        item.production.request.direction === spec.input.direction &&
+        item.production.request.fontSizePx === spec.input.fontSizePx &&
+        item.production.request.script === spec.input.script &&
+        item.production.request.language === spec.input.language &&
+        JSON.stringify(item.production.request.features) === JSON.stringify(spec.input.features) &&
+        JSON.stringify(item.production.request.variationSettings ?? null) === JSON.stringify(spec.input.axes);
+      const exactSource =
+        item.fixture === spec.fixture &&
+        JSON.stringify(item.claims) === JSON.stringify(spec.claims) &&
+        JSON.stringify(item.input) === JSON.stringify(spec.input) &&
+        item.source.sha256 === fixture.sha256 &&
+        item.source.byteLength === fixture.byteLength &&
+        item.source.familyName === fixture.familyName &&
+        item.source.postscriptName === fixture.postscriptName &&
+        item.harfbuzz.revision === HARFBUZZ_REVISION &&
+        item.harfbuzz.logicalSha256 === logicalDigest(item.harfbuzz.glyphs) &&
+        item.production.sourceOwnership.sha256 === fixture.sha256 &&
+        item.production.sourceOwnership.byteLength === fixture.byteLength &&
+        item.production.selected.fontKey === `webfont:${fixture.family}` &&
+        item.production.selected.shapesWithHarfbuzz &&
+        (fixture.postscriptName == null || item.production.selected.postscriptName === fixture.postscriptName);
       const browser = item.browser;
       const expectedOriginSpans: [number, number][] = [];
       let utf16Start = 0;
@@ -1125,22 +1161,27 @@ export function validateSubstitutionArtifacts(
         expectedOriginSpans.push([utf16Start, utf16End]);
         utf16Start = utf16End;
       }
-      const browserCustomFace = browser != null
-        && exactCustomFaceAgreement(browser.fonts, fixture)
-        && browser.customFaceAgreement
-        && browser.exactGlyphCountAgreement
-        && browser.expectedPostscriptName === fixture.postscriptName
-        && browser.expectedFamilyName === fixture.familyName
-        && browser.fonts.filter((font) => font.isCustomFont)[0]?.glyphCount
-          === item.harfbuzz.glyphs.length
-        && browser.glyphIds.status === "not-exposed-by-cdp"
-        && browser.glyphIds.owner === "Blink ShapeResultRun / HarfBuzzRunGlyphData"
-        && JSON.stringify(browser.origins.map((origin) => origin.utf16Span))
-          === JSON.stringify(expectedOriginSpans)
-        && browser.origins.every((origin) => [origin.left, origin.top, origin.right, origin.bottom]
-          .every(Number.isFinite));
-      if (!item.exactProductionAgreement || !productionComparison.equal
-        || !exactRequest || !exactSource || !browserCustomFace) {
+      const browserCustomFace =
+        browser != null &&
+        exactCustomFaceAgreement(browser.fonts, fixture) &&
+        browser.customFaceAgreement &&
+        browser.exactGlyphCountAgreement &&
+        browser.expectedPostscriptName === fixture.postscriptName &&
+        browser.expectedFamilyName === fixture.familyName &&
+        browser.fonts.filter((font) => font.isCustomFont)[0]?.glyphCount === item.harfbuzz.glyphs.length &&
+        browser.glyphIds.status === "not-exposed-by-cdp" &&
+        browser.glyphIds.owner === "Blink ShapeResultRun / HarfBuzzRunGlyphData" &&
+        JSON.stringify(browser.origins.map((origin) => origin.utf16Span)) === JSON.stringify(expectedOriginSpans) &&
+        browser.origins.every((origin) =>
+          [origin.left, origin.top, origin.right, origin.bottom].every(Number.isFinite),
+        );
+      if (
+        !item.exactProductionAgreement ||
+        !productionComparison.equal ||
+        !exactRequest ||
+        !exactSource ||
+        !browserCustomFace
+      ) {
         failures.push(`${key}: ${spec.id} exact browser/production join incomplete`);
       }
     }
@@ -1185,8 +1226,9 @@ async function main(): Promise<number> {
   const aggregateInput = valueAfter("--aggregate");
   const output = valueAfter("--json");
   if (aggregateInput != null) {
-    const reports = artifactJsonPaths(resolve(aggregateInput)).map((path) =>
-      JSON.parse(readFileSync(path, "utf8")) as BrowserHarfBuzzSubstitutionReport);
+    const reports = artifactJsonPaths(resolve(aggregateInput)).map(
+      (path) => JSON.parse(readFileSync(path, "utf8")) as BrowserHarfBuzzSubstitutionReport,
+    );
     const aggregate = validateSubstitutionArtifacts(reports);
     if (output != null) {
       writeFileSync(resolve(output), JSON.stringify(aggregate, null, 2));
@@ -1208,15 +1250,19 @@ async function main(): Promise<number> {
     }
     writeFileSync(target, JSON.stringify(report, null, 2));
   }
-  console.log(`DM-2532 ${evidence}: ${report.verdict}; cases=${report.cases.length}; hostile mutations=${report.mutationCoverage.rejected.length}`);
+  console.log(
+    `DM-2532 ${evidence}: ${report.verdict}; cases=${report.cases.length}; hostile mutations=${report.mutationCoverage.rejected.length}`,
+  );
   return report.verdict === "exact-logical-agreement" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().then((code) => {
-    process.exitCode = code;
-  }).catch((error: unknown) => {
-    console.error(error);
-    process.exitCode = 2;
-  });
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error: unknown) => {
+      console.error(error);
+      process.exitCode = 2;
+    });
 }

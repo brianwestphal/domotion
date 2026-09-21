@@ -32,8 +32,12 @@ for (let i = 0; i < N; i++) {
   try {
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: cells[i].nodeId });
     // get the codepoint label from sibling <n>
-    const fams = fonts.filter((f) => f.glyphCount > 0).map((f) => `${f.familyName}/${f.postScriptName ?? "?"}(${f.glyphCount})`);
+    const fams = fonts
+      .filter((f) => f.glyphCount > 0)
+      .map((f) => `${f.familyName}/${f.postScriptName ?? "?"}(${f.glyphCount})`);
     console.log(`  cell[${i}]: ${fams.join("  ") || "(none)"}`);
-  } catch { console.log(`  cell[${i}]: <err>`); }
+  } catch {
+    console.log(`  cell[${i}]: <err>`);
+  }
 }
 await browser.close();

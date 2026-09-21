@@ -33,10 +33,13 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
   #plain { left: 180px; background: rgb(0, 128, 0); opacity: 0; }
 </style></head><body><div id="dim"></div><div id="hidden"></div><div id="plain"></div></body></html>`;
 
-const DIM_PX = { x: 50, y: 50 };    // center of #dim
+const DIM_PX = { x: 50, y: 50 }; // center of #dim
 const HIDDEN_PX = { x: 130, y: 50 }; // center of #hidden
 
-async function samplePixels(page: Page, points: Array<{ x: number; y: number }>): Promise<Array<[number, number, number]>> {
+async function samplePixels(
+  page: Page,
+  points: Array<{ x: number; y: number }>,
+): Promise<Array<[number, number, number]>> {
   const shot = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
   const { data, info } = await sharp(shot).raw().toBuffer({ resolveWithObject: true });
   return points.map(({ x, y }) => {
@@ -77,15 +80,18 @@ describeBrowser("intra-frame opacity fade-in from a partially-transparent captur
     try {
       writeFileSync(path.join(dir, "page.html"), PAGE);
       const cfg = validateAnimateConfig({
-        width: W, height: H,
-        frames: [{
-          input: "page.html",
-          duration: 2000,
-          animations: [
-            { selector: "#dim", property: "opacity", from: "0.2", to: "1", duration: 800, delay: 400 },
-            { selector: "#hidden", property: "opacity", from: "0", to: "1", duration: 800, delay: 400 },
-          ],
-        }],
+        width: W,
+        height: H,
+        frames: [
+          {
+            input: "page.html",
+            duration: 2000,
+            animations: [
+              { selector: "#dim", property: "opacity", from: "0.2", to: "1", duration: 800, delay: 400 },
+              { selector: "#hidden", property: "opacity", from: "0", to: "1", duration: 800, delay: 400 },
+            ],
+          },
+        ],
       });
       const svg = await composeAnimateConfig(browser, cfg, dir, () => {});
 
@@ -124,11 +130,11 @@ describeBrowser("intra-frame opacity fade-in from a partially-transparent captur
       // Peak state: genuinely bright — the dim square reaches ~full red
       // (impossible under the old multiplicative wrapper, which capped it at
       // 0.2 · 1 = the rest state), and the hidden square is ~full blue.
-      expect(peakDim[0]).toBeGreaterThan(245);   // R
-      expect(peakDim[1]).toBeLessThan(30);       // G — was ~204 at rest
-      expect(peakDim[2]).toBeLessThan(30);       // B
+      expect(peakDim[0]).toBeGreaterThan(245); // R
+      expect(peakDim[1]).toBeLessThan(30); // G — was ~204 at rest
+      expect(peakDim[2]).toBeLessThan(30); // B
       expect(peakHidden[2]).toBeGreaterThan(245); // B
-      expect(peakHidden[0]).toBeLessThan(30);     // R — was ~255 (white) at rest
+      expect(peakHidden[0]).toBeLessThan(30); // R — was ~255 (white) at rest
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

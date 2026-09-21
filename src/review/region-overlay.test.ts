@@ -143,12 +143,24 @@ describe("region overlay — click vs drag (DM-585)", () => {
     Object.defineProperty(lbImg, "naturalWidth", { value: 100, configurable: true });
     Object.defineProperty(lbImg, "naturalHeight", { value: 100, configurable: true });
     Object.defineProperty(lbImg, "complete", { value: true, configurable: true });
-    lbImg.getBoundingClientRect = () => ({ left: 0, top: 0, right: 200, bottom: 200, width: 200, height: 200, x: 0, y: 0, toJSON: () => "" });
+    lbImg.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 200,
+      bottom: 200,
+      width: 200,
+      height: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => "",
+    });
     lbStage.appendChild(lbImg);
     const lbSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     lbStage.appendChild(lbSvg);
     let clickThroughCount = 0;
-    const detach = handle.addView(lbImg, lbSvg, () => { clickThroughCount++; });
+    const detach = handle.addView(lbImg, lbSvg, () => {
+      clickThroughCount++;
+    });
 
     // Draw a rect on the fullscreen surface (note clientX=20 → source x=10 because of 2× scale).
     pointer(lbSvg, "pointerdown", 20, 20);

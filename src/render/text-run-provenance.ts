@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { ITALIC_SLNT, getFontSourceInfo, resolveGlyphCommands, type FontRun, type FontVariantEmojiOverride } from "./font-resolution.js";
+import {
+  ITALIC_SLNT,
+  getFontSourceInfo,
+  resolveGlyphCommands,
+  type FontRun,
+  type FontVariantEmojiOverride,
+} from "./font-resolution.js";
 
 export interface TextRunRequestDiagnostic {
   fontFamily: string;
@@ -60,7 +66,14 @@ export interface TextRunProvenanceDiagnostic {
 }
 
 export interface TextEmitterTransitionDiagnostic {
-  kind: "embedded-succeeded" | "embedded-declined-to-paths" | "paths-succeeded" | "paths-declined" | "capture-raster" | "source-owned-boundary" | "system-font-emitted";
+  kind:
+    | "embedded-succeeded"
+    | "embedded-declined-to-paths"
+    | "paths-succeeded"
+    | "paths-declined"
+    | "capture-raster"
+    | "source-owned-boundary"
+    | "system-font-emitted";
   sourceText: string;
   /** Exact decline/boundary classification. Absent on ordinary success rows. */
   reason?: string;
@@ -92,7 +105,11 @@ function fileEvidence(path: string | null): TextRunProvenanceDiagnostic["selecte
   try {
     const bytes = readFileSync(path);
     const stat = statSync(path);
-    const value = { sha256: createHash("sha256").update(bytes).digest("hex"), byteLength: bytes.length, mtimeMs: stat.mtimeMs };
+    const value = {
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      byteLength: bytes.length,
+      mtimeMs: stat.mtimeMs,
+    };
     sourceFileEvidence.set(path, value);
     return value;
   } catch {
@@ -110,7 +127,9 @@ function clusterEnd(text: string, cluster: number, clusters: number[]): number {
   return later.length === 0 ? text.length : Math.min(...later);
 }
 
-function outlineIdentity(commands: Array<{ command: string; args: number[] }>): { sha256: string; commandCount: number } | null {
+function outlineIdentity(
+  commands: Array<{ command: string; args: number[] }>,
+): { sha256: string; commandCount: number } | null {
   if (commands.length === 0) return null;
   return {
     sha256: createHash("sha256").update(JSON.stringify(commands)).digest("hex"),
@@ -118,10 +137,20 @@ function outlineIdentity(commands: Array<{ command: string; args: number[] }>): 
   };
 }
 
-export function setTextRunProvenanceEnabled(value: boolean): void { enabled = value; }
-export function textRunProvenanceEnabled(): boolean { return enabled; }
-export function resetTextRunProvenance(): void { runs = []; transitions = []; }
-export function getTextRunProvenance(): { runs: TextRunProvenanceDiagnostic[]; transitions: TextEmitterTransitionDiagnostic[] } {
+export function setTextRunProvenanceEnabled(value: boolean): void {
+  enabled = value;
+}
+export function textRunProvenanceEnabled(): boolean {
+  return enabled;
+}
+export function resetTextRunProvenance(): void {
+  runs = [];
+  transitions = [];
+}
+export function getTextRunProvenance(): {
+  runs: TextRunProvenanceDiagnostic[];
+  transitions: TextEmitterTransitionDiagnostic[];
+} {
   return { runs: structuredClone(runs), transitions: structuredClone(transitions) };
 }
 
@@ -157,19 +186,32 @@ export function recordSelectedFontRuns(
     let glyphs: TextRunProvenanceDiagnostic["glyphs"] = [];
     let shapeError: string | undefined;
     try {
-      const shaped = run.font.layout(run.text, request.features, run.shapingScript, request.language, request.direction);
+      const shaped = run.font.layout(
+        run.text,
+        request.features,
+        run.shapingScript,
+        request.language,
+        request.direction,
+      );
       const clusters = shaped.clusters ?? shaped.glyphs.map((_, index) => Math.min(index, run.text.length));
       glyphs = shaped.glyphs.map((glyph, index) => {
-        const position = shaped.positions[index] ?? { xAdvance: glyph.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 };
+        const position = shaped.positions[index] ?? {
+          xAdvance: glyph.advanceWidth,
+          yAdvance: 0,
+          xOffset: 0,
+          yOffset: 0,
+        };
         const cluster = clusters[index] ?? 0;
         const relativeEnd = clusterEnd(run.text, cluster, clusters);
         const sourceSpan: [number, number] = [run.startIdx + cluster, run.startIdx + relativeEnd];
-        const sourceCodePoints = [...sourceText.slice(sourceSpan[0], sourceSpan[1])]
-          .map((character) => character.codePointAt(0)!);
-        const slant = request.fontStyle != null
-          && (request.fontStyle.toLowerCase() === "italic" || request.fontStyle.toLowerCase().startsWith("oblique"))
-          ? ITALIC_SLNT
-          : 0;
+        const sourceCodePoints = [...sourceText.slice(sourceSpan[0], sourceSpan[1])].map((character) =>
+          character.codePointAt(0)!,
+        );
+        const slant =
+          request.fontStyle != null &&
+          (request.fontStyle.toLowerCase() === "italic" || request.fontStyle.toLowerCase().startsWith("oblique"))
+            ? ITALIC_SLNT
+            : 0;
         const outline = resolveGlyphCommands(
           glyph,
           run.fontKey,
@@ -183,7 +225,10 @@ export function recordSelectedFontRuns(
           id: glyph.id,
           cluster,
           sourceSpan,
-          sourceCodepointSpan: [codepointIndexAtUtf16(sourceText, sourceSpan[0]), codepointIndexAtUtf16(sourceText, sourceSpan[1])],
+          sourceCodepointSpan: [
+            codepointIndexAtUtf16(sourceText, sourceSpan[0]),
+            codepointIndexAtUtf16(sourceText, sourceSpan[1]),
+          ],
           ...position,
           sourceOutline: outlineIdentity(outline.commands),
           outlineDisposition: outline.disposition,
@@ -198,14 +243,24 @@ export function recordSelectedFontRuns(
       emitter,
       sourceText,
       sourceSpan: [run.startIdx, run.endIdx],
-      sourceCodepointSpan: [codepointIndexAtUtf16(sourceText, run.startIdx), codepointIndexAtUtf16(sourceText, run.endIdx)],
+      sourceCodepointSpan: [
+        codepointIndexAtUtf16(sourceText, run.startIdx),
+        codepointIndexAtUtf16(sourceText, run.endIdx),
+      ],
       emittedText: run.text,
       mechanism: run.routeMechanism,
-      request: { ...request, script: run.shapingScript, variationSettings: request.variationSettings == null ? undefined : { ...request.variationSettings }, features: request.features == null ? undefined : [...request.features] },
+      request: {
+        ...request,
+        script: run.shapingScript,
+        variationSettings: request.variationSettings == null ? undefined : { ...request.variationSettings },
+        features: request.features == null ? undefined : [...request.features],
+      },
       selected: {
         fontKey: run.fontKey,
-        postscriptName: run.font.postscriptName ?? source?.postscriptName
-          ?? (run.fontKey.startsWith("sysfb:") ? run.fontKey.slice("sysfb:".length) : null),
+        postscriptName:
+          run.font.postscriptName ??
+          source?.postscriptName ??
+          (run.fontKey.startsWith("sysfb:") ? run.fontKey.slice("sysfb:".length) : null),
         instantiatedPostscriptName: run.font.instantiatedPostscriptName ?? null,
         sourcePath: source?.path ?? null,
         faceIndex: source?.faceIndex ?? null,

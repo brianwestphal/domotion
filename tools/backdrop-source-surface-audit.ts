@@ -41,11 +41,12 @@ export const BACKDROP_REQUIRED_FAMILIES = [
 ] as const;
 
 export const BACKDROP_PIXEL_CHANNEL_TOLERANCE = 4;
-export const BACKDROP_EQUIVALENT_CHANGED_FRACTION = .01;
-export const BACKDROP_MUTATION_MIN_CHANGED_FRACTION = .002;
+export const BACKDROP_EQUIVALENT_CHANGED_FRACTION = 0.01;
+export const BACKDROP_MUTATION_MIN_CHANGED_FRACTION = 0.002;
 export const BACKDROP_MUTATION_MIN_CHANNEL_DELTA = 12;
 
-export type BackdropFamily = (typeof BACKDROP_REQUIRED_FAMILIES)[number]
+export type BackdropFamily =
+  | (typeof BACKDROP_REQUIRED_FAMILIES)[number]
   | "document-root"
   | "filter"
   | "target-filter-chain"
@@ -54,14 +55,7 @@ export type BackdropFamily = (typeof BACKDROP_REQUIRED_FAMILIES)[number]
   | "mix-blend-mode";
 
 export type BackdropRootReason =
-  | "document-root"
-  | "opacity"
-  | "filter"
-  | "backdrop-filter"
-  | "clip-path"
-  | "mask"
-  | "mix-blend-mode"
-  | "will-change";
+  "document-root" | "opacity" | "filter" | "backdrop-filter" | "clip-path" | "mask" | "mix-blend-mode" | "will-change";
 
 export interface BackdropStyleFacts {
   id: string;
@@ -95,9 +89,18 @@ export function backdropRootReasons(style: BackdropStyleFacts): BackdropRootReas
   if (active(style.clipPath, "none")) reasons.push("clip-path");
   if (active(style.maskImage, "none") || active(style.maskBorderSource, "none")) reasons.push("mask");
   if (active(style.mixBlendMode, "normal")) reasons.push("mix-blend-mode");
-  const willChange = new Set(style.willChange.split(",").map((part) => part.trim()).filter(Boolean));
-  if (["opacity", "filter", "backdrop-filter", "clip-path", "mask", "mask-image", "mask-border", "mix-blend-mode"]
-    .some((property) => willChange.has(property))) reasons.push("will-change");
+  const willChange = new Set(
+    style.willChange
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+  if (
+    ["opacity", "filter", "backdrop-filter", "clip-path", "mask", "mask-image", "mask-border", "mix-blend-mode"].some(
+      (property) => willChange.has(property),
+    )
+  )
+    reasons.push("will-change");
   // Deliberate negatives: an ordinary stacking context, isolation:isolate,
   // transforms, scrolling/overflow, and fixed/sticky positioning are not
   // Backdrop Roots. They can still create other property-tree nodes.
@@ -127,22 +130,97 @@ interface AuditCase {
 
 export const BACKDROP_CASES: readonly AuditCase[] = [
   { id: "plain", family: "document-root", expectedRoot: "document", expectedRasterOwners: 1 },
-  { id: "stacking", family: "nested-stacking-context", expectedRoot: "document", expectedRasterOwners: 1, wrapperCss: "position:relative;z-index:0" },
-  { id: "isolation", family: "isolation", expectedRoot: "document", expectedRasterOwners: 1, wrapperCss: "isolation:isolate" },
+  {
+    id: "stacking",
+    family: "nested-stacking-context",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    wrapperCss: "position:relative;z-index:0",
+  },
+  {
+    id: "isolation",
+    family: "isolation",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    wrapperCss: "isolation:isolate",
+  },
   { id: "opacity", family: "opacity", expectedRoot: "wrapper", expectedRasterOwners: 1, wrapperCss: "opacity:.68" },
-  { id: "transform", family: "transform", expectedRoot: "document", expectedRasterOwners: 1, wrapperCss: "transform:translate(5px,3px) rotate(.8deg);transform-origin:0 0" },
-  { id: "clip-path", family: "clip-path", expectedRoot: "wrapper", expectedRasterOwners: 1, wrapperCss: "clip-path:polygon(3% 4%,96% 0,91% 94%,7% 100%)" },
-  { id: "mask", family: "mask", expectedRoot: "wrapper", expectedRasterOwners: 1, wrapperCss: "-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 24%,#000 82%,transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 24%,#000 82%,transparent 100%)" },
-  { id: "scroll", family: "scroll-container", expectedRoot: "document", expectedRasterOwners: 1, kind: "scroll", wrapperCss: "overflow:auto" },
+  {
+    id: "transform",
+    family: "transform",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    wrapperCss: "transform:translate(5px,3px) rotate(.8deg);transform-origin:0 0",
+  },
+  {
+    id: "clip-path",
+    family: "clip-path",
+    expectedRoot: "wrapper",
+    expectedRasterOwners: 1,
+    wrapperCss: "clip-path:polygon(3% 4%,96% 0,91% 94%,7% 100%)",
+  },
+  {
+    id: "mask",
+    family: "mask",
+    expectedRoot: "wrapper",
+    expectedRasterOwners: 1,
+    wrapperCss:
+      "-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 24%,#000 82%,transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 24%,#000 82%,transparent 100%)",
+  },
+  {
+    id: "scroll",
+    family: "scroll-container",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    kind: "scroll",
+    wrapperCss: "overflow:auto",
+  },
   { id: "fixed", family: "fixed-content", expectedRoot: "document", expectedRasterOwners: 1, kind: "fixed" },
-  { id: "sticky", family: "sticky-content", expectedRoot: "document", expectedRasterOwners: 1, kind: "sticky", wrapperCss: "overflow:auto" },
+  {
+    id: "sticky",
+    family: "sticky-content",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    kind: "sticky",
+    wrapperCss: "overflow:auto",
+  },
   { id: "pseudo", family: "pseudo-element", expectedRoot: "document", expectedRasterOwners: 1, kind: "pseudo" },
   { id: "nested", family: "nested-backdrops", expectedRoot: "outer-target", expectedRasterOwners: 2, kind: "nested" },
-  { id: "overlap", family: "overlapping-backdrops", expectedRoot: "document", expectedRasterOwners: 2, kind: "overlap" },
-  { id: "filter-root", family: "filter", expectedRoot: "wrapper", expectedRasterOwners: 1, wrapperCss: "filter:saturate(.72) contrast(1.12)" },
-  { id: "target-filter", family: "target-filter-chain", expectedRoot: "document", expectedRasterOwners: 1, targetCss: "filter:opacity(.74) saturate(1.18)" },
-  { id: "overflow-clip", family: "overflow-clip", expectedRoot: "document", expectedRasterOwners: 1, wrapperCss: "overflow:hidden;border-radius:18px" },
-  { id: "blend-root", family: "mix-blend-mode", expectedRoot: "wrapper", expectedRasterOwners: 1, wrapperCss: "mix-blend-mode:multiply" },
+  {
+    id: "overlap",
+    family: "overlapping-backdrops",
+    expectedRoot: "document",
+    expectedRasterOwners: 2,
+    kind: "overlap",
+  },
+  {
+    id: "filter-root",
+    family: "filter",
+    expectedRoot: "wrapper",
+    expectedRasterOwners: 1,
+    wrapperCss: "filter:saturate(.72) contrast(1.12)",
+  },
+  {
+    id: "target-filter",
+    family: "target-filter-chain",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    targetCss: "filter:opacity(.74) saturate(1.18)",
+  },
+  {
+    id: "overflow-clip",
+    family: "overflow-clip",
+    expectedRoot: "document",
+    expectedRasterOwners: 1,
+    wrapperCss: "overflow:hidden;border-radius:18px",
+  },
+  {
+    id: "blend-root",
+    family: "mix-blend-mode",
+    expectedRoot: "wrapper",
+    expectedRasterOwners: 1,
+    wrapperCss: "mix-blend-mode:multiply",
+  },
 ] as const;
 
 const CELL_WIDTH = 210;
@@ -201,7 +279,7 @@ export function backdropAuditFixtureHtml(): string {
     *{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;background:#0b1220}body{overflow:hidden}
     #stage{position:relative;width:${BACKDROP_VIEWPORT.width}px;height:${BACKDROP_VIEWPORT.height}px;background:#10182c;overflow:hidden}
     .case{position:absolute;width:198px;height:138px;margin:6px;overflow:hidden;border:2px solid #41506d;border-radius:7px;background:#17213a}
-    ${BACKDROP_CASES.map((spec, index) => `.case-${spec.id}{left:${index % COLUMNS * CELL_WIDTH}px;top:${Math.floor(index / COLUMNS) * CELL_HEIGHT}px}`).join("\n")}
+    ${BACKDROP_CASES.map((spec, index) => `.case-${spec.id}{left:${(index % COLUMNS) * CELL_WIDTH}px;top:${Math.floor(index / COLUMNS) * CELL_HEIGHT}px}`).join("\n")}
     .under{position:absolute;inset:0;background:#ef4b38;border-right:64px solid #2166d1;border-bottom:53px solid #f2c94c;box-shadow:inset 42px 34px 0 #18a56d}
     .wrapper{position:absolute;inset:8px;min-height:118px}
     .inner-under{position:absolute;left:8px;top:8px;width:164px;height:96px;background:#2bd4aa;border:20px solid #6636d2;border-left-width:54px;border-bottom-color:#fff}
@@ -215,8 +293,18 @@ export function backdropAuditFixtureHtml(): string {
   </style></head><body><main id="stage">${cases}</main><script>for(const node of document.querySelectorAll('[data-audit-scroll]'))node.scrollTop=Number(node.getAttribute('data-audit-scroll'));</script></body></html>`;
 }
 
-export interface Rect { x: number; y: number; width: number; height: number }
-export interface DecodedImage { width: number; height: number; channels: number; data: Buffer }
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+export interface DecodedImage {
+  width: number;
+  height: number;
+  channels: number;
+  data: Buffer;
+}
 
 export interface PixelComparison {
   pixels: number;
@@ -244,9 +332,16 @@ async function decodePng(png: Buffer): Promise<DecodedImage> {
   return { width: result.info.width, height: result.info.height, channels: result.info.channels, data: result.data };
 }
 
-export function compareDecodedRegion(left: DecodedImage, right: DecodedImage, rect: Rect, dpr: number): PixelComparison {
+export function compareDecodedRegion(
+  left: DecodedImage,
+  right: DecodedImage,
+  rect: Rect,
+  dpr: number,
+): PixelComparison {
   if (left.width !== right.width || left.height !== right.height || left.channels !== right.channels) {
-    throw new Error(`image shape mismatch: ${left.width}x${left.height}x${left.channels} vs ${right.width}x${right.height}x${right.channels}`);
+    throw new Error(
+      `image shape mismatch: ${left.width}x${left.height}x${left.channels} vs ${right.width}x${right.height}x${right.channels}`,
+    );
   }
   const x0 = Math.max(0, Math.floor(rect.x * dpr));
   const y0 = Math.max(0, Math.floor(rect.y * dpr));
@@ -315,7 +410,9 @@ export function classifySourceEdgeResidual(
   dpr: number,
 ): SourceEdgeResidual {
   if (source.width !== rendered.width || source.height !== rendered.height || source.channels !== rendered.channels) {
-    throw new Error(`image shape mismatch: ${source.width}x${source.height}x${source.channels} vs ${rendered.width}x${rendered.height}x${rendered.channels}`);
+    throw new Error(
+      `image shape mismatch: ${source.width}x${source.height}x${source.channels} vs ${rendered.width}x${rendered.height}x${rendered.channels}`,
+    );
   }
   const x0 = Math.max(0, Math.floor(rect.x * dpr));
   const y0 = Math.max(0, Math.floor(rect.y * dpr));
@@ -345,10 +442,12 @@ export function classifySourceEdgeResidual(
 }
 
 export function rasterOwnerGeometryMatchesHost(record: Rect, host: Rect): boolean {
-  return record.x === Math.max(0, Math.floor(host.x))
-    && record.y === Math.max(0, Math.floor(host.y))
-    && record.width === Math.max(1, Math.ceil(host.width))
-    && record.height === Math.max(1, Math.ceil(host.height));
+  return (
+    record.x === Math.max(0, Math.floor(host.x)) &&
+    record.y === Math.max(0, Math.floor(host.y)) &&
+    record.width === Math.max(1, Math.ceil(host.width)) &&
+    record.height === Math.max(1, Math.ceil(host.height))
+  );
 }
 
 export function unionRects(rects: readonly Rect[]): Rect | null {
@@ -361,8 +460,8 @@ export function unionRects(rects: readonly Rect[]): Rect | null {
 }
 
 export const mutationDiscriminates = (comparison: PixelComparison): boolean =>
-  comparison.maxChannelDelta >= BACKDROP_MUTATION_MIN_CHANNEL_DELTA
-  && comparison.changedFraction >= BACKDROP_MUTATION_MIN_CHANGED_FRACTION;
+  comparison.maxChannelDelta >= BACKDROP_MUTATION_MIN_CHANNEL_DELTA &&
+  comparison.changedFraction >= BACKDROP_MUTATION_MIN_CHANGED_FRACTION;
 
 function flatten(tree: CapturedElement[]): CapturedElement[] {
   return tree.flatMap((element) => [element, ...flatten(element.children ?? [])]);
@@ -392,9 +491,10 @@ function backdropOwners(tree: CapturedElement[]): BackdropOwnerRef[] {
         hostRect: { x: element.x, y: element.y, width: element.width, height: element.height },
         ownerCount: composite.ownerCount,
         screenshotPasses: composite.screenshotPasses,
-        source: composite.source === "chromium-relative-effect-layer-v1"
-          ? "relative-effect-terminal"
-          : "ordinary-root-composite",
+        source:
+          composite.source === "chromium-relative-effect-layer-v1"
+            ? "relative-effect-terminal"
+            : "ordinary-root-composite",
       });
     } else {
       const raster = element.backdropFilterRaster;
@@ -436,28 +536,39 @@ async function replaceBackdropRastersWithFinalCrops(
   const metadata = await sharp(sourcePng).metadata();
   const imageWidth = metadata.width ?? 0;
   const imageHeight = metadata.height ?? 0;
-  await Promise.all(backdropOwners(tree).map(async (owner) => {
-    const raster = owner.rect;
-    const left = Math.max(0, Math.floor(raster.x * dpr));
-    const top = Math.max(0, Math.floor(raster.y * dpr));
-    const right = Math.min(imageWidth, Math.ceil((raster.x + raster.width) * dpr));
-    const bottom = Math.min(imageHeight, Math.ceil((raster.y + raster.height) * dpr));
-    if (right <= left || bottom <= top) return;
-    const crop = await sharp(sourcePng).extract({ left, top, width: right - left, height: bottom - top }).png().toBuffer();
-    owner.record.dataUri = `data:image/png;base64,${crop.toString("base64")}`;
-  }));
+  await Promise.all(
+    backdropOwners(tree).map(async (owner) => {
+      const raster = owner.rect;
+      const left = Math.max(0, Math.floor(raster.x * dpr));
+      const top = Math.max(0, Math.floor(raster.y * dpr));
+      const right = Math.min(imageWidth, Math.ceil((raster.x + raster.width) * dpr));
+      const bottom = Math.min(imageHeight, Math.ceil((raster.y + raster.height) * dpr));
+      if (right <= left || bottom <= top) return;
+      const crop = await sharp(sourcePng)
+        .extract({ left, top, width: right - left, height: bottom - top })
+        .png()
+        .toBuffer();
+      owner.record.dataUri = `data:image/png;base64,${crop.toString("base64")}`;
+    }),
+  );
 }
 
 async function renderSvg(page: Page, svg: string): Promise<Buffer> {
   const uri = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-  await page.setContent(`<!doctype html><style>html,body{margin:0;background:transparent}img{display:block;width:${BACKDROP_VIEWPORT.width}px;height:${BACKDROP_VIEWPORT.height}px}</style><img id="candidate" src="${uri}">`);
+  await page.setContent(
+    `<!doctype html><style>html,body{margin:0;background:transparent}img{display:block;width:${BACKDROP_VIEWPORT.width}px;height:${BACKDROP_VIEWPORT.height}px}</style><img id="candidate" src="${uri}">`,
+  );
   await page.locator("#candidate").evaluate((image) => (image as HTMLImageElement).decode());
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  return Buffer.from(await page.screenshot({
-    clip: { x: 0, y: 0, width: BACKDROP_VIEWPORT.width, height: BACKDROP_VIEWPORT.height },
-    omitBackground: true,
-    type: "png",
-  }));
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  return Buffer.from(
+    await page.screenshot({
+      clip: { x: 0, y: 0, width: BACKDROP_VIEWPORT.width, height: BACKDROP_VIEWPORT.height },
+      omitBackground: true,
+      type: "png",
+    }),
+  );
 }
 
 interface LiveCaseFacts {
@@ -505,7 +616,14 @@ export interface BackdropSourceSurfaceReport {
     regularFilterIsAppendedToBackdropOperations: true;
     skiaBackdropSource: "prior-parent-device";
     consumerRasterFloorRequiresExactOwnerAndSourceEdge: true;
-    nonRootTransitions: readonly ["ordinary-stacking-context", "isolation", "transform", "scroll-container", "fixed", "sticky"];
+    nonRootTransitions: readonly [
+      "ordinary-stacking-context",
+      "isolation",
+      "transform",
+      "scroll-container",
+      "fixed",
+      "sticky",
+    ];
   };
   requiredFamilies: typeof BACKDROP_REQUIRED_FAMILIES;
   thresholds: {
@@ -579,15 +697,20 @@ async function liveFacts(page: Page): Promise<Record<string, LiveCaseFacts>> {
   return JSON.parse(String(body)) as Record<string, LiveCaseFacts>;
 }
 
-interface SourcePaintPosition { paintOrder: number; layoutOrder: number }
+interface SourcePaintPosition {
+  paintOrder: number;
+  layoutOrder: number;
+}
 
 /** Independent DOMSnapshot paint-order facts, before Domotion mutates the page. */
 async function sourcePaintOrderFacts(page: Page): Promise<Record<string, boolean | null>> {
   const cdp = await page.context().newCDPSession(page);
   try {
-    const snapshot = await cdp.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [], includePaintOrder: true, includeDOMRects: true,
-    }) as any;
+    const snapshot = (await cdp.send("DOMSnapshot.captureSnapshot", {
+      computedStyles: [],
+      includePaintOrder: true,
+      includeDOMRects: true,
+    })) as any;
     const document = snapshot.documents?.[0];
     const strings: string[] = snapshot.strings ?? [];
     const positions = new Map<number, SourcePaintPosition>();
@@ -601,7 +724,8 @@ async function sourcePaintOrderFacts(page: Page): Promise<Record<string, boolean
     if (Array.isArray(attributes)) {
       for (let index = 0; index < attributes.length; index++) attributeRows.set(index, attributes[index]);
     } else {
-      for (let index = 0; index < (attributes?.index?.length ?? 0); index++) attributeRows.set(attributes.index[index], attributes.value[index]);
+      for (let index = 0; index < (attributes?.index?.length ?? 0); index++)
+        attributeRows.set(attributes.index[index], attributes.value[index]);
     }
     const byAnimId = new Map<string, SourcePaintPosition>();
     for (let nodeIndex = 0; nodeIndex < (document?.nodes?.backendNodeId?.length ?? 0); nodeIndex++) {
@@ -616,12 +740,19 @@ async function sourcePaintOrderFacts(page: Page): Promise<Record<string, boolean
     }
     const result: Record<string, boolean | null> = {};
     for (const spec of BACKDROP_CASES) {
-      if (spec.kind === "pseudo") { result[spec.id] = null; continue; }
+      if (spec.kind === "pseudo") {
+        result[spec.id] = null;
+        continue;
+      }
       const target = byAnimId.get(`bd-${spec.id}-target`);
       const later = byAnimId.get(`bd-${spec.id}-later`);
-      if (target == null || later == null) { result[spec.id] = null; continue; }
-      result[spec.id] = target.paintOrder < later.paintOrder
-        || (target.paintOrder === later.paintOrder && target.layoutOrder < later.layoutOrder);
+      if (target == null || later == null) {
+        result[spec.id] = null;
+        continue;
+      }
+      result[spec.id] =
+        target.paintOrder < later.paintOrder ||
+        (target.paintOrder === later.paintOrder && target.layoutOrder < later.layoutOrder);
     }
     return result;
   } finally {
@@ -655,24 +786,33 @@ export async function runBackdropSourceSurfaceAudit(
         // globals do not inherit that helper from Node.
         await sourcePage.addInitScript({ content: "globalThis.__name=(target)=>target;" });
         await sourcePage.setContent(backdropAuditFixtureHtml(), { waitUntil: "load" });
-        await sourcePage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        await sourcePage.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
         const facts = await liveFacts(sourcePage);
         const sourceOrder = await sourcePaintOrderFacts(sourcePage);
-        const sourcePng = Buffer.from(await sourcePage.screenshot({
-          clip: { x: 0, y: 0, width: BACKDROP_VIEWPORT.width, height: BACKDROP_VIEWPORT.height },
-          omitBackground: true,
-          type: "png",
-        }));
+        const sourcePng = Buffer.from(
+          await sourcePage.screenshot({
+            clip: { x: 0, y: 0, width: BACKDROP_VIEWPORT.width, height: BACKDROP_VIEWPORT.height },
+            omitBackground: true,
+            type: "png",
+          }),
+        );
         const capture = await captureElementTreeWithWarnings(sourcePage, "#stage", {
-          x: 0, y: 0, width: BACKDROP_VIEWPORT.width, height: BACKDROP_VIEWPORT.height,
+          x: 0,
+          y: 0,
+          width: BACKDROP_VIEWPORT.width,
+          height: BACKDROP_VIEWPORT.height,
         });
         for (const warning of capture.warnings) {
           const formatted = `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`;
           warnings.push(formatted);
-          const feature = typeof warning === "object" && warning != null && "feature" in warning
-            ? String((warning as { feature?: unknown }).feature ?? "")
-            : "";
-          if (feature === "backdrop-filter" || feature === "generated-pseudo-backdrop-filter") backdropWarnings.push(formatted);
+          const feature =
+            typeof warning === "object" && warning != null && "feature" in warning
+              ? String((warning as { feature?: unknown }).feature ?? "")
+              : "";
+          if (feature === "backdrop-filter" || feature === "generated-pseudo-backdrop-filter")
+            backdropWarnings.push(formatted);
         }
 
         const svg = elementTreeToSvg(capture.tree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
@@ -688,7 +828,10 @@ export async function runBackdropSourceSurfaceAudit(
         const underPng = await renderSvg(renderPage, underSvg);
         const overPng = await renderSvg(renderPage, overSvg);
         const [sourceImage, renderedImage, underImage, overImage] = await Promise.all([
-          decodePng(sourcePng), decodePng(renderedPng), decodePng(underPng), decodePng(overPng),
+          decodePng(sourcePng),
+          decodePng(renderedPng),
+          decodePng(underPng),
+          decodePng(overPng),
         ]);
 
         for (const spec of BACKDROP_CASES) {
@@ -703,24 +846,32 @@ export async function runBackdropSourceSurfaceAudit(
           const owners = caseNode == null ? [] : backdropOwners([caseNode]);
           const actualRasterOwners = owners.reduce((sum, owner) => sum + owner.ownerCount, 0);
           const sourceVsRendered = compareDecodedRegion(sourceImage, renderedImage, caseFacts.rect, dpr);
-          const atomicComposite = owners.some((owner) => owner.source === "ordinary-root-composite" || owner.source === "relative-effect-terminal");
-          const mutationRect = atomicComposite ? unionRects(owners.map((owner) => owner.rect)) ?? caseFacts.rect : caseFacts.rect;
+          const atomicComposite = owners.some(
+            (owner) => owner.source === "ordinary-root-composite" || owner.source === "relative-effect-terminal",
+          );
+          const mutationRect = atomicComposite
+            ? (unionRects(owners.map((owner) => owner.rect)) ?? caseFacts.rect)
+            : caseFacts.rect;
           const underComparison = compareDecodedRegion(renderedImage, underImage, mutationRect, dpr);
           const overComparison = compareDecodedRegion(renderedImage, overImage, mutationRect, dpr);
           const sourceEdgeResidual = classifySourceEdgeResidual(sourceImage, renderedImage, caseFacts.rect, dpr);
           const geometryChecks = owners.filter((owner) => owner.source !== "generated-pseudo");
-          const exactGeometryOwners = geometryChecks.filter((owner) => owner.source === "relative-effect-terminal"
-            || (owner.hostRect != null && rasterOwnerGeometryMatchesHost(owner.rect, owner.hostRect))).length;
+          const exactGeometryOwners = geometryChecks.filter(
+            (owner) =>
+              owner.source === "relative-effect-terminal" ||
+              (owner.hostRect != null && rasterOwnerGeometryMatchesHost(owner.rect, owner.hostRect)),
+          ).length;
           const ownerGeometry: OwnerGeometryEvidence = {
             checkedOwners: geometryChecks.length,
             exactOwners: exactGeometryOwners,
             exact: exactGeometryOwners === geometryChecks.length,
           };
           const pixelEquivalent = sourceVsRendered.changedFraction <= BACKDROP_EQUIVALENT_CHANGED_FRACTION;
-          const sourceEdgeRasterFloor = !pixelEquivalent
-            && ownerGeometry.exact
-            && ownerGeometry.checkedOwners > 0
-            && sourceEdgeResidual.sourceEdgeOnly;
+          const sourceEdgeRasterFloor =
+            !pixelEquivalent &&
+            ownerGeometry.exact &&
+            ownerGeometry.checkedOwners > 0 &&
+            sourceEdgeResidual.sourceEdgeOnly;
           const productionEquivalent = pixelEquivalent || sourceEdgeRasterFloor;
           const targetUri = owners[0]?.record.dataUri;
           const targetRasterAt = targetUri == null ? -1 : svg.indexOf(targetUri);
@@ -728,40 +879,59 @@ export async function runBackdropSourceSurfaceAudit(
           const laterAt = svg.indexOf(`class="anim-bd-${spec.id}-later"`);
           const rasterApplicable = actualRasterOwners > 0;
           const findings: string[] = [];
-          if (root?.id !== expectedRoot) findings.push(`source-root classifier resolved ${root?.id ?? "none"}, expected ${expectedRoot}`);
-          if (caseFacts.targetBackdropFilter === "none") findings.push("Chromium target backdrop-filter did not activate");
-          if (actualRasterOwners !== spec.expectedRasterOwners) findings.push(`serialized ${actualRasterOwners}/${spec.expectedRasterOwners} required backdrop surfaces`);
-          if (!ownerGeometry.exact) findings.push(`serialized raster geometry matches ${ownerGeometry.exactOwners}/${ownerGeometry.checkedOwners} source-owned host clips`);
+          if (root?.id !== expectedRoot)
+            findings.push(`source-root classifier resolved ${root?.id ?? "none"}, expected ${expectedRoot}`);
+          if (caseFacts.targetBackdropFilter === "none")
+            findings.push("Chromium target backdrop-filter did not activate");
+          if (actualRasterOwners !== spec.expectedRasterOwners)
+            findings.push(`serialized ${actualRasterOwners}/${spec.expectedRasterOwners} required backdrop surfaces`);
+          if (!ownerGeometry.exact)
+            findings.push(
+              `serialized raster geometry matches ${ownerGeometry.exactOwners}/${ownerGeometry.checkedOwners} source-owned host clips`,
+            );
           if (!productionEquivalent) {
-            findings.push(`production differs from Chromium on ${(sourceVsRendered.changedFraction * 100).toFixed(2)}% of case pixels (${sourceEdgeResidual.logicalInteriorChangedPixels} logical-interior pixels)`);
+            findings.push(
+              `production differs from Chromium on ${(sourceVsRendered.changedFraction * 100).toFixed(2)}% of case pixels (${sourceEdgeResidual.logicalInteriorChangedPixels} logical-interior pixels)`,
+            );
           }
-          if (rasterApplicable && !mutationDiscriminates(underComparison)) findings.push("under-capture mutation did not move output");
-          if (rasterApplicable && !mutationDiscriminates(overComparison)) findings.push("over-capture mutation did not move output");
+          if (rasterApplicable && !mutationDiscriminates(underComparison))
+            findings.push("under-capture mutation did not move output");
+          if (rasterApplicable && !mutationDiscriminates(overComparison))
+            findings.push("over-capture mutation did not move output");
           const rasterBeforeLaterPaint = !rasterApplicable
             ? null
             : atomicComposite && laterAt < 0
               ? true
-              : laterAt < 0 ? null : targetRasterAt >= 0 && targetRasterAt < laterAt;
+              : laterAt < 0
+                ? null
+                : targetRasterAt >= 0 && targetRasterAt < laterAt;
           const sourceTargetBeforeLaterPaint = sourceOrder[spec.id] ?? null;
           const vectorOrder = {
             sourceTargetBeforeLaterPaint,
-            rasterBeforeTargetVector: atomicComposite && vectorAt < 0
-              ? true
-              : targetRasterAt < 0 || vectorAt < 0 ? null : targetRasterAt < vectorAt,
+            rasterBeforeTargetVector:
+              atomicComposite && vectorAt < 0
+                ? true
+                : targetRasterAt < 0 || vectorAt < 0
+                  ? null
+                  : targetRasterAt < vectorAt,
             rasterBeforeLaterPaint,
-            matchesSourceSiblingOrder: sourceTargetBeforeLaterPaint == null || rasterBeforeLaterPaint == null
-              ? null
-              : sourceTargetBeforeLaterPaint === rasterBeforeLaterPaint,
+            matchesSourceSiblingOrder:
+              sourceTargetBeforeLaterPaint == null || rasterBeforeLaterPaint == null
+                ? null
+                : sourceTargetBeforeLaterPaint === rasterBeforeLaterPaint,
           };
-          if (vectorOrder.rasterBeforeTargetVector === false) findings.push("target vector paints before its backdrop surface");
-          if (vectorOrder.matchesSourceSiblingOrder === false) findings.push("backdrop surface and later sibling reverse Chromium paint order");
-          const evidenceComplete = root?.id === expectedRoot
-            && caseFacts.targetBackdropFilter !== "none"
-            && caseNode != null
-            && ownerGeometry.exact
-            && (!rasterApplicable || (mutationDiscriminates(underComparison) && mutationDiscriminates(overComparison)))
-            && (!rasterApplicable || spec.kind === "pseudo" || vectorOrder.rasterBeforeTargetVector != null)
-            && (spec.kind === "pseudo" || vectorOrder.matchesSourceSiblingOrder != null);
+          if (vectorOrder.rasterBeforeTargetVector === false)
+            findings.push("target vector paints before its backdrop surface");
+          if (vectorOrder.matchesSourceSiblingOrder === false)
+            findings.push("backdrop surface and later sibling reverse Chromium paint order");
+          const evidenceComplete =
+            root?.id === expectedRoot &&
+            caseFacts.targetBackdropFilter !== "none" &&
+            caseNode != null &&
+            ownerGeometry.exact &&
+            (!rasterApplicable || (mutationDiscriminates(underComparison) && mutationDiscriminates(overComparison))) &&
+            (!rasterApplicable || spec.kind === "pseudo" || vectorOrder.rasterBeforeTargetVector != null) &&
+            (spec.kind === "pseudo" || vectorOrder.matchesSourceSiblingOrder != null);
           rows.push({
             id: spec.id,
             family: spec.family,
@@ -783,8 +953,16 @@ export async function runBackdropSourceSurfaceAudit(
             sourceEdgeResidual,
             ownerGeometry,
             productionEquivalent,
-            underCapture: { applicable: rasterApplicable, comparison: underComparison, discriminated: rasterApplicable && mutationDiscriminates(underComparison) },
-            overCapture: { applicable: rasterApplicable, comparison: overComparison, discriminated: rasterApplicable && mutationDiscriminates(overComparison) },
+            underCapture: {
+              applicable: rasterApplicable,
+              comparison: underComparison,
+              discriminated: rasterApplicable && mutationDiscriminates(underComparison),
+            },
+            overCapture: {
+              applicable: rasterApplicable,
+              comparison: overComparison,
+              discriminated: rasterApplicable && mutationDiscriminates(overComparison),
+            },
             vectorOrder,
             findings,
             evidenceComplete,
@@ -811,20 +989,31 @@ export async function runBackdropSourceSurfaceAudit(
 
   for (const dpr of dprs) {
     const families = new Set(rows.filter((row) => row.dpr === dpr).map((row) => row.family));
-    for (const family of BACKDROP_REQUIRED_FAMILIES) if (!families.has(family)) blockers.push(`DPR${dpr}:missing required family ${family}`);
+    for (const family of BACKDROP_REQUIRED_FAMILIES)
+      if (!families.has(family)) blockers.push(`DPR${dpr}:missing required family ${family}`);
   }
-  if (backdropWarnings.length > 0) blockers.push(...backdropWarnings.map((warning) => `materialization warning:${warning}`));
-  blockers.push(...rows.filter((row) => !row.evidenceComplete).map((row) => `DPR${row.dpr}:${row.id}:incomplete evidence`));
-  const productionGaps = [...new Set(rows.flatMap((row) => {
-    const gaps: string[] = [];
-    if (!row.ownershipComplete) gaps.push(`${row.id}:serialized ownership ${row.actualRasterOwners}/${row.expectedRasterOwners}`);
-    if (!row.productionEquivalent) gaps.push(`${row.id}:rendered/source drift`);
-    if (row.underCapture.applicable && !row.underCapture.discriminated) gaps.push(`${row.id}:no-surface mutation inert`);
-    if (row.overCapture.applicable && !row.overCapture.discriminated) gaps.push(`${row.id}:final-composite mutation inert`);
-    if (row.vectorOrder.rasterBeforeTargetVector === false) gaps.push(`${row.id}:backdrop/vector order drift`);
-    if (row.vectorOrder.matchesSourceSiblingOrder === false) gaps.push(`${row.id}:backdrop/sibling order drift`);
-    return gaps;
-  }))];
+  if (backdropWarnings.length > 0)
+    blockers.push(...backdropWarnings.map((warning) => `materialization warning:${warning}`));
+  blockers.push(
+    ...rows.filter((row) => !row.evidenceComplete).map((row) => `DPR${row.dpr}:${row.id}:incomplete evidence`),
+  );
+  const productionGaps = [
+    ...new Set(
+      rows.flatMap((row) => {
+        const gaps: string[] = [];
+        if (!row.ownershipComplete)
+          gaps.push(`${row.id}:serialized ownership ${row.actualRasterOwners}/${row.expectedRasterOwners}`);
+        if (!row.productionEquivalent) gaps.push(`${row.id}:rendered/source drift`);
+        if (row.underCapture.applicable && !row.underCapture.discriminated)
+          gaps.push(`${row.id}:no-surface mutation inert`);
+        if (row.overCapture.applicable && !row.overCapture.discriminated)
+          gaps.push(`${row.id}:final-composite mutation inert`);
+        if (row.vectorOrder.rasterBeforeTargetVector === false) gaps.push(`${row.id}:backdrop/vector order drift`);
+        if (row.vectorOrder.matchesSourceSiblingOrder === false) gaps.push(`${row.id}:backdrop/sibling order drift`);
+        return gaps;
+      }),
+    ),
+  ];
   return {
     schemaVersion: 2,
     sourcePins: BACKDROP_SOURCE_PINS,
@@ -834,7 +1023,14 @@ export async function runBackdropSourceSurfaceAudit(
       regularFilterIsAppendedToBackdropOperations: true,
       skiaBackdropSource: "prior-parent-device",
       consumerRasterFloorRequiresExactOwnerAndSourceEdge: true,
-      nonRootTransitions: ["ordinary-stacking-context", "isolation", "transform", "scroll-container", "fixed", "sticky"],
+      nonRootTransitions: [
+        "ordinary-stacking-context",
+        "isolation",
+        "transform",
+        "scroll-container",
+        "fixed",
+        "sticky",
+      ],
     },
     requiredFamilies: BACKDROP_REQUIRED_FAMILIES,
     thresholds: {
@@ -859,7 +1055,13 @@ async function main(): Promise<void> {
   const jsonAt = args.indexOf("--json");
   const artifactAt = args.indexOf("--artifact-dir");
   const strict = args.includes("--strict");
-  const dprs = dprAt < 0 ? [1, 2] : args[dprAt + 1].split(",").map(Number).filter((value) => value > 0 && Number.isFinite(value));
+  const dprs =
+    dprAt < 0
+      ? [1, 2]
+      : args[dprAt + 1]
+          .split(",")
+          .map(Number)
+          .filter((value) => value > 0 && Number.isFinite(value));
   const jsonPath = jsonAt < 0 ? undefined : args[jsonAt + 1];
   const artifactDir = artifactAt < 0 ? undefined : args[artifactAt + 1];
   const report = await runBackdropSourceSurfaceAudit(dprs, artifactDir);
@@ -869,7 +1071,8 @@ async function main(): Promise<void> {
     writeFileSync(jsonPath, body);
   }
   process.stdout.write(body);
-  if (report.verdict !== "investigation-complete" || (strict && report.strictVerdict !== "source-exact")) process.exitCode = 1;
+  if (report.verdict !== "investigation-complete" || (strict && report.strictVerdict !== "source-exact"))
+    process.exitCode = 1;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();

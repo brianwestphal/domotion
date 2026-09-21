@@ -6,7 +6,11 @@ import { r } from "../render/format.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 
 const env = await setup();
@@ -61,24 +65,26 @@ describeBrowser("Blink table-grid and empty-cell fragment ownership (DM-2412)", 
     const page = await env!.browser.newPage({ viewport: { width: 500, height: 400 }, deviceScaleFactor: 1 });
     try {
       await page.setContent(HTML, { waitUntil: "load" });
-      const expected = await page.evaluate(() => ["top", "bottom"].map((id) => {
-        const table = document.getElementById(id)!;
-        const section = table.querySelector("tbody")!;
-        const tableRect = table.getBoundingClientRect();
-        const sectionRect = section.getBoundingClientRect();
-        const cs = getComputedStyle(table);
-        const borderTop = parseFloat(cs.borderTopWidth);
-        const borderBottom = parseFloat(cs.borderBottomWidth);
-        return {
-          wrapper: { x: tableRect.x, y: tableRect.y, width: tableRect.width, height: tableRect.height },
-          grid: {
-            x: tableRect.x,
-            y: sectionRect.y - borderTop,
-            width: tableRect.width,
-            height: sectionRect.height + borderTop + borderBottom,
-          },
-        };
-      }));
+      const expected = await page.evaluate(() =>
+        ["top", "bottom"].map((id) => {
+          const table = document.getElementById(id)!;
+          const section = table.querySelector("tbody")!;
+          const tableRect = table.getBoundingClientRect();
+          const sectionRect = section.getBoundingClientRect();
+          const cs = getComputedStyle(table);
+          const borderTop = parseFloat(cs.borderTopWidth);
+          const borderBottom = parseFloat(cs.borderBottomWidth);
+          return {
+            wrapper: { x: tableRect.x, y: tableRect.y, width: tableRect.width, height: tableRect.height },
+            grid: {
+              x: tableRect.x,
+              y: sectionRect.y - borderTop,
+              width: tableRect.width,
+              height: sectionRect.height + borderTop + borderBottom,
+            },
+          };
+        }),
+      );
       const tree = await captureElementTree(page, "#root", { x: 0, y: 0, width: 500, height: 400 });
       const tables = findTags(tree, "table");
       expect(tables).toHaveLength(4);
@@ -108,10 +114,12 @@ describeBrowser("Blink table-grid and empty-cell fragment ownership (DM-2412)", 
     const page = await env!.browser.newPage({ viewport: { width: 500, height: 400 }, deviceScaleFactor: 1 });
     try {
       await page.setContent(HTML, { waitUntil: "load" });
-      const legacy = await page.evaluate(() => ["nbsp", "display-none", "absolute"].map((id) => {
-        const cell = document.getElementById(id)!;
-        return (cell.textContent || "").trim() === "" && cell.children.length === 0;
-      }));
+      const legacy = await page.evaluate(() =>
+        ["nbsp", "display-none", "absolute"].map((id) => {
+          const cell = document.getElementById(id)!;
+          return (cell.textContent || "").trim() === "" && cell.children.length === 0;
+        }),
+      );
       expect(legacy).toEqual([true, false, false]);
 
       const tree = await captureElementTree(page, "#root", { x: 0, y: 0, width: 500, height: 400 });
@@ -119,7 +127,17 @@ describeBrowser("Blink table-grid and empty-cell fragment ownership (DM-2412)", 
       // First two cells belong to the caption tables. The next eleven are the
       // separate-border matrix; the final cell is the collapse control.
       expect(cells.slice(2, 13).map((cell) => cell.styles.emptyCellsHidden)).toEqual([
-        true, true, false, true, true, false, false, false, true, true, false,
+        true,
+        true,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
       ]);
       expect(cells[13].styles.emptyCellsHidden).toBe(false);
     } finally {

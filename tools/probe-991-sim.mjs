@@ -11,12 +11,12 @@ const result = await page.evaluate(() => {
   const cs = getComputedStyle(ta);
   const text = ta.value;
   // mimic the probe
-  const probe = document.createElement('div');
-  probe.style.position = 'absolute';
-  probe.style.left = '0';
-  probe.style.top = '-100000px';
-  probe.style.visibility = 'hidden';
-  probe.style.boxSizing = 'content-box';
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.left = "0";
+  probe.style.top = "-100000px";
+  probe.style.visibility = "hidden";
+  probe.style.boxSizing = "content-box";
   // content box width = rect.width - bl - br - pl - pr
   const r = ta.getBoundingClientRect();
   const pl = parseFloat(cs.paddingLeft);
@@ -24,13 +24,13 @@ const result = await page.evaluate(() => {
   const bl = parseFloat(cs.borderLeftWidth);
   const br = parseFloat(cs.borderRightWidth);
   const contentBoxW = r.width - bl - br - pl - pr;
-  probe.style.width = contentBoxW + 'px';
-  probe.style.padding = '0';
-  probe.style.margin = '0';
-  probe.style.border = '0';
+  probe.style.width = contentBoxW + "px";
+  probe.style.padding = "0";
+  probe.style.margin = "0";
+  probe.style.border = "0";
   probe.style.fontFamily = cs.fontFamily;
   probe.style.fontSize = cs.fontSize;
-  probe.style.whiteSpace = 'pre-wrap';
+  probe.style.whiteSpace = "pre-wrap";
   probe.textContent = text;
   document.body.appendChild(probe);
   const probeNode = probe.firstChild;
@@ -38,12 +38,21 @@ const result = await page.evaluate(() => {
   const ys = [];
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === '\n') { ys.push({ i, ch: '\\n', y: 'skip' }); continue; }
+    if (ch === "\n") {
+      ys.push({ i, ch: "\\n", y: "skip" });
+      continue;
+    }
     const rng = document.createRange();
     rng.setStart(probeNode, i);
     rng.setEnd(probeNode, i + 1);
     const cr = rng.getBoundingClientRect();
-    ys.push({ i, ch, x: (cr.left - probeBox.left).toFixed(1), y: (cr.top - probeBox.top).toFixed(1), w: cr.width.toFixed(1) });
+    ys.push({
+      i,
+      ch,
+      x: (cr.left - probeBox.left).toFixed(1),
+      y: (cr.top - probeBox.top).toFixed(1),
+      w: cr.width.toFixed(1),
+    });
   }
   return { contentBoxW, probeBox: { w: probeBox.width, h: probeBox.height }, ys };
 });

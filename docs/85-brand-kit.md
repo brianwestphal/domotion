@@ -5,9 +5,31 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1519","DM-1520","DM-1521","DM-1522","DM-1523","DM-1530","DM-1539","DM-1540","DM-1543","DM-1544","DM-1545","DM-1575"]
-code: ["examples/animate/brand-mixed/","examples/brand-capture-demo.ts","examples/output/brand-capture.svg","examples/output/templates/brand-acme-cta.svg","examples/templates-demo.ts","src/templates/brand.ts"]
-aliases: ["docs/85-brand-kit.md","doc-85"]
+tickets:
+  [
+    "DM-1519",
+    "DM-1520",
+    "DM-1521",
+    "DM-1522",
+    "DM-1523",
+    "DM-1530",
+    "DM-1539",
+    "DM-1540",
+    "DM-1543",
+    "DM-1544",
+    "DM-1545",
+    "DM-1575",
+  ]
+code:
+  [
+    "examples/animate/brand-mixed/",
+    "examples/brand-capture-demo.ts",
+    "examples/output/brand-capture.svg",
+    "examples/output/templates/brand-acme-cta.svg",
+    "examples/templates-demo.ts",
+    "src/templates/brand.ts",
+  ]
+aliases: ["docs/85-brand-kit.md", "doc-85"]
 ---
 
 # 85 — Brand kit (design tokens applied across templates)
@@ -45,24 +67,25 @@ optional; a template uses a token only where it has a matching slot.
 ```jsonc
 {
   "palette": {
-    "primary":    "#2f6df6",   // main brand color (buttons, accents, series 1)
-    "accent":     "#22d3ee",   // secondary accent (highlights, bars)
-    "background":  "#0b1020",   // surface behind content
-    "text":       "#e6edf3",   // primary text/foreground
-    "muted":      "#8b93a7"    // secondary text
+    "primary": "#2f6df6", // main brand color (buttons, accents, series 1)
+    "accent": "#22d3ee", // secondary accent (highlights, bars)
+    "background": "#0b1020", // surface behind content
+    "text": "#e6edf3", // primary text/foreground
+    "muted": "#8b93a7", // secondary text
   },
   "font": {
-    "family":  "Inter, -apple-system, system-ui, sans-serif",
-    "weights": [400, 700, 800] // used where a template picks a title/body weight
+    "family": "Inter, -apple-system, system-ui, sans-serif",
+    "weights": [400, 700, 800], // used where a template picks a title/body weight
   },
-  "radius":     10,             // corner radius (px) for panels/cards
-  "logo":       "acme-logo.svg",// asset for templates with a logo slot (path/URL)
-  "background": "linear-gradient(135deg,#1e293b,#0f172a)" // optional richer scene
-                                // fill; overrides palette.background for full-bleed
+  "radius": 10, // corner radius (px) for panels/cards
+  "logo": "acme-logo.svg", // asset for templates with a logo slot (path/URL)
+  "background": "linear-gradient(135deg,#1e293b,#0f172a)", // optional richer scene
+  // fill; overrides palette.background for full-bleed
 }
 ```
 
 Notes:
+
 - `palette.background` is the flat surface color; the top-level `background` is an
   optional richer fill (e.g. a gradient) for full-bleed templates — it wins over
   `palette.background` where a template fills the whole canvas.
@@ -96,17 +119,17 @@ Each template optionally exposes `brandDefaults(brand): Partial<Params>` mapping
 brand tokens to its own param names (empty/absent → template ignores the brand).
 Initial mapping for the current built-ins:
 
-| Template | Brand token → param |
-|---|---|
-| **lower-third** | `accent`→`accent`, `background`→`background`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1545 — a small brand mark on the banner, inside the safe area) |
-| **chart** | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`, `palette`→series `colors` |
-| **chat** | `primary`→`accent`, `background`→`background`, `font.family`→`fontFamily` |
-| **subscribe** | `primary`→`accent`, `primary`→`avatarColor`, `background`→`background`, `font.family`→`fontFamily` |
-| **kinetic-text** | `text`→`color`, `background`→`background`, `font.family`→`fontFamily` |
-| **background-loop** | `background`→`background`, `palette`→blob `colors` |
-| **cta** (end-card) | `primary`→`ctaColor`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1539 — the first built-in to consume `brand.logo`) |
-| **title-card** | `accent`→`accent`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1575 — the mark renders above the title, placed by `logoPosition`) |
-| **device-mockup** | (no natural brand slot in v1; chrome theme stays as-is) |
+| Template            | Brand token → param                                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **lower-third**     | `accent`→`accent`, `background`→`background`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1545 — a small brand mark on the banner, inside the safe area)                         |
+| **chart**           | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`, `palette`→series `colors`                                                                                   |
+| **chat**            | `primary`→`accent`, `background`→`background`, `font.family`→`fontFamily`                                                                                                          |
+| **subscribe**       | `primary`→`accent`, `primary`→`avatarColor`, `background`→`background`, `font.family`→`fontFamily`                                                                                 |
+| **kinetic-text**    | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`                                                                                                              |
+| **background-loop** | `background`→`background`, `palette`→blob `colors`                                                                                                                                 |
+| **cta** (end-card)  | `primary`→`ctaColor`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1539 — the first built-in to consume `brand.logo`)              |
+| **title-card**      | `accent`→`accent`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1575 — the mark renders above the title, placed by `logoPosition`) |
+| **device-mockup**   | (no natural brand slot in v1; chrome theme stays as-is)                                                                                                                            |
 
 `palette`→`colors` fills a template's multi-color list (chart series, background
 blobs) from `[primary, accent, …]` when the caller doesn't pass explicit colors.
@@ -137,7 +160,7 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
 
 ## Out of scope for v1 (future / follow-ups)
 
-- **Multiple named brands / brand inheritance**, font *embedding* from the brand
+- **Multiple named brands / brand inheritance**, font _embedding_ from the brand
   (vs. name reference), and per-token dark/light variants.
 
 ## Follow-up tickets
@@ -156,14 +179,14 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
   the banner's `logo` param (`brandParams({ logo: brand.logo })`), a small mark on
   the panel respecting `safeInset`. The `brand-acme-lower-third` demo auto-fills it.
 - **Animate template frames + config `brand` key** — ✅ done (DM-1543 / DM-1544,
-  docs/92): one brand themes an `animate` config's captured *and* `template` frames,
+  docs/92): one brand themes an `animate` config's captured _and_ `template` frames,
   and the config can carry its own `brand` (path or inline) so no CLI flag is
   needed. Demo: `examples/animate/brand-mixed/` (a template banner + a captured
   page, both driven by one config `brand`).
 
 ## Relationships
 
-- **DM-1521** (format presets): orthogonal — brand sets *look*, format sets
-  *canvas*. They compose (`--brand acme.json --format reel`).
+- **DM-1521** (format presets): orthogonal — brand sets _look_, format sets
+  _canvas_. They compose (`--brand acme.json --format reel`).
 - **DM-1523** (creative template pack): new templates get `brandDefaults` too.
 - **DM-1520** (UI playground): shares the brand schema for its picker.

@@ -3,11 +3,17 @@ id: "requirements/overlay-schema-ssot"
 title: "59 — Single source of truth for overlay / animation shapes"
 kind: "contract"
 status: "current"
-owners: ["animation","product-tooling"]
+owners: ["animation", "product-tooling"]
 platforms: []
-tickets: ["DM-1131","DM-1132","DM-1134"]
-code: ["scripts/generate-animate-schema.ts","src/animation/overlay-schema.ts","src/cli/animate-config-json-schema.test.ts","src/cli/animate.ts"]
-aliases: ["docs/59-overlay-schema-ssot.md","doc-59"]
+tickets: ["DM-1131", "DM-1132", "DM-1134"]
+code:
+  [
+    "scripts/generate-animate-schema.ts",
+    "src/animation/overlay-schema.ts",
+    "src/cli/animate-config-json-schema.test.ts",
+    "src/cli/animate.ts",
+  ]
+aliases: ["docs/59-overlay-schema-ssot.md", "doc-59"]
 ---
 
 # 59 — Single source of truth for overlay / animation shapes
@@ -65,7 +71,7 @@ src/animation/animator.ts            src/cli/animate.ts
   runtime `innerSvg` + `animId` (`resolveSvgOverlays`), so its authoring schema
   is its own shape rather than a structural extension. Intra-frame animations
   follow the same pattern — `intraFrameAnimationSchema.omit({ animId }).extend({
-  selector })` — since the config addresses elements by selector and the runner
+selector })` — since the config addresses elements by selector and the runner
   resolves selector → `animId`.
 
 ## What this buys
@@ -76,7 +82,7 @@ src/animation/animator.ts            src/cli/animate.ts
   `.extend(...)` / `resolveOverlayAnchors` references to the old name error.
   There is no longer a second hand-written copy that silently keeps the old name.
 - **The JSON Schema can't drift from the validator.** `schemas/animate-config
-  .schema.json` is generated from `animateConfigSchema` (which now references the
+.schema.json` is generated from `animateConfigSchema` (which now references the
   shared bases) by `scripts/generate-animate-schema.ts`, and
   `src/cli/animate-config-json-schema.test.ts` fails if the committed copy is out
   of sync — run `npm run build:animate-schema` and commit the regenerated file.

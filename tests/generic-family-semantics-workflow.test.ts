@@ -25,8 +25,9 @@ describe("generic-family semantic ownership workflow", () => {
     expect(workflow).toContain(
       "Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders",
     );
-    expect(packageJson.scripts?.["fonts:generic-family-semantics"])
-      .toBe("node --import tsx tools/generic-family-semantics-audit.ts");
+    expect(packageJson.scripts?.["fonts:generic-family-semantics"]).toBe(
+      "node --import tsx tools/generic-family-semantics-audit.ts",
+    );
   });
 
   it("retains fingerprinted evidence and contains no visual-fitting escape hatch", () => {

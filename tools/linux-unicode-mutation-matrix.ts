@@ -45,22 +45,37 @@ if (process.argv.includes("--print-fixtures")) {
     const helperOff = arms.fontconfigHelperOff.get(fixture);
     const hintOff = arms.hintedSubsetOff.get(fixture);
     if (baseline == null || helperOff == null || hintOff == null) {
-      errors.push(`${fixture}: missing arm(s): ${[
-        baseline == null ? "baseline" : "",
-        helperOff == null ? "fontconfig-helper-off" : "",
-        hintOff == null ? "hinted-subset-off" : "",
-      ].filter(Boolean).join(", ")}`);
+      errors.push(
+        `${fixture}: missing arm(s): ${[
+          baseline == null ? "baseline" : "",
+          helperOff == null ? "fontconfig-helper-off" : "",
+          hintOff == null ? "hinted-subset-off" : "",
+        ]
+          .filter(Boolean)
+          .join(", ")}`,
+      );
       return { fixture, verdict: "incomplete" as const };
     }
-    for (const [arm, row] of [["baseline", baseline], ["fontconfig-helper-off", helperOff], ["hinted-subset-off", hintOff]] as const) {
+    for (const [arm, row] of [
+      ["baseline", baseline],
+      ["fontconfig-helper-off", helperOff],
+      ["hinted-subset-off", hintOff],
+    ] as const) {
       if (row.textRunEvidence == null) errors.push(`${fixture}/${arm}: missing textRunEvidence`);
       if (row.actualSha256 == null) errors.push(`${fixture}/${arm}: missing actualSha256`);
     }
-    if (baseline.textRunEvidence == null || helperOff.textRunEvidence == null || hintOff.textRunEvidence == null
-        || baseline.actualSha256 == null || hintOff.actualSha256 == null) {
+    if (
+      baseline.textRunEvidence == null ||
+      helperOff.textRunEvidence == null ||
+      hintOff.textRunEvidence == null ||
+      baseline.actualSha256 == null ||
+      hintOff.actualSha256 == null
+    ) {
       return { fixture, verdict: "incomplete" as const };
     }
-    errors.push(...validateFixtureTextEvidence(fixture, baseline.textRunEvidence).map((error) => `${fixture}/baseline: ${error}`));
+    errors.push(
+      ...validateFixtureTextEvidence(fixture, baseline.textRunEvidence).map((error) => `${fixture}/baseline: ${error}`),
+    );
     const verdict = compareLinuxUnicodeMutations(
       baseline.textRunEvidence,
       helperOff.textRunEvidence,
@@ -70,9 +85,12 @@ if (process.argv.includes("--print-fixtures")) {
       baseline.actualSha256,
       hintOff.actualSha256,
     );
-    if (verdict.selectedFaceRowsMoved === 0) errors.push(`${fixture}: fontconfig-helper-off mutation did not move a selected-face row`);
-    if (!verdict.hintedLogicalRowsExact) errors.push(`${fixture}: hinted-subset-off changed logical evidence (logical-mismatch)`);
-    if (verdict.hintedBuilderRowsMoved === 0) errors.push(`${fixture}: hinted-subset-off did not move an embedded builder row`);
+    if (verdict.selectedFaceRowsMoved === 0)
+      errors.push(`${fixture}: fontconfig-helper-off mutation did not move a selected-face row`);
+    if (!verdict.hintedLogicalRowsExact)
+      errors.push(`${fixture}: hinted-subset-off changed logical evidence (logical-mismatch)`);
+    if (verdict.hintedBuilderRowsMoved === 0)
+      errors.push(`${fixture}: hinted-subset-off did not move an embedded builder row`);
     if (!verdict.retainedHintTablesRemoved) errors.push(`${fixture}: hinted-subset-off retained hint tables`);
     if (!verdict.hintedRasterMoved) errors.push(`${fixture}: hinted-subset-off raster was byte-identical`);
     return {
@@ -80,9 +98,21 @@ if (process.argv.includes("--print-fixtures")) {
       verdict: verdict.verdict,
       measurements: verdict,
       arms: {
-        baseline: { actualSha256: baseline.actualSha256, textRunEvidence: baseline.textRunEvidence, embeddedFontBuilds: baseline.embeddedFontBuilds ?? [] },
-        fontconfigHelperOff: { actualSha256: helperOff.actualSha256, textRunEvidence: helperOff.textRunEvidence, embeddedFontBuilds: helperOff.embeddedFontBuilds ?? [] },
-        hintedSubsetOff: { actualSha256: hintOff.actualSha256, textRunEvidence: hintOff.textRunEvidence, embeddedFontBuilds: hintOff.embeddedFontBuilds ?? [] },
+        baseline: {
+          actualSha256: baseline.actualSha256,
+          textRunEvidence: baseline.textRunEvidence,
+          embeddedFontBuilds: baseline.embeddedFontBuilds ?? [],
+        },
+        fontconfigHelperOff: {
+          actualSha256: helperOff.actualSha256,
+          textRunEvidence: helperOff.textRunEvidence,
+          embeddedFontBuilds: helperOff.embeddedFontBuilds ?? [],
+        },
+        hintedSubsetOff: {
+          actualSha256: hintOff.actualSha256,
+          textRunEvidence: hintOff.textRunEvidence,
+          embeddedFontBuilds: hintOff.embeddedFontBuilds ?? [],
+        },
       },
     };
   });
@@ -104,11 +134,18 @@ if (process.argv.includes("--print-fixtures")) {
     errors,
   };
   writeFileSync(resolve(outputDir, "linux-unicode-mutation-matrix.json"), JSON.stringify(report, null, 2));
-  writeFileSync(resolve(outputDir, "dm-2352-raster-floor-candidates.json"), JSON.stringify({
-    schemaVersion: 1,
-    source: "linux-unicode-mutation-matrix.json",
-    fixtures: fixtures.filter((row) => row.verdict === "raster-floor-candidate").map((row) => row.fixture),
-  }, null, 2));
+  writeFileSync(
+    resolve(outputDir, "dm-2352-raster-floor-candidates.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        source: "linux-unicode-mutation-matrix.json",
+        fixtures: fixtures.filter((row) => row.verdict === "raster-floor-candidate").map((row) => row.fixture),
+      },
+      null,
+      2,
+    ),
+  );
   for (const row of fixtures) {
     writeFileSync(resolve(baselineDir, `${row.fixture}-mutation-evidence.json`), JSON.stringify(row, null, 2));
   }
@@ -116,6 +153,8 @@ if (process.argv.includes("--print-fixtures")) {
     console.error(errors.join("\n"));
     process.exitCode = 1;
   } else {
-    console.log(`Validated ${fixtures.length} Linux Unicode rows; ${report.summary.rasterFloorCandidates} raster-floor candidates.`);
+    console.log(
+      `Validated ${fixtures.length} Linux Unicode rows; ${report.summary.rasterFloorCandidates} raster-floor candidates.`,
+    );
   }
 }

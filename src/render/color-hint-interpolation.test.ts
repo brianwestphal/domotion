@@ -21,7 +21,10 @@ describe("color-hint power-curve interpolation (DM-1242)", () => {
     // At the geometric middle (50%) the color must be well past the midpoint
     // toward blue (since the transition was front-loaded to 20%).
     const interior = stops.filter((s) => s.pos > 0 && s.pos < 1);
-    const near50 = interior.reduce((best, s) => Math.abs(s.pos - 0.5) < Math.abs(best.pos - 0.5) ? s : best, interior[0]);
+    const near50 = interior.reduce(
+      (best, s) => (Math.abs(s.pos - 0.5) < Math.abs(best.pos - 0.5) ? s : best),
+      interior[0],
+    );
     expect(near50.color.b).toBeGreaterThan(150); // mostly blue by 50%
   });
 
@@ -31,7 +34,7 @@ describe("color-hint power-curve interpolation (DM-1242)", () => {
     expect(interior).toHaveLength(9);
     expect(interior.map((s) => s.pos)).toEqual([
       0.2 / 3,
-      0.2 * 2 / 3,
+      (0.2 * 2) / 3,
       ...Array.from({ length: 7 }, (_, y) => 0.2 + 0.8 * (y / 13)),
     ]);
   });

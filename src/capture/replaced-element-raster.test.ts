@@ -21,13 +21,17 @@ interface FakeRasterPage {
   cdpDetachCalls: number;
 }
 
-async function fakeRasterPage(options: {
-  failScreenshot?: number;
-  failStyleInstall?: boolean;
-} = {}): Promise<FakeRasterPage> {
+async function fakeRasterPage(
+  options: {
+    failScreenshot?: number;
+    failStyleInstall?: boolean;
+  } = {},
+): Promise<FakeRasterPage> {
   const png = await sharp({
     create: { width: 20, height: 20, channels: 4, background: { r: 20, g: 40, b: 60, alpha: 1 } },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
   const state = {
     restoreCalls: 0,
     cleanupCalls: 0,
@@ -47,14 +51,18 @@ async function fakeRasterPage(options: {
       }
       return {};
     },
-    async detach() { state.cdpDetachCalls++; },
+    async detach() {
+      state.cdpDetachCalls++;
+    },
   } as unknown as CDPSession;
   const page = {
     context: () => ({ newCDPSession: async () => cdp }),
     async addStyleTag() {
       if (options.failStyleInstall) throw new Error("style install failed");
       return {
-        async evaluate() { state.styleRemoveCalls++; },
+        async evaluate() {
+          state.styleRemoveCalls++;
+        },
       };
     },
     async evaluate(fn: unknown, arg?: unknown) {
@@ -76,10 +84,18 @@ async function fakeRasterPage(options: {
   } as unknown as Page;
   return {
     page,
-    get restoreCalls() { return state.restoreCalls; },
-    get cleanupCalls() { return state.cleanupCalls; },
-    get styleRemoveCalls() { return state.styleRemoveCalls; },
-    get cdpDetachCalls() { return state.cdpDetachCalls; },
+    get restoreCalls() {
+      return state.restoreCalls;
+    },
+    get cleanupCalls() {
+      return state.cleanupCalls;
+    },
+    get styleRemoveCalls() {
+      return state.styleRemoveCalls;
+    },
+    get cdpDetachCalls() {
+      return state.cdpDetachCalls;
+    },
   };
 }
 
@@ -97,19 +113,23 @@ describe("replaced-element raster ownership", () => {
     );
 
     expect(report).toMatchObject({ targetCount: 2, rasterizedCount: 1, skippedProjectiveCount: 0 });
-    expect(report.failures).toEqual([{
-      rid: "dr1",
-      tag: "canvas",
-      phase: "screenshot",
-      detail: "screenshot failed",
-    }]);
+    expect(report.failures).toEqual([
+      {
+        rid: "dr1",
+        tag: "canvas",
+        phase: "screenshot",
+        detail: "screenshot failed",
+      },
+    ]);
     expect(tree[0].replacedSnapshot?.dataUri).toBeUndefined();
     expect(tree[1].replacedSnapshot?.dataUri).toMatch(/^data:image\/png;base64,/);
-    expect(warnings).toEqual([expect.objectContaining({
-      selector: '[data-domotion-rid="dr1"]',
-      feature: "replaced-element snapshot",
-      status: "partial",
-    })]);
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        selector: '[data-domotion-rid="dr1"]',
+        feature: "replaced-element snapshot",
+        status: "partial",
+      }),
+    ]);
     expect(fake.restoreCalls).toBe(2);
     expect(fake.cleanupCalls).toBe(1);
     expect(fake.styleRemoveCalls).toBe(1);
@@ -129,8 +149,16 @@ describe("replaced-element raster ownership", () => {
 
     expect(report.rasterizedCount).toBe(0);
     expect(report.failures).toEqual([
-      expect.objectContaining({ rid: "dr1", phase: "isolation", detail: expect.stringContaining("style install failed") }),
-      expect.objectContaining({ rid: "dr2", phase: "isolation", detail: expect.stringContaining("style install failed") }),
+      expect.objectContaining({
+        rid: "dr1",
+        phase: "isolation",
+        detail: expect.stringContaining("style install failed"),
+      }),
+      expect.objectContaining({
+        rid: "dr2",
+        phase: "isolation",
+        detail: expect.stringContaining("style install failed"),
+      }),
     ]);
     expect(warnings).toHaveLength(2);
     expect(fake.restoreCalls).toBe(0);

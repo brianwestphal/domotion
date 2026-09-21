@@ -143,90 +143,118 @@ interface CaretMeasurement {
  * keystrokes. Returns `null` when the element isn't a text input/textarea or the
  * measurement can't be taken (best-effort; the caller then omits the caret).
  */
-async function measureCaret(page: Page, selector: string, shapeOverride: CaretShape | "auto"): Promise<CaretMeasurement | null> {
-  const raw = await page.evaluate(({ sel, shapeOverride }: { sel: string; shapeOverride: string }) => {
-    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
-    // stack traces; that helper isn't in page.evaluate's serialized scope, so
-    // polyfill it before the named consts below construct. (Previously this
-    // evaluate only worked under tsx because the webfont-discovery evaluate had
-    // already polyfilled `window.__name` on the same page — standalone callers
-    // of buildTypeResampleAnimation hit "__name is not defined".)
-    if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
-      (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
-    }
-    const el = document.querySelector(sel);
-    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
-    const cs = getComputedStyle(el);
-    const idx = el.selectionEnd ?? el.value.length;
-    const shown = el.value.slice(0, idx);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (ctx == null) return null;
-    // `cs.font` is Chromium's resolved shorthand — the exact face the field paints.
-    ctx.font = cs.font;
-    // `canvas.measureText` IGNORES letter-/word-spacing, but the field's real
-    // layout (which Domotion renders the value at, via the captured per-char
-    // offsets) INCLUDES them — so without this the caret lands ~letterSpacing×chars
-    // too far LEFT and overlaps the last glyph. Set them on the context (supported
-    // in Chromium); fall back to adding them manually on older engines.
-    const spaced = ctx as CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
-    let textW: number;
-    if ("letterSpacing" in spaced) {
-      spaced.letterSpacing = cs.letterSpacing;
-      spaced.wordSpacing = cs.wordSpacing;
-      textW = ctx.measureText(shown).width;
-    } else {
-      const ls = parseFloat(cs.letterSpacing) || 0;
-      const ws = parseFloat(cs.wordSpacing) || 0;
-      const spaceCount = (shown.match(/ /g) ?? []).length;
-      textW = ctx.measureText(shown).width + shown.length * ls + spaceCount * ws;
-    }
-    const r = el.getBoundingClientRect();
-    const num = (v: string): number => {
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-    const fontSize = num(cs.fontSize) || 16;
-    const x = r.left + num(cs.borderLeftWidth) + num(cs.paddingLeft) + textW - el.scrollLeft;
-    // Caret geometry matching how Blink actually draws a text caret (see the
-    // `caretMetrics` note in `src/animation/caret-metrics.ts`, shared with the
-    // typing overlay):
-    //  - HEIGHT = the font's metrics height (ascent + descent) — that is the text
-    //    fragment / line-box height Blink uses for a bar caret, NOT cap height (too
-    //    short) nor a fixed 1.2×em multiplier. `fontBoundingBox{Ascent,Descent}`
-    //    is Chromium's own font-metrics height.
-    //  - POSITION: center the caret within the LINE BOX, and place the line box the
-    //    same way `captureInputValue` places the value text — a single-line <input>
-    //    centers its line in the content box; a <textarea> lays lines from the top —
-    //    so the caret and the captured text share one line box and can't diverge.
-    // The placement math itself runs node-side (`firstLineBaseline` in
-    // `caret-metrics.ts`, shared with the typing overlay's baseline anchor); this
-    // evaluate only collects the raw measurements.
-    const fm = ctx.measureText("Hg");
-    const fmAsc = fm.fontBoundingBoxAscent || 0;
-    const fmDesc = fm.fontBoundingBoxDescent || 0;
-    const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
-    const contentHeight = r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
-    // Insertion cell = a space at end-of-text (the block/underscore width).
-    const cellWidthPx = ctx.measureText(" ").width || fontSize * 0.5;
-    const caretColor = cs.caretColor && cs.caretColor !== "auto" ? cs.caretColor : cs.color;
-    // Shape: an explicit override wins; else the field's computed CSS caret-shape
-    // (Blink resolves `auto` → a bar for text); else bar.
-    const valid = ["bar", "block", "underscore"];
-    // `caret-shape` is a newer property not in the CSSStyleDeclaration lib types.
-    const computed = cs.getPropertyValue("caret-shape").trim();
-    const shape = (shapeOverride !== "auto" && valid.includes(shapeOverride))
-      ? shapeOverride
-      : (computed != null && valid.includes(computed)) ? computed : "bar";
-    return {
-      x, fontSize, cellWidthPx, shape: shape as "bar" | "block" | "underscore", color: caretColor,
-      lineHeightPx: num(cs.lineHeight), fontAscentPx: fmAsc, fontDescentPx: fmDesc,
-      contentTop, contentHeight, centerInContentBox: !(el instanceof HTMLTextAreaElement),
-    };
-  }, { sel: selector, shapeOverride });
+async function measureCaret(
+  page: Page,
+  selector: string,
+  shapeOverride: CaretShape | "auto",
+): Promise<CaretMeasurement | null> {
+  const raw = await page.evaluate(
+    ({ sel, shapeOverride }: { sel: string; shapeOverride: string }) => {
+      // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+      // stack traces; that helper isn't in page.evaluate's serialized scope, so
+      // polyfill it before the named consts below construct. (Previously this
+      // evaluate only worked under tsx because the webfont-discovery evaluate had
+      // already polyfilled `window.__name` on the same page — standalone callers
+      // of buildTypeResampleAnimation hit "__name is not defined".)
+      if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
+        (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+      }
+      const el = document.querySelector(sel);
+      if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
+      const cs = getComputedStyle(el);
+      const idx = el.selectionEnd ?? el.value.length;
+      const shown = el.value.slice(0, idx);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (ctx == null) return null;
+      // `cs.font` is Chromium's resolved shorthand — the exact face the field paints.
+      ctx.font = cs.font;
+      // `canvas.measureText` IGNORES letter-/word-spacing, but the field's real
+      // layout (which Domotion renders the value at, via the captured per-char
+      // offsets) INCLUDES them — so without this the caret lands ~letterSpacing×chars
+      // too far LEFT and overlaps the last glyph. Set them on the context (supported
+      // in Chromium); fall back to adding them manually on older engines.
+      const spaced = ctx as CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
+      let textW: number;
+      if ("letterSpacing" in spaced) {
+        spaced.letterSpacing = cs.letterSpacing;
+        spaced.wordSpacing = cs.wordSpacing;
+        textW = ctx.measureText(shown).width;
+      } else {
+        const ls = parseFloat(cs.letterSpacing) || 0;
+        const ws = parseFloat(cs.wordSpacing) || 0;
+        const spaceCount = (shown.match(/ /g) ?? []).length;
+        textW = ctx.measureText(shown).width + shown.length * ls + spaceCount * ws;
+      }
+      const r = el.getBoundingClientRect();
+      const num = (v: string): number => {
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const fontSize = num(cs.fontSize) || 16;
+      const x = r.left + num(cs.borderLeftWidth) + num(cs.paddingLeft) + textW - el.scrollLeft;
+      // Caret geometry matching how Blink actually draws a text caret (see the
+      // `caretMetrics` note in `src/animation/caret-metrics.ts`, shared with the
+      // typing overlay):
+      //  - HEIGHT = the font's metrics height (ascent + descent) — that is the text
+      //    fragment / line-box height Blink uses for a bar caret, NOT cap height (too
+      //    short) nor a fixed 1.2×em multiplier. `fontBoundingBox{Ascent,Descent}`
+      //    is Chromium's own font-metrics height.
+      //  - POSITION: center the caret within the LINE BOX, and place the line box the
+      //    same way `captureInputValue` places the value text — a single-line <input>
+      //    centers its line in the content box; a <textarea> lays lines from the top —
+      //    so the caret and the captured text share one line box and can't diverge.
+      // The placement math itself runs node-side (`firstLineBaseline` in
+      // `caret-metrics.ts`, shared with the typing overlay's baseline anchor); this
+      // evaluate only collects the raw measurements.
+      const fm = ctx.measureText("Hg");
+      const fmAsc = fm.fontBoundingBoxAscent || 0;
+      const fmDesc = fm.fontBoundingBoxDescent || 0;
+      const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
+      const contentHeight =
+        r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
+      // Insertion cell = a space at end-of-text (the block/underscore width).
+      const cellWidthPx = ctx.measureText(" ").width || fontSize * 0.5;
+      const caretColor = cs.caretColor && cs.caretColor !== "auto" ? cs.caretColor : cs.color;
+      // Shape: an explicit override wins; else the field's computed CSS caret-shape
+      // (Blink resolves `auto` → a bar for text); else bar.
+      const valid = ["bar", "block", "underscore"];
+      // `caret-shape` is a newer property not in the CSSStyleDeclaration lib types.
+      const computed = cs.getPropertyValue("caret-shape").trim();
+      const shape =
+        shapeOverride !== "auto" && valid.includes(shapeOverride)
+          ? shapeOverride
+          : computed != null && valid.includes(computed)
+            ? computed
+            : "bar";
+      return {
+        x,
+        fontSize,
+        cellWidthPx,
+        shape: shape as "bar" | "block" | "underscore",
+        color: caretColor,
+        lineHeightPx: num(cs.lineHeight),
+        fontAscentPx: fmAsc,
+        fontDescentPx: fmDesc,
+        contentTop,
+        contentHeight,
+        centerInContentBox: !(el instanceof HTMLTextAreaElement),
+      };
+    },
+    { sel: selector, shapeOverride },
+  );
   if (raw == null) return null;
   const { baselineY, ascentPx, descentPx } = firstLineBaseline(raw);
-  return { x: raw.x, baselineY, ascentPx, descentPx, cellWidthPx: raw.cellWidthPx, fontSize: raw.fontSize, shape: raw.shape, color: raw.color };
+  return {
+    x: raw.x,
+    baselineY,
+    ascentPx,
+    descentPx,
+    cellWidthPx: raw.cellWidthPx,
+    fontSize: raw.fontSize,
+    shape: raw.shape,
+    color: raw.color,
+  };
 }
 
 /** Build the blinking-caret overlay for one re-sampled state, or `undefined`.
@@ -236,9 +264,14 @@ async function measureCaret(page: Page, selector: string, shapeOverride: CaretSh
 function caretOverlay(m: CaretMeasurement | null): AnimationOverlay[] | undefined {
   if (m == null) return undefined;
   const rect = caretShapeRect({
-    shape: m.shape, x: m.x, baselineY: m.baselineY,
-    ascentPx: m.ascentPx, descentPx: m.descentPx, cellWidthPx: m.cellWidthPx,
-    fontSize: m.fontSize, barWidthPx: 1.5,
+    shape: m.shape,
+    x: m.x,
+    baselineY: m.baselineY,
+    ascentPx: m.ascentPx,
+    descentPx: m.descentPx,
+    cellWidthPx: m.cellWidthPx,
+    fontSize: m.fontSize,
+    barWidthPx: 1.5,
   });
   const overlay: BlinkOverlay = {
     kind: "blink",
@@ -274,7 +307,9 @@ export async function buildTypeResampleAnimation(
 ): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined }> {
   const { width, height, framePrefix, log } = opts;
   const chars = [...spec.text]; // code-point aware (surrogate pairs count as one keystroke)
-  log(`  type-resample: typing ${chars.length} keystroke${chars.length === 1 ? "" : "s"} into "${spec.selector}", re-capturing after each…`);
+  log(
+    `  type-resample: typing ${chars.length} keystroke${chars.length === 1 ? "" : "s"} into "${spec.selector}", re-capturing after each…`,
+  );
 
   // Start from a clean, focused field so the re-sample begins at "empty".
   if (spec.clear) {
@@ -342,7 +377,9 @@ export async function buildTypeResampleAnimation(
   // `--scene-dur`) so they can't collide with the outer animation or sibling
   // nested frames — but NOT the font-family refs (they point at the shared
   // builder's already-unique `dmfN` names), same as `cast`.
-  const namespaced = namespaceEmbeddedAnimatedSvg(nested, `${framePrefix}${spec.regionOnly ? "fld" : ""}`, { namespaceFonts: false });
+  const namespaced = namespaceEmbeddedAnimatedSvg(nested, `${framePrefix}${spec.regionOnly ? "fld" : ""}`, {
+    namespaceFonts: false,
+  });
   const flipbook = namespaced.replace(/^<\?xml[^>]*\?>\s*/, "");
   const periodMs = durations.reduce((a, b) => a + b, 0);
 

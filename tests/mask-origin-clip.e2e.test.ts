@@ -8,10 +8,13 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // the painting-area intersection observable in pixels.
 async function alphaPng(width: number, height: number, opaqueWidth: number, opaqueHeight: number): Promise<string> {
   const pixels = Buffer.alloc(width * height * 4);
-  for (let y = 0; y < opaqueHeight; y++) for (let x = 0; x < opaqueWidth; x++) {
-    pixels[(y * width + x) * 4 + 3] = 255;
-  }
-  const png = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  for (let y = 0; y < opaqueHeight; y++)
+    for (let x = 0; x < opaqueWidth; x++) {
+      pixels[(y * width + x) * 4 + 3] = 255;
+    }
+  const png = await sharp(pixels, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
   return `data:image/png;base64,${png.toString("base64")}`;
 }
 const WIDE = await alphaPng(40, 20, 17, 20);
@@ -61,7 +64,8 @@ function matrixHtml(): string {
 function masked(nodes: CapturedElement[]): CapturedElement[] {
   const result: CapturedElement[] = [];
   for (const node of nodes) {
-    if (node.styles.maskImage != null && node.styles.maskImage !== "" && node.styles.maskImage !== "none") result.push(node);
+    if (node.styles.maskImage != null && node.styles.maskImage !== "" && node.styles.maskImage !== "none")
+      result.push(node);
     result.push(...masked(node.children ?? []));
   }
   return result;
@@ -90,13 +94,19 @@ function inkBounds(
   const y0 = Math.max(0, Math.floor((rect.y - pad) * dpr));
   const x1 = Math.min(image.width, Math.ceil((rect.x + rect.width + pad) * dpr));
   const y1 = Math.min(image.height, Math.ceil((rect.y + rect.height + pad) * dpr));
-  let minX = x1, minY = y1, maxX = -1, maxY = -1;
-  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-    const offset = (y * image.width + x) * 3;
-    if (765 - image.data[offset] - image.data[offset + 1] - image.data[offset + 2] <= 35) continue;
-    minX = Math.min(minX, x); minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
-  }
+  let minX = x1,
+    minY = y1,
+    maxX = -1,
+    maxY = -1;
+  for (let y = y0; y < y1; y++)
+    for (let x = x0; x < x1; x++) {
+      const offset = (y * image.width + x) * 3;
+      if (765 - image.data[offset] - image.data[offset + 1] - image.data[offset + 2] <= 35) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
   return maxX < 0 ? null : [minX, minY, maxX, maxY];
 }
 
@@ -108,28 +118,49 @@ afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 describe("HTML URL mask-origin/mask-clip Chromium oracle (DM-2472)", () => {
   for (const dpr of [1, 2]) {
     it(`matches distinct boxes, same-box control, layers, no-clip, zoom and writing mode at DPR ${dpr}`, async () => {
-      const context = await env.browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
+      const context = await env.browser.newContext({
+        viewport: { width: WIDTH, height: HEIGHT },
+        deviceScaleFactor: dpr,
+      });
       const source = await context.newPage();
       const rendered = await context.newPage();
       const mutated = await context.newPage();
       try {
         await source.setContent(matrixHtml(), { waitUntil: "load" });
-        await source.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-        const rects = await source.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".case")).map((element) => {
-          const rect = element.getBoundingClientRect();
-          return { id: element.id, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-        }));
+        await source.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
+        const rects = await source.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>(".case")).map((element) => {
+            const rect = element.getBoundingClientRect();
+            return { id: element.id, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+          }),
+        );
         const expected = await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
         const tree = await captureElementTree(source, "#stage", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
         const cases = masked(tree);
         expect(cases).toHaveLength(9);
         expect(cases.map((element) => element.styles.maskOrigin)).toEqual([
-          "content-box", "border-box", "padding-box", "content-box", "padding-box",
-          "content-box", "content-box, border-box", "content-box", "padding-box",
+          "content-box",
+          "border-box",
+          "padding-box",
+          "content-box",
+          "padding-box",
+          "content-box",
+          "content-box, border-box",
+          "content-box",
+          "padding-box",
         ]);
         expect(cases.map((element) => element.styles.maskClip)).toEqual([
-          "border-box", "content-box", "content-box", "padding-box", "padding-box",
-          "border-box", "border-box, content-box", "padding-box", "no-clip",
+          "border-box",
+          "content-box",
+          "content-box",
+          "padding-box",
+          "padding-box",
+          "border-box",
+          "border-box, content-box",
+          "padding-box",
+          "no-clip",
         ]);
         expect(cases[7].styles.maskBoxInsets).toEqual({
           border: { top: 5, right: 8, bottom: 11, left: 13 },
@@ -150,7 +181,10 @@ describe("HTML URL mask-origin/mask-clip Chromium oracle (DM-2472)", () => {
           expect(expectedBounds, `${id}: Chromium emitted no mask ink`).not.toBeNull();
           expect(actualBounds, `${id}: generated SVG emitted no mask ink`).not.toBeNull();
           const edgeError = Math.max(...actualBounds!.map((value, index) => Math.abs(value - expectedBounds![index])));
-          expect(edgeError, `${id}: device-pixel ink bounds diverged ${expectedBounds} vs ${actualBounds}`).toBeLessThanOrEqual(4);
+          expect(
+            edgeError,
+            `${id}: device-pixel ink bounds diverged ${expectedBounds} vs ${actualBounds}`,
+          ).toBeLessThanOrEqual(4);
         }
 
         // Required mutation: collapse every origin to its clip. The same-box
@@ -161,7 +195,9 @@ describe("HTML URL mask-origin/mask-clip Chromium oracle (DM-2472)", () => {
         const mutantSvg = elementTreeToSvg(mutantTree, WIDTH, HEIGHT);
         await mutated.setContent(`<body style="margin:0;background:white">${mutantSvg}</body>`, { waitUntil: "load" });
         const mutantPng = await mutated.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
-        expect(await meanAbsoluteError(expected, mutantPng)).toBeGreaterThan((await meanAbsoluteError(expected, actual)) + 0.8);
+        expect(await meanAbsoluteError(expected, mutantPng)).toBeGreaterThan(
+          (await meanAbsoluteError(expected, actual)) + 0.8,
+        );
       } finally {
         await context.close();
       }
@@ -173,22 +209,26 @@ describe("HTML URL mask-origin/mask-clip Chromium oracle (DM-2472)", () => {
     const source = await context.newPage();
     const rendered = await context.newPage();
     try {
-      await source.setContent(`<!doctype html><style>
+      await source.setContent(
+        `<!doctype html><style>
         html,body{margin:0;background:white} body{width:150px;font:20px/30px Arial;color:rgb(27,105,210)}
         span{background:rgb(27,105,210);border:3px solid transparent;padding:4px 7px;
           mask-image:url("${WIDE}");mask-size:contain;mask-position:83% 27%;mask-repeat:no-repeat;
           mask-mode:alpha;mask-origin:content-box;mask-clip:border-box}
         #clone{box-decoration-break:clone;-webkit-box-decoration-break:clone}
       </style><div><span id="slice">distinct mask boxes wrapping into a sliced inline strip</span></div>
-      <div><span id="clone">distinct mask boxes wrapping into cloned inline fragments</span></div>`, { waitUntil: "load" });
+      <div><span id="clone">distinct mask boxes wrapping into cloned inline fragments</span></div>`,
+        { waitUntil: "load" },
+      );
       const expected = await source.screenshot();
       const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: 360, height: 250 });
       const cases = masked(tree);
       expect(cases).toHaveLength(2);
       expect(cases.every((element) => (element.inlineFragments?.length ?? 0) > 1)).toBe(true);
       const svg = elementTreeToSvg(tree, 360, 250);
-      expect((svg.match(/clipPathUnits="userSpaceOnUse"/g) ?? []).length)
-        .toBeGreaterThanOrEqual(cases[0].inlineFragments!.length + cases[1].inlineFragments!.length);
+      expect((svg.match(/clipPathUnits="userSpaceOnUse"/g) ?? []).length).toBeGreaterThanOrEqual(
+        cases[0].inlineFragments!.length + cases[1].inlineFragments!.length,
+      );
       await rendered.setContent(`<body style="margin:0;background:white">${svg}</body>`, { waitUntil: "load" });
       const actual = await rendered.screenshot();
       expect(await meanAbsoluteError(expected, actual)).toBeLessThan(3.3);

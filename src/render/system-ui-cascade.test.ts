@@ -37,7 +37,15 @@ function resolvedFace(size: number, weight: number, slant = 0): string | undefin
   const primary = getFontInstance(primaryKey, weight, size, slant);
   if (primary == null) return undefined;
   const r = resolveFontForCodepoint(
-    0x4e2d, primary, primaryKey, weight, size, slant, undefined, undefined, [],
+    0x4e2d,
+    primary,
+    primaryKey,
+    weight,
+    size,
+    slant,
+    undefined,
+    undefined,
+    [],
     true, // the run's primary is the `system-ui` KEYWORD — the UI-font base
   );
   return r?.key;
@@ -96,13 +104,12 @@ describeDarwin("system-ui CJK cascade picks Chrome's optical cut (DM-1879)", () 
   it("gives the same answers whichever WEIGHT is asked first at a size", () => {
     // Ascending then descending, interleaved across two sizes, so a cache keyed
     // on too little has every chance to leak between them.
-    const ascending = [
-      resolvedFace(13, 400), resolvedFace(13, 700),
-      resolvedFace(20, 400), resolvedFace(20, 700),
-    ];
+    const ascending = [resolvedFace(13, 400), resolvedFace(13, 700), resolvedFace(20, 400), resolvedFace(20, 700)];
     const descending = [
-      resolvedFace(20, 700), resolvedFace(20, 400),
-      resolvedFace(13, 700), resolvedFace(13, 400),
+      resolvedFace(20, 700),
+      resolvedFace(20, 400),
+      resolvedFace(13, 700),
+      resolvedFace(13, 400),
     ].reverse();
     expect(ascending).toEqual(descending);
     expect(ascending).toEqual([
@@ -127,7 +134,7 @@ describeDarwin("system-ui CJK cascade picks Chrome's optical cut (DM-1879)", () 
     const uprightThenItalic = [resolvedFace(13, 400, 0), resolvedFace(13, 400, 1)].reverse();
     expect(italicThenUpright).toEqual(uprightThenItalic);
     expect(italicThenUpright).toEqual([
-      "sysfb:.PingFangUIDisplaySC-Regular",   // PingFang has no italic → Display
+      "sysfb:.PingFangUIDisplaySC-Regular", // PingFang has no italic → Display
       "sysfb:.PingFangUITextSC-Regular",
     ]);
   });

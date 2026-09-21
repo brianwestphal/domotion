@@ -19,8 +19,11 @@ function helperPath(platform: SupportedPlatform): string {
   if (process.env.DOMOTION_HELPER_PATH) return resolve(process.env.DOMOTION_HELPER_PATH);
   return resolve(
     "tools",
-    platform === "darwin" ? "macos-glyph-extractor" :
-      platform === "linux" ? "linux-glyph-extractor" : "win32-glyph-extractor",
+    platform === "darwin"
+      ? "macos-glyph-extractor"
+      : platform === "linux"
+        ? "linux-glyph-extractor"
+        : "win32-glyph-extractor",
     platform === "win32" ? "domotion-glyph-paths.exe" : "domotion-glyph-paths",
   );
 }
@@ -37,14 +40,22 @@ function validatePair(present: HelperAvailabilityContract, absent: HelperAvailab
   if (present.mode !== "helper-present" || present.verdict !== "exact-native-route") {
     throw new Error("enabled arm did not authenticate the native route");
   }
-  if (absent.mode !== "helper-absent" || absent.reason !== "explicitly-disabled"
-      || absent.verdict !== "explicit-degraded-route") {
+  if (
+    absent.mode !== "helper-absent" ||
+    absent.reason !== "explicitly-disabled" ||
+    absent.verdict !== "explicit-degraded-route"
+  ) {
     throw new Error("disabled arm did not enter the explicit degraded route");
   }
   if (present.cacheIdentity === absent.cacheIdentity) {
     throw new Error("helper-present and helper-absent cache identities collided");
   }
-  for (const fact of ["installedFaceNomination", "systemFallbackOrdering", "nativeTraitsAndAxes", "nativeGlyphGeometry"] as const) {
+  for (const fact of [
+    "installedFaceNomination",
+    "systemFallbackOrdering",
+    "nativeTraitsAndAxes",
+    "nativeGlyphGeometry",
+  ] as const) {
     if (present.logicalFacts[fact] !== "native-observed" || absent.logicalFacts[fact] !== "withheld") {
       throw new Error(`${fact} was not classified across the activation boundary`);
     }

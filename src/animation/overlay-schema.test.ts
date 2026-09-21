@@ -21,9 +21,18 @@ import {
 describe("overlay schema SSOT (DM-1131)", () => {
   it("parses a resolved typing overlay, keeping every field", () => {
     const ov = typingOverlaySchema.parse({
-      kind: "typing", text: "hi", x: 10, y: 20,
-      fontSize: 14, color: "#000", delay: 100, speed: 40,
-      bgColor: "#fff", bgWidth: 200, bgHeight: 40, caret: { color: "#333", width: 2, blinkMs: 530 },
+      kind: "typing",
+      text: "hi",
+      x: 10,
+      y: 20,
+      fontSize: 14,
+      color: "#000",
+      delay: 100,
+      speed: 40,
+      bgColor: "#fff",
+      bgWidth: 200,
+      bgHeight: 40,
+      caret: { color: "#333", width: 2, blinkMs: 530 },
     });
     expect(ov.kind).toBe("typing");
     expect(ov.bgWidth).toBe(200);
@@ -36,7 +45,9 @@ describe("overlay schema SSOT (DM-1131)", () => {
 
   it("parses tap / svg / blink resolved overlays", () => {
     expect(tapOverlaySchema.parse({ kind: "tap", x: 1, y: 2 }).kind).toBe("tap");
-    expect(svgOverlaySchema.parse({ kind: "svg", innerSvg: "<g/>", x: 0, y: 0, width: 10, height: 10, animId: "s0" }).animId).toBe("s0");
+    expect(
+      svgOverlaySchema.parse({ kind: "svg", innerSvg: "<g/>", x: 0, y: 0, width: 10, height: 10, animId: "s0" }).animId,
+    ).toBe("s0");
     expect(blinkOverlaySchema.parse({ kind: "blink", x: 0, y: 0, width: 4, height: 4 }).kind).toBe("blink");
   });
 
@@ -48,18 +59,36 @@ describe("overlay schema SSOT (DM-1131)", () => {
 
   it("parses a resolved interact overlay through the union (DM-1565)", () => {
     const ov: AnimationOverlay = animationOverlaySchema.parse({
-      kind: "interact", treatment: "focus", x: 5, y: 6, width: 80, height: 30,
-      ring: "#4c9ffe", radius: 8, scale: 1.0, delay: 150, duration: 200,
+      kind: "interact",
+      treatment: "focus",
+      x: 5,
+      y: 6,
+      width: 80,
+      height: 30,
+      ring: "#4c9ffe",
+      radius: 8,
+      scale: 1.0,
+      delay: 150,
+      duration: 200,
     });
     expect(ov.kind).toBe("interact");
     // treatment must be one of the three known values.
-    expect(animationOverlaySchema.safeParse({ kind: "interact", treatment: "wobble", x: 0, y: 0, width: 4, height: 4 }).success).toBe(false);
+    expect(
+      animationOverlaySchema.safeParse({ kind: "interact", treatment: "wobble", x: 0, y: 0, width: 4, height: 4 })
+        .success,
+    ).toBe(false);
     // width/height are required on the RESOLVED shape (the authoring schema defaults them).
     expect(animationOverlaySchema.safeParse({ kind: "interact", x: 0, y: 0 }).success).toBe(false);
   });
 
   it("parses an intra-frame animation (the runtime shape carries animId, not selector)", () => {
-    const a = intraFrameAnimationSchema.parse({ animId: "f0a0", property: "opacity", from: "0", to: "1", duration: 300 });
+    const a = intraFrameAnimationSchema.parse({
+      animId: "f0a0",
+      property: "opacity",
+      from: "0",
+      to: "1",
+      duration: 300,
+    });
     expect(a.animId).toBe("f0a0");
     // The config-author `selector` form is the CLI's derived view, not this one.
     expect("selector" in a).toBe(false);
@@ -76,10 +105,12 @@ describe("overlay schema SSOT (DM-1131)", () => {
       transformBox: "stroke-box",
     });
     expect(parsed.transformBox).toBe("stroke-box");
-    expect(intraFrameAnimationSchema.safeParse({
-      ...parsed,
-      transformBox: "border-box",
-    }).success).toBe(false);
+    expect(
+      intraFrameAnimationSchema.safeParse({
+        ...parsed,
+        transformBox: "border-box",
+      }).success,
+    ).toBe(false);
   });
 
   it("derives types that a consumer can annotate against (compile-time guard)", () => {

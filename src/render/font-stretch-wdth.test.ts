@@ -23,7 +23,13 @@
 // three would differ.
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { getFontInstance, registerWebfont, clearWebfonts, resolveFont, __darwinSystemUiWdthForTest } from "./font-resolution.js";
+import {
+  getFontInstance,
+  registerWebfont,
+  clearWebfonts,
+  resolveFont,
+  __darwinSystemUiWdthForTest,
+} from "./font-resolution.js";
 
 const SFNS = "/System/Library/Fonts/SFNS.ttf";
 const describeMac = process.platform === "darwin" && existsSync(SFNS) ? describe : describe.skip;
@@ -69,8 +75,14 @@ describeMac("system-ui wdth axis (macOS)", () => {
       "SF Pro Display": ["SFProDisplay-Thin", "SFProDisplay-Bold"],
     };
     for (const [family, [lightName, boldName]] of Object.entries(expected)) {
-      const light = resolveFont(`"${family}"`, 300, 26, 0) as (InstanceView & { postscriptName?: string; instantiatedPostscriptName?: string });
-      const bold = resolveFont(`"${family}"`, 700, 26, 0) as (InstanceView & { postscriptName?: string; instantiatedPostscriptName?: string });
+      const light = resolveFont(`"${family}"`, 300, 26, 0) as InstanceView & {
+        postscriptName?: string;
+        instantiatedPostscriptName?: string;
+      };
+      const bold = resolveFont(`"${family}"`, 700, 26, 0) as InstanceView & {
+        postscriptName?: string;
+        instantiatedPostscriptName?: string;
+      };
       // These public families are optional downloads. Assert exact Chromium
       // identities when present; on a stock host the route still remains
       // declared (the pure provenance gate above covers that invariant).
@@ -115,7 +127,9 @@ describeMac("system-ui wdth axis (macOS)", () => {
     const at150 = getFontInstance("sf-pro", 400, 26, 0, undefined, 150, true) as InstanceView;
     expect(at200!._appliedVariationAxes?.wdth).toBe(150);
     expect(advanceOfH(at200)).toBe(advanceOfH(at150));
-    expect(advanceOfH(at200)).toBeGreaterThan(advanceOfH(getFontInstance("sf-pro", 400, 26, 0, undefined, 100, true) as InstanceView));
+    expect(advanceOfH(at200)).toBeGreaterThan(
+      advanceOfH(getFontInstance("sf-pro", 400, 26, 0, undefined, 100, true) as InstanceView),
+    );
   });
 
   it("keeps distinct stretches as distinct cached instances", () => {

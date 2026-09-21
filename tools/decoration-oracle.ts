@@ -199,10 +199,14 @@ export function decorationOracleScalePlan(deviceScaleFactor = DSF): DecorationOr
 
 export function decorationOracleScalePlanErrors(plan: DecorationOracleScalePlan): string[] {
   const errors: string[] = [];
-  if (!Number.isFinite(plan.chromePaint) || plan.chromePaint <= 0) errors.push("Chrome paint deviceScaleFactor is invalid");
-  if (!Number.isFinite(plan.domotionCapture) || plan.domotionCapture <= 0) errors.push("Domotion capture deviceScaleFactor is invalid");
+  if (!Number.isFinite(plan.chromePaint) || plan.chromePaint <= 0)
+    errors.push("Chrome paint deviceScaleFactor is invalid");
+  if (!Number.isFinite(plan.domotionCapture) || plan.domotionCapture <= 0)
+    errors.push("Domotion capture deviceScaleFactor is invalid");
   if (plan.chromePaint !== plan.domotionCapture) {
-    errors.push(`cross-DPR decoration geometry comparison is invalid: Chrome=${plan.chromePaint}, capture=${plan.domotionCapture}`);
+    errors.push(
+      `cross-DPR decoration geometry comparison is invalid: Chrome=${plan.chromePaint}, capture=${plan.domotionCapture}`,
+    );
   }
   return errors;
 }
@@ -249,14 +253,16 @@ function buildCases(): CaseSpec[] {
   const families = ["Helvetica", "Times", "Menlo"];
   const sizes = [12, 16, 24, 32.5, 48];
   // 1. underline auto/auto across the family x size grid.
-  for (const family of families) for (const fontSize of sizes) {
-    push({ family, fontSize, lines: "underline", style: "solid" });
-  }
+  for (const family of families)
+    for (const fontSize of sizes) {
+      push({ family, fontSize, lines: "underline", style: "solid" });
+    }
   // 2-3. line-through and overline.
-  for (const family of families) for (const fontSize of [16, 24, 32.5]) {
-    push({ family, fontSize, lines: "line-through", style: "solid" });
-    push({ family, fontSize, lines: "overline", style: "solid" });
-  }
+  for (const family of families)
+    for (const fontSize of [16, 24, 32.5]) {
+      push({ family, fontSize, lines: "line-through", style: "solid" });
+      push({ family, fontSize, lines: "overline", style: "solid" });
+    }
   // 4. all three lines on one run.
   push({ family: "Helvetica", fontSize: 24, lines: "underline line-through overline", style: "solid" });
   // 5. double.
@@ -267,9 +273,10 @@ function buildCases(): CaseSpec[] {
   push({ family: "Helvetica", fontSize: 24, lines: "overline", style: "double" });
   // 6-7. thickness variants (from-font and percentage included).
   for (const thickness of ["from-font", "5px", "10%", "0.2em"]) {
-    for (const family of ["Helvetica", "Times"]) for (const fontSize of [16, 32.5]) {
-      push({ family, fontSize, lines: "underline", style: "solid", thickness });
-    }
+    for (const family of ["Helvetica", "Times"])
+      for (const fontSize of [16, 32.5]) {
+        push({ family, fontSize, lines: "underline", style: "solid", thickness });
+      }
   }
   push({ family: "Helvetica", fontSize: 24, lines: "line-through", style: "solid", thickness: "5px" });
   // 8. underline-offset variants.
@@ -279,28 +286,88 @@ function buildCases(): CaseSpec[] {
     }
   }
   // 9. combined explicit thickness + offset; double with both.
-  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", thickness: "4px", underlineOffset: "3px" });
-  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "double", thickness: "3px", underlineOffset: "2px" });
+  push({
+    family: "Helvetica",
+    fontSize: 24,
+    lines: "underline",
+    style: "solid",
+    thickness: "4px",
+    underlineOffset: "3px",
+  });
+  push({
+    family: "Helvetica",
+    fontSize: 24,
+    lines: "underline",
+    style: "double",
+    thickness: "3px",
+    underlineOffset: "2px",
+  });
   // 10. text-underline-position: under.
-  for (const family of ["Helvetica", "Times"]) for (const fontSize of [16, 32.5]) {
-    push({ family, fontSize, lines: "underline", style: "solid", underlinePosition: "under" });
-  }
-  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", underlinePosition: "under", underlineOffset: "4px" });
+  for (const family of ["Helvetica", "Times"])
+    for (const fontSize of [16, 32.5]) {
+      push({ family, fontSize, lines: "underline", style: "solid", underlinePosition: "under" });
+    }
+  push({
+    family: "Helvetica",
+    fontSize: 24,
+    lines: "underline",
+    style: "solid",
+    underlinePosition: "under",
+    underlineOffset: "4px",
+  });
   // 11. text-underline-position: from-font.
-  for (const family of ["Helvetica", "Times"]) for (const fontSize of [16, 32.5]) {
-    push({ family, fontSize, lines: "underline", style: "solid", underlinePosition: "from-font" });
-  }
-  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", underlinePosition: "from-font", underlineOffset: "3px" });
+  for (const family of ["Helvetica", "Times"])
+    for (const fontSize of [16, 32.5]) {
+      push({ family, fontSize, lines: "underline", style: "solid", underlinePosition: "from-font" });
+    }
+  push({
+    family: "Helvetica",
+    fontSize: 24,
+    lines: "underline",
+    style: "solid",
+    underlinePosition: "from-font",
+    underlineOffset: "3px",
+  });
   // 12. thickness from-font + position from-font.
-  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", thickness: "from-font", underlinePosition: "from-font" });
+  push({
+    family: "Helvetica",
+    fontSize: 24,
+    lines: "underline",
+    style: "solid",
+    thickness: "from-font",
+    underlinePosition: "from-font",
+  });
   // Skip-ink cases: real descender text, skip-ink auto.
   for (const fontSize of [16, 24, 32.5]) {
     push({ family: "Helvetica", fontSize, lines: "underline", style: "solid", skipInk: true, text: "jumping gaps" });
   }
   push({ family: "Times", fontSize: 24, lines: "underline", style: "solid", skipInk: true, text: "jumping gaps" });
-  push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style: "solid", thickness: "5px", skipInk: true, text: "jumping gaps" });
-  push({ family: "Helvetica", fontSize: 48, lines: "underline", style: "solid", thickness: "8px", skipInk: true, text: "gyp jig" });
-  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", expectNoGaps: true, text: "jumping gaps" });
+  push({
+    family: "Helvetica",
+    fontSize: 32.5,
+    lines: "underline",
+    style: "solid",
+    thickness: "5px",
+    skipInk: true,
+    text: "jumping gaps",
+  });
+  push({
+    family: "Helvetica",
+    fontSize: 48,
+    lines: "underline",
+    style: "solid",
+    thickness: "8px",
+    skipInk: true,
+    text: "gyp jig",
+  });
+  push({
+    family: "Helvetica",
+    fontSize: 24,
+    lines: "underline",
+    style: "solid",
+    expectNoGaps: true,
+    text: "jumping gaps",
+  });
   // 13. dashed / dotted geometry (no skip-ink): the snapped midline, the
   // unrounded stroke width, and the dash/dot layout — dash positions are
   // graded by the segment compare (every painted dash IS a segment on both
@@ -327,13 +394,37 @@ function buildCases(): CaseSpec[] {
     push({ family: "Helvetica", fontSize: 24, lines: "underline", style, skipInk: true, text: "jumping gaps" });
     push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style, skipInk: true, text: "jumping gaps" });
   }
-  push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style: "dashed", thickness: "5px", skipInk: true, text: "jumping gaps" });
+  push({
+    family: "Helvetica",
+    fontSize: 32.5,
+    lines: "underline",
+    style: "dashed",
+    thickness: "5px",
+    skipInk: true,
+    text: "jumping gaps",
+  });
   // 16. CSS zoom controls. These cross auto geometry, explicit geometry, and
   // skip-ink at non-integral/integral scales; zoom=1 is the entire matrix's
   // neutral arm rather than a duplicate row.
   push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", zoom: 0.8 });
-  push({ family: "Times", fontSize: 24, lines: "underline", style: "double", thickness: "3px", underlineOffset: "2px", zoom: 1.25 });
-  push({ family: "Helvetica", fontSize: 16, lines: "underline", style: "solid", skipInk: true, text: "jumping gaps", zoom: 2 });
+  push({
+    family: "Times",
+    fontSize: 24,
+    lines: "underline",
+    style: "double",
+    thickness: "3px",
+    underlineOffset: "2px",
+    zoom: 1.25,
+  });
+  push({
+    family: "Helvetica",
+    fontSize: 16,
+    lines: "underline",
+    style: "solid",
+    skipInk: true,
+    text: "jumping gaps",
+    zoom: 2,
+  });
   return cases;
 }
 
@@ -360,16 +451,20 @@ function caseHtml(c: CaseSpec, idx: number): string {
     c.underlinePosition != null ? `text-underline-position: ${c.underlinePosition}` : null,
     "white-space: pre",
     c.zoom != null ? `zoom: ${c.zoom}` : null,
-  ].filter((d) => d != null).join("; ");
+  ]
+    .filter((d) => d != null)
+    .join("; ");
   // Adjacent case margins COLLAPSE, so the effective separation between two
   // cases is max(marginA, marginB). Keep it comfortably larger than the
   // biggest per-case clip pad (fontSize*1.2 + 8, i.e. 66px at 48px) plus the
   // deepest decoration excursion, or a neighbor's bar bleeds into this
   // case's measurement window as a phantom bar.
   const margin = Math.max(120, Math.round(c.fontSize * 3));
-  return `<div class="case" data-idx="${idx}" style="margin: ${margin}px 24px;">`
-    + `<span class="t" style="${decl}">${text}</span>`
-    + `<span class="bl" style="display:inline-block;width:0;height:0;"></span></div>`;
+  return (
+    `<div class="case" data-idx="${idx}" style="margin: ${margin}px 24px;">` +
+    `<span class="t" style="${decl}">${text}</span>` +
+    `<span class="bl" style="display:inline-block;width:0;height:0;"></span></div>`
+  );
 }
 
 function chunkHtml(chunk: CaseSpec[]): string {
@@ -379,9 +474,11 @@ function chunkHtml(chunk: CaseSpec[]): string {
   // reaches below it (an `under` underline, a second double bar) is silently
   // truncated — which measured as phantom "wrong thickness" / "missing bar"
   // failures on whichever case happened to be last in its chunk.
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>`
-    + `<body style="margin:0;background:#fff;">${chunk.map((c, i) => caseHtml(c, i)).join("\n")}`
-    + `<div style="height:220px;"></div></body></html>`;
+  return (
+    `<!DOCTYPE html><html><head><meta charset="utf-8"></head>` +
+    `<body style="margin:0;background:#fff;">${chunk.map((c, i) => caseHtml(c, i)).join("\n")}` +
+    `<div style="height:220px;"></div></body></html>`
+  );
 }
 
 // ── In-page measurement (layout + canvas font metrics) ──────────────────
@@ -442,12 +539,13 @@ async function measureChunk(page: Page, cdp?: CDPSession): Promise<PageMeasure[]
   const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
   for (let i = 0; i < measures.length; i++) {
     const { nodeId } = await cdp.send("DOM.querySelector", {
-      nodeId: root.nodeId, selector: `.case[data-idx="${i}"] .t`,
+      nodeId: root.nodeId,
+      selector: `.case[data-idx="${i}"] .t`,
     });
     if (nodeId === 0) continue;
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
     const primary = fonts.reduce(
-      (best, font) => best == null || font.glyphCount > best.glyphCount ? font : best,
+      (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
       null as (typeof fonts)[number] | null,
     );
     if (primary?.familyName) measures[i].platformFontFamily = primary.familyName;
@@ -456,7 +554,10 @@ async function measureChunk(page: Page, cdp?: CDPSession): Promise<PageMeasure[]
 }
 
 // ── Rule prediction (leg R) ─────────────────────────────────────────────
-interface Bar { top: number; height: number; }
+interface Bar {
+  top: number;
+  height: number;
+}
 interface Prediction {
   bars: Bar[];
   /** Unsnapped resolved thickness (feeds the skip-ink dilation report). */
@@ -480,7 +581,11 @@ const roundHalfAway = (v: number) => Math.sign(v) * Math.round(Math.abs(v));
  * documented from-font-style caveat.)
  */
 function normalizedTypoDescent(
-  fs: number, fk: ReturnType<typeof resolveFont>, ascF: number, descF: number, notes: string[],
+  fs: number,
+  fk: ReturnType<typeof resolveFont>,
+  ascF: number,
+  descF: number,
+  notes: string[],
 ): number {
   const tryNorm = (a: number, d: number): number | null => {
     const height = a + d;
@@ -608,221 +713,274 @@ function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
 }
 
 // ── Chrome paint measurement (leg C) ────────────────────────────────────
-interface MeasuredBar extends Bar { x0: number; x1: number; segments: Array<[number, number]>; }
+interface MeasuredBar extends Bar {
+  x0: number;
+  x1: number;
+  segments: Array<[number, number]>;
+}
 
 /** Decode a case's dsf-4 clip screenshot in a scratch page and recover red
  *  decoration bars by coverage-weighted row profiles, plus per-bar gap
  *  intervals from column profiles over the bar's core rows. */
 async function analyzeClip(
-  analysisPage: Page, pngBase64: string, clip: { x: number; y: number }, dsf: number,
+  analysisPage: Page,
+  pngBase64: string,
+  clip: { x: number; y: number },
+  dsf: number,
   mode: "profile" | "extent" = "profile",
 ): Promise<MeasuredBar[]> {
-  return await analysisPage.evaluate(async ({ b64, clip, dsf, mode }) => {
-    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
-    // stack traces; that helper isn't in page.evaluate's serialized scope, so
-    // polyfill it before the named consts below construct.
-    if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
-      (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
-    }
-    const img = new Image();
-    img.src = "data:image/png;base64," + b64;
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = img.width; c.height = img.height;
-    const g = c.getContext("2d", { willReadFrequently: true });
-    if (g == null) throw new Error("no 2d context");
-    g.drawImage(img, 0, 0);
-    const { data } = g.getImageData(0, 0, img.width, img.height);
-    const W = img.width, H = img.height;
-    // Red coverage: pure-red decoration over white gives R=255, G=B=255(1-a);
-    // black ink gives R~G~B. redness = (R - max(G,B))/255 recovers a in both
-    // "red over white" and "red over black" (line-through paints over ink).
-    const redAt = (x: number, y: number) => {
-      const i = (y * W + x) * 4;
-      return Math.max(0, (data[i] - Math.max(data[i + 1], data[i + 2])) / 255);
-    };
-    if (mode === "extent") {
-      // Patterned styles (dashed / dotted / wavy): the coverage-weighted row
-      // profile is meaningless (a round dot's row mass is a chord length, a
-      // wave's is its slope density), so measure the PAINTED-INK EXTENT
-      // instead — the rows and columns where red coverage crosses 50% — and
-      // recover segments from any-red column runs separated by white.
-      const redRow = new Array<boolean>(H).fill(false);
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) if (redAt(x, y) > 0.5) { redRow[y] = true; break; }
+  return await analysisPage.evaluate(
+    async ({ b64, clip, dsf, mode }) => {
+      // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+      // stack traces; that helper isn't in page.evaluate's serialized scope, so
+      // polyfill it before the named consts below construct.
+      if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
+        (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
       }
-      let minY = -1, maxY = -1;
-      for (let y = 0; y < H; y++) if (redRow[y]) { if (minY < 0) minY = y; maxY = y; }
-      if (minY < 0) return [];
-      // Column classification runs over the CORE rows (one device row trimmed
-      // from each extent edge): when the rounded-thickness clip band sits
-      // fractionally inside an odd-shifted unrounded stroke (e.g. t=3.25 →
-      // band 3 at the snapped midline, stroke bottom 0.125px below the
-      // outset clip rect), Chrome leaks a sub-device-pixel SLIVER of every
-      // dash through the skip-ink gap — a half-coverage hairline at dsf 4
-      // that flips the 50% threshold nondeterministically. Domotion's clip
-      // rects cover the full stroke on purpose (the sliver is below AA
-      // resolution at 1×), so the measurement ignores the edge rows on the
-      // Chrome side rather than comparing noise.
-      const coreY0 = maxY - minY >= 3 ? minY + 1 : minY;
-      const coreY1 = maxY - minY >= 3 ? maxY - 1 : maxY;
-      const colRed = new Array<boolean>(W).fill(false);
-      const colCoverage = new Array<number>(W).fill(0);
-      const colWhite = new Array<number>(W).fill(0);
-      for (let x = 0; x < W; x++) {
-        let whites = 0;
-        for (let y = coreY0; y <= coreY1; y++) {
-          const coverage = redAt(x, y);
-          colCoverage[x] = Math.max(colCoverage[x], coverage);
-          if (coverage > 0.5) colRed[x] = true;
-          const i = (y * W + x) * 4;
-          const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-          if (luma > 180 && data[i] - Math.max(data[i + 1], data[i + 2]) < 40) whites++;
-        }
-        colWhite[x] = whites / (coreY1 - coreY0 + 1);
-      }
-      const segments: Array<[number, number]> = [];
-      let firstRed = -1, lastRed = -1;
-      let x0 = -1, x1 = -1;
-      for (let x = 0; x <= W; x++) {
-        const isWhite = x === W || (!colRed[x] && colWhite[x] > 0.6);
-        if (isWhite) {
-          if (firstRed >= 0) segments.push([
-            firstRed + (1 - colCoverage[firstRed]),
-            lastRed + colCoverage[lastRed],
-          ]);
-          firstRed = -1; lastRed = -1;
-        } else if (colRed[x]) {
-          if (firstRed < 0) firstRed = x;
-          lastRed = x;
-          if (x0 < 0) x0 = x;
-          x1 = x;
-        }
-      }
-      const toCss = (v: number) => v / dsf;
-      return [{
-        top: clip.y + toCss(minY),
-        height: toCss(maxY + 1 - minY),
-        x0: clip.x + toCss(x0), x1: clip.x + toCss(x1 + 1),
-        segments: segments.map(([a, b]) => [clip.x + toCss(a), clip.x + toCss(b)] as [number, number]),
-      }];
-    }
-    // Row profile.
-    const rowMass = new Array<number>(H).fill(0);
-    for (let y = 0; y < H; y++) { let s = 0; for (let x = 0; x < W; x++) s += redAt(x, y); rowMass[y] = s; }
-    const maxMass = Math.max(...rowMass);
-    if (maxMass < 4) return [];
-    // Group contiguous rows above threshold into bars.
-    const groups: Array<{ y0: number; y1: number }> = [];
-    let start = -1;
-    for (let y = 0; y < H; y++) {
-      const on = rowMass[y] > maxMass * 0.35;
-      if (on && start < 0) start = y;
-      if (!on && start >= 0) { groups.push({ y0: start, y1: y - 1 }); start = -1; }
-    }
-    if (start >= 0) groups.push({ y0: start, y1: H - 1 });
-    const bars: Array<{ top: number; height: number; x0: number; x1: number; segments: Array<[number, number]> }> = [];
-    for (const grp of groups) {
-      // Band-local ink map: a column is "inky" if any pixel NEAR THE BAND is
-      // dark and not red (glyph ink). Text paints OVER the underline, so
-      // where the bar crosses glyph ink (e.g. a negative
-      // text-underline-offset lifting the bar into the baseline region) the
-      // red coverage is eaten and a raw row profile under-measures the bar.
-      // Bar geometry is therefore refined over band-locally ink-free columns.
-      // (Whole-column ink would disqualify every glyph column — x-height ink
-      // always sits above a normal underline.)
-      const inkY0 = Math.max(0, grp.y0 - 8), inkY1 = Math.min(H - 1, grp.y1 + 8);
-      const colInky = new Array<boolean>(W).fill(false);
-      for (let x = 0; x < W; x++) {
-        for (let y = inkY0; y <= inkY1; y++) {
-          const i = (y * W + x) * 4;
-          const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-          if (luma < 150 && data[i] - Math.max(data[i + 1], data[i + 2]) < 60) { colInky[x] = true; break; }
-        }
-      }
-      // Coverage-weighted geometry over the group +/-1 row, restricted to
-      // ink-free columns that carry the bar in the group's peak row (so
-      // skip-ink gap columns don't dilute the profile either). Normalize each
-      // row by the restricted peak: interior rows have full coverage, edge
-      // rows carry the fractional overlap.
-      let peakY = grp.y0;
-      for (let y = grp.y0; y <= grp.y1; y++) if (rowMass[y] > rowMass[peakY]) peakY = y;
-      const profileCols: number[] = [];
-      for (let x = 0; x < W; x++) if (!colInky[x] && redAt(x, peakY) > 0.5) profileCols.push(x);
-      const rowMassAt = (y: number) => {
-        let s = 0; for (const x of profileCols) s += redAt(x, y);
-        return s;
-      };
-      const useRestricted = profileCols.length >= 8;
-      let peak = 0;
-      for (let y = grp.y0; y <= grp.y1; y++) peak = Math.max(peak, useRestricted ? rowMassAt(y) : rowMass[y]);
-      let mass = 0, centroid = 0;
-      for (let y = Math.max(0, grp.y0 - 1); y <= Math.min(H - 1, grp.y1 + 1); y++) {
-        const cov = (useRestricted ? rowMassAt(y) : rowMass[y]) / peak;
-        mass += cov; centroid += (y + 0.5) * cov;
-      }
-      const center = centroid / mass;
-      // Bar x-extent + gaps from column profile over core rows.
-      const coreRows: number[] = [];
-      for (let y = grp.y0; y <= grp.y1; y++) if (rowMass[y] > peak * 0.8) coreRows.push(y);
-      const colRed = new Array<number>(W).fill(0);
-      for (let x = 0; x < W; x++) {
-        let s = 0; for (const y of coreRows) s += redAt(x, y);
-        colRed[x] = coreRows.length > 0 ? s / coreRows.length : 0;
-      }
-      // Painted-SEGMENT extraction. "Gap intervals" break down in the
-      // heavy-dilation regime (an 8px-thick underline under descender text
-      // survives only as slivers), so the well-posed representation is the
-      // positive space: what got painted. Column classes over the core rows:
-      //   RED    the bar is painted here
-      //   WHITE  background — the only class that SEPARATES segments (a real
-      //          clip gap always carries a white dilation margin)
-      //   INK    glyph ink — text paints OVER the underline, so ink joins
-      //          whatever segment it interrupts (a skip-ink:none bar crossed
-      //          by a descender is ONE continuous segment)
-      // Segment edges are taken from the first/last RED column of a run, so
-      // adjacent ink never smears an edge.
-      const whiteAt = (x: number, y: number) => {
+      const img = new Image();
+      img.src = "data:image/png;base64," + b64;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      if (g == null) throw new Error("no 2d context");
+      g.drawImage(img, 0, 0);
+      const { data } = g.getImageData(0, 0, img.width, img.height);
+      const W = img.width,
+        H = img.height;
+      // Red coverage: pure-red decoration over white gives R=255, G=B=255(1-a);
+      // black ink gives R~G~B. redness = (R - max(G,B))/255 recovers a in both
+      // "red over white" and "red over black" (line-through paints over ink).
+      const redAt = (x: number, y: number) => {
         const i = (y * W + x) * 4;
-        const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-        return luma > 180 && data[i] - Math.max(data[i + 1], data[i + 2]) < 40 ? 1 : 0;
+        return Math.max(0, (data[i] - Math.max(data[i + 1], data[i + 2])) / 255);
       };
-      const colWhite = new Array<number>(W).fill(0);
-      for (let x = 0; x < W; x++) {
-        let s = 0; for (const y of coreRows) s += whiteAt(x, y);
-        colWhite[x] = coreRows.length > 0 ? s / coreRows.length : 0;
-      }
-      let x0 = -1, x1 = -1;
-      for (let x = 0; x < W; x++) if (colRed[x] > 0.6) { if (x0 < 0) x0 = x; x1 = x; }
-      const segments: Array<[number, number]> = [];
-      {
-        let firstRed = -1, lastRed = -1;
+      if (mode === "extent") {
+        // Patterned styles (dashed / dotted / wavy): the coverage-weighted row
+        // profile is meaningless (a round dot's row mass is a chord length, a
+        // wave's is its slope density), so measure the PAINTED-INK EXTENT
+        // instead — the rows and columns where red coverage crosses 50% — and
+        // recover segments from any-red column runs separated by white.
+        const redRow = new Array<boolean>(H).fill(false);
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++)
+            if (redAt(x, y) > 0.5) {
+              redRow[y] = true;
+              break;
+            }
+        }
+        let minY = -1,
+          maxY = -1;
+        for (let y = 0; y < H; y++)
+          if (redRow[y]) {
+            if (minY < 0) minY = y;
+            maxY = y;
+          }
+        if (minY < 0) return [];
+        // Column classification runs over the CORE rows (one device row trimmed
+        // from each extent edge): when the rounded-thickness clip band sits
+        // fractionally inside an odd-shifted unrounded stroke (e.g. t=3.25 →
+        // band 3 at the snapped midline, stroke bottom 0.125px below the
+        // outset clip rect), Chrome leaks a sub-device-pixel SLIVER of every
+        // dash through the skip-ink gap — a half-coverage hairline at dsf 4
+        // that flips the 50% threshold nondeterministically. Domotion's clip
+        // rects cover the full stroke on purpose (the sliver is below AA
+        // resolution at 1×), so the measurement ignores the edge rows on the
+        // Chrome side rather than comparing noise.
+        const coreY0 = maxY - minY >= 3 ? minY + 1 : minY;
+        const coreY1 = maxY - minY >= 3 ? maxY - 1 : maxY;
+        const colRed = new Array<boolean>(W).fill(false);
+        const colCoverage = new Array<number>(W).fill(0);
+        const colWhite = new Array<number>(W).fill(0);
+        for (let x = 0; x < W; x++) {
+          let whites = 0;
+          for (let y = coreY0; y <= coreY1; y++) {
+            const coverage = redAt(x, y);
+            colCoverage[x] = Math.max(colCoverage[x], coverage);
+            if (coverage > 0.5) colRed[x] = true;
+            const i = (y * W + x) * 4;
+            const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+            if (luma > 180 && data[i] - Math.max(data[i + 1], data[i + 2]) < 40) whites++;
+          }
+          colWhite[x] = whites / (coreY1 - coreY0 + 1);
+        }
+        const segments: Array<[number, number]> = [];
+        let firstRed = -1,
+          lastRed = -1;
+        let x0 = -1,
+          x1 = -1;
         for (let x = 0; x <= W; x++) {
-          const isWhite = x === W || (colRed[x] < 0.25 && colWhite[x] > 0.6);
+          const isWhite = x === W || (!colRed[x] && colWhite[x] > 0.6);
           if (isWhite) {
-            if (firstRed >= 0) segments.push([firstRed, lastRed + 1]);
-            firstRed = -1; lastRed = -1;
-          } else if (colRed[x] >= 0.25) {
+            if (firstRed >= 0) segments.push([firstRed + (1 - colCoverage[firstRed]), lastRed + colCoverage[lastRed]]);
+            firstRed = -1;
+            lastRed = -1;
+          } else if (colRed[x]) {
             if (firstRed < 0) firstRed = x;
             lastRed = x;
+            if (x0 < 0) x0 = x;
+            x1 = x;
           }
         }
+        const toCss = (v: number) => v / dsf;
+        return [
+          {
+            top: clip.y + toCss(minY),
+            height: toCss(maxY + 1 - minY),
+            x0: clip.x + toCss(x0),
+            x1: clip.x + toCss(x1 + 1),
+            segments: segments.map(([a, b]) => [clip.x + toCss(a), clip.x + toCss(b)] as [number, number]),
+          },
+        ];
       }
-      const toCss = (v: number) => v / dsf;
-      bars.push({
-        top: clip.y + toCss(center - mass / 2),
-        height: toCss(mass),
-        x0: clip.x + toCss(x0), x1: clip.x + toCss(x1 + 1),
-        segments: segments.map(([a, b]) => [clip.x + toCss(a), clip.x + toCss(b)] as [number, number]),
-      });
-    }
-    bars.sort((a, b) => a.top - b.top);
-    return bars;
-  }, { b64: pngBase64, clip, dsf, mode });
+      // Row profile.
+      const rowMass = new Array<number>(H).fill(0);
+      for (let y = 0; y < H; y++) {
+        let s = 0;
+        for (let x = 0; x < W; x++) s += redAt(x, y);
+        rowMass[y] = s;
+      }
+      const maxMass = Math.max(...rowMass);
+      if (maxMass < 4) return [];
+      // Group contiguous rows above threshold into bars.
+      const groups: Array<{ y0: number; y1: number }> = [];
+      let start = -1;
+      for (let y = 0; y < H; y++) {
+        const on = rowMass[y] > maxMass * 0.35;
+        if (on && start < 0) start = y;
+        if (!on && start >= 0) {
+          groups.push({ y0: start, y1: y - 1 });
+          start = -1;
+        }
+      }
+      if (start >= 0) groups.push({ y0: start, y1: H - 1 });
+      const bars: Array<{ top: number; height: number; x0: number; x1: number; segments: Array<[number, number]> }> =
+        [];
+      for (const grp of groups) {
+        // Band-local ink map: a column is "inky" if any pixel NEAR THE BAND is
+        // dark and not red (glyph ink). Text paints OVER the underline, so
+        // where the bar crosses glyph ink (e.g. a negative
+        // text-underline-offset lifting the bar into the baseline region) the
+        // red coverage is eaten and a raw row profile under-measures the bar.
+        // Bar geometry is therefore refined over band-locally ink-free columns.
+        // (Whole-column ink would disqualify every glyph column — x-height ink
+        // always sits above a normal underline.)
+        const inkY0 = Math.max(0, grp.y0 - 8),
+          inkY1 = Math.min(H - 1, grp.y1 + 8);
+        const colInky = new Array<boolean>(W).fill(false);
+        for (let x = 0; x < W; x++) {
+          for (let y = inkY0; y <= inkY1; y++) {
+            const i = (y * W + x) * 4;
+            const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+            if (luma < 150 && data[i] - Math.max(data[i + 1], data[i + 2]) < 60) {
+              colInky[x] = true;
+              break;
+            }
+          }
+        }
+        // Coverage-weighted geometry over the group +/-1 row, restricted to
+        // ink-free columns that carry the bar in the group's peak row (so
+        // skip-ink gap columns don't dilute the profile either). Normalize each
+        // row by the restricted peak: interior rows have full coverage, edge
+        // rows carry the fractional overlap.
+        let peakY = grp.y0;
+        for (let y = grp.y0; y <= grp.y1; y++) if (rowMass[y] > rowMass[peakY]) peakY = y;
+        const profileCols: number[] = [];
+        for (let x = 0; x < W; x++) if (!colInky[x] && redAt(x, peakY) > 0.5) profileCols.push(x);
+        const rowMassAt = (y: number) => {
+          let s = 0;
+          for (const x of profileCols) s += redAt(x, y);
+          return s;
+        };
+        const useRestricted = profileCols.length >= 8;
+        let peak = 0;
+        for (let y = grp.y0; y <= grp.y1; y++) peak = Math.max(peak, useRestricted ? rowMassAt(y) : rowMass[y]);
+        let mass = 0,
+          centroid = 0;
+        for (let y = Math.max(0, grp.y0 - 1); y <= Math.min(H - 1, grp.y1 + 1); y++) {
+          const cov = (useRestricted ? rowMassAt(y) : rowMass[y]) / peak;
+          mass += cov;
+          centroid += (y + 0.5) * cov;
+        }
+        const center = centroid / mass;
+        // Bar x-extent + gaps from column profile over core rows.
+        const coreRows: number[] = [];
+        for (let y = grp.y0; y <= grp.y1; y++) if (rowMass[y] > peak * 0.8) coreRows.push(y);
+        const colRed = new Array<number>(W).fill(0);
+        for (let x = 0; x < W; x++) {
+          let s = 0;
+          for (const y of coreRows) s += redAt(x, y);
+          colRed[x] = coreRows.length > 0 ? s / coreRows.length : 0;
+        }
+        // Painted-SEGMENT extraction. "Gap intervals" break down in the
+        // heavy-dilation regime (an 8px-thick underline under descender text
+        // survives only as slivers), so the well-posed representation is the
+        // positive space: what got painted. Column classes over the core rows:
+        //   RED    the bar is painted here
+        //   WHITE  background — the only class that SEPARATES segments (a real
+        //          clip gap always carries a white dilation margin)
+        //   INK    glyph ink — text paints OVER the underline, so ink joins
+        //          whatever segment it interrupts (a skip-ink:none bar crossed
+        //          by a descender is ONE continuous segment)
+        // Segment edges are taken from the first/last RED column of a run, so
+        // adjacent ink never smears an edge.
+        const whiteAt = (x: number, y: number) => {
+          const i = (y * W + x) * 4;
+          const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+          return luma > 180 && data[i] - Math.max(data[i + 1], data[i + 2]) < 40 ? 1 : 0;
+        };
+        const colWhite = new Array<number>(W).fill(0);
+        for (let x = 0; x < W; x++) {
+          let s = 0;
+          for (const y of coreRows) s += whiteAt(x, y);
+          colWhite[x] = coreRows.length > 0 ? s / coreRows.length : 0;
+        }
+        let x0 = -1,
+          x1 = -1;
+        for (let x = 0; x < W; x++)
+          if (colRed[x] > 0.6) {
+            if (x0 < 0) x0 = x;
+            x1 = x;
+          }
+        const segments: Array<[number, number]> = [];
+        {
+          let firstRed = -1,
+            lastRed = -1;
+          for (let x = 0; x <= W; x++) {
+            const isWhite = x === W || (colRed[x] < 0.25 && colWhite[x] > 0.6);
+            if (isWhite) {
+              if (firstRed >= 0) segments.push([firstRed, lastRed + 1]);
+              firstRed = -1;
+              lastRed = -1;
+            } else if (colRed[x] >= 0.25) {
+              if (firstRed < 0) firstRed = x;
+              lastRed = x;
+            }
+          }
+        }
+        const toCss = (v: number) => v / dsf;
+        bars.push({
+          top: clip.y + toCss(center - mass / 2),
+          height: toCss(mass),
+          x0: clip.x + toCss(x0),
+          x1: clip.x + toCss(x1 + 1),
+          segments: segments.map(([a, b]) => [clip.x + toCss(a), clip.x + toCss(b)] as [number, number]),
+        });
+      }
+      bars.sort((a, b) => a.top - b.top);
+      return bars;
+    },
+    { b64: pngBase64, clip, dsf, mode },
+  );
 }
 
 // ── Domotion SVG parse (leg S) ──────────────────────────────────────────
-interface SvgBar extends Bar { x0: number; x1: number; segments: Array<{ x0: number; x1: number }>; }
+interface SvgBar extends Bar {
+  x0: number;
+  x1: number;
+  segments: Array<{ x0: number; x1: number }>;
+}
 
 interface ParsedDecoLine {
   /** Kind: a horizontal `<line>` (solid / dashed / dotted) or a wavy `<path>`. */
@@ -871,8 +1029,14 @@ function parseSvgDecorations(svg: string): ParsedSvgDecorations {
   };
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(svg)) != null) {
-    if (m[0] === "</g>") { if (stack.length > 1) stack.pop(); continue; }
-    if (m[0] === "</clipPath>") { openClipId = null; continue; }
+    if (m[0] === "</g>") {
+      if (stack.length > 1) stack.pop();
+      continue;
+    }
+    if (m[0] === "</clipPath>") {
+      openClipId = null;
+      continue;
+    }
     const [, tag, attrs] = m;
     const cur = stack[stack.length - 1];
     if (tag === "g") {
@@ -880,7 +1044,10 @@ function parseSvgDecorations(svg: string): ParsedSvgDecorations {
       const tf = attr(attrs, "transform");
       if (tf != null) {
         const tr = /translate\(\s*(-?[\d.eE+]+)[ ,]*(-?[\d.eE+]+)?\s*\)/.exec(tf);
-        if (tr != null) { tx += parseFloat(tr[1]); ty += parseFloat(tr[2] ?? "0"); }
+        if (tr != null) {
+          tx += parseFloat(tr[1]);
+          ty += parseFloat(tr[2] ?? "0");
+        }
       }
       // Self-closing <g/> never happens in our output; assume it opens scope.
       stack.push({ tx, ty, clipId: clipIdOf(attrs) ?? cur.clipId });
@@ -888,7 +1055,10 @@ function parseSvgDecorations(svg: string): ParsedSvgDecorations {
     }
     if (tag === "clipPath") {
       const id = attr(attrs, "id");
-      if (id != null) { openClipId = id; clips.set(id, clips.get(id) ?? []); }
+      if (id != null) {
+        openClipId = id;
+        clips.set(id, clips.get(id) ?? []);
+      }
       continue;
     }
     if (tag === "rect") {
@@ -915,8 +1085,11 @@ function parseSvgDecorations(svg: string): ParsedSvgDecorations {
       if (dm == null) continue;
       const xs = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((p) => parseFloat(p[1]));
       lines.push({
-        kind: "wavy", y: cur.ty + parseFloat(dm[2]), w,
-        x0: cur.tx + Math.min(...xs), x1: cur.tx + Math.max(...xs),
+        kind: "wavy",
+        y: cur.ty + parseFloat(dm[2]),
+        w,
+        x0: cur.tx + Math.min(...xs),
+        x1: cur.tx + Math.max(...xs),
         cpDist: parseFloat(dm[4]) - parseFloat(dm[2]),
         clipId,
       });
@@ -930,9 +1103,18 @@ function parseSvgDecorations(svg: string): ParsedSvgDecorations {
     const x2 = parseFloat(attr(attrs, "x2") ?? "NaN");
     const dashStr = attr(attrs, "stroke-dasharray");
     lines.push({
-      kind: "line", y: cur.ty + y1, w,
-      x0: cur.tx + Math.min(x1, x2), x1: cur.tx + Math.max(x1, x2),
-      dash: dashStr != null ? dashStr.trim().split(/[\s,]+/).map(Number) : undefined,
+      kind: "line",
+      y: cur.ty + y1,
+      w,
+      x0: cur.tx + Math.min(x1, x2),
+      x1: cur.tx + Math.max(x1, x2),
+      dash:
+        dashStr != null
+          ? dashStr
+              .trim()
+              .split(/[\s,]+/)
+              .map(Number)
+          : undefined,
       roundCaps: attr(attrs, "stroke-linecap") === "round" ? true : undefined,
       clipId,
     });
@@ -945,7 +1127,10 @@ function parseSvgDecorations(svg: string): ParsedSvgDecorations {
  *  or, for zero-length round-cap dashes, a dot of diameter stroke-width
  *  centered on the pattern point — then keep the parts inside the clip
  *  rects' x-intervals. */
-function expandDashSegments(l: ParsedDecoLine, clipXs: Array<{ x0: number; x1: number }> | null): Array<{ x0: number; x1: number }> {
+function expandDashSegments(
+  l: ParsedDecoLine,
+  clipXs: Array<{ x0: number; x1: number }> | null,
+): Array<{ x0: number; x1: number }> {
   let painted: Array<{ x0: number; x1: number }>;
   if (l.dash == null || l.dash.length < 2 || l.dash.every((v) => !Number.isFinite(v))) {
     painted = [{ x0: l.x0, x1: l.x1 }];
@@ -972,7 +1157,8 @@ function expandDashSegments(l: ParsedDecoLine, clipXs: Array<{ x0: number; x1: n
   const out: Array<{ x0: number; x1: number }> = [];
   for (const seg of painted) {
     for (const c of clipXs) {
-      const a = Math.max(seg.x0, c.x0), b = Math.min(seg.x1, c.x1);
+      const a = Math.max(seg.x0, c.x0),
+        b = Math.min(seg.x1, c.x1);
       if (b > a) out.push({ x0: a, x1: b });
     }
   }
@@ -985,10 +1171,7 @@ function expandDashSegments(l: ParsedDecoLine, clipXs: Array<{ x0: number; x1: n
  *  while a dashed/dotted line expands its dash pattern (∩ clip) and a wavy
  *  path reports its painted-ink extent (centerline ± (cpDist/(2√3) + w/2))
  *  with the clip rects' x-intervals as segments. */
-function svgBarsInWindow(
-  parsed: ParsedSvgDecorations,
-  win: { top: number; bottom: number },
-): SvgBar[] {
+function svgBarsInWindow(parsed: ParsedSvgDecorations, win: { top: number; bottom: number }): SvgBar[] {
   const inWin = parsed.lines.filter((l) => l.y >= win.top && l.y <= win.bottom);
   const clipXsOf = (l: ParsedDecoLine) => {
     const rects = l.clipId != null ? parsed.clips.get(l.clipId) : undefined;
@@ -1001,7 +1184,8 @@ function svgBarsInWindow(
       const amp = (l.cpDist ?? 0) / (2 * Math.sqrt(3));
       const clipXs = clipXsOf(l);
       bars.push({
-        top: l.y - (amp + l.w / 2), height: 2 * amp + l.w,
+        top: l.y - (amp + l.w / 2),
+        height: 2 * amp + l.w,
         x0: clipXs != null && clipXs.length > 0 ? Math.min(...clipXs.map((c) => c.x0)) : l.x0,
         x1: clipXs != null && clipXs.length > 0 ? Math.max(...clipXs.map((c) => c.x1)) : l.x1,
         segments: clipXs ?? [{ x0: l.x0, x1: l.x1 }],
@@ -1011,7 +1195,8 @@ function svgBarsInWindow(
     if (l.dash != null) {
       const segs = expandDashSegments(l, clipXsOf(l));
       bars.push({
-        top: l.y - l.w / 2, height: l.w,
+        top: l.y - l.w / 2,
+        height: l.w,
         x0: segs.length > 0 ? segs[0].x0 : l.x0,
         x1: segs.length > 0 ? segs[segs.length - 1].x1 : l.x1,
         segments: segs,
@@ -1020,14 +1205,17 @@ function svgBarsInWindow(
     }
     const key = `${l.y.toFixed(3)}|${l.w.toFixed(3)}`;
     const arr = plain.get(key) ?? [];
-    arr.push(l); plain.set(key, arr);
+    arr.push(l);
+    plain.set(key, arr);
   }
   for (const segs of plain.values()) {
     segs.sort((a, b) => a.x0 - b.x0);
     const { y, w } = segs[0];
     bars.push({
-      top: y - w / 2, height: w,
-      x0: segs[0].x0, x1: segs[segs.length - 1].x1,
+      top: y - w / 2,
+      height: w,
+      x0: segs[0].x0,
+      x1: segs[segs.length - 1].x1,
       segments: segs.map((s) => ({ x0: s.x0, x1: s.x1 })),
     });
   }
@@ -1035,9 +1223,11 @@ function svgBarsInWindow(
   return bars;
 }
 
-
 // ── Comparison ──────────────────────────────────────────────────────────
-interface LegResult { ok: boolean; detail: string[]; }
+interface LegResult {
+  ok: boolean;
+  detail: string[];
+}
 
 function compareBars(a: Bar[], b: Bar[], tol: number, aName: string, bName: string): LegResult {
   const detail: string[] = [];
@@ -1049,8 +1239,10 @@ function compareBars(a: Bar[], b: Bar[], tol: number, aName: string, bName: stri
     const dTop = b[i].top - a[i].top;
     const dH = b[i].height - a[i].height;
     const line = `bar${i}: ${aName} top=${a[i].top.toFixed(3)} h=${a[i].height.toFixed(3)}  ${bName} top=${b[i].top.toFixed(3)} h=${b[i].height.toFixed(3)}  dTop=${dTop.toFixed(3)} dH=${dH.toFixed(3)}`;
-    if (Math.abs(dTop) > tol || Math.abs(dH) > tol) { ok = false; detail.push(`FAIL ${line}`); }
-    else detail.push(`ok   ${line}`);
+    if (Math.abs(dTop) > tol || Math.abs(dH) > tol) {
+      ok = false;
+      detail.push(`FAIL ${line}`);
+    } else detail.push(`ok   ${line}`);
   }
   return { ok, detail };
 }
@@ -1071,7 +1263,9 @@ function compareBarCenters(a: Bar[], b: Bar[], tol: number, aName: string, bName
     // its DPR-1 tile therefore has a half-pixel-centered integer-height band.
     a.map((bar) => ({ top: Math.floor(bar.top + bar.height / 2) + 0.5, height: 0 })),
     b.map((bar) => ({ top: bar.top + bar.height / 2, height: 0 })),
-    tol, `${aName}-center`, `${bName}-center`,
+    tol,
+    `${aName}-center`,
+    `${bName}-center`,
   );
 }
 
@@ -1088,10 +1282,13 @@ const SLIVER_FORGIVENESS = MIN_SEGMENT_WIDTH + TOL_GAP_EDGE;
  *  sliver doesn't misalign every later pair. */
 function compareSegments(cSegs: Array<[number, number]>, sSegs: Array<[number, number]>): LegResult {
   const wide = (g: [number, number]) => g[1] - g[0] >= MIN_SEGMENT_WIDTH;
-  const cw = cSegs.filter(wide), sw = sSegs.filter(wide);
+  const cw = cSegs.filter(wide),
+    sw = sSegs.filter(wide);
   const detail: string[] = [];
   let ok = true;
-  let i = 0, j = 0, pair = 0;
+  let i = 0,
+    j = 0,
+    pair = 0;
   while (i < cw.length || j < sw.length) {
     const c = i < cw.length ? cw[i] : null;
     const s = j < sw.length ? sw[j] : null;
@@ -1099,9 +1296,12 @@ function compareSegments(cSegs: Array<[number, number]>, sSegs: Array<[number, n
       const dL = s[0] - c[0];
       const dR = s[1] - c[1];
       const line = `seg${pair++}: chrome=[${c[0].toFixed(2)}, ${c[1].toFixed(2)}] svg=[${s[0].toFixed(2)}, ${s[1].toFixed(2)}] dL=${dL.toFixed(2)} dR=${dR.toFixed(2)}`;
-      if (Math.abs(dL) > TOL_GAP_EDGE || Math.abs(dR) > TOL_GAP_EDGE) { ok = false; detail.push(`FAIL ${line}`); }
-      else detail.push(`ok   ${line}`);
-      i++; j++;
+      if (Math.abs(dL) > TOL_GAP_EDGE || Math.abs(dR) > TOL_GAP_EDGE) {
+        ok = false;
+        detail.push(`FAIL ${line}`);
+      } else detail.push(`ok   ${line}`);
+      i++;
+      j++;
       continue;
     }
     // Non-overlapping: consume whichever side comes first as a one-sided
@@ -1112,8 +1312,12 @@ function compareSegments(cSegs: Array<[number, number]>, sSegs: Array<[number, n
     const width = seg[1] - seg[0];
     const line = `${side} segment [${seg[0].toFixed(2)}, ${seg[1].toFixed(2)}] (${width.toFixed(2)}px)`;
     if (width <= SLIVER_FORGIVENESS) detail.push(`ok   ${line} — forgiven as a filter-boundary sliver`);
-    else { ok = false; detail.push(`FAIL ${line}`); }
-    if (cFirst) i++; else j++;
+    else {
+      ok = false;
+      detail.push(`FAIL ${line}`);
+    }
+    if (cFirst) i++;
+    else j++;
   }
   return { ok, detail };
 }
@@ -1157,7 +1361,10 @@ async function main(): Promise<number> {
 
   let cases = buildCases();
   if (only != null) cases = cases.filter((c) => c.id.includes(only));
-  if (cases.length === 0) { console.error(`no cases match --only ${only}`); return 2; }
+  if (cases.length === 0) {
+    console.error(`no cases match --only ${only}`);
+    return 2;
+  }
 
   const t0 = Date.now();
   let browser: Browser | null = null;
@@ -1205,7 +1412,11 @@ async function main(): Promise<number> {
       const tree = await captureElementTree(pageLo, "body", { x: 0, y: 0, width: PAGE_WIDTH, height: docHeight });
       const svg = elementTreeToSvgInner(tree, PAGE_WIDTH, docHeight);
       const svgLines = parseSvgDecorations(svg);
-      if (keepDir != null) writeFileSync(join(keepDir, `chunk-${base}.svg`), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE_WIDTH} ${docHeight}">${svg}</svg>`);
+      if (keepDir != null)
+        writeFileSync(
+          join(keepDir, `chunk-${base}.svg`),
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE_WIDTH} ${docHeight}">${svg}</svg>`,
+        );
 
       for (let i = 0; i < chunk.length; i++) {
         const c = chunk[i];
@@ -1231,20 +1442,23 @@ async function main(): Promise<number> {
           isExtent ? "extent" : "profile",
         );
         const pred = predictCase(c, meas);
-        const winTop = clip.y, winBottom = clip.y + clip.height;
+        const winTop = clip.y,
+          winBottom = clip.y + clip.height;
         const sBars = svgBarsInWindow(svgLines, { top: winTop, bottom: winBottom });
 
         const notes = [...pred.notes];
         if (meas.fragments !== 1) notes.push(`span has ${meas.fragments} fragments (expected 1)`);
 
-        const transcription = c.style === "wavy" && scalePlan.chromePaint === 1
-          ? compareBarCenters(pred.bars, chromeBars, TOL_TRANSCRIPTION, "rule", "chrome")
-          : compareBars(
-            pred.bars,
-            isExtent ? chromeBars : reconstructSnappedBars(chromeBars),
-            isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION,
-            "rule", "chrome",
-          );
+        const transcription =
+          c.style === "wavy" && scalePlan.chromePaint === 1
+            ? compareBarCenters(pred.bars, chromeBars, TOL_TRANSCRIPTION, "rule", "chrome")
+            : compareBars(
+                pred.bars,
+                isExtent ? chromeBars : reconstructSnappedBars(chromeBars),
+                isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION,
+                "rule",
+                "chrome",
+              );
         const svgGeometry = compareBars(pred.bars, sBars, TOL_SVG_GEOMETRY, "rule", "svg");
         let skipInk: LegResult | null = null;
         // Patterned styles grade painted segments even without skip-ink text:
@@ -1253,20 +1467,25 @@ async function main(): Promise<number> {
         // continuity across skip-ink gaps.
         if (c.skipInk || c.expectNoGaps || isExtent) {
           const cSegs = chromeBars.length > 0 ? chromeBars[0].segments : [];
-          const sSegs: Array<[number, number]> = sBars.length > 0
-            ? sBars[0].segments.map((s) => [s.x0, s.x1] as [number, number])
-            : [];
+          const sSegs: Array<[number, number]> =
+            sBars.length > 0 ? sBars[0].segments.map((s) => [s.x0, s.x1] as [number, number]) : [];
           if (c.expectNoGaps) {
             skipInk = {
               ok: cSegs.length === 1 && sSegs.length === 1,
-              detail: [`skip-ink:none control — chrome segments=${cSegs.length} svg segments=${sSegs.length} (both must be exactly 1: an uninterrupted bar)`],
+              detail: [
+                `skip-ink:none control — chrome segments=${cSegs.length} svg segments=${sSegs.length} (both must be exactly 1: an uninterrupted bar)`,
+              ],
             };
           } else {
             skipInk = compareSegments(cSegs, sSegs);
           }
         }
         results.push({
-          id: c.id, transcription, svgGeometry, skipInk, notes,
+          id: c.id,
+          transcription,
+          svgGeometry,
+          skipInk,
+          notes,
           data: { predicted: pred.bars, chrome: chromeBars, svg: sBars },
         });
       }
@@ -1292,51 +1511,89 @@ async function main(): Promise<number> {
   };
   const skipInkCases = results.filter((r) => r.skipInk != null);
   console.log(`decoration-oracle: ${results.length} cases in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log(`  transcription (chrome vs rule):   ${results.length - failedTranscription.length}/${results.length} pass  [gate: on]`);
-  console.log(`  skip-ink gaps (chrome vs svg):    ${skipInkCases.length - failedSkipInk.length}/${skipInkCases.length} pass  [gate: ${gateSkipInk ? "on" : "off"}]`);
-  console.log(`  svg geometry (rule vs svg):       ${results.length - failedSvgGeometry.length}/${results.length} pass  [gate: ${gateSvgGeometry ? "on" : "off"}]`);
-  if (failedTranscription.length > 0) printLeg("transcription failures (oracle validity — must be zero)", failedTranscription, (r) => r.transcription);
+  console.log(
+    `  transcription (chrome vs rule):   ${results.length - failedTranscription.length}/${results.length} pass  [gate: on]`,
+  );
+  console.log(
+    `  skip-ink gaps (chrome vs svg):    ${skipInkCases.length - failedSkipInk.length}/${skipInkCases.length} pass  [gate: ${gateSkipInk ? "on" : "off"}]`,
+  );
+  console.log(
+    `  svg geometry (rule vs svg):       ${results.length - failedSvgGeometry.length}/${results.length} pass  [gate: ${gateSvgGeometry ? "on" : "off"}]`,
+  );
+  if (failedTranscription.length > 0)
+    printLeg("transcription failures (oracle validity — must be zero)", failedTranscription, (r) => r.transcription);
   if (failedSkipInk.length > 0) printLeg("skip-ink gap failures", failedSkipInk, (r) => r.skipInk);
   if (failedSvgGeometry.length > 0 && (gateSvgGeometry || process.env.DOMOTION_ORACLE_VERBOSE === "1")) {
     printLeg("svg-geometry failures", failedSvgGeometry, (r) => r.svgGeometry);
   } else if (failedSvgGeometry.length > 0) {
-    console.log(`\n(svg-geometry leg: ${failedSvgGeometry.length} failing cases — gate demoted; drop --no-gate-svg-geometry or set DOMOTION_ORACLE_VERBOSE=1 for detail)`);
+    console.log(
+      `\n(svg-geometry leg: ${failedSvgGeometry.length} failing cases — gate demoted; drop --no-gate-svg-geometry or set DOMOTION_ORACLE_VERBOSE=1 for detail)`,
+    );
   }
   if (jsonPath != null) {
-    writeFileSync(jsonPath, JSON.stringify({
-      generatedAt: new Date().toISOString(),
-      platform: process.platform,
-      architecture: process.arch,
-      chromiumVersion,
-      environment: {
-        schema: "decoration-environment-v1",
-        osType: osType(),
-        osRelease: osRelease(),
-        node: process.version,
-        icu: process.versions.icu ?? "unknown",
-        playwrightChromiumExecutableSha256: createHash("sha256").update(readFileSync(chromium.executablePath())).digest("hex"),
-        corpusSha256: decorationCorpusSha256(cases),
-      },
-      coordinateOwnership: {
-        source: "blink-physical-text-fragment-same-dpr-v1",
-        chromePaintDeviceScaleFactor: scalePlan.chromePaint,
-        domotionCaptureDeviceScaleFactor: scalePlan.domotionCapture,
-      },
-      tolerances: { transcription: TOL_TRANSCRIPTION, svgGeometry: TOL_SVG_GEOMETRY, gapEdge: TOL_GAP_EDGE, minSegmentWidth: MIN_SEGMENT_WIDTH },
-      gates: { transcription: true, skipInk: gateSkipInk, svgGeometry: gateSvgGeometry },
-      results,
-    }, null, 2));
+    writeFileSync(
+      jsonPath,
+      JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          platform: process.platform,
+          architecture: process.arch,
+          chromiumVersion,
+          environment: {
+            schema: "decoration-environment-v1",
+            osType: osType(),
+            osRelease: osRelease(),
+            node: process.version,
+            icu: process.versions.icu ?? "unknown",
+            playwrightChromiumExecutableSha256: createHash("sha256")
+              .update(readFileSync(chromium.executablePath()))
+              .digest("hex"),
+            corpusSha256: decorationCorpusSha256(cases),
+          },
+          coordinateOwnership: {
+            source: "blink-physical-text-fragment-same-dpr-v1",
+            chromePaintDeviceScaleFactor: scalePlan.chromePaint,
+            domotionCaptureDeviceScaleFactor: scalePlan.domotionCapture,
+          },
+          tolerances: {
+            transcription: TOL_TRANSCRIPTION,
+            svgGeometry: TOL_SVG_GEOMETRY,
+            gapEdge: TOL_GAP_EDGE,
+            minSegmentWidth: MIN_SEGMENT_WIDTH,
+          },
+          gates: { transcription: true, skipInk: gateSkipInk, svgGeometry: gateSvgGeometry },
+          results,
+        },
+        null,
+        2,
+      ),
+    );
     console.log(`json report: ${jsonPath}`);
   }
 
-  const gateFailed = failedTranscription.length > 0
-    || (gateSkipInk && failedSkipInk.length > 0)
-    || (gateSvgGeometry && failedSvgGeometry.length > 0);
+  const gateFailed =
+    failedTranscription.length > 0 ||
+    (gateSkipInk && failedSkipInk.length > 0) ||
+    (gateSvgGeometry && failedSvgGeometry.length > 0);
   return gateFailed ? 1 : 0;
 }
 
 // Pure pieces exported for unit tests; `main` only runs when invoked as a CLI.
-export { buildCases, predictCase, parseSvgDecorations, svgBarsInWindow, expandDashSegments, compareSegments, compareBars, reconstructSnappedBars, compareBarCenters, LU, roundHalfAway, lengthPx, normalizedTypoDescent };
+export {
+  buildCases,
+  predictCase,
+  parseSvgDecorations,
+  svgBarsInWindow,
+  expandDashSegments,
+  compareSegments,
+  compareBars,
+  reconstructSnappedBars,
+  compareBarCenters,
+  LU,
+  roundHalfAway,
+  lengthPx,
+  normalizedTypoDescent,
+};
 export type { CaseSpec, PageMeasure, Bar, Prediction, SvgBar, LegResult, ParsedDecoLine, ParsedSvgDecorations };
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

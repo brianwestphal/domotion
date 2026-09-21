@@ -8,20 +8,52 @@
  * actual rule is caught.
  */
 import { describe, it, expect } from "vitest";
-import { harfbuzzCanonicalDecompositionCandidates, isHarfbuzzSameFontSpaceFallback, isRtlScriptCodepoint } from "./unicode-classification.js";
+import {
+  harfbuzzCanonicalDecompositionCandidates,
+  isHarfbuzzSameFontSpaceFallback,
+  isRtlScriptCodepoint,
+} from "./unicode-classification.js";
 
 // Transcribed directly from `hb_script_get_horizontal_direction`'s switch
 // statement (`hb-common.cc:522-613`, rev 4de187d) — the FULL `HB_DIRECTION_RTL`
 // case list, independent of `RTL_SMP_SCRIPT_RANGES` itself. Unicode script
 // property value names (ECMAScript `\p{Script=...}` aliases).
 const HB_RTL_SCRIPTS = [
-  "Arabic", "Hebrew", "Syriac", "Thaana", "Cypriot", "Kharoshthi", "Phoenician",
-  "Nko", "Lydian", "Avestan", "Imperial_Aramaic", "Inscriptional_Pahlavi",
-  "Inscriptional_Parthian", "Old_South_Arabian", "Old_Turkic", "Samaritan",
-  "Mandaic", "Meroitic_Cursive", "Meroitic_Hieroglyphs", "Manichaean",
-  "Mende_Kikakui", "Nabataean", "Old_North_Arabian", "Palmyrene",
-  "Psalter_Pahlavi", "Hatran", "Adlam", "Hanifi_Rohingya", "Old_Sogdian",
-  "Sogdian", "Elymaic", "Chorasmian", "Yezidi", "Old_Uyghur", "Garay",
+  "Arabic",
+  "Hebrew",
+  "Syriac",
+  "Thaana",
+  "Cypriot",
+  "Kharoshthi",
+  "Phoenician",
+  "Nko",
+  "Lydian",
+  "Avestan",
+  "Imperial_Aramaic",
+  "Inscriptional_Pahlavi",
+  "Inscriptional_Parthian",
+  "Old_South_Arabian",
+  "Old_Turkic",
+  "Samaritan",
+  "Mandaic",
+  "Meroitic_Cursive",
+  "Meroitic_Hieroglyphs",
+  "Manichaean",
+  "Mende_Kikakui",
+  "Nabataean",
+  "Old_North_Arabian",
+  "Palmyrene",
+  "Psalter_Pahlavi",
+  "Hatran",
+  "Adlam",
+  "Hanifi_Rohingya",
+  "Old_Sogdian",
+  "Sogdian",
+  "Elymaic",
+  "Chorasmian",
+  "Yezidi",
+  "Old_Uyghur",
+  "Garay",
 ];
 
 // Grouped separately under `HB_DIRECTION_INVALID` ("can be written either
@@ -142,13 +174,13 @@ describe("isRtlScriptCodepoint / RTL_SMP_SCRIPT_RANGES (DM-2019)", () => {
 });
 describe("isHarfbuzzSameFontSpaceFallback", () => {
   it("transcribes HarfBuzz's same-face space fallback set", () => {
-    for (const cp of [0x00A0, 0x2000, 0x2005, 0x200A, 0x202F, 0x205F]) {
+    for (const cp of [0x00a0, 0x2000, 0x2005, 0x200a, 0x202f, 0x205f]) {
       expect(isHarfbuzzSameFontSpaceFallback(cp)).toBe(true);
     }
   });
 
   it("leaves Blink's U+3000 exception and non-space characters to fallback", () => {
-    for (const cp of [0x20, 0x1680, 0x200B, 0x3000, 0x41]) {
+    for (const cp of [0x20, 0x1680, 0x200b, 0x3000, 0x41]) {
       expect(isHarfbuzzSameFontSpaceFallback(cp)).toBe(false);
     }
   });
@@ -156,14 +188,14 @@ describe("isHarfbuzzSameFontSpaceFallback", () => {
 
 describe("harfbuzzCanonicalDecompositionCandidates", () => {
   it("orders shortest canonical decompositions before fully expanded NFD", () => {
-    expect(harfbuzzCanonicalDecompositionCandidates(0x1EDA)).toEqual([
-      [0x01A0, 0x0301],
-      [0x004F, 0x031B, 0x0301],
+    expect(harfbuzzCanonicalDecompositionCandidates(0x1eda)).toEqual([
+      [0x01a0, 0x0301],
+      [0x004f, 0x031b, 0x0301],
     ]);
   });
 
   it("includes mark-only decompositions and excludes Hangul", () => {
     expect(harfbuzzCanonicalDecompositionCandidates(0x0344)).toEqual([[0x0308, 0x0301]]);
-    expect(harfbuzzCanonicalDecompositionCandidates(0xAC00)).toEqual([]);
+    expect(harfbuzzCanonicalDecompositionCandidates(0xac00)).toEqual([]);
   });
 });

@@ -10,18 +10,34 @@ describe("DM-2531 live timeline sampling ownership", () => {
     expect(report.native.targets.distinctOopifTargets).toBe(true);
     expect(report.native.frames.map((frame) => frame.role)).toEqual(["main", "oopif"]);
     expect(report.native.frames.every((frame) => frame.absoluteSeek.rejected)).toBe(true);
-    expect(report.native.frames.every((frame) => frame.transformedScroller.timelineTimeExact
-      && frame.transformedScroller.quadChanged)).toBe(true);
-    expect(report.native.frames.every((frame) => frame.projectiveHtmlSubject.timelineTimeExact
-      && frame.projectiveHtmlSubject.quadChanged
-      && !frame.projectiveHtmlSubject.beforeQuadIsExactParallelogram
-      && !frame.projectiveHtmlSubject.afterQuadIsExactParallelogram)).toBe(true);
-    expect(report.native.frames.every((frame) => frame.transformedSvgSubject.timelineTimeChanged
-      && frame.transformedSvgSubject.quadChanged)).toBe(true);
-    expect(report.native.frames.every((frame) => frame.heldEffects.sourceTimelineChanged
-      && frame.heldEffects.animationTimesExact
-      && frame.heldEffects.effectProgressExact
-      && frame.heldEffects.computedStylesExact)).toBe(true);
+    expect(
+      report.native.frames.every(
+        (frame) => frame.transformedScroller.timelineTimeExact && frame.transformedScroller.quadChanged,
+      ),
+    ).toBe(true);
+    expect(
+      report.native.frames.every(
+        (frame) =>
+          frame.projectiveHtmlSubject.timelineTimeExact &&
+          frame.projectiveHtmlSubject.quadChanged &&
+          !frame.projectiveHtmlSubject.beforeQuadIsExactParallelogram &&
+          !frame.projectiveHtmlSubject.afterQuadIsExactParallelogram,
+      ),
+    ).toBe(true);
+    expect(
+      report.native.frames.every(
+        (frame) => frame.transformedSvgSubject.timelineTimeChanged && frame.transformedSvgSubject.quadChanged,
+      ),
+    ).toBe(true);
+    expect(
+      report.native.frames.every(
+        (frame) =>
+          frame.heldEffects.sourceTimelineChanged &&
+          frame.heldEffects.animationTimesExact &&
+          frame.heldEffects.effectProgressExact &&
+          frame.heldEffects.computedStylesExact,
+      ),
+    ).toBe(true);
 
     expect(report.native.captureBoundary.closedScopeRejected).toBe(true);
     expect(report.native.captureBoundary.reachableProgressHeld).toBe(true);

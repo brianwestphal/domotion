@@ -35,9 +35,17 @@ describe("selected glyph raster representation", () => {
   it("carries every selected-glyph raster kind across the outline boundary", () => {
     const mixed = font({ glyf: {} });
     for (const rasterRepresentation of ["sbix", "colr", "bitmap", "svg"] as const) {
-      expect(glyphRasterRepresentation(mixed, "mixed", {
-        ...glyph(11), rasterRepresentation,
-      }, 32)).toBe(rasterRepresentation);
+      expect(
+        glyphRasterRepresentation(
+          mixed,
+          "mixed",
+          {
+            ...glyph(11),
+            rasterRepresentation,
+          },
+          32,
+        ),
+      ).toBe(rasterRepresentation);
     }
   });
 
@@ -50,9 +58,17 @@ describe("selected glyph raster representation", () => {
     const mixed = font({ COLR: {}, CPAL: {}, glyf: {} });
     const base = glyph(9);
     expect(glyphUsesRasterRepresentation(mixed, "mixed", base, 32)).toBe(false);
-    expect(glyphUsesRasterRepresentation(mixed, "mixed", {
-      ...base, rasterRepresentation: "colr",
-    }, 32)).toBe(true);
+    expect(
+      glyphUsesRasterRepresentation(
+        mixed,
+        "mixed",
+        {
+          ...base,
+          rasterRepresentation: "colr",
+        },
+        32,
+      ),
+    ).toBe(true);
   });
 
   it("requires complete Blink color-table pairs", () => {
@@ -66,12 +82,28 @@ describe("selected glyph raster representation", () => {
 
   it("uses the selected sbix glyph image, not face naming", () => {
     const sbix = font({ sbix: {} });
-    expect(glyphUsesRasterRepresentation(sbix, "arbitrary", {
-      ...glyph(2, outline, "SBIX"), getImageForSize: () => new Uint8Array([1]),
-    }, 32)).toBe(true);
-    expect(glyphUsesRasterRepresentation(sbix, "arbitrary", {
-      ...glyph(3, outline, "SBIX"), getImageForSize: () => null,
-    }, 32)).toBe(false);
+    expect(
+      glyphUsesRasterRepresentation(
+        sbix,
+        "arbitrary",
+        {
+          ...glyph(2, outline, "SBIX"),
+          getImageForSize: () => new Uint8Array([1]),
+        },
+        32,
+      ),
+    ).toBe(true);
+    expect(
+      glyphUsesRasterRepresentation(
+        sbix,
+        "arbitrary",
+        {
+          ...glyph(3, outline, "SBIX"),
+          getImageForSize: () => null,
+        },
+        32,
+      ),
+    ).toBe(false);
   });
 
   it("routes SVG-only glyph output but preserves an available outline", () => {

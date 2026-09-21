@@ -5,9 +5,57 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["windows"]
-tickets: ["DM-1050","DM-1134","DM-1140","DM-1287","DM-1292","DM-1319","DM-1320","DM-1322","DM-1323","DM-1324","DM-1516","DM-1518","DM-1555","DM-1557","DM-1558","DM-1562","DM-1563","DM-1566","DM-1742","DM-1749","DM-1750","DM-1757","DM-1761","DM-1763","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772","DM-1796","DM-2641","DM-2681","DM-846","DM-853"]
-code: ["examples/animate/","examples/animate/compressed-run/","examples/animate/editor-session/","examples/animate/form-fill/","examples/animate/hover-detect/","examples/animate/hover-reveal/","examples/animate/hover-state/","examples/animate/region-timing/","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
-aliases: ["docs/43-declarative-animate-config.md","doc-43"]
+tickets:
+  [
+    "DM-1050",
+    "DM-1134",
+    "DM-1140",
+    "DM-1287",
+    "DM-1292",
+    "DM-1319",
+    "DM-1320",
+    "DM-1322",
+    "DM-1323",
+    "DM-1324",
+    "DM-1516",
+    "DM-1518",
+    "DM-1555",
+    "DM-1557",
+    "DM-1558",
+    "DM-1562",
+    "DM-1563",
+    "DM-1566",
+    "DM-1742",
+    "DM-1749",
+    "DM-1750",
+    "DM-1757",
+    "DM-1761",
+    "DM-1763",
+    "DM-1767",
+    "DM-1768",
+    "DM-1770",
+    "DM-1771",
+    "DM-1772",
+    "DM-1796",
+    "DM-2641",
+    "DM-2681",
+    "DM-846",
+    "DM-853",
+  ]
+code:
+  [
+    "examples/animate/",
+    "examples/animate/compressed-run/",
+    "examples/animate/editor-session/",
+    "examples/animate/form-fill/",
+    "examples/animate/hover-detect/",
+    "examples/animate/hover-reveal/",
+    "examples/animate/hover-state/",
+    "examples/animate/region-timing/",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate.ts",
+  ]
+aliases: ["docs/43-declarative-animate-config.md", "doc-43"]
 ---
 
 # 43 — Declarative `animate` config
@@ -20,12 +68,12 @@ The `animate` config (see `docs/08-animation-model.md` for today's surface) can 
 
 1. Every frame re-loads its `input`, so client-side state resets between frames — you can't capture a multi-step flow.
 2. Anything beyond click/fill/press/scroll/hover/wait (a DOM edit, a fired event, a non-window scroll) needs JS.
-3. `waitFor` only waits for a selector to *exist* — not for text, removal, or counts.
+3. `waitFor` only waits for a selector to _exist_ — not for text, removal, or counts.
 4. Overlays take hardcoded `x`/`y` that break on any layout shift.
 5. The on-screen cursor (`cursorOverlay`) exists in the API but isn't reachable from a config.
 6. Repeated values (ports, paths, selectors) must be duplicated across frames.
 
-**Goal:** the declarative surface covers 80–90% of interaction demos; a tightly-scoped `evaluate` covers the rest *without* forcing a jump to code. Driving the real review-loop demo (open diff → annotate → resolve → loop) should be expressible in JSON alone.
+**Goal:** the declarative surface covers 80–90% of interaction demos; a tightly-scoped `evaluate` covers the rest _without_ forcing a jump to code. Driving the real review-loop demo (open diff → annotate → resolve → loop) should be expressible in JSON alone.
 
 ## Shared model & conventions
 
@@ -43,7 +91,7 @@ A frame's steps run in this fixed order:
 
 ### Selectors
 
-Every `selector` is a CSS selector resolved **in page context at capture time** (the same world `page.evaluate` sees), against the live DOM — *not* against the SVG output. Unless a feature says otherwise, a selector that matches nothing is a **hard error** naming the selector and the frame index (fail fast — a silently-skipped step usually means the demo is subtly wrong). Multi-match: actions act on the first match; waits/anchors document their own rule per section.
+Every `selector` is a CSS selector resolved **in page context at capture time** (the same world `page.evaluate` sees), against the live DOM — _not_ against the SVG output. Unless a feature says otherwise, a selector that matches nothing is a **hard error** naming the selector and the frame index (fail fast — a silently-skipped step usually means the demo is subtly wrong). Multi-match: actions act on the first match; waits/anchors document their own rule per section.
 
 ### Validation & errors
 
@@ -76,6 +124,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 ```
 
 **Semantics.**
+
 - The browser **context/page persists** across continued frames (one page, advanced step by step) instead of a fresh context per frame.
 - Frame 0 must load a content source — `input`, `cast`, or `template` (error otherwise). A continued frame must have a predecessor (error if frame 0 sets `continue`).
 - `continue: true` and an explicit `input` on the same frame is an error (ambiguous: reload or continue?).
@@ -86,7 +135,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 **Rendering note.** Continued frames are structurally near-identical (the same DOM, evolved). The old element-merge fast path mishandled that (overlapping text, dropped elements), so it was removed — every sequence now composites each frame as a complete sub-SVG, which renders continued frames correctly under either `cut` or `crossfade`. `cut` ("the page just updated") is the natural transition between interaction steps.
 
-**Open questions.** (a) Spelling: support both `continue: true` *and* "omit `input`", or pick one? (Recommend: omitting `input` implies continue; `continue: true` is the explicit, self-documenting form — accept both, they mean the same.) (b) Do we ever want an explicit `reload` step within a session? (Defer.)
+**Open questions.** (a) Spelling: support both `continue: true` _and_ "omit `input`", or pick one? (Recommend: omitting `input` implies continue; `continue: true` is the explicit, self-documenting form — accept both, they mean the same.) (b) Do we ever want an explicit `reload` step within a session? (Defer.)
 
 ---
 
@@ -114,6 +163,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 ```
 
 **Semantics.**
+
 - Each acts on **all** matched elements (mutations are naturally batchy), except the form-control ones (`setValue`/`check`/`selectOption`) which act on the first match.
 - `setText` sets `textContent`; `setHtml`/`insert` set/insert markup (author-trusted — same trust level as the rest of the config).
 - `replaceText` runs a regex over each matched element's text nodes; `pattern`/`flags` compile to `new RegExp(pattern, flags)` and a bad pattern is a config-parse error.
@@ -141,6 +191,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 ```
 
 **Semantics.**
+
 - `scrollIntoView` calls `element.scrollIntoView({ block, inline })` on the first match — distinct from the existing window-coordinate `scroll` action. This is the high-value one: it brings a target diff line into view before clicking/capturing.
 - `dispatch` constructs and dispatches the named event (`bubbles` default true) on the first match; the second high-value one, for reactivity that listens for `input`/`change`/`mouseover`/custom events that click/fill don't naturally trigger.
 - `focus`/`blur`/`selectText`/`clear` are thin wrappers over the obvious DOM calls.
@@ -151,7 +202,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 ## 4. Richer readiness waits
 
-**Problem.** `waitFor` only waits for a selector to *exist*. Real apps need "wait until X is true" without JS polling.
+**Problem.** `waitFor` only waits for a selector to _exist_. Real apps need "wait until X is true" without JS polling.
 
 **Surface.** New frame-level wait fields (each polls in page context until satisfied or a timeout — default the page's 90 s — then errors):
 
@@ -162,6 +213,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 ```
 
 **Semantics.**
+
 - These run in the readiness phase (step 2 of the frame lifecycle), after `input`/`continue` and before `actions`. Multiple may be combined on one frame; all must be satisfied.
 - `waitForGone` is satisfied when the selector matches no element, or all matches are not visible (`display:none`/`visibility:hidden`/zero-area).
 - Timeout errors name the unmet condition and frame index.
@@ -177,12 +229,16 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 **Surface.** An overlay may give an `anchor` instead of (or in addition to) `x`/`y`. Since the page is captured, domotion resolves the selector's bounding box at capture time:
 
 ```jsonc
-{ "kind": "typing", "text": "Sanitize the session id before building the Redis key.",
+{
+  "kind": "typing",
+  "text": "Sanitize the session id before building the Redis key.",
   "anchor": { "selector": ".annotation-form textarea", "at": "top-left", "dx": 8, "dy": 8 },
-  "maxWidth": "anchor" }
+  "maxWidth": "anchor",
+}
 ```
 
 **Semantics.**
+
 - `anchor.at` ∈ `top-left | top | top-right | left | center | right | bottom-left | bottom | bottom-right`; `dx`/`dy` offset (px) from that point. Resolved against the **first** match's bounding box.
 - The resolved point replaces `x`/`y` for that overlay; explicit `x`/`y` remain valid for un-anchored overlays.
 - **`anchor.baseline: true` (typing overlays only, DM-1750)** resolves the overlay's `y` to the anchored element's **first-line text baseline** instead of a border-box point. A typing overlay's `y` IS its typed text's baseline, so with this the overlay glyphs land exactly on the element's own text — no hand-tuned ascent `dy` (the old workaround: `dy ≈ 11.5` for Menlo 12.5px). `x` still comes from `at`'s horizontal component (+ `dx`); `dy` remains an additional nudge from the measured baseline (default 0). The baseline is measured in page context from the element's computed font (canvas font metrics + the same line-box placement the `typeResample` caret uses: a single-line `<input>` centers its line box in the content box, `<textarea>`/block content lays lines from the top; a 1.15-em ascent/descent split stands in when the canvas metrics are unavailable). Composes with `fontFamily: "anchor"`. Setting `baseline` on any other overlay kind is a validation error (their `y` is a box corner, not a baseline).
@@ -193,15 +249,16 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 > **Realistic typing — `mode` / `jitter` (DM-1518).** A `typing` overlay reveals its text **character-by-character** with the caret glued to the true trailing edge of the visible text (advances are measured via fontkit, so the caret sits exactly at the glyph edge instead of drifting behind it). Two extra knobs shape the feel: `"mode": "type" | "paste"` — `type` (default) steps one glyph per keystroke, `paste` drops the whole string in at once (a clipboard paste) with the caret jumping to the end; and `"jitter": 0–1` — humanizes the per-keystroke cadence by `speed × (1 ± jitter)` from a deterministic seeded PRNG, so the output SVG stays byte-stable while the typing loses its robotic fixed interval. `speed` (ms/char) and `caret` are unchanged. See `docs/93-realistic-typing.md` for the full model, the tunable parameters, and the roadmap (per-keystroke re-sampling, paste-with-selection).
 >
-> **How a typing overlay LEAVES (DM-1749, reworked in DM-1796).** A typing overlay exists to be *replaced* — the next frame (or the next state of a compressed run) carries the same value as real captured text — so it now **holds at full opacity through its window's end** and leaves the way its frame does:
+> **How a typing overlay LEAVES (DM-1749, reworked in DM-1796).** A typing overlay exists to be _replaced_ — the next frame (or the next state of a compressed run) carries the same value as real captured text — so it now **holds at full opacity through its window's end** and leaves the way its frame does:
 >
 > - **`cut` into a following frame, or a compressed-run state snap** — a hard `step-end` cut exactly at the boundary. The replacement appears in the same instant, so the handoff is seamless with no page-side cover-rect/reveal choreography.
 > - **A non-`cut` transition** — the overlay dissolves across the frame's own transition window, travelling with the frame it sits on. (Overlay groups are siblings of the frame group, not children, so they don't inherit its cross-dissolve.)
 > - **The scene's LAST frame** — nothing takes over before the loop wraps, so the historical graceful exit is kept: hold to 150 ms before the end, fade out over 100 ms.
 >
-> Until DM-1796 the 150 ms pre-fade applied *everywhere*, which meant that on a handoff the value was visible on **neither** side for ~120 ms — the field read blank, then the value reappeared. `"holdToFrameEnd": true` was the opt-out; it is now the default wherever something takes over. The field is still honored and still meaningful: it forces the hard cut even on a non-`cut` or last frame. Typing compresses into the whole window (there is no fade reserve to hold back except on that last-frame case).
+> Until DM-1796 the 150 ms pre-fade applied _everywhere_, which meant that on a handoff the value was visible on **neither** side for ~120 ms — the field read blank, then the value reappeared. `"holdToFrameEnd": true` was the opt-out; it is now the default wherever something takes over. The field is still honored and still meaningful: it forces the hard cut even on a non-`cut` or last frame. Typing compresses into the whole window (there is no fade reserve to hold back except on that last-frame case).
 >
 > **Typos, glyph-path text & font override (DM-1555 / DM-1557 / DM-1558).** Three further knobs: `"mistakes"` — a probability `0–1` or an explicit `[{ at, wrong? }]` list — makes the typist occasionally type a wrong glyph, pause (`mistakeThinkMs`, default 400), backspace, and retype the correct one; positions and wrong glyphs are deterministic (seeded off the text) so the SVG stays byte-stable. The reveal now paints its text as **glyph paths** (not a native `<text>`), so advances match on every viewer and PROPORTIONAL fonts wrap by measured pixel width. `"fontFamily"` points the reveal at any CSS family (default the monospace field stack) — e.g. the captured field's own font — for both measurement and paint.
+
 - Anchor selector not found → hard error (consistent with §Shared/Selectors).
 
 > **Explicit per-overlay window — `endAt` (DM-1767).** An overlay's lifetime is frame-scoped by default: `typing` / `blink` / `interact` hold to the frame's end, `shine` / `svg` clamp to its hold, and only `tap` is fully self-timed. **`endAt`** — accepted on every kind — is the ms **from frame start** at which THAT overlay's window closes instead, so an annotation can go away partway through a frame without splitting the frame in two. Omitted, the window still ends with the frame (existing output is byte-identical); it is **clamped to the frame's `duration`**, so an overlay may end early but never leak across the cut. Wherever a kind consulted the frame's end it now consults the window: `typing` holds and fades against it, `blink` stops toggling at it, `interact` releases before it, `shine` clamps its sweep to it, `svg` hides at it and measures `exit` back from it. On a `tap` — which never consulted the frame — it is a **cut**: a ripple still running is cut short, and one whose `delay` falls past the window is not emitted. DM-1767 also gives the `svg` kind a **`delay`** (default 0, the historical appear-with-the-frame; `enter.delay` stays an additional nudge from that appear time), so every kind now has the same explicit `[delay, endAt]` window. That window is what lets an overlay ride INSIDE a compressed run keeping its own state's lifetime — see §11 and §13.1, full spec in **`docs/104-overlay-windows.md`**.
@@ -228,15 +285,16 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 }
 ```
 
-**Derived** — `"cursor": "auto"`: for each `click`/`hover`/`fill` action, resolve the target's bbox and emit a move + click-pulse, so the pointer simply *follows the actions* — perfectly synced, zero manual authoring.
+**Derived** — `"cursor": "auto"`: for each `click`/`hover`/`fill` action, resolve the target's bbox and emit a move + click-pulse, so the pointer simply _follows the actions_ — perfectly synced, zero manual authoring.
 
 **Semantics.**
+
 - Explicit `events[].selector` resolves to a bbox at the named frame's capture; `at` is ms within that frame, mapped to global time via the existing per-frame timeline.
 - `"auto"` derives one cursor event per interaction action from the action's resolved target + a computed time (see the timing model below); `style` defaults apply.
 - Event `type` mirrors the cursor-overlay API (`move`/`click`/`moveClick`/`hide`).
-- **Aiming the derived pointer (DM-1742).** By default `"auto"` aims at the target's border-box **center**. When the changing value *is* the target's label (a `Clicked N times` counter button), the pointer + pulse would sit exactly on the one thing the viewer must read — so `click` / `hover` / `fill` actions accept an optional aim: `"cursorAt"` picks one of the nine named anchor points (`top-left` … `center` … `bottom-right`, the overlay `anchor.at` vocabulary), and `"cursorOffset": { "dx", "dy" }` nudges from there in px. Example: `{ "type": "click", "selector": "#btn", "cursorOffset": { "dx": 40, "dy": 10 } }` lands the pointer beside the label. Both fields are ignored under an explicit `cursor` events form (those carry their own `selector`/`offset`).
+- **Aiming the derived pointer (DM-1742).** By default `"auto"` aims at the target's border-box **center**. When the changing value _is_ the target's label (a `Clicked N times` counter button), the pointer + pulse would sit exactly on the one thing the viewer must read — so `click` / `hover` / `fill` actions accept an optional aim: `"cursorAt"` picks one of the nine named anchor points (`top-left` … `center` … `bottom-right`, the overlay `anchor.at` vocabulary), and `"cursorOffset": { "dx", "dy" }` nudges from there in px. Example: `{ "type": "click", "selector": "#btn", "cursorOffset": { "dx": 40, "dy": 10 } }` lands the pointer beside the label. Both fields are ignored under an explicit `cursor` events form (those carry their own `selector`/`offset`).
 
-**Auto-cursor timing — where the click lands (DM-1050).** This is the one part of the model that surprises authors, so it's worth stating plainly. A frame's captured **content is the _result_ of its `actions`** — capture runs *after* the actions — and the **transition _into_ a frame is what reveals that result**. So a frame's job is to show the *outcome* of its own click. To read as cause→effect, the click must therefore be shown on the **previous** frame's image (the "before" state), landing just before the transition that reveals the result.
+**Auto-cursor timing — where the click lands (DM-1050).** This is the one part of the model that surprises authors, so it's worth stating plainly. A frame's captured **content is the _result_ of its `actions`** — capture runs _after_ the actions — and the **transition _into_ a frame is what reveals that result**. So a frame's job is to show the _outcome_ of its own click. To read as cause→effect, the click must therefore be shown on the **previous** frame's image (the "before" state), landing just before the transition that reveals the result.
 
 `"auto"` does exactly this: for a click in a `continue` frame, the move + pulse are placed near the **end of the previous frame's hold**, so the pointer clicks the button on the before-image and the crossfade then reveals what the click produced. (A click in frame 0, or in a frame that reloads via `input`, has no prior before-image to stage over, so its pulse stays within its own hold.)
 
@@ -249,7 +307,7 @@ Worked example — the cart demo:
   "transition": { "type": "crossfade", "duration": 220 }, "duration": 1100 }  // frame 1: LOADED cart
 ```
 
-The pointer clicks `#load-cart` during frame 0's hold (over the empty cart), then the 220 ms crossfade reveals the loaded cart that the click produced — *not* a click landing in the middle of the already-loaded cart. The `duration`/`transition` on frame 1 size **frame 1's own hold and the crossfade out of it**; they don't bound the click, which belongs to the frame-0 → frame-1 reveal. (Before DM-1050 the auto-cursor placed each click at the mid-hold of its *own* result frame, so the pointer appeared to click *after* the change it caused was already on screen.)
+The pointer clicks `#load-cart` during frame 0's hold (over the empty cart), then the 220 ms crossfade reveals the loaded cart that the click produced — _not_ a click landing in the middle of the already-loaded cart. The `duration`/`transition` on frame 1 size **frame 1's own hold and the crossfade out of it**; they don't bound the click, which belongs to the frame-0 → frame-1 reveal. (Before DM-1050 the auto-cursor placed each click at the mid-hold of its _own_ result frame, so the pointer appeared to click _after_ the change it caused was already on screen.)
 
 **Replaces.** The need to drop to the programmatic API solely to get an on-screen pointer. `"auto"` is broadly useful for any interaction demo.
 
@@ -270,6 +328,7 @@ The pointer clicks `#load-cart` during frame 0's hold (over the empty cart), the
 ```
 
 **Semantics.**
+
 - Interpolation runs after schema parse, before each frame executes, over every string field in the config.
 - `${name}` with no matching var is a **hard error** (typo-catching). Escaping: `$${` yields a literal `${`.
 - Values are strings only (no expressions/computation — that's a non-goal). Nesting (`vars` referencing other vars) is out of scope for v1.
@@ -291,11 +350,12 @@ The pointer clicks `#load-cart` during frame 0's hold (over the empty cart), the
 Runs the script in page context via `page.evaluate` during the frame's action phase.
 
 **Semantics & guardrails.**
-- Positioned explicitly as the **last resort**, for **very small snippets**. Documented rule: *"more than a line or two means you've outgrown the config — use the programmatic API."*
+
+- Positioned explicitly as the **last resort**, for **very small snippets**. Documented rule: _"more than a line or two means you've outgrown the config — use the programmatic API."_
 - Emit a **warning** (to stderr) when a `script` exceeds ~N characters or lines (proposed: > ~200 chars or > 2 lines), nudging toward the declarative actions (§2–§3) or the API. The warning is advisory, not a hard failure.
 - Already sandboxed to the page via `page.evaluate` (no broader access than the page itself).
 
-**Replaces.** Nothing it shouldn't — it's the deliberate catch-all so authors never get *fully* stuck in JSON, while everything common has a declarative form above.
+**Replaces.** Nothing it shouldn't — it's the deliberate catch-all so authors never get _fully_ stuck in JSON, while everything common has a declarative form above.
 
 ---
 
@@ -306,15 +366,19 @@ A frame may embed a named **template** (doc 70) instead of an `input` page or a 
 **Surface.**
 
 ```jsonc
-{ "template": "lower-third",
+{
+  "template": "lower-third",
   "params": { "title": "Ada Lovelace", "subtitle": "First Programmer" },
-  "duration": 3000, "transition": { "type": "cut", "duration": 0 } }
+  "duration": 3000,
+  "transition": { "type": "cut", "duration": 0 },
+}
 ```
 
 - `template` — a built-in (`lower-third`, `device-mockup`, `background-loop`, `kinetic-text`) or an installed `domotion-template-<name>` package, resolved exactly like the `domotion template` verb.
 - `params` — validated against that template's own zod schema at compose time; an unknown name or bad params fails with a path-specific error. `${vars}` interpolation applies to `params` strings (§7).
 
 **Semantics & guardrails.**
+
 - `template` is mutually exclusive with `input` / `cast` / `continue`; `params` requires a `template`; frame 0 may be a template frame.
 - The template **inherits the config `width`/`height`** when its schema declares them and they're unset, so it fills the frame. An output that still differs (e.g. `device-mockup`'s bezel growth) is placed per the frame's optional **`fit`**: `center` (default, 1:1 — oversized is clipped), `contain` (scale-to-fit, letterboxed), or `cover` (scale-to-fill, cropped). `fit` requires a `template`.
 - `duration` is **optional** on a template frame — omit it to inherit the template's intrinsic play time (`TemplateOutput.durationMs`); a static template (e.g. `device-mockup`) has none, so it needs an explicit `duration`. The template's internal animation plays within `duration` (size it to ≈ the template's play time, same rule as a `cast` frame).
@@ -330,8 +394,7 @@ A frame may force real CSS pseudo-state on selectors **before capture**, so it p
 **Surface.**
 
 ```jsonc
-{ "continue": true, "duration": 1800,
-  "forceState": [ { "selector": ".cta", "states": ["hover"] } ] }
+{ "continue": true, "duration": 1800, "forceState": [{ "selector": ".cta", "states": ["hover"] }] }
 ```
 
 - `selector` — forced on **every** matched element (throws if it matches nothing, like an action selector).
@@ -339,6 +402,7 @@ A frame may force real CSS pseudo-state on selectors **before capture**, so it p
 - `reset: true` (in place of `states`) — DM-1566: **clear** any state a previous frame forced on `selector`, capturing it back at rest. Mutually exclusive with `states`. A later `continue` frame carrying `{ "selector": ".cta", "reset": true }` releases a hover an earlier frame set (the un-hover verb).
 
 **Semantics.**
+
 - Runs **after `actions`** (so it reflects the post-action DOM) and **before capture** (the forced paint is what gets serialized). The whole cascade fires, not just the hovered node — e.g. `.card:has(.cta:hover)` restyles the card, and descendant/`:hover`-derived rules all apply.
 - Pair it with a **`cursor`** move (auto or explicit) so the pointer visibly sits on the element it's hovering. A common shape is a `continue` frame that forces `:hover` and cross-fades from the rest frame (see `examples/animate/hover-state/`).
 - The forced state persists on the live page until navigation, carrying into a later `continue` frame like any other pre-capture mutation. Use `reset: true` (DM-1566) to drop it mid-session, or reload the frame (drop `continue`).
@@ -359,14 +423,17 @@ A frame may capture **N editing states of the live page inside one frame** and c
 **Surface.**
 
 ```jsonc
-{ "input": "./editor.html", "duration": 1910,
+{
+  "input": "./editor.html",
+  "duration": 1910,
   "caret": { "color": "#e2e8f0" },
   "states": [
-    { "duration": 260 },                                                      // state 0: the frame's own post-actions state
+    { "duration": 260 }, // state 0: the frame's own post-actions state
     { "actions": [{ "type": "evaluate", "script": "ins(2)" }], "duration": 150 },
     { "actions": [{ "type": "evaluate", "script": "ins(4)" }], "duration": 150 },
-    { "actions": [{ "type": "evaluate", "script": "colorize()" }], "duration": 900 }
-  ] }
+    { "actions": [{ "type": "evaluate", "script": "colorize()" }], "duration": 900 },
+  ],
+}
 ```
 
 **Semantics.**
@@ -375,40 +442,43 @@ A frame may capture **N editing states of the live page inside one frame** and c
 - `caret: true | { shape, color }` opts into the run's **auto-caret**: the compressor derives each state's edit point (where the typed glyphs landed / where a deletion closed up), so the docs/97-shaped caret rides the run with zero addressing. `shape` defaults to `bar`, `color` to `#111111`. `caret` requires `states`.
 - The compressor logs its **pairing ratio** per run (`compress: run of N states, X% glyphs paired, Y KB → Z KB`) so authors can see when compression collapsed (anything failing exact pairing re-emits from its own state's capture — never wrong pixels, just less compression).
 - **Per-state `overlays` (DM-1767).** A state may carry its own `overlays`, in the same authoring vocabulary as a frame's (§5). Each is anchor-resolved **while the page is at that state** — so a `selector` anchor / `maxWidth: "anchor"` sees the layout it was authored against, not the run's LAST state — then re-based onto the frame's timeline: its effective `delay` (authored, or the kind's own default) is shifted by the state's offset into the run and its `endAt` pinned to the state's end, so it dies at that state's snap. An `endAt` written on a per-state overlay is read relative to its own state and clamped to that state's hold. A frame-level overlay on the same frame still spans the whole run and paints first. See **`docs/104-overlay-windows.md`**.
-- `states` is mutually exclusive with the other content-producing kinds (`scroll` / `cast` / `template` / `typeResample` / `jsReveal`). It drives the live page, so it works on a `continue` frame or a fresh `input` load. Like those kinds, a `states` frame has no single captured tree: magic-move to/from it falls back to crossfade, and cursor events can't address the states *inside* the run (editing runs have no pointer).
+- `states` is mutually exclusive with the other content-producing kinds (`scroll` / `cast` / `template` / `typeResample` / `jsReveal`). It drives the live page, so it works on a `continue` frame or a fresh `input` load. Like those kinds, a `states` frame has no single captured tree: magic-move to/from it falls back to crossfade, and cursor events can't address the states _inside_ the run (editing runs have no pointer).
 - A `compress: true` form stamped across a run of ordinary consecutive `continue`+`cut` frames is **not** part of v1 — collapsing config frames would re-index every frame-addressed feature (cursor events, transitions, magic-move); `states:` keeps the 1 config-frame ↔ 1 animation-frame invariant instead.
 
 Examples: `examples/animate/compressed-run/` (minimal), `examples/animate/editor-session/` (the flagship editor rebuild). Engine + measured behavior: `docs/100-rich-text-editing.md` ("Shipped engine (v1)"); authoring recipe: `docs/102-editing-page-rig-cookbook.md`.
 
 ## 11.1 Independent per-region timing — `regions` + `advances` (DM-1770)
 
-A scene often holds several **independently-updating regions**: an editor pane and a rendered-preview pane, a code view and its minimap, a log tail beside a static sidebar. The compressor already keeps each one's glyph identities apart — every run of text carries a **region**, auto-detected as its innermost *clipping* ancestor, else the innermost side-by-side **column** taller than one line box (`docs/100`, "Independent regions in one scene"). What §11 alone cannot express is regions running on **different schedules**: `states:` is one grid, so the author must interleave both panes' sequences by hand into a single list, and every distinct moment in the union of their schedules costs its own whole-page capture.
+A scene often holds several **independently-updating regions**: an editor pane and a rendered-preview pane, a code view and its minimap, a log tail beside a static sidebar. The compressor already keeps each one's glyph identities apart — every run of text carries a **region**, auto-detected as its innermost _clipping_ ancestor, else the innermost side-by-side **column** taller than one line box (`docs/100`, "Independent regions in one scene"). What §11 alone cannot express is regions running on **different schedules**: `states:` is one grid, so the author must interleave both panes' sequences by hand into a single list, and every distinct moment in the union of their schedules costs its own whole-page capture.
 
 `regions` + `advances` fixes both. It is a **hybrid**: auto-detection stays the default, and an explicit declaration overrides it only for the elements it covers.
 
 **Surface.** A frame-level `regions: { <name>: <selector> }` map beside `states:`, plus a per-state `advances: [<name>…]`:
 
 ```jsonc
-{ "input": "./panes.html", "duration": 1940,
+{
+  "input": "./panes.html",
+  "duration": 1940,
   "regions": { "editor": "#ed", "preview": "#pv" },
   "states": [
-    { "duration": 320 },                                                                              // state 0: both regions at their start
-    { "advances": ["editor"],  "actions": [{ "type": "evaluate", "script": "setEditor(3)" }],  "duration": 200 },
+    { "duration": 320 }, // state 0: both regions at their start
+    { "advances": ["editor"], "actions": [{ "type": "evaluate", "script": "setEditor(3)" }], "duration": 200 },
     { "advances": ["preview"], "actions": [{ "type": "evaluate", "script": "setPreview(1)" }], "duration": 200 },
-    { "advances": ["editor"],  "actions": [{ "type": "evaluate", "script": "setEditor(6)" }],  "duration": 200 },
-    { "advances": ["preview"], "actions": [{ "type": "evaluate", "script": "setPreview(2)" }], "duration": 620 }
-  ] }
+    { "advances": ["editor"], "actions": [{ "type": "evaluate", "script": "setEditor(6)" }], "duration": 200 },
+    { "advances": ["preview"], "actions": [{ "type": "evaluate", "script": "setPreview(2)" }], "duration": 620 },
+  ],
+}
 ```
 
 **Semantics.**
 
-- **`regions` (the declaration).** Each selector resolves in page context at capture time and is stamped `data-domotion-anim` on its **first** match — the same mechanism `textTracks` (§12) and intra-frame `animations` (§2) already use — so the captured element becomes an explicit **region root**. It overrides the auto-detected discriminator inside it, changes nothing outside it, and auto-detection still subdivides *within* it (a nested scroll container inside a declared pane is still its own, finer region). Two hard errors: a selector matching nothing, and two regions resolving to the **same** element — a region is the unit a state advances, so they must be distinct. `regions` requires `states`.
-- **Naming beats geometry.** An auto-detected region is identified by its box, all the detector has to go on, so a pane that **resizes** between states is a different region and its lines re-emit ("re-emit on any doubt"). A *declared* region is identified by its name, so a resizing pane stays itself and its lines still pair. This is a **bytes-only** difference — every emitted position comes from that state's own capture and every track is `step-end`, so pairing quality can never move a pixel.
+- **`regions` (the declaration).** Each selector resolves in page context at capture time and is stamped `data-domotion-anim` on its **first** match — the same mechanism `textTracks` (§12) and intra-frame `animations` (§2) already use — so the captured element becomes an explicit **region root**. It overrides the auto-detected discriminator inside it, changes nothing outside it, and auto-detection still subdivides _within_ it (a nested scroll container inside a declared pane is still its own, finer region). Two hard errors: a selector matching nothing, and two regions resolving to the **same** element — a region is the unit a state advances, so they must be distinct. `regions` requires `states`.
+- **Naming beats geometry.** An auto-detected region is identified by its box, all the detector has to go on, so a pane that **resizes** between states is a different region and its lines re-emit ("re-emit on any doubt"). A _declared_ region is identified by its name, so a resizing pane stays itself and its lines still pair. This is a **bytes-only** difference — every emitted position comes from that state's own capture and every track is `step-end`, so pairing quality can never move a pixel.
 - **`advances` (the timing).** Names the region(s) a state moves forward. State 0 may not declare it (it is every region's starting point), names must be declared on the same frame and may not repeat, and the list may not be empty — all path-specific validation errors.
-- **Capture stays whole-page.** The browser paints the page; there is no such thing as capturing one pane. What changes is that one whole-page capture is **assigned** to several regions at once: states advancing **disjoint** regions are driven into the page together and captured once, and each state's tree is then assembled by taking each region's subtree from the capture round that holds *its* state. A state's `actions` are one indivisible script, so they run in exactly one round, and every region a state advances must move strictly past the round of its own previous advance (rounds are cumulative). Measured on a two-pane scene: **7 states over 2 alternating regions cost 4 whole-page captures instead of 7**, and 3 regions × 4 advances cost 5 instead of 13 — `1 + max(nᵢ)` against `1 + Σnᵢ`.
-- **The one precondition, checked not assumed.** The assembly is only valid if a region's content cannot move anything **outside** itself. The non-region remainder of every capture round must therefore be byte-identical; when it isn't, the run **hard-errors**, naming the frame and the round that diverged. (A plausible-looking but wrong composition is exactly what that check exists to prevent.) The fix is to declare the changing element as a region, or drop `advances`. A region's own subtree may of course change however it likes — that is the point. Region roots are re-stamped before every capture, so a state's actions may rebuild the DOM *under* a region root; losing the root **element** itself is its own named error.
+- **Capture stays whole-page.** The browser paints the page; there is no such thing as capturing one pane. What changes is that one whole-page capture is **assigned** to several regions at once: states advancing **disjoint** regions are driven into the page together and captured once, and each state's tree is then assembled by taking each region's subtree from the capture round that holds _its_ state. A state's `actions` are one indivisible script, so they run in exactly one round, and every region a state advances must move strictly past the round of its own previous advance (rounds are cumulative). Measured on a two-pane scene: **7 states over 2 alternating regions cost 4 whole-page captures instead of 7**, and 3 regions × 4 advances cost 5 instead of 13 — `1 + max(nᵢ)` against `1 + Σnᵢ`.
+- **The one precondition, checked not assumed.** The assembly is only valid if a region's content cannot move anything **outside** itself. The non-region remainder of every capture round must therefore be byte-identical; when it isn't, the run **hard-errors**, naming the frame and the round that diverged. (A plausible-looking but wrong composition is exactly what that check exists to prevent.) The fix is to declare the changing element as a region, or drop `advances`. A region's own subtree may of course change however it likes — that is the point. Region roots are re-stamped before every capture, so a state's actions may rebuild the DOM _under_ a region root; losing the root **element** itself is its own named error.
 - **`advances` is what engages the schedule.** A bare `regions` map with no `advances` anywhere is a **discriminator override only** — capture stays sequential, one per state, exactly as §11 has always behaved.
-- **Payload is not the point.** Every track is `step-end` and the emitter only writes a stop where a value *changes*, so a state in which a region is unchanged contributes nothing to that region's keyframes: a 3.5× finer state grid costs 0.4% of the output (`docs/100`). Per-region timing buys the **authoring model** (two independent sequences instead of one hand-interleaved list) and the **capture count** — not bytes.
+- **Payload is not the point.** Every track is `step-end` and the emitter only writes a stop where a value _changes_, so a state in which a region is unchanged contributes nothing to that region's keyframes: a 3.5× finer state grid costs 0.4% of the output (`docs/100`). Per-region timing buys the **authoring model** (two independent sequences instead of one hand-interleaved list) and the **capture count** — not bytes.
 - **`${}` interpolation** (§7) applies to region **selectors**, like every other selector. Region **names** are config-internal identifiers matched literally: object keys are never interpolated, so the `advances` entries that must match them are not either.
 
 The CLI logs the schedule it chose:
@@ -427,16 +497,21 @@ A frame may declare **caret / selection tracks** anchored to its captured text: 
 **Surface.**
 
 ```jsonc
-{ "continue": true, "duration": 2200,
+{
+  "continue": true,
+  "duration": 2200,
   "textTracks": [
-    { "selector": "[data-line='3']",
+    {
+      "selector": "[data-line='3']",
       "color": "#93c5fd",
       "events": [
-        { "type": "park",   "at": 200, "charOffset": 19 },
-        { "type": "move",   "at": 600, "charOffset": 9 },
-        { "type": "select", "at": 800, "charStart": 9, "charEnd": 15, "sweepMs": 450 }
-      ] }
-  ] }
+        { "type": "park", "at": 200, "charOffset": 19 },
+        { "type": "move", "at": 600, "charOffset": 9 },
+        { "type": "select", "at": 800, "charStart": 9, "charEnd": 15, "sweepMs": 450 },
+      ],
+    },
+  ],
+}
 ```
 
 **Semantics.**
@@ -444,7 +519,7 @@ A frame may declare **caret / selection tracks** anchored to its captured text: 
 - **Addressing.** The track's `selector` resolves at capture time by stamping `data-domotion-anim` on the **first** match (the intra-frame-animation mechanism); a selector matching nothing is a **hard error** naming the frame + config path. Offsets count Unicode **code points** over the element's own text runs in captured order. A per-event `selector` override retargets that one event.
 - **Events** (`at` = ms within the frame, mapped to global time like cursor events): `park` / `move` `{ at, charOffset }` place the caret (step-end jumps; blinks while parked); `hide` `{ at }` hides it until the next park/move; `select` `{ at, charStart, charEnd, sweepMs?, color? }` sweeps a selection over the range, growing per painted character edge over `sweepMs` (0 = appears at once); `clearSelection` `{ at }` clears the most recent selection.
 - **Track options**: `shape` (`bar` default / `block` / `underscore`), `color` (default `#111111`), `barWidthPx` (2), `blinkMs` (1060), `selectionColor` (default a translucent blue; per-event `color` overrides).
-- **Auto-end at the frame's cut — `persist` (DM-1763).** A track's caret/selection would otherwise HOLD their final state through the animation loop and layer above *every later frame* (a caret parked in frame N keeps blinking over frames N+1..end). Because config tracks are **per-frame** (`frames[i].textTracks`), a frame's track now **ends at that frame's cut by default**: when the authored events leave the caret visible or a selection active at end-of-frame, the CLI synthesizes a trailing `clearSelection` (if a selection is active) then `hide` at the frame's `duration`. So the common case — park, move, sweep, done — needs **no** explicit terminal events. Two escape hatches: (a) an author who *does* end the track by hand (their own final `hide` / `clearSelection`) is never doubled — the synthesis only adds what's still "on"; (b) `"persist": true` on the track opts out entirely, carrying the caret/selection past the frame's cut (the pre-DM-1763 behavior, for a deliberate hold above later frames). This is a CLI-config-layer synthesis only — the programmatic `resolveTextTrack` API is unchanged (global-timeline callers manage their own lifetimes).
+- **Auto-end at the frame's cut — `persist` (DM-1763).** A track's caret/selection would otherwise HOLD their final state through the animation loop and layer above _every later frame_ (a caret parked in frame N keeps blinking over frames N+1..end). Because config tracks are **per-frame** (`frames[i].textTracks`), a frame's track now **ends at that frame's cut by default**: when the authored events leave the caret visible or a selection active at end-of-frame, the CLI synthesizes a trailing `clearSelection` (if a selection is active) then `hide` at the frame's `duration`. So the common case — park, move, sweep, done — needs **no** explicit terminal events. Two escape hatches: (a) an author who _does_ end the track by hand (their own final `hide` / `clearSelection`) is never doubled — the synthesis only adds what's still "on"; (b) `"persist": true` on the track opts out entirely, carrying the caret/selection past the frame's cut (the pre-DM-1763 behavior, for a deliberate hold above later frames). This is a CLI-config-layer synthesis only — the programmatic `resolveTextTrack` API is unchanged (global-timeline callers manage their own lifetimes).
 - Unresolvable **events** (out-of-range offsets) are skipped with a warning (the cursor-overlay soft-fail convention) — only the selector itself is a hard error.
 - `textTracks` requires this frame's single captured tree, so it can't be combined with `scroll` / `cast` / `template` / `typeResample` / `jsReveal` / `states`. Z-order: selection rects paint **above** the captured text (a highlight-marker look — true behind-the-glyphs selection is the compressed run's merged emission), and the whole track layers above frame content but **below the cursor overlay**.
 
@@ -456,17 +531,17 @@ Examples: frame 1 of `examples/animate/compressed-run/`; the selection frame of 
 
 There are three ways to get a compressed run, from most explicit to least:
 
-| Surface | Scope | You restructure frames? | Ineligible run |
-| --- | --- | --- | --- |
-| `states: [...]` (§11) | one frame you author | yes — states live inside one frame | n/a (you wrote the states) |
-| `compress: true` (§13.2) | one run you mark | no | **hard error** naming the frame + reason |
-| `autoCompress` (§13.1, **default ON**) | every run in the config | no | left uncompressed, logged reason |
+| Surface                                | Scope                   | You restructure frames?            | Ineligible run                           |
+| -------------------------------------- | ----------------------- | ---------------------------------- | ---------------------------------------- |
+| `states: [...]` (§11)                  | one frame you author    | yes — states live inside one frame | n/a (you wrote the states)               |
+| `compress: true` (§13.2)               | one run you mark        | no                                 | **hard error** naming the frame + reason |
+| `autoCompress` (§13.1, **default ON**) | every run in the config | no                                 | left uncompressed, logged reason         |
 
 All three end up at the **same** machinery and the same output shape: `autoCompress` and `compress` are pure config pre-passes that rewrite the run into a `states` frame before capture, so the composed result is exactly what hand-authoring the `states` block would have produced. Per doc 100 the result is **pixel-identical to the uncompressed flipbook** at every time; the win is **raw size + live-DOM weight** (shared content emitted once), never fidelity.
 
 ### 13.1 Automatic detection — `autoCompress` (DM-1757)
 
-The `states` block (§11) is the **explicit** way to compress an editing run: the author lists the states inside one frame. `autoCompress` is the **automatic** counterpart — a top-level opt-in that finds compressible runs in an *ordinary* multi-frame config and collapses each without the author restructuring anything.
+The `states` block (§11) is the **explicit** way to compress an editing run: the author lists the states inside one frame. `autoCompress` is the **automatic** counterpart — a top-level opt-in that finds compressible runs in an _ordinary_ multi-frame config and collapses each without the author restructuring anything.
 
 **Surface.** A top-level boolean, **default ON** — set `"autoCompress": false` (or `--no-auto-compress` on the CLI) to opt out; `--auto-compress` is a redundant explicit-on:
 
@@ -479,9 +554,9 @@ The `states` block (§11) is the **explicit** way to compress an editing run: th
 
 **Default ON (DM-1768) — and why it's safe.** Compression is pixel-identical to the flipbook, and the size-regression guard makes it impossible to grow output — a run that composes larger than its uncompressed states is reverted (see below). Flipping the default was gated on three prerequisites, all now met: the exclusion set (every per-frame decoration split the run cleanly rather than mis-collapsing), the size guard (shipped, DM-1772), and a golden-regeneration pass, which at the time was a **no-op** because nothing in the committed corpus had an auto-collapsible plain continue+cut run. (DM-1767 then let **overlays** ride along rather than split, which brought two examples into scope — `form-fill` and `editor-session` collapsed and their goldens were regenerated, verified pixel-identical frame-by-frame and 12–15% smaller.) So a config's output only changes if it actually contains such a run, and even then only in shape (nested run vs N sibling frames), never in pixels or — thanks to the guard — in a way that grows. Opt out with `autoCompress: false` where you want the frames kept separate.
 
-**Safe scope.** A run is collapsed only when it is safe to do so with zero interaction loss; anything else is **left uncompressed with a logged reason** (never a hard error). A run's members must all be plain captured frames with a `cut` transition and **none** of: `animations`, `textTracks`, `forceState`, a non-default (`body`) `selector`, or a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`). (`overlays` used to be on that list; since DM-1767 they ride along as per-state overlays — see below.) Non-anchor members must be pure `continue` frames with no readiness waits or `scrollTo` (a `states` run has no per-state readiness wait; a frame carrying one instead becomes the anchor of the *next* run). Frame-addressed features that survive (explicit `cursor.events[].frame` on frames *outside* the runs) are **remapped** onto the collapsed indices automatically.
+**Safe scope.** A run is collapsed only when it is safe to do so with zero interaction loss; anything else is **left uncompressed with a logged reason** (never a hard error). A run's members must all be plain captured frames with a `cut` transition and **none** of: `animations`, `textTracks`, `forceState`, a non-default (`body`) `selector`, or a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`). (`overlays` used to be on that list; since DM-1767 they ride along as per-state overlays — see below.) Non-anchor members must be pure `continue` frames with no readiness waits or `scrollTo` (a `states` run has no per-state readiness wait; a frame carrying one instead becomes the anchor of the _next_ run). Frame-addressed features that survive (explicit `cursor.events[].frame` on frames _outside_ the runs) are **remapped** onto the collapsed indices automatically.
 
-**Sub-run splitting — one bad frame costs one frame.** Three exclusions are *single-frame* reasons rather than run-wide ones: an explicit `cursor` event addressing a member, an interaction action (`click`/`hover`/`fill`) a `cursor: "auto"` pointer would be derived from, and a `magic-move` transition landing on the run's anchor (collapsing it would degrade that transition to a crossfade). Such a frame **splits** the candidate window instead of disqualifying it: it stays a plain sibling frame — so its pointer, or the magic-move morph into it, behaves exactly as it did uncompressed — and the eligible sub-runs on either side collapse normally, subject to the two-frame minimum. A window of eight frames with a cursor event on frames 2 and 5 therefore yields `[0,1]` compressed · `2` plain · `[3,4]` compressed · `5` plain · `[6,7]` compressed. Frame-level blockers (`animations`, `textTracks`, a readiness wait, …) split the same way — the member scan ends at that frame and the next eligible frame anchors a new run. Each split logs its own line:
+**Sub-run splitting — one bad frame costs one frame.** Three exclusions are _single-frame_ reasons rather than run-wide ones: an explicit `cursor` event addressing a member, an interaction action (`click`/`hover`/`fill`) a `cursor: "auto"` pointer would be derived from, and a `magic-move` transition landing on the run's anchor (collapsing it would degrade that transition to a crossfade). Such a frame **splits** the candidate window instead of disqualifying it: it stays a plain sibling frame — so its pointer, or the magic-move morph into it, behaves exactly as it did uncompressed — and the eligible sub-runs on either side collapse normally, subject to the two-frame minimum. A window of eight frames with a cursor event on frames 2 and 5 therefore yields `[0,1]` compressed · `2` plain · `[3,4]` compressed · `5` plain · `[6,7]` compressed. Frame-level blockers (`animations`, `textTracks`, a readiness wait, …) split the same way — the member scan ends at that frame and the next eligible frame anchors a new run. Each split logs its own line:
 
 ```
   auto-compress: collapsed frames 0–2 into a states run (3 states, 600ms)
@@ -493,12 +568,12 @@ Under the `compress: true` marker a split point is still a **hard error** (§13.
 
 **Per-frame `overlays` now RIDE ALONG (DM-1767).** Overlays used to be a split point, for two reasons that were both properties of the overlay model rather than of the collapse pass — and both are now fixed (**`docs/104-overlay-windows.md`**):
 
-- **Overlay lifetime was frame-scoped.** Every kind is emitted against its frame's window, and `typing` / `blink` / `interact` explicitly HOLD until the frame ends (§5), so an overlay authored on the third of five members would — moved onto the collapsed frame — hold to the end of the *whole run* instead of dying at its own cut. The **explicit per-overlay window** (`endAt`, §5) is the missing concept: each member's overlay is pinned to its state's end.
+- **Overlay lifetime was frame-scoped.** Every kind is emitted against its frame's window, and `typing` / `blink` / `interact` explicitly HOLD until the frame ends (§5), so an overlay authored on the third of five members would — moved onto the collapsed frame — hold to the end of the _whole run_ instead of dying at its own cut. The **explicit per-overlay window** (`endAt`, §5) is the missing concept: each member's overlay is pinned to its state's end.
 - **Anchors resolved against the live page, once per frame.** A `selector`-anchored overlay (or `maxWidth: "anchor"`) resolved after the frame's actions had run — and a collapsed run leaves the page at its LAST state, so a state-3 overlay would anchor against state-5 layout, which is exactly the movement that made the run compressible. **Per-state anchor resolution** (§11) now resolves each state's overlays inside the run's capture loop, at that state.
 
 So a member's `overlays` become that state's `overlays` (the anchor frame's become state 0's), and the run collapses whole. The authored behavior is reproduced exactly: each overlay resolves against its own capture and dies at its own cut. Measured on the committed corpus, `examples/animate/form-fill/` went 4 → 2 animation frames (−12% bytes) and `examples/animate/editor-session/` 11 → 6 (−15%), both verified **pixel-identical** frame-by-frame across their full timelines.
 
-**Size-regression guard — `autoCompress` can never make output bigger; PER REGION (DM-1772).** Compression is pixel-identical but not unconditionally *smaller*: a wholesale-change run (a slideshow, where consecutive frames share almost nothing) pairs badly, re-emits nearly everything as births/deaths, and pays the union + track overhead on top. So after composing a run *the automatic pass created*, the guard decides on **real bytes** which of the run's regions (independently-updating panes — docs/100) to demote, and picks the smallest of three pixel-identical candidates: keep-all, **per-region demotion** (demote every region whose text is cheaper flipbooked into the chrome union than kept as animated glyphs; demoting all is the whole chrome union), and the uncompressed `composeStatesFlipbook` floor. Two shapes of log line result — a scene whose union deduplicates shared subtrees demotes into it, a pure slideshow whose union can't reverts to the flipbook floor:
+**Size-regression guard — `autoCompress` can never make output bigger; PER REGION (DM-1772).** Compression is pixel-identical but not unconditionally _smaller_: a wholesale-change run (a slideshow, where consecutive frames share almost nothing) pairs badly, re-emits nearly everything as births/deaths, and pays the union + track overhead on top. So after composing a run _the automatic pass created_, the guard decides on **real bytes** which of the run's regions (independently-updating panes — docs/100) to demote, and picks the smallest of three pixel-identical candidates: keep-all, **per-region demotion** (demote every region whose text is cheaper flipbooked into the chrome union than kept as animated glyphs; demoting all is the whole chrome union), and the uncompressed `composeStatesFlipbook` floor. Two shapes of log line result — a scene whose union deduplicates shared subtrees demotes into it, a pure slideshow whose union can't reverts to the flipbook floor:
 
 ```
   compress: run of 5 states, 10.2% glyphs paired, 9.3 KB → 19.2 KB
@@ -510,7 +585,7 @@ So a member's `overlays` become that state's `overlays` (the anchor frame's beco
     demoted is 81.8 KB
 ```
 
-Whichever wins keeps the same shape — one nested frame holding the N states, each gated by a `step-end` `display` window (flipbook) or by the compressor's chrome union — so it stays **pixel-identical** and the collapse's one config frame ↔ one animation frame invariant is untouched. Retaining the flipbook as a candidate (rather than *replacing* it with chrome demotion) is what preserves the never-worse guarantee for pure-wholesale runs the union can't dedupe. Full spec: **`docs/103-per-region-size-guard.md`**.
+Whichever wins keeps the same shape — one nested frame holding the N states, each gated by a `step-end` `display` window (flipbook) or by the compressor's chrome union — so it stays **pixel-identical** and the collapse's one config frame ↔ one animation frame invariant is untouched. Retaining the flipbook as a candidate (rather than _replacing_ it with chrome demotion) is what preserves the never-worse guarantee for pure-wholesale runs the union can't dedupe. Full spec: **`docs/103-per-region-size-guard.md`**.
 
 The comparison is near-free: the compressor already reports both sides (`rawBytes` = the same states rendered independently, `compressedBytes` = what it produced), which triggers the check, and the demotion/flipbook trials are built only when that trigger fires (~80–135 ms each, each bracketed in a font-builder snapshot/restore so a discarded trial leaves the shared addressing byte-identical — DM-1771).
 
@@ -522,29 +597,42 @@ See **`docs/100-rich-text-editing.md`** (Primitive 1) for the compressor design,
 
 `autoCompress` is all-or-nothing: every eligible run in the config collapses. `compress: true` is the **surgical** form of the same thing — a per-frame boolean that collapses **one** run, on the author's terms, leaving every other frame exactly as it was.
 
-**Surface.** `compress: true` on the **first frame of the run** (the anchor — the frame that loads the `input` or starts the `continue`). It takes the maximal eligible run *starting there*:
+**Surface.** `compress: true` on the **first frame of the run** (the anchor — the frame that loads the `input` or starts the `continue`). It takes the maximal eligible run _starting there_:
 
 ```jsonc
 {
-  "width": 640, "height": 360,
+  "width": 640,
+  "height": 360,
   "frames": [
     { "input": "editor.html", "duration": 400, "transition": { "type": "cut", "duration": 0 } },
-    { "continue": true, "duration": 300, "transition": { "type": "cut", "duration": 0 },
-      "compress": true,                                    // ← anchors the run
-      "actions": [{ "type": "evaluate", "script": "ins(3)" }] },
-    { "continue": true, "duration": 150, "transition": { "type": "cut", "duration": 0 },
-      "actions": [{ "type": "evaluate", "script": "ins(6)" }] },
-    { "continue": true, "duration": 300, "transition": { "type": "cut", "duration": 0 },
-      "actions": [{ "type": "evaluate", "script": "colorize()" }] }
-  ]
+    {
+      "continue": true,
+      "duration": 300,
+      "transition": { "type": "cut", "duration": 0 },
+      "compress": true, // ← anchors the run
+      "actions": [{ "type": "evaluate", "script": "ins(3)" }],
+    },
+    {
+      "continue": true,
+      "duration": 150,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "ins(6)" }],
+    },
+    {
+      "continue": true,
+      "duration": 300,
+      "transition": { "type": "cut", "duration": 0 },
+      "actions": [{ "type": "evaluate", "script": "colorize()" }],
+    },
+  ],
 }
 ```
 
 Frame 0 stays a sibling frame even though it is just as eligible; frames 1–3 become one compressed run. Under `autoCompress: true` the same config would collapse **all four**.
 
-**Anchor-only, greedy left-to-right.** The marker means "start a compressed run here." A marker on a *later member of the same run* is a redundant no-op — the scan has already consumed that frame — so marking only the anchor and marking every member produce byte-identical output, and two markers can never yield overlapping runs. There is no marker on the *end* of a run: a run always extends to the last frame that can join it (same eligibility rules as §13.1). To split one long eligible stretch into two runs, mark the anchor of the first and make the second anchor ineligible as a *member* (e.g. give it a readiness wait), or use two `states:` blocks.
+**Anchor-only, greedy left-to-right.** The marker means "start a compressed run here." A marker on a _later member of the same run_ is a redundant no-op — the scan has already consumed that frame — so marking only the anchor and marking every member produce byte-identical output, and two markers can never yield overlapping runs. There is no marker on the _end_ of a run: a run always extends to the last frame that can join it (same eligibility rules as §13.1). To split one long eligible stretch into two runs, mark the anchor of the first and make the second anchor ineligible as a _member_ (e.g. give it a readiness wait), or use two `states:` blocks.
 
-**Ineligible marker ⇒ hard error.** This is the one behavioral difference from `autoCompress`, and it is deliberate. An automatic pass that skips a run is doing its job; a marker the author *typed* that silently emitted a flipbook would hide the bug. So `compress: true` on a frame that cannot anchor a valid run throws, naming the frame index and the reason:
+**Ineligible marker ⇒ hard error.** This is the one behavioral difference from `autoCompress`, and it is deliberate. An automatic pass that skips a run is doing its job; a marker the author _typed_ that silently emitted a flipbook would hide the bug. So `compress: true` on a frame that cannot anchor a valid run throws, naming the frame index and the reason:
 
 ```
 animate: frames[2] sets `compress: true` but the run cannot be collapsed —
@@ -553,9 +641,9 @@ animate: frames[2] sets `compress: true` but the run cannot be collapsed —
   block instead, which can carry frame-level `animations` (docs/43 §11)
 ```
 
-Every §13.1 exclusion becomes such an error under the marker: a non-`cut` transition, a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`/`hoverReveal`/`hoverDetect`), a `selector` subtree capture, per-frame `animations`/`textTracks`/`forceState` (but NOT `overlays` — since DM-1767 those ride along as per-state overlays), a member that reloads an `input` or carries a readiness wait/`scrollTo`, an explicit `cursor` event addressing a member, `magic-move` entry into the run, a member interaction action under `cursor: "auto"`, or a marked frame with nothing after it to join. The per-frame decorations point at the `states:` block (§11), which *can* carry them at frame level.
+Every §13.1 exclusion becomes such an error under the marker: a non-`cut` transition, a content kind (`scroll`/`cast`/`template`/`states`/`typeResample`/`jsReveal`/`hoverReveal`/`hoverDetect`), a `selector` subtree capture, per-frame `animations`/`textTracks`/`forceState` (but NOT `overlays` — since DM-1767 those ride along as per-state overlays), a member that reloads an `input` or carries a readiness wait/`scrollTo`, an explicit `cursor` event addressing a member, `magic-move` entry into the run, a member interaction action under `cursor: "auto"`, or a marked frame with nothing after it to join. The per-frame decorations point at the `states:` block (§11), which _can_ carry them at frame level.
 
-**`compress: false` — the opt-out.** The complement, and the reason the marker is a boolean rather than a bare flag: a frame set to `compress: false` can neither anchor nor join a run, under *either* surface. Use it to hold one run out of a whole-config `autoCompress: true` — doc 100 notes a *wholesale-change* run (a slideshow, where consecutive frames share almost nothing) pairs poorly and can come out marginally **larger** compressed, since the compressor re-emits from chrome and pays the nesting overhead on top.
+**`compress: false` — the opt-out.** The complement, and the reason the marker is a boolean rather than a bare flag: a frame set to `compress: false` can neither anchor nor join a run, under _either_ surface. Use it to hold one run out of a whole-config `autoCompress: true` — doc 100 notes a _wholesale-change_ run (a slideshow, where consecutive frames share almost nothing) pairs poorly and can come out marginally **larger** compressed, since the compressor re-emits from chrome and pays the nesting overhead on top.
 
 **Both at once.** `compress` markers are resolved **first**, then `autoCompress` sweeps the rest. There is no double-collapse: a collapsed frame carries `states`, which disqualifies it as both anchor and member of the automatic pass. So `autoCompress: true` plus markers means "compress everything, and fail loudly if these particular runs ever stop being compressible" — a useful regression guard on a config whose compression you care about.
 
@@ -567,16 +655,16 @@ Every §13.1 exclusion becomes such an error under the marker: a non-`cut` trans
 
 Composition primitives differ in whether a **nested animation** survives. This is the single most surprising thing about composing animated pieces, so the contract is spelled out:
 
-| Primitive | Nested animation? | Notes |
-|---|---|---|
-| `cast` frame | **Preserved** | The terminal recording plays. Since DM-1319 its timeline is re-anchored to start when the frame appears (see `docs/67`). |
-| `template` frame | **Preserved** | An animated template (one with a `durationMs`) plays; re-anchored like a cast (DM-1319). A static template (e.g. `device-mockup`) has nothing to animate. |
-| `scroll` frame (`--scroll` / `scroll` block) | **Preserved** | The composed scroll SVG carries its own keyframe loop. |
-| `states` frame (compressed run, §11) | **Preserved** | The composed run is a nested animated SVG (step-end birth/shift/recolor tracks), re-anchored to start when the frame is shown (`embeddedAnimationPeriodMs`). |
-| `input` frame `animations` | **Preserved** | Intra-frame property animations on captured elements run during the frame's hold. |
-| **`svg` overlay** | **Snapshot (NOT preserved)** | A referenced `.svg` is inlined as a **static first-frame** graphic — an *animated* SVG loses its animation. Use a `cast` / `template` frame, or the `composite` primitive, for an animated inset — not an `svg` overlay. |
-| `device-mockup` / `wrapInDeviceChrome` (decorator) | **Preserved with animated content** | `wrapInDeviceChrome` *nests* its screen (it doesn't re-render), so it preserves animation. The `device-mockup` template's `input`-capture path is static, but its `screenSvg` param (DM-1323) nests a pre-rendered **animated** SVG with animation intact. |
-| `composite` layers (`composeAnimatedLayers` / `domotion composite`) | **Preserved** | The general animated-nesting primitive (DM-1323, doc 77): every layer keeps its animation, on its own timeline. |
+| Primitive                                                           | Nested animation?                   | Notes                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cast` frame                                                        | **Preserved**                       | The terminal recording plays. Since DM-1319 its timeline is re-anchored to start when the frame appears (see `docs/67`).                                                                                                                                   |
+| `template` frame                                                    | **Preserved**                       | An animated template (one with a `durationMs`) plays; re-anchored like a cast (DM-1319). A static template (e.g. `device-mockup`) has nothing to animate.                                                                                                  |
+| `scroll` frame (`--scroll` / `scroll` block)                        | **Preserved**                       | The composed scroll SVG carries its own keyframe loop.                                                                                                                                                                                                     |
+| `states` frame (compressed run, §11)                                | **Preserved**                       | The composed run is a nested animated SVG (step-end birth/shift/recolor tracks), re-anchored to start when the frame is shown (`embeddedAnimationPeriodMs`).                                                                                               |
+| `input` frame `animations`                                          | **Preserved**                       | Intra-frame property animations on captured elements run during the frame's hold.                                                                                                                                                                          |
+| **`svg` overlay**                                                   | **Snapshot (NOT preserved)**        | A referenced `.svg` is inlined as a **static first-frame** graphic — an _animated_ SVG loses its animation. Use a `cast` / `template` frame, or the `composite` primitive, for an animated inset — not an `svg` overlay.                                   |
+| `device-mockup` / `wrapInDeviceChrome` (decorator)                  | **Preserved with animated content** | `wrapInDeviceChrome` _nests_ its screen (it doesn't re-render), so it preserves animation. The `device-mockup` template's `input`-capture path is static, but its `screenSvg` param (DM-1323) nests a pre-rendered **animated** SVG with animation intact. |
+| `composite` layers (`composeAnimatedLayers` / `domotion composite`) | **Preserved**                       | The general animated-nesting primitive (DM-1323, doc 77): every layer keeps its animation, on its own timeline.                                                                                                                                            |
 
 Rule of thumb: **frame kinds** (`cast` / `template` / `scroll` / `input`) and **composite layers** preserve animation; an **`svg` overlay** and a decorator's **static capture path** snapshot it. To nest an animated thing inside another (terminal-in-window-on-desktop), reach for `composite` (doc 77).
 
@@ -588,7 +676,7 @@ The composed document is **one outer `<svg>`** built by `generateAnimatedSvg` wi
 
 **Prefer the extension seams** over reaching into the markup:
 
-- **`composeAnimateFrames`** (doc 62) returns the assembled `AnimationConfig` *before* the final `generateAnimatedSvg`, so you can edit frames/overlays/transitions as data.
+- **`composeAnimateFrames`** (doc 62) returns the assembled `AnimationConfig` _before_ the final `generateAnimatedSvg`, so you can edit frames/overlays/transitions as data.
 - **`onFrame`** (doc 62) is a per-frame hook to mutate each `AnimationFrame` (its `svgContent`, `overlays`, …) as it's composed.
 - **`generateAnimatedSvg`** is itself exported — assemble or wrap frames and render yourself.
 
@@ -617,15 +705,15 @@ Point a config's `"$schema"` key at either the URL or a local path to get autoco
   "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
   "width": 600,
   "height": 360,
-  "frames": [ /* … */ ]
+  "frames": [/* … */],
 }
 ```
 
 The CLI ignores the `"$schema"` key. Every config under `examples/animate/` carries this pointer as a worked example.
 
-**Source of truth & sync.** The schema is *generated from* the zod `animateConfigSchema` in `src/cli/animate.ts` — never hand-edited — so it cannot drift from what the CLI actually enforces. Regenerate with `npm run build:animate-schema` (also run automatically as part of `npm run build`); the `animate-config-json-schema.test.ts` unit test fails if the committed file is stale.
+**Source of truth & sync.** The schema is _generated from_ the zod `animateConfigSchema` in `src/cli/animate.ts` — never hand-edited — so it cannot drift from what the CLI actually enforces. Regenerate with `npm run build:animate-schema` (also run automatically as part of `npm run build`); the `animate-config-json-schema.test.ts` unit test fails if the committed file is stale.
 
-**Coverage caveat.** JSON Schema captures *structure and types* only. Cross-field and content rules expressed as zod refinements — "frame 0 must load a content source (`input` / `cast` / `template`)", a `scroll.pattern` must parse against the scroll-pattern grammar (`docs/37`), a `replaceText.pattern` must be a valid regex — have no JSON Schema equivalent and are **not** represented. Those stay enforced at runtime by `validateAnimateConfig`. A config that passes the JSON Schema can still be rejected by the CLI for one of these reasons; the JSON Schema is an editor aid, not a substitute for the runtime validator.
+**Coverage caveat.** JSON Schema captures _structure and types_ only. Cross-field and content rules expressed as zod refinements — "frame 0 must load a content source (`input` / `cast` / `template`)", a `scroll.pattern` must parse against the scroll-pattern grammar (`docs/37`), a `replaceText.pattern` must be a valid regex — have no JSON Schema equivalent and are **not** represented. Those stay enforced at runtime by `validateAnimateConfig`. A config that passes the JSON Schema can still be rejected by the CLI for one of these reasons; the JSON Schema is an editor aid, not a substitute for the runtime validator.
 
 ---
 

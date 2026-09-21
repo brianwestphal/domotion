@@ -17,25 +17,27 @@
 // currentcolor with that value before probing.
 
 export const createColorNorm = () => {
-  const probe = document.createElement('div');
-  probe.style.position = 'absolute';
-  probe.style.visibility = 'hidden';
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
   document.body.appendChild(probe);
 
   const normColor = (c, elColor) => {
-    if (c == null || c === '' || c === 'transparent' || c === 'currentcolor' || c === 'auto') return c;
+    if (c == null || c === "" || c === "transparent" || c === "currentcolor" || c === "auto") return c;
     // Fast path: already in rgb/rgba/#hex form.
     if (/^(rgba?\(|#[0-9a-f]{3,8}$)/i.test(c)) return c;
     var probeIn = c;
-    if (elColor != null && elColor !== '' && /\bcurrentcolor\b/i.test(c)) {
+    if (elColor != null && elColor !== "" && /\bcurrentcolor\b/i.test(c)) {
       probeIn = c.replace(/\bcurrentcolor\b/gi, elColor);
     }
     try {
-      probe.style.color = '';
-      probe.style.color = 'color-mix(in srgb, ' + probeIn + ' 100%, transparent 0%)';
+      probe.style.color = "";
+      probe.style.color = "color-mix(in srgb, " + probeIn + " 100%, transparent 0%)";
       const v = getComputedStyle(probe).color;
-      if (v != null && v !== '') return v;
-    } catch (e) { /* fall through */ }
+      if (v != null && v !== "") return v;
+    } catch (e) {
+      /* fall through */
+    }
     return c;
   };
 
@@ -51,23 +53,26 @@ export const createColorNorm = () => {
   // red, blue)` serializes as `oklch(...)`), but we match it defensively in
   // case future Chromium versions change that.
   const normGradientColors = (text, elColor) => {
-    if (text == null || text === '' || text === 'none') return text;
+    if (text == null || text === "" || text === "none") return text;
     // Match a color-function identifier followed by a balanced (...) group.
     const fnRe = /\b(oklch|oklab|lab|lch|hwb|hsl|hsla|color|color-mix)\(/gi;
-    var out = '';
+    var out = "";
     var i = 0;
     while (i < text.length) {
       fnRe.lastIndex = i;
       const m = fnRe.exec(text);
-      if (m == null) { out += text.slice(i); break; }
+      if (m == null) {
+        out += text.slice(i);
+        break;
+      }
       out += text.slice(i, m.index);
       // Walk forward consuming balanced parens.
       var depth = 1;
       var j = m.index + m[0].length;
       while (j < text.length && depth > 0) {
         const ch = text[j++];
-        if (ch === '(') depth++;
-        else if (ch === ')') depth--;
+        if (ch === "(") depth++;
+        else if (ch === ")") depth--;
       }
       const call = text.slice(m.index, j);
       out += normColor(call, elColor);

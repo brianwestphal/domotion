@@ -3,11 +3,21 @@ id: "requirements/font-palette-selection-raster-boundary"
 title: "Font-palette selection and native paint gate"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","images-media"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2350","DM-2403","DM-2507","DM-2509","DM-2510","DM-2534"]
-code: [".github/workflows/font-palette-ownership-audit.yml","src/capture/emoji.ts","src/capture/script/font-palette.ts","tests/fixtures/font-palette/COLR-palettes-test-font.ttf","tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf","tools/font-palette-dynamic-gate.ts","tools/font-palette-ownership-audit.ts","tools/font-palette-paint-gate.ts"]
-aliases: ["docs/202-font-palette-selection-raster-boundary.md","doc-202"]
+owners: ["text-fonts", "images-media"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2350", "DM-2403", "DM-2507", "DM-2509", "DM-2510", "DM-2534"]
+code:
+  [
+    ".github/workflows/font-palette-ownership-audit.yml",
+    "src/capture/emoji.ts",
+    "src/capture/script/font-palette.ts",
+    "tests/fixtures/font-palette/COLR-palettes-test-font.ttf",
+    "tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf",
+    "tools/font-palette-dynamic-gate.ts",
+    "tools/font-palette-ownership-audit.ts",
+    "tools/font-palette-paint-gate.ts",
+  ]
+aliases: ["docs/202-font-palette-selection-raster-boundary.md", "doc-202"]
 ---
 
 # Font-palette selection and native paint gate
@@ -101,16 +111,16 @@ used within that selected color glyph.
 `tools/font-palette-ownership-audit.ts` runs eleven source-derived cases at DPR
 1 and 2:
 
-| transition | required result |
-| --- | --- |
-| `normal` | CPAL palette 0 |
-| `light` / `dark` | first CPAL palette carrying the exact theme flag |
-| named base 2 / base 3 | exact red+magenta / green+cyan layer colors |
-| two-entry override | only the declared source entries change |
-| duplicate override | the later declaration wins |
-| invalid base | palette 0 |
-| invalid override entry | valid entries apply; invalid entry is ignored |
-| rule-family mismatch / missing rule | collapse to the normal palette |
+| transition                          | required result                                  |
+| ----------------------------------- | ------------------------------------------------ |
+| `normal`                            | CPAL palette 0                                   |
+| `light` / `dark`                    | first CPAL palette carrying the exact theme flag |
+| named base 2 / base 3               | exact red+magenta / green+cyan layer colors      |
+| two-entry override                  | only the declared source entries change          |
+| duplicate override                  | the later declaration wins                       |
+| invalid base                        | palette 0                                        |
+| invalid override entry              | valid entries apply; invalid entry is ignored    |
+| rule-family mismatch / missing rule | collapse to the normal palette                   |
 
 Every row requires the pinned fixture digest/table structure, one painted
 custom face, one glyph, the expected CSSOM rule identity, and the exact set of

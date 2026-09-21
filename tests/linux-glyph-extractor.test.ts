@@ -55,9 +55,7 @@ const FREE_SANS = resolveFontFile([
   "/usr/share/fonts/gnu-free/FreeSans.ttf",
   "/usr/share/fonts/TTF/FreeSans.ttf",
 ]);
-const WQY_ZEN_HEI = resolveFontFile([
-  "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-]);
+const WQY_ZEN_HEI = resolveFontFile(["/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"]);
 
 interface GlyphResult {
   id: number;
@@ -232,15 +230,24 @@ describeHelper("Linux FreeType glyph extractor", () => {
         queries: [
           { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x55 }] },
           {
-            type: "hintedGlyphs", fontRef: "f", fontSizePx: 17,
-            hintStyle: "slight", forceAutoHint: false, useBitmaps: true,
+            type: "hintedGlyphs",
+            fontRef: "f",
+            fontSizePx: 17,
+            hintStyle: "slight",
+            forceAutoHint: false,
+            useBitmaps: true,
             glyphs: [{ cp: 0x55 }],
           },
           { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x55 }] },
         ],
       });
       const designBefore = response.results[0] as { glyphs: GlyphResult[] };
-      const hinted = response.results[1] as { type: string; fontSizePx: number; coordinateScale: number; glyphs: GlyphResult[] };
+      const hinted = response.results[1] as {
+        type: string;
+        fontSizePx: number;
+        coordinateScale: number;
+        glyphs: GlyphResult[];
+      };
       const designAfter = response.results[2] as { glyphs: GlyphResult[] };
       expect(hinted).toMatchObject({ type: "hintedGlyphs", fontSizePx: 17, coordinateScale: 64 });
       expect(hinted.glyphs[0].id).toBe(designBefore.glyphs[0].id);

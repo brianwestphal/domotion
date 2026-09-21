@@ -24,7 +24,10 @@ if (browser) await closeBrowserSafely(browser); // runAnimate owns its own brows
 
 const dir = mkdtempSync(join(tmpdir(), "domotion-animate-format-"));
 const htmlPath = join(dir, "page.html");
-writeFileSync(htmlPath, `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0}body{background:#111;height:600px}</style></head><body></body></html>`);
+writeFileSync(
+  htmlPath,
+  `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0}body{background:#111;height:600px}</style></head><body></body></html>`,
+);
 
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true });

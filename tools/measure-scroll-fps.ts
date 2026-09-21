@@ -36,9 +36,12 @@ interface ProbeOptions {
 
 function browserType(name: BrowserName): BrowserType {
   switch (name) {
-    case "chromium": return chromium;
-    case "webkit":   return webkit;
-    case "firefox":  return firefox;
+    case "chromium":
+      return chromium;
+    case "webkit":
+      return webkit;
+    case "firefox":
+      return firefox;
   }
 }
 
@@ -170,7 +173,10 @@ ${svgText}
   let loafLongestPhase = "n/a";
   if (loafLongest !== null) {
     const render = loafLongest.duration - (loafLongest.renderStart - loafLongest.startTime);
-    const style = loafLongest.renderStart > 0 ? loafLongest.duration - (loafLongest.styleAndLayoutStart - loafLongest.startTime) : 0;
+    const style =
+      loafLongest.renderStart > 0
+        ? loafLongest.duration - (loafLongest.styleAndLayoutStart - loafLongest.startTime)
+        : 0;
     const blocking = loafLongest.blockingDuration;
     loafLongestPhase = `render≈${render.toFixed(0)}ms style+layout≈${style.toFixed(0)}ms blocking=${blocking.toFixed(0)}ms`;
   }
@@ -192,8 +198,12 @@ ${svgText}
   };
 }
 
-function fmtFps(n: number): string { return `${n.toFixed(1).padStart(5)} fps`; }
-function fmtMs(n: number): string { return `${n.toFixed(1).padStart(6)} ms`; }
+function fmtFps(n: number): string {
+  return `${n.toFixed(1).padStart(5)} fps`;
+}
+function fmtMs(n: number): string {
+  return `${n.toFixed(1).padStart(6)} ms`;
+}
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -221,7 +231,9 @@ async function main(): Promise<void> {
 
   const files = args.filter((a) => a.endsWith(".svg"));
   if (files.length === 0) {
-    console.error("Usage: tools/measure-scroll-fps.ts <file1.svg> [file2.svg ...] [--browser chromium|webkit|firefox] [--cycle-ms N] [--segments N] [--cycles N] [--warmup-ms N]");
+    console.error(
+      "Usage: tools/measure-scroll-fps.ts <file1.svg> [file2.svg ...] [--browser chromium|webkit|firefox] [--cycle-ms N] [--segments N] [--cycles N] [--warmup-ms N]",
+    );
     process.exit(1);
   }
   for (const f of files) {
@@ -230,12 +242,18 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-  console.error(`Settings: browser=${opts.browser}, cycle=${opts.cycleMs}ms, segments=${opts.segments}, cycles=${opts.cycles}, warmup=${opts.warmupMs}ms, headless=${opts.headless}`);
+  console.error(
+    `Settings: browser=${opts.browser}, cycle=${opts.cycleMs}ms, segments=${opts.segments}, cycles=${opts.cycles}, warmup=${opts.warmupMs}ms, headless=${opts.headless}`,
+  );
   if (opts.headless) {
-    console.error("Note: headless rendering uses a software compositor that won't reflect real-browser GPU paint cost. Pass without --headless for representative numbers.");
+    console.error(
+      "Note: headless rendering uses a software compositor that won't reflect real-browser GPU paint cost. Pass without --headless for representative numbers.",
+    );
   }
   if (opts.browser === "webkit") {
-    console.error("Note: WebKit's PerformanceObserver does not support 'long-animation-frame' as of 2026-05; expect loafCount=0. Per-segment fps + frame-ms quantiles are still meaningful.");
+    console.error(
+      "Note: WebKit's PerformanceObserver does not support 'long-animation-frame' as of 2026-05; expect loafCount=0. Per-segment fps + frame-ms quantiles are still meaningful.",
+    );
   }
 
   const results: Stats[] = [];
@@ -249,8 +267,12 @@ async function main(): Promise<void> {
     console.log(`\n${"━".repeat(78)}`);
     console.log(`  ${r.file}`);
     console.log(`${"━".repeat(78)}`);
-    console.log(`  window: ${(r.windowMs / 1000).toFixed(1)}s   frames: ${r.totalFrames}   mean: ${r.meanFps.toFixed(1)} fps`);
-    console.log(`  frame-ms  median ${r.medianFrameMs.toFixed(2)}   p95 ${r.p95FrameMs.toFixed(2)}   p99 ${r.p99FrameMs.toFixed(2)}`);
+    console.log(
+      `  window: ${(r.windowMs / 1000).toFixed(1)}s   frames: ${r.totalFrames}   mean: ${r.meanFps.toFixed(1)} fps`,
+    );
+    console.log(
+      `  frame-ms  median ${r.medianFrameMs.toFixed(2)}   p95 ${r.p95FrameMs.toFixed(2)}   p99 ${r.p99FrameMs.toFixed(2)}`,
+    );
     console.log(`  per-segment:`);
     for (const s of r.perSegment) {
       const bar = "█".repeat(Math.max(0, Math.round(s.meanFps / 4)));
@@ -258,7 +280,9 @@ async function main(): Promise<void> {
     }
     console.log(`  long-animation-frames (>50ms): ${r.loafCount}`);
     if (r.loafCount > 0) {
-      console.log(`    mean ${r.loafMeanMs.toFixed(1)}ms   p95 ${r.loafP95Ms.toFixed(1)}ms   longest ${r.loafLongestMs.toFixed(1)}ms`);
+      console.log(
+        `    mean ${r.loafMeanMs.toFixed(1)}ms   p95 ${r.loafP95Ms.toFixed(1)}ms   longest ${r.loafLongestMs.toFixed(1)}ms`,
+      );
       console.log(`    longest frame attribution: ${r.loafLongestPhase}`);
     }
   }
@@ -267,7 +291,16 @@ async function main(): Promise<void> {
     console.log(`\n${"━".repeat(78)}`);
     console.log(`  Side-by-side per-segment fps`);
     console.log(`${"━".repeat(78)}`);
-    const header = `  seg | ` + results.map((r) => r.file.replace(/^apple-desktop-scroll-/, "").replace(/\.svg$/, "").padStart(8)).join(" | ");
+    const header =
+      `  seg | ` +
+      results
+        .map((r) =>
+          r.file
+            .replace(/^apple-desktop-scroll-/, "")
+            .replace(/\.svg$/, "")
+            .padStart(8),
+        )
+        .join(" | ");
     console.log(header);
     for (let s = 0; s < results[0].perSegment.length; s++) {
       const cells = results.map((r) => r.perSegment[s].meanFps.toFixed(1).padStart(8));
@@ -278,4 +311,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

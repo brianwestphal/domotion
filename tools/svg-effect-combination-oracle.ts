@@ -31,7 +31,13 @@ export const SVG_EFFECT_PIXEL_THRESHOLDS = {
   minimumMutationChangedPixelsAtDpr1: 40,
 } as const;
 
-interface PixelBounds { left: number; top: number; right: number; bottom: number; pixels: number }
+interface PixelBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  pixels: number;
+}
 
 export interface SvgEffectPixelResult {
   meanAbsoluteChannelError: number;
@@ -106,10 +112,19 @@ export interface SvgEffectCombinationReport {
   verdict: "source-exact-native-svg-delegation" | "svg-effect-combination-drift";
 }
 
-interface DecodedRgb { data: Buffer; width: number; height: number; channels: number }
+interface DecodedRgb {
+  data: Buffer;
+  width: number;
+  height: number;
+  channels: number;
+}
 
 async function decodeRgb(png: Buffer): Promise<DecodedRgb> {
-  const { data, info } = await sharp(png).flatten({ background: "#fff" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(png)
+    .flatten({ background: "#fff" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   return { data, width: info.width, height: info.height, channels: info.channels };
 }
 
@@ -177,13 +192,22 @@ function compareTile(source: DecodedRgb, generated: DecodedRgb, ordinal: number,
   const maxInkBoundsDeltaDevicePx = maxBoundsDelta(sourceInkBounds, generatedInkBounds);
   const meanAbsoluteChannelError = values === 0 ? Infinity : sum / values;
   const changedPixelFraction = changed / (width * height);
-  const pass = sourceInkBounds != null
-    && generatedInkBounds != null
-    && maxInkBoundsDeltaDevicePx != null
-    && maxInkBoundsDeltaDevicePx <= SVG_EFFECT_PIXEL_THRESHOLDS.maxInkBoundsDeltaDevicePx
-    && meanAbsoluteChannelError <= SVG_EFFECT_PIXEL_THRESHOLDS.maxMeanAbsoluteChannelError
-    && changedPixelFraction <= SVG_EFFECT_PIXEL_THRESHOLDS.maxChangedPixelFraction;
-  return { meanAbsoluteChannelError, changedPixelFraction, maxChannelDelta, sourceInkBounds, generatedInkBounds, maxInkBoundsDeltaDevicePx, pass };
+  const pass =
+    sourceInkBounds != null &&
+    generatedInkBounds != null &&
+    maxInkBoundsDeltaDevicePx != null &&
+    maxInkBoundsDeltaDevicePx <= SVG_EFFECT_PIXEL_THRESHOLDS.maxInkBoundsDeltaDevicePx &&
+    meanAbsoluteChannelError <= SVG_EFFECT_PIXEL_THRESHOLDS.maxMeanAbsoluteChannelError &&
+    changedPixelFraction <= SVG_EFFECT_PIXEL_THRESHOLDS.maxChangedPixelFraction;
+  return {
+    meanAbsoluteChannelError,
+    changedPixelFraction,
+    maxChannelDelta,
+    sourceInkBounds,
+    generatedInkBounds,
+    maxInkBoundsDeltaDevicePx,
+    pass,
+  };
 }
 
 function walk(nodes: readonly CapturedElement[]): CapturedElement[] {
@@ -214,26 +238,35 @@ function caseStructuralErrors(id: string, markup: string | undefined): string[] 
   ];
   if (test.values.filterRoute === "url") required.push(`filter: url(&quot;#filter-${test.ordinal}&quot;)`);
   for (const fragment of required) if (!markup.includes(fragment)) errors.push(`missing ${fragment}`);
-  if (test.values.viewport === "nested" && (markup.match(/<svg\b/g) ?? []).length < 2) errors.push("nested viewport missing");
+  if (test.values.viewport === "nested" && (markup.match(/<svg\b/g) ?? []).length < 2)
+    errors.push("nested viewport missing");
   if (test.values.markers === "all") {
     // CSSOM coalesces three identical longhands to the `marker` shorthand.
     // A mixed declaration remains serialized as individual longhands.
     const shorthand = new RegExp(`marker: url\\((?:&quot;)?#marker-${test.ordinal}(?:&quot;)?\\)`).test(markup);
     for (const prop of ["marker-start", "marker-mid", "marker-end"]) {
-      if (!shorthand && !new RegExp(`${prop}: url\\((?:&quot;)?#marker-${test.ordinal}(?:&quot;)?\\)`).test(markup)) errors.push(`${prop} resource missing`);
+      if (!shorthand && !new RegExp(`${prop}: url\\((?:&quot;)?#marker-${test.ordinal}(?:&quot;)?\\)`).test(markup))
+        errors.push(`${prop} resource missing`);
     }
   }
-  if (test.values.clipRoute === "url" && !new RegExp(`clip-path: url\\((?:&quot;)?#clip-${test.ordinal}(?:&quot;)?\\)`).test(markup)) errors.push("URL clip resource missing");
-  if (test.values.clipRoute !== "url" && !markup.includes(`${test.values.referenceBox}`)) errors.push("basic-shape reference box missing");
+  if (
+    test.values.clipRoute === "url" &&
+    !new RegExp(`clip-path: url\\((?:&quot;)?#clip-${test.ordinal}(?:&quot;)?\\)`).test(markup)
+  )
+    errors.push("URL clip resource missing");
+  if (test.values.clipRoute !== "url" && !markup.includes(`${test.values.referenceBox}`))
+    errors.push("basic-shape reference box missing");
   return errors;
 }
 
 function logicalEvidence(id: string, markup: string, projectiveOwner: boolean): SvgEffectOracleRow["logical"] {
   const test = SVG_EFFECT_CASES.find((candidate) => candidate.id === id)!;
   const resourceIds = [...markup.matchAll(/\bid="(gradient|clip|mask|marker|filter)-(\d+)"/g)]
-    .map((match) => `${match[1]}-${match[2]}`).sort();
+    .map((match) => `${match[1]}-${match[2]}`)
+    .sort();
   const references = [...markup.matchAll(/(?:url\((?:&quot;|\")?#|(?:href|xlink:href)=(?:&quot;|\")#)([\w-]+)/g)]
-    .map((match) => match[1]).sort();
+    .map((match) => match[1])
+    .sort();
   return {
     resourceIds,
     references,
@@ -242,7 +275,7 @@ function logicalEvidence(id: string, markup: string, projectiveOwner: boolean): 
   };
 }
 
-function expectedLogicalEvidence(test: typeof SVG_EFFECT_CASES[number]): SvgEffectOracleRow["logical"] {
+function expectedLogicalEvidence(test: (typeof SVG_EFFECT_CASES)[number]): SvgEffectOracleRow["logical"] {
   const resourceIds = ["clip", "filter", "gradient", "marker", "mask"].map((kind) => `${kind}-${test.ordinal}`).sort();
   const references = [`gradient-${test.ordinal}`, `mask-${test.ordinal}`];
   if (test.values.clipRoute === "url") references.push(`clip-${test.ordinal}`);
@@ -256,13 +289,19 @@ function expectedLogicalEvidence(test: typeof SVG_EFFECT_CASES[number]): SvgEffe
   };
 }
 
-function validateLogicalEvidence(test: typeof SVG_EFFECT_CASES[number], actual: SvgEffectOracleRow["logical"]): string[] {
+function validateLogicalEvidence(
+  test: (typeof SVG_EFFECT_CASES)[number],
+  actual: SvgEffectOracleRow["logical"],
+): string[] {
   const expected = expectedLogicalEvidence(test);
   const errors: string[] = [];
   for (const id of expected.resourceIds) if (!actual.resourceIds.includes(id)) errors.push(`missing resource id ${id}`);
-  for (const reference of expected.references) if (!actual.references.includes(reference)) errors.push(`missing reference ${reference}`);
-  if (actual.owner !== expected.owner) errors.push(`owner mismatch: expected ${expected.owner}, received ${actual.owner}`);
-  if (actual.transform !== expected.transform) errors.push(`transform mismatch: expected ${expected.transform}, received ${actual.transform}`);
+  for (const reference of expected.references)
+    if (!actual.references.includes(reference)) errors.push(`missing reference ${reference}`);
+  if (actual.owner !== expected.owner)
+    errors.push(`owner mismatch: expected ${expected.owner}, received ${actual.owner}`);
+  if (actual.transform !== expected.transform)
+    errors.push(`transform mismatch: expected ${expected.transform}, received ${actual.transform}`);
   return errors;
 }
 
@@ -271,11 +310,40 @@ function logicalMutationEvidence(): SvgEffectLogicalMutationResult[] {
   const filter = SVG_EFFECT_CASES.find((test) => test.values.filterRoute === "url")!;
   const clip = SVG_EFFECT_CASES.find((test) => test.values.clipRoute === "url")!;
   const gradient = SVG_EFFECT_CASES[0];
-  const arms: Array<{ id: SvgEffectLogicalMutationResult["id"]; test: typeof projective; mutate: (record: SvgEffectOracleRow["logical"]) => void }> = [
-    { id: "drop-filter-resource", test: filter, mutate: (record) => { record.resourceIds = record.resourceIds.filter((id) => id !== `filter-${filter.ordinal}`); } },
-    { id: "misbind-clip-resource", test: clip, mutate: (record) => { record.references = record.references.map((id) => id === `clip-${clip.ordinal}` ? "clip-forged" : id); } },
-    { id: "drop-gradient-reference", test: gradient, mutate: (record) => { record.references = record.references.filter((id) => id !== `gradient-${gradient.ordinal}`); } },
-    { id: "drop-projective-owner", test: projective, mutate: (record) => { record.owner = "native-inline-svg"; record.transform = "none"; } },
+  const arms: Array<{
+    id: SvgEffectLogicalMutationResult["id"];
+    test: typeof projective;
+    mutate: (record: SvgEffectOracleRow["logical"]) => void;
+  }> = [
+    {
+      id: "drop-filter-resource",
+      test: filter,
+      mutate: (record) => {
+        record.resourceIds = record.resourceIds.filter((id) => id !== `filter-${filter.ordinal}`);
+      },
+    },
+    {
+      id: "misbind-clip-resource",
+      test: clip,
+      mutate: (record) => {
+        record.references = record.references.map((id) => (id === `clip-${clip.ordinal}` ? "clip-forged" : id));
+      },
+    },
+    {
+      id: "drop-gradient-reference",
+      test: gradient,
+      mutate: (record) => {
+        record.references = record.references.filter((id) => id !== `gradient-${gradient.ordinal}`);
+      },
+    },
+    {
+      id: "drop-projective-owner",
+      test: projective,
+      mutate: (record) => {
+        record.owner = "native-inline-svg";
+        record.transform = "none";
+      },
+    },
   ];
   return arms.map((arm) => {
     const evidence = expectedLogicalEvidence(arm.test);
@@ -286,11 +354,16 @@ function logicalMutationEvidence(): SvgEffectLogicalMutationResult[] {
 }
 
 async function settle(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
 }
 
 async function mutationScreenshot(page: Page, svg: string, properties: readonly string[]): Promise<Buffer> {
-  await page.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`, { waitUntil: "load" });
+  await page.setContent(
+    `<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`,
+    { waitUntil: "load" },
+  );
   await page.evaluate((names) => {
     for (const element of document.querySelectorAll<HTMLElement | SVGElement>("[style]")) {
       for (const name of names) element.style.removeProperty(name);
@@ -300,23 +373,33 @@ async function mutationScreenshot(page: Page, svg: string, properties: readonly 
   return page.screenshot({ type: "png" });
 }
 
-function mutationDelta(baseline: DecodedRgb, mutation: DecodedRgb, id: SvgEffectMutationResult["id"], dpr: number): SvgEffectMutationResult {
+function mutationDelta(
+  baseline: DecodedRgb,
+  mutation: DecodedRgb,
+  id: SvgEffectMutationResult["id"],
+  dpr: number,
+): SvgEffectMutationResult {
   let changedPixels = 0;
   let maxChannelDelta = 0;
   for (let pixel = 0; pixel < baseline.width * baseline.height; pixel++) {
     let pixelMax = 0;
     for (let channel = 0; channel < 3; channel++) {
-      const delta = Math.abs(baseline.data[pixel * baseline.channels + channel] - mutation.data[pixel * mutation.channels + channel]);
+      const delta = Math.abs(
+        baseline.data[pixel * baseline.channels + channel] - mutation.data[pixel * mutation.channels + channel],
+      );
       pixelMax = Math.max(pixelMax, delta);
       maxChannelDelta = Math.max(maxChannelDelta, delta);
     }
     if (pixelMax > SVG_EFFECT_PIXEL_THRESHOLDS.changedPixelChannelThreshold) changedPixels++;
   }
-  const moved = changedPixels >= SVG_EFFECT_PIXEL_THRESHOLDS.minimumMutationChangedPixelsAtDpr1 * dpr * dpr && maxChannelDelta > 32;
+  const moved =
+    changedPixels >= SVG_EFFECT_PIXEL_THRESHOLDS.minimumMutationChangedPixelsAtDpr1 * dpr * dpr && maxChannelDelta > 32;
   return { id, deviceScaleFactor: dpr, changedPixels, maxChannelDelta, moved };
 }
 
-export async function runSvgEffectCombinationOracle(options: { deviceScaleFactors?: number[] } = {}): Promise<SvgEffectCombinationReport> {
+export async function runSvgEffectCombinationOracle(
+  options: { deviceScaleFactors?: number[] } = {},
+): Promise<SvgEffectCombinationReport> {
   const corpusErrors = validateSvgEffectCombinationCorpus();
   if (corpusErrors.length > 0) throw new Error(`invalid SVG effect corpus: ${corpusErrors.join("; ")}`);
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
@@ -344,27 +427,51 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
         if (dpr === dprs[0]) {
           grammar = await source.evaluate(() => ({
             bareUrlSupported: CSS.supports("clip-path", "url(#clip-0)"),
-            urlPlusGeometryBoxRejected: ["fill-box", "stroke-box", "view-box"].every((box) =>
-              !CSS.supports("clip-path", `url(#clip-0) ${box}`)
-              && !CSS.supports("clip-path", `${box} url(#clip-0)`)),
+            urlPlusGeometryBoxRejected: ["fill-box", "stroke-box", "view-box"].every(
+              (box) =>
+                !CSS.supports("clip-path", `url(#clip-0) ${box}`) && !CSS.supports("clip-path", `${box} url(#clip-0)`),
+            ),
           }));
         }
         const sourcePng = await source.screenshot({ type: "png" });
-        const captured = await capture.captureElementTreeWithWarnings(source, "#stage", { x: 0, y: 0, ...SVG_EFFECT_VIEWPORT });
+        const captured = await capture.captureElementTreeWithWarnings(source, "#stage", {
+          x: 0,
+          y: 0,
+          ...SVG_EFFECT_VIEWPORT,
+        });
         const capturedByCase = capturedSvgByCase(captured.tree);
-        if (capturedByCase.size !== SVG_EFFECT_CASES.length) structuralErrors.push(`dpr${dpr}: expected ${SVG_EFFECT_CASES.length} inline SVG owners, received ${capturedByCase.size}`);
-        const rasterOwners = walk(captured.tree).filter((element) => element.elementRaster != null || element.transformSubtreeRaster != null);
-        const warnings = captured.warnings.map((warning) => typeof warning === "string" ? warning : JSON.stringify(warning));
-        const effectWarnings = warnings.filter((warning) => /inline-svg|gradient|clip|mask|marker|vector-effect/i.test(warning));
-        if (effectWarnings.length > 0) structuralErrors.push(`dpr${dpr}: relevant warnings: ${effectWarnings.join(" | ")}`);
+        if (capturedByCase.size !== SVG_EFFECT_CASES.length)
+          structuralErrors.push(
+            `dpr${dpr}: expected ${SVG_EFFECT_CASES.length} inline SVG owners, received ${capturedByCase.size}`,
+          );
+        const rasterOwners = walk(captured.tree).filter(
+          (element) => element.elementRaster != null || element.transformSubtreeRaster != null,
+        );
+        const warnings = captured.warnings.map((warning) =>
+          typeof warning === "string" ? warning : JSON.stringify(warning),
+        );
+        const effectWarnings = warnings.filter((warning) =>
+          /inline-svg|gradient|clip|mask|marker|vector-effect/i.test(warning),
+        );
+        if (effectWarnings.length > 0)
+          structuralErrors.push(`dpr${dpr}: relevant warnings: ${effectWarnings.join(" | ")}`);
 
-        const svg = render.elementTreeToSvg(captured.tree, SVG_EFFECT_VIEWPORT.width, SVG_EFFECT_VIEWPORT.height, { hiDPIFactor: dpr });
-        const expectedProjectiveOwners = SVG_EFFECT_CASES.filter((test) => test.values.transform === "projective").length;
+        const svg = render.elementTreeToSvg(captured.tree, SVG_EFFECT_VIEWPORT.width, SVG_EFFECT_VIEWPORT.height, {
+          hiDPIFactor: dpr,
+        });
+        const expectedProjectiveOwners = SVG_EFFECT_CASES.filter(
+          (test) => test.values.transform === "projective",
+        ).length;
         const emittedImageOwners = (svg.match(/<image\b/g) ?? []).length;
         if (emittedImageOwners !== expectedProjectiveOwners) {
-          structuralErrors.push(`dpr${dpr}: expected ${expectedProjectiveOwners} projective image owners, received ${emittedImageOwners}`);
+          structuralErrors.push(
+            `dpr${dpr}: expected ${expectedProjectiveOwners} projective image owners, received ${emittedImageOwners}`,
+          );
         }
-        await output.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`, { waitUntil: "load" });
+        await output.setContent(
+          `<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`,
+          { waitUntil: "load" },
+        );
         await settle(output);
         const generatedPng = await output.screenshot({ type: "png" });
         const [sourcePixels, generatedPixels] = await Promise.all([decodeRgb(sourcePng), decodeRgb(generatedPng)]);
@@ -373,14 +480,24 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
         }
         for (const test of SVG_EFFECT_CASES) {
           const markup = capturedByCase.get(test.id);
-          const matchingOwners = rasterOwners.filter((owner) => owner.svgContent?.includes(`data-effect-case="${test.id}"`));
+          const matchingOwners = rasterOwners.filter((owner) =>
+            owner.svgContent?.includes(`data-effect-case="${test.id}"`),
+          );
           const expectsProjective = test.values.transform === "projective";
           const rowErrors = caseStructuralErrors(test.id, markup);
-          if (matchingOwners.length !== (expectsProjective ? 1 : 0)) rowErrors.push(`expected ${expectsProjective ? 1 : 0} projective owner, received ${matchingOwners.length}`);
+          if (matchingOwners.length !== (expectsProjective ? 1 : 0))
+            rowErrors.push(`expected ${expectsProjective ? 1 : 0} projective owner, received ${matchingOwners.length}`);
           const pixels = compareTile(sourcePixels, generatedPixels, test.ordinal, dpr);
           const logical = logicalEvidence(test.id, markup ?? "", matchingOwners.length === 1);
           rowErrors.push(...validateLogicalEvidence(test, logical));
-          rows.push({ id: test.id, deviceScaleFactor: dpr, structuralErrors: rowErrors, logical, pixels, pass: rowErrors.length === 0 && pixels.pass });
+          rows.push({
+            id: test.id,
+            deviceScaleFactor: dpr,
+            structuralErrors: rowErrors,
+            logical,
+            pixels,
+            pass: rowErrors.length === 0 && pixels.pass,
+          });
         }
 
         for (const mutation of [
@@ -397,11 +514,15 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
     }
 
     if (!grammar.bareUrlSupported) structuralErrors.push("Chromium rejected the bare URL clip control");
-    if (!grammar.urlPlusGeometryBoxRejected) structuralErrors.push("Chromium accepted a URL-plus-geometry-box negative control");
+    if (!grammar.urlPlusGeometryBoxRejected)
+      structuralErrors.push("Chromium accepted a URL-plus-geometry-box negative control");
     const coverage = svgEffectPairCoverage(SVG_EFFECT_CASES);
     const higherOrder = svgEffectHigherOrderCoverage(SVG_EFFECT_CASES);
-    const pass = structuralErrors.length === 0 && logicalMutations.every((mutation) => mutation.rejected)
-      && rows.every((row) => row.pass) && mutations.every((mutation) => mutation.moved);
+    const pass =
+      structuralErrors.length === 0 &&
+      logicalMutations.every((mutation) => mutation.rejected) &&
+      rows.every((row) => row.pass) &&
+      mutations.every((mutation) => mutation.moved);
     return {
       schemaVersion: 2,
       generatedAt: new Date().toISOString(),
@@ -419,7 +540,12 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
         deviceScaleFactors: dprs,
         thresholds: SVG_EFFECT_PIXEL_THRESHOLDS,
       },
-      corpus: { cases: SVG_EFFECT_CASES.length, expectedPairs: coverage.expectedPairs, coveredPairs: coverage.coveredPairs, ...higherOrder },
+      corpus: {
+        cases: SVG_EFFECT_CASES.length,
+        expectedPairs: coverage.expectedPairs,
+        coveredPairs: coverage.coveredPairs,
+        ...higherOrder,
+      },
       grammar,
       rows,
       mutations,
@@ -434,9 +560,8 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
 
 async function main(): Promise<number> {
   const dprIndex = process.argv.indexOf("--dpr");
-  const deviceScaleFactors = dprIndex >= 0 && process.argv[dprIndex + 1] != null
-    ? process.argv[dprIndex + 1].split(",").map(Number)
-    : [1, 2];
+  const deviceScaleFactors =
+    dprIndex >= 0 && process.argv[dprIndex + 1] != null ? process.argv[dprIndex + 1].split(",").map(Number) : [1, 2];
   const report = await runSvgEffectCombinationOracle({ deviceScaleFactors });
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
@@ -445,11 +570,18 @@ async function main(): Promise<number> {
     writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   }
   const passed = report.rows.filter((row) => row.pass).length;
-  console.log(`SVG effect combinations: ${passed}/${report.rows.length} rows; ${report.corpus.coveredPairs}/${report.corpus.expectedPairs} pairs; ${report.verdict}`);
+  console.log(
+    `SVG effect combinations: ${passed}/${report.rows.length} rows; ${report.corpus.coveredPairs}/${report.corpus.expectedPairs} pairs; ${report.verdict}`,
+  );
   for (const row of report.rows.filter((candidate) => !candidate.pass)) {
-    console.log(`FAIL dpr=${row.deviceScaleFactor} ${row.id}: structural=${row.structuralErrors.join(" | ") || "none"}; mean=${row.pixels.meanAbsoluteChannelError.toFixed(3)}; changed=${(row.pixels.changedPixelFraction * 100).toFixed(3)}%; bounds=${row.pixels.maxInkBoundsDeltaDevicePx}`);
+    console.log(
+      `FAIL dpr=${row.deviceScaleFactor} ${row.id}: structural=${row.structuralErrors.join(" | ") || "none"}; mean=${row.pixels.meanAbsoluteChannelError.toFixed(3)}; changed=${(row.pixels.changedPixelFraction * 100).toFixed(3)}%; bounds=${row.pixels.maxInkBoundsDeltaDevicePx}`,
+    );
   }
-  for (const mutation of report.mutations) console.log(`${mutation.moved ? "PASS" : "FAIL"} dpr=${mutation.deviceScaleFactor} ${mutation.id}: changed=${mutation.changedPixels}, max=${mutation.maxChannelDelta}`);
+  for (const mutation of report.mutations)
+    console.log(
+      `${mutation.moved ? "PASS" : "FAIL"} dpr=${mutation.deviceScaleFactor} ${mutation.id}: changed=${mutation.changedPixels}, max=${mutation.maxChannelDelta}`,
+    );
   for (const error of report.structuralErrors) console.log(`FAIL structural: ${error}`);
   return report.verdict === "source-exact-native-svg-delegation" ? 0 : 1;
 }

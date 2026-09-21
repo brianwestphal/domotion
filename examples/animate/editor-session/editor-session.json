@@ -9,10 +9,18 @@
       "duration": 1600,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "typing", "text": "import { signal, mount } from 'kerfjs';",
+        {
+          "kind": "typing",
+          "text": "import { signal, mount } from 'kerfjs';",
           "anchor": { "selector": "[data-line='1']", "at": "top-left", "baseline": true },
-          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+          "fontFamily": "anchor",
+          "color": "#e2e8f0",
+          "caret": true,
+          "speed": 24,
+          "jitter": 0.12,
+          "delay": 300,
+          "holdToFrameEnd": true
+        }
       ]
     },
     {
@@ -21,10 +29,18 @@
       "transition": { "type": "cut", "duration": 0 },
       "actions": [{ "type": "evaluate", "script": "state(1)" }],
       "overlays": [
-        { "kind": "typing", "text": "const count = signal(0);",
+        {
+          "kind": "typing",
+          "text": "const count = signal(0);",
           "anchor": { "selector": "[data-line='3']", "at": "top-left", "baseline": true },
-          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+          "fontFamily": "anchor",
+          "color": "#e2e8f0",
+          "caret": true,
+          "speed": 24,
+          "jitter": 0.12,
+          "delay": 300,
+          "holdToFrameEnd": true
+        }
       ]
     },
     {
@@ -33,10 +49,18 @@
       "transition": { "type": "cut", "duration": 0 },
       "actions": [{ "type": "evaluate", "script": "state(2)" }],
       "overlays": [
-        { "kind": "typing", "text": "mount(root, () => (",
+        {
+          "kind": "typing",
+          "text": "mount(root, () => (",
           "anchor": { "selector": "[data-line='5']", "at": "top-left", "baseline": true },
-          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+          "fontFamily": "anchor",
+          "color": "#e2e8f0",
+          "caret": true,
+          "speed": 24,
+          "jitter": 0.12,
+          "delay": 300,
+          "holdToFrameEnd": true
+        }
       ]
     },
     {
@@ -45,10 +69,18 @@
       "transition": { "type": "cut", "duration": 0 },
       "actions": [{ "type": "evaluate", "script": "state(3)" }],
       "overlays": [
-        { "kind": "typing", "text": "  <button class=\"btn\">Clicked {count} times</button>",
+        {
+          "kind": "typing",
+          "text": "  <button class=\"btn\">Clicked {count} times</button>",
           "anchor": { "selector": "[data-line='6']", "at": "top-left", "baseline": true },
-          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+          "fontFamily": "anchor",
+          "color": "#e2e8f0",
+          "caret": true,
+          "speed": 24,
+          "jitter": 0.12,
+          "delay": 300,
+          "holdToFrameEnd": true
+        }
       ]
     },
     {
@@ -57,10 +89,18 @@
       "transition": { "type": "cut", "duration": 0 },
       "actions": [{ "type": "evaluate", "script": "state(4)" }],
       "overlays": [
-        { "kind": "typing", "text": "));",
+        {
+          "kind": "typing",
+          "text": "));",
           "anchor": { "selector": "[data-line='7']", "at": "top-left", "baseline": true },
-          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+          "fontFamily": "anchor",
+          "color": "#e2e8f0",
+          "caret": true,
+          "speed": 24,
+          "jitter": 0.12,
+          "delay": 300,
+          "holdToFrameEnd": true
+        }
       ]
     },
     {
@@ -94,10 +134,18 @@
       "duration": 2250,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "typing", "text": "const cls = computed(() => count.value >= 5 ? 'btn hot' : 'btn');",
+        {
+          "kind": "typing",
+          "text": "const cls = computed(() => count.value >= 5 ? 'btn hot' : 'btn');",
           "anchor": { "selector": "[data-line='4']", "at": "top-left", "baseline": true },
-          "fontFamily": "anchor", "color": "#e2e8f0", "caret": true,
-          "speed": 24, "jitter": 0.12, "delay": 300, "holdToFrameEnd": true }
+          "fontFamily": "anchor",
+          "color": "#e2e8f0",
+          "caret": true,
+          "speed": 24,
+          "jitter": 0.12,
+          "delay": 300,
+          "holdToFrameEnd": true
+        }
       ]
     },
     {

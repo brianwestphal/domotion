@@ -16,8 +16,23 @@ const info = await page.evaluate(() => {
   const r = a.getBoundingClientRect();
   return {
     rect: { x: r.x, y: r.y, w: r.width, h: r.height },
-    self: { zIndex: self.zIndex, position: self.position, filter: self.filter, bgImage: self.backgroundImage.slice(0, 80), borderRadius: self.borderRadius },
-    after: { zIndex: after.zIndex, position: after.position, filter: after.filter, transform: after.transform, transformOrigin: after.transformOrigin, borderRadius: after.borderRadius, bgImage: after.backgroundImage.slice(0, 80), content: after.content },
+    self: {
+      zIndex: self.zIndex,
+      position: self.position,
+      filter: self.filter,
+      bgImage: self.backgroundImage.slice(0, 80),
+      borderRadius: self.borderRadius,
+    },
+    after: {
+      zIndex: after.zIndex,
+      position: after.position,
+      filter: after.filter,
+      transform: after.transform,
+      transformOrigin: after.transformOrigin,
+      borderRadius: after.borderRadius,
+      bgImage: after.backgroundImage.slice(0, 80),
+      content: after.content,
+    },
   };
 });
 console.log(JSON.stringify(info, null, 2));

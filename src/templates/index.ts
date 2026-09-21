@@ -8,22 +8,9 @@
 
 export type { Template, TemplateOutput, TemplateRenderContext } from "./types.js";
 export { isTemplate } from "./types.js";
-export {
-  listBuiltinTemplates,
-  getBuiltinTemplate,
-  loadTemplate,
-  templatePackageName,
-} from "./registry.js";
-export {
-  renderTemplateToSvg,
-  validateTemplateParams,
-  type RenderTemplateOptions,
-} from "./render.js";
-export {
-  templateParamsJsonSchema,
-  describeTemplateParams,
-  type ParamInfo,
-} from "./json-schema.js";
+export { listBuiltinTemplates, getBuiltinTemplate, loadTemplate, templatePackageName } from "./registry.js";
+export { renderTemplateToSvg, validateTemplateParams, type RenderTemplateOptions } from "./render.js";
+export { templateParamsJsonSchema, describeTemplateParams, type ParamInfo } from "./json-schema.js";
 export {
   FORMATS,
   resolveFormat,
@@ -58,25 +45,10 @@ export {
   type BackgroundLoopParams,
   type BackgroundVariant,
 } from "./builtin/background-loop.js";
-export {
-  kineticTextTemplate,
-  type KineticTextParams,
-  type KineticVariant,
-} from "./builtin/kinetic-text.js";
-export {
-  chartTemplate,
-  type ChartParams,
-  type ChartType,
-} from "./builtin/chart.js";
-export {
-  chatTemplate,
-  type ChatParams,
-  type ChatMessage,
-} from "./builtin/chat.js";
-export {
-  subscribeTemplate,
-  type SubscribeParams,
-} from "./builtin/subscribe.js";
+export { kineticTextTemplate, type KineticTextParams, type KineticVariant } from "./builtin/kinetic-text.js";
+export { chartTemplate, type ChartParams, type ChartType } from "./builtin/chart.js";
+export { chatTemplate, type ChatParams, type ChatMessage } from "./builtin/chat.js";
+export { subscribeTemplate, type SubscribeParams } from "./builtin/subscribe.js";
 // Creative pack — Batch A text cards (DM-1531).
 export { titleCardTemplate, type TitleCardParams } from "./builtin/title-card.js";
 export { quoteTemplate, type QuoteParams } from "./builtin/quote.js";

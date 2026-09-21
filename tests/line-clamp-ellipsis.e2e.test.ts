@@ -1,14 +1,14 @@
-import { afterAll, describe, expect, it } from 'vitest';
-import sharp from 'sharp';
+import { afterAll, describe, expect, it } from "vitest";
+import sharp from "sharp";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
   launchChromium,
   type CapturedElement,
   type TextSegment,
-} from '../src/index.js';
-import { closeBrowserSafely } from '../src/test-support/close-browser-safely.js';
-import type { Page } from '@playwright/test';
+} from "../src/index.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import type { Page } from "@playwright/test";
 
 // DM-2417 browser matrix.  These are capture-contract assertions rather than
 // screenshot fixture coordinates: each row asks Chromium to lay out different
@@ -17,7 +17,8 @@ import type { Page } from '@playwright/test';
 
 const W = 980;
 const H = 1450;
-const WORDS = 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega';
+const WORDS =
+  "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega";
 
 const HTML = `<!doctype html><meta charset="utf-8"><style>
   body { margin: 8px; font-family: Arial, sans-serif; }
@@ -89,22 +90,21 @@ function marker(node: CapturedElement | undefined): TextSegment | undefined {
 }
 
 function allSegments(node: CapturedElement): TextSegment[] {
-  return [
-    ...(node.textSegments ?? []),
-    ...children(node).flatMap(allSegments),
-  ];
+  return [...(node.textSegments ?? []), ...children(node).flatMap(allSegments)];
 }
 
 async function dominantPlatformFontFamily(page: Page, selector: string): Promise<string> {
   const session = await page.context().newCDPSession(page);
   try {
-    await session.send('DOM.enable');
-    await session.send('CSS.enable');
-    const { root } = await session.send('DOM.getDocument');
-    const { nodeId } = await session.send('DOM.querySelector', { nodeId: root.nodeId, selector });
-    const { fonts } = await session.send('CSS.getPlatformFontsForNode', { nodeId });
-    const dominant = fonts.reduce((best, font) =>
-      best == null || font.glyphCount > best.glyphCount ? font : best, null as (typeof fonts)[number] | null);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    const { root } = await session.send("DOM.getDocument");
+    const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector });
+    const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+    const dominant = fonts.reduce(
+      (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
+      null as (typeof fonts)[number] | null,
+    );
     if (dominant == null) throw new Error(`no platform font for ${selector}`);
     return dominant.familyName;
   } finally {
@@ -116,51 +116,56 @@ const browser = await launchChromium().catch(() => null);
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 const describeBrowser = browser ? describe : describe.skip;
 
-describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
+describeBrowser("DM-2417 generated line-clamp ellipsis capture", () => {
   let tree: CapturedElement[];
-  let svg = '';
+  let svg = "";
   let expectedPng: Buffer;
   let actualPng: Buffer;
-  let expectedClampFamily = '';
+  let expectedClampFamily = "";
   let oracleRects: Array<{ x: number; y: number; width: number; height: number }> = [];
   let captureWarnings: Array<{ feature: string }> = [];
 
-  it('captures the matrix at DPR 2', async () => {
+  it("captures the matrix at DPR 2", async () => {
     const page = await browser!.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
     try {
-      await page.setContent(HTML, { waitUntil: 'load' });
-      expectedClampFamily = await dominantPlatformFontFamily(page, '#c1');
-      oracleRects = await page.locator('.oracle').evaluateAll((elements) => elements.map((element) => {
-        const rect = element.getBoundingClientRect();
-        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-      }));
+      await page.setContent(HTML, { waitUntil: "load" });
+      expectedClampFamily = await dominantPlatformFontFamily(page, "#c1");
+      oracleRects = await page.locator(".oracle").evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        }),
+      );
       expectedPng = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
-      const captured = await captureElementTreeWithWarnings(page, 'body', { x: 0, y: 0, width: W, height: H });
+      const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: W, height: H });
       tree = captured.tree;
       captureWarnings = captured.warnings;
       svg = elementTreeToSvgInner(tree, W, H);
       const svgDoc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="white"/>${svg}</svg>`;
-      await page.setContent(`<!doctype html><body style="margin:0">${svgDoc}</body>`, { waitUntil: 'load' });
+      await page.setContent(`<!doctype html><body style="margin:0">${svgDoc}</body>`, { waitUntil: "load" });
       actualPng = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
     } finally {
       await page.close();
     }
     expect(tree.length).toBeGreaterThan(0);
-    expect(captureWarnings.filter((warning) => warning.feature === 'line-clamp generated ellipsis')).toEqual([]);
+    expect(captureWarnings.filter((warning) => warning.feature === "line-clamp generated ellipsis")).toEqual([]);
   });
 
   it.each([
-    ['one ', 1], ['two ', 2], ['three ', 3], ['five ', 5],
-  ])('captures one generated marker and at most %i visible logical lines for %s', (prefix, clampCount) => {
+    ["one ", 1],
+    ["two ", 2],
+    ["three ", 3],
+    ["five ", 5],
+  ])("captures one generated marker and at most %i visible logical lines for %s", (prefix, clampCount) => {
     const node = findByIdText(tree, prefix)!;
     const generated = marker(node);
     expect(generated).toMatchObject({
-      text: '…',
+      text: "…",
       generatedLineClampEllipsis: true,
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: "Arial, sans-serif",
       fontSize: 16,
-      fontWeight: '400',
-      fontStyle: 'normal',
+      fontWeight: "400",
+      fontStyle: "normal",
     });
     expect(expectedClampFamily).toBeTruthy();
     expect(generated!.resolvedFontFace?.familyName).toBe(expectedClampFamily);
@@ -168,62 +173,63 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
     expect(generated!.shapedWidth).toBeGreaterThan(0);
     expect(Number.isFinite(generated!.baseline)).toBe(true);
     expect(Number.isFinite(generated!.inlineOffset)).toBe(true);
-    const sourceLines = new Set(allSegments(node)
-      .filter((segment) => !segment.generatedLineClampEllipsis)
-      .map((segment) => Math.round(segment.y)));
+    const sourceLines = new Set(
+      allSegments(node)
+        .filter((segment) => !segment.generatedLineClampEllipsis)
+        .map((segment) => Math.round(segment.y)),
+    );
     expect(sourceLines.size).toBeLessThanOrEqual(clampCount);
   });
 
-  it('does not generate for short, inactive block, or authored flow-root controls', () => {
-    expect(marker(findByIdText(tree, 'short text'))).toBeUndefined();
-    expect(marker(findByIdText(tree, 'inactive '))).toBeUndefined();
-    expect(marker(findByIdText(tree, 'fake '))).toBeUndefined();
-    expect(marker(findByIdText(tree, 'unclamped '))).toBeUndefined();
+  it("does not generate for short, inactive block, or authored flow-root controls", () => {
+    expect(marker(findByIdText(tree, "short text"))).toBeUndefined();
+    expect(marker(findByIdText(tree, "inactive "))).toBeUndefined();
+    expect(marker(findByIdText(tree, "fake "))).toBeUndefined();
+    expect(marker(findByIdText(tree, "unclamped "))).toBeUndefined();
   });
 
-  it('removes the DOM-laid-out continuation tail at the AX-retained boundary', () => {
-    const node = findByIdText(tree, 'one ')!;
+  it("removes the DOM-laid-out continuation tail at the AX-retained boundary", () => {
+    const node = findByIdText(tree, "one ")!;
     const generated = marker(node)!;
     const retainedEnds = allSegments(node)
       .filter((segment) => !segment.generatedLineClampEllipsis)
-      .flatMap((segment) => (segment.xOffsets ?? []).map((x, index) =>
-        x + (segment.xAdvances?.[index] ?? 0)));
+      .flatMap((segment) => (segment.xOffsets ?? []).map((x, index) => x + (segment.xAdvances?.[index] ?? 0)));
     expect(retainedEnds.length).toBeGreaterThan(0);
     expect(Math.max(...retainedEnds)).toBeLessThanOrEqual(generated.x + 0.25);
-    const astral = findByIdText(tree, 'astral ')!;
+    const astral = findByIdText(tree, "astral ")!;
     expect(marker(astral)).toBeDefined();
     for (const segment of allSegments(astral)) {
       // Range facts repeat for both UTF-16 units; trimming must nevertheless
       // retain or remove the full supplementary-plane scalar atomically.
       expect(segment.text).not.toMatch(/[\uD800-\uDBFF]$/u);
-      expect([...segment.text].join('')).toBe(segment.text);
+      expect([...segment.text].join("")).toBe(segment.text);
     }
   });
 
-  it('keeps root ellipsis style across inline and mixed-size boundaries', () => {
-    const boundary = marker(findByIdText(tree, 'boundary'))!;
-    expect(boundary.fontFamily).toContain('Georgia');
+  it("keeps root ellipsis style across inline and mixed-size boundaries", () => {
+    const boundary = marker(findByIdText(tree, "boundary"))!;
+    expect(boundary.fontFamily).toContain("Georgia");
     expect(boundary.fontSize).toBe(17);
-    const mixed = marker(findByIdText(tree, 'root alpha'))!;
-    expect(mixed.fontFamily).toBe('Arial, sans-serif');
+    const mixed = marker(findByIdText(tree, "root alpha"))!;
+    expect(mixed.fontFamily).toBe("Arial, sans-serif");
     expect(mixed.fontSize).toBe(18);
   });
 
-  it('covers flex-child, RTL, vertical writing, and zoom/DPR facts', () => {
-    expect(marker(findByIdText(tree, 'flex '))).toBeDefined();
-    const rtl = marker(findByIdText(tree, 'rtl '))!;
+  it("covers flex-child, RTL, vertical writing, and zoom/DPR facts", () => {
+    expect(marker(findByIdText(tree, "flex "))).toBeDefined();
+    const rtl = marker(findByIdText(tree, "rtl "))!;
     expect(rtl.inlineOffset).toBeLessThan(rtl.x + rtl.width + 0.01);
-    const vertical = marker(findByIdText(tree, 'vertical '))!;
-    expect(vertical.verticalWritingMode).toBe('vertical-rl');
+    const vertical = marker(findByIdText(tree, "vertical "))!;
+    expect(vertical.verticalWritingMode).toBe("vertical-rl");
     expect(vertical.yOffsets).toEqual([vertical.inlineOffset]);
-    const zoom = marker(findByIdText(tree, 'zoom '))!;
+    const zoom = marker(findByIdText(tree, "zoom "))!;
     expect(zoom.shapedWidth).toBeGreaterThan(16);
   });
 
-  it('renders generated fragments while preserving ordinary text-overflow', () => {
-    const ordinary = findByIdText(tree, 'ordinary ')!;
+  it("renders generated fragments while preserving ordinary text-overflow", () => {
+    const ordinary = findByIdText(tree, "ordinary ")!;
     expect(marker(ordinary)).toBeUndefined();
-    expect(ordinary.styles.textOverflow).toBe('ellipsis');
+    expect(ordinary.styles.textOverflow).toBe("ellipsis");
     // Embedded subsets remap source characters to private-use codepoints; the
     // source label is the stable representation contract, not literal text
     // content inside the emitted <text> element.
@@ -231,19 +237,25 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
     expect(svg).toMatch(/<text[^>]*font-family="dmf\d+"/);
   });
 
-  it('matches Chromium generated-fragment ink bounds in isolated paint oracle rows', async () => {
-    const decode = async (png: Buffer) => sharp(png).removeAlpha().raw()
-      .toBuffer({ resolveWithObject: true });
+  it("matches Chromium generated-fragment ink bounds in isolated paint oracle rows", async () => {
+    const decode = async (png: Buffer) => sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const [expected, actual] = await Promise.all([decode(expectedPng), decode(actualPng)]);
     const targets: Array<[number, number, number]> = [
-      [224, 32, 32], [21, 153, 71], [36, 94, 232], [179, 42, 204],
+      [224, 32, 32],
+      [21, 153, 71],
+      [36, 94, 232],
+      [179, 42, 204],
     ];
     const bounds = (
       decoded: Awaited<ReturnType<typeof decode>>,
       target: [number, number, number],
       rect: { x: number; y: number; width: number; height: number },
     ) => {
-      let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0;
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -1,
+        maxY = -1,
+        count = 0;
       const { data, info } = decoded;
       const left = Math.max(0, Math.floor(rect.x * 2));
       const top = Math.max(0, Math.floor(rect.y * 2));
@@ -252,13 +264,14 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
       for (let y = top; y < bottom; y++) {
         for (let x = left; x < right; x++) {
           const i = (y * info.width + x) * info.channels;
-          const distance = Math.abs(data[i] - target[0])
-            + Math.abs(data[i + 1] - target[1])
-            + Math.abs(data[i + 2] - target[2]);
+          const distance =
+            Math.abs(data[i] - target[0]) + Math.abs(data[i + 1] - target[1]) + Math.abs(data[i + 2] - target[2]);
           if (distance > 90) continue;
           count++;
-          minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
         }
       }
       return { minX, minY, maxX, maxY, count };
@@ -271,8 +284,11 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
       expect(rendered.count).toBeGreaterThan(4);
       // DPR=2: tolerate two CSS pixels of independent glyph rasterisation,
       // while requiring the generated fragment to occupy the same line/side.
-      for (const key of ['minX', 'minY', 'maxX', 'maxY'] as const) {
-        expect(Math.abs(rendered[key] - chrome[key]), `${target.join(',')} ${key} chrome=${JSON.stringify(chrome)} rendered=${JSON.stringify(rendered)}`).toBeLessThanOrEqual(4);
+      for (const key of ["minX", "minY", "maxX", "maxY"] as const) {
+        expect(
+          Math.abs(rendered[key] - chrome[key]),
+          `${target.join(",")} ${key} chrome=${JSON.stringify(chrome)} rendered=${JSON.stringify(rendered)}`,
+        ).toBeLessThanOrEqual(4);
       }
     }
   });

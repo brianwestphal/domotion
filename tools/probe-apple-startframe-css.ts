@@ -8,10 +8,18 @@ const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   await page.goto("https://www.apple.com/", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800);
@@ -23,7 +31,15 @@ async function main() {
   })()`);
   await page.waitForTimeout(1800);
 
-  const sels = ['.start-frame', '.start-frame img', '.inline-media-wrapper', '.tile-image-wrapper', '.tile-wrapper', '.mothers-day-icons', '.section-hero'];
+  const sels = [
+    ".start-frame",
+    ".start-frame img",
+    ".inline-media-wrapper",
+    ".tile-image-wrapper",
+    ".tile-wrapper",
+    ".mothers-day-icons",
+    ".section-hero",
+  ];
   const code = `(function() {
     function dump(sel) {
       var el = document.querySelector(sel);
@@ -50,4 +66,7 @@ async function main() {
   console.log(JSON.stringify(out, null, 2));
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

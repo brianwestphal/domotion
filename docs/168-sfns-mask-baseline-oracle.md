@@ -3,11 +3,24 @@ id: "requirements/sfns-mask-baseline-oracle"
 title: "SFNS CoreText mask and baseline oracle"
 kind: "evidence"
 status: "current"
-owners: ["paint-effects","platform-release"]
+owners: ["paint-effects", "platform-release"]
 platforms: ["macos"]
-tickets: ["DM-2452","DM-2567","DM-2568","DM-2575","DM-2576","DM-2586","DM-2587","DM-2588","DM-2604"]
-code: ["tools/build-sfns-pinned-ots-sanitizer.mjs","tools/build-sfns-pinned-skia-collector.mjs","tools/chromium-sfns-validation/","tools/sfns-mask-baseline-oracle.ts","tools/sfns-mask-baseline.swift","tools/sfns-pinned-chromium-validation-collector.ts","tools/sfns-pinned-ots-sanitizer/","tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp","tools/sfns-pinned-skia-mask-schema.ts","tools/sfns-terminal-mask-adjudicator.ts","tools/sfns-terminal-mask-manifest.ts"]
-aliases: ["docs/168-sfns-mask-baseline-oracle.md","doc-168"]
+tickets: ["DM-2452", "DM-2567", "DM-2568", "DM-2575", "DM-2576", "DM-2586", "DM-2587", "DM-2588", "DM-2604"]
+code:
+  [
+    "tools/build-sfns-pinned-ots-sanitizer.mjs",
+    "tools/build-sfns-pinned-skia-collector.mjs",
+    "tools/chromium-sfns-validation/",
+    "tools/sfns-mask-baseline-oracle.ts",
+    "tools/sfns-mask-baseline.swift",
+    "tools/sfns-pinned-chromium-validation-collector.ts",
+    "tools/sfns-pinned-ots-sanitizer/",
+    "tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp",
+    "tools/sfns-pinned-skia-mask-schema.ts",
+    "tools/sfns-terminal-mask-adjudicator.ts",
+    "tools/sfns-terminal-mask-manifest.ts",
+  ]
+aliases: ["docs/168-sfns-mask-baseline-oracle.md", "doc-168"]
 ---
 
 # SFNS CoreText mask and baseline oracle
@@ -161,11 +174,11 @@ the same digest and the native arm opens that exact path. All arms agree on the
 complete axis dictionary, cmap mapping, and supplied gid stream; browser and
 native metrics remain separate facts:
 
-| Row family | Native CT size / ascent / descent / leading | Browser ascent / descent | Captured / emitted baseline |
-| --- | --- | --- | --- |
-| zoom, optical-none, opsz mutation | 26 / 25.13671875 / 5.484375 / 0 | 25 / 5 | 43.25 / 43 |
-| transform scale 2 | 26 / 25.13671875 / 5.484375 / 0 | 26 / 6 | 45.25 / 45.25 |
-| zoom/transform cancellation | 13 / 12.568359375 / 2.7421875 / 0 | 12.5 / 2.5 | 30.75 / 30.75 |
+| Row family                        | Native CT size / ascent / descent / leading | Browser ascent / descent | Captured / emitted baseline |
+| --------------------------------- | ------------------------------------------- | ------------------------ | --------------------------- |
+| zoom, optical-none, opsz mutation | 26 / 25.13671875 / 5.484375 / 0             | 25 / 5                   | 43.25 / 43                  |
+| transform scale 2                 | 26 / 25.13671875 / 5.484375 / 0             | 26 / 6                   | 45.25 / 45.25               |
+| zoom/transform cancellation       | 13 / 12.568359375 / 2.7421875 / 0           | 12.5 / 2.5               | 30.75 / 30.75               |
 
 The six-glyph corpus exercises x phases `0`, `.25`, `.5`, and `.75`; emitted y
 phases are `0`, `.25`, and `.75`. Every phase is supplied identically to the
@@ -182,13 +195,13 @@ scaler matrix `A` into a uniform vertical scale `s` used for the `CTFont` point
 size and a residual `sA`. For uniform positive `A`, `sA` is exactly identity
 (`SkScalerContext.cpp:941-966`):
 
-| Row | CSS-computed size | Uniform paint transform | Candidate total `A` | If carried by the scaler: CT size / residual |
-| --- | ---: | ---: | ---: | --- |
-| `zoom-2` | 26 | 1 | 26 | 26 / identity |
-| `transform-scale-2` | 13 | 2 | 26 | 26 / identity |
-| `zoom-2-transform-half` | 26 | .5 | 13 | 13 / identity |
-| `optical-sizing-none` | 26 | 1 | 26 | 26 / identity |
-| `opsz-26-mutation` | 26 | 1 | 26 | 26 / identity |
+| Row                     | CSS-computed size | Uniform paint transform | Candidate total `A` | If carried by the scaler: CT size / residual |
+| ----------------------- | ----------------: | ----------------------: | ------------------: | -------------------------------------------- |
+| `zoom-2`                |                26 |                       1 |                  26 | 26 / identity                                |
+| `transform-scale-2`     |                13 |                       2 |                  26 | 26 / identity                                |
+| `zoom-2-transform-half` |                26 |                      .5 |                  13 | 13 / identity                                |
+| `optical-sizing-none`   |                26 |                       1 |                  26 | 26 / identity                                |
+| `opsz-26-mutation`      |                26 |                       1 |                  26 | 26 / identity                                |
 
 This rules out an omitted residual skew or anisotropic matrix in the current
 oracle arms. DM-2568's pinned source trace further establishes that the live
@@ -643,13 +656,13 @@ at DPR 1. Coverage numbers are normalized mean absolute white-coverage deltas
 over the fixed 240x100 surface. All best integer baseline shifts were zero, so
 fixed-position and baseline-fitted values are identical in this run.
 
-| Row | logical / computed / paint px | Chromium↔CT mask | Chromium↔CT path | Chromium↔Domotion | CT path↔Domotion | Max path-coordinate delta | Closest representation |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `zoom-2` | 13 / 26 / 26 | 0.00161961 | 0.00560196 | 0.00562614 | 0.00030000 | 0.012696px | CT mask |
-| `transform-scale-2` | 13 / 13 / 26 | 0.00391013 | 0.00736438 | 0.00742516 | 0.00029902 | 0.012696px | CT mask |
-| `zoom-2-transform-half` | 13 / 26 / 13 | 0.00304510 | 0.00256438 | 0.00259575 | 0.00006797 | 0.006348px | CT path |
-| `optical-sizing-none` | 13 / 26 / 26 | 0.00161961 | 0.00560196 | 0.00562614 | 0.00030000 | 0.012696px | CT mask |
-| `opsz-26-mutation` | 13 / 26 / 26 | 0.00178807 | 0.00536716 | 0.00529706 | 0.00023480 | 0.016067px | CT mask |
+| Row                     | logical / computed / paint px | Chromium↔CT mask | Chromium↔CT path | Chromium↔Domotion | CT path↔Domotion | Max path-coordinate delta | Closest representation |
+| ----------------------- | ----------------------------- | ---------------: | ---------------: | ----------------: | ---------------: | ------------------------: | ---------------------- |
+| `zoom-2`                | 13 / 26 / 26                  |       0.00161961 |       0.00560196 |        0.00562614 |       0.00030000 |                0.012696px | CT mask                |
+| `transform-scale-2`     | 13 / 13 / 26                  |       0.00391013 |       0.00736438 |        0.00742516 |       0.00029902 |                0.012696px | CT mask                |
+| `zoom-2-transform-half` | 13 / 26 / 13                  |       0.00304510 |       0.00256438 |        0.00259575 |       0.00006797 |                0.006348px | CT path                |
+| `optical-sizing-none`   | 13 / 26 / 26                  |       0.00161961 |       0.00560196 |        0.00562614 |       0.00030000 |                0.012696px | CT mask                |
+| `opsz-26-mutation`      | 13 / 26 / 26                  |       0.00178807 |       0.00536716 |        0.00529706 |       0.00023480 |                0.016067px | CT mask                |
 
 The first exact representation divergence is the CoreText-path versus
 Domotion-path boundary in all five rows. Topology and per-glyph command counts

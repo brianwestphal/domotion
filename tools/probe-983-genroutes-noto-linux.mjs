@@ -28,7 +28,12 @@ const fam2path = JSON.parse(readFileSync("tests/output/family-to-path.noto-linux
 const familyToKey = new Map();
 function makeKey(family) {
   if (familyToKey.has(family)) return familyToKey.get(family);
-  const slug = "un-" + family.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const slug =
+    "un-" +
+    family
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   familyToKey.set(family, slug);
   return slug;
 }
@@ -43,7 +48,10 @@ for (const [blockName, families] of Object.entries(sweep.blockToFamilies)) {
   const primary = families && families[0];
   if (primary == null) continue;
   const resolved = fam2path[primary];
-  if (resolved == null || !resolved.file) { unresolved.add(primary); continue; } // emoji (null) / unresolved
+  if (resolved == null || !resolved.file) {
+    unresolved.add(primary);
+    continue;
+  } // emoji (null) / unresolved
   ranges.push({ start, end, family: primary, blockName, fontKey: makeKey(primary), resolved });
 }
 ranges.sort((a, b) => a.start - b.start);
@@ -59,15 +67,30 @@ const byRange = new Map(); // "start-end" -> { rep, votes: Map<key,count> }
 for (const r of ranges) {
   const rk = `${r.start}-${r.end}`;
   let e = byRange.get(rk);
-  if (e == null) { e = { rep: r, votes: new Map() }; byRange.set(rk, e); }
+  if (e == null) {
+    e = { rep: r, votes: new Map() };
+    byRange.set(rk, e);
+  }
   e.votes.set(r.fontKey, (e.votes.get(r.fontKey) ?? 0) + 1);
 }
 const finalRanges = [];
 for (const { rep, votes } of byRange.values()) {
-  let bestKey = rep.fontKey, best = -1;
-  for (const [k, n] of votes) if (n > best) { best = n; bestKey = k; }
-  if (votes.size > 1) console.log(`  range ${rep.start.toString(16)}-${rep.end.toString(16)}: ${[...votes.entries()].map(([k, n]) => `${k}×${n}`).join(", ")} -> ${bestKey}`);
-  finalRanges.push({ ...rep, fontKey: bestKey, resolved: ranges.find(x => x.fontKey === bestKey)?.resolved ?? rep.resolved });
+  let bestKey = rep.fontKey,
+    best = -1;
+  for (const [k, n] of votes)
+    if (n > best) {
+      best = n;
+      bestKey = k;
+    }
+  if (votes.size > 1)
+    console.log(
+      `  range ${rep.start.toString(16)}-${rep.end.toString(16)}: ${[...votes.entries()].map(([k, n]) => `${k}×${n}`).join(", ")} -> ${bestKey}`,
+    );
+  finalRanges.push({
+    ...rep,
+    fontKey: bestKey,
+    resolved: ranges.find((x) => x.fontKey === bestKey)?.resolved ?? rep.resolved,
+  });
 }
 finalRanges.sort((a, b) => a.start - b.start);
 
@@ -82,7 +105,8 @@ out += "// container with the noble-only fallback fonts stripped and the mainstr
 out += "// installed, so Chromium's fontconfig picks match a real desktop-Linux host.\n";
 out += "// Selected at runtime by `linuxFontProfile() === 'noto'`; keys namespaced `un-...`.\n";
 out += "\n";
-out += "export interface UnicodeFontEntry { path: string; postscriptName?: string; extractor?: \"fontkit\" | \"native\" }\n\n";
+out +=
+  'export interface UnicodeFontEntry { path: string; postscriptName?: string; extractor?: "fontkit" | "native" }\n\n';
 out += "export const UNICODE_FONT_PATHS_NOTO_LINUX: Record<string, UnicodeFontEntry> = {\n";
 for (const [key, resolved] of [...pathByKey.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
   const psn = resolved.postscriptName ? `, postscriptName: ${JSON.stringify(resolved.postscriptName)}` : "";

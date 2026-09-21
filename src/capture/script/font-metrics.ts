@@ -35,22 +35,20 @@
 // candidate referenced by direct family name (which does match installed
 // system fonts). Whichever width matches is the one Chrome resolved.
 
-import {
-  captureFontFamilyStack,
-  serializeCapturedFontFamilyStack,
-} from "../../font-family-stack.js";
+import { captureFontFamilyStack, serializeCapturedFontFamilyStack } from "../../font-family-stack.js";
 
 export const createFontMetrics = () => {
   const metricsCache = new Map();
   const localFaceMap = new Map();
 
   const probeWidthCS = (familyExpr, weight, style) => {
-    const span = document.createElement('span');
-    span.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre';
+    const span = document.createElement("span");
+    span.style.cssText =
+      "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
     span.style.fontFamily = familyExpr;
     span.style.fontWeight = weight;
     span.style.fontStyle = style;
-    span.textContent = 'mIw0';
+    span.textContent = "mIw0";
     document.body.appendChild(span);
     const w = span.getBoundingClientRect().width;
     document.body.removeChild(span);
@@ -59,15 +57,23 @@ export const createFontMetrics = () => {
 
   for (const sheet of Array.from(document.styleSheets)) {
     let cssRules;
-    try { cssRules = sheet.cssRules; } catch (e) { continue; }
+    try {
+      cssRules = sheet.cssRules;
+    } catch (e) {
+      continue;
+    }
     for (const rule of Array.from(cssRules)) {
-      if (rule.constructor.name !== 'CSSFontFaceRule') continue;
+      if (rule.constructor.name !== "CSSFontFaceRule") continue;
       const r = rule;
-      const family = r.style.getPropertyValue('font-family').trim().replace(/^["']|["']$/g, '').toLowerCase();
-      const weight = r.style.getPropertyValue('font-weight') || '400';
-      const styleDesc = r.style.getPropertyValue('font-style') || 'normal';
-      const src = r.style.getPropertyValue('src');
-      if (family === '' || /url\(/.test(src)) continue;
+      const family = r.style
+        .getPropertyValue("font-family")
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .toLowerCase();
+      const weight = r.style.getPropertyValue("font-weight") || "400";
+      const styleDesc = r.style.getPropertyValue("font-style") || "normal";
+      const src = r.style.getPropertyValue("src");
+      if (family === "" || /url\(/.test(src)) continue;
       const matches = src.match(/local\(\s*["']?[^"')]+?["']?\s*\)/g);
       if (matches == null) continue;
       const locals = [];
@@ -85,12 +91,16 @@ export const createFontMetrics = () => {
       // family-name probe hits the installed family. The alias rule's
       // weight/style descriptors are applied separately, so the probe
       // reaches the same face Chrome's local() lookup did.
-      const stripVariant = (n) => n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, '').trim();
+      const stripVariant = (n) =>
+        n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "").trim();
       let resolved = null;
       const aliasW = probeWidthCS('"' + family + '"', weight, styleDesc);
       for (const cand of locals) {
         const candW = probeWidthCS('"' + stripVariant(cand) + '"', weight, styleDesc);
-        if (Math.abs(candW - aliasW) < 0.05) { resolved = cand; break; }
+        if (Math.abs(candW - aliasW) < 0.05) {
+          resolved = cand;
+          break;
+        }
       }
       // Fall back to the first local() candidate when probing didn't find a
       // match (keeps the previous behavior for cases the simple width
@@ -108,23 +118,23 @@ export const createFontMetrics = () => {
       const local = localFaceMap.get(entry.name.toLowerCase());
       if (local == null) return entry;
       changed = true;
-      return { name: local, type: 'family-name' };
+      return { name: local, type: "family-name" };
     });
     return changed ? serializeCapturedFontFamilyStack({ ...stack, entries }) : ff;
   };
 
   const measureFontMetrics = (cs, fontSizeOverride) => {
-    const fs = cs.fontStyle || 'normal';
-    const fw = cs.fontWeight || '400';
-    const fz = fontSizeOverride || cs.fontSize || '14px';
-    const ff = substituteAliasedFamilies(cs.fontFamily || 'sans-serif');
-    const key = fs + '|' + fw + '|' + fz + '|' + ff;
+    const fs = cs.fontStyle || "normal";
+    const fw = cs.fontWeight || "400";
+    const fz = fontSizeOverride || cs.fontSize || "14px";
+    const ff = substituteAliasedFamilies(cs.fontFamily || "sans-serif");
+    const key = fs + "|" + fw + "|" + fz + "|" + ff;
     let v = metricsCache.get(key);
     if (v != null) return v;
-    const c = document.createElement('canvas');
-    const ctx = c.getContext('2d');
-    ctx.font = fs + ' ' + fw + ' ' + fz + ' ' + ff;
-    const m = ctx.measureText('Mxgp');
+    const c = document.createElement("canvas");
+    const ctx = c.getContext("2d");
+    ctx.font = fs + " " + fw + " " + fz + " " + ff;
+    const m = ctx.measureText("Mxgp");
     v = { ascent: m.fontBoundingBoxAscent, descent: m.fontBoundingBoxDescent };
     metricsCache.set(key, v);
     return v;

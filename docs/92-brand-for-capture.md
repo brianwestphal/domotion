@@ -5,18 +5,24 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1540","DM-1543","DM-1544"]
-code: ["examples/animate/brand-mixed/","examples/brand-capture-demo.ts","examples/output/brand-capture.svg","examples/templates/brand-page.html"]
-aliases: ["docs/92-brand-for-capture.md","doc-92"]
+tickets: ["DM-1540", "DM-1543", "DM-1544"]
+code:
+  [
+    "examples/animate/brand-mixed/",
+    "examples/brand-capture-demo.ts",
+    "examples/output/brand-capture.svg",
+    "examples/templates/brand-page.html",
+  ]
+aliases: ["docs/92-brand-for-capture.md", "doc-92"]
 ---
 
 # 92 — Brand for `capture` / `animate` (CSS-variable injection)
 
 **Status: shipped (DM-1540).** `capture` and `animate` gain a `--brand <file>`
-flag. Unlike a *template*'s brand defaults (docs/85 — the brand fills a generated
-template's *params*), theming a **captured real page** is a distinct mechanism:
+flag. Unlike a _template_'s brand defaults (docs/85 — the brand fills a generated
+template's _params_), theming a **captured real page** is a distinct mechanism:
 the brand's tokens are injected as **CSS custom properties** onto the page's
-`:root` *before it paints*, so a page authored against `var(--brand-*)` picks up
+`:root` _before it paints_, so a page authored against `var(--brand-*)` picks up
 the brand's palette / font / radius.
 
 ```sh
@@ -26,7 +32,7 @@ domotion animate ./demo.json  --brand ./acme.json -o demo.svg
 ```
 
 Both flags reuse the same `brandSchema` + `loadBrand` as the template brand kit
-(docs/85) — one brand file drives templates *and* captured pages.
+(docs/85) — one brand file drives templates _and_ captured pages.
 
 ## The variable-naming contract
 
@@ -34,15 +40,15 @@ The brand file (docs/85 `brandSchema`) maps to these CSS custom properties.
 **Only the tokens the brand file actually set are emitted** — an unset token is
 NOT declared, so a page's own `var(--brand-x, fallback)` keeps its fallback.
 
-| Brand token | CSS variable | Notes |
-|---|---|---|
-| `palette.primary` | `--brand-primary` | main brand color |
-| `palette.accent` | `--brand-accent` | secondary accent |
-| `background` ?? `palette.background` | `--brand-background` | the richer top-level `background` (e.g. a gradient) wins over the flat `palette.background` |
-| `palette.text` | `--brand-text` | primary text / foreground |
-| `palette.muted` | `--brand-muted` | secondary text |
-| `font.family` | `--brand-font-family` | CSS font-family stack |
-| `radius` | `--brand-radius` | emitted as `<n>px` |
+| Brand token                          | CSS variable          | Notes                                                                                       |
+| ------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------- |
+| `palette.primary`                    | `--brand-primary`     | main brand color                                                                            |
+| `palette.accent`                     | `--brand-accent`      | secondary accent                                                                            |
+| `background` ?? `palette.background` | `--brand-background`  | the richer top-level `background` (e.g. a gradient) wins over the flat `palette.background` |
+| `palette.text`                       | `--brand-text`        | primary text / foreground                                                                   |
+| `palette.muted`                      | `--brand-muted`       | secondary text                                                                              |
+| `font.family`                        | `--brand-font-family` | CSS font-family stack                                                                       |
+| `radius`                             | `--brand-radius`      | emitted as `<n>px`                                                                          |
 
 Example — a page authored against the contract:
 
@@ -55,8 +61,14 @@ Example — a page authored against the contract:
     --brand-font-family: system-ui, sans-serif;
     --brand-radius: 6px;
   }
-  body { background: var(--brand-background); font-family: var(--brand-font-family); }
-  .cta { background: var(--brand-primary); border-radius: var(--brand-radius); }
+  body {
+    background: var(--brand-background);
+    font-family: var(--brand-font-family);
+  }
+  .cta {
+    background: var(--brand-primary);
+    border-radius: var(--brand-radius);
+  }
 </style>
 ```
 
@@ -97,7 +109,7 @@ anywhere in the page resolves.
   browser context). A `template` frame renders before the capture loop, so it's
   not reached by the CSS-variable injection — instead the same brand feeds its
   **param defaults** (docs/85), so `--brand` (or the config `brand` key, below)
-  themes captured *and* template frames from one source (DM-1543). A `cast` frame
+  themes captured _and_ template frames from one source (DM-1543). A `cast` frame
   carries its own theming and is unaffected.
 - **Config `brand` key (DM-1544).** The `animate` JSON config may set a top-level
   `brand` — either a path (resolved relative to the config's directory) to a brand
@@ -125,7 +137,7 @@ anywhere in the page resolves.
 - **Theme an `animate` config's `template` frames from `--brand` (DM-1543).** The
   run's brand (from `--brand` or the config `brand` key) is threaded through
   `renderTemplateFrames` → `renderTemplateToSvg({ brand })`, so one brand themes
-  captured frames (injection) *and* template frames (their brand defaults).
+  captured frames (injection) _and_ template frames (their brand defaults).
 - **Author-facing config `brand` key (DM-1544).** `animate`'s JSON config carries
   an optional top-level `brand` — a path (relative to the config's directory) or
   an inline object validated by `brandSchema`. `resolveConfigBrand` loads/normalizes

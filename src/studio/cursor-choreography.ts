@@ -2,8 +2,14 @@ import type { Page } from "@playwright/test";
 import type { CursorEvent, CursorOverlay } from "../animation/cursor-overlay.js";
 import { StudioInteractionError, resolveStudioSemanticTarget, type StudioSemanticPlan } from "./interactions.js";
 
-export interface StudioCursorPoint { x: number; y: number }
-export interface StudioCursorBox extends StudioCursorPoint { width: number; height: number }
+export interface StudioCursorPoint {
+  x: number;
+  y: number;
+}
+export interface StudioCursorBox extends StudioCursorPoint {
+  width: number;
+  height: number;
+}
 
 export interface StudioCursorTargetEvidence {
   eventId: string;
@@ -52,21 +58,41 @@ export interface StudioCursorChoreography {
   timeOffsetMs: number;
 }
 
-async function inspectBox(page: Page, locator: Awaited<ReturnType<typeof resolveStudioSemanticTarget>>, path: string, eventId: string): Promise<StudioCursorBox> {
+async function inspectBox(
+  page: Page,
+  locator: Awaited<ReturnType<typeof resolveStudioSemanticTarget>>,
+  path: string,
+  eventId: string,
+): Promise<StudioCursorBox> {
   const box = await locator.boundingBox();
-  if (box == null) throw new StudioInteractionError(path, "target has no rendered border box; make it visible before cursor choreography is captured", eventId);
+  if (box == null)
+    throw new StudioInteractionError(
+      path,
+      "target has no rendered border box; make it visible before cursor choreography is captured",
+      eventId,
+    );
   return { x: box.x, y: box.y, width: box.width, height: box.height };
 }
 
 /** Read actual live DOM geometry and computed cursor CSS for every visual event. */
-export async function inspectStudioCursorTargets(page: Page, plan: StudioSemanticPlan): Promise<StudioCursorTargetEvidence[]> {
+export async function inspectStudioCursorTargets(
+  page: Page,
+  plan: StudioSemanticPlan,
+): Promise<StudioCursorTargetEvidence[]> {
   const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   const evidence: StudioCursorTargetEvidence[] = [];
   for (const step of plan.steps) {
     const event = step.event;
     if (event.kind === "waitForState" || event.kind === "scriptHook") continue;
     if (event.kind === "scrollTo" && event.target == null) {
-      evidence.push({ eventId: event.id, kind: event.kind, atMs: event.atMs, path: step.path, cursor: "default", viewport });
+      evidence.push({
+        eventId: event.id,
+        kind: event.kind,
+        atMs: event.atMs,
+        path: step.path,
+        cursor: "default",
+        viewport,
+      });
       continue;
     }
     const target = event.target;
@@ -80,7 +106,12 @@ export async function inspectStudioCursorTargets(page: Page, plan: StudioSemanti
     let destinationPoint: StudioCursorPoint | undefined;
     if (event.kind === "drag") {
       if ("target" in event.to) {
-        const destination = await resolveStudioSemanticTarget(page, event.to.target, `${step.path}.to.target`, event.id);
+        const destination = await resolveStudioSemanticTarget(
+          page,
+          event.to.target,
+          `${step.path}.to.target`,
+          event.id,
+        );
         destinationBox = await inspectBox(page, destination, `${step.path}.to.target`, event.id);
       } else destinationPoint = event.to.point;
     }
@@ -136,7 +167,11 @@ function finitePoint(value: StudioCursorPoint | undefined, label: string): void 
   }
 }
 
-function bounded(point: StudioCursorPoint, viewport: { width: number; height: number }, padding: number): StudioCursorPoint {
+function bounded(
+  point: StudioCursorPoint,
+  viewport: { width: number; height: number },
+  padding: number,
+): StudioCursorPoint {
   return {
     x: clamp(point.x, padding, viewport.width - padding),
     y: clamp(point.y, padding, viewport.height - padding),
@@ -158,7 +193,12 @@ function distance(a: StudioCursorPoint, b: StudioCursorPoint): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-function quadratic(a: StudioCursorPoint, control: StudioCursorPoint, b: StudioCursorPoint, t: number): StudioCursorPoint {
+function quadratic(
+  a: StudioCursorPoint,
+  control: StudioCursorPoint,
+  b: StudioCursorPoint,
+  t: number,
+): StudioCursorPoint {
   const inverse = 1 - t;
   return {
     x: inverse * inverse * a.x + 2 * inverse * t * control.x + t * t * b.x,
@@ -170,7 +210,11 @@ function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
 }
 
-function defaultDuration(from: StudioCursorPoint, to: StudioCursorPoint, targetBox: StudioCursorBox | undefined): number {
+function defaultDuration(
+  from: StudioCursorPoint,
+  to: StudioCursorPoint,
+  targetBox: StudioCursorBox | undefined,
+): number {
   const travel = distance(from, to);
   const targetRelief = targetBox == null ? 0 : Math.min(100, Math.sqrt(targetBox.width * targetBox.height)) * 0.65;
   return Math.round(clamp(150 + travel * 0.72 - targetRelief, 180, 900));
@@ -181,7 +225,7 @@ function defaultControl(from: StudioCursorPoint, to: StudioCursorPoint, random: 
   const dy = to.y - from.y;
   const length = Math.max(1, Math.hypot(dx, dy));
   const bend = Math.min(120, length * (0.12 + random() * 0.13)) * (random() < 0.5 ? -1 : 1);
-  return { x: (from.x + to.x) / 2 - dy / length * bend, y: (from.y + to.y) / 2 + dx / length * bend };
+  return { x: (from.x + to.x) / 2 - (dy / length) * bend, y: (from.y + to.y) / 2 + (dx / length) * bend };
 }
 
 function addCurve(
@@ -212,15 +256,24 @@ export function planStudioCursorChoreography(
   finiteNumber(options.leadInMs, "leadInMs");
   finiteNumber(options.edgePadding, "edgePadding");
   finitePoint(options.start, "start");
-  if (evidence.length === 0) return { overlay: { events: [] }, interactions: [], durationMs: 0, timeOffsetMs: options.leadInMs ?? 500 };
+  if (evidence.length === 0)
+    return { overlay: { events: [] }, interactions: [], durationMs: 0, timeOffsetMs: options.leadInMs ?? 500 };
   const random = randomSource(options.seed ?? evidence.map((item) => item.eventId).join("|"));
   const leadInMs = options.leadInMs ?? 500;
   const padding = options.edgePadding ?? 12;
   const first = evidence[0];
-  const firstAim = first.box == null
-    ? { x: first.viewport.width * 0.78, y: first.viewport.height * 0.62 }
-    : aimAtBox(first.box, random);
-  let current = bounded(options.start ?? { x: firstAim.x - Math.min(180, first.viewport.width * 0.22), y: firstAim.y + Math.min(90, first.viewport.height * 0.16) }, first.viewport, padding);
+  const firstAim =
+    first.box == null
+      ? { x: first.viewport.width * 0.78, y: first.viewport.height * 0.62 }
+      : aimAtBox(first.box, random);
+  let current = bounded(
+    options.start ?? {
+      x: firstAim.x - Math.min(180, first.viewport.width * 0.22),
+      y: firstAim.y + Math.min(90, first.viewport.height * 0.16),
+    },
+    first.viewport,
+    padding,
+  );
   let occupiedUntil = 0;
   const events: CursorEvent[] = [{ type: "show", t: 0, x: current.x, y: current.y }];
   const interactions: StudioCursorInteractionTiming[] = [];
@@ -233,12 +286,19 @@ export function planStudioCursorChoreography(
     finiteNumber(override?.durationMs, `override ${JSON.stringify(item.eventId)} durationMs`, 1);
     finiteNumber(override?.dragDurationMs, `override ${JSON.stringify(item.eventId)} dragDurationMs`, 1);
     finiteNumber(override?.dwellMs, `override ${JSON.stringify(item.eventId)} dwellMs`);
-    if (override?.samples != null && (!Number.isInteger(override.samples) || override.samples < 2 || override.samples > 32)) {
-      throw new Error(`Studio cursor choreography override ${JSON.stringify(item.eventId)} samples must be an integer from 2 to 32`);
+    if (
+      override?.samples != null &&
+      (!Number.isInteger(override.samples) || override.samples < 2 || override.samples > 32)
+    ) {
+      throw new Error(
+        `Studio cursor choreography override ${JSON.stringify(item.eventId)} samples must be an integer from 2 to 32`,
+      );
     }
-    const rawAim = override?.point ?? (item.box == null
-      ? { x: item.viewport.width * 0.78, y: item.viewport.height * (0.55 + random() * 0.16) }
-      : aimAtBox(item.box, random));
+    const rawAim =
+      override?.point ??
+      (item.box == null
+        ? { x: item.viewport.width * 0.78, y: item.viewport.height * (0.55 + random() * 0.16) }
+        : aimAtBox(item.box, random));
     const aim = bounded(rawAim, item.viewport, padding);
     const durationMs = override?.durationMs ?? defaultDuration(current, aim, item.box);
     const dwellMs = override?.dwellMs ?? Math.round(70 + random() * 100);
@@ -259,11 +319,21 @@ export function planStudioCursorChoreography(
       occupiedUntil = Math.max(occupiedUntil, presentedAtMs + (count - 1) * 80);
     } else if (item.kind === "type") events.push({ type: "click", t: presentedAtMs });
     if (item.kind === "drag") {
-      const rawDestination = override?.destinationPoint ?? item.destinationPoint ?? (item.destinationBox == null ? undefined : aimAtBox(item.destinationBox, random));
+      const rawDestination =
+        override?.destinationPoint ??
+        item.destinationPoint ??
+        (item.destinationBox == null ? undefined : aimAtBox(item.destinationBox, random));
       if (rawDestination != null) {
         destinationPoint = bounded(rawDestination, item.viewport, padding);
-        const dragDuration = Math.max(240, override?.dragDurationMs ?? defaultDuration(aim, destinationPoint, item.destinationBox));
-        const dragControl = bounded(override?.controlPoint ?? defaultControl(aim, destinationPoint, random), item.viewport, padding);
+        const dragDuration = Math.max(
+          240,
+          override?.dragDurationMs ?? defaultDuration(aim, destinationPoint, item.destinationBox),
+        );
+        const dragControl = bounded(
+          override?.controlPoint ?? defaultControl(aim, destinationPoint, random),
+          item.viewport,
+          padding,
+        );
         addCurve(events, aim, destinationPoint, presentedAtMs, dragDuration, dragControl, samples, "grabbing");
         occupiedUntil = presentedAtMs + dragDuration;
         current = destinationPoint;

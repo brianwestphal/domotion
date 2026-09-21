@@ -3,10 +3,23 @@ id: "handbook/paint-effects-and-native-controls"
 title: "Paint, effects, and native controls handbook"
 kind: "contract"
 status: "current"
-owners: ["paint-effects","text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2596","DM-2615","DM-2628","DM-2634"]
-code: ["src/render/element-tree-to-svg.ts","src/render/paint-order.ts","src/capture/input-value-geometry.ts","src/capture/native-control-raster.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/feature-coverage.ts"]
+owners: ["paint-effects", "text-fonts"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634"]
+code:
+  [
+    "src/render/element-tree-to-svg.ts",
+    "src/render/paint-order.ts",
+    "src/capture/input-value-geometry.ts",
+    "src/capture/native-control-raster.ts",
+    "src/capture/pseudo-style-cdp.test.ts",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/capture/script/walker/form-controls.ts",
+    "src/capture/script/walker/input-value.ts",
+    "src/render/form-controls.test.ts",
+    "src/render/form-controls.ts",
+    "tests/feature-coverage.ts",
+  ]
 aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
 ---
 
@@ -35,11 +48,11 @@ aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
 
 ## Verified implementation map
 
-| Area | Requirements | Code and tests |
-| --- | --- | --- |
-| Gradients/masks/clips | [Gradient fills](../07-gradient-fills.md), [mask emission](../20-css-mask-emission.md), [generated combinations](../188-generated-svg-effect-combinations.md) | render paint builders and paint geometry oracles |
-| Paint order and filters | [Paint order](../132-paint-order-oracle.md), [blend/filter stage](../185-blend-filter-pixel-stage-oracle.md), [backdrop ownership](../195-strict-ordinary-backdrop-ownership.md) | paint-order/filter modules and strict browser oracles |
-| Borders and scrollbars | [Border phase](../127-border-outline-phase-oracle.md), [cross-platform envelopes](../191-cross-platform-border-phase-envelopes.md), [scrollbars](../165-native-scrollbar-layout-paint-ownership-audit.md) | border/scrollbar oracles and native workflows |
+| Area                           | Requirements                                                                                                                                                                                                                                                                                        | Code and tests                                                                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Gradients/masks/clips          | [Gradient fills](../07-gradient-fills.md), [mask emission](../20-css-mask-emission.md), [generated combinations](../188-generated-svg-effect-combinations.md)                                                                                                                                       | render paint builders and paint geometry oracles                                                                                                                         |
+| Paint order and filters        | [Paint order](../132-paint-order-oracle.md), [blend/filter stage](../185-blend-filter-pixel-stage-oracle.md), [backdrop ownership](../195-strict-ordinary-backdrop-ownership.md)                                                                                                                    | paint-order/filter modules and strict browser oracles                                                                                                                    |
+| Borders and scrollbars         | [Border phase](../127-border-outline-phase-oracle.md), [cross-platform envelopes](../191-cross-platform-border-phase-envelopes.md), [scrollbars](../165-native-scrollbar-layout-paint-ownership-audit.md)                                                                                           | border/scrollbar oracles and native workflows                                                                                                                            |
 | Native and structural controls | [Source-frame rasters](../167-native-control-source-frame-rasters.md), [effective appearance](../170-blink-effective-appearance-routing.md), [closed-shadow geometry/decorations](../171-closed-shadow-control-decorations.md), [fallback retirement](../182-native-control-fallback-retirement.md) | native-control capture/routes plus `input-value-geometry.ts`, the input/form-control walkers, `form-controls.ts`, focused unit tests, and cross-platform E2E/visual jobs |
 
 Every new specialized paint route needs a source decision, an activation

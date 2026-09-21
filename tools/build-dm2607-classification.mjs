@@ -12,10 +12,7 @@ const original = JSON.parse(await readFile(resolve(originalPath), "utf8"));
 const current = JSON.parse(await readFile(resolve(currentPath), "utf8"));
 const dominantWenQuanYiSet = /^(3400-4DBF|4E00-9FFF|AC00-D7AF|F900-FAFF)/;
 const originalNames = original
-  .filter(
-    (row) =>
-      !row.pass && !row.skipped && !dominantWenQuanYiSet.test(row.name),
-  )
+  .filter((row) => !row.pass && !row.skipped && !dominantWenQuanYiSet.test(row.name))
   .map((row) => row.name)
   .sort();
 
@@ -27,9 +24,7 @@ const rows = originalNames.map((name) => {
   const row = current.find((candidate) => candidate.name === name);
   return {
     name,
-    disposition: row.pass
-      ? "resolved"
-      : "functionally-clean-raster-residual",
+    disposition: row.pass ? "resolved" : "functionally-clean-raster-residual",
     verdict: row.verdict,
     regionCount: row.regionCount,
     coveragePct: row.coveragePct,
@@ -59,9 +54,8 @@ const output = {
   counts: {
     total: rows.length,
     resolved: rows.filter((row) => row.disposition === "resolved").length,
-    functionallyCleanRasterResiduals: rows.filter(
-      (row) => row.disposition === "functionally-clean-raster-residual",
-    ).length,
+    functionallyCleanRasterResiduals: rows.filter((row) => row.disposition === "functionally-clean-raster-residual")
+      .length,
   },
   rows,
 };

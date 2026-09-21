@@ -33,7 +33,9 @@ describe("composed parity all-platform workflow", () => {
     expect(workflow).toMatch(/\n\s*push:/);
     expect(workflow).toContain("branches: [main]");
     expect(workflow).toContain("scripts/run-env.mjs");
-    expect(workflow).toContain("composed-metamorphic-v1:04a61271004db715e7710cff049a57bbda14970680bc24b098e8953106086191");
+    expect(workflow).toContain(
+      "composed-metamorphic-v1:04a61271004db715e7710cff049a57bbda14970680bc24b098e8953106086191",
+    );
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain("composed-parity-${{ runner.os }}");
     expect(workflow).toContain("if-no-files-found: error");

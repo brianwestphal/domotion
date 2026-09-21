@@ -9,14 +9,18 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { linuxFallbackChain, __linuxFontProfileForTest, __resetLinuxFontProfileForTest } from "./text-to-path.js";
-import { UNICODE_FONT_PATHS_NOTO_LINUX, UNICODE_FONT_RANGES_NOTO_LINUX } from "./unicode-font-routing.noto-linux.generated.js";
+import {
+  UNICODE_FONT_PATHS_NOTO_LINUX,
+  UNICODE_FONT_RANGES_NOTO_LINUX,
+} from "./unicode-font-routing.noto-linux.generated.js";
 
 function withProfile<T>(profile: "noto" | "bare", fn: () => T): T {
   const prev = process.env.DOMOTION_LINUX_FONT_PROFILE;
   process.env.DOMOTION_LINUX_FONT_PROFILE = profile;
   __resetLinuxFontProfileForTest();
-  try { return fn(); }
-  finally {
+  try {
+    return fn();
+  } finally {
     if (prev == null) delete process.env.DOMOTION_LINUX_FONT_PROFILE;
     else process.env.DOMOTION_LINUX_FONT_PROFILE = prev;
     __resetLinuxFontProfileForTest();

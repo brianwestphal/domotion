@@ -11,20 +11,12 @@ import {
 
 describe("transformed-text neighboring color comparison", () => {
   it("compares an accepted two-device-pixel displacement with the matching color", () => {
-    const target = new Uint8Array([
-      255, 0, 0, 255,
-      0, 0, 0, 0,
-      0, 0, 255, 255,
-    ]);
+    const target = new Uint8Array([255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 255, 255]);
     expect(nearestInkColorError([0, 0, 255, 255], target, 3, 1, 0, 0)).toBe(0);
   });
 
   it("still rejects a wrong color throughout the accepted neighborhood", () => {
-    const target = new Uint8Array([
-      255, 0, 0, 255,
-      255, 0, 0, 255,
-      0, 0, 0, 0,
-    ]);
+    const target = new Uint8Array([255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0]);
     expect(nearestInkColorError([0, 0, 255, 255], target, 3, 1, 0, 0)).toBeGreaterThan(0.4);
   });
 });
@@ -37,33 +29,36 @@ describe("transformed-text hard parity gate", () => {
       "external/html-test/21-deep-anisotropic-scale.html",
       "external/html-test/21-deep-transform-origin.html",
     ]);
-    expect(TEXT_TRANSFORM_CASES.map((row) => row.id)).toEqual(expect.arrayContaining([
-      "identity-negative",
-      "translation-negative",
-      "uniform-scale-scalar-collision",
-      "rotate-scalar-collision",
-      "anisotropic-scale",
-      "rotate-anisotropic-scale",
-      "skew-x",
-      "skew-y",
-      "reflect-x",
-      "reflect-y",
-      "nested-asymmetric-origins",
-      "border-box-reference",
-      "content-box-reference",
-      "wrapped-inline-fragments",
-      "mixed-face-size",
-      "decorations-shadows-stroke",
-      "raster-glyph-overlay",
-      "rtl-horizontal",
-      "vertical-writing",
-      "css-zoom-local",
-      "same-origin-iframe",
-      "affine-matrix3d-negative",
-      "projective-positive",
-    ]));
-    expect(TEXT_TRANSFORM_CASES.find((row) => row.id === "vertical-writing")?.expectedRoute)
-      .toBe("affine-vector-or-source-raster");
+    expect(TEXT_TRANSFORM_CASES.map((row) => row.id)).toEqual(
+      expect.arrayContaining([
+        "identity-negative",
+        "translation-negative",
+        "uniform-scale-scalar-collision",
+        "rotate-scalar-collision",
+        "anisotropic-scale",
+        "rotate-anisotropic-scale",
+        "skew-x",
+        "skew-y",
+        "reflect-x",
+        "reflect-y",
+        "nested-asymmetric-origins",
+        "border-box-reference",
+        "content-box-reference",
+        "wrapped-inline-fragments",
+        "mixed-face-size",
+        "decorations-shadows-stroke",
+        "raster-glyph-overlay",
+        "rtl-horizontal",
+        "vertical-writing",
+        "css-zoom-local",
+        "same-origin-iframe",
+        "affine-matrix3d-negative",
+        "projective-positive",
+      ]),
+    );
+    expect(TEXT_TRANSFORM_CASES.find((row) => row.id === "vertical-writing")?.expectedRoute).toBe(
+      "affine-vector-or-source-raster",
+    );
     expect(expectedRouteAllowsAffineVector("affine-vector")).toBe(true);
     expect(expectedRouteAllowsAffineVector("affine-vector-or-source-raster")).toBe(true);
     expect(expectedRouteAllowsAffineVector("projective-raster")).toBe(false);

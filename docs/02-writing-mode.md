@@ -4,10 +4,16 @@ title: "Domotion: CSS writing-mode support"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1184","DM-2193","DM-2514","DM-K6YQBK","SK-1090","SK-1104","SK-1123"]
-code: ["src/capture/script/walker/text-segments.ts","src/render/text-to-path.ts","src/render/vertical-text.test.ts","src/render/vertical-text.ts"]
-aliases: ["docs/02-writing-mode.md","doc-02"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "SK-1090", "SK-1104", "SK-1123"]
+code:
+  [
+    "src/capture/script/walker/text-segments.ts",
+    "src/render/text-to-path.ts",
+    "src/render/vertical-text.test.ts",
+    "src/render/vertical-text.ts",
+  ]
+aliases: ["docs/02-writing-mode.md", "doc-02"]
 ---
 
 # Domotion: CSS writing-mode support
@@ -76,11 +82,11 @@ Captured as a dedicated combined segment rather than column-split:
 
 - **Capture** (`src/capture/script/walker/text-segments.ts`): an element whose computed `text-combine-upright` is `all` emits ONE `verticalCombineUpright` segment only when Blink's `LayoutTextCombine::IsSupportedMode` accepts its writing mode: `vertical-rl` and `vertical-lr`. Blink calls `horizontal-tb`, `sideways-rl`, and `sideways-lr` horizontal typographic modes, so `all` remains ordinary text in all three. The combined record carries the whole text plus `verticalCombineXOffsets[]` (each glyph's captured x relative to the cell's leftmost glyph). Without this the column grouping (group chars by `x` ±1 px) splits "31" into two single-char columns and rotates each, scattering the digits.
 - **Render** (`src/render/vertical-text.ts`): the combined segment is emitted as a single `renderTextAsPath` call anchored at the captured cell left with each glyph at its captured `verticalCombineXOffsets[i]`, on the same captured-metric upright baseline (`cell-top + segment.fontAscent`, `ascentOverride = 0`) as the per-char upright path. Anchoring at Chrome's painted per-char positions reproduces the side-by-side layout — and any sub-1em condensing Chrome applied — without re-deriving the combine geometry. Verified pixel-clean against Chrome on the `20-deep-writing-mode-mixed` date line (the digit cells show zero diff; the residual fixture diff is CJK-ideograph sub-pixel font differences, unrelated).
-- **Known limit**: heavy condensing (4+ digits squeezed well below 1em) anchors each glyph at the captured compressed x but does not horizontally scale the glyph *shapes*, so wide glyphs could touch; the date-style 1–2 digit runs that are the overwhelming real-world case render exactly.
+- **Known limit**: heavy condensing (4+ digits squeezed well below 1em) anchors each glyph at the captured compressed x but does not horizontally scale the glyph _shapes_, so wide glyphs could touch; the date-style 1–2 digit runs that are the overwhelming real-world case render exactly.
 
 ## Vertical-form punctuation (`vert`)
 
-In a vertical writing mode Chrome enables the OpenType `vert` feature for every upright glyph in the run. The only glyphs `vert` actually changes are CJK punctuation — the comma `、`, ideographic full stop `。`, and the bracket / quote pairs (`「」『』（）【】〔〕〝〟` and their fullwidth-forms counterparts). Their ink moves from the *horizontal* cell corner to the *vertical* one: e.g. Hiragino's `。` glyph goes from ink bbox `[55,-65,355,235]` (bottom-left) to `[645,525,945,825]` em-units (top-right). Ideographs and kana have no `vert` substitution, so they shape identically with or without the feature.
+In a vertical writing mode Chrome enables the OpenType `vert` feature for every upright glyph in the run. The only glyphs `vert` actually changes are CJK punctuation — the comma `、`, ideographic full stop `。`, and the bracket / quote pairs (`「」『』（）【】〔〕〝〟` and their fullwidth-forms counterparts). Their ink moves from the _horizontal_ cell corner to the _vertical_ one: e.g. Hiragino's `。` glyph goes from ink bbox `[55,-65,355,235]` (bottom-left) to `[645,525,945,825]` em-units (top-right). Ideographs and kana have no `vert` substitution, so they shape identically with or without the feature.
 
 - **Render** (`src/render/vertical-text.ts`): the per-char upright path passes `["vert"]` to `renderTextAsPath` only for the punctuation in `VERTICAL_FORM_PUNCTUATION`, so fontkit substitutes the vertical-form glyph. For those glyphs it also anchors the **full em box** to the column (`xLeft = colX + (colW − fontSize) / 2`) instead of ink-centering by the captured horizontal natural width — a corner-set glyph ink-centered by its narrow horizontal width would drift toward the column's middle and low, which is exactly the pre-fix symptom (the `。` painted bottom-center instead of top-right). Ideographs keep the natural-width ink-centering. Verified against Chrome on `20-deep-text-emphasis` (vertical frame): the `。` cells move from a two-circle diff to a clean match.
 

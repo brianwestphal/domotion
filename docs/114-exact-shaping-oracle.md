@@ -3,11 +3,11 @@ id: "requirements/exact-shaping-oracle"
 title: "Exact shaping oracle"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release","product-tooling"]
-platforms: ["macos","linux","windows"]
+owners: ["text-fonts", "platform-release", "product-tooling"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["src/render/harfbuzz-shaper.ts","tools/exact-shaping-oracle.ts","tools/shape-agreement-samples.ts"]
-aliases: ["docs/114-exact-shaping-oracle.md","doc-114"]
+code: ["src/render/harfbuzz-shaper.ts", "tools/exact-shaping-oracle.ts", "tools/shape-agreement-samples.ts"]
+aliases: ["docs/114-exact-shaping-oracle.md", "doc-114"]
 ---
 
 # Exact shaping oracle

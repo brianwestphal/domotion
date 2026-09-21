@@ -119,7 +119,7 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
   it("gates against the SYNTHETIC baseline, never the harvested one", () => {
     const job = jobs["aggregate"];
     expect(job).toMatch(/tests\/baselines\/font-conformance-synthetic-\$\{\{ matrix\.os \}\}\.json/);
-    expect(job).toContain('font-conformance-synthetic-${{ matrix.os }}-byte-${sample}.json');
+    expect(job).toContain("font-conformance-synthetic-${{ matrix.os }}-byte-${sample}.json");
     // …and not the harvested path, which differs by one word.
     expect(job).not.toMatch(/baselines\/font-conformance-\$\{\{ matrix\.os \}\}\.json/);
   });
@@ -136,7 +136,7 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     // and the last queued macOS shard hit the same ceiling. Keep both comfortably
     // below that bound while avoiding unnecessary Linux runner fan-out. The
     // DirectWrite health sample gets more shards because it remains far slower.
-    expect(yaml).toMatch(/shards:[\s\S]{0,300}?default: 'auto'/);
+    expect(yaml).toMatch(/shards:\n\s+description:.*\n\s+default: ["']auto["']/);
     expect(jobs["setup"]).toMatch(/sample[\s\S]*?all[\s\S]*?macos_n=8[\s\S]*?linux_n=6[\s\S]*?windows_n=16/);
     expect(jobs["setup"]).toMatch(/macos_n=1[\s\S]*?linux_n=1[\s\S]*?windows_n=2/);
     expect(jobs["sweep-macos"]).toContain("needs.setup.outputs.macos_matrix");
@@ -148,8 +148,8 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
   it("defaults to a revision-derived rotating low-byte, with no extra codepoint stride", () => {
     // The shard script omits `--shard` entirely when CP_TOTAL is 1, which the
     // merge relies on to key its codepoint accounting off `meta.shard` being null.
-    expect(yaml).toMatch(/cp_total:[\s\S]{0,400}?default: '1'/);
-    expect(yaml).toMatch(/sample_byte:[\s\S]{0,400}?default: 'auto'/);
+    expect(yaml).toMatch(/cp_total:\n\s+description:.*\n\s+default: ["']1["']/);
+    expect(yaml).toMatch(/sample_byte:\n\s+description:.*\n\s+default: ["']auto["']/);
     expect(jobs["setup"]).toContain("font-conformance-rotation.mjs");
     for (const os of PLATFORMS) {
       expect(jobs[`sweep-${os}`]).toMatch(/SAMPLE_BYTE: \$\{\{ needs\.setup\.outputs\.sample_byte \}\}/);
@@ -157,6 +157,6 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
   });
 
   it("defaults to the complete single-axis slice, including spelling and language", () => {
-    expect(yaml).toMatch(/max_stacks:[\s\S]{0,400}?default: '351'/);
+    expect(yaml).toMatch(/max_stacks:\n\s+description:.*\n\s+default: ["']351["']/);
   });
 });

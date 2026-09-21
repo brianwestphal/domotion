@@ -46,9 +46,11 @@ function digest(bytes: Uint8Array): string {
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value != null && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, entry]) => [key, canonical(entry)]));
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, entry]) => [key, canonical(entry)]),
+    );
   }
   return value;
 }
@@ -72,23 +74,27 @@ export function authenticateFontFeatureEnvironment(
   const matchingFaces = environment.faces.filter((face) => face.id === environment.selectedFaceId);
   if (matchingFaces.length !== 1) throw new Error("selected font face is absent or ambiguous");
   const face = matchingFaces[0];
-  for (const descriptor of [face.family, face.weightDescriptor, face.styleDescriptor,
-    face.stretchDescriptor, face.unicodeRange]) {
+  for (const descriptor of [
+    face.family,
+    face.weightDescriptor,
+    face.styleDescriptor,
+    face.stretchDescriptor,
+    face.unicodeRange,
+  ]) {
     if (descriptor.trim() === "") throw new Error("selected font face has an empty descriptor");
   }
-  const matchingSources = face.sources.filter((source) =>
-    source.sourceOrder === environment.selectedSourceOrder);
+  const matchingSources = face.sources.filter((source) => source.sourceOrder === environment.selectedSourceOrder);
   if (matchingSources.length !== 1) throw new Error("selected font source is absent or ambiguous");
   const source = matchingSources[0];
-  const earlierLoaded = face.sources.some((candidate) =>
-    candidate.sourceOrder < source.sourceOrder && candidate.status === "loaded");
+  const earlierLoaded = face.sources.some(
+    (candidate) => candidate.sourceOrder < source.sourceOrder && candidate.status === "loaded",
+  );
   if (earlierLoaded) throw new Error("selected font source violates CSS source order");
   if (source.status !== "loaded") throw new Error("selected font source did not load");
   if (source.bytesBase64 == null || source.sha256 == null) {
     throw new Error(`unauthenticated ${source.kind} font bytes`);
   }
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(source.bytesBase64)
-      || !/^[a-f0-9]{64}$/.test(source.sha256)) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(source.bytesBase64) || !/^[a-f0-9]{64}$/.test(source.sha256)) {
     throw new Error("invalid retained font byte authentication");
   }
   const bytes = Buffer.from(source.bytesBase64, "base64");
@@ -107,17 +113,17 @@ export function authenticateFontFeatureEnvironment(
 }
 
 /** Exact cache/probe partition: document identity prevents alias leakage. */
-export function fontFeatureEnvironmentKey(
-  environment: AuthenticatedFontFeatureEnvironment,
-): string {
+export function fontFeatureEnvironmentKey(environment: AuthenticatedFontFeatureEnvironment): string {
   const selected = authenticateFontFeatureEnvironment(environment);
-  return JSON.stringify(canonical({
-    version: environment.version,
-    documentId: environment.documentId,
-    selectedFaceId: environment.selectedFaceId,
-    selectedSourceOrder: environment.selectedSourceOrder,
-    faces: environment.faces,
-    effectiveAliasTable: environment.effectiveAliasTable,
-    selectedDigest: selected.source.sha256,
-  }));
+  return JSON.stringify(
+    canonical({
+      version: environment.version,
+      documentId: environment.documentId,
+      selectedFaceId: environment.selectedFaceId,
+      selectedSourceOrder: environment.selectedSourceOrder,
+      faces: environment.faces,
+      effectiveAliasTable: environment.effectiveAliasTable,
+      selectedDigest: selected.source.sha256,
+    }),
+  );
 }

@@ -49,7 +49,11 @@ const chromeFields = {
 export const studioTreatmentSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("device-frame"), device: z.enum(DEVICE_CHROMES).default("phone"), ...chromeFields }),
   z.strictObject({ kind: z.literal("browser-chrome"), ...chromeFields }),
-  z.strictObject({ kind: z.literal("terminal-chrome"), title: z.string().default("Terminal"), theme: z.enum(CHROME_THEMES).default("dark") }),
+  z.strictObject({
+    kind: z.literal("terminal-chrome"),
+    title: z.string().default("Terminal"),
+    theme: z.enum(CHROME_THEMES).default("dark"),
+  }),
   z.strictObject({
     kind: z.literal("zoom-pan"),
     transform: studioTreatmentTransformPrimitiveSchema,
@@ -92,10 +96,19 @@ export const studioTreatmentSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("scene-transition"), transition: storyboardTransitionSchema }),
 ]);
 
-export const studioTreatmentsSchema = z.array(studioTreatmentSchema).max(32).superRefine((treatments, ctx) => {
-  const transitions = treatments.flatMap((treatment, index) => treatment.kind === "scene-transition" ? [index] : []);
-  transitions.slice(1).forEach((index) => ctx.addIssue({ code: "custom", path: [index], message: "only one scene-transition treatment is allowed" }));
-});
+export const studioTreatmentsSchema = z
+  .array(studioTreatmentSchema)
+  .max(32)
+  .superRefine((treatments, ctx) => {
+    const transitions = treatments.flatMap((treatment, index) =>
+      treatment.kind === "scene-transition" ? [index] : [],
+    );
+    transitions
+      .slice(1)
+      .forEach((index) =>
+        ctx.addIssue({ code: "custom", path: [index], message: "only one scene-transition treatment is allowed" }),
+      );
+  });
 
 export type StudioTreatmentTiming = z.infer<typeof studioTreatmentTimingSchema>;
 export type StudioTreatmentLayerPrimitive = z.infer<typeof studioTreatmentLayerPrimitiveSchema>;

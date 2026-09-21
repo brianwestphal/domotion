@@ -21,8 +21,12 @@ function fakePty(chunks: string[], exitCode = 0) {
         exitCb({ exitCode });
       });
       return {
-        onData(cb: (d: string) => void) { dataCb = cb; },
-        onExit(cb: (e: { exitCode: number }) => void) { exitCb = cb; },
+        onData(cb: (d: string) => void) {
+          dataCb = cb;
+        },
+        onExit(cb: (e: { exitCode: number }) => void) {
+          exitCb = cb;
+        },
         write() {},
         resize() {},
         kill() {},
@@ -61,7 +65,15 @@ describe("recordPtySession (DM-1226 live capture shim)", () => {
   });
 
   it("buildCastText emits a valid v2 header line + one JSON array per event", () => {
-    const text = buildCastText(80, 24, ["ls", "-la"], [[0, "o", "a"], [0.5, "o", "b\r\n"]]);
+    const text = buildCastText(
+      80,
+      24,
+      ["ls", "-la"],
+      [
+        [0, "o", "a"],
+        [0.5, "o", "b\r\n"],
+      ],
+    );
     const lines = text.trimEnd().split("\n");
     expect(JSON.parse(lines[0])).toMatchObject({ version: 2, width: 80, height: 24, command: "ls -la" });
     expect(JSON.parse(lines[1])).toEqual([0, "o", "a"]);

@@ -16,7 +16,11 @@ const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width=
 <rect width="120" height="80" fill="#0b1220"/><circle cx="60" cy="40" r="24" fill="#22d3ee"/></svg>`;
 
 const env = await (async () => {
-  try { return { browser: await chromium.launch({ headless: true }) }; } catch { return null; }
+  try {
+    return { browser: await chromium.launch({ headless: true }) };
+  } catch {
+    return null;
+  }
 })();
 const dir = mkdtempSync(join(tmpdir(), "scrubber-frame-attach-"));
 let srv: ScrubberServerHandle | null = null;
@@ -32,19 +36,26 @@ const describeBrowser = env ? describe : describe.skip;
 describeBrowser("svg-scrubber review frame attachment (DM-1449)", () => {
   it("renders the current frame to a sibling PNG and references it in the .ticket", async () => {
     srv = await startScrubberServer({
-      review: true, ticketDir: dir,
+      review: true,
+      ticketDir: dir,
       launchBrowser: async () => (env as { browser: Browser }).browser,
     });
     const res = await fetch(srv.url.replace(/\/$/, "") + "/ticket", {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        title: "Circle looks off", svgName: "blip", frameTimeMs: 0, rangeStartMs: 0, rangeEndMs: 0,
+        title: "Circle looks off",
+        svgName: "blip",
+        frameTimeMs: 0,
+        rangeStartMs: 0,
+        rangeEndMs: 0,
         regions: [{ x: 36, y: 16, w: 48, h: 48 }],
-        attachFrame: true, svg: SVG,
+        attachFrame: true,
+        svg: SVG,
       }),
     });
     expect(res.status).toBe(200);
-    const { path, framePng } = await res.json() as { path: string; framePng: string | null };
+    const { path, framePng } = (await res.json()) as { path: string; framePng: string | null };
 
     // The sibling PNG was written next to the ticket, with the same slug+stamp.
     expect(framePng).not.toBeNull();

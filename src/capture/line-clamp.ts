@@ -1,5 +1,5 @@
-import type { Page } from '@playwright/test';
-import type { CapturedElement, CaptureWarning, TextSegment } from './types.js';
+import type { Page } from "@playwright/test";
+import type { CapturedElement, CaptureWarning, TextSegment } from "./types.js";
 
 // DM-2417: DOM Range exposes every laid-out clamp-line character, including
 // the tail Blink removes before painting its generated ellipsis. Chromium's AX
@@ -16,8 +16,9 @@ interface ClampTarget {
 function collectTargets(tree: CapturedElement[]): ClampTarget[] {
   const targets: ClampTarget[] = [];
   const visit = (element: CapturedElement): void => {
-    const marker = element.textSegments?.find((segment) =>
-      segment.generatedLineClampEllipsis && segment.lineClampProbeId != null);
+    const marker = element.textSegments?.find(
+      (segment) => segment.generatedLineClampEllipsis && segment.lineClampProbeId != null,
+    );
     if (marker) targets.push({ root: element, marker });
     for (const child of element.children ?? []) visit(child);
   };
@@ -25,24 +26,16 @@ function collectTargets(tree: CapturedElement[]): ClampTarget[] {
   return targets;
 }
 
-function trimHorizontalSegment(
-  segment: TextSegment,
-  boundary: number,
-  direction: string,
-): boolean {
+function trimHorizontalSegment(segment: TextSegment, boundary: number, direction: string): boolean {
   if (segment.xOffsets == null || segment.xAdvances == null) {
-    return direction === 'rtl'
-      ? segment.x + segment.width > boundary - 0.25
-      : segment.x < boundary + 0.25;
+    return direction === "rtl" ? segment.x + segment.width > boundary - 0.25 : segment.x < boundary + 0.25;
   }
   let cut = 0;
   for (let i = 0; i < Math.min(segment.text.length, segment.xOffsets.length);) {
-    const step = (segment.text.codePointAt(i) ?? 0) > 0xFFFF ? 2 : 1;
+    const step = (segment.text.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
     const start = segment.xOffsets[i];
     const end = start + (segment.xAdvances[i] ?? 0);
-    const retained = direction === 'rtl'
-      ? start >= boundary - 0.25
-      : end <= boundary + 0.25;
+    const retained = direction === "rtl" ? start >= boundary - 0.25 : end <= boundary + 0.25;
     if (!retained) break;
     // Capture repeats one codepoint's Range facts for both UTF-16 units. Move
     // by the whole scalar so trimming cannot leave a lone high surrogate.
@@ -66,24 +59,16 @@ function trimHorizontalSegment(
   return true;
 }
 
-function trimVerticalSegment(
-  segment: TextSegment,
-  boundary: number,
-  direction: string,
-): boolean {
+function trimVerticalSegment(segment: TextSegment, boundary: number, direction: string): boolean {
   if (segment.yOffsets == null || segment.verticalAdvances == null) {
-    return direction === 'rtl'
-      ? segment.y + segment.height > boundary - 0.25
-      : segment.y < boundary + 0.25;
+    return direction === "rtl" ? segment.y + segment.height > boundary - 0.25 : segment.y < boundary + 0.25;
   }
   let cut = 0;
   for (let i = 0; i < Math.min(segment.text.length, segment.yOffsets.length);) {
-    const step = (segment.text.codePointAt(i) ?? 0) > 0xFFFF ? 2 : 1;
+    const step = (segment.text.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
     const start = segment.yOffsets[i];
     const end = start + (segment.verticalAdvances[i] ?? 0);
-    const retained = direction === 'rtl'
-      ? start >= boundary - 0.25
-      : end <= boundary + 0.25;
+    const retained = direction === "rtl" ? start >= boundary - 0.25 : end <= boundary + 0.25;
     if (!retained) break;
     cut = i + step;
     i += step;
@@ -96,19 +81,18 @@ function trimVerticalSegment(
     segment.verticalAdvances = segment.verticalAdvances.slice(0, cut);
     segment.verticalOrientations = segment.verticalOrientations?.slice(0, cut);
     segment.verticalNaturalWidths = segment.verticalNaturalWidths?.slice(0, cut);
-    segment.height = Math.max(0, Math.max(...segment.yOffsets.map((y, i) =>
-      y + (segment.verticalAdvances?.[i] ?? 0))) - Math.min(...segment.yOffsets));
+    segment.height = Math.max(
+      0,
+      Math.max(...segment.yOffsets.map((y, i) => y + (segment.verticalAdvances?.[i] ?? 0))) -
+        Math.min(...segment.yOffsets),
+    );
   }
   return true;
 }
 
-function trimClampLineSource(
-  root: CapturedElement,
-  marker: TextSegment,
-  boundary: number,
-): void {
+function trimClampLineSource(root: CapturedElement, marker: TextSegment, boundary: number): void {
   const vertical = marker.verticalWritingMode != null;
-  const direction = root.styles.direction === 'rtl' ? 'rtl' : 'ltr';
+  const direction = root.styles.direction === "rtl" ? "rtl" : "ltr";
   const markerBaseline = marker.baseline ?? (vertical ? marker.x : marker.y + (marker.fontAscent ?? 0));
   const visit = (element: CapturedElement): void => {
     if (element.textSegments != null) {
@@ -147,28 +131,28 @@ export async function refineLineClampEllipsisFragments(
   const session = await page.context().newCDPSession(page);
   const unresolved = new Set(targets.map(({ marker }) => marker.lineClampProbeId!));
   try {
-    await session.send('Accessibility.enable');
-    await session.send('DOM.enable');
-    await session.send('CSS.enable');
-    const documentResult = await session.send('DOM.getDocument', { depth: -1, pierce: true });
-    const full = await session.send('Accessibility.getFullAXTree', { depth: -1 });
+    await session.send("Accessibility.enable");
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    const documentResult = await session.send("DOM.getDocument", { depth: -1, pierce: true });
+    const full = await session.send("Accessibility.getFullAXTree", { depth: -1 });
     const axById = new Map(full.nodes.map((node) => [node.nodeId, node]));
 
     for (const { root, marker } of targets) {
       const probeId = marker.lineClampProbeId!;
       try {
-        const queried = await session.send('DOM.querySelector', {
+        const queried = await session.send("DOM.querySelector", {
           nodeId: documentResult.root.nodeId,
           selector: `[data-domotion-line-clamp-probe="${probeId}"]`,
         });
         if (queried.nodeId === 0) continue;
-        const described = await session.send('DOM.describeNode', { nodeId: queried.nodeId });
-        const partial = await session.send('Accessibility.getPartialAXTree', {
+        const described = await session.send("DOM.describeNode", { nodeId: queried.nodeId });
+        const partial = await session.send("Accessibility.getPartialAXTree", {
           backendNodeId: described.node.backendNodeId,
           fetchRelatives: true,
         });
-        const rootAx = partial.nodes.find((node) => node.backendDOMNodeId === described.node.backendNodeId)
-          ?? partial.nodes[0];
+        const rootAx =
+          partial.nodes.find((node) => node.backendDOMNodeId === described.node.backendNodeId) ?? partial.nodes[0];
         if (rootAx == null) continue;
         const descendants = new Set<string>();
         const queue = [rootAx.nodeId];
@@ -181,26 +165,31 @@ export async function refineLineClampEllipsisFragments(
         const anchors: AxAnchor[] = [];
         for (const id of descendants) {
           const parent = axById.get(id);
-          if (parent?.backendDOMNodeId == null || parent.role?.value !== 'StaticText') continue;
+          if (parent?.backendDOMNodeId == null || parent.role?.value !== "StaticText") continue;
           const children = parent.childIds ?? [];
           for (let index = 1; index < children.length; index++) {
             const generated = axById.get(children[index]);
             const retained = axById.get(children[index - 1]);
             const markerText = generated?.name?.value;
             const retainedText = retained?.name?.value;
-            if (generated?.role?.value !== 'InlineTextBox'
-              || retained?.role?.value !== 'InlineTextBox'
-              || (markerText !== '…' && markerText !== '...')
-              || typeof retainedText !== 'string' || retainedText.length === 0) continue;
+            if (
+              generated?.role?.value !== "InlineTextBox" ||
+              retained?.role?.value !== "InlineTextBox" ||
+              (markerText !== "…" && markerText !== "...") ||
+              typeof retainedText !== "string" ||
+              retainedText.length === 0
+            )
+              continue;
             anchors.push({ markerText, retainedText, backendDOMNodeId: parent.backendDOMNodeId });
           }
         }
-        let best: { anchor: AxAnchor; rect: { left: number; right: number; top: number; bottom: number } } | null = null;
+        let best: { anchor: AxAnchor; rect: { left: number; right: number; top: number; bottom: number } } | null =
+          null;
         let bestDistance = Infinity;
         for (const anchor of anchors) {
-          const resolved = await session.send('DOM.resolveNode', { backendNodeId: anchor.backendDOMNodeId });
+          const resolved = await session.send("DOM.resolveNode", { backendNodeId: anchor.backendDOMNodeId });
           if (resolved.object.objectId == null) continue;
-          const measured = await session.send('Runtime.callFunctionOn', {
+          const measured = await session.send("Runtime.callFunctionOn", {
             objectId: resolved.object.objectId,
             functionDeclaration: `function(retained) {
               const text = this.nodeValue || '';
@@ -220,17 +209,26 @@ export async function refineLineClampEllipsisFragments(
             arguments: [{ value: anchor.retainedText }],
             returnByValue: true,
           });
-          const rects = (measured.result.value ?? []) as Array<{ left: number; right: number; top: number; bottom: number }>;
+          const rects = (measured.result.value ?? []) as Array<{
+            left: number;
+            right: number;
+            top: number;
+            bottom: number;
+          }>;
           for (const rect of rects) {
             const vertical = marker.verticalWritingMode != null;
-            const direction = root.styles.direction === 'rtl' ? 'rtl' : 'ltr';
+            const direction = root.styles.direction === "rtl" ? "rtl" : "ltr";
             const advance = marker.shapedWidth ?? (vertical ? marker.height : marker.width);
             const boundary = vertical
-              ? (direction === 'rtl' ? rect.top : rect.bottom)
-              : (direction === 'rtl' ? rect.left : rect.right);
-            const candidateStart = direction === 'rtl' ? boundary - advance : boundary;
-            const provisionalStart = (marker.inlineOffset ?? (vertical ? marker.y : marker.x))
-              + (vertical ? viewport.y : viewport.x);
+              ? direction === "rtl"
+                ? rect.top
+                : rect.bottom
+              : direction === "rtl"
+                ? rect.left
+                : rect.right;
+            const candidateStart = direction === "rtl" ? boundary - advance : boundary;
+            const provisionalStart =
+              (marker.inlineOffset ?? (vertical ? marker.y : marker.x)) + (vertical ? viewport.y : viewport.x);
             // The block-axis term picks the clamp line; inline proximity then
             // disambiguates a real U+2026 in the author's source from Blink's
             // generated InlineTextBox on that same line.
@@ -246,65 +244,75 @@ export async function refineLineClampEllipsisFragments(
         }
         if (best == null) continue;
         const vertical = marker.verticalWritingMode != null;
-        const direction = root.styles.direction === 'rtl' ? 'rtl' : 'ltr';
+        const direction = root.styles.direction === "rtl" ? "rtl" : "ltr";
         marker.text = best.anchor.markerText;
         // Resolve the marker glyph in isolation through the same platform font
         // matcher Chromium used for paint. The authored stack remains the
         // renderer input; this records the concrete selected face as evidence
         // and lets downstream consumers audit fallback/synthesis explicitly.
         const fontProbeId = `${probeId}-font`;
-        await page.evaluate(({ rootProbeId, fontProbeId: id, text }) => {
-          const clampRoot = document.querySelector(`[data-domotion-line-clamp-probe="${rootProbeId}"]`);
-          if (!(clampRoot instanceof HTMLElement)) return;
-          const computed = getComputedStyle(clampRoot);
-          const probe = document.createElement('span');
-          probe.setAttribute('data-domotion-line-clamp-font-probe', id);
-          probe.textContent = text;
-          probe.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;white-space:pre;margin:0;padding:0;border:0;';
-          probe.style.font = computed.font;
-          probe.style.fontFamily = computed.fontFamily;
-          probe.style.fontSize = computed.fontSize;
-          probe.style.fontWeight = computed.fontWeight;
-          probe.style.fontStyle = computed.fontStyle;
-          probe.style.fontStretch = computed.fontStretch;
-          probe.style.fontVariationSettings = computed.fontVariationSettings;
-          probe.style.fontFeatureSettings = computed.fontFeatureSettings;
-          probe.style.fontKerning = computed.fontKerning;
-          probe.style.letterSpacing = computed.letterSpacing;
-          probe.style.direction = computed.direction;
-          probe.style.writingMode = computed.writingMode;
-          probe.style.textOrientation = computed.textOrientation;
-          document.body.appendChild(probe);
-          // Force layout before CSS.getPlatformFontsForNode.
-          void probe.getBoundingClientRect();
-        }, { rootProbeId: probeId, fontProbeId, text: marker.text });
+        await page.evaluate(
+          ({ rootProbeId, fontProbeId: id, text }) => {
+            const clampRoot = document.querySelector(`[data-domotion-line-clamp-probe="${rootProbeId}"]`);
+            if (!(clampRoot instanceof HTMLElement)) return;
+            const computed = getComputedStyle(clampRoot);
+            const probe = document.createElement("span");
+            probe.setAttribute("data-domotion-line-clamp-font-probe", id);
+            probe.textContent = text;
+            probe.style.cssText =
+              "position:fixed;left:0;top:0;opacity:0;pointer-events:none;white-space:pre;margin:0;padding:0;border:0;";
+            probe.style.font = computed.font;
+            probe.style.fontFamily = computed.fontFamily;
+            probe.style.fontSize = computed.fontSize;
+            probe.style.fontWeight = computed.fontWeight;
+            probe.style.fontStyle = computed.fontStyle;
+            probe.style.fontStretch = computed.fontStretch;
+            probe.style.fontVariationSettings = computed.fontVariationSettings;
+            probe.style.fontFeatureSettings = computed.fontFeatureSettings;
+            probe.style.fontKerning = computed.fontKerning;
+            probe.style.letterSpacing = computed.letterSpacing;
+            probe.style.direction = computed.direction;
+            probe.style.writingMode = computed.writingMode;
+            probe.style.textOrientation = computed.textOrientation;
+            document.body.appendChild(probe);
+            // Force layout before CSS.getPlatformFontsForNode.
+            void probe.getBoundingClientRect();
+          },
+          { rootProbeId: probeId, fontProbeId, text: marker.text },
+        );
         try {
-          const fontProbe = await session.send('DOM.querySelector', {
+          const fontProbe = await session.send("DOM.querySelector", {
             nodeId: documentResult.root.nodeId,
             selector: `[data-domotion-line-clamp-font-probe="${fontProbeId}"]`,
           });
           if (fontProbe.nodeId !== 0) {
-            const platformFonts = await session.send('CSS.getPlatformFontsForNode', { nodeId: fontProbe.nodeId });
+            const platformFonts = await session.send("CSS.getPlatformFontsForNode", { nodeId: fontProbe.nodeId });
             const face = platformFonts.fonts.find((font) => font.glyphCount > 0);
             if (face != null) {
               marker.resolvedFontFace = {
                 familyName: face.familyName,
-                ...(face.postScriptName !== '' ? { postScriptName: face.postScriptName } : {}),
+                ...(face.postScriptName !== "" ? { postScriptName: face.postScriptName } : {}),
                 isCustomFont: face.isCustomFont,
               };
             }
           }
         } finally {
-          await page.evaluate((id) => {
-            document.querySelector(`[data-domotion-line-clamp-font-probe="${id}"]`)?.remove();
-          }, fontProbeId).catch(() => undefined);
+          await page
+            .evaluate((id) => {
+              document.querySelector(`[data-domotion-line-clamp-font-probe="${id}"]`)?.remove();
+            }, fontProbeId)
+            .catch(() => undefined);
         }
         const advance = marker.shapedWidth ?? (vertical ? marker.height : marker.width);
         const physicalBoundary = vertical
-          ? (direction === 'rtl' ? best.rect.top : best.rect.bottom)
-          : (direction === 'rtl' ? best.rect.left : best.rect.right);
+          ? direction === "rtl"
+            ? best.rect.top
+            : best.rect.bottom
+          : direction === "rtl"
+            ? best.rect.left
+            : best.rect.right;
         const boundary = physicalBoundary - (vertical ? viewport.y : viewport.x);
-        const start = direction === 'rtl' ? boundary - advance : boundary;
+        const start = direction === "rtl" ? boundary - advance : boundary;
         marker.inlineOffset = start;
         if (vertical) {
           marker.y = start;
@@ -326,16 +334,19 @@ export async function refineLineClampEllipsisFragments(
     for (const probeId of unresolved) {
       warnings.push({
         selector: `[data-domotion-line-clamp-probe="${probeId}"]`,
-        feature: 'line-clamp generated ellipsis',
-        detail: 'Chromium AX did not expose the generated InlineTextBox; retained bounded provisional DOM geometry (DM-2417)',
+        feature: "line-clamp generated ellipsis",
+        detail:
+          "Chromium AX did not expose the generated InlineTextBox; retained bounded provisional DOM geometry (DM-2417)",
       });
     }
-    await page.evaluate(() => {
-      for (const element of document.querySelectorAll('[data-domotion-line-clamp-probe]')) {
-        element.removeAttribute('data-domotion-line-clamp-probe');
-      }
-    }).catch(() => undefined);
-    await session.send('Accessibility.disable').catch(() => undefined);
+    await page
+      .evaluate(() => {
+        for (const element of document.querySelectorAll("[data-domotion-line-clamp-probe]")) {
+          element.removeAttribute("data-domotion-line-clamp-probe");
+        }
+      })
+      .catch(() => undefined);
+    await session.send("Accessibility.disable").catch(() => undefined);
     await session.detach().catch(() => undefined);
   }
 }

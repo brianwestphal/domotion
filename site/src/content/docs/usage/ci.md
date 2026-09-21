@@ -49,8 +49,8 @@ To **fail the build when checked-in demos drift**, regenerate and diff (see
 [Web app demos → regenerate on every release](/domotion/usage/web-app-demos/)):
 
 ```yaml
-      - run: npm run demos            # your `domotion animate …` script
-      - run: git diff --exit-code -- demos/
+- run: npm run demos # your `domotion animate …` script
+- run: git diff --exit-code -- demos/
 ```
 
 ## Containers

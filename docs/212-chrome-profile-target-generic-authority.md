@@ -4,10 +4,17 @@ title: "Chrome profile and target generic-family authority"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2539","DM-2550","DM-2551"]
-code: ["src/capture/generic-font-probe.ts","src/render/glyph-helper.ts","tests/generic-profile-target-oracle.e2e.test.ts","tools/generic-profile-target-oracle.ts","tools/system-ui-preference-route-oracle.ts"]
-aliases: ["docs/212-chrome-profile-target-generic-authority.md","doc-212"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2539", "DM-2550", "DM-2551"]
+code:
+  [
+    "src/capture/generic-font-probe.ts",
+    "src/render/glyph-helper.ts",
+    "tests/generic-profile-target-oracle.e2e.test.ts",
+    "tools/generic-profile-target-oracle.ts",
+    "tools/system-ui-preference-route-oracle.ts",
+  ]
+aliases: ["docs/212-chrome-profile-target-generic-authority.md", "doc-212"]
 ---
 
 # Chrome profile and target generic-family authority

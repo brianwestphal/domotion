@@ -12,12 +12,7 @@ const LIVE_STATUSES = new Set(["current", "partial"]);
  * intentionally retain old paths, so the existence contract applies only to
  * current/partial metadata.
  */
-export function documentationCodePathErrors(
-  filename,
-  metadata,
-  projectRoot,
-  pathExists = existsSync,
-) {
+export function documentationCodePathErrors(filename, metadata, projectRoot, pathExists = existsSync) {
   if (!LIVE_STATUSES.has(metadata?.status) || !Array.isArray(metadata?.code)) return [];
 
   const errors = [];
@@ -28,9 +23,12 @@ export function documentationCodePathErrors(
     }
     const resolvedPath = resolve(projectRoot, declaredPath);
     const repositoryPath = relative(projectRoot, resolvedPath);
-    if (repositoryPath === "" || repositoryPath === ".."
-        || repositoryPath.startsWith(`..${sep}`)
-        || isAbsolute(repositoryPath)) {
+    if (
+      repositoryPath === "" ||
+      repositoryPath === ".." ||
+      repositoryPath.startsWith(`..${sep}`) ||
+      isAbsolute(repositoryPath)
+    ) {
       errors.push(`${filename}: code path escapes the repository: ${declaredPath}`);
       continue;
     }

@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
-tickets: ["DM-1028","DM-1197","DM-1215","DM-983"]
+tickets: ["DM-1028", "DM-1197", "DM-1215", "DM-983"]
 code: ["src/render/font-resolution.ts"]
-aliases: ["docs/79-harfbuzz-use-reroute.md","doc-79"]
+aliases: ["docs/79-harfbuzz-use-reroute.md", "doc-79"]
 ---
 
 # HarfBuzz routing for complex-script edge cases (DM-1197, DM-1215)

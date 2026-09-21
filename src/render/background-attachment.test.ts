@@ -8,9 +8,7 @@ const border = { x: 20, y: 20, width: 160, height: 100 };
 const padding = { x: 27, y: 27, width: 146, height: 86 };
 const content = { x: 38, y: 40, width: 124, height: 60 };
 
-function geometry(
-  overrides: Partial<CapturedBackgroundAttachmentGeometry> = {},
-): CapturedBackgroundAttachmentGeometry {
+function geometry(overrides: Partial<CapturedBackgroundAttachmentGeometry> = {}): CapturedBackgroundAttachmentGeometry {
   return {
     source: "blink-box-background-paint-context-v1",
     fixedToViewport: true,
@@ -30,9 +28,9 @@ describe("Blink background attachment positioning areas", () => {
   });
 
   it("treats fixed under an applicable transform as scroll", () => {
-    expect(resolveBackgroundAttachment(
-      "fixed", border, padding, border, geometry({ fixedToViewport: false }), viewport,
-    )).toEqual({
+    expect(
+      resolveBackgroundAttachment("fixed", border, padding, border, geometry({ fixedToViewport: false }), viewport),
+    ).toEqual({
       attachment: "scroll",
       positioningBox: padding,
       paintingBox: border,
@@ -41,16 +39,23 @@ describe("Blink background attachment positioning areas", () => {
   });
 
   it("subtracts both snapped scroll axes and uses scroll extent plus borders", () => {
-    const resolved = resolveBackgroundAttachment("local", border, padding, content, geometry({
-      local: {
-        active: true,
-        scrollOffsetX: 73,
-        scrollOffsetY: 59,
-        borderPaintWidth: 344,
-        borderPaintHeight: 274,
-        overflowClip: { x: 27, y: 27, width: 146, height: 86 },
-      },
-    }), viewport);
+    const resolved = resolveBackgroundAttachment(
+      "local",
+      border,
+      padding,
+      content,
+      geometry({
+        local: {
+          active: true,
+          scrollOffsetX: 73,
+          scrollOffsetY: 59,
+          borderPaintWidth: 344,
+          borderPaintHeight: 274,
+          overflowClip: { x: 27, y: 27, width: 146, height: 86 },
+        },
+      }),
+      viewport,
+    );
     expect(resolved).toEqual({
       attachment: "local",
       positioningBox: { x: -46, y: -32, width: 330, height: 260 },
@@ -60,35 +65,52 @@ describe("Blink background attachment positioning areas", () => {
   });
 
   it("keeps local inert on a non-scroll-container and reacts to mutation records", () => {
-    const inert = geometry({ local: {
-      active: false,
-      scrollOffsetX: 0,
-      scrollOffsetY: 0,
-      borderPaintWidth: 160,
-      borderPaintHeight: 100,
-      overflowClip: padding,
-    } });
-    expect(resolveBackgroundAttachment("local", border, padding, border, inert, viewport).positioningBox).toEqual(padding);
+    const inert = geometry({
+      local: {
+        active: false,
+        scrollOffsetX: 0,
+        scrollOffsetY: 0,
+        borderPaintWidth: 160,
+        borderPaintHeight: 100,
+        overflowClip: padding,
+      },
+    });
+    expect(resolveBackgroundAttachment("local", border, padding, border, inert, viewport).positioningBox).toEqual(
+      padding,
+    );
 
-    const moved = geometry({ local: {
-      active: true,
-      scrollOffsetX: 41,
-      scrollOffsetY: 23,
-      borderPaintWidth: 300,
-      borderPaintHeight: 220,
-      overflowClip: padding,
-    } });
-    expect(resolveBackgroundAttachment("local", border, padding, border, moved, viewport).positioningBox)
-      .toEqual({ x: -14, y: 4, width: 286, height: 206 });
+    const moved = geometry({
+      local: {
+        active: true,
+        scrollOffsetX: 41,
+        scrollOffsetY: 23,
+        borderPaintWidth: 300,
+        borderPaintHeight: 220,
+        overflowClip: padding,
+      },
+    });
+    expect(resolveBackgroundAttachment("local", border, padding, border, moved, viewport).positioningBox).toEqual({
+      x: -14,
+      y: 4,
+      width: 286,
+      height: 206,
+    });
   });
 
   it("uses the root stitched positioning box while painting the canvas", () => {
-    const resolved = resolveBackgroundAttachment("scroll", border, padding, border, geometry({
-      canvas: {
-        owner: "body-propagated",
-        positioningRect: { x: 0, y: -91, width: 640, height: 960 },
-      },
-    }), viewport);
+    const resolved = resolveBackgroundAttachment(
+      "scroll",
+      border,
+      padding,
+      border,
+      geometry({
+        canvas: {
+          owner: "body-propagated",
+          positioningRect: { x: 0, y: -91, width: 640, height: 960 },
+        },
+      }),
+      viewport,
+    );
     expect(resolved).toEqual({
       attachment: "scroll",
       positioningBox: { x: 7, y: -84, width: 626, height: 946 },

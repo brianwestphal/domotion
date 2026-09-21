@@ -99,7 +99,9 @@ function html(value: string): string {
 
 function cssVariation(axes: Record<string, number>): string {
   const entries = Object.entries(axes);
-  return entries.length === 0 ? "normal" : entries.map(([tag, value]) => `&quot;${html(tag)}&quot; ${value}`).join(", ");
+  return entries.length === 0
+    ? "normal"
+    : entries.map(([tag, value]) => `&quot;${html(tag)}&quot; ${value}`).join(", ");
 }
 
 function matrixAttribute(matrix: PathsRasterRow["expectedLogical"]["matrix"]): string {
@@ -119,11 +121,12 @@ function fontFaceCss(family: string, loaded: LoadedPathsRasterFixture): string {
   return `@font-face{font-family:'${family}';src:url(data:${fontMime(loaded)};base64,${loaded.bytes.toString("base64")}) format('${fontFormat(loaded)}');font-style:normal;font-weight:${range};font-display:block}`;
 }
 
-const canonical = (value: unknown): string => JSON.stringify(
-  value != null && typeof value === "object" && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
-    : value,
-);
+const canonical = (value: unknown): string =>
+  JSON.stringify(
+    value != null && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
 
 function documentFor(body: string, family: string, loaded: LoadedPathsRasterFixture): string {
   return `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;overflow:hidden;background:#fff}${fontFaceCss(family, loaded)}</style>${body}`;
@@ -155,9 +158,13 @@ async function paintedFaceMetadata(page: Page): Promise<{
     const base64 = /base64,([A-Za-z0-9+/=]+)/.exec(source)?.[1] ?? "";
     return {
       requestedFamily: (element as SVGElement).style.fontFamily.trim().replace(/^(["'])(.*)\1$/, "$2"),
-      computedFamily: getComputedStyle(element).fontFamily.trim().replace(/^(["'])(.*)\1$/, "$2"),
+      computedFamily: getComputedStyle(element)
+        .fontFamily.trim()
+        .replace(/^(["'])(.*)\1$/, "$2"),
       computedVariationSettings: getComputedStyle(element).fontVariationSettings,
-      fontFaceRuleFamily: (rules[0]?.style.getPropertyValue("font-family") ?? "").trim().replace(/^(["'])(.*)\1$/, "$2"),
+      fontFaceRuleFamily: (rules[0]?.style.getPropertyValue("font-family") ?? "")
+        .trim()
+        .replace(/^(["'])(.*)\1$/, "$2"),
       fontFaceRuleCount: rules.length,
       sourceBase64: base64,
     };
@@ -166,7 +173,8 @@ async function paintedFaceMetadata(page: Page): Promise<{
   const computedVariationAxes: Record<string, number> = {};
   if (pageFacts.computedVariationSettings !== "normal") {
     const matches = Array.from(pageFacts.computedVariationSettings.matchAll(/["']([^"']{4})["']\s+([-+.\deE]+)/g));
-    if (matches.length === 0) throw new Error(`cannot parse native computed variation axes: ${pageFacts.computedVariationSettings}`);
+    if (matches.length === 0)
+      throw new Error(`cannot parse native computed variation axes: ${pageFacts.computedVariationSettings}`);
     for (const match of matches) computedVariationAxes[match[1]] = Number(match[2]);
     if (Object.values(computedVariationAxes).some((value) => !Number.isFinite(value))) {
       throw new Error(`non-finite native computed variation axes: ${pageFacts.computedVariationSettings}`);
@@ -174,7 +182,8 @@ async function paintedFaceMetadata(page: Page): Promise<{
   }
   const cdp = await page.context().newCDPSession(page);
   try {
-    await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#native" });
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
@@ -203,9 +212,9 @@ const directWriteEvidenceCache = new Map<string, PathsNativeHelperFaceEvidence>(
 
 function win32IdentityHelperPath(): string {
   return resolve(
-    process.env.DOMOTION_WIN32_GLYPH_HELPER?.trim()
-      || process.env.DOMOTION_HELPER_PATH?.trim()
-      || "tools/win32-glyph-extractor/domotion-glyph-paths.exe",
+    process.env.DOMOTION_WIN32_GLYPH_HELPER?.trim() ||
+      process.env.DOMOTION_HELPER_PATH?.trim() ||
+      "tools/win32-glyph-extractor/domotion-glyph-paths.exe",
   );
 }
 
@@ -219,13 +228,15 @@ function directWriteVariableFaceEvidence(
   if (cached != null) return cached;
   const helper = win32IdentityHelperPath();
   const request = {
-    fonts: [{
-      ref: "source",
-      fontPath: loaded.sourcePath,
-      postscriptName: loaded.postscriptName ?? "",
-      size: loaded.unitsPerEm,
-      variations: variationAxes,
-    }],
+    fonts: [
+      {
+        ref: "source",
+        fontPath: loaded.sourcePath,
+        postscriptName: loaded.postscriptName ?? "",
+        size: loaded.unitsPerEm,
+        variations: variationAxes,
+      },
+    ],
     queries: [{ type: "meta", fontRef: "source" }],
   };
   const raw = execFileSync(helper, [], {
@@ -235,21 +246,27 @@ function directWriteVariableFaceEvidence(
   });
   const parsed = JSON.parse(raw) as { results?: Array<Record<string, unknown>> };
   const result = parsed.results?.[0];
-  if (result?.type !== "meta" || typeof result.postscriptName !== "string"
-      || !Number.isInteger(result.faceIndex)
-      || result.resolvedAxes == null || typeof result.resolvedAxes !== "object"
-      || Array.isArray(result.resolvedAxes)
-      || Object.values(result.resolvedAxes).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+  if (
+    result?.type !== "meta" ||
+    typeof result.postscriptName !== "string" ||
+    !Number.isInteger(result.faceIndex) ||
+    result.resolvedAxes == null ||
+    typeof result.resolvedAxes !== "object" ||
+    Array.isArray(result.resolvedAxes) ||
+    Object.values(result.resolvedAxes).some((value) => typeof value !== "number" || !Number.isFinite(value))
+  ) {
     throw new Error(`DirectWrite identity helper returned incomplete evidence: ${raw}`);
   }
   const platformResolvedAxes = result.resolvedAxes as Record<string, number>;
-  const resolvedAxes = Object.fromEntries(Object.keys(variationAxes).map((tag) => {
-    const value = platformResolvedAxes[tag];
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      throw new Error(`DirectWrite identity helper omitted requested ${tag} axis: ${raw}`);
-    }
-    return [tag, value];
-  }));
+  const resolvedAxes = Object.fromEntries(
+    Object.keys(variationAxes).map((tag) => {
+      const value = platformResolvedAxes[tag];
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new Error(`DirectWrite identity helper omitted requested ${tag} axis: ${raw}`);
+      }
+      return [tag, value];
+    }),
+  );
   const evidence: PathsNativeHelperFaceEvidence = {
     postscriptDisplayName: result.postscriptName,
     resolvedAxes,
@@ -262,27 +279,42 @@ function directWriteVariableFaceEvidence(
   return evidence;
 }
 
-async function rasterize(page: Page, markup: string, family: string, loaded: LoadedPathsRasterFixture): Promise<Buffer> {
+async function rasterize(
+  page: Page,
+  markup: string,
+  family: string,
+  loaded: LoadedPathsRasterFixture,
+): Promise<Buffer> {
   await page.setContent(documentFor(markup, family, loaded), { waitUntil: "load" });
-  const loadedFace = await page.evaluate(async ({ name, text }) => {
-    await document.fonts.ready;
-    await document.fonts.load(`16px '${name}'`, text);
-    return document.fonts.check(`16px '${name}'`, text);
-  }, { name: family, text: loaded.fixture.text });
+  const loadedFace = await page.evaluate(
+    async ({ name, text }) => {
+      await document.fonts.ready;
+      await document.fonts.load(`16px '${name}'`, text);
+      return document.fonts.check(`16px '${name}'`, text);
+    },
+    { name: family, text: loaded.fixture.text },
+  );
   if (!loadedFace) throw new Error(`${loaded.fixture.technology}: browser did not load the fixture face`);
   return page.screenshot({ type: "png" });
 }
 
-function outlineIdentity(commands: Array<{ command: string; args: number[] }>): { outlineSha256: string; outlineCommandCount: number } {
+function outlineIdentity(commands: Array<{ command: string; args: number[] }>): {
+  outlineSha256: string;
+  outlineCommandCount: number;
+} {
   if (commands.length === 0) throw new Error("paths/native fixture glyph unexpectedly has no source outline");
   return { outlineSha256: sha256(JSON.stringify(commands)), outlineCommandCount: commands.length };
 }
 
-function expectedGlyphs(loaded: LoadedPathsRasterFixture, cell: PathsRasterMatrixCell): PathsRasterRow["expectedLogical"]["glyphs"] {
+function expectedGlyphs(
+  loaded: LoadedPathsRasterFixture,
+  cell: PathsRasterMatrixCell,
+): PathsRasterRow["expectedLogical"]["glyphs"] {
   const base: any = fontkit.create(loaded.bytes);
-  const outlineFace: any = Object.keys(cell.variationAxes).length > 0 && typeof base.getVariation === "function"
-    ? base.getVariation(cell.variationAxes)
-    : base;
+  const outlineFace: any =
+    Object.keys(cell.variationAxes).length > 0 && typeof base.getVariation === "function"
+      ? base.getVariation(cell.variationAxes)
+      : base;
   let cluster = 0;
   return [...loaded.fixture.text].map((character) => {
     const glyph = outlineFace.glyphForCodePoint(character.codePointAt(0)!);
@@ -307,21 +339,35 @@ function expectedGlyphs(loaded: LoadedPathsRasterFixture, cell: PathsRasterMatri
 export function rendererPlacementFromMarkup(
   pathsMarkup: string,
   pathsSvg: string,
-): { baseline: number; matrix: PathsRasterRow["actualLogical"]["matrix"]; paintPlan: PathsRasterRow["actualLogical"]["paintPlan"] } {
+): {
+  baseline: number;
+  matrix: PathsRasterRow["actualLogical"]["matrix"];
+  paintPlan: PathsRasterRow["actualLogical"]["paintPlan"];
+} {
   const baselineMatch = /<g\s+transform="translate\(\s*[-+.\deE]+(?:\s*,\s*|\s+)([-+.\deE]+)\)/.exec(pathsMarkup);
   if (baselineMatch == null) throw new Error("renderer markup omitted its baseline translation");
   const matrixMatch = /<g\s+transform="matrix\(([^\"]+)\)"/.exec(pathsSvg);
   if (matrixMatch == null) throw new Error("paths SVG omitted its declared outer matrix");
-  const values = matrixMatch[1].trim().split(/[\s,]+/).map(Number);
-  if (values.length !== 6 || values.some((value) => !Number.isFinite(value))) throw new Error("paths SVG has a malformed outer matrix");
+  const values = matrixMatch[1]
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (values.length !== 6 || values.some((value) => !Number.isFinite(value)))
+    throw new Error("paths SVG has a malformed outer matrix");
   return {
     baseline: Number(baselineMatch[1]),
     matrix: values as PathsRasterRow["actualLogical"]["matrix"],
-    paintPlan: { syntheticBold: /\sstroke-width="/.test(pathsMarkup), syntheticOblique: /\smatrix\(1,0,-0\.25,1,0,0\)/.test(pathsMarkup) },
+    paintPlan: {
+      syntheticBold: /\sstroke-width="/.test(pathsMarkup),
+      syntheticOblique: /\smatrix\(1,0,-0\.25,1,0,0\)/.test(pathsMarkup),
+    },
   };
 }
 
-function actualGlyphs(cell: PathsRasterMatrixCell, family: string): {
+function actualGlyphs(
+  cell: PathsRasterMatrixCell,
+  family: string,
+): {
   glyphs: PathsRasterRow["actualLogical"]["glyphs"];
   postscriptName: string;
   sourceSha256: string;
@@ -331,12 +377,16 @@ function actualGlyphs(cell: PathsRasterMatrixCell, family: string): {
 } {
   const snapshot = getTextRunProvenance();
   const warnings: string[] = [];
-  if (snapshot.transitions.length !== 1 || snapshot.transitions[0].kind !== "paths-succeeded") warnings.push(`path transition: ${JSON.stringify(snapshot.transitions)}`);
-  if (snapshot.runs.length !== 1) throw new Error(`${cell.id}: expected one production path run, found ${snapshot.runs.length}`);
+  if (snapshot.transitions.length !== 1 || snapshot.transitions[0].kind !== "paths-succeeded")
+    warnings.push(`path transition: ${JSON.stringify(snapshot.transitions)}`);
+  if (snapshot.runs.length !== 1)
+    throw new Error(`${cell.id}: expected one production path run, found ${snapshot.runs.length}`);
   const run = snapshot.runs[0];
-  if (run.emitter !== "paths" || run.finalRepresentation !== "svg-paths" || run.shapeError != null) warnings.push(`path run did not terminate exactly: ${run.shapeError ?? run.finalRepresentation}`);
+  if (run.emitter !== "paths" || run.finalRepresentation !== "svg-paths" || run.shapeError != null)
+    warnings.push(`path run did not terminate exactly: ${run.shapeError ?? run.finalRepresentation}`);
   const expectedFontKey = `webfont:${family.toLowerCase()}`;
-  if (run.selected.fontKey !== expectedFontKey) warnings.push(`production selected ${run.selected.fontKey}, expected ${expectedFontKey}`);
+  if (run.selected.fontKey !== expectedFontKey)
+    warnings.push(`production selected ${run.selected.fontKey}, expected ${expectedFontKey}`);
   const postscriptName = run.selected.instantiatedPostscriptName ?? run.selected.postscriptName ?? "";
   const selected = getFontInstance(
     run.selected.fontKey,
@@ -346,8 +396,10 @@ function actualGlyphs(cell: PathsRasterMatrixCell, family: string): {
     run.request.variationSettings,
   );
   const sourceBytes = selected?.webfontBuffer;
-  if (sourceBytes == null) throw new Error(`${cell.id}: selected production webfont omitted its registered source bytes`);
-  if (sourceBytes.subarray(0, 4).toString("ascii") === "ttcf") throw new Error(`${cell.id}: fixture unexpectedly selected a collection member without a source-owned face index`);
+  if (sourceBytes == null)
+    throw new Error(`${cell.id}: selected production webfont omitted its registered source bytes`);
+  if (sourceBytes.subarray(0, 4).toString("ascii") === "ttcf")
+    throw new Error(`${cell.id}: fixture unexpectedly selected a collection member without a source-owned face index`);
   const glyphs = run.glyphs.map((glyph) => ({
     gid: glyph.id,
     cluster: glyph.cluster,
@@ -356,7 +408,9 @@ function actualGlyphs(cell: PathsRasterMatrixCell, family: string): {
     offsetX: glyph.xOffset,
     offsetY: glyph.yOffset,
     ...(glyph.sourceOutline == null
-      ? (() => { throw new Error(`${cell.id}: production glyph ${glyph.id} omitted its source outline identity`); })()
+      ? (() => {
+          throw new Error(`${cell.id}: production glyph ${glyph.id} omitted its source outline identity`);
+        })()
       : { outlineSha256: glyph.sourceOutline.sha256, outlineCommandCount: glyph.sourceOutline.commandCount }),
   }));
   return {
@@ -369,7 +423,11 @@ function actualGlyphs(cell: PathsRasterMatrixCell, family: string): {
   };
 }
 
-function artifactPath(observationRoot: string, artifactDir: string, filename: string): { absolute: string; relative: string } {
+function artifactPath(
+  observationRoot: string,
+  artifactDir: string,
+  filename: string,
+): { absolute: string; relative: string } {
   const absolute = resolve(artifactDir, filename);
   const rel = relative(observationRoot, absolute).replaceAll("\\", "/");
   if (rel === "" || rel.startsWith("../") || rel.includes("/../") || resolve(observationRoot, rel) !== absolute) {
@@ -388,7 +446,11 @@ async function collectCell(
   runLabel: PathsRasterRow["runLabel"],
 ): Promise<PathsRasterRow> {
   const family = pathsRasterCssFamily(cell.id);
-  const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: cell.dimensions.deviceScaleFactor, locale: fingerprint.locale });
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    deviceScaleFactor: cell.dimensions.deviceScaleFactor,
+    locale: fingerprint.locale,
+  });
   const page = await context.newPage();
   try {
     const variation = cssVariation(cell.variationAxes);
@@ -397,11 +459,22 @@ async function collectCell(
     const native = await rasterize(page, nativeSvg, family, loaded);
     const painted = await paintedFaceMetadata(page);
 
-    clearWebfonts(); clearGlyphDefs(); resetTextRunProvenance();
-    registerWebfont(family, 400, "normal", loaded.bytes, undefined, undefined,
-      loaded.fixture.technology.startsWith("variable-") ? "100 900" : "400", "normal");
-    setRenderTextMode("paths"); setTextRunProvenanceEnabled(true);
-    const ascent = loaded.ascent * cell.dimensions.fontSizePx / loaded.unitsPerEm;
+    clearWebfonts();
+    clearGlyphDefs();
+    resetTextRunProvenance();
+    registerWebfont(
+      family,
+      400,
+      "normal",
+      loaded.bytes,
+      undefined,
+      undefined,
+      loaded.fixture.technology.startsWith("variable-") ? "100 900" : "400",
+      "normal",
+    );
+    setRenderTextMode("paths");
+    setTextRunProvenanceEnabled(true);
+    const ascent = (loaded.ascent * cell.dimensions.fontSizePx) / loaded.unitsPerEm;
     const pathsMarkup = renderTextAsPath(loaded.fixture.text, ORIGIN_X, BASELINE_Y - ascent, {
       fontSize: cell.dimensions.fontSizePx,
       fontFamily: family,
@@ -421,11 +494,13 @@ async function collectCell(
     const residual = await measurePathsRasterResidual(native, paths);
     const nativePath = artifactPath(observationRoot, artifactDir, `${cell.id}-native.png`);
     const pathsPath = artifactPath(observationRoot, artifactDir, `${cell.id}-paths.png`);
-    writeFileSync(nativePath.absolute, native); writeFileSync(pathsPath.absolute, paths);
+    writeFileSync(nativePath.absolute, native);
+    writeFileSync(pathsPath.absolute, paths);
 
     const expected = expectedGlyphs(loaded, cell);
     const warnings = [...actual.warnings];
-    if (painted.glyphCount !== expected.length) warnings.push(`painted glyph count ${painted.glyphCount} != HarfBuzz ${expected.length}`);
+    if (painted.glyphCount !== expected.length)
+      warnings.push(`painted glyph count ${painted.glyphCount} != HarfBuzz ${expected.length}`);
     if (!painted.isCustomFont) warnings.push("native arm did not report the pinned data-URL face as a custom font");
     if (actual.postscriptName === "") warnings.push("production path run omitted PostScript identity");
     const logicalPostscript = loaded.postscriptName ?? actual.postscriptName;
@@ -446,7 +521,13 @@ async function collectCell(
       isCustomFont: painted.isCustomFont,
       glyphCount: painted.glyphCount,
       ...(fingerprint.platform === "win32" && loaded.fixture.technology.startsWith("variable-")
-        ? { helper: directWriteVariableFaceEvidence(loaded, cell.variationAxes, fingerprint.nativeIdentityHelperSha256!) }
+        ? {
+            helper: directWriteVariableFaceEvidence(
+              loaded,
+              cell.variationAxes,
+              fingerprint.nativeIdentityHelperSha256!,
+            ),
+          }
         : {}),
     };
     const expectedLogical: PathsRasterRow["expectedLogical"] = {
@@ -490,12 +571,25 @@ async function collectCell(
       actualLogical,
       nativeFace,
       residual,
-      nativeArtifact: { path: nativePath.relative, sha256: sha256(native), width: VIEWPORT.width * cell.dimensions.deviceScaleFactor, height: VIEWPORT.height * cell.dimensions.deviceScaleFactor },
-      pathsArtifact: { path: pathsPath.relative, sha256: sha256(paths), width: VIEWPORT.width * cell.dimensions.deviceScaleFactor, height: VIEWPORT.height * cell.dimensions.deviceScaleFactor },
+      nativeArtifact: {
+        path: nativePath.relative,
+        sha256: sha256(native),
+        width: VIEWPORT.width * cell.dimensions.deviceScaleFactor,
+        height: VIEWPORT.height * cell.dimensions.deviceScaleFactor,
+      },
+      pathsArtifact: {
+        path: pathsPath.relative,
+        sha256: sha256(paths),
+        width: VIEWPORT.width * cell.dimensions.deviceScaleFactor,
+        height: VIEWPORT.height * cell.dimensions.deviceScaleFactor,
+      },
       warnings,
     };
   } finally {
-    setTextRunProvenanceEnabled(false); clearWebfonts(); clearGlyphDefs(); resetTextRunProvenance();
+    setTextRunProvenanceEnabled(false);
+    clearWebfonts();
+    clearGlyphDefs();
+    resetTextRunProvenance();
     await context.close();
   }
 }
@@ -509,8 +603,11 @@ export interface CollectPathsRasterOptions {
 }
 
 export async function collectPathsNativeRaster(options: CollectPathsRasterOptions): Promise<PathsRasterRow[]> {
-  const out = resolve(options.out), observationRoot = dirname(out), artifactDir = resolve(options.artifactDir);
-  mkdirSync(observationRoot, { recursive: true }); mkdirSync(artifactDir, { recursive: true });
+  const out = resolve(options.out),
+    observationRoot = dirname(out),
+    artifactDir = resolve(options.artifactDir);
+  mkdirSync(observationRoot, { recursive: true });
+  mkdirSync(artifactDir, { recursive: true });
   const fixtures = loadPathsRasterFixtures(resolve(options.fontRoot));
   const byTechnology = new Map(fixtures.map((fixture) => [fixture.fixture.technology, fixture]));
   const browser = await chromium.launch({ headless: true });
@@ -519,13 +616,14 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
     const browserVersion = await browserCdp.send("Browser.getVersion");
     await browserCdp.detach();
     const executableSha256 = await sha256File(chromium.executablePath());
-    const identityHelperSha256 = platform() === "win32"
-      ? await (async () => {
-          const helper = win32IdentityHelperPath();
-          if (!existsSync(helper)) throw new Error(`Windows DirectWrite identity helper is missing: ${helper}`);
-          return sha256File(helper);
-        })()
-      : undefined;
+    const identityHelperSha256 =
+      platform() === "win32"
+        ? await (async () => {
+            const helper = win32IdentityHelperPath();
+            if (!existsSync(helper)) throw new Error(`Windows DirectWrite identity helper is missing: ${helper}`);
+            return sha256File(helper);
+          })()
+        : undefined;
     const locale = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
     const fingerprint: PathsRasterRow["fingerprint"] = {
       platform: platform() as PathsRasterRow["fingerprint"]["platform"],
@@ -563,13 +661,26 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
       launchFlags: ["headless"],
       locale,
     };
-    if (!["darwin", "linux", "win32"].includes(fingerprint.platform)) throw new Error(`unsupported platform ${fingerprint.platform}`);
-    const cells = pathsNativeRasterMatrix().filter((cell) => options.dpr == null || cell.dimensions.deviceScaleFactor === options.dpr);
+    if (!["darwin", "linux", "win32"].includes(fingerprint.platform))
+      throw new Error(`unsupported platform ${fingerprint.platform}`);
+    const cells = pathsNativeRasterMatrix().filter(
+      (cell) => options.dpr == null || cell.dimensions.deviceScaleFactor === options.dpr,
+    );
     const rows: PathsRasterRow[] = [];
     for (const cell of cells) {
       const loaded = byTechnology.get(cell.fixture.technology);
       if (loaded == null) throw new Error(`${cell.id}: fixture was not loaded`);
-      rows.push(await collectCell(browser, loaded, cell, fingerprint, observationRoot, artifactDir, options.runLabel ?? "proposal"));
+      rows.push(
+        await collectCell(
+          browser,
+          loaded,
+          cell,
+          fingerprint,
+          observationRoot,
+          artifactDir,
+          options.runLabel ?? "proposal",
+        ),
+      );
       process.stdout.write(`${cell.id}: logical evidence and lossless pair collected\n`);
     }
     writeFileSync(out, JSON.stringify(rows, null, 2));
@@ -585,13 +696,25 @@ function cliArg(name: string): string | undefined {
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const fontRoot = cliArg("--font-root"), out = cliArg("--out"), artifactDir = cliArg("--artifact-dir");
-  if (fontRoot == null || out == null || artifactDir == null) throw new Error("usage: paths-native-raster-collector --font-root <dir> --out <observations.json> --artifact-dir <dir> [--dpr 1|2] [--run-label proposal|validation]");
+  const fontRoot = cliArg("--font-root"),
+    out = cliArg("--out"),
+    artifactDir = cliArg("--artifact-dir");
+  if (fontRoot == null || out == null || artifactDir == null)
+    throw new Error(
+      "usage: paths-native-raster-collector --font-root <dir> --out <observations.json> --artifact-dir <dir> [--dpr 1|2] [--run-label proposal|validation]",
+    );
   const rawDpr = cliArg("--dpr");
   const dpr = rawDpr == null ? undefined : Number(rawDpr);
   if (dpr != null && dpr !== 1 && dpr !== 2) throw new Error("--dpr must be 1 or 2");
   const runLabel = cliArg("--run-label") ?? "proposal";
-  if (runLabel !== "proposal" && runLabel !== "validation") throw new Error("--run-label must be proposal or validation");
-  const rows = await collectPathsNativeRaster({ fontRoot, out, artifactDir, runLabel, ...(dpr == null ? {} : { dpr: dpr as 1 | 2 }) });
+  if (runLabel !== "proposal" && runLabel !== "validation")
+    throw new Error("--run-label must be proposal or validation");
+  const rows = await collectPathsNativeRaster({
+    fontRoot,
+    out,
+    artifactDir,
+    runLabel,
+    ...(dpr == null ? {} : { dpr: dpr as 1 | 2 }),
+  });
   console.log(`Collected ${rows.length} paths/native rows on ${platform()}/${arch()}.`);
 }

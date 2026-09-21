@@ -57,7 +57,13 @@ function resolveSrc(src: string): string {
  * captured directly; an image/SVG asset is wrapped in a full-bleed page so its
  * bytes embed into the captured SVG. `slot` disambiguates the temp filename.
  */
-async function visualToSvg(ctx: TemplateRenderContext, src: string, w: number, h: number, slot: string): Promise<string> {
+async function visualToSvg(
+  ctx: TemplateRenderContext,
+  src: string,
+  w: number,
+  h: number,
+  slot: string,
+): Promise<string> {
   if (isAsset(src)) {
     const html = `<!doctype html><html><head><meta charset="utf-8"><style>
       *{margin:0}html,body{width:${w}px;height:${h}px;overflow:hidden}
@@ -80,10 +86,15 @@ const REVEAL_EASING = "cubic-bezier(0.65,0,0.35,1)";
  *  0→1 grows the after's clip from the anchored edge (Firefox-safe, DM-1529). */
 export function revealAnimation(direction: CompareParams["direction"], durationMs: number): CompositeLayerAnimation {
   const horizontal = direction === "right" || direction === "left";
-  const origin = direction === "right" ? "left" : direction === "left" ? "right" : direction === "down" ? "top" : "bottom";
+  const origin =
+    direction === "right" ? "left" : direction === "left" ? "right" : direction === "down" ? "top" : "bottom";
   return {
     property: horizontal ? "clipScaleX" : "clipScaleY",
-    from: 0, to: 1, start: 0, duration: durationMs, easing: REVEAL_EASING,
+    from: 0,
+    to: 1,
+    start: 0,
+    duration: durationMs,
+    easing: REVEAL_EASING,
     transformOrigin: origin,
   };
 }
@@ -134,16 +145,22 @@ export function compareOverlayMarkup(p: CompareParams, safeInset?: SafeInset): s
       // A vertical flip: "Before" slides up + out while "After" rises up + in, so
       // at the crossover they sit at different heights instead of ghosting over
       // each other. (translateY is a pure shift — no transform-box/origin needed.)
-      out += `<style>`
-        + `@keyframes cmp-lbl-b{0%,${s0}%{opacity:1;transform:translateY(0)}${s1}%,100%{opacity:0;transform:translateY(-9px)}}`
-        + `@keyframes cmp-lbl-a{0%,${s0}%{opacity:0;transform:translateY(9px)}${s1}%,100%{opacity:1;transform:translateY(0)}}`
-        + `.cmp-lbl-b{animation:cmp-lbl-b ${dur}s ease infinite}`
-        + `.cmp-lbl-a{animation:cmp-lbl-a ${dur}s ease infinite}</style>`;
-      out += `<g><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>`
-        + txt(before, "cmp-lbl-b") + txt(after, "cmp-lbl-a") + `</g>`;
+      out +=
+        `<style>` +
+        `@keyframes cmp-lbl-b{0%,${s0}%{opacity:1;transform:translateY(0)}${s1}%,100%{opacity:0;transform:translateY(-9px)}}` +
+        `@keyframes cmp-lbl-a{0%,${s0}%{opacity:0;transform:translateY(9px)}${s1}%,100%{opacity:1;transform:translateY(0)}}` +
+        `.cmp-lbl-b{animation:cmp-lbl-b ${dur}s ease infinite}` +
+        `.cmp-lbl-a{animation:cmp-lbl-a ${dur}s ease infinite}</style>`;
+      out +=
+        `<g><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>` +
+        txt(before, "cmp-lbl-b") +
+        txt(after, "cmp-lbl-a") +
+        `</g>`;
     } else {
-      out += `<g><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>`
-        + txt((before ?? after)!, "cmp-lbl-s") + `</g>`;
+      out +=
+        `<g><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>` +
+        txt((before ?? after)!, "cmp-lbl-s") +
+        `</g>`;
     }
   }
   if (p.mode === "slide") out += dividerMarkup(p);
@@ -164,20 +181,25 @@ function dividerMarkup(p: CompareParams): string {
   if (horizontal) {
     const fromX = p.direction === "right" ? 0 : W;
     const toX = p.direction === "right" ? W : 0;
-    return `<style>@keyframes ${name}{0%{transform:translateX(${fromX}px)}${endPct.toFixed(2)}%,100%{transform:translateX(${toX}px)}}`
-      + `.${name}{animation:${anim}}</style>`
-      + `<rect class="${name}" x="-3" y="0" width="6" height="${H}" fill="${p.accent}"/>`;
+    return (
+      `<style>@keyframes ${name}{0%{transform:translateX(${fromX}px)}${endPct.toFixed(2)}%,100%{transform:translateX(${toX}px)}}` +
+      `.${name}{animation:${anim}}</style>` +
+      `<rect class="${name}" x="-3" y="0" width="6" height="${H}" fill="${p.accent}"/>`
+    );
   }
   const fromY = p.direction === "down" ? 0 : H;
   const toY = p.direction === "down" ? H : 0;
-  return `<style>@keyframes ${name}{0%{transform:translateY(${fromY}px)}${endPct.toFixed(2)}%,100%{transform:translateY(${toY}px)}}`
-    + `.${name}{animation:${anim}}</style>`
-    + `<rect class="${name}" x="0" y="-3" width="${W}" height="6" fill="${p.accent}"/>`;
+  return (
+    `<style>@keyframes ${name}{0%{transform:translateY(${fromY}px)}${endPct.toFixed(2)}%,100%{transform:translateY(${toY}px)}}` +
+    `.${name}{animation:${anim}}</style>` +
+    `<rect class="${name}" x="0" y="-3" width="${W}" height="6" fill="${p.accent}"/>`
+  );
 }
 
 export const compareTemplate: Template<CompareParams> = {
   name: "compare",
-  description: "Before/after comparison: reveal the 'after' over the 'before' with a clip wipe (optional divider) + labels.",
+  description:
+    "Before/after comparison: reveal the 'after' over the 'before' with a clip wipe (optional divider) + labels.",
   paramsSchema: compareParamsSchema,
   async render(params: CompareParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const { width, height } = params;
@@ -190,7 +212,14 @@ export const compareTemplate: Template<CompareParams> = {
     const composed = composeAnimatedLayers(
       [
         { svg: beforeSvg, x: 0, y: 0, width, height },
-        { svg: afterSvg, x: 0, y: 0, width, height, animations: [revealAnimation(params.direction, params.durationMs)] },
+        {
+          svg: afterSvg,
+          x: 0,
+          y: 0,
+          width,
+          height,
+          animations: [revealAnimation(params.direction, params.durationMs)],
+        },
       ],
       { width, height, durationMs: holdMs },
     );

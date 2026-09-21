@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const outIndex = process.argv.indexOf("--out");
-const out = resolve(outIndex >= 0 && process.argv[outIndex + 1] != null ? process.argv[outIndex + 1] : "stage-evidence");
+const out = resolve(
+  outIndex >= 0 && process.argv[outIndex + 1] != null ? process.argv[outIndex + 1] : "stage-evidence",
+);
 mkdirSync(out, { recursive: true });
 const tsx = resolve("node_modules/.bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
 const oracleTimeoutMs = 180_000;
@@ -32,26 +34,50 @@ for (const [area, tool] of runs) {
     killSignal: "SIGTERM",
   });
   const timedOut = result.error != null && "code" in result.error && result.error.code === "ETIMEDOUT";
-  if (timedOut) console.warn(`[stage evidence] ${area} exceeded ${oracleTimeoutMs / 1000}s; retaining any report it wrote`);
+  if (timedOut)
+    console.warn(`[stage evidence] ${area} exceeded ${oracleTimeoutMs / 1000}s; retaining any report it wrote`);
   else if (result.error != null) console.warn(`[stage evidence] ${area} failed to run: ${result.error.message}`);
-  else if (result.status !== 0) console.warn(`[stage evidence] ${area} exited ${result.status ?? "without a status"}; retaining any report it wrote`);
+  else if (result.status !== 0)
+    console.warn(
+      `[stage evidence] ${area} exited ${result.status ?? "without a status"}; retaining any report it wrote`,
+    );
   try {
     const report = JSON.parse(readFileSync(target, "utf8")) as Record<string, unknown>;
-    writeFileSync(target, JSON.stringify({ ...report, evidenceOracle: tool, evidencePassed: result.status === 0 }, null, 2));
-  } catch { /* explicit missing status in the manifest */ }
+    writeFileSync(
+      target,
+      JSON.stringify({ ...report, evidenceOracle: tool, evidencePassed: result.status === 0 }, null, 2),
+    );
+  } catch {
+    /* explicit missing status in the manifest */
+  }
 }
 
 // Font selection must pass both instruments: the broad unified face/shaping
 // report and the production-funnel route ledger. Keep the raw child reports in
 // the composite so review never loses which boundary failed.
 try {
-  const unified = JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8")) as Record<string, unknown>;
-  const renderer = JSON.parse(readFileSync(resolve(out, "renderer-font-route.json"), "utf8")) as Record<string, unknown>;
-  writeFileSync(resolve(out, "font-selection.json"), JSON.stringify({
-    evidenceOracle: "tools/unified-shaping-oracle.ts + tools/renderer-font-route-oracle.ts",
-    evidencePassed: unified.evidencePassed === true && renderer.evidencePassed === true,
-    pairs: unified.pairs,
-    records: unified.records,
-    rendererRoute: renderer,
-  }, null, 2));
-} catch { /* explicit missing status in the manifest */ }
+  const unified = JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+  const renderer = JSON.parse(readFileSync(resolve(out, "renderer-font-route.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+  writeFileSync(
+    resolve(out, "font-selection.json"),
+    JSON.stringify(
+      {
+        evidenceOracle: "tools/unified-shaping-oracle.ts + tools/renderer-font-route-oracle.ts",
+        evidencePassed: unified.evidencePassed === true && renderer.evidencePassed === true,
+        pairs: unified.pairs,
+        records: unified.records,
+        rendererRoute: renderer,
+      },
+      null,
+      2,
+    ),
+  );
+} catch {
+  /* explicit missing status in the manifest */
+}

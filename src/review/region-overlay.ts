@@ -59,11 +59,7 @@ export interface OverlayHandle {
    *  Returns a `detach()` callback that removes pointer handlers and stops
    *  re-rendering this view (the SVG element itself stays — the caller
    *  owns it). */
-  addView(
-    img: HTMLImageElement,
-    svg: SVGSVGElement,
-    onClickThrough?: () => void,
-  ): () => void;
+  addView(img: HTMLImageElement, svg: SVGSVGElement, onClickThrough?: () => void): () => void;
 }
 
 type DragMode =
@@ -125,7 +121,13 @@ function resizeCursor(h: ResizeHandles): string {
 export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
   const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure[data-src]"));
   if (figureEls.length === 0) {
-    return { getRegions: () => [], setCaption: () => {}, addRegion: () => {}, clear: () => {}, addView: () => () => {} };
+    return {
+      getRegions: () => [],
+      setCaption: () => {},
+      addRegion: () => {},
+      clear: () => {},
+      addView: () => () => {},
+    };
   }
 
   const rects: Rect[] = [];
@@ -223,7 +225,9 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
 
   function reindex(): void {
     rects.sort((a, b) => a.index - b.index);
-    rects.forEach((r, i) => { r.index = i + 1; });
+    rects.forEach((r, i) => {
+      r.index = i + 1;
+    });
   }
 
   // ── Drag handling ──

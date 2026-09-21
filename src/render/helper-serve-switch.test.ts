@@ -49,13 +49,14 @@ function facesUnderCurrentTransport(): Array<string | null> {
   const chain = resolveFontKeyChain(STACK);
   const primary = resolveFont(STACK, 400, 16, 0);
   if (primary == null) return [];
-  return UNCOVERED.map((cp) =>
-    resolveFontForCodepoint(cp, primary, key, 400, 16, 0, undefined, "en", chain).key);
+  return UNCOVERED.map((cp) => resolveFontForCodepoint(cp, primary, key, 400, 16, 0, undefined, "en", chain).key);
 }
 
 describeLive("the helper transport switch changes only the transport", () => {
   const saved = process.env.DOMOTION_HELPER_NO_SERVE;
-  beforeEach(() => { delete process.env.DOMOTION_HELPER_NO_SERVE; });
+  beforeEach(() => {
+    delete process.env.DOMOTION_HELPER_NO_SERVE;
+  });
   afterEach(() => {
     if (saved == null) delete process.env.DOMOTION_HELPER_NO_SERVE;
     else process.env.DOMOTION_HELPER_NO_SERVE = saved;
@@ -67,7 +68,10 @@ describeLive("the helper transport switch changes only the transport", () => {
     const withChannel = facesUnderCurrentTransport();
     // PRECONDITION: if nothing resolved, "identical" would be two empty lists.
     expect(withChannel.length, "the probe must have resolved something").toBe(UNCOVERED.length);
-    expect(withChannel.some((k) => k != null), "at least one must reach the helper").toBe(true);
+    expect(
+      withChannel.some((k) => k != null),
+      "at least one must reach the helper",
+    ).toBe(true);
 
     process.env.DOMOTION_HELPER_NO_SERVE = "1";
     expect(facesUnderCurrentTransport()).toEqual(withChannel);

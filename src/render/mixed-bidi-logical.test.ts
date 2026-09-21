@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  bidiLevelsFor,
-  segmentForShaping,
-  type BidiParagraphContext,
-} from "./script-segmentation.js";
+import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 
 const FORWARD = "L שָׁלוֹם 123 مَرْحَبًا R";
 const REVERSE = "R مَرْحَبًا 321 שָׁלוֹם L";
@@ -73,13 +69,15 @@ describe("mixed-script paragraph bidi ownership (DM-2524)", () => {
   it.each(rows)("pins exact UAX #9 levels and Blink item records for $id", (row) => {
     const levels = [...bidiLevelsFor(row.text, row.context)!];
     expect(levels).toEqual(row.levels);
-    expect(segmentForShaping(row.text, levels).map((segment) => [
-      segment.start,
-      segment.end,
-      levels[segment.start],
-      segment.script,
-      segment.rtl ? "rtl" : "ltr",
-    ])).toEqual(row.runs);
+    expect(
+      segmentForShaping(row.text, levels).map((segment) => [
+        segment.start,
+        segment.end,
+        levels[segment.start],
+        segment.script,
+        segment.rtl ? "rtl" : "ltr",
+      ]),
+    ).toEqual(row.runs);
   });
 
   it.each(rows)("keeps the opposite-base wrong-level mutation active for $id", (row) => {
@@ -92,14 +90,11 @@ describe("mixed-script paragraph bidi ownership (DM-2524)", () => {
 
   it("uses first-strong auto for unicode-bidi: plaintext instead of CSS direction", () => {
     const text = "אב L";
-    expect([...bidiLevelsFor(text, { direction: "ltr", unicodeBidi: "normal" })!])
-      .toEqual([1, 1, 0, 0]);
-    expect([...bidiLevelsFor(text, { direction: "ltr", unicodeBidi: "plaintext" })!])
-      .toEqual([1, 1, 1, 2]);
+    expect([...bidiLevelsFor(text, { direction: "ltr", unicodeBidi: "normal" })!]).toEqual([1, 1, 0, 0]);
+    expect([...bidiLevelsFor(text, { direction: "ltr", unicodeBidi: "plaintext" })!]).toEqual([1, 1, 1, 2]);
   });
 
   it("retains exact level 2 for Latin embedded in an ordinary RTL paragraph", () => {
-    expect([...bidiLevelsFor("Latin", { direction: "rtl", unicodeBidi: "normal" })!])
-      .toEqual([2, 2, 2, 2, 2]);
+    expect([...bidiLevelsFor("Latin", { direction: "rtl", unicodeBidi: "normal" })!]).toEqual([2, 2, 2, 2, 2]);
   });
 });

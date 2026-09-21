@@ -3,11 +3,20 @@ id: "requirements/studio-ai-healing-loop"
 title: "Domotion Studio AI-led replay healing and review loop"
 kind: "contract"
 status: "current"
-owners: ["studio","capture","review"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "capture", "review"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2695"]
-code: ["src/studio/healing.ts","src/studio/healing.test.ts","src/studio/healing.e2e.test.ts","src/studio/interactive-compile.ts","src/studio/project-schema.ts","tests/fixtures/studio/healing-story.project.json","tests/fixtures/studio/healing-page.html"]
-aliases: ["docs/245-studio-ai-healing-loop.md","doc-245"]
+code:
+  [
+    "src/studio/healing.ts",
+    "src/studio/healing.test.ts",
+    "src/studio/healing.e2e.test.ts",
+    "src/studio/interactive-compile.ts",
+    "src/studio/project-schema.ts",
+    "tests/fixtures/studio/healing-story.project.json",
+    "tests/fixtures/studio/healing-page.html",
+  ]
+aliases: ["docs/245-studio-ai-healing-loop.md", "doc-245"]
 ---
 
 # Domotion Studio AI-led replay healing and review loop

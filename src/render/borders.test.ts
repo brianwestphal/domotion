@@ -26,15 +26,27 @@ import {
 describe("snapNinePieceDestinationGrid (DM-2253)", () => {
   it("snaps the far edge relative to the snapped origin", () => {
     expect(snapNinePieceDestinationGrid(10.4, 20.6, 10.4, 20.6, 2.8, 3.8, 4.8, 5.8)).toEqual({
-      x: 10, y: 21, width: 11, height: 20,
-      left: 2, right: 3, top: 4, bottom: 5,
+      x: 10,
+      y: 21,
+      width: 11,
+      height: 20,
+      left: 2,
+      right: 3,
+      top: 4,
+      bottom: 5,
     });
   });
 
   it("assigns an abutting remainder to the ending edge", () => {
     expect(snapNinePieceDestinationGrid(0, 0, 9, 7, 4.5, 4.5, 3.5, 3.5)).toEqual({
-      x: 0, y: 0, width: 9, height: 7,
-      left: 5, right: 4, top: 4, bottom: 3,
+      x: 0,
+      y: 0,
+      width: 9,
+      height: 7,
+      left: 5,
+      right: 4,
+      top: 4,
+      bottom: 3,
     });
   });
 });
@@ -109,23 +121,31 @@ describe("selectBestDashGap (DM-2243)", () => {
 
 describe("parseCornerRadii: shorthand and longhand", () => {
   it("treats four equal circular corners as uniform", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "10px 10px",
-      borderTopRightRadius: "10px 10px",
-      borderBottomRightRadius: "10px 10px",
-      borderBottomLeftRadius: "10px 10px",
-    }, 200, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "10px 10px",
+        borderTopRightRadius: "10px 10px",
+        borderBottomRightRadius: "10px 10px",
+        borderBottomLeftRadius: "10px 10px",
+      },
+      200,
+      100,
+    );
     expect(c.uniform).toBe(true);
     expect(c.tl).toEqual({ h: 10, v: 10 });
   });
 
   it("flags asymmetric per-corner radii as non-uniform (DM-300)", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "10px 10px",
-      borderTopRightRadius: "30px 30px",
-      borderBottomRightRadius: "50px 50px",
-      borderBottomLeftRadius: "70px 70px",
-    }, 200, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "10px 10px",
+        borderTopRightRadius: "30px 30px",
+        borderBottomRightRadius: "50px 50px",
+        borderBottomLeftRadius: "70px 70px",
+      },
+      200,
+      100,
+    );
     expect(c.uniform).toBe(false);
     expect(c.tl.h).toBe(10);
     expect(c.tr.h).toBe(30);
@@ -134,12 +154,16 @@ describe("parseCornerRadii: shorthand and longhand", () => {
   });
 
   it("flags elliptical corners as non-uniform even when all four are equal", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "50px 20px",
-      borderTopRightRadius: "50px 20px",
-      borderBottomRightRadius: "50px 20px",
-      borderBottomLeftRadius: "50px 20px",
-    }, 400, 80);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "50px 20px",
+        borderTopRightRadius: "50px 20px",
+        borderBottomRightRadius: "50px 20px",
+        borderBottomLeftRadius: "50px 20px",
+      },
+      400,
+      80,
+    );
     expect(c.uniform).toBe(false);
     expect(c.tl).toEqual({ h: 50, v: 20 });
   });
@@ -155,12 +179,16 @@ describe("parseCornerRadii: shorthand and longhand", () => {
     // so all corners scale by 200/1998 ≈ 0.1. The vertical sums (rTR.v +
     // rBR.v = 1998 > 100, etc.) drive a tighter scale of 100/1998 ≈ 0.05,
     // which wins. Final per-corner radius: ~50 (half the box height).
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "999px 999px",
-      borderTopRightRadius: "999px 999px",
-      borderBottomRightRadius: "999px 999px",
-      borderBottomLeftRadius: "999px 999px",
-    }, 200, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "999px 999px",
+        borderTopRightRadius: "999px 999px",
+        borderBottomRightRadius: "999px 999px",
+        borderBottomLeftRadius: "999px 999px",
+      },
+      200,
+      100,
+    );
     expect(c.tl.h).toBeCloseTo(50, 0);
     expect(c.tl.v).toBeCloseTo(50, 0);
     expect(c.uniform).toBe(true);
@@ -168,16 +196,21 @@ describe("parseCornerRadii: shorthand and longhand", () => {
 });
 
 describe("corner-shape contours (DM-2315)", () => {
-  const shaped = (shape: string) => parseCornerRadii({
-    borderTopLeftRadius: "24px 18px",
-    borderTopRightRadius: "24px 18px",
-    borderBottomRightRadius: "24px 18px",
-    borderBottomLeftRadius: "24px 18px",
-    cornerTopLeftShape: shape,
-    cornerTopRightShape: shape,
-    cornerBottomRightShape: shape,
-    cornerBottomLeftShape: shape,
-  }, 120, 80);
+  const shaped = (shape: string) =>
+    parseCornerRadii(
+      {
+        borderTopLeftRadius: "24px 18px",
+        borderTopRightRadius: "24px 18px",
+        borderBottomRightRadius: "24px 18px",
+        borderBottomLeftRadius: "24px 18px",
+        cornerTopLeftShape: shape,
+        cornerTopRightShape: shape,
+        cornerBottomRightShape: shape,
+        cornerBottomLeftShape: shape,
+      },
+      120,
+      80,
+    );
 
   it("maps CSS keywords and custom parameters through Blink Superellipse::Exponent", () => {
     expect(parseCornerShapeCurvature("notch")).toBeCloseTo(1 / 1000);
@@ -205,12 +238,20 @@ describe("corner-shape contours (DM-2315)", () => {
   });
 
   it("keeps physical corner shapes independent", () => {
-    const corners = parseCornerRadii({
-      borderTopLeftRadius: "20px", borderTopRightRadius: "20px",
-      borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px",
-      cornerTopLeftShape: "bevel", cornerTopRightShape: "round",
-      cornerBottomRightShape: "squircle", cornerBottomLeftShape: "notch",
-    }, 100, 100);
+    const corners = parseCornerRadii(
+      {
+        borderTopLeftRadius: "20px",
+        borderTopRightRadius: "20px",
+        borderBottomRightRadius: "20px",
+        borderBottomLeftRadius: "20px",
+        cornerTopLeftShape: "bevel",
+        cornerTopRightShape: "round",
+        cornerBottomRightShape: "squircle",
+        cornerBottomLeftShape: "notch",
+      },
+      100,
+      100,
+    );
     expect(corners.curvature).toEqual({ tl: 1, tr: 2, br: 4, bl: 0.001 });
     const d = roundedRectPath(0, 0, 100, 100, corners);
     expect(d).toContain("A20,20");
@@ -218,11 +259,18 @@ describe("corner-shape contours (DM-2315)", () => {
   });
 
   it("applies Blink's opposite-hull constraint to overlapping concave corners", () => {
-    const corners = parseCornerRadii({
-      borderTopLeftRadius: "80px", borderTopRightRadius: "0",
-      borderBottomRightRadius: "80px", borderBottomLeftRadius: "0",
-      cornerTopLeftShape: "scoop", cornerBottomRightShape: "scoop",
-    }, 100, 100);
+    const corners = parseCornerRadii(
+      {
+        borderTopLeftRadius: "80px",
+        borderTopRightRadius: "0",
+        borderBottomRightRadius: "80px",
+        borderBottomLeftRadius: "0",
+        cornerTopLeftShape: "scoop",
+        cornerBottomRightShape: "scoop",
+      },
+      100,
+      100,
+    );
     expect(corners.tl.h).toBeLessThan(80);
     expect(corners.br.h).toBe(corners.tl.h);
   });
@@ -234,12 +282,20 @@ describe("corner-shape contours (DM-2315)", () => {
 });
 
 describe("hyperellipse border side partitions (DM-2316)", () => {
-  const corners = parseCornerRadii({
-    borderTopLeftRadius: "36px 30px", borderTopRightRadius: "28px 34px",
-    borderBottomRightRadius: "32px 26px", borderBottomLeftRadius: "24px 38px",
-    cornerTopLeftShape: "squircle", cornerTopRightShape: "squircle",
-    cornerBottomRightShape: "squircle", cornerBottomLeftShape: "squircle",
-  }, 140, 100);
+  const corners = parseCornerRadii(
+    {
+      borderTopLeftRadius: "36px 30px",
+      borderTopRightRadius: "28px 34px",
+      borderBottomRightRadius: "32px 26px",
+      borderBottomLeftRadius: "24px 38px",
+      cornerTopLeftShape: "squircle",
+      cornerTopRightShape: "squircle",
+      cornerBottomRightShape: "squircle",
+      cornerBottomLeftShape: "squircle",
+    },
+    140,
+    100,
+  );
 
   it("moves each top inner point to the miter/bevel-hull intersection", () => {
     const points = hyperellipseBorderSideClipPolygon("top", 10, 20, 150, 120, corners, 8, 18, 14, 5).split(" ");
@@ -251,8 +307,9 @@ describe("hyperellipse border side partitions (DM-2316)", () => {
   });
 
   it("rotates the same canonical construction across all physical sides", () => {
-    const clips = (["top", "right", "bottom", "left"] as const).map(side =>
-      hyperellipseBorderSideClipPolygon(side, 10, 20, 150, 120, corners, 8, 18, 14, 5));
+    const clips = (["top", "right", "bottom", "left"] as const).map((side) =>
+      hyperellipseBorderSideClipPolygon(side, 10, 20, 150, 120, corners, 8, 18, 14, 5),
+    );
     for (const clip of clips) expect(clip.split(" ")).toHaveLength(4);
     expect(clips[0]).not.toBe(clips[1]);
     expect(clips[1]).not.toBe(clips[2]);
@@ -266,12 +323,27 @@ describe("hyperellipse border side partitions (DM-2316)", () => {
 });
 
 describe("inset ContouredRect intersections (DM-2317)", () => {
-  const insetShape = (shape: string) => insetCornerRadii(parseCornerRadii({
-    borderTopLeftRadius: "68px", borderTopRightRadius: "68px",
-    borderBottomRightRadius: "68px", borderBottomLeftRadius: "68px",
-    cornerTopLeftShape: shape, cornerTopRightShape: shape,
-    cornerBottomRightShape: shape, cornerBottomLeftShape: shape,
-  }, 100, 112), 9, 17, 15, 6);
+  const insetShape = (shape: string) =>
+    insetCornerRadii(
+      parseCornerRadii(
+        {
+          borderTopLeftRadius: "68px",
+          borderTopRightRadius: "68px",
+          borderBottomRightRadius: "68px",
+          borderBottomLeftRadius: "68px",
+          cornerTopLeftShape: shape,
+          cornerTopRightShape: shape,
+          cornerBottomRightShape: shape,
+          cornerBottomLeftShape: shape,
+        },
+        100,
+        112,
+      ),
+      9,
+      17,
+      15,
+      6,
+    );
 
   it("emits Chromium's four ordered corner constraints for a narrow scoop", () => {
     const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape("scoop"));
@@ -283,14 +355,14 @@ describe("inset ContouredRect intersections (DM-2317)", () => {
     for (const shape of ["squircle", "superellipse(-2)"]) {
       const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape(shape));
       expect(paths).toHaveLength(4);
-      expect(paths!.every(path => path.includes("C"))).toBe(true);
+      expect(paths!.every((path) => path.includes("C"))).toBe(true);
     }
   });
 
   it("retains line-only notch constraints", () => {
     const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape("notch"));
     expect(paths).toHaveLength(4);
-    expect(paths!.every(path => !/[AC]/.test(path))).toBe(true);
+    expect(paths!.every((path) => !/[AC]/.test(path))).toBe(true);
   });
 
   it("does not perturb the ordinary round single-path contract", () => {
@@ -301,12 +373,16 @@ describe("inset ContouredRect intersections (DM-2317)", () => {
 
 describe("insetCornerRadii: inner-corner derivation", () => {
   it("shrinks each corner by the matching adjacent border-side widths", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "20px 20px",
-      borderTopRightRadius: "20px 20px",
-      borderBottomRightRadius: "20px 20px",
-      borderBottomLeftRadius: "20px 20px",
-    }, 100, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "20px 20px",
+        borderTopRightRadius: "20px 20px",
+        borderBottomRightRadius: "20px 20px",
+        borderBottomLeftRadius: "20px 20px",
+      },
+      100,
+      100,
+    );
     const inner = insetCornerRadii(c, 5, 3, 5, 3);
     // TL: shrink by left=3 (h) and top=5 (v).
     expect(inner.tl).toEqual({ h: 17, v: 15 });
@@ -315,12 +391,16 @@ describe("insetCornerRadii: inner-corner derivation", () => {
   });
 
   it("clamps shrunk corners to zero rather than going negative", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "4px 4px",
-      borderTopRightRadius: "4px 4px",
-      borderBottomRightRadius: "4px 4px",
-      borderBottomLeftRadius: "4px 4px",
-    }, 100, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "4px 4px",
+        borderTopRightRadius: "4px 4px",
+        borderBottomRightRadius: "4px 4px",
+        borderBottomLeftRadius: "4px 4px",
+      },
+      100,
+      100,
+    );
     const inner = insetCornerRadii(c, 10, 10, 10, 10);
     expect(inner.tl).toEqual({ h: 0, v: 0 });
   });
@@ -328,12 +408,16 @@ describe("insetCornerRadii: inner-corner derivation", () => {
 
 describe("roundedRectPath: SVG d-attribute geometry", () => {
   it("emits a clockwise path with one elliptical arc per corner", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "10px 10px",
-      borderTopRightRadius: "20px 20px",
-      borderBottomRightRadius: "30px 30px",
-      borderBottomLeftRadius: "40px 40px",
-    }, 200, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "10px 10px",
+        borderTopRightRadius: "20px 20px",
+        borderBottomRightRadius: "30px 30px",
+        borderBottomLeftRadius: "40px 40px",
+      },
+      200,
+      100,
+    );
     const d = roundedRectPath(0, 0, 200, 100, c);
     // Starts at (TL.h, 0).
     expect(d.startsWith("M10,0 ")).toBe(true);
@@ -345,12 +429,16 @@ describe("roundedRectPath: SVG d-attribute geometry", () => {
   });
 
   it("omits the arc for a zero-radius corner so adjacent lines meet sharply", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "0px 0px",
-      borderTopRightRadius: "20px 20px",
-      borderBottomRightRadius: "0px 0px",
-      borderBottomLeftRadius: "20px 20px",
-    }, 100, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "0px 0px",
+        borderTopRightRadius: "20px 20px",
+        borderBottomRightRadius: "0px 0px",
+        borderBottomLeftRadius: "20px 20px",
+      },
+      100,
+      100,
+    );
     const d = roundedRectPath(0, 0, 100, 100, c);
     const arcs = d.match(/A/g) || [];
     expect(arcs.length).toBe(2);
@@ -359,12 +447,16 @@ describe("roundedRectPath: SVG d-attribute geometry", () => {
 
 describe("roundedRectSvg: rect-or-path branching", () => {
   it("emits <rect rx> for uniform circular corners (fast path)", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "8px 8px",
-      borderTopRightRadius: "8px 8px",
-      borderBottomRightRadius: "8px 8px",
-      borderBottomLeftRadius: "8px 8px",
-    }, 100, 50);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "8px 8px",
+        borderTopRightRadius: "8px 8px",
+        borderBottomRightRadius: "8px 8px",
+        borderBottomLeftRadius: "8px 8px",
+      },
+      100,
+      50,
+    );
     const svg = roundedRectSvg(0, 0, 100, 50, c, 'fill="red"');
     expect(svg.startsWith("<rect ")).toBe(true);
     expect(svg).toContain('rx="8"');
@@ -372,12 +464,16 @@ describe("roundedRectSvg: rect-or-path branching", () => {
   });
 
   it("emits <path> for asymmetric corners (DM-300)", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "10px 10px",
-      borderTopRightRadius: "30px 30px",
-      borderBottomRightRadius: "50px 50px",
-      borderBottomLeftRadius: "70px 70px",
-    }, 200, 100);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "10px 10px",
+        borderTopRightRadius: "30px 30px",
+        borderBottomRightRadius: "50px 50px",
+        borderBottomLeftRadius: "70px 70px",
+      },
+      200,
+      100,
+    );
     const svg = roundedRectSvg(0, 0, 200, 100, c, 'fill="blue"');
     expect(svg.startsWith("<path ")).toBe(true);
     expect(svg).toContain('fill="blue"');
@@ -386,12 +482,16 @@ describe("roundedRectSvg: rect-or-path branching", () => {
   });
 
   it("emits <path> for elliptical corners (50px / 20px)", () => {
-    const c = parseCornerRadii({
-      borderTopLeftRadius: "50px 20px",
-      borderTopRightRadius: "50px 20px",
-      borderBottomRightRadius: "50px 20px",
-      borderBottomLeftRadius: "50px 20px",
-    }, 400, 80);
+    const c = parseCornerRadii(
+      {
+        borderTopLeftRadius: "50px 20px",
+        borderTopRightRadius: "50px 20px",
+        borderBottomRightRadius: "50px 20px",
+        borderBottomLeftRadius: "50px 20px",
+      },
+      400,
+      80,
+    );
     const svg = roundedRectSvg(0, 0, 400, 80, c, "");
     expect(svg.startsWith("<path ")).toBe(true);
   });
@@ -402,14 +502,16 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
   // center — all four wedges degenerate to triangles meeting at the center.
   it("square box with uniform widths gives triangles meeting at the center", () => {
     const apexes = computeWedgeApexes(0, 0, 100, 100, 6, 6, 6, 6);
-    expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
-    expect(apexes.apexBottomX).toBe(50); expect(apexes.apexBottomY).toBe(50);
-    expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
-    expect(apexes.apexRightX).toBe(50); expect(apexes.apexRightY).toBe(50);
-    expect(wedgePolygonPoints("top", 0, 0, 100, 100, apexes))
-      .toBe("0,0 100,0 50,50");
-    expect(wedgePolygonPoints("bottom", 0, 0, 100, 100, apexes))
-      .toBe("100,100 0,100 50,50");
+    expect(apexes.apexTopX).toBe(50);
+    expect(apexes.apexTopY).toBe(50);
+    expect(apexes.apexBottomX).toBe(50);
+    expect(apexes.apexBottomY).toBe(50);
+    expect(apexes.apexLeftX).toBe(50);
+    expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexRightX).toBe(50);
+    expect(apexes.apexRightY).toBe(50);
+    expect(wedgePolygonPoints("top", 0, 0, 100, 100, apexes)).toBe("0,0 100,0 50,50");
+    expect(wedgePolygonPoints("bottom", 0, 0, 100, 100, apexes)).toBe("100,100 0,100 50,50");
   });
 
   // DM-918: 6/6/6/6 widths on a 240×100 box. apexTop/apexBottom (formula
@@ -424,19 +526,17 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
     expect(apexes.apexTopY).toBe(120);
     expect(apexes.apexBottomY).toBe(-20);
     // apexLeft / apexRight sit at y=cyBox=50, inside.
-    expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
-    expect(apexes.apexRightX).toBe(190); expect(apexes.apexRightY).toBe(50);
+    expect(apexes.apexLeftX).toBe(50);
+    expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexRightX).toBe(190);
+    expect(apexes.apexRightY).toBe(50);
     // Top wedge: quadrilateral spans only the upper half (no bleed into y > 50).
-    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
-      .toBe("0,0 240,0 190,50 50,50");
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes)).toBe("0,0 240,0 190,50 50,50");
     // Bottom wedge: quadrilateral spans only the lower half.
-    expect(wedgePolygonPoints("bottom", 0, 0, 240, 100, apexes))
-      .toBe("240,100 0,100 50,50 190,50");
+    expect(wedgePolygonPoints("bottom", 0, 0, 240, 100, apexes)).toBe("240,100 0,100 50,50 190,50");
     // Left / right wedges keep their triangles (apexLeft / apexRight inside).
-    expect(wedgePolygonPoints("left", 0, 0, 240, 100, apexes))
-      .toBe("0,100 0,0 50,50");
-    expect(wedgePolygonPoints("right", 0, 0, 240, 100, apexes))
-      .toBe("240,0 240,100 190,50");
+    expect(wedgePolygonPoints("left", 0, 0, 240, 100, apexes)).toBe("0,100 0,0 50,50");
+    expect(wedgePolygonPoints("right", 0, 0, 240, 100, apexes)).toBe("240,0 240,100 190,50");
   });
 
   // DM-917: 8/2/8/2 widths on a wide 240×100 box (the "circle, mixed
@@ -451,14 +551,14 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
     expect(apexes.apexTopY).toBe(480);
     expect(apexes.apexBottomY).toBe(-380);
     // apexLeft / apexRight: y = bxT + 8·100/16 = 50, inside.
-    expect(apexes.apexLeftX).toBe(12.5); expect(apexes.apexLeftY).toBe(50);
-    expect(apexes.apexRightX).toBe(227.5); expect(apexes.apexRightY).toBe(50);
+    expect(apexes.apexLeftX).toBe(12.5);
+    expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexRightX).toBe(227.5);
+    expect(apexes.apexRightY).toBe(50);
     // Top quad: bounded to upper half.
-    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
-      .toBe("0,0 240,0 227.5,50 12.5,50");
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes)).toBe("0,0 240,0 227.5,50 12.5,50");
     // Bottom quad: bounded to lower half.
-    expect(wedgePolygonPoints("bottom", 0, 0, 240, 100, apexes))
-      .toBe("240,100 0,100 12.5,50 227.5,50");
+    expect(wedgePolygonPoints("bottom", 0, 0, 240, 100, apexes)).toBe("240,100 0,100 12.5,50 227.5,50");
   });
 
   // Asymmetric tw/bw — apexLeft.y shifts off cyBox toward the thicker side
@@ -471,15 +571,16 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
     // Top quad bottom edge is at y=40 (above cyBox=60), giving the
     // thinner top side less vertical extent than the thicker bottom.
     // apexLeft/Right .x = lw·H/(tw+bw) = 2·120/12 = 20.
-    expect(wedgePolygonPoints("top", 0, 0, 240, 120, apexes))
-      .toBe("0,0 240,0 220,40 20,40");
+    expect(wedgePolygonPoints("top", 0, 0, 240, 120, apexes)).toBe("0,0 240,0 220,40 20,40");
   });
 
   // Edge case: all-zero widths → fall back to box center (no division by 0).
   it("falls back to the box center when the adjacent-pair widths sum to zero", () => {
     const apexes = computeWedgeApexes(0, 0, 100, 100, 0, 0, 0, 0);
-    expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
-    expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexTopX).toBe(50);
+    expect(apexes.apexTopY).toBe(50);
+    expect(apexes.apexLeftX).toBe(50);
+    expect(apexes.apexLeftY).toBe(50);
   });
 
   // DM-1150: a SINGLE-side border with border-radius (e.g. `border-top: 6px; …
@@ -492,11 +593,11 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
   it("spans the full box edge for a single-side border (both adjacent sides zero-width)", () => {
     const apexes = computeWedgeApexes(0, 0, 240, 100, 6, 0, 0, 0); // top-only
     // Legacy (no widths): center-converging triangle — cuts the corners.
-    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
-      .toBe("0,0 240,0 120,50");
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes)).toBe("0,0 240,0 120,50");
     // DM-1150 (widths passed): box-spanning quad — covers BOTH top corners.
-    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes, { tw: 6, rw: 0, bw: 0, lw: 0 }))
-      .toBe("0,0 240,0 240,100 0,100");
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes, { tw: 6, rw: 0, bw: 0, lw: 0 })).toBe(
+      "0,0 240,0 240,100 0,100",
+    );
   });
 
   it("does NOT span the full edge when an adjacent side has nonzero width", () => {
@@ -512,16 +613,16 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
 describe("roundBorderSideClipPolygon (DM-2314)", () => {
   it("preserves the 50%-radius mixed-width ellipse discriminator", () => {
     const corners = parseCornerRadii({ borderRadius: "999px" }, 240, 100);
-    expect(roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 8, 2, 8, 2))
-      .toBe("0,0 240,0 227.5,50 12.5,50");
+    expect(roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 8, 2, 8, 2)).toBe("0,0 240,0 227.5,50 12.5,50");
   });
 
   it("bounds ordinary radii at the opposite inner-corner union", () => {
     const corners = parseCornerRadii({ borderRadius: "20px" }, 240, 100);
     const current = roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 6, 6, 6, 6);
     expect(current).toBe("0,0 240,0 160,80 80,80");
-    expect(roundBorderSideClipPolygon("bottom", 0, 0, 240, 100, corners, 6, 6, 6, 6))
-      .toBe("240,100 0,100 80,20 160,20");
+    expect(roundBorderSideClipPolygon("bottom", 0, 0, 240, 100, corners, 6, 6, 6, 6)).toBe(
+      "240,100 0,100 80,20 160,20",
+    );
     // Negative control: the old aspect-ratio fallback ignored the radii and
     // cut at perpendicular side apices (y=50 here). The source-derived
     // opposite-corner union must move this discriminator to y=80.
@@ -531,22 +632,21 @@ describe("roundBorderSideClipPolygon (DM-2314)", () => {
 
   it("uses the miter apex when it occurs before the opposite bound", () => {
     const corners = parseCornerRadii({ borderRadius: "50px" }, 100, 100);
-    expect(roundBorderSideClipPolygon("top", 0, 0, 100, 100, corners, 6, 6, 6, 6))
-      .toBe("0,0 100,0 50,50");
+    expect(roundBorderSideClipPolygon("top", 0, 0, 100, 100, corners, 6, 6, 6, 6)).toBe("0,0 100,0 50,50");
   });
 
   it("leaves a lone side uncut when both adjacent widths are zero", () => {
     const corners = parseCornerRadii({ borderRadius: "30px" }, 240, 100);
-    expect(roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 6, 0, 0, 0))
-      .toBe("0,0 240,0 240,100 0,100");
+    expect(roundBorderSideClipPolygon("top", 0, 0, 240, 100, corners, 6, 0, 0, 0)).toBe("0,0 240,0 240,100 0,100");
   });
 });
-
 
 describe("parseSide", () => {
   it("parses a width/style/color triple into a BorderSide", () => {
     expect(parseSide("2px", "solid", "rgb(255, 0, 0)")).toEqual({
-      w: 2, style: "solid", color: { r: 255, g: 0, b: 0, a: 1 },
+      w: 2,
+      style: "solid",
+      color: { r: 255, g: 0, b: 0, a: 1 },
     });
   });
 
@@ -598,13 +698,15 @@ describe("outsetCornerRadiiForShadow", () => {
 
 describe("injectSvgSize", () => {
   it("replaces existing width/height with the captured layout size", () => {
-    expect(injectSvgSize('<svg width="24" height="24" viewBox="0 0 24 24"><path/></svg>', 12, 12))
-      .toBe('<svg viewBox="0 0 24 24" width="12" height="12"><path/></svg>');
+    expect(injectSvgSize('<svg width="24" height="24" viewBox="0 0 24 24"><path/></svg>', 12, 12)).toBe(
+      '<svg viewBox="0 0 24 24" width="12" height="12"><path/></svg>',
+    );
   });
 
   it("injects width/height when the source has none", () => {
-    expect(injectSvgSize('<svg viewBox="0 0 1 1"></svg>', 30, 40))
-      .toBe('<svg viewBox="0 0 1 1" width="30" height="40"></svg>');
+    expect(injectSvgSize('<svg viewBox="0 0 1 1"></svg>', 30, 40)).toBe(
+      '<svg viewBox="0 0 1 1" width="30" height="40"></svg>',
+    );
   });
 
   it("leaves the markup untouched for non-positive sizes or non-<svg> input", () => {
@@ -658,9 +760,11 @@ describe("findOffGridCollapsedCells (DM-1151)", () => {
     expect(findOffGridCollapsedCells([{ x: 10, y: 10, width: 50, height: 50 }])).toEqual([false]);
     // Two cells with a 1px gap can't form a ≥2 consensus, so neither is flagged
     // (a single gap is ambiguous about which side owns the grid line).
-    expect(findOffGridCollapsedCells([
-      { x: 0, y: 0, width: 100, height: 50 },
-      { x: 101, y: 0, width: 100, height: 50 },
-    ])).toEqual([false, false]);
+    expect(
+      findOffGridCollapsedCells([
+        { x: 0, y: 0, width: 100, height: 50 },
+        { x: 101, y: 0, width: 100, height: 50 },
+      ]),
+    ).toEqual([false, false]);
   });
 });

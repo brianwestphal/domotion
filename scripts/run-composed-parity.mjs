@@ -41,16 +41,23 @@ for (const fixture of manifest.repositoryFixtures) {
   }
 }
 
-writeFileSync(resultPath, JSON.stringify({
-  suite: "composed-parity",
-  schemaVersion: 1,
-  generatedAt: new Date().toISOString(),
-  platform: process.platform,
-  architecture: process.arch,
-  processIsolation: "fresh-process-per-fixture",
-  browsers: [...browserConditions],
-  corpus: manifest,
-  results,
-}, null, 2));
+writeFileSync(
+  resultPath,
+  JSON.stringify(
+    {
+      suite: "composed-parity",
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      platform: process.platform,
+      architecture: process.arch,
+      processIsolation: "fresh-process-per-fixture",
+      browsers: [...browserConditions],
+      corpus: manifest,
+      results,
+    },
+    null,
+    2,
+  ),
+);
 
 if (results.length !== manifest.repositoryFixtures.length || failed) process.exitCode = 1;

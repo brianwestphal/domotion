@@ -21,10 +21,13 @@ function axisAlignedRect(quads: readonly (readonly number[])[]): Rect | null {
   if (quads.length !== 1) return null;
   const q = quads[0];
   if (q.length !== 8 || !q.every(Number.isFinite)) return null;
-  if (Math.abs(q[1] - q[3]) > QUAD_EPSILON
-      || Math.abs(q[2] - q[4]) > QUAD_EPSILON
-      || Math.abs(q[5] - q[7]) > QUAD_EPSILON
-      || Math.abs(q[6] - q[0]) > QUAD_EPSILON) return null;
+  if (
+    Math.abs(q[1] - q[3]) > QUAD_EPSILON ||
+    Math.abs(q[2] - q[4]) > QUAD_EPSILON ||
+    Math.abs(q[5] - q[7]) > QUAD_EPSILON ||
+    Math.abs(q[6] - q[0]) > QUAD_EPSILON
+  )
+    return null;
   const width = q[2] - q[0];
   const height = q[5] - q[1];
   if (!(width > 0) || !(height > 0)) return null;

@@ -35,12 +35,14 @@ describe("resolveFakeBoldTextPaint", () => {
       { paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: true },
       { paint: "stroke", frameWidthPx: 4.25, frameAndFill: false, visible: true },
     ]);
-    expect(plan.svgPasses).toEqual([{
-      kind: "combined",
-      fill: "source",
-      stroke: "author",
-      strokeWidthPx: 4.25,
-    }]);
+    expect(plan.svgPasses).toEqual([
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: "author",
+        strokeWidthPx: 4.25,
+      },
+    ]);
   });
 
   it("preserves opaque stroke-first as two differently colored passes", () => {
@@ -58,25 +60,33 @@ describe("resolveFakeBoldTextPaint", () => {
   it("coalesces transparent stroke-first because the hidden fill frame cannot contribute", () => {
     const plan = resolveFakeBoldTextPaint({ ...base, strokeFirst: true, fillIsTransparent: true });
     expect(plan.stages[1]).toEqual({
-      paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: false,
+      paint: "fill",
+      frameWidthPx: 2.25,
+      frameAndFill: true,
+      visible: false,
     });
-    expect(plan.svgPasses).toEqual([{
-      kind: "combined",
-      fill: "source",
-      stroke: "author",
-      strokeWidthPx: 4.25,
-      paintOrder: "stroke fill",
-    }]);
+    expect(plan.svgPasses).toEqual([
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: "author",
+        strokeWidthPx: 4.25,
+        paintOrder: "stroke fill",
+      },
+    ]);
   });
 
   it("represents an unstroked synthetic fill as source fill plus its frame", () => {
     const plan = resolveFakeBoldTextPaint({ ...base, strokeWidthPx: 0 });
-    expect(plan.stages).toEqual([
-      { paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: true },
+    expect(plan.stages).toEqual([{ paint: "fill", frameWidthPx: 2.25, frameAndFill: true, visible: true }]);
+    expect(plan.svgPasses).toEqual([
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: "source-fill",
+        strokeWidthPx: 2.25,
+      },
     ]);
-    expect(plan.svgPasses).toEqual([{
-      kind: "combined", fill: "source", stroke: "source-fill", strokeWidthPx: 2.25,
-    }]);
   });
 
   it("does not synthesize a static/variable face that already satisfies weight", () => {
@@ -88,13 +98,17 @@ describe("resolveFakeBoldTextPaint", () => {
       { paint: "stroke", frameWidthPx: 2, frameAndFill: false, visible: true },
     ]);
     expect(plan.svgPasses[0]).toEqual({
-      kind: "combined", fill: "source", stroke: "author", strokeWidthPx: 2,
+      kind: "combined",
+      fill: "source",
+      stroke: "author",
+      strokeWidthPx: 2,
     });
   });
 
   it("uses identical source-owned scaler records on all Chromium desktop backends", () => {
     const plans = (["darwin", "linux", "win32"] as const).map((platform) =>
-      resolveFakeBoldTextPaint({ ...base, strokeFirst: true, platform }));
+      resolveFakeBoldTextPaint({ ...base, strokeFirst: true, platform }),
+    );
     for (const plan of plans) {
       expect(plan.outline).toBe("source");
       expect(plan.stages).toEqual(plans[0].stages);

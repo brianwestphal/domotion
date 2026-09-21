@@ -4,7 +4,9 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1024, height: 800 } });
 const page = await ctx.newPage();
 // Simple test page — single 48px emoji
-await page.setContent(`<html><body style="margin:0;padding:0"><div style="font-size:48px;font-family:Apple Color Emoji,emoji;width:100px;height:100px;background:#eee">😀</div></body></html>`);
+await page.setContent(
+  `<html><body style="margin:0;padding:0"><div style="font-size:48px;font-family:Apple Color Emoji,emoji;width:100px;height:100px;background:#eee">😀</div></body></html>`,
+);
 await page.waitForLoadState("networkidle");
 const out = await page.evaluate(() => {
   const div = document.querySelector("div");
@@ -25,7 +27,9 @@ let leftEdge = -1;
 for (let x = 0; x < info.width; x++) {
   for (let y = 0; y < info.height; y++) {
     const i = (y * info.width + x) * info.channels;
-    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
     // Skip near-white background (#eee = 238)
     if (r < 200 || g < 200 || b < 200) {
       leftEdge = x;
@@ -38,7 +42,9 @@ let rightEdge = -1;
 for (let x = info.width - 1; x >= 0; x--) {
   for (let y = 0; y < info.height; y++) {
     const i = (y * info.width + x) * info.channels;
-    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
     if (r < 200 || g < 200 || b < 200) {
       rightEdge = x;
       break;

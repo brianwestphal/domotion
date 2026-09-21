@@ -40,7 +40,14 @@ export interface DefCtx {
    * without form-controls.ts importing the renderer (avoids an import cycle).
    */
   buildConicTile?: (
-    id: string, layer: string, x: number, y: number, w: number, h: number, sizeCss: string, posCss: string,
+    id: string,
+    layer: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    sizeCss: string,
+    posCss: string,
   ) => string;
 }
 
@@ -71,9 +78,8 @@ function gradientFillFor(
   let id = ctx.gradientCache.get(key);
   if (id == null) {
     id = ctx.nextGradId();
-    const def = grad.kind === "linear"
-      ? buildLinearGradientDef(grad, id, rect)
-      : buildRadialGradientDef(grad, id, rect);
+    const def =
+      grad.kind === "linear" ? buildLinearGradientDef(grad, id, rect) : buildRadialGradientDef(grad, id, rect);
     ctx.defsParts.push(def);
     ctx.gradientCache.set(key, id);
   }
@@ -87,7 +93,12 @@ function gradientFillFor(
  * comes from the captured track/thumb pseudo styles.
  */
 function rangeMetricSizes(s: CapturedElement["styles"]): {
-  styledTrack: boolean; styledThumb: boolean; trackThickness: number; thumbW: number; thumbH: number; thumbRadius: number;
+  styledTrack: boolean;
+  styledThumb: boolean;
+  trackThickness: number;
+  thumbW: number;
+  thumbH: number;
+  thumbRadius: number;
 } {
   const styledTrack = s.rangeTrackBg != null;
   const styledThumb = s.rangeThumbWidth != null;
@@ -109,7 +120,12 @@ function rangeMetricSizes(s: CapturedElement["styles"]): {
  * pseudo background. Covers the range thumb/track, color swatch, and
  * `<progress>` / `<meter>` bar + value pseudos (DM-1252 + DM-1254).
  */
-interface FcRect { x: number; y: number; w: number; h: number }
+interface FcRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /**
  * DM-1254: `<progress>` track + value rects, shared by `renderProgress` and the
@@ -129,7 +145,9 @@ function progressBarGeom(el: CapturedElement): { trackRect: FcRect; valueRect: F
 }
 
 function meterBarGeom(el: CapturedElement): {
-  trackRect: FcRect; valueRect: FcRect | null; valueBgImage: string | undefined;
+  trackRect: FcRect;
+  valueRect: FcRect | null;
+  valueBgImage: string | undefined;
 } {
   const s = el.styles;
   const value = s.meterValue ?? 0;
@@ -139,10 +157,10 @@ function meterBarGeom(el: CapturedElement): {
   const high = s.meterHigh ?? max;
   const optimum = s.meterOptimum ?? (min + max) / 2;
   const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
-  const region = (candidate: number): 0 | 1 | 2 => candidate < low ? 0 : candidate > high ? 2 : 1;
+  const region = (candidate: number): 0 | 1 | 2 => (candidate < low ? 0 : candidate > high ? 2 : 1);
   const distance = Math.abs(region(value) - region(optimum));
-  const valueBgImage = distance === 0 ? s.meterOptimumBgImage
-    : distance === 1 ? s.meterSuboptimumBgImage : s.meterEvenLessGoodBgImage;
+  const valueBgImage =
+    distance === 0 ? s.meterOptimumBgImage : distance === 1 ? s.meterSuboptimumBgImage : s.meterEvenLessGoodBgImage;
   const trackRect = { x: el.x, y: el.y, w: el.width, h: el.height };
   if (ratio <= 0) return { trackRect, valueRect: null, valueBgImage };
   // html.css owns the structural meter's 1fr/2fr/1fr block-axis grid.
@@ -164,13 +182,25 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
   const inputType = s.inputType;
   if (tag === "input" && inputType === "range") {
     const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
-    if (!styledTrack || !styledThumb || ![trackThickness, thumbW, thumbH, thumbRadius].every(Number.isFinite)
-        || trackThickness < 0 || thumbW <= 0 || thumbH <= 0 || thumbRadius < 0) return out;
+    if (
+      !styledTrack ||
+      !styledThumb ||
+      ![trackThickness, thumbW, thumbH, thumbRadius].every(Number.isFinite) ||
+      trackThickness < 0 ||
+      thumbW <= 0 ||
+      thumbH <= 0 ||
+      thumbRadius < 0
+    )
+      return out;
     const elW = Math.round(el.x + el.width) - Math.round(el.x);
     const elH = Math.round(el.y + el.height) - Math.round(el.y);
     const isVertical = s.writingMode != null && s.writingMode !== "" && s.writingMode !== "horizontal-tb";
     if (isConic(s.rangeTrackBgImage)) {
-      out.push({ layer: s.rangeTrackBgImage, w: isVertical ? trackThickness : elW, h: isVertical ? elH : trackThickness });
+      out.push({
+        layer: s.rangeTrackBgImage,
+        w: isVertical ? trackThickness : elW,
+        h: isVertical ? elH : trackThickness,
+      });
     }
     if (isConic(s.rangeThumbBgImage)) {
       // Mirror renderRange's thumb-shape branch: a non-circular / small-radius
@@ -181,7 +211,10 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
   } else if (tag === "input" && inputType === "color" && isConic(s.colorSwatchBgImage)) {
     // Mirror renderColorSwatch's `swatchRect`; a missing wrapper padding fact
     // is not replaced with the former sampled 4px platform value.
-    const tok = s.colorSwatchWrapperPadding?.trim().split(/\s+/).map((p) => parseFloat(p));
+    const tok = s.colorSwatchWrapperPadding
+      ?.trim()
+      .split(/\s+/)
+      .map((p) => parseFloat(p));
     if (tok != null && tok.length >= 1 && tok.length <= 4 && tok.every(Number.isFinite)) {
       const top = tok[0];
       const right = tok.length === 1 ? tok[0] : tok[1];
@@ -196,7 +229,8 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
     // (also used by renderProgress), so the conic tile size matches what's filled.
     const { trackRect, valueRect } = progressBarGeom(el);
     if (isConic(s.progressBarBgImage)) out.push({ layer: s.progressBarBgImage, w: trackRect.w, h: trackRect.h });
-    if (valueRect != null && isConic(s.progressValueBgImage)) out.push({ layer: s.progressValueBgImage, w: valueRect.w, h: valueRect.h });
+    if (valueRect != null && isConic(s.progressValueBgImage))
+      out.push({ layer: s.progressValueBgImage, w: valueRect.w, h: valueRect.h });
   } else if (tag === "meter") {
     // DM-1254: meter bar/value rects + the region-selected value bg image come
     // from the shared meterBarGeom (also used by renderMeter's gradient lookups).
@@ -207,15 +241,9 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
   return out;
 }
 
-export type FormControlRenderRoute =
-  | "not-form-control"
-  | "native-raster"
-  | "missing-native-raster"
-  | "structural";
+export type FormControlRenderRoute = "not-form-control" | "native-raster" | "missing-native-raster" | "structural";
 
-const STRUCTURAL_FORM_APPEARANCES = new Set([
-  "none", "base", "base-select", "listbox", "menulist-button",
-]);
+const STRUCTURAL_FORM_APPEARANCES = new Set(["none", "base", "base-select", "listbox", "menulist-button"]);
 
 /**
  * Blink's EffectiveAppearance is the paint-ownership boundary. A materialized
@@ -223,17 +251,20 @@ const STRUCTURAL_FORM_APPEARANCES = new Set([
  * without its required record fails closed instead of reviving sampled chrome.
  */
 export function formControlRenderRoute(el: CapturedElement): FormControlRenderRoute {
-  const isControl = el.tag === "input" || el.tag === "button" || el.tag === "select"
-    || el.tag === "textarea" || el.tag === "progress" || el.tag === "meter";
+  const isControl =
+    el.tag === "input" ||
+    el.tag === "button" ||
+    el.tag === "select" ||
+    el.tag === "textarea" ||
+    el.tag === "progress" ||
+    el.tag === "meter";
   if (!isControl) return "not-form-control";
   if (el.nativeControlRaster != null) return "native-raster";
   const appearance = el.styles.effectiveAppearance;
   if (appearance == null || isWholeHostNativeAppearance(appearance)) {
     return "missing-native-raster";
   }
-  return STRUCTURAL_FORM_APPEARANCES.has(appearance)
-    ? "structural"
-    : "missing-native-raster";
+  return STRUCTURAL_FORM_APPEARANCES.has(appearance) ? "structural" : "missing-native-raster";
 }
 
 export function renderFormControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -241,7 +272,9 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   if (route === "native-raster") return "";
   if (route === "missing-native-raster") {
     const type = el.styles.inputType == null ? "" : `[type=${el.styles.inputType}]`;
-    console.warn(`[domotion] required Chromium native-control surface unavailable for ${el.tag}${type}; sampled SVG chrome is disabled`);
+    console.warn(
+      `[domotion] required Chromium native-control surface unavailable for ${el.tag}${type}; sampled SVG chrome is disabled`,
+    );
     return "";
   }
   const tag = el.tag;
@@ -295,8 +328,16 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
   if (t === "file") return renderFileInput(el, indent, defCtx);
   // Search/spin/picker paint belongs to the retained closed-shadow
   // decoration reservation. The structural host/value path paints elsewhere.
-  if (t === "number" || t === "search" || t === "date" || t === "time"
-      || t === "datetime-local" || t === "month" || t === "week") return "";
+  if (
+    t === "number" ||
+    t === "search" ||
+    t === "date" ||
+    t === "time" ||
+    t === "datetime-local" ||
+    t === "month" ||
+    t === "week"
+  )
+    return "";
   // text-like inputs already render via the normal border+bg path
   return "";
 }
@@ -310,8 +351,7 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
  */
 export function checkablePseudoFactsOwnIndicator(el: CapturedElement): boolean {
   const appearance = el.styles.effectiveAppearance ?? el.styles.inputAppearance;
-  return (appearance === "none" || appearance === "base")
-    && Array.isArray(el.pseudoFragments);
+  return (appearance === "none" || appearance === "base") && Array.isArray(el.pseudoFragments);
 }
 
 function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -329,8 +369,16 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // pre-pass (`rangeMetricSizes`) so `collectFormControlConicTiles` rasterizes
   // each conic layer at exactly the rect the synth fills.
   const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
-  if (!styledTrack || !styledThumb || ![trackThickness, thumbW, thumbH, thumbRadius].every(Number.isFinite)
-      || trackThickness < 0 || thumbW <= 0 || thumbH <= 0 || thumbRadius < 0) return "";
+  if (
+    !styledTrack ||
+    !styledThumb ||
+    ![trackThickness, thumbW, thumbH, thumbRadius].every(Number.isFinite) ||
+    trackThickness < 0 ||
+    thumbW <= 0 ||
+    thumbH <= 0 ||
+    thumbRadius < 0
+  )
+    return "";
   const trackR = parseFloat(s.rangeTrackRadius ?? "") || 0;
   const trackBgColor = s.rangeTrackBg != null && s.rangeTrackBg !== "" ? s.rangeTrackBg : "none";
   const valStr = s.inputValue;
@@ -370,7 +418,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const thumbTravelTop = elT + halfThumb;
     const thumbTravelBottom = elT + elH - halfThumb;
     const lowAtBottom = s.direction === "rtl";
-    const fromTop = lowAtBottom ? (1 - ratio) : ratio;
+    const fromTop = lowAtBottom ? 1 - ratio : ratio;
     thumbCx = elL + elW / 2;
     thumbCy = thumbTravelTop + (thumbTravelBottom - thumbTravelTop) * fromTop;
     trackRect = { x: trackX, y: elT, w: trackThickness, h: elH };
@@ -391,14 +439,23 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // For opaque non-repeating gradients this is invisible, but a repeating
   // gradient with transparent stops (e.g. tick-marks track) reveals the
   // color between stripes (DM-275).
-  if (trackGradFill != null && styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" && s.rangeTrackBg != null && s.rangeTrackBg !== "") {
-    parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`);
+  if (
+    trackGradFill != null &&
+    styledTrack &&
+    s.rangeTrackBg !== "rgba(0, 0, 0, 0)" &&
+    s.rangeTrackBg != null &&
+    s.rangeTrackBg !== ""
+  ) {
+    parts.push(
+      `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`,
+    );
   }
   const trackFill = trackGradFill ?? trackBgColor;
   const trackBorder = parseBorderShorthand(s.rangeTrackBorder);
-  const trackStroke = trackBorder == null ? ""
-    : ` stroke="${trackBorder.color}" stroke-width="${trackBorder.width}"`;
-  parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}"${trackStroke} />`);
+  const trackStroke = trackBorder == null ? "" : ` stroke="${trackBorder.color}" stroke-width="${trackBorder.width}"`;
+  parts.push(
+    `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}"${trackStroke} />`,
+  );
   // Parse the captured author thumb border (e.g. "2px solid white"). A missing
   // border remains missing; native thumbs never reach this branch.
   const thumbBorder = parseBorderShorthand(s.rangeThumbBorder);
@@ -410,7 +467,9 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
     const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
-    parts.push(`${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`);
+    parts.push(
+      `${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`,
+    );
   } else if (styledThumb) {
     const halfThumb = thumbW / 2;
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
@@ -439,7 +498,9 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     }
     if (thumbBorder != null) {
       const innerR = Math.max(0, halfThumb - thumbBorder.width / 2);
-      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(innerR)}" fill="${thumbFill}" stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}" />`);
+      parts.push(
+        `${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(innerR)}" fill="${thumbFill}" stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}" />`,
+      );
     } else {
       parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${thumbFill}" />`);
     }
@@ -469,13 +530,17 @@ export function parseSpreadOnlyShadows(value: string | undefined): Array<{ sprea
     const c = value[i];
     if (c === "(") depth++;
     else if (c === ")") depth--;
-    else if (c === "," && depth === 0) { items.push(value.slice(start, i)); start = i + 1; }
+    else if (c === "," && depth === 0) {
+      items.push(value.slice(start, i));
+      start = i + 1;
+    }
   }
   items.push(value.slice(start));
   const rings: Array<{ spread: number; color: string }> = [];
   // Per item: optional color prefix, four <length> tokens (x / y / blur /
   // spread), optional color suffix.
-  const re = /^\s*(?:(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+)\s+)?(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+))?\s*$/;
+  const re =
+    /^\s*(?:(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+)\s+)?(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+))?\s*$/;
   for (const item of items) {
     const m = re.exec(item.trim());
     if (m == null) continue;
@@ -502,16 +567,21 @@ function parseBorderShorthand(border: string | undefined): { width: number; colo
 
 function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   const s = el.styles;
-  const tokens = s.colorSwatchWrapperPadding?.trim().split(/\s+/).map((part) => parseFloat(part));
-  if (tokens == null || tokens.length < 1 || tokens.length > 4
-      || tokens.some((part) => !Number.isFinite(part))) return "";
+  const tokens = s.colorSwatchWrapperPadding
+    ?.trim()
+    .split(/\s+/)
+    .map((part) => parseFloat(part));
+  if (tokens == null || tokens.length < 1 || tokens.length > 4 || tokens.some((part) => !Number.isFinite(part)))
+    return "";
   const top = tokens[0];
   const right = tokens.length === 1 ? tokens[0] : tokens[1];
   const bottom = tokens.length < 3 ? tokens[0] : tokens[2];
   const left = tokens.length < 2 ? tokens[0] : tokens.length < 4 ? tokens[1] : tokens[3];
   const swatchRect = {
-    x: el.x + left, y: el.y + top,
-    w: el.width - left - right, h: el.height - top - bottom,
+    x: el.x + left,
+    y: el.y + top,
+    w: el.width - left - right,
+    h: el.height - top - bottom,
   };
   if (swatchRect.w <= 0 || swatchRect.h <= 0) return "";
   const swatchGrad = gradientFillFor(s.colorSwatchBgImage, swatchRect, defCtx);
@@ -549,7 +619,9 @@ export function renderFileSelectorOutsetShadow(
     const buttonHole = overflowOnly
       ? `M${r(button.x)},${r(button.y)}h${r(button.width)}v${r(button.height)}h${r(-button.width)}Z`
       : "";
-    defCtx.defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${hostPath}${buttonHole}" clip-rule="evenodd" fill-rule="evenodd"/></clipPath>`);
+    defCtx.defsParts.push(
+      `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${hostPath}${buttonHole}" clip-rule="evenodd" fill-rule="evenodd"/></clipPath>`,
+    );
     clipAttr = ` clip-path="url(#${clipId})"`;
   }
 
@@ -567,10 +639,14 @@ export function renderFileSelectorOutsetShadow(
     if (shadow.blur > 0 && defCtx != null) {
       const filterId = defCtx.nextGradId();
       const pad = Math.max(1, shadow.blur * 2);
-      defCtx.defsParts.push(`<filter id="${filterId}" filterUnits="userSpaceOnUse" x="${r(x - pad)}" y="${r(y - pad)}" width="${r(width + pad * 2)}" height="${r(height + pad * 2)}"><feGaussianBlur stdDeviation="${r(shadow.blur / 2)}"/></filter>`);
+      defCtx.defsParts.push(
+        `<filter id="${filterId}" filterUnits="userSpaceOnUse" x="${r(x - pad)}" y="${r(y - pad)}" width="${r(width + pad * 2)}" height="${r(height + pad * 2)}"><feGaussianBlur stdDeviation="${r(shadow.blur / 2)}"/></filter>`,
+      );
       filterAttr = ` filter="url(#${filterId})"`;
     }
-    out.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(width)}" height="${r(height)}" rx="${r(radius)}" fill="${esc(shadow.color)}"${filterAttr}${clipAttr}/>`);
+    out.push(
+      `${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(width)}" height="${r(height)}" rx="${r(radius)}" fill="${esc(shadow.color)}"${filterAttr}${clipAttr}/>`,
+    );
   }
   return out.join("\n");
 }
@@ -615,19 +691,24 @@ function renderCapturedFileStatus(el: CapturedElement, indent: string, defCtx?: 
     const br = parseFloat(el.styles.borderRightWidth) || 0;
     const bb = parseFloat(el.styles.borderBottomWidth) || 0;
     const bl = parseFloat(el.styles.borderLeftWidth) || 0;
-    defCtx.defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(el.x + bl)}" y="${r(el.y + bt)}" width="${r(Math.max(0, el.width - bl - br))}" height="${r(Math.max(0, el.height - bt - bb))}"/></clipPath>`);
+    defCtx.defsParts.push(
+      `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(el.x + bl)}" y="${r(el.y + bt)}" width="${r(Math.max(0, el.width - bl - br))}" height="${r(Math.max(0, el.height - bt - bb))}"/></clipPath>`,
+    );
   }
 
   const vertical = hasVerticalSegments(statusEl);
   let body = vertical
     ? renderVerticalSegments(statusEl, status.color)
-    : renderMultiSegmentText({
-        el: statusEl,
-        idPrefix: defCtx?.idPrefix ?? "dm",
-        clipId,
-        fillColor: status.color,
-        overflowClip: defCtx != null,
-      }, status.textSegments);
+    : renderMultiSegmentText(
+        {
+          el: statusEl,
+          idPrefix: defCtx?.idPrefix ?? "dm",
+          clipId,
+          fillColor: status.color,
+          overflowClip: defCtx != null,
+        },
+        status.textSegments,
+      );
   if (body === "") {
     body = renderTextAsPath(status.text, status.x, status.y, {
       fontSize: status.fontSize,
@@ -640,7 +721,10 @@ function renderCapturedFileStatus(el: CapturedElement, indent: string, defCtx?: 
   } else if (vertical && defCtx != null) {
     body = `<g clip-path="url(#${clipId})">${body}</g>`;
   }
-  return body.split("\n").map((line) => `${indent}${line}`).join("\n");
+  return body
+    .split("\n")
+    .map((line) => `${indent}${line}`)
+    .join("\n");
 }
 
 /**
@@ -666,18 +750,20 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
   const shadow = renderFileSelectorOutsetShadow(el, indent, defCtx);
   if (shadow !== "") parts.push(shadow);
   const rawRadius = parseFloat(button.borderRadius);
-  const radius = Number.isFinite(rawRadius)
-    ? Math.max(0, Math.min(rawRadius, button.width / 2, button.height / 2))
-    : 0;
-  const strokeAttrs = border == null
-    ? ""
-    : ` stroke="${border.color}" stroke-width="${r(border.width)}"`;
-  parts.push(`${indent}<rect x="${r(button.x)}" y="${r(button.y)}" width="${r(button.width)}" height="${r(button.height)}" rx="${r(radius)}" fill="${background ?? "none"}"${strokeAttrs} />`);
+  const radius = Number.isFinite(rawRadius) ? Math.max(0, Math.min(rawRadius, button.width / 2, button.height / 2)) : 0;
+  const strokeAttrs = border == null ? "" : ` stroke="${border.color}" stroke-width="${r(border.width)}"`;
+  parts.push(
+    `${indent}<rect x="${r(button.x)}" y="${r(button.y)}" width="${r(button.width)}" height="${r(button.height)}" rx="${r(radius)}" fill="${background ?? "none"}"${strokeAttrs} />`,
+  );
   const ascent = (button.height - button.fontAscent - button.fontDescent) / 2 + button.fontAscent;
   const labelPath = renderTextAsPath(button.text, button.x + (button.width - button.textWidth) / 2, button.y, {
-    fontSize: button.fontSize, fontWeight: button.fontWeight,
-    fontFamily: capturedFontFamilyCss(button.fontFamily, button.fontFamilyStack), fontStyle: button.fontStyle, fill: button.color,
-    targetWidth: button.textWidth, ascentOverride: ascent,
+    fontSize: button.fontSize,
+    fontWeight: button.fontWeight,
+    fontFamily: capturedFontFamilyCss(button.fontFamily, button.fontFamilyStack),
+    fontStyle: button.fontStyle,
+    fill: button.color,
+    targetWidth: button.textWidth,
+    ascentOverride: ascent,
   });
   parts.push(`${indent}${labelPath}`);
   if (statusMarkup !== "") parts.push(statusMarkup);
@@ -699,14 +785,18 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
   const trackGradient = gradientFillFor(el.styles.progressBarBgImage, trackRect, defCtx);
   if (trackColor != null || trackGradient != null) {
     const radius = Math.max(0, parseFloat(el.styles.progressBarRadius ?? "") || 0);
-    parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`);
+    parts.push(
+      `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`,
+    );
   }
   if (valueRect != null) {
     const valueColor = capturedPseudoColor(el.styles.progressValueBg);
     const valueGradient = gradientFillFor(el.styles.progressValueBgImage, valueRect, defCtx);
     if (valueColor != null || valueGradient != null) {
       const radius = Math.max(0, parseFloat(el.styles.progressValueRadius ?? "") || 0);
-      parts.push(`${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(radius)}" fill="${valueGradient ?? valueColor!}" />`);
+      parts.push(
+        `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(radius)}" fill="${valueGradient ?? valueColor!}" />`,
+      );
     }
   }
   return parts.join("\n");
@@ -720,23 +810,30 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const low = s.meterLow ?? min;
   const high = s.meterHigh ?? max;
   const optimum = s.meterOptimum ?? (min + max) / 2;
-  const region = (candidate: number): 0 | 1 | 2 => candidate < low ? 0 : candidate > high ? 2 : 1;
+  const region = (candidate: number): 0 | 1 | 2 => (candidate < low ? 0 : candidate > high ? 2 : 1);
   const distance = Math.abs(region(value) - region(optimum));
-  const valueColor = distance === 0 ? capturedPseudoColor(s.meterOptimumBg)
-    : distance === 1 ? capturedPseudoColor(s.meterSuboptimumBg)
-      : capturedPseudoColor(s.meterEvenLessGoodBg);
+  const valueColor =
+    distance === 0
+      ? capturedPseudoColor(s.meterOptimumBg)
+      : distance === 1
+        ? capturedPseudoColor(s.meterSuboptimumBg)
+        : capturedPseudoColor(s.meterEvenLessGoodBg);
   const geometry = meterBarGeom(el);
   const parts: string[] = [];
   const radius = Math.max(0, parseFloat(s.meterBarRadius ?? "") || 0);
   const trackColor = capturedPseudoColor(s.meterBarBg);
   const trackGradient = gradientFillFor(s.meterBarBgImage, geometry.trackRect, defCtx);
   if (trackColor != null || trackGradient != null) {
-    parts.push(`${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`);
+    parts.push(
+      `${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`,
+    );
   }
   if (geometry.valueRect != null) {
     const valueGradient = gradientFillFor(geometry.valueBgImage, geometry.valueRect, defCtx);
     if (valueColor != null || valueGradient != null) {
-      parts.push(`${indent}<rect x="${r(geometry.valueRect.x)}" y="${r(geometry.valueRect.y)}" width="${r(geometry.valueRect.w)}" height="${r(geometry.valueRect.h)}" rx="${r(Math.min(radius, geometry.valueRect.h / 2))}" fill="${valueGradient ?? valueColor!}" />`);
+      parts.push(
+        `${indent}<rect x="${r(geometry.valueRect.x)}" y="${r(geometry.valueRect.y)}" width="${r(geometry.valueRect.w)}" height="${r(geometry.valueRect.h)}" rx="${r(Math.min(radius, geometry.valueRect.h / 2))}" fill="${valueGradient ?? valueColor!}" />`,
+      );
     }
   }
   return parts.join("\n");
@@ -749,8 +846,14 @@ function renderListbox(el: CapturedElement, indent: string): string {
   const parts: string[] = [];
   for (let i = 0; i < opts.length; i++) {
     const o = opts[i];
-    const measured = o.x != null && o.y != null && o.width != null && o.height != null
-      && o.fontAscent != null && o.width > 0 && o.height > 0;
+    const measured =
+      o.x != null &&
+      o.y != null &&
+      o.width != null &&
+      o.height != null &&
+      o.fontAscent != null &&
+      o.width > 0 &&
+      o.height > 0;
     if (!measured) continue;
     const rx = el.x + o.x!;
     const ry = el.y + o.y!;
@@ -760,23 +863,27 @@ function renderListbox(el: CapturedElement, indent: string): string {
     const selectedFill = capturedPseudoColor(o.backgroundColor);
     if (selectedFill != null) {
       const visibleHeight = Math.min(rh, el.y + el.height - ry);
-      parts.push(`${indent}<rect x="${r(rx)}" y="${r(ry)}" width="${r(rw)}" height="${r(visibleHeight)}" fill="${selectedFill}" />`);
+      parts.push(
+        `${indent}<rect x="${r(rx)}" y="${r(ry)}" width="${r(rw)}" height="${r(visibleHeight)}" fill="${selectedFill}" />`,
+      );
     }
     const optionFontSize = o.fontSize ?? parseFloat(el.styles.fontSize ?? "");
-    const fontFamily = o.fontFamily != null
-      ? capturedFontFamilyCss(o.fontFamily, o.fontFamilyStack)
-      : capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack);
+    const fontFamily =
+      o.fontFamily != null
+        ? capturedFontFamilyCss(o.fontFamily, o.fontFamilyStack)
+        : capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack);
     const color = o.color ?? el.styles.color;
-    if (!Number.isFinite(optionFontSize) || optionFontSize <= 0
-        || fontFamily == null || color == null) continue;
+    if (!Number.isFinite(optionFontSize) || optionFontSize <= 0 || fontFamily == null || color == null) continue;
     const tx = rx + (o.paddingLeft ?? 0);
     const ty = ry + (o.paddingTop ?? 0) + o.fontAscent!;
     const fontStyle = o.fontStyle ?? "normal";
     const fontWeight = o.fontWeight ?? "400";
     const fontStyleAttr = fontStyle !== "normal" ? ` font-style="${fontStyle}"` : "";
     const fontWeightAttr = fontWeight !== "normal" && fontWeight !== "400" ? ` font-weight="${fontWeight}"` : "";
-    const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(optionFontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}"${fontStyleAttr}${fontWeightAttr}>${escaped}</text>`);
+    const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    parts.push(
+      `${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(optionFontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}"${fontStyleAttr}${fontWeightAttr}>${escaped}</text>`,
+    );
   }
   return parts.join("\n");
 }
@@ -793,8 +900,15 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
     const color = el.styles.color;
     const ascent = el.fontAscent;
     const descent = el.fontDescent;
-    if (!Number.isFinite(fontSize) || fontSize <= 0 || fontFamily == null
-        || color == null || ascent == null || descent == null) return "";
+    if (
+      !Number.isFinite(fontSize) ||
+      fontSize <= 0 ||
+      fontFamily == null ||
+      color == null ||
+      ascent == null ||
+      descent == null
+    )
+      return "";
     // Anchor the display text at the element's content-box left edge.
     // Pages style selects with `appearance: none; padding: 8px 34px 8px 12px`
     // and similar — the previous hardcoded `el.x + 6` ignored the captured
@@ -816,11 +930,14 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
     // it by centering the font bounding box loses half-leading (and differs
     // across the native/base/appearance:none select routes). Keep that
     // arithmetic for old captures that predate the UA-shadow geometry field.
-    const ty = measured?.y != null
-      ? measured.y + measured.fontAscent
-      : el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;
-    const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" font-weight="${el.styles.fontWeight ?? "400"}" fill="${color}">${escaped}</text>`);
+    const ty =
+      measured?.y != null
+        ? measured.y + measured.fontAscent
+        : el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;
+    const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    parts.push(
+      `${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" font-weight="${el.styles.fontWeight ?? "400"}" fill="${color}">${escaped}</text>`,
+    );
   }
   // Chromium's base-select UA style generates ::picker-icon as a disclosure
   // counter and pushes it to the inline end with margin-inline-start:auto.
@@ -834,11 +951,11 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
       const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
       const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
       const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-      const cx = el.styles.direction === "rtl"
-        ? el.x + bwL + padL + 4
-        : el.x + el.width - bwR - padR - 4;
+      const cx = el.styles.direction === "rtl" ? el.x + bwL + padL + 4 : el.x + el.width - bwR - padR - 4;
       const cy = el.y + el.height / 2;
-      parts.push(`${indent}<path d="M ${r(cx - 4)} ${r(cy - 2)} L ${r(cx + 4)} ${r(cy - 2)} L ${r(cx)} ${r(cy + 2.5)} Z" fill="${color}" />`);
+      parts.push(
+        `${indent}<path d="M ${r(cx - 4)} ${r(cy - 2)} L ${r(cx + 4)} ${r(cy - 2)} L ${r(cx)} ${r(cy + 2.5)} Z" fill="${color}" />`,
+      );
     }
   }
   return parts.join("\n");

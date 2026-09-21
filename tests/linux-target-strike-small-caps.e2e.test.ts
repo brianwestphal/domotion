@@ -14,13 +14,21 @@ html,body{margin:0;background:#fff}
   font:18px/24px Georgia,"Times New Roman",serif;font-variant-caps:small-caps}
 </style><p id="line">T height</p>`;
 
-interface Box { x: number; y: number; width: number; height: number }
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 async function inkBox(png: Buffer, range: Box): Promise<Box | null> {
   const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const left = Math.max(0, Math.floor(range.x) - 2);
   const right = Math.min(decoded.info.width, Math.ceil(range.x + range.width) + 2);
-  let minX = right, minY = decoded.info.height, maxX = -1, maxY = -1;
+  let minX = right,
+    minY = decoded.info.height,
+    maxX = -1,
+    maxY = -1;
   for (let y = 0; y < decoded.info.height; y++) {
     for (let x = left; x < right; x++) {
       const offset = (y * decoded.info.width + x) * decoded.info.channels;
@@ -36,10 +44,16 @@ async function inkBox(png: Buffer, range: Box): Promise<Box | null> {
 
 async function setup() {
   if (process.platform !== "linux") return null;
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeLinuxBrowser = env ? describe : describe.skip;
 
 describeLinuxBrowser("Linux mixed-size target strikes for synthesized small caps", () => {
@@ -86,13 +100,25 @@ describeLinuxBrowser("Linux mixed-size target strikes for synthesized small caps
 
       expect(expectedFull).not.toBeNull();
       expect(expectedSmall).not.toBeNull();
-      expect([enabledFull!.y, enabledFull!.height, enabledSmall!.y, enabledSmall!.height])
-        .toEqual([expectedFull!.y, expectedFull!.height, expectedSmall!.y, expectedSmall!.height]);
-      expect([disabledFull!.y, disabledFull!.height, disabledSmall!.y, disabledSmall!.height])
-        .not.toEqual([expectedFull!.y, expectedFull!.height, expectedSmall!.y, expectedSmall!.height]);
+      expect([enabledFull!.y, enabledFull!.height, enabledSmall!.y, enabledSmall!.height]).toEqual([
+        expectedFull!.y,
+        expectedFull!.height,
+        expectedSmall!.y,
+        expectedSmall!.height,
+      ]);
+      expect([disabledFull!.y, disabledFull!.height, disabledSmall!.y, disabledSmall!.height]).not.toEqual([
+        expectedFull!.y,
+        expectedFull!.height,
+        expectedSmall!.y,
+        expectedSmall!.height,
+      ]);
 
-      const fullFamily = /font-family="(dmf\d+)" font-size="18" text-rendering="geometricPrecision"/.exec(enabledSvg)?.[1];
-      const smallFamily = /font-family="(dmf\d+)" font-size="13" text-rendering="geometricPrecision"/.exec(enabledSvg)?.[1];
+      const fullFamily = /font-family="(dmf\d+)" font-size="18" text-rendering="geometricPrecision"/.exec(
+        enabledSvg,
+      )?.[1];
+      const smallFamily = /font-family="(dmf\d+)" font-size="13" text-rendering="geometricPrecision"/.exec(
+        enabledSvg,
+      )?.[1];
       expect(fullFamily).toBeTruthy();
       expect(smallFamily).toBeTruthy();
       expect(fullFamily).not.toBe(smallFamily);

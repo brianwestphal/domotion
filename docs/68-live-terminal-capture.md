@@ -4,10 +4,10 @@ title: "68 — Live terminal capture (domotion term -- <cmd …>)"
 kind: "contract"
 status: "current"
 owners: ["product-tooling"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1225","DM-1226"]
-code: ["src/cli/term.ts","src/terminal/pty.e2e.test.ts","src/terminal/pty.ts"]
-aliases: ["docs/68-live-terminal-capture.md","doc-68"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1225", "DM-1226"]
+code: ["src/cli/term.ts", "src/terminal/pty.e2e.test.ts", "src/terminal/pty.ts"]
+aliases: ["docs/68-live-terminal-capture.md", "doc-68"]
 ---
 
 # 68 — Live terminal capture (`domotion term -- <cmd …>`)
@@ -46,12 +46,12 @@ domotion term -o vim.svg -- vim notes.md
 
 ## Behavior
 
-| Aspect | Behavior |
-|--------|----------|
-| Sizing | `--cols` / `--rows` override; otherwise the current TTY size (`process.stdout.columns/rows`), falling back to 80×24 when not a TTY. |
-| stdin | Forwarded raw to the child when stdin is a TTY, so interactive programs (vim, prompts, REPLs) behave normally. |
-| Resize | `SIGWINCH` (a terminal resize) is forwarded to the pty so wrapping stays correct mid-session. |
-| Exit | Capture stops on child exit; the child's exit code is surfaced in the progress log. |
+| Aspect | Behavior                                                                                                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sizing | `--cols` / `--rows` override; otherwise the current TTY size (`process.stdout.columns/rows`), falling back to 80×24 when not a TTY.                                                                    |
+| stdin  | Forwarded raw to the child when stdin is a TTY, so interactive programs (vim, prompts, REPLs) behave normally.                                                                                         |
+| Resize | `SIGWINCH` (a terminal resize) is forwarded to the pty so wrapping stays correct mid-session.                                                                                                          |
+| Exit   | Capture stops on child exit; the child's exit code is surfaced in the progress log.                                                                                                                    |
 | Output | Each pty data chunk is recorded as a `[elapsedSeconds, "o", data]` event — the exact shape `parseCast` produces — and re-emitted as an asciinema v2 cast string fed straight into `castToAnimatedSvg`. |
 
 ## The `node-pty` dependency
@@ -64,7 +64,7 @@ elsewhere). To keep the common `--cast` path free of a native build:
 - It is loaded behind a **lazy `import()`** in `src/terminal/pty.ts` — only the
   live path touches it. `--cast` users who never run `-- <cmd>` never load it.
 - A missing / unbuilt install fails with an **install hint** (`npm install
-  node-pty`) rather than a stack trace.
+node-pty`) rather than a stack trace.
 
 ### `spawn-helper` self-heal (macOS/Linux)
 

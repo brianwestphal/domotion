@@ -3,7 +3,11 @@ import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:
 import { join, relative, resolve, sep } from "node:path";
 import type { Browser, Page } from "@playwright/test";
 import { buildMagicMove, generateAnimatedSvg, type AnimationFrame } from "../animation/index.js";
-import { captureElementTreeSelfContained, createCapturedTreeEnvelope, discoverAndRegisterWebfonts } from "../capture/index.js";
+import {
+  captureElementTreeSelfContained,
+  createCapturedTreeEnvelope,
+  discoverAndRegisterWebfonts,
+} from "../capture/index.js";
 import type { CapturedElement } from "../capture/types.js";
 import { openAnimateCaptureSession } from "../cli/animate-capture-session.js";
 import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
@@ -94,7 +98,14 @@ export interface StudioHealingDomCandidate {
   labelText?: string;
   text: string;
   rect: { x: number; y: number; width: number; height: number };
-  styles: { display: string; visibility: string; opacity: string; cursor: string; pointerEvents: string; position: string };
+  styles: {
+    display: string;
+    visibility: string;
+    opacity: string;
+    cursor: string;
+    pointerEvents: string;
+    position: string;
+  };
 }
 
 export interface StudioHealingPageInspection {
@@ -125,7 +136,10 @@ export class StudioInteractiveSceneError extends Error {
     inspection: StudioHealingPageInspection,
     cause: unknown,
   ) {
-    super(`Interactive Studio scene "${scene.id}" failed${eventId == null ? "" : ` at event "${eventId}"`}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    super(
+      `Interactive Studio scene "${scene.id}" failed${eventId == null ? "" : ` at event "${eventId}"`}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
     this.name = "StudioInteractiveSceneError";
     this.sceneId = scene.id;
     this.sceneIndex = sceneIndex;
@@ -152,8 +166,12 @@ interface RenderGroup {
 
 /** Capture browser-owned accessibility, geometry, and computed-style facts for AI repair. */
 export async function inspectStudioHealingPage(page: Page, maxCandidates = 250): Promise<StudioHealingPageInspection> {
-  if (!Number.isInteger(maxCandidates) || maxCandidates < 1) throw new RangeError("maxCandidates must be a positive integer");
-  const ariaSnapshot = await page.locator("body").ariaSnapshot({ mode: "ai", depth: 12 }).catch(() => "");
+  if (!Number.isInteger(maxCandidates) || maxCandidates < 1)
+    throw new RangeError("maxCandidates must be a positive integer");
+  const ariaSnapshot = await page
+    .locator("body")
+    .ariaSnapshot({ mode: "ai", depth: 12 })
+    .catch(() => "");
   const raw = await page.locator("body *").evaluateAll((elements, limit) => {
     const selector = (element: Element): string => {
       if (element.id !== "") return `#${CSS.escape(element.id)}`;
@@ -163,7 +181,10 @@ export async function inspectStudioHealingPage(page: Page, maxCandidates = 250):
       let current: Element | null = element;
       while (current != null && current.tagName.toLowerCase() !== "body" && parts.length < 5) {
         const tag = current.tagName.toLowerCase();
-        const siblings = current.parentElement == null ? [] : [...current.parentElement.children].filter((item) => item.tagName === current!.tagName);
+        const siblings =
+          current.parentElement == null
+            ? []
+            : [...current.parentElement.children].filter((item) => item.tagName === current!.tagName);
         parts.unshift(siblings.length > 1 ? `${tag}:nth-of-type(${siblings.indexOf(current) + 1})` : tag);
         current = current.parentElement;
       }
@@ -173,16 +194,27 @@ export async function inspectStudioHealingPage(page: Page, maxCandidates = 250):
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
       const tag = element.tagName.toLowerCase();
-      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"
-        && (element.hasAttribute("role") || element.hasAttribute("aria-label") || element.hasAttribute("data-testid") || element.id !== ""
-          || ["button", "a", "input", "select", "textarea", "label", "summary"].includes(tag));
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        (element.hasAttribute("role") ||
+          element.hasAttribute("aria-label") ||
+          element.hasAttribute("data-testid") ||
+          element.id !== "" ||
+          ["button", "a", "input", "select", "textarea", "label", "summary"].includes(tag))
+      );
     });
     const candidates = interesting.slice(0, limit).map((element) => {
       const html = element as HTMLElement;
       const control = element as HTMLInputElement;
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
-      const labels = "labels" in control && control.labels != null ? [...control.labels].map((label) => label.innerText.trim()).filter(Boolean) : [];
+      const labels =
+        "labels" in control && control.labels != null
+          ? [...control.labels].map((label) => label.innerText.trim()).filter(Boolean)
+          : [];
       const roleAttribute = element.getAttribute("role") ?? undefined;
       const ariaLabelAttribute = element.getAttribute("aria-label") ?? undefined;
       const labelText = labels.join(" ") || undefined;
@@ -257,12 +289,16 @@ async function captureState(
   };
 }
 
-function transitionFor(evidence: readonly StudioInteractionEvidence[], durationCap: number): NonNullable<AnimationFrame["transition"]> {
+function transitionFor(
+  evidence: readonly StudioInteractionEvidence[],
+  durationCap: number,
+): NonNullable<AnimationFrame["transition"]> {
   if (!evidence.some((item) => item.meaningful) || durationCap <= 0) return { type: "cut", duration: 0 };
-  const geometry = evidence.some((item) =>
-    item.summary.addedNodes > 0
-    || item.summary.removedNodes > 0
-    || item.changes.some((change) => change.geometryChanged || change.scrollChanged),
+  const geometry = evidence.some(
+    (item) =>
+      item.summary.addedNodes > 0 ||
+      item.summary.removedNodes > 0 ||
+      item.changes.some((change) => change.geometryChanged || change.scrollChanged),
   );
   const duration = Math.min(geometry ? 240 : 160, durationCap);
   return duration <= 0 ? { type: "cut", duration: 0 } : { type: geometry ? "magic-move" : "crossfade", duration };
@@ -276,21 +312,32 @@ function magicMove(
   prefix: string,
 ): NonNullable<AnimationFrame["magicMove"]> | null {
   const envelope = createCapturedTreeEnvelope(after.tree);
-  return buildMagicMove(before.tree, after.tree, (roots, idPrefix) => elementTreeToSvgInner({
-    ...envelope,
-    tree: roots.map((root) => {
-      if (root.sessionGenericFamilies == null) return root;
-      const copy = { ...root };
-      delete copy.sessionGenericFamilies;
-      return copy;
-    }),
-  }, width, height, idPrefix, false, 2, false), prefix);
+  return buildMagicMove(
+    before.tree,
+    after.tree,
+    (roots, idPrefix) =>
+      elementTreeToSvgInner(
+        {
+          ...envelope,
+          tree: roots.map((root) => {
+            if (root.sessionGenericFamilies == null) return root;
+            const copy = { ...root };
+            delete copy.sessionGenericFamilies;
+            return copy;
+          }),
+        },
+        width,
+        height,
+        idPrefix,
+        false,
+        2,
+        false,
+      ),
+    prefix,
+  );
 }
 
-function scheduledGroups(
-  plan: StudioSemanticPlan,
-  cursor: StudioCursorChoreography,
-): RenderGroup[] {
+function scheduledGroups(plan: StudioSemanticPlan, cursor: StudioCursorChoreography): RenderGroup[] {
   const cursorTimes = new Map(cursor.interactions.map((item) => [item.eventId, item.presentedAtMs]));
   const groups: RenderGroup[] = [];
   let prior = 0;
@@ -323,7 +370,10 @@ function buildFrames(
   for (let index = 0; index < groups.length; index++) {
     const group = groups[index];
     const nextGroupAt = groups[index + 1]?.atMs ?? Number.POSITIVE_INFINITY;
-    const transition = transitionFor(group.evidenceIndexes.map((item) => evidence[item]), nextGroupAt - group.atMs);
+    const transition = transitionFor(
+      group.evidenceIndexes.map((item) => evidence[item]),
+      nextGroupAt - group.atMs,
+    );
     const frame: AnimationFrame = {
       svgContent: states[currentStateIndex].svgContent,
       cullCss: states[currentStateIndex].cullCss,
@@ -331,7 +381,13 @@ function buildFrames(
       transition,
     };
     if (transition.type === "magic-move") {
-      frame.magicMove = magicMove(states[currentStateIndex], states[group.stateIndex], width, height, `studio-mm${index}-`);
+      frame.magicMove = magicMove(
+        states[currentStateIndex],
+        states[group.stateIndex],
+        width,
+        height,
+        `studio-mm${index}-`,
+      );
     }
     frames.push(frame);
     currentStateIndex = group.stateIndex;
@@ -359,7 +415,11 @@ async function runScenePhase(
     const hook = scene.scriptHooks![index];
     if (hook.phase !== phase) continue;
     const path = `$.scenes[${sceneIndex}].scriptHooks[${index}]`;
-    if (handler == null) throw new StudioProjectCompileError(path, `scene hook "${hook.hookId}" requires an explicit runSceneHook handler`);
+    if (handler == null)
+      throw new StudioProjectCompileError(
+        path,
+        `scene hook "${hook.hookId}" requires an explicit runSceneHook handler`,
+      );
     await handler({ page, project, scene, sceneIndex, hookId: hook.hookId, phase, path });
   }
 }
@@ -370,9 +430,17 @@ async function compileLiveSegment(
   scene: StudioScene,
   sceneIndex: number,
   options: CompileStudioInteractiveProjectOptions,
-): Promise<{ svg: string; durationMs: number; evidence: StudioInteractionEvidence[]; cursor: StudioCursorChoreography }> {
+): Promise<{
+  svg: string;
+  durationMs: number;
+  evidence: StudioInteractionEvidence[];
+  cursor: StudioCursorChoreography;
+}> {
   if (scene.render.kind !== "storyboard" || scene.render.recipe.capture == null) {
-    throw new StudioProjectCompileError(`$.scenes[${sceneIndex}].render`, `active scene "${scene.id}" must use a live URL/file capture source; pre-rendered SVG scenes remain reusable when they have no active tracks or hooks`);
+    throw new StudioProjectCompileError(
+      `$.scenes[${sceneIndex}].render`,
+      `active scene "${scene.id}" must use a live URL/file capture source; pre-rendered SVG scenes remain reusable when they have no active tracks or hooks`,
+    );
   }
   const cap = scene.render.recipe.capture;
   const projectDir = options.projectDir ?? process.cwd();
@@ -400,22 +468,39 @@ async function compileLiveSegment(
     await runScenePhase(project, scene, sceneIndex, page, "beforeCapture", options.runSceneHook);
 
     const selector = cap.selector ?? "body";
-    const states: CapturedState[] = [await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s0-`)];
+    const states: CapturedState[] = [
+      await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s0-`),
+    ];
     const cursorTargets: StudioCursorTargetEvidence[] = [];
     for (const step of plan.steps) {
       activeEventId = step.event.id;
       if (step.event.kind !== "waitForState" && step.event.kind !== "scriptHook") {
-        cursorTargets.push(...await inspectStudioCursorTargets(page, { steps: [step], durationMs: step.event.atMs + (step.event.durationMs ?? 0) }));
+        cursorTargets.push(
+          ...(await inspectStudioCursorTargets(page, {
+            steps: [step],
+            durationMs: step.event.atMs + (step.event.durationMs ?? 0),
+          })),
+        );
       }
-      const observed = await observeStudioSemanticStep(page, step, () => runStudioSemanticStep(page, step, {
-        log: options.log,
-        runHook: options.runHook,
-      }));
+      const observed = await observeStudioSemanticStep(page, step, () =>
+        runStudioSemanticStep(page, step, {
+          log: options.log,
+          runHook: options.runHook,
+        }),
+      );
       evidence.push(observed);
       completedEventIds.push(step.event.id);
       activeEventId = undefined;
       await discoverAndRegisterWebfonts(page, tracker.urls);
-      states.push(await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s${states.length}-`));
+      states.push(
+        await captureState(
+          page,
+          selector,
+          project.canvas.width,
+          project.canvas.height,
+          `studio-${scene.id}-s${states.length}-`,
+        ),
+      );
     }
     await runScenePhase(project, scene, sceneIndex, page, "afterCapture", options.runSceneHook);
     const cursor = planStudioCursorChoreography(cursorTargets, { seed: scene.id, ...(options.cursor ?? {}) });
@@ -442,7 +527,9 @@ async function compileLiveSegment(
       desc: scene.description,
     });
     await runScenePhase(project, scene, sceneIndex, page, "afterCompile", options.runSceneHook);
-    options.log?.(`Generated interactive Studio segment "${scene.id}": ${states.length} captured states, ${durationMs}ms`);
+    options.log?.(
+      `Generated interactive Studio segment "${scene.id}": ${states.length} captured states, ${durationMs}ms`,
+    );
     return { svg, durationMs, evidence, cursor };
   } catch (cause) {
     // A short post-failure observation window lets delayed application state
@@ -474,7 +561,10 @@ async function compileLiveSegment(
 
 function replaceArtifacts(project: StudioProject, replacements: readonly StudioArtifact[]): StudioProject {
   const ids = new Set(replacements.map((artifact) => artifact.id));
-  return validateStudioProject({ ...project, artifacts: [...project.artifacts.filter((artifact) => !ids.has(artifact.id)), ...replacements] });
+  return validateStudioProject({
+    ...project,
+    artifacts: [...project.artifacts.filter((artifact) => !ids.has(artifact.id)), ...replacements],
+  });
 }
 
 /** Compile active live scenes to reusable artifacts, then compose the ordinary Studio storyboard. */
@@ -504,13 +594,17 @@ export async function compileStudioInteractiveProject(
       const stagedEvidence = join(stageDir, `${stem}.evidence.json`);
       const finalSvg = join(artifactDir, `${stem}.segment.svg`);
       const finalEvidence = join(artifactDir, `${stem}.evidence.json`);
-      const evidenceText = `${JSON.stringify({
-        version: 1,
-        sceneId: scene.id,
-        sourceRevisionId: project.review.headRevisionId,
-        observations: compiled.evidence,
-        cursor: compiled.cursor,
-      }, null, 2)}\n`;
+      const evidenceText = `${JSON.stringify(
+        {
+          version: 1,
+          sceneId: scene.id,
+          sourceRevisionId: project.review.headRevisionId,
+          observations: compiled.evidence,
+          cursor: compiled.cursor,
+        },
+        null,
+        2,
+      )}\n`;
       writeFileSync(stagedSvg, compiled.svg, "utf8");
       writeFileSync(stagedEvidence, evidenceText, "utf8");
       publications.push({ staged: stagedSvg, final: finalSvg }, { staged: stagedEvidence, final: finalEvidence });
@@ -519,29 +613,35 @@ export async function compileStudioInteractiveProject(
       const evidenceArtifactId = artifactId(scene.id, "evidence");
       const svgSha256 = hash(compiled.svg);
       const evidenceSha256 = hash(evidenceText);
-      const generator = { name: "domotion-studio-interactive", ...(options.generatorVersion == null ? {} : { version: options.generatorVersion }) };
-      artifacts.push({
-        id: evidenceArtifactId,
-        kind: "capture-evidence",
-        path: projectPath(projectDir, finalEvidence),
-        generatedAt,
-        generator,
-        sourceRevisionId: project.review.headRevisionId,
-        sceneIds: [scene.id],
-        sha256: evidenceSha256,
-        metadata: { durationMs: compiled.durationMs, eventIds: compiled.evidence.map((item) => item.eventId) },
-      }, {
-        id: segmentArtifactId,
-        kind: "svg",
-        path: projectPath(projectDir, finalSvg),
-        generatedAt,
-        generator,
-        sourceRevisionId: project.review.headRevisionId,
-        sceneIds: [scene.id],
-        derivedFromArtifactIds: [evidenceArtifactId],
-        sha256: svgSha256,
-        metadata: { durationMs: compiled.durationMs },
-      });
+      const generator = {
+        name: "domotion-studio-interactive",
+        ...(options.generatorVersion == null ? {} : { version: options.generatorVersion }),
+      };
+      artifacts.push(
+        {
+          id: evidenceArtifactId,
+          kind: "capture-evidence",
+          path: projectPath(projectDir, finalEvidence),
+          generatedAt,
+          generator,
+          sourceRevisionId: project.review.headRevisionId,
+          sceneIds: [scene.id],
+          sha256: evidenceSha256,
+          metadata: { durationMs: compiled.durationMs, eventIds: compiled.evidence.map((item) => item.eventId) },
+        },
+        {
+          id: segmentArtifactId,
+          kind: "svg",
+          path: projectPath(projectDir, finalSvg),
+          generatedAt,
+          generator,
+          sourceRevisionId: project.review.headRevisionId,
+          sceneIds: [scene.id],
+          derivedFromArtifactIds: [evidenceArtifactId],
+          sha256: svgSha256,
+          metadata: { durationMs: compiled.durationMs },
+        },
+      );
       segments.push({
         sceneId: scene.id,
         artifactId: segmentArtifactId,
@@ -568,7 +668,10 @@ export async function compileStudioInteractiveProject(
     }
 
     const updatedProject = replaceArtifacts(project, artifacts);
-    const svg = await compileStudioProjectWithSceneOverrides(browser, project, overrides, { projectDir, log: options.log });
+    const svg = await compileStudioProjectWithSceneOverrides(browser, project, overrides, {
+      projectDir,
+      log: options.log,
+    });
     for (const publication of publications) renameSync(publication.staged, publication.final);
     return { svg, project: updatedProject, segments };
   } finally {

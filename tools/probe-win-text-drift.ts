@@ -85,7 +85,18 @@ async function main(): Promise<void> {
       };
     }
     return out;
-  })()`)) as Record<string, { text: string; charLeftX: number[]; top: number; bottom: number; baseline: number; fbbAscent: number; fbbDescent: number } | null>;
+  })()`)) as Record<
+    string,
+    {
+      text: string;
+      charLeftX: number[];
+      top: number;
+      bottom: number;
+      baseline: number;
+      fbbAscent: number;
+      fbbDescent: number;
+    } | null
+  >;
 
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
   const segs: CapturedElement[] = [];
@@ -93,7 +104,18 @@ async function main(): Promise<void> {
 
   console.log("=== captured text segments ===");
   for (const el of segs) {
-    const tss = (el as { textSegments?: Array<{ text: string; x: number; y: number; width: number; xOffsets?: number[]; fontAscent?: number }> }).textSegments;
+    const tss = (
+      el as {
+        textSegments?: Array<{
+          text: string;
+          x: number;
+          y: number;
+          width: number;
+          xOffsets?: number[];
+          fontAscent?: number;
+        }>;
+      }
+    ).textSegments;
     if (!tss) continue;
     const elAscent = (el as { fontAscent?: number }).fontAscent;
     for (const s of tss) {
@@ -110,18 +132,32 @@ async function main(): Promise<void> {
     let captured: { y: number; xOffsets?: number[]; fontAscent?: number } | undefined;
     let elAscent: number | undefined;
     for (const el of segs) {
-      const tss = (el as { textSegments?: Array<{ text: string; y: number; xOffsets?: number[]; fontAscent?: number }> }).textSegments;
+      const tss = (
+        el as { textSegments?: Array<{ text: string; y: number; xOffsets?: number[]; fontAscent?: number }> }
+      ).textSegments;
       const match = tss?.find((s) => s.text === p.text);
-      if (match) { captured = match; elAscent = (el as { fontAscent?: number }).fontAscent; break; }
+      if (match) {
+        captured = match;
+        elAscent = (el as { fontAscent?: number }).fontAscent;
+        break;
+      }
     }
     console.log(`\n=== ${which}: "${p.text}" ===`);
-    console.log(`  painted: lineBox top=${p.top} bottom=${p.bottom} (h=${r(p.bottom - p.top)}), alphabetic baseline=${p.baseline}, fontBoundingBox asc=${p.fbbAscent} desc=${p.fbbDescent} (h=${r(p.fbbAscent + p.fbbDescent)})`);
-    const xMax = captured?.xOffsets ? Math.max(...captured.xOffsets.map((xo, i) => Math.abs(xo - p.charLeftX[i]))) : NaN;
-    console.log(`  captured: y(textTop)=${captured ? r(captured.y) : "?"} fontAscent=${captured?.fontAscent ?? elAscent ?? "?"}  xOffsets ${captured?.xOffsets ? `present (max|Δx|=${r(xMax)})` : "ABSENT"}`);
+    console.log(
+      `  painted: lineBox top=${p.top} bottom=${p.bottom} (h=${r(p.bottom - p.top)}), alphabetic baseline=${p.baseline}, fontBoundingBox asc=${p.fbbAscent} desc=${p.fbbDescent} (h=${r(p.fbbAscent + p.fbbDescent)})`,
+    );
+    const xMax = captured?.xOffsets
+      ? Math.max(...captured.xOffsets.map((xo, i) => Math.abs(xo - p.charLeftX[i])))
+      : NaN;
+    console.log(
+      `  captured: y(textTop)=${captured ? r(captured.y) : "?"} fontAscent=${captured?.fontAscent ?? elAscent ?? "?"}  xOffsets ${captured?.xOffsets ? `present (max|Δx|=${r(xMax)})` : "ABSENT"}`,
+    );
     const capAscent = captured?.fontAscent ?? elAscent;
     if (captured && capAscent != null) {
       const domotionBaseline = captured.y + capAscent;
-      console.log(`  → Domotion baseline = textTop+fontAscent = ${r(domotionBaseline)} vs Chromium painted baseline ${p.baseline}  ⇒ vertical Δ = ${r(domotionBaseline - p.baseline)} px`);
+      console.log(
+        `  → Domotion baseline = textTop+fontAscent = ${r(domotionBaseline)} vs Chromium painted baseline ${p.baseline}  ⇒ vertical Δ = ${r(domotionBaseline - p.baseline)} px`,
+      );
     }
   }
 

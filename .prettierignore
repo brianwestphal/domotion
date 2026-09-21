@@ -1,0 +1,38 @@
+# Dependencies, external source, and build/test outputs
+node_modules/
+dist/
+coverage/
+external/
+vendor/
+test-results/
+tests/output*/
+tests/cache/
+examples/output/
+site/dist/
+site/.astro/
+
+# Generated source and schemas
+**/*.generated.ts
+src/generated/
+schemas/
+
+# Authenticated source bytes referenced by retained native-render evidence
+tools/build-sfns-pinned-ots-sanitizer.mjs
+tools/build-sfns-pinned-skia-collector.mjs
+tools/sfns-pinned-skia-mask-collector.ts
+tools/sfns-pinned-skia-mask-schema.ts
+tools/sfns-terminal-mask-manifest.ts
+
+# Tool-managed local configuration and generated agent adapters
+.hotsheet/
+.hotsheet2/
+.glassbox/
+.pr-notes/
+.agents/skills/
+.claude/skills/
+.claude/worktrees/
+.gemini/
+**/build/
+AGENTS.md
+CLAUDE.md
+GEMINI.md

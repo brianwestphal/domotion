@@ -3,11 +3,12 @@ id: "requirements/linux-arm64-decoration-coordinate-ownership"
 title: "Linux arm64 decoration coordinate ownership"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["linux","windows"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["linux", "windows"]
 tickets: ["DM-2501"]
-code: ["tests/decoration-coordinate-ownership.e2e.test.ts","tests/decoration-oracle.test.ts","tools/decoration-oracle.ts"]
-aliases: ["docs/200-linux-arm64-decoration-coordinate-ownership.md","doc-200"]
+code:
+  ["tests/decoration-coordinate-ownership.e2e.test.ts", "tests/decoration-oracle.test.ts", "tools/decoration-oracle.ts"]
+aliases: ["docs/200-linux-arm64-decoration-coordinate-ownership.md", "doc-200"]
 ---
 
 # Linux arm64 decoration coordinate ownership
@@ -73,12 +74,12 @@ equal the live page and grades emitted SVG against the rule at `0.3px`.
 proves that a one-pixel origin mutation still fails. The pinned Playwright
 1.59.1 Noble Linux arm64 image now reports:
 
-| Gate | Exact result |
-| --- | ---: |
-| Chrome paint vs source rule | 109 / 109 |
-| Chrome paint vs SVG skip-ink/pattern segments | 30 / 30 |
-| Source rule vs emitted SVG | 109 / 109 |
-| Focused coherent-DPR browser rows | DPR 1 + DPR 4 |
+| Gate                                          |  Exact result |
+| --------------------------------------------- | ------------: |
+| Chrome paint vs source rule                   |     109 / 109 |
+| Chrome paint vs SVG skip-ink/pattern segments |       30 / 30 |
+| Source rule vs emitted SVG                    |     109 / 109 |
+| Focused coherent-DPR browser rows             | DPR 1 + DPR 4 |
 
 The local arm64 container report records Chromium `147.0.7727.0`,
 `platform=linux`, `architecture=arm64`, and DPR `4/4`. Retained native

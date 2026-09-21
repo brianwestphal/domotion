@@ -19,13 +19,25 @@ import {
 describe("finalizeEvalDiffResult(): browser wire boundary", () => {
   it("decodes the PNG payload and derives the verdict outside Chromium", () => {
     const raw = {
-      nonAaPixels: 2, nonAaPixelPct: 2, diffPct: 1, sigPixelPct: 1,
-      worstTilePct: 1, worstTileSignificantPct: 1,
-      worstTileRect: { x: 0, y: 0, w: 1, h: 1 }, regionCount: 1,
-      totalChangedArea: 1, maxRegionSeverity: 100, scatteredPixels: 1,
-      shiftedPixels: 0, shiftyRegionCount: 0, shiftyRegionArea: 0,
-      strictRegionCount: 1, strictRegionArea: 1, strictMaxRegionArea: 1,
-      coveragePct: 0.01, regions: [],
+      nonAaPixels: 2,
+      nonAaPixelPct: 2,
+      diffPct: 1,
+      sigPixelPct: 1,
+      worstTilePct: 1,
+      worstTileSignificantPct: 1,
+      worstTileRect: { x: 0, y: 0, w: 1, h: 1 },
+      regionCount: 1,
+      totalChangedArea: 1,
+      maxRegionSeverity: 100,
+      scatteredPixels: 1,
+      shiftedPixels: 0,
+      shiftyRegionCount: 0,
+      shiftyRegionArea: 0,
+      strictRegionCount: 1,
+      strictRegionArea: 1,
+      strictMaxRegionArea: 1,
+      coveragePct: 0.01,
+      regions: [],
       diffDataUrl: `data:image/png;base64,${Buffer.from("png").toString("base64")}`,
     };
 
@@ -65,16 +77,22 @@ const CAPS = strictCapsFor("darwin")!;
  */
 
 const base: CompareResult = {
-  nonAaPixels: 0, nonAaPixelPct: 0, diffPct: 0, sigPixelPct: 0,
-  worstTilePct: 0, worstTileSignificantPct: 0,
+  nonAaPixels: 0,
+  nonAaPixelPct: 0,
+  diffPct: 0,
+  sigPixelPct: 0,
+  worstTilePct: 0,
+  worstTileSignificantPct: 0,
   worstTileRect: { x: 0, y: 0, w: 0, h: 0 },
-  regionCount: 0, totalChangedArea: 0, maxRegionSeverity: 0,
+  regionCount: 0,
+  totalChangedArea: 0,
+  maxRegionSeverity: 0,
 } as unknown as CompareResult;
 
 describe("passes(): region-count is the pass gate (DM-715)", () => {
   it("passes iff regionCount === 0 — independent of nonAaPixels", () => {
-    expect(passes({ ...base, regionCount: 0, nonAaPixels: 9999 })).toBe(true);  // scatter allowed
-    expect(passes({ ...base, regionCount: 1, nonAaPixels: 0 })).toBe(false);    // one real region fails
+    expect(passes({ ...base, regionCount: 0, nonAaPixels: 9999 })).toBe(true); // scatter allowed
+    expect(passes({ ...base, regionCount: 1, nonAaPixels: 0 })).toBe(false); // one real region fails
     expect(passes({ ...base, regionCount: 42 })).toBe(false);
   });
 
@@ -92,8 +110,8 @@ describe("classifyDiff(): verdict tiers", () => {
     expect(classifyDiff(2, 0.04)).toBe("trivial");
     expect(classifyDiff(5, 0.4)).toBe("minor");
     expect(classifyDiff(15, 1.9)).toBe("moderate");
-    expect(classifyDiff(16, 0.1)).toBe("major");   // too many regions
-    expect(classifyDiff(3, 2.5)).toBe("major");    // too much coverage
+    expect(classifyDiff(16, 0.1)).toBe("major"); // too many regions
+    expect(classifyDiff(3, 2.5)).toBe("major"); // too much coverage
   });
   it("coverage and count both bound a tier (the stricter wins)", () => {
     // 2 regions but heavy coverage → not trivial; falls through to a worse tier.
@@ -109,15 +127,22 @@ describe("passesStrict(): the no-motion bar (doc 12)", () => {
   // lands in `shiftyRegion*` and `regionCount` reports clean. These pin that the
   // strict bar reads the suppressed bucket and bounds it by area.
   const clean: CompareResult = {
-    ...base, regionCount: 0, strictRegionCount: 0, strictRegionArea: 0, strictMaxRegionArea: 0,
+    ...base,
+    regionCount: 0,
+    strictRegionCount: 0,
+    strictRegionArea: 0,
+    strictMaxRegionArea: 0,
   };
 
   // The measured guard-disabled compressor build: two equal-sized solid blocks
   // swapping z-order — 3712 px, all of it filed as low-severity.
   const zOrderSwap: CompareResult = {
     ...clean,
-    shiftyRegionCount: 1, shiftyRegionArea: 3712,
-    strictRegionCount: 1, strictRegionArea: 3712, strictMaxRegionArea: 3712,
+    shiftyRegionCount: 1,
+    shiftyRegionArea: 3712,
+    strictRegionCount: 1,
+    strictRegionArea: 3712,
+    strictMaxRegionArea: 3712,
   };
 
   it("uses severity-inclusive bounds instead of the raster-sensitive default bucket", () => {
@@ -125,14 +150,22 @@ describe("passesStrict(): the no-motion bar (doc 12)", () => {
     // A runner-image update moved five sparse glyph-edge components across the
     // default gate's high-severity fraction. They remain below both structural
     // caps, so their bucket assignment must not decide strict parity.
-    expect(passesStrict({
-      ...clean, regionCount: 1,
-      strictRegionCount: 1, strictRegionArea: 171, strictMaxRegionArea: 171,
-    }, CAPS)).toBe(true);
+    expect(
+      passesStrict(
+        {
+          ...clean,
+          regionCount: 1,
+          strictRegionCount: 1,
+          strictRegionArea: 171,
+          strictMaxRegionArea: 171,
+        },
+        CAPS,
+      ),
+    ).toBe(true);
   });
 
   it("fails the case the default gate calls clean: one block-sized suppressed region", () => {
-    expect(passes(zOrderSwap)).toBe(true);              // the blind spot
+    expect(passes(zOrderSwap)).toBe(true); // the blind spot
     expect(passesStrict(zOrderSwap, CAPS)).toBe(false); // ...closed
   });
 
@@ -140,31 +173,52 @@ describe("passesStrict(): the no-motion bar (doc 12)", () => {
     // Measured ceiling across every state of every compressed-run fixture on a
     // clean macOS build: 6 components, 215 px total, 88 px largest.
     const glyphDrift: CompareResult = {
-      ...clean, strictRegionCount: 6, strictRegionArea: 215, strictMaxRegionArea: 88,
+      ...clean,
+      strictRegionCount: 6,
+      strictRegionArea: 215,
+      strictMaxRegionArea: 88,
     };
     expect(passesStrict(glyphDrift, CAPS)).toBe(true);
   });
 
   it("bounds the largest single region AND the total independently", () => {
     // One oversized component, small total → the per-region cap catches it.
-    expect(passesStrict({
-      ...clean, strictRegionCount: 1,
-      strictRegionArea: CAPS.maxRegionArea + 1,
-      strictMaxRegionArea: CAPS.maxRegionArea + 1,
-    }, CAPS)).toBe(false);
+    expect(
+      passesStrict(
+        {
+          ...clean,
+          strictRegionCount: 1,
+          strictRegionArea: CAPS.maxRegionArea + 1,
+          strictMaxRegionArea: CAPS.maxRegionArea + 1,
+        },
+        CAPS,
+      ),
+    ).toBe(false);
     // Many mid-sized components, none over the per-region cap → the total
     // backstop catches it.
-    expect(passesStrict({
-      ...clean, strictRegionCount: 8,
-      strictRegionArea: CAPS.totalRegionArea + 1,
-      strictMaxRegionArea: CAPS.maxRegionArea,
-    }, CAPS)).toBe(false);
+    expect(
+      passesStrict(
+        {
+          ...clean,
+          strictRegionCount: 8,
+          strictRegionArea: CAPS.totalRegionArea + 1,
+          strictMaxRegionArea: CAPS.maxRegionArea,
+        },
+        CAPS,
+      ),
+    ).toBe(false);
     // Exactly at both caps still passes (inclusive bounds).
-    expect(passesStrict({
-      ...clean, strictRegionCount: 4,
-      strictRegionArea: CAPS.totalRegionArea,
-      strictMaxRegionArea: CAPS.maxRegionArea,
-    }, CAPS)).toBe(true);
+    expect(
+      passesStrict(
+        {
+          ...clean,
+          strictRegionCount: 4,
+          strictRegionArea: CAPS.totalRegionArea,
+          strictMaxRegionArea: CAPS.maxRegionArea,
+        },
+        CAPS,
+      ),
+    ).toBe(true);
   });
 
   it("counts regions, not raw pixels — scatter below the area floor never reaches it", () => {

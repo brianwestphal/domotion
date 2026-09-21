@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
-  SFNS_BASE_AXES, SFNS_MUTATION_AXES, SFNS_REQUIRED_SCENARIOS,
-  classifySfnsOracleRow, quantizeQuarter, sfnsOutlineLogicalDigest,
-  validateSfnsExactOutlineArtifact, validateSfnsOracleArtifact,
+  SFNS_BASE_AXES,
+  SFNS_MUTATION_AXES,
+  SFNS_REQUIRED_SCENARIOS,
+  classifySfnsOracleRow,
+  quantizeQuarter,
+  sfnsOutlineLogicalDigest,
+  validateSfnsExactOutlineArtifact,
+  validateSfnsOracleArtifact,
   validateSfnsProposalValidation,
-  type CoverageDiff, type SfnsAxes, type SfnsOracleArtifact, type SfnsOracleRow,
+  type CoverageDiff,
+  type SfnsAxes,
+  type SfnsOracleArtifact,
+  type SfnsOracleRow,
   type SfnsScenarioId,
 } from "../tools/sfns-mask-baseline-schema.js";
 
@@ -25,56 +33,91 @@ function row(id: SfnsScenarioId, axes: SfnsAxes = { ...SFNS_BASE_AXES }): SfnsOr
   const mutation = id === "opsz-26-mutation";
   const digest = mutation ? "mutation" : id;
   return {
-    id, mutation, requestedAxes: axes,
-    chromiumAxes: { ...axes }, nativeAxes: { ...axes }, domotionAxes: { ...axes },
-    nativeGlyphIds: [10, 11], nativeMappedGlyphIds: [10, 11], domotionGlyphIds: [10, 11],
-    rawOrigins: [4.24, 8.26], quarterPixelOrigins: [4.25, 8.25],
-    nativeOrigins: [4.25, 8.25], nativeBaselines: [30, 30], domotionOrigins: [4.25, 8.25],
+    id,
+    mutation,
+    requestedAxes: axes,
+    chromiumAxes: { ...axes },
+    nativeAxes: { ...axes },
+    domotionAxes: { ...axes },
+    nativeGlyphIds: [10, 11],
+    nativeMappedGlyphIds: [10, 11],
+    domotionGlyphIds: [10, 11],
+    rawOrigins: [4.24, 8.26],
+    quarterPixelOrigins: [4.25, 8.25],
+    nativeOrigins: [4.25, 8.25],
+    nativeBaselines: [30, 30],
+    domotionOrigins: [4.25, 8.25],
     domotionEmittedOriginsRaw: [4.249, 8.251],
     sizes: { logical: 13, computed: 26, paint: 26 },
     sourceIdentity: {
-      chromiumPostscriptName: ".SFNS-Regular", chromiumCustomFont: true,
-      chromiumSourceSha256: "font", nativePostscriptName: ".SFNS-Regular",
-      domotionPostscriptName: ".SFNS-Regular", domotionSourcePath: "/System/Library/Fonts/SFNS.ttf",
+      chromiumPostscriptName: ".SFNS-Regular",
+      chromiumCustomFont: true,
+      chromiumSourceSha256: "font",
+      nativePostscriptName: ".SFNS-Regular",
+      domotionPostscriptName: ".SFNS-Regular",
+      domotionSourcePath: "/System/Library/Fonts/SFNS.ttf",
       domotionSourceSha256: "font",
     },
     pathCommandCounts: { native: [5, 6], domotion: [5, 6] },
     designCommandDigests: { native: digest, domotion: digest },
     outlineDispositions: ["helper-outline", "helper-outline"],
     pathGeometry: {
-      topologyMatches: true, designUnitQuantum: 0.001,
-      maxDesignUnitDelta: 0, maxPaintPixelDelta: 0,
-      meanPaintPixelDelta: 0, exactScale: 26 / 2048, domotionSerializedScale: 0.0127,
+      topologyMatches: true,
+      designUnitQuantum: 0.001,
+      maxDesignUnitDelta: 0,
+      maxPaintPixelDelta: 0,
+      meanPaintPixelDelta: 0,
+      exactScale: 26 / 2048,
+      domotionSerializedScale: 0.0127,
     },
     baseline: {
-      rangeTop: 10, capturedTextTop: 10, capturedAscent: 20, capturedDescent: 5,
-      capturedBaseline: 30, capturedBaselineQuarterPixel: 30, emittedBaseline: 30,
-      browserCanvasAscent: 20, browserCanvasDescent: 5,
-      nativeAscent: 19.5, nativeDescent: 5.1, nativeLeading: 0,
+      rangeTop: 10,
+      capturedTextTop: 10,
+      capturedAscent: 20,
+      capturedDescent: 5,
+      capturedBaseline: 30,
+      capturedBaselineQuarterPixel: 30,
+      emittedBaseline: 30,
+      browserCanvasAscent: 20,
+      browserCanvasDescent: 5,
+      nativeAscent: 19.5,
+      nativeDescent: 5.1,
+      nativeLeading: 0,
       nativeBoundingBox: { x: -1, y: -5, width: 28, height: 30 },
     },
     lifecycle: {
-      chromiumColdSha256: ["chromium", "chromium"], chromiumWarmSha256: ["chromium", "chromium"],
-      nativeColdMaskSha256: ["mask", "mask"], nativeColdPathSha256: ["path", "path"],
-      nativeWarmMaskSha256: ["mask", "mask"], nativeWarmPathSha256: ["path", "path"],
-      domotionColdSha256: ["domotion", "domotion"], domotionWarmSha256: ["domotion", "domotion"],
+      chromiumColdSha256: ["chromium", "chromium"],
+      chromiumWarmSha256: ["chromium", "chromium"],
+      nativeColdMaskSha256: ["mask", "mask"],
+      nativeColdPathSha256: ["path", "path"],
+      nativeWarmMaskSha256: ["mask", "mask"],
+      nativeWarmPathSha256: ["path", "path"],
+      domotionColdSha256: ["domotion", "domotion"],
+      domotionWarmSha256: ["domotion", "domotion"],
     },
     comparisons: {
-      chromiumVsNativeMask: noDiff(), chromiumVsCoreTextPath: noDiff(), chromiumVsDomotionPath: noDiff(),
-      nativeMaskVsCoreTextPath: noDiff(), coreTextPathVsDomotionPath: noDiff(),
+      chromiumVsNativeMask: noDiff(),
+      chromiumVsCoreTextPath: noDiff(),
+      chromiumVsDomotionPath: noDiff(),
+      nativeMaskVsCoreTextPath: noDiff(),
+      coreTextPathVsDomotionPath: noDiff(),
     },
     stageDigests: { chromium: digest, nativeMask: digest, coreTextPath: digest, domotionPath: digest },
     artifactPaths: {
-      chromiumPng: "chromium.png", nativeMaskPng: "mask.png", coreTextPathSvg: "ct.svg",
-      coreTextPathPng: "ct.png", domotionPathSvg: "domotion.svg", domotionPathPng: "domotion.png",
+      chromiumPng: "chromium.png",
+      nativeMaskPng: "mask.png",
+      coreTextPathSvg: "ct.svg",
+      coreTextPathPng: "ct.png",
+      domotionPathSvg: "domotion.svg",
+      domotionPathPng: "domotion.png",
     },
   };
 }
 
 function artifact(): SfnsOracleArtifact {
-  const rows = SFNS_REQUIRED_SCENARIOS.map((id) => row(
-    id, id === "opsz-26-mutation" ? { ...SFNS_MUTATION_AXES } : { ...SFNS_BASE_AXES },
-  ));
+  const rows = SFNS_REQUIRED_SCENARIOS.map((id) =>
+    row(id, id === "opsz-26-mutation" ? { ...SFNS_MUTATION_AXES } : { ...SFNS_BASE_AXES }),
+  );
   return {
     schemaVersion: 2,
     authority: "diagnostic-only",
@@ -86,8 +129,11 @@ function artifact(): SfnsOracleArtifact {
       chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
       skiaRevision: "62efacd37737505732dbe3d8daa62abd679626a1",
       fontPath: "/System/Library/Fonts/SFNS.ttf",
-      fontSha256: "font", deviceScaleFactor: 1,
-      chromiumVersion: "Chromium", osVersion: "macOS", arch: "arm64",
+      fontSha256: "font",
+      deviceScaleFactor: 1,
+      chromiumVersion: "Chromium",
+      osVersion: "macOS",
+      arch: "arm64",
       helper: { available: true, path: "/helper", sha256: "a".repeat(64) },
     },
     rows,
@@ -111,8 +157,11 @@ describe("SFNS mask/baseline oracle integrity", () => {
     expect(classifySfnsOracleRow(evidence)).toMatchObject({
       classification: "verdict-withheld",
       integrityErrors: expect.arrayContaining([
-        "chromium-css-axis-state", "native-axis-state", "native-cmap-glyph-identity",
-        "domotion-origin-routing", "cold-warm-instability",
+        "chromium-css-axis-state",
+        "native-axis-state",
+        "native-cmap-glyph-identity",
+        "domotion-origin-routing",
+        "cold-warm-instability",
       ]),
     });
   });
@@ -159,10 +208,9 @@ describe("SFNS mask/baseline oracle integrity", () => {
     evidence.rows[0].outlineDispositions[0] = "source-outline";
     evidence.rows[0].pathGeometry.maxDesignUnitDelta = 0.001;
     evidence.logicalDigest = sfnsOutlineLogicalDigest(evidence);
-    expect(validateSfnsExactOutlineArtifact(evidence)).toEqual(expect.arrayContaining([
-      "zoom-2:outline-ownership",
-      "zoom-2:exact-design-geometry",
-    ]));
+    expect(validateSfnsExactOutlineArtifact(evidence)).toEqual(
+      expect.arrayContaining(["zoom-2:outline-ownership", "zoom-2:exact-design-geometry"]),
+    );
   });
 
   it("requires independent proposal and validation arms with one exact logical digest", () => {
@@ -188,10 +236,12 @@ describe("SFNS mask/baseline oracle integrity", () => {
     validation.observationId = proposal.observationId;
     validation.rows[0].pathCommandCounts.domotion[0] = 7;
     validation.logicalDigest = sfnsOutlineLogicalDigest(validation);
-    expect(validateSfnsProposalValidation(proposal, validation)).toEqual(expect.arrayContaining([
-      "observations-not-independent",
-      "validation:zoom-2:command-counts",
-      "proposal-validation-logical-digest",
-    ]));
+    expect(validateSfnsProposalValidation(proposal, validation)).toEqual(
+      expect.arrayContaining([
+        "observations-not-independent",
+        "validation:zoom-2:command-counts",
+        "proposal-validation-logical-digest",
+      ]),
+    );
   });
 });

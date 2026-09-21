@@ -10,7 +10,8 @@ const HAR = resolve(process.cwd(), "tests/cache/real-world/apple-desktop.har");
   const browser = await chromium.launch();
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 800 },
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
   await ctx.routeFromHAR(HAR, { update: false });
   const page = await ctx.newPage();
@@ -26,7 +27,16 @@ const HAR = resolve(process.cwd(), "tests/cache/real-world/apple-desktop.har");
       const bg = el.styles?.backgroundColor;
       const nearBag = el.x > 1100 && el.x < 1170 && el.y > 70 && el.y < 130;
       if (nearBag) {
-        console.log(`[d${depth}]`, { tag: el.tag, x: el.x, y: el.y, w: el.width, h: el.height, bg, fill: el.styles?.color, kids: el.children?.length });
+        console.log(`[d${depth}]`, {
+          tag: el.tag,
+          x: el.x,
+          y: el.y,
+          w: el.width,
+          h: el.height,
+          bg,
+          fill: el.styles?.color,
+          kids: el.children?.length,
+        });
       }
       if (el.children) walk(el.children, cls, depth + 1);
     }

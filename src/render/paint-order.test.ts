@@ -10,7 +10,10 @@ type StyleOverrides = Partial<CapturedElement["styles"]>;
 
 function el(opts: {
   tag?: string;
-  x: number; y: number; w: number; h: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   cursor?: string;
   styles?: StyleOverrides;
   children?: CapturedElement[];
@@ -18,7 +21,10 @@ function el(opts: {
   return {
     tag: opts.tag ?? "div",
     text: "",
-    x: opts.x, y: opts.y, width: opts.w, height: opts.h,
+    x: opts.x,
+    y: opts.y,
+    width: opts.w,
+    height: opts.h,
     cursor: opts.cursor,
     styles: { ...opts.styles } as CapturedElement["styles"],
     children: opts.children ?? [],
@@ -36,13 +42,19 @@ describe("hitTestTopmost: z-index paint order (DM-1742)", () => {
     // area (I-beam / arrow); the viewer sees the browser window's button.
     const browserBtn = el({ x: 400, y: 500, w: 120, h: 40, cursor: "pointer" });
     const browserWin = el({
-      x: 0, y: 0, w: 1000, h: 700,
+      x: 0,
+      y: 0,
+      w: 1000,
+      h: 700,
       styles: { position: "absolute", zIndex: "6" },
       children: [browserBtn],
     });
     const editorCode = el({ x: 50, y: 100, w: 900, h: 500, cursor: "text" });
     const editorWin = el({
-      x: 0, y: 0, w: 1000, h: 700,
+      x: 0,
+      y: 0,
+      w: 1000,
+      h: 700,
       styles: { position: "absolute", zIndex: "1" },
       children: [editorCode],
     });
@@ -54,10 +66,24 @@ describe("hitTestTopmost: z-index paint order (DM-1742)", () => {
   });
 
   it("negative z-index paints (and hit-tests) beneath in-flow siblings", () => {
-    const behind = el({ x: 0, y: 0, w: 500, h: 500, cursor: "pointer", styles: { position: "absolute", zIndex: "-1" } });
+    const behind = el({
+      x: 0,
+      y: 0,
+      w: 500,
+      h: 500,
+      cursor: "pointer",
+      styles: { position: "absolute", zIndex: "-1" },
+    });
     const content = el({ x: 0, y: 0, w: 500, h: 300, cursor: "text" });
-    const root = el({ x: 0, y: 0, w: 500, h: 500, styles: { position: "relative", zIndex: "0" }, children: [behind, content] });
-    expect(cursorAtPoint([root], 100, 100)).toBe("text");    // content covers the negative-z layer
+    const root = el({
+      x: 0,
+      y: 0,
+      w: 500,
+      h: 500,
+      styles: { position: "relative", zIndex: "0" },
+      children: [behind, content],
+    });
+    expect(cursorAtPoint([root], 100, 100)).toBe("text"); // content covers the negative-z layer
     expect(cursorAtPoint([root], 100, 400)).toBe("pointer"); // below the content, the negative-z layer shows
   });
 
@@ -90,7 +116,10 @@ describe("hitTestTopmost: pointer-events / clipping (DM-1742)", () => {
     // answer every hit-test with its own (default) cursor.
     const overlayChild = el({ x: 0, y: 0, w: 800, h: 600, styles: { pointerEvents: "none" } });
     const overlay = el({
-      x: 0, y: 0, w: 800, h: 600,
+      x: 0,
+      y: 0,
+      w: 800,
+      h: 600,
       styles: { position: "absolute", zIndex: "10", pointerEvents: "none" },
       children: [overlayChild],
     });
@@ -103,15 +132,29 @@ describe("hitTestTopmost: pointer-events / clipping (DM-1742)", () => {
     // A child extending past its overflow:hidden parent isn't hittable
     // outside the clip (matching browser hit-testing of clipped content).
     const wide = el({ x: 0, y: 0, w: 900, h: 50, cursor: "pointer" });
-    const scroller = el({ x: 0, y: 0, w: 300, h: 50, styles: { overflowX: "hidden", overflowY: "hidden" }, children: [wide] });
+    const scroller = el({
+      x: 0,
+      y: 0,
+      w: 300,
+      h: 50,
+      styles: { overflowX: "hidden", overflowY: "hidden" },
+      children: [wide],
+    });
     const body = el({ x: 0, y: 0, w: 1000, h: 500, cursor: "text", children: [scroller] });
     expect(cursorAtPoint([body], 100, 25)).toBe("pointer"); // inside the clip
-    expect(cursorAtPoint([body], 600, 25)).toBe("text");    // clipped away → the body answers
+    expect(cursorAtPoint([body], 600, 25)).toBe("text"); // clipped away → the body answers
   });
 
   it("position:fixed escapes ancestor overflow clips", () => {
     const pin = el({ x: 900, y: 400, w: 60, h: 60, cursor: "pointer", styles: { position: "fixed" } });
-    const scroller = el({ x: 0, y: 0, w: 300, h: 100, styles: { overflowX: "hidden", overflowY: "hidden" }, children: [pin] });
+    const scroller = el({
+      x: 0,
+      y: 0,
+      w: 300,
+      h: 100,
+      styles: { overflowX: "hidden", overflowY: "hidden" },
+      children: [pin],
+    });
     const body = el({ x: 0, y: 0, w: 1000, h: 500, cursor: "text", children: [scroller] });
     expect(cursorAtPoint([body], 920, 420)).toBe("pointer"); // outside the scroller box, still hit
   });
@@ -132,7 +175,15 @@ describe("hitTestTopmost: basics", () => {
   });
 
   it("tolerates hand-built trees without styles/children (public-API robustness)", () => {
-    const bare = { tag: "div", text: "", x: 0, y: 0, width: 100, height: 100, cursor: "pointer" } as unknown as CapturedElement;
+    const bare = {
+      tag: "div",
+      text: "",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      cursor: "pointer",
+    } as unknown as CapturedElement;
     expect(cursorAtPoint([bare], 50, 50)).toBe("pointer");
   });
 });

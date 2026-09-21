@@ -1,10 +1,7 @@
 {
   "generatedAt": "harvested:v2:448094c44049a7f2",
   "platform": "win32",
-  "sources": [
-    "external/html-test",
-    "../html-test/unicode"
-  ],
+  "sources": ["external/html-test", "../html-test/unicode"],
   "stacks": [
     {
       "fontFamily": "\"Times New Roman\"",

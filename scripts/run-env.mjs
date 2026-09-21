@@ -97,13 +97,16 @@ export function computeRunEnv(inputs = {}) {
     arch: str(inputs.arch),
     node: str(inputs.node),
     corpusIdentity: str(inputs.corpusIdentity),
-    fontInventory: inv == null ? null : {
-      digest: str(inv.digest),
-      count: typeof inv.count === "number" ? inv.count : null,
-      // Absent on records written before this field existed; `null` reads as
-      // "cannot tell", the same convention as every other field here.
-      entries: Array.isArray(inv.entries) ? inv.entries.map((e) => String(e)) : null,
-    },
+    fontInventory:
+      inv == null
+        ? null
+        : {
+            digest: str(inv.digest),
+            count: typeof inv.count === "number" ? inv.count : null,
+            // Absent on records written before this field existed; `null` reads as
+            // "cannot tell", the same convention as every other field here.
+            entries: Array.isArray(inv.entries) ? inv.entries.map((e) => String(e)) : null,
+          },
   };
 }
 
@@ -140,7 +143,8 @@ export function envComparability(runEnv, baseEnv) {
   const reasons = [];
   if (runEnv == null || baseEnv == null) return reasons;
   for (const [what, pick] of ENV_FIELDS) {
-    const a = pick(runEnv), b = pick(baseEnv);
+    const a = pick(runEnv),
+      b = pick(baseEnv);
     if (a != null && b != null && String(a) !== String(b)) {
       reasons.push(`${what}: run \`${a}\`, baseline \`${b}\``);
     }
@@ -180,7 +184,10 @@ export function mergeShardEnvs(entries) {
       byValue.get(k).push(typeof shard === "number" ? shard : -1);
     }
     if (byValue.size === 0) return;
-    if (byValue.size === 1) { apply([...byValue.keys()][0]); return; }
+    if (byValue.size === 1) {
+      apply([...byValue.keys()][0]);
+      return;
+    }
     conflicts.push({
       field: key,
       values: [...byValue.entries()]
@@ -191,21 +198,73 @@ export function mergeShardEnvs(entries) {
     // would be the exact silent blend this function exists to surface.
   };
 
-  assign("image", (e) => e?.image, (v) => { combined.image = v; });
-  assign("runner image version", (e) => e?.imageVersion, (v) => { combined.imageVersion = v; });
-  assign("OS release", (e) => e?.osRelease, (v) => { combined.osRelease = v; });
-  assign("Chromium", (e) => e?.chromium, (v) => { combined.chromium = v; });
-  assign("platform", (e) => e?.platform, (v) => { combined.platform = v; });
-  assign("arch", (e) => e?.arch, (v) => { combined.arch = v; });
-  assign("node", (e) => e?.node, (v) => { combined.node = v; });
-  assign("corpus identity", (e) => e?.corpusIdentity, (v) => { combined.corpusIdentity = v; });
-  assign("font inventory digest", (e) => e?.fontInventory?.digest, (v) => {
-    const counts = present.map((e) => e.env?.fontInventory?.count).filter((c) => typeof c === "number");
-    // Shards that agree on the digest agree on the list by construction, so the
-    // first non-null entries list stands for the run.
-    const entries = present.map((e) => e.env?.fontInventory?.entries).find((x) => Array.isArray(x)) ?? null;
-    combined.fontInventory = { digest: v, count: counts.length > 0 ? counts[0] : null, entries };
-  });
+  assign(
+    "image",
+    (e) => e?.image,
+    (v) => {
+      combined.image = v;
+    },
+  );
+  assign(
+    "runner image version",
+    (e) => e?.imageVersion,
+    (v) => {
+      combined.imageVersion = v;
+    },
+  );
+  assign(
+    "OS release",
+    (e) => e?.osRelease,
+    (v) => {
+      combined.osRelease = v;
+    },
+  );
+  assign(
+    "Chromium",
+    (e) => e?.chromium,
+    (v) => {
+      combined.chromium = v;
+    },
+  );
+  assign(
+    "platform",
+    (e) => e?.platform,
+    (v) => {
+      combined.platform = v;
+    },
+  );
+  assign(
+    "arch",
+    (e) => e?.arch,
+    (v) => {
+      combined.arch = v;
+    },
+  );
+  assign(
+    "node",
+    (e) => e?.node,
+    (v) => {
+      combined.node = v;
+    },
+  );
+  assign(
+    "corpus identity",
+    (e) => e?.corpusIdentity,
+    (v) => {
+      combined.corpusIdentity = v;
+    },
+  );
+  assign(
+    "font inventory digest",
+    (e) => e?.fontInventory?.digest,
+    (v) => {
+      const counts = present.map((e) => e.env?.fontInventory?.count).filter((c) => typeof c === "number");
+      // Shards that agree on the digest agree on the list by construction, so the
+      // first non-null entries list stands for the run.
+      const entries = present.map((e) => e.env?.fontInventory?.entries).find((x) => Array.isArray(x)) ?? null;
+      combined.fontInventory = { digest: v, count: counts.length > 0 ? counts[0] : null, entries };
+    },
+  );
 
   return { combined, heterogeneous: conflicts.length > 0, conflicts };
 }
@@ -235,8 +294,14 @@ async function launchedChromiumVersion() {
   try {
     const { chromium } = await import("@playwright/test");
     const browser = await chromium.launch();
-    try { return browser.version(); } finally { await browser.close(); }
-  } catch { return null; }
+    try {
+      return browser.version();
+    } finally {
+      await browser.close();
+    }
+  } catch {
+    return null;
+  }
 }
 
 /** Gather the real environment on this machine. */
@@ -244,11 +309,17 @@ export async function captureRunEnv({ withInventory = true } = {}) {
   let osRelease = null;
   let playwrightVersion = null;
   if (process.env.ImageOS == null || process.env.ImageOS.trim() === "") {
-    try { osRelease = parseOsRelease(readFileSync("/etc/os-release", "utf8")); } catch { /* not linux */ }
+    try {
+      osRelease = parseOsRelease(readFileSync("/etc/os-release", "utf8"));
+    } catch {
+      /* not linux */
+    }
     try {
       const require = createRequire(import.meta.url);
       playwrightVersion = require("@playwright/test/package.json").version;
-    } catch { /* playwright not resolvable */ }
+    } catch {
+      /* playwright not resolvable */
+    }
   }
   const image = computeRunnerImage({
     imageOS: process.env.ImageOS,
@@ -270,7 +341,9 @@ export async function captureRunEnv({ withInventory = true } = {}) {
       // into a fixture flipping between two faces, because the only recourse
       // was to re-run CI to find out what was installed.
       fontInventory = { digest: doc.digest, count: doc.count, entries: doc.entries };
-    } catch { /* leave null */ }
+    } catch {
+      /* leave null */
+    }
   }
   return computeRunEnv({
     image,
@@ -295,8 +368,8 @@ async function main() {
   else process.stdout.write(json);
   console.error(
     `run-env: image=${env.image ?? "?"} imageVersion=${env.imageVersion ?? "?"} ` +
-    `osRelease=${env.osRelease ?? "?"} chromium=${env.chromium ?? "?"} ` +
-    `fonts=${env.fontInventory?.digest ?? "?"}`,
+      `osRelease=${env.osRelease ?? "?"} chromium=${env.chromium ?? "?"} ` +
+      `fonts=${env.fontInventory?.digest ?? "?"}`,
   );
 }
 

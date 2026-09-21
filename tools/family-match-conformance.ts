@@ -42,14 +42,28 @@ const FONT_DIRS = ["/System/Library/Fonts", "/Library/Fonts"];
 const SHIPPED = resolve("tools", "macos-glyph-extractor", "domotion-glyph-paths");
 const DEBUG = resolve("tools", "macos-glyph-extractor", ".build", "debug", "DomotionGlyphPaths");
 
-interface Miss { family: string; css: number; chrome: string; ours: string }
+interface Miss {
+  family: string;
+  css: number;
+  chrome: string;
+  ours: string;
+}
 
 function fontFiles(dir: string, acc: string[] = []): string[] {
   let entries: string[];
-  try { entries = readdirSync(dir); } catch { return acc; }
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return acc;
+  }
   for (const e of entries) {
     const p = join(dir, e);
-    let s; try { s = statSync(p); } catch { continue; }
+    let s;
+    try {
+      s = statSync(p);
+    } catch {
+      continue;
+    }
     if (s.isDirectory()) fontFiles(p, acc);
     else if ([".ttf", ".otf", ".ttc", ".otc", ".dfont"].includes(extname(p).toLowerCase())) acc.push(p);
   }
@@ -71,7 +85,9 @@ function installedFamilies(): string[] {
       for (const face of (f.fonts ?? [f]) as { familyName?: string }[]) {
         if (face?.familyName) families.add(face.familyName);
       }
-    } catch { /* unreadable or unsupported face */ }
+    } catch {
+      /* unreadable or unsupported face */
+    }
   }
   return [...families].sort().filter((f) => !f.startsWith("."));
 }
@@ -98,11 +114,17 @@ async function main(): Promise<void> {
     let results: { found: boolean; postscriptName?: string; candidates?: { name: string }[] }[];
     try {
       const out = execFileSync(bin, {
-        input: JSON.stringify({ fonts: [], queries: WEIGHTS.map((w) => ({ type: "familyMatch", family, cssWeight: w })) }),
-        encoding: "utf-8", maxBuffer: 64 * 1024 * 1024,
+        input: JSON.stringify({
+          fonts: [],
+          queries: WEIGHTS.map((w) => ({ type: "familyMatch", family, cssWeight: w })),
+        }),
+        encoding: "utf-8",
+        maxBuffer: 64 * 1024 * 1024,
       });
       results = JSON.parse(out).results;
-    } catch { continue; }
+    } catch {
+      continue;
+    }
     if (!results?.[0]?.found) continue;
     const names = new Set((results[0].candidates ?? []).map((c) => c.name));
     // A single-face family cannot discriminate between any two rules.
@@ -121,13 +143,18 @@ async function main(): Promise<void> {
   await session.send("CSS.enable");
   await page.setContent(
     `<body style="margin:0">${cases
-      .map((d, i) => `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`)
+      .map(
+        (d, i) =>
+          `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`,
+      )
       .join("")}</body>`,
   );
   await page.waitForLoadState("networkidle");
   const { root } = await session.send("DOM.getDocument", { depth: -1 });
 
-  let scored = 0, agree = 0, skipped = 0;
+  let scored = 0,
+    agree = 0,
+    skipped = 0;
   const misses: Miss[] = [];
   for (const [i, d] of cases.entries()) {
     const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#p${i}` });
@@ -138,7 +165,10 @@ async function main(): Promise<void> {
     // A family with no coverage for the probe text (Arial Hebrew, Al Bayan and
     // friends carry no Latin) sends Chrome out of the family entirely. That is
     // a coverage artifact, not a style-matcher decision, so it is not scored.
-    if (!chrome || !d.names.has(chrome)) { skipped++; continue; }
+    if (!chrome || !d.names.has(chrome)) {
+      skipped++;
+      continue;
+    }
     scored++;
     if (chrome === d.ours) agree++;
     else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours });
@@ -155,7 +185,10 @@ async function main(): Promise<void> {
     console.log(`families with a miss: ${missFamilies.size}\n`);
     for (const m of misses) console.log(`  ${m.family}@${m.css}: chrome=${m.chrome} ours=${m.ours}`);
   }
-  writeFileSync("tests/output/family-match-conformance.json", JSON.stringify({ scored, agree, skipped, misses }, null, 2));
+  writeFileSync(
+    "tests/output/family-match-conformance.json",
+    JSON.stringify({ scored, agree, skipped, misses }, null, 2),
+  );
 
   if (misses.length > allow) {
     console.error(`\n${misses.length} mismatches exceeds the allowed ${allow}.`);

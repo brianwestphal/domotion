@@ -54,10 +54,31 @@ const DURATIONS = [300, 150, 150, 150, 300];
 const MARKED_AT = 2;
 const FRAMES = [
   { input: "./editor.html", duration: DURATIONS[0], transition: { type: "cut", duration: 0 } },
-  { continue: true, duration: DURATIONS[1], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "ins(3)" }] },
-  { continue: true, duration: DURATIONS[2], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "ins(6)" }], compress: true },
-  { continue: true, duration: DURATIONS[3], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "ins(10)" }] },
-  { continue: true, duration: DURATIONS[4], transition: { type: "cut", duration: 0 }, actions: [{ type: "evaluate", script: "colorize()" }] },
+  {
+    continue: true,
+    duration: DURATIONS[1],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "ins(3)" }],
+  },
+  {
+    continue: true,
+    duration: DURATIONS[2],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "ins(6)" }],
+    compress: true,
+  },
+  {
+    continue: true,
+    duration: DURATIONS[3],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "ins(10)" }],
+  },
+  {
+    continue: true,
+    duration: DURATIONS[4],
+    transition: { type: "cut", duration: 0 },
+    actions: [{ type: "evaluate", script: "colorize()" }],
+  },
 ];
 // The same frames with no marker at all — the uncompressed flipbook reference.
 const PLAIN_FRAMES = FRAMES.map(({ compress: _drop, ...rest }) => rest);
@@ -105,7 +126,9 @@ describeBrowser("compress: true marker — pixel-identical, and only where marke
     expect(auto.frames).toHaveLength(1);
     const runMs = DURATIONS.slice(MARKED_AT).reduce((a, b) => a + b, 0);
     expect(mark.frames[MARKED_AT].embeddedAnimationPeriodMs).toBe(runMs);
-    expect(markLogs.some((l) => /^ {2}compress: collapsed frames 2–4 into a states run \(3 states, 600ms\)$/.test(l))).toBe(true);
+    expect(
+      markLogs.some((l) => /^ {2}compress: collapsed frames 2–4 into a states run \(3 states, 600ms\)$/.test(l)),
+    ).toBe(true);
     expect(markLogs.some((l) => /compress: run of 3 states/.test(l))).toBe(true);
     expect(markLogs.some((l) => /auto-compress:/.test(l))).toBe(false);
 
@@ -152,7 +175,9 @@ describeBrowser("compress: true marker — pixel-identical, and only where marke
     const badFrames = PLAIN_FRAMES.map((f, i) => ({
       ...f,
       ...(i === MARKED_AT ? { compress: true } : {}),
-      ...(i === MARKED_AT + 1 ? { animations: [{ selector: "#line", property: "opacity", from: "0", to: "1", duration: 100 }] } : {}),
+      ...(i === MARKED_AT + 1
+        ? { animations: [{ selector: "#line", property: "opacity", from: "0", to: "1", duration: 100 }] }
+        : {}),
     }));
     const cfg = validateAnimateConfig({ width: W, height: H, frames: badFrames });
     await expect(composeAnimateFrames(browser, cfg, { configDir: dir })).rejects.toThrow(

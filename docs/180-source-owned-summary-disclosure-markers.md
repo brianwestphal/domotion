@@ -4,10 +4,17 @@ title: "Source-owned summary disclosure markers"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2457"]
-code: [".github/workflows/summary-disclosure-marker-parity.yml","src/capture/summary-marker-cdp.ts","src/render/element-tree-to-svg.ts","src/render/form-controls.ts","src/render/list-marker-geometry.ts"]
-aliases: ["docs/180-source-owned-summary-disclosure-markers.md","doc-180"]
+code:
+  [
+    ".github/workflows/summary-disclosure-marker-parity.yml",
+    "src/capture/summary-marker-cdp.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/form-controls.ts",
+    "src/render/list-marker-geometry.ts",
+  ]
+aliases: ["docs/180-source-owned-summary-disclosure-markers.md", "doc-180"]
 ---
 
 # Source-owned summary disclosure markers

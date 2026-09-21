@@ -60,10 +60,16 @@ describe("common-Skia descriptor-owned last resort", () => {
 
   it("preserves Chromium's raw last-resort family-question order on all three platforms", () => {
     expect(fr.skiaLastResortFamilyQuestionOrder("monospace", "linux")).toEqual([
-      "monospace", "Sans", "Arial", "<unnamed>",
+      "monospace",
+      "Sans",
+      "Arial",
+      "<unnamed>",
     ]);
     expect(fr.skiaLastResortFamilyQuestionOrder("none", "linux")).toEqual([
-      "<unnamed-default>", "Sans", "Arial", "<unnamed>",
+      "<unnamed-default>",
+      "Sans",
+      "Arial",
+      "<unnamed>",
     ]);
     expect(fr.skiaLastResortFamilyQuestionOrder("serif", "win32")).toEqual([
       "serif",
@@ -78,10 +84,8 @@ describe("common-Skia descriptor-owned last resort", () => {
       "<locale-space-match>",
       "<unnamed>",
     ]);
-    expect(fr.skiaLastResortFamilyQuestionOrder("monospace", "darwin"))
-      .toEqual(["Times", "Lucida Grande"]);
-    expect(fr.skiaLastResortFamilyQuestionOrder("none", "darwin"))
-      .toEqual(["Times", "Lucida Grande"]);
+    expect(fr.skiaLastResortFamilyQuestionOrder("monospace", "darwin")).toEqual(["Times", "Lucida Grande"]);
+    expect(fr.skiaLastResortFamilyQuestionOrder("none", "darwin")).toEqual(["Times", "Lucida Grande"]);
   });
 
   it("puts the source-selected generic ahead of each platform's existing terminal tail", () => {
@@ -96,8 +100,7 @@ describe("common-Skia descriptor-owned last resort", () => {
     expect(cluster.__skiaLastResortKeysForTest(systemUi, "linux")).toEqual(["helvetica"]);
     expect(cluster.__skiaLastResortKeysForTest(math, "linux")).toEqual(["helvetica"]);
     expect(cluster.__skiaLastResortKeysForTest(mono, "linux")).toEqual(["courier", "helvetica"]);
-    expect(cluster.__skiaLastResortKeysForTest(monoThenControls, "linux"))
-      .toEqual(["courier", "helvetica"]);
+    expect(cluster.__skiaLastResortKeysForTest(monoThenControls, "linux")).toEqual(["courier", "helvetica"]);
     expect(cluster.__skiaLastResortKeysForTest(serif, "linux")).toEqual(["times", "helvetica"]);
 
     expect(cluster.__skiaLastResortKeysForTest(named, "win32")).toEqual(["arial"]);
@@ -105,10 +108,8 @@ describe("common-Skia descriptor-owned last resort", () => {
     expect(cluster.__skiaLastResortKeysForTest(serif, "win32")).toEqual(["times", "arial"]);
 
     // macOS has its own terminal and never consults the common-Skia generic.
-    expect(cluster.__skiaLastResortKeysForTest(named, "darwin"))
-      .toEqual(["times", "lucida-grande"]);
-    expect(cluster.__skiaLastResortKeysForTest(mono, "darwin"))
-      .toEqual(["times", "lucida-grande"]);
+    expect(cluster.__skiaLastResortKeysForTest(named, "darwin")).toEqual(["times", "lucida-grande"]);
+    expect(cluster.__skiaLastResortKeysForTest(mono, "darwin")).toEqual(["times", "lucida-grande"]);
 
     // Exact description-blind mutation: named/non-occupying controls agree
     // with the old tail, while the two legacy generics must move ahead of it.
@@ -121,14 +122,7 @@ describe("common-Skia descriptor-owned last resort", () => {
   });
 
   it("keeps exhausted terminal cache entries descriptor-sensitive in both request orders", () => {
-    const forward = [
-      "Courier",
-      "monospace",
-      "serif",
-      "system-ui",
-      "math",
-      "monospace, system-ui, math",
-    ];
+    const forward = ["Courier", "monospace", "serif", "system-ui", "math", "monospace, system-ui, math"];
     const expected: Record<string, string> = {
       Courier: "IBMPlexSerif-Regular",
       monospace: "LastResortHE-Regular",
@@ -145,16 +139,23 @@ describe("common-Skia descriptor-owned last resort", () => {
 
         for (const stack of order) {
           const instance = fr.getFontInstance(
-            "courier", 411, 18, 0, undefined, 100, false, undefined,
+            "courier",
+            411,
+            18,
+            0,
+            undefined,
+            100,
+            false,
+            undefined,
             fr.createFontFallbackSemanticContext(stack),
           );
           expect(instance, stack).not.toBeNull();
           instances.set(stack, instance!);
         }
 
-        expect(Object.fromEntries(
-          [...instances].map(([stack, instance]) => [stack, instance.postscriptName]),
-        )).toEqual(expected);
+        expect(Object.fromEntries([...instances].map(([stack, instance]) => [stack, instance.postscriptName]))).toEqual(
+          expected,
+        );
         expect(fr.__primaryCutCacheSizesForTest().linux).toBe(3); // empty / monospace / serif
 
         // Once both descriptor routes select the same physical face, the
@@ -169,18 +170,11 @@ describe("common-Skia descriptor-owned last resort", () => {
 
   it("activates the shaped .notdef terminal and preserves non-occupying controls", () => {
     const opened = fontkit.openSync("assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf");
-    const primary = ("fonts" in opened
-      ? (opened as unknown as { fonts: Array<typeof opened> }).fonts[0]
-      : opened) as Parameters<ClusterFallbackMod["splitTextIntoFontRunsShaped"]>[1];
+    const primary = (
+      "fonts" in opened ? (opened as unknown as { fonts: Array<typeof opened> }).fonts[0] : opened
+    ) as Parameters<ClusterFallbackMod["splitTextIntoFontRunsShaped"]>[1];
     const text = "\uE000"; // absent from the primary/serif fixture; present in LastResortHE
-    const forward = [
-      "Courier",
-      "monospace",
-      "serif",
-      "system-ui",
-      "math",
-      "monospace, system-ui, math",
-    ];
+    const forward = ["Courier", "monospace", "serif", "system-ui", "math", "monospace, system-ui, math"];
     const expected = {
       Courier: "dm2517-unopenable:first-candidate-notdef",
       monospace: "courier:last-resort",
@@ -197,9 +191,20 @@ describe("common-Skia descriptor-owned last resort", () => {
         for (const stack of order) {
           const semanticContext = fr.createFontFallbackSemanticContext(stack);
           const runs = cluster.splitTextIntoFontRunsShaped(
-            text, primary, "dm2517-unopenable", 411, 18, 0,
-            undefined, undefined, ["dm2517-unopenable"], false, 100,
-            undefined, stack, { semanticContext },
+            text,
+            primary,
+            "dm2517-unopenable",
+            411,
+            18,
+            0,
+            undefined,
+            undefined,
+            ["dm2517-unopenable"],
+            false,
+            100,
+            undefined,
+            stack,
+            { semanticContext },
           );
           expect(runs, stack).toHaveLength(1);
           actual[stack] = `${runs[0].fontKey}:${runs[0].routeMechanism}`;

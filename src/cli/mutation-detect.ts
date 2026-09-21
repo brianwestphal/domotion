@@ -30,7 +30,14 @@ import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
-import { captureStyleSnapshot, diffHoverSnapshots, classifyHoverTransition, synthesizeMotionTween, HOVER_DIFF_PROPERTIES, type HoverDiff } from "./hover-detect.js";
+import {
+  captureStyleSnapshot,
+  diffHoverSnapshots,
+  classifyHoverTransition,
+  synthesizeMotionTween,
+  HOVER_DIFF_PROPERTIES,
+  type HoverDiff,
+} from "./hover-detect.js";
 import type { IntraFrameAnimation } from "../animation/overlay-schema.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -65,8 +72,14 @@ function clearAnimIds(tree: CapturedElement[]): void {
 /** The pointer events the harness can dispatch. Mouse/pointer only, so the event
  *  object is constructed with the right coordinates + bubbling. */
 export const MUTATION_DETECT_EVENTS = [
-  "mouseover", "mouseenter", "mousedown", "mouseup", "click",
-  "pointerover", "pointerenter", "pointerdown",
+  "mouseover",
+  "mouseenter",
+  "mousedown",
+  "mouseup",
+  "click",
+  "pointerover",
+  "pointerenter",
+  "pointerdown",
 ] as const;
 export type MutationDetectEvent = (typeof MUTATION_DETECT_EVENTS)[number];
 
@@ -154,7 +167,9 @@ export async function detectJsMutations(page: Page, spec: JsRevealSpec): Promise
       let characterData = 0;
 
       let settle: (reason: "settled") => void;
-      const settled = new Promise<"settled">((r) => { settle = r; });
+      const settled = new Promise<"settled">((r) => {
+        settle = r;
+      });
       let quietTimer: ReturnType<typeof setTimeout> | null = null;
       const armQuiet = (): void => {
         if (quietTimer != null) clearTimeout(quietTimer);
@@ -243,10 +258,14 @@ export async function buildJsRevealAnimation(
   // dissolving. The tag rides the rest capture; it's stripped again (clearAnimIds)
   // on every path except the tween, so the crossfade / rest-only `restSvg` stays
   // byte-identical to the pre-feature output.
-  await page.evaluate((sel: string) => {
-    const el = document.querySelector(sel);
-    if (el instanceof HTMLElement) el.dataset.domotionAnim = "jr0";
-  }, spec.selector).catch(() => { /* selector may be absent; falls through to crossfade */ });
+  await page
+    .evaluate((sel: string) => {
+      const el = document.querySelector(sel);
+      if (el instanceof HTMLElement) el.dataset.domotionAnim = "jr0";
+    }, spec.selector)
+    .catch(() => {
+      /* selector may be absent; falls through to crossfade */
+    });
 
   // 1. REST — the page before the pointer event (tree + the target's style snapshot).
   // Self-contained capture: both states here are rendered into the nested
@@ -256,9 +275,8 @@ export async function buildJsRevealAnimation(
   cullElementsOutsideViewBox(restTree, width, height, undefined, 0, 1);
   const rootBg = restTree[0]?.styles?.rootBgComputed;
   const restSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
-  const renderRest = (): string => elementTreeToSvgInner(
-    restTree, width, height, `${framePrefix}s0-`, true, 2, false, opts.realText === true,
-  );
+  const renderRest = (): string =>
+    elementTreeToSvgInner(restTree, width, height, `${framePrefix}s0-`, true, 2, false, opts.realText === true);
 
   // 2. Dispatch + observe + settle.
   const summary = await detectJsMutations(page, spec);
@@ -286,9 +304,16 @@ export async function buildJsRevealAnimation(
       if (diff != null && classifyHoverTransition(diff) === "motion") {
         const anims = synthMutationTween(diff, JS_REVEAL_ANIM_ID, spec.crossfadeMs);
         if (anims.length > 0) {
-          log(`  jsReveal: attribute/style-only motion on "${spec.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween (not a crossfade)`);
+          log(
+            `  jsReveal: attribute/style-only motion on "${spec.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween (not a crossfade)`,
+          );
           // Single frame, rest state, tweening in place; loops on its own holdMs clock.
-          subFrames.push({ svgContent: renderRest(), duration: spec.holdMs, animations: anims, transition: { type: "cut", duration: 0 } });
+          subFrames.push({
+            svgContent: renderRest(),
+            duration: spec.holdMs,
+            animations: anims,
+            transition: { type: "cut", duration: 0 },
+          });
           tweened = true;
         }
       }
@@ -308,9 +333,20 @@ export async function buildJsRevealAnimation(
       cullElementsOutsideViewBox(afterTree, width, height, undefined, 0, 1);
       clearAnimIds(afterTree);
       const afterSvg = elementTreeToSvgInner(
-        afterTree, width, height, `${framePrefix}s1-`, true, 2, false, opts.realText === true,
+        afterTree,
+        width,
+        height,
+        `${framePrefix}s1-`,
+        true,
+        2,
+        false,
+        opts.realText === true,
       );
-      subFrames.push({ svgContent: renderRest(), duration: spec.holdMs, transition: { type: "crossfade", duration: spec.crossfadeMs } });
+      subFrames.push({
+        svgContent: renderRest(),
+        duration: spec.holdMs,
+        transition: { type: "crossfade", duration: spec.crossfadeMs },
+      });
       subFrames.push({ svgContent: afterSvg, duration: spec.holdMs });
     }
   }

@@ -87,8 +87,12 @@ ${extend.ranges.map(([lo, hi]) => `  [${hex(lo)}, ${hex(hi)}],`).join("\n")}
 const target = new URL("src/capture/script/vertical-orientation.generated.ts", root);
 if (process.argv.includes("--check")) {
   if (readFileSync(target, "utf8") !== output) throw new Error("vertical-orientation.generated.ts is stale");
-  console.error(`Verified vertical=${vertical.ranges.length}/${vertical.memberCount}/${vertical.digest} grapheme-extend=${extend.ranges.length}/${extend.memberCount}/${extend.digest}`);
+  console.error(
+    `Verified vertical=${vertical.ranges.length}/${vertical.memberCount}/${vertical.digest} grapheme-extend=${extend.ranges.length}/${extend.memberCount}/${extend.digest}`,
+  );
 } else {
   writeFileSync(target, output);
-  console.error(`Wrote vertical=${vertical.ranges.length}/${vertical.memberCount}/${vertical.digest} grapheme-extend=${extend.ranges.length}/${extend.memberCount}/${extend.digest}`);
+  console.error(
+    `Wrote vertical=${vertical.ranges.length}/${vertical.memberCount}/${vertical.digest} grapheme-extend=${extend.ranges.length}/${extend.memberCount}/${extend.digest}`,
+  );
 }

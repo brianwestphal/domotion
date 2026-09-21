@@ -9,5 +9,7 @@ console.log("Full layout glyphs:");
 for (let i = 0; i < layout.glyphs.length; i++) {
   const g = layout.glyphs[i];
   const cmds = commandsFor(g, "times", 400, 16, 0);
-  console.log(`  [${i}] id=${g.id} codePoints=${JSON.stringify(g.codePoints)} adv=${layout.positions[i].xAdvance} cmds.length=${cmds.length}`);
+  console.log(
+    `  [${i}] id=${g.id} codePoints=${JSON.stringify(g.codePoints)} adv=${layout.positions[i].xAdvance} cmds.length=${cmds.length}`,
+  );
 }

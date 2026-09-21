@@ -30,15 +30,20 @@ export const COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS = {
   tableBorders: "third_party/blink/renderer/core/layout/table/table_borders.cc:23-260",
   sectionRows: "third_party/blink/renderer/core/layout/table/table_section_layout_algorithm.cc:47-164",
   groupedSections: "third_party/blink/renderer/core/layout/table/table_layout_algorithm_types.cc:297-326",
-  repeatedSections: "third_party/blink/renderer/core/layout/table/table_layout_algorithm.cc:1002-1151,1271-1339,1452-1528,1701-1719",
-  repeatClone: "third_party/blink/renderer/core/layout/block_node.cc:722-796; third_party/blink/renderer/core/layout/fragment_repeater.cc:117-205",
+  repeatedSections:
+    "third_party/blink/renderer/core/layout/table/table_layout_algorithm.cc:1002-1151,1271-1339,1452-1528,1701-1719",
+  repeatClone:
+    "third_party/blink/renderer/core/layout/block_node.cc:722-796; third_party/blink/renderer/core/layout/fragment_repeater.cc:117-205",
   collapsedPaint: "third_party/blink/renderer/core/paint/table_painters.cc:35-328,490-727",
   clientRects: "third_party/blink/renderer/core/dom/element.cc:3419-3485",
   layoutBoxQuads: "third_party/blink/renderer/core/layout/layout_box.cc:1199-1216",
   repeatedSectionPrePaint: "third_party/blink/renderer/core/paint/pre_paint_tree_walk.cc:1290-1312",
-  horizontalWpt: "third_party/blink/web_tests/external/wpt/css/css-break/table/table-collapsed-borders-paint-htb-ltr.html",
-  verticalLrWpt: "third_party/blink/web_tests/external/wpt/css/css-break/table/table-collapsed-borders-paint-vlr-rtl.html",
-  verticalRlWpt: "third_party/blink/web_tests/external/wpt/css/css-break/table/table-collapsed-borders-paint-vrl-ltr.html",
+  horizontalWpt:
+    "third_party/blink/web_tests/external/wpt/css/css-break/table/table-collapsed-borders-paint-htb-ltr.html",
+  verticalLrWpt:
+    "third_party/blink/web_tests/external/wpt/css/css-break/table/table-collapsed-borders-paint-vlr-rtl.html",
+  verticalRlWpt:
+    "third_party/blink/web_tests/external/wpt/css/css-break/table/table-collapsed-borders-paint-vrl-ltr.html",
 } as const;
 
 export const REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS = [
@@ -65,8 +70,7 @@ export const REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS = [
   "fractional-span-column-offsets-remain-exact",
 ] as const;
 
-export type CollapsedBorderFragmentDiscriminator =
-  typeof REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS[number];
+export type CollapsedBorderFragmentDiscriminator = (typeof REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS)[number];
 
 interface RectRecord {
   left: number;
@@ -169,11 +173,7 @@ interface Fixture {
 
 const baseStyle = "html,body{margin:0;padding:0;background:white}";
 
-const sourceWptFixture = (
-  id: string,
-  writing: string,
-  direction: "ltr" | "rtl",
-): Fixture => ({
+const sourceWptFixture = (id: string, writing: string, direction: "ltr" | "rtl"): Fixture => ({
   id,
   family: "source-wpt",
   viewport: { width: 540, height: 520 },
@@ -339,8 +339,9 @@ function rectFragmentIndex(rect: RectRecord, table: RectRecord[]): number {
   let bestArea = 0;
   for (let index = 0; index < table.length; index++) {
     const candidate = table[index];
-    const area = Math.max(0, Math.min(rect.right, candidate.right) - Math.max(rect.left, candidate.left))
-      * Math.max(0, Math.min(rect.bottom, candidate.bottom) - Math.max(rect.top, candidate.top));
+    const area =
+      Math.max(0, Math.min(rect.right, candidate.right) - Math.max(rect.left, candidate.left)) *
+      Math.max(0, Math.min(rect.bottom, candidate.bottom) - Math.max(rect.top, candidate.top));
     if (area > bestArea) {
       best = index;
       bestArea = area;
@@ -350,14 +351,17 @@ function rectFragmentIndex(rect: RectRecord, table: RectRecord[]): number {
 }
 
 function capturedRectFragmentIndex(rect: CapturedBorderRect, table: RectRecord[]): number {
-  return rectFragmentIndex({
-    left: rect.x,
-    top: rect.y,
-    right: rect.x + rect.width,
-    bottom: rect.y + rect.height,
-    width: rect.width,
-    height: rect.height,
-  }, table);
+  return rectFragmentIndex(
+    {
+      left: rect.x,
+      top: rect.y,
+      right: rect.x + rect.width,
+      bottom: rect.y + rect.height,
+      width: rect.width,
+      height: rect.height,
+    },
+    table,
+  );
 }
 
 function continuedRowFacts(
@@ -375,9 +379,13 @@ function continuedRowFacts(
     if (index + 1 < continued.rects.length) seams.push({ coordinate: blockEnd(piece, live.writingMode), piece });
   }
   const blackRowEdges = rects.filter((rect) => rect.axis === "row" && rect.color === "rgb(0, 0, 0)");
-  const painted = seams.filter(({ coordinate, piece }) => blackRowEdges.some((rect) =>
-    Math.abs(rowEdgeCenter(rect, live.writingMode) - coordinate) <= 0.51
-    && inlineOverlap(rect, piece, live.writingMode) > 1)).length;
+  const painted = seams.filter(({ coordinate, piece }) =>
+    blackRowEdges.some(
+      (rect) =>
+        Math.abs(rowEdgeCenter(rect, live.writingMode) - coordinate) <= 0.51 &&
+        inlineOverlap(rect, piece, live.writingMode) > 1,
+    ),
+  ).length;
   return { continuedSeamCount: seams.length, continuedInlineEdgeAtSeamCount: painted };
 }
 
@@ -393,10 +401,15 @@ function adjacentSectionFacts(
   const beforeEnd = blockEnd(before, live.writingMode);
   const afterStart = blockStart(after, live.writingMode);
   const sameBoundary = Math.abs(beforeEnd - afterStart) <= 0.01;
-  const count = sameBoundary ? rects.filter((rect) => rect.axis === "row"
-    && Math.abs(rowEdgeCenter(rect, live.writingMode) - beforeEnd) <= 0.51
-    && inlineOverlap(rect, before, live.writingMode) > 1
-    && inlineOverlap(rect, after, live.writingMode) > 1).length : 0;
+  const count = sameBoundary
+    ? rects.filter(
+        (rect) =>
+          rect.axis === "row" &&
+          Math.abs(rowEdgeCenter(rect, live.writingMode) - beforeEnd) <= 0.51 &&
+          inlineOverlap(rect, before, live.writingMode) > 1 &&
+          inlineOverlap(rect, after, live.writingMode) > 1,
+      ).length
+    : 0;
   return { adjacentSectionBoundaryFound: sameBoundary, adjacentSectionSharedEdgeCount: count };
 }
 
@@ -430,21 +443,35 @@ function sourceWptFacts(
     rowAxisRectCount: rowAxisRects.length,
     rowAxisPhysicalXCount: rowAxisRects.filter((rect) => rect.width < rect.height).length,
     recordAuthenticated: record?.status === "authenticated",
-    recordSectionFragmentCount: record?.status === "authenticated"
-      ? record.tableFragments.reduce((sum, fragment) => sum + fragment.sectionFragments.length, 0)
-      : 0,
-    recordUsesNeutralCssomCdp: record?.status === "authenticated"
-      && record.provenance.plane === "all-css-transforms-neutralized"
-      && record.provenance.cssom === "Element.getClientRects"
-      && record.provenance.protocol === "DOM.getContentQuads"
-      && record.provenance.correlation === "ordered-exact-rect-set",
-    captionFirstPaintSlotPreserved: record?.status === "authenticated"
-      && record.tableFragments.some((fragment) => fragment.captionPaintSlots.length > 0
-        && fragment.captionPaintSlots.every((caption) => caption.tableChildPaintSlot
-          < (fragment.sectionFragments[0]?.tableChildPaintSlot ?? Number.POSITIVE_INFINITY))),
-    globalRowsConsecutive: record?.status === "authenticated"
-      && record.tableFragments.every((fragment) => fragment.sectionFragments.every((section) =>
-        section.logicalRowOffsets.length === section.lastGlobalRowIndex - section.firstGlobalRowIndex + 2)),
+    recordSectionFragmentCount:
+      record?.status === "authenticated"
+        ? record.tableFragments.reduce((sum, fragment) => sum + fragment.sectionFragments.length, 0)
+        : 0,
+    recordUsesNeutralCssomCdp:
+      record?.status === "authenticated" &&
+      record.provenance.plane === "all-css-transforms-neutralized" &&
+      record.provenance.cssom === "Element.getClientRects" &&
+      record.provenance.protocol === "DOM.getContentQuads" &&
+      record.provenance.correlation === "ordered-exact-rect-set",
+    captionFirstPaintSlotPreserved:
+      record?.status === "authenticated" &&
+      record.tableFragments.some(
+        (fragment) =>
+          fragment.captionPaintSlots.length > 0 &&
+          fragment.captionPaintSlots.every(
+            (caption) =>
+              caption.tableChildPaintSlot <
+              (fragment.sectionFragments[0]?.tableChildPaintSlot ?? Number.POSITIVE_INFINITY),
+          ),
+      ),
+    globalRowsConsecutive:
+      record?.status === "authenticated" &&
+      record.tableFragments.every((fragment) =>
+        fragment.sectionFragments.every(
+          (section) =>
+            section.logicalRowOffsets.length === section.lastGlobalRowIndex - section.firstGlobalRowIndex + 2,
+        ),
+      ),
   };
 }
 
@@ -454,53 +481,71 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
   const live = await collectLive(page);
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, ...fixture.viewport });
   const capturedTable = findCapturedTable(tree);
-  const capturedStyles = capturedTable?.styles as {
-    collapsedBorderRects?: CapturedBorderRect[];
-    collapsedBorderFragmentRecord?: CollapsedBorderFragmentRecord;
-  } | undefined;
+  const capturedStyles = capturedTable?.styles as
+    | {
+        collapsedBorderRects?: CapturedBorderRect[];
+        collapsedBorderFragmentRecord?: CollapsedBorderFragmentRecord;
+      }
+    | undefined;
   const borderRects = (capturedStyles?.collapsedBorderRects ?? []).map((rect) => ({ ...rect }));
   const fragmentRecord = capturedStyles?.collapsedBorderFragmentRecord ?? null;
-  const repeatedSectionFragments = fragmentRecord?.status === "authenticated"
-    ? fragmentRecord.tableFragments.flatMap((fragment) => fragment.sectionFragments)
-      .filter((section) => section.repeatRole !== "non-repeated")
-    : [];
+  const repeatedSectionFragments =
+    fragmentRecord?.status === "authenticated"
+      ? fragmentRecord.tableFragments
+          .flatMap((fragment) => fragment.sectionFragments)
+          .filter((section) => section.repeatRole !== "non-repeated")
+      : [];
   const provenance = {
-    hasFragmentIdentity: fragmentRecord?.status === "authenticated"
-      && fragmentRecord.tableFragments.every((fragment) => fragment.physicalTableFragmentId !== ""),
-    hasSectionIdentity: fragmentRecord?.status === "authenticated"
-      && fragmentRecord.tableFragments.some((fragment) => fragment.sectionFragments.length > 0),
-    hasGlobalRowIdentity: fragmentRecord?.status === "authenticated"
-      && fragmentRecord.tableFragments.every((fragment) => fragment.sectionFragments.every((section) =>
-        Number.isInteger(section.globalStartRowIndex))),
-    hasBreakTokenState: fragmentRecord?.status === "authenticated"
-      && fragmentRecord.tableFragments.every((fragment) => fragment.sectionFragments.every((section) =>
-        typeof section.startContinuedRow === "boolean" && typeof section.endContinuedRow === "boolean")),
-    hasRepeatState: repeatedSectionFragments.length > 0 && repeatedSectionFragments.every((section) =>
-      section.repeatOccurrenceIndex != null
-      && section.repeatEligibility != null
-      && section.reservedCollapsedEdgeSpace != null
-      && section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"),
+    hasFragmentIdentity:
+      fragmentRecord?.status === "authenticated" &&
+      fragmentRecord.tableFragments.every((fragment) => fragment.physicalTableFragmentId !== ""),
+    hasSectionIdentity:
+      fragmentRecord?.status === "authenticated" &&
+      fragmentRecord.tableFragments.some((fragment) => fragment.sectionFragments.length > 0),
+    hasGlobalRowIdentity:
+      fragmentRecord?.status === "authenticated" &&
+      fragmentRecord.tableFragments.every((fragment) =>
+        fragment.sectionFragments.every((section) => Number.isInteger(section.globalStartRowIndex)),
+      ),
+    hasBreakTokenState:
+      fragmentRecord?.status === "authenticated" &&
+      fragmentRecord.tableFragments.every((fragment) =>
+        fragment.sectionFragments.every(
+          (section) => typeof section.startContinuedRow === "boolean" && typeof section.endContinuedRow === "boolean",
+        ),
+      ),
+    hasRepeatState:
+      repeatedSectionFragments.length > 0 &&
+      repeatedSectionFragments.every(
+        (section) =>
+          section.repeatOccurrenceIndex != null &&
+          section.repeatEligibility != null &&
+          section.reservedCollapsedEdgeSpace != null &&
+          section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test",
+      ),
     fragmentRecord,
   };
   let facts: Record<string, boolean | number | string> = {};
   if (fixture.family === "source-wpt" || fixture.family === "whole-row") {
     facts = sourceWptFacts(live, borderRects, fragmentRecord);
     if (fixture.family === "whole-row") {
-      facts.wholeRowHalfEdgeCount = borderRects.filter((rect) => rect.axis === "row"
-        && blockAxisSize(rect, live.writingMode) === 2).length;
+      facts.wholeRowHalfEdgeCount = borderRects.filter(
+        (rect) => rect.axis === "row" && blockAxisSize(rect, live.writingMode) === 2,
+      ).length;
     }
   } else if (fixture.family === "repeat" || fixture.family === "repeat-negative") {
     const sectionSourceIds = await page.evaluate<string[]>(`Array.from(
       document.querySelector("#table").children
     ).filter((element) => /^(THEAD|TBODY|TFOOT)$/.test(element.tagName)).map((element) => element.id)`);
-    const head = live.sections.length > 0
-      ? (await page.evaluate<{ count: number; unique: number } | null>(`(() => {
+    const head =
+      live.sections.length > 0
+        ? await page.evaluate<{ count: number; unique: number } | null>(`(() => {
           const element = document.querySelector("thead");
           if (element == null) return null;
           const rects = Array.from(element.getClientRects(), (rect) => [rect.left, rect.top, rect.right, rect.bottom].join("|"));
           return { count: rects.length, unique: new Set(rects).size };
-        })()`))
-      : null;
+        })()`)
+        : null;
     const foot = await page.evaluate<{ count: number; unique: number } | null>(`(() => {
       const element = document.querySelector("tfoot");
       if (element == null) return null;
@@ -511,10 +556,10 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
     const footerRects = borderRects.filter((rect) => rect.color === "rgb(0, 140, 0)");
     const headerOccurrences = repeatedSectionFragments.filter((section) => section.repeatRole.endsWith("header"));
     const footerOccurrences = repeatedSectionFragments.filter((section) => section.repeatRole.endsWith("footer"));
-    const selectedHeaderSourceId = headerOccurrences.length === 0 ? ""
-      : sectionSourceIds[headerOccurrences[0].sectionSourceIndex] ?? "";
-    const selectedFooterSourceId = footerOccurrences.length === 0 ? ""
-      : sectionSourceIds[footerOccurrences[0].sectionSourceIndex] ?? "";
+    const selectedHeaderSourceId =
+      headerOccurrences.length === 0 ? "" : (sectionSourceIds[headerOccurrences[0].sectionSourceIndex] ?? "");
+    const selectedFooterSourceId =
+      footerOccurrences.length === 0 ? "" : (sectionSourceIds[footerOccurrences[0].sectionSourceIndex] ?? "");
     facts = {
       tableFragmentCount: live.table.length,
       headerRectCount: head?.count ?? 0,
@@ -523,41 +568,54 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
       footerUniqueRectCount: foot?.unique ?? 0,
       capturedHeaderEdgeCount: headerRects.length,
       capturedFooterEdgeCount: footerRects.length,
-      capturedHeaderEdgeFragmentCount: new Set(headerRects.map((rect) => capturedRectFragmentIndex(rect, live.table))).size,
-      capturedFooterEdgeFragmentCount: new Set(footerRects.map((rect) => capturedRectFragmentIndex(rect, live.table))).size,
+      capturedHeaderEdgeFragmentCount: new Set(headerRects.map((rect) => capturedRectFragmentIndex(rect, live.table)))
+        .size,
+      capturedFooterEdgeFragmentCount: new Set(footerRects.map((rect) => capturedRectFragmentIndex(rect, live.table)))
+        .size,
       sourceRepeatThresholdSatisfied: fixture.family === "repeat",
       fragmentRecordAuthenticated: fragmentRecord?.status === "authenticated",
       headerOccurrenceCount: headerOccurrences.length,
       footerOccurrenceCount: footerOccurrences.length,
       headerOccurrenceFragmentCount: new Set(headerOccurrences.map((section) => section.fragmentIndex)).size,
       footerOccurrenceFragmentCount: new Set(footerOccurrences.map((section) => section.fragmentIndex)).size,
-      headerOccurrenceOwnershipExact: headerOccurrences.every((section) =>
-        section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"
-        && section.reservedCollapsedEdgeSpace?.side === "block-start"
-        && section.globalStartRowIndex === 0),
-      footerOccurrenceOwnershipExact: footerOccurrences.every((section) =>
-        section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"
-        && section.reservedCollapsedEdgeSpace?.side === "block-end"
-        && section.lastGlobalRowIndex === (fragmentRecord?.status === "authenticated" ? fragmentRecord.totalRows - 1 : -1)),
+      headerOccurrenceOwnershipExact: headerOccurrences.every(
+        (section) =>
+          section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test" &&
+          section.reservedCollapsedEdgeSpace?.side === "block-start" &&
+          section.globalStartRowIndex === 0,
+      ),
+      footerOccurrenceOwnershipExact: footerOccurrences.every(
+        (section) =>
+          section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test" &&
+          section.reservedCollapsedEdgeSpace?.side === "block-end" &&
+          section.lastGlobalRowIndex ===
+            (fragmentRecord?.status === "authenticated" ? fragmentRecord.totalRows - 1 : -1),
+      ),
       repeatEligibilityExact: repeatedSectionFragments.every((section) => {
         const eligibility = section.repeatEligibility;
-        return eligibility != null
-          && eligibility.knownFragmentainerBlockSize
-          && eligibility.atMostQuarterFragmentainer
-          && eligibility.applicableBreakInsideAvoid
-          && eligibility.noBreakInside
-          && eligibility.noLateStart
-          && eligibility.outsideNestedRepeatableContent
-          && eligibility.layoutSideEffectsEnabled;
+        return (
+          eligibility != null &&
+          eligibility.knownFragmentainerBlockSize &&
+          eligibility.atMostQuarterFragmentainer &&
+          eligibility.applicableBreakInsideAvoid &&
+          eligibility.noBreakInside &&
+          eligibility.noLateStart &&
+          eligibility.outsideNestedRepeatableContent &&
+          eligibility.layoutSideEffectsEnabled
+        );
       }),
       selectedHeaderSourceId,
       selectedFooterSourceId,
       repeatedSectionSourceCount: new Set(repeatedSectionFragments.map((section) => section.sectionSourceIndex)).size,
-      nonrepeatSectionSourceCount: fragmentRecord?.status === "authenticated"
-        ? new Set(fragmentRecord.tableFragments.flatMap((fragment) => fragment.sectionFragments)
-          .filter((section) => section.repeatRole === "non-repeated")
-          .map((section) => section.sectionSourceIndex)).size
-        : 0,
+      nonrepeatSectionSourceCount:
+        fragmentRecord?.status === "authenticated"
+          ? new Set(
+              fragmentRecord.tableFragments
+                .flatMap((fragment) => fragment.sectionFragments)
+                .filter((section) => section.repeatRole === "non-repeated")
+                .map((section) => section.sectionSourceIndex),
+            ).size
+          : 0,
       vectorPaintWithheld: borderRects.length === 0,
     };
   } else {
@@ -566,8 +624,12 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
       if (rect.axis !== "column" || span == null) return false;
       return span.rects.some((piece) => {
         const center = rect.x + rect.width / 2;
-        return center > piece.left + 1 && center < piece.right - 1
-          && rect.y < piece.bottom && rect.y + rect.height > piece.top;
+        return (
+          center > piece.left + 1 &&
+          center < piece.right - 1 &&
+          rect.y < piece.bottom &&
+          rect.y + rect.height > piece.top
+        );
       });
     });
     facts = {
@@ -575,12 +637,18 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
       spanFragmentCount: span?.rects.length ?? 0,
       capturedSpanInteriorEdgeCount: interiorEdges.length,
       fragmentRecordAuthenticated: fragmentRecord?.status === "authenticated",
-      exactFractionalColumnOffsetCount: fixture.family === "fractional-span" && fragmentRecord?.status === "authenticated"
-        ? fragmentRecord.globalColumnOffsets.filter((offset) => !Number.isInteger(offset)).length
-        : 0,
-      multipleSectionSourcesPreserved: fixture.family === "fractional-span" && fragmentRecord?.status === "authenticated"
-        ? new Set(fragmentRecord.tableFragments.flatMap((fragment) => fragment.sectionFragments.map((section) => section.sectionSourceIndex))).size
-        : 0,
+      exactFractionalColumnOffsetCount:
+        fixture.family === "fractional-span" && fragmentRecord?.status === "authenticated"
+          ? fragmentRecord.globalColumnOffsets.filter((offset) => !Number.isInteger(offset)).length
+          : 0,
+      multipleSectionSourcesPreserved:
+        fixture.family === "fractional-span" && fragmentRecord?.status === "authenticated"
+          ? new Set(
+              fragmentRecord.tableFragments.flatMap((fragment) =>
+                fragment.sectionFragments.map((section) => section.sectionSourceIndex),
+              ),
+            ).size
+          : 0,
     };
   }
   return {
@@ -594,12 +662,20 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
 
 async function collectPrintGap(page: Page): Promise<CollapsedBorderFragmentationReport["print"]> {
   await page.setViewportSize({ width: 620, height: 900 });
-  await page.setContent(`<!doctype html><style>${baseStyle}@page{size:300px 240px;margin:0}.t{border-collapse:collapse;width:100%}thead,tfoot{break-inside:avoid}th,td{height:42px;border:6px solid #2563eb}</style><table id="table" class="t"><thead><tr><th></th></tr></thead><tbody>${Array.from({ length: 18 }, () => "<tr><td></td></tr>").join("")}</tbody><tfoot><tr><td></td></tr></tfoot></table>`, { waitUntil: "load" });
+  await page.setContent(
+    `<!doctype html><style>${baseStyle}@page{size:300px 240px;margin:0}.t{border-collapse:collapse;width:100%}thead,tfoot{break-inside:avoid}th,td{height:42px;border:6px solid #2563eb}</style><table id="table" class="t"><thead><tr><th></th></tr></thead><tbody>${Array.from({ length: 18 }, () => "<tr><td></td></tr>").join("")}</tbody><tfoot><tr><td></td></tr></tfoot></table>`,
+    { waitUntil: "load" },
+  );
   const screen = await page.evaluate<{ table: number; header: number }>(`({
     table: document.querySelector("table").getClientRects().length,
     header: document.querySelector("thead").getClientRects().length,
   })`);
-  const pdf = await page.pdf({ width: "300px", height: "240px", printBackground: true, margin: { top: "0", right: "0", bottom: "0", left: "0" } });
+  const pdf = await page.pdf({
+    width: "300px",
+    height: "240px",
+    printBackground: true,
+    margin: { top: "0", right: "0", bottom: "0", left: "0" },
+  });
   const text = pdf.toString("latin1");
   return {
     screenTableFragmentCount: screen.table,
@@ -611,7 +687,7 @@ async function collectPrintGap(page: Page): Promise<CollapsedBorderFragmentation
 }
 
 const factNumber = (row: CollapsedBorderFragmentCaseReport, key: string): number =>
-  typeof row.facts[key] === "number" ? row.facts[key] as number : 0;
+  typeof row.facts[key] === "number" ? (row.facts[key] as number) : 0;
 
 export function buildCollapsedBorderFragmentDiscriminators(
   cases: CollapsedBorderFragmentCaseReport[],
@@ -634,82 +710,103 @@ export function buildCollapsedBorderFragmentDiscriminators(
   const eligible = cases;
   return {
     "whole-row-break-paints-half-edge": whole != null && factNumber(whole, "wholeRowHalfEdgeCount") > 0,
-    "continued-row-omits-inline-edge": htb != null
-      && factNumber(htb, "continuedRowFragmentCount") > 1
-      && factNumber(htb, "continuedSeamCount") === 4
-      && factNumber(htb, "continuedInlineEdgeAtSeamCount") === 0,
-    "adjacent-sections-share-one-edge": htb != null
-      && htb.live.sections.length === 2
-      && htb.facts.adjacentSectionBoundaryFound === true
-      && factNumber(htb, "adjacentSectionSharedEdgeCount") === 1,
-    "repeated-header-explicit-occurrences-authenticate": repeat != null
-      && factNumber(repeat, "headerRectCount") === repeat.live.table.length
-      && factNumber(repeat, "headerUniqueRectCount") === 1
-      && repeat.facts.fragmentRecordAuthenticated === true
-      && factNumber(repeat, "headerOccurrenceCount") === repeat.live.table.length
-      && repeat.facts.headerOccurrenceOwnershipExact === true,
-    "repeated-footer-explicit-occurrences-authenticate": repeat != null
-      && factNumber(repeat, "footerRectCount") === repeat.live.table.length
-      && factNumber(repeat, "footerUniqueRectCount") === 1
-      && repeat.facts.fragmentRecordAuthenticated === true
-      && factNumber(repeat, "footerOccurrenceCount") === repeat.live.table.length
-      && repeat.facts.footerOccurrenceOwnershipExact === true,
+    "continued-row-omits-inline-edge":
+      htb != null &&
+      factNumber(htb, "continuedRowFragmentCount") > 1 &&
+      factNumber(htb, "continuedSeamCount") === 4 &&
+      factNumber(htb, "continuedInlineEdgeAtSeamCount") === 0,
+    "adjacent-sections-share-one-edge":
+      htb != null &&
+      htb.live.sections.length === 2 &&
+      htb.facts.adjacentSectionBoundaryFound === true &&
+      factNumber(htb, "adjacentSectionSharedEdgeCount") === 1,
+    "repeated-header-explicit-occurrences-authenticate":
+      repeat != null &&
+      factNumber(repeat, "headerRectCount") === repeat.live.table.length &&
+      factNumber(repeat, "headerUniqueRectCount") === 1 &&
+      repeat.facts.fragmentRecordAuthenticated === true &&
+      factNumber(repeat, "headerOccurrenceCount") === repeat.live.table.length &&
+      repeat.facts.headerOccurrenceOwnershipExact === true,
+    "repeated-footer-explicit-occurrences-authenticate":
+      repeat != null &&
+      factNumber(repeat, "footerRectCount") === repeat.live.table.length &&
+      factNumber(repeat, "footerUniqueRectCount") === 1 &&
+      repeat.facts.fragmentRecordAuthenticated === true &&
+      factNumber(repeat, "footerOccurrenceCount") === repeat.live.table.length &&
+      repeat.facts.footerOccurrenceOwnershipExact === true,
     "repeat-eligibility-source-path-authenticates": repeat?.facts.repeatEligibilityExact === true,
-    "oversize-header-authenticates-nonrepeat": negative != null
-      && factNumber(negative, "headerRectCount") < negative.live.table.length
-      && factNumber(negative, "headerOccurrenceCount") === 0
-      && negative.facts.fragmentRecordAuthenticated === true,
-    "nonavoid-header-authenticates-nonrepeat": nonavoid != null
-      && factNumber(nonavoid, "headerRectCount") < nonavoid.live.table.length
-      && factNumber(nonavoid, "headerOccurrenceCount") === 0
-      && nonavoid.facts.fragmentRecordAuthenticated === true,
-    "header-only-and-footer-only-remain-distinct": headerOnly != null && footerOnly != null
-      && factNumber(headerOnly, "headerOccurrenceCount") === headerOnly.live.table.length
-      && factNumber(headerOnly, "footerOccurrenceCount") === 0
-      && factNumber(footerOnly, "headerOccurrenceCount") === 0
-      && factNumber(footerOnly, "footerOccurrenceCount") === footerOnly.live.table.length,
-    "multiple-header-footer-select-first-layout-child": multiple?.facts.selectedHeaderSourceId === "first-head"
-      && multiple.facts.selectedFooterSourceId === "first-foot"
-      && factNumber(multiple, "repeatedSectionSourceCount") === 2
-      && factNumber(multiple, "nonrepeatSectionSourceCount") >= 3,
-    "monolithic-overflow-keeps-repeat-occurrence-ownership": monolithic?.facts.fragmentRecordAuthenticated === true
-      && factNumber(monolithic, "headerOccurrenceCount") === monolithic.live.table.length
-      && factNumber(monolithic, "footerOccurrenceCount") === monolithic.live.table.length,
-    "vertical-repeat-uses-logical-block-edges": verticalRepeat?.facts.fragmentRecordAuthenticated === true
-      && verticalRepeat.live.writingMode === "vertical-rl"
-      && verticalRepeat.facts.headerOccurrenceOwnershipExact === true
-      && verticalRepeat.facts.footerOccurrenceOwnershipExact === true,
-    "span-interior-remains-unfilled": span != null
-      && factNumber(span, "spanFragmentCount") > 1
-      && factNumber(span, "capturedSpanInteriorEdgeCount") === 0,
-    "vertical-lr-rtl-uses-physical-x-block-axis": vlr?.facts.blockAxis === "physical-x"
-      && factNumber(vlr, "continuedRowFragmentCount") > 1
-      && factNumber(vlr, "rowAxisRectCount") > 0
-      && factNumber(vlr, "rowAxisPhysicalXCount") === factNumber(vlr, "rowAxisRectCount")
-      && factNumber(vlr, "continuedSeamCount") === 4
-      && factNumber(vlr, "continuedInlineEdgeAtSeamCount") === 0,
-    "vertical-rl-ltr-uses-physical-x-block-axis": vrl?.facts.blockAxis === "physical-x"
-      && factNumber(vrl, "continuedRowFragmentCount") > 1
-      && factNumber(vrl, "rowAxisRectCount") > 0
-      && factNumber(vrl, "rowAxisPhysicalXCount") === factNumber(vrl, "rowAxisRectCount")
-      && factNumber(vrl, "continuedSeamCount") === 4
-      && factNumber(vrl, "continuedInlineEdgeAtSeamCount") === 0,
-    "print-pagination-is-not-screen-cssom-fragmentation": print.pdfPageCount > 1
-      && print.screenTableFragmentCount === 1 && print.screenHeaderFragmentCount === 1,
-    "eligible-records-carry-physical-fragment-provenance": eligible.every((row) =>
-      row.captured.hasFragmentIdentity && row.captured.hasSectionIdentity
-      && row.captured.hasGlobalRowIdentity && row.captured.hasBreakTokenState),
-    "records-bind-cssom-and-cdp-in-neutral-plane": eligible.every((row) =>
-      row.captured.fragmentRecord?.status === "authenticated"
-      && row.captured.fragmentRecord.provenance.plane === "all-css-transforms-neutralized"
-      && row.captured.fragmentRecord.provenance.cssom === "Element.getClientRects"
-      && row.captured.fragmentRecord.provenance.protocol === "DOM.getContentQuads"
-      && row.captured.fragmentRecord.provenance.sourceRestoredExactly),
+    "oversize-header-authenticates-nonrepeat":
+      negative != null &&
+      factNumber(negative, "headerRectCount") < negative.live.table.length &&
+      factNumber(negative, "headerOccurrenceCount") === 0 &&
+      negative.facts.fragmentRecordAuthenticated === true,
+    "nonavoid-header-authenticates-nonrepeat":
+      nonavoid != null &&
+      factNumber(nonavoid, "headerRectCount") < nonavoid.live.table.length &&
+      factNumber(nonavoid, "headerOccurrenceCount") === 0 &&
+      nonavoid.facts.fragmentRecordAuthenticated === true,
+    "header-only-and-footer-only-remain-distinct":
+      headerOnly != null &&
+      footerOnly != null &&
+      factNumber(headerOnly, "headerOccurrenceCount") === headerOnly.live.table.length &&
+      factNumber(headerOnly, "footerOccurrenceCount") === 0 &&
+      factNumber(footerOnly, "headerOccurrenceCount") === 0 &&
+      factNumber(footerOnly, "footerOccurrenceCount") === footerOnly.live.table.length,
+    "multiple-header-footer-select-first-layout-child":
+      multiple?.facts.selectedHeaderSourceId === "first-head" &&
+      multiple.facts.selectedFooterSourceId === "first-foot" &&
+      factNumber(multiple, "repeatedSectionSourceCount") === 2 &&
+      factNumber(multiple, "nonrepeatSectionSourceCount") >= 3,
+    "monolithic-overflow-keeps-repeat-occurrence-ownership":
+      monolithic?.facts.fragmentRecordAuthenticated === true &&
+      factNumber(monolithic, "headerOccurrenceCount") === monolithic.live.table.length &&
+      factNumber(monolithic, "footerOccurrenceCount") === monolithic.live.table.length,
+    "vertical-repeat-uses-logical-block-edges":
+      verticalRepeat?.facts.fragmentRecordAuthenticated === true &&
+      verticalRepeat.live.writingMode === "vertical-rl" &&
+      verticalRepeat.facts.headerOccurrenceOwnershipExact === true &&
+      verticalRepeat.facts.footerOccurrenceOwnershipExact === true,
+    "span-interior-remains-unfilled":
+      span != null &&
+      factNumber(span, "spanFragmentCount") > 1 &&
+      factNumber(span, "capturedSpanInteriorEdgeCount") === 0,
+    "vertical-lr-rtl-uses-physical-x-block-axis":
+      vlr?.facts.blockAxis === "physical-x" &&
+      factNumber(vlr, "continuedRowFragmentCount") > 1 &&
+      factNumber(vlr, "rowAxisRectCount") > 0 &&
+      factNumber(vlr, "rowAxisPhysicalXCount") === factNumber(vlr, "rowAxisRectCount") &&
+      factNumber(vlr, "continuedSeamCount") === 4 &&
+      factNumber(vlr, "continuedInlineEdgeAtSeamCount") === 0,
+    "vertical-rl-ltr-uses-physical-x-block-axis":
+      vrl?.facts.blockAxis === "physical-x" &&
+      factNumber(vrl, "continuedRowFragmentCount") > 1 &&
+      factNumber(vrl, "rowAxisRectCount") > 0 &&
+      factNumber(vrl, "rowAxisPhysicalXCount") === factNumber(vrl, "rowAxisRectCount") &&
+      factNumber(vrl, "continuedSeamCount") === 4 &&
+      factNumber(vrl, "continuedInlineEdgeAtSeamCount") === 0,
+    "print-pagination-is-not-screen-cssom-fragmentation":
+      print.pdfPageCount > 1 && print.screenTableFragmentCount === 1 && print.screenHeaderFragmentCount === 1,
+    "eligible-records-carry-physical-fragment-provenance": eligible.every(
+      (row) =>
+        row.captured.hasFragmentIdentity &&
+        row.captured.hasSectionIdentity &&
+        row.captured.hasGlobalRowIdentity &&
+        row.captured.hasBreakTokenState,
+    ),
+    "records-bind-cssom-and-cdp-in-neutral-plane": eligible.every(
+      (row) =>
+        row.captured.fragmentRecord?.status === "authenticated" &&
+        row.captured.fragmentRecord.provenance.plane === "all-css-transforms-neutralized" &&
+        row.captured.fragmentRecord.provenance.cssom === "Element.getClientRects" &&
+        row.captured.fragmentRecord.provenance.protocol === "DOM.getContentQuads" &&
+        row.captured.fragmentRecord.provenance.sourceRestoredExactly,
+    ),
     "caption-first-fragments-preserve-child-paint-slots": htb?.facts.captionFirstPaintSlotPreserved === true,
-    "multiple-tbody-global-rows-remain-consecutive": htb?.facts.globalRowsConsecutive === true
-      && fractional?.facts.multipleSectionSourcesPreserved === 2,
-    "fractional-span-column-offsets-remain-exact": fractional?.facts.fragmentRecordAuthenticated === true
-      && factNumber(fractional, "exactFractionalColumnOffsetCount") > 0,
+    "multiple-tbody-global-rows-remain-consecutive":
+      htb?.facts.globalRowsConsecutive === true && fractional?.facts.multipleSectionSourcesPreserved === 2,
+    "fractional-span-column-offsets-remain-exact":
+      fractional?.facts.fragmentRecordAuthenticated === true &&
+      factNumber(fractional, "exactFractionalColumnOffsetCount") > 0,
   };
 }
 
@@ -726,7 +823,8 @@ function applicabilityErrors(
   const errors = validateCollapsedBorderFragmentRecord(record);
   if (record.writingMode !== row.live.writingMode) errors.push("record writing axis differs from live table");
   if (record.direction !== row.live.direction) errors.push("record direction differs from live table");
-  if (record.tableFragments.length !== row.live.table.length) errors.push("record table fragment count differs from live table");
+  if (record.tableFragments.length !== row.live.table.length)
+    errors.push("record table fragment count differs from live table");
   return errors;
 }
 
@@ -740,7 +838,10 @@ export function buildCollapsedBorderFragmentMutations(
   const span = cases.find((row) => row.id === "continued-colspan-interior")!;
   const vertical = cases.filter((row) => row.live.writingMode !== "horizontal-tb").length;
   const mutation = (id: string, baseline: number, mutated: number): CollapsedBorderFragmentMutation => ({
-    id, baseline, mutated, moved: Number.isFinite(baseline) && Number.isFinite(mutated) && baseline !== mutated,
+    id,
+    baseline,
+    mutated,
+    moved: Number.isFinite(baseline) && Number.isFinite(mutated) && baseline !== mutated,
   });
   const record = authenticatedRecord(htb);
   const repeatRecord = authenticatedRecord(repeat);
@@ -753,37 +854,80 @@ export function buildCollapsedBorderFragmentMutations(
   wrongAxis.writingMode = "vertical-lr";
   const droppedRepeat = structuredClone(repeatRecord);
   const droppedFragment = droppedRepeat.tableFragments.find((fragment) => fragment.fragmentIndex === 1)!;
-  droppedFragment.sectionFragments.splice(droppedFragment.sectionFragments.findIndex((section) =>
-    section.repeatRole.endsWith("header")), 1);
+  droppedFragment.sectionFragments.splice(
+    droppedFragment.sectionFragments.findIndex((section) => section.repeatRole.endsWith("header")),
+    1,
+  );
   const duplicatedRepeat = structuredClone(repeatRecord);
   const duplicateSection = structuredClone(duplicatedRepeat.tableFragments[1].sectionFragments[0]);
   duplicateSection.physicalSectionFragmentId += ":duplicate";
   duplicatedRepeat.tableFragments[1].sectionFragments.splice(1, 0, duplicateSection);
   const reorderedRepeat = structuredClone(repeatRecord);
-  const reorderedSections = reorderedRepeat.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+  const reorderedSections = reorderedRepeat.tableFragments
+    .flatMap((fragment) => fragment.sectionFragments)
     .filter((section) => section.repeatRole.endsWith("header"));
-  [reorderedSections[1].repeatOccurrenceIndex, reorderedSections[2].repeatOccurrenceIndex] =
-    [reorderedSections[2].repeatOccurrenceIndex, reorderedSections[1].repeatOccurrenceIndex];
+  [reorderedSections[1].repeatOccurrenceIndex, reorderedSections[2].repeatOccurrenceIndex] = [
+    reorderedSections[2].repeatOccurrenceIndex,
+    reorderedSections[1].repeatOccurrenceIndex,
+  ];
   const wrongRepeatEdge = structuredClone(repeatRecord);
   wrongRepeatEdge.tableFragments[1].sectionFragments.find((section) =>
-    section.repeatRole.endsWith("header"))!.reservedCollapsedEdgeSpace!.side = "block-end";
+    section.repeatRole.endsWith("header"),
+  )!.reservedCollapsedEdgeSpace!.side = "block-end";
   const wrongRepeatSource = structuredClone(repeatRecord);
   wrongRepeatSource.tableFragments[1].sectionFragments.find((section) =>
-    section.repeatRole.endsWith("header"))!.sectionSourceIndex = 999;
+    section.repeatRole.endsWith("header"),
+  )!.sectionSourceIndex = 999;
   return [
     mutation("collapse-table-fragments", factNumber(htb, "tableFragmentCount"), 1),
     mutation("erase-continued-row-break-token", factNumber(htb, "continuedRowFragmentCount"), 1),
     mutation("promote-half-edge-to-full", factNumber(whole, "wholeRowHalfEdgeCount"), 0),
-    mutation("double-paint-adjacent-section-edge", htb.captured.duplicateRectCount, htb.captured.duplicateRectCount + 1),
-    mutation("drop-repeat-occurrence", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(droppedRepeat).length),
-    mutation("duplicate-repeat-occurrence", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(duplicatedRepeat).length),
-    mutation("reorder-repeat-occurrences", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(reorderedRepeat).length),
-    mutation("move-repeat-to-wrong-edge", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(wrongRepeatEdge).length),
-    mutation("bind-repeat-to-wrong-source", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(wrongRepeatSource).length),
-    mutation("fill-span-interior", factNumber(span, "capturedSpanInteriorEdgeCount"), factNumber(span, "capturedSpanInteriorEdgeCount") + 1),
+    mutation(
+      "double-paint-adjacent-section-edge",
+      htb.captured.duplicateRectCount,
+      htb.captured.duplicateRectCount + 1,
+    ),
+    mutation(
+      "drop-repeat-occurrence",
+      validateCollapsedBorderFragmentRecord(repeatRecord).length,
+      validateCollapsedBorderFragmentRecord(droppedRepeat).length,
+    ),
+    mutation(
+      "duplicate-repeat-occurrence",
+      validateCollapsedBorderFragmentRecord(repeatRecord).length,
+      validateCollapsedBorderFragmentRecord(duplicatedRepeat).length,
+    ),
+    mutation(
+      "reorder-repeat-occurrences",
+      validateCollapsedBorderFragmentRecord(repeatRecord).length,
+      validateCollapsedBorderFragmentRecord(reorderedRepeat).length,
+    ),
+    mutation(
+      "move-repeat-to-wrong-edge",
+      validateCollapsedBorderFragmentRecord(repeatRecord).length,
+      validateCollapsedBorderFragmentRecord(wrongRepeatEdge).length,
+    ),
+    mutation(
+      "bind-repeat-to-wrong-source",
+      validateCollapsedBorderFragmentRecord(repeatRecord).length,
+      validateCollapsedBorderFragmentRecord(wrongRepeatSource).length,
+    ),
+    mutation(
+      "fill-span-interior",
+      factNumber(span, "capturedSpanInteriorEdgeCount"),
+      factNumber(span, "capturedSpanInteriorEdgeCount") + 1,
+    ),
     mutation("horizontalize-vertical-fragmentation", vertical, 0),
-    mutation("wrong-global-start-row", applicabilityErrors(htb, record).length, applicabilityErrors(htb, wrongRow).length),
-    mutation("wrong-physical-fragment", applicabilityErrors(htb, record).length, applicabilityErrors(htb, wrongFragment).length),
+    mutation(
+      "wrong-global-start-row",
+      applicabilityErrors(htb, record).length,
+      applicabilityErrors(htb, wrongRow).length,
+    ),
+    mutation(
+      "wrong-physical-fragment",
+      applicabilityErrors(htb, record).length,
+      applicabilityErrors(htb, wrongFragment).length,
+    ),
     mutation("wrong-writing-axis", applicabilityErrors(htb, record).length, applicabilityErrors(htb, wrongAxis).length),
     mutation("treat-screen-cssom-as-print-fragments", print.pdfPageCount, print.screenTableFragmentCount),
   ];
@@ -791,24 +935,30 @@ export function buildCollapsedBorderFragmentMutations(
 
 export function validateCollapsedBorderFragmentationCorpus(): string[] {
   const errors: string[] = [];
-  if (COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS.chromium !== "7d859f271cbda744098ac69f44978d4edfa62be3") errors.push("Chromium pin changed");
-  if (REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length !== 21) errors.push("logical discriminator corpus changed");
-  if (fixtures.map((fixture) => fixture.id).join("|") !== [
-    "whole-row-breaks",
-    "blink-wpt-horizontal-tb-ltr",
-    "blink-wpt-vertical-lr-rtl",
-    "blink-wpt-vertical-rl-ltr",
-    "repeated-header-footer",
-    "repeated-header-only",
-    "repeated-footer-only",
-    "oversize-header-negative",
-    "nonavoid-header-negative",
-    "multiple-header-footer-selection",
-    "monolithic-overflow-repeat",
-    "vertical-rl-repeat",
-    "continued-colspan-interior",
-    "fractional-rowspan-multiple-tbody",
-  ].join("|")) errors.push("fixture corpus changed");
+  if (COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS.chromium !== "7d859f271cbda744098ac69f44978d4edfa62be3")
+    errors.push("Chromium pin changed");
+  if (REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length !== 21)
+    errors.push("logical discriminator corpus changed");
+  if (
+    fixtures.map((fixture) => fixture.id).join("|") !==
+    [
+      "whole-row-breaks",
+      "blink-wpt-horizontal-tb-ltr",
+      "blink-wpt-vertical-lr-rtl",
+      "blink-wpt-vertical-rl-ltr",
+      "repeated-header-footer",
+      "repeated-header-only",
+      "repeated-footer-only",
+      "oversize-header-negative",
+      "nonavoid-header-negative",
+      "multiple-header-footer-selection",
+      "monolithic-overflow-repeat",
+      "vertical-rl-repeat",
+      "continued-colspan-interior",
+      "fractional-rowspan-multiple-tbody",
+    ].join("|")
+  )
+    errors.push("fixture corpus changed");
   return errors;
 }
 
@@ -825,7 +975,9 @@ export async function runCollapsedBorderFragmentationOracle(): Promise<Collapsed
     const discriminators = buildCollapsedBorderFragmentDiscriminators(cases, print);
     const mutations = buildCollapsedBorderFragmentMutations(cases, print);
     const pass = Object.values(discriminators).every(Boolean) && mutations.every((mutation) => mutation.moved);
-    const packageJson = JSON.parse(readFileSync(resolve(ROOT, "node_modules/@playwright/test/package.json"), "utf8")) as { version: string };
+    const packageJson = JSON.parse(
+      readFileSync(resolve(ROOT, "node_modules/@playwright/test/package.json"), "utf8"),
+    ) as { version: string };
     return {
       schemaVersion: 3,
       ticket: "DM-2558",
@@ -855,7 +1007,7 @@ export async function runCollapsedBorderFragmentationOracle(): Promise<Collapsed
 
 function parseJsonPath(args: string[]): string | null {
   const index = args.indexOf("--json");
-  return index >= 0 ? args[index + 1] ?? null : null;
+  return index >= 0 ? (args[index + 1] ?? null) : null;
 }
 
 if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -865,9 +1017,14 @@ if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import
     mkdirSync(dirname(resolve(jsonPath)), { recursive: true });
     writeFileSync(resolve(jsonPath), `${JSON.stringify(report, null, 2)}\n`);
   }
-  console.log(`collapsed border fragmentation: ${Object.values(report.discriminators).filter(Boolean).length}/${REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length}; ${report.verdict}`);
+  console.log(
+    `collapsed border fragmentation: ${Object.values(report.discriminators).filter(Boolean).length}/${REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length}; ${report.verdict}`,
+  );
   for (const [id, active] of Object.entries(report.discriminators)) console.log(`${active ? "PASS" : "FAIL"} ${id}`);
-  for (const mutation of report.mutations) console.log(`${mutation.moved ? "PASS" : "FAIL"} mutation ${mutation.id}: ${mutation.baseline} -> ${mutation.mutated}`);
+  for (const mutation of report.mutations)
+    console.log(
+      `${mutation.moved ? "PASS" : "FAIL"} mutation ${mutation.id}: ${mutation.baseline} -> ${mutation.mutated}`,
+    );
   if (jsonPath != null) console.log(`report: ${resolve(jsonPath)}`);
   if (!report.pass) process.exitCode = 1;
 }

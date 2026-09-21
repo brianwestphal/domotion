@@ -4,10 +4,10 @@ title: "Browser HarfBuzz substitution-stream ownership"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2532","DM-2552"]
-code: [".github/workflows/browser-harfbuzz-substitution-streams.yml","tools/browser-harfbuzz-substitution-oracle.ts"]
-aliases: ["docs/220-browser-harfbuzz-substitution-streams.md","doc-220"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2532", "DM-2552"]
+code: [".github/workflows/browser-harfbuzz-substitution-streams.yml", "tools/browser-harfbuzz-substitution-oracle.ts"]
+aliases: ["docs/220-browser-harfbuzz-substitution-streams.md", "doc-220"]
 ---
 
 # Browser HarfBuzz substitution-stream ownership
@@ -45,7 +45,7 @@ The source audit uses Chromium
   monotone characters as its own explicit gate input; that is not a claim
   about Blink's default.
 - Blink fills the buffer from UTF-16 (`case_mapping_harfbuzz_buffer_filler.cc:
-  24-64`), then sets language, script, and direction and calls `hb_shape_full`
+24-64`), then sets language, script, and direction and calls `hb_shape_full`
   with resolved plus authored feature ranges (`harfbuzz_shaper.cc:308-355`).
   There is no raster decision in this step.
 - Blink creates the HarfBuzz face from the same `SkTypeface`, copies its exact
@@ -103,12 +103,12 @@ package/Chromium revision, and browser/Node versions.
 
 ## Portable corpus and exact records
 
-| Case | Portable source | Required tables | Logical discriminator |
-| --- | --- | --- | --- |
-| `latin-liga-variable-axis` | existing Open Sans variable subset, SHA-256 `c8886233e48f9757d48028f9517bcbe97603e685c31a49eb3a596461621f4a5a` | `GSUB`, `GPOS`, `fvar` | `fi`, `liga=1`, `wght=800`, `wdth=100` becomes one ligature; omitting axes changes its advance |
-| `arabic-required-ligature` | HarfBuzz in-house `a919b331…`, blob `d2f116ef…`, SHA-256 `9d9e6025284c0833926775248918ec1fa9b2417fde90abaa663cc9b625e3bdb1` | `GDEF`, `GSUB`, `GPOS` | Arabic `لله` becomes one required/contextual ligature; `-rlig` expands the stream |
+| Case                                 | Portable source                                                                                                                                   | Required tables        | Logical discriminator                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `latin-liga-variable-axis`           | existing Open Sans variable subset, SHA-256 `c8886233e48f9757d48028f9517bcbe97603e685c31a49eb3a596461621f4a5a`                                    | `GSUB`, `GPOS`, `fvar` | `fi`, `liga=1`, `wght=800`, `wdth=100` becomes one ligature; omitting axes changes its advance                           |
+| `arabic-required-ligature`           | HarfBuzz in-house `a919b331…`, blob `d2f116ef…`, SHA-256 `9d9e6025284c0833926775248918ec1fa9b2417fde90abaa663cc9b625e3bdb1`                       | `GDEF`, `GSUB`, `GPOS` | Arabic `لله` becomes one required/contextual ligature; `-rlig` expands the stream                                        |
 | `arabic-contextual-mark-positioning` | HarfBuzz in-house mark-attachment probe `1af86850…`, blob `f450682f…`, SHA-256 `6aeee1f0d98fe4b6b5a7eb99324a2a27549133b2f0ee64a53357c391217767d9` | `GDEF`, `GSUB`, `GPOS` | Arabic `بَبَ` retains two grapheme clusters, distinct contextual base forms, zero-width marks, and a nonzero GPOS offset |
-| `language-system-locl` | HarfBuzz in-house `6991b13c…`, blob `d9849668…`, SHA-256 `8440df3446a0724e2498ba62980d55ad0b0ad5e568cdc0ad4efd85c7f8d4b455` | `GSUB` | `J` under `Latn`/`zh-Hant-HK` selects gid 6; hostile `zh` selects a different language-system glyph |
+| `language-system-locl`               | HarfBuzz in-house `6991b13c…`, blob `d9849668…`, SHA-256 `8440df3446a0724e2498ba62980d55ad0b0ad5e568cdc0ad4efd85c7f8d4b455`                       | `GSUB`                 | `J` under `Latn`/`zh-Hant-HK` selects gid 6; hostile `zh` selects a different language-system glyph                      |
 
 The checked-in HarfBuzz fonts retain their upstream revision, path, Git blob,
 and exact embedded-license status in every report. They are upstream in-house
@@ -198,6 +198,7 @@ that artifact exists, the implementation is usable but the report correctly
 withholds cross-platform ratification; it does not fall back to raster grading
 or relax any existing visual cap. DM-2552 owns that bounded retained-evidence
 run and documentation update; it does not own production or raster changes.
+
 ## First retained native aggregate
 
 GitHub Actions run **32683947350** (2026-08-24) retained all six independent

@@ -44,7 +44,10 @@ function renderShape(w: number, h: number, inside: InsideFn, ox = 0, oy = 0): Co
       const cov = hits / (S * S);
       const lum = Math.round(255 * (1 - cov));
       const o = (y * w + x) * 4;
-      rgba[o] = lum; rgba[o + 1] = lum; rgba[o + 2] = lum; rgba[o + 3] = 255;
+      rgba[o] = lum;
+      rgba[o + 1] = lum;
+      rgba[o + 2] = lum;
+      rgba[o + 3] = 255;
     }
   }
   return extractCoverage(rgba, w, h, 4);
@@ -53,15 +56,24 @@ function renderShape(w: number, h: number, inside: InsideFn, ox = 0, oy = 0): Co
 /** Parametric "H" glyph: two vertical stems + a crossbar, with optional
  *  serifs (wider slabs at stem ends), slant (x shear), and scale. Canvas is
  *  84×84; the glyph occupies roughly x∈[20,64], y∈[16,68]. */
-function glyphH(opts: {
-  stroke?: number; serif?: boolean; slantDeg?: number; scale?: number;
-} = {}): InsideFn {
+function glyphH(
+  opts: {
+    stroke?: number;
+    serif?: boolean;
+    slantDeg?: number;
+    scale?: number;
+  } = {},
+): InsideFn {
   const stroke = opts.stroke ?? 6;
   const serif = opts.serif ?? false;
   const shear = Math.tan(((opts.slantDeg ?? 0) * Math.PI) / 180);
   const s = opts.scale ?? 1;
-  const cx = 42, cy = 42;
-  const left = 22, right = 62, top = 16, bottom = 68;
+  const cx = 42,
+    cy = 42;
+  const left = 22,
+    right = 62,
+    top = 16,
+    bottom = 68;
   const midY = 44;
   return (px, py) => {
     // Un-scale then un-shear around the glyph center.
@@ -86,9 +98,13 @@ function glyphH(opts: {
 /** Annulus ("O"-like ring): one counter. `gapDeg` > 0 opens the ring into a
  *  "C" (zero counters). */
 function glyphO(opts: { gap?: boolean } = {}): InsideFn {
-  const cx = 42, cy = 42, rOuter = 26, rInner = 17;
+  const cx = 42,
+    cy = 42,
+    rOuter = 26,
+    rInner = 17;
   return (px, py) => {
-    const dx = px - cx, dy = py - cy;
+    const dx = px - cx,
+      dy = py - cy;
     const r = Math.sqrt(dx * dx + dy * dy);
     if (r > rOuter || r < rInner) return false;
     if (opts.gap) {
@@ -113,11 +129,15 @@ describe("extractCoverage", () => {
   it("handles light-on-dark polarity identically", () => {
     const dark = renderShape(84, 84, glyphH());
     // Invert: white ink on black.
-    const w = 84, h = 84;
+    const w = 84,
+      h = 84;
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {
       const lum = Math.round(255 * dark.cov[i]);
-      rgba[i * 4] = lum; rgba[i * 4 + 1] = lum; rgba[i * 4 + 2] = lum; rgba[i * 4 + 3] = 255;
+      rgba[i * 4] = lum;
+      rgba[i * 4 + 1] = lum;
+      rgba[i * 4 + 2] = lum;
+      rgba[i * 4 + 3] = 255;
     }
     const light = extractCoverage(rgba, w, h, 4);
     expect(light.notes.some((n) => n.includes("inverted"))).toBe(true);
@@ -129,7 +149,8 @@ describe("extractCoverage", () => {
 describe("distanceTransform", () => {
   it("computes exact Euclidean distances", () => {
     // Single ON pixel at (2, 1) in a 5×4 grid.
-    const w = 5, h = 4;
+    const w = 5,
+      h = 4;
     const mask = new Uint8Array(w * h);
     mask[1 * w + 2] = 1;
     const dt = distanceTransform(mask, w, h);
@@ -161,7 +182,8 @@ describe("countHoles", () => {
 
 describe("ridgeStrokeWidths", () => {
   it("recovers the stroke width of a uniform bar", () => {
-    const w = 60, h = 40;
+    const w = 60,
+      h = 40;
     const mask = new Uint8Array(w * h);
     for (let y = 10; y < 10 + 8; y++) for (let x = 5; x < 55; x++) mask[y * w + x] = 1; // 8px bar
     const widths = ridgeStrokeWidths(mask, w, h);
@@ -254,13 +276,31 @@ describe("compareGlyphCoverage verdicts", () => {
   // phase drift on a dashed / hairline enclosure, not a font difference — the
   // false-mismatch class seen on standalone regional-indicator glyphs.
   const thinDetailMetrics = (over: Partial<GlyphCompareMetrics> = {}): GlyphCompareMetrics => ({
-    inkWidthA: 24, inkHeightA: 24, inkWidthB: 24, inkHeightB: 24,
-    sizeDiffPx: 1, sizeRatio: 1.04, inkLogRatio: 0.004, ncc: 0.98,
-    alignDx: 0, alignDy: 0,
-    unexplainedA: 0.12, unexplainedB: 0.09, d95: 6, dMax: 8, hotspotMax: 0.10,
-    strokeWidthA: 3, strokeWidthB: 3, strokeLogRatio: 0,
-    strokeContrastA: 1, strokeContrastB: 1, contrastLogRatio: 0,
-    orientL1: 0.1, holesA: 1, holesB: 1, zoningL2: 0.03,
+    inkWidthA: 24,
+    inkHeightA: 24,
+    inkWidthB: 24,
+    inkHeightB: 24,
+    sizeDiffPx: 1,
+    sizeRatio: 1.04,
+    inkLogRatio: 0.004,
+    ncc: 0.98,
+    alignDx: 0,
+    alignDy: 0,
+    unexplainedA: 0.12,
+    unexplainedB: 0.09,
+    d95: 6,
+    dMax: 8,
+    hotspotMax: 0.1,
+    strokeWidthA: 3,
+    strokeWidthB: 3,
+    strokeLogRatio: 0,
+    strokeContrastA: 1,
+    strokeContrastB: 1,
+    contrastLogRatio: 0,
+    orientL1: 0.1,
+    holesA: 1,
+    holesB: 1,
+    zoningL2: 0.03,
     ...over,
   });
 
@@ -285,8 +325,9 @@ describe("compareGlyphCoverage verdicts", () => {
 
   it("attaches a low-resolution warning for small ink", () => {
     const smallH: InsideFn = (x, y) =>
-      Math.abs(x - 42) < 6 && Math.abs(y - 42) < 8
-      && (Math.abs(x - 38) < 1.5 || Math.abs(x - 46) < 1.5 || Math.abs(y - 42) < 1.5);
+      Math.abs(x - 42) < 6 &&
+      Math.abs(y - 42) < 8 &&
+      (Math.abs(x - 38) < 1.5 || Math.abs(x - 46) < 1.5 || Math.abs(y - 42) < 1.5);
     const a = renderShape(84, 84, smallH);
     const b = renderShape(84, 84, smallH, 0.3, 0.2);
     const r = compareGlyphCoverage(a, b);

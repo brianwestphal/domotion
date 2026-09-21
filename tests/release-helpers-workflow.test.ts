@@ -15,7 +15,7 @@ describe("release-helpers.yml", () => {
     expect(yaml).not.toContain("github.event.inputs");
 
     const checkoutCount = [...yaml.matchAll(/uses: actions\/checkout@v4/g)].length;
-    const tagCheckoutCount = [...yaml.matchAll(/with: \{ ref: '\$\{\{ inputs\.tag \}\}' \}/g)].length;
+    const tagCheckoutCount = [...yaml.matchAll(/with: \{ ref: ["']\$\{\{ inputs\.tag \}\}["'] \}/g)].length;
     expect(checkoutCount).toBe(5);
     expect(tagCheckoutCount).toBe(checkoutCount);
   });
@@ -33,7 +33,8 @@ describe("release-helpers.yml", () => {
       "domotion-glyph-paths-linux-arm64",
       "domotion-glyph-paths-win32-x64.exe",
       "domotion-glyph-paths-win32-arm64.exe",
-    ]) expect(yaml).toContain(asset);
+    ])
+      expect(yaml).toContain(asset);
   });
 
   it("fails fast if the caller did not create the release and never polls", () => {

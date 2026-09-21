@@ -1,13 +1,9 @@
 import { createHash } from "node:crypto";
 
-export const HELPER_AVAILABILITY_CONTRACT_VERSION =
-  "native-helper-availability-v1" as const;
+export const HELPER_AVAILABILITY_CONTRACT_VERSION = "native-helper-availability-v1" as const;
 
 export type HelperAvailabilityMode = "helper-present" | "helper-absent";
-export type HelperAvailabilityReason =
-  | "native-helper-observed"
-  | "explicitly-disabled"
-  | "helper-unavailable";
+export type HelperAvailabilityReason = "native-helper-observed" | "explicitly-disabled" | "helper-unavailable";
 
 export interface HelperAvailabilityContract {
   version: typeof HELPER_AVAILABILITY_CONTRACT_VERSION;
@@ -85,9 +81,7 @@ export function helperAvailabilityContract(input: {
 }
 
 /** Bind a renderer-route ledger to the helper contract that owned its native facts. */
-export function helperRouteLedgerEnvironment(
-  helper: HelperAvailabilityContract,
-): HelperRouteLedgerEnvironment {
+export function helperRouteLedgerEnvironment(helper: HelperAvailabilityContract): HelperRouteLedgerEnvironment {
   const payload = JSON.stringify({
     schemaVersion: 1,
     helperVersion: helper.version,
@@ -113,8 +107,7 @@ export function assertComparableHelperRouteLedgers(
   left: HelperRouteLedgerEnvironment,
   right: HelperRouteLedgerEnvironment,
 ): void {
-  if (left.fingerprint !== right.fingerprint
-      || left.helper.cacheIdentity !== right.helper.cacheIdentity) {
+  if (left.fingerprint !== right.fingerprint || left.helper.cacheIdentity !== right.helper.cacheIdentity) {
     throw new Error("renderer route ledgers have different helper availability identities");
   }
   if (left.helper.mode === "helper-absent") {

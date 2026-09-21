@@ -30,13 +30,26 @@ describe("Studio cursor DOM/CSS inspection and renderer integration (DM-2686)", 
     </style><div class="grid"><button aria-label="Launch">Launch</button><div id="hover">Inspect</div>
     <label>Name <input></label><div id="drag" class="drag">Drag</div></div><div class="spacer"></div>
     <div data-testid="scroll-end">End</div><div id="drop">Drop</div>`);
-    const plan = compileStudioSemanticTracks([{ id: "demo", kind: "semantic-interactions", events: [
-      { id: "click", atMs: 0, kind: "click", target: { role: "button", name: "Launch" }, button: "right", clickCount: 2 },
-      { id: "hover", atMs: 100, kind: "hover", target: { domId: "hover" } },
-      { id: "type", atMs: 200, kind: "type", target: { label: "Name" }, text: "Ada" },
-      { id: "scroll", atMs: 300, kind: "scrollTo", target: { testId: "scroll-end" } },
-      { id: "drag", atMs: 400, kind: "drag", target: { domId: "drag" }, to: { target: { domId: "drop" } } },
-    ] }]);
+    const plan = compileStudioSemanticTracks([
+      {
+        id: "demo",
+        kind: "semantic-interactions",
+        events: [
+          {
+            id: "click",
+            atMs: 0,
+            kind: "click",
+            target: { role: "button", name: "Launch" },
+            button: "right",
+            clickCount: 2,
+          },
+          { id: "hover", atMs: 100, kind: "hover", target: { domId: "hover" } },
+          { id: "type", atMs: 200, kind: "type", target: { label: "Name" }, text: "Ada" },
+          { id: "scroll", atMs: 300, kind: "scrollTo", target: { testId: "scroll-end" } },
+          { id: "drag", atMs: 400, kind: "drag", target: { domId: "drag" }, to: { target: { domId: "drop" } } },
+        ],
+      },
+    ]);
 
     const evidence = await inspectStudioCursorTargets(page, plan);
     expect(evidence.map((item) => item.kind)).toEqual(["click", "hover", "type", "scrollTo", "drag"]);

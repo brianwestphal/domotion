@@ -11,17 +11,36 @@ describe("layout-stage declarative matrix", () => {
 
   it("classifies paint and diagnostic axes without relabeling logical states", () => {
     expect(layoutAxes.find((axis) => axis.id === "emphasis")?.verdict).toBe("paint");
-    expect(layoutAxes.find((axis) => axis.id === "justification")).toMatchObject({ verdict: "diagnostic", diagnosticFeature: "text-align:justify" });
+    expect(layoutAxes.find((axis) => axis.id === "justification")).toMatchObject({
+      verdict: "diagnostic",
+      diagnosticFeature: "text-align:justify",
+    });
     expect(layoutAxes.find((axis) => axis.id === "writingMode")?.verdict).toBe("logical");
     expect(layoutAxes.find((axis) => axis.id === "textCombine")?.verdict).toBe("logical");
   });
 
   it("inventories every acceptance axis", () => {
     expect(layoutAxes.map((axis) => axis.id)).toEqual([
-      "direction", "unicodeBidi", "writingMode", "textOrientation", "textCombine",
-      "whiteSpace", "overflowWrap", "wordBreak", "lineBreak", "hyphens", "tabSize",
-      "spacing", "rubyPosition", "rubyAlign", "emphasis", "justification", "synthesis",
-      "zoom", "transform", "fragmentation",
+      "direction",
+      "unicodeBidi",
+      "writingMode",
+      "textOrientation",
+      "textCombine",
+      "whiteSpace",
+      "overflowWrap",
+      "wordBreak",
+      "lineBreak",
+      "hyphens",
+      "tabSize",
+      "spacing",
+      "rubyPosition",
+      "rubyAlign",
+      "emphasis",
+      "justification",
+      "synthesis",
+      "zoom",
+      "transform",
+      "fragmentation",
     ]);
   });
 });

@@ -26,15 +26,24 @@ const BIN = existsSync(SHIPPED) ? SHIPPED : DEBUG;
 const available = process.platform === "darwin" && existsSync(BIN);
 const describeMac = available ? describe : describe.skip;
 
-interface Candidate { name: string; weight: number; descriptorWeight: number; appKitWeight: number }
+interface Candidate {
+  name: string;
+  weight: number;
+  descriptorWeight: number;
+  appKitWeight: number;
+}
 
 function familyMatch(family: string, cssWeight: number, opts: { italic?: boolean; bold?: boolean } = {}) {
   const out = execFileSync(BIN, {
     input: JSON.stringify({ fonts: [], queries: [{ type: "familyMatch", family, cssWeight, ...opts }] }),
     encoding: "utf-8",
   });
-  return JSON.parse(out).results[0] as
-    { found: boolean; postscriptName?: string; weight?: number; candidates?: Candidate[] };
+  return JSON.parse(out).results[0] as {
+    found: boolean;
+    postscriptName?: string;
+    weight?: number;
+    candidates?: Candidate[];
+  };
 }
 
 describeMac("declared-family style matcher", () => {
@@ -68,9 +77,9 @@ describeMac("declared-family style matcher", () => {
     const byName = new Map((r.candidates ?? []).map((c) => [c.name, c]));
     const thin = byName.get("PingFangSC-Thin")!;
     const light = byName.get("PingFangSC-Light")!;
-    expect(thin.appKitWeight).toBe(light.appKitWeight);      // AppKit collapses them
+    expect(thin.appKitWeight).toBe(light.appKitWeight); // AppKit collapses them
     expect(thin.descriptorWeight).not.toBe(light.descriptorWeight); // the descriptor does not
-    expect(thin.weight).toBe(light.weight);                  // we use AppKit's, so they tie
+    expect(thin.weight).toBe(light.weight); // we use AppKit's, so they tie
   });
 
   it("reproduces Hiragino Sans's seven distinct cuts", () => {
@@ -78,8 +87,12 @@ describeMac("declared-family style matcher", () => {
     // seven-rung ladder is the case a two-slot key pair cannot represent at all,
     // which is what this matcher exists to replace.
     const ladder: Array<[number, string]> = [
-      [100, "HiraginoSans-W0"], [300, "HiraginoSans-W3"], [400, "HiraginoSans-W4"],
-      [500, "HiraginoSans-W5"], [600, "HiraginoSans-W6"], [700, "HiraginoSans-W7"],
+      [100, "HiraginoSans-W0"],
+      [300, "HiraginoSans-W3"],
+      [400, "HiraginoSans-W4"],
+      [500, "HiraginoSans-W5"],
+      [600, "HiraginoSans-W6"],
+      [700, "HiraginoSans-W7"],
       [900, "HiraginoSans-W9"],
     ];
     for (const [w, expected] of ladder) {

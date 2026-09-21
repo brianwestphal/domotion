@@ -58,9 +58,7 @@ function comparePhysicalParts(
 }
 
 /** Source-order part list for one already-laid-out CustomScrollbar. */
-export function orderedCustomScrollbarParts(
-  scrollbar: CapturedScrollbar | undefined,
-): CapturedScrollbarPart[] {
+export function orderedCustomScrollbarParts(scrollbar: CapturedScrollbar | undefined): CapturedScrollbarPart[] {
   if (scrollbar?.route !== "author-custom") return [];
   return [...scrollbar.parts].sort((a, b) => comparePhysicalParts(scrollbar.orientation, a, b));
 }
@@ -76,11 +74,7 @@ function clipDef(id: string, rect: CapturedScrollbarRect): string {
   return `<clipPath id="${id}"><rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}" /></clipPath>`;
 }
 
-function paintItem(
-  context: CustomScrollbarPaintContext,
-  item: CustomScrollbarVectorPart,
-  indent: string,
-): string[] {
+function paintItem(context: CustomScrollbarPaintContext, item: CustomScrollbarVectorPart, indent: string): string[] {
   const { part } = item;
   const raster = part.raster;
   let body: string[];
@@ -129,9 +123,7 @@ export function paintCustomScrollbars(
     if (items.length === 0) continue;
 
     const clip = set.overflowControlsClip;
-    const clipId = clip != null && clip.width > 0 && clip.height > 0
-      ? context.nextId("customscrollclip")
-      : null;
+    const clipId = clip != null && clip.width > 0 && clip.height > 0 ? context.nextId("customscrollclip") : null;
     if (clipId != null && clip != null) {
       context.defsParts.push(clipDef(clipId, clip));
       output.push(`${indent}<g clip-path="url(#${clipId})" data-domotion-scrollbar-route="author-custom">`);

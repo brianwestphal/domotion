@@ -12,12 +12,16 @@ const b64 = buf.toString("base64");
 const result = await page.evaluate(async (b64) => {
   const img = new Image();
   img.src = "data:image/png;base64," + b64;
-  await new Promise((r) => { img.onload = r; });
+  await new Promise((r) => {
+    img.onload = r;
+  });
   const cvs = document.createElement("canvas");
-  cvs.width = img.width; cvs.height = img.height;
+  cvs.width = img.width;
+  cvs.height = img.height;
   const cx = cvs.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const w = img.width, h = img.height;
+  const w = img.width,
+    h = img.height;
   const id = cx.getImageData(0, 0, w, h).data;
   function pix(x, y) {
     const i = (y * w + x) * 4;
@@ -33,7 +37,8 @@ const result = await page.evaluate(async (b64) => {
     // Sample column x=mid-of-value (~25% in for first bar)
     const xSample = Math.round(r.x + r.width * 0.1);
     const xWide = Math.round(r.x + r.width * 0.5);
-    const yTop = Math.floor(r.y) - 2, yBot = Math.ceil(r.y + r.height) + 2;
+    const yTop = Math.floor(r.y) - 2,
+      yBot = Math.ceil(r.y + r.height) + 2;
     out[idx].sampleX = xSample;
     out[idx].sampleWideX = xWide;
     out[idx].col = [];
@@ -46,8 +51,10 @@ const result = await page.evaluate(async (b64) => {
 
 for (const r of result) {
   console.log(`\n=== progress[${r.idx}] bbox: x=${r.bbox.x} y=${r.bbox.y} w=${r.bbox.w} h=${r.bbox.h} ===`);
-  console.log(`  sampleX (mid-value)=${r.sampleX}  sampleWideX (mid-bar)=${r.sampleWideX}  col rows: ${(r.col || []).length}`);
-  for (const c of (r.col || [])) {
+  console.log(
+    `  sampleX (mid-value)=${r.sampleX}  sampleWideX (mid-bar)=${r.sampleWideX}  col rows: ${(r.col || []).length}`,
+  );
+  for (const c of r.col || []) {
     console.log(`  y=${c.y}  midValueX ${c.p.join(",").padEnd(13)}  midBarX ${c.q.join(",")}`);
   }
 }

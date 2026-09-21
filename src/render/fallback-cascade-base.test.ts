@@ -21,15 +21,16 @@ import { existsSync } from "node:fs";
 import { __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { isGlyphHelperAvailable } from "./glyph-helper.js";
 
-const available = process.platform === "darwin"
-  && existsSync("/System/Library/Fonts/Supplemental/Songti.ttc")
-  && isGlyphHelperAvailable();
+const available =
+  process.platform === "darwin" &&
+  existsSync("/System/Library/Fonts/Supplemental/Songti.ttc") &&
+  isGlyphHelperAvailable();
 const describeMac = available ? describe : describe.skip;
 
 /** U+4E00 一 — carried by every Songti SC cut, INCLUDING Black. */
-const HAN_IN_BLACK = 0x4E00;
+const HAN_IN_BLACK = 0x4e00;
 /** U+340F 㐏 — CJK Extension A, carried by Songti SC but NOT by its Black cut. */
-const HAN_NOT_IN_BLACK = 0x340F;
+const HAN_NOT_IN_BLACK = 0x340f;
 
 const fallback = (cp: number, weight: number): string | null =>
   __resolveSystemFallbackKeyForCpForTest(cp, weight, 0, 16, "times");
@@ -63,7 +64,13 @@ describeMac("system-fallback cascade base", () => {
     // `CTFontCreateForString`), so the nomination must match a Times-primary
     // ask, not a Helvetica one. No registration needed: an unresolvable
     // registry key IS the no-spec arm.
-    const fromRegistryKey = __resolveSystemFallbackKeyForCpForTest(HAN_NOT_IN_BLACK, 400, 0, 16, "webfont:dm1854-ctfontless");
+    const fromRegistryKey = __resolveSystemFallbackKeyForCpForTest(
+      HAN_NOT_IN_BLACK,
+      400,
+      0,
+      16,
+      "webfont:dm1854-ctfontless",
+    );
     const fromTimes = __resolveSystemFallbackKeyForCpForTest(HAN_NOT_IN_BLACK, 400, 0, 16, "times");
     const fromHelvetica = __resolveSystemFallbackKeyForCpForTest(HAN_NOT_IN_BLACK, 400, 0, 16, "helvetica");
     // Precondition that makes the case discriminate: the two bases nominate
@@ -80,12 +87,20 @@ describeMac("system-fallback cascade base", () => {
     // codepoint's answer leak into the other's — the failure mode that made an
     // earlier under-keyed helper cache serve whichever caller asked first.
     const seq: Array<[number, number]> = [
-      [HAN_IN_BLACK, 800], [HAN_NOT_IN_BLACK, 800], [HAN_IN_BLACK, 400],
-      [HAN_NOT_IN_BLACK, 900], [HAN_IN_BLACK, 800], [HAN_NOT_IN_BLACK, 400],
+      [HAN_IN_BLACK, 800],
+      [HAN_NOT_IN_BLACK, 800],
+      [HAN_IN_BLACK, 400],
+      [HAN_NOT_IN_BLACK, 900],
+      [HAN_IN_BLACK, 800],
+      [HAN_NOT_IN_BLACK, 400],
     ];
     expect(seq.map(([cp, w]) => fallback(cp, w))).toEqual([
-      "sysfb:STSongti-SC-Black", "sysfb:STSongti-SC-Bold", "sysfb:STSongti-SC-Regular",
-      "sysfb:STSongti-SC-Bold", "sysfb:STSongti-SC-Black", "sysfb:STSongti-SC-Regular",
+      "sysfb:STSongti-SC-Black",
+      "sysfb:STSongti-SC-Bold",
+      "sysfb:STSongti-SC-Regular",
+      "sysfb:STSongti-SC-Bold",
+      "sysfb:STSongti-SC-Black",
+      "sysfb:STSongti-SC-Regular",
     ]);
   });
 });

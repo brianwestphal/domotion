@@ -50,7 +50,10 @@ async function main() {
     let hit: Element | null = null;
     for (const el of all) {
       const t = (el.textContent ?? "").trim();
-      if (t === "Daybreak Yoga") { hit = el; break; }
+      if (t === "Daybreak Yoga") {
+        hit = el;
+        break;
+      }
     }
     return {
       foundInTop: hit != null,
@@ -81,7 +84,10 @@ async function main() {
     const all = document.querySelectorAll("*");
     let target: Element | null = null;
     for (const el of all) {
-      if ((el.textContent ?? "").trim() === "Daybreak Yoga") { target = el; break; }
+      if ((el.textContent ?? "").trim() === "Daybreak Yoga") {
+        target = el;
+        break;
+      }
     }
     if (target == null) return { found: false, chain: [] };
     const path: any[] = [];
@@ -118,7 +124,10 @@ async function main() {
   let foundDaybreakInCapture = false;
   let foundDaybreakRect: any = null;
   function walk(el: any) {
-    if (el.text === "Daybreak Yoga" || (Array.isArray(el.textSegments) && el.textSegments.some((s: any) => s.text === "Daybreak Yoga"))) {
+    if (
+      el.text === "Daybreak Yoga" ||
+      (Array.isArray(el.textSegments) && el.textSegments.some((s: any) => s.text === "Daybreak Yoga"))
+    ) {
       foundDaybreakInCapture = true;
       foundDaybreakRect = { x: el.x, y: el.y, w: el.width, h: el.height };
     }
@@ -131,4 +140,7 @@ async function main() {
   await browser.close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

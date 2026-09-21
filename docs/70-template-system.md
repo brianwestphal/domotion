@@ -5,9 +5,24 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1276","DM-1282","DM-1287","DM-1294","DM-1323"]
-code: ["examples/output/templates/","examples/template-package/","examples/templates/","site/src/content/docs/usage/templates.md","src/cli/animate-config-json-schema.ts","src/cli/template.ts","src/index.ts","src/render/device-chrome.ts","src/templates/builtin/","src/templates/json-schema.ts","src/templates/registry.ts","src/templates/render.ts","src/templates/types.ts"]
-aliases: ["docs/70-template-system.md","doc-70"]
+tickets: ["DM-1276", "DM-1282", "DM-1287", "DM-1294", "DM-1323"]
+code:
+  [
+    "examples/output/templates/",
+    "examples/template-package/",
+    "examples/templates/",
+    "site/src/content/docs/usage/templates.md",
+    "src/cli/animate-config-json-schema.ts",
+    "src/cli/template.ts",
+    "src/index.ts",
+    "src/render/device-chrome.ts",
+    "src/templates/builtin/",
+    "src/templates/json-schema.ts",
+    "src/templates/registry.ts",
+    "src/templates/render.ts",
+    "src/templates/types.ts",
+  ]
+aliases: ["docs/70-template-system.md", "doc-70"]
 ---
 
 # 70 — Template system
@@ -22,7 +37,7 @@ Lottie input adapter (not yet built).
 
 ## What a template is (and isn't)
 
-A Domotion **template** is a *parameterized generator* — a `render(params)`
+A Domotion **template** is a _parameterized generator_ — a `render(params)`
 function that produces a self-contained SVG by driving Domotion's **existing**
 capture → compose pipeline. It is **not** a baked vector asset (the After Effects
 / Lottie model) and Domotion is **not** a real-time motion engine.
@@ -46,31 +61,36 @@ declaratively into a larger multi-frame animation. See **`docs/73-template-frame
 Two shapes have emerged, both expressible on one contract:
 
 - **Generator** (e.g. `lower-third`): synthesizes HTML/CSS + an `animate` config
-  and runs it for *animated* output.
+  and runs it for _animated_ output.
 - **Decorator** (e.g. `device-mockup`): wraps/post-processes existing content.
-  Its `input`-capture path renders a page to a *static* SVG and frames it. To
+  Its `input`-capture path renders a page to a _static_ SVG and frames it. To
   frame **animated** content, `device-mockup` takes a `screenSvg` param (DM-1323)
   that nests a pre-rendered animated SVG (a cast, a scroll capture, an `animate`
   result) with animation intact — `wrapInDeviceChrome` nests rather than
   re-renders, so the motion survives. For general multi-layer animated nesting
-  (a framed window *on a desktop*, etc.) use the `composite` primitive /
+  (a framed window _on a desktop_, etc.) use the `composite` primitive /
   `domotion composite` verb (doc 77).
 
 ## The contract
 
 ```ts
 interface Template<P> {
-  name: string;                 // the `domotion template <name>` verb + registry key
-  description: string;          // one-liner for `template list` / `--help`
-  paramsSchema: ZodType<P>;     // validated + projected to JSON Schema for --help
+  name: string; // the `domotion template <name>` verb + registry key
+  description: string; // one-liner for `template list` / `--help`
+  paramsSchema: ZodType<P>; // validated + projected to JSON Schema for --help
   render(params: P, ctx: TemplateRenderContext): Promise<TemplateOutput>;
 }
-interface TemplateOutput { svg: string; width: number; height: number; durationMs?: number; }
+interface TemplateOutput {
+  svg: string;
+  width: number;
+  height: number;
+  durationMs?: number;
+}
 ```
 
 `durationMs` (optional, DM-1294) is the output's intrinsic play time — a
-*generator* reports it (its `holdMs` / computed reveal end / loop period), a
-static *decorator* omits it. A `template` frame in an `animate` config uses it to
+_generator_ reports it (its `holdMs` / computed reveal end / loop period), a
+static _decorator_ omits it. A `template` frame in an `animate` config uses it to
 default the frame's `duration` (doc 73).
 
 `render` receives already-validated, defaulted params and a context of building
@@ -78,16 +98,16 @@ blocks:
 
 ```ts
 interface TemplateRenderContext {
-  browser: Browser;             // shared; the template must NOT close it
-  workDir: string;              // scratch dir; default configDir for generated configs
+  browser: Browser; // shared; the template must NOT close it
+  workDir: string; // scratch dir; default configDir for generated configs
   log: (msg: string) => void;
-  runAnimateConfig(cfg, configDir?): Promise<string>;   // → animated SVG (generators)
-  captureToSvg(params): Promise<TemplateOutput>;          // → static SVG (decorators)
+  runAnimateConfig(cfg, configDir?): Promise<string>; // → animated SVG (generators)
+  captureToSvg(params): Promise<TemplateOutput>; // → static SVG (decorators)
 }
 ```
 
 **Use `captureToSvg` for a decorator, not a one-frame `runAnimateConfig`.** A
-static capture SVG nests cleanly inside a bezel; an *animated* SVG's keyframe
+static capture SVG nests cleanly inside a bezel; an _animated_ SVG's keyframe
 `<style>` + frame-group wrappers do not survive `wrapInDeviceChrome`'s
 re-nesting (the screen renders blank). `device-mockup` learned this the hard
 way during the spike.
@@ -139,16 +159,16 @@ template gallery on the site (`site/src/content/docs/usage/templates.md`).
 
 ## Built-in templates
 
-| Template | Kind | Headline |
-|---|---|---|
-| `lower-third` | generator | Broadcast-style banner (title + subtitle + accent) that slides + fades in. The reveal is a real intra-frame `animations` (opacity + translateY), not baked into the capture. |
-| `device-mockup` | decorator | Wrap a captured URL/page in a phone / browser / window bezel. Reuses the shipped `wrapInDeviceChrome` (doc 65) as the single source of truth, so it can't diverge from `capture --chrome`. |
-| `background-loop` | generator | Procedural seamlessly-looping animated background — `aurora` / `orbs` / `stars` blobs, a `gradient-pan` color wash, a drifting `grid`, or `wave` ribbon bands. Deterministic from a `seed`; comma-separated `--colors`. See **doc 71**. |
-| `kinetic-text` | generator | Kinetic typography — reveal a headline word-by-word or char-by-char with a staggered one-shot animation (`rise` / `slide` / `fade` / `clip` / `pop`). See **doc 72**. |
-| `chart` | generator | Data/infographics — an animated `column` / `bar` / `line` chart from a list of values (bars grow, the line draws in). See **doc 75**. |
-| `chat` | generator | A message thread whose bubbles pop in one at a time, alternating sides (iMessage / WhatsApp style). See **doc 76**. |
-| `subscribe` | generator | A subscribe / follow pop-up card that pops in with a pulsing call-to-action button. See **doc 76**. |
-| `title-card` `quote` `caption` `cta` `counter` `stat` `compare` | generator | The **creative-template pack** — full-bleed text/number cards (intro title, pull-quote, lower-caption, call-to-action, count-up number, single stat, before/after compare). See **doc 86**. |
+| Template                                                        | Kind      | Headline                                                                                                                                                                                                                                |
+| --------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lower-third`                                                   | generator | Broadcast-style banner (title + subtitle + accent) that slides + fades in. The reveal is a real intra-frame `animations` (opacity + translateY), not baked into the capture.                                                            |
+| `device-mockup`                                                 | decorator | Wrap a captured URL/page in a phone / browser / window bezel. Reuses the shipped `wrapInDeviceChrome` (doc 65) as the single source of truth, so it can't diverge from `capture --chrome`.                                              |
+| `background-loop`                                               | generator | Procedural seamlessly-looping animated background — `aurora` / `orbs` / `stars` blobs, a `gradient-pan` color wash, a drifting `grid`, or `wave` ribbon bands. Deterministic from a `seed`; comma-separated `--colors`. See **doc 71**. |
+| `kinetic-text`                                                  | generator | Kinetic typography — reveal a headline word-by-word or char-by-char with a staggered one-shot animation (`rise` / `slide` / `fade` / `clip` / `pop`). See **doc 72**.                                                                   |
+| `chart`                                                         | generator | Data/infographics — an animated `column` / `bar` / `line` chart from a list of values (bars grow, the line draws in). See **doc 75**.                                                                                                   |
+| `chat`                                                          | generator | A message thread whose bubbles pop in one at a time, alternating sides (iMessage / WhatsApp style). See **doc 76**.                                                                                                                     |
+| `subscribe`                                                     | generator | A subscribe / follow pop-up card that pops in with a pulsing call-to-action button. See **doc 76**.                                                                                                                                     |
+| `title-card` `quote` `caption` `cta` `counter` `stat` `compare` | generator | The **creative-template pack** — full-bleed text/number cards (intro title, pull-quote, lower-caption, call-to-action, count-up number, single stat, before/after compare). See **doc 86**.                                             |
 
 ## Code
 
@@ -195,7 +215,7 @@ Lottie stays an input, never the engine), not yet built.
 template.** The bezel-drawing logic is already a single source of truth
 (`wrapInDeviceChrome` in `src/render/device-chrome.ts`), called identically by
 both surfaces — there is no duplicated bezel code. They differ only in how they
-*capture* before wrapping, and that difference is deliberate: `capture --chrome`
+_capture_ before wrapping, and that difference is deliberate: `capture --chrome`
 runs the full capture-CLI pipeline (`--scroll`, `--debug` bundles, `--clip`, HAR,
 …) while the template's `captureToSvg` is a minimal primitive. Delegating would
 regress those CLI-only features for chromed captures, so the two stay separate

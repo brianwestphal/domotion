@@ -30,7 +30,7 @@ Key flags: `--width`/`--height` (contain, aspect-preserving), `--fps` (default
 
 ## svg-to-image — SVG → still image
 
-The one-shot rasterizer for *looking at* what you produced, embedding a
+The one-shot rasterizer for _looking at_ what you produced, embedding a
 thumbnail, or handing off a flat asset. The output format follows the `-o`
 extension (or `--format`): PNG / WebP / AVIF / TIFF (keep alpha), JPEG
 (`--quality`), or a single-page vector PDF.

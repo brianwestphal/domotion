@@ -72,7 +72,16 @@ export interface HbSubsetAttemptDiagnostic {
   sessionId: string;
   wasmInstanceId: number;
   buildOrdinal: number;
-  stage: "allocate-font" | "create-blob" | "create-face" | "create-input" | "configure-input" | "subset" | "read-output" | "validate-output" | "complete";
+  stage:
+    | "allocate-font"
+    | "create-blob"
+    | "create-face"
+    | "create-input"
+    | "configure-input"
+    | "subset"
+    | "read-output"
+    | "validate-output"
+    | "complete";
   sourceSha256: string;
   sourceByteLength: number;
   sourceTableTags: string[];
@@ -80,15 +89,28 @@ export interface HbSubsetAttemptDiagnostic {
   axes: Record<string, number> | null;
   sortedGids: number[];
   gidHash: string;
-  pointers: { font: number; blob: number; face: number; input: number; glyphSet: number; resultFace: number; outputBlob: number; outputData: number };
+  pointers: {
+    font: number;
+    blob: number;
+    face: number;
+    input: number;
+    glyphSet: number;
+    resultFace: number;
+    outputBlob: number;
+    outputData: number;
+  };
   wasmMemoryBytesBefore: number;
   wasmMemoryBytesAfter: number;
   output?: { sha256: string; byteLength: number; tableTags: string[] };
   error?: string;
 }
 let subsetAttempts: HbSubsetAttemptDiagnostic[] = [];
-export function resetHbSubsetAttemptDiagnostics(): void { subsetAttempts = []; }
-export function getHbSubsetAttemptDiagnostics(): HbSubsetAttemptDiagnostic[] { return structuredClone(subsetAttempts); }
+export function resetHbSubsetAttemptDiagnostics(): void {
+  subsetAttempts = [];
+}
+export function getHbSubsetAttemptDiagnostics(): HbSubsetAttemptDiagnostic[] {
+  return structuredClone(subsetAttempts);
+}
 function hb(): HbSubsetExports {
   if (cachedExports != null) return cachedExports;
   // Resolved relative to this module rather than through node resolution: the
@@ -106,7 +128,10 @@ function hb(): HbSubsetExports {
 
 /** Test/oracle seam and operational recovery boundary. The next subset call
  * creates a pristine WASM heap; it does not alter any font routing state. */
-export function resetHbSubsetWasmInstance(): void { cachedExports = null; cachedInstanceId = 0; }
+export function resetHbSubsetWasmInstance(): void {
+  cachedExports = null;
+  cachedInstanceId = 0;
+}
 
 /** hb-subset `fontBytes` to `gids` (original glyph ids), keeping hinting +
  *  RETAIN_GIDS so the output's glyph ids equal the input's. `faceIndex` selects
@@ -126,7 +151,13 @@ export function resetHbSubsetWasmInstance(): void { cachedExports = null; cached
  *  Throws when a requested axis can't be pinned — outlines would silently be
  *  the wrong master; the caller falls back to svg2ttf, which bakes the correct
  *  instantiated outline (unhinted). */
-export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true, pinAxes: Record<string, number> | null = null): Buffer {
+export function hbSubsetRetainGids(
+  fontBytes: Buffer,
+  gids: number[],
+  faceIndex = 0,
+  keepHinting = true,
+  pinAxes: Record<string, number> | null = null,
+): Buffer {
   try {
     return hbSubsetRetainGidsOnce(fontBytes, gids, faceIndex, keepHinting, pinAxes);
   } catch (error) {
@@ -141,19 +172,38 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   }
 }
 
-function hbSubsetRetainGidsOnce(fontBytes: Buffer, gids: number[], faceIndex: number, keepHinting: boolean, pinAxes: Record<string, number> | null): Buffer {
+function hbSubsetRetainGidsOnce(
+  fontBytes: Buffer,
+  gids: number[],
+  faceIndex: number,
+  keepHinting: boolean,
+  pinAxes: Record<string, number> | null,
+): Buffer {
   const w = hb();
   const heap = (): Uint8Array => new Uint8Array(w.memory.buffer);
   const sortedGids = [...new Set(gids)].sort((a, b) => a - b);
   const diagnostic: HbSubsetAttemptDiagnostic = {
-    sessionId: subsetSessionId, wasmInstanceId: cachedInstanceId, buildOrdinal: subsetBuildOrdinal++, stage: "allocate-font",
-    sourceSha256: createHash("sha256").update(fontBytes).digest("hex"), sourceByteLength: fontBytes.length,
-    sourceTableTags: sfntTableTagsAt(fontBytes, faceIndex), faceIndex, axes: pinAxes == null ? null : { ...pinAxes },
-    sortedGids, gidHash: createHash("sha256").update(JSON.stringify(sortedGids)).digest("hex"),
+    sessionId: subsetSessionId,
+    wasmInstanceId: cachedInstanceId,
+    buildOrdinal: subsetBuildOrdinal++,
+    stage: "allocate-font",
+    sourceSha256: createHash("sha256").update(fontBytes).digest("hex"),
+    sourceByteLength: fontBytes.length,
+    sourceTableTags: sfntTableTagsAt(fontBytes, faceIndex),
+    faceIndex,
+    axes: pinAxes == null ? null : { ...pinAxes },
+    sortedGids,
+    gidHash: createHash("sha256").update(JSON.stringify(sortedGids)).digest("hex"),
     pointers: { font: 0, blob: 0, face: 0, input: 0, glyphSet: 0, resultFace: 0, outputBlob: 0, outputData: 0 },
-    wasmMemoryBytesBefore: w.memory.buffer.byteLength, wasmMemoryBytesAfter: w.memory.buffer.byteLength,
+    wasmMemoryBytesBefore: w.memory.buffer.byteLength,
+    wasmMemoryBytesAfter: w.memory.buffer.byteLength,
   };
-  let fontPtr = 0, blob = 0, face = 0, input = 0, rface = 0, outBlob = 0;
+  let fontPtr = 0,
+    blob = 0,
+    face = 0,
+    input = 0,
+    rface = 0,
+    outBlob = 0;
   try {
     fontPtr = diagnostic.pointers.font = w.malloc(fontBytes.length);
     if (fontPtr === 0) throw new Error(`malloc(${fontBytes.length}) returned null`);
@@ -167,28 +217,28 @@ function hbSubsetRetainGidsOnce(fontBytes: Buffer, gids: number[], faceIndex: nu
     diagnostic.stage = "create-input";
     input = diagnostic.pointers.input = w.hb_subset_input_create_or_fail();
     if (input === 0) throw new Error("hb_subset_input_create_or_fail returned null");
-    const gset = diagnostic.pointers.glyphSet = w.hb_subset_input_glyph_set(input);
+    const gset = (diagnostic.pointers.glyphSet = w.hb_subset_input_glyph_set(input));
     if (gset === 0) throw new Error("hb_subset_input_glyph_set returned null");
     diagnostic.stage = "configure-input";
-  for (const g of gids) w.hb_set_add(gset, g);
-  let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;
-  if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;
-  // This flag is ignored for non-CFF2 sources. For CFF2 it only takes effect
-  // when the font is fully instantiated below, yielding a static CFF table.
-  // That is HarfBuzz's own representation of a completed CFF2 instantiation,
-  // rather than a Domotion guess based on a face or codepoint.
-  if (pinAxes != null) flags |= HB_SUBSET_FLAGS_DOWNGRADE_CFF2;
-  w.hb_subset_input_set_flags(input, flags);
-  if (pinAxes != null) {
-    if (w.hb_subset_input_pin_all_axes_to_default(input, face) === 0) {
-      throw new Error("pin_all_axes_to_default failed (face reports no variation axes?)");
-    }
-    for (const [tag, value] of Object.entries(pinAxes)) {
-      if (w.hb_subset_input_pin_axis_location(input, face, hbTag(tag), value) === 0) {
-        throw new Error(`pin_axis_location failed for axis "${tag}"`);
+    for (const g of gids) w.hb_set_add(gset, g);
+    let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;
+    if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;
+    // This flag is ignored for non-CFF2 sources. For CFF2 it only takes effect
+    // when the font is fully instantiated below, yielding a static CFF table.
+    // That is HarfBuzz's own representation of a completed CFF2 instantiation,
+    // rather than a Domotion guess based on a face or codepoint.
+    if (pinAxes != null) flags |= HB_SUBSET_FLAGS_DOWNGRADE_CFF2;
+    w.hb_subset_input_set_flags(input, flags);
+    if (pinAxes != null) {
+      if (w.hb_subset_input_pin_all_axes_to_default(input, face) === 0) {
+        throw new Error("pin_all_axes_to_default failed (face reports no variation axes?)");
+      }
+      for (const [tag, value] of Object.entries(pinAxes)) {
+        if (w.hb_subset_input_pin_axis_location(input, face, hbTag(tag), value) === 0) {
+          throw new Error(`pin_axis_location failed for axis "${tag}"`);
+        }
       }
     }
-  }
     diagnostic.stage = "subset";
     rface = diagnostic.pointers.resultFace = w.hb_subset_or_fail(face, input);
     if (rface === 0) throw new Error("hb_subset_or_fail returned null");
@@ -196,15 +246,20 @@ function hbSubsetRetainGidsOnce(fontBytes: Buffer, gids: number[], faceIndex: nu
     outBlob = diagnostic.pointers.outputBlob = w.hb_face_reference_blob(rface);
     if (outBlob === 0) throw new Error("hb_face_reference_blob returned null");
     const len = w.hb_blob_get_length(outBlob);
-    const dataPtr = diagnostic.pointers.outputData = w.hb_blob_get_data(outBlob, 0);
+    const dataPtr = (diagnostic.pointers.outputData = w.hb_blob_get_data(outBlob, 0));
     if (dataPtr === 0 && len !== 0) throw new Error("hb_blob_get_data returned null");
     const out = Buffer.from(heap().slice(dataPtr, dataPtr + len));
     diagnostic.stage = "validate-output";
     // Defense in depth: an outline-less subset can parse in fontkit but fails
     // the consumer browser's OTS sanitizer. Throw so the caller can use its
     // outline-rebuild fallback rather than emitting a tofu-only @font-face.
-    if (!sfntHasOutlineTable(out)) throw new Error("subset output has no outline table (glyf/CFF dropped by hb-subset)");
-    diagnostic.output = { sha256: createHash("sha256").update(out).digest("hex"), byteLength: out.length, tableTags: sfntTableTagsAt(out, 0) };
+    if (!sfntHasOutlineTable(out))
+      throw new Error("subset output has no outline table (glyf/CFF dropped by hb-subset)");
+    diagnostic.output = {
+      sha256: createHash("sha256").update(out).digest("hex"),
+      byteLength: out.length,
+      tableTags: sfntTableTagsAt(out, 0),
+    };
     diagnostic.stage = "complete";
     return out;
   } catch (error) {
@@ -317,15 +372,22 @@ export function appendGlyphCopy(fontBytes: Buffer, srcGid: number): { bytes: Buf
     const len = fontBytes.readUInt32BE(o + 12);
     tables[tag] = Buffer.from(fontBytes.subarray(off, off + len));
   }
-  const glyf = tables["glyf"], loca = tables["loca"], head = tables["head"], maxp = tables["maxp"], hhea = tables["hhea"], hmtx = tables["hmtx"];
+  const glyf = tables["glyf"],
+    loca = tables["loca"],
+    head = tables["head"],
+    maxp = tables["maxp"],
+    hhea = tables["hhea"],
+    hmtx = tables["hmtx"];
   if (glyf == null || loca == null || head == null || maxp == null || hhea == null || hmtx == null) {
     throw new Error("appendGlyphCopy: missing required table (glyf/loca/head/maxp/hhea/hmtx)");
   }
   const numGlyphs = maxp.readUInt16BE(4);
-  if (srcGid < 0 || srcGid >= numGlyphs) throw new Error(`appendGlyphCopy: srcGid ${srcGid} out of range (${numGlyphs} glyphs)`);
+  if (srcGid < 0 || srcGid >= numGlyphs)
+    throw new Error(`appendGlyphCopy: srcGid ${srcGid} out of range (${numGlyphs} glyphs)`);
   const longLoca = head.readInt16BE(50) === 1;
-  const locaAt = (i: number): number => longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2;
-  const srcStart = locaAt(srcGid), srcEnd = locaAt(srcGid + 1);
+  const locaAt = (i: number): number => (longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2);
+  const srcStart = locaAt(srcGid),
+    srcEnd = locaAt(srcGid + 1);
   const copy = glyf.subarray(srcStart, srcEnd);
   const glyfEnd = locaAt(numGlyphs);
   // append (2-byte aligned) copy to glyf
@@ -334,7 +396,7 @@ export function appendGlyphCopy(fontBytes: Buffer, srcGid: number): { bytes: Buf
   // rewrite loca as LONG for numGlyphs+1 glyphs
   const newLoca = Buffer.alloc((numGlyphs + 2) * 4);
   for (let i = 0; i <= numGlyphs; i++) newLoca.writeUInt32BE(locaAt(i), i * 4);
-  newLoca.writeUInt32BE(glyfEnd + alignPad, numGlyphs * 4);         // new glyph starts after pad
+  newLoca.writeUInt32BE(glyfEnd + alignPad, numGlyphs * 4); // new glyph starts after pad
   newLoca.writeUInt32BE(glyfEnd + alignPad + copy.length, (numGlyphs + 1) * 4);
   // (entry numGlyphs was the old end-sentinel; overwrite it with the new
   // glyph's start and add the new end-sentinel — done above.)
@@ -386,11 +448,13 @@ function compositeComponentGids(glyph: Buffer): number[] {
     const flags = glyph.readUInt16BE(p);
     gids.push(glyph.readUInt16BE(p + 2));
     p += 4;
-    p += (flags & 0x0001) ? 4 : 2;         // ARG_1_AND_2_ARE_WORDS
-    if (flags & 0x0008) p += 2;            // WE_HAVE_A_SCALE
-    else if (flags & 0x0040) p += 4;       // X_AND_Y_SCALE
-    else if (flags & 0x0080) p += 8;       // TWO_BY_TWO
-    if (!(flags & 0x0020)) break;          // MORE_COMPONENTS
+    p += flags & 0x0001 ? 4 : 2; // ARG_1_AND_2_ARE_WORDS
+    if (flags & 0x0008)
+      p += 2; // WE_HAVE_A_SCALE
+    else if (flags & 0x0040)
+      p += 4; // X_AND_Y_SCALE
+    else if (flags & 0x0080) p += 8; // TWO_BY_TWO
+    if (!(flags & 0x0020)) break; // MORE_COMPONENTS
   }
   return gids;
 }
@@ -407,7 +471,7 @@ function remapCompositeComponents(glyph: Buffer, gidMap: Map<number, number>): B
     if (newGid == null) throw new Error(`compactGlyphIds: composite references unmapped gid ${oldGid}`);
     out.writeUInt16BE(newGid, p + 2);
     p += 4;
-    p += (flags & 0x0001) ? 4 : 2;
+    p += flags & 0x0001 ? 4 : 2;
     if (flags & 0x0008) p += 2;
     else if (flags & 0x0040) p += 4;
     else if (flags & 0x0080) p += 8;
@@ -424,7 +488,10 @@ function remapCompositeComponents(glyph: Buffer, gidMap: Map<number, number>): B
  * `maxp.numGlyphs` / `hhea.numberOfHMetrics` shrink to match. Per-glyph
  * hinting bytecode travels inside each glyph's data, untouched.
  */
-export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { bytes: Buffer; gidMap: Map<number, number> } {
+export function compactGlyphIds(
+  fontBytes: Buffer,
+  wantedGids: number[],
+): { bytes: Buffer; gidMap: Map<number, number> } {
   const numTables = fontBytes.readUInt16BE(4);
   const tables: Record<string, Buffer> = {};
   for (let i = 0; i < numTables; i++) {
@@ -434,13 +501,18 @@ export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { byte
     const len = fontBytes.readUInt32BE(o + 12);
     tables[tag] = Buffer.from(fontBytes.subarray(off, off + len));
   }
-  const glyf = tables["glyf"], loca = tables["loca"], head = tables["head"], maxp = tables["maxp"], hhea = tables["hhea"], hmtx = tables["hmtx"];
+  const glyf = tables["glyf"],
+    loca = tables["loca"],
+    head = tables["head"],
+    maxp = tables["maxp"],
+    hhea = tables["hhea"],
+    hmtx = tables["hmtx"];
   if (glyf == null || loca == null || head == null || maxp == null || hhea == null || hmtx == null) {
     throw new Error("compactGlyphIds: missing required table (glyf/loca/head/maxp/hhea/hmtx)");
   }
   const numGlyphs = maxp.readUInt16BE(4);
   const longLoca = head.readInt16BE(50) === 1;
-  const locaAt = (i: number): number => longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2;
+  const locaAt = (i: number): number => (longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2);
   const glyphData = (gid: number): Buffer => glyf.subarray(locaAt(gid), locaAt(gid + 1));
 
   // Keep-set: notdef + wanted + (recursively) composite components.
@@ -452,7 +524,10 @@ export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { byte
     const data = glyphData(gid);
     if (data.length >= 10 && data.readInt16BE(0) < 0) {
       for (const comp of compositeComponentGids(data)) {
-        if (!keep.has(comp)) { keep.add(comp); queue.push(comp); }
+        if (!keep.has(comp)) {
+          keep.add(comp);
+          queue.push(comp);
+        }
       }
     }
   }
@@ -470,7 +545,10 @@ export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { byte
     newLoca.writeUInt32BE(off, newGid * 4);
     parts.push(data);
     off += data.length;
-    if (off % 2 === 1) { parts.push(Buffer.alloc(1)); off += 1; }
+    if (off % 2 === 1) {
+      parts.push(Buffer.alloc(1));
+      off += 1;
+    }
   });
   newLoca.writeUInt32BE(off, kept.length * 4);
   tables["glyf"] = Buffer.concat(parts);
@@ -501,7 +579,10 @@ export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { byte
 /** Compact retained TrueType glyph ids, but preserve CFF ids already emitted
  * by HarfBuzz. Our compactor rewrites glyf/loca and cannot rewrite CFF
  * CharStrings; RETAIN_GIDS makes an identity map correct for those fonts. */
-export function compactRetainedGlyphIds(fontBytes: Buffer, wantedGids: number[]): { bytes: Buffer; gidMap: Map<number, number> } {
+export function compactRetainedGlyphIds(
+  fontBytes: Buffer,
+  wantedGids: number[],
+): { bytes: Buffer; gidMap: Map<number, number> } {
   if (bareSfntHasTable(fontBytes, "glyf")) return compactGlyphIds(fontBytes, wantedGids);
   if (!bareSfntHasTable(fontBytes, "CFF ") && !bareSfntHasTable(fontBytes, "CFF2")) {
     throw new Error("compactRetainedGlyphIds: subset has no supported outline table");
@@ -512,7 +593,9 @@ export function compactRetainedGlyphIds(fontBytes: Buffer, wantedGids: number[])
 }
 
 // ── sfnt cmap replacement ──
-function pad4(n: number): number { return (n + 3) & ~3; }
+function pad4(n: number): number {
+  return (n + 3) & ~3;
+}
 function tableChecksum(buf: Buffer): number {
   let s = 0;
   for (let i = 0; i < buf.length; i += 4) {
@@ -535,13 +618,24 @@ function buildFormat12Cmap(cpToGid: Map<number, number>): Buffer {
     else groups.push({ startCp: cp, endCp: cp, startGid: gid });
   }
   const sub = Buffer.alloc(16 + groups.length * 12);
-  sub.writeUInt16BE(12, 0); sub.writeUInt16BE(0, 2); sub.writeUInt32BE(sub.length, 4);
-  sub.writeUInt32BE(0, 8); sub.writeUInt32BE(groups.length, 12);
+  sub.writeUInt16BE(12, 0);
+  sub.writeUInt16BE(0, 2);
+  sub.writeUInt32BE(sub.length, 4);
+  sub.writeUInt32BE(0, 8);
+  sub.writeUInt32BE(groups.length, 12);
   let p = 16;
-  for (const g of groups) { sub.writeUInt32BE(g.startCp, p); sub.writeUInt32BE(g.endCp, p + 4); sub.writeUInt32BE(g.startGid, p + 8); p += 12; }
+  for (const g of groups) {
+    sub.writeUInt32BE(g.startCp, p);
+    sub.writeUInt32BE(g.endCp, p + 4);
+    sub.writeUInt32BE(g.startGid, p + 8);
+    p += 12;
+  }
   const hdr = Buffer.alloc(12);
-  hdr.writeUInt16BE(0, 0); hdr.writeUInt16BE(1, 2);
-  hdr.writeUInt16BE(3, 4); hdr.writeUInt16BE(10, 6); hdr.writeUInt32BE(12, 8);
+  hdr.writeUInt16BE(0, 0);
+  hdr.writeUInt16BE(1, 2);
+  hdr.writeUInt16BE(3, 4);
+  hdr.writeUInt16BE(10, 6);
+  hdr.writeUInt32BE(12, 8);
   return Buffer.concat([hdr, sub]);
 }
 
@@ -556,7 +650,9 @@ function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffe
   dir.writeUInt16BE(n, 4);
   const es = Math.floor(Math.log2(n));
   const sr = (1 << es) * 16;
-  dir.writeUInt16BE(sr, 6); dir.writeUInt16BE(es, 8); dir.writeUInt16BE(n * 16 - sr, 10);
+  dir.writeUInt16BE(sr, 6);
+  dir.writeUInt16BE(es, 8);
+  dir.writeUInt16BE(n * 16 - sr, 10);
   const body: Buffer[] = [];
   let off = dirLen;
   let di = 12;
@@ -574,10 +670,16 @@ function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffe
   const font = Buffer.concat([dir, ...body]);
   // head.checkSumAdjustment = 0xB1B0AFBA − checksum(whole font with adj zeroed)
   let headOff = -1;
-  for (let i = 0; i < n; i++) { const o = 12 + i * 16; if (font.toString("latin1", o, o + 4) === "head") { headOff = font.readUInt32BE(o + 8); break; } }
+  for (let i = 0; i < n; i++) {
+    const o = 12 + i * 16;
+    if (font.toString("latin1", o, o + 4) === "head") {
+      headOff = font.readUInt32BE(o + 8);
+      break;
+    }
+  }
   if (headOff >= 0) {
     font.writeUInt32BE(0, headOff + 8);
-    font.writeUInt32BE((0xB1B0AFBA - tableChecksum(font)) >>> 0, headOff + 8);
+    font.writeUInt32BE((0xb1b0afba - tableChecksum(font)) >>> 0, headOff + 8);
   }
   return font;
 }
@@ -591,10 +693,21 @@ function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffe
  *  a RETAIN_GIDS-padded 52k-glyph id space). Keep outlines, metrics, hinting,
  *  and identity; drop the rest. */
 const EMBEDDED_KEEP_TABLES = new Set([
-  "head", "hhea", "hmtx", "maxp",                   // metrics
-  "glyf", "loca", "CFF ", "CFF2",                 // outlines
-  "cvt ", "fpgm", "prep", "gasp",                  // the hinting program
-  "OS/2", "post", "name",                          // identity + line metrics
+  "head",
+  "hhea",
+  "hmtx",
+  "maxp", // metrics
+  "glyf",
+  "loca",
+  "CFF ",
+  "CFF2", // outlines
+  "cvt ",
+  "fpgm",
+  "prep",
+  "gasp", // the hinting program
+  "OS/2",
+  "post",
+  "name", // identity + line metrics
 ]);
 
 /** Minimal OS/2 (version 4) synthesized from `hhea` metrics + the entry's
@@ -607,31 +720,35 @@ function synthesizeOs2(hhea: Buffer, weight: number, italic: boolean): Buffer {
   const lineGap = hhea.readInt16BE(8);
   const advanceMax = hhea.readUInt16BE(10);
   const os2 = Buffer.alloc(96);
-  os2.writeUInt16BE(4, 0);                            // version
-  os2.writeInt16BE(advanceMax >> 1, 2);               // xAvgCharWidth (cosmetic)
-  os2.writeUInt16BE(weight, 4);                       // usWeightClass
-  os2.writeUInt16BE(5, 6);                            // usWidthClass: medium
+  os2.writeUInt16BE(4, 0); // version
+  os2.writeInt16BE(advanceMax >> 1, 2); // xAvgCharWidth (cosmetic)
+  os2.writeUInt16BE(weight, 4); // usWeightClass
+  os2.writeUInt16BE(5, 6); // usWidthClass: medium
   // fsType 0 (installable), subscript/superscript/strikeout metrics left 0 —
   // the embedded pipeline positions everything explicitly.
-  os2.write("DMTN", 58, "latin1");                    // achVendID
+  os2.write("DMTN", 58, "latin1"); // achVendID
   const bold = weight >= 600;
   os2.writeUInt16BE((italic ? 0x01 : 0) | (bold ? 0x20 : 0) | (!italic && !bold ? 0x40 : 0), 62); // fsSelection
-  os2.writeUInt16BE(0xffff, 64);                      // usFirstCharIndex (PUA — capped)
-  os2.writeUInt16BE(0xffff, 66);                      // usLastCharIndex
-  os2.writeInt16BE(ascender, 68);                     // sTypoAscender
-  os2.writeInt16BE(descender, 70);                    // sTypoDescender
-  os2.writeInt16BE(lineGap, 72);                      // sTypoLineGap
-  os2.writeUInt16BE(Math.max(0, ascender), 74);       // usWinAscent
-  os2.writeUInt16BE(Math.max(0, -descender), 76);     // usWinDescent
-  os2.writeUInt16BE(32, 92);                          // usBreakChar
-  os2.writeUInt16BE(1, 94);                           // usMaxContext
+  os2.writeUInt16BE(0xffff, 64); // usFirstCharIndex (PUA — capped)
+  os2.writeUInt16BE(0xffff, 66); // usLastCharIndex
+  os2.writeInt16BE(ascender, 68); // sTypoAscender
+  os2.writeInt16BE(descender, 70); // sTypoDescender
+  os2.writeInt16BE(lineGap, 72); // sTypoLineGap
+  os2.writeUInt16BE(Math.max(0, ascender), 74); // usWinAscent
+  os2.writeUInt16BE(Math.max(0, -descender), 76); // usWinDescent
+  os2.writeUInt16BE(32, 92); // usBreakChar
+  os2.writeUInt16BE(1, 94); // usMaxContext
   return os2;
 }
 
 /** Replace the `cmap` table of an sfnt with a PUA→gid one, dropping every table
  *  outside EMBEDDED_KEEP_TABLES, synthesizing OS/2 when the source has none,
  *  and rebuilding the directory + checksums + `head.checkSumAdjustment`. */
-export function injectPuaCmap(fontBytes: Buffer, puaToGid: Map<number, number>, variant: { weight?: number; italic?: boolean } = {}): Buffer {
+export function injectPuaCmap(
+  fontBytes: Buffer,
+  puaToGid: Map<number, number>,
+  variant: { weight?: number; italic?: boolean } = {},
+): Buffer {
   const numTables = fontBytes.readUInt16BE(4);
   const tables: Record<string, Buffer> = {};
   for (let i = 0; i < numTables; i++) {

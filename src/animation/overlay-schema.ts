@@ -169,14 +169,17 @@ export const typingOverlaySchema = z.object({
    * `color`, 2px wide, ~530ms cadence); an object overrides them.
    */
   caret: z
-    .union([z.boolean(), z.object({
-      color: z.string().optional(),
-      width: z.number().optional(),
-      blinkMs: z.number().optional(),
-      // DM-1591: caret shape — `bar` (default thin bar), `block` (a translucent
-      // char-cell-wide box), or `underscore` (a thin bar at the baseline).
-      shape: z.enum(["bar", "block", "underscore"]).optional(),
-    })])
+    .union([
+      z.boolean(),
+      z.object({
+        color: z.string().optional(),
+        width: z.number().optional(),
+        blinkMs: z.number().optional(),
+        // DM-1591: caret shape — `bar` (default thin bar), `block` (a translucent
+        // char-cell-wide box), or `underscore` (a thin bar at the baseline).
+        shape: z.enum(["bar", "block", "underscore"]).optional(),
+      }),
+    ])
     .optional(),
   /**
    * DM-1555: humanize the typing with occasional MISTAKES — type a wrong
@@ -509,16 +512,20 @@ export const intraFrameAnimationSchema = z.object({
    * composed into a single `transform:` declaration; other properties (`opacity`,
    * `clip-path`, …) emit alongside. See docs/84-viewer-browser-support.md.
    */
-  fuse: z.array(z.object({
-    property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
-    from: z.string(),
-    to: z.string(),
-    /** Override the primary's duration for this track (ms). Triggers sampling. */
-    duration: z.number().optional(),
-    /** Override the primary's delay for this track (ms). Triggers sampling. */
-    delay: z.number().optional(),
-    /** Override the primary's easing for this track. Triggers sampling. */
-    easing: z.string().optional(),
-  })).optional(),
+  fuse: z
+    .array(
+      z.object({
+        property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
+        from: z.string(),
+        to: z.string(),
+        /** Override the primary's duration for this track (ms). Triggers sampling. */
+        duration: z.number().optional(),
+        /** Override the primary's delay for this track (ms). Triggers sampling. */
+        delay: z.number().optional(),
+        /** Override the primary's easing for this track. Triggers sampling. */
+        easing: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 export type IntraFrameAnimation = z.infer<typeof intraFrameAnimationSchema>;

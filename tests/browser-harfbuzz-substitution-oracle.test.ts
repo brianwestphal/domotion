@@ -13,19 +13,19 @@ import {
   type BrowserHarfBuzzSubstitutionReport,
 } from "../tools/browser-harfbuzz-substitution-oracle.js";
 
-function completeBrowserRows(
-  report: BrowserHarfBuzzSubstitutionReport,
-): BrowserHarfBuzzSubstitutionReport {
+function completeBrowserRows(report: BrowserHarfBuzzSubstitutionReport): BrowserHarfBuzzSubstitutionReport {
   const copy = structuredClone(report);
   copy.runner.browserVersion = "fixture-chromium";
   for (const item of copy.cases) {
     item.browser = {
-      fonts: [{
-        familyName: item.source.familyName,
-        postScriptName: item.source.postscriptName ?? "",
-        glyphCount: item.harfbuzz.glyphs.length,
-        isCustomFont: true,
-      }],
+      fonts: [
+        {
+          familyName: item.source.familyName,
+          postScriptName: item.source.postscriptName ?? "",
+          glyphCount: item.harfbuzz.glyphs.length,
+          isCustomFont: true,
+        },
+      ],
       origins: [...item.input.text].map((scalar, index) => ({
         utf16Span: [index, index + scalar.length],
         left: index,
@@ -53,13 +53,12 @@ function nodePlatformForOs(os: string): string {
 describe("browser HarfBuzz substitution-stream oracle", () => {
   it("pins portable OpenType fixtures with the required source tables", () => {
     const fixtures = loadSubstitutionFixtures();
-    expect(Object.fromEntries(Object.entries(fixtures).map(([id, fixture]) => [id, fixture.evidence.sha256])))
-      .toEqual({
-        "open-sans-vf": OPEN_SANS_SHA256,
-        "arabic-rlig": ARABIC_RLIG_SHA256,
-        "arabic-mark": ARABIC_MARK_SHA256,
-        "locl-language": LOCL_SHA256,
-      });
+    expect(Object.fromEntries(Object.entries(fixtures).map(([id, fixture]) => [id, fixture.evidence.sha256]))).toEqual({
+      "open-sans-vf": OPEN_SANS_SHA256,
+      "arabic-rlig": ARABIC_RLIG_SHA256,
+      "arabic-mark": ARABIC_MARK_SHA256,
+      "locl-language": LOCL_SHA256,
+    });
     expect(fixtures["open-sans-vf"].evidence.tables).toEqual(expect.arrayContaining(["GSUB", "GPOS", "fvar"]));
     expect(fixtures["arabic-rlig"].evidence.tables).toEqual(expect.arrayContaining(["GDEF", "GSUB", "GPOS"]));
     expect(fixtures["arabic-mark"].evidence.tables).toEqual(expect.arrayContaining(["GDEF", "GSUB", "GPOS"]));
@@ -72,8 +71,7 @@ describe("browser HarfBuzz substitution-stream oracle", () => {
     expect(result.cases.every((item) => item.exactProductionAgreement)).toBe(true);
     expect(result.cases.every((item) => item.production.selected.shapesWithHarfbuzz)).toBe(true);
     expect(result.cases.every((item) => item.input.bufferFlags === BufferFlag.DEFAULT)).toBe(true);
-    expect(result.cases.every((item) => item.input.clusterLevel
-      === ClusterLevel.MONOTONE_GRAPHEMES)).toBe(true);
+    expect(result.cases.every((item) => item.input.clusterLevel === ClusterLevel.MONOTONE_GRAPHEMES)).toBe(true);
 
     const latin = result.cases.find((item) => item.id === "latin-liga-variable-axis")!;
     expect(latin.harfbuzz.glyphs).toHaveLength(1);
@@ -93,24 +91,27 @@ describe("browser HarfBuzz substitution-stream oracle", () => {
 
   it("kills every required hostile source/input/logical-record mutation", () => {
     const result = buildLogicalSubstitutionEvidence();
-    expect(result.mutations.map((mutation) => mutation.id)).toEqual(expect.arrayContaining([
-      "disable-liga",
-      "omit-variation-axes",
-      "disable-required-ligature",
-      "wrong-script",
-      "wrong-direction",
-      "wrong-cluster-level",
-      "wrong-language-system",
-      "wrong-source-fingerprint",
-      "wrong-gid",
-      "wrong-cluster",
-      "wrong-source-span",
-      "wrong-advance",
-      "zero-mark-offset",
-    ]));
+    expect(result.mutations.map((mutation) => mutation.id)).toEqual(
+      expect.arrayContaining([
+        "disable-liga",
+        "omit-variation-axes",
+        "disable-required-ligature",
+        "wrong-script",
+        "wrong-direction",
+        "wrong-cluster-level",
+        "wrong-language-system",
+        "wrong-source-fingerprint",
+        "wrong-gid",
+        "wrong-cluster",
+        "wrong-source-span",
+        "wrong-advance",
+        "zero-mark-offset",
+      ]),
+    );
     expect(result.mutations.every((mutation) => mutation.rejected)).toBe(true);
-    expect(result.mutations.find((mutation) => mutation.id === "zero-mark-offset")?.changedFields)
-      .toEqual(expect.arrayContaining(["xOffset", "yOffset"]));
+    expect(result.mutations.find((mutation) => mutation.id === "zero-mark-offset")?.changedFields).toEqual(
+      expect.arrayContaining(["xOffset", "yOffset"]),
+    );
   });
 
   it("ratifies only a complete three-OS proposal/validation artifact set", async () => {
@@ -120,7 +121,8 @@ describe("browser HarfBuzz substitution-stream oracle", () => {
         ...structuredClone(base),
         evidence,
         runner: { ...base.runner, os, nodePlatform: nodePlatformForOs(os) },
-      })));
+      })),
+    );
     const aggregate = validateSubstitutionArtifacts(reports);
     expect(aggregate.verdict).toBe("proposal-validation-agreement");
     expect(aggregate.artifactKeys).toHaveLength(6);
@@ -139,7 +141,8 @@ describe("browser HarfBuzz substitution-stream oracle", () => {
         ...structuredClone(base),
         evidence,
         runner: { ...base.runner, os, nodePlatform: nodePlatformForOs(os) },
-      })));
+      })),
+    );
     reports[0].cases[0].production.glyphs[0].xAdvance += 1;
     reports[0].cases[0].exactProductionAgreement = true;
     const rejected = validateSubstitutionArtifacts(reports);

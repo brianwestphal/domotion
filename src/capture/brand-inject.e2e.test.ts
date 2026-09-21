@@ -35,7 +35,8 @@ const describeBrowser = env ? describe : describe.skip;
 // The `.box` fill/text and radius are driven ENTIRELY by brand vars, each with a
 // distinct fallback so an un-injected control reads differently from the branded
 // run. `#2f6df6` resolves to rgb(47, 109, 246); the fallback to rgb(200, 0, 0).
-const W = 320, H = 220;
+const W = 320,
+  H = 220;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>` +
   `html,body{margin:0;background:#fff}` +

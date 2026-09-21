@@ -20,8 +20,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     env:
-      DOMOTION_NO_NICE: '1'
-      DOMOTION_TEST_WORKERS: '1'
+      DOMOTION_NO_NICE: "1"
+      DOMOTION_TEST_WORKERS: "1"
       DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
       DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
       DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1

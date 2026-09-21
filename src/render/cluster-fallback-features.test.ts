@@ -48,8 +48,20 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     _clearClusterVerdictCache();
     spy.mockClear();
     splitTextIntoFontRunsShaped(
-      "hello", font!, key, 400, 32, 0, undefined, undefined, chain,
-      false, 100, undefined, undefined, undefined, // no opts: features omitted
+      "hello",
+      font!,
+      key,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      chain,
+      false,
+      100,
+      undefined,
+      undefined,
+      undefined, // no opts: features omitted
     );
     expect(spy.mock.calls.length).toBeGreaterThan(0);
     for (const call of spy.mock.calls) expect(call[6]).toBeUndefined();
@@ -57,8 +69,20 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     _clearClusterVerdictCache();
     spy.mockClear();
     splitTextIntoFontRunsShaped(
-      "hello", font!, key, 400, 32, 0, undefined, undefined, chain,
-      false, 100, undefined, undefined, { features: ["-liga"] },
+      "hello",
+      font!,
+      key,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      chain,
+      false,
+      100,
+      undefined,
+      undefined,
+      { features: ["-liga"] },
     );
     expect(spy.mock.calls.length).toBeGreaterThan(0);
     // At least one verdict-shape call must have received the feature list —
@@ -78,8 +102,20 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
 
     _clearClusterVerdictCache();
     splitTextIntoFontRunsShaped(
-      "hello", font!, key, 400, 32, 0, undefined, undefined, chain,
-      false, 100, undefined, undefined, { features: ["-liga"] },
+      "hello",
+      font!,
+      key,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      chain,
+      false,
+      100,
+      undefined,
+      undefined,
+      { features: ["-liga"] },
     );
     const callsAfterFirst = spy.mock.calls.length;
     expect(callsAfterFirst).toBeGreaterThan(0);
@@ -88,15 +124,28 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     // omitted `features` (the pre-fix shape), this second call would have hit
     // the first call's cached verdict and shaped zero additional times.
     splitTextIntoFontRunsShaped(
-      "hello", font!, key, 400, 32, 0, undefined, undefined, chain,
-      false, 100, undefined, undefined, { features: ["-clig"] },
+      "hello",
+      font!,
+      key,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      chain,
+      false,
+      100,
+      undefined,
+      undefined,
+      { features: ["-clig"] },
     );
     expect(spy.mock.calls.length).toBeGreaterThan(callsAfterFirst);
   });
 
   it("the live glyph-path splitter lets a feature-dependent verdict change font assignment", async () => {
     const { _clearClusterVerdictCache } = await import("./cluster-fallback.js");
-    const { resolveFont, resolveFontKey, resolveFontKeyChain, stackPrimaryIsSystemUi } = await import("./font-resolution.js");
+    const { resolveFont, resolveFontKey, resolveFontKeyChain, stackPrimaryIsSystemUi } =
+      await import("./font-resolution.js");
     const { splitTextIntoGlyphPathRuns } = await import("./text-to-path.js");
     const { harfbuzzShapeRun } = await import("./harfbuzz-shaper.js");
     const spy = harfbuzzShapeRun as unknown as ReturnType<typeof vi.fn>;
@@ -119,10 +168,23 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
       return { ...result, glyphs: result.glyphs.map((glyph: { id: number }) => ({ ...glyph, id: 0 })) };
     });
 
-    const split = (features?: string[]) => splitTextIntoGlyphPathRuns(
-      "f", font, key, 400, 32, 0, undefined, undefined, chain,
-      stackPrimaryIsSystemUi(family), 100, undefined, family, features,
-    );
+    const split = (features?: string[]) =>
+      splitTextIntoGlyphPathRuns(
+        "f",
+        font,
+        key,
+        400,
+        32,
+        0,
+        undefined,
+        undefined,
+        chain,
+        stackPrimaryIsSystemUi(family),
+        100,
+        undefined,
+        family,
+        features,
+      );
     _clearClusterVerdictCache();
     const defaultRuns = split();
     primaryPath = undefined;

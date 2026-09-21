@@ -6,8 +6,8 @@ status: "current"
 owners: ["images-media"]
 platforms: []
 tickets: ["DM-1353"]
-code: ["src/cli/svg-to-image-core.ts","src/cli/svg-to-image.ts","src/cli/svg-to-video-core.ts"]
-aliases: ["docs/78-svg-to-image.md","doc-78"]
+code: ["src/cli/svg-to-image-core.ts", "src/cli/svg-to-image.ts", "src/cli/svg-to-video-core.ts"]
+aliases: ["docs/78-svg-to-image.md", "doc-78"]
 ---
 
 # 78 — `svg-to-image`: still SVG → PNG / JPEG / PDF / WebP / AVIF / TIFF
@@ -20,7 +20,7 @@ interactive **Export frame** (doc 56) and the still analogue of `svg-to-video`
 
 ## Why
 
-Domotion produces SVGs, but an SVG isn't something you can *look at* as pixels
+Domotion produces SVGs, but an SVG isn't something you can _look at_ as pixels
 without a renderer. The agent review loop the `llms.txt` playbook prescribes —
 "render → look at the rasterized pixels → critique → iterate" — had no published
 one-shot rasterizer for a **still**:
@@ -58,14 +58,14 @@ single-purpose.
 
 The format is inferred from the `-o` **extension** (override with `--format`):
 
-| Extension | Format | Notes |
-|---|---|---|
-| `.png` | PNG | Lossless raster; keeps an alpha channel for transparent SVGs. |
-| `.jpg` / `.jpeg` | JPEG | Lossy raster; no alpha → transparent input composites onto the background. `--quality 1–100` (default 92). |
-| `.pdf` | PDF | A single page sized to the SVG, rendered by Chromium's `page.pdf()` (vector where the content is vector; resolution-independent). |
-| `.webp` | WebP | Raster; keeps alpha. Lossy `--quality` (default 92). |
-| `.avif` | AVIF | Raster; keeps alpha. Lossy `--quality` (default 92). |
-| `.tiff` / `.tif` | TIFF | Lossless raster (LZW); keeps alpha. |
+| Extension        | Format | Notes                                                                                                                             |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `.png`           | PNG    | Lossless raster; keeps an alpha channel for transparent SVGs.                                                                     |
+| `.jpg` / `.jpeg` | JPEG   | Lossy raster; no alpha → transparent input composites onto the background. `--quality 1–100` (default 92).                        |
+| `.pdf`           | PDF    | A single page sized to the SVG, rendered by Chromium's `page.pdf()` (vector where the content is vector; resolution-independent). |
+| `.webp`          | WebP   | Raster; keeps alpha. Lossy `--quality` (default 92).                                                                              |
+| `.avif`          | AVIF   | Raster; keeps alpha. Lossy `--quality` (default 92).                                                                              |
+| `.tiff` / `.tif` | TIFF   | Lossless raster (LZW); keeps alpha.                                                                                               |
 
 PNG / JPEG / PDF are produced natively by Chromium (`page.screenshot` /
 `page.pdf`). WebP / AVIF / TIFF are **transcoded from the PNG buffer with

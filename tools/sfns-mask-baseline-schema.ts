@@ -23,7 +23,7 @@ export const SFNS_REQUIRED_SCENARIOS = [
   "opsz-26-mutation",
 ] as const;
 
-export type SfnsScenarioId = typeof SFNS_REQUIRED_SCENARIOS[number];
+export type SfnsScenarioId = (typeof SFNS_REQUIRED_SCENARIOS)[number];
 export type SfnsAxes = Record<keyof typeof SFNS_BASE_AXES, number>;
 
 export interface CoverageDiff {
@@ -191,29 +191,32 @@ function sameNumbers(a: number[], b: number[], epsilon = 1e-9): boolean {
 }
 
 function axesMatch(actual: Partial<SfnsAxes>, expected: SfnsAxes): boolean {
-  return Object.keys(actual).length === axisKeys.length
-    && axisKeys.every((tag) => actual[tag] != null && Math.abs(actual[tag]! - expected[tag]) <= 1 / 65536);
+  return (
+    Object.keys(actual).length === axisKeys.length &&
+    axisKeys.every((tag) => actual[tag] != null && Math.abs(actual[tag]! - expected[tag]) <= 1 / 65536)
+  );
 }
 
 function lifecycleStable(value: SfnsLifecycleEvidence): boolean {
-  return value.chromiumColdSha256[0] === value.chromiumColdSha256[1]
-    && value.chromiumWarmSha256[0] === value.chromiumWarmSha256[1]
-    && value.chromiumColdSha256[0] === value.chromiumWarmSha256[0]
-    && value.nativeColdMaskSha256[0] === value.nativeColdMaskSha256[1]
-    && value.nativeColdPathSha256[0] === value.nativeColdPathSha256[1]
-    && value.nativeWarmMaskSha256[0] === value.nativeWarmMaskSha256[1]
-    && value.nativeWarmPathSha256[0] === value.nativeWarmPathSha256[1]
-    && value.nativeColdMaskSha256[0] === value.nativeWarmMaskSha256[0]
-    && value.nativeColdPathSha256[0] === value.nativeWarmPathSha256[0]
-    && value.domotionColdSha256[0] === value.domotionColdSha256[1]
-    && value.domotionWarmSha256[0] === value.domotionWarmSha256[1]
-    && value.domotionColdSha256[0] === value.domotionWarmSha256[0];
+  return (
+    value.chromiumColdSha256[0] === value.chromiumColdSha256[1] &&
+    value.chromiumWarmSha256[0] === value.chromiumWarmSha256[1] &&
+    value.chromiumColdSha256[0] === value.chromiumWarmSha256[0] &&
+    value.nativeColdMaskSha256[0] === value.nativeColdMaskSha256[1] &&
+    value.nativeColdPathSha256[0] === value.nativeColdPathSha256[1] &&
+    value.nativeWarmMaskSha256[0] === value.nativeWarmMaskSha256[1] &&
+    value.nativeWarmPathSha256[0] === value.nativeWarmPathSha256[1] &&
+    value.nativeColdMaskSha256[0] === value.nativeWarmMaskSha256[0] &&
+    value.nativeColdPathSha256[0] === value.nativeWarmPathSha256[0] &&
+    value.domotionColdSha256[0] === value.domotionColdSha256[1] &&
+    value.domotionWarmSha256[0] === value.domotionWarmSha256[1] &&
+    value.domotionColdSha256[0] === value.domotionWarmSha256[0]
+  );
 }
 
 function baselineFinite(value: SfnsBaselineEvidence): boolean {
   const { nativeBoundingBox, ...scalarMetrics } = value;
-  return Object.values(scalarMetrics).every(Number.isFinite)
-    && Object.values(nativeBoundingBox).every(Number.isFinite);
+  return Object.values(scalarMetrics).every(Number.isFinite) && Object.values(nativeBoundingBox).every(Number.isFinite);
 }
 
 export function classifySfnsOracleRow(row: SfnsOracleRow): SfnsRowClassification {
@@ -223,14 +226,22 @@ export function classifySfnsOracleRow(row: SfnsOracleRow): SfnsRowClassification
   if (!axesMatch(row.domotionAxes, row.requestedAxes)) integrityErrors.push("domotion-axis-state");
   if (!sameNumbers(row.nativeGlyphIds, row.domotionGlyphIds)) integrityErrors.push("glyph-identity");
   if (!sameNumbers(row.nativeMappedGlyphIds, row.nativeGlyphIds)) integrityErrors.push("native-cmap-glyph-identity");
-  if (!sameNumbers(row.quarterPixelOrigins, row.rawOrigins.map(quantizeQuarter))) integrityErrors.push("quarter-origin-derivation");
+  if (!sameNumbers(row.quarterPixelOrigins, row.rawOrigins.map(quantizeQuarter)))
+    integrityErrors.push("quarter-origin-derivation");
   if (!sameNumbers(row.nativeOrigins, row.quarterPixelOrigins)) integrityErrors.push("native-origin-routing");
-  if (row.nativeBaselines.length !== row.nativeGlyphIds.length
-      || !sameNumbers(row.nativeBaselines, row.nativeBaselines.map(() => row.baseline.emittedBaseline))) {
+  if (
+    row.nativeBaselines.length !== row.nativeGlyphIds.length ||
+    !sameNumbers(
+      row.nativeBaselines,
+      row.nativeBaselines.map(() => row.baseline.emittedBaseline),
+    )
+  ) {
     integrityErrors.push("native-baseline-routing");
   }
-  if (row.baseline.capturedBaselineQuarterPixel !== quantizeQuarter(row.baseline.capturedBaseline)
-      || row.baseline.emittedBaseline !== quantizeQuarter(row.baseline.emittedBaseline)) {
+  if (
+    row.baseline.capturedBaselineQuarterPixel !== quantizeQuarter(row.baseline.capturedBaseline) ||
+    row.baseline.emittedBaseline !== quantizeQuarter(row.baseline.emittedBaseline)
+  ) {
     integrityErrors.push("quarter-baseline-derivation");
   }
   if (!sameNumbers(row.domotionOrigins, row.quarterPixelOrigins)) integrityErrors.push("domotion-origin-routing");
@@ -250,17 +261,31 @@ export function classifySfnsOracleRow(row: SfnsOracleRow): SfnsRowClassification
     ["domotion-path", row.comparisons.chromiumVsDomotionPath.bestMeanAbsoluteCoverage],
   ] as const;
   const allExact = representationScores.every(([, score]) => score === 0);
-  const closestRepresentation = allExact ? "exact-tie" as const
+  const closestRepresentation = allExact
+    ? ("exact-tie" as const)
     : [...representationScores].sort((left, right) => left[1] - right[1])[0][0];
   if (integrityErrors.length > 0) {
     return { classification: "verdict-withheld", closestRepresentation, integrityErrors, baselineResidual };
   }
-  if (!row.pathGeometry.topologyMatches || row.pathGeometry.maxPaintPixelDelta > 0
-      || row.comparisons.coreTextPathVsDomotionPath.changedPixels > 0) {
-    return { classification: "coretext-path-vs-domotion-path-divergence", closestRepresentation, integrityErrors, baselineResidual };
+  if (
+    !row.pathGeometry.topologyMatches ||
+    row.pathGeometry.maxPaintPixelDelta > 0 ||
+    row.comparisons.coreTextPathVsDomotionPath.changedPixels > 0
+  ) {
+    return {
+      classification: "coretext-path-vs-domotion-path-divergence",
+      closestRepresentation,
+      integrityErrors,
+      baselineResidual,
+    };
   }
   if (row.comparisons.nativeMaskVsCoreTextPath.changedPixels > 0) {
-    return { classification: "native-mask-vs-coretext-path-rasterization", closestRepresentation, integrityErrors, baselineResidual };
+    return {
+      classification: "native-mask-vs-coretext-path-rasterization",
+      closestRepresentation,
+      integrityErrors,
+      baselineResidual,
+    };
   }
   return { classification: "no-stage-divergence", closestRepresentation, integrityErrors, baselineResidual };
 }
@@ -278,8 +303,10 @@ export function validateSfnsOracleArtifact(artifact: SfnsOracleArtifact): string
     if (row.sourceIdentity.chromiumSourceSha256 !== artifact.environment.fontSha256) {
       errors.push(`${row.id}:chromium-font-bytes`);
     }
-    if (row.sourceIdentity.domotionSourcePath !== artifact.environment.fontPath
-        || row.sourceIdentity.domotionSourceSha256 !== artifact.environment.fontSha256) {
+    if (
+      row.sourceIdentity.domotionSourcePath !== artifact.environment.fontPath ||
+      row.sourceIdentity.domotionSourceSha256 !== artifact.environment.fontSha256
+    ) {
       errors.push(`${row.id}:domotion-font-bytes`);
     }
     const classification = classifySfnsOracleRow(row);
@@ -289,11 +316,13 @@ export function validateSfnsOracleArtifact(artifact: SfnsOracleArtifact): string
   }
   const base = byId.get("zoom-2");
   const mutation = byId.get("opsz-26-mutation");
-  const mutationMoved = base != null && mutation != null
-    && base.stageDigests.chromium !== mutation.stageDigests.chromium
-    && base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask
-    && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath
-    && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
+  const mutationMoved =
+    base != null &&
+    mutation != null &&
+    base.stageDigests.chromium !== mutation.stageDigests.chromium &&
+    base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask &&
+    base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath &&
+    base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
   if (!mutationMoved || !artifact.mutationControlMoved) errors.push("opsz-mutation-did-not-move-all-stages");
   return errors;
 }
@@ -343,13 +372,17 @@ export function sfnsOutlineLogicalDigest(artifact: SfnsOracleArtifact): string {
   const canonicalize = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(canonicalize);
     if (value != null && typeof value === "object") {
-      return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, entry]) => [key, canonicalize(entry)]));
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, entry]) => [key, canonicalize(entry)]),
+      );
     }
     return value;
   };
-  return createHash("sha256").update(JSON.stringify(canonicalize(payload))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(payload)))
+    .digest("hex");
 }
 
 /** Gate only the exact outline-ownership seam closed by DM-2567. The sibling
@@ -375,29 +408,46 @@ export function validateSfnsExactOutlineArtifact(artifact: SfnsOracleArtifact): 
     if (row.sourceIdentity.chromiumSourceSha256 !== artifact.environment.fontSha256) {
       errors.push(`${id}:chromium-font-bytes`);
     }
-    if (row.sourceIdentity.domotionSourcePath !== artifact.environment.fontPath
-        || row.sourceIdentity.domotionSourceSha256 !== artifact.environment.fontSha256) {
+    if (
+      row.sourceIdentity.domotionSourcePath !== artifact.environment.fontPath ||
+      row.sourceIdentity.domotionSourceSha256 !== artifact.environment.fontSha256
+    ) {
       errors.push(`${id}:domotion-font-bytes`);
     }
     if (!axesMatch(row.chromiumAxes, row.requestedAxes)) errors.push(`${id}:chromium-css-axis-state`);
     if (!axesMatch(row.nativeAxes, row.requestedAxes)) errors.push(`${id}:native-axis-state`);
     if (!axesMatch(row.domotionAxes, row.requestedAxes)) errors.push(`${id}:domotion-axis-state`);
-    if (!sameNumbers(row.nativeGlyphIds, row.nativeMappedGlyphIds)
-        || !sameNumbers(row.nativeGlyphIds, row.domotionGlyphIds)) errors.push(`${id}:glyph-identity`);
+    if (
+      !sameNumbers(row.nativeGlyphIds, row.nativeMappedGlyphIds) ||
+      !sameNumbers(row.nativeGlyphIds, row.domotionGlyphIds)
+    )
+      errors.push(`${id}:glyph-identity`);
     if (!sameNumbers(row.quarterPixelOrigins, row.rawOrigins.map(quantizeQuarter))) {
       errors.push(`${id}:quarter-origin-derivation`);
     }
     if (!sameNumbers(row.nativeOrigins, row.quarterPixelOrigins)) errors.push(`${id}:native-origin-routing`);
-    if (row.nativeBaselines.length !== row.nativeGlyphIds.length
-        || !sameNumbers(row.nativeBaselines, row.nativeBaselines.map(() => row.baseline.emittedBaseline))) {
+    if (
+      row.nativeBaselines.length !== row.nativeGlyphIds.length ||
+      !sameNumbers(
+        row.nativeBaselines,
+        row.nativeBaselines.map(() => row.baseline.emittedBaseline),
+      )
+    ) {
       errors.push(`${id}:native-baseline-routing`);
     }
     if (!lifecycleStable(row.lifecycle)) errors.push(`${id}:cold-warm-instability`);
-    if (row.outlineDispositions.length !== row.domotionGlyphIds.length
-        || row.outlineDispositions.some((disposition) => disposition !== "helper-outline")) {
+    if (
+      row.outlineDispositions.length !== row.domotionGlyphIds.length ||
+      row.outlineDispositions.some((disposition) => disposition !== "helper-outline")
+    ) {
       errors.push(`${id}:outline-ownership`);
     }
-    if (!sameNumbers(row.pathCommandCounts.native, row.pathCommandCounts.domotion.map((count) => count ?? -1))) {
+    if (
+      !sameNumbers(
+        row.pathCommandCounts.native,
+        row.pathCommandCounts.domotion.map((count) => count ?? -1),
+      )
+    ) {
       errors.push(`${id}:command-counts`);
     }
     if (row.designCommandDigests.native !== row.designCommandDigests.domotion) {
@@ -405,24 +455,31 @@ export function validateSfnsExactOutlineArtifact(artifact: SfnsOracleArtifact): 
     }
     if (!row.pathGeometry.topologyMatches) errors.push(`${id}:command-topology`);
     if (row.pathGeometry.designUnitQuantum !== 0.001) errors.push(`${id}:design-unit-quantum`);
-    if (row.pathGeometry.maxDesignUnitDelta !== 0
-        || row.pathGeometry.maxPaintPixelDelta !== 0
-        || row.pathGeometry.meanPaintPixelDelta !== 0) {
+    if (
+      row.pathGeometry.maxDesignUnitDelta !== 0 ||
+      row.pathGeometry.maxPaintPixelDelta !== 0 ||
+      row.pathGeometry.meanPaintPixelDelta !== 0
+    ) {
       errors.push(`${id}:exact-design-geometry`);
     }
   }
 
   const base = byId.get("zoom-2");
   const mutation = byId.get("opsz-26-mutation");
-  const mutationMoved = base != null && mutation != null
-    && base.stageDigests.chromium !== mutation.stageDigests.chromium
-    && base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask
-    && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath
-    && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
+  const mutationMoved =
+    base != null &&
+    mutation != null &&
+    base.stageDigests.chromium !== mutation.stageDigests.chromium &&
+    base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask &&
+    base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath &&
+    base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
   if (!mutationMoved || !artifact.mutationControlMoved) errors.push("opsz-mutation-did-not-move-all-stages");
-  if (base != null && mutation != null
-      && (base.designCommandDigests.native === mutation.designCommandDigests.native
-        || base.designCommandDigests.domotion === mutation.designCommandDigests.domotion)) {
+  if (
+    base != null &&
+    mutation != null &&
+    (base.designCommandDigests.native === mutation.designCommandDigests.native ||
+      base.designCommandDigests.domotion === mutation.designCommandDigests.domotion)
+  ) {
     errors.push("opsz-mutation-did-not-move-design-commands");
   }
   if (artifact.logicalDigest !== sfnsOutlineLogicalDigest(artifact)) errors.push("logical-digest");
@@ -431,10 +488,7 @@ export function validateSfnsExactOutlineArtifact(artifact: SfnsOracleArtifact): 
 
 /** Require two independently launched observations to reach the same exact
  * logical result. This is an equality gate, not a threshold or pixel fit. */
-export function validateSfnsProposalValidation(
-  proposal: SfnsOracleArtifact,
-  validation: SfnsOracleArtifact,
-): string[] {
+export function validateSfnsProposalValidation(proposal: SfnsOracleArtifact, validation: SfnsOracleArtifact): string[] {
   const errors = [
     ...validateSfnsExactOutlineArtifact(proposal).map((error) => `proposal:${error}`),
     ...validateSfnsExactOutlineArtifact(validation).map((error) => `validation:${error}`),

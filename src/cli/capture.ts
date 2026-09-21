@@ -38,7 +38,12 @@ import {
   wrapSvg,
 } from "../index.js";
 import { setFlattenNestedSvg } from "../render/svg-inline.js";
-import { attachWebfontTracker, crossOriginFramesLaunchArgs, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
+import {
+  attachWebfontTracker,
+  crossOriginFramesLaunchArgs,
+  discoverAndRegisterWebfonts,
+  injectBrandVariables,
+} from "../capture/index.js";
 import { parseCrossOriginAllowlist } from "../capture/script/cross-origin.js";
 import { loadBrand } from "../templates/brand.js";
 import { resolve } from "node:path";
@@ -107,12 +112,16 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
     throw new Error(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
   }
   if (values["chrome-theme"] != null && !isChromeTheme(values["chrome-theme"])) {
-    throw new Error(`capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`);
+    throw new Error(
+      `capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`,
+    );
   }
   // DM-1442: --cross-origin-frames must be `*` or a non-empty comma-separated
   // host[:port] allowlist. Reject an empty value rather than silently no-op'ing.
   if (values["cross-origin-frames"] != null && parseCrossOriginAllowlist(values["cross-origin-frames"]) == null) {
-    throw new Error(`capture: --cross-origin-frames expects "*" or a comma-separated host[:port] list, got "${values["cross-origin-frames"]}"`);
+    throw new Error(
+      `capture: --cross-origin-frames expects "*" or a comma-separated host[:port] list, got "${values["cross-origin-frames"]}"`,
+    );
   }
   // DM-889: `--url` / `--har-fallback` only apply to a `.har` input, so reject
   // them on a non-HAR input rather than silently ignoring.
@@ -122,7 +131,9 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   // DM-6SQXGF: --real-text now composes with --scroll (the composer emits a
   // paintless real-text layer per visibility-gated scroll region).
   if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
-    throw new Error(`capture: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`);
+    throw new Error(
+      `capture: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`,
+    );
   }
 }
 
@@ -132,47 +143,50 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     allowPositionals: true,
     strict: true,
     options: {
-      output:        { type: "string", short: "o" },
-      width:         { type: "string" },
-      height:        { type: "string" },
-      format:        { type: "string" },
-      "safe-guide":  { type: "boolean" },
-      selector:      { type: "string" },
-      clip:          { type: "string" },
-      "scroll-to":   { type: "string" },
-      wait:          { type: "string" },
-      "wait-for":    { type: "string" },
+      output: { type: "string", short: "o" },
+      width: { type: "string" },
+      height: { type: "string" },
+      format: { type: "string" },
+      "safe-guide": { type: "boolean" },
+      selector: { type: "string" },
+      clip: { type: "string" },
+      "scroll-to": { type: "string" },
+      wait: { type: "string" },
+      "wait-for": { type: "string" },
       "no-fonts-ready": { type: "boolean" },
-      "network-idle":   { type: "boolean" },
-      optimize:           { type: "boolean" },
-      "no-optimize":      { type: "boolean" },
-      warnings:           { type: "boolean" },
-      mobile:             { type: "boolean" },
-      chrome:             { type: "string" },
-      "chrome-label":     { type: "string" },
-      "chrome-theme":     { type: "string" },
-      "color-scheme":     { type: "string" },
-      title:              { type: "string" },
-      desc:               { type: "string" },
-      "no-embed-images":  { type: "boolean" },
+      "network-idle": { type: "boolean" },
+      optimize: { type: "boolean" },
+      "no-optimize": { type: "boolean" },
+      warnings: { type: "boolean" },
+      mobile: { type: "boolean" },
+      chrome: { type: "string" },
+      "chrome-label": { type: "string" },
+      "chrome-theme": { type: "string" },
+      "color-scheme": { type: "string" },
+      title: { type: "string" },
+      desc: { type: "string" },
+      "no-embed-images": { type: "boolean" },
       "cross-origin-frames": { type: "string" },
-      brand:              { type: "string" },
-      scroll:             { type: "string" },
-      "scroll-speed":     { type: "string" },
-      "scroll-selector":  { type: "string" },
-      "no-prescroll":     { type: "boolean" },
-      url:                { type: "string" },
-      "har-fallback":     { type: "boolean" },
-      quiet:              { type: "boolean" },
-      debug:              { type: "boolean" },
-      "debug-dir":        { type: "string" },
-      "real-text":         { type: "boolean" },
-      "text-mode":         { type: "string" },
+      brand: { type: "string" },
+      scroll: { type: "string" },
+      "scroll-speed": { type: "string" },
+      "scroll-selector": { type: "string" },
+      "no-prescroll": { type: "boolean" },
+      url: { type: "string" },
+      "har-fallback": { type: "boolean" },
+      quiet: { type: "boolean" },
+      debug: { type: "boolean" },
+      "debug-dir": { type: "string" },
+      "real-text": { type: "boolean" },
+      "text-mode": { type: "string" },
       "flatten-nested-svg": { type: "boolean" },
-      help:               { type: "boolean", short: "h" },
+      help: { type: "boolean", short: "h" },
     },
   });
-  if (values.help === true) { process.stdout.write(help); process.exit(0); }
+  if (values.help === true) {
+    process.stdout.write(help);
+    process.exit(0);
+  }
   if (positionals.length === 0) throw new Error("capture: missing <input> (URL, path, or '-')");
   if (positionals.length > 1) throw new Error(`capture: unexpected extra argument "${positionals[1]}"`);
 
@@ -202,25 +216,28 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   let fmt: ResolvedFormat | undefined;
   if (values.format != null) fmt = resolveFormat(values.format);
   if (values["safe-guide"] === true && fmt == null) {
-    throw new Error(`capture: --safe-guide requires --format (a preset (${formatNames().join(", ")}) or WIDTHxHEIGHT) so there is a safe area to draw`);
+    throw new Error(
+      `capture: --safe-guide requires --format (a preset (${formatNames().join(", ")}) or WIDTHxHEIGHT) so there is a safe area to draw`,
+    );
   }
   // svgz is auto-detected from the output filename extension; it implies
   // --optimize unless the caller passed --no-optimize.
   const svgz = isSvgzPath(values.output);
   const flags: CaptureFlags = {
-    output:      values.output,
-    width:       parseIntFlag(values.width, "width", fmt?.width ?? 800),
-    height:      parseIntFlag(values.height, "height", fmt?.height ?? 600),
-    selector:    values.selector ?? "body",
-    clip:        values.clip != null ? parseTuple(values.clip, 4, "clip") as [number, number, number, number] : undefined,
-    scroll:      values["scroll-to"] != null ? parseTuple(values["scroll-to"], 2, "scroll-to") as [number, number] : undefined,
-    wait:        parseIntFlag(values.wait, "wait", 200),
-    waitFor:     values["wait-for"],
-    fontsReady:  values["no-fonts-ready"] !== true,
+    output: values.output,
+    width: parseIntFlag(values.width, "width", fmt?.width ?? 800),
+    height: parseIntFlag(values.height, "height", fmt?.height ?? 600),
+    selector: values.selector ?? "body",
+    clip: values.clip != null ? (parseTuple(values.clip, 4, "clip") as [number, number, number, number]) : undefined,
+    scroll:
+      values["scroll-to"] != null ? (parseTuple(values["scroll-to"], 2, "scroll-to") as [number, number]) : undefined,
+    wait: parseIntFlag(values.wait, "wait", 200),
+    waitFor: values["wait-for"],
+    fontsReady: values["no-fonts-ready"] !== true,
     networkIdle: values["network-idle"] === true,
-    optimize:    values.optimize === true || (svgz && values["no-optimize"] !== true),
-    warnings:    values.warnings === true,
-    mobile:      values.mobile === true,
+    optimize: values.optimize === true || (svgz && values["no-optimize"] !== true),
+    warnings: values.warnings === true,
+    mobile: values.mobile === true,
     colorScheme: parseColorScheme(values["color-scheme"]),
     crossOriginFrames: values["cross-origin-frames"],
     realTextLayer: values["real-text"] === true,
@@ -237,8 +254,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   if (flags.crossOriginFrames != null) {
     process.stderr.write(
       `⚠️  --cross-origin-frames is enabled: Chromium is launched with web security DISABLED ` +
-      `(CORS off) so cross-origin iframe documents can be recursed into native SVG. ` +
-      `Only use this on pages you trust. Allowlist: ${flags.crossOriginFrames}\n`,
+        `(CORS off) so cross-origin iframe documents can be recursed into native SVG. ` +
+        `Only use this on pages you trust. Allowlist: ${flags.crossOriginFrames}\n`,
     );
   }
   log(`Launching Chromium…`);
@@ -252,7 +269,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // DM-945: record HAR for `--debug` so the consumer can reproduce
       // the exact network state offline (the same `tests/cache/real-
       // world/*.har` pattern the in-repo regression suites use).
-      ...(debug && debugDir != null ? { recordHar: { path: `${debugDir}/capture.har`, mode: "minimal" as const } } : {}),
+      ...(debug && debugDir != null
+        ? { recordHar: { path: `${debugDir}/capture.har`, mode: "minimal" as const } }
+        : {}),
     });
     // DM-1540 (docs/92): `--brand <file>` themes the captured real page by
     // injecting the brand's CSS custom properties (`--brand-primary`, …) onto
@@ -284,7 +303,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         notFound: values["har-fallback"] === true ? "fallback" : "abort",
       });
       log(`Loading ${harUrl} from HAR ${input}…`);
-      await timed(log, "  loaded (HAR replay)", () => page.goto(harUrl, { waitUntil: flags.networkIdle ? "networkidle" : "load" }));
+      await timed(log, "  loaded (HAR replay)", () =>
+        page.goto(harUrl, { waitUntil: flags.networkIdle ? "networkidle" : "load" }),
+      );
     } else {
       log(`Loading ${input}…`);
       await timed(log, "  loaded", () => loadInputIntoPage(page, input, { networkIdle: flags.networkIdle }));
@@ -296,7 +317,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // request stack, and register them with text-to-path so the renderer
     // draws with the real webfont glyphs instead of a system substitute.
     clearWebfonts();
-    await timed(log, `  registered webfonts (${tracker.urls.size})`, () => discoverAndRegisterWebfonts(page, tracker.urls));
+    await timed(log, `  registered webfonts (${tracker.urls.size})`, () =>
+      discoverAndRegisterWebfonts(page, tracker.urls),
+    );
     tracker.detach();
 
     const clip = flags.clip ?? [0, 0, flags.width, flags.height];
@@ -347,7 +370,16 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         // render in `withRenderTextMode(opts.renderText ?? "embedded-font")`,
         // which would otherwise OVERRIDE the process-global set above — so
         // `--scroll --text-mode system-font|paths` silently rendered embedded-font.
-        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc, realText: flags.realTextLayer, renderText: getRenderTextMode() })),
+        Promise.resolve(
+          composeScrollSvg(segments, {
+            viewportW: clip[2],
+            viewportH: clip[3],
+            title: values.title,
+            desc: values.desc,
+            realText: flags.realTextLayer,
+            renderText: getRenderTextMode(),
+          }),
+        ),
       );
     } else {
       log(`Capturing element tree…`);
@@ -356,15 +388,27 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // keeps the debug artifact a faithful pre-capture reference for
       // svg-review (DM-946) to diff our SVG output against).
       if (debug && debugDir != null) {
-        await timed(log, "  debug: expected.png", () => page.screenshot({
-          clip: { x: clip[0], y: clip[1], width: clip[2], height: clip[3] },
-          path: `${debugDir}/expected.png`,
-          omitBackground: false,
-        }));
+        await timed(log, "  debug: expected.png", () =>
+          page.screenshot({
+            clip: { x: clip[0], y: clip[1], width: clip[2], height: clip[3] },
+            path: `${debugDir}/expected.png`,
+            omitBackground: false,
+          }),
+        );
       }
-      const tree = await timed(log, "  captured", () => captureElementTree(page, flags.selector, {
-        x: clip[0], y: clip[1], width: clip[2], height: clip[3],
-      }, { crossOriginFrames: flags.crossOriginFrames }));
+      const tree = await timed(log, "  captured", () =>
+        captureElementTree(
+          page,
+          flags.selector,
+          {
+            x: clip[0],
+            y: clip[1],
+            width: clip[2],
+            height: clip[3],
+          },
+          { crossOriginFrames: flags.crossOriginFrames },
+        ),
+      );
       if (debug && debugDir != null) {
         const { writeFileSync } = await import("node:fs");
         writeFileSync(`${debugDir}/captured-tree.json`, JSON.stringify(tree, null, 2));
@@ -398,7 +442,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     if (values["safe-guide"] === true && fmt != null) {
       const guide = safeAreaGuideSvg(clip[2], clip[3], fmt.safeInset);
       svg = svg.replace(/<\/svg>\s*$/, `${guide}</svg>`);
-      log(`Safe-area guide overlaid (inset t${fmt.safeInset.top} r${fmt.safeInset.right} b${fmt.safeInset.bottom} l${fmt.safeInset.left})`);
+      log(
+        `Safe-area guide overlaid (inset t${fmt.safeInset.top} r${fmt.safeInset.right} b${fmt.safeInset.bottom} l${fmt.safeInset.left})`,
+      );
     }
     // DM-1206: wrap the finished capture in a device bezel. Nests the produced
     // SVG (no re-render), so glyph paths match the bare capture exactly. DM-1538:
@@ -406,13 +452,17 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // (the inner screen); the bezel adds AROUND it, so the final output is the
     // format size plus the rim (the log line reports the framed total).
     if (values.chrome != null && isDeviceChrome(values.chrome)) {
-      const theme = isChromeTheme(values["chrome-theme"] ?? "") ? (values["chrome-theme"] as "light" | "dark") : undefined;
+      const theme = isChromeTheme(values["chrome-theme"] ?? "")
+        ? (values["chrome-theme"] as "light" | "dark")
+        : undefined;
       const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3], { label: values["chrome-label"], theme });
       svg = framed.svg;
       log(`Wrapped in ${values.chrome} chrome (${framed.width}×${framed.height})`);
     }
     if (flags.optimize) {
-      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => compressEmbeddedFontsToWoff2(optimizeSvg(svg)));
+      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () =>
+        compressEmbeddedFontsToWoff2(optimizeSvg(svg)),
+      );
     }
 
     if (flags.warnings) logCaptureWarnings("capture");
@@ -433,7 +483,11 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       const { writeFileSync } = await import("node:fs");
       writeFileSync(
         `${debugDir}/safe-area.json`,
-        JSON.stringify({ format: values.format, width: flags.width, height: flags.height, safeInset: fmt.safeInset }, null, 2),
+        JSON.stringify(
+          { format: values.format, width: flags.width, height: flags.height, safeInset: fmt.safeInset },
+          null,
+          2,
+        ),
       );
       log(`  debug: safe-area.json (format ${values.format})`);
     }
@@ -443,12 +497,14 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // lands on disk before we move on.
     if (debug) await ctx.close();
     if (debug && debugDir != null && outPath != null) {
-      log(`Debug bundle written:\n` +
+      log(
+        `Debug bundle written:\n` +
           `  ${debugDir}/capture.har          (Playwright HAR)\n` +
           `  ${debugDir}/expected.png         (Chrome screenshot of source)\n` +
           `  ${debugDir}/actual.svg           (copy of the produced SVG)\n` +
           `  ${debugDir}/captured-tree.json   (intermediate element tree)\n` +
-          `Review with: svg-review --expected ${debugDir}/expected.png --actual ${debugDir}/actual.svg`);
+          `Review with: svg-review --expected ${debugDir}/expected.png --actual ${debugDir}/actual.svg`,
+      );
     }
   } finally {
     await browser.close();

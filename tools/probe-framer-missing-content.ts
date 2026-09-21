@@ -14,10 +14,18 @@ const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "framer-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "framer-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(90_000);
   await page.goto("https://www.framer.com/", { waitUntil: "domcontentloaded" });
@@ -42,34 +50,49 @@ async function main() {
     const results: any[] = [];
     for (const region of REGIONS) {
       const hits: any[] = [];
-      const all = document.querySelectorAll('*');
+      const all = document.querySelectorAll("*");
       for (const el of all) {
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) continue;
-        const intersects = !(r.right < region.x || r.left > region.x + region.w || r.bottom < region.y || r.top > region.y + region.h);
+        const intersects = !(
+          r.right < region.x ||
+          r.left > region.x + region.w ||
+          r.bottom < region.y ||
+          r.top > region.y + region.h
+        );
         if (!intersects) continue;
         // Skip huge wrappers.
         if (r.width > 500 || r.height > 500) continue;
         const cs = getComputedStyle(el);
         const tag = el.nodeName.toLowerCase();
-        const interesting = tag === 'img' || tag === 'svg' || tag === 'picture' || tag === 'video' || (cs.backgroundImage && cs.backgroundImage !== 'none') || ((cs as any).maskImage && (cs as any).maskImage !== 'none') || (el.textContent && (el.textContent.trim().length > 0 && (el as HTMLElement).children.length === 0));
+        const interesting =
+          tag === "img" ||
+          tag === "svg" ||
+          tag === "picture" ||
+          tag === "video" ||
+          (cs.backgroundImage && cs.backgroundImage !== "none") ||
+          ((cs as any).maskImage && (cs as any).maskImage !== "none") ||
+          (el.textContent && el.textContent.trim().length > 0 && (el as HTMLElement).children.length === 0);
         if (!interesting) continue;
         hits.push({
           tag,
-          cls: ((el as HTMLElement).className || '').toString().slice(0, 80),
+          cls: ((el as HTMLElement).className || "").toString().slice(0, 80),
           rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
-          src: tag === 'img' ? ((el as HTMLImageElement).src || '').slice(-100) : null,
-          currentSrc: tag === 'img' ? ((el as HTMLImageElement).currentSrc || '').slice(-100) : null,
-          srcset: tag === 'img' ? ((el as HTMLImageElement).srcset || '').slice(0, 100) : null,
-          loading: tag === 'img' ? ((el as HTMLImageElement).loading || '') : null,
-          naturalW: tag === 'img' ? (el as HTMLImageElement).naturalWidth : null,
-          naturalH: tag === 'img' ? (el as HTMLImageElement).naturalHeight : null,
-          alt: tag === 'img' ? ((el as HTMLImageElement).alt || '') : null,
+          src: tag === "img" ? ((el as HTMLImageElement).src || "").slice(-100) : null,
+          currentSrc: tag === "img" ? ((el as HTMLImageElement).currentSrc || "").slice(-100) : null,
+          srcset: tag === "img" ? ((el as HTMLImageElement).srcset || "").slice(0, 100) : null,
+          loading: tag === "img" ? (el as HTMLImageElement).loading || "" : null,
+          naturalW: tag === "img" ? (el as HTMLImageElement).naturalWidth : null,
+          naturalH: tag === "img" ? (el as HTMLImageElement).naturalHeight : null,
+          alt: tag === "img" ? (el as HTMLImageElement).alt || "" : null,
           opacity: cs.opacity,
           visibility: cs.visibility,
           background: cs.backgroundColor,
-          bgImage: cs.backgroundImage === 'none' ? null : cs.backgroundImage.slice(0, 80),
-          maskImage: ((cs as any).maskImage === 'none' || (cs as any).maskImage == null) ? null : ((cs as any).maskImage || '').slice(0, 80),
+          bgImage: cs.backgroundImage === "none" ? null : cs.backgroundImage.slice(0, 80),
+          maskImage:
+            (cs as any).maskImage === "none" || (cs as any).maskImage == null
+              ? null
+              : ((cs as any).maskImage || "").slice(0, 80),
           text: el.textContent ? el.textContent.trim().slice(0, 60) : null,
         });
       }
@@ -80,4 +103,7 @@ async function main() {
   console.log(JSON.stringify(out, null, 2));
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

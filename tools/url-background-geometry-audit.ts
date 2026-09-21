@@ -203,9 +203,9 @@ function svgDataUri(svg: string): string {
 }
 
 const TILE_URL = svgDataUri(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="20" viewBox="0 0 32 20">'
-  + '<path fill="#e5212c" d="M0 0h16v10H0z"/><path fill="#12a66a" d="M16 0h16v10H16z"/>'
-  + '<path fill="#1955d1" d="M0 10h16v10H0z"/><path fill="#f2bd1d" d="M16 10h16v10H16z"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="20" viewBox="0 0 32 20">' +
+    '<path fill="#e5212c" d="M0 0h16v10H0z"/><path fill="#12a66a" d="M16 0h16v10H16z"/>' +
+    '<path fill="#1955d1" d="M0 10h16v10H0z"/><path fill="#f2bd1d" d="M16 10h16v10H16z"/></svg>',
 );
 
 const MARKER_URLS = PALETTE.slice(4).map(({ rgb }, index) => {
@@ -240,13 +240,15 @@ const CASES: AuditCase[] = [
     id: "calculated-size",
     axis: "calculated length-percentage size",
     expectedRoute: "source-equivalent",
-    targetCss: "background-size:calc(37% + 9px) calc(24% + 5px);background-position:13px 17px;background-repeat:no-repeat",
+    targetCss:
+      "background-size:calc(37% + 9px) calc(24% + 5px);background-position:13px 17px;background-repeat:no-repeat",
   },
   {
     id: "contain-fractional-area",
     axis: "contain dependent-axis integer rounding",
     expectedRoute: "source-geometry-equivalent",
-    targetCss: "width:157.5px;height:93.5px;background-size:contain;background-position:43% 61%;background-repeat:no-repeat",
+    targetCss:
+      "width:157.5px;height:93.5px;background-size:contain;background-position:43% 61%;background-repeat:no-repeat",
   },
   {
     id: "cover-position-control",
@@ -258,44 +260,51 @@ const CASES: AuditCase[] = [
     id: "calculated-position-control",
     axis: "calculated length-percentage position",
     expectedRoute: "source-equivalent",
-    targetCss: "background-size:47px 31px;background-position:calc(23% + 7px) calc(71% - 5px);background-repeat:no-repeat",
+    targetCss:
+      "background-size:47px 31px;background-position:calc(23% + 7px) calc(71% - 5px);background-repeat:no-repeat",
   },
   {
     id: "round-recomputes-auto-axis",
     axis: "round repeat changes orthogonal auto dimension",
     expectedRoute: "source-geometry-equivalent",
-    targetCss: "width:153px;height:97px;background-size:43px auto;background-position:31% 67%;background-repeat:round no-repeat",
+    targetCss:
+      "width:153px;height:97px;background-size:43px auto;background-position:31% 67%;background-repeat:round no-repeat",
   },
   {
     id: "space-multiple-tiles-control",
     axis: "space repeat ignores position with two or more tiles",
     expectedRoute: "source-equivalent",
-    targetCss: "width:153px;height:97px;background-size:38px 24px;background-position:29px 61px;background-repeat:space no-repeat",
+    targetCss:
+      "width:153px;height:97px;background-size:38px 24px;background-position:29px 61px;background-repeat:space no-repeat",
   },
   {
     id: "space-single-tile-fallback",
     axis: "space repeat falls back to no-repeat",
     expectedRoute: "source-equivalent",
-    targetCss: "width:91px;height:75px;background-size:54px 27px;background-position:23px 31px;background-repeat:space no-repeat",
+    targetCss:
+      "width:91px;height:75px;background-size:54px 27px;background-position:23px 31px;background-repeat:space no-repeat",
   },
   {
     id: "origin-clip-cross-control",
     axis: "independent origin and clip reference boxes",
     expectedRoute: "source-equivalent",
-    targetCss: "box-sizing:border-box;width:171px;height:109px;border:7px solid #202020;padding:13px 11px;background-origin:content-box;background-clip:padding-box;background-size:32px 20px;background-position:5px 7px;background-repeat:repeat",
+    targetCss:
+      "box-sizing:border-box;width:171px;height:109px;border:7px solid #202020;padding:13px 11px;background-origin:content-box;background-clip:padding-box;background-size:32px 20px;background-position:5px 7px;background-repeat:repeat",
   },
   {
     id: "fixed-viewport-control",
     axis: "fixed attachment viewport positioning area",
     expectedRoute: "source-equivalent",
-    targetCss: "margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed",
+    targetCss:
+      "margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed",
   },
   {
     id: "fixed-under-transform",
     axis: "transformed ancestor converts fixed to scroll attachment",
     expectedRoute: "source-equivalent",
     hostCss: "transform:translate(0,0)",
-    targetCss: "margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed",
+    targetCss:
+      "margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed",
   },
   {
     id: "local-nonzero-scroll",
@@ -304,13 +313,15 @@ const CASES: AuditCase[] = [
     mutation: "scroll-local",
     targetContent: '<i aria-hidden="true"></i>',
     extraCss: "#target::-webkit-scrollbar{display:none}#target>i{display:block;width:330px;height:260px}",
-    targetCss: "overflow:scroll;scrollbar-width:none;background-size:47px 31px;background-position:11px 17px;background-repeat:repeat;background-attachment:local",
+    targetCss:
+      "overflow:scroll;scrollbar-width:none;background-size:47px 31px;background-position:11px 17px;background-repeat:repeat;background-attachment:local",
   },
   {
     id: "effective-zoom-auto-intrinsic",
     axis: "effective zoom scales natural image size",
     expectedRoute: "source-equivalent",
-    targetCss: "zoom:1.25;width:128px;height:80px;background-size:auto auto;background-position:7px 5px;background-repeat:repeat",
+    targetCss:
+      "zoom:1.25;width:128px;height:80px;background-size:auto auto;background-position:7px 5px;background-repeat:repeat",
   },
   {
     id: "affine-transform-control",
@@ -333,7 +344,8 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
+    targetCss:
+      "color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice",
@@ -342,7 +354,8 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
+    targetCss:
+      "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice-rtl",
@@ -351,7 +364,8 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif;direction:rtl",
     targetContent: "wide words wrap here",
-    targetCss: "color:transparent;direction:rtl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:29px 17px;background-position:7px 3px;background-repeat:repeat;padding:2px 5px",
+    targetCss:
+      "color:transparent;direction:rtl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:29px 17px;background-position:7px 3px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice-origin-clip",
@@ -360,7 +374,8 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid transparent;padding:4px 6px;background-origin:content-box;background-clip:padding-box;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat",
+    targetCss:
+      "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid transparent;padding:4px 6px;background-origin:content-box;background-clip:padding-box;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat",
   },
   {
     id: "wrapped-inline-slice-fixed",
@@ -369,7 +384,8 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-attachment:fixed;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat;padding:2px 5px",
+    targetCss:
+      "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-attachment:fixed;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice-vertical-rl",
@@ -378,37 +394,45 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:180px;height:104px;line-height:31px;font:24px/31px sans-serif;writing-mode:vertical-rl",
     targetContent: "wide words wrap here",
-    targetCss: "color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:19px 29px;background-position:3px 7px;background-repeat:repeat;padding:5px 2px",
+    targetCss:
+      "color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:19px 29px;background-position:3px 7px;background-repeat:repeat;padding:5px 2px",
   },
   {
     id: "multicol-block-clone",
     axis: "clone block fragment restarts image geometry",
     expectedRoute: "source-equivalent",
-    sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
+    sceneCss:
+      "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
     hostCss: "display:contents",
     targetContent: "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
     extraCss: "#target>i{display:block;height:24px}",
-    targetCss: "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
+    targetCss:
+      "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
   },
   {
     id: "multicol-block-slice",
     axis: "slice block fragment uses stitched imaginary box",
     expectedRoute: "source-equivalent",
-    sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
+    sceneCss:
+      "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
     hostCss: "display:contents",
     targetContent: "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
     extraCss: "#target>i{display:block;height:24px}",
-    targetCss: "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
+    targetCss:
+      "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
   },
   {
     id: "multicol-block-slice-vertical-rl",
     axis: "vertical-rl multicol slice uses stitched logical block geometry",
     expectedRoute: "source-equivalent",
-    sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif;writing-mode:vertical-rl",
+    sceneCss:
+      "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif;writing-mode:vertical-rl",
     hostCss: "display:contents",
-    targetContent: "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
+    targetContent:
+      "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
     extraCss: "#target>i{display:block;width:24px}",
-    targetCss: "width:auto;height:auto;padding:4px;color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:23px 32px;background-position:4px 3px;background-repeat:repeat",
+    targetCss:
+      "width:auto;height:auto;padding:4px;color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:23px 32px;background-position:4px 3px;background-repeat:repeat",
   },
 ];
 
@@ -431,7 +455,9 @@ async function mutate(page: Page, mutation: Mutation | undefined): Promise<void>
       element.scrollTop = 59;
     });
   }
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
 }
 
 async function readPaintFacts(page: Page): Promise<PaintFacts> {
@@ -468,9 +494,12 @@ async function readPaintFacts(page: Page): Promise<PaintFacts> {
 
 function findCapturedTarget(elements: CapturedElement[]): CapturedElement | null {
   for (const element of elements) {
-    if (element.styles.backgroundImage != null
-        && element.styles.backgroundImage !== ""
-        && element.styles.backgroundImage !== "none") return element;
+    if (
+      element.styles.backgroundImage != null &&
+      element.styles.backgroundImage !== "" &&
+      element.styles.backgroundImage !== "none"
+    )
+      return element;
     const child = findCapturedTarget(element.children ?? []);
     if (child != null) return child;
   }
@@ -537,8 +566,8 @@ function parsePatternFacts(svg: string): PatternFacts[] {
     const directImage = /<image\b[^>]*>/.exec(match[2])?.[0] ?? null;
     const use = /<use\b[^>]*>/.exec(match[2])?.[0] ?? null;
     if (directImage == null && use == null) continue;
-    const referencedId = use == null ? null : /\bhref="#([^"]+)"/.exec(use)?.[1] ?? null;
-    const image = directImage ?? (referencedId == null ? "" : imageDefs.get(referencedId) ?? "");
+    const referencedId = use == null ? null : (/\bhref="#([^"]+)"/.exec(use)?.[1] ?? null);
+    const image = directImage ?? (referencedId == null ? "" : (imageDefs.get(referencedId) ?? ""));
     const positioned = directImage ?? use ?? "";
     facts.push({
       x: numericAttribute(match[1], "x"),
@@ -617,12 +646,7 @@ function boundsForAny(labels: Uint8Array, width: number, active: ReadonlySet<num
 function boundDelta(a: Bounds | null, b: Bounds | null): number | null {
   if (a == null && b == null) return 0;
   if (a == null || b == null) return null;
-  return Math.max(
-    Math.abs(a.x - b.x),
-    Math.abs(a.y - b.y),
-    Math.abs(a.width - b.width),
-    Math.abs(a.height - b.height),
-  );
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.width - b.width), Math.abs(a.height - b.height));
 }
 
 async function comparePaint(
@@ -633,7 +657,9 @@ async function comparePaint(
   const source = await labelPixels(sourcePng);
   const generated = await labelPixels(generatedPng);
   if (source.width !== generated.width || source.height !== generated.height) {
-    throw new Error(`screenshot size mismatch: ${source.width}x${source.height} vs ${generated.width}x${generated.height}`);
+    throw new Error(
+      `screenshot size mismatch: ${source.width}x${source.height} vs ${generated.width}x${generated.height}`,
+    );
   }
   let sourceColorPixels = 0;
   let generatedColorPixels = 0;
@@ -663,9 +689,7 @@ async function comparePaint(
     sourceBounds[name] = a;
     generatedBounds[name] = b;
     const delta = active.has(index + 1) ? boundDelta(a, b) : 0;
-    maxColorBoundDelta = delta == null || maxColorBoundDelta == null
-      ? null
-      : Math.max(maxColorBoundDelta, delta);
+    maxColorBoundDelta = delta == null || maxColorBoundDelta == null ? null : Math.max(maxColorBoundDelta, delta);
   }
   const sourceInkBounds = boundsForAny(source.labels, source.width, active);
   const generatedInkBounds = boundsForAny(generated.labels, generated.width, active);
@@ -686,9 +710,11 @@ async function comparePaint(
 
 function comparisonMatchesRoute(expectedRoute: ExpectedRoute, comparison: Comparison): boolean {
   if (expectedRoute === "source-equivalent") {
-    return comparison.labelMismatchFraction <= MAX_EQUIVALENT_LABEL_MISMATCH
-      && comparison.maxColorBoundDelta != null
-      && comparison.maxColorBoundDelta <= MAX_EQUIVALENT_BOUND_DELTA;
+    return (
+      comparison.labelMismatchFraction <= MAX_EQUIVALENT_LABEL_MISMATCH &&
+      comparison.maxColorBoundDelta != null &&
+      comparison.maxColorBoundDelta <= MAX_EQUIVALENT_BOUND_DELTA
+    );
   }
   if (expectedRoute === "source-geometry-equivalent") {
     // A decoded SVG is raster-sampled once by CSS Image paint and again when
@@ -696,23 +722,30 @@ function comparisonMatchesRoute(expectedRoute: ExpectedRoute, comparison: Compar
     // when every independent marker edge remains within one device pixel;
     // the bounded label fraction covers only those differently filtered edge
     // pixels and is not used for bitmap or unscaled positive controls.
-    return comparison.labelMismatchFraction <= MAX_GEOMETRY_LABEL_MISMATCH
-      && comparison.maxColorBoundDelta != null
-      && comparison.maxColorBoundDelta <= MAX_GEOMETRY_BOUND_DELTA;
+    return (
+      comparison.labelMismatchFraction <= MAX_GEOMETRY_LABEL_MISMATCH &&
+      comparison.maxColorBoundDelta != null &&
+      comparison.maxColorBoundDelta <= MAX_GEOMETRY_BOUND_DELTA
+    );
   }
   return false;
 }
 
 function restartMutationDiscriminated(comparison: Comparison): boolean {
-  return comparison.labelMismatchFraction >= MIN_RESTART_MUTATION_LABEL_MISMATCH
-    || comparison.maxColorBoundDelta == null
-    || comparison.maxColorBoundDelta >= MIN_RESTART_MUTATION_BOUND_DELTA;
+  return (
+    comparison.labelMismatchFraction >= MIN_RESTART_MUTATION_LABEL_MISMATCH ||
+    comparison.maxColorBoundDelta == null ||
+    comparison.maxColorBoundDelta >= MIN_RESTART_MUTATION_BOUND_DELTA
+  );
 }
 
 function validPattern(pattern: PatternFacts): boolean {
-  return [pattern.x, pattern.y, pattern.imageX, pattern.imageY].every(Number.isFinite)
-    && [pattern.width, pattern.height, pattern.imageWidth, pattern.imageHeight]
-      .every((value) => Number.isFinite(value) && value > 0);
+  return (
+    [pattern.x, pattern.y, pattern.imageX, pattern.imageY].every(Number.isFinite) &&
+    [pattern.width, pattern.height, pattern.imageWidth, pattern.imageHeight].every(
+      (value) => Number.isFinite(value) && value > 0,
+    )
+  );
 }
 
 export function adjudicateUrlBackgroundRow(row: {
@@ -812,23 +845,22 @@ export async function runUrlBackgroundGeometryAudit(
         `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
         { waitUntil: "load" },
       );
-      await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await generatedPage.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      );
       const generatedPng = await generatedPage.screenshot({ type: "png" });
       for (const artifact of [
         persistArtifact(artifactDir, `${artifactPrefix}/source.png`, "source-png", sourcePng),
         persistArtifact(artifactDir, `${artifactPrefix}/generated.png`, "generated-png", generatedPng),
         persistArtifact(artifactDir, `${artifactPrefix}/generated.svg`, "generated-svg", svg),
-      ]) if (artifact != null) artifacts.push(artifact);
-      const comparison = await comparePaint(
-        sourcePng,
-        generatedPng,
-        activeLabels,
-      );
+      ])
+        if (artifact != null) artifacts.push(artifact);
+      const comparison = await comparePaint(sourcePng, generatedPng, activeLabels);
       let restartMutation: AuditRow["restartMutation"];
-      const fixedToViewport = source.backgroundAttachment === "fixed"
-        && captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;
-      if (source.boxDecorationBreak === "slice" && !fixedToViewport
-          && captured?.inlineFragments != null) {
+      const fixedToViewport =
+        source.backgroundAttachment === "fixed" &&
+        captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;
+      if (source.boxDecorationBreak === "slice" && !fixedToViewport && captured?.inlineFragments != null) {
         const savedGeometry = captured.inlineFragments.map((fragment) => ({
           area: fragment.backgroundPositioningArea,
           offset: fragment.backgroundOffsetInStitchedBox,
@@ -850,17 +882,16 @@ export async function runUrlBackgroundGeometryAudit(
           `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${mutatedSvg}`,
           { waitUntil: "load" },
         );
-        await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        await generatedPage.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
         const mutatedPng = await generatedPage.screenshot({ type: "png" });
         for (const artifact of [
           persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.png`, "restart-mutation-png", mutatedPng),
           persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.svg`, "restart-mutation-svg", mutatedSvg),
-        ]) if (artifact != null) artifacts.push(artifact);
-        const mutatedComparison = await comparePaint(
-          sourcePng,
-          mutatedPng,
-          activeLabels,
-        );
+        ])
+          if (artifact != null) artifacts.push(artifact);
+        const mutatedComparison = await comparePaint(sourcePng, mutatedPng, activeLabels);
         restartMutation = {
           patterns: parsePatternFacts(mutatedSvg),
           comparison: mutatedComparison,
@@ -872,11 +903,11 @@ export async function runUrlBackgroundGeometryAudit(
         });
       }
       const patterns = parsePatternFacts(svg);
-      const expectedPatternCount = (test.imageCss == null ? 1 : 4)
-        * Math.max(1, captured?.inlineFragments?.length ?? 1);
+      const expectedPatternCount =
+        (test.imageCss == null ? 1 : 4) * Math.max(1, captured?.inlineFragments?.length ?? 1);
       const warningMessages = warnings.map((warning) => `${warning.feature}: ${warning.detail}`);
-      const requiresRestartMutation = source.boxDecorationBreak === "slice"
-        && !fixedToViewport && (captured?.inlineFragments?.length ?? 0) > 1;
+      const requiresRestartMutation =
+        source.boxDecorationBreak === "slice" && !fixedToViewport && (captured?.inlineFragments?.length ?? 0) > 1;
       const blockers = adjudicateUrlBackgroundRow({
         expectedRoute: test.expectedRoute,
         comparison,
@@ -906,43 +937,53 @@ export async function runUrlBackgroundGeometryAudit(
     }
 
     const byId = new Map(rows.map((row) => [row.id, row]));
-    const sliceRows = rows.filter((row) => row.source.boxDecorationBreak === "slice"
-      && (row.captured?.fragments?.length ?? 0) > 1);
+    const sliceRows = rows.filter(
+      (row) => row.source.boxDecorationBreak === "slice" && (row.captured?.fragments?.length ?? 0) > 1,
+    );
     const controls = {
-      paletteEvidenceComplete: rows.every((row) => row.activePalette.every((name) =>
-        row.comparison.sourceBounds[name] != null && row.comparison.generatedBounds[name] != null)),
+      paletteEvidenceComplete: rows.every((row) =>
+        row.activePalette.every(
+          (name) => row.comparison.sourceBounds[name] != null && row.comparison.generatedBounds[name] != null,
+        ),
+      ),
       allRowsSourceEquivalent: rows.every((row) => row.pass),
-      noObservationalRoutes: rows.every((row) => row.expectedRoute === "source-equivalent"
-        || row.expectedRoute === "source-geometry-equivalent"),
+      noObservationalRoutes: rows.every(
+        (row) => row.expectedRoute === "source-equivalent" || row.expectedRoute === "source-geometry-equivalent",
+      ),
       warningsEmpty: rows.every((row) => row.warnings.length === 0),
-      patternEvidenceComplete: rows.every((row) => row.patterns.length === row.expectedPatternCount
-        && row.patterns.every(validPattern)),
-      independentInkBoundsExact: rows.every((row) => row.comparison.maxInkBoundDelta != null
-        && row.comparison.maxInkBoundDelta <= 1),
+      patternEvidenceComplete: rows.every(
+        (row) => row.patterns.length === row.expectedPatternCount && row.patterns.every(validPattern),
+      ),
+      independentInkBoundsExact: rows.every(
+        (row) => row.comparison.maxInkBoundDelta != null && row.comparison.maxInkBoundDelta <= 1,
+      ),
       autoRatioRouteIsExact: byId.get("auto-width-from-explicit-height")?.pass === true,
       // DM-2479 closed the old transformed-fixed ownership gap. Keep the
       // discriminator independent by asserting its captured ownership facts
       // in addition to the exact DM-2478 raster row.
       attachmentOwnershipCaptured:
-        byId.get("fixed-viewport-control")?.captured?.attachmentFixedToViewport === true
-        && byId.get("fixed-under-transform")?.captured?.attachmentFixedToViewport === false,
+        byId.get("fixed-viewport-control")?.captured?.attachmentFixedToViewport === true &&
+        byId.get("fixed-under-transform")?.captured?.attachmentFixedToViewport === false,
       localAttachmentOffsetsCaptured:
-        byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetX
-          === byId.get("local-nonzero-scroll")?.source.scrollLeft
-        && byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetY
-          === byId.get("local-nonzero-scroll")?.source.scrollTop,
+        byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetX ===
+          byId.get("local-nonzero-scroll")?.source.scrollLeft &&
+        byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetY ===
+          byId.get("local-nonzero-scroll")?.source.scrollTop,
       sliceRowsAreSourceEquivalent:
         sliceRows.length >= 2 && sliceRows.every((row) => row.expectedRoute === "source-equivalent" && row.pass),
-      sliceGeometryRecordsCaptured:
-        sliceRows.every((row) => (row.captured?.fragments?.length ?? 0) > 1
-          && row.captured!.fragments!.every((fragment) => fragment.backgroundPositioningArea != null
-            && fragment.backgroundOffsetInStitchedBox != null)),
-      sliceRestartMutationsDiscriminated:
-        sliceRows.every((row) => row.captured?.attachmentFixedToViewport === true
-          || row.restartMutation?.discriminated === true),
-      fragmentPatternsMaterialized:
-        rows.filter((row) => (row.captured?.fragments?.length ?? 0) > 1)
-          .every((row) => row.patterns.length === row.captured!.fragments!.length),
+      sliceGeometryRecordsCaptured: sliceRows.every(
+        (row) =>
+          (row.captured?.fragments?.length ?? 0) > 1 &&
+          row.captured!.fragments!.every(
+            (fragment) => fragment.backgroundPositioningArea != null && fragment.backgroundOffsetInStitchedBox != null,
+          ),
+      ),
+      sliceRestartMutationsDiscriminated: sliceRows.every(
+        (row) => row.captured?.attachmentFixedToViewport === true || row.restartMutation?.discriminated === true,
+      ),
+      fragmentPatternsMaterialized: rows
+        .filter((row) => (row.captured?.fragments?.length ?? 0) > 1)
+        .every((row) => row.patterns.length === row.captured!.fragments!.length),
       cyclicLayerRowHasFourImagePatterns: byId.get("cyclic-multiple-layer-lists")?.patterns.length === 4,
     };
     const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);
@@ -968,7 +1009,9 @@ export async function runUrlBackgroundGeometryAudit(
     };
     const blockers = [
       ...rows.flatMap((row) => row.blockers.map((blocker) => `${row.id}: ${blocker}`)),
-      ...Object.entries(controls).filter(([, value]) => !value).map(([name]) => `control failed: ${name}`),
+      ...Object.entries(controls)
+        .filter(([, value]) => !value)
+        .map(([name]) => `control failed: ${name}`),
     ];
     return {
       schemaVersion: 2,
@@ -1020,7 +1063,9 @@ export async function runUrlBackgroundGeometryGate(
       for (const row of run.rows) {
         const expectedArtifacts = row.restartMutation == null ? 3 : 5;
         if (row.artifacts.length !== expectedArtifacts) {
-          blockers.push(`${run.platform}@${run.deviceScaleFactor}x/${row.id}: expected ${expectedArtifacts} artifacts, received ${row.artifacts.length}`);
+          blockers.push(
+            `${run.platform}@${run.deviceScaleFactor}x/${row.id}: expected ${expectedArtifacts} artifacts, received ${row.artifacts.length}`,
+          );
         }
       }
     }
@@ -1039,8 +1084,11 @@ export async function runUrlBackgroundGeometryGate(
 
 async function main(): Promise<number> {
   const dprIndex = process.argv.indexOf("--dpr");
-  const parsedDprs = (dprIndex >= 0 ? process.argv[dprIndex + 1] : "1,2")
-    ?.split(",").map(Number).filter((value) => Number.isFinite(value) && value > 0) ?? [];
+  const parsedDprs =
+    (dprIndex >= 0 ? process.argv[dprIndex + 1] : "1,2")
+      ?.split(",")
+      .map(Number)
+      .filter((value) => Number.isFinite(value) && value > 0) ?? [];
   const artifactsIndex = process.argv.indexOf("--artifacts");
   const artifactDir = artifactsIndex >= 0 ? process.argv[artifactsIndex + 1] : undefined;
   const report = await runUrlBackgroundGeometryGate(parsedDprs, artifactDir);
@@ -1051,11 +1099,15 @@ async function main(): Promise<number> {
   }
   for (const run of report.runs) {
     const failures = run.rows.filter((row) => !row.pass);
-    console.log(`url background geometry ${run.platform}@${run.deviceScaleFactor}x: ${run.rows.length - failures.length}/${run.rows.length}; ${run.verdict}`);
+    console.log(
+      `url background geometry ${run.platform}@${run.deviceScaleFactor}x: ${run.rows.length - failures.length}/${run.rows.length}; ${run.verdict}`,
+    );
     for (const row of run.rows) {
       const mismatch = (row.comparison.labelMismatchFraction * 100).toFixed(2);
       const bound = row.comparison.maxColorBoundDelta ?? "missing";
-      console.log(`${row.pass ? "PASS" : "FAIL"} ${row.id}: route=${row.expectedRoute}, label-mismatch=${mismatch}%, max-bound-delta=${bound}, ink-bound-delta=${row.comparison.maxInkBoundDelta ?? "missing"}, patterns=${row.patterns.length}/${row.expectedPatternCount}`);
+      console.log(
+        `${row.pass ? "PASS" : "FAIL"} ${row.id}: route=${row.expectedRoute}, label-mismatch=${mismatch}%, max-bound-delta=${bound}, ink-bound-delta=${row.comparison.maxInkBoundDelta ?? "missing"}, patterns=${row.patterns.length}/${row.expectedPatternCount}`,
+      );
       for (const blocker of row.blockers) console.log(`  BLOCKER ${blocker}`);
     }
     console.log(`controls: ${JSON.stringify(run.controls)}`);

@@ -211,9 +211,33 @@ function backdrop(W: number, H: number, winX: number, winY: number, winW: number
 }
 
 /** Helpers to keep the animation list readable. */
-const fade = (id: string, delay: number, dur = 520): IntraFrameAnimation => ({ animId: id, property: "opacity", from: "0", to: "1", duration: dur, delay, easing: "ease-out" });
-const rise = (id: string, delay: number, px = 22, dur = 560): IntraFrameAnimation => ({ animId: id, property: "translateY", from: `${px}px`, to: "0px", duration: dur, delay, easing: "cubic-bezier(0.22,0.61,0.36,1)" });
-const growUp = (id: string, delay: number, dur = 560): IntraFrameAnimation => ({ animId: id, property: "clipPath", from: "inset(100% 0 0 0)", to: "inset(0 0 0 0)", duration: dur, delay, easing: "cubic-bezier(0.22,0.61,0.36,1)" });
+const fade = (id: string, delay: number, dur = 520): IntraFrameAnimation => ({
+  animId: id,
+  property: "opacity",
+  from: "0",
+  to: "1",
+  duration: dur,
+  delay,
+  easing: "ease-out",
+});
+const rise = (id: string, delay: number, px = 22, dur = 560): IntraFrameAnimation => ({
+  animId: id,
+  property: "translateY",
+  from: `${px}px`,
+  to: "0px",
+  duration: dur,
+  delay,
+  easing: "cubic-bezier(0.22,0.61,0.36,1)",
+});
+const growUp = (id: string, delay: number, dur = 560): IntraFrameAnimation => ({
+  animId: id,
+  property: "clipPath",
+  from: "inset(100% 0 0 0)",
+  to: "inset(0 0 0 0)",
+  duration: dur,
+  delay,
+  easing: "cubic-bezier(0.22,0.61,0.36,1)",
+});
 
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
@@ -269,7 +293,13 @@ async function main(): Promise<void> {
       },
     ];
 
-    appSvg = generateAnimatedSvg({ width: APP_W, height: APP_H, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: "#0b1020" });
+    appSvg = generateAnimatedSvg({
+      width: APP_W,
+      height: APP_H,
+      frames,
+      fontFaceCss: getEmbeddedFontFaceCss(),
+      background: "#0b1020",
+    });
   } finally {
     await browser.close();
   }

@@ -28,10 +28,12 @@ export function packageDistProblems(sourceFiles, distFiles) {
     .filter((path) => !/\.d\.ts$/.test(path))
     .filter((path) => !/\.(?:test|e2e\.test)\.tsx?$/.test(path))
     .filter((path) => !path.startsWith("test-support/"));
-  const expected = new Set(sources.flatMap((path) => {
-    const stem = path.replace(/\.tsx?$/, "");
-    return [`${stem}.js`, `${stem}.d.ts`];
-  }));
+  const expected = new Set(
+    sources.flatMap((path) => {
+      const stem = path.replace(/\.tsx?$/, "");
+      return [`${stem}.js`, `${stem}.d.ts`];
+    }),
+  );
   const actual = new Set(distFiles);
   const problems = [];
   for (const path of [...actual].sort()) {
@@ -52,7 +54,9 @@ if (invokedPath != null && import.meta.url === pathToFileURL(resolve(invokedPath
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const problems = checkPackageDist(root);
   if (problems.length > 0) {
-    process.stderr.write(`[check-package-dist] ${problems.length} problem(s):\n${problems.map((problem) => `  - ${problem}`).join("\n")}\n`);
+    process.stderr.write(
+      `[check-package-dist] ${problems.length} problem(s):\n${problems.map((problem) => `  - ${problem}`).join("\n")}\n`,
+    );
     process.exitCode = 1;
   } else {
     process.stdout.write("[check-package-dist] dist/ exactly matches publishable src/ modules\n");

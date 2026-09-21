@@ -4,7 +4,13 @@ import type { CapturedElement } from "../capture/types.js";
 
 function el(overrides: Partial<CapturedElement> = {}): CapturedElement {
   return {
-    tag: "div", text: "", x: 0, y: 0, width: 10, height: 10, children: [],
+    tag: "div",
+    text: "",
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    children: [],
     styles: { opacity: "1" } as CapturedElement["styles"],
     ...overrides,
   };
@@ -20,19 +26,20 @@ describe("annotateAnimatedProperties", () => {
 
   it("includes fused tracks' properties alongside the primary", () => {
     const target = el({ animId: "f0a0" });
-    annotateAnimatedProperties([target], [
-      { animId: "f0a0", property: "translateY", fuse: [{ property: "opacity" }] },
-    ]);
+    annotateAnimatedProperties([target], [{ animId: "f0a0", property: "translateY", fuse: [{ property: "opacity" }] }]);
     expect(target.animatedProperties).toEqual(expect.arrayContaining(["translateY", "opacity"]));
   });
 
   it("merges properties across multiple animations sharing one animId, without duplicates", () => {
     const target = el({ animId: "f0a0" });
-    annotateAnimatedProperties([target], [
-      { animId: "f0a0", property: "opacity" },
-      { animId: "f0a0", property: "opacity" },
-      { animId: "f0a0", property: "scale" },
-    ]);
+    annotateAnimatedProperties(
+      [target],
+      [
+        { animId: "f0a0", property: "opacity" },
+        { animId: "f0a0", property: "opacity" },
+        { animId: "f0a0", property: "scale" },
+      ],
+    );
     expect(target.animatedProperties).toEqual(["opacity", "scale"]);
   });
 

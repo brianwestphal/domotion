@@ -37,8 +37,7 @@ import { hostPlatform } from "./host-platform.js";
 
 /** The replacement is a CoreText construction; it exists only on macOS, and
  *  only the native helper can perform it. */
-const describeMac = hostPlatform() === "darwin" && isGlyphHelperAvailable()
-  ? describe : describe.skip;
+const describeMac = hostPlatform() === "darwin" && isGlyphHelperAvailable() ? describe : describe.skip;
 
 /** `system-ui` — the base whose cascade reaches Apple's hidden `.…UI` faces.
  *  The defect is invisible on any other stack, which is why the 273 rows that
@@ -49,15 +48,12 @@ const SIZE = 20;
 const WEIGHT = 700;
 
 /** Resolve one codepoint the way the renderer does and report the face. */
-function faceFor(
-  cp: number, stack: string, systemUi: boolean, fve?: "text" | "emoji" | "unicode",
-): string | null {
+function faceFor(cp: number, stack: string, systemUi: boolean, fve?: "text" | "emoji" | "unicode"): string | null {
   const key = resolveFontKey(stack);
   const chain = resolveFontKeyChain(stack);
   const primary = resolveFont(stack, WEIGHT, SIZE, 0);
   if (primary == null) return null;
-  const r = resolveFontForCodepoint(
-    cp, primary, key, WEIGHT, SIZE, 0, undefined, "en", chain, systemUi, 100, fve);
+  const r = resolveFontForCodepoint(cp, primary, key, WEIGHT, SIZE, 0, undefined, "en", chain, systemUi, 100, fve);
   if (r.key == null) return null;
   return resolveFontSpec(r.key)?.postscriptName ?? r.key;
 }

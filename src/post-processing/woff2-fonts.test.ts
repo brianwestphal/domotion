@@ -8,11 +8,18 @@ import { compressEmbeddedFontsToWoff2 } from "./woff2-fonts.js";
 function tinyTtfBase64(): string {
   const notdef = new opentype.Glyph({ name: ".notdef", advanceWidth: 500, path: new opentype.Path() });
   const tri = new opentype.Path();
-  tri.moveTo(0, 0); tri.lineTo(250, 700); tri.lineTo(500, 0); tri.close();
+  tri.moveTo(0, 0);
+  tri.lineTo(250, 700);
+  tri.lineTo(500, 0);
+  tri.close();
   const A = new opentype.Glyph({ name: "A", unicode: 0x41, advanceWidth: 500, path: tri });
   const font = new opentype.Font({
-    familyName: "TestEmbed", styleName: "Regular",
-    unitsPerEm: 1000, ascender: 800, descender: -200, glyphs: [notdef, A],
+    familyName: "TestEmbed",
+    styleName: "Regular",
+    unitsPerEm: 1000,
+    ascender: 800,
+    descender: -200,
+    glyphs: [notdef, A],
   });
   return Buffer.from(font.toArrayBuffer()).toString("base64");
 }

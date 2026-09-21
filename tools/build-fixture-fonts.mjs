@@ -53,7 +53,10 @@ const CHARSET = [
   0x00a0, // no-break space
   0x2013, // en dash
   0x2014, // em dash (the editor titlebar's "app.tsx — probe")
-  0x2018, 0x2019, 0x201c, 0x201d, // curly quotes
+  0x2018,
+  0x2019,
+  0x201c,
+  0x201d, // curly quotes
   0x2026, // horizontal ellipsis
 ];
 
@@ -104,8 +107,8 @@ function subset(srcPath, outName) {
   }
   if (missing.length > 0) {
     throw new Error(
-      `${outName}: source font does not cover ${missing.length} codepoint(s): `
-      + missing.map((c) => `U+${c.toString(16).toUpperCase().padStart(4, "0")}`).join(" "),
+      `${outName}: source font does not cover ${missing.length} codepoint(s): ` +
+        missing.map((c) => `U+${c.toString(16).toUpperCase().padStart(4, "0")}`).join(" "),
     );
   }
   // RETAIN_GIDS keeps the original cmap valid for the glyphs we kept, and the

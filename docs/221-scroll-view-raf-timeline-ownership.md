@@ -3,11 +3,11 @@ id: "requirements/scroll-view-raf-timeline-ownership"
 title: "221 — Scroll/view/rAF timeline sampling ownership"
 kind: "contract"
 status: "partial"
-owners: ["layout","animation"]
+owners: ["layout", "animation"]
 platforms: ["macos"]
-tickets: ["DM-2553","DM-2554"]
-code: ["src/capture/animation-frame.ts","tools/timeline-sampling-ownership-oracle.ts"]
-aliases: ["docs/221-scroll-view-raf-timeline-ownership.md","doc-221"]
+tickets: ["DM-2553", "DM-2554"]
+code: ["src/capture/animation-frame.ts", "tools/timeline-sampling-ownership-oracle.ts"]
+aliases: ["docs/221-scroll-view-raf-timeline-ownership.md", "doc-221"]
 ---
 
 # 221 — Scroll/view/rAF timeline sampling ownership
@@ -45,21 +45,21 @@ neither.
 The audited Chromium checkout is
 `7d859f271cbda744098ac69f44978d4edfa62be3`.
 
-| Source | Exact ownership consequence |
-| --- | --- |
-| `core/animation/animation.cc:512-590` | `currentTime` accepts an absolute number only for a document timeline. A progress timeline requires a CSS percentage and rejects an absolute value. |
-| `core/animation/animation.cc:593-665,674-720` | A successful seek writes a hold/start time and marks the compositor pending; exposed scroll-snapshot times convert back to CSS percentages. |
-| `core/animation/animation.cc:1654-1728,2898-3014` | `pause()` on a finite, non-monotonic timeline can remain auto-aligned until snapshot validation. Snapshot duration/range changes preserve percentage progress and may require another style/layout/compositor update. Pausing alone is not proof of a held effect. |
-| `core/frame/post_layout_snapshot_client.h:18-35` | Timeline snapshots are refreshed after layout; an invalid snapshot requests another style/layout pass, and a state difference can schedule another frame. |
-| `core/animation/scroll_snapshot_timeline.cc:21-70,137-160,186-266` | Public time is read from `timeline_state_snapshotted_` as a percentage. Snapshot comparison writes the new state before range resolution, validates every animation, and marks the compositor timeline pending when state changes. |
-| `core/animation/document_animations.cc:190-248` | Timeline animation timing is serviced before the microtask checkpoint; post-layout snapshot clients own the later scroll-timeline scheduling path instead of ordinary `ScheduleNextService()`. |
-| `core/animation/document_animations.cc:277-290,404-425` | `Document.getAnimations()` requests one `TreeScope`, and Blink filters out targets belonging to another scope. The current helper therefore cannot use document enumeration as proof that shadow-root progress animations are absent. |
-| `core/animation/scroll_timeline.cc:78-150` | Current time is derived from the physical scroll offset and positive used range at 16 microseconds per layout pixel. Effective zoom and resolved scroll limits are part of the snapshot. |
-| `core/animation/view_timeline.cc:304-379,484-544` | The range comes from subject size/static position, viewport, resolved insets, and sticky adjustments. `SubjectPosition()` ignores transforms. An HTML/CSS `LayoutBox` uses `StitchedSize()`, but an SVG child maps its decorated bounds through `LocalToAncestorQuad(...).BoundingBox()`, so SVG transforms can change timeline time. |
-| `core/animation/scroll_timeline_util.cc:18-38` | Blink gives the compositor a scroll-element ID, physical orientation, and the resolved scroll offsets. |
-| `cc/animation/scroll_timeline.cc:57-156,164-220` | The compositor reads its active/pending scroll tree, computes time from the physical offset, promotes pending IDs/ranges, and directly ticks scroll-linked animations. An unchanged last tick lets the compositor go idle. |
-| `core/page/page_animator.cc:41-110,114-303` | PageAnimator gathers local documents, fixes each document animation clock for the rendering update, services scroll animations, then dispatches events/tasks and finally executes rAF callbacks at the document timeline time. |
-| `core/dom/scripted_animation_controller.cc:100-108,176-182,238-249` | rAF registration stores a callback and schedules a main frame; execution drains that callback collection. The queue is independent of WAAPI animation enumeration and schedules another frame while callbacks remain. |
+| Source                                                              | Exact ownership consequence                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/animation/animation.cc:512-590`                               | `currentTime` accepts an absolute number only for a document timeline. A progress timeline requires a CSS percentage and rejects an absolute value.                                                                                                                                                                                   |
+| `core/animation/animation.cc:593-665,674-720`                       | A successful seek writes a hold/start time and marks the compositor pending; exposed scroll-snapshot times convert back to CSS percentages.                                                                                                                                                                                           |
+| `core/animation/animation.cc:1654-1728,2898-3014`                   | `pause()` on a finite, non-monotonic timeline can remain auto-aligned until snapshot validation. Snapshot duration/range changes preserve percentage progress and may require another style/layout/compositor update. Pausing alone is not proof of a held effect.                                                                    |
+| `core/frame/post_layout_snapshot_client.h:18-35`                    | Timeline snapshots are refreshed after layout; an invalid snapshot requests another style/layout pass, and a state difference can schedule another frame.                                                                                                                                                                             |
+| `core/animation/scroll_snapshot_timeline.cc:21-70,137-160,186-266`  | Public time is read from `timeline_state_snapshotted_` as a percentage. Snapshot comparison writes the new state before range resolution, validates every animation, and marks the compositor timeline pending when state changes.                                                                                                    |
+| `core/animation/document_animations.cc:190-248`                     | Timeline animation timing is serviced before the microtask checkpoint; post-layout snapshot clients own the later scroll-timeline scheduling path instead of ordinary `ScheduleNextService()`.                                                                                                                                        |
+| `core/animation/document_animations.cc:277-290,404-425`             | `Document.getAnimations()` requests one `TreeScope`, and Blink filters out targets belonging to another scope. The current helper therefore cannot use document enumeration as proof that shadow-root progress animations are absent.                                                                                                 |
+| `core/animation/scroll_timeline.cc:78-150`                          | Current time is derived from the physical scroll offset and positive used range at 16 microseconds per layout pixel. Effective zoom and resolved scroll limits are part of the snapshot.                                                                                                                                              |
+| `core/animation/view_timeline.cc:304-379,484-544`                   | The range comes from subject size/static position, viewport, resolved insets, and sticky adjustments. `SubjectPosition()` ignores transforms. An HTML/CSS `LayoutBox` uses `StitchedSize()`, but an SVG child maps its decorated bounds through `LocalToAncestorQuad(...).BoundingBox()`, so SVG transforms can change timeline time. |
+| `core/animation/scroll_timeline_util.cc:18-38`                      | Blink gives the compositor a scroll-element ID, physical orientation, and the resolved scroll offsets.                                                                                                                                                                                                                                |
+| `cc/animation/scroll_timeline.cc:57-156,164-220`                    | The compositor reads its active/pending scroll tree, computes time from the physical offset, promotes pending IDs/ranges, and directly ticks scroll-linked animations. An unchanged last tick lets the compositor go idle.                                                                                                            |
+| `core/page/page_animator.cc:41-110,114-303`                         | PageAnimator gathers local documents, fixes each document animation clock for the rendering update, services scroll animations, then dispatches events/tasks and finally executes rAF callbacks at the document timeline time.                                                                                                        |
+| `core/dom/scripted_animation_controller.cc:100-108,176-182,238-249` | rAF registration stores a callback and schedules a main frame; execution drains that callback collection. The queue is independent of WAAPI animation enumeration and schedules another frame while callbacks remain.                                                                                                                 |
 
 This order rules out two tempting approximations. A document millisecond is not
 a progress percentage, and a painted/projected subject quad is not a
@@ -111,19 +111,19 @@ The authenticated local run used Headless Chrome `147.0.7727.15`, Playwright
 `1.59.1`, macOS arm64, and two distinct renderer targets. All eleven logical
 discriminators were active in both the main target and OOPIF:
 
-| Mutation | Exact observation |
-| --- | --- |
-| absolute milliseconds | Every enumerated progress animation rejected `currentTime = 375`; strict mode threw with refusal and non-document-time records. |
-| transformed scroller | The CDP quad and computed transform changed while `scrollTop` and ScrollTimeline time remained exactly `31.96969696969697%`. |
-| projective HTML-box subject | A non-parallelogram CDP quad changed while ViewTimeline time remained exactly `14.678899082568808%`, authenticating the HTML/CSS-box branch only. |
-| transformed SVG subject | At fixed `scrollTop`, mapped SVG bounds and ViewTimeline time changed from `20.909090909090907%` to `19.615384615384613%`. |
-| exact percentage hold | Reassigning each sampled percentage held all three effects exactly while moving the source changed all source timeline percentages. |
-| TreeScope enumeration | Each target had three document, one open-shadow, and one closed-shadow progress animation. With only shadow animations left, strict capture returned success. |
-| current settle versus rAF | Main/OOPIF callback counters advanced from `3` to `7` while the current helper tried to settle one capture. |
-| benign pre-navigation clock | After pausing at `performance.now() === 1000`, callbacks through the replaced global stayed exactly frozen in both targets. |
-| page-visible native escape | Under the same frozen clock, `__pwClock.builtins.requestAnimationFrame` loops advanced from `17` to `29` in both targets. |
-| worker escape | Dedicated-worker rAF messages advanced from `17` to `29` in both targets while page clocks stayed frozen. |
-| late-install escape | Both globals exposed a paused fake `performance.now() === 1`, but callbacks that had retained native rAF advanced in both targets. A visible frozen clock is therefore insufficient proof. |
+| Mutation                    | Exact observation                                                                                                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| absolute milliseconds       | Every enumerated progress animation rejected `currentTime = 375`; strict mode threw with refusal and non-document-time records.                                                            |
+| transformed scroller        | The CDP quad and computed transform changed while `scrollTop` and ScrollTimeline time remained exactly `31.96969696969697%`.                                                               |
+| projective HTML-box subject | A non-parallelogram CDP quad changed while ViewTimeline time remained exactly `14.678899082568808%`, authenticating the HTML/CSS-box branch only.                                          |
+| transformed SVG subject     | At fixed `scrollTop`, mapped SVG bounds and ViewTimeline time changed from `20.909090909090907%` to `19.615384615384613%`.                                                                 |
+| exact percentage hold       | Reassigning each sampled percentage held all three effects exactly while moving the source changed all source timeline percentages.                                                        |
+| TreeScope enumeration       | Each target had three document, one open-shadow, and one closed-shadow progress animation. With only shadow animations left, strict capture returned success.                              |
+| current settle versus rAF   | Main/OOPIF callback counters advanced from `3` to `7` while the current helper tried to settle one capture.                                                                                |
+| benign pre-navigation clock | After pausing at `performance.now() === 1000`, callbacks through the replaced global stayed exactly frozen in both targets.                                                                |
+| page-visible native escape  | Under the same frozen clock, `__pwClock.builtins.requestAnimationFrame` loops advanced from `17` to `29` in both targets.                                                                  |
+| worker escape               | Dedicated-worker rAF messages advanced from `17` to `29` in both targets while page clocks stayed frozen.                                                                                  |
+| late-install escape         | Both globals exposed a paused fake `performance.now() === 1`, but callbacks that had retained native rAF advanced in both targets. A visible frozen clock is therefore insufficient proof. |
 
 The oracle fingerprints Playwright's server and injected clock sources.
 `lib/server/clock.js:95-110` reaches existing frames, but `clockSource.js`
@@ -136,17 +136,17 @@ tree state.
 
 ## Freezeability and fail-closed matrix
 
-| State | Deterministic disposition before every capture prepass |
-| --- | --- |
-| document-timeline CSS/WAAPI or SMIL | Already supported by the exact millisecond protocol in doc 186. |
-| active ScrollTimeline/ViewTimeline effect with resolved CSS percentage | Potentially holdable: pause, assign the same exact CSS percentage, commit, and reverify effect time/progress/output. This freezes the effect only. |
-| stable progress source and range | Must authenticate source identity, writing mode/direction and reversed logical axis, signed physical offset/limits, subject type/size/static position, SVG mapped bounds, insets, sticky adjustments, zoom, post-layout snapshot, and compositor commit. DM-2553 owns this record. |
-| progress animation outside the queried TreeScope | Fail until every reachable document/open-shadow scope is enumerated and the closed/inaccessible-scope policy is explicit. |
-| inactive/unresolved progress timeline | Fail: there is no percentage to hold or verify. |
-| smooth/compositor scroll, source/range mutation, target churn, or prepass drift | Fail: a held effect does not own those inputs. |
-| rAF through a replaced page global | The tested pre-navigation clock stops this benign case only; page-visible native builtins and workers prevent an ownership claim. |
-| saved-native/page-builtin rAF, worker rAF, uninstrumented/new target, mismatched time, or changing counter | Fail: callback ownership is incomplete. DM-2554 must own, disable, or reject every escape. |
-| paused fake rAF plus the current two-rAF settle helper | Fail: the settle promise cannot run while the shim is paused. A future protocol needs a controlled tick or authenticated non-rAF rendering barrier. |
+| State                                                                                                      | Deterministic disposition before every capture prepass                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| document-timeline CSS/WAAPI or SMIL                                                                        | Already supported by the exact millisecond protocol in doc 186.                                                                                                                                                                                                                    |
+| active ScrollTimeline/ViewTimeline effect with resolved CSS percentage                                     | Potentially holdable: pause, assign the same exact CSS percentage, commit, and reverify effect time/progress/output. This freezes the effect only.                                                                                                                                 |
+| stable progress source and range                                                                           | Must authenticate source identity, writing mode/direction and reversed logical axis, signed physical offset/limits, subject type/size/static position, SVG mapped bounds, insets, sticky adjustments, zoom, post-layout snapshot, and compositor commit. DM-2553 owns this record. |
+| progress animation outside the queried TreeScope                                                           | Fail until every reachable document/open-shadow scope is enumerated and the closed/inaccessible-scope policy is explicit.                                                                                                                                                          |
+| inactive/unresolved progress timeline                                                                      | Fail: there is no percentage to hold or verify.                                                                                                                                                                                                                                    |
+| smooth/compositor scroll, source/range mutation, target churn, or prepass drift                            | Fail: a held effect does not own those inputs.                                                                                                                                                                                                                                     |
+| rAF through a replaced page global                                                                         | The tested pre-navigation clock stops this benign case only; page-visible native builtins and workers prevent an ownership claim.                                                                                                                                                  |
+| saved-native/page-builtin rAF, worker rAF, uninstrumented/new target, mismatched time, or changing counter | Fail: callback ownership is incomplete. DM-2554 must own, disable, or reject every escape.                                                                                                                                                                                         |
+| paused fake rAF plus the current two-rAF settle helper                                                     | Fail: the settle promise cannot run while the shim is paused. A future protocol needs a controlled tick or authenticated non-rAF rendering barrier.                                                                                                                                |
 
 ## Bounded follow-ups
 

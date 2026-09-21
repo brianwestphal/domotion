@@ -24,11 +24,7 @@ import type { CapturedElement, CapturedFontPaletteIdentity, CaptureWarning, Text
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { backdropLayerMapping, type BackdropQuad } from "./backdrop-layer-space.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
-import {
-  appendBackdropRasterWarning,
-  planBackdropIsolation,
-  type SnapshotNode,
-} from "./backdrop-isolation.js";
+import { appendBackdropRasterWarning, planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
 import { prepareBackdropEffectSpace } from "./backdrop-effect-neutralization.js";
 import {
   materializeBackdropTerminalComposites,
@@ -92,12 +88,18 @@ function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): { buf: B
   const targetPpem = Math.max(64, paintedWidthPx * 3);
   let pickedPpem = SBIX_STRIKES[SBIX_STRIKES.length - 1];
   for (const p of SBIX_STRIKES) {
-    if (p >= targetPpem) { pickedPpem = p; break; }
+    if (p >= targetPpem) {
+      pickedPpem = p;
+      break;
+    }
   }
   const cacheKey = `${codepoint}|${pickedPpem}`;
   if (_sbixCache.has(cacheKey)) return _sbixCache.get(cacheKey)!;
   const font = loadAppleColorEmojiFont();
-  if (font == null) { _sbixCache.set(cacheKey, null); return null; }
+  if (font == null) {
+    _sbixCache.set(cacheKey, null);
+    return null;
+  }
   let result: { buf: Buffer; ppem: number } | null = null;
   try {
     const g = font.glyphForCodePoint(codepoint);
@@ -196,7 +198,15 @@ interface RasterCandidate {
   snapRectToClip?: boolean;
 }
 
-type ColorSpanIdentity = { fontKey: string; faceId: string; glyphIds: number[]; representation: string; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] };
+type ColorSpanIdentity = {
+  fontKey: string;
+  faceId: string;
+  glyphIds: number[];
+  representation: string;
+  paletteEntryCount?: number;
+  paletteCount?: number;
+  paletteTypes?: number[];
+};
 function paletteTreeEqualityKey(value: CapturedFontPaletteIdentity): string {
   if (value.mix != null) {
     return JSON.stringify([
@@ -225,9 +235,12 @@ export function resolvedPaletteIdentity(
   span: ColorSpanIdentity,
 ): CapturedFontPaletteIdentity {
   const fallbackToken = styles.fontPalette ?? "normal";
-  const fallbackKind = fallbackToken === "normal" || fallbackToken === "light" || fallbackToken === "dark"
-    ? fallbackToken
-    : fallbackToken.startsWith("--") ? "custom" : "unresolved";
+  const fallbackKind =
+    fallbackToken === "normal" || fallbackToken === "light" || fallbackToken === "dark"
+      ? fallbackToken
+      : fallbackToken.startsWith("--")
+        ? "custom"
+        : "unresolved";
   const source = styles.fontPaletteIdentity ?? {
     token: fallbackToken,
     kind: fallbackKind,
@@ -267,17 +280,33 @@ export function resolvedPaletteIdentity(
     };
   }
   const requested = source.basePalette;
-  const themed = requested === "light" ? span.paletteTypes?.findIndex((type) => type === 1) : requested === "dark" ? span.paletteTypes?.findIndex((type) => type === 2) : -1;
+  const themed =
+    requested === "light"
+      ? span.paletteTypes?.findIndex((type) => type === 1)
+      : requested === "dark"
+        ? span.paletteTypes?.findIndex((type) => type === 2)
+        : -1;
   const numeric = /^\d+$/.test(requested) ? Number(requested) : 0;
-  const resolvedBasePalette = themed != null && themed >= 0 ? themed : numeric < (span.paletteCount ?? Infinity) ? numeric : 0;
-  return { ...source, resolvedBasePalette, overrides: source.overrides.filter((item) => span.paletteEntryCount == null || item.index < span.paletteEntryCount) };
+  const resolvedBasePalette =
+    themed != null && themed >= 0 ? themed : numeric < (span.paletteCount ?? Infinity) ? numeric : 0;
+  return {
+    ...source,
+    resolvedBasePalette,
+    overrides: source.overrides.filter((item) => span.paletteEntryCount == null || item.index < span.paletteEntryCount),
+  };
 }
 export function colorGlyphRasterIdentity(
   styles: Pick<CapturedElement["styles"], "fontPalette" | "fontPaletteIdentity">,
   spans: ColorSpanIdentity[],
 ): string {
-  if (spans.length === 0) return JSON.stringify(styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? "normal" });
-  return spans.map((span) => `${JSON.stringify(resolvedPaletteIdentity(styles, span))}|${span.faceId}:${span.glyphIds.join(",")}:${span.representation}`).join(";");
+  if (spans.length === 0)
+    return JSON.stringify(styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? "normal" });
+  return spans
+    .map(
+      (span) =>
+        `${JSON.stringify(resolvedPaletteIdentity(styles, span))}|${span.faceId}:${span.glyphIds.join(",")}:${span.representation}`,
+    )
+    .join(";");
 }
 
 type RasterTextSeg = NonNullable<CapturedElement["textSegments"]>[number];
@@ -299,19 +328,22 @@ function selectedRasterSpansForSegment(
 ): ReturnType<typeof selectedGlyphRasterSpans> {
   return selectedGlyphRasterSpans(seg.text, spans, {
     fontSize: seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14),
-    fontFamily: seg.fontFamily != null
-      ? capturedFontFamilyCss(seg.fontFamily, seg.fontFamilyStack)
-      : capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack),
+    fontFamily:
+      seg.fontFamily != null
+        ? capturedFontFamilyCss(seg.fontFamily, seg.fontFamilyStack)
+        : capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack),
     fontWeight: seg.fontWeight ?? el.styles.fontWeight,
     fontStyle: seg.fontStyle ?? el.styles.fontStyle,
     fontStretch: el.styles.fontStretch,
     lang: el.styles.lang,
     variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
     features: capturedTextSegmentFontFeatures(el, seg),
-    fontVariantEmoji: el.styles.fontVariantEmoji === "text"
-      || el.styles.fontVariantEmoji === "emoji"
-      || el.styles.fontVariantEmoji === "unicode"
-      ? el.styles.fontVariantEmoji : undefined,
+    fontVariantEmoji:
+      el.styles.fontVariantEmoji === "text" ||
+      el.styles.fontVariantEmoji === "emoji" ||
+      el.styles.fontVariantEmoji === "unicode"
+        ? el.styles.fontVariantEmoji
+        : undefined,
   });
 }
 
@@ -344,7 +376,7 @@ function queueRasterGlyph(
   // capture, and Playwright rejects zero-area clips anyway.
   if (g.rect.width === 0 && g.rect.height === 0) return;
   const cp = seg.text.codePointAt(g.charIndex);
-  const cluster = seg.text.slice(g.charIndex, g.charIndex + (g.charLength ?? (cp != null && cp > 0xFFFF ? 2 : 1)));
+  const cluster = seg.text.slice(g.charIndex, g.charIndex + (g.charLength ?? (cp != null && cp > 0xffff ? 2 : 1)));
   // DM-335: try Apple Color Emoji's sbix table first. Returns the high-DPI
   // bitmap Chrome itself paints from CoreText — sharper than a 1× page
   // screenshot at the same emoji rect. Falls through to the page.screenshot
@@ -386,16 +418,27 @@ function queueRasterGlyph(
   candidates.push({
     rect: g.rect,
     key: `glyph|${cluster}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}|${identity}`,
-    setDataUri: (uri) => { g.dataUri = uri; },
+    setDataUri: (uri) => {
+      g.dataUri = uri;
+    },
     snapRectToClip: true,
   });
 }
 
 /** DM-1728: pixel ink bbox of an RGBA buffer (alpha > 16). Null when fully
  *  transparent. */
-interface InkBox { minX: number; minY: number; maxX: number; maxY: number }
-export function scanInk(data: Buffer | Uint8Array, width: number, height: number): InkBox | null { // exported for unit tests
-  let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+interface InkBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+export function scanInk(data: Buffer | Uint8Array, width: number, height: number): InkBox | null {
+  // exported for unit tests
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -1,
+    maxY = -1;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (data[(y * width + x) * 4 + 3] > 16) {
@@ -480,7 +523,9 @@ async function calibrateSbixOverlays(
           const png = await page.screenshot({ clip, omitBackground: true, type: "png" });
           const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
           shot = { data, w: info.width, h: info.height };
-        } catch { shot = null; }
+        } catch {
+          shot = null;
+        }
         shotCache.set(shotKey, shot);
       }
       if (shot == null) continue;
@@ -493,7 +538,8 @@ async function calibrateSbixOverlays(
       const emb = await sharp(strike.buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const embInk = scanInk(emb.data, emb.info.width, emb.info.height);
       if (embInk == null) continue;
-      const embW = emb.info.width, embH = emb.info.height;
+      const embW = emb.info.width,
+        embH = emb.info.height;
       const embInkW = embInk.maxX - embInk.minX + 1;
       const embInkH = embInk.maxY - embInk.minY + 1;
 
@@ -503,7 +549,8 @@ async function calibrateSbixOverlays(
       // first occurrence; identical glyph cells share the same fractional
       // offset in practice.)
       const occClip = clipRectForScreenshot(g.rect, viewport);
-      const clipX = occClip.x - viewport.x, clipY = occClip.y - viewport.y;
+      const clipX = occClip.x - viewport.x,
+        clipY = occClip.y - viewport.y;
       const cssInk = screenshotInkBoundsInCssPixels(
         chromeInk,
         { width: shot.w, height: shot.h },
@@ -515,16 +562,18 @@ async function calibrateSbixOverlays(
       const targetH = cssInk.height;
 
       // Where the embedded ink currently lands through the destination rect.
-      const sx = g.rect.width / embW, sy = g.rect.height / embH;
+      const sx = g.rect.width / embW,
+        sy = g.rect.height / embH;
       const curX = g.rect.x + embInk.minX * sx;
       const curY = g.rect.y + embInk.minY * sy;
       const curW = embInkW * sx;
       const curH = embInkH * sy;
 
-      const needsAlign = Math.abs(curX - targetX) >= SBIX_ALIGN_EPS_PX + 0.5
-        || Math.abs(curY - targetY) >= SBIX_ALIGN_EPS_PX + 0.5
-        || Math.abs(curW - targetW) >= SBIX_ALIGN_EPS_PX + 0.75
-        || Math.abs(curH - targetH) >= SBIX_ALIGN_EPS_PX + 0.75;
+      const needsAlign =
+        Math.abs(curX - targetX) >= SBIX_ALIGN_EPS_PX + 0.5 ||
+        Math.abs(curY - targetY) >= SBIX_ALIGN_EPS_PX + 0.5 ||
+        Math.abs(curW - targetW) >= SBIX_ALIGN_EPS_PX + 0.75 ||
+        Math.abs(curH - targetH) >= SBIX_ALIGN_EPS_PX + 0.75;
       // (+0.5/+0.75 slack: the screenshot ink is quantized to whole pixels and
       // includes antialiased edges, so exact fractional agreement is not
       // achievable — only real strike-tuning drift (≥1px) should trigger.)
@@ -545,17 +594,24 @@ async function calibrateSbixOverlays(
       // screenshot's pixel grid and mean-diff the union of inked pixels.
       const scaleW = Math.max(1, Math.round(rect.width * cssInk.scaleX));
       const scaleH = Math.max(1, Math.round(rect.height * cssInk.scaleY));
-      const resized = await sharp(strike.buf).resize(scaleW, scaleH, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const resized = await sharp(strike.buf)
+        .resize(scaleW, scaleH, { fit: "fill" })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
       const offX = Math.round((rect.x - clipX) * cssInk.scaleX);
       const offY = Math.round((rect.y - clipY) * cssInk.scaleY);
-      let sum = 0, n = 0;
+      let sum = 0,
+        n = 0;
       for (let y = 0; y < shot.h; y++) {
         for (let x = 0; x < shot.w; x++) {
           const si = (y * shot.w + x) * 4;
-          const rx = x - offX, ry = y - offY;
+          const rx = x - offX,
+            ry = y - offY;
           const inR = rx >= 0 && ry >= 0 && rx < resized.info.width && ry < resized.info.height;
           const ri = inR ? (ry * resized.info.width + rx) * 4 : -1;
-          const aShot = shot.data[si + 3], aEmb = inR ? resized.data[ri + 3] : 0;
+          const aShot = shot.data[si + 3],
+            aEmb = inR ? resized.data[ri + 3] : 0;
           if (aShot > 16 || aEmb > 16) {
             // Alpha-weighted channel difference (transparent → 0 contribution).
             for (let c = 0; c < 3; c++) {
@@ -580,7 +636,9 @@ async function calibrateSbixOverlays(
           g.rect.y = clip.y - viewport.y;
           g.rect.width = clip.width;
           g.rect.height = clip.height;
-        } catch { /* keep the sbix stamp */ }
+        } catch {
+          /* keep the sbix stamp */
+        }
         continue;
       }
       if (needsAlign) {
@@ -589,7 +647,9 @@ async function calibrateSbixOverlays(
         g.rect.width = rect.width;
         g.rect.height = rect.height;
       }
-    } catch { /* leave this overlay as stamped */ }
+    } catch {
+      /* leave this overlay as stamped */
+    }
   }
 }
 
@@ -612,9 +672,10 @@ export async function rasterizeBackdropFilters(
     const raster = el.backdropFilterRaster;
     if (raster == null) return;
     const selector = raster.selector ?? el.tag;
-    const vectorFallback = el.styles.frostedBgFallback != null
-      ? "captured frosted-background color without a sampled backdrop"
-      : "captured vector box/background without a sampled backdrop";
+    const vectorFallback =
+      el.styles.frostedBgFallback != null
+        ? "captured frosted-background color without a sampled backdrop"
+        : "captured vector box/background without a sampled backdrop";
     if (raster.token == null || raster.token === "") {
       appendBackdropRasterWarning(warnings, selector, {
         status: "unavailable",
@@ -633,36 +694,37 @@ export async function rasterizeBackdropFilters(
     planBackdropTerminalComposites(tree),
     viewport,
   );
-  const coveredRootRasters = await materializeBackdropRootComposites(
-    page,
-    planBackdropRootComposites(tree),
-    viewport,
-  );
+  const coveredRootRasters = await materializeBackdropRootComposites(page, planBackdropRootComposites(tree), viewport);
   for (const target of targets) {
     if (terminalRasters.has(target.raster) || coveredRootRasters.has(target.raster)) {
       appendBackdropRasterWarning(warnings, target.selector, { status: "exact" });
     }
   }
-  const remainingTargets = targets.filter((target) =>
-    !terminalRasters.has(target.raster) && !coveredRootRasters.has(target.raster));
+  const remainingTargets = targets.filter(
+    (target) => !terminalRasters.has(target.raster) && !coveredRootRasters.has(target.raster),
+  );
 
   let cdp: CDPSession | undefined;
   const captureCrop = async (
     target: Target,
     targetBackendNodeId?: number,
   ): Promise<{ captured: boolean; effectSpaceExact: boolean }> => {
-    const hasRelativeTransform = target.raster.effectSpace?.ancestors.some((ancestor) =>
-      ancestor.neutralize.includes("rotate-skew")) === true;
+    const hasRelativeTransform =
+      target.raster.effectSpace?.ancestors.some((ancestor) => ancestor.neutralize.includes("rotate-skew")) === true;
     let layerMapping: ReturnType<typeof backdropLayerMapping> = null;
     if (hasRelativeTransform && cdp != null && targetBackendNodeId != null) {
       try {
-        const box = await cdp.send("DOM.getBoxModel", { backendNodeId: targetBackendNodeId }) as any;
+        const box = (await cdp.send("DOM.getBoxModel", { backendNodeId: targetBackendNodeId })) as any;
         const border = box.model?.border as number[] | undefined;
         if (border?.length === 8) {
-          const localQuad = border.map((coordinate, index) => coordinate - (index % 2 === 0 ? viewport.x : viewport.y)) as BackdropQuad;
+          const localQuad = border.map(
+            (coordinate, index) => coordinate - (index % 2 === 0 ? viewport.x : viewport.y),
+          ) as BackdropQuad;
           layerMapping = backdropLayerMapping(target.raster, localQuad);
         }
-      } catch { /* Retain the transform-neutral capture route below. */ }
+      } catch {
+        /* Retain the transform-neutral capture route below. */
+      }
     }
     const preparedEffectSpace = await prepareBackdropEffectSpace(page, target.raster, {
       preserveRelativeTransform: layerMapping != null,
@@ -675,10 +737,13 @@ export async function rasterizeBackdropFilters(
       target.raster.y = clip.y - viewport.y;
       target.raster.width = clip.width;
       target.raster.height = clip.height;
-      target.raster.layerSpace = layerMapping == null ? undefined : {
-        source: "blink-skia-relative-device-v1",
-        counterTransform: layerMapping.inverse,
-      };
+      target.raster.layerSpace =
+        layerMapping == null
+          ? undefined
+          : {
+              source: "blink-skia-relative-device-v1",
+              counterTransform: layerMapping.inverse,
+            };
       if (target.atomicTargetFilter) {
         target.element.backdropCompositeRaster = {
           x: target.raster.x,
@@ -708,17 +773,23 @@ export async function rasterizeBackdropFilters(
   };
   try {
     cdp = await page.context().newCDPSession(page);
-    const snap = await cdp.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [], includePaintOrder: true, includeDOMRects: true,
-    }) as any;
+    const snap = (await cdp.send("DOMSnapshot.captureSnapshot", {
+      computedStyles: [],
+      includePaintOrder: true,
+      includeDOMRects: true,
+    })) as any;
     const doc = snap.documents?.[0];
     const strings: string[] = snap.strings ?? [];
-    const paintByNode = new Map<number, { bounds: [number, number, number, number]; paintOrder: number; layoutOrder: number }>();
+    const paintByNode = new Map<
+      number,
+      { bounds: [number, number, number, number]; paintOrder: number; layoutOrder: number }
+    >();
     for (let i = 0; i < (doc?.layout?.nodeIndex?.length ?? 0); i++) {
       const nodeIndex = doc.layout.nodeIndex[i] as number;
       const bounds = doc.layout.bounds[i] as [number, number, number, number];
       const paintOrder = doc.layout.paintOrders?.[i] as number | undefined;
-      if (paintOrder != null && !paintByNode.has(nodeIndex)) paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });
+      if (paintOrder != null && !paintByNode.has(nodeIndex))
+        paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });
     }
     const attributesByNode = new Map<number, number[]>();
     const rareAttributes = doc?.nodes?.attributes;
@@ -762,18 +833,23 @@ export async function rasterizeBackdropFilters(
       try {
         for (const backendNodeId of plan.hideBackendNodeIds) {
           try {
-            const resolved = await cdp.send("DOM.resolveNode", { backendNodeId }) as any;
+            const resolved = (await cdp.send("DOM.resolveNode", { backendNodeId })) as any;
             const objectId = resolved.object?.objectId as string | undefined;
             if (objectId == null) {
               unresolvedNodeCount++;
               continue;
             }
-            const changed = await cdp.send("Runtime.callFunctionOn", {
+            const changed = (await cdp.send("Runtime.callFunctionOn", {
               objectId,
-              functionDeclaration: "function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
+              functionDeclaration:
+                "function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
               returnByValue: true,
-            }) as any;
-            restores.push({ objectId, value: changed.result?.value?.v ?? "", priority: changed.result?.value?.p ?? "" });
+            })) as any;
+            restores.push({
+              objectId,
+              value: changed.result?.value?.v ?? "",
+              priority: changed.result?.value?.p ?? "",
+            });
           } catch {
             // The crop is still useful, but it contains paint that the exact
             // isolation plan said must be absent. Report that partial state.
@@ -782,32 +858,38 @@ export async function rasterizeBackdropFilters(
         }
         const captured = await captureCrop(target, plan.targetBackendNodeId);
         if (captured.captured) {
-          appendBackdropRasterWarning(warnings, target.selector, unresolvedNodeCount === 0
-            ? captured.effectSpaceExact
-              ? { status: "exact" }
+          appendBackdropRasterWarning(
+            warnings,
+            target.selector,
+            unresolvedNodeCount === 0
+              ? captured.effectSpaceExact
+                ? { status: "exact" }
+                : {
+                    status: "partial",
+                    reason: "effect-space-unavailable",
+                    fallback: "isolated final-effect-space Chromium crop",
+                  }
               : {
-                status: "partial",
-                reason: "effect-space-unavailable",
-                fallback: "isolated final-effect-space Chromium crop",
-              }
-            : {
-              status: "partial",
-              reason: "node-resolution-partial",
-              fallback: "partially isolated Chromium crop",
-              unresolvedNodeCount,
-            });
+                  status: "partial",
+                  reason: "node-resolution-partial",
+                  fallback: "partially isolated Chromium crop",
+                  unresolvedNodeCount,
+                },
+          );
         }
-      }
-      finally {
+      } finally {
         for (let i = restores.length - 1; i >= 0; i--) {
           const restore = restores[i];
           try {
             await cdp.send("Runtime.callFunctionOn", {
               objectId: restore.objectId,
-              functionDeclaration: "function(v,p){if(v==='')this.style.removeProperty('visibility');else this.style.setProperty('visibility',v,p);}",
+              functionDeclaration:
+                "function(v,p){if(v==='')this.style.removeProperty('visibility');else this.style.setProperty('visibility',v,p);}",
               arguments: [{ value: restore.value }, { value: restore.priority }],
             });
-          } catch { /* page teardown */ }
+          } catch {
+            /* page teardown */
+          }
         }
       }
     }
@@ -825,9 +907,12 @@ export async function rasterizeBackdropFilters(
     }
   } finally {
     await cdp?.detach().catch(() => undefined);
-    await page.evaluate(() => {
-      for (const el of document.querySelectorAll("[data-domotion-backdrop-raster]")) el.removeAttribute("data-domotion-backdrop-raster");
-    }).catch(() => undefined);
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll("[data-domotion-backdrop-raster]"))
+          el.removeAttribute("data-domotion-backdrop-raster");
+      })
+      .catch(() => undefined);
   }
 }
 
@@ -858,101 +943,114 @@ export async function rasterizeBitmapGlyphs(
   const candidates: RasterCandidate[] = [];
   const sbixAligns: SbixAlignJob[] = [];
   forEachElement(tree, (el) => {
-      if (options.includeElement != null && !options.includeElement(el)) return;
-      // Element-level raster (SK-1108): textarea content region, too
-      // involved to word-wrap in the path pipeline. Key on text+size+color so
-      // identical textareas dedupe to one screenshot.
-      if (el.elementRaster != null) {
-        const er = el.elementRaster;
-        // DM-936: include text-decoration + text-underline-position in the
-        // dedupe key so 3 identical-text `.vert.pos-{left,right,auto}`
-        // columns don't collapse to the same screenshot (the underline
-        // paints in different places per pos-* but tag+text+color+size
-        // alone hashes them all together → wrong-side underline in 2/3
-        // of the columns). Same for text-shadow / writing-mode variants.
-        // All the decoration keys are typed reads off CapturedStyles now; only
-        // the `text-decoration` shorthand isn't captured (just the longhands),
-        // so narrow-cast that single fallback read.
-        const s = el.styles;
-        const tdShorthand = (s as { textDecoration?: string }).textDecoration;
-        const tdKey = `${s.textDecorationLine ?? tdShorthand ?? ""}|${s.textUnderlinePosition ?? ""}|${s.textUnderlineOffset ?? ""}|${s.textDecorationStyle ?? ""}|${s.textDecorationColor ?? ""}|${s.textDecorationThickness ?? ""}|${s.textShadow ?? ""}|${s.writingMode ?? ""}`;
-        candidates.push({
-          rect: { x: er.x, y: er.y, width: er.width, height: er.height },
-          key: `el|${el.tag}|${el.text}|${el.styles.color}|${el.styles.fontSize}|${er.width}x${er.height}|${tdKey}`,
-          setDataUri: (uri) => { er.dataUri = uri; },
-        });
-      }
-      const textSegments = options.textSegmentsFor?.(el) ?? el.textSegments;
-      if (textSegments != null) {
-        for (const seg of textSegments) {
-          if (seg.rasterRect != null) {
-            if (selectedRasterSpansForSegment(el, seg, segmentCandidates(seg.text)).length === 0) {
-              seg.rasterRect = undefined;
-            } else {
-              candidates.push({
-                rect: seg.rasterRect,
-                key: `seg|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${colorGlyphRasterIdentity(el.styles, [])}`,
-                setDataUri: (uri) => { seg.rasterDataUri = uri; },
-              });
-            }
-          }
-          if (seg.rasterGlyphs != null) {
-            const structural = seg.rasterGlyphs.filter((g) => g.rect.width === 0 && g.rect.height === 0);
-            const paintCandidates = seg.rasterGlyphs.filter((g) => g.rect.width !== 0 || g.rect.height !== 0);
-            const selected = selectedRasterSpansForSegment(
-              el,
-              seg,
-              paintCandidates.map((g) => ({
-                start: g.charIndex,
-                end: g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1)),
-              })),
-            );
-            // CBDT/CBLC glyphs are strike bitmaps whose ink bounds are not
-            // exposed by CSSOM Range geometry. Chromium/Skia may paint the
-            // strike outside the character advance (Noto Color Emoji does on
-            // Linux), so clipping a per-glyph screenshot to that Range loses
-            // real pixels. Until the helper transports the selected strike's
-            // bitmap metrics, preserve Chromium's paint ownership by
-            // screenshotting this one line fragment as the established
-            // segment-level raster boundary. This is keyed to the selected
-            // glyph representation, never to a platform, font name, or
-            // codepoint.
-            if (selected.some((span) => span.representation === "bitmap")) {
-              const rect = { x: seg.x, y: seg.y, width: seg.width, height: seg.height };
-              seg.rasterRect = rect;
-              seg.colorGlyphIdentities = selected.map((span) => ({ palette: resolvedPaletteIdentity(el.styles, span), fontKey: span.fontKey, faceId: span.faceId, glyphIds: span.glyphIds, representation: span.representation }));
-              seg.rasterGlyphs = structural.length > 0 ? structural : undefined;
-              candidates.push({
-                rect,
-                key: `seg-bitmap|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${rect.width}x${rect.height}|${colorGlyphRasterIdentity(el.styles, selected)}`,
-                setDataUri: (uri) => { seg.rasterDataUri = uri; },
-                snapRectToClip: true,
-              });
-              continue;
-            }
-            const selectedKeys = new Set(selected.map((span) => `${span.start}:${span.end}`));
-            const raster = paintCandidates.filter((g) => {
-              const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1));
-              return selectedKeys.has(`${g.charIndex}:${end}`);
+    if (options.includeElement != null && !options.includeElement(el)) return;
+    // Element-level raster (SK-1108): textarea content region, too
+    // involved to word-wrap in the path pipeline. Key on text+size+color so
+    // identical textareas dedupe to one screenshot.
+    if (el.elementRaster != null) {
+      const er = el.elementRaster;
+      // DM-936: include text-decoration + text-underline-position in the
+      // dedupe key so 3 identical-text `.vert.pos-{left,right,auto}`
+      // columns don't collapse to the same screenshot (the underline
+      // paints in different places per pos-* but tag+text+color+size
+      // alone hashes them all together → wrong-side underline in 2/3
+      // of the columns). Same for text-shadow / writing-mode variants.
+      // All the decoration keys are typed reads off CapturedStyles now; only
+      // the `text-decoration` shorthand isn't captured (just the longhands),
+      // so narrow-cast that single fallback read.
+      const s = el.styles;
+      const tdShorthand = (s as { textDecoration?: string }).textDecoration;
+      const tdKey = `${s.textDecorationLine ?? tdShorthand ?? ""}|${s.textUnderlinePosition ?? ""}|${s.textUnderlineOffset ?? ""}|${s.textDecorationStyle ?? ""}|${s.textDecorationColor ?? ""}|${s.textDecorationThickness ?? ""}|${s.textShadow ?? ""}|${s.writingMode ?? ""}`;
+      candidates.push({
+        rect: { x: er.x, y: er.y, width: er.width, height: er.height },
+        key: `el|${el.tag}|${el.text}|${el.styles.color}|${el.styles.fontSize}|${er.width}x${er.height}|${tdKey}`,
+        setDataUri: (uri) => {
+          er.dataUri = uri;
+        },
+      });
+    }
+    const textSegments = options.textSegmentsFor?.(el) ?? el.textSegments;
+    if (textSegments != null) {
+      for (const seg of textSegments) {
+        if (seg.rasterRect != null) {
+          if (selectedRasterSpansForSegment(el, seg, segmentCandidates(seg.text)).length === 0) {
+            seg.rasterRect = undefined;
+          } else {
+            candidates.push({
+              rect: seg.rasterRect,
+              key: `seg|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${colorGlyphRasterIdentity(el.styles, [])}`,
+              setDataUri: (uri) => {
+                seg.rasterDataUri = uri;
+              },
             });
-            const retained = [...structural, ...raster];
-            seg.rasterGlyphs = retained.length > 0 ? retained : undefined;
-            for (const g of raster) {
-              const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1));
-              const span = selected.find((item) => item.start === g.charIndex && item.end === end);
-              if (span != null) g.colorGlyphIdentity = {
+          }
+        }
+        if (seg.rasterGlyphs != null) {
+          const structural = seg.rasterGlyphs.filter((g) => g.rect.width === 0 && g.rect.height === 0);
+          const paintCandidates = seg.rasterGlyphs.filter((g) => g.rect.width !== 0 || g.rect.height !== 0);
+          const selected = selectedRasterSpansForSegment(
+            el,
+            seg,
+            paintCandidates.map((g) => ({
+              start: g.charIndex,
+              end: g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xffff ? 2 : 1)),
+            })),
+          );
+          // CBDT/CBLC glyphs are strike bitmaps whose ink bounds are not
+          // exposed by CSSOM Range geometry. Chromium/Skia may paint the
+          // strike outside the character advance (Noto Color Emoji does on
+          // Linux), so clipping a per-glyph screenshot to that Range loses
+          // real pixels. Until the helper transports the selected strike's
+          // bitmap metrics, preserve Chromium's paint ownership by
+          // screenshotting this one line fragment as the established
+          // segment-level raster boundary. This is keyed to the selected
+          // glyph representation, never to a platform, font name, or
+          // codepoint.
+          if (selected.some((span) => span.representation === "bitmap")) {
+            const rect = { x: seg.x, y: seg.y, width: seg.width, height: seg.height };
+            seg.rasterRect = rect;
+            seg.colorGlyphIdentities = selected.map((span) => ({
+              palette: resolvedPaletteIdentity(el.styles, span),
+              fontKey: span.fontKey,
+              faceId: span.faceId,
+              glyphIds: span.glyphIds,
+              representation: span.representation,
+            }));
+            seg.rasterGlyphs = structural.length > 0 ? structural : undefined;
+            candidates.push({
+              rect,
+              key: `seg-bitmap|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${rect.width}x${rect.height}|${colorGlyphRasterIdentity(el.styles, selected)}`,
+              setDataUri: (uri) => {
+                seg.rasterDataUri = uri;
+              },
+              snapRectToClip: true,
+            });
+            continue;
+          }
+          const selectedKeys = new Set(selected.map((span) => `${span.start}:${span.end}`));
+          const raster = paintCandidates.filter((g) => {
+            const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xffff ? 2 : 1));
+            return selectedKeys.has(`${g.charIndex}:${end}`);
+          });
+          const retained = [...structural, ...raster];
+          seg.rasterGlyphs = retained.length > 0 ? retained : undefined;
+          for (const g of raster) {
+            const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xffff ? 2 : 1));
+            const span = selected.find((item) => item.start === g.charIndex && item.end === end);
+            if (span != null)
+              g.colorGlyphIdentity = {
                 palette: resolvedPaletteIdentity(el.styles, span),
                 fontKey: span.fontKey,
                 faceId: span.faceId,
                 glyphIds: span.glyphIds,
                 representation: span.representation,
               };
-              const identity = colorGlyphRasterIdentity(el.styles, span == null ? [] : [span]);
-              queueRasterGlyph(g, seg, el, candidates, sbixAligns, identity);
-            }
+            const identity = colorGlyphRasterIdentity(el.styles, span == null ? [] : [span]);
+            queueRasterGlyph(g, seg, el, candidates, sbixAligns, identity);
           }
         }
       }
+    }
   });
   await calibrateSbixOverlays(page, viewport, sbixAligns);
   if (candidates.length === 0) return;

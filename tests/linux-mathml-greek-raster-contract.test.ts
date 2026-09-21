@@ -23,16 +23,57 @@ describe("DM-2512 Linux MathML Greek source contract", () => {
   });
 
   it.each([
-    ["math-auto scalar", (value: any) => { value.tokens[0].transformed = "α"; }],
-    ["selected face", (value: any) => { value.tokens[0].nativeFace.familyName = "Fallback Sans"; }],
-    ["source gid", (value: any) => { value.tokens[0].glyph.gid++; }],
-    ["source outline", (value: any) => { value.tokens[0].glyph.outlineSha256 = "f".repeat(64); }],
-    ["capture-owned baseline", (value: any) => { value.tokens[0].geometry.baseline++; }],
-    ["capture-owned matrix", (value: any) => { value.tokens[0].geometry.matrix[4] = 0.25; }],
-    ["package bytes", (value: any) => { value.package.sha256 = "f".repeat(64); }],
-    ["isolated inventory", (value: any) => { value.inventory.entries.push(value.inventory.entries[0]); }],
+    [
+      "math-auto scalar",
+      (value: any) => {
+        value.tokens[0].transformed = "α";
+      },
+    ],
+    [
+      "selected face",
+      (value: any) => {
+        value.tokens[0].nativeFace.familyName = "Fallback Sans";
+      },
+    ],
+    [
+      "source gid",
+      (value: any) => {
+        value.tokens[0].glyph.gid++;
+      },
+    ],
+    [
+      "source outline",
+      (value: any) => {
+        value.tokens[0].glyph.outlineSha256 = "f".repeat(64);
+      },
+    ],
+    [
+      "capture-owned baseline",
+      (value: any) => {
+        value.tokens[0].geometry.baseline++;
+      },
+    ],
+    [
+      "capture-owned matrix",
+      (value: any) => {
+        value.tokens[0].geometry.matrix[4] = 0.25;
+      },
+    ],
+    [
+      "package bytes",
+      (value: any) => {
+        value.package.sha256 = "f".repeat(64);
+      },
+    ],
+    [
+      "isolated inventory",
+      (value: any) => {
+        value.inventory.entries.push(value.inventory.entries[0]);
+      },
+    ],
   ])("rejects hostile %s mutation", (_label, mutate) => {
-    const value: any = structuredClone(exactLinuxMathmlGreekPreterminal()); mutate(value);
+    const value: any = structuredClone(exactLinuxMathmlGreekPreterminal());
+    mutate(value);
     expect(validateLinuxMathmlGreekPreterminalEvidence(value)).not.toEqual([]);
   });
 });

@@ -7,7 +7,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
-import { appendGlyphCopy, compactGlyphIds, compactRetainedGlyphIds, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, resetHbSubsetWasmInstance, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import {
+  appendGlyphCopy,
+  compactGlyphIds,
+  compactRetainedGlyphIds,
+  getHbSubsetAttemptDiagnostics,
+  hbSubsetRetainGids,
+  injectPuaCmap,
+  resetHbSubsetAttemptDiagnostics,
+  resetHbSubsetWasmInstance,
+  sfntHasSubsettableOutlines,
+} from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -23,11 +33,18 @@ const fontkit = (fkNs as { default?: typeof fkNs }).default ?? fkNs;
 function buildStaticCffFont(): Buffer {
   const notdef = new opentype.Glyph({ name: ".notdef", advanceWidth: 500, path: new opentype.Path() });
   const path = new opentype.Path();
-  path.moveTo(40, 0); path.lineTo(300, 700); path.lineTo(560, 0); path.close();
+  path.moveTo(40, 0);
+  path.lineTo(300, 700);
+  path.lineTo(560, 0);
+  path.close();
   const glyph = new opentype.Glyph({ name: "A", unicode: 0x41, advanceWidth: 600, path });
   const font = new opentype.Font({
-    familyName: "SynthCff", styleName: "Regular", unitsPerEm: 1000,
-    ascender: 800, descender: -200, glyphs: [notdef, glyph],
+    familyName: "SynthCff",
+    styleName: "Regular",
+    unitsPerEm: 1000,
+    ascender: 800,
+    descender: -200,
+    glyphs: [notdef, glyph],
   });
   return Buffer.from(font.toArrayBuffer());
 }
@@ -76,22 +93,28 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
     resetHbSubsetAttemptDiagnostics();
     const source = buildStaticHintedFont();
     const out = hbSubsetRetainGids(source, [2, 1, 2]);
-    expect(getHbSubsetAttemptDiagnostics()).toEqual([expect.objectContaining({
-      buildOrdinal: expect.any(Number),
-      sessionId: expect.any(String),
-      stage: "complete",
-      sourceSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-      sourceTableTags: expect.arrayContaining(["glyf", "loca"]),
-      sortedGids: [1, 2],
-      gidHash: expect.stringMatching(/^[0-9a-f]{64}$/),
-      pointers: expect.objectContaining({ font: expect.any(Number), input: expect.any(Number), resultFace: expect.any(Number) }),
-      wasmMemoryBytesBefore: expect.any(Number),
-      wasmMemoryBytesAfter: expect.any(Number),
-      output: expect.objectContaining({
-        sha256: createHash("sha256").update(out).digest("hex"),
-        tableTags: expect.arrayContaining(["glyf", "loca"]),
+    expect(getHbSubsetAttemptDiagnostics()).toEqual([
+      expect.objectContaining({
+        buildOrdinal: expect.any(Number),
+        sessionId: expect.any(String),
+        stage: "complete",
+        sourceSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        sourceTableTags: expect.arrayContaining(["glyf", "loca"]),
+        sortedGids: [1, 2],
+        gidHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        pointers: expect.objectContaining({
+          font: expect.any(Number),
+          input: expect.any(Number),
+          resultFace: expect.any(Number),
+        }),
+        wasmMemoryBytesBefore: expect.any(Number),
+        wasmMemoryBytesAfter: expect.any(Number),
+        output: expect.objectContaining({
+          sha256: createHash("sha256").update(out).digest("hex"),
+          tableTags: expect.arrayContaining(["glyf", "loca"]),
+        }),
       }),
-    })]);
+    ]);
   });
 
   it("is byte-identical cold, after a cumulative prefix, cached-repeat, and fresh-instance (DM-2433)", () => {
@@ -103,17 +126,28 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
     // subsets share one allocator before the identical tuple is asked again.
     for (let i = 0; i < 96; i++) {
       const source = i % 2 === 0 ? buildStaticHintedFont({ aXMax: 550 + i }) : buildVariableHintedFont();
-      hbSubsetRetainGids(source, i % 3 === 0 ? [1] : [1, 2], 0, true, i % 2 === 0 ? null : { wght: i % 4 === 1 ? 400 : 900 });
+      hbSubsetRetainGids(
+        source,
+        i % 3 === 0 ? [1] : [1, 2],
+        0,
+        true,
+        i % 2 === 0 ? null : { wght: i % 4 === 1 ? 400 : 900 },
+      );
     }
     const afterPrefix = buildTarget();
     const cachedRepeat = buildTarget();
     resetHbSubsetWasmInstance();
     const fresh = buildTarget();
-    const hashes = [cold, afterPrefix, cachedRepeat, fresh].map((bytes) => createHash("sha256").update(bytes).digest("hex"));
+    const hashes = [cold, afterPrefix, cachedRepeat, fresh].map((bytes) =>
+      createHash("sha256").update(bytes).digest("hex"),
+    );
     expect(new Set(hashes).size).toBe(1);
-    expect(getHbSubsetAttemptDiagnostics().at(-1)).toEqual(expect.objectContaining({
-      stage: "complete", wasmInstanceId: expect.any(Number),
-    }));
+    expect(getHbSubsetAttemptDiagnostics().at(-1)).toEqual(
+      expect.objectContaining({
+        stage: "complete",
+        wasmInstanceId: expect.any(Number),
+      }),
+    );
   });
   it("keeps the hinting program: cvt/fpgm/prep tables + per-glyph instruction bytecode", () => {
     const out = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
@@ -143,10 +177,7 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
   });
 
   it("selects the requested TTC member via faceIndex", () => {
-    const ttc = wrapInTtc([
-      buildStaticHintedFont(),
-      buildStaticHintedFont({ family: "SynthWide", aXMax: 900 }),
-    ]);
+    const ttc = wrapInTtc([buildStaticHintedFont(), buildStaticHintedFont({ family: "SynthWide", aXMax: 900 })]);
     const narrow = fontkit.create(hbSubsetRetainGids(ttc, [1], 0));
     const wide = fontkit.create(hbSubsetRetainGids(ttc, [1], 1));
     expect(narrow.getGlyph(1).bbox.maxX).toBe(550);
@@ -160,7 +191,12 @@ describe("hbSubsetRetainGids (DM-1714)", () => {
 
     const compacted = compactRetainedGlyphIds(subset, [1]);
     expect(compacted.bytes).toBe(subset);
-    expect(compacted.gidMap).toEqual(new Map([[0, 0], [1, 1]]));
+    expect(compacted.gidMap).toEqual(
+      new Map([
+        [0, 0],
+        [1, 1],
+      ]),
+    );
     const mapped = injectPuaCmap(compacted.bytes, new Map([[0xe000, compacted.gidMap.get(1)!]]));
     const font = fontkit.create(mapped);
     const glyph = font.glyphForCodePoint(0xe000);
@@ -210,39 +246,50 @@ describe("hbSubsetRetainGids variable-axis instancing (DM-1716/DM-2435)", () => 
   it("throws when a requested axis cannot be pinned (caller falls back to svg2ttf)", () => {
     resetHbSubsetAttemptDiagnostics();
     expect(() => hbSubsetRetainGids(buildVariableHintedFont(), [1], 0, true, { XXXX: 5 })).toThrow(/pin_axis_location/);
-    expect(getHbSubsetAttemptDiagnostics()).toEqual([expect.objectContaining({
-      stage: "configure-input",
-      axes: { XXXX: 5 },
-      error: 'pin_axis_location failed for axis "XXXX"',
-    })]);
+    expect(getHbSubsetAttemptDiagnostics()).toEqual([
+      expect.objectContaining({
+        stage: "configure-input",
+        axes: { XXXX: 5 },
+        error: 'pin_axis_location failed for axis "XXXX"',
+      }),
+    ]);
   });
 });
 
 const sfIndiaPath = "/System/Library/Fonts/SFIndia.ttc";
-describe.runIf(process.platform === "darwin" && existsSync(sfIndiaPath))("CFF2 completed instancing (DM-2310/DM-2435)", () => {
-  it.each([
-    { faceIndex: 8, gids: [104, 390] }, // .SFTelugu-Regular: U+0C04/U+0C5D
-    { faceIndex: 4, gids: [257, 358] }, // .SFKannada-Regular: U+0C84/U+0CDD
-  ])("downgrades face $faceIndex to static CFF while preserving resolved outlines", ({ faceIndex, gids }) => {
-    const sourceBytes = readFileSync(sfIndiaPath);
-    const source = fontkit.openSync(sfIndiaPath).fonts[faceIndex];
-    const out = hbSubsetRetainGids(sourceBytes, [0, ...gids], faceIndex, true, {});
-    const reopened = fontkit.create(out);
+describe.runIf(process.platform === "darwin" && existsSync(sfIndiaPath))(
+  "CFF2 completed instancing (DM-2310/DM-2435)",
+  () => {
+    it.each([
+      { faceIndex: 8, gids: [104, 390] }, // .SFTelugu-Regular: U+0C04/U+0C5D
+      { faceIndex: 4, gids: [257, 358] }, // .SFKannada-Regular: U+0C84/U+0CDD
+    ])("downgrades face $faceIndex to static CFF while preserving resolved outlines", ({ faceIndex, gids }) => {
+      const sourceBytes = readFileSync(sfIndiaPath);
+      const source = fontkit.openSync(sfIndiaPath).fonts[faceIndex];
+      const out = hbSubsetRetainGids(sourceBytes, [0, ...gids], faceIndex, true, {});
+      const reopened = fontkit.create(out);
 
-    expect(tableTags(out)).toContain("CFF ");
-    expect(tableTags(out)).not.toContain("CFF2");
-    expect(reopened.variationAxes).toEqual({});
-    for (const gid of gids) {
-      expect(reopened.getGlyph(gid).path.toSVG()).toBe(source.getGlyph(gid).path.toSVG());
-      expect(reopened.getGlyph(gid).advanceWidth).toBe(source.getGlyph(gid).advanceWidth);
-    }
-  });
-});
+      expect(tableTags(out)).toContain("CFF ");
+      expect(tableTags(out)).not.toContain("CFF2");
+      expect(reopened.variationAxes).toEqual({});
+      for (const gid of gids) {
+        expect(reopened.getGlyph(gid).path.toSVG()).toBe(source.getGlyph(gid).path.toSVG());
+        expect(reopened.getGlyph(gid).advanceWidth).toBe(source.getGlyph(gid).advanceWidth);
+      }
+    });
+  },
+);
 
 describe("injectPuaCmap (DM-1714)", () => {
   it("round-trips PUA→gid via fontkit and replaces the original cmap", () => {
     const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
-    const out = injectPuaCmap(subset, new Map([[0xe000, 1], [0xe001, 2]]));
+    const out = injectPuaCmap(
+      subset,
+      new Map([
+        [0xe000, 1],
+        [0xe001, 2],
+      ]),
+    );
     const f = fontkit.create(out);
     expect(f.glyphForCodePoint(0xe000).id).toBe(1);
     expect(f.glyphForCodePoint(0xe001).id).toBe(2);
@@ -252,7 +299,13 @@ describe("injectPuaCmap (DM-1714)", () => {
 
   it("handles non-contiguous gids and astral PUA-B codepoints", () => {
     const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
-    const out = injectPuaCmap(subset, new Map([[0xe000, 2], [0x100000, 1]]));
+    const out = injectPuaCmap(
+      subset,
+      new Map([
+        [0xe000, 2],
+        [0x100000, 1],
+      ]),
+    );
     const f = fontkit.create(out);
     expect(f.glyphForCodePoint(0xe000).id).toBe(2);
     expect(f.glyphForCodePoint(0x100000).id).toBe(1);
@@ -301,16 +354,23 @@ describe("appendGlyphCopy (DM-1716 gid-0 addressing)", () => {
     expect(newGid).toBe(before.numGlyphs);
     const f = fontkit.create(bytes);
     expect(f.numGlyphs).toBe(before.numGlyphs + 1);
-    const src = f.getGlyph(1), copy = f.getGlyph(newGid);
+    const src = f.getGlyph(1),
+      copy = f.getGlyph(newGid);
     expect(copy.bbox.maxX).toBe(src.bbox.maxX);
     expect(copy.bbox.maxY).toBe(src.bbox.maxY);
     expect(copy.advanceWidth).toBe(src.advanceWidth);
   });
 
-  it("a PUA codepoint mapped to the notdef COPY resolves to a real outline (mapping to gid 0 would mean \"uncovered\")", () => {
+  it('a PUA codepoint mapped to the notdef COPY resolves to a real outline (mapping to gid 0 would mean "uncovered")', () => {
     const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
     const { bytes, newGid } = appendGlyphCopy(subset, 0);
-    const out = injectPuaCmap(bytes, new Map([[0xe000, newGid], [0xe001, 1]]));
+    const out = injectPuaCmap(
+      bytes,
+      new Map([
+        [0xe000, newGid],
+        [0xe001, 1],
+      ]),
+    );
     const f = fontkit.create(out);
     expect(f.glyphForCodePoint(0xe000).id).toBe(newGid);
     expect(f.glyphForCodePoint(0xe000).id).not.toBe(0);
@@ -367,7 +427,13 @@ describe("compactGlyphIds (DM-1718)", () => {
     const subset = hbSubsetRetainGids(buildStaticHintedFont(), [2]);
     const { bytes: compact, gidMap } = compactGlyphIds(subset, [2]);
     const { bytes: withCopy, newGid } = appendGlyphCopy(compact, 0);
-    const out = injectPuaCmap(withCopy, new Map([[0xe000, gidMap.get(2)!], [0xe001, newGid]]));
+    const out = injectPuaCmap(
+      withCopy,
+      new Map([
+        [0xe000, gidMap.get(2)!],
+        [0xe001, newGid],
+      ]),
+    );
     const f = fontkit.create(out);
     expect(f.glyphForCodePoint(0xe000).id).toBe(1);
     expect(f.glyphForCodePoint(0xe000).bbox.maxX).toBe(550);

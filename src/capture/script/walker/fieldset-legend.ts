@@ -18,15 +18,15 @@ export const computeFieldsetLegendBox = (el, tag, rect, vp) => {
   let fsY = rect.top - vp.y;
   let fsW = rect.width;
   let fsH = rect.height;
-  if (tag === 'fieldset') {
+  if (tag === "fieldset") {
     for (let i = 0; i < el.children.length; i++) {
       const ch = el.children[i];
-      if (ch.tagName.toLowerCase() !== 'legend') continue;
+      if (ch.tagName.toLowerCase() !== "legend") continue;
       const lr = ch.getBoundingClientRect();
       // Top-aligned legend (legend.top === fieldset.top, with sub-px slack).
       if (lr.height > 0 && lr.width > 0 && Math.abs(lr.top - rect.top) < 2) {
         const inset = lr.height / 2;
-        fsY = (rect.top - vp.y) + inset;
+        fsY = rect.top - vp.y + inset;
         fsH = rect.height - inset;
         fieldsetLegendNotch = { x: lr.left - vp.x, y: lr.top - vp.y, w: lr.width, h: lr.height };
       }

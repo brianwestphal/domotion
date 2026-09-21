@@ -22,10 +22,16 @@ const HTML = `<!doctype html><style>
 </style><div id="scroller"><div data-label="Alpha"></div><div data-label="Beta"></div></div>`;
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function nodesWithText(tree: CapturedElement[], text: string): CapturedElement[] {

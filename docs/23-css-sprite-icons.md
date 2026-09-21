@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: []
-tickets: ["DM-2477","DM-2478","DM-499"]
+tickets: ["DM-2477", "DM-2478", "DM-499"]
 code: ["tests/features.ts"]
-aliases: ["docs/23-css-sprite-icons.md","doc-23"]
+aliases: ["docs/23-css-sprite-icons.md", "doc-23"]
 ---
 
 # 23 — CSS sprite icons (off-screen text + sliced background-image)
@@ -19,11 +19,14 @@ The "image-replacement" idiom — a single CSS sprite sheet sliced into per-icon
 ```html
 <a class="rss" href="…">RSS</a>
 ```
+
 ```css
 .rss {
   background: url(/sprite.png) -20px 0 no-repeat;
-  width: 20px; height: 20px;
-  text-indent: -9999px; overflow: hidden;
+  width: 20px;
+  height: 20px;
+  text-indent: -9999px;
+  overflow: hidden;
   display: inline-block;
 }
 ```
@@ -54,7 +57,7 @@ walker. `buildImagePatternDef` still needs DM-2478's exact tile/subset geometry;
 it no longer receives a silent zero solely because the resource decoded later.
 
 **2. Off-screen author text is captured and rendered.**
-The element carries `text === "RSS"` and a captured `textLeft` of `~-9970`. The renderer emits the glyph paths at that absolute SVG coordinate. The output SVG's `viewBox` does not extend that far left, so most demos render as if blank — but per `overflow: hidden` Chromium would have clipped the text. We don't apply that clip, so any consumer that re-mounts the SVG inside a wider canvas (or any case where the element's own `overflow: hidden` *should* apply) leaks glyphs into the icon area.
+The element carries `text === "RSS"` and a captured `textLeft` of `~-9970`. The renderer emits the glyph paths at that absolute SVG coordinate. The output SVG's `viewBox` does not extend that far left, so most demos render as if blank — but per `overflow: hidden` Chromium would have clipped the text. We don't apply that clip, so any consumer that re-mounts the SVG inside a wider canvas (or any case where the element's own `overflow: hidden` _should_ apply) leaks glyphs into the icon area.
 
 ## Proposed approach
 
@@ -72,11 +75,11 @@ This gets us pixel-faithful output for free (Chromium already painted exactly wh
 
 ## Why not fix the pattern path instead?
 
-A purely-declarative fix — repair `intrinsic` capture (e.g. by `await img.decode()` before reading naturalWidth, or by post-fetching the URL in Node and using `image-size`) and add an `overflow: hidden` + `text-indent` clip to the text emission — *would* work for the simple sprite-only case. But:
+A purely-declarative fix — repair `intrinsic` capture (e.g. by `await img.decode()` before reading naturalWidth, or by post-fetching the URL in Node and using `image-size`) and add an `overflow: hidden` + `text-indent` clip to the text emission — _would_ work for the simple sprite-only case. But:
 
 - It only addresses the sprite-via-background-image idiom; the same accessibility pattern is also used with `mask-image`, inline `<svg>`, `<i class="icon-foo">`+font-icon, and `::before { content: url(…) }`. Each would need its own per-feature suppression rule.
 - The intrinsic-dimensions fix needs an async hop in CAPTURE_SCRIPT (which lives as a serialized string and currently does no awaiting), or a separate Node-side fetch (which doubles per-asset I/O).
-- The text-indent clip needs a new clipPath per element, when the element box clipPath we already emit for `overflow: hidden` would be sufficient *if* the renderer respected it for glyphs (it doesn't, today).
+- The text-indent clip needs a new clipPath per element, when the element box clipPath we already emit for `overflow: hidden` would be sufficient _if_ the renderer respected it for glyphs (it doesn't, today).
 
 Raster-snapshot is one code path that subsumes all of those. The cost is a `page.screenshot` per matched element, which is the same cost we already pay for replaced elements; in practice these patterns appear in low-double-digits per page, not hundreds.
 
@@ -87,14 +90,14 @@ The CAPTURE_SCRIPT predicate should match exactly when Chromium considers the el
 ```js
 function isImageReplacementBox(cs) {
   const ti = parseFloat(cs.textIndent) || 0;
-  const overflowHidden = cs.overflow === 'hidden' || cs.overflowX === 'hidden';
-  const hasBgImage = cs.backgroundImage && cs.backgroundImage !== 'none';
+  const overflowHidden = cs.overflow === "hidden" || cs.overflowX === "hidden";
+  const hasBgImage = cs.backgroundImage && cs.backgroundImage !== "none";
 
   // Phark/Gilder-Levin: text-indent: -9999px (or very negative).
   if (ti <= -1000 && hasBgImage) return true;
 
   // Modern variant: text-indent: 100% + overflow: hidden + white-space: nowrap.
-  if (ti < 0 && overflowHidden && cs.whiteSpace === 'nowrap' && hasBgImage) return true;
+  if (ti < 0 && overflowHidden && cs.whiteSpace === "nowrap" && hasBgImage) return true;
 
   return false;
 }
@@ -136,18 +139,27 @@ The replaced-element raster path already captures at the page's actual DPR (doc 
 <style>
   .icons a {
     background: url(data:image/png;base64,…3-slot-sprite…) no-repeat;
-    width: 20px; height: 20px; display: inline-block;
-    text-indent: -9999px; overflow: hidden;
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    text-indent: -9999px;
+    overflow: hidden;
     margin-right: 8px;
   }
-  .icons .rss { background-position: 0 0; }
-  .icons .fb  { background-position: -20px 0; }
-  .icons .li  { background-position: -40px 0; }
+  .icons .rss {
+    background-position: 0 0;
+  }
+  .icons .fb {
+    background-position: -20px 0;
+  }
+  .icons .li {
+    background-position: -40px 0;
+  }
 </style>
 <div class="icons">
   <a class="rss" aria-label="RSS">RSS</a>
-  <a class="fb"  aria-label="Facebook">Facebook</a>
-  <a class="li"  aria-label="LinkedIn">LinkedIn</a>
+  <a class="fb" aria-label="Facebook">Facebook</a>
+  <a class="li" aria-label="LinkedIn">LinkedIn</a>
 </div>
 ```
 

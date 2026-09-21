@@ -19,13 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  comparePngs,
-  passes,
-  passesStrict,
-  strictCapsFor,
-  type CompareResult,
-} from "./compare-pngs.js";
+import { comparePngs, passes, passesStrict, strictCapsFor, type CompareResult } from "./compare-pngs.js";
 
 /** Score against the calibrated caps explicitly, so these cases assert the
  *  comparator's behavior rather than the host they happen to run on. */
@@ -180,7 +174,10 @@ describe("strict region aggregates: what regionCount suppresses", () => {
     const dots = (offset: number): Op[] =>
       Array.from({ length: 6 }, (_, i) => ({
         fill: i % 2 === 0 ? "#ffffff" : "#000000",
-        x: 10 + i * 30 + offset, y: 10 + i * 15, w: 1, h: 1,
+        x: 10 + i * 30 + offset,
+        y: 10 + i * 15,
+        w: 1,
+        h: 1,
       }));
     const a = await makePng("#808080", dots(0));
     const b = await makePng("#808080", dots(60));

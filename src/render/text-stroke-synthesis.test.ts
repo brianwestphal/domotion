@@ -18,13 +18,12 @@ describe("synthetic-bold text-stroke paint ordering", () => {
         faceLacksWeight: true,
         fontSizePx: 36,
         platform,
-      }));
+      }),
+    );
     for (const record of records) {
       expect(record.stages).toEqual(records[0].stages);
       expect(record.svgPasses).toEqual(records[0].svgPasses);
-      expect(record.svgPasses.map((pass) => pass.kind)).toEqual([
-        "author-stroke", "synthetic-fill",
-      ]);
+      expect(record.svgPasses.map((pass) => pass.kind)).toEqual(["author-stroke", "synthetic-fill"]);
     }
   });
 
@@ -59,26 +58,74 @@ describe("synthetic-bold text-stroke paint ordering", () => {
 // BoxPainterBase applies the mask with SkBlendMode::kDstIn (alpha).
 
 const BASE_STYLES = {
-  backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", backgroundClip: "border-box",
-  backgroundSize: "auto", backgroundPosition: "0% 0%", backgroundRepeat: "repeat",
-  backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
-  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
-  color: "rgb(0,0,0)", fontSize: "64px", fontFamily: "sans-serif", fontWeight: "800", fontStyle: "normal",
-  lineHeight: "70px", overflowX: "visible", overflowY: "visible", display: "block",
-  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
-  outlineColor: "rgb(0,0,0)", outlineWidth: "0", outlineStyle: "none", outlineOffset: "0",
-  boxShadow: "none", textShadow: "none", filter: "none", backdropFilter: "none", mixBlendMode: "normal",
-  clipPath: "none", mask: "none", maskImage: "none",
-  opacity: "1", transform: "none", visibility: "visible", position: "static", zIndex: "auto",
+  backgroundColor: "rgba(0, 0, 0, 0)",
+  backgroundImage: "none",
+  backgroundClip: "border-box",
+  backgroundSize: "auto",
+  backgroundPosition: "0% 0%",
+  backgroundRepeat: "repeat",
+  backgroundOrigin: "padding-box",
+  backgroundAttachment: "scroll",
+  borderColor: "rgb(0,0,0)",
+  borderWidth: "0",
+  borderRadius: "0",
+  borderTopLeftRadius: "0",
+  borderTopRightRadius: "0",
+  borderBottomRightRadius: "0",
+  borderBottomLeftRadius: "0",
+  borderTopWidth: "0",
+  borderRightWidth: "0",
+  borderBottomWidth: "0",
+  borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)",
+  borderRightColor: "rgb(0,0,0)",
+  borderBottomColor: "rgb(0,0,0)",
+  borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none",
+  borderRightStyle: "none",
+  borderBottomStyle: "none",
+  borderLeftStyle: "none",
+  color: "rgb(0,0,0)",
+  fontSize: "64px",
+  fontFamily: "sans-serif",
+  fontWeight: "800",
+  fontStyle: "normal",
+  lineHeight: "70px",
+  overflowX: "visible",
+  overflowY: "visible",
+  display: "block",
+  paddingTop: "0",
+  paddingRight: "0",
+  paddingBottom: "0",
+  paddingLeft: "0",
+  outlineColor: "rgb(0,0,0)",
+  outlineWidth: "0",
+  outlineStyle: "none",
+  outlineOffset: "0",
+  boxShadow: "none",
+  textShadow: "none",
+  filter: "none",
+  backdropFilter: "none",
+  mixBlendMode: "normal",
+  clipPath: "none",
+  mask: "none",
+  maskImage: "none",
+  opacity: "1",
+  transform: "none",
+  visibility: "visible",
+  position: "static",
+  zIndex: "auto",
 } as unknown as CapturedElement["styles"];
 
 function gradientStrokeTree(paintOrder?: string): CapturedElement[] {
   const el: CapturedElement = {
-    tag: "p", text: "INK", x: 40, y: 100, width: 400, height: 80, children: [],
+    tag: "p",
+    text: "INK",
+    x: 40,
+    y: 100,
+    width: 400,
+    height: 80,
+    children: [],
     fontAscent: 60,
     styles: {
       ...BASE_STYLES,
@@ -94,7 +141,10 @@ function gradientStrokeTree(paintOrder?: string): CapturedElement[] {
 }
 
 describe("background-clip:text emits the -webkit-text-stroke pass", () => {
-  for (const [label, po] of [["paint-order: stroke fill", "stroke fill"], ["default paint order", undefined]] as const) {
+  for (const [label, po] of [
+    ["paint-order: stroke fill", "stroke fill"],
+    ["default paint order", undefined],
+  ] as const) {
     it(`${label}: alpha mask retains stroke geometry and foreground stroke paints last`, () => {
       const svg = elementTreeToSvgInner(gradientStrokeTree(po), 500, 250);
 
@@ -115,7 +165,10 @@ describe("background-clip:text emits the -webkit-text-stroke pass", () => {
       // (the stroke is the text's foreground: always on top of the background
       // gradient — `paint-order` only sequences the text's own fill vs stroke,
       // and the fill is transparent).
-      const strokeIdx = svg.indexOf(`stroke="rgb(15, 23, 42)"`, svg.indexOf("</defs>") >= 0 ? svg.indexOf("</defs>") : 0);
+      const strokeIdx = svg.indexOf(
+        `stroke="rgb(15, 23, 42)"`,
+        svg.indexOf("</defs>") >= 0 ? svg.indexOf("</defs>") : 0,
+      );
       const visibleStroke = svg.slice(rectIdx);
       expect(visibleStroke).toContain(`stroke="rgb(15, 23, 42)"`);
       expect(strokeIdx).toBeGreaterThan(-1);

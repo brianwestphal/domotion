@@ -1,18 +1,19 @@
 import sharp from "sharp";
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-  launchChromium,
-  type CapturedElement,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvgInner, launchChromium, type CapturedElement } from "../src/index.js";
 import { measureBlinkPlatformResizer } from "../src/capture/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null {
@@ -30,13 +31,18 @@ async function colorBounds(
   rgb: readonly [number, number, number],
 ): Promise<{ x: number; y: number; width: number; height: number }> {
   const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-  let minX = info.width, minY = info.height, maxX = -1, maxY = -1;
+  let minX = info.width,
+    minY = info.height,
+    maxX = -1,
+    maxY = -1;
   for (let y = 0; y < info.height; y++) {
     for (let x = 0; x < info.width; x++) {
       const i = (y * info.width + x) * info.channels;
       if (data[i] === rgb[0] && data[i + 1] === rgb[1] && data[i + 2] === rgb[2]) {
-        minX = Math.min(minX, x); minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
       }
     }
   }
@@ -80,7 +86,8 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
 
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 900, height: 650 });
       for (const id of ["none", "visible", "clip"]) expect(byAnimId(tree, id)!.resizeHandle, id).toBeUndefined();
-      for (const id of ["auto", "hidden", "textarea", "iframe"]) expect(byAnimId(tree, id)!.resizeHandle, id).toBeDefined();
+      for (const id of ["auto", "hidden", "textarea", "iframe"])
+        expect(byAnimId(tree, id)!.resizeHandle, id).toBeDefined();
 
       const custom = byAnimId(tree, "custom")!.resizeHandle!;
       expect(custom.logicalLeft).toBe(true);
@@ -101,7 +108,12 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
   });
 
   it("matches Chromium's custom-corner pixels across CSS zoom and DPR", async () => {
-    const rows: Array<{ dpr: number; theme: number; captured: { x: number; y: number; width: number; height: number }; browser: { x: number; y: number; width: number; height: number } }> = [];
+    const rows: Array<{
+      dpr: number;
+      theme: number;
+      captured: { x: number; y: number; width: number; height: number };
+      browser: { x: number; y: number; width: number; height: number };
+    }> = [];
     for (const dpr of [1, 2]) {
       const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 }, deviceScaleFactor: dpr });
       try {

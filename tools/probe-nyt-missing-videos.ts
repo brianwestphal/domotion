@@ -15,10 +15,18 @@ function walk(n: CapturedElement, pred: (n: CapturedElement) => boolean, out: Ca
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "nytimes-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "nytimes-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   await page.goto("https://www.nytimes.com/", { waitUntil: "domcontentloaded" });
@@ -34,7 +42,10 @@ async function main() {
 
   // Probe the missing-video areas. The first video appears around y=2900.
   // The second video tiles area around y=4700.
-  const points = [[100, 2900], [100, 4700]];
+  const points = [
+    [100, 2900],
+    [100, 4700],
+  ];
   for (const [x, y] of points) {
     console.log(`\n=== Live DOM at (${x}, ${y}) ===`);
     const els = await page.evaluate(`(function() {
@@ -60,28 +71,43 @@ async function main() {
   console.log(`\n=== Captured tree: video/picture/img at y=2800-3100 ===`);
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 390, height: 6000 });
   const matches: CapturedElement[] = [];
-  walk(tree[0]!, (n) => {
-    if (n.tag !== 'video' && n.tag !== 'picture' && n.tag !== 'img') return false;
-    return n.y >= 2800 && n.y <= 3100;
-  }, matches);
+  walk(
+    tree[0]!,
+    (n) => {
+      if (n.tag !== "video" && n.tag !== "picture" && n.tag !== "img") return false;
+      return n.y >= 2800 && n.y <= 3100;
+    },
+    matches,
+  );
   for (const m of matches) {
-    const src = (m as any).imageSrc?.split('/').pop()?.slice(0, 30) || '-';
+    const src = (m as any).imageSrc?.split("/").pop()?.slice(0, 30) || "-";
     const styles = m.styles as any;
-    console.log(`  ${m.tag} rect=(${Math.round(m.x)},${Math.round(m.y)},${Math.round(m.width)},${Math.round(m.height)}) src=${src} op=${styles.opacity} display=${styles.display}`);
+    console.log(
+      `  ${m.tag} rect=(${Math.round(m.x)},${Math.round(m.y)},${Math.round(m.width)},${Math.round(m.height)}) src=${src} op=${styles.opacity} display=${styles.display}`,
+    );
   }
 
   console.log(`\n=== Captured tree: video/picture/img at y=4500-5000 ===`);
   const matches2: CapturedElement[] = [];
-  walk(tree[0]!, (n) => {
-    if (n.tag !== 'video' && n.tag !== 'picture' && n.tag !== 'img') return false;
-    return n.y >= 4500 && n.y <= 5000;
-  }, matches2);
+  walk(
+    tree[0]!,
+    (n) => {
+      if (n.tag !== "video" && n.tag !== "picture" && n.tag !== "img") return false;
+      return n.y >= 4500 && n.y <= 5000;
+    },
+    matches2,
+  );
   for (const m of matches2) {
-    const src = (m as any).imageSrc?.split('/').pop()?.slice(0, 30) || '-';
+    const src = (m as any).imageSrc?.split("/").pop()?.slice(0, 30) || "-";
     const styles = m.styles as any;
-    console.log(`  ${m.tag} rect=(${Math.round(m.x)},${Math.round(m.y)},${Math.round(m.width)},${Math.round(m.height)}) src=${src} op=${styles.opacity} display=${styles.display}`);
+    console.log(
+      `  ${m.tag} rect=(${Math.round(m.x)},${Math.round(m.y)},${Math.round(m.width)},${Math.round(m.height)}) src=${src} op=${styles.opacity} display=${styles.display}`,
+    );
   }
 
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

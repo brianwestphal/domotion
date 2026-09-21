@@ -3,7 +3,12 @@ import * as fontkit from "fontkit";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, getEmbeddedFontBuildDiagnostics, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import {
+  clearEmbeddedFontBuilder,
+  getBuiltEmbeddedFontFaceCss,
+  getEmbeddedFontBuildDiagnostics,
+  trackGlyphInEmbedFont,
+} from "./embedded-font-builder.js";
 import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "./font-resolution.js";
 import { buildStaticHintedFont, buildVariableHintedFont } from "./synth-test-fonts.js";
 
@@ -97,8 +102,8 @@ describe("embedded-font-builder determinism (DM-902)", () => {
       }
     }
     expect(headOff).toBeGreaterThan(0);
-    expect(dirChecksum).toBe(0);                       // directory per-table head checksum
-    expect(bytes.readUInt32BE(headOff + 8)).toBe(0);   // checkSumAdjustment
+    expect(dirChecksum).toBe(0); // directory per-table head checksum
+    expect(bytes.readUInt32BE(headOff + 8)).toBe(0); // checkSumAdjustment
     // created (8 bytes @ +20) and modified (8 bytes @ +28) all zero.
     for (let o = headOff + 20; o < headOff + 36; o++) expect(bytes[o]).toBe(0);
   });
@@ -131,7 +136,10 @@ describe("embedded-font-builder glyf output (DM-1666)", () => {
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
 
     const font = fontkit.create(bytes) as unknown as {
-      glyphForCodePoint(cp: number): { path: { toSVG(): string }; bbox: { minX: number; minY: number; maxX: number; maxY: number } };
+      glyphForCodePoint(cp: number): {
+        path: { toSVG(): string };
+        bbox: { minX: number; minY: number; maxX: number; maxY: number };
+      };
     };
     const glyph = font.glyphForCodePoint(placement!.puaCodepoint);
     const svg = glyph.path.toSVG();
@@ -146,15 +154,15 @@ describe("embedded-font-builder glyf output (DM-1666)", () => {
     clearEmbeddedFontBuilder();
     const a = trackGlyphInEmbedFont("cmap-test|w=400|s=0", 1000, 800, -200, 10, TRI, 600);
     const b = trackGlyphInEmbedFont("cmap-test|w=400|s=0", 1000, 800, -200, 11, TRI, 600);
-    expect(a!.puaCodepoint).toBe(0xE000);
-    expect(b!.puaCodepoint).toBe(0xE001);
+    expect(a!.puaCodepoint).toBe(0xe000);
+    expect(b!.puaCodepoint).toBe(0xe001);
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     const font = fontkit.create(bytes) as unknown as {
       glyphForCodePoint(cp: number): { id: number };
     };
     // Both PUA codepoints resolve to real (non-.notdef) glyphs.
-    expect(font.glyphForCodePoint(0xE000).id).toBeGreaterThan(0);
-    expect(font.glyphForCodePoint(0xE001).id).toBeGreaterThan(0);
+    expect(font.glyphForCodePoint(0xe000).id).toBeGreaterThan(0);
+    expect(font.glyphForCodePoint(0xe001).id).toBeGreaterThan(0);
   });
 });
 
@@ -201,8 +209,11 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
 
   it("takes the hinted path for a pure static entry: hinting tables survive, PUA cmap maps to the ORIGINAL outline", () => {
     // glyph id 1 = the synthesized font's "A" rectangle (xMax 550)
-    const placement = trackGlyphInEmbedFont("hinted-static|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    const placement = trackGlyphInEmbedFont("hinted-static|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     expect(placement).not.toBeNull();
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     const t = tags(bytes);
@@ -218,13 +229,19 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     expect(g.id).toBe(1); // RETAIN_GIDS: still the source font's gid
     expect(g.bbox.maxX).toBe(550);
     expect(g.bbox.maxY).toBe(700);
-    expect(getEmbeddedFontBuildDiagnostics()).toEqual([expect.objectContaining({
-      sourcePath: staticPath, faceIndex: 0, variationAxes: null,
-      inputUnitsPerEm: 1000,
-      selectedBuilder: "hb-subset", hintedSourceDisqualifiedReasons: [],
-      affectedGlyphCount: 1, affectedGlyphOccurrenceCount: 1,
-      retainedTableTags: expect.arrayContaining(["cvt ", "fpgm", "glyf", "prep"]),
-    })]);
+    expect(getEmbeddedFontBuildDiagnostics()).toEqual([
+      expect.objectContaining({
+        sourcePath: staticPath,
+        faceIndex: 0,
+        variationAxes: null,
+        inputUnitsPerEm: 1000,
+        selectedBuilder: "hb-subset",
+        hintedSourceDisqualifiedReasons: [],
+        affectedGlyphCount: 1,
+        affectedGlyphOccurrenceCount: 1,
+        retainedTableTags: expect.arrayContaining(["cvt ", "fpgm", "glyf", "prep"]),
+      }),
+    ]);
   });
 
   it("keeps HarfBuzz RETAIN_GIDS identity through the PUA cmap for sparse composite glyphs (DM-2293)", () => {
@@ -232,8 +249,11 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     // A private post-subset compactor used to renumber 3 → 2 and reconstruct
     // only the tables it knew about. The consumer contract is instead the one
     // passed to HarfBuzz: retain source ids and point the PUA cmap at those ids.
-    const placement = trackGlyphInEmbedFont("hinted-composite|w=400|s=0", 1000, 800, -200, 3, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: compositePath, faceIndex: 0, variationAxes: null } });
+    const placement = trackGlyphInEmbedFont("hinted-composite|w=400|s=0", 1000, 800, -200, 3, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: compositePath, faceIndex: 0, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     const font = fontkit.create(bytes) as unknown as {
       glyphForCodePoint(cp: number): { id: number; bbox: { minX: number; maxX: number } };
@@ -246,44 +266,62 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
 
   it("uses the hinting-preserving path by default and reserves 0 for the control arm", () => {
     delete process.env.DOMOTION_HINTED_SUBSET;
-    trackGlyphInEmbedFont("hinted-default|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-default|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     getBuiltEmbeddedFontFaceCss();
-    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
-      selectedBuilder: "hb-subset",
-      hintedSourceDisqualifiedReasons: [],
-    }));
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(
+      expect.objectContaining({
+        selectedBuilder: "hb-subset",
+        hintedSourceDisqualifiedReasons: [],
+      }),
+    );
 
     clearEmbeddedFontBuilder();
     process.env.DOMOTION_HINTED_SUBSET = "0";
-    trackGlyphInEmbedFont("hinted-control|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-control|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     getBuiltEmbeddedFontFaceCss();
-    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
-      selectedBuilder: "svg2ttf",
-      hintedSourceDisqualifiedReasons: ["disabled-by-environment"],
-    }));
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(
+      expect.objectContaining({
+        selectedBuilder: "svg2ttf",
+        hintedSourceDisqualifiedReasons: ["disabled-by-environment"],
+      }),
+    );
   });
 
   it("pins a variable source to the entry's axis location (DM-1716)", () => {
-    trackGlyphInEmbedFont("hinted-var|w=900|s=0", 1000, 800, -200, 1, TRI, 700,
-      { italic: false, weight: 900, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 900 } } });
+    trackGlyphInEmbedFont("hinted-var|w=900|s=0", 1000, 800, -200, 1, TRI, 700, {
+      italic: false,
+      weight: 900,
+      hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 900 } },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     const t = tags(bytes);
     expect(t.has("fvar")).toBe(false); // fully instanced — consumer can't re-vary
-    expect(t.has("prep")).toBe(true);  // hinting survived instancing
+    expect(t.has("prep")).toBe(true); // hinting survived instancing
     const font = fontkit.create(bytes) as unknown as {
       glyphForCodePoint(cp: number): { bbox: { maxX: number } };
     };
     // gvar delta at wght=900: "A" right edge 550 → 650
-    expect(font.glyphForCodePoint(0xE000).bbox.maxX).toBe(650);
+    expect(font.glyphForCodePoint(0xe000).bbox.maxX).toBe(650);
   });
 
   it("finalizes a tracked source gid 0 as a PUA-addressable nonzero glyph (DM-2435)", () => {
-    const placement = trackGlyphInEmbedFont("hinted-notdef|w=400|s=0", 1000, 800, -200, 0, TRI, 500,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    const placement = trackGlyphInEmbedFont("hinted-notdef|w=400|s=0", 1000, 800, -200, 0, TRI, 500, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
-    const font = fontkit.create(bytes) as unknown as { glyphForCodePoint(cp: number): { id: number; advanceWidth: number } };
+    const font = fontkit.create(bytes) as unknown as {
+      glyphForCodePoint(cp: number): { id: number; advanceWidth: number };
+    };
     const emitted = font.glyphForCodePoint(placement!.puaCodepoint);
     expect(emitted.id).toBeGreaterThan(0);
     expect(emitted.advanceWidth).toBe(500);
@@ -291,35 +329,49 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
   });
 
   it("rejects an outline-less hvgl source at the capability boundary and falls back (DM-2435)", () => {
-    trackGlyphInEmbedFont("hinted-hvgl|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: hvglPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-hvgl|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: hvglPath, faceIndex: 0, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("glyf")).toBe(true); // svg2ttf fallback remains renderable
-    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
-      selectedBuilder: "svg2ttf",
-      hintedSourceDisqualifiedReasons: ["cff-or-subset-failure"],
-    }));
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(
+      expect.objectContaining({
+        selectedBuilder: "svg2ttf",
+        hintedSourceDisqualifiedReasons: ["cff-or-subset-failure"],
+      }),
+    );
   });
 
   it("retains the hinted source outline when synthetic bold is paint-owned", () => {
-    trackGlyphInEmbedFont("hinted-synth|w=700|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 700, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-synth|w=700|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 700,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("fpgm")).toBe(true);
-    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({
-      selectedBuilder: "hb-subset",
-      hintedSourceDisqualifiedReasons: [],
-      affectedGlyphCount: 1,
-      affectedGlyphOccurrenceCount: 1,
-    }));
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(
+      expect.objectContaining({
+        selectedBuilder: "hb-subset",
+        hintedSourceDisqualifiedReasons: [],
+        affectedGlyphCount: 1,
+        affectedGlyphOccurrenceCount: 1,
+      }),
+    );
   });
 
   it("disqualifies an entry whose glyphs disagree on the axis location", () => {
     const variant = { italic: false, weight: 400 };
-    trackGlyphInEmbedFont("hinted-mixed|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { ...variant, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 400 } } });
-    trackGlyphInEmbedFont("hinted-mixed|w=400|s=0", 1000, 800, -200, 2, TRI, 600,
-      { ...variant, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 700 } } });
+    trackGlyphInEmbedFont("hinted-mixed|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      ...variant,
+      hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 400 } },
+    });
+    trackGlyphInEmbedFont("hinted-mixed|w=400|s=0", 1000, 800, -200, 2, TRI, 600, {
+      ...variant,
+      hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 700 } },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("fpgm")).toBe(false); // fell back to svg2ttf
   });
@@ -327,8 +379,11 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
   it("hinted output is byte-identical run-to-run (DM-902 determinism holds on this path too)", () => {
     const track = () => {
       clearEmbeddedFontBuilder();
-      trackGlyphInEmbedFont("hinted-det|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-        { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+      trackGlyphInEmbedFont("hinted-det|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+        italic: false,
+        weight: 400,
+        hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+      });
       return getBuiltEmbeddedFontFaceCss();
     };
     expect(track()).toBe(track());
@@ -337,8 +392,11 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
   it("synthesizes an OS/2 table when the source font has none (OTS requires one)", () => {
     // the synthesized test font deliberately carries no OS/2 — like macOS's
     // legacy Courier.ttc, whose missing OS/2 got the whole @font-face rejected
-    trackGlyphInEmbedFont("hinted-os2|w=700|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 700, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-os2|w=700|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 700,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("OS/2")).toBe(true);
     // locate OS/2 and check usWeightClass carries the entry weight
@@ -353,8 +411,11 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
 
   it("stays on svg2ttf when the hinted path is explicitly disabled", () => {
     process.env.DOMOTION_HINTED_SUBSET = "0";
-    trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("fpgm")).toBe(false);
   });
@@ -366,8 +427,11 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
   // would subset member zero: a different face, silently. So the entry must fall
   // back to svg2ttf, which emits the outlines actually extracted.
   it("refuses the hinted path when the source member cannot be named (faceIndex null)", () => {
-    trackGlyphInEmbedFont("hinted-unnamed|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: null, variationAxes: null } });
+    trackGlyphInEmbedFont("hinted-unnamed|w=400|s=0", 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: null, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     // No hinting tables ⇒ this did NOT come from hb-subset of the source file.
     expect(tags(bytes).has("fpgm")).toBe(false);
@@ -386,10 +450,16 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     // WHOLE entry must drop to svg2ttf rather than subsetting member zero for
     // the glyphs that had no index.
     const KEY = "hinted-mixed|w=400|s=0";
-    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 1, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
-    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 2, TRI, 600,
-      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: null, variationAxes: null } });
+    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null },
+    });
+    trackGlyphInEmbedFont(KEY, 1000, 800, -200, 2, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: staticPath, faceIndex: null, variationAxes: null },
+    });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
     expect(tags(bytes).has("fpgm")).toBe(false);
   });

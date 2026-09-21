@@ -11,15 +11,21 @@
         {
           "kind": "typing",
           "text": "each annotation ends where you say —",
-          "x": 400, "y": 96,
-          "fontSize": 13, "color": "#7ee787", "speed": 26,
+          "x": 400,
+          "y": 96,
+          "fontSize": 13,
+          "color": "#7ee787",
+          "speed": 26,
           "endAt": 1250
         },
         {
           "kind": "typing",
           "text": "so one frame can carry two.",
-          "x": 400, "y": 96,
-          "fontSize": 13, "color": "#d2a8ff", "speed": 30,
+          "x": 400,
+          "y": 96,
+          "fontSize": 13,
+          "color": "#d2a8ff",
+          "speed": 30,
           "delay": 1350
         }
       ]
@@ -32,32 +38,52 @@
         {
           "duration": 600,
           "overlays": [
-            { "kind": "interact", "treatment": "focus",
-              "anchor": { "selector": ".marker" }, "delay": 0, "duration": 200 }
+            {
+              "kind": "interact",
+              "treatment": "focus",
+              "anchor": { "selector": ".marker" },
+              "delay": 0,
+              "duration": 200
+            }
           ]
         },
         {
           "actions": [{ "type": "evaluate", "script": "select(1)" }],
           "duration": 600,
           "overlays": [
-            { "kind": "interact", "treatment": "focus",
-              "anchor": { "selector": ".marker" }, "delay": 0, "duration": 200 }
+            {
+              "kind": "interact",
+              "treatment": "focus",
+              "anchor": { "selector": ".marker" },
+              "delay": 0,
+              "duration": 200
+            }
           ]
         },
         {
           "actions": [{ "type": "evaluate", "script": "select(2)" }],
           "duration": 600,
           "overlays": [
-            { "kind": "interact", "treatment": "focus",
-              "anchor": { "selector": ".marker" }, "delay": 0, "duration": 200 }
+            {
+              "kind": "interact",
+              "treatment": "focus",
+              "anchor": { "selector": ".marker" },
+              "delay": 0,
+              "duration": 200
+            }
           ]
         },
         {
           "actions": [{ "type": "evaluate", "script": "select(3)" }],
           "duration": 600,
           "overlays": [
-            { "kind": "interact", "treatment": "focus",
-              "anchor": { "selector": ".marker" }, "delay": 0, "duration": 200 }
+            {
+              "kind": "interact",
+              "treatment": "focus",
+              "anchor": { "selector": ".marker" },
+              "delay": 0,
+              "duration": 200
+            }
           ]
         }
       ]

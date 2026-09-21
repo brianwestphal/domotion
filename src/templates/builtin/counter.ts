@@ -14,7 +14,14 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fsNum, fitOdometerCell, resolveCardTheme } from "./text-card-common.js";
+import {
+  CARD_FONT_STACK,
+  cardHeadCss,
+  cardScaleFactor,
+  fsNum,
+  fitOdometerCell,
+  resolveCardTheme,
+} from "./text-card-common.js";
 import { planOdometer, planTimer, buildOdometerMarkup, type OdometerPlan } from "./odometer.js";
 import type { SafeInset } from "../formats.js";
 
@@ -26,8 +33,8 @@ export const counterParamsSchema = z.object({
   to: z.coerce.number().describe("Target value (required). In `timer` mode this is seconds."),
   from: z.coerce.number().default(0).describe("Start value (seconds in `timer` mode). `to < from` counts down."),
   mode: z.enum(MODES).default("count").describe('"count" (a number) | "timer" (a M:SS / H:MM:SS clock).'),
-  prefix: z.string().optional().describe("Text before the number (e.g. \"$\")."),
-  suffix: z.string().optional().describe("Text after the number (e.g. \"+\" or \"%\")."),
+  prefix: z.string().optional().describe('Text before the number (e.g. "$").'),
+  suffix: z.string().optional().describe('Text after the number (e.g. "+" or "%").'),
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places (count mode)."),
   grouping: z.coerce.boolean().default(false).describe("Insert a thousands separator (count mode)."),
   durationMs: z.coerce.number().int().positive().default(1600).describe("Roll duration in ms."),
@@ -53,7 +60,10 @@ export function planCounter(p: CounterParams): OdometerPlan {
 }
 
 /** Build the standalone HTML + animations. Pure — unit-testable without a browser. */
-export function buildCounterHtml(p: CounterParams, safeInset?: SafeInset): { html: string; animations: ReturnType<typeof buildOdometerMarkup>["animations"] } {
+export function buildCounterHtml(
+  p: CounterParams,
+  safeInset?: SafeInset,
+): { html: string; animations: ReturnType<typeof buildOdometerMarkup>["animations"] } {
   const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
   const plan = planCounter(p);
   // DM-1541: scale the odometer cell size (which drives the roll geometry) by the
@@ -63,11 +73,16 @@ export function buildCounterHtml(p: CounterParams, safeInset?: SafeInset): { htm
   // format → cellPx === p.fontSize → byte-identical default output.
   const sf = cardScaleFactor(p.width, p.height, safeInset);
   const cols = plan.columns.length + (blank(p.prefix)?.length ?? 0) + (blank(p.suffix)?.length ?? 0);
-  const availableW = safeInset != null
-    ? p.width - Math.max(PADDING, safeInset.left) - Math.max(PADDING, safeInset.right)
-    : 0; // 0 disables the clamp (no format → byte-identical)
+  const availableW =
+    safeInset != null ? p.width - Math.max(PADDING, safeInset.left) - Math.max(PADDING, safeInset.right) : 0; // 0 disables the clamp (no format → byte-identical)
   const cellPx = fitOdometerCell(fsNum(p.fontSize, sf), cols, availableW);
-  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx, durationMs: p.durationMs, easing: p.easing, staggerMs: p.staggerMs });
+  const od = buildOdometerMarkup(plan, {
+    prefix: "od",
+    cellPx,
+    durationMs: p.durationMs,
+    easing: p.easing,
+    staggerMs: p.staggerMs,
+  });
   const prefix = blank(p.prefix) != null ? `<span class="ct-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="ct-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const html = `<!doctype html>
@@ -90,7 +105,8 @@ function blank(v: string | undefined): string | undefined {
 
 export const counterTemplate: Template<CounterParams> = {
   name: "counter",
-  description: "Odometer number-ticker: roll a value from→to (count up/down or a timer) with grouping, decimals, prefix/suffix.",
+  description:
+    "Odometer number-ticker: roll a value from→to (count up/down or a timer) with grouping, decimals, prefix/suffix.",
   paramsSchema: counterParamsSchema,
   brandDefaults(brand: Brand): Partial<CounterParams> {
     return brandParams<CounterParams>({

@@ -46,10 +46,7 @@ export const HOVER_PAINT_PROPERTIES = [
 export const HOVER_MOTION_PROPERTIES = ["transform", "opacity"] as const;
 
 /** The full allow-list read from the page (the union of paint + motion). */
-export const HOVER_DIFF_PROPERTIES: readonly string[] = [
-  ...HOVER_PAINT_PROPERTIES,
-  ...HOVER_MOTION_PROPERTIES,
-];
+export const HOVER_DIFF_PROPERTIES: readonly string[] = [...HOVER_PAINT_PROPERTIES, ...HOVER_MOTION_PROPERTIES];
 
 /** A per-element computed-style + geometry snapshot. `key` is `""` for the target
  *  and a stable descendant index (`"0"`, `"1"`, …) for its descendants, so a rest
@@ -81,10 +78,7 @@ export interface HoverDiff {
  * skipped (a hover rule that adds/removes a node is out of scope for this
  * style-diff — that's the MutationObserver path, docs/94 Option 3).
  */
-export function diffHoverSnapshots(
-  rest: ElementStyleSnapshot[],
-  hover: ElementStyleSnapshot[],
-): HoverDiff {
+export function diffHoverSnapshots(rest: ElementStyleSnapshot[], hover: ElementStyleSnapshot[]): HoverDiff {
   const hoverByKey = new Map(hover.map((s) => [s.key, s]));
   const paint: HoverPropDelta[] = [];
   const motion: HoverPropDelta[] = [];
@@ -170,14 +164,28 @@ export function synthesizeMotionTween(diff: HoverDiff, durationMs: number, delay
   const delayField = delayMs > 0 ? { delay: delayMs } : {};
   if (transform != null) {
     const primary: MotionTweenTrack = {
-      property: "transform", from: transform.from, to: transform.to,
-      duration: durationMs, easing: "ease-out", transformOrigin: "center", ...delayField,
+      property: "transform",
+      from: transform.from,
+      to: transform.to,
+      duration: durationMs,
+      easing: "ease-out",
+      transformOrigin: "center",
+      ...delayField,
     };
     if (opacity != null) primary.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
     return [primary];
   }
   if (opacity != null) {
-    return [{ property: "opacity", from: opacity.from, to: opacity.to, duration: durationMs, easing: "ease-out", ...delayField }];
+    return [
+      {
+        property: "opacity",
+        from: opacity.from,
+        to: opacity.to,
+        duration: durationMs,
+        easing: "ease-out",
+        ...delayField,
+      },
+    ];
   }
   return [];
 }
@@ -201,7 +209,11 @@ export async function captureStyleSnapshot(
       const target = document.querySelector(args.selector);
       if (target == null) throw new Error(`hoverDetect selector "${args.selector}" matched no element`);
       const elements = [target, ...Array.from(target.querySelectorAll("*"))];
-      const out: Array<{ key: string; styles: Record<string, string>; rect: { x: number; y: number; width: number; height: number } }> = [];
+      const out: Array<{
+        key: string;
+        styles: Record<string, string>;
+        rect: { x: number; y: number; width: number; height: number };
+      }> = [];
       for (let i = 0; i < elements.length; i++) {
         const el = elements[i];
         const cs = getComputedStyle(el);

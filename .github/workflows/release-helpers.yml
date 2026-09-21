@@ -22,7 +22,7 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: 'Release tag whose source is built and whose release receives the assets'
+        description: "Release tag whose source is built and whose release receives the assets"
         required: true
         type: string
   # Manual re-run against an EXISTING release tag — lets you iterate on the
@@ -31,12 +31,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing release tag to (re)attach the helper binary to, e.g. v0.3.1'
+        description: "Existing release tag to (re)attach the helper binary to, e.g. v0.3.1"
         required: true
         type: string
 
 permissions:
-  contents: write   # attach assets to the release
+  contents: write # attach assets to the release
 
 concurrency:
   group: release-helpers-${{ inputs.tag }}
@@ -47,7 +47,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ inputs.tag }}' }
+        with: { ref: "${{ inputs.tag }}" }
 
       # Imports the Developer ID Application cert (+ private key) from the
       # base64-encoded .p12 secret into a throwaway keychain and authorizes
@@ -104,10 +104,10 @@ jobs:
           retention-days: 7
 
   linux-glyph-extractor:
-    runs-on: ubuntu-22.04   # glibc 2.35 floor — see tools/linux-glyph-extractor/Dockerfile
+    runs-on: ubuntu-22.04 # glibc 2.35 floor — see tools/linux-glyph-extractor/Dockerfile
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ inputs.tag }}' }
+        with: { ref: "${{ inputs.tag }}" }
 
       # FreeType dev headers + a C++17 toolchain. The binary links
       # libfreetype.so.6 dynamically; that shared library is always present
@@ -145,10 +145,10 @@ jobs:
           retention-days: 7
 
   linux-arm64-glyph-extractor:
-    runs-on: ubuntu-22.04-arm   # GitHub-hosted arm64 Linux runner; glibc 2.35 floor
+    runs-on: ubuntu-22.04-arm # GitHub-hosted arm64 Linux runner; glibc 2.35 floor
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ inputs.tag }}' }
+        with: { ref: "${{ inputs.tag }}" }
 
       - name: Install build dependencies
         run: |
@@ -182,10 +182,10 @@ jobs:
           retention-days: 7
 
   windows-glyph-extractor:
-    runs-on: windows-latest   # x64; DirectWrite + the Windows SDK ship preinstalled
+    runs-on: windows-latest # x64; DirectWrite + the Windows SDK ship preinstalled
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ inputs.tag }}' }
+        with: { ref: "${{ inputs.tag }}" }
 
       # MSVC + the Windows SDK (dwrite.lib, D2D headers) are preinstalled on the
       # runner. build.ps1 drives CMake and links the CRT statically (/MT), so the
@@ -218,10 +218,10 @@ jobs:
           retention-days: 7
 
   windows-arm64-glyph-extractor:
-    runs-on: windows-11-arm   # GitHub-hosted arm64 Windows runner; MSVC + SDK preinstalled
+    runs-on: windows-11-arm # GitHub-hosted arm64 Windows runner; MSVC + SDK preinstalled
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ inputs.tag }}' }
+        with: { ref: "${{ inputs.tag }}" }
 
       # build.ps1 drives CMake for the host arch; on the arm64 runner it links
       # an arm64 .exe (CRT statically linked /MT, no VC++ redistributable).

@@ -32,12 +32,22 @@ export const captionParamsSchema = z.object({
   position: z.enum(POSITIONS).default("bottom-center").describe("Where the caption sits within the safe area."),
   motion: z.enum(MOTION).default("fade").describe('Enter/exit motion: "fade" | "slide" (slide rises in / drops out).'),
   maxWidthPct: z.coerce.number().min(10).max(100).default(80).describe("Max caption width as a percent of the canvas."),
-  bgOpacity: z.coerce.number().min(0).max(1).default(0).describe("Opacity of the scrim behind the text (0 = transparent)."),
+  bgOpacity: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0)
+    .describe("Opacity of the scrim behind the text (0 = transparent)."),
   textColor: z.string().default("#ffffff").describe("Caption text color."),
   fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   inMs: z.coerce.number().int().positive().default(450).describe("Enter duration in ms."),
   outMs: z.coerce.number().int().positive().default(450).describe("Exit duration in ms."),
-  holdMs: z.coerce.number().int().positive().default(2600).describe("Total on-screen time in ms (enter + hold + exit)."),
+  holdMs: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2600)
+    .describe("Total on-screen time in ms (enter + hold + exit)."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
 });
@@ -56,9 +66,10 @@ export function buildCaptionHtml(p: CaptionParams, safeInset?: SafeInset): strin
   // DM-1541: scale the authored (landscape-tuned) caption type + scrim padding by
   // the adaptive per-ratio factor (sf === 1 with no format → byte-identical).
   const sf = cardScaleFactor(p.width, p.height, safeInset);
-  const scrim = p.bgOpacity > 0
-    ? `background: rgba(0,0,0,${p.bgOpacity}); padding: ${fs(14, sf)} ${fs(24, sf)}; border-radius: 12px;`
-    : "";
+  const scrim =
+    p.bgOpacity > 0
+      ? `background: rgba(0,0,0,${p.bgOpacity}); padding: ${fs(14, sf)} ${fs(24, sf)}; border-radius: 12px;`
+      : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   ${cardHeadCss(p, PADDING, safeInset)}
@@ -83,19 +94,45 @@ export function buildCaptionAnimations(p: CaptionParams): Anims {
   if (p.motion === "slide") {
     const rise = p.position === "top-center" ? "-24px" : "24px";
     return [
-      { selector: ".cap-in", property: "translateY", from: rise, to: "0px", duration: p.inMs, easing: enterEasing, fuse: [{ property: "opacity", from: "0", to: "1" }] },
-      { selector: ".cap-out", property: "translateY", from: "0px", to: rise, duration: p.outMs, delay: outStart, easing: "ease-in", fuse: [{ property: "opacity", from: "1", to: "0" }] },
+      {
+        selector: ".cap-in",
+        property: "translateY",
+        from: rise,
+        to: "0px",
+        duration: p.inMs,
+        easing: enterEasing,
+        fuse: [{ property: "opacity", from: "0", to: "1" }],
+      },
+      {
+        selector: ".cap-out",
+        property: "translateY",
+        from: "0px",
+        to: rise,
+        duration: p.outMs,
+        delay: outStart,
+        easing: "ease-in",
+        fuse: [{ property: "opacity", from: "1", to: "0" }],
+      },
     ];
   }
   return [
     { selector: ".cap-in", property: "opacity", from: "0", to: "1", duration: p.inMs, easing: "ease-out" },
-    { selector: ".cap-out", property: "opacity", from: "1", to: "0", duration: p.outMs, delay: outStart, easing: "ease-in" },
+    {
+      selector: ".cap-out",
+      property: "opacity",
+      from: "1",
+      to: "0",
+      duration: p.outMs,
+      delay: outStart,
+      easing: "ease-in",
+    },
   ];
 }
 
 export const captionTemplate: Template<CaptionParams> = {
   name: "caption",
-  description: "Lightweight subtitle strip for compositing over other content — transparent, safe-margin anchored, explicit fade/slide in and out.",
+  description:
+    "Lightweight subtitle strip for compositing over other content — transparent, safe-margin anchored, explicit fade/slide in and out.",
   paramsSchema: captionParamsSchema,
   brandDefaults(brand: Brand): Partial<CaptionParams> {
     // Caption is content-agnostic overlay copy: only the font is a natural brand slot

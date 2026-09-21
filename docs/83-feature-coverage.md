@@ -5,9 +5,21 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1058","DM-1338","DM-1350","DM-1459","DM-2637","DM-2645"]
-code: ["src/index.exports.test.ts","src/render/render-text-mode-guard.test.ts","src/render/synchronous-scope.test.ts","src/render/synchronous-scope.ts","tests/conventions.test.ts","tests/feature-coverage.ts","tests/feature-transition-evidence.test.ts","tools/check-feature-coverage.ts","tools/feature-transition-evidence.ts","tools/semantic-coverage.json"]
-aliases: ["docs/83-feature-coverage.md","doc-83"]
+tickets: ["DM-1058", "DM-1338", "DM-1350", "DM-1459", "DM-2637", "DM-2645"]
+code:
+  [
+    "src/index.exports.test.ts",
+    "src/render/render-text-mode-guard.test.ts",
+    "src/render/synchronous-scope.test.ts",
+    "src/render/synchronous-scope.ts",
+    "tests/conventions.test.ts",
+    "tests/feature-coverage.ts",
+    "tests/feature-transition-evidence.test.ts",
+    "tools/check-feature-coverage.ts",
+    "tools/feature-transition-evidence.ts",
+    "tools/semantic-coverage.json",
+  ]
+aliases: ["docs/83-feature-coverage.md", "doc-83"]
 ---
 
 # 83 — Feature/requirement coverage (behavior coverage, not just line coverage)
@@ -22,9 +34,9 @@ oracle, metamorphic, visual, and platform evidence.
 
 ## Why line coverage isn't enough
 
-Line/branch coverage proves every *line executed*. It says **nothing** about
-whether every documented *behavior* — or every *transition between states* — is
-actually *asserted*. A bug that lives in an untested interaction or state
+Line/branch coverage proves every _line executed_. It says **nothing** about
+whether every documented _behavior_ — or every _transition between states_ — is
+actually _asserted_. A bug that lives in an untested interaction or state
 transition sails through a green 100% report, because the individual lines still
 get hit by isolated, from-a-clean-state tests. Coverage is necessary but not
 sufficient; it's structurally blind to "does a test exist that would FAIL if this
@@ -36,13 +48,13 @@ that would catch its regression, plus a **report** that flags any gap.
 
 ## The pieces
 
-| Piece | File | Role |
-| --- | --- | --- |
-| Feature index | `tests/feature-coverage.ts` | One `FeatureEntry` per behavior: `behavior` → `exports`/`verbs` → `tests` (`[]` = known gap). Stateful features carry a `transition` note plus exact `transitionEvidence` test titles. |
-| Report | `tools/check-feature-coverage.ts` (`npm run check:features`) | Flags gaps, broken test refs, weak transition evidence, and drift; exits non-zero on any. |
-| Gate | `tests/conventions.test.ts` | Runs the same integrity + drift assertions inside `npm test`, so the axis is enforced without a separate command. |
-| Surface guard | `src/index.exports.test.ts` (DM-1058) | Pins the exact public value-export set against `docs/api.md`. |
-| Transition guard | `src/render/render-text-mode-guard.test.ts` | Example of a state-transition test (the process-global render mode's save/restore, incl. on-throw). |
+| Piece            | File                                                         | Role                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feature index    | `tests/feature-coverage.ts`                                  | One `FeatureEntry` per behavior: `behavior` → `exports`/`verbs` → `tests` (`[]` = known gap). Stateful features carry a `transition` note plus exact `transitionEvidence` test titles. |
+| Report           | `tools/check-feature-coverage.ts` (`npm run check:features`) | Flags gaps, broken test refs, weak transition evidence, and drift; exits non-zero on any.                                                                                              |
+| Gate             | `tests/conventions.test.ts`                                  | Runs the same integrity + drift assertions inside `npm test`, so the axis is enforced without a separate command.                                                                      |
+| Surface guard    | `src/index.exports.test.ts` (DM-1058)                        | Pins the exact public value-export set against `docs/api.md`.                                                                                                                          |
+| Transition guard | `src/render/render-text-mode-guard.test.ts`                  | Example of a state-transition test (the process-global render mode's save/restore, incl. on-throw).                                                                                    |
 
 ## What the report flags
 
@@ -62,7 +74,7 @@ that would catch its regression, plus a **report** that flags any gap.
   or verb without adding a feature entry and the check turns red**, even at 100%
   line coverage. A stale claim (an entry for a removed export) fails too.
 
-## Stateful modules — cover the *transitions*
+## Stateful modules — cover the _transitions_
 
 The gap line coverage is blindest to is a **state transition**: operating on a
 module after it has already moved through one or more states. The index MUST
@@ -79,7 +91,7 @@ transition-bearing entries (grep `transition:` in `tests/feature-coverage.ts`):
   render, then `resetGeneration` / `clear*` empties them for the next frame.
 - **`scroll.execute`** — `until`-loop re-evaluates per iteration; the final
   iteration clamps to the target; a no-progress body ends the loop.
-- **`animate.transitions`** — a frame's entrance is composed from the *previous*
+- **`animate.transitions`** — a frame's entrance is composed from the _previous_
   transition (the transition-to-transition matrix), not a fixed entrance.
 - **`composite.layers`** — each layer's internal timeline is re-anchored to its
   own `start` within the master loop and held/stretched/looped before/after.
@@ -94,7 +106,7 @@ transition-bearing entries (grep `transition:` in `tests/feature-coverage.ts`):
 Adding a feature = adding its `FeatureEntry` with a real test ref. When you can't
 name a test, you found a gap: write the test (or record `tests: []` deliberately,
 which fails the gate until filled). Walk the index periodically asking, per item:
-*is there a test that would fail if this behavior regressed?* — the check makes
+_is there a test that would fail if this behavior regressed?_ — the check makes
 "no" impossible to ship silently.
 
 See also: `docs/ai/requirements-summary.md` (status view), `FEATURES.md`

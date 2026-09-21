@@ -10,18 +10,17 @@
 
 const _emptyPseudo = {
   matched: false,
-  width: '',
-  height: '',
-  backgroundColor: '',
-  borderRadius: '',
-  backgroundImage: '',
-  border: '',
-  padding: '',
-  boxShadow: '',
+  width: "",
+  height: "",
+  backgroundColor: "",
+  borderRadius: "",
+  backgroundImage: "",
+  border: "",
+  padding: "",
+  boxShadow: "",
 };
 
 export const createPseudoRules = (stylesByHost, propertyKey) => {
-
   // Resolve a single border-corner-radius value (e.g. "30px" or "50% 20%") to
   // a px-based axis-pair the renderer can use. Chrome's longhand corner values
   // come back already-resolved to px when the author used px, but a percent-
@@ -38,23 +37,21 @@ export const createPseudoRules = (stylesByHost, propertyKey) => {
   // % values resolve against the (already-scaled) rect, so the `* zoom`
   // skip on that branch keeps them correct.
   const resolveCornerRadius = (v, w, h, zoom) => {
-    if (v == null || v === '') return '0px 0px';
+    if (v == null || v === "") return "0px 0px";
     const z = zoom == null || zoom <= 0 ? 1 : zoom;
     const parts = v.split(/\s+/);
-    const a = parts[0] || '0';
+    const a = parts[0] || "0";
     const b = parts[1] != null ? parts[1] : a;
-    const aPx = a.endsWith('%') ? (parseFloat(a) || 0) * w / 100 : (parseFloat(a) || 0) * z;
-    const bPx = b.endsWith('%') ? (parseFloat(b) || 0) * h / 100 : (parseFloat(b) || 0) * z;
-    return aPx + 'px ' + bPx + 'px';
+    const aPx = a.endsWith("%") ? ((parseFloat(a) || 0) * w) / 100 : (parseFloat(a) || 0) * z;
+    const bPx = b.endsWith("%") ? ((parseFloat(b) || 0) * h) / 100 : (parseFloat(b) || 0) * z;
+    return aPx + "px " + bPx + "px";
   };
 
   const resolvePseudo = (el, kind) => {
-    if (propertyKey == null || propertyKey === '' || stylesByHost == null) return _emptyPseudo;
+    if (propertyKey == null || propertyKey === "" || stylesByHost == null) return _emptyPseudo;
     const hostId = el[propertyKey];
     if (hostId == null) return _emptyPseudo;
-    return stylesByHost[hostId] && stylesByHost[hostId][kind]
-      ? stylesByHost[hostId][kind]
-      : _emptyPseudo;
+    return stylesByHost[hostId] && stylesByHost[hostId][kind] ? stylesByHost[hostId][kind] : _emptyPseudo;
   };
 
   return { resolvePseudo, resolveCornerRadius };

@@ -23,92 +23,104 @@
 // reads survives the proxy's fixed property set.
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync } from "node:fs";
-import { clearFontResolutionCaches, getFontInstance, resolveFontForCodepoint, resolveFontKey } from "./font-resolution.js";
+import {
+  clearFontResolutionCaches,
+  getFontInstance,
+  resolveFontForCodepoint,
+  resolveFontKey,
+} from "./font-resolution.js";
 import { usesDedicatedShaper, usesHarfbuzzShaping } from "./unicode-classification.js";
 
 const ARIAL_UNICODE = "/Library/Fonts/Arial Unicode.ttf";
 const onDarwin = process.platform === "darwin";
 const describeMac = onDarwin && existsSync(ARIAL_UNICODE) ? describe : describe.skip;
 
-beforeEach(() => { clearFontResolutionCaches(); });
+beforeEach(() => {
+  clearFontResolutionCaches();
+});
 
 describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
   it("covers Thai and stops at the block boundary", () => {
-    expect(usesHarfbuzzShaping(0x0E01)).toBe(true);  // ก KO KAI
-    expect(usesHarfbuzzShaping(0x0E37)).toBe(true);  // ◌ื SARA UEE — one of the PUA-shifted marks
-    expect(usesHarfbuzzShaping(0x0E49)).toBe(true);  // ◌้ MAI THO — the other
-    expect(usesHarfbuzzShaping(0x0E7F)).toBe(true);
-    expect(usesHarfbuzzShaping(0x0DFF)).toBe(false);
-    expect(usesHarfbuzzShaping(0x0E80)).toBe(false); // Lao — a separate script, not measured
+    expect(usesHarfbuzzShaping(0x0e01)).toBe(true); // ก KO KAI
+    expect(usesHarfbuzzShaping(0x0e37)).toBe(true); // ◌ื SARA UEE — one of the PUA-shifted marks
+    expect(usesHarfbuzzShaping(0x0e49)).toBe(true); // ◌้ MAI THO — the other
+    expect(usesHarfbuzzShaping(0x0e7f)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0dff)).toBe(false);
+    expect(usesHarfbuzzShaping(0x0e80)).toBe(false); // Lao — a separate script, not measured
   });
 
   it("covers Telugu and stops at the block boundary", () => {
-    expect(usesHarfbuzzShaping(0x0C15)).toBe(true);  // క KA
-    expect(usesHarfbuzzShaping(0x0C4D)).toBe(true);  // ◌్ VIRAMA — the conjunct former
-    expect(usesHarfbuzzShaping(0x0C00)).toBe(true);
-    expect(usesHarfbuzzShaping(0x0C7F)).toBe(true);
-    expect(usesHarfbuzzShaping(0x0BFF)).toBe(false); // Tamil block below
-    expect(usesHarfbuzzShaping(0x0C80)).toBe(true);  // Kannada — rerouted separately below
+    expect(usesHarfbuzzShaping(0x0c15)).toBe(true); // క KA
+    expect(usesHarfbuzzShaping(0x0c4d)).toBe(true); // ◌్ VIRAMA — the conjunct former
+    expect(usesHarfbuzzShaping(0x0c00)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0c7f)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0bff)).toBe(false); // Tamil block below
+    expect(usesHarfbuzzShaping(0x0c80)).toBe(true); // Kannada — rerouted separately below
   });
 
   it("covers the four Linux vowel-constraint reroutes and excludes Tamil", () => {
     for (const cp of [
-      0x0A05, 0x0A3E, // Gurmukhi invalid base + dependent vowel
-      0x0A85, 0x0ABE, // Gujarati
-      0x0B05, 0x0B3E, // Oriya
-      0x0C89, 0x0CBE, // Kannada
-    ]) expect(usesHarfbuzzShaping(cp)).toBe(true);
+      0x0a05,
+      0x0a3e, // Gurmukhi invalid base + dependent vowel
+      0x0a85,
+      0x0abe, // Gujarati
+      0x0b05,
+      0x0b3e, // Oriya
+      0x0c89,
+      0x0cbe, // Kannada
+    ])
+      expect(usesHarfbuzzShaping(cp)).toBe(true);
 
-    expect(usesHarfbuzzShaping(0x09FF)).toBe(true);  // Bengali's existing route
-    expect(usesHarfbuzzShaping(0x0B80)).toBe(false); // Tamil needs the vendored-HB fix (DM-2057)
-    expect(usesHarfbuzzShaping(0x0D00)).toBe(false); // Malayalam, same limitation
+    expect(usesHarfbuzzShaping(0x09ff)).toBe(true); // Bengali's existing route
+    expect(usesHarfbuzzShaping(0x0b80)).toBe(false); // Tamil needs the vendored-HB fix (DM-2057)
+    expect(usesHarfbuzzShaping(0x0d00)).toBe(false); // Malayalam, same limitation
   });
 
   it("covers all four Hangul blocks", () => {
-    expect(usesHarfbuzzShaping(0xAC00)).toBe(true);  // 가 — syllables
-    expect(usesHarfbuzzShaping(0xD55C)).toBe(true);  // 한
-    expect(usesHarfbuzzShaping(0x1100)).toBe(true);  // ᄀ — Jamo
-    expect(usesHarfbuzzShaping(0x3131)).toBe(true);  // ㄱ — Compatibility Jamo
-    expect(usesHarfbuzzShaping(0xA960)).toBe(true);  // Jamo Extended-A
-    expect(usesHarfbuzzShaping(0xD7FF)).toBe(true);  // Jamo Extended-B tail
-    expect(usesHarfbuzzShaping(0xD800)).toBe(false); // surrogates — past the end
-    expect(usesHarfbuzzShaping(0x10FF)).toBe(false);
+    expect(usesHarfbuzzShaping(0xac00)).toBe(true); // 가 — syllables
+    expect(usesHarfbuzzShaping(0xd55c)).toBe(true); // 한
+    expect(usesHarfbuzzShaping(0x1100)).toBe(true); // ᄀ — Jamo
+    expect(usesHarfbuzzShaping(0x3131)).toBe(true); // ㄱ — Compatibility Jamo
+    expect(usesHarfbuzzShaping(0xa960)).toBe(true); // Jamo Extended-A
+    expect(usesHarfbuzzShaping(0xd7ff)).toBe(true); // Jamo Extended-B tail
+    expect(usesHarfbuzzShaping(0xd800)).toBe(false); // surrogates — past the end
+    expect(usesHarfbuzzShaping(0x10ff)).toBe(false);
   });
 
   it("covers the Devanagari block but not its extensions", () => {
-    expect(usesHarfbuzzShaping(0x0915)).toBe(true);  // क KA
-    expect(usesHarfbuzzShaping(0x093F)).toBe(true);  // ि — the pre-base matra
-    expect(usesHarfbuzzShaping(0x094D)).toBe(true);  // ◌् VIRAMA
+    expect(usesHarfbuzzShaping(0x0915)).toBe(true); // क KA
+    expect(usesHarfbuzzShaping(0x093f)).toBe(true); // ि — the pre-base matra
+    expect(usesHarfbuzzShaping(0x094d)).toBe(true); // ◌् VIRAMA
     expect(usesHarfbuzzShaping(0x0900)).toBe(true);
-    expect(usesHarfbuzzShaping(0x097F)).toBe(true);
-    expect(usesHarfbuzzShaping(0x0980)).toBe(true);  // Bengali — rerouted separately, see "covers Bengali"
-    expect(usesHarfbuzzShaping(0xA8E0)).toBe(false); // Devanagari Extended — not measured
-    expect(usesHarfbuzzShaping(0x1CD0)).toBe(false); // Vedic Extensions — a different route
+    expect(usesHarfbuzzShaping(0x097f)).toBe(true);
+    expect(usesHarfbuzzShaping(0x0980)).toBe(true); // Bengali — rerouted separately, see "covers Bengali"
+    expect(usesHarfbuzzShaping(0xa8e0)).toBe(false); // Devanagari Extended — not measured
+    expect(usesHarfbuzzShaping(0x1cd0)).toBe(false); // Vedic Extensions — a different route
   });
 
   it("covers Hebrew AND its presentation forms, which shape as one unit", () => {
-    expect(usesHarfbuzzShaping(0x05D0)).toBe(true);  // ALEF
-    expect(usesHarfbuzzShaping(0x05BC)).toBe(true);  // DAGESH — the composing point
+    expect(usesHarfbuzzShaping(0x05d0)).toBe(true); // ALEF
+    expect(usesHarfbuzzShaping(0x05bc)).toBe(true); // DAGESH — the composing point
     expect(usesHarfbuzzShaping(0x0590)).toBe(true);
-    expect(usesHarfbuzzShaping(0x05FF)).toBe(true);
+    expect(usesHarfbuzzShaping(0x05ff)).toBe(true);
     // compose_hebrew maps 05D0-05EA + 05BC onto FB30-FB4A, so the two blocks
     // must route together or a mixed text is shaped as two separate runs.
-    expect(usesHarfbuzzShaping(0xFB30)).toBe(true);
-    expect(usesHarfbuzzShaping(0xFB4F)).toBe(true);
-    expect(usesHarfbuzzShaping(0x058F)).toBe(false); // Armenian — a different script
+    expect(usesHarfbuzzShaping(0xfb30)).toBe(true);
+    expect(usesHarfbuzzShaping(0xfb4f)).toBe(true);
+    expect(usesHarfbuzzShaping(0x058f)).toBe(false); // Armenian — a different script
   });
 
   it("covers every Arabic block, base and presentation forms alike", () => {
-    expect(usesHarfbuzzShaping(0x0645)).toBe(true);  // MEEM
-    expect(usesHarfbuzzShaping(0x0650)).toBe(true);  // KASRA
-    expect(usesHarfbuzzShaping(0x0750)).toBe(true);  // Arabic Supplement
-    expect(usesHarfbuzzShaping(0x0870)).toBe(true);  // Arabic Extended-B
-    expect(usesHarfbuzzShaping(0x08A0)).toBe(true);  // Arabic Extended-A
-    expect(usesHarfbuzzShaping(0xFB50)).toBe(true);  // Presentation Forms-A
-    expect(usesHarfbuzzShaping(0xFEFC)).toBe(true);  // LAM-ALEF ligature, Forms-B
+    expect(usesHarfbuzzShaping(0x0645)).toBe(true); // MEEM
+    expect(usesHarfbuzzShaping(0x0650)).toBe(true); // KASRA
+    expect(usesHarfbuzzShaping(0x0750)).toBe(true); // Arabic Supplement
+    expect(usesHarfbuzzShaping(0x0870)).toBe(true); // Arabic Extended-B
+    expect(usesHarfbuzzShaping(0x08a0)).toBe(true); // Arabic Extended-A
+    expect(usesHarfbuzzShaping(0xfb50)).toBe(true); // Presentation Forms-A
+    expect(usesHarfbuzzShaping(0xfefc)).toBe(true); // LAM-ALEF ligature, Forms-B
     // Joining spans all of these, so a subset would split a word mid-join.
     expect(usesHarfbuzzShaping(0x0700)).toBe(false); // Syriac — a different script
-    expect(usesHarfbuzzShaping(0xFE00)).toBe(false); // Variation Selectors
+    expect(usesHarfbuzzShaping(0xfe00)).toBe(false); // Variation Selectors
   });
 
   it("does not reroute the scripts that have not been swept yet", () => {
@@ -116,43 +128,43 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     // commit and its own CI sweep. Flipping one without updating this line
     // means the sweep did not happen.
     for (const cp of [
-      0x0B95, // Tamil ka — cluster-only
-      0x0F40, // Tibetan ka — never measured as glyph-differing
+      0x0b95, // Tamil ka — cluster-only
+      0x0f40, // Tibetan ka — never measured as glyph-differing
     ]) {
       expect(usesHarfbuzzShaping(cp)).toBe(false);
     }
   });
 
   it("covers Myanmar and its three Extended blocks", () => {
-    expect(usesHarfbuzzShaping(0x1000)).toBe(true);   // Myanmar KA
-    expect(usesHarfbuzzShaping(0x109F)).toBe(true);   // Myanmar block end
-    expect(usesHarfbuzzShaping(0x109E)).toBe(true);   // Myanmar SYMBOL SHAN ONE (just inside)
-    expect(usesHarfbuzzShaping(0xAA60)).toBe(true);   // Myanmar Extended-A start
-    expect(usesHarfbuzzShaping(0xAA7F)).toBe(true);   // Myanmar Extended-A end
-    expect(usesHarfbuzzShaping(0xA9E0)).toBe(true);   // Myanmar Extended-B start
-    expect(usesHarfbuzzShaping(0xA9FF)).toBe(true);   // Myanmar Extended-B end
-    expect(usesHarfbuzzShaping(0x116D0)).toBe(true);  // Myanmar Extended-C start
-    expect(usesHarfbuzzShaping(0x116FF)).toBe(true);  // Myanmar Extended-C end
-    expect(usesHarfbuzzShaping(0x0FFF)).toBe(false);  // just below the base block
-    expect(usesHarfbuzzShaping(0x10A0)).toBe(false);  // Georgian — a different script entirely
+    expect(usesHarfbuzzShaping(0x1000)).toBe(true); // Myanmar KA
+    expect(usesHarfbuzzShaping(0x109f)).toBe(true); // Myanmar block end
+    expect(usesHarfbuzzShaping(0x109e)).toBe(true); // Myanmar SYMBOL SHAN ONE (just inside)
+    expect(usesHarfbuzzShaping(0xaa60)).toBe(true); // Myanmar Extended-A start
+    expect(usesHarfbuzzShaping(0xaa7f)).toBe(true); // Myanmar Extended-A end
+    expect(usesHarfbuzzShaping(0xa9e0)).toBe(true); // Myanmar Extended-B start
+    expect(usesHarfbuzzShaping(0xa9ff)).toBe(true); // Myanmar Extended-B end
+    expect(usesHarfbuzzShaping(0x116d0)).toBe(true); // Myanmar Extended-C start
+    expect(usesHarfbuzzShaping(0x116ff)).toBe(true); // Myanmar Extended-C end
+    expect(usesHarfbuzzShaping(0x0fff)).toBe(false); // just below the base block
+    expect(usesHarfbuzzShaping(0x10a0)).toBe(false); // Georgian — a different script entirely
   });
 
   it("covers Bengali", () => {
-    expect(usesHarfbuzzShaping(0x0985)).toBe(true);   // BENGALI LETTER A
-    expect(usesHarfbuzzShaping(0x09BE)).toBe(true);   // BENGALI VOWEL SIGN AA
-    expect(usesHarfbuzzShaping(0x0980)).toBe(true);   // block start
-    expect(usesHarfbuzzShaping(0x09FF)).toBe(true);   // block end
-    expect(usesHarfbuzzShaping(0x0A00)).toBe(true);   // Gurmukhi — rerouted separately
+    expect(usesHarfbuzzShaping(0x0985)).toBe(true); // BENGALI LETTER A
+    expect(usesHarfbuzzShaping(0x09be)).toBe(true); // BENGALI VOWEL SIGN AA
+    expect(usesHarfbuzzShaping(0x0980)).toBe(true); // block start
+    expect(usesHarfbuzzShaping(0x09ff)).toBe(true); // block end
+    expect(usesHarfbuzzShaping(0x0a00)).toBe(true); // Gurmukhi — rerouted separately
   });
 
   it("covers Khmer and Khmer Symbols", () => {
-    expect(usesHarfbuzzShaping(0x1780)).toBe(true);   // Khmer KA
-    expect(usesHarfbuzzShaping(0x17D2)).toBe(true);   // Khmer COENG
-    expect(usesHarfbuzzShaping(0x17FF)).toBe(true);   // base block end
-    expect(usesHarfbuzzShaping(0x19E0)).toBe(true);   // Khmer Symbols start
-    expect(usesHarfbuzzShaping(0x19FF)).toBe(true);   // Khmer Symbols end
-    expect(usesHarfbuzzShaping(0x177F)).toBe(false);  // just below the base block
-    expect(usesHarfbuzzShaping(0x1800)).toBe(false);  // Mongolian — a different script
+    expect(usesHarfbuzzShaping(0x1780)).toBe(true); // Khmer KA
+    expect(usesHarfbuzzShaping(0x17d2)).toBe(true); // Khmer COENG
+    expect(usesHarfbuzzShaping(0x17ff)).toBe(true); // base block end
+    expect(usesHarfbuzzShaping(0x19e0)).toBe(true); // Khmer Symbols start
+    expect(usesHarfbuzzShaping(0x19ff)).toBe(true); // Khmer Symbols end
+    expect(usesHarfbuzzShaping(0x177f)).toBe(false); // just below the base block
+    expect(usesHarfbuzzShaping(0x1800)).toBe(false); // Mongolian — a different script
   });
 
   it("a rerouted script stays a DEDICATED-shaper script", () => {
@@ -160,18 +172,18 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     // shaping rather than per-character. Narrowing it as scripts move would
     // turn contextual shaping off for exactly the runs being rerouted — the
     // opposite of the intent.
-    for (const cp of [0x0E01, 0x0E37, 0x0E49]) {
+    for (const cp of [0x0e01, 0x0e37, 0x0e49]) {
       expect(usesDedicatedShaper(cp)).toBe(true);
     }
   });
 
   it("covers Adlam and Hanifi Rohingya — the two DM-2054 additions that ALSO reroute", () => {
-    expect(usesHarfbuzzShaping(0x1E900)).toBe(true);  // Adlam block start
-    expect(usesHarfbuzzShaping(0x1E95F)).toBe(true);  // Adlam block end
-    expect(usesHarfbuzzShaping(0x1E960)).toBe(false); // just past the block
-    expect(usesHarfbuzzShaping(0x10D00)).toBe(true);  // Hanifi Rohingya block start
-    expect(usesHarfbuzzShaping(0x10D3F)).toBe(true);  // Hanifi Rohingya block end
-    expect(usesHarfbuzzShaping(0x10D40)).toBe(false); // Garay — a different script (RTL_SMP_SCRIPT_RANGES neighbor)
+    expect(usesHarfbuzzShaping(0x1e900)).toBe(true); // Adlam block start
+    expect(usesHarfbuzzShaping(0x1e95f)).toBe(true); // Adlam block end
+    expect(usesHarfbuzzShaping(0x1e960)).toBe(false); // just past the block
+    expect(usesHarfbuzzShaping(0x10d00)).toBe(true); // Hanifi Rohingya block start
+    expect(usesHarfbuzzShaping(0x10d3f)).toBe(true); // Hanifi Rohingya block end
+    expect(usesHarfbuzzShaping(0x10d40)).toBe(false); // Garay — a different script (RTL_SMP_SCRIPT_RANGES neighbor)
   });
 
   it("does NOT reroute the other DM-2033/DM-2054 dedicated-shaper additions — measured inert", () => {
@@ -181,13 +193,13 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
     // Adlam/Hanifi Rohingya above they stay OUT of `usesHarfbuzzShaping` —
     // `isShapingRequired` alone is the whole fix for them.
     for (const cp of [
-      0x0D91, // Sinhala KA
-      0x07C8, // N'Ko A
+      0x0d91, // Sinhala KA
+      0x07c8, // N'Ko A
       0x0845, // Mandaic AG
-      0xA841, // Phags-pa KA
-      0x10AC1, // Manichaean ALEPH
-      0x10B81, // Psalter Pahlavi ALEPH
-      0x10A02, // Kharoshthi I
+      0xa841, // Phags-pa KA
+      0x10ac1, // Manichaean ALEPH
+      0x10b81, // Psalter Pahlavi ALEPH
+      0x10a02, // Kharoshthi I
     ]) {
       expect(usesHarfbuzzShaping(cp)).toBe(false);
     }
@@ -196,20 +208,20 @@ describe("usesHarfbuzzShaping — which scripts are rerouted", () => {
 
 describe("usesDedicatedShaper — DM-2033 / DM-2054 additions (isShapingRequired routing)", () => {
   it("covers Sinhala — USE-shaped, not Indic-shaped", () => {
-    expect(usesDedicatedShaper(0x0D80)).toBe(true);  // block start
-    expect(usesDedicatedShaper(0x0DFF)).toBe(true);  // block end
-    expect(usesDedicatedShaper(0x0D91)).toBe(true);  // KA
-    expect(usesDedicatedShaper(0x0D7F)).toBe(true);  // still Indic (Malayalam block end) — unaffected neighbor
-    expect(usesDedicatedShaper(0x0E00)).toBe(true);  // Thai — unaffected neighbor on the other side
+    expect(usesDedicatedShaper(0x0d80)).toBe(true); // block start
+    expect(usesDedicatedShaper(0x0dff)).toBe(true); // block end
+    expect(usesDedicatedShaper(0x0d91)).toBe(true); // KA
+    expect(usesDedicatedShaper(0x0d7f)).toBe(true); // still Indic (Malayalam block end) — unaffected neighbor
+    expect(usesDedicatedShaper(0x0e00)).toBe(true); // Thai — unaffected neighbor on the other side
   });
 
   it("covers the reachable Arabic-misrouted set: N'Ko, Mandaic, Phags-pa, Manichaean, Psalter Pahlavi", () => {
     const blocks: Array<[number, number]> = [
-      [0x07C0, 0x07FF], // N'Ko
-      [0x0840, 0x085F], // Mandaic
-      [0xA840, 0xA87F], // Phags-pa
-      [0x10AC0, 0x10AFF], // Manichaean
-      [0x10B80, 0x10BAF], // Psalter Pahlavi
+      [0x07c0, 0x07ff], // N'Ko
+      [0x0840, 0x085f], // Mandaic
+      [0xa840, 0xa87f], // Phags-pa
+      [0x10ac0, 0x10aff], // Manichaean
+      [0x10b80, 0x10baf], // Psalter Pahlavi
     ];
     for (const [lo, hi] of blocks) {
       expect(usesDedicatedShaper(lo), `0x${lo.toString(16)} (block start)`).toBe(true);
@@ -226,9 +238,9 @@ describe("usesDedicatedShaper — DM-2033 / DM-2054 additions (isShapingRequired
 
   it("covers Adlam, Kharoshthi and Hanifi Rohingya", () => {
     const blocks: Array<[number, number]> = [
-      [0x1E900, 0x1E95F], // Adlam
-      [0x10A00, 0x10A5F], // Kharoshthi
-      [0x10D00, 0x10D3F], // Hanifi Rohingya
+      [0x1e900, 0x1e95f], // Adlam
+      [0x10a00, 0x10a5f], // Kharoshthi
+      [0x10d00, 0x10d3f], // Hanifi Rohingya
     ];
     for (const [lo, hi] of blocks) {
       expect(usesDedicatedShaper(lo), `0x${lo.toString(16)} (block start)`).toBe(true);
@@ -244,7 +256,7 @@ describe("usesDedicatedShaper — DM-2033 / DM-2054 additions (isShapingRequired
     // glyphs in any of the three blocks. Routing to nowhere is not "matching
     // HarfBuzz's dispatch", it is unverifiable, so these stay out until a
     // covering face is confirmed.
-    for (const cp of [0x10F00, 0x10F30, 0x10F70]) {
+    for (const cp of [0x10f00, 0x10f30, 0x10f70]) {
       expect(usesDedicatedShaper(cp)).toBe(false);
     }
   });
@@ -257,10 +269,10 @@ describe("usesDedicatedShaper — DM-2033 / DM-2054 additions (isShapingRequired
     // contextual substitution on them either). Adding them would have
     // introduced a divergence from Chrome, not fixed one — mirrors the
     // Old Hungarian exclusion already documented on `isRtlScriptCodepoint`.
-    expect(usesDedicatedShaper(0x10C05)).toBe(false); // Old Turkic
-    expect(usesDedicatedShaper(0x10C85)).toBe(false); // Old Hungarian
+    expect(usesDedicatedShaper(0x10c05)).toBe(false); // Old Turkic
+    expect(usesDedicatedShaper(0x10c85)).toBe(false); // Old Hungarian
     expect(usesDedicatedShaper(0x10905)).toBe(false); // Phoenician
-    expect(usesDedicatedShaper(0x1E805)).toBe(false); // Mende Kikakui
+    expect(usesDedicatedShaper(0x1e805)).toBe(false); // Mende Kikakui
   });
 });
 
@@ -272,7 +284,7 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
     if (k == null) throw new Error("Arial Unicode MS did not resolve to a key");
     const base = getFontInstance(k, 400, 16, 0);
     if (base == null) throw new Error("Arial Unicode MS did not open");
-    const res = resolveFontForCodepoint(0x0E1B, base, k, 400, 16, 0, undefined, undefined, [k]);
+    const res = resolveFontForCodepoint(0x0e1b, base, k, 400, 16, 0, undefined, undefined, [k]);
     return { override: res.fontOverride, base };
   }
 
@@ -300,7 +312,9 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
     // id, checked against `base.getGlyph(id)` directly.
     const { override, base } = resolveThai();
     const hb = (override as NonNullable<ReturnType<typeof getFontInstance>>).layout(TEXT);
-    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(
+      base,
+    );
     for (const g of hb.glyphs) {
       expect(g.path.commands.length).toBeGreaterThan(0);
       expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
@@ -338,7 +352,7 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
     // Chromium has no script allowlist in front of HarfBuzz. Latin and
     // Tibetan are useful controls because neither belonged to the legacy
     // empirically grown reroute table.
-    for (const cp of [0x0041, 0x0F40]) {
+    for (const cp of [0x0041, 0x0f40]) {
       const res = resolveFontForCodepoint(cp, base, k!, 400, 16, 0, undefined, undefined, [k!]);
       expect(res.fontOverride?.shapesWithHarfbuzz).toBe(true);
     }
@@ -353,7 +367,10 @@ describeMac("harfbuzzShapedScriptOverride on Arial Unicode MS", () => {
 // makes `outlinesFromBase` exercise the OTHER half of its contract: drawing
 // HarfBuzz's glyph ids through fontkit's `getGlyph`, not the helper's.
 describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", () => {
-  function resolveOverride(fontKey: string, cp: number): { override: unknown; base: ReturnType<typeof getFontInstance> } {
+  function resolveOverride(
+    fontKey: string,
+    cp: number,
+  ): { override: unknown; base: ReturnType<typeof getFontInstance> } {
     const base = getFontInstance(fontKey, 400, 16, 0);
     if (base == null) throw new Error(`${fontKey} did not open`);
     const res = resolveFontForCodepoint(cp, base, fontKey, 400, 16, 0, undefined, undefined, [fontKey]);
@@ -375,15 +392,17 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
     const TEXT = "অা";
     const hb = o.layout(TEXT);
     const fk = base!.layout(TEXT);
-    expect(fk.glyphs.length).toBe(2);   // fontkit: no dotted circle
-    expect(hb.glyphs.length).toBe(3);   // HarfBuzz: base, ◌, vowel sign
-    const circleId = base!.glyphForCodePoint(0x25CC).id;
+    expect(fk.glyphs.length).toBe(2); // fontkit: no dotted circle
+    expect(hb.glyphs.length).toBe(3); // HarfBuzz: base, ◌, vowel sign
+    const circleId = base!.glyphForCodePoint(0x25cc).id;
     expect(circleId).not.toBe(0); // the face must actually carry U+25CC
     expect(hb.glyphs.map((g) => g.id)).toEqual([fk.glyphs[0].id, circleId, fk.glyphs[1].id]);
     // And the outline for every glyph — including the inserted circle, which
     // has no source codepoint of its own — comes from fontkit's `getGlyph`,
     // not from HarfBuzz's own `glyphToPath`.
-    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(
+      base,
+    );
     for (const g of hb.glyphs) {
       expect(g.path.commands.length).toBeGreaterThan(0);
       expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
@@ -406,7 +425,9 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
       expect(a.override).toBe(b.override); // stable proxy identity
       const o = a.override as NonNullable<ReturnType<typeof getFontInstance>>;
       const hb = o.layout(text);
-      const getGlyph = (a.base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(a.base);
+      const getGlyph = (a.base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(
+        a.base,
+      );
       expect(hb.glyphs.length).toBeGreaterThan(0);
       for (const g of hb.glyphs) {
         expect(g.path.commands.length).toBeGreaterThan(0);
@@ -425,7 +446,7 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
   //     on the SAME on-disk font file, so id N denotes the same outline under
   //     both engines.
   it("Adlam: HarfBuzz selects DIFFERENT glyphs than fontkit's ArabicShaper, with fontkit's outlines", () => {
-    const { override, base } = resolveOverride("u-noto-sans-adlam", 0x1E900);
+    const { override, base } = resolveOverride("u-noto-sans-adlam", 0x1e900);
     expect(override).not.toBeNull();
     const o = override as NonNullable<ReturnType<typeof getFontInstance>>;
     const TEXT = "\u{1E900}\u{1E901}\u{1E902}\u{1E903}"; // 4 Adlam capital letters
@@ -442,7 +463,9 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
     for (const id of hbIds) expect(fkIds).not.toContain(id); // disjoint, not just reordered
     // And the outlines still come from fontkit's own `getGlyph` — the reroute
     // moves shaping only, per the DM-1197 invariant this whole file guards.
-    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(
+      base,
+    );
     for (const g of hb.glyphs) {
       expect(g.path.commands.length).toBeGreaterThan(0);
       expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
@@ -450,14 +473,16 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
   });
 
   it("Hanifi Rohingya: HarfBuzz selects different glyphs and advances than fontkit's ArabicShaper", () => {
-    const { override, base } = resolveOverride("u-noto-sans-hanifirohg", 0x10D00);
+    const { override, base } = resolveOverride("u-noto-sans-hanifirohg", 0x10d00);
     expect(override).not.toBeNull();
     const o = override as NonNullable<ReturnType<typeof getFontInstance>>;
     const TEXT = "\u{10D00}\u{10D01}\u{10D02}";
     const hb = o.layout(TEXT, undefined, undefined, undefined, "rtl");
     const fk = base!.layout(TEXT, undefined, undefined, undefined, "rtl");
     expect(hb.glyphs.map((g) => g.id)).not.toEqual(fk.glyphs.map((g) => g.id));
-    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(base);
+    const getGlyph = (base as unknown as { getGlyph(id: number): { path: { commands: unknown[] } } }).getGlyph.bind(
+      base,
+    );
     for (const g of hb.glyphs) {
       expect(g.path.commands.length).toBeGreaterThan(0);
       expect(JSON.stringify(g.path.commands)).toBe(JSON.stringify(getGlyph(g.id).path.commands));
@@ -470,13 +495,13 @@ describeMac("harfbuzzShapedScriptOverride on fontkit-backed production faces", (
     // Chromium's mechanism instead: agreement is not a reason to skip its
     // shaper.
     for (const [fontKey, cp] of [
-      ["u-sinhala-sangam-mn", 0x0D91],
-      ["u-noto-sans-nko", 0x07C8],
+      ["u-sinhala-sangam-mn", 0x0d91],
+      ["u-noto-sans-nko", 0x07c8],
       ["u-noto-sans-mandaic", 0x0845],
-      ["u-noto-sans-phagspa", 0xA841],
-      ["u-noto-sans-manichaean", 0x10AC1],
-      ["u-noto-sans-psapahlavi", 0x10B81],
-      ["u-noto-sans-kharoshthi", 0x10A02],
+      ["u-noto-sans-phagspa", 0xa841],
+      ["u-noto-sans-manichaean", 0x10ac1],
+      ["u-noto-sans-psapahlavi", 0x10b81],
+      ["u-noto-sans-kharoshthi", 0x10a02],
     ] as const) {
       const { override } = resolveOverride(fontKey, cp);
       expect((override as { shapesWithHarfbuzz?: boolean } | null)?.shapesWithHarfbuzz, fontKey).toBe(true);

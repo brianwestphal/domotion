@@ -18,10 +18,23 @@ const MATRIX_PRECISION = 5;
 
 export function cssTransformToSvg(transform: string | undefined, originX: number, originY: number): string {
   if (transform == null || transform === "" || transform === "none") return "";
-  const m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(transform);
-  let a = 1, b = 0, c = 0, d = 1, e = 0, f = 0;
+  const m2 =
+    /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(
+      transform,
+    );
+  let a = 1,
+    b = 0,
+    c = 0,
+    d = 1,
+    e = 0,
+    f = 0;
   if (m2 != null) {
-    a = parseFloat(m2[1]); b = parseFloat(m2[2]); c = parseFloat(m2[3]); d = parseFloat(m2[4]); e = parseFloat(m2[5]); f = parseFloat(m2[6]);
+    a = parseFloat(m2[1]);
+    b = parseFloat(m2[2]);
+    c = parseFloat(m2[3]);
+    d = parseFloat(m2[4]);
+    e = parseFloat(m2[5]);
+    f = parseFloat(m2[6]);
   } else {
     const m3 = /^matrix3d\(([^)]+)\)$/.exec(transform);
     if (m3 == null) return "";
@@ -29,7 +42,12 @@ export function cssTransformToSvg(transform: string | undefined, originX: number
     if (parts.length !== 16 || parts.some((n) => !isFinite(n))) return "";
     // CSS matrix3d is column-major: m11..m14, m21..m24, m31..m34, m41..m44.
     // The 2D submatrix is m11, m12, m21, m22, m41, m42 → a, b, c, d, e, f.
-    a = parts[0]; b = parts[1]; c = parts[4]; d = parts[5]; e = parts[12]; f = parts[13];
+    a = parts[0];
+    b = parts[1];
+    c = parts[4];
+    d = parts[5];
+    e = parts[12];
+    f = parts[13];
   }
   // Identity short-circuit: don't emit a no-op transform.
   if (a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0) return "";

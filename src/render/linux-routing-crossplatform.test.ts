@@ -62,12 +62,11 @@ describe("Linux declared-family cut selection, replayed on any host (DM-1980)", 
     // bold at 600, while fontconfig's weight scoring already prefers Bold at
     // 550. A check at 400 or 700 agrees on both paths and proves nothing.
     host.withHostPlatform("linux", () => {
-      expect(helper.resolveLinuxFamilyMatch("Arial", { weight: 550 })?.postscriptName)
-        .toBe("LiberationSans-Bold");
-      expect(helper.resolveLinuxFamilyMatch("Arial", { weight: 400 })?.postscriptName)
-        .toBe("LiberationSans");
-      expect(helper.resolveLinuxFamilyMatch("Liberation Sans", { weight: 700 })?.postscriptName)
-        .toBe("LiberationSans-Bold");
+      expect(helper.resolveLinuxFamilyMatch("Arial", { weight: 550 })?.postscriptName).toBe("LiberationSans-Bold");
+      expect(helper.resolveLinuxFamilyMatch("Arial", { weight: 400 })?.postscriptName).toBe("LiberationSans");
+      expect(helper.resolveLinuxFamilyMatch("Liberation Sans", { weight: 700 })?.postscriptName).toBe(
+        "LiberationSans-Bold",
+      );
     });
   });
 
@@ -94,7 +93,11 @@ describe("Linux declared-family cut selection, replayed on any host (DM-1980)", 
 
   it("restores the platform even when the body throws", () => {
     const before = host.hostPlatform();
-    expect(() => host.withHostPlatform("win32", () => { throw new Error("boom"); })).toThrow("boom");
+    expect(() =>
+      host.withHostPlatform("win32", () => {
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
     expect(host.hostPlatform()).toBe(before);
   });
 });

@@ -19,7 +19,9 @@ for (const path of listed.stdout.split("\0").filter(Boolean)) {
 
 if (findings.length > 0) {
   for (const finding of findings) {
-    process.stderr.write(`${finding.path}:${finding.line}:${finding.column}: British spelling ${JSON.stringify(finding.spelling)}\n`);
+    process.stderr.write(
+      `${finding.path}:${finding.line}:${finding.column}: British spelling ${JSON.stringify(finding.spelling)}\n`,
+    );
   }
   process.exitCode = 1;
 } else {

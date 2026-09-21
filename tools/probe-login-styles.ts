@@ -12,7 +12,8 @@ async function main() {
     deviceScaleFactor: 1,
     isMobile: true,
     hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
   await context.routeFromHAR(resolve(CACHE_DIR, "slashdot-mobile.har"), { url: "**/*", notFound: "fallback" });
   const page = await context.newPage();
@@ -20,7 +21,20 @@ async function main() {
   await page.waitForTimeout(3000);
   const found = await page.evaluate(() => {
     const out: any[] = [];
-    for (const sel of [".login", ".submit-story", ".sprite", "#session", ".header", "#content", "#home", ".stages", ".stage-center", ".river-prop", "body", "html"]) {
+    for (const sel of [
+      ".login",
+      ".submit-story",
+      ".sprite",
+      "#session",
+      ".header",
+      "#content",
+      "#home",
+      ".stages",
+      ".stage-center",
+      ".river-prop",
+      "body",
+      "html",
+    ]) {
       const el = document.querySelector(sel);
       if (el == null) continue;
       const cs = getComputedStyle(el);
@@ -28,12 +42,18 @@ async function main() {
       out.push({
         sel,
         rect: { x: r.left, y: r.top, w: r.width, h: r.height },
-        position: cs.position, zIndex: cs.zIndex,
-        display: cs.display, transform: cs.transform,
-        opacity: cs.opacity, visibility: cs.visibility,
-        order: cs.order, flexDirection: cs.flexDirection,
-        float: cs.float, overflow: cs.overflow,
-        isolation: cs.isolation, filter: cs.filter,
+        position: cs.position,
+        zIndex: cs.zIndex,
+        display: cs.display,
+        transform: cs.transform,
+        opacity: cs.opacity,
+        visibility: cs.visibility,
+        order: cs.order,
+        flexDirection: cs.flexDirection,
+        float: cs.float,
+        overflow: cs.overflow,
+        isolation: cs.isolation,
+        filter: cs.filter,
       });
     }
     return out;

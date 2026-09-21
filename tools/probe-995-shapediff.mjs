@@ -45,7 +45,10 @@ for (let y = 0; y < exp.h; y++) {
     const idx = (y * exp.w + x) * exp.c;
     const ed = isDarkAt(exp.data, idx);
     const ad = isDarkAt(act.data, idx);
-    const diff = Math.abs(exp.data[idx] - act.data[idx]) + Math.abs(exp.data[idx + 1] - act.data[idx + 1]) + Math.abs(exp.data[idx + 2] - act.data[idx + 2]);
+    const diff =
+      Math.abs(exp.data[idx] - act.data[idx]) +
+      Math.abs(exp.data[idx + 1] - act.data[idx + 1]) +
+      Math.abs(exp.data[idx + 2] - act.data[idx + 2]);
     if (diff > 30) totalDiff++;
     if (ed && ad) bothInked++;
     else if (ed) onlyExp++;
@@ -56,4 +59,6 @@ console.log("W region pixel-diff stats:");
 console.log(`  total pixels: ${exp.w * exp.h}`);
 console.log(`  pixels with diff > 30: ${totalDiff}`);
 console.log(`  both inked: ${bothInked}, only-expected: ${onlyExp}, only-actual: ${onlyAct}`);
-console.log(`  inked-symmetric-diff: ${onlyExp + onlyAct}, ratio of overlap: ${(bothInked / (bothInked + onlyExp + onlyAct) * 100).toFixed(1)}%`);
+console.log(
+  `  inked-symmetric-diff: ${onlyExp + onlyAct}, ratio of overlap: ${((bothInked / (bothInked + onlyExp + onlyAct)) * 100).toFixed(1)}%`,
+);

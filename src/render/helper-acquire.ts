@@ -75,7 +75,7 @@ export function cacheDirFor(
   platform: NodeJS.Platform,
   version: string,
   env: NodeJS.ProcessEnv = process.env,
-  home: string = homedir()
+  home: string = homedir(),
 ): string {
   if (platform === "darwin") {
     return path.join(home, "Library", "Caches", "domotion", version, "bin");
@@ -161,7 +161,7 @@ export function acquireGlyphHelperSync(opts: AcquireOptions = {}): string | unde
   const proc = spawnSync(
     process.execPath,
     [fileURLToPath(import.meta.url), target.dest, target.assetUrl, target.shaUrl],
-    { timeout: DOWNLOAD_TIMEOUT_MS, encoding: "utf-8" }
+    { timeout: DOWNLOAD_TIMEOUT_MS, encoding: "utf-8" },
   );
   if (proc.status === 0 && existsSync(target.dest)) return target.dest;
 
@@ -171,7 +171,9 @@ export function acquireGlyphHelperSync(opts: AcquireOptions = {}): string | unde
   // Fontkit keeps rendering functional, but static tables/cut ladders are only
   // deterministic approximations and are not family- or pixel-exact. Do not
   // describe this as performance-only (the old warning hid a fidelity change).
-  warnOnce(`WARNING: native glyph helper (${target.asset}) is unavailable — continuing in best-effort degraded font mode. Output remains deterministic and functional, but installed-family selection, fallback faces, traits, axes, and pixels may differ from Chromium on this host. Set DOMOTION_HELPER_PATH to a matching helper or pre-warm with acquireGlyphHelper() to restore live platform resolution.`);
+  warnOnce(
+    `WARNING: native glyph helper (${target.asset}) is unavailable — continuing in best-effort degraded font mode. Output remains deterministic and functional, but installed-family selection, fallback faces, traits, axes, and pixels may differ from Chromium on this host. Set DOMOTION_HELPER_PATH to a matching helper or pre-warm with acquireGlyphHelper() to restore live platform resolution.`,
+  );
   return undefined;
 }
 
@@ -203,8 +205,7 @@ export function __resetAcquireState(): void {
 // `acquireGlyphHelperSync`), run the download and exit 0/1. The arg vector is
 // `[dest, assetUrl, shaUrl]`. Guarded so a normal `import` never triggers it.
 const isWorkerEntry =
-  process.argv[1] != null &&
-  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+  process.argv[1] != null && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 if (isWorkerEntry) {
   const [dest, assetUrl, shaUrl] = process.argv.slice(2);
   if (dest == null || assetUrl == null || shaUrl == null) process.exit(2);

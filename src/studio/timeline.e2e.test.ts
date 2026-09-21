@@ -23,15 +23,25 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
     try {
       const created = createStudioProjectFile(root, "timeline.studio.json", { title: "Timeline E2E", createdAt: NOW });
       const project = structuredClone(created.project);
-      project.scenes[0].render = { kind: "storyboard", recipe: { template: "title-card", params: { title: "Timeline" }, duration: 1200, transition: { type: "cut", duration: 0 } } };
-      project.scenes[0].tracks = [{
-        id: "track-demo",
-        kind: "semantic-interactions",
-        events: [
-          { id: "event-start", kind: "click", atMs: 100, durationMs: 100, target: { role: "button", name: "Start" } },
-          { id: "event-next", kind: "hover", atMs: 700, durationMs: 100, target: { role: "button", name: "Next" } },
-        ],
-      }];
+      project.scenes[0].render = {
+        kind: "storyboard",
+        recipe: {
+          template: "title-card",
+          params: { title: "Timeline" },
+          duration: 1200,
+          transition: { type: "cut", duration: 0 },
+        },
+      };
+      project.scenes[0].tracks = [
+        {
+          id: "track-demo",
+          kind: "semantic-interactions",
+          events: [
+            { id: "event-start", kind: "click", atMs: 100, durationMs: 100, target: { role: "button", name: "Start" } },
+            { id: "event-next", kind: "hover", atMs: 700, durationMs: 100, target: { role: "button", name: "Next" } },
+          ],
+        },
+      ];
       mkdirSync(join(root, "generated"));
       writeFileSync(join(root, "generated/story.svg"), SVG);
       project.artifacts.push({
@@ -76,10 +86,14 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
     await scrubber.locator(".svg-host svg").waitFor();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:00.10 / 0:01.20");
 
-    const keyboardResponse = page.waitForResponse((response) => response.url().endsWith("/api/timeline") && response.request().method() === "POST");
+    const keyboardResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/api/timeline") && response.request().method() === "POST",
+    );
     await first.press("ArrowRight");
     await keyboardResponse;
-    await expect.poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].atMs).toBe(150);
+    await expect
+      .poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].atMs)
+      .toBe(150);
     await expect.poll(() => page!.getByRole("button", { name: "Undo timeline" }).isEnabled()).toBe(true);
 
     const moved = page.locator('[data-timeline-id="semantic:scene-opening:track-demo:event-start"]');
@@ -87,25 +101,43 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
     const box = await moved.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThanOrEqual(24);
-    const pointerResponse = page.waitForResponse((response) => response.url().endsWith("/api/timeline") && response.request().method() === "POST");
+    const pointerResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/api/timeline") && response.request().method() === "POST",
+    );
     await page.mouse.down();
     await page.mouse.move(box!.x + 11, box!.y + box!.height / 2);
     await page.mouse.up();
     await pointerResponse;
-    await expect.poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].atMs).toBe(250);
+    await expect
+      .poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].atMs)
+      .toBe(250);
     await expect.poll(() => page!.getByRole("button", { name: "Undo timeline" }).isEnabled()).toBe(true);
 
     const resized = page.locator('[data-timeline-id="semantic:scene-opening:track-demo:event-start"]');
     await resized.press("Alt+ArrowRight");
-    await expect.poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs).toBe(150);
+    await expect
+      .poll(
+        () => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs,
+      )
+      .toBe(150);
 
     await page.getByRole("button", { name: "Undo timeline" }).click();
-    await expect.poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs).toBe(100);
+    await expect
+      .poll(
+        () => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs,
+      )
+      .toBe(100);
     await page.getByRole("button", { name: "Redo timeline" }).click();
-    await expect.poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs).toBe(150);
+    await expect
+      .poll(
+        () => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs,
+      )
+      .toBe(150);
 
     const persisted = openStudioProjectFile(root, "timeline.studio.json").project;
-    expect(persisted.review.revisions.filter((revision) => revision.metadata?.operation === "studio.timeline.set-timing")).toHaveLength(5);
+    expect(
+      persisted.review.revisions.filter((revision) => revision.metadata?.operation === "studio.timeline.set-timing"),
+    ).toHaveLength(5);
     expect(errors).toEqual([]);
   }, 60_000);
 });

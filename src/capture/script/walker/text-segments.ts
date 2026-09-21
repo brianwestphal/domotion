@@ -94,7 +94,11 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
   // stub returning `undefined` so the call site in script/index.ts
   // compiles unchanged. If a future CSS feature surfaces that requires
   // screenshotting an element wholesale, restore the rect-math here.
-  void el; void cs; void tag; void rect; void vp;
+  void el;
+  void cs;
+  void tag;
+  void rect;
+  void vp;
   return undefined;
 };
 
@@ -109,29 +113,38 @@ const mathItalicChar = (ch) => {
   const code = ch.codePointAt(0);
   if (code == null) return ch;
   // Latin Mathematical Italic Capital A..Z = U+1D434..U+1D44D.
-  if (code >= 0x41 && code <= 0x5A) return String.fromCodePoint(0x1D434 + (code - 0x41));
+  if (code >= 0x41 && code <= 0x5a) return String.fromCodePoint(0x1d434 + (code - 0x41));
   // Latin Mathematical Italic Small a..z = U+1D44E..U+1D467, except
   // U+1D455 ("h") is reserved — Chrome paints U+210E (ℎ, PLANCK CONSTANT).
-  if (code >= 0x61 && code <= 0x7A) {
-    if (code === 0x68) return 'ℎ';
-    return String.fromCodePoint(0x1D44E + (code - 0x61));
+  if (code >= 0x61 && code <= 0x7a) {
+    if (code === 0x68) return "ℎ";
+    return String.fromCodePoint(0x1d44e + (code - 0x61));
   }
   // Greek Mathematical Italic Capital Α..Ω = U+1D6E2..U+1D6FA.
-  if (code >= 0x0391 && code <= 0x03A9) return String.fromCodePoint(0x1D6E2 + (code - 0x0391));
+  if (code >= 0x0391 && code <= 0x03a9) return String.fromCodePoint(0x1d6e2 + (code - 0x0391));
   // Greek Mathematical Italic Small α..ω = U+1D6FC..U+1D71B.
-  if (code >= 0x03B1 && code <= 0x03C9) return String.fromCodePoint(0x1D6FC + (code - 0x03B1));
+  if (code >= 0x03b1 && code <= 0x03c9) return String.fromCodePoint(0x1d6fc + (code - 0x03b1));
   // Greek symbol variants — alternate forms get their own italic codepoints at
   // the tail of the lowercase Greek block.
   switch (code) {
-    case 0x2202: return String.fromCodePoint(0x1D715); // ∂ → italic partial differential
-    case 0x03F5: return String.fromCodePoint(0x1D716); // ϵ (lunate) → italic epsilon symbol
-    case 0x03D1: return String.fromCodePoint(0x1D717); // ϑ (theta sym) → italic theta symbol
-    case 0x03F0: return String.fromCodePoint(0x1D718); // ϰ (kappa sym) → italic kappa symbol
-    case 0x03D5: return String.fromCodePoint(0x1D719); // ϕ (phi sym) → italic phi symbol
-    case 0x03F1: return String.fromCodePoint(0x1D71A); // ϱ (rho sym) → italic rho symbol
-    case 0x03D6: return String.fromCodePoint(0x1D71B); // ϖ (pi sym) → italic pi symbol
-    case 0x2207: return String.fromCodePoint(0x1D6FB); // ∇ (nabla) → italic nabla (upper-block tail)
-    default: return ch;
+    case 0x2202:
+      return String.fromCodePoint(0x1d715); // ∂ → italic partial differential
+    case 0x03f5:
+      return String.fromCodePoint(0x1d716); // ϵ (lunate) → italic epsilon symbol
+    case 0x03d1:
+      return String.fromCodePoint(0x1d717); // ϑ (theta sym) → italic theta symbol
+    case 0x03f0:
+      return String.fromCodePoint(0x1d718); // ϰ (kappa sym) → italic kappa symbol
+    case 0x03d5:
+      return String.fromCodePoint(0x1d719); // ϕ (phi sym) → italic phi symbol
+    case 0x03f1:
+      return String.fromCodePoint(0x1d71a); // ϱ (rho sym) → italic rho symbol
+    case 0x03d6:
+      return String.fromCodePoint(0x1d71b); // ϖ (pi sym) → italic pi symbol
+    case 0x2207:
+      return String.fromCodePoint(0x1d6fb); // ∇ (nabla) → italic nabla (upper-block tail)
+    default:
+      return ch;
   }
 };
 
@@ -149,13 +162,20 @@ const _RE_LETTER = /\p{L}/u;
 const _RE_WORD_CHAR = /[\p{L}\p{M}\p{N}]/u;
 const _MIDWORD_CONNECTORS = "'’··״"; // ' ’ · · ״
 const TITLECASE_DIGRAPHS = {
-  'Ǆ': 'ǅ', 'ǆ': 'ǅ', 'Ǉ': 'ǈ', 'ǉ': 'ǈ',
-  'Ǌ': 'ǋ', 'ǌ': 'ǋ', 'Ǳ': 'ǲ', 'ǳ': 'ǲ',
+  Ǆ: "ǅ",
+  ǆ: "ǅ",
+  Ǉ: "ǈ",
+  ǉ: "ǈ",
+  Ǌ: "ǋ",
+  ǌ: "ǋ",
+  Ǳ: "ǲ",
+  ǳ: "ǲ",
 };
 export const capitalizeCss = (s) => {
   let atWordStart = true;
-  let out = '';
-  for (const ch of s) { // iterates by code point
+  let out = "";
+  for (const ch of s) {
+    // iterates by code point
     if (atWordStart && _RE_LETTER.test(ch)) {
       out += TITLECASE_DIGRAPHS[ch] || ch.toUpperCase();
     } else {
@@ -176,10 +196,11 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
     const cp = source.codePointAt(i);
     const sourceText = String.fromCodePoint(cp);
     let rendered = sourceText;
-    if (transform === 'uppercase') rendered = lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase();
-    else if (transform === 'lowercase') rendered = lang ? sourceText.toLocaleLowerCase(lang) : sourceText.toLowerCase();
-    else if (transform === 'capitalize' && atWordStart && _RE_LETTER.test(sourceText)) {
-      rendered = TITLECASE_DIGRAPHS[sourceText] || (lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase());
+    if (transform === "uppercase") rendered = lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase();
+    else if (transform === "lowercase") rendered = lang ? sourceText.toLocaleLowerCase(lang) : sourceText.toLowerCase();
+    else if (transform === "capitalize" && atWordStart && _RE_LETTER.test(sourceText)) {
+      rendered =
+        TITLECASE_DIGRAPHS[sourceText] || (lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase());
     }
     out.push({ sourceStart: i, sourceEnd: i + sourceText.length, sourceText, rendered });
     atWordStart = !_RE_WORD_CHAR.test(sourceText) && _MIDWORD_CONNECTORS.indexOf(sourceText) < 0;
@@ -188,10 +209,19 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
   // Whole-string casing carries contextual rules such as Greek final sigma.
   // When it preserves the per-span output lengths, substitute its characters
   // without changing the source boundary map.
-  const joined = out.map((part) => part.rendered).join('');
-  const whole = transform === 'uppercase' ? (lang ? source.toLocaleUpperCase(lang) : source.toUpperCase())
-    : transform === 'lowercase' ? (lang ? source.toLocaleLowerCase(lang) : source.toLowerCase())
-    : transform === 'capitalize' ? capitalizeCss(source) : source;
+  const joined = out.map((part) => part.rendered).join("");
+  const whole =
+    transform === "uppercase"
+      ? lang
+        ? source.toLocaleUpperCase(lang)
+        : source.toUpperCase()
+      : transform === "lowercase"
+        ? lang
+          ? source.toLocaleLowerCase(lang)
+          : source.toLowerCase()
+        : transform === "capitalize"
+          ? capitalizeCss(source)
+          : source;
   if (whole.length === joined.length && whole !== joined) {
     let offset = 0;
     for (const part of out) {
@@ -212,8 +242,13 @@ export const sourceMappingForTextChars = (chars, role) => {
   if (chars.length === 0) return undefined;
   const sourceTextNodeIndex = chars[0].sourceTextNodeIndex;
   const domText = chars[0].domText;
-  if (!Number.isInteger(sourceTextNodeIndex) || sourceTextNodeIndex < 0 || typeof domText !== 'string'
-    || chars.some((char) => char.sourceTextNodeIndex !== sourceTextNodeIndex || char.domText !== domText)) return undefined;
+  if (
+    !Number.isInteger(sourceTextNodeIndex) ||
+    sourceTextNodeIndex < 0 ||
+    typeof domText !== "string" ||
+    chars.some((char) => char.sourceTextNodeIndex !== sourceTextNodeIndex || char.domText !== domText)
+  )
+    return undefined;
   let renderedOffset = 0;
   let sourceStart = Infinity;
   let sourceEnd = -Infinity;
@@ -225,7 +260,7 @@ export const sourceMappingForTextChars = (chars, role) => {
     return { renderedUtf16Span, domUtf16Span: [char.sourceStart, char.sourceEnd] };
   });
   return {
-    source: 'dom-text-utf16-v1',
+    source: "dom-text-utf16-v1",
     sourceTextNodeIndex,
     domText,
     domUtf16Span: [sourceStart, sourceEnd],
@@ -236,439 +271,476 @@ export const sourceMappingForTextChars = (chars, role) => {
 
 /** Capture vertical text columns using browser Range geometry. */
 export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs) => {
-    const wm = cs.writingMode;
-    const textOrientation = cs.textOrientation || 'mixed';
-    // Sideways-* modes are equivalent to text-orientation: sideways
-    // applied on top of vertical-lr / vertical-rl. Per CSS Writing
-    // Modes 4 (and what Chrome paints), `sideways-rl` paints chars
-    // rotated 90° CW with columns flowing right-to-left, exactly like
-    // `vertical-rl` + `text-orientation: sideways`.
-    const isSideways = wm === 'sideways-rl' || wm === 'sideways-lr';
-    const effectiveTextOrientation = isSideways ? 'sideways' : textOrientation;
-    const textSegments = [];
-    let text = '';
-    let minLeft = Infinity;
-    let minTop = Infinity;
-    let maxRight = -Infinity;
-    let maxBottom = -Infinity;
-    // Canvas-probed natural width per char, used by the renderer to
-    // center upright glyphs in their column (DM-996). For rotated chars
-    // the natural width equals the captured `verticalAdvance` (=
-    // Range.height post-rotation) so we don't need a separate probe;
-    // for upright chars Range.height ≈ font-size doesn't tell us the
-    // glyph's actual horizontal advance, so we probe via canvas.
-    const _vertCanvas = document.createElement('canvas');
-    const _vertCtx = _vertCanvas.getContext('2d');
-    _vertCtx.font = `${cs.fontStyle || 'normal'} ${cs.fontWeight || '400'} ${cs.fontSize} ${cs.fontFamily}`;
-    const measureNaturalWidth = (ch) => _vertCtx.measureText(ch).width;
-    const allChars = []; // {ch, x, y, w, h, naturalW} viewport-page coords (NOT yet vp-adjusted)
-    for (const node of el.childNodes) {
-      if (node.nodeType !== Node.TEXT_NODE) continue;
-      const sourceRaw = node.textContent || '';
-      const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
-      const tt = cs.textTransform;
-      const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || '');
-      const raw = mapped.map((part) => part.rendered).join('');
-      if (!raw.trim()) continue;
-      text += raw.trim() + ' ';
-      for (const part of mapped) {
-        const r = document.createRange();
-        r.setStart(node, part.sourceStart);
-        r.setEnd(node, part.sourceEnd);
-        const cr = r.getBoundingClientRect();
-        const ch = part.rendered;
-        const isWs = /^\s+$/.test(part.sourceText);
-        // Skip whitespace with zero bbox (collapsed whitespace).
-        if (cr.height === 0 && (cr.width === 0 || isWs)) continue;
-        allChars.push({
-          ch,
-          x: cr.left,
-          y: cr.top,
-          w: cr.width,
-          h: cr.height,
-          naturalW: measureNaturalWidth(ch),
-          sourceStart: part.sourceStart,
-          sourceEnd: part.sourceEnd,
-          sourceTextNodeIndex,
-          domText: sourceRaw,
-        });
-      }
-    }
-    if (allChars.length === 0) {
-      return { applied: true, text: text.trim(), textSegments };
-    }
-    // DM-1032: tate-chu-yoko (`text-combine-upright`). When the element
-    // combines its run upright-and-horizontal into one ~1em cell, the chars
-    // share a column Y but spread along X (different `x`), so the column
-    // grouping below would split "31" into two single-char columns and rotate
-    // each. Detect the combine here and emit ONE combined segment instead,
-    // anchoring each glyph at its CAPTURED per-char x (Chrome's painted
-    // positions, including any sub-1em condensing). `all` combines the whole
-    // run. DM-1238: Chromium (147 — our capture target) does NOT support the
-    // `digits <N>` value: `text-combine-upright: digits` / `digits N` both
-    // compute to `none`, so the capture only ever sees `none` or `all`. A
-    // `digits` run thus flows as normal upright columns, exactly as Chrome
-    // paints it — there's no digits-combine to honor (the earlier all-digits
-    // branch was dead/never-fired; re-probe Chrome and revisit if a future
-    // version ships `digits`).
-    const tcu = cs.textCombineUpright || cs.webkitTextCombine || '';
-    // LayoutTextCombine::IsSupportedMode rejects every horizontal typographic
-    // mode. Blink defines sideways-lr/sideways-rl as horizontal typographic,
-    // so authored `all` is ordinary sideways text in those modes.
-    const isCombineAll = blinkUsesTextCombine(wm, tcu);
-    if (isCombineAll) {
-      const metricsC = measureFontMetrics(cs);
-      // Shared cell top/height (all combined chars sit in one column cell), and
-      // the horizontal span of the combined glyphs (Chrome's painted extent).
-      let cellTop = Infinity, cellBot = -Infinity, minX = Infinity, maxX = -Infinity;
-      for (const c of allChars) {
-        cellTop = Math.min(cellTop, c.y);
-        cellBot = Math.max(cellBot, c.y + c.h);
-        minX = Math.min(minX, c.x);
-        maxX = Math.max(maxX, c.x + c.w);
-      }
-      const combinedText = allChars.map((c) => c.ch).join('').replace(/[\t\n\r]/g, ' ');
-      const xOffsets = allChars.map((c) => c.x - minX);
-      textSegments.push({
-        text: combinedText,
-        sourceMapping: sourceMappingForTextChars(allChars, 'ordinary'),
-        x: minX - vp.x,
-        y: cellTop - vp.y,
-        width: maxX - minX,
-        height: cellBot - cellTop,
-        verticalWritingMode: wm,
-        verticalCombineUpright: true,
-        verticalCombineXOffsets: xOffsets,
-        fontAscent: metricsC.ascent,
+  const wm = cs.writingMode;
+  const textOrientation = cs.textOrientation || "mixed";
+  // Sideways-* modes are equivalent to text-orientation: sideways
+  // applied on top of vertical-lr / vertical-rl. Per CSS Writing
+  // Modes 4 (and what Chrome paints), `sideways-rl` paints chars
+  // rotated 90° CW with columns flowing right-to-left, exactly like
+  // `vertical-rl` + `text-orientation: sideways`.
+  const isSideways = wm === "sideways-rl" || wm === "sideways-lr";
+  const effectiveTextOrientation = isSideways ? "sideways" : textOrientation;
+  const textSegments = [];
+  let text = "";
+  let minLeft = Infinity;
+  let minTop = Infinity;
+  let maxRight = -Infinity;
+  let maxBottom = -Infinity;
+  // Canvas-probed natural width per char, used by the renderer to
+  // center upright glyphs in their column (DM-996). For rotated chars
+  // the natural width equals the captured `verticalAdvance` (=
+  // Range.height post-rotation) so we don't need a separate probe;
+  // for upright chars Range.height ≈ font-size doesn't tell us the
+  // glyph's actual horizontal advance, so we probe via canvas.
+  const _vertCanvas = document.createElement("canvas");
+  const _vertCtx = _vertCanvas.getContext("2d");
+  _vertCtx.font = `${cs.fontStyle || "normal"} ${cs.fontWeight || "400"} ${cs.fontSize} ${cs.fontFamily}`;
+  const measureNaturalWidth = (ch) => _vertCtx.measureText(ch).width;
+  const allChars = []; // {ch, x, y, w, h, naturalW} viewport-page coords (NOT yet vp-adjusted)
+  for (const node of el.childNodes) {
+    if (node.nodeType !== Node.TEXT_NODE) continue;
+    const sourceRaw = node.textContent || "";
+    const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
+    const tt = cs.textTransform;
+    const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || "");
+    const raw = mapped.map((part) => part.rendered).join("");
+    if (!raw.trim()) continue;
+    text += raw.trim() + " ";
+    for (const part of mapped) {
+      const r = document.createRange();
+      r.setStart(node, part.sourceStart);
+      r.setEnd(node, part.sourceEnd);
+      const cr = r.getBoundingClientRect();
+      const ch = part.rendered;
+      const isWs = /^\s+$/.test(part.sourceText);
+      // Skip whitespace with zero bbox (collapsed whitespace).
+      if (cr.height === 0 && (cr.width === 0 || isWs)) continue;
+      allChars.push({
+        ch,
+        x: cr.left,
+        y: cr.top,
+        w: cr.width,
+        h: cr.height,
+        naturalW: measureNaturalWidth(ch),
+        sourceStart: part.sourceStart,
+        sourceEnd: part.sourceEnd,
+        sourceTextNodeIndex,
+        domText: sourceRaw,
       });
-      return {
-        applied: true,
-        text: combinedText,
-        textSegments,
-        textLeft: minX - vp.x,
-        textTop: cellTop - vp.y,
-        textWidth: maxX - minX,
-        textHeight: cellBot - cellTop,
-        fontAscent: metricsC.ascent,
-        fontDescent: metricsC.descent,
-      };
     }
-    // Group chars by COLUMN — matching `x` ±1 px. Retain DOM/logical order
-    // within the column; physical Y rises for sideways-lr and falls for the
-    // other vertical modes.
-    const columns = [];
-    let curCol = null;
+  }
+  if (allChars.length === 0) {
+    return { applied: true, text: text.trim(), textSegments };
+  }
+  // DM-1032: tate-chu-yoko (`text-combine-upright`). When the element
+  // combines its run upright-and-horizontal into one ~1em cell, the chars
+  // share a column Y but spread along X (different `x`), so the column
+  // grouping below would split "31" into two single-char columns and rotate
+  // each. Detect the combine here and emit ONE combined segment instead,
+  // anchoring each glyph at its CAPTURED per-char x (Chrome's painted
+  // positions, including any sub-1em condensing). `all` combines the whole
+  // run. DM-1238: Chromium (147 — our capture target) does NOT support the
+  // `digits <N>` value: `text-combine-upright: digits` / `digits N` both
+  // compute to `none`, so the capture only ever sees `none` or `all`. A
+  // `digits` run thus flows as normal upright columns, exactly as Chrome
+  // paints it — there's no digits-combine to honor (the earlier all-digits
+  // branch was dead/never-fired; re-probe Chrome and revisit if a future
+  // version ships `digits`).
+  const tcu = cs.textCombineUpright || cs.webkitTextCombine || "";
+  // LayoutTextCombine::IsSupportedMode rejects every horizontal typographic
+  // mode. Blink defines sideways-lr/sideways-rl as horizontal typographic,
+  // so authored `all` is ordinary sideways text in those modes.
+  const isCombineAll = blinkUsesTextCombine(wm, tcu);
+  if (isCombineAll) {
+    const metricsC = measureFontMetrics(cs);
+    // Shared cell top/height (all combined chars sit in one column cell), and
+    // the horizontal span of the combined glyphs (Chrome's painted extent).
+    let cellTop = Infinity,
+      cellBot = -Infinity,
+      minX = Infinity,
+      maxX = -Infinity;
     for (const c of allChars) {
-      if (curCol == null || Math.abs(c.x - curCol.x) > 1
-        || c.sourceTextNodeIndex !== curCol.sourceTextNodeIndex) {
-        if (curCol != null) columns.push(curCol);
-        curCol = { x: c.x, width: c.w, sourceTextNodeIndex: c.sourceTextNodeIndex, chars: [c] };
-      } else {
-        curCol.chars.push(c);
-      }
+      cellTop = Math.min(cellTop, c.y);
+      cellBot = Math.max(cellBot, c.y + c.h);
+      minX = Math.min(minX, c.x);
+      maxX = Math.max(maxX, c.x + c.w);
     }
-    if (curCol != null) columns.push(curCol);
-    // Emit one segment per column.
-    const metrics = measureFontMetrics(cs);
-    for (const col of columns) {
-      // Physical order is not uniformly top-to-bottom: sideways-lr advances
-      // bottom-to-top. Own the column envelope from the captured Range union,
-      // while retaining logical-order yOffsets for glyph placement.
-      const colLeft = Math.min(...col.chars.map((c) => c.x));
-      const colTop = Math.min(...col.chars.map((c) => c.y));
-      const colRight = Math.max(...col.chars.map((c) => c.x + c.w));
-      const colBot = Math.max(...col.chars.map((c) => c.y + c.h));
-      const visualText = col.chars.map((c) => c.ch).join('').replace(/[\t\n\r]/g, ' ');
-      if (visualText.replace(/\s/g, '') === '') continue;
-      const yOffsets = [];
-      // Blink's OrientationIterator keeps the current base orientation for
-      // Grapheme_Extend scalars. Resolve the whole visual run at once rather
-      // than classifying each scalar/UTF-16 record independently.
-      const verticalOrientations = resolveVerticalOrientations(visualText, effectiveTextOrientation);
-      const verticalAdvances = [];
-      const verticalNaturalWidths = [];
-      for (const c of col.chars) {
-        for (let k = 0; k < c.ch.length; k++) {
-          yOffsets.push(c.y - vp.y);
-          verticalAdvances.push(c.h);
-          verticalNaturalWidths.push(c.naturalW);
-        }
-      }
-      textSegments.push({
-        text: visualText,
-        sourceMapping: sourceMappingForTextChars(col.chars, 'ordinary'),
-        x: colLeft - vp.x,
-        y: colTop - vp.y,
-        width: colRight - colLeft,
-        height: colBot - colTop,
-        verticalWritingMode: wm,
-        verticalOrientations,
-        yOffsets,
-        verticalAdvances,
-        verticalNaturalWidths,
-        fontAscent: metrics.ascent,
-      });
-      minLeft = Math.min(minLeft, colLeft);
-      minTop = Math.min(minTop, colTop);
-      maxRight = Math.max(maxRight, colRight);
-      maxBottom = Math.max(maxBottom, colBot);
-    }
+    const combinedText = allChars
+      .map((c) => c.ch)
+      .join("")
+      .replace(/[\t\n\r]/g, " ");
+    const xOffsets = allChars.map((c) => c.x - minX);
+    textSegments.push({
+      text: combinedText,
+      sourceMapping: sourceMappingForTextChars(allChars, "ordinary"),
+      x: minX - vp.x,
+      y: cellTop - vp.y,
+      width: maxX - minX,
+      height: cellBot - cellTop,
+      verticalWritingMode: wm,
+      verticalCombineUpright: true,
+      verticalCombineXOffsets: xOffsets,
+      fontAscent: metricsC.ascent,
+    });
     return {
       applied: true,
-      text: text.trim(),
+      text: combinedText,
       textSegments,
-      textLeft: minLeft - vp.x,
-      textTop: minTop - vp.y,
-      textWidth: maxRight - minLeft,
-      textHeight: maxBottom - minTop,
-      fontAscent: metrics.ascent,
-      fontDescent: metrics.descent,
+      textLeft: minX - vp.x,
+      textTop: cellTop - vp.y,
+      textWidth: maxX - minX,
+      textHeight: cellBot - cellTop,
+      fontAscent: metricsC.ascent,
+      fontDescent: metricsC.descent,
     };
+  }
+  // Group chars by COLUMN — matching `x` ±1 px. Retain DOM/logical order
+  // within the column; physical Y rises for sideways-lr and falls for the
+  // other vertical modes.
+  const columns = [];
+  let curCol = null;
+  for (const c of allChars) {
+    if (curCol == null || Math.abs(c.x - curCol.x) > 1 || c.sourceTextNodeIndex !== curCol.sourceTextNodeIndex) {
+      if (curCol != null) columns.push(curCol);
+      curCol = { x: c.x, width: c.w, sourceTextNodeIndex: c.sourceTextNodeIndex, chars: [c] };
+    } else {
+      curCol.chars.push(c);
+    }
+  }
+  if (curCol != null) columns.push(curCol);
+  // Emit one segment per column.
+  const metrics = measureFontMetrics(cs);
+  for (const col of columns) {
+    // Physical order is not uniformly top-to-bottom: sideways-lr advances
+    // bottom-to-top. Own the column envelope from the captured Range union,
+    // while retaining logical-order yOffsets for glyph placement.
+    const colLeft = Math.min(...col.chars.map((c) => c.x));
+    const colTop = Math.min(...col.chars.map((c) => c.y));
+    const colRight = Math.max(...col.chars.map((c) => c.x + c.w));
+    const colBot = Math.max(...col.chars.map((c) => c.y + c.h));
+    const visualText = col.chars
+      .map((c) => c.ch)
+      .join("")
+      .replace(/[\t\n\r]/g, " ");
+    if (visualText.replace(/\s/g, "") === "") continue;
+    const yOffsets = [];
+    // Blink's OrientationIterator keeps the current base orientation for
+    // Grapheme_Extend scalars. Resolve the whole visual run at once rather
+    // than classifying each scalar/UTF-16 record independently.
+    const verticalOrientations = resolveVerticalOrientations(visualText, effectiveTextOrientation);
+    const verticalAdvances = [];
+    const verticalNaturalWidths = [];
+    for (const c of col.chars) {
+      for (let k = 0; k < c.ch.length; k++) {
+        yOffsets.push(c.y - vp.y);
+        verticalAdvances.push(c.h);
+        verticalNaturalWidths.push(c.naturalW);
+      }
+    }
+    textSegments.push({
+      text: visualText,
+      sourceMapping: sourceMappingForTextChars(col.chars, "ordinary"),
+      x: colLeft - vp.x,
+      y: colTop - vp.y,
+      width: colRight - colLeft,
+      height: colBot - colTop,
+      verticalWritingMode: wm,
+      verticalOrientations,
+      yOffsets,
+      verticalAdvances,
+      verticalNaturalWidths,
+      fontAscent: metrics.ascent,
+    });
+    minLeft = Math.min(minLeft, colLeft);
+    minTop = Math.min(minTop, colTop);
+    maxRight = Math.max(maxRight, colRight);
+    maxBottom = Math.max(maxBottom, colBot);
+  }
+  return {
+    applied: true,
+    text: text.trim(),
+    textSegments,
+    textLeft: minLeft - vp.x,
+    textTop: minTop - vp.y,
+    textWidth: maxRight - minLeft,
+    textHeight: maxBottom - minTop,
+    fontAscent: metrics.ascent,
+    fontDescent: metrics.descent,
   };
+};
 
 /** Build the styled first-letter segment and its captured paint box. */
-export const buildFirstLetterTextSegment = ({ vp, measureFontMetrics, normColor, fontFamilyStackFor }, firstLetterChars, flStyle, hasInitialLetter, el, cs) => {
-      const styledText = firstLetterChars.map((c) => c.ch).join('');
-      const minL = Math.min(...firstLetterChars.map((c) => c.left));
-      const maxR = Math.max(...firstLetterChars.map((c) => c.right));
-      const minT = Math.min(...firstLetterChars.map((c) => c.top));
-      const maxB = Math.max(...firstLetterChars.map((c) => c.bottom));
-      // Per-char xOffsets in viewport-relative coords (one entry per UTF-16
-      // unit, matching the convention in the body segments).
-      const xoff = [];
-      for (const c of firstLetterChars) {
-        for (let k = 0; k < c.ch.length; k++) xoff.push(c.left - vp.x);
+export const buildFirstLetterTextSegment = (
+  { vp, measureFontMetrics, normColor, fontFamilyStackFor },
+  firstLetterChars,
+  flStyle,
+  hasInitialLetter,
+  el,
+  cs,
+) => {
+  const styledText = firstLetterChars.map((c) => c.ch).join("");
+  const minL = Math.min(...firstLetterChars.map((c) => c.left));
+  const maxR = Math.max(...firstLetterChars.map((c) => c.right));
+  const minT = Math.min(...firstLetterChars.map((c) => c.top));
+  const maxB = Math.max(...firstLetterChars.map((c) => c.bottom));
+  // Per-char xOffsets in viewport-relative coords (one entry per UTF-16
+  // unit, matching the convention in the body segments).
+  const xoff = [];
+  for (const c of firstLetterChars) {
+    for (let k = 0; k < c.ch.length; k++) xoff.push(c.left - vp.x);
+  }
+  // Measure pseudo font ascent so the renderer baselines the glyph
+  // inside the styled segment correctly (`fontBoundingBoxAscent`
+  // mirrors the canvas measurement the regular-text path uses).
+  const flMetrics = measureFontMetrics(flStyle);
+  // `initial-letter: <size> [<sink>]` cap-height equalisation. Chrome
+  // internally scales the first-letter glyph to a font-size that
+  // `getComputedStyle().fontSize` does NOT report (it echoes the author's
+  // specified value, typically an `em` fallback for non-supporting
+  // engines). What Chrome DOES report faithfully is the pseudo's computed
+  // content box: measured across nine `initial-letter` variants, its
+  // `height` is exactly `(size - 1) x parent-line-height + parent
+  // cap-height` — i.e. the cap-height Chrome sized the glyph to — and its
+  // `width` is the glyph's painted INK width. So the effective font-size
+  // is derived from the content box rather than from a theoretical
+  // formula. Two derivations, because the two layout modes differ:
+  //   - NON-floated (raised/sunk cap): `height / capHeightRatio`.
+  //   - FLOATED drop cap: `height / glyphInkHeightRatio` (the float box
+  //     is sized to the glyph's own ink, which differs from cap-height
+  //     for glyphs with descenders or round overshoot).
+  // `effectiveAscent` scales `fontBoundingBoxAscent` from the same
+  // 100 px canvas probe.
+  let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
+  let effectiveAscent = flMetrics.ascent;
+  let styledSegY = minT - vp.y;
+  // `flIsFloatSize` distinguishes a FLOATED sunk drop cap from a NON-floated
+  // raised/sunk cap (`.raise`: `initial-letter: 1 3; vertical-align: super;
+  // display: inline; float: none`). Chrome's `initial-letter` sizing applies
+  // to both — it overrides the `font-size` the author set as a no-support
+  // fallback, so the computed `fontSize` OVER-reports — but the two cases
+  // need DIFFERENT size and position derivations, so they're branched below.
+  const flFloatSize = flStyle.float || flStyle.cssFloat || "";
+  const flIsFloatSize = flFloatSize === "left" || flFloatSize === "right";
+  if (hasInitialLetter) {
+    const probeCanvas = document.createElement("canvas");
+    const probeCtx = probeCanvas.getContext("2d");
+    probeCtx.font = `${flStyle.fontStyle || "normal"} ${flStyle.fontWeight || "400"} 100px ${flStyle.fontFamily || "serif"}`;
+    const probeM = probeCtx.measureText(styledText);
+    const naturalWidthAt100 = probeM.width;
+    const ascentRatio = probeM.fontBoundingBoxAscent / 100;
+    const hM = probeCtx.measureText("H");
+    const capHeightRatio = hM.actualBoundingBoxAscent / 100;
+    const pseudoComputedW = parseFloat(flStyle.width);
+    if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
+      // `flStyle.width` is the pseudo's content-box width Chrome sized the
+      // float to — i.e. the glyph's painted extent already (padding is
+      // outside the content box), so it's used directly as the painted width.
+      const paintedGlyphW = pseudoComputedW;
+      effectiveFs = (100 * paintedGlyphW) / naturalWidthAt100;
+      // DM-1120: for a floated drop cap with an explicit content-box HEIGHT
+      // (Chrome sized the float box to the glyph's ink), size the glyph so
+      // its INK fills that height. The width-derived size undersizes here
+      // because the in-page canvas's Playfair metrics don't match the
+      // renderer's font (canvas B-width ratio ≈0.62 vs the painted ≈0.54),
+      // so the width quotient comes out ~15% small and the B doesn't fill
+      // the box vertically. The glyph's own ink height (actualBoundingBox
+      // ascent+descent) is the metric that maps to the captured content
+      // height. Falls back to the width size when there's no usable height.
+      const flFloatForSize = flStyle.float || flStyle.cssFloat || "";
+      const pseudoComputedH = parseFloat(flStyle.height);
+      const glyphInkH100 = (probeM.actualBoundingBoxAscent || 0) + (probeM.actualBoundingBoxDescent || 0);
+      // The glyph's painted INK width at the 100 px probe size — the
+      // like-for-like divisor for the pseudo's content-box width, which is
+      // itself an ink extent (DM-1977).
+      const glyphInkW100 = (probeM.actualBoundingBoxLeft || 0) + (probeM.actualBoundingBoxRight || 0);
+      if (
+        (flFloatForSize === "left" || flFloatForSize === "right") &&
+        Number.isFinite(pseudoComputedH) &&
+        pseudoComputedH > 0 &&
+        glyphInkH100 > 0
+      ) {
+        effectiveFs = (100 * pseudoComputedH) / glyphInkH100;
+      } else if (!flIsFloatSize && glyphInkW100 > 0) {
+        // NON-floated initial letter (`float: none`, e.g. a raised cap).
+        //
+        // `flStyle.width` is the pseudo's content-box width, which Chrome
+        // sizes to the glyph's painted INK extent — so dividing it by the
+        // glyph's INK width at 100 px yields the effective size directly.
+        //
+        // DM-1977: this replaces `pseudoComputedH / capHeightRatio`. That
+        // derivation rested on `height` being exactly `(size - 1) x parent
+        // line-height + parent cap-height`, which holds on macOS/Georgia
+        // but NOT on Linux: measured in the pinned noble container with the
+        // stack falling through to Liberation Serif, Chrome reports
+        // `height: 69` while painting a 67 px cap. The height quotient then
+        // over-sizes the cap by ~4%, and `fontAscent` / `baseline` /
+        // `capTop` all inherit it.
+        //
+        // The old comment rejected a width quotient because it "divides the
+        // pseudo's INK width by the canvas ADVANCE width, so it under-
+        // reports by the side bearings". That objection is about the
+        // DIVISOR, not the numerator — using the canvas INK width removes
+        // it and makes the ratio like-for-like. Measured both ways:
+        //
+        //   macOS   pseudoW 65.78 / ink 67.14 -> 97.98   (height gave 97.96,
+        //                                                 painted ~98.14)
+        //   Linux   pseudoW 66.00 / ink 65.00 -> 101.54  (height gave 106.15,
+        //                                                 painted ~101.5-103)
+        //
+        // So macOS is unchanged to within 0.02%, and Linux moves onto the
+        // painted cap instead of 4% past it.
+        effectiveFs = (100 * pseudoComputedW) / glyphInkW100;
       }
-      // Measure pseudo font ascent so the renderer baselines the glyph
-      // inside the styled segment correctly (`fontBoundingBoxAscent`
-      // mirrors the canvas measurement the regular-text path uses).
-      const flMetrics = measureFontMetrics(flStyle);
-      // `initial-letter: <size> [<sink>]` cap-height equalisation. Chrome
-      // internally scales the first-letter glyph to a font-size that
-      // `getComputedStyle().fontSize` does NOT report (it echoes the author's
-      // specified value, typically an `em` fallback for non-supporting
-      // engines). What Chrome DOES report faithfully is the pseudo's computed
-      // content box: measured across nine `initial-letter` variants, its
-      // `height` is exactly `(size - 1) x parent-line-height + parent
-      // cap-height` — i.e. the cap-height Chrome sized the glyph to — and its
-      // `width` is the glyph's painted INK width. So the effective font-size
-      // is derived from the content box rather than from a theoretical
-      // formula. Two derivations, because the two layout modes differ:
-      //   - NON-floated (raised/sunk cap): `height / capHeightRatio`.
-      //   - FLOATED drop cap: `height / glyphInkHeightRatio` (the float box
-      //     is sized to the glyph's own ink, which differs from cap-height
-      //     for glyphs with descenders or round overshoot).
-      // `effectiveAscent` scales `fontBoundingBoxAscent` from the same
-      // 100 px canvas probe.
-      let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
-      let effectiveAscent = flMetrics.ascent;
-      let styledSegY = minT - vp.y;
-      // `flIsFloatSize` distinguishes a FLOATED sunk drop cap from a NON-floated
-      // raised/sunk cap (`.raise`: `initial-letter: 1 3; vertical-align: super;
-      // display: inline; float: none`). Chrome's `initial-letter` sizing applies
-      // to both — it overrides the `font-size` the author set as a no-support
-      // fallback, so the computed `fontSize` OVER-reports — but the two cases
-      // need DIFFERENT size and position derivations, so they're branched below.
-      const flFloatSize = flStyle.float || flStyle.cssFloat || '';
-      const flIsFloatSize = flFloatSize === 'left' || flFloatSize === 'right';
-      if (hasInitialLetter) {
-        const probeCanvas = document.createElement('canvas');
-        const probeCtx = probeCanvas.getContext('2d');
-        probeCtx.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
-        const probeM = probeCtx.measureText(styledText);
-        const naturalWidthAt100 = probeM.width;
-        const ascentRatio = probeM.fontBoundingBoxAscent / 100;
-        const hM = probeCtx.measureText('H');
-        const capHeightRatio = hM.actualBoundingBoxAscent / 100;
-        const pseudoComputedW = parseFloat(flStyle.width);
-        if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
-          // `flStyle.width` is the pseudo's content-box width Chrome sized the
-          // float to — i.e. the glyph's painted extent already (padding is
-          // outside the content box), so it's used directly as the painted width.
-          const paintedGlyphW = pseudoComputedW;
-          effectiveFs = 100 * paintedGlyphW / naturalWidthAt100;
-          // DM-1120: for a floated drop cap with an explicit content-box HEIGHT
-          // (Chrome sized the float box to the glyph's ink), size the glyph so
-          // its INK fills that height. The width-derived size undersizes here
-          // because the in-page canvas's Playfair metrics don't match the
-          // renderer's font (canvas B-width ratio ≈0.62 vs the painted ≈0.54),
-          // so the width quotient comes out ~15% small and the B doesn't fill
-          // the box vertically. The glyph's own ink height (actualBoundingBox
-          // ascent+descent) is the metric that maps to the captured content
-          // height. Falls back to the width size when there's no usable height.
-          const flFloatForSize = flStyle.float || flStyle.cssFloat || '';
-          const pseudoComputedH = parseFloat(flStyle.height);
-          const glyphInkH100 = (probeM.actualBoundingBoxAscent || 0) + (probeM.actualBoundingBoxDescent || 0);
-          // The glyph's painted INK width at the 100 px probe size — the
-          // like-for-like divisor for the pseudo's content-box width, which is
-          // itself an ink extent (DM-1977).
-          const glyphInkW100 = (probeM.actualBoundingBoxLeft || 0) + (probeM.actualBoundingBoxRight || 0);
-          if ((flFloatForSize === 'left' || flFloatForSize === 'right')
-              && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && glyphInkH100 > 0) {
-            effectiveFs = 100 * pseudoComputedH / glyphInkH100;
-          } else if (!flIsFloatSize && glyphInkW100 > 0) {
-            // NON-floated initial letter (`float: none`, e.g. a raised cap).
-            //
-            // `flStyle.width` is the pseudo's content-box width, which Chrome
-            // sizes to the glyph's painted INK extent — so dividing it by the
-            // glyph's INK width at 100 px yields the effective size directly.
-            //
-            // DM-1977: this replaces `pseudoComputedH / capHeightRatio`. That
-            // derivation rested on `height` being exactly `(size - 1) x parent
-            // line-height + parent cap-height`, which holds on macOS/Georgia
-            // but NOT on Linux: measured in the pinned noble container with the
-            // stack falling through to Liberation Serif, Chrome reports
-            // `height: 69` while painting a 67 px cap. The height quotient then
-            // over-sizes the cap by ~4%, and `fontAscent` / `baseline` /
-            // `capTop` all inherit it.
-            //
-            // The old comment rejected a width quotient because it "divides the
-            // pseudo's INK width by the canvas ADVANCE width, so it under-
-            // reports by the side bearings". That objection is about the
-            // DIVISOR, not the numerator — using the canvas INK width removes
-            // it and makes the ratio like-for-like. Measured both ways:
-            //
-            //   macOS   pseudoW 65.78 / ink 67.14 -> 97.98   (height gave 97.96,
-            //                                                 painted ~98.14)
-            //   Linux   pseudoW 66.00 / ink 65.00 -> 101.54  (height gave 106.15,
-            //                                                 painted ~101.5-103)
-            //
-            // So macOS is unchanged to within 0.02%, and Linux moves onto the
-            // painted cap instead of 4% past it.
-            effectiveFs = 100 * pseudoComputedW / glyphInkW100;
-          }
-          effectiveAscent = effectiveFs * ascentRatio;
-          // NOTE: the segment's vertical position is NOT adjusted here.
-          // `styledSegY` stays at `minT` (the per-char `Range` rect top),
-          // which for BOTH float and non-float initial letters is the
-          // ASCENT-top of the glyph at its effective size — so the
-          // renderer's `baseline = seg.y + seg.fontAscent` arithmetic lands
-          // on Chrome's painted baseline directly. An earlier revision
-          // treated `minT` as the CAP-top and added `capHeight - ascent`;
-          // that painted the non-floated raised cap 2.9-21.9 px too high
-          // (error growing with the cap size). Floated drop caps get their
-          // final position from the content-box block further below.
-        }
-      }
-      // Compute the pseudo's painted padding-box. Reuses the rect-math
-      // that the prior raster overlay used (DM-823 padding expansion for
-      // non-floated; DM-931 paragraph-anchored origin for floats / drop
-      // caps with `initial-letter: N`). The styled segment paints its
-      // text in front; the renderer paints the pseudoBox (background +
-      // border + border-radius) behind.
-      const flFloat = flStyle.float || flStyle.cssFloat || '';
-      const padT = parseFloat(flStyle.paddingTop) || 0;
-      const padR = parseFloat(flStyle.paddingRight) || 0;
-      const padB = parseFloat(flStyle.paddingBottom) || 0;
-      const padL = parseFloat(flStyle.paddingLeft) || 0;
-      let pboxL, pboxT, pboxW, pboxH;
-      if (flFloat === 'left' || flFloat === 'right') {
-        const pBox = el.getBoundingClientRect();
-        const pPadT = parseFloat(cs.paddingTop) || 0;
-        const pPadL = parseFloat(cs.paddingLeft) || 0;
-        const pPadR = parseFloat(cs.paddingRight) || 0;
-        const pBorT = parseFloat(cs.borderTopWidth) || 0;
-        const pBorL = parseFloat(cs.borderLeftWidth) || 0;
-        const pBorR = parseFloat(cs.borderRightWidth) || 0;
-        const flMarT = parseFloat(flStyle.marginTop) || 0;
-        const flMarL = parseFloat(flStyle.marginLeft) || 0;
-        const flMarR = parseFloat(flStyle.marginRight) || 0;
-        const cw = parseFloat(flStyle.width);
-        const ch_ = parseFloat(flStyle.height);
-        pboxW = (Number.isFinite(cw) && cw > 0 ? cw : (maxR - minL)) + padL + padR;
-        pboxH = (Number.isFinite(ch_) && ch_ > 0 ? ch_ : (maxB - minT)) + padT + padB;
-        pboxT = pBox.y + pBorT + pPadT + flMarT - vp.y;
-        pboxL = (flFloat === 'left')
-          ? pBox.x + pBorL + pPadL + flMarL - vp.x
-          : pBox.x + pBox.width - pBorR - pPadR - flMarR - pboxW - vp.x;
-      } else {
-        pboxL = minL - vp.x - padL;
-        pboxT = minT - vp.y - padT;
-        pboxW = (maxR - minL) + padL + padR;
-        pboxH = (maxB - minT) + padT + padB;
-      }
-      // DM-1120: for a FLOATED `initial-letter` drop cap inside a background
-      // box, Chrome paints the glyph's INK to exactly fill the *content* box
-      // (measured on the `.drop-fancy` B: cap-top = content-top, baseline =
-      // content-bottom, and horizontally centered — all gaps ≈0). The earlier
-      // `minT + Hcap-height` placement put the baseline ~22px too high (it keyed
-      // off the padding-box top and the H cap-ratio, not the glyph's own ink in
-      // its content box) and left the glyph ~6px too far left. Position the
-      // styled segment straight from the captured content box instead: baseline
-      // at the content-box bottom (a drop cap is a capital → ink-bottom =
-      // baseline), and the glyph centered in the content box. The
-      // ink-height-derived `effectiveFs` already sizes the ink to the content
-      // box. Non-floated initial letters keep the `minT`-anchored position set
-      // above — their `Range` rect already reports the painted ascent-top.
-      let flGlyphX = minL - vp.x;
-      const flIsFloat = flFloat === 'left' || flFloat === 'right';
-      if (hasInitialLetter && effectiveFs != null && flIsFloat) {
-        const contentBottom = pboxT + pboxH - padB;        // vp-relative
-        styledSegY = contentBottom - effectiveAscent;
-        const contentLeft = pboxL + padL;
-        const contentW = pboxW - padL - padR;
-        const glyphW = maxR - minL;
-        flGlyphX = contentLeft + (contentW - glyphW) / 2;
-      }
-      // Borders — per-side widths + colors, with uniform shorthand when
-      // all four sides match (same convention as pseudo-content.ts).
-      const bwT = parseFloat(flStyle.borderTopWidth) || 0;
-      const bwR_ = parseFloat(flStyle.borderRightWidth) || 0;
-      const bwB = parseFloat(flStyle.borderBottomWidth) || 0;
-      const bwL = parseFloat(flStyle.borderLeftWidth) || 0;
-      const uniformBw = bwT > 0 && bwT === bwR_ && bwT === bwB && bwT === bwL;
-      const bgRaw = flStyle.backgroundColor;
-      const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
-      const bgImgRaw = flStyle.backgroundImage;
-      const hasBgImg = bgImgRaw && bgImgRaw !== '' && bgImgRaw !== 'none';
-      const brad = parseFloat(flStyle.borderRadius) || 0;
-      const hasAnyBox = hasBg || hasBgImg || brad > 0 || bwT > 0 || bwR_ > 0 || bwB > 0 || bwL > 0;
-      const pseudoBox = hasAnyBox ? {
-        x: pboxL, y: pboxT, width: pboxW, height: pboxH,
+      effectiveAscent = effectiveFs * ascentRatio;
+      // NOTE: the segment's vertical position is NOT adjusted here.
+      // `styledSegY` stays at `minT` (the per-char `Range` rect top),
+      // which for BOTH float and non-float initial letters is the
+      // ASCENT-top of the glyph at its effective size — so the
+      // renderer's `baseline = seg.y + seg.fontAscent` arithmetic lands
+      // on Chrome's painted baseline directly. An earlier revision
+      // treated `minT` as the CAP-top and added `capHeight - ascent`;
+      // that painted the non-floated raised cap 2.9-21.9 px too high
+      // (error growing with the cap size). Floated drop caps get their
+      // final position from the content-box block further below.
+    }
+  }
+  // Compute the pseudo's painted padding-box. Reuses the rect-math
+  // that the prior raster overlay used (DM-823 padding expansion for
+  // non-floated; DM-931 paragraph-anchored origin for floats / drop
+  // caps with `initial-letter: N`). The styled segment paints its
+  // text in front; the renderer paints the pseudoBox (background +
+  // border + border-radius) behind.
+  const flFloat = flStyle.float || flStyle.cssFloat || "";
+  const padT = parseFloat(flStyle.paddingTop) || 0;
+  const padR = parseFloat(flStyle.paddingRight) || 0;
+  const padB = parseFloat(flStyle.paddingBottom) || 0;
+  const padL = parseFloat(flStyle.paddingLeft) || 0;
+  let pboxL, pboxT, pboxW, pboxH;
+  if (flFloat === "left" || flFloat === "right") {
+    const pBox = el.getBoundingClientRect();
+    const pPadT = parseFloat(cs.paddingTop) || 0;
+    const pPadL = parseFloat(cs.paddingLeft) || 0;
+    const pPadR = parseFloat(cs.paddingRight) || 0;
+    const pBorT = parseFloat(cs.borderTopWidth) || 0;
+    const pBorL = parseFloat(cs.borderLeftWidth) || 0;
+    const pBorR = parseFloat(cs.borderRightWidth) || 0;
+    const flMarT = parseFloat(flStyle.marginTop) || 0;
+    const flMarL = parseFloat(flStyle.marginLeft) || 0;
+    const flMarR = parseFloat(flStyle.marginRight) || 0;
+    const cw = parseFloat(flStyle.width);
+    const ch_ = parseFloat(flStyle.height);
+    pboxW = (Number.isFinite(cw) && cw > 0 ? cw : maxR - minL) + padL + padR;
+    pboxH = (Number.isFinite(ch_) && ch_ > 0 ? ch_ : maxB - minT) + padT + padB;
+    pboxT = pBox.y + pBorT + pPadT + flMarT - vp.y;
+    pboxL =
+      flFloat === "left"
+        ? pBox.x + pBorL + pPadL + flMarL - vp.x
+        : pBox.x + pBox.width - pBorR - pPadR - flMarR - pboxW - vp.x;
+  } else {
+    pboxL = minL - vp.x - padL;
+    pboxT = minT - vp.y - padT;
+    pboxW = maxR - minL + padL + padR;
+    pboxH = maxB - minT + padT + padB;
+  }
+  // DM-1120: for a FLOATED `initial-letter` drop cap inside a background
+  // box, Chrome paints the glyph's INK to exactly fill the *content* box
+  // (measured on the `.drop-fancy` B: cap-top = content-top, baseline =
+  // content-bottom, and horizontally centered — all gaps ≈0). The earlier
+  // `minT + Hcap-height` placement put the baseline ~22px too high (it keyed
+  // off the padding-box top and the H cap-ratio, not the glyph's own ink in
+  // its content box) and left the glyph ~6px too far left. Position the
+  // styled segment straight from the captured content box instead: baseline
+  // at the content-box bottom (a drop cap is a capital → ink-bottom =
+  // baseline), and the glyph centered in the content box. The
+  // ink-height-derived `effectiveFs` already sizes the ink to the content
+  // box. Non-floated initial letters keep the `minT`-anchored position set
+  // above — their `Range` rect already reports the painted ascent-top.
+  let flGlyphX = minL - vp.x;
+  const flIsFloat = flFloat === "left" || flFloat === "right";
+  if (hasInitialLetter && effectiveFs != null && flIsFloat) {
+    const contentBottom = pboxT + pboxH - padB; // vp-relative
+    styledSegY = contentBottom - effectiveAscent;
+    const contentLeft = pboxL + padL;
+    const contentW = pboxW - padL - padR;
+    const glyphW = maxR - minL;
+    flGlyphX = contentLeft + (contentW - glyphW) / 2;
+  }
+  // Borders — per-side widths + colors, with uniform shorthand when
+  // all four sides match (same convention as pseudo-content.ts).
+  const bwT = parseFloat(flStyle.borderTopWidth) || 0;
+  const bwR_ = parseFloat(flStyle.borderRightWidth) || 0;
+  const bwB = parseFloat(flStyle.borderBottomWidth) || 0;
+  const bwL = parseFloat(flStyle.borderLeftWidth) || 0;
+  const uniformBw = bwT > 0 && bwT === bwR_ && bwT === bwB && bwT === bwL;
+  const bgRaw = flStyle.backgroundColor;
+  const hasBg = bgRaw && bgRaw !== "" && bgRaw !== "rgba(0, 0, 0, 0)" && bgRaw !== "transparent";
+  const bgImgRaw = flStyle.backgroundImage;
+  const hasBgImg = bgImgRaw && bgImgRaw !== "" && bgImgRaw !== "none";
+  const brad = parseFloat(flStyle.borderRadius) || 0;
+  const hasAnyBox = hasBg || hasBgImg || brad > 0 || bwT > 0 || bwR_ > 0 || bwB > 0 || bwL > 0;
+  const pseudoBox = hasAnyBox
+    ? {
+        x: pboxL,
+        y: pboxT,
+        width: pboxW,
+        height: pboxH,
         backgroundColor: hasBg ? normColor(bgRaw) : undefined,
         backgroundImage: hasBgImg ? bgImgRaw : undefined,
         borderRadius: brad > 0 ? brad : undefined,
         borderWidth: uniformBw ? bwT : undefined,
         borderColor: uniformBw ? normColor(flStyle.borderTopColor) : undefined,
-        borL: bwL, borR: bwR_, borT: bwT, borB: bwB,
+        borL: bwL,
+        borR: bwR_,
+        borT: bwT,
+        borB: bwB,
         borderTopColor: !uniformBw && bwT > 0 ? normColor(flStyle.borderTopColor) : undefined,
         borderRightColor: !uniformBw && bwR_ > 0 ? normColor(flStyle.borderRightColor) : undefined,
         borderBottomColor: !uniformBw && bwB > 0 ? normColor(flStyle.borderBottomColor) : undefined,
         borderLeftColor: !uniformBw && bwL > 0 ? normColor(flStyle.borderLeftColor) : undefined,
-      } : undefined;
-      // `text-shadow` carries from pseudo onto the styled segment when the
-      // pseudo's value differs from the host's; the renderer reads
-      // `seg.textShadow` and emits the matching SVG `<filter>` or stacked
-      // `<text>` siblings (whichever path the regular text renderer uses).
-      const flTextShadow = (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow)
-        ? flStyle.textShadow
-        : undefined;
-      const styledSeg = {
-        text: styledText,
-        sourceMapping: sourceMappingForTextChars(firstLetterChars, 'first-letter'),
-        x: flGlyphX,
-        y: styledSegY,
-        width: maxR - minL,
-        height: maxB - minT,
-        xOffsets: xoff,
-        color: normColor(flStyle.color),
-        fontFamily: flStyle.fontFamily,
-        fontFamilyStack: fontFamilyStackFor(el, flStyle.fontFamily, '::first-letter'),
-        fontSize: effectiveFs,
-        fontWeight: flStyle.fontWeight !== cs.fontWeight ? flStyle.fontWeight : undefined,
-        fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
-        fontVariant: flStyle.fontVariant !== cs.fontVariant ? flStyle.fontVariant : undefined,
-        fontAscent: effectiveAscent,
-        textShadow: flTextShadow,
-        pseudoBox,
-      };
-    return { seg: styledSeg, minL, maxR, minT, maxB };
+      }
+    : undefined;
+  // `text-shadow` carries from pseudo onto the styled segment when the
+  // pseudo's value differs from the host's; the renderer reads
+  // `seg.textShadow` and emits the matching SVG `<filter>` or stacked
+  // `<text>` siblings (whichever path the regular text renderer uses).
+  const flTextShadow =
+    flStyle.textShadow !== "" && flStyle.textShadow !== "none" && flStyle.textShadow !== cs.textShadow
+      ? flStyle.textShadow
+      : undefined;
+  const styledSeg = {
+    text: styledText,
+    sourceMapping: sourceMappingForTextChars(firstLetterChars, "first-letter"),
+    x: flGlyphX,
+    y: styledSegY,
+    width: maxR - minL,
+    height: maxB - minT,
+    xOffsets: xoff,
+    color: normColor(flStyle.color),
+    fontFamily: flStyle.fontFamily,
+    fontFamilyStack: fontFamilyStackFor(el, flStyle.fontFamily, "::first-letter"),
+    fontSize: effectiveFs,
+    fontWeight: flStyle.fontWeight !== cs.fontWeight ? flStyle.fontWeight : undefined,
+    fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
+    fontVariant: flStyle.fontVariant !== cs.fontVariant ? flStyle.fontVariant : undefined,
+    fontAscent: effectiveAscent,
+    textShadow: flTextShadow,
+    pseudoBox,
   };
+  return { seg: styledSeg, minL, maxR, minT, maxB };
+};
 
-const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor, sourceTextNodeIndexFor }) => {
-  const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
-    ? result
-    : finalizeLineClampText(el, cs, result);
+const buildTextSegmentsHandler = ({
+  vp,
+  measureFontMetrics,
+  rasterCandidates,
+  normColor,
+  markGetsDottedCircle,
+  finalizeLineClampText,
+  fontFamilyStackFor,
+  sourceTextNodeIndexFor,
+}) => {
+  const finishLineClamp = (el, cs, result) =>
+    finalizeLineClampText == null ? result : finalizeLineClampText(el, cs, result);
   const sourceMappingForChars = sourceMappingForTextChars;
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
@@ -692,7 +764,8 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
   // `yOffsets[]` (per char) so the renderer can emit each char at its
   // captured position, wrapping rotated chars in a `<g transform=
   // "rotate(90, …)">`.
-  const captureVertical = (el, cs) => captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs);
+  const captureVertical = (el, cs) =>
+    captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs);
 
   // DM-989: build the styled ::first-letter TextSegment from the chars selected
   // during the per-character loop (firstLetterChars) — pseudo font / color /
@@ -700,9 +773,15 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
   // Returns the segment plus its bounding box; the caller unshifts the segment,
   // sets the emit flag, and folds the box into the host's text envelope. Closes
   // over the factory's vp / measureFontMetrics / normColor. From captureTextSegments (DM-1093).
-  const buildFirstLetterSegment = (firstLetterChars, flStyle, hasInitialLetter, el, cs) => buildFirstLetterTextSegment(
-    { vp, measureFontMetrics, normColor, fontFamilyStackFor }, firstLetterChars, flStyle, hasInitialLetter, el, cs,
-  );
+  const buildFirstLetterSegment = (firstLetterChars, flStyle, hasInitialLetter, el, cs) =>
+    buildFirstLetterTextSegment(
+      { vp, measureFontMetrics, normColor, fontFamilyStackFor },
+      firstLetterChars,
+      flStyle,
+      hasInitialLetter,
+      el,
+      cs,
+    );
 
   const captureTextSegments = (el, cs) => {
     // DM-990: dispatch vertical writing-mode elements to the column-
@@ -710,11 +789,11 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // by `top` which puts every char of a vertical column into a
     // separate "line" — wrong shape entirely for the renderer.
     const wm = cs.writingMode;
-    if (wm === 'vertical-rl' || wm === 'vertical-lr' || wm === 'sideways-rl' || wm === 'sideways-lr') {
+    if (wm === "vertical-rl" || wm === "vertical-lr" || wm === "sideways-rl" || wm === "sideways-lr") {
       return finishLineClamp(el, cs, captureVertical(el, cs));
     }
     const textSegments = [];
-    let text = '';
+    let text = "";
     let minLeft = Infinity;
     let minTop = Infinity;
     let maxRight = -Infinity;
@@ -728,7 +807,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // and suppress the body-text glyphs for the selected chars so the
     // styled segment is the only paint. Previously these chars were
     // routed through the rasterGlyph image-overlay pipeline (DM-439).
-    const flStyle = window.getComputedStyle(el, '::first-letter');
+    const flStyle = window.getComputedStyle(el, "::first-letter");
     const elFsRaw = parseFloat(cs.fontSize) || 0;
     const flFsRaw = parseFloat(flStyle.fontSize) || 0;
     // `initial-letter: N [M]` (CSS Inline 3) drives Chromium to scale the
@@ -740,8 +819,9 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // at. To render the W faithfully we derive the effective font-size at
     // capture time below by reading the font's cap-height ratio from a
     // canvas `measureText('H').actualBoundingBoxAscent` probe (DM-989).
-    const flInitialLetterRaw = (flStyle.initialLetter || flStyle.webkitInitialLetter || '').trim();
-    const hasInitialLetter = flInitialLetterRaw !== '' && flInitialLetterRaw !== 'normal' && flInitialLetterRaw !== 'auto';
+    const flInitialLetterRaw = (flStyle.initialLetter || flStyle.webkitInitialLetter || "").trim();
+    const hasInitialLetter =
+      flInitialLetterRaw !== "" && flInitialLetterRaw !== "normal" && flInitialLetterRaw !== "auto";
     // Trigger: ANY pseudo-vs-host computed-style delta the path renderer
     // can carry on a TextSegment — font-size, color, font-weight,
     // font-family, font-style, text-shadow, or `initial-letter`. The
@@ -749,15 +829,14 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // visible size delta to screenshot meaningfully); the native-SVG
     // styled-segment path can express color-only changes too, so widen
     // the trigger to catch `.fl-color`, etc.
-    const firstLetterStyled = (
+    const firstLetterStyled =
       (flFsRaw > 0 && Math.abs(flFsRaw - elFsRaw) > 0.5) ||
-      (flStyle.color !== '' && flStyle.color !== cs.color) ||
-      (flStyle.fontWeight !== '' && flStyle.fontWeight !== cs.fontWeight) ||
-      (flStyle.fontFamily !== '' && flStyle.fontFamily !== cs.fontFamily) ||
-      (flStyle.fontStyle !== '' && flStyle.fontStyle !== cs.fontStyle) ||
-      (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow) ||
-      hasInitialLetter
-    );
+      (flStyle.color !== "" && flStyle.color !== cs.color) ||
+      (flStyle.fontWeight !== "" && flStyle.fontWeight !== cs.fontWeight) ||
+      (flStyle.fontFamily !== "" && flStyle.fontFamily !== cs.fontFamily) ||
+      (flStyle.fontStyle !== "" && flStyle.fontStyle !== cs.fontStyle) ||
+      (flStyle.textShadow !== "" && flStyle.textShadow !== "none" && flStyle.textShadow !== cs.textShadow) ||
+      hasInitialLetter;
     // Chrome's selection rule (per Blink `first_letter_pseudo_element.cc`
     // and CSS Pseudo-Elements 4): skip leading whitespace, include any
     // leading punctuation (Unicode general-category P*), include ONE
@@ -794,21 +873,22 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // `math`, so we can't detect this through CSS — we apply the mapping
     // ourselves at capture time so the downstream text-shaping pipeline
     // picks up the right glyphs from whatever math font the system has.
-    const elTag = el.tagName != null ? el.tagName.toLowerCase() : '';
-    const _miText = (el.textContent || '').trim();
-    const mathItalicizeMi = elTag === 'mi'
-      && [..._miText].length === 1
-      && cs.textTransform === 'math-auto'
-      && /^[a-zA-ZΑ-ΩΆΈΉΊΌΎΏα-ωϐϑϕϖϗϰϱϵ∂∇]$/u.test(_miText);
+    const elTag = el.tagName != null ? el.tagName.toLowerCase() : "";
+    const _miText = (el.textContent || "").trim();
+    const mathItalicizeMi =
+      elTag === "mi" &&
+      [..._miText].length === 1 &&
+      cs.textTransform === "math-auto" &&
+      /^[a-zA-ZΑ-ΩΆΈΉΊΌΎΏα-ωϐϑϕϖϗϰϱϵ∂∇]$/u.test(_miText);
 
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
       // text-transform — see header comment.
-      const sourceRaw = node.textContent || '';
+      const sourceRaw = node.textContent || "";
       const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
       const tt = cs.textTransform;
-      const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || '');
-      const raw = mapped.map((part) => part.rendered).join('');
+      const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || "");
+      const raw = mapped.map((part) => part.rendered).join("");
       if (!raw.trim()) continue;
       // DM-747: when `<mi>` math-italic substitution applies, the element's
       // aggregate `text` field should carry the substituted codepoint too —
@@ -816,7 +896,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       // glyph. The per-character ranges still measure against the original
       // textContent (see below).
       const rawForText = mathItalicizeMi ? mathItalicChar(raw.trim()) : raw.trim();
-      text += rawForText + ' ';
+      text += rawForText + " ";
 
       // Group characters by their laid-out line (matching rect.top).
       const lines = [];
@@ -854,7 +934,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         let rightForGroup = cr.right;
         let bottomForGroup = cr.bottom;
         if (cur != null && cur.chars.length > 0) {
-          const refH = (cur.bottom - cur.top) || 16;
+          const refH = cur.bottom - cur.top || 16;
           if (cr.height > refH * 1.5 && cr.bottom > cur.bottom + refH * 0.5) {
             // Peek ahead one char to get the actual line-2 top/x.
             const peekPart = mapped[sourcePartIndex + 1];
@@ -882,13 +962,28 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
             }
           }
         }
-        const charRec = { ch, sourceText: part.sourceText, sourceStart: part.sourceStart, sourceEnd: part.sourceEnd,
-          sourceTextNodeIndex, domText: sourceRaw,
-          left: leftForGroup, top: topForGroup, right: rightForGroup, bottom: bottomForGroup,
-          transformedLengthChanged: ch.length !== part.sourceText.length };
+        const charRec = {
+          ch,
+          sourceText: part.sourceText,
+          sourceStart: part.sourceStart,
+          sourceEnd: part.sourceEnd,
+          sourceTextNodeIndex,
+          domText: sourceRaw,
+          left: leftForGroup,
+          top: topForGroup,
+          right: rightForGroup,
+          bottom: bottomForGroup,
+          transformedLengthChanged: ch.length !== part.sourceText.length,
+        };
         if (cur == null || Math.abs(topForGroup - cur.top) > 1) {
           if (cur != null) lines.push(cur);
-          cur = { chars: [charRec], top: topForGroup, bottom: bottomForGroup, left: leftForGroup, right: rightForGroup };
+          cur = {
+            chars: [charRec],
+            top: topForGroup,
+            bottom: bottomForGroup,
+            left: leftForGroup,
+            right: rightForGroup,
+          };
         } else {
           cur.chars.push(charRec);
           cur.left = Math.min(cur.left, leftForGroup);
@@ -901,7 +996,10 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       // BiDi visual-fragment splitting (DM-323).
       const fragmentedLines = [];
       for (const ln of lines) {
-        if (ln.chars.length <= 1) { fragmentedLines.push(ln); continue; }
+        if (ln.chars.length <= 1) {
+          fragmentedLines.push(ln);
+          continue;
+        }
         let frag = { chars: [ln.chars[0]], top: ln.top, bottom: ln.bottom };
         const fragments = [frag];
         // An xOffset discontinuity larger than this (px) between adjacent chars
@@ -937,8 +1035,8 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
 
       // Build text + xOffsets per line, preserving logical order.
       for (const ln of lines) {
-        ln.text = ln.chars.map((c) => c.ch).join('');
-        ln.sourceText = ln.chars.map((c) => c.sourceText).join('');
+        ln.text = ln.chars.map((c) => c.ch).join("");
+        ln.sourceText = ln.chars.map((c) => c.sourceText).join("");
         if (!ln.chars.some((c) => c.transformedLengthChanged)) {
           const xo = [];
           for (const c of ln.chars) {
@@ -949,8 +1047,8 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       }
 
       for (const line of lines) {
-        const visualText = line.text.replace(/[\t\n\r]/g, ' ');
-        if (visualText.replace(/\s/g, '') === '') continue;
+        const visualText = line.text.replace(/[\t\n\r]/g, " ");
+        if (visualText.replace(/\s/g, "") === "") continue;
         // ::first-letter selection runs ONLY on the very first non-empty
         // line of the very first text node that produces visible chars.
         // Compute the exclusive end index once; subsequent lines and
@@ -1071,7 +1169,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         textSegments.push({
           text: visualText,
           sourceText: line.sourceText,
-          sourceMapping: sourceMappingForChars(line.chars, 'ordinary'),
+          sourceMapping: sourceMappingForChars(line.chars, "ordinary"),
           x: line.left - vp.x,
           y: line.top - vp.y,
           width: line.right - line.left,
@@ -1084,10 +1182,12 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
           // AX exposes the exact retained fragment after this synchronous
           // walk. Keep Range advances so the refinement can remove laid-out
           // but unpainted clamp-tail glyphs without estimating their widths.
-          xAdvances: line.xOffsets == null ? undefined : line.chars.flatMap((c) =>
-            Array.from({ length: c.ch.length }, () => c.right - c.left)),
+          xAdvances:
+            line.xOffsets == null
+              ? undefined
+              : line.chars.flatMap((c) => Array.from({ length: c.ch.length }, () => c.right - c.left)),
           rasterGlyphs: rasterGlyphs.length > 0 ? rasterGlyphs : undefined,
-          dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : (probeConsulted ? [] : undefined),
+          dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : probeConsulted ? [] : undefined,
         });
         minLeft = Math.min(minLeft, line.left);
         minTop = Math.min(minTop, line.top);
@@ -1121,29 +1221,35 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // clobbering the styled first-letter's own font/color overrides.
     const flLineTargetIdx = didEmitStyledFirstLetter ? 1 : 0;
     if (textSegments.length > flLineTargetIdx) {
-      const flLineStyle = window.getComputedStyle(el, '::first-line');
+      const flLineStyle = window.getComputedStyle(el, "::first-line");
       const firstSeg = textSegments[flLineTargetIdx];
       if (flLineStyle.textTransform !== cs.textTransform && firstSeg.sourceText != null) {
-        const firstLineMap = transformTextWithSourceSpans(firstSeg.sourceText, flLineStyle.textTransform,
-          flLineStyle.lang || cs.lang || el.lang || '');
-        firstSeg.text = firstLineMap.map((part) => part.rendered).join('').replace(/[\t\n\r]/g, ' ');
+        const firstLineMap = transformTextWithSourceSpans(
+          firstSeg.sourceText,
+          flLineStyle.textTransform,
+          flLineStyle.lang || cs.lang || el.lang || "",
+        );
+        firstSeg.text = firstLineMap
+          .map((part) => part.rendered)
+          .join("")
+          .replace(/[\t\n\r]/g, " ");
         if (firstLineMap.some((part) => part.rendered.length !== part.sourceText.length)) firstSeg.xOffsets = undefined;
       }
-      if (flLineStyle.fontVariant !== '' && flLineStyle.fontVariant !== cs.fontVariant) {
+      if (flLineStyle.fontVariant !== "" && flLineStyle.fontVariant !== cs.fontVariant) {
         firstSeg.fontVariant = flLineStyle.fontVariant;
       }
-      if (flLineStyle.color !== '' && flLineStyle.color !== cs.color) {
+      if (flLineStyle.color !== "" && flLineStyle.color !== cs.color) {
         firstSeg.color = flLineStyle.color;
       }
-      if (flLineStyle.fontWeight !== '' && flLineStyle.fontWeight !== cs.fontWeight) {
+      if (flLineStyle.fontWeight !== "" && flLineStyle.fontWeight !== cs.fontWeight) {
         firstSeg.fontWeight = flLineStyle.fontWeight;
       }
-      if (flLineStyle.fontStyle !== '' && flLineStyle.fontStyle !== cs.fontStyle) {
+      if (flLineStyle.fontStyle !== "" && flLineStyle.fontStyle !== cs.fontStyle) {
         firstSeg.fontStyle = flLineStyle.fontStyle;
       }
-      if (flLineStyle.fontFamily !== '' && flLineStyle.fontFamily !== cs.fontFamily) {
+      if (flLineStyle.fontFamily !== "" && flLineStyle.fontFamily !== cs.fontFamily) {
         firstSeg.fontFamily = flLineStyle.fontFamily;
-        firstSeg.fontFamilyStack = fontFamilyStackFor(el, flLineStyle.fontFamily, '::first-line');
+        firstSeg.fontFamilyStack = fontFamilyStackFor(el, flLineStyle.fontFamily, "::first-line");
       }
       const flFs = parseFloat(flLineStyle.fontSize);
       const elFs2 = parseFloat(cs.fontSize);
@@ -1174,5 +1280,4 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
 };
 
 /** Construct the text walker while keeping its captured dependencies explicit. */
-export const createTextSegmentsHandler = (dependencies) =>
-  buildTextSegmentsHandler(dependencies);
+export const createTextSegmentsHandler = (dependencies) => buildTextSegmentsHandler(dependencies);

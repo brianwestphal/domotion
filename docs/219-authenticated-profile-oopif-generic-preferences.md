@@ -4,10 +4,15 @@ title: "Authenticated profile and OOPIF generic preferences"
 kind: "reference"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","windows"]
-tickets: ["DM-2539","DM-2677"]
-code: [".github/workflows/generic-profile-target-parity.yml","scripts/install-windows-profile-fixture-fonts.ps1","tools/generic-profile-target-oracle.ts"]
-aliases: ["docs/219-authenticated-profile-oopif-generic-preferences.md","doc-219"]
+platforms: ["macos", "windows"]
+tickets: ["DM-2539", "DM-2677"]
+code:
+  [
+    ".github/workflows/generic-profile-target-parity.yml",
+    "scripts/install-windows-profile-fixture-fonts.ps1",
+    "tools/generic-profile-target-oracle.ts",
+  ]
+aliases: ["docs/219-authenticated-profile-oopif-generic-preferences.md", "doc-219"]
 ---
 
 # Authenticated profile and OOPIF generic preferences

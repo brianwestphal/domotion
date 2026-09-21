@@ -48,7 +48,9 @@ const copyStatus = document.getElementById("copy-status")!;
 const addRegionBtn = document.getElementById("add-region-btn") as HTMLButtonElement;
 const fileLink = document.getElementById("file-link") as HTMLAnchorElement;
 
-interface CaptionedRegion extends Rect { caption: string }
+interface CaptionedRegion extends Rect {
+  caption: string;
+}
 // DM-952: captions live ON each rect inside the overlay (via the
 // overlay's `setCaption(index, caption)` API), so they survive the
 // reindex-after-delete operation that swaps surrounding rects' index
@@ -125,13 +127,17 @@ requestAnimationFrame(tick);
 
 function buildIssueMarkdown(): string {
   const regions = snapshotRegions();
-  const rows = regions.length === 0
-    ? "_(no regions annotated — describe the overall difference below)_"
-    : [
-        "| # | Region (x, y, w, h) | What's wrong |",
-        "|--:|---|---|",
-        ...regions.map((r, i) => `| ${i + 1} | (${Math.round(r.x)}, ${Math.round(r.y)}, ${Math.round(r.w)}, ${Math.round(r.h)}) | ${r.caption.replace(/\|/g, "\\|") || "_(describe)_"} |`),
-      ].join("\n");
+  const rows =
+    regions.length === 0
+      ? "_(no regions annotated — describe the overall difference below)_"
+      : [
+          "| # | Region (x, y, w, h) | What's wrong |",
+          "|--:|---|---|",
+          ...regions.map(
+            (r, i) =>
+              `| ${i + 1} | (${Math.round(r.x)}, ${Math.round(r.y)}, ${Math.round(r.w)}, ${Math.round(r.h)}) | ${r.caption.replace(/\|/g, "\\|") || "_(describe)_"} |`,
+          ),
+        ].join("\n");
   return `### Domotion render fidelity issue
 
 **Fixture**: \`${label}\`
@@ -160,7 +166,9 @@ copyBtn.addEventListener("click", async () => {
     await navigator.clipboard.writeText(issueText.value);
     copyBtn.textContent = "Copied";
     copyStatus.textContent = "Issue text copied.";
-    setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+    setTimeout(() => {
+      copyBtn.textContent = "Copy";
+    }, 1500);
   } catch {
     // Fallback: select the textarea so the user can Cmd/Ctrl+C manually.
     issueText.focus();

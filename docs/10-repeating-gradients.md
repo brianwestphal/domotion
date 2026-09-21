@@ -5,9 +5,17 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-273","DM-275"]
-code: [".github/workflows/repeating-linear-px-stop-parity.yml","src/capture/pseudo-style-cdp.ts","src/render/gradients.test.ts","src/render/gradients.ts","tests/repeating-linear-legacy-consumers.e2e.test.ts","tests/repeating-linear-px-stops.e2e.test.ts"]
-aliases: ["docs/10-repeating-gradients.md","doc-10"]
+tickets: ["DM-273", "DM-275"]
+code:
+  [
+    ".github/workflows/repeating-linear-px-stop-parity.yml",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/render/gradients.test.ts",
+    "src/render/gradients.ts",
+    "tests/repeating-linear-legacy-consumers.e2e.test.ts",
+    "tests/repeating-linear-px-stops.e2e.test.ts",
+  ]
+aliases: ["docs/10-repeating-gradients.md", "doc-10"]
 ---
 
 # Domotion: `repeating-linear-gradient` (and `calc()` stop offsets)
@@ -20,10 +28,9 @@ Requirements for honoring CSS `repeating-linear-gradient(...)` (and `repeating-r
 
 ```css
 .r-ticks::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 3px;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), #94a3b8 calc(10% - 1px) 10%),
-    #cbd5e1;
+  height: 6px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), #94a3b8 calc(10% - 1px) 10%), #cbd5e1;
 }
 ```
 

@@ -6,7 +6,10 @@ import { execFileSync } from "node:child_process";
 import type { StageEvidenceManifest, StageEvidenceReport, StageEvidenceRule } from "../src/review/stage-evidence.js";
 import type { SemanticCoverageInventory } from "./semantic-coverage.js";
 
-interface ParityArea { id: string; oracle: string; }
+interface ParityArea {
+  id: string;
+  oracle: string;
+}
 
 const arg = (name: string): string | undefined => {
   const index = process.argv.indexOf(name);
@@ -15,8 +18,10 @@ const arg = (name: string): string | undefined => {
 
 function fixtureRule(ref: string, transitionId: string, areas: string[]): StageEvidenceRule | null {
   const [path, fixture] = ref.split("#", 2);
-  if (path === "tests/features.ts" && fixture != null) return { suites: ["features"], fixture, transitionIds: [transitionId], areas };
-  if (path === "tests/html-test-suite.tsx") return { suites: ["html-test", "html-test-unicode"], transitionIds: [transitionId], areas };
+  if (path === "tests/features.ts" && fixture != null)
+    return { suites: ["features"], fixture, transitionIds: [transitionId], areas };
+  if (path === "tests/html-test-suite.tsx")
+    return { suites: ["html-test", "html-test-unicode"], transitionIds: [transitionId], areas };
   if (path === "tests/real-world.tsx") return { suites: ["real-world"], transitionIds: [transitionId], areas };
   return null;
 }
@@ -24,23 +29,51 @@ function fixtureRule(ref: string, transitionId: string, areas: string[]): StageE
 function summarizeReport(area: ParityArea, reportsDir: string): StageEvidenceReport {
   const reportFile = `${area.id}.json`;
   const path = resolve(reportsDir, reportFile);
-  if (!existsSync(path)) return { area: area.id, oracle: area.oracle, status: "missing", note: "No stage report was attached by this run." };
+  if (!existsSync(path))
+    return { area: area.id, oracle: area.oracle, status: "missing", note: "No stage report was attached by this run." };
   try {
     const value = JSON.parse(readFileSync(path, "utf8")) as {
-      rows?: Array<{ pass?: boolean }>; records?: unknown[]; failures?: unknown[];
-      pass?: boolean; verdict?: string; mismatches?: number; pairs?: number; evidenceOracle?: string; evidencePassed?: boolean;
+      rows?: Array<{ pass?: boolean }>;
+      records?: unknown[];
+      failures?: unknown[];
+      pass?: boolean;
+      verdict?: string;
+      mismatches?: number;
+      pairs?: number;
+      evidenceOracle?: string;
+      evidencePassed?: boolean;
     };
     const rows = Array.isArray(value.rows) ? value.rows : undefined;
     const totalRows = rows?.length ?? value.records?.length ?? value.pairs;
-    const passedRows = rows != null ? rows.filter((row) => row.pass === true).length
-      : value.verdict === "exact-logical-agreement" && totalRows != null ? totalRows : undefined;
-    const inferredPass = value.pass === true || value.verdict === "exact-logical-agreement" || value.verdict === "evidence-complete"
-      || (totalRows != null && totalRows > 0 && passedRows === totalRows && (value.mismatches ?? 0) === 0)
-      || (Array.isArray(value.failures) && value.failures.length === 0);
+    const passedRows =
+      rows != null
+        ? rows.filter((row) => row.pass === true).length
+        : value.verdict === "exact-logical-agreement" && totalRows != null
+          ? totalRows
+          : undefined;
+    const inferredPass =
+      value.pass === true ||
+      value.verdict === "exact-logical-agreement" ||
+      value.verdict === "evidence-complete" ||
+      (totalRows != null && totalRows > 0 && passedRows === totalRows && (value.mismatches ?? 0) === 0) ||
+      (Array.isArray(value.failures) && value.failures.length === 0);
     const passed = value.evidencePassed ?? inferredPass;
-    return { area: area.id, oracle: value.evidenceOracle ?? area.oracle, status: passed ? "passed" : "failed", passedRows, totalRows, reportFile };
+    return {
+      area: area.id,
+      oracle: value.evidenceOracle ?? area.oracle,
+      status: passed ? "passed" : "failed",
+      passedRows,
+      totalRows,
+      reportFile,
+    };
   } catch (error) {
-    return { area: area.id, oracle: area.oracle, status: "failed", reportFile, note: `Unreadable report: ${String(error)}` };
+    return {
+      area: area.id,
+      oracle: area.oracle,
+      status: "failed",
+      reportFile,
+      note: `Unreadable report: ${String(error)}`,
+    };
   }
 }
 
@@ -81,16 +114,26 @@ function main(): void {
   const out = resolve(arg("--out") ?? "stage-evidence.json");
   const reportsDir = resolve(arg("--reports") ?? dirname(out));
   const envPath = arg("--env");
-  const semantic = JSON.parse(readFileSync(resolve("tools/semantic-coverage.json"), "utf8")) as SemanticCoverageInventory;
+  const semantic = JSON.parse(
+    readFileSync(resolve("tools/semantic-coverage.json"), "utf8"),
+  ) as SemanticCoverageInventory;
   const parity = JSON.parse(readFileSync(resolve("tools/parity-program.json"), "utf8")) as { areas: ParityArea[] };
-  const environment = envPath != null && existsSync(envPath)
-    ? JSON.parse(readFileSync(envPath, "utf8")) as Record<string, unknown>
-    : { platform: process.platform, arch: process.arch };
+  const environment =
+    envPath != null && existsSync(envPath)
+      ? (JSON.parse(readFileSync(envPath, "utf8")) as Record<string, unknown>)
+      : { platform: process.platform, arch: process.arch };
   let revision = process.env.GITHUB_SHA ?? "unknown";
   if (revision === "unknown") {
-    try { revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { /* retain unknown */ }
+    try {
+      revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    } catch {
+      /* retain unknown */
+    }
   }
-  writeFileSync(out, JSON.stringify(buildStageEvidence(semantic, parity.areas, reportsDir, environment, revision), null, 2) + "\n");
+  writeFileSync(
+    out,
+    JSON.stringify(buildStageEvidence(semantic, parity.areas, reportsDir, environment, revision), null, 2) + "\n",
+  );
   console.log(`stage evidence: ${basename(out)}`);
 }
 

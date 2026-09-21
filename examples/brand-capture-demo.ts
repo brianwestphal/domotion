@@ -17,19 +17,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import {
-  launchChromium,
-  injectBrandVariables,
-  captureElementTree,
-  elementTreeToSvg,
-  loadBrand,
-} from "../src/index.js";
+import { launchChromium, injectBrandVariables, captureElementTree, elementTreeToSvg, loadBrand } from "../src/index.js";
 import { optimizeSvg } from "./shared.js";
 
 const OUT_DIR = resolve("examples/output");
 const PAGE = resolve("examples/templates/brand-page.html");
 const BRAND = loadBrand(resolve("examples/templates/acme-brand.json"));
-const W = 720, H = 360;
+const W = 720,
+  H = 360;
 
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });

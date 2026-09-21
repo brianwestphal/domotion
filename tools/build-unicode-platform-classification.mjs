@@ -3,13 +3,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
-const [ticket, platform, resultPath, outputPath, expectedCountText] =
-  process.argv.slice(2);
+const [ticket, platform, resultPath, outputPath, expectedCountText] = process.argv.slice(2);
 const expectedCount = Number(expectedCountText);
 if (!ticket || !platform || !resultPath || !outputPath || !expectedCount) {
-  throw new Error(
-    "expected ticket, platform, results path, output path, and expected count",
-  );
+  throw new Error("expected ticket, platform, results path, output path, and expected count");
 }
 
 const results = JSON.parse(await readFile(resolve(resultPath), "utf8"));
@@ -48,10 +45,7 @@ const output = {
     "external/chromium/third_party/blink/renderer/platform/fonts",
     "external/harfbuzz/src",
     ...(platform === "windows"
-      ? [
-          "src/render/unicode-font-routing.win32.generated.ts",
-          "tools/win32-glyph-extractor",
-        ]
+      ? ["src/render/unicode-font-routing.win32.generated.ts", "tools/win32-glyph-extractor"]
       : []),
   ],
   counts: {

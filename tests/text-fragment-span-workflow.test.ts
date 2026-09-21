@@ -15,7 +15,9 @@ describe("DM-2546 exact FragmentItem span workflow", () => {
   });
 
   it("runs and retains the exact source-span/glyph report", () => {
-    expect(workflow).toContain("npm run transform:text-fragment-spans -- --json tests/output/text-fragment-spans-${{ runner.os }}.json");
+    expect(workflow).toContain(
+      "npm run transform:text-fragment-spans -- --json tests/output/text-fragment-spans-${{ runner.os }}.json",
+    );
     expect(workflow).toContain("tests/output/text-fragment-spans-${{ runner.os }}.json");
     expect(workflow).toContain("tools/text-fragment-span-oracle.ts");
     expect(workflow).toContain("src/capture/text-fragment-spans.ts");

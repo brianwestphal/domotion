@@ -3,11 +3,21 @@ id: "requirements/font-feature-values-shaping-conformance"
 title: "Named font-feature values in the shaping conformance gate"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release","product-tooling"]
+owners: ["text-fonts", "platform-release", "product-tooling"]
 platforms: []
 tickets: []
-code: ["src/capture/script/font-feature-values.ts","src/font-feature-values-cascade.ts","tests/fixtures/shaping/FontWithFancyFeatures.otf.base64","tests/font-feature-values.e2e.test.ts","tests/shaping-font-feature-values.e2e.test.ts","tests/shaping-font-feature-values.test.ts","tools/shaping-conformance.ts","tools/shaping-font-feature-values.ts"]
-aliases: ["docs/204-font-feature-values-shaping-conformance.md","doc-204"]
+code:
+  [
+    "src/capture/script/font-feature-values.ts",
+    "src/font-feature-values-cascade.ts",
+    "tests/fixtures/shaping/FontWithFancyFeatures.otf.base64",
+    "tests/font-feature-values.e2e.test.ts",
+    "tests/shaping-font-feature-values.e2e.test.ts",
+    "tests/shaping-font-feature-values.test.ts",
+    "tools/shaping-conformance.ts",
+    "tools/shaping-font-feature-values.ts",
+  ]
+aliases: ["docs/204-font-feature-values-shaping-conformance.md", "doc-204"]
 ---
 
 # Named font-feature values in the shaping conformance gate
@@ -53,14 +63,14 @@ family's `FontFeatureValuesStorage`
 the scoped style resolver; the resulting `FontVariantAlternates::Resolve`
 mapping is in `platform/fonts/font_variant_alternates.cc:100-180`:
 
-| CSS function | HarfBuzz user features |
-| --- | --- |
-| `stylistic(name)` | `salt=<value>` |
-| `styleset(name …)` | `ssNN` for every valid value 1–99 |
+| CSS function                | HarfBuzz user features                                        |
+| --------------------------- | ------------------------------------------------------------- |
+| `stylistic(name)`           | `salt=<value>`                                                |
+| `styleset(name …)`          | `ssNN` for every valid value 1–99                             |
 | `character-variant(name …)` | `cvNN`, with the optional second integer as its feature value |
-| `swash(name)` | `swsh=<value>` and `cswh=<value>` |
-| `ornaments(name)` | `ornm=<value>` |
-| `annotation(name)` | `nalt=<value>` |
+| `swash(name)`               | `swsh=<value>` and `cswh=<value>`                             |
+| `ornaments(name)`           | `ornm=<value>`                                                |
+| `annotation(name)`          | `nalt=<value>`                                                |
 
 Family matching is case-folded and aliases never cross to another family.
 HarfBuzz then appends every exact user tag/value to its feature map

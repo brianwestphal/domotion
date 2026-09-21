@@ -5,7 +5,9 @@ import { animateGoldensEquivalent } from "./animate-golden-compare.js";
 async function rasterSvg(pixels: number[]): Promise<string> {
   const png = await sharp(Buffer.from(pixels), {
     raw: { width: pixels.length / 3, height: 1, channels: 3 },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
   return `<svg><image href="data:image/png;base64,${png.toString("base64")}"/></svg>`;
 }
 
@@ -30,6 +32,8 @@ describe("animate golden comparison", () => {
 
   it("rejects SVG markup drift even when raster payloads match", async () => {
     const golden = await rasterSvg([10, 10, 10]);
-    await expect(animateGoldensEquivalent(golden, golden.replace("<svg>", "<svg viewBox=\"0 0 1 1\">"))).resolves.toBe(false);
+    await expect(animateGoldensEquivalent(golden, golden.replace("<svg>", '<svg viewBox="0 0 1 1">'))).resolves.toBe(
+      false,
+    );
   });
 });

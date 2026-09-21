@@ -57,7 +57,9 @@ async function scanMagenta(page: Page, png: Buffer): Promise<{ minX: number; max
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(img, 0, 0);
     const d = ctx.getImageData(0, 0, img.width, img.height).data;
-    let minX = Infinity, maxX = -Infinity, count = 0;
+    let minX = Infinity,
+      maxX = -Infinity,
+      count = 0;
     for (let y = 0; y < img.height; y++) {
       for (let x = 0; x < img.width; x++) {
         const i = (y * img.width + x) * 4;
@@ -101,14 +103,22 @@ describeBrowser("per-overlay window + per-state anchors inside a compressed run 
       frames: [
         { input: "./page.html", duration: HOLD, transition: cut },
         {
-          continue: true, duration: HOLD, transition: cut,
+          continue: true,
+          duration: HOLD,
+          transition: cut,
           actions: [{ type: "evaluate", script: "move(1)" }],
           // A long period keeps the blink "on" for the whole window, so a miss
           // is a genuine absence rather than an unlucky sample of the toggle.
-          overlays: [{
-            kind: "blink", width: 40, height: 24, color: "#ff00ff", periodMs: 100_000,
-            anchor: { selector: "#target", at: "top-left" },
-          }],
+          overlays: [
+            {
+              kind: "blink",
+              width: 40,
+              height: 24,
+              color: "#ff00ff",
+              periodMs: 100_000,
+              anchor: { selector: "#target", at: "top-left" },
+            },
+          ],
         },
         { continue: true, duration: HOLD, transition: cut, actions: [{ type: "evaluate", script: "move(2)" }] },
       ],

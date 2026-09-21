@@ -36,14 +36,19 @@ async function main() {
   // (~3.3s of the 12.008s cycle = 27.5% pct). Capture at 60 fps spacing.
   const samples: Array<{ tag: string; pct: number }> = [];
   for (let frame = 195; frame <= 205; frame++) {
-    const pct = (frame / 60) / 12.008 * 100;
+    const pct = (frame / 60 / 12.008) * 100;
     samples.push({ tag: `f${frame}_${pct.toFixed(2).replace(".", "_")}`, pct });
   }
   for (const s of samples) {
     const ms = (s.pct / 100) * TOTAL_MS;
     await page.evaluate((tMs) => {
       for (const a of document.getAnimations()) {
-        try { a.currentTime = tMs; a.pause(); } catch { /* */ }
+        try {
+          a.currentTime = tMs;
+          a.pause();
+        } catch {
+          /* */
+        }
       }
     }, ms);
     await page.waitForTimeout(80);

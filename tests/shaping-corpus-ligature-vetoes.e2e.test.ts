@@ -86,8 +86,7 @@ describe("the run corpus records the shaping inputs that disable ligatures (DM-1
     // ONE run, and three quarters of this fixture would have been swept as a
     // duplicate of the first.
     for (const w of WORDS) {
-      const variants = forWord(w).map((r) =>
-        `${r.letterSpacing}|${r.textRendering}|${r.fontVariantLigatures}`);
+      const variants = forWord(w).map((r) => `${r.letterSpacing}|${r.textRendering}|${r.fontVariantLigatures}`);
       expect(new Set(variants).size, `"${w}" collapsed to ${variants.join(" , ")}`).toBe(4);
     }
   });

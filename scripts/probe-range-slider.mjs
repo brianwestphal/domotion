@@ -21,15 +21,22 @@ const b64 = buf.toString("base64");
 const result = await page.evaluate(async (b64) => {
   const img = new Image();
   img.src = "data:image/png;base64," + b64;
-  await new Promise((r) => { img.onload = r; });
+  await new Promise((r) => {
+    img.onload = r;
+  });
   const cvs = document.createElement("canvas");
-  cvs.width = img.width; cvs.height = img.height;
+  cvs.width = img.width;
+  cvs.height = img.height;
   const cx = cvs.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const w = img.width, h = img.height;
+  const w = img.width,
+    h = img.height;
   const id = cx.getImageData(0, 0, w, h).data;
-  const pix = (x, y) => { const i = (y*w+x)*4; return [id[i], id[i+1], id[i+2]]; };
-  const dist = (a,b) => Math.max(Math.abs(a[0]-b[0]), Math.abs(a[1]-b[1]), Math.abs(a[2]-b[2]));
+  const pix = (x, y) => {
+    const i = (y * w + x) * 4;
+    return [id[i], id[i + 1], id[i + 2]];
+  };
+  const dist = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
   const isWhite = (p) => p[0] >= 250 && p[1] >= 250 && p[2] >= 250;
 
   // For each input[type=range], find the painted vertical extent at the
@@ -52,13 +59,21 @@ const result = await page.evaluate(async (b64) => {
       if (!isWhite(p)) trackPainted.push({ y, p: p.join(",") });
     }
     // Find thumb bbox by scanning horizontally near the value-position
-    const value = +el.value, min = +el.min || 0, max = +el.max || 100;
+    const value = +el.value,
+      min = +el.min || 0,
+      max = +el.max || 100;
     const ratio = (value - min) / (max - min);
     const thumbCx = Math.round(r.x + r.width * ratio);
-    let thumbTop = -1, thumbBot = -1, thumbLeft = -1, thumbRight = -1;
+    let thumbTop = -1,
+      thumbBot = -1,
+      thumbLeft = -1,
+      thumbRight = -1;
     for (let y = Math.floor(r.y) - 4; y <= Math.ceil(r.y + r.height) + 4; y++) {
       const p = pix(thumbCx, y);
-      if (!isWhite(p)) { if (thumbTop < 0) thumbTop = y; thumbBot = y; }
+      if (!isWhite(p)) {
+        if (thumbTop < 0) thumbTop = y;
+        thumbBot = y;
+      }
     }
     for (let xx = Math.floor(r.x) - 4; xx <= Math.ceil(r.x + r.width) + 4; xx++) {
       const p = pix(xx, cy);
@@ -68,12 +83,21 @@ const result = await page.evaluate(async (b64) => {
       }
     }
     out.push({
-      idx: out.length, name: el.id || el.name || el.outerHTML.slice(0, 80),
-      cls: el.className, value, min, max,
+      idx: out.length,
+      name: el.id || el.name || el.outerHTML.slice(0, 80),
+      cls: el.className,
+      value,
+      min,
+      max,
       r: { x: r.x, y: r.y, w: r.width, h: r.height },
-      cy, trackPainted: trackPainted.slice(0, 10),
-      thumbTop, thumbBot, thumbHeight: thumbTop >= 0 ? thumbBot - thumbTop + 1 : 0,
-      thumbLeftAtCY: thumbLeft, thumbRightAtCY: thumbRight, thumbWidthAtCY: thumbLeft >= 0 ? thumbRight - thumbLeft + 1 : 0,
+      cy,
+      trackPainted: trackPainted.slice(0, 10),
+      thumbTop,
+      thumbBot,
+      thumbHeight: thumbTop >= 0 ? thumbBot - thumbTop + 1 : 0,
+      thumbLeftAtCY: thumbLeft,
+      thumbRightAtCY: thumbRight,
+      thumbWidthAtCY: thumbLeft >= 0 ? thumbRight - thumbLeft + 1 : 0,
       accentColor: cs.accentColor,
       writingMode: cs.writingMode,
     });
@@ -84,11 +108,15 @@ const result = await page.evaluate(async (b64) => {
 for (const d of result) {
   console.log(`\n=== range #${d.idx} ${d.cls} ===`);
   console.log(`  value=${d.value} min=${d.min} max=${d.max}, accent=${d.accentColor}, wm=${d.writingMode}`);
-  console.log(`  bbox: x=${d.r.x.toFixed(1)} y=${d.r.y.toFixed(1)} w=${d.r.w.toFixed(1)} h=${d.r.h.toFixed(1)}, cy=${d.cy}`);
+  console.log(
+    `  bbox: x=${d.r.x.toFixed(1)} y=${d.r.y.toFixed(1)} w=${d.r.w.toFixed(1)} h=${d.r.h.toFixed(1)}, cy=${d.cy}`,
+  );
   console.log(`  track row painted:`);
   if (d.trackPainted.length === 0) console.log(`    (none — outside track area or fully white)`);
   for (const r of d.trackPainted) console.log(`    y=${r.y}: ${r.p}`);
-  console.log(`  thumb bbox: y=[${d.thumbTop}..${d.thumbBot}] (h=${d.thumbHeight})  x@cy=[${d.thumbLeftAtCY}..${d.thumbRightAtCY}] (w=${d.thumbWidthAtCY})`);
+  console.log(
+    `  thumb bbox: y=[${d.thumbTop}..${d.thumbBot}] (h=${d.thumbHeight})  x@cy=[${d.thumbLeftAtCY}..${d.thumbRightAtCY}] (w=${d.thumbWidthAtCY})`,
+  );
 }
 
 await browser.close();

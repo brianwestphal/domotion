@@ -14,13 +14,13 @@ viewBox width height>` — what Domotion emits **by default**) and, where Domoti
 can flatten it, a `-flat.svg` (the `<g transform="matrix(...)">` form Domotion
 emits with `--flatten-nested-svg`).
 
-| # | dimension | Domotion flattens it? |
-|---|---|---|
-| 01 | plain nested `<svg>` (path + circle) | **yes** |
-| 02 | nested `<svg>` + `<clipPath>` | **yes** |
-| 03 | nested `<svg>` + `<use>` / `<symbol>` | no — gated (stays nested) |
-| 04 | nested `<svg>` + `<style>` element selector | no — gated (stays nested) |
-| 05 | nested `<svg>` + `<filter>` | **yes** |
+| #   | dimension                                   | Domotion flattens it?     |
+| --- | ------------------------------------------- | ------------------------- |
+| 01  | plain nested `<svg>` (path + circle)        | **yes**                   |
+| 02  | nested `<svg>` + `<clipPath>`               | **yes**                   |
+| 03  | nested `<svg>` + `<use>` / `<symbol>`       | no — gated (stays nested) |
+| 04  | nested `<svg>` + `<style>` element selector | no — gated (stays nested) |
+| 05  | nested `<svg>` + `<filter>`                 | **yes**                   |
 
 The flattener gates 03/04 because `<use>`/`<symbol>` establish their own
 viewports and an element-selector `<style>` would leak into the outer document
@@ -51,12 +51,12 @@ For each tool (Sketch, Figma, Illustrator, Inkscape):
 
 Record per tool:
 
-| tool | 01 nested | 01 flat | 02 nested | 02 flat | 05 nested | 05 flat | 03 use | 04 style |
-|---|---|---|---|---|---|---|---|---|
-| Sketch | | | | | | | | |
-| Figma | | | | | | | | |
-| Illustrator | | | | | | | | |
-| Inkscape | | | | | | | | |
+| tool        | 01 nested | 01 flat | 02 nested | 02 flat | 05 nested | 05 flat | 03 use | 04 style |
+| ----------- | --------- | ------- | --------- | ------- | --------- | ------- | ------ | -------- |
+| Sketch      |           |         |           |         |           |         |        |          |
+| Figma       |           |         |           |         |           |         |        |          |
+| Illustrator |           |         |           |         |           |         |        |          |
+| Inkscape    |           |         |           |         |           |         |        |          |
 
 ## Decision this feeds
 

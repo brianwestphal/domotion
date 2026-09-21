@@ -17,11 +17,7 @@ import { STUDIO_CLIENT_JS } from "./client.bundle.generated.js";
 import { SCRUBBER_CLIENT_JS } from "../scrubber/client.bundle.generated.js";
 import { detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { applyStudioAnnotationCommand, StudioAnnotationError, studioAnnotationCommandSchema } from "./annotations.js";
-import {
-  commitStudioAuthoringRevision,
-  studioContentRevisionId,
-  StudioAuthoringError,
-} from "./authoring.js";
+import { commitStudioAuthoringRevision, studioContentRevisionId, StudioAuthoringError } from "./authoring.js";
 import {
   importStudioInteractionRecording,
   persistStudioRecordingEvidence,
@@ -45,7 +41,11 @@ const createBodySchema = z.strictObject({
   width: z.number().int().positive().max(16_384).optional(),
   height: z.number().int().positive().max(16_384).optional(),
 });
-const saveBodySchema = z.strictObject({ path: pathField, expectedHeadRevisionId: z.string().min(1), project: z.unknown() });
+const saveBodySchema = z.strictObject({
+  path: pathField,
+  expectedHeadRevisionId: z.string().min(1),
+  project: z.unknown(),
+});
 const annotationBodySchema = z.strictObject({
   path: pathField,
   expectedHeadRevisionId: z.string().min(1),
@@ -79,7 +79,10 @@ const generationAiSchema = z.strictObject({
 });
 
 class StudioHttpError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -131,36 +134,52 @@ function projectResponse(file: StudioProjectFile): Record<string, unknown> {
       artifactCount: file.project.artifacts.length,
       scenes: file.project.scenes.map((scene) => ({
         id: scene.id,
-        generated: file.project.artifacts.some((artifact) => artifact.sourceRevisionId === contentRevisionId && artifact.sceneIds?.includes(scene.id) === true),
+        generated: file.project.artifacts.some(
+          (artifact) =>
+            artifact.sourceRevisionId === contentRevisionId && artifact.sceneIds?.includes(scene.id) === true,
+        ),
       })),
     },
   };
 }
 
-function previewArtifact(project: StudioProject, selection: z.infer<typeof previewBodySchema>["selection"]): StudioArtifact {
+function previewArtifact(
+  project: StudioProject,
+  selection: z.infer<typeof previewBodySchema>["selection"],
+): StudioArtifact {
   if (selection.kind === "scene" && !project.scenes.some((scene) => scene.id === selection.sceneId)) {
     throw new StudioHttpError(404, `scene does not exist: ${selection.sceneId}`);
   }
   const candidates = project.artifacts
     .filter((artifact) => artifact.kind === "svg" && artifact.sourceRevisionId === studioContentRevisionId(project))
-    .filter((artifact) => selection.kind === "story"
-      ? artifact.sceneIds == null || artifact.sceneIds.length === 0
-      : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === selection.sceneId)
+    .filter((artifact) =>
+      selection.kind === "story"
+        ? artifact.sceneIds == null || artifact.sceneIds.length === 0
+        : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === selection.sceneId,
+    )
     .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt));
   if (candidates.length === 0) {
-    throw new StudioHttpError(404, selection.kind === "story"
-      ? "the project has no generated whole-story SVG artifact"
-      : `scene ${selection.sceneId} has no generated SVG artifact`);
+    throw new StudioHttpError(
+      404,
+      selection.kind === "story"
+        ? "the project has no generated whole-story SVG artifact"
+        : `scene ${selection.sceneId} has no generated SVG artifact`,
+    );
   }
   return candidates[0];
 }
 
 function authoredDuration(project: StudioProject, selection: z.infer<typeof previewBodySchema>["selection"]): number {
-  if (selection.kind === "scene") return studioSceneDurationMs(project.scenes.find((scene) => scene.id === selection.sceneId)!);
+  if (selection.kind === "scene")
+    return studioSceneDurationMs(project.scenes.find((scene) => scene.id === selection.sceneId)!);
   return buildStudioTimeline(project).durationMs;
 }
 
-function previewResponse(workspaceRoot: string, file: StudioProjectFile, selection: z.infer<typeof previewBodySchema>["selection"]): Record<string, unknown> {
+function previewResponse(
+  workspaceRoot: string,
+  file: StudioProjectFile,
+  selection: z.infer<typeof previewBodySchema>["selection"],
+): Record<string, unknown> {
   const artifact = previewArtifact(file.project, selection);
   const artifactPath = resolveStudioWorkspaceSvgPath(workspaceRoot, artifact.path);
   const realRoot = realpathSync(workspaceRoot);
@@ -169,16 +188,19 @@ function previewResponse(workspaceRoot: string, file: StudioProjectFile, selecti
   if (realRelative === ".." || realRelative.startsWith(`..${sep}`) || isAbsolute(realRelative)) {
     throw new StudioHttpError(400, `preview artifact resolves outside the Studio workspace: ${artifact.id}`);
   }
-  if (statSync(realArtifactPath).size > 64 * 1024 * 1024) throw new StudioHttpError(413, "preview artifact is too large");
+  if (statSync(realArtifactPath).size > 64 * 1024 * 1024)
+    throw new StudioHttpError(413, "preview artifact is too large");
   const svg = readFileSync(realArtifactPath, "utf8");
   if (artifact.sha256 != null) {
     const actual = createHash("sha256").update(svg).digest("hex");
-    if (actual !== artifact.sha256) throw new StudioHttpError(409, `preview artifact digest does not match project provenance: ${artifact.id}`);
+    if (actual !== artifact.sha256)
+      throw new StudioHttpError(409, `preview artifact digest does not match project provenance: ${artifact.id}`);
   }
   const metadataDuration = artifact.metadata?.durationMs;
-  const durationMs = typeof metadataDuration === "number" && Number.isFinite(metadataDuration) && metadataDuration > 0
-    ? metadataDuration
-    : detectAnimationPeriodMs(svg) ?? authoredDuration(file.project, selection);
+  const durationMs =
+    typeof metadataDuration === "number" && Number.isFinite(metadataDuration) && metadataDuration > 0
+      ? metadataDuration
+      : (detectAnimationPeriodMs(svg) ?? authoredDuration(file.project, selection));
   return {
     sourceKey: selection.kind === "story" ? "story" : `scene:${selection.sceneId}`,
     artifact: {
@@ -196,10 +218,13 @@ function previewResponse(workspaceRoot: string, file: StudioProjectFile, selecti
 
 function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
   if (error instanceof StudioHttpError) return { status: error.status, body: { error: error.message } };
-  if (error instanceof StudioAnnotationError) return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
-  if (error instanceof StudioAuthoringError) return { status: error.message.startsWith("stale authoring change:") ? 409 : 400, body: { error: error.message } };
+  if (error instanceof StudioAnnotationError)
+    return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
+  if (error instanceof StudioAuthoringError)
+    return { status: error.message.startsWith("stale authoring change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioRecordingError) return { status: 400, body: { error: error.message } };
-  if (error instanceof StudioTimelineError) return { status: error.message.startsWith("stale timeline change:") ? 409 : 400, body: { error: error.message } };
+  if (error instanceof StudioTimelineError)
+    return { status: error.message.startsWith("stale timeline change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioProjectValidationError) {
     return { status: 400, body: { error: error.message, issues: error.issues } };
   }
@@ -228,18 +253,20 @@ export interface StudioGenerationInput {
   aiPolicy: { healing: "required"; review: "required" };
 }
 
-export type StudioGenerationResult = {
-  status: "completed";
-  project: StudioProject;
-  ai: {
-    healing: { status: "accepted"; summary: string };
-    review: { status: "accepted"; summary: string };
-  };
-} | {
-  status: "clarification";
-  question: string;
-  reason: string;
-};
+export type StudioGenerationResult =
+  | {
+      status: "completed";
+      project: StudioProject;
+      ai: {
+        healing: { status: "accepted"; summary: string };
+        review: { status: "accepted"; summary: string };
+      };
+    }
+  | {
+      status: "clarification";
+      question: string;
+      reason: string;
+    };
 
 export interface StudioServerHandle {
   url: string;
@@ -349,10 +376,14 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);
         const current = openStudioProjectFile(workspaceRoot, path);
         if (current.project.review.headRevisionId !== expectedHeadRevisionId) {
-          throw new StudioAnnotationError(`stale annotation change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
+          throw new StudioAnnotationError(
+            `stale annotation change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
+          );
         }
         const proposed = validateStudioProject(project);
-        const committed = validateStudioProject(commitStudioAuthoringRevision(current.project, proposed, { expectedHeadRevisionId }));
+        const committed = validateStudioProject(
+          commitStudioAuthoringRevision(current.project, proposed, { expectedHeadRevisionId }),
+        );
         sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, committed)));
         return;
       }
@@ -393,9 +424,12 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         const body = await readJsonBody(req, recordingImportBodySchema);
         const current = openStudioProjectFile(workspaceRoot, body.path);
         if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {
-          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
+          throw new StudioAuthoringError(
+            `stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
+          );
         }
-        if (inputs.recordingAi == null) throw new StudioHttpError(501, "Studio recording import requires configured AI healing and review adapters");
+        if (inputs.recordingAi == null)
+          throw new StudioHttpError(501, "Studio recording import requires configured AI healing and review adapters");
         const imported = await importStudioInteractionRecording(current.project, body.recording, {
           ai: inputs.recordingAi,
           generatorVersion: "1",
@@ -421,9 +455,12 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         const body = await readJsonBody(req, generationBodySchema);
         const current = openStudioProjectFile(workspaceRoot, body.path);
         if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {
-          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
+          throw new StudioAuthoringError(
+            `stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
+          );
         }
-        if (inputs.generate == null) throw new StudioHttpError(501, "Studio generation requires a configured AI healing and review adapter");
+        if (inputs.generate == null)
+          throw new StudioHttpError(501, "Studio generation requires a configured AI healing and review adapter");
         const generated = await inputs.generate({
           project: structuredClone(current.project),
           selection: body.selection,
@@ -432,33 +469,61 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
           aiPolicy: { healing: "required", review: "required" },
         });
         if (generated.status === "clarification") {
-          z.strictObject({ status: z.literal("clarification"), question: z.string().trim().min(1), reason: z.string().trim().min(1) }).parse(generated);
+          z.strictObject({
+            status: z.literal("clarification"),
+            question: z.string().trim().min(1),
+            reason: z.string().trim().min(1),
+          }).parse(generated);
           sendJson(res, 200, { ...projectResponse(current), generationResult: generated });
           return;
         }
         const ai = generationAiSchema.parse(generated.ai);
         const next = validateStudioProject(generated.project);
-        const authored = ({ review: _review, artifacts: _artifacts, updatedAt: _updatedAt, ...value }: StudioProject): unknown => value;
+        const authored = ({
+          review: _review,
+          artifacts: _artifacts,
+          updatedAt: _updatedAt,
+          ...value
+        }: StudioProject): unknown => value;
         if (!isDeepStrictEqual(authored(next), authored(current.project))) {
           throw new StudioHttpError(400, "generation adapters must preserve authored narrative, scenes, and settings");
         }
-        if (!isDeepStrictEqual(next.review.revisions.slice(0, current.project.review.revisions.length), current.project.review.revisions)
-          || !isDeepStrictEqual(next.review.annotations.slice(0, current.project.review.annotations.length), current.project.review.annotations)) {
+        if (
+          !isDeepStrictEqual(
+            next.review.revisions.slice(0, current.project.review.revisions.length),
+            current.project.review.revisions,
+          ) ||
+          !isDeepStrictEqual(
+            next.review.annotations.slice(0, current.project.review.annotations.length),
+            current.project.review.annotations,
+          )
+        ) {
           throw new StudioHttpError(400, "generation adapters must preserve existing review provenance");
         }
         if (studioContentRevisionId(next) !== studioContentRevisionId(current.project)) {
           throw new StudioHttpError(400, "generation adapters cannot replace the saved authoring content revision");
         }
-        if (current.project.artifacts.some((artifact) => !next.artifacts.some((candidate) => isDeepStrictEqual(candidate, artifact)))) {
+        if (
+          current.project.artifacts.some(
+            (artifact) => !next.artifacts.some((candidate) => isDeepStrictEqual(candidate, artifact)),
+          )
+        ) {
           throw new StudioHttpError(400, "generation adapters must preserve existing artifacts");
         }
         const contentRevisionId = studioContentRevisionId(next);
-        const matches = next.artifacts.some((artifact) => artifact.kind === "svg"
-          && artifact.sourceRevisionId === contentRevisionId
-          && (body.selection.kind === "story"
-            ? artifact.sceneIds == null || artifact.sceneIds.length === 0
-            : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === body.selection.sceneId));
-        if (!matches) throw new StudioHttpError(400, "generation adapter did not return a current SVG artifact for the requested selection");
+        const matches = next.artifacts.some(
+          (artifact) =>
+            artifact.kind === "svg" &&
+            artifact.sourceRevisionId === contentRevisionId &&
+            (body.selection.kind === "story"
+              ? artifact.sceneIds == null || artifact.sceneIds.length === 0
+              : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === body.selection.sceneId),
+        );
+        if (!matches)
+          throw new StudioHttpError(
+            400,
+            "generation adapter did not return a current SVG artifact for the requested selection",
+          );
         previewResponse(workspaceRoot, { ...current, project: next }, body.selection);
         const saved = saveStudioProjectFile(workspaceRoot, body.path, next);
         sendJson(res, 200, { ...projectResponse(saved), generationResult: { status: "completed", ai } });

@@ -10,4 +10,6 @@ try {
     console.log("  numGlyphs:", ttc.numGlyphs);
     console.log("  unitsPerEm:", ttc.unitsPerEm);
   }
-} catch(e) { console.error("Open failed:", e.message); }
+} catch (e) {
+  console.error("Open failed:", e.message);
+}

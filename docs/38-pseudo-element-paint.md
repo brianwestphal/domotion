@@ -5,9 +5,19 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-1152","DM-1177","DM-1234","DM-2192","DM-770","DM-K6YQBK"]
-code: ["src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","src/capture/types.ts","src/render/element-tree-to-svg.ts","src/render/form-controls.ts","src/render/pseudo-filter.ts","src/render/text.ts"]
-aliases: ["docs/38-pseudo-element-paint.md","doc-38"]
+tickets: ["DM-1152", "DM-1177", "DM-1234", "DM-2192", "DM-770", "DM-K6YQBK"]
+code:
+  [
+    "src/capture/script/index.ts",
+    "src/capture/script/walker/pseudo-content.ts",
+    "src/capture/script/walker/pseudo-inject.ts",
+    "src/capture/types.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/form-controls.ts",
+    "src/render/pseudo-filter.ts",
+    "src/render/text.ts",
+  ]
+aliases: ["docs/38-pseudo-element-paint.md", "doc-38"]
 ---
 
 # Pseudo-element paint
@@ -55,25 +65,25 @@ helpers into the same self-contained page-evaluate script.
 
 Per-pseudo CSS properties Domotion honors:
 
-| Property              | Empty-content       | Text-content        | Image          | Notes |
-|-----------------------|---------------------|---------------------|----------------|-------|
-| `background-color`    | yes                 | yes                 | n/a            | Resolved to sRGB at capture time. |
-| `background-image`    | yes (gradients/url) | yes (gradients/url) | n/a            | Multiple comma-separated layers; emit in reverse order so layer 0 paints on top. |
-| `background-position` / `-size` | yes      | yes                 | n/a            | Captured alongside a `background-image` and threaded into the layer emit. For a radial gradient the px component of the position slides the gradient core (Stripe's keynote glow uses `-90px 90px` to push the pink radial into the lower-left corner). |
-| `opacity` (0 < o < 1) | yes                 | yes                 | yes            | Wraps the pseudo's complete paint in a `<g opacity>` so a translucent glow paints at its true strength (the Stripe glow is `0.45`). `opacity: 0` is dropped entirely — see below. |
-| `border-radius`       | yes (uniform)       | yes (uniform)       | n/a            | Single-value shorthand; clamped to `min(r, w/2, h/2)` for capsule shapes. |
-| `border` (uniform)    | yes                 | yes                 | n/a            | `<rect stroke=...>` with style: solid / dashed / dotted. |
-| `border` (per-side)   | yes (`<line>` per)  | yes (`<line>` per)  | n/a            | Single-side borders paint as a `<line>`; CSS triangles detected + emitted as `<polygon>`. |
-| `padding`             | yes                 | yes                 | yes            | Inflates the paint box around the text content. |
-| `transform`           | yes                 | yes                 | yes            | See § Transform below. |
-| `transform-origin`    | yes                 | yes                 | yes            | Pre-baked into a translate-transform-translate matrix at render time. |
-| `z-index` (negative)  | yes                 | no                  | no             | A negative-z `::after` paints BEHIND the host content instead of on top. See § Paint order. |
-| CSS filter functions  | yes                 | yes                 | yes            | `blur`, `brightness`, `contrast`, `drop-shadow`, `grayscale`, `hue-rotate`, `invert`, `opacity`, `saturate`, `sepia`, and ordered lists. See § Filter. |
-| `color`               | n/a                 | yes (overrides host)| n/a            | Pseudo glyphs paint in their own color, not the host's. |
-| `font-size` / `family`| n/a                 | yes (overrides host)| n/a            | Same as `color`. |
-| `position: absolute`  | yes                 | yes                 | yes (in flow)  | Resolves `left/top/right/bottom` against the host's padding box. |
-| `opacity: 0`          | suppresses paint    | suppresses paint    | suppresses paint | Skips the pseudo entirely (Material-ripple hover overlay pattern). |
-| Host degenerate xform | suppresses paint    | suppresses paint    | suppresses paint | When the host's `transform: matrix(...)` has determinant 0, the pseudo doesn't paint (Apple "empty cart" badge pattern). |
+| Property                        | Empty-content       | Text-content         | Image            | Notes                                                                                                                                                                                                                                                   |
+| ------------------------------- | ------------------- | -------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `background-color`              | yes                 | yes                  | n/a              | Resolved to sRGB at capture time.                                                                                                                                                                                                                       |
+| `background-image`              | yes (gradients/url) | yes (gradients/url)  | n/a              | Multiple comma-separated layers; emit in reverse order so layer 0 paints on top.                                                                                                                                                                        |
+| `background-position` / `-size` | yes                 | yes                  | n/a              | Captured alongside a `background-image` and threaded into the layer emit. For a radial gradient the px component of the position slides the gradient core (Stripe's keynote glow uses `-90px 90px` to push the pink radial into the lower-left corner). |
+| `opacity` (0 < o < 1)           | yes                 | yes                  | yes              | Wraps the pseudo's complete paint in a `<g opacity>` so a translucent glow paints at its true strength (the Stripe glow is `0.45`). `opacity: 0` is dropped entirely — see below.                                                                       |
+| `border-radius`                 | yes (uniform)       | yes (uniform)        | n/a              | Single-value shorthand; clamped to `min(r, w/2, h/2)` for capsule shapes.                                                                                                                                                                               |
+| `border` (uniform)              | yes                 | yes                  | n/a              | `<rect stroke=...>` with style: solid / dashed / dotted.                                                                                                                                                                                                |
+| `border` (per-side)             | yes (`<line>` per)  | yes (`<line>` per)   | n/a              | Single-side borders paint as a `<line>`; CSS triangles detected + emitted as `<polygon>`.                                                                                                                                                               |
+| `padding`                       | yes                 | yes                  | yes              | Inflates the paint box around the text content.                                                                                                                                                                                                         |
+| `transform`                     | yes                 | yes                  | yes              | See § Transform below.                                                                                                                                                                                                                                  |
+| `transform-origin`              | yes                 | yes                  | yes              | Pre-baked into a translate-transform-translate matrix at render time.                                                                                                                                                                                   |
+| `z-index` (negative)            | yes                 | no                   | no               | A negative-z `::after` paints BEHIND the host content instead of on top. See § Paint order.                                                                                                                                                             |
+| CSS filter functions            | yes                 | yes                  | yes              | `blur`, `brightness`, `contrast`, `drop-shadow`, `grayscale`, `hue-rotate`, `invert`, `opacity`, `saturate`, `sepia`, and ordered lists. See § Filter.                                                                                                  |
+| `color`                         | n/a                 | yes (overrides host) | n/a              | Pseudo glyphs paint in their own color, not the host's.                                                                                                                                                                                                 |
+| `font-size` / `family`          | n/a                 | yes (overrides host) | n/a              | Same as `color`.                                                                                                                                                                                                                                        |
+| `position: absolute`            | yes                 | yes                  | yes (in flow)    | Resolves `left/top/right/bottom` against the host's padding box.                                                                                                                                                                                        |
+| `opacity: 0`                    | suppresses paint    | suppresses paint     | suppresses paint | Skips the pseudo entirely (Material-ripple hover overlay pattern).                                                                                                                                                                                      |
+| Host degenerate xform           | suppresses paint    | suppresses paint     | suppresses paint | When the host's `transform: matrix(...)` has determinant 0, the pseudo doesn't paint (Apple "empty cart" badge pattern).                                                                                                                                |
 
 ## Transform
 
@@ -194,18 +204,18 @@ flow. Two of its decisions are not readable from `getComputedStyle` in the
 obvious place:
 
 - **Effective size.** `getComputedStyle(el, "::first-letter").fontSize` echoes
-  the value the author *specified* — typically a large `em` fallback written
+  the value the author _specified_ — typically a large `em` fallback written
   for engines without `initial-letter` support — not the size Chromium paints.
   What Chromium does report faithfully is the pseudo's computed **content
   box**: its `height` is the cap-height the initial letter was sized to
   (measured across nine variants, exactly `(size − 1) × parent-line-height +
-  parent-cap-height`), and its `width` is the glyph's painted **ink** width.
+parent-cap-height`), and its `width` is the glyph's painted **ink** width.
   The effective font-size is therefore derived from that box, against ratios
   read from a 100 px canvas probe of the pseudo's own font: `height /
-  capHeightRatio` for a non-floated initial letter, and `height /
-  glyphInkHeightRatio` for a floated drop cap (a float box is sized to the
+capHeightRatio` for a non-floated initial letter, and `height /
+glyphInkHeightRatio` for a floated drop cap (a float box is sized to the
   glyph's own ink, which differs from cap-height for glyphs with descenders or
-  round overshoot). Dividing the ink `width` by a canvas *advance* width is
+  round overshoot). Dividing the ink `width` by a canvas _advance_ width is
   **not** equivalent — it under-reports the size by the side bearings (~1.8%
   on Georgia, ~7% on Arial).
 
@@ -252,7 +262,7 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
   primary-font ascent, followed by `ToPixelSnappedRect` edge snapping
   (DM-2192). Disclosure triangles follow the physical inline/block direction
   for horizontal, vertical, sideways, and RTL writing directions.
-  *Custom* `@counter-style`-resolved markers still fall back to the UA decimal
+  _Custom_ `@counter-style`-resolved markers still fall back to the UA decimal
   style on the render side (DM-770).
 - **`::placeholder`** — input placeholder text routes through the form-
   controls renderer (`src/render/form-controls.ts`), not the pseudo path.
@@ -261,11 +271,11 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
   children rather than generating its own DOM node, so its paint doesn't
   round-trip through element capture. The capture layer reads the pseudo's
   `border-top` + `background` (`detailsContentBox`, `src/capture/script/walker/
-  form-controls.ts`); the renderer synthesizes the **border-top divider** at the
+form-controls.ts`); the renderer synthesizes the **border-top divider** at the
   summary's bottom edge from the details + summary geometry (`renderDetailsContentBox`,
   `src/render/form-controls.ts`, DM-1152). The divider paints after the content
   (it sits in the summary→content gap, so on-top layering is safe). The pseudo
-  *background* is intentionally not painted — it would need to render BEHIND the
+  _background_ is intentionally not painted — it would need to render BEHIND the
   content text, and against the typical near-white body it is sub-perceptible.
 
 ## Capture-side reference

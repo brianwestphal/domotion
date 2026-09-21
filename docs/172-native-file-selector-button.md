@@ -4,10 +4,10 @@ title: "172 — Native file-selector button ownership"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2454"]
 code: ["tests/native-control-decoration.e2e.test.ts"]
-aliases: ["docs/172-native-file-selector-button.md","doc-172"]
+aliases: ["docs/172-native-file-selector-button.md", "doc-172"]
 ---
 
 # 172 — Native file-selector button ownership
@@ -47,10 +47,10 @@ topology-defined following status span, and asks CDP for the child button's
 matched/computed/animated style facts. File routing intentionally ignores the
 host's `appearance:none`: the child EffectiveAppearance is the owner.
 
-| Child result | Render route |
-| --- | --- |
-| `push-button`, or conservatively unknown | reserve source-owned file button; unknown facts warn/fail closed |
-| author background/border/radius or `appearance:none` | existing author-styled vector button route |
+| Child result                                               | Render route                                                                 |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `push-button`, or conservatively unknown                   | reserve source-owned file button; unknown facts warn/fail closed             |
+| author background/border/radius or `appearance:none`       | existing author-styled vector button route                                   |
 | missing/detached/rebuilt/changed button or status topology | named `native-control-decoration-raster` warning; no sampled button fallback |
 
 The synchronous walk records the button's real border rect, localized value,

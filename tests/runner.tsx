@@ -38,9 +38,10 @@ const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 // the analogous reason (a secondary sweep clobbering the canonical results);
 // this is the same idea for the feature suite, and `DOMOTION_OUTPUT_DIR` is
 // honored by both so one env var redirects a whole container run.
-const OUTPUT_DIR = process.env.DOMOTION_OUTPUT_DIR != null && process.env.DOMOTION_OUTPUT_DIR !== ""
-  ? resolve(process.env.DOMOTION_OUTPUT_DIR)
-  : resolve(TESTS_DIR, "output");
+const OUTPUT_DIR =
+  process.env.DOMOTION_OUTPUT_DIR != null && process.env.DOMOTION_OUTPUT_DIR !== ""
+    ? resolve(process.env.DOMOTION_OUTPUT_DIR)
+    : resolve(TESTS_DIR, "output");
 const WIDTH = 400;
 const HEIGHT = 300;
 
@@ -76,8 +77,12 @@ function FixturePage({ body, bodyStyle }: { body: string; bodyStyle?: string }) 
     <html>
       <head>
         <meta charset="utf-8" />
-        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- bodyStyle is a fixture literal from tests/features.ts; no untrusted input */}
-        <style>{raw(`* { margin: 0; padding: 0; box-sizing: border-box; } body { background: #0d1117; overflow: hidden; ${bodyStyle ?? ""} }`)}</style>
+        <style>
+          {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- bodyStyle is a fixture literal from tests/features.ts; no untrusted input */}
+          {raw(
+            `* { margin: 0; padding: 0; box-sizing: border-box; } body { background: #0d1117; overflow: hidden; ${bodyStyle ?? ""} }`,
+          )}
+        </style>
       </head>
       {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- fixture HTML literals from tests/features.ts; no untrusted input */}
       <body>{raw(body)}</body>
@@ -382,7 +387,9 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     runJob: async (test, w) => runOneTest(test, w),
     onResult: (r) => {
       const status = r.pass ? "✓ PASS" : "✗ FAIL";
-      console.log(`  ${status}  ${r.name}  ${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`);
+      console.log(
+        `  ${status}  ${r.name}  ${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`,
+      );
     },
   });
 
@@ -406,7 +413,17 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       // the host — the failure it guards is silent (Linux results shown under a
       // "Local · macOS" label), and detectable otherwise only if you already
       // know each platform's failure signature.
-      JSON.stringify({ suite: suiteName, generatedAt: new Date().toISOString(), platform: process.platform, browsers: browserNote ?? "default (one browser, no flags)", results }, null, 2),
+      JSON.stringify(
+        {
+          suite: suiteName,
+          generatedAt: new Date().toISOString(),
+          platform: process.platform,
+          browsers: browserNote ?? "default (one browser, no flags)",
+          results,
+        },
+        null,
+        2,
+      ),
     );
   }
 
@@ -418,7 +435,9 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   if (failed > 0) {
     console.log("\nFailed tests — inspect diff images in:");
     for (const r of results.filter((r) => !r.pass)) {
-      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  ${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`);
+      console.log(
+        `  ${OUTPUT_DIR}/${r.name}-diff.png  ${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`,
+      );
     }
     console.log("\nReview tool: npx tsx tests/review-server.tsx");
     process.exit(1);

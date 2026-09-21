@@ -27,7 +27,11 @@ import { writeFileSync } from "node:fs";
 import sharp from "sharp";
 import { captureElementTree } from "../src/capture/index.js";
 
-interface RawImage { width: number; height: number; data: Buffer }
+interface RawImage {
+  width: number;
+  height: number;
+  data: Buffer;
+}
 async function readPngRaw(buf: Buffer): Promise<RawImage> {
   const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return { width: info.width, height: info.height, data };
@@ -40,8 +44,8 @@ const FULL_PAGE_MAX_H = 6000;
 
 const REGIONS: Array<{ name: string; x: number; y: number; w: number; h: number }> = [
   { name: "DM-587", x: 260, y: 1077, w: 126, h: 225 },
-  { name: "DM-590", x: 319, y: 3653, w: 63,  h: 367 },
-  { name: "DM-591", x: 56,  y: 3728, w: 229, h: 257 },
+  { name: "DM-590", x: 319, y: 3653, w: 63, h: 367 },
+  { name: "DM-591", x: 56, y: 3728, w: 229, h: 257 },
 ];
 
 async function main() {
@@ -83,23 +87,41 @@ async function main() {
     try {
       if (typeof document.getAnimations === "function") {
         for (const a of document.getAnimations()) {
-          try { a.pause(); } catch { /* */ }
+          try {
+            a.pause();
+          } catch {
+            /* */
+          }
         }
       }
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     try {
       const probe = window.setTimeout(() => {}, 0) as unknown as number;
       window.clearTimeout(probe);
       for (let i = 1; i <= probe; i++) {
-        try { window.clearTimeout(i); } catch { /* */ }
-        try { window.clearInterval(i); } catch { /* */ }
+        try {
+          window.clearTimeout(i);
+        } catch {
+          /* */
+        }
+        try {
+          window.clearInterval(i);
+        } catch {
+          /* */
+        }
       }
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     try {
       const noop = (() => 0) as any;
       window.setTimeout = noop;
       window.setInterval = noop;
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
   });
 
   console.log(`canvasH=${canvasH}`);
@@ -111,7 +133,10 @@ async function main() {
   // captureElementTree (matching what real-world.tsx does in entire-page mode).
   const t0 = Date.now();
   const tree = await captureElementTree(page, "body", {
-    x: 0, y: 0, width: 390, height: canvasH,
+    x: 0,
+    y: 0,
+    width: 390,
+    height: canvasH,
   });
   const captureMs = Date.now() - t0;
   console.log(`captureElementTree completed in ${captureMs}ms (${tree.length} roots)`);
@@ -151,7 +176,9 @@ async function main() {
       }
     }
     const pct = total === 0 ? 0 : (diffPx / total) * 100;
-    console.log(`Region ${name} (${x},${y},${w},${h}) total=${total} diff>2chan=${diffPx} (${pct.toFixed(3)}%) maxChan=${maxChan}`);
+    console.log(
+      `Region ${name} (${x},${y},${w},${h}) total=${total} diff>2chan=${diffPx} (${pct.toFixed(3)}%) maxChan=${maxChan}`,
+    );
   };
 
   console.log(`\n=== PER-REGION DIFF (A vs B) ===`);
@@ -176,4 +203,7 @@ async function main() {
   await browser.close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

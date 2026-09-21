@@ -3,11 +3,20 @@ id: "requirements/affine-text-paint-consumption"
 title: "Exact affine text paint consumption"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","paint-effects"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2467","DM-2468","DM-2469","DM-2470","DM-2546","DM-2547","DM-2668"]
-code: ["src/capture/text-line-origin.test.ts","src/render/element-tree-to-svg.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","src/render/text-stroke-synthesis.test.ts","tests/text-affine-render.e2e.test.ts","tools/text-affine-baseline-protocol-oracle.ts"]
-aliases: ["docs/177-affine-text-paint-consumption.md","doc-177"]
+owners: ["text-fonts", "paint-effects"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668"]
+code:
+  [
+    "src/capture/text-line-origin.test.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/text-affine.test.ts",
+    "src/render/text-affine.ts",
+    "src/render/text-stroke-synthesis.test.ts",
+    "tests/text-affine-render.e2e.test.ts",
+    "tools/text-affine-baseline-protocol-oracle.ts",
+  ]
+aliases: ["docs/177-affine-text-paint-consumption.md", "doc-177"]
 ---
 
 # Exact affine text paint consumption

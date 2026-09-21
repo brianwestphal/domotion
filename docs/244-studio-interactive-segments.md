@@ -3,11 +3,23 @@ id: "requirements/studio-interactive-segments"
 title: "Domotion Studio interactive segment compilation"
 kind: "contract"
 status: "current"
-owners: ["studio","capture","animation"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "capture", "animation"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2685"]
-code: ["src/studio/interactive-compile.ts","src/studio/interactive-compile.test.ts","src/studio/interactive-compile.e2e.test.ts","src/studio/compile.ts","src/studio/interactions.ts","src/studio/interaction-observer.ts","src/studio/cursor-choreography.ts","tests/fixtures/studio/interactive-story.project.json","tests/fixtures/studio/interactive-page.html","tests/fixtures/studio/interactive-followup.svg"]
-aliases: ["docs/244-studio-interactive-segments.md","doc-244"]
+code:
+  [
+    "src/studio/interactive-compile.ts",
+    "src/studio/interactive-compile.test.ts",
+    "src/studio/interactive-compile.e2e.test.ts",
+    "src/studio/compile.ts",
+    "src/studio/interactions.ts",
+    "src/studio/interaction-observer.ts",
+    "src/studio/cursor-choreography.ts",
+    "tests/fixtures/studio/interactive-story.project.json",
+    "tests/fixtures/studio/interactive-page.html",
+    "tests/fixtures/studio/interactive-followup.svg",
+  ]
+aliases: ["docs/244-studio-interactive-segments.md", "doc-244"]
 ---
 
 # Domotion Studio interactive segment compilation

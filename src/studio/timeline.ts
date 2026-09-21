@@ -1,18 +1,19 @@
 import { z } from "zod";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
-import type {
-  StudioLayer,
-  StudioProject,
-  StudioReviewAuthor,
-  StudioScene,
-} from "./project-schema.js";
+import type { StudioLayer, StudioProject, StudioReviewAuthor, StudioScene } from "./project-schema.js";
 
 export const STUDIO_TIMELINE_KINDS = [
-  "scene", "semantic-action", "cursor", "overlay", "transition",
-  "treatment", "annotation", "animation",
+  "scene",
+  "semantic-action",
+  "cursor",
+  "overlay",
+  "transition",
+  "treatment",
+  "annotation",
+  "animation",
 ] as const;
 
-export type StudioTimelineKind = typeof STUDIO_TIMELINE_KINDS[number];
+export type StudioTimelineKind = (typeof STUDIO_TIMELINE_KINDS)[number];
 
 export interface StudioTimelineItem {
   id: string;
@@ -44,14 +45,16 @@ export interface StudioTimeline {
   items: StudioTimelineItem[];
 }
 
-export const studioTimelineTimingChangeSchema = z.strictObject({
-  itemId: z.string().trim().min(1),
-  startMs: z.number().nonnegative(),
-  endMs: z.number().nonnegative(),
-}).refine((change) => change.endMs >= change.startMs, {
-  path: ["endMs"],
-  message: "end must not be before start",
-});
+export const studioTimelineTimingChangeSchema = z
+  .strictObject({
+    itemId: z.string().trim().min(1),
+    startMs: z.number().nonnegative(),
+    endMs: z.number().nonnegative(),
+  })
+  .refine((change) => change.endMs >= change.startMs, {
+    path: ["endMs"],
+    message: "end must not be before start",
+  });
 
 /** Deliberately small: both Studio UI gestures and AI tools submit exact timing overrides. */
 export const studioTimelineCommandSchema = z.strictObject({
@@ -92,11 +95,13 @@ function scenePresentation(scene: StudioScene): ScenePresentation {
 
 export function studioSceneDurationMs(scene: StudioScene): number {
   return scene.render.kind === "composition"
-    ? scene.render.duration ?? scene.render.composition.duration ?? 1000
-    : scene.render.recipe.duration ?? 1000;
+    ? (scene.render.duration ?? scene.render.composition.duration ?? 1000)
+    : (scene.render.recipe.duration ?? 1000);
 }
 
-function windows(project: StudioProject): Array<{ scene: StudioScene; index: number; startMs: number; holdEndMs: number; endMs: number }> {
+function windows(
+  project: StudioProject,
+): Array<{ scene: StudioScene; index: number; startMs: number; holdEndMs: number; endMs: number }> {
   let startMs = 0;
   return project.scenes.map((scene, index) => {
     const duration = studioSceneDurationMs(scene);
@@ -108,7 +113,12 @@ function windows(project: StudioProject): Array<{ scene: StudioScene; index: num
   });
 }
 
-function row(rows: Map<string, StudioTimelineRow>, id: string, kind: StudioTimelineKind, label: string): StudioTimelineRow {
+function row(
+  rows: Map<string, StudioTimelineRow>,
+  id: string,
+  kind: StudioTimelineKind,
+  label: string,
+): StudioTimelineRow {
   let value = rows.get(id);
   if (value == null) {
     value = { id, kind, label, items: [] };
@@ -117,7 +127,13 @@ function row(rows: Map<string, StudioTimelineRow>, id: string, kind: StudioTimel
   return value;
 }
 
-function add(rows: Map<string, StudioTimelineRow>, rowId: string, kind: StudioTimelineKind, rowLabel: string, item: Omit<StudioTimelineItem, "rowId" | "kind">): void {
+function add(
+  rows: Map<string, StudioTimelineRow>,
+  rowId: string,
+  kind: StudioTimelineKind,
+  rowLabel: string,
+  item: Omit<StudioTimelineItem, "rowId" | "kind">,
+): void {
   row(rows, rowId, kind, rowLabel).items.push({ ...item, rowId, kind });
 }
 
@@ -165,23 +181,36 @@ export function buildStudioTimeline(rawProject: StudioProject): StudioTimeline {
 
   sceneWindows.forEach(({ scene, index, startMs, holdEndMs, endMs }) => {
     add(rows, "scene", "scene", "Scenes", {
-      id: `scene:${scene.id}`, label: scene.title ?? `Scene ${index + 1}`,
-      startMs, endMs: holdEndMs, sceneId: scene.id, movable: false, resizable: true,
+      id: `scene:${scene.id}`,
+      label: scene.title ?? `Scene ${index + 1}`,
+      startMs,
+      endMs: holdEndMs,
+      sceneId: scene.id,
+      movable: false,
+      resizable: true,
     });
-    (scene.tracks ?? []).forEach((track) => track.events.forEach((event) => {
-      const eventStart = startMs + event.atMs;
-      add(rows, `semantic:${scene.id}:${track.id}`, "semantic-action", track.name ?? `Actions · ${scene.title ?? scene.id}`, {
-        id: `semantic:${scene.id}:${track.id}:${event.id}`,
-        label: event.kind,
-        startMs: eventStart,
-        endMs: eventStart + (event.durationMs ?? 1),
-        sceneId: scene.id,
-        trackId: track.id,
-        eventId: event.id,
-        movable: true,
-        resizable: true,
-      });
-    }));
+    (scene.tracks ?? []).forEach((track) =>
+      track.events.forEach((event) => {
+        const eventStart = startMs + event.atMs;
+        add(
+          rows,
+          `semantic:${scene.id}:${track.id}`,
+          "semantic-action",
+          track.name ?? `Actions · ${scene.title ?? scene.id}`,
+          {
+            id: `semantic:${scene.id}:${track.id}:${event.id}`,
+            label: event.kind,
+            startMs: eventStart,
+            endMs: eventStart + (event.durationMs ?? 1),
+            sceneId: scene.id,
+            trackId: track.id,
+            eventId: event.id,
+            movable: true,
+            resizable: true,
+          },
+        );
+      }),
+    );
     (scenePresentation(scene).overlays ?? []).forEach((overlay, overlayIndex) => {
       const overlayStart = startMs + (overlay.delay ?? 0);
       add(rows, `overlay:${scene.id}`, "overlay", `Overlays · ${scene.title ?? scene.id}`, {
@@ -236,13 +265,20 @@ export function buildStudioTimeline(rawProject: StudioProject): StudioTimeline {
   });
 
   project.review.annotations.forEach((annotation) => {
-    const time = annotation.target?.time ?? (annotation.target?.atMs == null ? undefined : {
-      pointMs: annotation.target.atMs,
-      ...(annotation.target.endMs == null ? {} : { range: { startMs: annotation.target.atMs, endMs: annotation.target.endMs } }),
-    });
+    const time =
+      annotation.target?.time ??
+      (annotation.target?.atMs == null
+        ? undefined
+        : {
+            pointMs: annotation.target.atMs,
+            ...(annotation.target.endMs == null
+              ? {}
+              : { range: { startMs: annotation.target.atMs, endMs: annotation.target.endMs } }),
+          });
     if (time == null) return;
-    const sceneId = annotation.target?.scope?.kind === "scene" ? annotation.target.scope.sceneId : annotation.target?.sceneId;
-    const sceneStart = sceneId == null ? 0 : sceneWindows.find((entry) => entry.scene.id === sceneId)?.startMs ?? 0;
+    const sceneId =
+      annotation.target?.scope?.kind === "scene" ? annotation.target.scope.sceneId : annotation.target?.sceneId;
+    const sceneStart = sceneId == null ? 0 : (sceneWindows.find((entry) => entry.scene.id === sceneId)?.startMs ?? 0);
     const localStart = time.range?.startMs ?? time.pointMs ?? 0;
     const localEnd = time.range?.endMs ?? time.pointMs ?? localStart;
     add(rows, "annotation", "annotation", "Annotations", {
@@ -273,9 +309,14 @@ function splitId(id: string, expected: StudioTimelineKind): string[] {
   return parts.slice(1);
 }
 
-function requireDuration(change: z.infer<typeof studioTimelineTimingChangeSchema>, kind: StudioTimelineKind, allowZero = false): number {
+function requireDuration(
+  change: z.infer<typeof studioTimelineTimingChangeSchema>,
+  kind: StudioTimelineKind,
+  allowZero = false,
+): number {
   const duration = change.endMs - change.startMs;
-  if (duration < 0 || (!allowZero && duration === 0)) throw new StudioTimelineError(`${kind} timing requires a ${allowZero ? "non-negative" : "positive"} duration`);
+  if (duration < 0 || (!allowZero && duration === 0))
+    throw new StudioTimelineError(`${kind} timing requires a ${allowZero ? "non-negative" : "positive"} duration`);
   return duration;
 }
 
@@ -286,7 +327,8 @@ function sourceLayerAt(layers: StudioLayer[], indices: readonly number[]): Extra
     layer = current[index];
     if (layer == null) throw new StudioTimelineError("animation layer no longer exists");
     if (depth < indices.length - 1) {
-      if (layer.kind !== "composition") throw new StudioTimelineError("animation layer path is no longer a composition");
+      if (layer.kind !== "composition")
+        throw new StudioTimelineError("animation layer path is no longer a composition");
       current = layer.composition.layers;
     }
   });
@@ -324,20 +366,25 @@ type TimelineExecutor = (context: TimelineExecutionContext) => void;
 
 const timelineExecutors: Record<StudioTimelineKind, TimelineExecutor> = {
   scene: ({ before, change, scene }) => {
-    if (change.startMs !== before.startMs) throw new StudioTimelineError("scene blocks cannot move; reorder scenes in the storyboard editor");
+    if (change.startMs !== before.startMs)
+      throw new StudioTimelineError("scene blocks cannot move; reorder scenes in the storyboard editor");
     setSceneDuration(scene!, requireDuration(change, before.kind));
   },
   transition: ({ before, change, scene }) => {
-    if (change.startMs !== before.startMs) throw new StudioTimelineError("transition blocks cannot move; resize their duration");
+    if (change.startMs !== before.startMs)
+      throw new StudioTimelineError("transition blocks cannot move; resize their duration");
     setSceneTransition(scene!, requireDuration(change, before.kind, true));
   },
   "semantic-action": ({ before, change, scene, sceneStart }) => {
     const [, trackId, eventId] = splitId(before.id, before.kind);
-    const event = scene?.tracks?.find((track) => track.id === trackId)?.events.find((candidate) => candidate.id === eventId);
+    const event = scene?.tracks
+      ?.find((track) => track.id === trackId)
+      ?.events.find((candidate) => candidate.id === eventId);
     if (event == null) throw new StudioTimelineError(`semantic action no longer exists: ${before.id}`);
     event.atMs = change.startMs - sceneStart;
     const duration = requireDuration(change, before.kind);
-    event.durationMs = duration === 1 && before.endMs - before.startMs === 1 && event.durationMs == null ? undefined : duration;
+    event.durationMs =
+      duration === 1 && before.endMs - before.startMs === 1 && event.durationMs == null ? undefined : duration;
   },
   cursor: ({ project, before, change, scene, sceneStart }) => {
     const [indexText] = splitId(before.id, before.kind);
@@ -346,7 +393,8 @@ const timelineExecutors: Record<StudioTimelineKind, TimelineExecutor> = {
     event.frame = project.scenes.findIndex((candidate) => candidate.id === scene.id);
     event.at = change.startMs - sceneStart;
     const duration = requireDuration(change, before.kind);
-    event.duration = duration === 1 && before.endMs - before.startMs === 1 && event.duration == null ? undefined : duration;
+    event.duration =
+      duration === 1 && before.endMs - before.startMs === 1 && event.duration == null ? undefined : duration;
   },
   overlay: ({ before, change, scene, sceneStart }) => {
     const [, indexText] = splitId(before.id, before.kind);
@@ -359,7 +407,8 @@ const timelineExecutors: Record<StudioTimelineKind, TimelineExecutor> = {
   treatment: ({ before, change, scene, sceneStart }) => {
     const [, indexText] = splitId(before.id, before.kind);
     const treatment = scene?.treatments?.[Number(indexText)];
-    if (treatment == null || !("timing" in treatment)) throw new StudioTimelineError(`timed treatment no longer exists: ${before.id}`);
+    if (treatment == null || !("timing" in treatment))
+      throw new StudioTimelineError(`timed treatment no longer exists: ${before.id}`);
     const previous = treatment.timing;
     treatment.timing = {
       startMs: change.startMs - sceneStart,
@@ -383,18 +432,26 @@ const timelineExecutors: Record<StudioTimelineKind, TimelineExecutor> = {
     const parts = splitId(before.id, before.kind);
     const animationIndex = Number(parts.at(-1));
     const indices = parts.slice(1, -1).join(":").split(".").map(Number);
-    const layer = sourceLayerAt((scene?.render.kind === "composition" ? scene.render.composition.layers : []), indices);
+    const layer = sourceLayerAt(scene?.render.kind === "composition" ? scene.render.composition.layers : [], indices);
     const animation = layer.source.animations?.[animationIndex];
     if (animation == null) throw new StudioTimelineError(`animation no longer exists: ${before.id}`);
-    if (change.startMs < sceneStart + (layer.source.start ?? 0)) throw new StudioTimelineError("animation timing cannot move before its layer starts");
+    if (change.startMs < sceneStart + (layer.source.start ?? 0))
+      throw new StudioTimelineError("animation timing cannot move before its layer starts");
     animation.start = change.startMs - sceneStart - (layer.source.start ?? 0);
     animation.duration = requireDuration(change, before.kind);
   },
 };
 
-function applyOne(project: StudioProject, before: StudioTimelineItem, change: TimelineTimingChange, revisionId: string, now: string): void {
-  const scene = before.sceneId == null ? undefined : project.scenes.find((candidate) => candidate.id === before.sceneId);
-  const sceneStart = scene == null ? 0 : windows(project).find((entry) => entry.scene.id === scene.id)?.startMs ?? 0;
+function applyOne(
+  project: StudioProject,
+  before: StudioTimelineItem,
+  change: TimelineTimingChange,
+  revisionId: string,
+  now: string,
+): void {
+  const scene =
+    before.sceneId == null ? undefined : project.scenes.find((candidate) => candidate.id === before.sceneId);
+  const sceneStart = scene == null ? 0 : (windows(project).find((entry) => entry.scene.id === scene.id)?.startMs ?? 0);
   if (scene != null && before.kind !== "scene" && before.kind !== "transition" && change.startMs < sceneStart) {
     throw new StudioTimelineError(`${before.kind} timing cannot move before its scene`);
   }
@@ -410,7 +467,9 @@ export function applyStudioTimelineCommand(
   const project = structuredClone(rawProject);
   const command = studioTimelineCommandSchema.parse(rawCommand);
   if (options.expectedHeadRevisionId != null && project.review.headRevisionId !== options.expectedHeadRevisionId) {
-    throw new StudioTimelineError(`stale timeline change: expected review head ${options.expectedHeadRevisionId}, found ${project.review.headRevisionId}`);
+    throw new StudioTimelineError(
+      `stale timeline change: expected review head ${options.expectedHeadRevisionId}, found ${project.review.headRevisionId}`,
+    );
   }
   const timeline = buildStudioTimeline(project);
   const byId = new Map(timeline.items.map((item) => [item.id, item]));
@@ -428,11 +487,13 @@ export function applyStudioTimelineCommand(
   });
   // Later scene starts depend on earlier scene/transition sizes. Descending absolute order
   // keeps each change's pre-command scene origin stable during a multiselect edit.
-  ordered.sort((left, right) => right.item.startMs - left.item.startMs)
+  ordered
+    .sort((left, right) => right.item.startMs - left.item.startMs)
     .forEach(({ change, item }) => applyOne(project, item, change, revisionId, now));
 
   const reviewOnly = ordered.every(({ item }) => item.kind === "annotation");
-  if (project.review.revisions.some((revision) => revision.id === revisionId)) throw new StudioTimelineError(`revision id already exists: ${revisionId}`);
+  if (project.review.revisions.some((revision) => revision.id === revisionId))
+    throw new StudioTimelineError(`revision id already exists: ${revisionId}`);
   project.review.revisions.push({
     id: revisionId,
     parentId: project.review.headRevisionId,
@@ -451,7 +512,11 @@ export function applyStudioTimelineCommand(
         if (event.atMs < 0 || (event.durationMs != null && !(event.durationMs > 0))) {
           throw new StudioTimelineError(`timeline edit made ${event.id} timing invalid`);
         }
-        if (previous != null && (event.atMs < previous.atMs || (previous.durationMs != null && previous.atMs + previous.durationMs > event.atMs))) {
+        if (
+          previous != null &&
+          (event.atMs < previous.atMs ||
+            (previous.durationMs != null && previous.atMs + previous.durationMs > event.atMs))
+        ) {
           throw new StudioTimelineError(`timeline edit makes ${event.id} overlap the previous action in ${track.id}`);
         }
       });
@@ -460,7 +525,12 @@ export function applyStudioTimelineCommand(
   return { project, inverse, revisionId };
 }
 
-export function moveStudioTimelineItems(timeline: StudioTimeline, itemIds: readonly string[], deltaMs: number, snapMs: number): StudioTimelineCommand {
+export function moveStudioTimelineItems(
+  timeline: StudioTimeline,
+  itemIds: readonly string[],
+  deltaMs: number,
+  snapMs: number,
+): StudioTimelineCommand {
   const byId = new Map(timeline.items.map((item) => [item.id, item]));
   const snap = (value: number): number => Math.max(0, Math.round(value / Math.max(1, snapMs)) * Math.max(1, snapMs));
   return {
@@ -475,7 +545,13 @@ export function moveStudioTimelineItems(timeline: StudioTimeline, itemIds: reado
   };
 }
 
-export function resizeStudioTimelineItems(timeline: StudioTimeline, itemIds: readonly string[], edge: "start" | "end", deltaMs: number, snapMs: number): StudioTimelineCommand {
+export function resizeStudioTimelineItems(
+  timeline: StudioTimeline,
+  itemIds: readonly string[],
+  edge: "start" | "end",
+  deltaMs: number,
+  snapMs: number,
+): StudioTimelineCommand {
   const byId = new Map(timeline.items.map((item) => [item.id, item]));
   const snap = (value: number): number => Math.max(0, Math.round(value / Math.max(1, snapMs)) * Math.max(1, snapMs));
   return {

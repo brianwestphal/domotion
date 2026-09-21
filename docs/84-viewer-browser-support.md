@@ -5,16 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
-tickets: ["DM-1507","DM-1511","DM-1512","DM-1514","DM-1517","DM-1529"]
-code: ["src/animation/composite.ts","src/post-processing/clip-transform-safety.ts"]
-aliases: ["docs/84-viewer-browser-support.md","doc-84"]
+tickets: ["DM-1507", "DM-1511", "DM-1512", "DM-1514", "DM-1517", "DM-1529"]
+code: ["src/animation/composite.ts", "src/post-processing/clip-transform-safety.ts"]
+aliases: ["docs/84-viewer-browser-support.md", "doc-84"]
 ---
 
 # 84 — Viewer browser support (where the output SVGs play)
 
 **Status: shipped contract.** This is the support matrix for the browsers that
-*view* Domotion's output — distinct from the capture-platform support (which OS
-Chromium runs on to *produce* the SVG; that's `docs/42` / the CLAUDE.md platform
+_view_ Domotion's output — distinct from the capture-platform support (which OS
+Chromium runs on to _produce_ the SVG; that's `docs/42` / the CLAUDE.md platform
 section). Here we answer: "I embed a Domotion SVG on a page — which browsers
 render its animation faithfully?"
 
@@ -26,11 +26,11 @@ for the frame/timeline animation). It is designed to animate when embedded as a
 plain image, so the animation model is deliberately **script-free** (see
 "Embedding", below).
 
-| Engine | Browsers | Tier | Notes |
-|---|---|---|---|
-| **Blink** | Chrome, **Edge**, Brave, Opera, Vivaldi, Arc, Electron/CEF apps | **First-class** | Reference engine. Pixel-faithful; animation timelines stay in sync under load. |
-| **WebKit** | Safari (macOS), **all iOS/iPadOS browsers** (Chrome/Firefox/Edge on iOS are WebKit by App-Store rule) | **First-class** | Consistent with Blink for our animation model. |
-| **Gecko** | Firefox (desktop, Android) | **Best-effort** | Renders correctly at normal load; **can desync animation under heavy load** — see the OMTA caveat below. Graceful degradation, not a break. |
+| Engine     | Browsers                                                                                              | Tier            | Notes                                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Blink**  | Chrome, **Edge**, Brave, Opera, Vivaldi, Arc, Electron/CEF apps                                       | **First-class** | Reference engine. Pixel-faithful; animation timelines stay in sync under load.                                                              |
+| **WebKit** | Safari (macOS), **all iOS/iPadOS browsers** (Chrome/Firefox/Edge on iOS are WebKit by App-Store rule) | **First-class** | Consistent with Blink for our animation model.                                                                                              |
+| **Gecko**  | Firefox (desktop, Android)                                                                            | **Best-effort** | Renders correctly at normal load; **can desync animation under heavy load** — see the OMTA caveat below. Graceful degradation, not a break. |
 
 "First-class" means we hold it to the fidelity + synchronization contract and
 treat a deviation as a bug. "Best-effort" means we fix cheap/high-value issues
@@ -57,12 +57,12 @@ runtime, zero external assets, and no CSP/script concerns. It is also why
 
 ## Why CSS, not SMIL
 
-Both CSS and SMIL animate inside `<img>`, so the choice is about *robustness*, not
+Both CSS and SMIL animate inside `<img>`, so the choice is about _robustness_, not
 capability:
 
 - **CSS** runs on the one document/CSS timeline, is GPU-composited, and supports
   `prefers-reduced-motion` gating. Everything animates on a single clock.
-- **SMIL** runs on the SVG's *own* timeline, main-thread only (never
+- **SMIL** runs on the SVG's _own_ timeline, main-thread only (never
   GPU-composited), has no media-query gating for reduced motion, and its
   development is frozen across engines.
 
@@ -72,7 +72,7 @@ timelines independently when the SVG was offscreen and they drifted apart
 (DM-1507). The fix unified everything on CSS. A wholesale move to SMIL would also
 be internally consistent, but it would trade the compositor (essential for
 "several heavy demos lazy-loaded on one page") for guaranteed main-thread repaint
-cost on *every* engine — the wrong trade for our scale target. So: **all CSS, one
+cost on _every_ engine — the wrong trade for our scale target. So: **all CSS, one
 timeline, never mixed.** See `docs/08-animation-model.md`.
 
 ## The Firefox / OMTA caveat (why Gecko is best-effort)
@@ -81,7 +81,7 @@ Firefox runs `opacity` and `transform` animations **off the main thread** (OMTA,
 on the compositor). Under heavy load — many animated SVGs on a page, or many
 tabs — Firefox exceeds its compositor-animation budget and **demotes some
 animations to the main thread**. When two animations that must stay visually
-synchronized end up on *different* clocks (one still on the compositor, one
+synchronized end up on _different_ clocks (one still on the compositor, one
 demoted to the main thread), they drift apart. The visible symptom is a unit's
 paired tracks separating — e.g. a character's fade running ahead of its
 slide/scale in the kinetic-text templates ("two separate steps"), or a card
@@ -96,13 +96,13 @@ fading before it finishes sliding in the lower-third template.
 - **Generator mitigation.** Domotion fuses a visual unit's tracks (opacity +
   transform + …) into a **single** CSS animation via the animation entry's
   `fuse` list (DM-1512/1513). A single animation is one timeline — its properties
-  are always sampled at the same instant regardless of thread — so a *unit's own*
+  are always sampled at the same instant regardless of thread — so a _unit's own_
   fade and move cannot desync, on any engine. Tracks may share the primary's
   timing (emitted as from/to stops) or carry their own `duration`/`delay`/
   `easing`, in which case the animator bakes each track's eased curve into
   sampled `linear`-timed stops (DM-1517) so independent-timing tracks stay one
-  animation too. What remains beyond our control is frame-perfect sync *between
-  separate elements* under extreme Firefox load, which is why Gecko stays
+  animation too. What remains beyond our control is frame-perfect sync _between
+  separate elements_ under extreme Firefox load, which is why Gecko stays
   best-effort rather than first-class.
 
 ### Other handled Firefox quirks

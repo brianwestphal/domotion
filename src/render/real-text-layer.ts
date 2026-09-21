@@ -55,7 +55,13 @@ function sourceText(segment: TextSegment): string {
   const mapping = segment.sourceMapping;
   if (mapping != null) {
     const [start, end] = mapping.domUtf16Span;
-    if (Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end >= start && end <= mapping.domText.length) {
+    if (
+      Number.isInteger(start) &&
+      Number.isInteger(end) &&
+      start >= 0 &&
+      end >= start &&
+      end <= mapping.domText.length
+    ) {
       return mapping.domText.slice(start, end);
     }
   }
@@ -123,8 +129,8 @@ function collectRuns(roots: readonly CapturedElement[]): RealTextRun[] {
     const prepared = prepareAffineTextPaint(original, IDENTITY_TEXT_AFFINE);
     const el = prepared.failureReason == null ? prepared.element : original;
     const transform = prepared.failureReason == null ? prepared.residualMatrix : undefined;
-    const segments = el.textSegments?.filter((segment) =>
-      segment.text !== "" && segment.generatedLineClampEllipsis !== true) ?? [];
+    const segments =
+      el.textSegments?.filter((segment) => segment.text !== "" && segment.generatedLineClampEllipsis !== true) ?? [];
     if (segments.length > 0) {
       for (const segment of segments) runs.push({ element: el, segment, transform, sequence: sequence++ });
     } else {
@@ -139,16 +145,18 @@ function collectRuns(roots: readonly CapturedElement[]): RealTextRun[] {
   // element tree alone cannot express. Sort only the authored slots so
   // generated/input runs retain stable capture positions and the comparator
   // cannot become non-transitive across mapped and unmapped runs.
-  const authored = runs.filter((run) => run.segment.sourceMapping != null).sort((left, right) => {
-    const a = left.segment.sourceMapping?.sourceTextNodeIndex;
-    const b = right.segment.sourceMapping?.sourceTextNodeIndex;
-    if (a !== b) return a! - b!;
-    const span = left.segment.sourceMapping!.domUtf16Span[0] - right.segment.sourceMapping!.domUtf16Span[0];
-    if (span !== 0) return span;
-    return left.sequence - right.sequence;
-  });
+  const authored = runs
+    .filter((run) => run.segment.sourceMapping != null)
+    .sort((left, right) => {
+      const a = left.segment.sourceMapping?.sourceTextNodeIndex;
+      const b = right.segment.sourceMapping?.sourceTextNodeIndex;
+      if (a !== b) return a! - b!;
+      const span = left.segment.sourceMapping!.domUtf16Span[0] - right.segment.sourceMapping!.domUtf16Span[0];
+      if (span !== 0) return span;
+      return left.sequence - right.sequence;
+    });
   let authoredIndex = 0;
-  return runs.map((run) => run.segment.sourceMapping == null ? run : authored[authoredIndex++]!);
+  return runs.map((run) => (run.segment.sourceMapping == null ? run : authored[authoredIndex++]!));
 }
 
 function runMarkup(run: RealTextRun, index: number): string {
@@ -160,20 +168,22 @@ function runMarkup(run: RealTextRun, index: number): string {
   const fontSize = segment.fontSize ?? (Number.isFinite(parsedFontSize) ? parsedFontSize : 14);
   const ascent = segment.fontAscent ?? el.fontAscent ?? fontSize * 0.8;
   const direction = el.styles.direction === "rtl" ? ` direction="rtl"` : "";
-  const transform = run.transform != null && !textAffineEquals(run.transform, IDENTITY_TEXT_AFFINE)
-    ? ` transform="${serializeTextPaintMatrix(run.transform)}"`
-    : "";
+  const transform =
+    run.transform != null && !textAffineEquals(run.transform, IDENTITY_TEXT_AFFINE)
+      ? ` transform="${serializeTextPaintMatrix(run.transform)}"`
+      : "";
   const length = vertical ? segment.height : segment.width;
-  const lengthAttrs = Number.isFinite(length) && length > 0
-    // Native SVGTextContentElement owns textLength/lengthAdjust; see Blink's
-    // `core/svg/svg_text_content_element.h:68-73`. This affects only selection
-    // geometry because both paint channels are disabled on the parent layer.
-    ? ` textLength="${position(length)}" lengthAdjust="spacingAndGlyphs"`
-    : "";
+  const lengthAttrs =
+    Number.isFinite(length) && length > 0
+      ? // Native SVGTextContentElement owns textLength/lengthAdjust; see Blink's
+        // `core/svg/svg_text_content_element.h:68-73`. This affects only selection
+        // geometry because both paint channels are disabled on the parent layer.
+        ` textLength="${position(length)}" lengthAdjust="spacingAndGlyphs"`
+      : "";
   if (vertical) {
     const positions = authoredPositions(segment, segment.yOffsets);
     const y = positions?.length ? positions.map(position).join(" ") : position(segment.y);
-    const x = position(segment.baseline ?? (segment.x + ascent));
+    const x = position(segment.baseline ?? segment.x + ascent);
     return `<text data-domotion-real-text-run="${index}" x="${x}" y="${y}" font-size="${r(fontSize)}" writing-mode="${esc(segment.verticalWritingMode!)}"${direction}${lengthAttrs}${transform}>${esc(text)}</text>`;
   }
   const positions = authoredPositions(segment, segment.xOffsets);

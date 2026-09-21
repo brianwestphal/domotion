@@ -78,30 +78,50 @@ describeBrowser("cross-region per-state overlay anchors (DM-1799)", () => {
     // preview's position IN THAT STATE: state 1 → preview still 0, state 3 →
     // preview at 1 (state 2 advanced it).
     const anchoredOverlay = {
-      kind: "blink", width: 12, height: 12, color: "#39d353", periodMs: 100_000,
+      kind: "blink",
+      width: 12,
+      height: 12,
+      color: "#39d353",
+      periodMs: 100_000,
       anchor: { selector: "#mk", at: "top-left" },
     };
     const cfg = validateAnimateConfig({
-      width: W, height: H,
-      frames: [{
-        input: "./panes.html",
-        duration: 1500,
-        transition: cut,
-        regions: { editor: "#ed", preview: "#pv" },
-        states: [
-          { duration: 300 },
-          { advances: ["editor"], actions: [{ type: "evaluate", script: "setEditor(1)" }], duration: 300, overlays: [anchoredOverlay] },
-          { advances: ["preview"], actions: [{ type: "evaluate", script: "setPreview(1)" }], duration: 300 },
-          { advances: ["editor"], actions: [{ type: "evaluate", script: "setEditor(2)" }], duration: 300, overlays: [anchoredOverlay] },
-          { advances: ["preview"], actions: [{ type: "evaluate", script: "setPreview(2)" }], duration: 300 },
-        ],
-      }],
+      width: W,
+      height: H,
+      frames: [
+        {
+          input: "./panes.html",
+          duration: 1500,
+          transition: cut,
+          regions: { editor: "#ed", preview: "#pv" },
+          states: [
+            { duration: 300 },
+            {
+              advances: ["editor"],
+              actions: [{ type: "evaluate", script: "setEditor(1)" }],
+              duration: 300,
+              overlays: [anchoredOverlay],
+            },
+            { advances: ["preview"], actions: [{ type: "evaluate", script: "setPreview(1)" }], duration: 300 },
+            {
+              advances: ["editor"],
+              actions: [{ type: "evaluate", script: "setEditor(2)" }],
+              duration: 300,
+              overlays: [anchoredOverlay],
+            },
+            { advances: ["preview"], actions: [{ type: "evaluate", script: "setPreview(2)" }], duration: 300 },
+          ],
+        },
+      ],
     });
 
     const logs: string[] = [];
     const config = await composeAnimateFrames(browser, cfg, { configDir: dir, log: (m) => logs.push(m) });
     // Per-region timing really engaged (fewer capture rounds than states).
-    expect(logs.some((l) => /per-region timing/.test(l)), logs.join("\n")).toBe(true);
+    expect(
+      logs.some((l) => /per-region timing/.test(l)),
+      logs.join("\n"),
+    ).toBe(true);
 
     const overlays = config.frames[0].overlays ?? [];
     expect(overlays, "expected one overlay per editor state").toHaveLength(2);

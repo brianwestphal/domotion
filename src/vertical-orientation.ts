@@ -76,9 +76,8 @@ export function blinkVerticalOrientationRuns(
   let runStart = 0;
   for (let offset = 0; offset < text.length;) {
     const { cp, length } = blinkCodePointAt(text, offset);
-    const next = current == null || !isBlinkGraphemeExtend(cp)
-      ? (isMixedVerticalUpright(cp) ? "upright" : "rotated")
-      : current;
+    const next =
+      current == null || !isBlinkGraphemeExtend(cp) ? (isMixedVerticalUpright(cp) ? "upright" : "rotated") : current;
     if (current != null && next !== current) {
       runs.push({ start: runStart, end: offset, orientation: current });
       runStart = offset;
@@ -103,10 +102,7 @@ export function resolveVerticalOrientations(
 }
 
 /** Compatibility helper for owners that classify a one-scalar record. */
-export function resolveCharOrientation(
-  text: string,
-  textOrientation: string | undefined,
-): VerticalGlyphOrientation {
+export function resolveCharOrientation(text: string, textOrientation: string | undefined): VerticalGlyphOrientation {
   return resolveVerticalOrientations(text, textOrientation)[0] ?? "rotated";
 }
 
@@ -115,10 +111,6 @@ export function resolveCharOrientation(
  * vertical typographic modes. `sideways-*` are horizontal typographic modes,
  * so an authored `all` declaration remains ordinary sideways text there.
  */
-export function blinkUsesTextCombine(
-  writingMode: string | undefined,
-  textCombine: string | undefined,
-): boolean {
-  return textCombine === "all"
-    && (writingMode === "vertical-rl" || writingMode === "vertical-lr");
+export function blinkUsesTextCombine(writingMode: string | undefined, textCombine: string | undefined): boolean {
+  return textCombine === "all" && (writingMode === "vertical-rl" || writingMode === "vertical-lr");
 }

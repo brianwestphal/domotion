@@ -104,12 +104,8 @@ function divideRaw(value: RawLayoutUnit, divisor: number): RawLayoutUnit {
   return Math.trunc(value / divisor);
 }
 
-function mulDivRaw(
-  value: RawLayoutUnit,
-  multiplier: RawLayoutUnit,
-  divisor: RawLayoutUnit,
-): RawLayoutUnit {
-  return divisor === 0 ? 0 : Math.trunc(value * multiplier / divisor);
+function mulDivRaw(value: RawLayoutUnit, multiplier: RawLayoutUnit, divisor: RawLayoutUnit): RawLayoutUnit {
+  return divisor === 0 ? 0 : Math.trunc((value * multiplier) / divisor);
 }
 
 function snapRect(rect: RawRect): RawRect {
@@ -199,7 +195,7 @@ export function parseBackgroundLength(value: string): LengthPercentage | null {
 
 function resolveLength(value: LengthPercentage, basis: RawLayoutUnit): RawLayoutUnit {
   // MinimumValueForLength converts the final float result to LayoutUnit once.
-  return toRawLayoutUnit(cssPx(basis) * value.percent / 100 + value.px);
+  return toRawLayoutUnit((cssPx(basis) * value.percent) / 100 + value.px);
 }
 
 function parseRepeat(value: string): { x: AxisRepeat; y: AxisRepeat } | null {
@@ -289,11 +285,7 @@ function parsePosition(value: string): { x: AxisPosition; y: AxisPosition } | nu
   return null;
 }
 
-function resolvePosition(
-  position: AxisPosition,
-  available: RawLayoutUnit,
-  offset: RawLayoutUnit,
-): RawLayoutUnit {
+function resolvePosition(position: AxisPosition, available: RawLayoutUnit, offset: RawLayoutUnit): RawLayoutUnit {
   const edgeRelative = resolveLength(position.value, available);
   const absolute = position.origin === "end" ? available - edgeRelative : edgeRelative;
   return absolute - offset;
@@ -343,8 +335,7 @@ function resolveTileSize(
   snappedWidth: RawLayoutUnit,
   snappedHeight: RawLayoutUnit,
 ): { width: RawLayoutUnit; height: RawLayoutUnit; autoX: boolean; autoY: boolean } | null {
-  const intrinsic = natural.known
-    && (natural.hasWidth || natural.hasHeight || ratioRaw(natural) != null);
+  const intrinsic = natural.known && (natural.hasWidth || natural.hasHeight || ratioRaw(natural) != null);
   const basisWidth = intrinsic ? unsnappedWidth : snappedWidth;
   const basisHeight = intrinsic ? unsnappedHeight : snappedHeight;
   const keyword = sizeCss.trim().toLowerCase();
@@ -409,7 +400,7 @@ function computeTilePhase(position: RawLayoutUnit, extent: RawLayoutUnit): RawLa
 
 function computedPhase(phase: RawLayoutUnit, step: RawLayoutUnit): RawLayoutUnit {
   if (step === 0) return 0;
-  const value = (-phase) % step;
+  const value = -phase % step;
   return value === 0 ? 0 : value;
 }
 
@@ -474,7 +465,7 @@ export function resolveBlinkBackgroundImageGeometry(
   const snappedAvailableHeight = snappedPositioning.height - tileHeight;
 
   if (repeatX === "round" && snappedPositioning.width > 0 && tileWidth > 0) {
-    const ratioValue = Math.trunc(LAYOUT_UNIT_SCALE * snappedPositioning.width / tileWidth);
+    const ratioValue = Math.trunc((LAYOUT_UNIT_SCALE * snappedPositioning.width) / tileWidth);
     const count = Math.max(1, roundRaw(ratioValue));
     const roundedWidth = divideRaw(snappedPositioning.width, count);
     if (tile.autoY && repeatY !== "round" && tileWidth > 0) {
@@ -489,7 +480,7 @@ export function resolveBlinkBackgroundImageGeometry(
   }
 
   if (repeatY === "round" && snappedPositioning.height > 0 && tileHeight > 0) {
-    const ratioValue = Math.trunc(LAYOUT_UNIT_SCALE * snappedPositioning.height / tileHeight);
+    const ratioValue = Math.trunc((LAYOUT_UNIT_SCALE * snappedPositioning.height) / tileHeight);
     const count = Math.max(1, roundRaw(ratioValue));
     const roundedHeight = divideRaw(snappedPositioning.height, count);
     if (tile.autoX && repeatX !== "round" && tileHeight > 0) {
@@ -517,10 +508,8 @@ export function resolveBlinkBackgroundImageGeometry(
     }
   }
   if (repeatX === "no-repeat") {
-    const xOffset = unsnappedBoxOffset.x
-      + resolvePosition(position.x, unsnappedAvailableWidth, offsetX);
-    const snappedXOffset = snappedBoxOffset.x
-      + resolvePosition(position.x, snappedAvailableWidth, offsetX);
+    const xOffset = unsnappedBoxOffset.x + resolvePosition(position.x, unsnappedAvailableWidth, offsetX);
+    const snappedXOffset = snappedBoxOffset.x + resolvePosition(position.x, snappedAvailableWidth, offsetX);
     if (xOffset > 0) {
       unsnappedDestination.x += xOffset;
       snappedDestination.x = roundRaw(unsnappedDestination.x) * LAYOUT_UNIT_SCALE;
@@ -549,10 +538,8 @@ export function resolveBlinkBackgroundImageGeometry(
     }
   }
   if (repeatY === "no-repeat") {
-    const yOffset = unsnappedBoxOffset.y
-      + resolvePosition(position.y, unsnappedAvailableHeight, offsetY);
-    const snappedYOffset = snappedBoxOffset.y
-      + resolvePosition(position.y, snappedAvailableHeight, offsetY);
+    const yOffset = unsnappedBoxOffset.y + resolvePosition(position.y, unsnappedAvailableHeight, offsetY);
+    const snappedYOffset = snappedBoxOffset.y + resolvePosition(position.y, snappedAvailableHeight, offsetY);
     if (yOffset > 0) {
       unsnappedDestination.y += yOffset;
       snappedDestination.y = roundRaw(unsnappedDestination.y) * LAYOUT_UNIT_SCALE;
@@ -612,7 +599,7 @@ export function capturedBackgroundNaturalSizing(
 
 /** Blink FillLayer repeats shorter longhand lists from their first entry. */
 export function cyclicBackgroundLayer<T>(layers: readonly T[], index: number, fallback: T): T {
-  return layers.length === 0 ? fallback : layers[index % layers.length] ?? fallback;
+  return layers.length === 0 ? fallback : (layers[index % layers.length] ?? fallback);
 }
 
 /** Compute the tile geometry and emit the exact vector pattern. */
@@ -645,8 +632,13 @@ export function buildImagePatternDef(
     repeat: repeatCss,
     natural: capturedBackgroundNaturalSizing(selectedImage, intrinsic),
   });
-  if (geometry == null || geometry.tileSize.width <= 0 || geometry.tileSize.height <= 0
-      || geometry.snappedDestination.width <= 0 || geometry.snappedDestination.height <= 0) {
+  if (
+    geometry == null ||
+    geometry.tileSize.width <= 0 ||
+    geometry.tileSize.height <= 0 ||
+    geometry.snappedDestination.width <= 0 ||
+    geometry.snappedDestination.height <= 0
+  ) {
     return "";
   }
 
@@ -657,16 +649,14 @@ export function buildImagePatternDef(
   const patternWidth = noRepeatX ? paint.width : geometry.tileSize.width + geometry.spacing.width;
   const patternHeight = noRepeatY ? paint.height : geometry.tileSize.height + geometry.spacing.height;
   if (patternWidth <= 0 || patternHeight <= 0) return "";
-  const imageX = noRepeatX
-    ? geometry.snappedDestination.x + geometry.phase.x - patternX
-    : 0;
-  const imageY = noRepeatY
-    ? geometry.snappedDestination.y + geometry.phase.y - patternY
-    : 0;
+  const imageX = noRepeatX ? geometry.snappedDestination.x + geometry.phase.x - patternX : 0;
+  const imageY = noRepeatY ? geometry.snappedDestination.y + geometry.phase.y - patternY : 0;
   const embeddedHref = embedResizedDataUri(href, geometry.tileSize.width, geometry.tileSize.height);
   const embeddedKind = /^data:image\/svg\+xml(?:[;,])/i.test(embeddedHref)
     ? "svg"
-    : /^data:image\//i.test(embeddedHref) ? "bitmap" : null;
+    : /^data:image\//i.test(embeddedHref)
+      ? "bitmap"
+      : null;
   const imageKind = embeddedKind ?? selectedImage?.decodedImageKind ?? "unknown";
   if (imageKind === "unknown" && selectedImage != null) return "";
   // Blink asks SVGImageForContainer to map the external SVG viewport into the

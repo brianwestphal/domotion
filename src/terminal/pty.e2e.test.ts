@@ -29,30 +29,35 @@ const available = await ptyAvailable();
 
 describe.skipIf(!available)("recordPtySession real pty spawn (DM-1227)", () => {
   it("captures a real child's output and reports its exit code", async () => {
-    const r = await recordPtySession(
-      ["bash", "-c", "echo hello-from-pty"],
-      { cols: 80, rows: 24, echo: null, input: null },
-    );
+    const r = await recordPtySession(["bash", "-c", "echo hello-from-pty"], {
+      cols: 80,
+      rows: 24,
+      echo: null,
+      input: null,
+    });
     expect(r.exitCode).toBe(0);
     expect([r.cols, r.rows]).toEqual([80, 24]);
-    const text = r.cast.split("\n").filter(Boolean).slice(1)
-      .map((l) => JSON.parse(l)[2]).join("");
+    const text = r.cast
+      .split("\n")
+      .filter(Boolean)
+      .slice(1)
+      .map((l) => JSON.parse(l)[2])
+      .join("");
     expect(text).toContain("hello-from-pty");
   });
 
   it("propagates a non-zero exit code from the real child", async () => {
-    const r = await recordPtySession(
-      ["bash", "-c", "exit 7"],
-      { echo: null, input: null },
-    );
+    const r = await recordPtySession(["bash", "-c", "exit 7"], { echo: null, input: null });
     expect(r.exitCode).toBe(7);
   });
 
   it("produces a renderable animated SVG end-to-end from a live capture", async () => {
-    const r = await recordPtySession(
-      ["bash", "-c", "printf 'a\\nb\\nc\\n'"],
-      { cols: 40, rows: 12, echo: null, input: null },
-    );
+    const r = await recordPtySession(["bash", "-c", "printf 'a\\nb\\nc\\n'"], {
+      cols: 40,
+      rows: 12,
+      echo: null,
+      input: null,
+    });
     const browser = await launchChromium();
     try {
       const { svg } = await castToAnimatedSvg(r.cast, browser);

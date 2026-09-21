@@ -9,16 +9,20 @@ describe("DM-2497 Blink/Skia backdrop layer mapping", () => {
       [58.633279, 195.528028, 168.622554, 197.063868, 167.617277, 269.056849, 57.627999, 267.521009],
     );
     expect(mapping).not.toBeNull();
-    expect(mapping!.forward.slice(0, 4)).toEqual(expect.arrayContaining([
-      expect.closeTo(0.9999025, 6),
-      expect.closeTo(0.0139622, 6),
-      expect.closeTo(-0.0139622, 6),
-      expect.closeTo(0.9999025, 6),
-    ]));
-    expect(mapping!.bounds).toEqual(expect.objectContaining({
-      x: expect.closeTo(57.627999, 6),
-      y: expect.closeTo(195.528028, 6),
-    }));
+    expect(mapping!.forward.slice(0, 4)).toEqual(
+      expect.arrayContaining([
+        expect.closeTo(0.9999025, 6),
+        expect.closeTo(0.0139622, 6),
+        expect.closeTo(-0.0139622, 6),
+        expect.closeTo(0.9999025, 6),
+      ]),
+    );
+    expect(mapping!.bounds).toEqual(
+      expect.objectContaining({
+        x: expect.closeTo(57.627999, 6),
+        y: expect.closeTo(195.528028, 6),
+      }),
+    );
   });
 
   it("returns the exact inverse and rejects a singular mapping", () => {

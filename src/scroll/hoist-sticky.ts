@@ -71,7 +71,10 @@ export function extractStickyWindows(segmentTrees: CapturedElement[][]): {
   const strikeSet = new Map<number, Set<string>>(); // segmentIdx → set of paths to remove
   const markStrike = (segIdx: number, path: number[]): void => {
     let s = strikeSet.get(segIdx);
-    if (s == null) { s = new Set(); strikeSet.set(segIdx, s); }
+    if (s == null) {
+      s = new Set();
+      strikeSet.set(segIdx, s);
+    }
     s.add(path.join(","));
   };
 
@@ -83,9 +86,8 @@ export function extractStickyWindows(segmentTrees: CapturedElement[][]): {
     for (let i = 0; i < occurrences.length; i++) {
       const cur = occurrences[i];
       const prev = i > 0 ? occurrences[i - 1] : null;
-      const continuesRun = prev != null
-        && cur.segmentIdx === prev.segmentIdx + 1
-        && Math.abs(cur.node.y - prev.node.y) < STICK_EPSILON;
+      const continuesRun =
+        prev != null && cur.segmentIdx === prev.segmentIdx + 1 && Math.abs(cur.node.y - prev.node.y) < STICK_EPSILON;
       if (continuesRun) {
         if (runStart === -1) runStart = i - 1;
       } else {
@@ -145,7 +147,10 @@ function walkCollect(
     if (node.styles?.position === "sticky") {
       const key = identityKey(node, path);
       let bucket = out.get(key);
-      if (bucket == null) { bucket = []; out.set(key, bucket); }
+      if (bucket == null) {
+        bucket = [];
+        out.set(key, bucket);
+      }
       bucket.push({ key, segmentIdx: segIdx, node, path });
       // Do NOT recurse into a sticky element's descendants — they ride
       // along inside the hoisted subtree. A nested sticky-within-sticky

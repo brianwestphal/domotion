@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
-tickets: ["DM-1103","DM-1108"]
-code: ["src/render/font-resolution.ts","tests/new-york-optical-cut.e2e.test.ts"]
-aliases: ["docs/58-new-york-optical-cuts.md","doc-58"]
+tickets: ["DM-1103", "DM-1108"]
+code: ["src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"]
+aliases: ["docs/58-new-york-optical-cuts.md", "doc-58"]
 ---
 
 # 58 — macOS New York optical-size cuts (DM-1108)
@@ -16,18 +16,18 @@ Status: implemented (macOS-calibrated; gated on the optional New York font packa
 
 ## Summary
 
-macOS ships the **New York** serif (Apple's companion to San Francisco) in optical-size *cuts*: `New York Small`, `New York Medium`, `New York Large`, `New York Extra Large`. Domotion renders an explicitly-named cut from the same face Chrome paints it with.
+macOS ships the **New York** serif (Apple's companion to San Francisco) in optical-size _cuts_: `New York Small`, `New York Medium`, `New York Large`, `New York Extra Large`. Domotion renders an explicitly-named cut from the same face Chrome paints it with.
 
 This is the New York analogue of the SF Pro Text optical-cut work (DM-1103, `docs/03-font-family-chain.md`), but the underlying font packaging is **fundamentally different**, so the fix is different too.
 
 ## Why this is NOT the SF Pro `OPTICAL_CUT_OPSZ` case
 
-| | SF Pro (DM-1103) | New York (DM-1108) |
-|---|---|---|
-| Packaging | **one** variable file `SFNS.ttf` with an `opsz` axis (17–96) | **separate static OTFs** per cut, no `opsz` axis |
-| How CoreText exposes a cut | a named face (`SFProText-Regular`) that is a fixed-opsz *instance* of the one variable font | a distinct installed font file with its own family name (`New York Small`, …) |
-| What fontkit sees | only the variable font's default master (opsz 28) → wrong design unless we pin `opsz` | the dedicated cut OTF directly → already the correct design |
-| Fix | pin `opsz` via `OPTICAL_CUT_OPSZ` + `opticalCutOpszFor` | route the colliding name to the right OTF; **no opsz pinning** |
+|                            | SF Pro (DM-1103)                                                                            | New York (DM-1108)                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Packaging                  | **one** variable file `SFNS.ttf` with an `opsz` axis (17–96)                                | **separate static OTFs** per cut, no `opsz` axis                              |
+| How CoreText exposes a cut | a named face (`SFProText-Regular`) that is a fixed-opsz _instance_ of the one variable font | a distinct installed font file with its own family name (`New York Small`, …) |
+| What fontkit sees          | only the variable font's default master (opsz 28) → wrong design unless we pin `opsz`       | the dedicated cut OTF directly → already the correct design                   |
+| Fix                        | pin `opsz` via `OPTICAL_CUT_OPSZ` + `opticalCutOpszFor`                                     | route the colliding name to the right OTF; **no opsz pinning**                |
 
 Because each New York cut is a complete static font, `opsz` pinning is meaningless for it — there is no axis to pin. fontkit loads `NewYorkSmall-Regular.otf` etc. and gets the correct optical design with no further work.
 
@@ -39,7 +39,7 @@ Three of the four cut names are unambiguous, so CoreText's family query already 
 - `New York Large` → `NewYorkLarge-Regular.otf` ✓
 - `New York Extra Large` → `NewYorkExtraLarge-Regular.otf` ✓
 
-`New York Medium` is special: `Medium` is **also a weight name**. The variable `NewYork.ttf` exposes a `Medium`-*weight* named instance (PostScript `NewYork-Medium`), and CoreText's family query for `"New York Medium"` returns **that heavier weight** rather than the lighter `New York Medium` optical *cut* (`NewYorkMedium-Regular.otf`) that Chrome paints. Result before the fix: an explicit `font-family:"New York Medium"` run rendered visibly too bold.
+`New York Medium` is special: `Medium` is **also a weight name**. The variable `NewYork.ttf` exposes a `Medium`-_weight_ named instance (PostScript `NewYork-Medium`), and CoreText's family query for `"New York Medium"` returns **that heavier weight** rather than the lighter `New York Medium` optical _cut_ (`NewYorkMedium-Regular.otf`) that Chrome paints. Result before the fix: an explicit `font-family:"New York Medium"` run rendered visibly too bold.
 
 `matchFamilyNameToKey` (`src/render/font-resolution.ts`) now resolves `"new york medium"` via the cut's unambiguous PostScript name `NewYorkMedium-Regular`, matching Chrome. When that OTF isn't installed, the lookup returns null and the name falls through to the variable font's `Medium` weight — which is also what Chrome paints in that case.
 

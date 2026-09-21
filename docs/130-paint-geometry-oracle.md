@@ -3,11 +3,11 @@ id: "requirements/paint-geometry-oracle"
 title: "130 — Gradient, mask, clip, and resizer geometry oracle"
 kind: "evidence"
 status: "superseded"
-owners: ["paint-effects","layout","platform-release"]
+owners: ["paint-effects", "layout", "platform-release"]
 platforms: []
-tickets: ["DM-2358","DM-2528"]
+tickets: ["DM-2358", "DM-2528"]
 code: []
-aliases: ["docs/130-paint-geometry-oracle.md","doc-130"]
+aliases: ["docs/130-paint-geometry-oracle.md", "doc-130"]
 ---
 
 # 130 — Gradient, mask, clip, and resizer geometry oracle

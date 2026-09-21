@@ -47,7 +47,10 @@ import { chromium, type Browser } from "@playwright/test";
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */
 function parseFlags(raw: string | undefined): string[] {
-  return (raw ?? "").trim().split(/\s+/).filter((s) => s !== "");
+  return (raw ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter((s) => s !== "");
 }
 
 /**
@@ -89,12 +92,11 @@ export function resolveHarnessFlags(
   // override and, when either is set, they take over completely rather than
   // merging — an experiment should control the whole launch, not inherit half
   // of it from whichever harness it happens to be running.
-  const overridden = (env.DOMOTION_CAPTURE_FLAGS ?? "").trim() !== ""
-    || (env.DOMOTION_RASTER_FLAGS ?? "").trim() !== "";
+  const overridden =
+    (env.DOMOTION_CAPTURE_FLAGS ?? "").trim() !== "" || (env.DOMOTION_RASTER_FLAGS ?? "").trim() !== "";
   const captureFlags = overridden ? parseFlags(env.DOMOTION_CAPTURE_FLAGS) : [...defaultLaunchFlags];
   const rasterFlags = overridden ? parseFlags(env.DOMOTION_RASTER_FLAGS) : [...defaultLaunchFlags];
-  const same = captureFlags.length === rasterFlags.length
-    && captureFlags.every((f, i) => f === rasterFlags[i]);
+  const same = captureFlags.length === rasterFlags.length && captureFlags.every((f, i) => f === rasterFlags[i]);
   return { captureFlags, rasterFlags, asymmetric: !same };
 }
 
@@ -140,13 +142,24 @@ function linuxFontDigest(): string {
   const walk = (dir: string, depth: number): void => {
     if (depth > 6) return;
     let items: Dirent[];
-    try { items = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try {
+      items = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const it of items) {
       const full = `${dir}/${it.name}`;
-      if (it.isDirectory()) { walk(full, depth + 1); continue; }
+      if (it.isDirectory()) {
+        walk(full, depth + 1);
+        continue;
+      }
       if (!FONT_EXT.test(it.name)) continue;
       let size = 0;
-      try { size = statSync(full).size; } catch { /* raced or unreadable — path alone still counts */ }
+      try {
+        size = statSync(full).size;
+      } catch {
+        /* raced or unreadable — path alone still counts */
+      }
       entries.push(`${full}:${size}`);
     }
   };
@@ -158,7 +171,9 @@ function linuxFontDigest(): string {
 }
 
 /** Test-only: clear the memoized font digest. */
-export function __resetFontDigestForTest(): void { _fontDigest = null; }
+export function __resetFontDigestForTest(): void {
+  _fontDigest = null;
+}
 
 /**
  * DM-1794: the sub-directory the expected-PNG cache lives in, named for the
@@ -224,14 +239,27 @@ export async function launchHarnessBrowsers(defaultLaunchFlags: string[] = []): 
   const capture = await chromium.launch(captureFlags.length > 0 ? { args: captureFlags } : {});
   if (!asymmetric) {
     return {
-      capture, raster: capture, asymmetric: false, captureFlags, rasterFlags,
-      close: async () => { await capture.close(); },
+      capture,
+      raster: capture,
+      asymmetric: false,
+      captureFlags,
+      rasterFlags,
+      close: async () => {
+        await capture.close();
+      },
     };
   }
   const raster = await chromium.launch(rasterFlags.length > 0 ? { args: rasterFlags } : {});
   return {
-    capture, raster, asymmetric: true, captureFlags, rasterFlags,
-    close: async () => { await raster.close(); await capture.close(); },
+    capture,
+    raster,
+    asymmetric: true,
+    captureFlags,
+    rasterFlags,
+    close: async () => {
+      await raster.close();
+      await capture.close();
+    },
   };
 }
 
@@ -242,7 +270,9 @@ export async function launchHarnessBrowsers(defaultLaunchFlags: string[] = []): 
  * failure mode this whole mode exists to prevent is a number measured under a
  * flag nobody remembers setting.
  */
-export function harnessBrowserNote(b: Pick<HarnessBrowsers, "asymmetric" | "captureFlags" | "rasterFlags">): string | null {
+export function harnessBrowserNote(
+  b: Pick<HarnessBrowsers, "asymmetric" | "captureFlags" | "rasterFlags">,
+): string | null {
   if (!b.asymmetric && b.captureFlags.length === 0) return null;
   const fmt = (f: string[]): string => (f.length > 0 ? f.join(" ") : "(none)");
   return b.asymmetric

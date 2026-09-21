@@ -25,7 +25,13 @@ function record(overrides: Partial<CapturedBrokenImageFallback> = {}): CapturedB
     },
     hostBox: null,
     container: {
-      box: { rect: { x: 10, y: 10, width: 18, height: 18 }, content: INNER, padding: INNER, border: QUAD, margin: QUAD },
+      box: {
+        rect: { x: 10, y: 10, width: 18, height: 18 },
+        content: INNER,
+        padding: INNER,
+        border: QUAD,
+        margin: QUAD,
+      },
       display: "flow-root",
       float: "none",
       overflowX: "hidden",
@@ -35,10 +41,18 @@ function record(overrides: Partial<CapturedBrokenImageFallback> = {}): CapturedB
       writingMode: "horizontal-tb",
       effectiveZoom: 1,
       border: {
-        top: 1, right: 1, bottom: 1, left: 1,
-        topStyle: "solid", rightStyle: "solid", bottomStyle: "solid", leftStyle: "solid",
-        topColor: "rgb(192, 192, 192)", rightColor: "rgb(192, 192, 192)",
-        bottomColor: "rgb(192, 192, 192)", leftColor: "rgb(192, 192, 192)",
+        top: 1,
+        right: 1,
+        bottom: 1,
+        left: 1,
+        topStyle: "solid",
+        rightStyle: "solid",
+        bottomStyle: "solid",
+        leftStyle: "solid",
+        topColor: "rgb(192, 192, 192)",
+        rightColor: "rgb(192, 192, 192)",
+        bottomColor: "rgb(192, 192, 192)",
+        leftColor: "rgb(192, 192, 192)",
       },
       padding: { top: 1, right: 1, bottom: 1, left: 1 },
     },
@@ -109,45 +123,67 @@ describe("hybrid broken-image fallback emission (DM-2464)", () => {
   });
 
   it("keeps decorative/hidden, loading, and successful controls off the fallback raster path", () => {
-    const decorative = render(record({
-      disposition: "empty-inline",
-      paintOwnership: "none",
-      container: undefined,
-      icon: undefined,
-      accessibility: { ignored: true, role: null, name: null, description: null },
-    }));
+    const decorative = render(
+      record({
+        disposition: "empty-inline",
+        paintOwnership: "none",
+        container: undefined,
+        icon: undefined,
+        accessibility: { ignored: true, role: null, name: null, description: null },
+      }),
+    );
     expect(decorative).toMatchObject({ handled: true, defs: [], svg: [] });
 
-    const loading = render(record({ disposition: "loading", loadState: "loading", paintOwnership: "none", container: undefined, icon: undefined }));
+    const loading = render(
+      record({
+        disposition: "loading",
+        loadState: "loading",
+        paintOwnership: "none",
+        container: undefined,
+        icon: undefined,
+      }),
+    );
     expect(loading).toMatchObject({ handled: true, defs: [], svg: [] });
 
-    const primary = render(record({ disposition: "primary", loadState: "loaded", paintOwnership: "none", container: undefined, icon: undefined }));
+    const primary = render(
+      record({
+        disposition: "primary",
+        loadState: "loaded",
+        paintOwnership: "none",
+        container: undefined,
+        icon: undefined,
+      }),
+    );
     expect(primary).toMatchObject({ handled: false, defs: [], svg: [] });
   });
 
   it("fails closed on a terminal record and never revives the legacy mountain", () => {
-    const missing = render(record({
-      captureStatus: "terminal-raster",
-      paintOwnership: "terminal-raster",
-      container: undefined,
-      icon: undefined,
-      terminalRaster: { rect: { x: 10, y: 10, width: 18, height: 18 }, reason: "CDP unavailable" },
-      accessibility: { unavailableReason: "CDP unavailable" },
-    }));
+    const missing = render(
+      record({
+        captureStatus: "terminal-raster",
+        paintOwnership: "terminal-raster",
+        container: undefined,
+        icon: undefined,
+        terminalRaster: { rect: { x: 10, y: 10, width: 18, height: 18 }, reason: "CDP unavailable" },
+        accessibility: { unavailableReason: "CDP unavailable" },
+      }),
+    );
     expect(missing).toMatchObject({ handled: true, defs: [], svg: [] });
 
-    const materialized = render(record({
-      captureStatus: "terminal-raster",
-      paintOwnership: "terminal-raster",
-      container: undefined,
-      icon: undefined,
-      terminalRaster: {
-        rect: { x: 10, y: 10, width: 18, height: 18 },
-        reason: "CDP unavailable",
-        dataUri: "data:image/png;base64,dGVybWluYWw=",
-      },
-      accessibility: { unavailableReason: "CDP unavailable" },
-    }));
+    const materialized = render(
+      record({
+        captureStatus: "terminal-raster",
+        paintOwnership: "terminal-raster",
+        container: undefined,
+        icon: undefined,
+        terminalRaster: {
+          rect: { x: 10, y: 10, width: 18, height: 18 },
+          reason: "CDP unavailable",
+          dataUri: "data:image/png;base64,dGVybWluYWw=",
+        },
+        accessibility: { unavailableReason: "CDP unavailable" },
+      }),
+    );
     expect(materialized.svg.join("")).toContain("data:image/png;base64,dGVybWluYWw=");
     expect(materialized.svg.join("")).not.toContain("polyline");
   });

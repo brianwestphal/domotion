@@ -29,7 +29,11 @@ export const createFontPaletteResolver = () => {
     }
     for (const sheet of sheets) {
       let rules;
-      try { rules = sheet.cssRules; } catch { continue; }
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
       for (const rule of Array.from(rules ?? [])) {
         if (rule.constructor?.name !== "CSSFontPaletteValuesRule") continue;
         rows.push({
@@ -43,13 +47,15 @@ export const createFontPaletteResolver = () => {
     cache.set(doc, rows);
     return rows;
   };
-  const families = (value) => parseCssFontFamilyEntries(value)
-    .map((entry) => entry.name.toLowerCase());
+  const families = (value) => parseCssFontFamilyEntries(value).map((entry) => entry.name.toLowerCase());
 
   const resolveLeaf = (doc, requestedFamilies, token) => {
-    const kind = token === "normal" || token === "light" || token === "dark"
-      ? token
-      : token.startsWith("--") ? "custom" : "unresolved";
+    const kind =
+      token === "normal" || token === "light" || token === "dark"
+        ? token
+        : token.startsWith("--")
+          ? "custom"
+          : "unresolved";
     const record = {
       token,
       kind,
@@ -63,8 +69,7 @@ export const createFontPaletteResolver = () => {
     let rule = null;
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
-      if (row.name === token
-        && families(row.fontFamily || "").some((family) => requestedFamilies.includes(family))) {
+      if (row.name === token && families(row.fontFamily || "").some((family) => requestedFamilies.includes(family))) {
         rule = row;
         break;
       }
@@ -73,8 +78,15 @@ export const createFontPaletteResolver = () => {
     const overrides = [];
     const re = /(\d+)\s+([^,]+)(?:,|$)/g;
     let match;
-    while ((match = re.exec(rule.overrideColors || "")) != null) overrides.push({ index: Number(match[1]), color: match[2].trim() });
-    return { ...record, ruleScope: "document", ruleFamily: rule.fontFamily, basePalette: rule.basePalette || "normal", overrides };
+    while ((match = re.exec(rule.overrideColors || "")) != null)
+      overrides.push({ index: Number(match[1]), color: match[2].trim() });
+    return {
+      ...record,
+      ruleScope: "document",
+      ruleFamily: rule.fontFamily,
+      basePalette: rule.basePalette || "normal",
+      overrides,
+    };
   };
 
   const splitTopLevel = (value) => {
@@ -109,7 +121,11 @@ export const createFontPaletteResolver = () => {
         const effect = animations[index].effect;
         if (effect?.target != null && effect.target !== el) continue;
         if (effect?.getComputedTiming?.().progress == null) continue;
-        if (Array.from(effect.getKeyframes?.() ?? []).some((frame) => Object.prototype.hasOwnProperty.call(frame, "fontPalette"))) {
+        if (
+          Array.from(effect.getKeyframes?.() ?? []).some((frame) =>
+            Object.prototype.hasOwnProperty.call(frame, "fontPalette"),
+          )
+        ) {
           return true;
         }
       }
@@ -128,9 +144,11 @@ export const createFontPaletteResolver = () => {
     }
     const interpolation = parts[0].slice(3).trim().split(/\s+/);
     const colorSpace = interpolation[0] || "oklab";
-    const hueInterpolationMethod = animationRoot ? null : interpolation.length >= 3 && interpolation.at(-1) === "hue"
-      ? interpolation.at(-2)
-      : "shorter";
+    const hueInterpolationMethod = animationRoot
+      ? null
+      : interpolation.length >= 3 && interpolation.at(-1) === "hue"
+        ? interpolation.at(-2)
+        : "shorter";
     const start = endpoint(parts[1]);
     const end = endpoint(parts[2]);
     // FontPalette stores the raw (possibly calc-produced out-of-range)
@@ -145,7 +163,8 @@ export const createFontPaletteResolver = () => {
     if (start.percentage != null && end.percentage == null) normalizedEnd = 100 - normalizedStart;
     else if (end.percentage != null && start.percentage == null) normalizedStart = 100 - normalizedEnd;
     const normalizedScale = normalizedStart + normalizedEnd;
-    const normalizedPercentage = normalizedStart === 0 ? 1 : normalizedScale === 0 ? 0 : normalizedEnd / normalizedScale;
+    const normalizedPercentage =
+      normalizedStart === 0 ? 1 : normalizedScale === 0 ? 0 : normalizedEnd / normalizedScale;
     const alphaMultiplier = normalizedScale <= 100 ? normalizedScale / 100 : 1;
     return {
       token: text,
@@ -189,7 +208,12 @@ export const createFontPaletteResolver = () => {
             path,
             text: child.textContent || "",
             fontFamily: cs.fontFamily || "",
-            palette: resolveToken(child.ownerDocument, families(cs.fontFamily || ""), token, animatedPaletteMix(child, token)),
+            palette: resolveToken(
+              child.ownerDocument,
+              families(cs.fontFamily || ""),
+              token,
+              animatedPaletteMix(child, token),
+            ),
           });
         }
         if (child.shadowRoot != null) visit(child.shadowRoot, `${path}.s`);

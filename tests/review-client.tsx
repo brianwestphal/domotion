@@ -86,9 +86,14 @@ const MANIFEST = JSON.parse(manifestEl.textContent ?? "{}") as ReviewManifest;
 
 // DM-1660: images are served per-source at /img/<source>/<suite>/<file>.
 const IMG_BASE = `/img/${MANIFEST.activeSource}`;
-const classificationKey = (suite: string, name: string): string => `domotion-review-classification:${MANIFEST.activeSource}:${suite}:${name}`;
+const classificationKey = (suite: string, name: string): string =>
+  `domotion-review-classification:${MANIFEST.activeSource}:${suite}:${name}`;
 function savedClassification(suite: string, name: string): string {
-  try { return localStorage.getItem(classificationKey(suite, name)) ?? ""; } catch { return ""; }
+  try {
+    return localStorage.getItem(classificationKey(suite, name)) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 // The source selector reloads the page with ?source=<id> (server re-renders with
@@ -125,10 +130,14 @@ const activeLabel = MANIFEST.sources.find((s) => s.id === MANIFEST.activeSource)
 // server-side (tens of seconds for a 65 MB shard), so mark each <figure> loading
 // until its <img> fires load/error. load/error don't bubble → capture phase.
 // Delegated so it also covers imgs added by later reactive re-renders.
-document.addEventListener("load", (e) => {
-  const t = e.target as HTMLElement;
-  if (t?.tagName === "IMG") t.closest("figure")?.classList.add("img-loaded");
-}, true);
+document.addEventListener(
+  "load",
+  (e) => {
+    const t = e.target as HTMLElement;
+    if (t?.tagName === "IMG") t.closest("figure")?.classList.add("img-loaded");
+  },
+  true,
+);
 // DM-1734: on a CI source, a failed image usually means "shard download still
 // in progress" (the server answers 503 + Retry-After while it pulls the
 // artifact in the background — hundreds of MB with keep_passing PNGs). Retry
@@ -151,35 +160,50 @@ function scheduleCiImgRetry(img: HTMLImageElement): void {
     if (base !== "") img.src = `${base}?r=${n}`;
   }, CI_IMG_RETRY_MS);
 }
-document.addEventListener("error", (e) => {
-  const t = e.target as HTMLElement;
-  if (t?.tagName === "IMG") {
-    t.closest("figure")?.classList.add("img-failed");
-    scheduleCiImgRetry(t as HTMLImageElement);
-  }
-}, true);
-document.addEventListener("load", (e) => {
-  const t = e.target as HTMLElement;
-  if (t?.tagName !== "IMG") return;
-  // A retried CI image finally arrived — clear the failure state + hint.
-  const fig = t.closest("figure");
-  fig?.classList.remove("img-failed");
-  const cap = fig?.querySelector("figcaption");
-  if (cap?.textContent?.includes(" (downloading shard…)")) {
-    cap.textContent = cap.textContent.replace(" (downloading shard…)", "");
-  }
-}, true);
+document.addEventListener(
+  "error",
+  (e) => {
+    const t = e.target as HTMLElement;
+    if (t?.tagName === "IMG") {
+      t.closest("figure")?.classList.add("img-failed");
+      scheduleCiImgRetry(t as HTMLImageElement);
+    }
+  },
+  true,
+);
+document.addEventListener(
+  "load",
+  (e) => {
+    const t = e.target as HTMLElement;
+    if (t?.tagName !== "IMG") return;
+    // A retried CI image finally arrived — clear the failure state + hint.
+    const fig = t.closest("figure");
+    fig?.classList.remove("img-failed");
+    const cap = fig?.querySelector("figcaption");
+    if (cap?.textContent?.includes(" (downloading shard…)")) {
+      cap.textContent = cap.textContent.replace(" (downloading shard…)", "");
+    }
+  },
+  true,
+);
 
 async function refreshSource(force: boolean): Promise<void> {
   showOverlay(`Fetching latest ${activeLabel} results from GitHub…`, { spinner: true });
   try {
     const r = await fetch("/api/refresh-source", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ source: MANIFEST.activeSource, force }),
     });
-    const j = await r.json() as { ok: boolean; fixtures?: number; error?: string };
-    if (j.ok && (j.fixtures ?? 0) > 0) { location.reload(); return; }
-    if (j.ok) showOverlay(`No completed CI run found for ${activeLabel} yet. Dispatch a sweep, then click ↻ Refresh.`, { error: true });
+    const j = (await r.json()) as { ok: boolean; fixtures?: number; error?: string };
+    if (j.ok && (j.fixtures ?? 0) > 0) {
+      location.reload();
+      return;
+    }
+    if (j.ok)
+      showOverlay(`No completed CI run found for ${activeLabel} yet. Dispatch a sweep, then click ↻ Refresh.`, {
+        error: true,
+      });
     else showOverlay(`Couldn't fetch ${activeLabel}: ${j.error ?? "unknown error"}`, { error: true });
   } catch (e) {
     showOverlay(`Couldn't reach the review server: ${e instanceof Error ? e.message : String(e)}`, { error: true });
@@ -189,7 +213,9 @@ async function refreshSource(force: boolean): Promise<void> {
 // Auto-fetch the first time an un-cached CI source is opened.
 if (MANIFEST.sourceFetchNeeded) void refreshSource(false);
 
-document.getElementById("refresh-source")?.addEventListener("click", () => { void refreshSource(true); });
+document.getElementById("refresh-source")?.addEventListener("click", () => {
+  void refreshSource(true);
+});
 
 const filterEl = document.getElementById("filter") as HTMLSelectElement;
 const suiteEl = document.getElementById("suite") as HTMLSelectElement;
@@ -209,16 +235,20 @@ type Suite = "all" | SuiteName;
 type Sort = "verdict-desc" | "coverage-desc" | "regions-desc" | "diff-desc" | "diff-asc" | "name";
 
 const filterS = signal<Filter>("fail");
-const suiteS  = signal<Suite>("all");
+const suiteS = signal<Suite>("all");
 // Default to the qualitative verdict tier (worst first). "Major" failures
 // rise above "moderate" and "minor"; image-wide avg `diffPct` is no longer
 // the primary signal because a tiny percentage routinely hides a localized
 // region in a critical area.
-const sortS   = signal<Sort>("verdict-desc");
+const sortS = signal<Sort>("verdict-desc");
 
 // Verdict tier ranking — higher is worse, used by the default sort.
 const VERDICT_RANK: Record<string, number> = {
-  major: 4, moderate: 3, minor: 2, trivial: 1, clean: 0,
+  major: 4,
+  moderate: 3,
+  minor: 2,
+  trivial: 1,
+  clean: 0,
 };
 
 // Live-SVG visibility (DM-632). The animated SVGs the live-svg figure embeds
@@ -228,12 +258,15 @@ const VERDICT_RANK: Record<string, number> = {
 const SHOW_LIVE_SVG_KEY = "review.showLiveSvg";
 const showLiveSvgS = signal<boolean>(
   (() => {
-    try { return localStorage.getItem(SHOW_LIVE_SVG_KEY) === "true"; }
-    catch { return false; }
+    try {
+      return localStorage.getItem(SHOW_LIVE_SVG_KEY) === "true";
+    } catch {
+      return false;
+    }
   })(),
 );
 
-const lbOpen  = signal(false);
+const lbOpen = signal(false);
 const lbIndex = signal(-1);
 let lbFigures: HTMLElement[] = []; // populated on figure click
 
@@ -249,10 +282,8 @@ const visible = computed(() => {
   const coverage = (r: ReviewTest) => r.coveragePct ?? r.diffPct;
   const verdictRank = (r: ReviewTest) => VERDICT_RANK[r.verdict ?? ""] ?? -1;
   if (so === "verdict-desc") {
-    list.sort((a, b) =>
-      verdictRank(b) - verdictRank(a)
-      || coverage(b) - coverage(a)
-      || regionCount(b) - regionCount(a),
+    list.sort(
+      (a, b) => verdictRank(b) - verdictRank(a) || coverage(b) - coverage(a) || regionCount(b) - regionCount(a),
     );
   } else if (so === "coverage-desc") {
     list.sort((a, b) => coverage(b) - coverage(a) || regionCount(b) - regionCount(a));
@@ -281,7 +312,9 @@ function ExtraMetrics({ r }: { r: ReviewTest }) {
     r.shiftedPixels != null && r.shiftedPixels > 0 ? `shifted ${r.shiftedPixels}` : null,
     r.scatteredPixels != null && r.scatteredPixels > 0 ? `scatter ${r.scatteredPixels}` : null,
     r.warningCount != null && r.warningCount > 0 ? `${r.warningCount} warn` : null,
-  ].filter((p): p is string => p != null).join(" · ");
+  ]
+    .filter((p): p is string => p != null)
+    .join(" · ");
   if (parts === "") return <></>;
   return <span className="metrics">{parts}</span>;
 }
@@ -296,7 +329,9 @@ function ExtraMetrics({ r }: { r: ReviewTest }) {
 function StatusScore({ r }: { r: ReviewTest }) {
   if (r.verdict != null && r.regionCount != null && r.coveragePct != null) {
     if (r.regionCount === 0) return <>clean</>;
-    return <>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`}</>;
+    return (
+      <>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`}</>
+    );
   }
   // Legacy manifest fallback.
   if (r.regionCount != null) {
@@ -316,7 +351,7 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
   // available; fall back to worst diff% for legacy data.
   const haveRegions = chunks.some((c) => c.regionCount != null);
   const worstRegions = chunks.reduce((m, c) => Math.max(m, c.regionCount ?? 0), 0);
-  const worstCoverage = chunks.reduce((m, c: any) => Math.max(m, (c.coveragePct ?? 0)), 0);
+  const worstCoverage = chunks.reduce((m, c: any) => Math.max(m, c.coveragePct ?? 0), 0);
   const worstDiff = chunks.reduce((m, c) => Math.max(m, c.diffPct), 0);
   const summary = haveRegions
     ? `${chunks.length} chunks · worst ${worstRegions} region${worstRegions === 1 ? "" : "s"} · ${worstCoverage.toFixed(2)}%`
@@ -333,20 +368,27 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
           // Lead with regions/coverage % when available; legacy chunks
           // fall back to raw diff %.
           const cAny = c as any;
-          const chunkScore = c.regionCount != null && cAny.coveragePct != null
-            ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${cAny.coveragePct.toFixed(2)}%`
-            : c.regionCount != null
-              ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"}`
-              : `${c.diffPct.toFixed(2)}%`;
+          const chunkScore =
+            c.regionCount != null && cAny.coveragePct != null
+              ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${cAny.coveragePct.toFixed(2)}%`
+              : c.regionCount != null
+                ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"}`
+                : `${c.diffPct.toFixed(2)}%`;
           return (
             <div className="chunk">
               <div className="chunk-head">
                 chunk {c.index} · scrollY {Math.round(c.scrollY)} · {(c.segmentEndMs / 1000).toFixed(1)}s · {chunkScore}
               </div>
               <div className="chunk-imgs">
-                <figure data-src={expected}><img src={expected} loading="lazy" alt="" /></figure>
-                <figure data-src={actual}><img src={actual} loading="lazy" alt="" /></figure>
-                <figure data-src={diff}><img src={diff} loading="lazy" alt="" /></figure>
+                <figure data-src={expected}>
+                  <img src={expected} loading="lazy" alt="" />
+                </figure>
+                <figure data-src={actual}>
+                  <img src={actual} loading="lazy" alt="" />
+                </figure>
+                <figure data-src={diff}>
+                  <img src={diff} loading="lazy" alt="" />
+                </figure>
               </div>
             </div>
           );
@@ -360,27 +402,34 @@ function Card({ r }: { r: ReviewTest }) {
   const persistedClassification = savedClassification(r.suite, r.name);
   let badge: string;
   let statusClass: string;
-  if (r.skipped)       { badge = "SKIP";  statusClass = "skip"; }
-  else if (r.error)    { badge = "ERROR"; statusClass = "err";  }
-  else if (r.pass)     { badge = "PASS";  statusClass = "pass"; }
-  else                 { badge = "FAIL";  statusClass = "fail"; }
+  if (r.skipped) {
+    badge = "SKIP";
+    statusClass = "skip";
+  } else if (r.error) {
+    badge = "ERROR";
+    statusClass = "err";
+  } else if (r.pass) {
+    badge = "PASS";
+    statusClass = "pass";
+  } else {
+    badge = "FAIL";
+    statusClass = "fail";
+  }
   const cardCls = r.skipped ? "skipped" : r.pass ? "pass" : "";
   const key = `${r.suite}/${r.name}`;
   return (
-    <section
-      className={`card ${cardCls}`}
-      data-name={r.name}
-      data-suite={r.suite}
-      data-key={key}
-      data-morph-skip=""
-    >
+    <section className={`card ${cardCls}`} data-name={r.name} data-suite={r.suite} data-key={key} data-morph-skip="">
       <div className="head">
         <strong>{r.name}</strong>
         <span className="badge suite">{r.suite}</span>
-        <span className={`badge ${statusClass}`}>{badge} · <StatusScore r={r} /></span>
+        <span className={`badge ${statusClass}`}>
+          {badge} · <StatusScore r={r} />
+        </span>
         <ExtraMetrics r={r} />
         {!r.skipped && (
-          <a className="svg-link" href={`${IMG_BASE}/${r.suite}/${r.name}.svg`} target="_blank" rel="noopener">view svg ↗</a>
+          <a className="svg-link" href={`${IMG_BASE}/${r.suite}/${r.name}.svg`} target="_blank" rel="noopener">
+            view svg ↗
+          </a>
         )}
       </div>
       {r.skipped ? (
@@ -416,22 +465,26 @@ function Card({ r }: { r: ReviewTest }) {
               The 3 tiles above show chunk 0 (t=0); the strip below adds
               the rest of the executor's segments. See
               docs/34-scroll-mode-per-chunk-diff.md. */}
-          {r.chunks != null && r.chunks.length > 1 && (
-            <ChunkStrip r={r} />
-          )}
+          {r.chunks != null && r.chunks.length > 1 && <ChunkStrip r={r} />}
         </>
       )}
       {r.stageEvidence != null && (
         <details className="stage-evidence">
-          <summary>Stage evidence · {r.stageEvidence.reports.filter((report) => report.status === "passed").length}/{r.stageEvidence.reports.length} reports passing</summary>
-          <div>{r.stageEvidence.scope === "fixture"
-            ? "Fixture-scoped evidence is authoritative for every selected region on this fixture."
-            : "Suite-global evidence applies to every selected region on this fixture."}</div>
+          <summary>
+            Stage evidence · {r.stageEvidence.reports.filter((report) => report.status === "passed").length}/
+            {r.stageEvidence.reports.length} reports passing
+          </summary>
+          <div>
+            {r.stageEvidence.scope === "fixture"
+              ? "Fixture-scoped evidence is authoritative for every selected region on this fixture."
+              : "Suite-global evidence applies to every selected region on this fixture."}
+          </div>
           <div>Semantic transitions: {r.stageEvidence.transitionIds.join(", ")}</div>
           <ul>
             {r.stageEvidence.reports.map((report) => (
               <li className={report.status}>
-                {report.area}: {report.status}{report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} · {report.oracle}
+                {report.area}: {report.status}
+                {report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} · {report.oracle}
               </li>
             ))}
           </ul>
@@ -440,7 +493,9 @@ function Card({ r }: { r: ReviewTest }) {
               <div>Superseded suite-global context:</div>
               <ul>
                 {r.stageEvidence.supersededReports.map((report) => (
-                  <li>{report.area}: {report.status} · {report.oracle}</li>
+                  <li>
+                    {report.area}: {report.status} · {report.oracle}
+                  </li>
                 ))}
               </ul>
             </>
@@ -450,13 +505,20 @@ function Card({ r }: { r: ReviewTest }) {
       <label className="classification-label">
         Logical-stage classification
         <select className="logical-classification">
-          <option value="" selected={persistedClassification === ""}>Classify this residual…</option>
+          <option value="" selected={persistedClassification === ""}>
+            Classify this residual…
+          </option>
           {Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => (
-            <option value={value} selected={persistedClassification === value}>{item.label}</option>
+            <option value={value} selected={persistedClassification === value}>
+              {item.label}
+            </option>
           ))}
         </select>
       </label>
-      <textarea className="comment" placeholder="What evidence supports this classification? The ticket will include it, the images, metrics, and selected regions."></textarea>
+      <textarea
+        className="comment"
+        placeholder="What evidence supports this classification? The ticket will include it, the images, metrics, and selected regions."
+      ></textarea>
       <div className="actions">
         <button className="file-btn">File ticket</button>
         <span className="status-msg"></span>
@@ -470,7 +532,11 @@ function Stats() {
   const failing = MANIFEST.tests.filter((r) => !r.pass && !r.skipped).length;
   const skipped = MANIFEST.tests.filter((r) => r.skipped).length;
   const shown = visible.value.length;
-  return <>{shown} shown · {failing}/{total} failing{skipped > 0 ? ` · ${skipped} skipped` : ""}</>;
+  return (
+    <>
+      {shown} shown · {failing}/{total} failing{skipped > 0 ? ` · ${skipped} skipped` : ""}
+    </>
+  );
 }
 
 function SuiteSummary() {
@@ -479,9 +545,20 @@ function SuiteSummary() {
     <>
       {entries.map(([name, info], i) => {
         const sep = i > 0 ? " · " : "";
-        if (!info.present) return <span style="color:#5a5a5a">{sep}{name}: (not run)</span>;
+        if (!info.present)
+          return (
+            <span style="color:#5a5a5a">
+              {sep}
+              {name}: (not run)
+            </span>
+          );
         const when = info.generatedAt != null ? new Date(info.generatedAt).toLocaleString() : "(no timestamp)";
-        return <span>{sep}<strong>{name}</strong>: {info.count} tests · {when}</span>;
+        return (
+          <span>
+            {sep}
+            <strong>{name}</strong>: {info.count} tests · {when}
+          </span>
+        );
       })}
     </>
   );
@@ -498,7 +575,17 @@ if (location.search.includes("kerfdev")) {
 
 // ── Mounts ──
 
-mount(cardsEl, () => <>{each(visible.value, (r) => <Card r={r} data-key={`${r.suite}/${r.name}`} />, (r) => `${r.suite}/${r.name}`)}</>);
+mount(cardsEl, () => (
+  <>
+    {each(
+      visible.value,
+      (r) => (
+        <Card r={r} data-key={`${r.suite}/${r.name}`} />
+      ),
+      (r) => `${r.suite}/${r.name}`,
+    )}
+  </>
+));
 mount(statsEl, () => <Stats />);
 mount(summaryEl, () => <SuiteSummary />);
 
@@ -543,11 +630,7 @@ function applyLightboxAspect(figure: HTMLElement): void {
     return;
   }
   // Wait for the first load to know the aspect ratio.
-  lbImg.addEventListener(
-    "load",
-    () => setAspect(lbImg.naturalWidth, lbImg.naturalHeight),
-    { once: true },
-  );
+  lbImg.addEventListener("load", () => setAspect(lbImg.naturalWidth, lbImg.naturalHeight), { once: true });
 }
 
 function showLightboxAt(idx: number, opts: { preserveScroll?: boolean } = {}): void {
@@ -568,7 +651,9 @@ function showLightboxAt(idx: number, opts: { preserveScroll?: boolean } = {}): v
     // settles after the effect's synchronous DOM writes; rAF gives the
     // browser a frame to layout the new image first when it's the same
     // dimensions (cached) so the scrollTop doesn't get clamped.
-    requestAnimationFrame(() => { lb.scrollTop = prevScrollTop; });
+    requestAnimationFrame(() => {
+      lb.scrollTop = prevScrollTop;
+    });
   } else {
     lb.scrollTop = 0;
   }
@@ -634,14 +719,22 @@ document.addEventListener("keydown", (e) => {
 
 // ── Filter selects ──
 
-filterEl.addEventListener("change", () => { filterS.value = filterEl.value as Filter; });
-suiteEl .addEventListener("change", () => { suiteS .value = suiteEl .value as Suite;  });
-sortEl  .addEventListener("change", () => { sortS  .value = sortEl  .value as Sort;   });
+filterEl.addEventListener("change", () => {
+  filterS.value = filterEl.value as Filter;
+});
+suiteEl.addEventListener("change", () => {
+  suiteS.value = suiteEl.value as Suite;
+});
+sortEl.addEventListener("change", () => {
+  sortS.value = sortEl.value as Sort;
+});
 
 // ── Live-SVG toggle (DM-632) ──
 
 showLiveSvgEl.checked = showLiveSvgS.value;
-showLiveSvgEl.addEventListener("change", () => { showLiveSvgS.value = showLiveSvgEl.checked; });
+showLiveSvgEl.addEventListener("change", () => {
+  showLiveSvgS.value = showLiveSvgEl.checked;
+});
 
 function applyLiveSvgVisibility(): void {
   const show = showLiveSvgS.value;
@@ -662,7 +755,11 @@ effect(() => {
   // cards mount (via `visible.value`).
   const show = showLiveSvgS.value;
   void visible.value;
-  try { localStorage.setItem(SHOW_LIVE_SVG_KEY, String(show)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(SHOW_LIVE_SVG_KEY, String(show));
+  } catch {
+    /* ignore */
+  }
   queueMicrotask(applyLiveSvgVisibility);
 });
 
@@ -738,7 +835,11 @@ void delegate(cardsEl, "change", ".logical-classification", (_event, target) => 
   const select = target as HTMLSelectElement;
   const card = select.closest<HTMLElement>(".card");
   if (card == null) return;
-  try { localStorage.setItem(classificationKey(card.dataset["suite"] ?? "", card.dataset["name"] ?? ""), select.value); } catch { /* best effort */ }
+  try {
+    localStorage.setItem(classificationKey(card.dataset["suite"] ?? "", card.dataset["name"] ?? ""), select.value);
+  } catch {
+    /* best effort */
+  }
 });
 
 async function fileTicket(btn: HTMLButtonElement): Promise<void> {
@@ -770,13 +871,17 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ source: MANIFEST.activeSource, suite, name, classification, comment, regions }),
     });
-    const json = await res.json() as { ticket_number?: string; error?: string };
+    const json = (await res.json()) as { ticket_number?: string; error?: string };
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     msg.className = "status-msg ok";
     msg.textContent = `Filed ${json.ticket_number ?? ""}${regions.length > 0 ? ` (with ${regions.length} region${regions.length === 1 ? "" : "s"})` : ""}`;
     commentEl.value = "";
     classificationEl.value = "";
-    try { localStorage.removeItem(classificationKey(suite, name)); } catch { /* best effort */ }
+    try {
+      localStorage.removeItem(classificationKey(suite, name));
+    } catch {
+      /* best effort */
+    }
     overlay?.clear();
   } catch (err) {
     msg.className = "status-msg err";

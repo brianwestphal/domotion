@@ -25,7 +25,14 @@ import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
-import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome, clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
+import {
+  DEVICE_CHROMES,
+  CHROME_THEMES,
+  wrapInDeviceChrome,
+  clearEmbeddedFonts,
+  clearGlyphDefs,
+  getEmbeddedFontFaceCss,
+} from "../render/index.js";
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { cliFail } from "./common.js";
@@ -59,24 +66,29 @@ export const compositeLayerPlacementSchema = z.object({
   animations: z.array(compositeLayerAnimationSchema).optional(),
 });
 
-export const compositeLayerSchema = z.object({
-  // Exactly one source — enforced in the superRefine below.
-  svg: z.string().optional().describe("Path to a pre-rendered SVG (static or animated)."),
-  cast: z.string().optional().describe("Path to an asciinema v2 .cast (rendered as an animated terminal)."),
-  template: z.string().optional().describe("A template name to render as the source."),
-  params: z.record(z.string(), z.unknown()).optional().describe("Params for a `template` source."),
-  term: z.record(z.string(), z.unknown()).optional().describe("Terminal options for a `cast` source."),
-  // Period of an animated `svg` source (ms), when it can't be auto-detected.
-  period: z.number().positive().optional(),
-  chrome: compositeLayerChromeSchema.optional(),
-  // Placement.
-  ...compositeLayerPlacementSchema.shape,
-}).superRefine((l, ctx) => {
-  const sources = [l.svg, l.cast, l.template].filter((s) => s != null);
-  if (sources.length !== 1) {
-    ctx.addIssue({ code: "custom", message: "each layer must have exactly one source: `svg`, `cast`, or `template`" });
-  }
-});
+export const compositeLayerSchema = z
+  .object({
+    // Exactly one source — enforced in the superRefine below.
+    svg: z.string().optional().describe("Path to a pre-rendered SVG (static or animated)."),
+    cast: z.string().optional().describe("Path to an asciinema v2 .cast (rendered as an animated terminal)."),
+    template: z.string().optional().describe("A template name to render as the source."),
+    params: z.record(z.string(), z.unknown()).optional().describe("Params for a `template` source."),
+    term: z.record(z.string(), z.unknown()).optional().describe("Terminal options for a `cast` source."),
+    // Period of an animated `svg` source (ms), when it can't be auto-detected.
+    period: z.number().positive().optional(),
+    chrome: compositeLayerChromeSchema.optional(),
+    // Placement.
+    ...compositeLayerPlacementSchema.shape,
+  })
+  .superRefine((l, ctx) => {
+    const sources = [l.svg, l.cast, l.template].filter((s) => s != null);
+    if (sources.length !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        message: "each layer must have exactly one source: `svg`, `cast`, or `template`",
+      });
+    }
+  });
 
 export const compositeConfigSchema = z.object({
   width: z.number().int().positive(),
@@ -99,7 +111,6 @@ export function validateCompositeConfig(raw: unknown): CompositeConfig {
   }
   return parsed.data;
 }
-
 
 /** Render one layer's source to an animated SVG + intrinsic size + period. */
 async function renderLayerSource(
@@ -130,7 +141,13 @@ async function renderLayerSource(
 }
 
 /** A rendered layer source (before chrome wrap / placement). */
-interface RenderedSource { svg: string; w: number; h: number; periodMs?: number; deferFonts?: boolean }
+interface RenderedSource {
+  svg: string;
+  w: number;
+  h: number;
+  periodMs?: number;
+  deferFonts?: boolean;
+}
 
 /** Render + composite a validated config into one animated SVG. */
 export async function composeCompositeConfig(
@@ -159,7 +176,9 @@ export async function composeCompositeConfig(
       log(`Layer ${i + 1}/${n}: cast (shared font)…`);
       const castText = readFileSync(resolve(configDir, layer.cast!), "utf8");
       const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
-        ...(layer.term ?? {}), manageFonts: false, log: (m) => log(`  ${m}`),
+        ...(layer.term ?? {}),
+        manageFonts: false,
+        log: (m) => log(`  ${m}`),
       });
       rendered[i] = { svg, w: width, h: height, periodMs: totalDurationMs, deferFonts: true };
     }
@@ -179,21 +198,38 @@ export async function composeCompositeConfig(
   const composeLayers: CompositeLayer[] = cfg.layers.map((layer, i) => {
     let { svg, w, h, periodMs, deferFonts } = rendered[i]!;
     if (layer.chrome != null) {
-      const framed = wrapInDeviceChrome(svg, layer.chrome.device, w, h, { label: layer.chrome.label, theme: layer.chrome.theme });
-      svg = framed.svg; w = framed.width; h = framed.height;
+      const framed = wrapInDeviceChrome(svg, layer.chrome.device, w, h, {
+        label: layer.chrome.label,
+        theme: layer.chrome.theme,
+      });
+      svg = framed.svg;
+      w = framed.width;
+      h = framed.height;
     }
     return {
-      svg, periodMs, contentWidth: w, contentHeight: h, deferFonts,
-      x: layer.x, y: layer.y,
-      width: layer.width ?? w, height: layer.height ?? h,
-      clip: layer.clip, clipRadius: layer.clipRadius,
-      start: layer.start, mode: layer.mode, duration: layer.duration,
+      svg,
+      periodMs,
+      contentWidth: w,
+      contentHeight: h,
+      deferFonts,
+      x: layer.x,
+      y: layer.y,
+      width: layer.width ?? w,
+      height: layer.height ?? h,
+      clip: layer.clip,
+      clipRadius: layer.clipRadius,
+      start: layer.start,
+      mode: layer.mode,
+      duration: layer.duration,
       animations: layer.animations,
     };
   });
 
   const result = composeAnimatedLayers(composeLayers, {
-    width: cfg.width, height: cfg.height, background: cfg.background, durationMs: cfg.duration,
+    width: cfg.width,
+    height: cfg.height,
+    background: cfg.background,
+    durationMs: cfg.duration,
     fontFaceCss: sharedFontCss,
   });
   log(`Composited ${n} layers — ${result.width}×${result.height}px, ${(result.durationMs / 1000).toFixed(1)}s loop`);
@@ -217,7 +253,8 @@ Options:
 
 export async function runComposite(argv: string[]): Promise<void> {
   const { values, positionals } = parseArgs({
-    args: argv, allowPositionals: true,
+    args: argv,
+    allowPositionals: true,
     options: { output: { type: "string", short: "o" }, help: { type: "boolean", short: "h" } },
   });
   if (values.help || positionals.length === 0) {

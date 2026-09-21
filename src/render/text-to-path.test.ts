@@ -1,13 +1,83 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, blinkSuppressesInterLetterSpacing, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, effectiveGlyphFontSize, embeddedLinuxTargetStrikeEnabled, embeddedLinuxTargetStrikeSizes, embeddedSystemFontTextRendering, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, targetStrikeVerticalCommands, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import {
+  glyphIdForCp,
+  __clearGlyphFallbackCaches,
+  __resolveDarwinFontSpecForTest,
+  __resolveFontForCodepointForTest,
+  __resolveFontSpecForTest,
+  blinkSuppressesInterLetterSpacing,
+  cjkTrimShiftFontUnits,
+  classifyEmptyGlyphOutline,
+  clearEmbeddedFonts,
+  clearGlyphDefs,
+  clearWebfonts,
+  commandsFor,
+  complexShaperBaseMarkDecomposition,
+  nfdBaseMarkDecomposition,
+  computeSkipInkGaps,
+  darwinFallbackChain,
+  effectiveGlyphFontSize,
+  embeddedLinuxTargetStrikeEnabled,
+  embeddedLinuxTargetStrikeSizes,
+  embeddedSystemFontTextRendering,
+  fallbackFontChain,
+  fontHasOutlineTable,
+  getDecorationMetrics,
+  getEmbeddedFontFaceCss,
+  getFontInstance,
+  insertSyntheticDottedCircles,
+  isStrippableOrphanIgnorable,
+  stripOrphanedDefaultIgnorables,
+  isLeftReorderingMatra,
+  isLegitimatelyInklessCodepoint,
+  isStretchyFenceChar,
+  isTextToPathAvailable,
+  linuxFallbackChain,
+  mathAlphaToBase,
+  measureInkMetrics,
+  pingfangKeyForLang,
+  positionShapedClusters,
+  registerWebfont,
+  renderRadicalGlyph,
+  renderSourceOwnedTextBoundary,
+  renderStretchyFenceGlyph,
+  renderTextAsPath,
+  resolveFontKey,
+  resolveGlyphCommands,
+  shapedGlyphSourceSpans,
+  sourceClusterSpan,
+  resolveFontKeyChain,
+  setRenderTextMode,
+  subBoldWeightCutSuffix,
+  synthSmallCapsCharScale,
+  targetStrikeVerticalCommands,
+  usesComplexShaperDottedCircle,
+  win32FallbackChain,
+  __setWin32FamilyKeyResolverForTest,
+} from "./text-to-path.js";
 import { haltInfoFor } from "./font-resolution.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
-import { blinkGenericFamilyFromDeclaredStack, clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
+import {
+  blinkGenericFamilyFromDeclaredStack,
+  clearFontResolutionCaches,
+  getGlyphDefs,
+  getSystemFallbackResolution,
+  isNonCharacterCodepoint,
+  isPrivateUseCodepoint,
+  setSystemFallbackResolution,
+  withSystemFallbackResolution,
+  __resolveSystemFallbackKeyForCpForTest,
+} from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
-import { _builderInstanceKeys, _builderRegistrySize, _setBuilderNextPuaForTest, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import {
+  _builderInstanceKeys,
+  _builderRegistrySize,
+  _setBuilderNextPuaForTest,
+  trackGlyphInEmbedFont,
+} from "./embedded-font-builder.js";
 import { resolveInstalledFont } from "./glyph-helper.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
 import { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
@@ -40,8 +110,12 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     expect(embeddedSystemFontTextRendering("linux", true, false, "WenQuanYiZenHei")).toBeNull();
     expect(embeddedSystemFontTextRendering("linux", true, true, "FreeSans")).toBeNull();
     expect(embeddedSystemFontTextRendering("linux", true, true, "FreeSans", "WenQuanYiZenHei")).toBeNull();
-    expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", "WenQuanYiZenHei")).toBe("geometricPrecision");
-    expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", undefined, "optimizeSpeed")).toBeNull();
+    expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", "WenQuanYiZenHei")).toBe(
+      "geometricPrecision",
+    );
+    expect(
+      embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", undefined, "optimizeSpeed"),
+    ).toBeNull();
   });
 
   it("limits target strikes to individually measured Linux surfaces", () => {
@@ -64,42 +138,37 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 700, 0, 100)).toBe(false);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 75)).toBe(false);
     expect(embeddedLinuxTargetStrikeEnabled("darwin", "WenQuanYiZenHeiMono", 17, 400, 0, 100)).toBe(false);
-    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "optimizeSpeed")).toBe(false);
-    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "auto", false)).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "optimizeSpeed")).toBe(
+      false,
+    );
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "auto", false)).toBe(
+      false,
+    );
   });
 
   it("plans synthesized small caps as an all-or-nothing set of effective strikes", () => {
     const smallCapsScale = 13 / 18;
     expect(effectiveGlyphFontSize(18, smallCapsScale)).toBe(13);
-    expect(embeddedLinuxTargetStrikeSizes(
-      "linux", "LiberationSerif", 18, [1, smallCapsScale, 1], 400, 0, 100,
-    )).toEqual([18, 13]);
-    expect(embeddedLinuxTargetStrikeSizes(
-      "linux", "LiberationSerif", 18, [smallCapsScale], 400, 0, 100,
-    )).toEqual([13]);
+    expect(embeddedLinuxTargetStrikeSizes("linux", "LiberationSerif", 18, [1, smallCapsScale, 1], 400, 0, 100)).toEqual(
+      [18, 13],
+    );
+    expect(embeddedLinuxTargetStrikeSizes("linux", "LiberationSerif", 18, [smallCapsScale], 400, 0, 100)).toEqual([13]);
 
     // One unsupported effective size keeps the whole run on the ordinary
     // subset path instead of mixing coordinate spaces within one result.
-    expect(embeddedLinuxTargetStrikeSizes(
-      "linux", "WenQuanYiZenHeiMono", 17, [1, 13 / 17], 400, 0, 100,
-    )).toBeNull();
-    expect(embeddedLinuxTargetStrikeSizes(
-      "linux", "LiberationSerif", 18, [1, smallCapsScale], 400, 0, 100,
-      "optimizeSpeed",
-    )).toBeNull();
-    expect(embeddedLinuxTargetStrikeSizes(
-      "darwin", "LiberationSerif", 18, [1, smallCapsScale], 400, 0, 100,
-    )).toBeNull();
-    expect(embeddedLinuxTargetStrikeSizes(
-      "linux", "LiberationSerif", 18, [], 400, 0, 100,
-    )).toBeNull();
+    expect(embeddedLinuxTargetStrikeSizes("linux", "WenQuanYiZenHeiMono", 17, [1, 13 / 17], 400, 0, 100)).toBeNull();
+    expect(
+      embeddedLinuxTargetStrikeSizes("linux", "LiberationSerif", 18, [1, smallCapsScale], 400, 0, 100, "optimizeSpeed"),
+    ).toBeNull();
+    expect(
+      embeddedLinuxTargetStrikeSizes("darwin", "LiberationSerif", 18, [1, smallCapsScale], 400, 0, 100),
+    ).toBeNull();
+    expect(embeddedLinuxTargetStrikeSizes("linux", "LiberationSerif", 18, [], 400, 0, 100)).toBeNull();
 
     // Do not let floating-point cleanup broaden the allowlist by rounding an
     // unrelated fractional authored size to an admitted integer strike.
     expect(effectiveGlyphFontSize(17.6, 1)).toBe(17.6);
-    expect(embeddedLinuxTargetStrikeSizes(
-      "linux", "LiberationSerif", 17.6, [1], 400, 0, 100,
-    )).toBeNull();
+    expect(embeddedLinuxTargetStrikeSizes("linux", "LiberationSerif", 17.6, [1], 400, 0, 100)).toBeNull();
   });
 
   it("keeps the larger 36/25 and 72/50 probe pairs on the ordinary subset route", () => {
@@ -108,18 +177,17 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     // pairs are deliberate negative controls: none of their four exact strikes
     // has independent admission evidence, so the all-or-nothing planner must
     // not partially apply target geometry to either mixed run.
-    for (const [fullSize, smallSize] of [[36, 25], [72, 50]] as const) {
+    for (const [fullSize, smallSize] of [
+      [36, 25],
+      [72, 50],
+    ] as const) {
       const smallCapsScale = smallSize / fullSize;
       expect(effectiveGlyphFontSize(fullSize, smallCapsScale)).toBe(smallSize);
-      expect(embeddedLinuxTargetStrikeEnabled(
-        "linux", "LiberationSerif", fullSize, 400, 0, 100,
-      )).toBe(false);
-      expect(embeddedLinuxTargetStrikeEnabled(
-        "linux", "LiberationSerif", smallSize, 400, 0, 100,
-      )).toBe(false);
-      expect(embeddedLinuxTargetStrikeSizes(
-        "linux", "LiberationSerif", fullSize, [1, smallCapsScale], 400, 0, 100,
-      )).toBeNull();
+      expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSerif", fullSize, 400, 0, 100)).toBe(false);
+      expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSerif", smallSize, 400, 0, 100)).toBe(false);
+      expect(
+        embeddedLinuxTargetStrikeSizes("linux", "LiberationSerif", fullSize, [1, smallCapsScale], 400, 0, 100),
+      ).toBeNull();
     }
   });
 
@@ -158,8 +226,13 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
 // these tables are exercised here with the walk disarmed on every platform.
 function withNominationWalkDisarmed(): void {
   let prev: boolean;
-  beforeEach(() => { prev = getSystemFallbackResolution(); setSystemFallbackResolution(false); });
-  afterEach(() => { setSystemFallbackResolution(prev); });
+  beforeEach(() => {
+    prev = getSystemFallbackResolution();
+    setSystemFallbackResolution(false);
+  });
+  afterEach(() => {
+    setSystemFallbackResolution(prev);
+  });
 }
 
 describe("resolveFontKey: generic-family resolution", () => {
@@ -202,15 +275,18 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("ui-sans-serif")).toBe("times");
   });
 
-  it.runIf(process.platform === "darwin")("falls through ui-monospace when later names in the chain are valid (DM-302)", () => {
-    // CSS like `font: ui-monospace, Menlo, Consolas, monospace` is common —
-    // the leading ui-monospace is a hint Chrome doesn't recognize on macOS,
-    // and Chrome paints Menlo (the next valid name). Pinning to Times on the
-    // ui-monospace keyword would make code editors render in a serif face.
-    expect(resolveFontKey("ui-monospace, Menlo, Consolas, monospace")).toBe("menlo");
-    expect(resolveFontKey("ui-rounded, Helvetica")).toBe("helvetica");
-    expect(resolveFontKey("emoji, sans-serif")).toBe("helvetica");
-  });
+  it.runIf(process.platform === "darwin")(
+    "falls through ui-monospace when later names in the chain are valid (DM-302)",
+    () => {
+      // CSS like `font: ui-monospace, Menlo, Consolas, monospace` is common —
+      // the leading ui-monospace is a hint Chrome doesn't recognize on macOS,
+      // and Chrome paints Menlo (the next valid name). Pinning to Times on the
+      // ui-monospace keyword would make code editors render in a serif face.
+      expect(resolveFontKey("ui-monospace, Menlo, Consolas, monospace")).toBe("menlo");
+      expect(resolveFontKey("ui-rounded, Helvetica")).toBe("helvetica");
+      expect(resolveFontKey("emoji, sans-serif")).toBe("helvetica");
+    },
+  );
 
   it("routes serif to Times, not Georgia", () => {
     expect(resolveFontKey("serif")).toBe("times");
@@ -267,8 +343,7 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("cursive")).toBe("apple-chancery");
     expect(resolveFontKey("Apple Chancery")).toBe("apple-chancery");
     expect(resolveFontKey("Snell Roundhand")).toBe("snell");
-    if (process.platform === "darwin"
-        && resolveInstalledFont("Brush Script MT")?.postscriptName === "BrushScriptMT") {
+    if (process.platform === "darwin" && resolveInstalledFont("Brush Script MT")?.postscriptName === "BrushScriptMT") {
       const key = resolveFontKey("Brush Script MT");
       expect(key).toBe("sysfb:BrushScriptMT");
       expect(getFontInstance(key, 400, 16, 0)?.postscriptName).toBe("BrushScriptMT");
@@ -284,7 +359,6 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("fantasy")).toBe("papyrus");
     expect(resolveFontKey("Papyrus")).toBe("papyrus");
   });
-
 });
 
 describe("resolveFontKey: explicit-name resolution", () => {
@@ -351,9 +425,8 @@ describe("resolveFontKey: explicit-name resolution", () => {
     }
 
     if (process.platform !== "darwin" || text?.postscriptName !== "SFProText-Regular") return;
-    for (const cp of [0x21, 0x2460, 0x2469, 0x24EB]) {
-      expect(__resolveFontForCodepointForTest(cp, "SF Pro Text")?.key)
-        .toBe("sysfb:SFProText-Regular");
+    for (const cp of [0x21, 0x2460, 0x2469, 0x24eb]) {
+      expect(__resolveFontForCodepointForTest(cp, "SF Pro Text")?.key).toBe("sysfb:SFProText-Regular");
     }
   });
 
@@ -368,25 +441,28 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("serif")).toBe("times");
   });
 
-  it.runIf(process.platform === "darwin")("is case-insensitive for FAMILY names and strips quotes; generic keywords are canonical-lowercase only", () => {
-    // Family-name lookups are case-insensitive (CoreText/DirectWrite/
-    // fontconfig all fold case), so any spelling of a real family matches.
-    expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
-    const sfMono = resolveInstalledFont("SF Mono");
-    expect(resolveFontKey("'SF Mono'")).toBe(
-      sfMono?.postscriptName === "SFMono-Regular" ? "sysfb:SFMono-Regular" : "times",
-    );
-    expect(resolveFontKey("MENLO")).toBe("menlo");
-    // But the generic-KEYWORD classification is case-SENSITIVE
-    // (`FontFamily::InferredTypeFor`, font_family.cc:63-74, rev 7d859f27 —
-    // AtomicString equality against the canonical lowercase names). The
-    // computed style only ever contains `MONOSPACE` for a literal family
-    // (`font-family: MONOSPACE` parses as the keyword and computes to
-    // lowercase `monospace`), so an upper-case spelling walks past to the
-    // standard-family terminal instead of taking the keyword's route.
-    expect(resolveFontKey("monospace")).toBe("courier");
-    expect(resolveFontKey("MONOSPACE")).toBe("times");
-  });
+  it.runIf(process.platform === "darwin")(
+    "is case-insensitive for FAMILY names and strips quotes; generic keywords are canonical-lowercase only",
+    () => {
+      // Family-name lookups are case-insensitive (CoreText/DirectWrite/
+      // fontconfig all fold case), so any spelling of a real family matches.
+      expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
+      const sfMono = resolveInstalledFont("SF Mono");
+      expect(resolveFontKey("'SF Mono'")).toBe(
+        sfMono?.postscriptName === "SFMono-Regular" ? "sysfb:SFMono-Regular" : "times",
+      );
+      expect(resolveFontKey("MENLO")).toBe("menlo");
+      // But the generic-KEYWORD classification is case-SENSITIVE
+      // (`FontFamily::InferredTypeFor`, font_family.cc:63-74, rev 7d859f27 —
+      // AtomicString equality against the canonical lowercase names). The
+      // computed style only ever contains `MONOSPACE` for a literal family
+      // (`font-family: MONOSPACE` parses as the keyword and computes to
+      // lowercase `monospace`), so an upper-case spelling walks past to the
+      // standard-family terminal instead of taking the keyword's route.
+      expect(resolveFontKey("monospace")).toBe("courier");
+      expect(resolveFontKey("MONOSPACE")).toBe("times");
+    },
+  );
 
   it("routes Chrome-unrecognized generics (math / emoji / fangsong) to Times", () => {
     // DM-269: probed Chrome on macOS — these paint with Times metrics
@@ -493,10 +569,15 @@ describe("weight -> face routing: sub-bold cuts", () => {
     // 600-900.
     it("resolves Helvetica's full weight ladder through the declared-family matcher", () => {
       const ladder: Array<[number, string]> = [
-        [100, "Helvetica-Light"], [200, "Helvetica-Light"], [300, "Helvetica-Light"],
-        [400, "Helvetica"], [500, "Helvetica"],
-        [600, "Helvetica-Bold"], [700, "Helvetica-Bold"],
-        [800, "Helvetica-Bold"], [900, "Helvetica-Bold"],
+        [100, "Helvetica-Light"],
+        [200, "Helvetica-Light"],
+        [300, "Helvetica-Light"],
+        [400, "Helvetica"],
+        [500, "Helvetica"],
+        [600, "Helvetica-Bold"],
+        [700, "Helvetica-Bold"],
+        [800, "Helvetica-Bold"],
+        [900, "Helvetica-Bold"],
       ];
       for (const [w, expected] of ladder) expect(psName("helvetica", w), `weight ${w}`).toBe(expected);
     });
@@ -514,8 +595,8 @@ describe("weight -> face routing: sub-bold cuts", () => {
     // 600). The helper now transcribes the 147 comparator and agrees with
     // Chrome over CDP at every one of these rungs.
     it("matches the shipping Chrome at the intermediate weights", () => {
-      expect(psName("helvetica", 350)).toBe("Helvetica");       // nearest: 400
-      expect(psName("helvetica", 590)).toBe("Helvetica");       // bold trait unwanted below 600
+      expect(psName("helvetica", 350)).toBe("Helvetica"); // nearest: 400
+      expect(psName("helvetica", 590)).toBe("Helvetica"); // bold trait unwanted below 600
       expect(psName("helvetica", 300)).toBe("Helvetica-Light"); // 200 vs 400 tie -> further from 500
     });
 
@@ -532,8 +613,13 @@ describe("weight -> face routing: sub-bold cuts", () => {
     it("keeps the cuts distinct when weights interleave through the cache", () => {
       const seq = [100, 400, 100, 700, 300, 400, 300];
       const want = [
-        "Helvetica-Light", "Helvetica", "Helvetica-Light", "Helvetica-Bold",
-        "Helvetica-Light", "Helvetica", "Helvetica-Light",
+        "Helvetica-Light",
+        "Helvetica",
+        "Helvetica-Light",
+        "Helvetica-Bold",
+        "Helvetica-Light",
+        "Helvetica",
+        "Helvetica-Light",
       ];
       expect(seq.map((w) => psName("helvetica", w))).toEqual(want);
     });
@@ -598,26 +684,26 @@ describe("fontHasOutlineTable (helper-fallback probe)", () => {
 // Brahmic blocks). Holds on Linux CI.
 describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle gate)", () => {
   it("is true for Brahmic / Indic / SE-Asian complex-shaper blocks", () => {
-    expect(usesComplexShaperDottedCircle(0x11A51)).toBe(true); // Soyombo vowel sign
-    expect(usesComplexShaperDottedCircle(0x11A01)).toBe(true); // Zanabazar Square
-    expect(usesComplexShaperDottedCircle(0x11D3A)).toBe(true); // Masaram Gondi
-    expect(usesComplexShaperDottedCircle(0x0903)).toBe(true);  // Devanagari sign visarga
-    expect(usesComplexShaperDottedCircle(0x0F71)).toBe(true);  // Tibetan vowel sign
-    expect(usesComplexShaperDottedCircle(0x1789)).toBe(true);  // Khmer
-    expect(usesComplexShaperDottedCircle(0xA8E0)).toBe(true);  // Devanagari Extended
+    expect(usesComplexShaperDottedCircle(0x11a51)).toBe(true); // Soyombo vowel sign
+    expect(usesComplexShaperDottedCircle(0x11a01)).toBe(true); // Zanabazar Square
+    expect(usesComplexShaperDottedCircle(0x11d3a)).toBe(true); // Masaram Gondi
+    expect(usesComplexShaperDottedCircle(0x0903)).toBe(true); // Devanagari sign visarga
+    expect(usesComplexShaperDottedCircle(0x0f71)).toBe(true); // Tibetan vowel sign
+    expect(usesComplexShaperDottedCircle(0x1789)).toBe(true); // Khmer
+    expect(usesComplexShaperDottedCircle(0xa8e0)).toBe(true); // Devanagari Extended
     // SMP USE blocks that were previously omitted, so their orphaned no-font
     // marks painted a bare tofu with no leading dotted circle (DM-1097/DM-1100):
-    expect(usesComplexShaperDottedCircle(0x113B9)).toBe(true); // Tulu-Tigalari vowel sign
-    expect(usesComplexShaperDottedCircle(0x113E1)).toBe(true); // Tulu-Tigalari combining tone
+    expect(usesComplexShaperDottedCircle(0x113b9)).toBe(true); // Tulu-Tigalari vowel sign
+    expect(usesComplexShaperDottedCircle(0x113e1)).toBe(true); // Tulu-Tigalari combining tone
     expect(usesComplexShaperDottedCircle(0x16120)).toBe(true); // Gurung Khema vowel sign
   });
   it("is FALSE for the generic combining-mark blocks (default shaper — Chrome adds NO dotted circle)", () => {
     expect(usesComplexShaperDottedCircle(0x0301)).toBe(false); // Combining acute (Latin)
-    expect(usesComplexShaperDottedCircle(0x036F)).toBe(false); // Combining Diacritical Marks
-    expect(usesComplexShaperDottedCircle(0x1AB0)).toBe(false); // …-Extended
-    expect(usesComplexShaperDottedCircle(0x1DC0)).toBe(false); // …-Supplement
-    expect(usesComplexShaperDottedCircle(0x20D0)).toBe(false); // …-for-Symbols
-    expect(usesComplexShaperDottedCircle(0xFE20)).toBe(false); // Combining Half Marks
+    expect(usesComplexShaperDottedCircle(0x036f)).toBe(false); // Combining Diacritical Marks
+    expect(usesComplexShaperDottedCircle(0x1ab0)).toBe(false); // …-Extended
+    expect(usesComplexShaperDottedCircle(0x1dc0)).toBe(false); // …-Supplement
+    expect(usesComplexShaperDottedCircle(0x20d0)).toBe(false); // …-for-Symbols
+    expect(usesComplexShaperDottedCircle(0xfe20)).toBe(false); // Combining Half Marks
   });
   it("is FALSE for Thai and Lao — `_hb_ot_shaper_thai` never inserts a dotted circle", () => {
     // `HB_SCRIPT_THAI` and `HB_SCRIPT_LAO` both dispatch to `_hb_ot_shaper_thai`
@@ -626,15 +712,15 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
     // its PUA mark-reordering machinery shifts a mark's OUTLINE, it never draws
     // a circle. An orphaned, uncovered Thai/Lao mark paints as a bare tofu in
     // Chrome; these two ranges used to say otherwise.
-    expect(usesComplexShaperDottedCircle(0x0E31)).toBe(false); // Thai vowel sign (MAI HAN-AKAT)
-    expect(usesComplexShaperDottedCircle(0x0E01)).toBe(false); // Thai KO KAI (non-mark, block sanity)
-    expect(usesComplexShaperDottedCircle(0x0EB1)).toBe(false); // Lao vowel sign MAI KAN
-    expect(usesComplexShaperDottedCircle(0x0E80)).toBe(false); // Lao block start
-    expect(usesComplexShaperDottedCircle(0x0EFF)).toBe(false); // Lao block end
+    expect(usesComplexShaperDottedCircle(0x0e31)).toBe(false); // Thai vowel sign (MAI HAN-AKAT)
+    expect(usesComplexShaperDottedCircle(0x0e01)).toBe(false); // Thai KO KAI (non-mark, block sanity)
+    expect(usesComplexShaperDottedCircle(0x0eb1)).toBe(false); // Lao vowel sign MAI KAN
+    expect(usesComplexShaperDottedCircle(0x0e80)).toBe(false); // Lao block start
+    expect(usesComplexShaperDottedCircle(0x0eff)).toBe(false); // Lao block end
   });
   it("is FALSE for non-mark scripts and base letters", () => {
     expect(usesComplexShaperDottedCircle(0x0041)).toBe(false); // Latin A
-    expect(usesComplexShaperDottedCircle(0x4E00)).toBe(false); // CJK 一
+    expect(usesComplexShaperDottedCircle(0x4e00)).toBe(false); // CJK 一
     expect(usesComplexShaperDottedCircle(0x0590)).toBe(false); // Hebrew area
   });
 });
@@ -647,11 +733,11 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
 // Chrome renders the precomposed glyph, regressing the tibetan fixture).
 describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)", () => {
   it("returns the NFD base+mark for USE-shaped precomposed letters", () => {
-    expect(complexShaperBaseMarkDecomposition(0x110AB)).toBe("\u{110A5}\u{110BA}"); // Kaithi VA = BA + nukta
-    expect(complexShaperBaseMarkDecomposition(0x1B06)).not.toBeNull();              // Balinese letter akara tedung
-    expect(complexShaperBaseMarkDecomposition(0x11383)).not.toBeNull();            // Tulu-Tigalari
+    expect(complexShaperBaseMarkDecomposition(0x110ab)).toBe("\u{110A5}\u{110BA}"); // Kaithi VA = BA + nukta
+    expect(complexShaperBaseMarkDecomposition(0x1b06)).not.toBeNull(); // Balinese letter akara tedung
+    expect(complexShaperBaseMarkDecomposition(0x11383)).not.toBeNull(); // Tulu-Tigalari
     // every returned decomposition is base-first, mark-last
-    for (const cp of [0x110AB, 0x1B06, 0x11383]) {
+    for (const cp of [0x110ab, 0x1b06, 0x11383]) {
       const d = complexShaperBaseMarkDecomposition(cp)!;
       const cps = [...d];
       expect(/\p{M}/u.test(cps[0])).toBe(false);
@@ -660,7 +746,7 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
   });
   it("is NULL for DEDICATED-shaper scripts (CoreText already matches Chrome there)", () => {
     expect(complexShaperBaseMarkDecomposition(0x0958)).toBeNull(); // Devanagari QA (Indic shaper)
-    expect(complexShaperBaseMarkDecomposition(0x09DC)).toBeNull(); // Bengali RRA
+    expect(complexShaperBaseMarkDecomposition(0x09dc)).toBeNull(); // Bengali RRA
     expect(complexShaperBaseMarkDecomposition(0x1026)).toBeNull(); // Myanmar UU
   });
   /**
@@ -678,7 +764,7 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
    */
   it("decomposes Tibetan — it is a USE script, not a dedicated-shaper one", () => {
     // Tibetan GHA U+0F43 = GA U+0F42 + subjoined HA U+0FB7, i.e. base-then-mark.
-    const d = complexShaperBaseMarkDecomposition(0x0F43);
+    const d = complexShaperBaseMarkDecomposition(0x0f43);
     expect(d).toBe("གྷ");
     const cps = [...d!];
     expect(/\p{M}/u.test(cps[0])).toBe(false);
@@ -697,15 +783,15 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
     // recursively with a per-level `has_glyph` test — so this expectation
     // documents our current gate, not Chrome's behavior.
     expect(/\p{M}/u.test("ෙ")).toBe(true);
-    expect(complexShaperBaseMarkDecomposition(0x0DDC)).toBeNull();
+    expect(complexShaperBaseMarkDecomposition(0x0ddc)).toBeNull();
   });
   it("is NULL for the default shaper's composed Latin/Greek/Cyrillic diacritics", () => {
-    expect(complexShaperBaseMarkDecomposition(0x00E9)).toBeNull(); // é (e + combining acute)
-    expect(complexShaperBaseMarkDecomposition(0x00F1)).toBeNull(); // ñ
+    expect(complexShaperBaseMarkDecomposition(0x00e9)).toBeNull(); // é (e + combining acute)
+    expect(complexShaperBaseMarkDecomposition(0x00f1)).toBeNull(); // ñ
     expect(complexShaperBaseMarkDecomposition(0x0041)).toBeNull(); // plain Latin A — no decomposition
   });
   it("is NULL for an atomic complex-script letter with no canonical decomposition", () => {
-    expect(complexShaperBaseMarkDecomposition(0x110A5)).toBeNull(); // Kaithi BA (the base itself)
+    expect(complexShaperBaseMarkDecomposition(0x110a5)).toBeNull(); // Kaithi BA (the base itself)
   });
 });
 
@@ -721,20 +807,20 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
 // mirrors this.
 describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)", () => {
   it("returns the base+mark NFD pair for the negated arrows", () => {
-    expect(nfdBaseMarkDecomposition(0x21AE)).toBe("\u2194\u0338"); // ↮ = ↔ + combining long solidus
-    expect(nfdBaseMarkDecomposition(0x21CE)).toBe("\u21D4\u0338"); // ⇎ = ⇔ + combining long solidus
-    expect(nfdBaseMarkDecomposition(0x219A)).toBe("\u2190\u0338"); // ↚ = ← + combining long solidus
-    expect(nfdBaseMarkDecomposition(0x219B)).toBe("\u2192\u0338"); // ↛ = → + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x21ae)).toBe("\u2194\u0338"); // ↮ = ↔ + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x21ce)).toBe("\u21D4\u0338"); // ⇎ = ⇔ + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x219a)).toBe("\u2190\u0338"); // ↚ = ← + combining long solidus
+    expect(nfdBaseMarkDecomposition(0x219b)).toBe("\u2192\u0338"); // ↛ = → + combining long solidus
     expect(nfdBaseMarkDecomposition(0x2260)).toBe("\u003D\u0338"); // ≠ = = + combining long solidus
   });
   it("returns base+mark pairs for Latin diacritics too (fired only when a font lacks the composed glyph)", () => {
-    expect(nfdBaseMarkDecomposition(0x00E9)).toBe("\u0065\u0301"); // é
+    expect(nfdBaseMarkDecomposition(0x00e9)).toBe("\u0065\u0301"); // é
   });
   it("is NULL for singletons, atomic codepoints, marks, and Hangul base+jamo", () => {
-    expect(nfdBaseMarkDecomposition(0x2F800)).toBeNull(); // CJK-compat singleton → U+4E3D (handled by the singleton step)
-    expect(nfdBaseMarkDecomposition(0x2190)).toBeNull();  // plain ← — no decomposition
-    expect(nfdBaseMarkDecomposition(0x0338)).toBeNull();  // the combining mark itself
-    expect(nfdBaseMarkDecomposition(0xAC00)).toBeNull();  // 가 — jamo pieces are Lo, not M
+    expect(nfdBaseMarkDecomposition(0x2f800)).toBeNull(); // CJK-compat singleton → U+4E3D (handled by the singleton step)
+    expect(nfdBaseMarkDecomposition(0x2190)).toBeNull(); // plain ← — no decomposition
+    expect(nfdBaseMarkDecomposition(0x0338)).toBeNull(); // the combining mark itself
+    expect(nfdBaseMarkDecomposition(0xac00)).toBeNull(); // 가 — jamo pieces are Lo, not M
   });
   // The resolver branch is NOT platform-gated — HarfBuzz normalization is engine
   // behavior, not a platform quirk. What keeps the negated arrows on their
@@ -745,7 +831,7 @@ describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)
   // pixel-exactly.
   if (process.platform === "linux") {
     it("[linux] resolves the negated arrows to a DECOMPOSED run in the declared cascade, not the fc-match composed glyph", () => {
-      for (const cp of [0x21AE, 0x21CE, 0x219A, 0x219B]) {
+      for (const cp of [0x21ae, 0x21ce, 0x219a, 0x219b]) {
         const r = __resolveFontForCodepointForTest(cp, "sans-serif");
         expect(r).not.toBeNull();
         // Liberation Sans (the `sans-serif` primary) covers ↔/⇔/←/→ + U+0338,
@@ -759,7 +845,7 @@ describe("nfdBaseMarkDecomposition (Chrome-on-Linux negated-arrow decomposition)
     });
   } else {
     it("[non-linux] keeps the negated arrows on the calibrated composed route (no decomposition)", () => {
-      const r = __resolveFontForCodepointForTest(0x21AE, "sans-serif");
+      const r = __resolveFontForCodepointForTest(0x21ae, "sans-serif");
       expect(r).not.toBeNull();
       expect(r!.decomposed).toBe(false);
     });
@@ -795,7 +881,7 @@ if (process.platform === "darwin" && existsSync("/System/Library/Fonts/Supplemen
     const STACK = '"Arial Unicode MS", sans-serif';
     // The six Cyrillic + a spread of the Latin Extended-B codepoints the
     // stock-macOS runner reported as mispositioned.
-    const CPS = [0x0400, 0x040D, 0x0450, 0x045D, 0x04EC, 0x04ED, 0x01F8, 0x0218, 0x021A, 0x0226, 0x0230];
+    const CPS = [0x0400, 0x040d, 0x0450, 0x045d, 0x04ec, 0x04ed, 0x01f8, 0x0218, 0x021a, 0x0226, 0x0230];
 
     it("routes them to Arial Unicode MS as a DECOMPOSED run, not on to Helvetica's precomposed glyph", () => {
       for (const cp of CPS) {
@@ -842,32 +928,62 @@ if (process.platform === "darwin" && existsSync("/System/Library/Fonts/Supplemen
 describe("orphaned complex marks get a HarfBuzz dotted circle (DM-1215)", () => {
   const ADLAM = "/System/Library/Fonts/Supplemental/NotoSansAdlam-Regular.ttf";
   const HAVE_ADLAM = fs.existsSync(ADLAM);
-  beforeEach(() => { clearWebfonts(); clearEmbeddedFonts(); setRenderTextMode("embedded-font"); });
-  afterEach(() => { setRenderTextMode("paths"); });
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFonts();
+    setRenderTextMode("embedded-font");
+  });
+  afterEach(() => {
+    setRenderTextMode("paths");
+  });
   const glyphCount = (out: string): number => {
     let n = 0;
     for (const m of out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) {
-      for (let i = 0; i < m[1].length;) { const cp = m[1].codePointAt(i)!; n++; i += cp > 0xFFFF ? 2 : 1; }
+      for (let i = 0; i < m[1].length;) {
+        const cp = m[1].codePointAt(i)!;
+        n++;
+        i += cp > 0xffff ? 2 : 1;
+      }
     }
     return n;
   };
   it.skipIf(!HAVE_ADLAM)("inserts the ◌ for an orphaned Adlam mark (2 glyphs: ◌ + mark)", () => {
-    const out = renderTextAsPath("\u{1E944}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("\u{1E944}", 0, 0, {
+      fontSize: 32,
+      fontFamily: '"Noto Sans Adlam"',
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(2); // HarfBuzz-inserted ◌ + the mark (fontkit alone → 1, no ◌)
   });
   it.skipIf(!HAVE_ADLAM)("shares ONE ◌ across an orphaned multi-mark cluster (3 glyphs: ◌ + 2 marks)", () => {
-    const out = renderTextAsPath("\u{1E944}\u{1E944}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("\u{1E944}\u{1E944}", 0, 0, {
+      fontSize: 32,
+      fontFamily: '"Noto Sans Adlam"',
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(3);
   });
   it.skipIf(!HAVE_ADLAM)("does NOT insert a ◌ for a based Adlam letter + mark (no orphan → 2 glyphs)", () => {
-    const out = renderTextAsPath("\u{1E921}\u{1E944}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("\u{1E921}\u{1E944}", 0, 0, {
+      fontSize: 32,
+      fontFamily: '"Noto Sans Adlam"',
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(2); // base + mark, NO inserted circle (would be 3 if mis-routed)
   });
   it.skipIf(!HAVE_ADLAM)("does NOT insert a ◌ for a bare Adlam base letter (1 glyph)", () => {
-    const out = renderTextAsPath("\u{1E921}", 0, 0, { fontSize: 32, fontFamily: '"Noto Sans Adlam"', fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("\u{1E921}", 0, 0, {
+      fontSize: 32,
+      fontFamily: '"Noto Sans Adlam"',
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     expect(glyphCount(out!)).toBe(1);
   });
@@ -882,18 +998,27 @@ describe("orphaned complex marks get a HarfBuzz dotted circle (DM-1215)", () => 
 const MUKTA = "/Library/Fonts/Mukta-Regular.ttf";
 const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta") != null;
 (HAVE_RUNTIME_MUKTA ? describe : describe.skip)("runtime-discovered Vedic shaping face (DM-2146)", () => {
-  beforeEach(() => { clearWebfonts(); clearEmbeddedFonts(); setRenderTextMode("paths"); });
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFonts();
+    setRenderTextMode("paths");
+  });
 
   it("infers Mukta's dotted circle when the capture oracle reports no ink", () => {
-    const render = (cp: number): string => renderTextAsPath(String.fromCodePoint(cp), 0, 0, {
-      fontSize: 32, fontFamily: '"Mukta", sans-serif', fontWeight: "400", fill: "#000",
-      dottedCircleMarks: [], xOffsets: [0],
-    })!;
-    const assertCircled = (): void => expect([...render(0x1CD1).matchAll(/<use\b/g)]).toHaveLength(2);
+    const render = (cp: number): string =>
+      renderTextAsPath(String.fromCodePoint(cp), 0, 0, {
+        fontSize: 32,
+        fontFamily: '"Mukta", sans-serif',
+        fontWeight: "400",
+        fill: "#000",
+        dottedCircleMarks: [],
+        xOffsets: [0],
+      })!;
+    const assertCircled = (): void => expect([...render(0x1cd1).matchAll(/<use\b/g)]).toHaveLength(2);
     // Pin the lifecycle transitions exercised by exhaustive workers: fresh,
     // after a Common Vedic neighbor, repeated, and after the public cache trim.
     assertCircled();
-    expect([...render(0x1CD0).matchAll(/<use\b/g)]).toHaveLength(1);
+    expect([...render(0x1cd0).matchAll(/<use\b/g)]).toHaveLength(1);
     assertCircled();
     assertCircled();
     clearFontResolutionCaches();
@@ -921,145 +1046,183 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
 // HarfBuzz guesses Common and never enters the syllabic shaper that inserts
 // U+25CC. These production-emitter assertions intentionally use the same
 // runtime Mukta face as the Unicode visual oracle.
-(HAVE_RUNTIME_MUKTA ? describe : describe.skip)("Vedic iterator-selected run preserves script in embedded emission (DM-2423)", () => {
-  const FAMILY = '"Mukta", sans-serif';
-  let mukta: ReturnType<typeof fontkit.openSync>;
-  let noCircleSubset: Buffer;
+(HAVE_RUNTIME_MUKTA ? describe : describe.skip)(
+  "Vedic iterator-selected run preserves script in embedded emission (DM-2423)",
+  () => {
+    const FAMILY = '"Mukta", sans-serif';
+    let mukta: ReturnType<typeof fontkit.openSync>;
+    let noCircleSubset: Buffer;
 
-  const embeddedGlyphCount = (out: string): number => {
-    let count = 0;
-    for (const match of out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) count += [...match[1]].length;
-    return count;
-  };
+    const embeddedGlyphCount = (out: string): number => {
+      let count = 0;
+      for (const match of out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) count += [...match[1]].length;
+      return count;
+    };
 
-  const outlinedOneCodepointGlyph = (glyph: {
-    id: number;
-    cluster: number;
-    xAdvance: number;
-    yAdvance: number;
-    xOffset: number;
-    yOffset: number;
-  }) => expect.objectContaining({
-    ...glyph,
-    sourceSpan: [0, 1],
-    sourceCodepointSpan: [0, 1],
-    sourceOutline: expect.objectContaining({
-      sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-      commandCount: expect.any(Number),
-    }),
-  });
+    const outlinedOneCodepointGlyph = (glyph: {
+      id: number;
+      cluster: number;
+      xAdvance: number;
+      yAdvance: number;
+      xOffset: number;
+      yOffset: number;
+    }) =>
+      expect.objectContaining({
+        ...glyph,
+        sourceSpan: [0, 1],
+        sourceCodepointSpan: [0, 1],
+        sourceOutline: expect.objectContaining({
+          sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          commandCount: expect.any(Number),
+        }),
+      });
 
-  const renderWithEvidence = (text: string, fontFamily = FAMILY) => {
-    clearEmbeddedFonts();
-    resetTextRunProvenance();
-    const out = renderTextAsPath(text, 0, 0, {
-      fontSize: 32,
-      fontFamily,
-      fontWeight: "400",
-      fill: "#000",
-      dottedCircleMarks: [],
-      xOffsets: Array.from({ length: text.length }, (_, i) => i * 20),
+    const renderWithEvidence = (text: string, fontFamily = FAMILY) => {
+      clearEmbeddedFonts();
+      resetTextRunProvenance();
+      const out = renderTextAsPath(text, 0, 0, {
+        fontSize: 32,
+        fontFamily,
+        fontWeight: "400",
+        fill: "#000",
+        dottedCircleMarks: [],
+        xOffsets: Array.from({ length: text.length }, (_, i) => i * 20),
+      });
+      expect(out).not.toBeNull();
+      const evidence = getTextRunProvenance();
+      expect(evidence.transitions).toContainEqual({ kind: "embedded-succeeded", sourceText: text });
+      expect(evidence.runs).toHaveLength(1);
+      return { out: out!, run: evidence.runs[0] };
+    };
+
+    beforeAll(() => {
+      mukta = fontkit.openSync(MUKTA);
+      const markGid = mukta.glyphForCodePoint(0x1cd1).id;
+      const baseGid = mukta.glyphForCodePoint(0x0915).id;
+      noCircleSubset = hbSubsetRetainGids(fs.readFileSync(MUKTA), [0, baseGid, markGid], 0, true, null);
     });
-    expect(out).not.toBeNull();
-    const evidence = getTextRunProvenance();
-    expect(evidence.transitions).toContainEqual({ kind: "embedded-succeeded", sourceText: text });
-    expect(evidence.runs).toHaveLength(1);
-    return { out: out!, run: evidence.runs[0] };
-  };
+    beforeEach(() => {
+      clearWebfonts();
+      setRenderTextMode("embedded-font");
+      setTextRunProvenanceEnabled(true);
+    });
+    afterEach(() => {
+      setTextRunProvenanceEnabled(false);
+      setRenderTextMode("paths");
+      clearWebfonts();
+    });
 
-  beforeAll(() => {
-    mukta = fontkit.openSync(MUKTA);
-    const markGid = mukta.glyphForCodePoint(0x1CD1).id;
-    const baseGid = mukta.glyphForCodePoint(0x0915).id;
-    noCircleSubset = hbSubsetRetainGids(fs.readFileSync(MUKTA), [0, baseGid, markGid], 0, true, null);
-  });
-  beforeEach(() => {
-    clearWebfonts();
-    setRenderTextMode("embedded-font");
-    setTextRunProvenanceEnabled(true);
-  });
-  afterEach(() => {
-    setTextRunProvenanceEnabled(false);
-    setRenderTextMode("paths");
-    clearWebfonts();
-  });
+    it("emits the resolver-selected U+25CC cluster with HarfBuzz advances, clusters, and offsets", () => {
+      const circle = mukta.glyphForCodePoint(0x25cc);
+      // U+1CE1 is the deliberate non-broken control below: Blink resolves its
+      // {Beng, Deva} Script_Extensions set to Beng, where this buffer is not a
+      // broken syllable. Every member here resolves unambiguously to Deva.
+      const brokenMarks = [
+        0x1cd1, 0x1cd4, 0x1cdb, 0x1cde, 0x1cdf, 0x1ce2, 0x1ce3, 0x1ce4, 0x1ce5, 0x1ce6, 0x1ce7, 0x1ce8,
+      ];
+      expect(circle.id).not.toBe(0);
+      for (const cp of brokenMarks) {
+        const mark = mukta.glyphForCodePoint(cp);
+        const { out, run } = renderWithEvidence(String.fromCodePoint(cp));
+        expect(embeddedGlyphCount(out), `U+${cp.toString(16)}`).toBe(2);
+        expect(run).toMatchObject({
+          mechanism: "declared-family",
+          request: { script: "Deva", direction: "ltr" },
+          selected: {
+            postscriptName: "Mukta-Regular",
+            sourcePath: MUKTA,
+            faceIndex: 0,
+            shapesWithHarfbuzz: true,
+          },
+        });
+        expect(run.glyphs, `U+${cp.toString(16)}`).toEqual([
+          outlinedOneCodepointGlyph({
+            id: circle.id,
+            cluster: 0,
+            xAdvance: circle.advanceWidth,
+            yAdvance: 0,
+            xOffset: 0,
+            yOffset: 0,
+          }),
+          outlinedOneCodepointGlyph({
+            id: mark.id,
+            cluster: 0,
+            xAdvance: mark.advanceWidth,
+            yAdvance: 0,
+            xOffset: 0,
+            yOffset: 0,
+          }),
+        ]);
+      }
+    });
 
-  it("emits the resolver-selected U+25CC cluster with HarfBuzz advances, clusters, and offsets", () => {
-    const circle = mukta.glyphForCodePoint(0x25CC);
-    // U+1CE1 is the deliberate non-broken control below: Blink resolves its
-    // {Beng, Deva} Script_Extensions set to Beng, where this buffer is not a
-    // broken syllable. Every member here resolves unambiguously to Deva.
-    const brokenMarks = [
-      0x1CD1, 0x1CD4, 0x1CDB, 0x1CDE, 0x1CDF,
-      0x1CE2, 0x1CE3, 0x1CE4, 0x1CE5, 0x1CE6, 0x1CE7, 0x1CE8,
-    ];
-    expect(circle.id).not.toBe(0);
-    for (const cp of brokenMarks) {
-      const mark = mukta.glyphForCodePoint(cp);
-      const { out, run } = renderWithEvidence(String.fromCodePoint(cp));
-      expect(embeddedGlyphCount(out), `U+${cp.toString(16)}`).toBe(2);
+    it("does not insert a circle when the selected face has no nominal U+25CC glyph", () => {
+      const family = '"DM2423 No Circle"';
+      registerWebfont("DM2423 No Circle", 400, "normal", noCircleSubset);
+      const mark = mukta.glyphForCodePoint(0x1cd1);
+      const { out, run } = renderWithEvidence("\u1CD1", family);
+      expect(embeddedGlyphCount(out)).toBe(1);
       expect(run).toMatchObject({
         mechanism: "declared-family",
-        request: { script: "Deva", direction: "ltr" },
-        selected: {
-          postscriptName: "Mukta-Regular",
-          sourcePath: MUKTA,
-          faceIndex: 0,
-          shapesWithHarfbuzz: true,
-        },
+        request: { script: "Deva" },
+        selected: { fontKey: "webfont:dm2423 no circle", shapesWithHarfbuzz: true },
       });
-      expect(run.glyphs, `U+${cp.toString(16)}`).toEqual([
-        outlinedOneCodepointGlyph({ id: circle.id, cluster: 0, xAdvance: circle.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
-        outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
+      expect(run.glyphs).toEqual([
+        outlinedOneCodepointGlyph({
+          id: mark.id,
+          cluster: 0,
+          xAdvance: mark.advanceWidth,
+          yAdvance: 0,
+          xOffset: 0,
+          yOffset: 0,
+        }),
       ]);
-    }
-  });
-
-  it("does not insert a circle when the selected face has no nominal U+25CC glyph", () => {
-    const family = '"DM2423 No Circle"';
-    registerWebfont("DM2423 No Circle", 400, "normal", noCircleSubset);
-    const mark = mukta.glyphForCodePoint(0x1CD1);
-    const { out, run } = renderWithEvidence("\u1CD1", family);
-    expect(embeddedGlyphCount(out)).toBe(1);
-    expect(run).toMatchObject({
-      mechanism: "declared-family",
-      request: { script: "Deva" },
-      selected: { fontKey: "webfont:dm2423 no circle", shapesWithHarfbuzz: true },
     });
-    expect(run.glyphs).toEqual([
-      outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
-    ]);
-  });
 
-  it("keeps based and itemizer-resolved non-broken marks free of synthetic circles", () => {
-    const circleGid = mukta.glyphForCodePoint(0x25CC).id;
-    const based = renderWithEvidence("क\u1CD1");
-    expect(embeddedGlyphCount(based.out)).toBe(2);
-    expect(based.run).toMatchObject({ mechanism: "declared-family", request: { script: "Deva" } });
-    expect(based.run.glyphs.map((glyph) => glyph.id)).not.toContain(circleGid);
+    it("keeps based and itemizer-resolved non-broken marks free of synthetic circles", () => {
+      const circleGid = mukta.glyphForCodePoint(0x25cc).id;
+      const based = renderWithEvidence("क\u1CD1");
+      expect(embeddedGlyphCount(based.out)).toBe(2);
+      expect(based.run).toMatchObject({ mechanism: "declared-family", request: { script: "Deva" } });
+      expect(based.run.glyphs.map((glyph) => glyph.id)).not.toContain(circleGid);
 
-    const nonBroken = renderWithEvidence("\u1CE1");
-    const mark = mukta.glyphForCodePoint(0x1CE1);
-    expect(embeddedGlyphCount(nonBroken.out)).toBe(1);
-    expect(nonBroken.run).toMatchObject({ mechanism: "declared-family", request: { script: "Beng" } });
-    expect(nonBroken.run.glyphs).toEqual([
-      outlinedOneCodepointGlyph({ id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
-    ]);
-  });
-
-  it("keeps U+1CF7 as Mukta .notdef instead of manufacturing a dotted-circle verdict", () => {
-    const { out, run } = renderWithEvidence("\u1CF7");
-    expect(embeddedGlyphCount(out)).toBe(1);
-    expect(run).toMatchObject({
-      mechanism: "first-candidate-notdef",
-      request: { script: "Beng" },
-      selected: { postscriptName: "Mukta-Regular", sourcePath: MUKTA, faceIndex: 0 },
+      const nonBroken = renderWithEvidence("\u1CE1");
+      const mark = mukta.glyphForCodePoint(0x1ce1);
+      expect(embeddedGlyphCount(nonBroken.out)).toBe(1);
+      expect(nonBroken.run).toMatchObject({ mechanism: "declared-family", request: { script: "Beng" } });
+      expect(nonBroken.run.glyphs).toEqual([
+        outlinedOneCodepointGlyph({
+          id: mark.id,
+          cluster: 0,
+          xAdvance: mark.advanceWidth,
+          yAdvance: 0,
+          xOffset: 0,
+          yOffset: 0,
+        }),
+      ]);
     });
-    expect(run.glyphs).toEqual([
-      outlinedOneCodepointGlyph({ id: 0, cluster: 0, xAdvance: mukta.getGlyph(0).advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 }),
-    ]);
-  });
-});
+
+    it("keeps U+1CF7 as Mukta .notdef instead of manufacturing a dotted-circle verdict", () => {
+      const { out, run } = renderWithEvidence("\u1CF7");
+      expect(embeddedGlyphCount(out)).toBe(1);
+      expect(run).toMatchObject({
+        mechanism: "first-candidate-notdef",
+        request: { script: "Beng" },
+        selected: { postscriptName: "Mukta-Regular", sourcePath: MUKTA, faceIndex: 0 },
+      });
+      expect(run.glyphs).toEqual([
+        outlinedOneCodepointGlyph({
+          id: 0,
+          cluster: 0,
+          xAdvance: mukta.getGlyph(0).advanceWidth,
+          yAdvance: 0,
+          xOffset: 0,
+          yOffset: 0,
+        }),
+      ]);
+    });
+  },
+);
 
 describe("insertSyntheticDottedCircles: Hangul tone marks stay bare for HarfBuzz (DM-1229 / DM-2020)", () => {
   const AU = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf";
@@ -1085,7 +1248,17 @@ describe("insertSyntheticDottedCircles: Hangul tone marks stay bare for HarfBuzz
   it.skipIf(!HAVE_AU)("does NOT prepend a ◌ to a probe-flagged Hangul tone mark (Arial Unicode primary)", () => {
     for (const cp of [0x302e, 0x302f]) {
       const ch = String.fromCodePoint(cp);
-      const { text } = insertSyntheticDottedCircles(ch, undefined, '"Arial Unicode MS"', 400, 32, 0, undefined, undefined, [0]);
+      const { text } = insertSyntheticDottedCircles(
+        ch,
+        undefined,
+        '"Arial Unicode MS"',
+        400,
+        32,
+        0,
+        undefined,
+        undefined,
+        [0],
+      );
       expect(text).toBe(ch); // bare — NOT "◌" + ch (which would be 2 chars / the reversed layout)
     }
   });
@@ -1095,10 +1268,21 @@ describe("DM-2197: uncovered Vedic marks ignore an empty paint probe", () => {
   it.skipIf(!fs.existsSync("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"))(
     "keeps a dotted circle when Arial Unicode lacks the mark, with or without a learned fallback face",
     () => {
-      const result = withSystemFallbackResolution(false, () => insertSyntheticDottedCircles(
-        "\u1CD1", [0], '"Arial Unicode MS", sans-serif', 400, 32, 0,
-        undefined, undefined, [], undefined, false,
-      ));
+      const result = withSystemFallbackResolution(false, () =>
+        insertSyntheticDottedCircles(
+          "\u1CD1",
+          [0],
+          '"Arial Unicode MS", sans-serif',
+          400,
+          32,
+          0,
+          undefined,
+          undefined,
+          [],
+          undefined,
+          false,
+        ),
+      );
       if (result.text === "◌\u1CD1") {
         // Degraded inventory: the primary .notdef run needs explicit synthesis.
         expect(result.xOffsets).toHaveLength(2);
@@ -1108,21 +1292,49 @@ describe("DM-2197: uncovered Vedic marks ignore an empty paint probe", () => {
         // owns insertion; pin the final painted result instead of requiring
         // the degraded preprocessor representation.
         expect(result.text).toBe("\u1CD1");
-        const out = withSystemFallbackResolution(false, () => renderTextAsPath("\u1CD1", 0, 0, {
-          fontSize: 32, fontFamily: '"Arial Unicode MS", sans-serif', fontWeight: "400",
-          fill: "#000", dottedCircleMarks: [], xOffsets: [0],
-        }));
+        const out = withSystemFallbackResolution(false, () =>
+          renderTextAsPath("\u1CD1", 0, 0, {
+            fontSize: 32,
+            fontFamily: '"Arial Unicode MS", sans-serif',
+            fontWeight: "400",
+            fill: "#000",
+            dottedCircleMarks: [],
+            xOffsets: [0],
+          }),
+        );
         expect([...out!.matchAll(/<use\b/g)]).toHaveLength(2);
       }
-      const common = withSystemFallbackResolution(false, () => insertSyntheticDottedCircles(
-        "\u1CD0", [0], '"Arial Unicode MS", sans-serif', 400, 32, 0,
-        undefined, undefined, [], undefined, false,
-      ));
+      const common = withSystemFallbackResolution(false, () =>
+        insertSyntheticDottedCircles(
+          "\u1CD0",
+          [0],
+          '"Arial Unicode MS", sans-serif',
+          400,
+          32,
+          0,
+          undefined,
+          undefined,
+          [],
+          undefined,
+          false,
+        ),
+      );
       expect(common.text).toBe("\u1CD0");
-      const laterFamily = withSystemFallbackResolution(false, () => insertSyntheticDottedCircles(
-        "\u1CD1", [0], 'Helvetica, "Arial Unicode MS", sans-serif', 400, 32, 0,
-        undefined, undefined, [], undefined, true,
-      ));
+      const laterFamily = withSystemFallbackResolution(false, () =>
+        insertSyntheticDottedCircles(
+          "\u1CD1",
+          [0],
+          'Helvetica, "Arial Unicode MS", sans-serif',
+          400,
+          32,
+          0,
+          undefined,
+          undefined,
+          [],
+          undefined,
+          true,
+        ),
+      );
       expect(["◌\u1CD1", "\u1CD1"]).toContain(laterFamily.text);
     },
   );
@@ -1133,35 +1345,35 @@ describe("DM-2197: uncovered Vedic marks ignore an empty paint probe", () => {
 // must NOT qualify (they don't pre-base-reorder), only left VOWEL signs do.
 describe("isLeftReorderingMatra (pre-base vowel reorder gate)", () => {
   it("matches left VOWEL signs across Brahmic blocks", () => {
-    expect(isLeftReorderingMatra(0x093F)).toBe(true);  // Devanagari sign I
-    expect(isLeftReorderingMatra(0x113C5)).toBe(true);  // Tulu-Tigalari vowel sign AI (Left)
-    expect(isLeftReorderingMatra(0x113C7)).toBe(true);  // Tulu-Tigalari vowel sign OO (Left_And_Right)
-    expect(isLeftReorderingMatra(0x11347)).toBe(true);  // Grantha vowel sign EE
-    expect(isLeftReorderingMatra(0x119E4)).toBe(true);  // Nandinagari vowel sign prishthamatra E
-    expect(isLeftReorderingMatra(0x17BE)).toBe(true);   // Khmer vowel sign OE
+    expect(isLeftReorderingMatra(0x093f)).toBe(true); // Devanagari sign I
+    expect(isLeftReorderingMatra(0x113c5)).toBe(true); // Tulu-Tigalari vowel sign AI (Left)
+    expect(isLeftReorderingMatra(0x113c7)).toBe(true); // Tulu-Tigalari vowel sign OO (Left_And_Right)
+    expect(isLeftReorderingMatra(0x11347)).toBe(true); // Grantha vowel sign EE
+    expect(isLeftReorderingMatra(0x119e4)).toBe(true); // Nandinagari vowel sign prishthamatra E
+    expect(isLeftReorderingMatra(0x17be)).toBe(true); // Khmer vowel sign OE
   });
   it("does NOT match InPC=Left MEDIAL CONSONANTS (no pre-base reorder)", () => {
     // These are positioned left but are Consonant_Medial, not Vowel_Dependent —
     // Chrome paints them post-base. Including them regressed gurung-khema.
-    expect(isLeftReorderingMatra(0x1612A)).toBe(false); // Gurung Khema medial YA
-    expect(isLeftReorderingMatra(0x1612B)).toBe(false); // Gurung Khema medial VA
-    expect(isLeftReorderingMatra(0x103C)).toBe(false);  // Myanmar consonant sign medial RA
-    expect(isLeftReorderingMatra(0x1171E)).toBe(false); // Ahom consonant sign medial RA
-    expect(isLeftReorderingMatra(0xA9BF)).toBe(false);  // Javanese consonant sign cakra
+    expect(isLeftReorderingMatra(0x1612a)).toBe(false); // Gurung Khema medial YA
+    expect(isLeftReorderingMatra(0x1612b)).toBe(false); // Gurung Khema medial VA
+    expect(isLeftReorderingMatra(0x103c)).toBe(false); // Myanmar consonant sign medial RA
+    expect(isLeftReorderingMatra(0x1171e)).toBe(false); // Ahom consonant sign medial RA
+    expect(isLeftReorderingMatra(0xa9bf)).toBe(false); // Javanese consonant sign cakra
   });
   it("does NOT match post-base / above / below marks or plain text", () => {
-    expect(isLeftReorderingMatra(0x113C9)).toBe(false); // Tulu-Tigalari AU length mark (Right)
-    expect(isLeftReorderingMatra(0x0301)).toBe(false);  // Combining acute
-    expect(isLeftReorderingMatra(0x0041)).toBe(false);  // Latin A
+    expect(isLeftReorderingMatra(0x113c9)).toBe(false); // Tulu-Tigalari AU length mark (Right)
+    expect(isLeftReorderingMatra(0x0301)).toBe(false); // Combining acute
+    expect(isLeftReorderingMatra(0x0041)).toBe(false); // Latin A
   });
   // DM-2020: added by regenerating the table from HarfBuzz's own compiled USE
   // category lookup (VPre ∪ VMPre) instead of the hand-picked UCD
   // intersection, which never named the VMPre category these three belong
   // to. Discriminating: all three returned `false` (wrongly) before the fix.
   it("matches the VMPre-category members the hand-curated table was missing", () => {
-    expect(isLeftReorderingMatra(0x0F3F)).toBe(true);   // Tibetan sign SNA LDAN
-    expect(isLeftReorderingMatra(0x1C34)).toBe(true);   // Lepcha vowel sign AA
-    expect(isLeftReorderingMatra(0x1C35)).toBe(true);   // Lepcha vowel sign II
+    expect(isLeftReorderingMatra(0x0f3f)).toBe(true); // Tibetan sign SNA LDAN
+    expect(isLeftReorderingMatra(0x1c34)).toBe(true); // Lepcha vowel sign AA
+    expect(isLeftReorderingMatra(0x1c35)).toBe(true); // Lepcha vowel sign II
   });
 });
 
@@ -1190,16 +1402,52 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     expect(r.xOffsets![1] - 98.4).toBeCloseTo(19.2, 1);
   });
   it("DM-2197: leaves a dedicated-shaper left matra bare for HarfBuzz to circle", () => {
-    const r = insertSyntheticDottedCircles("\u{113C5}", undefined, fam, 400, 32, 0, undefined, undefined, undefined, undefined, true); // Tulu-Tigalari VOWEL SIGN AI — uncovered, InPC=Left
+    const r = insertSyntheticDottedCircles(
+      "\u{113C5}",
+      undefined,
+      fam,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    ); // Tulu-Tigalari VOWEL SIGN AI — uncovered, InPC=Left
     expect(r.text).toBe("\u{113C5}");
   });
   it("DM-2197: preserves offsets when the dedicated shaper owns insertion", () => {
-    const r = insertSyntheticDottedCircles("\u{113C5}", [40, 40], fam, 400, 32, 0, undefined, undefined, undefined, undefined, true); // one xOffset per UTF-16 unit
+    const r = insertSyntheticDottedCircles(
+      "\u{113C5}",
+      [40, 40],
+      fam,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    ); // one xOffset per UTF-16 unit
     expect(r.text).toBe("\u{113C5}");
     expect(r.xOffsets).toEqual([40, 40]);
   });
   it("DM-2197: also leaves a dedicated-shaper right matra bare", () => {
-    const r = insertSyntheticDottedCircles("\u{113C9}", undefined, fam, 400, 32, 0, undefined, undefined, undefined, undefined, true); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
+    const r = insertSyntheticDottedCircles(
+      "\u{113C9}",
+      undefined,
+      fam,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    ); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
     expect(r.text).toBe("\u{113C9}");
   });
   it("DM-2226: honors a negative capture probe for a covered Tai Tham orphan mark", () => {
@@ -1223,8 +1471,17 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     // production shaped fallback to emit two dotted circles.
     const source = "\u{11F02}";
     const r = insertSyntheticDottedCircles(
-      source, [170.39, 170.39], fam, 400, 32, 0, undefined, undefined,
-      [0], undefined, true,
+      source,
+      [170.39, 170.39],
+      fam,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      [0],
+      undefined,
+      true,
     );
     expect(r.text).toBe(source);
     expect(r.xOffsets).toEqual([170.39, 170.39]);
@@ -1233,11 +1490,35 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     // Sogdian COMBINING DOT BELOW U+10F46 is a broken RTL syllable. The capture
     // probe flags index 0, but preprocessing leaves it intact because the
     // dedicated HarfBuzz run inserts and positions its own dotted circle.
-    const r = insertSyntheticDottedCircles("\u{10F46}", undefined, fam, 400, 32, 0, undefined, undefined, [0], undefined, true);
+    const r = insertSyntheticDottedCircles(
+      "\u{10F46}",
+      undefined,
+      fam,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      [0],
+      undefined,
+      true,
+    );
     expect(r.text).toBe("\u{10F46}");
   });
   it("DM-2197: preserves offsets for a dedicated-shaper RTL mark", () => {
-    const r = insertSyntheticDottedCircles("\u{10F46}", [674.39, 674.39], fam, 400, 32, 0, undefined, undefined, [0], undefined, true);
+    const r = insertSyntheticDottedCircles(
+      "\u{10F46}",
+      [674.39, 674.39],
+      fam,
+      400,
+      32,
+      0,
+      undefined,
+      undefined,
+      [0],
+      undefined,
+      true,
+    );
     expect(r.text).toBe("\u{10F46}");
     expect(r.xOffsets).toEqual([674.39, 674.39]);
   });
@@ -1259,14 +1540,25 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
 describe("Tamil/Malayalam/Sinhala vowel constraints missing from vendored HarfBuzz", () => {
   const pairs = [
-    [0x0B85, 0x0BC2],
-    [0x0D07, 0x0D57], [0x0D09, 0x0D57], [0x0D0E, 0x0D46],
-    [0x0D12, 0x0D3E], [0x0D12, 0x0D57],
-    [0x0D85, 0x0DCF], [0x0D85, 0x0DD0], [0x0D85, 0x0DD1],
-    [0x0D8B, 0x0DDF], [0x0D8F, 0x0DDF], [0x0D94, 0x0DDF],
-    [0x0D8D, 0x0DD8],
-    [0x0D91, 0x0DCA], [0x0D91, 0x0DD9], [0x0D91, 0x0DDA],
-    [0x0D91, 0x0DDC], [0x0D91, 0x0DDD], [0x0D91, 0x0DDE],
+    [0x0b85, 0x0bc2],
+    [0x0d07, 0x0d57],
+    [0x0d09, 0x0d57],
+    [0x0d0e, 0x0d46],
+    [0x0d12, 0x0d3e],
+    [0x0d12, 0x0d57],
+    [0x0d85, 0x0dcf],
+    [0x0d85, 0x0dd0],
+    [0x0d85, 0x0dd1],
+    [0x0d8b, 0x0ddf],
+    [0x0d8f, 0x0ddf],
+    [0x0d94, 0x0ddf],
+    [0x0d8d, 0x0dd8],
+    [0x0d91, 0x0dca],
+    [0x0d91, 0x0dd9],
+    [0x0d91, 0x0dda],
+    [0x0d91, 0x0ddc],
+    [0x0d91, 0x0ddd],
+    [0x0d91, 0x0dde],
   ] as const;
   const fam = '"Arial Unicode MS","Apple Symbols",sans-serif';
 
@@ -1274,13 +1566,18 @@ describe("Tamil/Malayalam/Sinhala vowel constraints missing from vendored HarfBu
     for (const [base, vowel] of pairs) {
       const source = String.fromCodePoint(base, vowel);
       const result = insertSyntheticDottedCircles(source, [10, 20], fam, 400, 32, 0, undefined, undefined);
-      expect(result.text).toBe(String.fromCodePoint(base, 0x25CC, vowel));
+      expect(result.text).toBe(String.fromCodePoint(base, 0x25cc, vowel));
       expect(result.xOffsets).toEqual([10, 20, 20]);
     }
   });
 
   it.skipIf(!MACOS_FONTS_DC)("leaves near-neighbor and unrelated base+mark pairs untouched", () => {
-    for (const [base, vowel] of [[0x0B85, 0x0BC1], [0x0D07, 0x0D56], [0x0D85, 0x0DCE], [0x0041, 0x0301]]) {
+    for (const [base, vowel] of [
+      [0x0b85, 0x0bc1],
+      [0x0d07, 0x0d56],
+      [0x0d85, 0x0dce],
+      [0x0041, 0x0301],
+    ]) {
       const source = String.fromCodePoint(base, vowel);
       expect(insertSyntheticDottedCircles(source, undefined, fam, 400, 32, 0, undefined, undefined).text).toBe(source);
     }
@@ -1298,7 +1595,9 @@ describe("Tamil ZWJ-prefixed broken matra cluster", () => {
 
   it.skipIf(!MACOS_FONTS_DC)("does not alter a based Tamil mark or ordinary ZWJ use", () => {
     for (const source of ["\u0B95\u200D\u0BC6", "A\u200DB", "\u200D\u0BCD"]) {
-      expect(insertSyntheticDottedCircles(source, undefined, fam, 400, 48, 0, undefined, undefined, []).text).toBe(source);
+      expect(insertSyntheticDottedCircles(source, undefined, fam, 400, 48, 0, undefined, undefined, []).text).toBe(
+        source,
+      );
     }
   });
 });
@@ -1309,7 +1608,7 @@ describe("Tamil ZWJ-prefixed broken matra cluster", () => {
 // font chain to confirm the primary lacks the selector).
 describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
   it("flags variation selectors, the supplement block, and language tags", () => {
-    for (const cp of [0xFE00, 0xFE0E, 0xFE0F, 0xE0100, 0xE01EF, 0xE0000, 0xE007F]) {
+    for (const cp of [0xfe00, 0xfe0e, 0xfe0f, 0xe0100, 0xe01ef, 0xe0000, 0xe007f]) {
       expect(isStrippableOrphanIgnorable(cp)).toBe(true);
     }
   });
@@ -1318,17 +1617,27 @@ describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
   // pre-fix predicate: every one of these returned false before the fix.
   it("flags the rest of HarfBuzz's default-ignorable table the old 3-range subset missed", () => {
     for (const cp of [
-      0x00AD,   // SOFT HYPHEN
-      0x034F,   // COMBINING GRAPHEME JOINER
-      0x061C,   // ARABIC LETTER MARK
-      0x17B4, 0x17B5,     // Khmer inherent vowels
-      0x180B, 0x180D, 0x180E, // Mongolian FVS + vowel separator
-      0x200B, 0x200E, 0x200F, // ZWSP, LRM, RLM (NOT ZWJ/ZWNJ — see below)
-      0x202A, 0x202E,     // bidi embedding/override
-      0x2060, 0x2064, 0x206F, // word joiner .. nominal digit shapes
-      0xFEFF,             // BOM / ZWNBSP
-      0xFFF0, 0xFFF8,     // reserved block HarfBuzz still hides
-      0x1D173, 0x1D17A,   // musical-notation format controls
+      0x00ad, // SOFT HYPHEN
+      0x034f, // COMBINING GRAPHEME JOINER
+      0x061c, // ARABIC LETTER MARK
+      0x17b4,
+      0x17b5, // Khmer inherent vowels
+      0x180b,
+      0x180d,
+      0x180e, // Mongolian FVS + vowel separator
+      0x200b,
+      0x200e,
+      0x200f, // ZWSP, LRM, RLM (NOT ZWJ/ZWNJ — see below)
+      0x202a,
+      0x202e, // bidi embedding/override
+      0x2060,
+      0x2064,
+      0x206f, // word joiner .. nominal digit shapes
+      0xfeff, // BOM / ZWNBSP
+      0xfff0,
+      0xfff8, // reserved block HarfBuzz still hides
+      0x1d173,
+      0x1d17a, // musical-notation format controls
     ]) {
       expect(isStrippableOrphanIgnorable(cp)).toBe(true);
     }
@@ -1337,7 +1646,7 @@ describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
     // ZWJ/ZWNJ are deliberately carved OUT of HarfBuzz's own default-ignorable
     // table for this predicate (see the function's docstring) — everything
     // else here was never in HarfBuzz's table at all.
-    for (const cp of [0x200C, 0x200D, 0x20, 0xA0, 0x41, 0x6F22, 0x0301]) {
+    for (const cp of [0x200c, 0x200d, 0x20, 0xa0, 0x41, 0x6f22, 0x0301]) {
       expect(isStrippableOrphanIgnorable(cp)).toBe(false);
     }
   });
@@ -1347,7 +1656,9 @@ describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
   // strippable/ignorable. Same for the other Format-but-visible codepoints
   // the ticket named.
   it("does NOT flag Format-category codepoints HarfBuzz does not hide (visible glyphs)", () => {
-    for (const cp of [0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x06DD, 0x070F, 0x0890, 0x0891, 0x08E2, 0x110BD]) {
+    for (const cp of [
+      0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x06dd, 0x070f, 0x0890, 0x0891, 0x08e2, 0x110bd,
+    ]) {
       expect(isStrippableOrphanIgnorable(cp)).toBe(false);
     }
   });
@@ -1358,8 +1669,7 @@ describe("stripOrphanedDefaultIgnorables (DM-1158)", () => {
   // after shaping regardless of cmap coverage, so neither the family nor the
   // installed font set may change the answer. That also makes these assertions
   // deterministic on any machine — no MACOS_FONTS_DC gate needed.
-  const run = (text: string, xOffsets?: number[]) =>
-    stripOrphanedDefaultIgnorables(text, xOffsets);
+  const run = (text: string, xOffsets?: number[]) => stripOrphanedDefaultIgnorables(text, xOffsets);
 
   it("drops a lone variation selector (Chrome paints nothing)", () => {
     const r = run("︀", [16]);
@@ -1399,7 +1709,7 @@ describe("stripOrphanedDefaultIgnorables (DM-1158)", () => {
     expect(r.xOffsets).toEqual([]);
   });
   it("drops every orphaned selector in the FE00-FE0F block", () => {
-    for (let cp = 0xFE00; cp <= 0xFE0F; cp++) {
+    for (let cp = 0xfe00; cp <= 0xfe0f; cp++) {
       expect(run(String.fromCodePoint(cp), [16]).text).toBe("");
     }
   });
@@ -1432,19 +1742,44 @@ describe("stripOrphanedDefaultIgnorables (DM-1158)", () => {
 describe("isLegitimatelyInklessCodepoint (per-glyph fallback guard)", () => {
   it("flags control / format / separators / spaces / invisibles (never paint ink)", () => {
     const inkless = [
-      0x20, 0x09, 0x0A, 0x0D,                          // space, tab, LF, CR (Cc/Zs)
-      0xA0, 0x2000, 0x2009, 0x202F, 0x205F, 0x3000,    // no-break / thin / narrow / math / ideographic spaces (Zs)
-      0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF,          // ZWSP / ZWNJ / ZWJ / word-joiner / BOM (Cf)
-      0x202A, 0x202B, 0x202C, 0x202D, 0x202E,          // bidi embedding/override (Cf)
-      0x2028, 0x2029,                                  // line / paragraph separators (Zl/Zp)
-      0x7F, 0x80, 0x9F,                                // DEL + C1 controls (Cc)
-      0x2061, 0x2062, 0x2063, 0x2064,                  // invisible math operators
-      0xFE00, 0xFE0F, 0xE0101, 0xE0020,                // variation selectors + tags
+      0x20,
+      0x09,
+      0x0a,
+      0x0d, // space, tab, LF, CR (Cc/Zs)
+      0xa0,
+      0x2000,
+      0x2009,
+      0x202f,
+      0x205f,
+      0x3000, // no-break / thin / narrow / math / ideographic spaces (Zs)
+      0x200b,
+      0x200c,
+      0x200d,
+      0x2060,
+      0xfeff, // ZWSP / ZWNJ / ZWJ / word-joiner / BOM (Cf)
+      0x202a,
+      0x202b,
+      0x202c,
+      0x202d,
+      0x202e, // bidi embedding/override (Cf)
+      0x2028,
+      0x2029, // line / paragraph separators (Zl/Zp)
+      0x7f,
+      0x80,
+      0x9f, // DEL + C1 controls (Cc)
+      0x2061,
+      0x2062,
+      0x2063,
+      0x2064, // invisible math operators
+      0xfe00,
+      0xfe0f,
+      0xe0101,
+      0xe0020, // variation selectors + tags
     ];
     for (const cp of inkless) expect(isLegitimatelyInklessCodepoint(cp)).toBe(true);
   });
   it("does NOT flag inkable glyphs — letters, digits, CJK, combining marks, Math-Alpha", () => {
-    const inkable = [0x41, 0x61, 0x30, 0x6F22, 0x4E00, 0x0301, 0x05D0, 0x0E01, 0x1D400];
+    const inkable = [0x41, 0x61, 0x30, 0x6f22, 0x4e00, 0x0301, 0x05d0, 0x0e01, 0x1d400];
     for (const cp of inkable) expect(isLegitimatelyInklessCodepoint(cp)).toBe(false);
   });
 
@@ -1459,15 +1794,26 @@ describe("isLegitimatelyInklessCodepoint (per-glyph fallback guard)", () => {
   // fix, since the old predicate was `\p{Cf}` alone.
   it("does NOT flag Format-category codepoints with real glyphs — was the DM-2020 bug (blanket \\p{Cf})", () => {
     const formatButVisible = [
-      0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, // Arabic number-sign marks
-      0x06DD, // ARABIC END OF AYAH — the ticket's headline case
-      0x070F, // SYRIAC ABBREVIATION MARK
-      0x0890, 0x0891, // Arabic pound/piastre mark above
-      0x08E2, // ARABIC DISPUTED END OF AYAH
-      0xFFF9, 0xFFFA, 0xFFFB, // interlinear annotation anchor/separator/terminator
-      0x110BD, 0x110CD, // Kaithi number sign / number sign above
-      0x13430, 0x1343F, // Egyptian Hieroglyph format controls
-      0x1BCA0, 0x1BCA3, // Shorthand Format controls (HarfBuzz's table comment explicitly excludes these)
+      0x0600,
+      0x0601,
+      0x0602,
+      0x0603,
+      0x0604,
+      0x0605, // Arabic number-sign marks
+      0x06dd, // ARABIC END OF AYAH — the ticket's headline case
+      0x070f, // SYRIAC ABBREVIATION MARK
+      0x0890,
+      0x0891, // Arabic pound/piastre mark above
+      0x08e2, // ARABIC DISPUTED END OF AYAH
+      0xfff9,
+      0xfffa,
+      0xfffb, // interlinear annotation anchor/separator/terminator
+      0x110bd,
+      0x110cd, // Kaithi number sign / number sign above
+      0x13430,
+      0x1343f, // Egyptian Hieroglyph format controls
+      0x1bca0,
+      0x1bca3, // Shorthand Format controls (HarfBuzz's table comment explicitly excludes these)
     ];
     for (const cp of formatButVisible) expect(isLegitimatelyInklessCodepoint(cp)).toBe(false);
   });
@@ -1477,7 +1823,10 @@ describe("commandsFor (per-glyph fallback routing)", () => {
   beforeEach(() => __clearGlyphFallbackCaches());
 
   it("returns fontkit's commands verbatim when present (fast path, no helper)", () => {
-    const cmds = [{ command: "moveTo", args: [0, 0] }, { command: "lineTo", args: [10, 10] }];
+    const cmds = [
+      { command: "moveTo", args: [0, 0] },
+      { command: "lineTo", args: [10, 10] },
+    ];
     expect(commandsFor({ path: { commands: cmds }, id: 5, codePoints: [0x41] }, "helvetica", 400, 16, 0)).toBe(cmds);
   });
   it("does not route .notdef (id 0) to the helper", () => {
@@ -1486,7 +1835,7 @@ describe("commandsFor (per-glyph fallback routing)", () => {
   it("does not route a legitimately-inkless glyph to the helper (no over-fire)", () => {
     // A space glyph: empty outline, cmap-covered (id != 0) — must stay empty.
     expect(commandsFor({ path: { commands: [] }, id: 99, codePoints: [0x20] }, "helvetica", 400, 16, 0)).toEqual([]);
-    expect(commandsFor({ path: { commands: [] }, id: 99, codePoints: [0x202F] }, "helvetica", 400, 16, 0)).toEqual([]);
+    expect(commandsFor({ path: { commands: [] }, id: 99, codePoints: [0x202f] }, "helvetica", 400, 16, 0)).toEqual([]);
   });
   it("does not route when the glyph has no source codepoints (decomposed/ligature)", () => {
     expect(commandsFor({ path: { commands: [] }, id: 7 }, "helvetica", 400, 16, 0)).toEqual([]);
@@ -1494,30 +1843,71 @@ describe("commandsFor (per-glyph fallback routing)", () => {
 
   it.each([
     ["missing glyph", { glyphPresent: false, glyphId: 0, codePoints: [0x41], helperAvailable: true }, "missing-glyph"],
-    ["empty .notdef", { glyphPresent: true, glyphId: 0, codePoints: [0xE000], helperAvailable: true }, "missing-glyph"],
+    ["empty .notdef", { glyphPresent: true, glyphId: 0, codePoints: [0xe000], helperAvailable: true }, "missing-glyph"],
     ["space", { glyphPresent: true, glyphId: 3, codePoints: [0x20], helperAvailable: true }, "legitimately-inkless"],
     ["unclassified cluster", { glyphPresent: true, glyphId: 4, helperAvailable: true }, "unclassified-empty-glyph"],
-    ["helper absent", { glyphPresent: true, glyphId: 5, codePoints: [0x41], helperAvailable: false }, "helper-unavailable"],
-    ["source absent", { glyphPresent: true, glyphId: 6, codePoints: [0x41], helperAvailable: true, sourceAvailable: false }, "source-unavailable"],
-    ["helper face unopenable", { glyphPresent: true, glyphId: 7, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: "font-unopenable" as const }, "helper-font-unopenable"],
-    ["helper glyph unavailable", { glyphPresent: true, glyphId: 8, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: "glyph-unavailable" as const }, "helper-glyph-unavailable"],
-    ["helper outline", { glyphPresent: true, glyphId: 9, codePoints: [0x41], helperAvailable: true, sourceAvailable: true, helperResult: "outline" as const }, "helper-outline"],
+    [
+      "helper absent",
+      { glyphPresent: true, glyphId: 5, codePoints: [0x41], helperAvailable: false },
+      "helper-unavailable",
+    ],
+    [
+      "source absent",
+      { glyphPresent: true, glyphId: 6, codePoints: [0x41], helperAvailable: true, sourceAvailable: false },
+      "source-unavailable",
+    ],
+    [
+      "helper face unopenable",
+      {
+        glyphPresent: true,
+        glyphId: 7,
+        codePoints: [0x41],
+        helperAvailable: true,
+        sourceAvailable: true,
+        helperResult: "font-unopenable" as const,
+      },
+      "helper-font-unopenable",
+    ],
+    [
+      "helper glyph unavailable",
+      {
+        glyphPresent: true,
+        glyphId: 8,
+        codePoints: [0x41],
+        helperAvailable: true,
+        sourceAvailable: true,
+        helperResult: "glyph-unavailable" as const,
+      },
+      "helper-glyph-unavailable",
+    ],
+    [
+      "helper outline",
+      {
+        glyphPresent: true,
+        glyphId: 9,
+        codePoints: [0x41],
+        helperAvailable: true,
+        sourceAvailable: true,
+        helperResult: "outline" as const,
+      },
+      "helper-outline",
+    ],
   ])("classifies the %s empty-outline activation row", (_label, evidence, expected) => {
     expect(classifyEmptyGlyphOutline(evidence)).toBe(expected);
   });
 
   it("reports source outline ownership without consulting the helper", () => {
     const cmds = [{ command: "moveTo", args: [0, 0] }];
-    expect(resolveGlyphCommands(
-      { path: { commands: cmds }, id: 11, codePoints: [0x41] }, "helvetica", 400, 16, 0,
-    )).toEqual({ commands: cmds, disposition: "source-outline" });
+    expect(
+      resolveGlyphCommands({ path: { commands: cmds }, id: 11, codePoints: [0x41] }, "helvetica", 400, 16, 0),
+    ).toEqual({ commands: cmds, disposition: "source-outline" });
   });
 
   it("uses source-cluster codepoints instead of an aliased Glyph payload", () => {
-    expect(resolveGlyphCommands(
-      { path: { commands: [] }, id: 11, codePoints: [0x41] },
-      "helvetica", 400, 16, 0, [0x20],
-    ).disposition).toBe("legitimately-inkless");
+    expect(
+      resolveGlyphCommands({ path: { commands: [] }, id: 11, codePoints: [0x41] }, "helvetica", 400, 16, 0, [0x20])
+        .disposition,
+    ).toBe("legitimately-inkless");
   });
 
   // Positive end-to-end: synthesize the (otherwise-nonexistent on macOS)
@@ -1534,16 +1924,20 @@ describe("commandsFor (per-glyph fallback routing)", () => {
     const f = col.getFont != null ? col.getFont("Helvetica") : col;
     const hId = f.glyphForCodePoint(0x48).id;
     const fallback = commandsFor({ path: { commands: [] }, id: hId, codePoints: [0x48] }, "helvetica", 400, 16, 0);
-    expect(fallback.length).toBeGreaterThan(0);            // the helper produced a real outline
+    expect(fallback.length).toBeGreaterThan(0); // the helper produced a real outline
     expect(fallback.some((c) => c.command === "moveTo")).toBe(true);
   });
 });
 
 describe("source-owned no-outline boundary (DM-2399)", () => {
   it("is accessible and diagnostic without any visible consumer-shaped text", () => {
-    const markup = renderSourceOwnedTextBoundary("A<&😀", "path-outline-unavailable", [{
-      sourceSpan: [3, 5], glyphId: 42, disposition: "helper-font-unopenable",
-    }]);
+    const markup = renderSourceOwnedTextBoundary("A<&😀", "path-outline-unavailable", [
+      {
+        sourceSpan: [3, 5],
+        glyphId: 42,
+        disposition: "helper-font-unopenable",
+      },
+    ]);
     expect(markup).toContain('aria-label="A&lt;&amp;😀"');
     expect(markup).toContain('data-domotion-text-boundary="path-outline-unavailable"');
     expect(markup).toContain('data-domotion-text-degraded-spans="3-5:42:helper-font-unopenable"');
@@ -1553,7 +1947,11 @@ describe("source-owned no-outline boundary (DM-2399)", () => {
 
   it("terminates all-inkless text without consumer shaping", () => {
     const markup = renderTextAsPath(" \u200B", 0, 0, {
-      fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 4],
+      fontSize: 16,
+      fontFamily: "Times",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets: [0, 4],
     });
     expect(markup).toContain('data-domotion-text-boundary="path-all-inkless"');
     expect(markup).not.toMatch(/<text(?:\s|>)/);
@@ -1562,14 +1960,19 @@ describe("source-owned no-outline boundary (DM-2399)", () => {
   it("never re-emits a missing authored family for consumer-side resolution", () => {
     const family = "Dm2399 Definitely Missing Family";
     const markup = renderTextAsPath("Missing family", 0, 0, {
-      fontSize: 16, fontFamily: family, fontWeight: "400", fill: "#000",
+      fontSize: 16,
+      fontFamily: family,
+      fontWeight: "400",
+      fill: "#000",
     });
     expect(markup).not.toContain(`font-family="${family}"`);
     for (const body of markup.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) {
-      expect([...body[1]].every((ch) => {
-        const cp = ch.codePointAt(0)!;
-        return cp >= 0xE000 && cp <= 0xF8FF;
-      })).toBe(true);
+      expect(
+        [...body[1]].every((ch) => {
+          const cp = ch.codePointAt(0)!;
+          return cp >= 0xe000 && cp <= 0xf8ff;
+        }),
+      ).toBe(true);
     }
   });
 });
@@ -1582,8 +1985,13 @@ describe("source-owned no-outline boundary (DM-2399)", () => {
 // `commandsFor`. These tests prove the resulting glyf is a real (non-empty)
 // contour — i.e. the helper outline actually lands in the embedded font.
 describe("embedded-font mode: per-glyph helper fallback (DM-892)", () => {
-  beforeEach(() => { __clearGlyphFallbackCaches(); clearEmbeddedFonts(); });
-  afterEach(() => { clearEmbeddedFonts(); });
+  beforeEach(() => {
+    __clearGlyphFallbackCaches();
+    clearEmbeddedFonts();
+  });
+  afterEach(() => {
+    clearEmbeddedFonts();
+  });
 
   // Re-parse the single built TTF out of the @font-face CSS and return the
   // glyph fontkit resolves for `pua`.
@@ -1624,7 +2032,15 @@ describe("embedded-font mode: per-glyph helper fallback (DM-892)", () => {
     // the production routing: commandsFor → helper outline → embedded TTF.
     const cmds = commandsFor({ path: { commands: [] }, id: h.id, codePoints: [0x48] }, "helvetica", 400, 16, 0);
     expect(cmds.length).toBeGreaterThan(0);
-    const placement = trackGlyphInEmbedFont("dm892-helvetica|w=400|s=0", f.unitsPerEm, f.ascent, f.descent, h.id, cmds, h.advanceWidth);
+    const placement = trackGlyphInEmbedFont(
+      "dm892-helvetica|w=400|s=0",
+      f.unitsPerEm,
+      f.ascent,
+      f.descent,
+      h.id,
+      cmds,
+      h.advanceWidth,
+    );
     expect(placement).not.toBeNull();
     expect(builtGlyphForPua(placement!.puaCodepoint).path.commands.length).toBeGreaterThan(0);
   });
@@ -1651,8 +2067,13 @@ describe("renderTextAsPath: ascentOverride threading", () => {
   it.skipIf(!MACOS_FONTS)("uses ascentOverride verbatim for baselineY when provided", () => {
     const top = 100;
     const ascent = 30; // simulates Chrome's fontBoundingBoxAscent for fs=32 Helvetica bold
-    const out = renderTextAsPath("Hi", 0, top,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "700", fill: "#000", ascentOverride: ascent });
+    const out = renderTextAsPath("Hi", 0, top, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "700",
+      fill: "#000",
+      ascentOverride: ascent,
+    });
     expect(baselineY(out)).toBe(top + ascent);
   });
 
@@ -1662,18 +2083,38 @@ describe("renderTextAsPath: ascentOverride threading", () => {
     // depends on the resolved font; we just assert the answer is *different*
     // from a clearly-wrong override, so the test fails if both branches end
     // up using the same code.
-    const native = renderTextAsPath("Hi", 0, top, { fontSize: 32, fontFamily: "Helvetica", fontWeight: "700", fill: "#000" });
-    const overridden = renderTextAsPath("Hi", 0, top,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "700", fill: "#000", ascentOverride: 30 });
+    const native = renderTextAsPath("Hi", 0, top, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "700",
+      fill: "#000",
+    });
+    const overridden = renderTextAsPath("Hi", 0, top, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "700",
+      fill: "#000",
+      ascentOverride: 30,
+    });
     expect(baselineY(native)).not.toBe(baselineY(overridden));
   });
 
   it.skipIf(!MACOS_FONTS)("scales the override correctly across font sizes", () => {
     // Same font, different sizes → override is applied verbatim, no extra math.
-    const a = renderTextAsPath("Hi", 0, 0,
-      { fontSize: 14, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", ascentOverride: 13 });
-    const b = renderTextAsPath("Hi", 0, 0,
-      { fontSize: 50, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", ascentOverride: 47 });
+    const a = renderTextAsPath("Hi", 0, 0, {
+      fontSize: 14,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      ascentOverride: 13,
+    });
+    const b = renderTextAsPath("Hi", 0, 0, {
+      fontSize: 50,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      ascentOverride: 47,
+    });
     expect(baselineY(a)).toBe(13);
     expect(baselineY(b)).toBe(47);
   });
@@ -1750,9 +2191,9 @@ describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", (
   it("routes box-drawing chars to the monospace primary when one is supplied", () => {
     // Courier (CSS `monospace` keyword on macOS) gets box chars from itself.
     expect(darwinFallbackChain(0x2500, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]);
-    expect(darwinFallbackChain(0x252C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┬
+    expect(darwinFallbackChain(0x252c, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┬
     expect(darwinFallbackChain(0x2534, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┴
-    expect(darwinFallbackChain(0x253C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┼
+    expect(darwinFallbackChain(0x253c, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┼
     // Author-named monospaces.
     expect(darwinFallbackChain(0x2500, "menlo")).toEqual(["menlo", "menlo", "hiragino-jp"]);
     expect(darwinFallbackChain(0x2500, "monaco")).toEqual(["monaco", "menlo", "hiragino-jp"]);
@@ -1786,9 +2227,7 @@ describe("fallbackFontChain: CJK/Hangul combining tone marks U+302A–U+302F (DM
     // stays ["cjk"] and the tone marks defer to the live per-codepoint
     // resolver — matching Chrome, which cannot fall back to an absent font
     // either.
-    const expected = resolveInstalledFont("Arial Unicode MS") != null
-      ? ["cjk", "u-arial-unicode-ms"]
-      : ["cjk"];
+    const expected = resolveInstalledFont("Arial Unicode MS") != null ? ["cjk", "u-arial-unicode-ms"] : ["cjk"];
     for (const cp of [0x302a, 0x302b, 0x302c, 0x302d, 0x302e, 0x302f]) {
       expect(darwinFallbackChain(cp)).toEqual(expected);
     }
@@ -1811,7 +2250,14 @@ describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
   it.skipIf(!MACOS_FONTS)("emits a glyph <use> plus an overbar rect fitted to the box", () => {
     clearGlyphDefs();
     // x=261, top=680, height=22, width=24 — the √2 box from the fixture.
-    const out = renderRadicalGlyph(261, 680, 22, 24, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)");
+    const out = renderRadicalGlyph(
+      261,
+      680,
+      22,
+      24,
+      { fontSize: 22, fontFamily: "math", fontWeight: "400" },
+      "rgb(0,0,0)",
+    );
     expect(out).not.toBeNull();
     // The √ glyph is emitted as a <use> reference inside a scaled group.
     expect(out!).toContain("<use href=");
@@ -1824,12 +2270,21 @@ describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
   it.skipIf(!MACOS_FONTS)("omits the overbar when the radical box has no width past the glyph", () => {
     clearGlyphDefs();
     // A zero/degenerate width can't host a vinculum extension.
-    const out = renderRadicalGlyph(261, 680, 22, 0, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)");
+    const out = renderRadicalGlyph(
+      261,
+      680,
+      22,
+      0,
+      { fontSize: 22, fontFamily: "math", fontWeight: "400" },
+      "rgb(0,0,0)",
+    );
     expect(out).toBeNull(); // width <= 0 short-circuits
   });
 
   it("returns null for a non-positive box height", () => {
-    expect(renderRadicalGlyph(0, 0, 0, 20, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)")).toBeNull();
+    expect(
+      renderRadicalGlyph(0, 0, 0, 20, { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "rgb(0,0,0)"),
+    ).toBeNull();
   });
 });
 
@@ -1840,10 +2295,10 @@ describe("fallbackFontChain: overline / macron over-accents (DM-896)", () => {
   // tofu box. Chrome paints it via Helvetica (its U+203E advance matches the
   // captured `<mo>` width exactly), so the chain must lead with helvetica.
   it("routes U+203E overline and U+00AF macron to Helvetica first", () => {
-    expect(darwinFallbackChain(0x203E, "times")).toEqual(["helvetica", "symbols"]);
-    expect(darwinFallbackChain(0x00AF, "times")).toEqual(["helvetica", "symbols"]);
+    expect(darwinFallbackChain(0x203e, "times")).toEqual(["helvetica", "symbols"]);
+    expect(darwinFallbackChain(0x00af, "times")).toEqual(["helvetica", "symbols"]);
     // Must not be the empty chain that produced the tofu.
-    expect(darwinFallbackChain(0x203E).length).toBeGreaterThan(0);
+    expect(darwinFallbackChain(0x203e).length).toBeGreaterThan(0);
   });
 });
 
@@ -1866,10 +2321,10 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // CDP CSS.getPlatformFontsForNode at 32px sans-serif: U+25C9 ◉, U+2600 ☀,
     // U+2601 ☁ all return "Hiragino Sans" (= hiragino-jp), so hiragino-jp must
     // lead. `cjk` stays as the secondary for the chars HiraKakuProN lacks.
-    expect(darwinFallbackChain(0x25C9)).toEqual(["hiragino-jp", "cjk", "symbols"]);
-    expect(darwinFallbackChain(0x25CC)).toEqual(["hiragino-jp", "cjk", "symbols"]);
-    expect(darwinFallbackChain(0x25D0)).toEqual(["hiragino-jp", "cjk", "symbols"]);
-    expect(darwinFallbackChain(0x25D1)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25c9)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25cc)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25d0)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25d1)).toEqual(["hiragino-jp", "cjk", "symbols"]);
     // Misc Symbols block (U+2600..26FF).
     expect(darwinFallbackChain(0x2600)).toEqual(["hiragino-jp", "cjk", "symbols"]);
     expect(darwinFallbackChain(0x2601)).toEqual(["hiragino-jp", "cjk", "symbols"]);
@@ -1878,7 +2333,7 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // Gender signs (U+2640 ♀ / U+2642 ♂) and the rest of the block now share
     // the same hiragino-jp-first chain (the old DM-925 carve-out is subsumed).
     expect(darwinFallbackChain(0x2640)).toEqual(["hiragino-jp", "cjk", "symbols"]);
-    expect(darwinFallbackChain(0x26A5)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x26a5)).toEqual(["hiragino-jp", "cjk", "symbols"]);
   });
 
   it("routes ■ □ ● ○ ◆ ◇ through LucidaGrande (matches Chrome's narrow paint)", () => {
@@ -1888,12 +2343,12 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // DM-415 / DM-429 verified this is still the closest visible-shape
     // match in our font set (tried SF NS / AppleSDGothicNeo, both produced
     // visibly larger glyphs than Chrome's painted ink).
-    expect(darwinFallbackChain(0x25A0)).toEqual(["lucida-grande", "symbols"]); // ■
-    expect(darwinFallbackChain(0x25A1)).toEqual(["lucida-grande", "symbols"]); // □
-    expect(darwinFallbackChain(0x25CF)).toEqual(["lucida-grande", "symbols"]); // ●
-    expect(darwinFallbackChain(0x25CB)).toEqual(["lucida-grande", "symbols"]); // ○
-    expect(darwinFallbackChain(0x25C6)).toEqual(["lucida-grande", "symbols"]); // ◆
-    expect(darwinFallbackChain(0x25C7)).toEqual(["lucida-grande", "symbols"]); // ◇
+    expect(darwinFallbackChain(0x25a0)).toEqual(["lucida-grande", "symbols"]); // ■
+    expect(darwinFallbackChain(0x25a1)).toEqual(["lucida-grande", "symbols"]); // □
+    expect(darwinFallbackChain(0x25cf)).toEqual(["lucida-grande", "symbols"]); // ●
+    expect(darwinFallbackChain(0x25cb)).toEqual(["lucida-grande", "symbols"]); // ○
+    expect(darwinFallbackChain(0x25c6)).toEqual(["lucida-grande", "symbols"]); // ◆
+    expect(darwinFallbackChain(0x25c7)).toEqual(["lucida-grande", "symbols"]); // ◇
   });
 });
 
@@ -1906,15 +2361,15 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
   // family: serif/fangsong/ui-serif`. Non-serif primaries keep the existing
   // HiraginoSansGB-W3 sans CJK route.
   it("returns ['cjk-serif', 'cjk'] when primary is times / times-new-roman / georgia", () => {
-    expect(darwinFallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "times-new-roman")).toEqual(["cjk-serif", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "georgia")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4e00, "times")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "times-new-roman")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "georgia")).toEqual(["cjk-serif", "cjk"]);
     // Hiragana / Katakana also go through the serif route.
     expect(darwinFallbackChain(0x3042, "times")).toEqual(["cjk-serif", "cjk"]);
-    expect(darwinFallbackChain(0x30A2, "times")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x30a2, "times")).toEqual(["cjk-serif", "cjk"]);
     // Hangul does NOT — DM-691 routes it to Apple SD Gothic Neo first
     // because neither HiraginoSansGB nor Songti contains Hangul codepoints.
-    expect(darwinFallbackChain(0xAC00, "times")).toEqual(["korean", "cjk"]);
+    expect(darwinFallbackChain(0xac00, "times")).toEqual(["korean", "cjk"]);
   });
   // DM-1117: an explicitly-named `Hiragino Mincho ProN` routes Han / kana to the
   // Mincho face first (it carries the `trad` / `fwid` / `jp78` East-Asian
@@ -1923,10 +2378,10 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
   it("routes CJK through hiragino-mincho when the family is explicitly named (DM-1117)", () => {
     expect(resolveFontKey("Hiragino Mincho ProN")).toBe("hiragino-mincho");
     expect(resolveFontKey("Hiragino Mincho ProN, serif")).toBe("hiragino-mincho");
-    expect(darwinFallbackChain(0x4E00, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4e00, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
     expect(darwinFallbackChain(0x3042, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
     // The bare `serif` generic is unchanged — still Songti, not Mincho.
-    expect(darwinFallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4e00, "times")).toEqual(["cjk-serif", "cjk"]);
   });
   it("walks past unavailable Hiragino Mincho on Windows instead of substituting SimSun (DM-2658)", () => {
     const hidden = process.env.DOMOTION_HIDE_FAMILIES;
@@ -1946,11 +2401,11 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     // routes through PingFang SC (CoreText extractor) first to match what
     // Chrome paints, with HiraginoSansGB-W3 retained as the fontkit-readable
     // safety net for any glyph PingFang lacks. DM-382 / DM-364 / DM-388.
-    expect(darwinFallbackChain(0x4F60, "helvetica")).toEqual(["pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "sf-pro")).toEqual(["pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "menlo")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "sf-pro")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "menlo")).toEqual(["pingfang-sc", "cjk"]);
     // No primaryKey arg → default sans behavior.
-    expect(darwinFallbackChain(0x4F60)).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60)).toEqual(["pingfang-sc", "cjk"]);
   });
   it("keeps the bare ['cjk'] route for non-Han CJK ranges (Hiragana / Katakana)", () => {
     // PingFang routing applies only to Han Unified Ideographs + Ext A + CJK
@@ -1958,31 +2413,31 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     // (30A0..30FF) are what HiraginoSansGB / Apple's Hiragino chain paints;
     // they don't go through PingFang.
     expect(darwinFallbackChain(0x3042, "helvetica")).toEqual(["cjk"]); // ぁ
-    expect(darwinFallbackChain(0x30A2, "helvetica")).toEqual(["cjk"]); // ア
+    expect(darwinFallbackChain(0x30a2, "helvetica")).toEqual(["cjk"]); // ア
   });
   it("routes Hangul (Syllables + Jamo) through Apple SD Gothic Neo — DM-691", () => {
     // HiraginoSansGB / Songti / PingFang don't contain Hangul codepoints,
     // so the dedicated `korean` route is required to avoid tofu glyphs.
-    expect(darwinFallbackChain(0xAC00, "helvetica")).toEqual(["korean", "cjk"]); // 가
-    expect(darwinFallbackChain(0xD7A3, "helvetica")).toEqual(["korean", "cjk"]); // 힣
+    expect(darwinFallbackChain(0xac00, "helvetica")).toEqual(["korean", "cjk"]); // 가
+    expect(darwinFallbackChain(0xd7a3, "helvetica")).toEqual(["korean", "cjk"]); // 힣
     expect(darwinFallbackChain(0x1100, "helvetica")).toEqual(["korean", "cjk"]); // ᄀ (Jamo)
   });
   it("routes Han through the lang-matching PingFang variant when lang is set (DM-394)", () => {
     // 你 is U+4F60 — Han ideograph.
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-TW")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hant")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-MO")).toEqual(["pingfang-mo", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-TW")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-Hant")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-MO")).toEqual(["pingfang-mo", "pingfang-sc", "cjk"]);
     // zh-Hant-HK: region wins over script.
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hant-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-Hant-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
     // Japanese: there's no PingFang JP — routes through Hiragino Kaku.
-    expect(darwinFallbackChain(0x4F60, "helvetica", "ja")).toEqual(["hiragino-jp", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "ja-JP")).toEqual(["hiragino-jp", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "ja")).toEqual(["hiragino-jp", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "ja-JP")).toEqual(["hiragino-jp", "cjk"]);
     // SC / unspecified / non-CJK lang → default PingFang SC.
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-CN")).toEqual(["pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hans")).toEqual(["pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "en-US")).toEqual(["pingfang-sc", "cjk"]);
-    expect(darwinFallbackChain(0x4F60, "helvetica", "")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-CN")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "zh-Hans")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "en-US")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4f60, "helvetica", "")).toEqual(["pingfang-sc", "cjk"]);
   });
 });
 
@@ -1992,34 +2447,41 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
 // later per-codepoint iterator never re-predicts NFD or broadens it to a face
 // HarfBuzz did not choose.
 describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", () => {
-  it.skipIf(!MACOS_FONTS)("never decomposes a CJK compat ideograph under a Latin primary that can't render the canonical", () => {
-    // Helvetica covers neither the literal compat ideograph nor its canonical
-    // Han form. Under the old full-chain search the canonical was found in a
-    // deep CJK fallback face and decomposed anyway; primary-only must not.
-    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
-      const r = __resolveFontForCodepointForTest(cp, "Helvetica");
-      expect(r?.decomposed ?? false).toBe(false);
-    }
-  });
-
-  it.skipIf(!MACOS_FONTS)("only ever resolves a decomposition within the primary font's own key", () => {
-    // The defining invariant of the fix: any codepoint that decomposes must
-    // resolve to the PRIMARY font's key, never a deeper chain font. A regression
-    // to the whole-chain search would surface a chain key here.
-    for (const family of ["Helvetica", "Hiragino Sans", "Songti SC"]) {
-      const primaryKey = resolveFontKey(family);
-      for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
-        const r = __resolveFontForCodepointForTest(cp, family);
-        if (r?.decomposed) expect(r.key).toBe(primaryKey);
+  it.skipIf(!MACOS_FONTS)(
+    "never decomposes a CJK compat ideograph under a Latin primary that can't render the canonical",
+    () => {
+      // Helvetica covers neither the literal compat ideograph nor its canonical
+      // Han form. Under the old full-chain search the canonical was found in a
+      // deep CJK fallback face and decomposed anyway; primary-only must not.
+      for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
+        const r = __resolveFontForCodepointForTest(cp, "Helvetica");
+        expect(r?.decomposed ?? false).toBe(false);
       }
-    }
-  }, 60_000);
+    },
+  );
+
+  it.skipIf(!MACOS_FONTS)(
+    "only ever resolves a decomposition within the primary font's own key",
+    () => {
+      // The defining invariant of the fix: any codepoint that decomposes must
+      // resolve to the PRIMARY font's key, never a deeper chain font. A regression
+      // to the whole-chain search would surface a chain key here.
+      for (const family of ["Helvetica", "Hiragino Sans", "Songti SC"]) {
+        const primaryKey = resolveFontKey(family);
+        for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
+          const r = __resolveFontForCodepointForTest(cp, family);
+          if (r?.decomposed) expect(r.key).toBe(primaryKey);
+        }
+      }
+    },
+    60_000,
+  );
 
   it.skipIf(!MACOS_FONTS)("does not predict HarfBuzz decomposition in the per-codepoint resolver", () => {
     // The default shaped-cluster pass asks HarfBuzz first. Reaching this direct
     // resolver seam must not repeat that decision with JavaScript NFD data.
     let decomposed = 0;
-    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+    for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
       if (__resolveFontForCodepointForTest(cp, "Hiragino Sans")?.decomposed) decomposed++;
     }
     expect(decomposed).toBe(0);
@@ -2038,12 +2500,18 @@ describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
     expect(resolveFontKey(`"Times New Roman", Georgia, sans-serif`)).toBe(chain[0]);
   });
 
-  it.runIf(process.platform === "darwin")("skips unresolved / generic-keyword names Chrome walks past, preserving order", () => {
-    // DoesNotExist + the ui-* / -apple-system keywords resolve to nothing and
-    // must NOT appear; the real families that follow them keep their order.
-    expect(resolveFontKeyChain(`DoesNotExist, -apple-system, ui-monospace, Menlo, monospace`))
-      .toEqual(["menlo", "courier", "times"]);
-  });
+  it.runIf(process.platform === "darwin")(
+    "skips unresolved / generic-keyword names Chrome walks past, preserving order",
+    () => {
+      // DoesNotExist + the ui-* / -apple-system keywords resolve to nothing and
+      // must NOT appear; the real families that follow them keep their order.
+      expect(resolveFontKeyChain(`DoesNotExist, -apple-system, ui-monospace, Menlo, monospace`)).toEqual([
+        "menlo",
+        "courier",
+        "times",
+      ]);
+    },
+  );
 
   it("dedupes families that collapse to the same key", () => {
     // serif and Times both map to `times`; the chain holds it once.
@@ -2072,7 +2540,7 @@ describe("resolveFontForCodepoint: unified family-walk loop (DM-1083)", () => {
     const primaryKey = resolveFontKey(FIXTURE_STACK);
     let covered = 0;
     let primarySupplied = 0;
-    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+    for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
       const r = __resolveFontForCodepointForTest(cp, FIXTURE_STACK);
       if (r?.covered) {
         covered++;
@@ -2082,32 +2550,38 @@ describe("resolveFontForCodepoint: unified family-walk loop (DM-1083)", () => {
     expect(covered).toBeGreaterThan(primarySupplied);
   });
 
-  it.skipIf(!MACOS_FONTS)("does not synthesize a later-family NFD answer after HarfBuzz has rejected the cluster", () => {
-    // Literal later-family coverage remains part of kFontFamily. Canonical
-    // normalization belongs to the preceding HarfBuzz cluster verdict, so this
-    // per-codepoint fallback seam must never manufacture a decomposed answer.
-    const arialUnicodeKey = resolveFontKey("Arial Unicode MS");
-    let viaLaterFamily = 0;
-    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
-      const r = __resolveFontForCodepointForTest(cp, FIXTURE_STACK);
-      if (r?.covered && r.decomposed && r.key === arialUnicodeKey) viaLaterFamily++;
-    }
-    expect(viaLaterFamily).toBe(0);
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "does not synthesize a later-family NFD answer after HarfBuzz has rejected the cluster",
+    () => {
+      // Literal later-family coverage remains part of kFontFamily. Canonical
+      // normalization belongs to the preceding HarfBuzz cluster verdict, so this
+      // per-codepoint fallback seam must never manufacture a decomposed answer.
+      const arialUnicodeKey = resolveFontKey("Arial Unicode MS");
+      let viaLaterFamily = 0;
+      for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
+        const r = __resolveFontForCodepointForTest(cp, FIXTURE_STACK);
+        if (r?.covered && r.decomposed && r.key === arialUnicodeKey) viaLaterFamily++;
+      }
+      expect(viaLaterFamily).toBe(0);
+    },
+  );
 
-  it.skipIf(!MACOS_FONTS)("preserves the DM-1080 invariant: a Latin-only stack never over-renders a CJK-compat ideograph", () => {
-    // The hazard the family-walk must not reintroduce: with no CJK family
-    // DECLARED, the canonical Han is unreachable and Chrome paints tofu. The walk
-    // only searches the declared stack, so it must stay uncovered here too.
-    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
-      const r = __resolveFontForCodepointForTest(cp, "Helvetica, Arial, sans-serif");
-      // Helvetica/Arial cover neither the literal nor the canonical Han → no
-      // declared family can supply it; only the OS fallback (system CJK face)
-      // may, which is Chrome's behavior too. The invariant we assert is the
-      // narrow DM-1080 one: no DECLARED-stack decomposition into a Latin face.
-      if (r?.decomposed) expect(["helvetica", "arial"]).not.toContain(r.key);
-    }
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "preserves the DM-1080 invariant: a Latin-only stack never over-renders a CJK-compat ideograph",
+    () => {
+      // The hazard the family-walk must not reintroduce: with no CJK family
+      // DECLARED, the canonical Han is unreachable and Chrome paints tofu. The walk
+      // only searches the declared stack, so it must stay uncovered here too.
+      for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
+        const r = __resolveFontForCodepointForTest(cp, "Helvetica, Arial, sans-serif");
+        // Helvetica/Arial cover neither the literal nor the canonical Han → no
+        // declared family can supply it; only the OS fallback (system CJK face)
+        // may, which is Chrome's behavior too. The invariant we assert is the
+        // narrow DM-1080 one: no DECLARED-stack decomposition into a Latin face.
+        if (r?.decomposed) expect(["helvetica", "arial"]).not.toContain(r.key);
+      }
+    },
+  );
 });
 
 describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
@@ -2141,16 +2615,16 @@ describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
     // from Times New Roman first (CDP per-cp probe on 02-text-symbols: serif
     // ● → "Times New Roman"), falling through to the LucidaGrande chain for
     // any of the six the face lacks. Sans primaries keep the original chain.
-    expect(darwinFallbackChain(0x25A0, "times")).toEqual(["times-new-roman", "lucida-grande", "symbols"]);
-    expect(darwinFallbackChain(0x25A0, "helvetica")).toEqual(["lucida-grande", "symbols"]);
-    expect(darwinFallbackChain(0x25CF, "courier")).toEqual(["menlo", "lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x25a0, "times")).toEqual(["times-new-roman", "lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x25a0, "helvetica")).toEqual(["lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x25cf, "courier")).toEqual(["menlo", "lucida-grande", "symbols"]);
     // DM-988: for a SERIF primary the Geometric Shapes / Misc Symbols block
     // leads with the SERIF CJK font (cjk-serif = Songti SC) and the serif
     // primary itself, then the sans hiragino-jp / Apple Symbols residue —
     // Chrome's CoreText cascade for serif picks a serif/mincho face for these
     // (CDP at 32px serif: U+25C9 ◉, U+2600 ☀ → "Hiragino Mincho ProN"), so a
     // serif-led chain is correct here vs the sans hiragino-jp-first chain.
-    expect(darwinFallbackChain(0x25C9, "times")).toEqual(["cjk-serif", "times", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x25c9, "times")).toEqual(["cjk-serif", "times", "hiragino-jp", "symbols"]);
     expect(darwinFallbackChain(0x2600, "times")).toEqual(["cjk-serif", "times", "hiragino-jp", "symbols"]);
     // Arrows ← → ↑ ↓ route to LucidaGrande regardless of primary (DM-405 —
     // Chrome paints these via LucidaGrande at every size 12 → 32 px).
@@ -2176,13 +2650,16 @@ describe("Math Operators primary-font handling (DM-332)", () => {
   // then picks them from Apple Times instead of falling through to the symbols
   // chain. So the `fallbackFontChain` for U+2200..22FF stays empty / unchanged
   // — it only fires when the primary lacks the codepoint (∀ ∇ ∂ ∈ ⊂ ∧ etc.).
-  it.runIf(process.platform === "darwin")("ui-serif / math / serif resolves to times (Apple Times has the common operators)", () => {
-    // `font-family: math` falls through to the Times default (DM-269 +
-    // DM-291), so the math-row primary is `times` which is Apple Times.
-    expect(resolveFontKey("math")).toBe("times");
-    expect(resolveFontKey("serif")).toBe("times");
-    expect(resolveFontKey("ui-serif")).toBe("times");
-  });
+  it.runIf(process.platform === "darwin")(
+    "ui-serif / math / serif resolves to times (Apple Times has the common operators)",
+    () => {
+      // `font-family: math` falls through to the Times default (DM-269 +
+      // DM-291), so the math-row primary is `times` which is Apple Times.
+      expect(resolveFontKey("math")).toBe("times");
+      expect(resolveFontKey("serif")).toBe("times");
+      expect(resolveFontKey("ui-serif")).toBe("times");
+    },
+  );
 });
 
 describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM-441)", () => {
@@ -2227,8 +2704,8 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
   // `menlo` (not lucida-grande) as the mid-tier because ⇕ U+21D5 -> Menlo.
   it("routes ↔ ⇒ ⇔ to Hiragino Sans, Apple Symbols as residue", () => {
     expect(darwinFallbackChain(0x2194)).toEqual(["hiragino-jp", "korean", "lucida-grande", "symbols"]);
-    expect(darwinFallbackChain(0x21D2)).toEqual(["hiragino-jp", "korean", "menlo", "symbols"]);
-    expect(darwinFallbackChain(0x21D4)).toEqual(["hiragino-jp", "korean", "menlo", "symbols"]);
+    expect(darwinFallbackChain(0x21d2)).toEqual(["hiragino-jp", "korean", "menlo", "symbols"]);
+    expect(darwinFallbackChain(0x21d4)).toEqual(["hiragino-jp", "korean", "menlo", "symbols"]);
   });
 });
 
@@ -2259,11 +2736,13 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
       const keys = new Set<string>();
       // Sweep the symbol / arrow / geometric / technical ranges plus a sample of
       // every script block that has a dedicated route.
-      for (let cp = 0x2000; cp <= 0x2BFF; cp++) {
+      for (let cp = 0x2000; cp <= 0x2bff; cp++) {
         for (const k of darwinFallbackChain(cp)) keys.add(k);
         for (const primary of ["times", "courier"]) for (const k of darwinFallbackChain(cp, primary)) keys.add(k);
       }
-      for (const cp of [0x4E00, 0x3041, 0x30A1, 0xAC00, 0x1100, 0x0900, 0x0E00, 0x0600, 0x0590, 0x1D400, 0x20000, 0x2F800]) {
+      for (const cp of [
+        0x4e00, 0x3041, 0x30a1, 0xac00, 0x1100, 0x0900, 0x0e00, 0x0600, 0x0590, 0x1d400, 0x20000, 0x2f800,
+      ]) {
         for (const k of darwinFallbackChain(cp)) keys.add(k);
       }
       // `last-resort` is a synthetic terminal (bundled LastResort font), not a
@@ -2271,8 +2750,9 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
       // against the darwin table directly (not the host-platform resolver) so
       // this runs identically on Linux CI — `darwinFallbackChain` emits
       // darwin-only `u-...` routes that `LINUX_FONT_PATHS` deliberately lacks.
-      const unresolved = [...keys].filter((k) =>
-        k !== "last-resort" && !k.startsWith("sysfb:") && __resolveDarwinFontSpecForTest(k) == null);
+      const unresolved = [...keys].filter(
+        (k) => k !== "last-resort" && !k.startsWith("sysfb:") && __resolveDarwinFontSpecForTest(k) == null,
+      );
       expect(unresolved, "a dangling/typo'd key paints tofu at runtime").toEqual([]);
     });
     // Explicit, generous timeout rather than a smaller sweep. Turning the live
@@ -2301,8 +2781,9 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
     // fail on any machine whose CoreText/fontconfig answers differ from the
     // calibration Mac — the opposite of what this is for.
     const keys = new Set<string>();
-    for (const cp of [0x2190, 0x2500, 0x25A0, 0x2600, 0x2700, 0x2A00,
-                      0x4E00, 0x3041, 0x30A1, 0xAC00, 0x0900, 0x0E00, 0x0600, 0x0590]) {
+    for (const cp of [
+      0x2190, 0x2500, 0x25a0, 0x2600, 0x2700, 0x2a00, 0x4e00, 0x3041, 0x30a1, 0xac00, 0x0900, 0x0e00, 0x0600, 0x0590,
+    ]) {
       for (const k of darwinFallbackChain(cp)) keys.add(k);
     }
     const sysfb = [...keys].filter((k) => k.startsWith("sysfb:"));
@@ -2311,7 +2792,12 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
   });
 
   it("never returns an empty chain for the symbol / arrow / geometric blocks", () => {
-    for (const [lo, hi] of [[0x2190, 0x21FF], [0x2500, 0x25FF], [0x2600, 0x26FF], [0x2700, 0x27BF]]) {
+    for (const [lo, hi] of [
+      [0x2190, 0x21ff],
+      [0x2500, 0x25ff],
+      [0x2600, 0x26ff],
+      [0x2700, 0x27bf],
+    ]) {
       for (let cp = lo; cp <= hi; cp++) {
         expect(darwinFallbackChain(cp).length).toBeGreaterThan(0);
       }
@@ -2335,36 +2821,35 @@ describe("linuxFallbackChain: Chromium-on-Linux calibration (DM-259)", () => {
     // the calibration this test pins — so pin them with the resolver toggled
     // off, which also makes the assertions hold identically on every host.
     withSystemFallbackResolution(false, () => {
-      expect(linuxFallbackChain(0x2500, "courier")).toEqual(["courier", "cjk"]);   // box-drawing, mono primary
-      expect(linuxFallbackChain(0x2500)).toEqual(["helvetica", "cjk"]);            // box-drawing, sans primary
-      expect(linuxFallbackChain(0x25A0)).toEqual(["helvetica", "cjk"]);            // geometric → Liberation Sans
+      expect(linuxFallbackChain(0x2500, "courier")).toEqual(["courier", "cjk"]); // box-drawing, mono primary
+      expect(linuxFallbackChain(0x2500)).toEqual(["helvetica", "cjk"]); // box-drawing, sans primary
+      expect(linuxFallbackChain(0x25a0)).toEqual(["helvetica", "cjk"]); // geometric → Liberation Sans
       // ← → Liberation Sans; the arrows Liberation lacks (↖↘⇄…) defer to the
       // fc-match resolver, which picks Chrome's WenQuanYi (was a wrong static
       // FreeSans route — verified vs getPlatformFontsForNode).
       expect(linuxFallbackChain(0x2190)).toEqual(["helvetica"]);
-      expect(linuxFallbackChain(0x2197)).toEqual(["cjk", "helvetica"]);            // ↗ diagonal → WenQuanYi
-      expect(linuxFallbackChain(0x2702)).toEqual(["free-sans", "free-serif"]);     // dingbat → FreeSans
-      expect(linuxFallbackChain(0x1D400)).toEqual(["free-sans", "free-serif"]);    // Math Alpha → FreeFont
+      expect(linuxFallbackChain(0x2197)).toEqual(["cjk", "helvetica"]); // ↗ diagonal → WenQuanYi
+      expect(linuxFallbackChain(0x2702)).toEqual(["free-sans", "free-serif"]); // dingbat → FreeSans
+      expect(linuxFallbackChain(0x1d400)).toEqual(["free-sans", "free-serif"]); // Math Alpha → FreeFont
     });
     // Production shape on a Linux host: with the resolver on, the deferring
     // routes hand the codepoint to fc-match exactly when it covers — an empty
     // chain — and keep the static net otherwise.
     if (process.platform === "linux" && getSystemFallbackResolution()) {
-      for (const cp of [0x2702, 0x1D400]) {
-        const expected = __resolveSystemFallbackKeyForCpForTest(cp) != null
-          ? [] : ["free-sans", "free-serif"];
+      for (const cp of [0x2702, 0x1d400]) {
+        const expected = __resolveSystemFallbackKeyForCpForTest(cp) != null ? [] : ["free-sans", "free-serif"];
         expect(linuxFallbackChain(cp)).toEqual(expected);
       }
     }
   });
 
   it("routes CJK / Indic / RTL to the image's lang faces", () => {
-    expect(linuxFallbackChain(0x4E00)).toEqual(["cjk"]);          // Han → WenQuanYi
-    expect(linuxFallbackChain(0xAC00)).toEqual(["cjk"]);          // Hangul → WenQuanYi
-    expect(linuxFallbackChain(0x0628)).toEqual(["sf-arabic"]);    // Arabic → FreeSerif
-    expect(linuxFallbackChain(0x0928)).toEqual(["devanagari"]);   // Devanagari → FreeSans
-    expect(linuxFallbackChain(0x0E01)).toEqual(["thai"]);         // Thai → Loma
-    expect(linuxFallbackChain(0x05D0)).toEqual(["helvetica"]);    // Hebrew → Liberation Sans
+    expect(linuxFallbackChain(0x4e00)).toEqual(["cjk"]); // Han → WenQuanYi
+    expect(linuxFallbackChain(0xac00)).toEqual(["cjk"]); // Hangul → WenQuanYi
+    expect(linuxFallbackChain(0x0628)).toEqual(["sf-arabic"]); // Arabic → FreeSerif
+    expect(linuxFallbackChain(0x0928)).toEqual(["devanagari"]); // Devanagari → FreeSans
+    expect(linuxFallbackChain(0x0e01)).toEqual(["thai"]); // Thai → Loma
+    expect(linuxFallbackChain(0x05d0)).toEqual(["helvetica"]); // Hebrew → Liberation Sans
   });
 });
 
@@ -2383,20 +2868,44 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
    * `FindFamilyName` — the call Blink's `IsFontPresent` makes.
    */
   const MEASURED_WIN11 = new Set([
-    "cambria math", "courier new", "ebrima", "gadugi", "javanese text",
-    "leelawadee ui", "lucida sans unicode", "malgun gothic", "microsoft himalaya",
-    "microsoft jhenghei", "microsoft new tai lue", "microsoft phagspa",
-    "microsoft sans serif", "microsoft tai le", "microsoft yahei",
-    "microsoft yi baiti", "mongolian baiti", "ms pgothic", "mv boli",
-    "myanmar text", "nirmala ui", "palatino linotype", "pmingliu-extb",
-    "segoe ui", "segoe ui emoji", "segoe ui historic", "segoe ui symbol",
-    "simsun", "simsun-extb", "simsun-extg", "sylfaen", "tahoma",
-    "times new roman", "yu gothic",
+    "cambria math",
+    "courier new",
+    "ebrima",
+    "gadugi",
+    "javanese text",
+    "leelawadee ui",
+    "lucida sans unicode",
+    "malgun gothic",
+    "microsoft himalaya",
+    "microsoft jhenghei",
+    "microsoft new tai lue",
+    "microsoft phagspa",
+    "microsoft sans serif",
+    "microsoft tai le",
+    "microsoft yahei",
+    "microsoft yi baiti",
+    "mongolian baiti",
+    "ms pgothic",
+    "mv boli",
+    "myanmar text",
+    "nirmala ui",
+    "palatino linotype",
+    "pmingliu-extb",
+    "segoe ui",
+    "segoe ui emoji",
+    "segoe ui historic",
+    "segoe ui symbol",
+    "simsun",
+    "simsun-extb",
+    "simsun-extg",
+    "sylfaen",
+    "tahoma",
+    "times new roman",
+    "yu gothic",
   ]);
 
   const injectInventory = (present: Set<string>): void =>
-    __setWin32FamilyKeyResolverForTest((family) =>
-      present.has(family.toLowerCase()) ? `winfam:${family}` : null);
+    __setWin32FamilyKeyResolverForTest((family) => (present.has(family.toLowerCase()) ? `winfam:${family}` : null));
 
   it("emits the ONE family Blink nominates, then the pan-Unicode probe list", () => {
     injectInventory(MEASURED_WIN11);
@@ -2404,7 +2913,7 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
     // is the single nomination — the second slot must NOT appear, because Blink
     // goes to the pan-Unicode list on a coverage miss, not to the script list's
     // next slot.
-    const georgian = win32FallbackChain(0x10D0);
+    const georgian = win32FallbackChain(0x10d0);
     expect(georgian[0]).toBe("winfam:Sylfaen");
     expect(georgian[1]).toBe("winfam:tahoma"); // head of kCommonFonts
     expect(georgian).not.toContain("winfam:Segoe UI");
@@ -2413,38 +2922,48 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
   it("routes Arabic + monospace to Courier New only for the monospace generic", () => {
     injectInventory(MEASURED_WIN11);
     const css = (declaredFamily: string) => ({
-      weight: 400, slant: 0, fontSize: 16, declaredFamily,
+      weight: 400,
+      slant: 0,
+      fontSize: 16,
+      declaredFamily,
       genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily),
     });
     // Concrete key and semantic enum are deliberately independent.
-    expect(win32FallbackChain(0x0628, "helvetica", undefined, css("Arial, monospace"))[0])
-      .toBe("winfam:courier new");
-    expect(win32FallbackChain(0x0628, "courier", undefined, css("Courier"))[0])
-      .toBe("winfam:Tahoma");
-    expect(win32FallbackChain(0x0628, "courier", undefined, css("monospace, serif"))[0])
-      .toBe("winfam:Tahoma");
-    expect(win32FallbackChain(0x0628, "helvetica", undefined, css("serif, monospace"))[0])
-      .toBe("winfam:courier new");
+    expect(win32FallbackChain(0x0628, "helvetica", undefined, css("Arial, monospace"))[0]).toBe("winfam:courier new");
+    expect(win32FallbackChain(0x0628, "courier", undefined, css("Courier"))[0]).toBe("winfam:Tahoma");
+    expect(win32FallbackChain(0x0628, "courier", undefined, css("monospace, serif"))[0]).toBe("winfam:Tahoma");
+    expect(win32FallbackChain(0x0628, "helvetica", undefined, css("serif, monospace"))[0]).toBe("winfam:courier new");
     expect(win32FallbackChain(0x0628)[0]).toBe("winfam:Tahoma");
   });
 
   it("preserves request semantics through forward/reverse no-reset routing", () => {
     injectInventory(new Set([...MEASURED_WIN11, "david"]));
     const stacks = [
-      ["Courier", "standard"], ["monospace", "monospace"],
-      ["Arial, monospace", "monospace"], ["Courier, serif", "standard"],
-      ["monospace, serif", "standard"], ["serif, monospace", "monospace"],
-      ["Courier, system-ui", "standard"], ["monospace, math", "monospace"],
+      ["Courier", "standard"],
+      ["monospace", "monospace"],
+      ["Arial, monospace", "monospace"],
+      ["Courier, serif", "standard"],
+      ["monospace, serif", "standard"],
+      ["serif, monospace", "monospace"],
+      ["Courier, system-ui", "standard"],
+      ["monospace, math", "monospace"],
       ['"monospace", Courier', "standard"],
     ] as const;
     for (const order of [stacks, [...stacks].reverse()]) {
       for (const [declaredFamily, mode] of order) {
-        const css = { weight: 400, slant: 0, fontSize: 16, declaredFamily,
-          genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily) };
-        expect(win32FallbackChain(0x0628, "courier", "ar", css)[0])
-          .toBe(mode === "monospace" ? "winfam:courier new" : "winfam:Tahoma");
-        expect(win32FallbackChain(0x05D0, "courier", undefined, css)[0])
-          .toBe(mode === "monospace" ? "winfam:courier new" : "winfam:David");
+        const css = {
+          weight: 400,
+          slant: 0,
+          fontSize: 16,
+          declaredFamily,
+          genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily),
+        };
+        expect(win32FallbackChain(0x0628, "courier", "ar", css)[0]).toBe(
+          mode === "monospace" ? "winfam:courier new" : "winfam:Tahoma",
+        );
+        expect(win32FallbackChain(0x05d0, "courier", undefined, css)[0]).toBe(
+          mode === "monospace" ? "winfam:courier new" : "winfam:David",
+        );
       }
     }
   });
@@ -2463,7 +2982,7 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
     // Blink stage contributes nothing and only the net remains.
     injectInventory(new Set());
     expect(win32FallbackChain(0x1208)).toEqual(["u-ebrima"]);
-    expect(win32FallbackChain(0x05D0)).toEqual(["u-arial"]);
+    expect(win32FallbackChain(0x05d0)).toEqual(["u-arial"]);
   });
 
   it("re-reads the inventory when it changes (no stale presence cache)", () => {
@@ -2473,11 +2992,11 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
     // and the real resolver's cache is only ever populated from one host.
     const withDavid = new Set([...MEASURED_WIN11, "david"]);
     injectInventory(withDavid);
-    expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:David");
+    expect(win32FallbackChain(0x05d0)[0]).toBe("winfam:David");
     injectInventory(MEASURED_WIN11);
-    expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:Segoe UI");
+    expect(win32FallbackChain(0x05d0)[0]).toBe("winfam:Segoe UI");
     injectInventory(withDavid);
-    expect(win32FallbackChain(0x05D0)[0]).toBe("winfam:David");
+    expect(win32FallbackChain(0x05d0)[0]).toBe("winfam:David");
   });
 
   // DM-1878: the cut inside the nominated family comes from the run's style,
@@ -2515,10 +3034,13 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
     // forwarding is covered by the Windows CI unit job.
     it("asks with NO style while probing presence, and WITH the style when selecting", () => {
       const calls = record();
-      win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 700, slant: 0, fontSize: 20 });
+      win32FallbackChain(0x10d0, "helvetica", undefined, { weight: 700, slant: 0, fontSize: 20 });
       // Blink's stage probes candidate families first (`IsFontPresent`), then
       // instantiates the one it nominated.
-      expect(calls.some((c) => c.css === undefined), "no style-blind presence probe happened").toBe(true);
+      expect(
+        calls.some((c) => c.css === undefined),
+        "no style-blind presence probe happened",
+      ).toBe(true);
       const selecting = calls.filter((c) => c.css !== undefined);
       expect(selecting.length, "the nominated family was never asked with the run's style").toBeGreaterThan(0);
       for (const c of selecting) expect(c.css).toEqual({ weight: 700, slant: 0 });
@@ -2526,8 +3048,8 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
 
     it("resolves a different cut for a bold run than for a regular one", () => {
       record();
-      const regular = win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 400, slant: 0, fontSize: 20 });
-      const bold = win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 700, slant: 0, fontSize: 20 });
+      const regular = win32FallbackChain(0x10d0, "helvetica", undefined, { weight: 400, slant: 0, fontSize: 20 });
+      const bold = win32FallbackChain(0x10d0, "helvetica", undefined, { weight: 700, slant: 0, fontSize: 20 });
       expect(regular[0]).toBe("winfam:Sylfaen");
       expect(bold[0]).toBe("winfam:Sylfaen-Bold");
       // The cut rides in the KEY, so the two runs cannot collide in any
@@ -2539,7 +3061,7 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
       // The description already existed on `fallbackFontChain` but was forwarded
       // ONLY to darwin — win32 dropped it, which is how the style never arrived.
       const calls = record();
-      win32FallbackChain(0x10D0, "helvetica", undefined, { weight: 900, slant: 1, fontSize: 13 });
+      win32FallbackChain(0x10d0, "helvetica", undefined, { weight: 900, slant: 1, fontSize: 13 });
       const selecting = calls.filter((c) => c.css !== undefined);
       expect(selecting.length).toBeGreaterThan(0);
       for (const c of selecting) expect(c.css).toEqual({ weight: 900, slant: 1 });
@@ -2550,7 +3072,7 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
       // guards) must keep working — they get the family's default face, which is
       // exactly what the pre-change behavior was.
       const calls = record();
-      const chain = win32FallbackChain(0x10D0, "helvetica");
+      const chain = win32FallbackChain(0x10d0, "helvetica");
       expect(chain[0]).toBe("winfam:Sylfaen");
       expect(calls.every((c) => c.css === undefined)).toBe(true);
     });
@@ -2558,8 +3080,10 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
 
   it("never emits a duplicate key, and never an empty-string key", () => {
     injectInventory(MEASURED_WIN11);
-    for (const cp of [0x0041, 0x0628, 0x05D0, 0x0E01, 0x4E00, 0xAC00, 0x2211,
-      0x2500, 0x2702, 0x1D400, 0x1F600, 0x10330, 0x2EBF0, 0x30000, 0xFF01]) {
+    for (const cp of [
+      0x0041, 0x0628, 0x05d0, 0x0e01, 0x4e00, 0xac00, 0x2211, 0x2500, 0x2702, 0x1d400, 0x1f600, 0x10330, 0x2ebf0,
+      0x30000, 0xff01,
+    ]) {
       const chain = win32FallbackChain(cp);
       expect(new Set(chain).size, `duplicate key for U+${cp.toString(16)}`).toBe(chain.length);
       for (const k of chain) expect(k.length).toBeGreaterThan(0);
@@ -2598,16 +3122,16 @@ describe("win32 generated Unicode-block routing well-formedness (DM-987)", () =>
     // the whole chain — which is what keeps these tail scripts off tofu when no
     // helper binary is available.
     const tail: Array<[number, string]> = [
-      [0x1208, "u-ebrima"],              // Ethiopic → Ebrima
-      [0x13A0, "u-gadugi"],              // Cherokee → Gadugi
-      [0xA000, "u-microsoft-yi-baiti"],  // Yi → Microsoft Yi Baiti
-      [0x1000, "u-myanmar-text"],        // Myanmar → Myanmar Text
-      [0x0F40, "u-microsoft-himalaya"],  // Tibetan → Microsoft Himalaya
-      [0x10300, "u-segoe-ui-historic"],  // Old Italic → Segoe UI Historic
-      [0x12000, "u-segoe-ui-historic"],  // Cuneiform → Segoe UI Historic
-      [0x20000, "u-simsun-extb"],        // CJK Ext B → SimSun-ExtB
-      [0x0780, "u-mv-boli"],             // Thaana → MV Boli
-      [0xA840, "u-microsoft-phagspa"],   // Phags-pa → Microsoft PhagsPa
+      [0x1208, "u-ebrima"], // Ethiopic → Ebrima
+      [0x13a0, "u-gadugi"], // Cherokee → Gadugi
+      [0xa000, "u-microsoft-yi-baiti"], // Yi → Microsoft Yi Baiti
+      [0x1000, "u-myanmar-text"], // Myanmar → Myanmar Text
+      [0x0f40, "u-microsoft-himalaya"], // Tibetan → Microsoft Himalaya
+      [0x10300, "u-segoe-ui-historic"], // Old Italic → Segoe UI Historic
+      [0x12000, "u-segoe-ui-historic"], // Cuneiform → Segoe UI Historic
+      [0x20000, "u-simsun-extb"], // CJK Ext B → SimSun-ExtB
+      [0x0780, "u-mv-boli"], // Thaana → MV Boli
+      [0xa840, "u-microsoft-phagspa"], // Phags-pa → Microsoft PhagsPa
     ];
     for (const [cp, key] of tail) {
       const chain = win32FallbackChain(cp);
@@ -2622,11 +3146,12 @@ describe("win32 generated Unicode-block routing well-formedness (DM-987)", () =>
 // platform split itself is regression-guarded.
 describe("fallbackFontChain: platform dispatch (DM-842)", () => {
   it("dispatches to the host platform's chain", () => {
-    const expected = process.platform === "linux"
-      ? linuxFallbackChain(0x2500, "courier")
-      : process.platform === "win32"
-        ? win32FallbackChain(0x2500, "courier")
-        : darwinFallbackChain(0x2500, "courier");
+    const expected =
+      process.platform === "linux"
+        ? linuxFallbackChain(0x2500, "courier")
+        : process.platform === "win32"
+          ? win32FallbackChain(0x2500, "courier")
+          : darwinFallbackChain(0x2500, "courier");
     expect(fallbackFontChain(0x2500, "courier")).toEqual(expected);
   });
 });
@@ -2642,29 +3167,29 @@ describe("mathAlphaToBase: Math-Alphanumeric decomposition (DM-838)", () => {
     expect(mathAlphaToBase(0x1d44e)).toEqual({ base: 0x61, bold: false, italic: true }); // 𝑎 → a
     expect(mathAlphaToBase(0x1d467)).toEqual({ base: 0x7a, bold: false, italic: true }); // 𝑧 → z
     // The italic small-h slot is unassigned; the capture emits U+210E (ℎ).
-    expect(mathAlphaToBase(0x210e)).toEqual({ base: 0x68, bold: false, italic: true });  // ℎ → h
+    expect(mathAlphaToBase(0x210e)).toEqual({ base: 0x68, bold: false, italic: true }); // ℎ → h
   });
 
   it("decomposes the Greek italic block including nabla and symbol variants", () => {
-    expect(mathAlphaToBase(0x1d6e2)).toEqual({ base: 0x391, bold: false, italic: true });  // 𝛢 → Α
-    expect(mathAlphaToBase(0x1d6fc)).toEqual({ base: 0x3b1, bold: false, italic: true });  // 𝛼 → α
-    expect(mathAlphaToBase(0x1d714)).toEqual({ base: 0x3c9, bold: false, italic: true });  // 𝜔 → ω
+    expect(mathAlphaToBase(0x1d6e2)).toEqual({ base: 0x391, bold: false, italic: true }); // 𝛢 → Α
+    expect(mathAlphaToBase(0x1d6fc)).toEqual({ base: 0x3b1, bold: false, italic: true }); // 𝛼 → α
+    expect(mathAlphaToBase(0x1d714)).toEqual({ base: 0x3c9, bold: false, italic: true }); // 𝜔 → ω
     expect(mathAlphaToBase(0x1d6fb)).toEqual({ base: 0x2207, bold: false, italic: true }); // 𝛻 → ∇
     expect(mathAlphaToBase(0x1d715)).toEqual({ base: 0x2202, bold: false, italic: true }); // 𝜕 → ∂
-    expect(mathAlphaToBase(0x1d716)).toEqual({ base: 0x3f5, bold: false, italic: true });  // 𝜖 → ϵ
-    expect(mathAlphaToBase(0x1d71b)).toEqual({ base: 0x3d6, bold: false, italic: true });  // 𝜛 → ϖ
+    expect(mathAlphaToBase(0x1d716)).toEqual({ base: 0x3f5, bold: false, italic: true }); // 𝜖 → ϵ
+    expect(mathAlphaToBase(0x1d71b)).toEqual({ base: 0x3d6, bold: false, italic: true }); // 𝜛 → ϖ
   });
 
   it("carries the bold / bold-italic / sans-serif style toggles", () => {
-    expect(mathAlphaToBase(0x1d400)).toEqual({ base: 0x41, bold: true,  italic: false }); // 𝐀 bold A
-    expect(mathAlphaToBase(0x1d468)).toEqual({ base: 0x41, bold: true,  italic: true });  // 𝑨 bold-italic A
+    expect(mathAlphaToBase(0x1d400)).toEqual({ base: 0x41, bold: true, italic: false }); // 𝐀 bold A
+    expect(mathAlphaToBase(0x1d468)).toEqual({ base: 0x41, bold: true, italic: true }); // 𝑨 bold-italic A
     expect(mathAlphaToBase(0x1d5a0)).toEqual({ base: 0x41, bold: false, italic: false }); // 𝖠 sans A
-    expect(mathAlphaToBase(0x1d622)).toEqual({ base: 0x61, bold: false, italic: true });  // 𝘢 sans italic a
+    expect(mathAlphaToBase(0x1d622)).toEqual({ base: 0x61, bold: false, italic: true }); // 𝘢 sans italic a
     expect(mathAlphaToBase(0x1d670)).toEqual({ base: 0x41, bold: false, italic: false }); // 𝙰 mono A
   });
 
   it("decomposes the bold / sans digit blocks", () => {
-    expect(mathAlphaToBase(0x1d7ce)).toEqual({ base: 0x30, bold: true,  italic: false }); // 𝟎 bold 0
+    expect(mathAlphaToBase(0x1d7ce)).toEqual({ base: 0x30, bold: true, italic: false }); // 𝟎 bold 0
     expect(mathAlphaToBase(0x1d7ff)).toEqual({ base: 0x39, bold: false, italic: false }); // 𝟿 mono 9
     expect(mathAlphaToBase(0x1d7e2)).toEqual({ base: 0x30, bold: false, italic: false }); // 𝟢 sans 0
   });
@@ -2674,7 +3199,7 @@ describe("mathAlphaToBase: Math-Alphanumeric decomposition (DM-838)", () => {
     expect(mathAlphaToBase(0x1d504)).toBeNull(); // 𝔄 fraktur A
     expect(mathAlphaToBase(0x1d538)).toBeNull(); // 𝔸 double-struck A
     expect(mathAlphaToBase(0x1d7d8)).toBeNull(); // 𝟘 double-struck digit 0
-    expect(mathAlphaToBase(0x0061)).toBeNull();  // plain 'a'
+    expect(mathAlphaToBase(0x0061)).toBeNull(); // plain 'a'
     expect(mathAlphaToBase(0x1d800)).toBeNull(); // just past the block
   });
 });
@@ -2698,10 +3223,20 @@ describe("isStretchyFenceChar: MathML fence detection (DM-874)", () => {
 });
 
 describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
-  beforeEach(() => { clearGlyphDefs(); setRenderTextMode("paths"); });
+  beforeEach(() => {
+    clearGlyphDefs();
+    setRenderTextMode("paths");
+  });
 
   it("emits a glyph <use> scaled and translated into the captured box", () => {
-    const out = renderStretchyFenceGlyph("(", 10, 30, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "rgb(0,0,0)");
+    const out = renderStretchyFenceGlyph(
+      "(",
+      10,
+      30,
+      20,
+      { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" },
+      "rgb(0,0,0)",
+    );
     // Skips when the host has no resolvable font for '(' — but every supported
     // platform's sans-serif covers it, so this should render here.
     expect(out).not.toBeNull();
@@ -2711,8 +3246,22 @@ describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
   });
 
   it("stretches vertically with the box height (taller box → larger |sy|) while x-scale stays natural", () => {
-    const short = renderStretchyFenceGlyph("(", 0, 0, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000");
-    const tall = renderStretchyFenceGlyph("(", 0, 0, 60, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000");
+    const short = renderStretchyFenceGlyph(
+      "(",
+      0,
+      0,
+      20,
+      { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" },
+      "#000",
+    );
+    const tall = renderStretchyFenceGlyph(
+      "(",
+      0,
+      0,
+      60,
+      { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" },
+      "#000",
+    );
     expect(short).not.toBeNull();
     expect(tall).not.toBeNull();
     const parse = (s: string) => {
@@ -2728,19 +3277,32 @@ describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
   });
 
   it("returns null for an empty or zero-height request (caller falls back to baseline text)", () => {
-    expect(renderStretchyFenceGlyph("", 0, 0, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000")).toBeNull();
-    expect(renderStretchyFenceGlyph("(", 0, 0, 0, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000")).toBeNull();
+    expect(
+      renderStretchyFenceGlyph("", 0, 0, 20, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000"),
+    ).toBeNull();
+    expect(
+      renderStretchyFenceGlyph("(", 0, 0, 0, { fontSize: 22, fontFamily: "sans-serif", fontWeight: "400" }, "#000"),
+    ).toBeNull();
   });
 
-  it.skipIf(!fs.existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))("fits the native-backed STIX math face instead of falling through to its text baseline", () => {
-    const out = renderStretchyFenceGlyph("(", 10, 30, 20,
-      { fontSize: 22, fontFamily: "math", fontWeight: "400" }, "#000");
-    expect(out).not.toBeNull();
-    expect(out).toContain("<use href=");
-    // The dedicated fit owns vertical placement; a null return would fall
-    // through to the ordinary ~50 px text baseline for this 30..50 px box.
-    expect(out).toMatch(/translate\(10,(?:4[5-9](?:\.\d+)?)\)/);
-  });
+  it.skipIf(!fs.existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))(
+    "fits the native-backed STIX math face instead of falling through to its text baseline",
+    () => {
+      const out = renderStretchyFenceGlyph(
+        "(",
+        10,
+        30,
+        20,
+        { fontSize: 22, fontFamily: "math", fontWeight: "400" },
+        "#000",
+      );
+      expect(out).not.toBeNull();
+      expect(out).toContain("<use href=");
+      // The dedicated fit owns vertical placement; a null return would fall
+      // through to the ordinary ~50 px text baseline for this 30..50 px box.
+      expect(out).toMatch(/translate\(10,(?:4[5-9](?:\.\d+)?)\)/);
+    },
+  );
 });
 
 describe("ligature handling with captured xOffsets (DM-287 / DM-331)", () => {
@@ -2762,8 +3324,13 @@ describe("ligature handling with captured xOffsets (DM-287 / DM-331)", () => {
     // Spread chars at 8px each — exact values don't matter for this test, we
     // just need length === text.length so the ligature path activates.
     for (let i = 0; i < text.length; i++) xOffsets.push(i * 8);
-    const out = renderTextAsPath(text, 0, 0,
-      { fontSize: 16, fontFamily: "cursive", fontWeight: "400", fill: "#000", xOffsets });
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 16,
+      fontFamily: "cursive",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets,
+    });
     expect(out).not.toBeNull();
     // Apple Chancery's Th ligature is glyph id=343, th ligature id=338,
     // and per-char e is id=72. We expect to see exactly one <use> referencing
@@ -2821,7 +3388,7 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
     let x = 0;
     for (let i = 0; i < text.length;) {
       const cp = text.codePointAt(i)!;
-      const chLen = cp > 0xFFFF ? 2 : 1;
+      const chLen = cp > 0xffff ? 2 : 1;
       for (let j = 0; j < chLen; j++) offsets.push(x);
       x += stepPerChar;
       i += chLen;
@@ -2843,8 +3410,13 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
   const HAVE_ADLAM = fs.existsSync(ADLAM_FONT);
   it.skipIf(!HAVE_ADLAM)("Adlam: A+4 letters+B collapses the middle run to ONE shaped group, not four", () => {
     const { text, xOffsets } = wrapped("\u{1E900}\u{1E901}\u{1E902}\u{1E903}");
-    const out = renderTextAsPath(text, 0, 0,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets,
+    });
     expect(out).not.toBeNull();
     // 1 (A) + 1 (shaped Adlam run) + 1 (B) = 3. Pre-fix this would be
     // 1 + 4 + 1 = 6 (one group per Adlam character).
@@ -2855,8 +3427,13 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
   const HAVE_HANIFI = fs.existsSync(HANIFI_FONT);
   it.skipIf(!HAVE_HANIFI)("Hanifi Rohingya: A+3 letters+B collapses the middle run to ONE shaped group", () => {
     const { text, xOffsets } = wrapped("\u{10D00}\u{10D01}\u{10D02}");
-    const out = renderTextAsPath(text, 0, 0,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets,
+    });
     expect(out).not.toBeNull();
     expect(groupCount(out!)).toBe(3); // pre-fix: 1 + 3 + 1 = 5
   });
@@ -2870,8 +3447,13 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
     // `harfbuzz-script-routing.test.ts` proof for the two that DO diverge.
     const middle = "ශ්‍රී";
     const { text, xOffsets } = wrapped(middle);
-    const out = renderTextAsPath(text, 0, 0,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets,
+    });
     expect(out).not.toBeNull();
     // pre-fix: 1 + middle.length (one group per UTF-16-per-char-loop step,
     // i.e. per codepoint including combining marks) + 1.
@@ -2882,8 +3464,13 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
   const HAVE_NKO = fs.existsSync(NKO_FONT);
   it.skipIf(!HAVE_NKO)("N'Ko: A+3-letter RTL word+B collapses the middle run to ONE shaped group", () => {
     const { text, xOffsets } = wrapped("ߒߞߏ");
-    const out = renderTextAsPath(text, 0, 0,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets,
+    });
     expect(out).not.toBeNull();
     expect(groupCount(out!)).toBe(3); // pre-fix: 1 + 3 + 1 = 5
   });
@@ -2893,8 +3480,13 @@ describe("DM-2033 / DM-2054: USE-shaped scripts route through run-based shaping"
     // every supported face to HarfBuzz shaping. This control pins that broader
     // contract: the fallback remains one run even without contextual joining.
     const { text, xOffsets } = wrapped("中文字");
-    const out = renderTextAsPath(text, 0, 0,
-      { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000", xOffsets });
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets,
+    });
     expect(out).not.toBeNull();
     expect(groupCount(out!)).toBe(3); // 1 (A) + 1 (Han run) + 1 (B)
   });
@@ -2911,14 +3503,24 @@ describe("Selected raster glyphs suppress vector emission (DM-334 / DM-2392)", (
     // would be the chain's last entry (symbols) producing tofu. With the
     // selected-glyph suppression, vector markup is empty; the returned
     // boundary prevents a consumer-font retry while capture owns the pixels.
-    const out = renderTextAsPath("✨", 0, 0,
-      { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0] });
+    const out = renderTextAsPath("✨", 0, 0, {
+      fontSize: 16,
+      fontFamily: "Times",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets: [0],
+    });
     expect(out).toContain('data-domotion-text-boundary="path-all-raster-owned"');
     expect(out).not.toMatch(/<text(?:\s|>)/);
   });
   it("emits no <use> for U+1F600 😀 / U+1F680 🚀 (main emoji blocks)", () => {
-    const out = renderTextAsPath("😀🚀", 0, 0,
-      { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 0, 18, 18] });
+    const out = renderTextAsPath("😀🚀", 0, 0, {
+      fontSize: 16,
+      fontFamily: "Times",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets: [0, 0, 18, 18],
+    });
     expect(out).toContain('data-domotion-text-boundary="path-all-raster-owned"');
     expect(out).not.toMatch(/<text(?:\s|>)/);
   });
@@ -2927,8 +3529,13 @@ describe("Selected raster glyphs suppress vector emission (DM-334 / DM-2392)", (
     // space is contourless and the emoji's color-face glyph is suppressed for
     // the raster overlay. Neither contributes a `<use>` or shifts the captured
     // positions of the preceding letters.
-    const out = renderTextAsPath("Smile 😀", 0, 0,
-      { fontSize: 16, fontFamily: "Times", fontWeight: "400", fill: "#000", xOffsets: [0, 9, 18, 22, 26, 30, 34, 34] });
+    const out = renderTextAsPath("Smile 😀", 0, 0, {
+      fontSize: 16,
+      fontFamily: "Times",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets: [0, 9, 18, 22, 26, 30, 34, 34],
+    });
     expect(out).not.toBeNull();
     const useCount = (out!.match(/<use href="#g\d+"/g) ?? []).length;
     expect(useCount).toBe(5);
@@ -2941,38 +3548,49 @@ describe("synthesized small-caps (DM-294)", () => {
   // path: lowercase letters render as uppercase glyphs at ~0.7× the font
   // size, while uppercase letters stay at full size. The renderer mirrors
   // this when it sees `features: ['smcp']` and the font lacks the feature.
-  it.skipIf(!MACOS_FONTS)("renders lowercase letters as uppercase glyphs at the small-cap scale, ROUNDED to a whole pixel (simple_font_data.cc:310-314 lroundf)", () => {
-    // Render "abc" at 16px Helvetica with smcp.
-    const out = renderTextAsPath("abc", 0, 0, {
-      fontSize: 16, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
-      xOffsets: [0, 8, 16], features: ["smcp"],
-    });
-    expect(out).not.toBeNull();
-    // Synth path emits one <g transform="translate(x,0) scale(s,-s)"> per
-    // char. Blink's `CreateScaledFontData` doesn't scale continuously — it
-    // rounds the SIZE first: `lroundf(ComputedSize() * 0.7)`. At 16px that's
-    // lroundf(11.2) = 11, so the per-char scale is 11/2048 ≈ 0.0053711, not
-    // the unrounded 16×0.7/2048 ≈ 0.0054688 a flat-0.7 constant would give.
-    // The two differ by ~10⁻⁴ — this assertion's precision (6 decimals) is
-    // tight enough to fail against the unrounded constant.
-    const matches = out!.match(/scale\(([^,]+),/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(3);
-    // Outer scale on the wrapper <g transform="translate(x,baselineY)"> is
-    // 1, so we look at the inner per-char scales (4 total: 1 outer + 3 char).
-    // Each should be ≈ 11/2048 (rounded small-cap), not 16/2048 (full) NOR
-    // the unrounded 16×0.7/2048.
-    const charScales = matches.slice(1, 4).map((m) => parseFloat(m.replace(/scale\(/, "")));
-    for (const s of charScales) {
-      expect(s).toBeCloseTo(11 / 2048, 5);
-      expect(s).not.toBeCloseTo(16 / 2048 * 0.7, 5);
-    }
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "renders lowercase letters as uppercase glyphs at the small-cap scale, ROUNDED to a whole pixel (simple_font_data.cc:310-314 lroundf)",
+    () => {
+      // Render "abc" at 16px Helvetica with smcp.
+      const out = renderTextAsPath("abc", 0, 0, {
+        fontSize: 16,
+        fontFamily: "Helvetica",
+        fontWeight: "400",
+        fill: "#000",
+        xOffsets: [0, 8, 16],
+        features: ["smcp"],
+      });
+      expect(out).not.toBeNull();
+      // Synth path emits one <g transform="translate(x,0) scale(s,-s)"> per
+      // char. Blink's `CreateScaledFontData` doesn't scale continuously — it
+      // rounds the SIZE first: `lroundf(ComputedSize() * 0.7)`. At 16px that's
+      // lroundf(11.2) = 11, so the per-char scale is 11/2048 ≈ 0.0053711, not
+      // the unrounded 16×0.7/2048 ≈ 0.0054688 a flat-0.7 constant would give.
+      // The two differ by ~10⁻⁴ — this assertion's precision (6 decimals) is
+      // tight enough to fail against the unrounded constant.
+      const matches = out!.match(/scale\(([^,]+),/g) ?? [];
+      expect(matches.length).toBeGreaterThanOrEqual(3);
+      // Outer scale on the wrapper <g transform="translate(x,baselineY)"> is
+      // 1, so we look at the inner per-char scales (4 total: 1 outer + 3 char).
+      // Each should be ≈ 11/2048 (rounded small-cap), not 16/2048 (full) NOR
+      // the unrounded 16×0.7/2048.
+      const charScales = matches.slice(1, 4).map((m) => parseFloat(m.replace(/scale\(/, "")));
+      for (const s of charScales) {
+        expect(s).toBeCloseTo(11 / 2048, 5);
+        expect(s).not.toBeCloseTo((16 / 2048) * 0.7, 5);
+      }
+    },
+  );
 
   it.skipIf(!MACOS_FONTS)("keeps uppercase letters at full size in a smcp run", () => {
     // "ABC" all uppercase — synth path must NOT shrink them.
     const out = renderTextAsPath("ABC", 0, 0, {
-      fontSize: 16, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
-      xOffsets: [0, 10, 20], features: ["smcp"],
+      fontSize: 16,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+      xOffsets: [0, 10, 20],
+      features: ["smcp"],
     });
     expect(out).not.toBeNull();
     const matches = out!.match(/scale\(([^,]+),/g) ?? [];
@@ -3011,19 +3629,26 @@ describe("synthesized small-caps (DM-294): embedded-font mode font-size ROUNDING
     setRenderTextMode("paths");
   });
 
-  it.skipIf(fontBuf == null)("emits the synthesized small-caps font-size at lroundf(fontSize × 0.7), not the unrounded product", () => {
-    registerWebfont("MonacoTest", 400, "normal", fontBuf!);
-    const out = renderTextAsPath("abc", 0, 0, {
-      fontSize: 16, fontFamily: "MonacoTest", fontWeight: "400", fill: "#000",
-      xOffsets: [0, 8, 16], features: ["smcp"],
-    });
-    expect(out).not.toBeNull();
-    // At 16px, Blink's `lroundf(ComputedSize() * 0.7)` = lroundf(11.2) = 11 —
-    // Chrome's actual synthesized small-caps glyph size. A flat 0.7 constant
-    // would emit the unrounded product, 11.2.
-    expect(out!).toMatch(/font-size="11"/);
-    expect(out!).not.toMatch(/font-size="11\.2"/);
-  });
+  it.skipIf(fontBuf == null)(
+    "emits the synthesized small-caps font-size at lroundf(fontSize × 0.7), not the unrounded product",
+    () => {
+      registerWebfont("MonacoTest", 400, "normal", fontBuf!);
+      const out = renderTextAsPath("abc", 0, 0, {
+        fontSize: 16,
+        fontFamily: "MonacoTest",
+        fontWeight: "400",
+        fill: "#000",
+        xOffsets: [0, 8, 16],
+        features: ["smcp"],
+      });
+      expect(out).not.toBeNull();
+      // At 16px, Blink's `lroundf(ComputedSize() * 0.7)` = lroundf(11.2) = 11 —
+      // Chrome's actual synthesized small-caps glyph size. A flat 0.7 constant
+      // would emit the unrounded product, 11.2.
+      expect(out!).toMatch(/font-size="11"/);
+      expect(out!).not.toMatch(/font-size="11\.2"/);
+    },
+  );
 });
 
 describe("resolveFontKey: chain walking", () => {
@@ -3090,13 +3715,19 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
     expect(t).toBeGreaterThanOrEqual(1);
   });
 
-  it.skipIf(!MACOS_FONTS)("from-font thickness reads the face's post.underlineThickness (text_decoration_info.cc:82-84)", () => {
-    const m = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" }, { thicknessOverride: "from-font", fontAscent: 30 });
-    // Helvetica's post table thickness is thinner than the 3.25px auto value
-    // at 32.5px — the oracle's from-font cases paint a 1px snapped bar.
-    expect(m.thickness).toBeLessThan(2);
-    expect(m.thickness).toBeGreaterThanOrEqual(1);
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "from-font thickness reads the face's post.underlineThickness (text_decoration_info.cc:82-84)",
+    () => {
+      const m = getDecorationMetrics(
+        { fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" },
+        { thicknessOverride: "from-font", fontAscent: 30 },
+      );
+      // Helvetica's post table thickness is thinner than the 3.25px auto value
+      // at 32.5px — the oracle's from-font cases paint a 1px snapped bar.
+      expect(m.thickness).toBeLessThan(2);
+      expect(m.thickness).toBeGreaterThanOrEqual(1);
+    },
+  );
 
   it("auto underline top = trunc(ascI + gap + roundf(extra)), gap = max(1, ceil(t/2)) (text_decoration_offset.cc:16-35)", () => {
     // fs 16, t 1.6 → gap max(1, ceil(0.8)) = 1; ascF 15 → ascI 15 → top 16.
@@ -3118,38 +3749,62 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
     expect(getDecorationMetrics(base, { underlineOffsetCss: "0.15em", fontAscent: 15 }).underlineTop).toBe(17);
   });
 
-  it.skipIf(!MACOS_FONTS)("under position: floor(LU(ascF + NTD) + LU(extra)) + 1 (text_decoration_offset.cc:52-89,112-118)", () => {
-    // The unknown family resolves to the macOS standard-font fallback (Times):
-    // OS/2 sTypoAscender 1536 / sTypoDescender −512 at upem 2048 →
-    // normalized ascent LU(1536·16/2048) = 12, NTD = 16 − 12 = 4
-    // (simple_font_data.cc:360-415).
-    const m = getDecorationMetrics(base, { underlinePositionCss: "under", fontAscent: 12, fontDescent: 4 });
-    expect(m.underlineTop).toBe(17); // floor(LU(12 + 4)) + 1
-    const withOffset = getDecorationMetrics(base, { underlinePositionCss: "under", underlineOffsetCss: "4px", fontAscent: 12, fontDescent: 4 });
-    expect(withOffset.underlineTop).toBe(21); // floor(16 + 4) + 1
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "under position: floor(LU(ascF + NTD) + LU(extra)) + 1 (text_decoration_offset.cc:52-89,112-118)",
+    () => {
+      // The unknown family resolves to the macOS standard-font fallback (Times):
+      // OS/2 sTypoAscender 1536 / sTypoDescender −512 at upem 2048 →
+      // normalized ascent LU(1536·16/2048) = 12, NTD = 16 − 12 = 4
+      // (simple_font_data.cc:360-415).
+      const m = getDecorationMetrics(base, { underlinePositionCss: "under", fontAscent: 12, fontDescent: 4 });
+      expect(m.underlineTop).toBe(17); // floor(LU(12 + 4)) + 1
+      const withOffset = getDecorationMetrics(base, {
+        underlinePositionCss: "under",
+        underlineOffsetCss: "4px",
+        fontAscent: 12,
+        fontDescent: 4,
+      });
+      expect(withOffset.underlineTop).toBe(21); // floor(16 + 4) + 1
+    },
+  );
 
-  it.skipIf(!MACOS_FONTS)("from-font position = roundf(ascF + face underline position + extra) (text_decoration_offset.cc:37-48)", () => {
-    // Times (the macOS standard-font fallback): post.underlinePosition −155
-    // at upem 2048 → +1.2109375px below the baseline at 16px (Skia's
-    // fUnderlinePosition sign — positive below; macOS negates
-    // CTFontGetUnderlinePosition, external/skia SkScalerContext_mac_ct.cpp
-    // rev ebf5052).
-    const m = getDecorationMetrics(base, { underlinePositionCss: "from-font", fontAscent: 15 });
-    expect(m.underlineTop).toBe(16); // roundf(15 + 1.2109375) = 16
-    const withOffset = getDecorationMetrics(base, { underlinePositionCss: "from-font", underlineOffsetCss: "3px", fontAscent: 15 });
-    expect(withOffset.underlineTop).toBe(19); // roundf(15 + 1.2109375 + 3)
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "from-font position = roundf(ascF + face underline position + extra) (text_decoration_offset.cc:37-48)",
+    () => {
+      // Times (the macOS standard-font fallback): post.underlinePosition −155
+      // at upem 2048 → +1.2109375px below the baseline at 16px (Skia's
+      // fUnderlinePosition sign — positive below; macOS negates
+      // CTFontGetUnderlinePosition, external/skia SkScalerContext_mac_ct.cpp
+      // rev ebf5052).
+      const m = getDecorationMetrics(base, { underlinePositionCss: "from-font", fontAscent: 15 });
+      expect(m.underlineTop).toBe(16); // roundf(15 + 1.2109375) = 16
+      const withOffset = getDecorationMetrics(base, {
+        underlinePositionCss: "from-font",
+        underlineOffsetCss: "3px",
+        fontAscent: 15,
+      });
+      expect(withOffset.underlineTop).toBe(19); // roundf(15 + 1.2109375 + 3)
+    },
+  );
 
-  it.skipIf(!MACOS_FONTS)("from-font position = roundf(ascF + post underline position) (text_decoration_offset.cc:37-48)", () => {
-    const auto = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" }, { fontAscent: 30 });
-    const fromFont = getDecorationMetrics({ fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" }, { underlinePositionCss: "from-font", fontAscent: 30 });
-    // The face metric places the line ABOVE the auto gap position for
-    // Helvetica (post.underlinePosition is shallower than gap+ascent), and
-    // the result is integer (roundf).
-    expect(Number.isInteger(fromFont.underlineTop)).toBe(true);
-    expect(fromFont.underlineTop).toBeLessThanOrEqual(auto.underlineTop);
-  });
+  it.skipIf(!MACOS_FONTS)(
+    "from-font position = roundf(ascF + post underline position) (text_decoration_offset.cc:37-48)",
+    () => {
+      const auto = getDecorationMetrics(
+        { fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" },
+        { fontAscent: 30 },
+      );
+      const fromFont = getDecorationMetrics(
+        { fontFamily: "Helvetica", fontSize: 32.5, fontWeight: "400" },
+        { underlinePositionCss: "from-font", fontAscent: 30 },
+      );
+      // The face metric places the line ABOVE the auto gap position for
+      // Helvetica (post.underlinePosition is shallower than gap+ascent), and
+      // the result is integer (roundf).
+      expect(Number.isInteger(fromFont.underlineTop)).toBe(true);
+      expect(fromFont.underlineTop).toBeLessThanOrEqual(auto.underlineTop);
+    },
+  );
 
   it("overline top = floor(LU(ascF − ascI)) − floor(t) (text_decoration_offset.cc:52-89, TextTop)", () => {
     // ascF 15 (integer): LU(0) → 0; floor(1.6) = 1 → top −1.
@@ -3162,16 +3817,19 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
   });
 
   it("uses central half-height/em metrics and preserves flip-specific offset ownership", () => {
-    const central = { baselineType: "central" as const, underlinePositionCss: "under", fontAscent: 16.4, fontDescent: 4.2 };
+    const central = {
+      baselineType: "central" as const,
+      underlinePositionCss: "under",
+      fontAscent: 16.4,
+      fontDescent: 4.2,
+    };
     const plain = getDecorationMetrics({ ...base, fontSize: 20 }, central);
     // FloatAscent(central)=20.6/2=10.3; normalized central descent=20/2.
     // floor(LU(10.3+10))+1 = 21. TextTop uses integer central ascent 10.
     expect(plain.underlineTop).toBe(21);
     expect(plain.overlineTop).toBe(-2);
 
-    const underWithOffset = getDecorationMetrics(
-      { ...base, fontSize: 20 }, { ...central, underlineOffsetCss: "3px" },
-    );
+    const underWithOffset = getDecorationMetrics({ ...base, fontSize: 20 }, { ...central, underlineOffsetCss: "3px" });
     expect(underWithOffset.underlineTop).toBe(24);
     expect(underWithOffset.overlineTop).toBe(-2); // ordinary overline ignores the offset
 
@@ -3188,7 +3846,10 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
 
   it("line-through top = 2·ascF/3 − t/2, unrounded (text_decoration_info.cc:385-386)", () => {
     expect(getDecorationMetrics(base, { fontAscent: 15 }).lineThroughTop).toBeCloseTo((2 * 15) / 3 - 0.8, 10);
-    expect(getDecorationMetrics(base, { thicknessOverride: "5px", fontAscent: 15 }).lineThroughTop).toBeCloseTo(10 - 2.5, 10);
+    expect(getDecorationMetrics(base, { thicknessOverride: "5px", fontAscent: 15 }).lineThroughTop).toBeCloseTo(
+      10 - 2.5,
+      10,
+    );
   });
 
   it("falls back to fontAscent = 0.8 × fontSize when no ascent is captured", () => {
@@ -3210,18 +3871,30 @@ describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
   const T = 1;
 
   it.skipIf(!MACOS_FONTS)("produces gaps for descender-bearing glyphs", () => {
-    const gaps = computeSkipInkGaps("jumping", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
+    const gaps = computeSkipInkGaps(
+      "jumping",
+      { fontSize: FS, fontFamily: FF, fontWeight: FW },
+      { decorationCenterYRel: Y, decorationThickness: T },
+    );
     // 'j', 'p', 'g' all have stems crossing the underline band.
     expect(gaps.length).toBeGreaterThanOrEqual(2);
   });
 
   it("produces no gaps for ascender-only / x-height-only text", () => {
-    const gaps = computeSkipInkGaps("alone", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
+    const gaps = computeSkipInkGaps(
+      "alone",
+      { fontSize: FS, fontFamily: FF, fontWeight: FW },
+      { decorationCenterYRel: Y, decorationThickness: T },
+    );
     expect(gaps).toEqual([]);
   });
 
   it("merges adjacent / overlapping descender gaps", () => {
-    const gaps = computeSkipInkGaps("ggg", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
+    const gaps = computeSkipInkGaps(
+      "ggg",
+      { fontSize: FS, fontFamily: FF, fontWeight: FW },
+      { decorationCenterYRel: Y, decorationThickness: T },
+    );
     // Three adjacent 'g' descenders may merge into one gap or stay separate
     // depending on the pad — guarantee non-overlapping output.
     for (let i = 1; i < gaps.length; i++) {
@@ -3230,14 +3903,26 @@ describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
   });
 
   it("returns empty when font cannot be resolved", () => {
-    const gaps = computeSkipInkGaps("test", { fontSize: FS, fontFamily: "NotAFontFamily12345", fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
+    const gaps = computeSkipInkGaps(
+      "test",
+      { fontSize: FS, fontFamily: "NotAFontFamily12345", fontWeight: FW },
+      { decorationCenterYRel: Y, decorationThickness: T },
+    );
     expect(gaps).toEqual([]);
   });
 
   it("scales gaps when targetWidth diverges from fontkit's layout width", () => {
-    const baseline = computeSkipInkGaps("jumping", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T });
+    const baseline = computeSkipInkGaps(
+      "jumping",
+      { fontSize: FS, fontFamily: FF, fontWeight: FW },
+      { decorationCenterYRel: Y, decorationThickness: T },
+    );
     if (baseline.length === 0) return;
-    const stretched = computeSkipInkGaps("jumping", { fontSize: FS, fontFamily: FF, fontWeight: FW }, { decorationCenterYRel: Y, decorationThickness: T, targetWidth: 200 });
+    const stretched = computeSkipInkGaps(
+      "jumping",
+      { fontSize: FS, fontFamily: FF, fontWeight: FW },
+      { decorationCenterYRel: Y, decorationThickness: T, targetWidth: 200 },
+    );
     // With a stretched targetWidth, the gap centers should shift outward
     // proportionally — at minimum, the rightmost gap moves right.
     const lastBaseline = baseline[baseline.length - 1];
@@ -3297,7 +3982,9 @@ describe("resolveFontKey: registered webfonts win over Placeholder + sans-serif 
     // we still resolve via the generic-family rules — confirming the
     // webfont-match isn't masking the existing fallback chain.
     const hostSans = resolveFontKey("sans-serif");
-    expect(resolveFontKey('"Unregistered Custom Font", "Unregistered Custom Font Placeholder", sans-serif')).toBe(hostSans);
+    expect(resolveFontKey('"Unregistered Custom Font", "Unregistered Custom Font Placeholder", sans-serif')).toBe(
+      hostSans,
+    );
   });
 
   it("picks the registered family when it appears LATER in the cascade than an unregistered first name", () => {
@@ -3361,8 +4048,13 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
     if (fontBuf == null) return;
     registerWebfont("SFTest", 400, "normal", fontBuf);
     // Page applies italic via CSS; engine synthesizes from upright variant.
-    const out = renderTextAsPath("Hi", 0, 0,
-      { fontSize: 24, fontFamily: "SFTest", fontWeight: "400", fill: "#000", fontStyle: "italic" });
+    const out = renderTextAsPath("Hi", 0, 0, {
+      fontSize: 24,
+      fontFamily: "SFTest",
+      fontWeight: "400",
+      fill: "#000",
+      fontStyle: "italic",
+    });
     expect(out).not.toBeNull();
     expect(out!).toContain('font-style="italic"');
   });
@@ -3371,7 +4063,10 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
     if (fontBuf == null) return;
     registerWebfont("SFTest", 400, "normal", fontBuf);
     const out = renderTextAsPath("Hi", 0, 0, {
-      fontSize: 24, fontFamily: "SFTest", fontWeight: "400", fill: "#000",
+      fontSize: 24,
+      fontFamily: "SFTest",
+      fontWeight: "400",
+      fill: "#000",
       variationSettings: { wght: 540, opsz: 32 },
     });
     expect(out).not.toBeNull();
@@ -3417,10 +4112,10 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const re = /<text[^>]*>([^<]*)<\/text>/g;
     let m;
     while ((m = re.exec(out)) != null) {
-      for (let i = 0; i < m[1].length; ) {
+      for (let i = 0; i < m[1].length;) {
         const cp = m[1].codePointAt(i)!;
         cps.push(cp);
-        i += cp > 0xFFFF ? 2 : 1;
+        i += cp > 0xffff ? 2 : 1;
       }
     }
     return cps;
@@ -3429,28 +4124,38 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("routes PUA exhaustion to source paths without exposing authored text (cross-platform fixture)", () => {
     registerWebfont("Dm2399Pua", 400, "normal", fixtureFontBuf);
     const first = renderTextAsPath("A", 0, 0, {
-      fontSize: 24, fontFamily: "Dm2399Pua", fontWeight: "400", fill: "#000",
+      fontSize: 24,
+      fontFamily: "Dm2399Pua",
+      fontWeight: "400",
+      fill: "#000",
     });
     expect(first).toMatch(/<text[^>]+font-family="dmf\d+"/);
     const key = _builderInstanceKeys()[0];
     expect(key).toBeTruthy();
-    expect(_setBuilderNextPuaForTest(key!, 0xF900)).toBe(true);
+    expect(_setBuilderNextPuaForTest(key!, 0xf900)).toBe(true);
 
     setTextRunProvenanceEnabled(true);
     resetTextRunProvenance();
     try {
       const fallback = renderTextAsPath("B", 0, 0, {
-        fontSize: 24, fontFamily: "Dm2399Pua", fontWeight: "400", fill: "#000",
+        fontSize: 24,
+        fontFamily: "Dm2399Pua",
+        fontWeight: "400",
+        fill: "#000",
       });
-      expect(fallback).toContain("<use href=\"#g");
+      expect(fallback).toContain('<use href="#g');
       expect(fallback).not.toMatch(/<text(?:\s|>)/);
       expect(fallback).not.toContain('font-family="Dm2399Pua"');
-      expect(getTextRunProvenance().transitions).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          kind: "embedded-declined-to-paths", sourceText: "B", reason: "pua-exhausted",
-        }),
-        expect.objectContaining({ kind: "paths-succeeded", sourceText: "B" }),
-      ]));
+      expect(getTextRunProvenance().transitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "embedded-declined-to-paths",
+            sourceText: "B",
+            reason: "pua-exhausted",
+          }),
+          expect.objectContaining({ kind: "paths-succeeded", sourceText: "B" }),
+        ]),
+      );
     } finally {
       setTextRunProvenanceEnabled(false);
       resetTextRunProvenance();
@@ -3460,7 +4165,12 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("emits <text> with PUA codepoints in the body (not the original text)", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontA", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hello", 0, 0, { fontSize: 24, fontFamily: "CustomFontA", fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("Hello", 0, 0, {
+      fontSize: 24,
+      fontFamily: "CustomFontA",
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     // The literal "Hello" must NOT appear in any <text> body — only in
     // the accessibility title/aria-label.
@@ -3468,11 +4178,11 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     expect(bodyMatches.length).toBeGreaterThan(0);
     for (const m of bodyMatches) {
       expect(m[1]).not.toContain("Hello");
-      for (let i = 0; i < m[1].length; ) {
+      for (let i = 0; i < m[1].length;) {
         const cp = m[1].codePointAt(i)!;
-        expect(cp).toBeGreaterThanOrEqual(0xE000);
-        expect(cp).toBeLessThanOrEqual(0xF8FF);
-        i += cp > 0xFFFF ? 2 : 1;
+        expect(cp).toBeGreaterThanOrEqual(0xe000);
+        expect(cp).toBeLessThanOrEqual(0xf8ff);
+        i += cp > 0xffff ? 2 : 1;
       }
     }
     // Accessible label preserves the original text.
@@ -3483,7 +4193,12 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("emitted @font-face data: URI parses as a valid TTF with the registered PUA codepoints", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontB", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hi!", 0, 0, { fontSize: 24, fontFamily: "CustomFontB", fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("Hi!", 0, 0, {
+      fontSize: 24,
+      fontFamily: "CustomFontB",
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     const css = getEmbeddedFontFaceCss();
     expect(css).toContain("@font-face");
@@ -3505,7 +4220,12 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
   it("positions each shaped glyph via the <text> x list for sub-pixel-accurate placement (DM-841)", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontE", 400, "normal", fontBuf);
-    const out = renderTextAsPath("AB", 0, 0, { fontSize: 24, fontFamily: "CustomFontE", fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("AB", 0, 0, {
+      fontSize: 24,
+      fontFamily: "CustomFontE",
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     // Two shaped glyphs → a single <text> with a 2-value `x` list and a
     // 2-codepoint PUA body (no per-glyph <tspan> wrappers).
@@ -3520,8 +4240,8 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const bodyCps = [...m![2]].map((c) => c.codePointAt(0)!);
     expect(bodyCps.length).toBe(2);
     for (const cp of bodyCps) {
-      expect(cp).toBeGreaterThanOrEqual(0xE000);
-      expect(cp).toBeLessThanOrEqual(0xF8FF);
+      expect(cp).toBeGreaterThanOrEqual(0xe000);
+      expect(cp).toBeLessThanOrEqual(0xf8ff);
     }
   });
 
@@ -3532,28 +4252,36 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     renderTextAsPath("AB", 0, 0, { fontSize: 24, fontFamily: "CustomFontC", fontWeight: "400", fill: "#000" });
     // Same family, distinct axes tuple → second entry.
     renderTextAsPath("CD", 0, 0, {
-      fontSize: 24, fontFamily: "CustomFontC", fontWeight: "400", fill: "#000",
+      fontSize: 24,
+      fontFamily: "CustomFontC",
+      fontWeight: "400",
+      fill: "#000",
       variationSettings: { wght: 540 },
     });
     // Same family, third distinct axes tuple → third entry.
     renderTextAsPath("EF", 0, 0, {
-      fontSize: 24, fontFamily: "CustomFontC", fontWeight: "400", fill: "#000",
+      fontSize: 24,
+      fontFamily: "CustomFontC",
+      fontWeight: "400",
+      fill: "#000",
       variationSettings: { wght: 100 },
     });
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(3);
-    expect(_builderInstanceKeys()).toEqual(expect.arrayContaining([
-      expect.stringContaining("|wght=540"),
-      expect.stringContaining("|wght=100"),
-    ]));
+    expect(_builderInstanceKeys()).toEqual(
+      expect.arrayContaining([expect.stringContaining("|wght=540"), expect.stringContaining("|wght=100")]),
+    );
   });
 
   it("clearEmbeddedFonts removes every prior axis instance before the next generation", () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontReset", 400, "normal", fontBuf);
     renderTextAsPath("AB", 0, 0, {
-      fontSize: 24, fontFamily: "CustomFontReset", fontWeight: "400", fill: "#000",
+      fontSize: 24,
+      fontFamily: "CustomFontReset",
+      fontWeight: "400",
+      fill: "#000",
       variationSettings: { wght: 540 },
     });
     expect(_builderRegistrySize()).toBe(1);
@@ -3563,7 +4291,10 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     expect(getEmbeddedFontFaceCss()).toBe("");
 
     renderTextAsPath("CD", 0, 0, {
-      fontSize: 24, fontFamily: "CustomFontReset", fontWeight: "400", fill: "#000",
+      fontSize: 24,
+      fontFamily: "CustomFontReset",
+      fontWeight: "400",
+      fill: "#000",
       variationSettings: { wght: 100 },
     });
     expect(_builderRegistrySize()).toBe(1);
@@ -3603,25 +4334,36 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
 // several characters, so the run still embeds successfully but is missing
 // exactly that one glyph — which is what these tests use.
 describe("renderTextAsPath: embedded-font mode does not drop U+06DD's visible glyph (DM-2020)", () => {
-  beforeEach(() => { clearWebfonts(); clearEmbeddedFonts(); setRenderTextMode("embedded-font"); });
-  afterEach(() => { setRenderTextMode("paths"); });
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFonts();
+    setRenderTextMode("embedded-font");
+  });
+  afterEach(() => {
+    setRenderTextMode("paths");
+  });
 
   function puaCodepointsFromMarkup(out: string): number[] {
     const cps: number[] = [];
     const re = /<text[^>]*>([^<]*)<\/text>/g;
     let m;
     while ((m = re.exec(out)) != null) {
-      for (let i = 0; i < m[1].length; ) {
+      for (let i = 0; i < m[1].length;) {
         const cp = m[1].codePointAt(i)!;
         cps.push(cp);
-        i += cp > 0xFFFF ? 2 : 1;
+        i += cp > 0xffff ? 2 : 1;
       }
     }
     return cps;
   }
 
   it("emits one PUA glyph per source character, including the AYAH mark (not silently dropped)", () => {
-    const out = renderTextAsPath("A\u{06DD}B", 0, 0, { fontSize: 32, fontFamily: "Arial", fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("A\u{06DD}B", 0, 0, {
+      fontSize: 32,
+      fontFamily: "Arial",
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     // Discriminating count: the pre-fix bug drops exactly the AYAH glyph, so
     // this reads 2 (A, B) unfixed and 3 (A, AYAH, B) fixed.
@@ -3630,7 +4372,12 @@ describe("renderTextAsPath: embedded-font mode does not drop U+06DD's visible gl
   });
 
   it("the emitted @font-face subset carries a REAL outline for the AYAH glyph, not an empty/absent one", () => {
-    const out = renderTextAsPath("A\u{06DD}B", 0, 0, { fontSize: 32, fontFamily: "Arial", fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("A\u{06DD}B", 0, 0, {
+      fontSize: 32,
+      fontFamily: "Arial",
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
     const cps = puaCodepointsFromMarkup(out!);
     expect(cps.length).toBe(3);
@@ -3639,7 +4386,9 @@ describe("renderTextAsPath: embedded-font mode does not drop U+06DD's visible gl
     const b64Match = /base64,([A-Za-z0-9+/=]+)"\)/.exec(css);
     expect(b64Match).not.toBeNull();
     const ttf = Buffer.from(b64Match![1], "base64");
-    const reparsed = fontkit.create(ttf) as unknown as { glyphForCodePoint(cp: number): { id: number; path: { commands: unknown[] } } };
+    const reparsed = fontkit.create(ttf) as unknown as {
+      glyphForCodePoint(cp: number): { id: number; path: { commands: unknown[] } };
+    };
     const glyph = reparsed.glyphForCodePoint(ayahPua);
     expect(glyph.id).not.toBe(0); // 0 = .notdef → the glyph was never tracked into the subset
     expect(glyph.path.commands.length).toBeGreaterThan(0); // real ink, not an empty outline
@@ -3719,9 +4468,11 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
   const glyph = { id: 7, advanceWidth: 1000, path: { commands: [] } };
 
   it("asks the selected face for halt without a codepoint pre-filter", () => {
-    for (const cp of [0x300C, 0xFF08, 0x3042, 0x6587, 0x0041, 0xFF21]) {
+    for (const cp of [0x300c, 0xff08, 0x3042, 0x6587, 0x0041, 0xff21]) {
       expect(haltInfoFor(fakeFont(-500), `halt-${cp}`, cp)).toMatchObject({
-        halved: true, xOffset: -500, feature: "halt",
+        halved: true,
+        xOffset: -500,
+        feature: "halt",
       });
     }
   });
@@ -3737,8 +4488,12 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
         };
       },
     } as unknown as Parameters<typeof haltInfoFor>[0];
-    expect(haltInfoFor(verticalFont, "vertical-partial", 0x3001, "vertical"))
-      .toEqual({ halved: true, xOffset: 0, yOffset: 220, feature: "vhal" });
+    expect(haltInfoFor(verticalFont, "vertical-partial", 0x3001, "vertical")).toEqual({
+      halved: true,
+      xOffset: 0,
+      yOffset: 220,
+      feature: "vhal",
+    });
   });
 
   it("follows a face with partial halt coverage instead of punctuation identity", () => {
@@ -3752,26 +4507,28 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
         };
       },
     } as unknown as Parameters<typeof haltInfoFor>[0];
-    expect(haltInfoFor(partialFont, "partial-punct", 0x300C).halved).toBe(false);
+    expect(haltInfoFor(partialFont, "partial-punct", 0x300c).halved).toBe(false);
     expect(haltInfoFor(partialFont, "partial-latin", 0x0041)).toMatchObject({
-      halved: true, xOffset: -250, feature: "halt",
+      halved: true,
+      xOffset: -250,
+      feature: "halt",
     });
   });
 
   it("shifts a TRIMMED opening bracket left by the halt xOffset", () => {
     // fontSize 16, em 1000 → scale 0.016; full advance = 16px, trimmed = 8px.
-    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300C, 8, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300c, 8, 16, 0.016);
     expect(shift).toBe(-500); // font units: opening ink moves left half an em
   });
 
   it("leaves a TRIMMED closing bracket unshifted (its ink is already left-aligned)", () => {
-    const shift = cjkTrimShiftFontUnits(fakeFont(0), "k-close", glyph, 0x300D, 8, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(fakeFont(0), "k-close", glyph, 0x300d, 8, 16, 0.016);
     expect(shift).toBe(0);
   });
 
   it("does NOT shift an UNTRIMMED opening bracket (full-em captured advance)", () => {
     // capturedAdv 16 ≈ full advance → not trimmed → no shift even for opening.
-    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open2", glyph, 0xFF08, 16, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open2", glyph, 0xff08, 16, 16, 0.016);
     expect(shift).toBe(0);
   });
 
@@ -3781,10 +4538,22 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     // left by the trimmed amount; here trim = (16−8)/0.016 = 500 font units.
     const noHaltFont = {
       unitsPerEm: 1000,
-      layout: () => ({ glyphs: [{ id: 7, path: { commands: [] }, advanceWidth: 1000 }], positions: [{ xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 }] }),
+      layout: () => ({
+        glyphs: [{ id: 7, path: { commands: [] }, advanceWidth: 1000 }],
+        positions: [{ xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 }],
+      }),
     } as unknown as Parameters<typeof cjkTrimShiftFontUnits>[0];
-    const openingGlyph = { id: 7, advanceWidth: 1000, path: { commands: [{ command: "moveTo", args: [700, 100] }, { command: "lineTo", args: [950, 800] }] } };
-    const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, 0x300C, 8, 16, 0.016);
+    const openingGlyph = {
+      id: 7,
+      advanceWidth: 1000,
+      path: {
+        commands: [
+          { command: "moveTo", args: [700, 100] },
+          { command: "lineTo", args: [950, 800] },
+        ],
+      },
+    };
+    const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, 0x300c, 8, 16, 0.016);
     expect(shift).toBe(0);
   });
 
@@ -3799,17 +4568,17 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
   // 20-deep-hanging-punctuation: the remaining diff is glyph-AA, not position.)
   it("handles the 」「 adjacent-bracket boundary per-glyph (DM-1223)", () => {
     // `」` stays full-width (Chrome doesn't trim a closing bracket here) → no shift.
-    expect(cjkTrimShiftFontUnits(fakeFont(0), "j-close", glyph, 0x300D, 16, 16, 0.016)).toBe(0);
+    expect(cjkTrimShiftFontUnits(fakeFont(0), "j-close", glyph, 0x300d, 16, 16, 0.016)).toBe(0);
     // The immediately-following `「` is trimmed to half regardless of the `」`
     // before it → the same left halt shift as in `（「`.
-    expect(cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300C, 8, 16, 0.016)).toBe(-500);
+    expect(cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300c, 8, 16, 0.016)).toBe(-500);
   });
 });
 
 describe("glyphIdForCp (DM-1712 null-safety)", () => {
   // Minimal FontInstance stub — only glyphForCodePoint matters here.
   const stub = (ret: { id: number } | null) =>
-    ({ glyphForCodePoint: () => ret } as unknown as Parameters<typeof glyphIdForCp>[0]);
+    ({ glyphForCodePoint: () => ret }) as unknown as Parameters<typeof glyphIdForCp>[0];
 
   it("returns the glyph id when the font resolves a glyph", () => {
     expect(glyphIdForCp(stub({ id: 42 }), 0x41)).toBe(42);
@@ -3854,9 +4623,9 @@ describe("sourceClusterSpan (shared-Glyph codePoints aliasing)", () => {
   });
 
   it("sums a multi-codepoint (ligature) cluster from the text's own widths", () => {
-    expect(sourceClusterSpan("fi!", 0, 2, false)).toBe(2);                 // 2 BMP
-    expect(sourceClusterSpan("\u{10F46}\u{10F47}", 0, 2, false)).toBe(4);  // 2 astral
-    expect(sourceClusterSpan("a\u{10F46}", 0, 2, false)).toBe(3);          // mixed
+    expect(sourceClusterSpan("fi!", 0, 2, false)).toBe(2); // 2 BMP
+    expect(sourceClusterSpan("\u{10F46}\u{10F47}", 0, 2, false)).toBe(4); // 2 astral
+    expect(sourceClusterSpan("a\u{10F46}", 0, 2, false)).toBe(3); // mixed
   });
 
   it("walks backwards for an RTL run, whose cursor sits at the cluster END", () => {
@@ -3876,27 +4645,34 @@ describe("sourceClusterSpan (shared-Glyph codePoints aliasing)", () => {
 
 describe("shapedGlyphSourceSpans (DM-2399 ownership spans)", () => {
   it("uses distinct HarfBuzz cluster boundaries across an astral scalar", () => {
-    expect(shapedGlyphSourceSpans(
-      "A😀 B", "A😀 B", [{}, {}, {}, {}], [0, 1, 3, 4], false,
-    )).toEqual([[0, 1], [1, 3], [3, 4], [4, 5]]);
+    expect(shapedGlyphSourceSpans("A😀 B", "A😀 B", [{}, {}, {}, {}], [0, 1, 3, 4], false)).toEqual([
+      [0, 1],
+      [1, 3],
+      [3, 4],
+      [4, 5],
+    ]);
   });
 
   it("shares one exact span across every glyph in a ligature cluster", () => {
-    expect(shapedGlyphSourceSpans(
-      "fi!", "fi!", [{}, {}, {}], [0, 0, 2], false,
-    )).toEqual([[0, 2], [0, 2], [2, 3]]);
+    expect(shapedGlyphSourceSpans("fi!", "fi!", [{}, {}, {}], [0, 0, 2], false)).toEqual([
+      [0, 2],
+      [0, 2],
+      [2, 3],
+    ]);
   });
 
   it("maps reversed native-direction clusters back to logical source", () => {
-    expect(shapedGlyphSourceSpans(
-      "אב", "בא", [{}, {}], [0, 1], false, true,
-    )).toEqual([[1, 2], [0, 1]]);
+    expect(shapedGlyphSourceSpans("אב", "בא", [{}, {}], [0, 1], false, true)).toEqual([
+      [1, 2],
+      [0, 1],
+    ]);
   });
 
   it("walks legacy RTL glyph order backwards when clusters are absent", () => {
-    expect(shapedGlyphSourceSpans(
-      "אב", "אב", [{}, {}], undefined, true,
-    )).toEqual([[1, 2], [0, 1]]);
+    expect(shapedGlyphSourceSpans("אב", "אב", [{}, {}], undefined, true)).toEqual([
+      [1, 2],
+      [0, 1],
+    ]);
   });
 });
 
@@ -3910,30 +4686,81 @@ describe("positionShapedClusters (DM-2444 post-spacing origins)", () => {
     ["normal spacing", [0, 6, 12]],
     ["cursive spacing suppression", [0, 6, 12]],
   ])("uses captured %s between clusters", (_name, anchors) => {
-    const placed = positionShapedClusters("abc", "abc", [glyph(), glyph(), glyph()],
-      [pos(6), pos(6), pos(6)], [0, 1, 2], anchors, 0, 1, 0, false);
+    const placed = positionShapedClusters(
+      "abc",
+      "abc",
+      [glyph(), glyph(), glyph()],
+      [pos(6), pos(6), pos(6)],
+      [0, 1, 2],
+      anchors,
+      0,
+      1,
+      0,
+      false,
+    );
     expect(placed.map((p) => p.xFontUnits)).toEqual(anchors);
   });
 
   it("retains advances and GPOS offsets inside a multi-glyph cluster", () => {
-    const placed = positionShapedClusters("abc", "abc", [glyph(2), glyph(2), glyph()],
-      [pos(3, 0.5), pos(2, -0.25), pos(6)], [0, 0, 2], [10, 17, 25], 0, 1, 10, false);
+    const placed = positionShapedClusters(
+      "abc",
+      "abc",
+      [glyph(2), glyph(2), glyph()],
+      [pos(3, 0.5), pos(2, -0.25), pos(6)],
+      [0, 0, 2],
+      [10, 17, 25],
+      0,
+      1,
+      10,
+      false,
+    );
     expect(placed.map((p) => p.xFontUnits)).toEqual([0.5, 2.75, 15]);
   });
 
   it("anchors a ligature at its first source character and the next cluster independently", () => {
-    const placed = positionShapedClusters("fix", "fix", [glyph(2), glyph()],
-      [pos(9), pos(6)], [0, 2], [4, 9, 15], 0, 1, 4, false);
+    const placed = positionShapedClusters(
+      "fix",
+      "fix",
+      [glyph(2), glyph()],
+      [pos(9), pos(6)],
+      [0, 2],
+      [4, 9, 15],
+      0,
+      1,
+      4,
+      false,
+    );
     expect(placed.map((p) => p.xFontUnits)).toEqual([0, 11]);
   });
 
   it("preserves visual origins for RTL and bidi-native reversal", () => {
-    const rtl = positionShapedClusters("אבג", "אבג", [glyph(), glyph(), glyph()],
-      [pos(6), pos(6), pos(6)], [2, 1, 0], [0, 10, 20], 0, 1, 0, true);
+    const rtl = positionShapedClusters(
+      "אבג",
+      "אבג",
+      [glyph(), glyph(), glyph()],
+      [pos(6), pos(6), pos(6)],
+      [2, 1, 0],
+      [0, 10, 20],
+      0,
+      1,
+      0,
+      true,
+    );
     expect(rtl.map((p) => p.xFontUnits)).toEqual([20, 10, 0]);
 
-    const reversed = positionShapedClusters("abc", "cba", [glyph(), glyph(), glyph()],
-      [pos(6), pos(6), pos(6)], [0, 1, 2], [0, 10, 20], 0, 1, 0, false, true);
+    const reversed = positionShapedClusters(
+      "abc",
+      "cba",
+      [glyph(), glyph(), glyph()],
+      [pos(6), pos(6), pos(6)],
+      [0, 1, 2],
+      [0, 10, 20],
+      0,
+      1,
+      0,
+      false,
+      true,
+    );
     expect(reversed.map((p) => p.xFontUnits)).toEqual([20, 10, 0]);
   });
 });
@@ -3981,8 +4808,7 @@ describe("Blink cursive-script placement identifiers (DM-2619)", () => {
 // CoreText's nearest-weight match, not a two-slot regular/bold split. Every
 // expectation is Chrome's own answer, read off CDP
 // `CSS.getPlatformFontsForNode` at that CSS weight.
-const macCutHelper = process.platform === "darwin"
-  && existsSync("tools/macos-glyph-extractor/domotion-glyph-paths");
+const macCutHelper = process.platform === "darwin" && existsSync("tools/macos-glyph-extractor/domotion-glyph-paths");
 
 (macCutHelper ? describe : describe.skip)("static fallback chain — in-family cut selection", () => {
   const at = (cp: number, family: string, weight: number): string =>
@@ -3990,20 +4816,20 @@ const macCutHelper = process.platform === "darwin"
 
   it("walks Songti SC's four cuts for Han under a serif primary", () => {
     // `cjk-serif` IS STSongti-SC-Light, so 100-300 keep the base key.
-    if (at(0x4F60, "Times", 300) !== "cjk-serif") return; // Songti absent
-    expect(at(0x4F60, "Times", 400)).toBe("STSongti-SC-Regular");
-    expect(at(0x4F60, "Times", 449)).toBe("STSongti-SC-Regular");
-    expect(at(0x4F60, "Times", 450)).toBe("STSongti-SC-Bold");
-    expect(at(0x4F60, "Times", 700)).toBe("STSongti-SC-Bold");
-    expect(at(0x4F60, "Times", 900)).toBe("STSongti-SC-Black");
+    if (at(0x4f60, "Times", 300) !== "cjk-serif") return; // Songti absent
+    expect(at(0x4f60, "Times", 400)).toBe("STSongti-SC-Regular");
+    expect(at(0x4f60, "Times", 449)).toBe("STSongti-SC-Regular");
+    expect(at(0x4f60, "Times", 450)).toBe("STSongti-SC-Bold");
+    expect(at(0x4f60, "Times", 700)).toBe("STSongti-SC-Bold");
+    expect(at(0x4f60, "Times", 900)).toBe("STSongti-SC-Black");
   });
 
   it("walks Apple SD Gothic Neo's full ladder for Hangul", () => {
-    if (at(0xAC00, "sans-serif", 400) !== "korean") return; // face absent
-    expect(at(0xAC00, "sans-serif", 100)).toBe("AppleSDGothicNeo-Thin");
-    expect(at(0xAC00, "sans-serif", 500)).toBe("AppleSDGothicNeo-Medium");
-    expect(at(0xAC00, "sans-serif", 600)).toBe("AppleSDGothicNeo-SemiBold");
-    expect(at(0xAC00, "sans-serif", 700)).toBe("AppleSDGothicNeo-Bold");
+    if (at(0xac00, "sans-serif", 400) !== "korean") return; // face absent
+    expect(at(0xac00, "sans-serif", 100)).toBe("AppleSDGothicNeo-Thin");
+    expect(at(0xac00, "sans-serif", 500)).toBe("AppleSDGothicNeo-Medium");
+    expect(at(0xac00, "sans-serif", 600)).toBe("AppleSDGothicNeo-SemiBold");
+    expect(at(0xac00, "sans-serif", 700)).toBe("AppleSDGothicNeo-Bold");
   });
 
   // Blink buckets the CSS weight with `(weight - 50) / 100` integer division
@@ -4012,9 +4838,9 @@ const macCutHelper = process.platform === "darwin"
   // 449 → LucidaGrande, 450 → LucidaGrande-Bold, and Songti moves at the same
   // point — a curve fit sampled at multiples of 100 could not have found this.
   it("crosses to the bold cut at the xx50 bucket boundary, like Blink", () => {
-    if (at(0x05D0, "sans-serif", 400) !== "lucida-grande") return; // face absent
-    expect(at(0x05D0, "sans-serif", 449)).toBe("lucida-grande");
-    expect(at(0x05D0, "sans-serif", 450)).toBe("LucidaGrande-Bold");
+    if (at(0x05d0, "sans-serif", 400) !== "lucida-grande") return; // face absent
+    expect(at(0x05d0, "sans-serif", 449)).toBe("lucida-grande");
+    expect(at(0x05d0, "sans-serif", 450)).toBe("LucidaGrande-Bold");
   });
 
   // Chrome's own answer for Thai, read off CDP `CSS.getPlatformFontsForNode` on
@@ -4029,9 +4855,9 @@ const macCutHelper = process.platform === "darwin"
   // output rather than Chrome's. Asking the OS first splits the two stacks apart,
   // because the cascade base differs between them.
   it("paints the public Thai family for a sans-serif run, like Chrome", () => {
-    if (at(0x0E01, "sans-serif", 400) === "-") return;
-    expect(at(0x0E01, "sans-serif", 400)).toBe("Thonburi");
-    expect(at(0x0E01, "sans-serif", 700)).toBe("Thonburi-Bold");
+    if (at(0x0e01, "sans-serif", 400) === "-") return;
+    expect(at(0x0e01, "sans-serif", 400)).toBe("Thonburi");
+    expect(at(0x0e01, "sans-serif", 700)).toBe("Thonburi-Bold");
   });
 
   // Regression pin for a silent corruption: CoreText refuses to resolve Apple's
@@ -4045,7 +4871,7 @@ const macCutHelper = process.platform === "darwin"
   // the Thai family. A Times/Helvetica answer here is the corruption returning.
   it("keeps a Thai run inside a Thai family, never Times", () => {
     for (const weight of [400, 700]) {
-      const key = at(0x0E01, "sans-serif", weight);
+      const key = at(0x0e01, "sans-serif", weight);
       if (key === "-") continue;
       expect(key).toMatch(/Thonburi|^thai$/);
     }
@@ -4074,7 +4900,11 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // stay inside the run's own width.
   (MACOS_FONTS ? it : it.skip)("keeps the skip-ink cursor aligned across an astral character", () => {
     const text = "a\u{10F46}b";
-    const gaps = computeSkipInkGaps(text, { fontSize: 32, fontFamily: "Times", fontWeight: 400, fontStyle: "normal" }, { decorationCenterYRel: 0, decorationThickness: 1 });
+    const gaps = computeSkipInkGaps(
+      text,
+      { fontSize: 32, fontFamily: "Times", fontWeight: 400, fontStyle: "normal" },
+      { decorationCenterYRel: 0, decorationThickness: 1 },
+    );
     // Never throws, and every gap is a finite ordered interval — a cursor that
     // walked off the text produced NaN/reversed pairs here.
     for (const [lo, hi] of gaps) {
@@ -4099,35 +4929,35 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // the run stays on its primary and paints that font's `.notdef`.
   it("classifies private-use source characters independently of any glyph", () => {
     // The three PUA ranges — `Character::IsPrivateUse` is general category Co.
-    expect(isPrivateUseCodepoint(0xE000)).toBe(true);
-    expect(isPrivateUseCodepoint(0xF8FF)).toBe(true);
-    expect(isPrivateUseCodepoint(0xF0000)).toBe(true);
-    expect(isPrivateUseCodepoint(0x10FFFD)).toBe(true);
+    expect(isPrivateUseCodepoint(0xe000)).toBe(true);
+    expect(isPrivateUseCodepoint(0xf8ff)).toBe(true);
+    expect(isPrivateUseCodepoint(0xf0000)).toBe(true);
+    expect(isPrivateUseCodepoint(0x10fffd)).toBe(true);
     // A real script character must NOT be gated — one landing in this predicate
     // is how a legitimate system fallback would silently stop being asked for.
     expect(isPrivateUseCodepoint(0x0870)).toBe(false);
-    expect(isPrivateUseCodepoint(0x10F46)).toBe(false);
+    expect(isPrivateUseCodepoint(0x10f46)).toBe(false);
   });
 
   // `Character::IsNonCharacter` is ICU's `U_IS_UNICODE_NONCHAR` (`character.cc:294`).
   it("classifies noncharacters the way U_IS_UNICODE_NONCHAR does", () => {
     // The contiguous Arabic-Presentation-Forms-A block of 32.
-    expect(isNonCharacterCodepoint(0xFDD0)).toBe(true);
-    expect(isNonCharacterCodepoint(0xFDEF)).toBe(true);
+    expect(isNonCharacterCodepoint(0xfdd0)).toBe(true);
+    expect(isNonCharacterCodepoint(0xfdef)).toBe(true);
     // ...and the last two codepoints of EVERY plane, not just the BMP. Blink
     // names U+FFFE specifically (it appears on real pages as an encoding
     // sentinel, and running fallback for it cost a memory regression).
-    expect(isNonCharacterCodepoint(0xFFFE)).toBe(true);
-    expect(isNonCharacterCodepoint(0xFFFF)).toBe(true);
-    expect(isNonCharacterCodepoint(0x1FFFE)).toBe(true);
-    expect(isNonCharacterCodepoint(0x10FFFF)).toBe(true);
+    expect(isNonCharacterCodepoint(0xfffe)).toBe(true);
+    expect(isNonCharacterCodepoint(0xffff)).toBe(true);
+    expect(isNonCharacterCodepoint(0x1fffe)).toBe(true);
+    expect(isNonCharacterCodepoint(0x10ffff)).toBe(true);
     // Immediately outside the FDD0..FDEF window, both sides.
-    expect(isNonCharacterCodepoint(0xFDCF)).toBe(false);
-    expect(isNonCharacterCodepoint(0xFDF0)).toBe(false);
+    expect(isNonCharacterCodepoint(0xfdcf)).toBe(false);
+    expect(isNonCharacterCodepoint(0xfdf0)).toBe(false);
     // Ordinary characters, including one whose low bits look close.
     expect(isNonCharacterCodepoint(0x0041)).toBe(false);
-    expect(isNonCharacterCodepoint(0xFFFD)).toBe(false);  // REPLACEMENT CHARACTER
-    expect(isNonCharacterCodepoint(0x1FFFD)).toBe(false);
+    expect(isNonCharacterCodepoint(0xfffd)).toBe(false); // REPLACEMENT CHARACTER
+    expect(isNonCharacterCodepoint(0x1fffd)).toBe(false);
     // Out of range entirely.
     expect(isNonCharacterCodepoint(0x110000)).toBe(false);
   });
@@ -4151,8 +4981,9 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     // nomination walk accepted the name — so assert against the resolver's
     // own primary rather than a literal spelling.
     const primaryKey = resolveFontKey("Helvetica, sans-serif");
-    for (const cp of [0xE000, 0xE401, 0xE402, 0xE403, 0xF0000, 0xFAAAA, 0x100000, 0x10AAAA,
-      0xFDD0, 0xFFFE, 0xFFFF, 0x10FFFF]) {
+    for (const cp of [
+      0xe000, 0xe401, 0xe402, 0xe403, 0xf0000, 0xfaaaa, 0x100000, 0x10aaaa, 0xfdd0, 0xfffe, 0xffff, 0x10ffff,
+    ]) {
       const r = __resolveFontForCodepointForTest(cp, "Helvetica, sans-serif");
       expect(r, `U+${cp.toString(16)}`).not.toBeNull();
       // `covered: false` is the kOutOfLuck terminal — the caller then paints the
@@ -4179,12 +5010,12 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     // tail — and `covered` must equal what the declared face's cmap says.
     const primaryKey = resolveFontKey("Helvetica, sans-serif");
     const face = getFontInstance(primaryKey, 400, 16, 0);
-    const declaredFaceCovers = face != null && glyphIdForCp(face, 0xF8FF) !== 0;
+    const declaredFaceCovers = face != null && glyphIdForCp(face, 0xf8ff) !== 0;
     // Keep the positive branch discriminating where it can be: on a macOS font
     // host the declared family must genuinely cover (if this ever flips, the
     // codepoint no longer tests the declared-family walk — re-pick it).
     if (MACOS_FONTS) expect(declaredFaceCovers).toBe(true);
-    const r = __resolveFontForCodepointForTest(0xF8FF, "Helvetica, sans-serif");
+    const r = __resolveFontForCodepointForTest(0xf8ff, "Helvetica, sans-serif");
     expect(r).not.toBeNull();
     expect(r!.covered).toBe(declaredFaceCovers);
     expect(r!.key).toBe(primaryKey);
@@ -4205,7 +5036,12 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   it.skipIf(!MACOS_FONTS)("paints the PRIMARY font's .notdef for an uncovered private-use codepoint", () => {
     clearGlyphDefs();
     setRenderTextMode("paths");
-    const out = renderTextAsPath("\u{E000}", 0, 0, { fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000" });
+    const out = renderTextAsPath("\u{E000}", 0, 0, {
+      fontSize: 32,
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      fill: "#000",
+    });
     expect(out).not.toBeNull();
 
     const defs = getGlyphDefs();
@@ -4236,43 +5072,49 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // single-run branch already does: emit the real glyph via `ensureGlyphDef`
   // (a `<use href="#gN">`), not a synthesized `<path fill-rule="evenodd">` /
   // `<rect>` standing in for it.
-  it.skipIf(!MACOS_FONTS)("paints the run's OWN font's .notdef for an uncovered private-use codepoint in a MULTI-run line", () => {
-    clearGlyphDefs();
-    setRenderTextMode("paths");
-    // "H" + PUA (both resolve to the Helvetica primary run) + CJK (a second,
-    // distinct fallback run) — the CJK run is what pushes `runs.length` above
-    // 1 and routes the Helvetica run through the multi-run per-char loop
-    // instead of the `runs.length === 1` single-font fast path.
-    const out = renderTextAsPath("H\u{E000}中文", 0, 0, {
-      fontSize: 32, fontFamily: "Helvetica", fontWeight: "400", fill: "#000",
-      xOffsets: [0, 18, 36, 68],
-    });
-    expect(out).not.toBeNull();
-    // No synthetic stand-in markup anywhere in the output.
-    expect(out!).not.toContain("fill-rule=\"evenodd\"");
-    expect(out!).not.toContain("<rect ");
+  it.skipIf(!MACOS_FONTS)(
+    "paints the run's OWN font's .notdef for an uncovered private-use codepoint in a MULTI-run line",
+    () => {
+      clearGlyphDefs();
+      setRenderTextMode("paths");
+      // "H" + PUA (both resolve to the Helvetica primary run) + CJK (a second,
+      // distinct fallback run) — the CJK run is what pushes `runs.length` above
+      // 1 and routes the Helvetica run through the multi-run per-char loop
+      // instead of the `runs.length === 1` single-font fast path.
+      const out = renderTextAsPath("H\u{E000}中文", 0, 0, {
+        fontSize: 32,
+        fontFamily: "Helvetica",
+        fontWeight: "400",
+        fill: "#000",
+        xOffsets: [0, 18, 36, 68],
+      });
+      expect(out).not.toBeNull();
+      // No synthetic stand-in markup anywhere in the output.
+      expect(out!).not.toContain('fill-rule="evenodd"');
+      expect(out!).not.toContain("<rect ");
 
-    const defs = getGlyphDefs();
-    const ds = [...defs.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
-    // One def per distinct glyph id emitted (H, PUA .notdef, and the two CJK
-    // glyphs — four distinct outlines).
-    expect(ds.length).toBe(4);
-    // The SECOND def (PUA's, in emission order — "H" is first) is Helvetica's
-    // own `.notdef`, painted as a real glyph rather than the synthetic tofu.
-    const notdefD = ds[1];
-    const nums = notdefD.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+      const defs = getGlyphDefs();
+      const ds = [...defs.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
+      // One def per distinct glyph id emitted (H, PUA .notdef, and the two CJK
+      // glyphs — four distinct outlines).
+      expect(ds.length).toBe(4);
+      // The SECOND def (PUA's, in emission order — "H" is first) is Helvetica's
+      // own `.notdef`, painted as a real glyph rather than the synthetic tofu.
+      const notdefD = ds[1];
+      const nums = notdefD.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
 
-    type Bbox = { minX: number; minY: number; maxX: number; maxY: number };
-    const ttc = fontkit.openSync("/System/Library/Fonts/Helvetica.ttc") as unknown as {
-      fonts: { postscriptName: string; getGlyph(id: number): { bbox: Bbox } }[];
-    };
-    const helvetica = ttc.fonts.find((f) => f.postscriptName === "Helvetica")!;
-    const notdef = helvetica.getGlyph(0);
-    expect(Math.min(...nums)).toBe(Math.min(notdef.bbox.minX, notdef.bbox.minY));
-    expect(Math.max(...nums)).toBe(Math.max(notdef.bbox.maxX, notdef.bbox.maxY));
-    // And it's reached through a <use>, not inlined as a standalone <path>/<rect>.
-    expect(out!).toMatch(/<use href="#g\d+" x="0" y="0"\/>/);
-  });
+      type Bbox = { minX: number; minY: number; maxX: number; maxY: number };
+      const ttc = fontkit.openSync("/System/Library/Fonts/Helvetica.ttc") as unknown as {
+        fonts: { postscriptName: string; getGlyph(id: number): { bbox: Bbox } }[];
+      };
+      const helvetica = ttc.fonts.find((f) => f.postscriptName === "Helvetica")!;
+      const notdef = helvetica.getGlyph(0);
+      expect(Math.min(...nums)).toBe(Math.min(notdef.bbox.minX, notdef.bbox.minY));
+      expect(Math.max(...nums)).toBe(Math.max(notdef.bbox.maxX, notdef.bbox.maxY));
+      // And it's reached through a <use>, not inlined as a standalone <path>/<rect>.
+      expect(out!).toMatch(/<use href="#g\d+" x="0" y="0"\/>/);
+    },
+  );
 
   // RTL detection compared the first glyph's codepoint against the run's last
   // character. When the first glyph is `.notdef` that comparison is against
@@ -4286,10 +5128,10 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
   // as LTR, while looking like a fix. Anything needing a general answer wants
   // bidi-js (`_RTL_RE` / `getEmbeddingLevels` in text.ts), not this.
   it("is SMP-only, and must not be used as a general RTL test", () => {
-    expect(isRtlScriptCodepoint(0x10F46)).toBe(true);  // Sogdian — in range
-    expect(isRtlScriptCodepoint(0x1E900)).toBe(true);  // Adlam
-    expect(isRtlScriptCodepoint(0x05D0)).toBe(false);  // Hebrew alef — BMP, NOT covered
-    expect(isRtlScriptCodepoint(0x0627)).toBe(false);  // Arabic alef — BMP, NOT covered
-    expect(isRtlScriptCodepoint(0x0041)).toBe(false);  // Latin A
+    expect(isRtlScriptCodepoint(0x10f46)).toBe(true); // Sogdian — in range
+    expect(isRtlScriptCodepoint(0x1e900)).toBe(true); // Adlam
+    expect(isRtlScriptCodepoint(0x05d0)).toBe(false); // Hebrew alef — BMP, NOT covered
+    expect(isRtlScriptCodepoint(0x0627)).toBe(false); // Arabic alef — BMP, NOT covered
+    expect(isRtlScriptCodepoint(0x0041)).toBe(false); // Latin A
   });
 });

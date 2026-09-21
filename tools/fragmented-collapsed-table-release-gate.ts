@@ -23,8 +23,7 @@ export interface FragmentedTableReleaseResult {
 }
 
 function record(value: unknown): JsonRecord | null {
-  return value != null && typeof value === "object" && !Array.isArray(value)
-    ? value as JsonRecord : null;
+  return value != null && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : null;
 }
 
 function array(value: unknown): unknown[] {
@@ -52,7 +51,7 @@ export function adjudicateFragmentedCollapsedTableRelease(
         continue;
       }
       const platform = platformOf(row, kind);
-      if (!FRAGMENTED_TABLE_PLATFORMS.includes(platform as typeof FRAGMENTED_TABLE_PLATFORMS[number])) {
+      if (!FRAGMENTED_TABLE_PLATFORMS.includes(platform as (typeof FRAGMENTED_TABLE_PLATFORMS)[number])) {
         blockers.push(`${kind}: unsupported platform ${platform || "<missing>"}`);
         continue;
       }
@@ -72,22 +71,33 @@ export function adjudicateFragmentedCollapsedTableRelease(
     if (screen != null) {
       const discriminators = record(screen.discriminators);
       const mutations = array(screen.mutations).map(record);
-      if (screen.schemaVersion !== 3 || screen.pass !== true || screen.currentProtocolExact !== true
-          || screen.verdict !== "screen-section-fragment-record-authenticated")
+      if (
+        screen.schemaVersion !== 3 ||
+        screen.pass !== true ||
+        screen.currentProtocolExact !== true ||
+        screen.verdict !== "screen-section-fragment-record-authenticated"
+      )
         blockers.push(`screen/${platform}: source-logical verdict is not exact`);
-      if (discriminators == null || Object.keys(discriminators).length !== SCREEN_DISCRIMINATORS
-          || !Object.values(discriminators).every(Boolean))
+      if (
+        discriminators == null ||
+        Object.keys(discriminators).length !== SCREEN_DISCRIMINATORS ||
+        !Object.values(discriminators).every(Boolean)
+      )
         blockers.push(`screen/${platform}: discriminator matrix incomplete`);
       if (mutations.length !== SCREEN_MUTATIONS || mutations.some((row) => row?.moved !== true))
         blockers.push(`screen/${platform}: destructive mutation matrix incomplete`);
-      if (record(screen.print)?.pixelsRead !== false)
-        blockers.push(`screen/${platform}: logical leg read pixels`);
+      if (record(screen.print)?.pixelsRead !== false) blockers.push(`screen/${platform}: logical leg read pixels`);
     }
 
     if (paint != null) {
-      if (paint.schemaVersion !== 1 || paint.verdict !== "ratified-source-exact"
-          || array(paint.findings).length !== 0 || paint.ratifiedRows !== FINAL_INK_ROWS
-          || paint.unratifiedRows !== 0 || array(paint.unratifiedFamilies).length !== 0)
+      if (
+        paint.schemaVersion !== 1 ||
+        paint.verdict !== "ratified-source-exact" ||
+        array(paint.findings).length !== 0 ||
+        paint.ratifiedRows !== FINAL_INK_ROWS ||
+        paint.unratifiedRows !== 0 ||
+        array(paint.unratifiedFamilies).length !== 0
+      )
         blockers.push(`ink/${platform}: native final-ink envelope did not pass independently`);
       const scenarios = array(paint.scenarios).map(record);
       if (scenarios.length !== 9 || scenarios.some((row) => row?.pass !== true))
@@ -121,7 +131,7 @@ function findReports(root: string, name: string): unknown[] {
 
 function option(args: string[], name: string): string {
   const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] ?? "" : "";
+  return index >= 0 ? (args[index + 1] ?? "") : "";
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

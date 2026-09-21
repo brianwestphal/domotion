@@ -26,8 +26,18 @@ import {
   type ScrubberEmbedViewState,
 } from "./embed.js";
 
-interface Bootstrap { svg: string | null; name: string | null; path?: string | null; review?: boolean; embedded?: boolean }
-declare global { interface Window { __SCRUBBER_BOOTSTRAP__?: Bootstrap } }
+interface Bootstrap {
+  svg: string | null;
+  name: string | null;
+  path?: string | null;
+  review?: boolean;
+  embedded?: boolean;
+}
+declare global {
+  interface Window {
+    __SCRUBBER_BOOTSTRAP__?: Bootstrap;
+  }
+}
 
 const CSS = `
 *{box-sizing:border-box}
@@ -115,18 +125,68 @@ const ZOOM_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4];
 
 // Lucide play / pause icons (MIT) inlined so no icon dependency is pulled in.
 const ICON_PLAY = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <polygon points="6 3 20 12 6 21 6 3" />
+  </svg>
 );
 const ICON_PAUSE = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="14" y="4" width="4" height="16" rx="1" />
+    <rect x="6" y="4" width="4" height="16" rx="1" />
+  </svg>
 );
 // Lucide "dot" — used for the reset-pan-to-center button.
 const ICON_DOT = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12.1" cy="12.1" r="1" /></svg>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12.1" cy="12.1" r="1" />
+  </svg>
 );
 // Lucide "crop" — toggles crop mode (DM-1104).
 const ICON_CROP = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14" /><path d="M18 22V8a2 2 0 0 0-2-2H2" /></svg>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+    <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+  </svg>
 );
 
 function fmt(ms: number): string {
@@ -138,19 +198,19 @@ function fmt(ms: number): string {
 // ── reactive state ──────────────────────────────────────────────────────────
 const svgLoaded = signal(false);
 const dragging = signal(false);
-const durationMs = signal(0);      // single-loop period
-const playhead = signal(0);        // ms
+const durationMs = signal(0); // single-loop period
+const playhead = signal(0); // ms
 const playing = signal(false);
 const speed = signal(1);
 const rangeStart = signal(0);
 const rangeEnd = signal(0);
 const loop = signal(true);
-const zoom = signal(1);            // 1 = 100% (natural SVG px)
+const zoom = signal(1); // 1 = 100% (natural SVG px)
 const panX = signal(0);
 const panY = signal(0);
 const exportMenuOpen = signal(false);
 const busy = signal(false);
-const trackW = signal(0);          // scrub track px width (for marker positioning)
+const trackW = signal(0); // scrub track px width (for marker positioning)
 // DM-1104: crop. `cropMode` toggles the overlay; `cropRect` is the rect in the
 // SVG's user-space (viewBox) units, or null for "whole frame". `cropTick` is a
 // monotonically-bumped repaint nudge so the imperative overlay re-lays-out on
@@ -191,7 +251,9 @@ let embeddedSourceKey: string | null = null;
 
 if (embeddedMode) document.documentElement.dataset.scrubberEmbedded = "true";
 
-const head = document.createElement("style"); head.textContent = CSS; document.head.append(head);
+const head = document.createElement("style");
+head.textContent = CSS;
+document.head.append(head);
 
 // ── render ──────────────────────────────────────────────────────────────────
 const THUMB_R = 8; // half the range thumb width — markers inset to match the thumb travel
@@ -226,12 +288,7 @@ function render() {
   const zoomPct = Math.round(zoom.value * 100);
   return (
     <div class="wrap">
-      <input
-        type="file"
-        accept=".svg,image/svg+xml"
-        class="file-input"
-        aria-label="Choose an animated SVG file"
-      />
+      <input type="file" accept=".svg,image/svg+xml" class="file-input" aria-label="Choose an animated SVG file" />
       <div class="stage" data-stage>
         <div class="svg-host" data-svg-host data-morph-skip></div>
         {/* DM-1104: crop overlay host — data-morph-skip so the box/handles we
@@ -242,75 +299,188 @@ function render() {
         {(!svgLoaded.value || dragging.value) && (
           <button type="button" class={dragging.value ? "drop over" : "drop"} data-drop aria-describedby="drop-help">
             Drop an animated SVG here
-            <span class="muted" id="drop-help">or press Enter to choose a file</span>
+            <span class="muted" id="drop-help">
+              or press Enter to choose a file
+            </span>
           </button>
         )}
       </div>
       <div class="bar">
         <div class="row">
-          <button class="iconbtn" data-action="step-back" aria-label="Previous frame" title="previous frame" disabled={!svgLoaded.value}>←</button>
-          <button class="play primary" data-action="play" aria-label={playing.value ? "Pause" : "Play"} disabled={!svgLoaded.value}>{playing.value ? ICON_PAUSE : ICON_PLAY}</button>
-          <button class="iconbtn" data-action="step-forward" aria-label="Next frame" title="next frame" disabled={!svgLoaded.value}>→</button>
+          <button
+            class="iconbtn"
+            data-action="step-back"
+            aria-label="Previous frame"
+            title="previous frame"
+            disabled={!svgLoaded.value}
+          >
+            ←
+          </button>
+          <button
+            class="play primary"
+            data-action="play"
+            aria-label={playing.value ? "Pause" : "Play"}
+            disabled={!svgLoaded.value}
+          >
+            {playing.value ? ICON_PAUSE : ICON_PLAY}
+          </button>
+          <button
+            class="iconbtn"
+            data-action="step-forward"
+            aria-label="Next frame"
+            title="next frame"
+            disabled={!svgLoaded.value}
+          >
+            →
+          </button>
           <select data-action="speed" disabled={!svgLoaded.value}>
             {["0.1", "0.25", "0.5", "1", "1.5", "2", "4"].map((v) => (
-              <option value={v} selected={parseFloat(v) === speed.value}>{v}x</option>
+              <option value={v} selected={parseFloat(v) === speed.value}>
+                {v}x
+              </option>
             ))}
           </select>
           <div class="scrub-wrap">
             {svgLoaded.value && dur > 0 && trackW.value > 0 && (
               <>
-                <div class="range-band" style={`left:${markerLeft(rangeStart.value)};width:${Math.max(0, parseFloat(markerLeft(hi)) - parseFloat(markerLeft(rangeStart.value)))}px`}></div>
-                <div class="range-tick" data-tick="in" title="drag to set range start" style={`left:${markerLeft(rangeStart.value)}`}><span>in</span></div>
-                <div class="range-tick" data-tick="out" title="drag to set range end" style={`left:${markerLeft(hi)}`}><span>out</span></div>
+                <div
+                  class="range-band"
+                  style={`left:${markerLeft(rangeStart.value)};width:${Math.max(0, parseFloat(markerLeft(hi)) - parseFloat(markerLeft(rangeStart.value)))}px`}
+                ></div>
+                <div
+                  class="range-tick"
+                  data-tick="in"
+                  title="drag to set range start"
+                  style={`left:${markerLeft(rangeStart.value)}`}
+                >
+                  <span>in</span>
+                </div>
+                <div class="range-tick" data-tick="out" title="drag to set range end" style={`left:${markerLeft(hi)}`}>
+                  <span>out</span>
+                </div>
               </>
             )}
-            <input type="range" class="scrub" data-action="scrub" min="0" max="1000" step="0.1" disabled={!svgLoaded.value} />
+            <input
+              type="range"
+              class="scrub"
+              data-action="scrub"
+              min="0"
+              max="1000"
+              step="0.1"
+              disabled={!svgLoaded.value}
+            />
           </div>
-          <div class="time">{frameLabel} / {fmt(dur)}</div>
+          <div class="time">
+            {frameLabel} / {fmt(dur)}
+          </div>
         </div>
         <div class="row row2">
           <details class="tool-panel" open={innerWidth > 640}>
             <summary>Range</summary>
             <div class="grp">
-            <button data-action="setin" disabled={!svgLoaded.value}>In</button>
-            <input type="number" data-action="inn" min="0" step="0.01" title="range start (s)" value={(rangeStart.value / 1000).toFixed(2)} disabled={!svgLoaded.value} />
-            <span class="muted">-&gt;</span>
-            <input type="number" data-action="outn" min="0" step="0.01" title="range end (s)" value={(rangeEnd.value / 1000).toFixed(2)} disabled={!svgLoaded.value} />
-            <button data-action="setout" disabled={!svgLoaded.value}>Out</button>
-            <label><input type="checkbox" data-action="loop" checked={loop.value} disabled={!svgLoaded.value} />loop</label>
-            <button data-action="resetrange" disabled={!svgLoaded.value}>Reset</button>
+              <button data-action="setin" disabled={!svgLoaded.value}>
+                In
+              </button>
+              <input
+                type="number"
+                data-action="inn"
+                min="0"
+                step="0.01"
+                title="range start (s)"
+                value={(rangeStart.value / 1000).toFixed(2)}
+                disabled={!svgLoaded.value}
+              />
+              <span class="muted">-&gt;</span>
+              <input
+                type="number"
+                data-action="outn"
+                min="0"
+                step="0.01"
+                title="range end (s)"
+                value={(rangeEnd.value / 1000).toFixed(2)}
+                disabled={!svgLoaded.value}
+              />
+              <button data-action="setout" disabled={!svgLoaded.value}>
+                Out
+              </button>
+              <label>
+                <input type="checkbox" data-action="loop" checked={loop.value} disabled={!svgLoaded.value} />
+                loop
+              </label>
+              <button data-action="resetrange" disabled={!svgLoaded.value}>
+                Reset
+              </button>
             </div>
           </details>
           <details class="tool-panel" open={innerWidth > 640}>
             <summary>Crop</summary>
             <div class="grp">
-            <button class="iconbtn" data-action="zoomout" title="zoom out" disabled={!svgLoaded.value}>-</button>
-            <select data-action="zoompreset" title="zoom" disabled={!svgLoaded.value}>
-              {ZOOM_PRESETS.map((z) => (
-                <option value={String(z)} selected={Math.round(z * 100) === zoomPct}>{Math.round(z * 100)}%</option>
-              ))}
-              {!ZOOM_PRESETS.some((z) => Math.round(z * 100) === zoomPct) && <option value="custom" selected={true}>{zoomPct}%</option>}
-              <option value="fit">Fit</option>
-              <option value="fill">Fill</option>
-            </select>
-            <button class="iconbtn" data-action="zoomin" title="zoom in" disabled={!svgLoaded.value}>+</button>
-            <button class="iconbtn" data-action="center" title="reset pan to center" aria-label="center" disabled={!svgLoaded.value}>{ICON_DOT}</button>
+              <button class="iconbtn" data-action="zoomout" title="zoom out" disabled={!svgLoaded.value}>
+                -
+              </button>
+              <select data-action="zoompreset" title="zoom" disabled={!svgLoaded.value}>
+                {ZOOM_PRESETS.map((z) => (
+                  <option value={String(z)} selected={Math.round(z * 100) === zoomPct}>
+                    {Math.round(z * 100)}%
+                  </option>
+                ))}
+                {!ZOOM_PRESETS.some((z) => Math.round(z * 100) === zoomPct) && (
+                  <option value="custom" selected={true}>
+                    {zoomPct}%
+                  </option>
+                )}
+                <option value="fit">Fit</option>
+                <option value="fill">Fill</option>
+              </select>
+              <button class="iconbtn" data-action="zoomin" title="zoom in" disabled={!svgLoaded.value}>
+                +
+              </button>
+              <button
+                class="iconbtn"
+                data-action="center"
+                title="reset pan to center"
+                aria-label="center"
+                disabled={!svgLoaded.value}
+              >
+                {ICON_DOT}
+              </button>
             </div>
           </details>
           <div class="grp crop-controls">
-            <button class={cropMode.value ? "iconbtn active" : "iconbtn"} data-action="croptoggle" title="crop" aria-label="crop" aria-pressed={cropMode.value ? "true" : "false"} disabled={!svgLoaded.value}>{ICON_CROP}</button>
+            <button
+              class={cropMode.value ? "iconbtn active" : "iconbtn"}
+              data-action="croptoggle"
+              title="crop"
+              aria-label="crop"
+              aria-pressed={cropMode.value ? "true" : "false"}
+              disabled={!svgLoaded.value}
+            >
+              {ICON_CROP}
+            </button>
             {/* DM-1107: aspect-ratio lock for the crop rect. Only meaningful while
                 crop mode is on — disabled otherwise. */}
             <select data-action="cropaspect" title="crop aspect ratio" disabled={!svgLoaded.value || !cropMode.value}>
-              <option value="free" selected={cropAspect.value === "free"}>Free</option>
-              <option value="1" selected={cropAspect.value === "1"}>1:1</option>
-              <option value="1.7778" selected={cropAspect.value === "1.7778"}>16:9</option>
-              <option value="1.3333" selected={cropAspect.value === "1.3333"}>4:3</option>
-              <option value="orig" selected={cropAspect.value === "orig"}>Original</option>
+              <option value="free" selected={cropAspect.value === "free"}>
+                Free
+              </option>
+              <option value="1" selected={cropAspect.value === "1"}>
+                1:1
+              </option>
+              <option value="1.7778" selected={cropAspect.value === "1.7778"}>
+                16:9
+              </option>
+              <option value="1.3333" selected={cropAspect.value === "1.3333"}>
+                4:3
+              </option>
+              <option value="orig" selected={cropAspect.value === "orig"}>
+                Original
+              </option>
             </select>
           </div>
           <div class="grp export-wrap">
-            <button class="primary" data-action="exporttoggle" disabled={!svgLoaded.value || busy.value}>Export</button>
+            <button class="primary" data-action="exporttoggle" disabled={!svgLoaded.value || busy.value}>
+              Export
+            </button>
             {exportMenuOpen.value && (
               <div class="export-menu" data-export-menu>
                 <button data-action="export-frame">Frame (PNG)</button>
@@ -324,22 +494,68 @@ function render() {
           <details class="tool-panel review-panel" open={innerWidth > 640}>
             <summary>Review issue</summary>
             <div class="row review">
-            <div class="grp" style="flex-wrap:wrap;width:100%">
-              <input class="rv-title" data-action="rv-title" type="text" placeholder="Issue title" disabled={!svgLoaded.value} />
-              <select data-action="rv-category" title="ticket category" disabled={!svgLoaded.value}>
-                {["bug", "issue", "feature", "task", "investigation"].map((c) => <option value={c}>{c}</option>)}
-              </select>
-              <button class={regionMode.value ? "iconbtn active" : "iconbtn"} data-action="rv-region" title="drag rectangles over the problem area(s); stays armed so you can add several" disabled={!svgLoaded.value}>
-                {regionMode.value ? "Drawing…" : regions.value.length > 0 ? `Regions ✓ (${regions.value.length})` : "Mark region"}
-              </button>
-              <button data-action="rv-region-center" title="add a centered region without using a pointer" disabled={!svgLoaded.value}>Add centered region</button>
-              <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>Clear</button>
-              <label class="muted"><input type="checkbox" data-action="rv-attach" checked={attachFrame.value} disabled={!svgLoaded.value} />attach frame</label>
-              <span class="muted">frame @ {frameLabel} · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
-              <button class="primary" data-action="rv-save" disabled={!svgLoaded.value || savingTicket.value}>{savingTicket.value ? "Saving…" : "Save issue"}</button>
-            </div>
-            <textarea class="rv-note" data-action="rv-note" placeholder="Describe the issue (becomes the ticket body)…" disabled={!svgLoaded.value}></textarea>
-            {ticketStatus.value.msg !== "" && <div class={`rv-status ${ticketStatus.value.kind}`} role="status" aria-live="polite">{ticketStatus.value.msg}</div>}
+              <div class="grp" style="flex-wrap:wrap;width:100%">
+                <input
+                  class="rv-title"
+                  data-action="rv-title"
+                  type="text"
+                  placeholder="Issue title"
+                  disabled={!svgLoaded.value}
+                />
+                <select data-action="rv-category" title="ticket category" disabled={!svgLoaded.value}>
+                  {["bug", "issue", "feature", "task", "investigation"].map((c) => (
+                    <option value={c}>{c}</option>
+                  ))}
+                </select>
+                <button
+                  class={regionMode.value ? "iconbtn active" : "iconbtn"}
+                  data-action="rv-region"
+                  title="drag rectangles over the problem area(s); stays armed so you can add several"
+                  disabled={!svgLoaded.value}
+                >
+                  {regionMode.value
+                    ? "Drawing…"
+                    : regions.value.length > 0
+                      ? `Regions ✓ (${regions.value.length})`
+                      : "Mark region"}
+                </button>
+                <button
+                  data-action="rv-region-center"
+                  title="add a centered region without using a pointer"
+                  disabled={!svgLoaded.value}
+                >
+                  Add centered region
+                </button>
+                <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>
+                  Clear
+                </button>
+                <label class="muted">
+                  <input
+                    type="checkbox"
+                    data-action="rv-attach"
+                    checked={attachFrame.value}
+                    disabled={!svgLoaded.value}
+                  />
+                  attach frame
+                </label>
+                <span class="muted">
+                  frame @ {frameLabel} · range {fmt(rangeStart.value)}–{fmt(hi)}
+                </span>
+                <button class="primary" data-action="rv-save" disabled={!svgLoaded.value || savingTicket.value}>
+                  {savingTicket.value ? "Saving…" : "Save issue"}
+                </button>
+              </div>
+              <textarea
+                class="rv-note"
+                data-action="rv-note"
+                placeholder="Describe the issue (becomes the ticket body)…"
+                disabled={!svgLoaded.value}
+              ></textarea>
+              {ticketStatus.value.msg !== "" && (
+                <div class={`rv-status ${ticketStatus.value.kind}`} role="status" aria-live="polite">
+                  {ticketStatus.value.msg}
+                </div>
+              )}
             </div>
           </details>
         )}
@@ -364,7 +580,9 @@ mount(app, render);
 
 // Grab the imperative SVG host (data-morph-skip → stable across re-renders).
 const svgHost = app.querySelector<HTMLElement>("[data-svg-host]")!;
-const dlAnchor = document.createElement("a"); dlAnchor.className = "dl"; app.append(dlAnchor);
+const dlAnchor = document.createElement("a");
+dlAnchor.className = "dl";
+app.append(dlAnchor);
 
 // Apply zoom/pan to the SVG host whenever those signals change.
 effect(() => {
@@ -377,7 +595,8 @@ effect(() => {
 // `.value` property here instead (skipping while the user is actively dragging
 // the scrubber). This is what makes the playhead move during playback.
 effect(() => {
-  const p = playhead.value, dur = durationMs.value;
+  const p = playhead.value,
+    dur = durationMs.value;
   const sc = app.querySelector<HTMLInputElement>(".scrub");
   if (sc != null && document.activeElement !== sc) sc.value = String((p / (dur || 1)) * 1000);
 });
@@ -393,8 +612,18 @@ function measureTrack(): void {
 // own size (which already excludes the footer, since `.stage` is `flex:1`) means
 // Fit/Fill always account for the footer area.
 const stageEl = app.querySelector<HTMLElement>(".stage")!;
-new ResizeObserver(() => { measureTrack(); fitZoomKeep(); cropTick.value++; regionTick.value++; }).observe(stageEl);
-window.addEventListener("resize", () => { measureTrack(); fitZoomKeep(); cropTick.value++; regionTick.value++; });
+new ResizeObserver(() => {
+  measureTrack();
+  fitZoomKeep();
+  cropTick.value++;
+  regionTick.value++;
+}).observe(stageEl);
+window.addEventListener("resize", () => {
+  measureTrack();
+  fitZoomKeep();
+  cropTick.value++;
+  regionTick.value++;
+});
 
 // ── crop overlay (DM-1104) ──────────────────────────────────────────────────
 // Built imperatively (outside the kerf render tree) so its px geometry can be
@@ -403,13 +632,20 @@ window.addEventListener("resize", () => { measureTrack(); fitZoomKeep(); cropTic
 // carries 8 resize handles + a live dimensions readout.
 const CROP_MIN = 8; // minimum crop size in SVG user units
 const cropLayer = app.querySelector<HTMLElement>("[data-crop-layer]")!;
-const cropBox = document.createElement("div"); cropBox.className = "crop-box";
-const cropDimsEl = document.createElement("div"); cropDimsEl.className = "crop-dims"; cropBox.appendChild(cropDimsEl);
+const cropBox = document.createElement("div");
+cropBox.className = "crop-box";
+const cropDimsEl = document.createElement("div");
+cropDimsEl.className = "crop-dims";
+cropBox.appendChild(cropDimsEl);
 const CROP_HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
 type CropHandle = (typeof CROP_HANDLES)[number] | "move";
 const cropHandleEls: Record<string, HTMLElement> = {};
 for (const hh of CROP_HANDLES) {
-  const d = document.createElement("div"); d.className = "crop-h"; d.dataset.handle = hh; cropBox.appendChild(d); cropHandleEls[hh] = d;
+  const d = document.createElement("div");
+  d.className = "crop-h";
+  d.dataset.handle = hh;
+  cropBox.appendChild(d);
+  cropHandleEls[hh] = d;
 }
 cropLayer.appendChild(cropBox);
 
@@ -424,17 +660,32 @@ effect(() => {
   if (!on || cr == null) return;
   const n = svgNaturalSize();
   const z = zoom.value;
-  const sw = stageEl.clientWidth, sh = stageEl.clientHeight;
+  const sw = stageEl.clientWidth,
+    sh = stageEl.clientHeight;
   const originX = sw / 2 + panX.value - (n.w * z) / 2;
   const originY = sh / 2 + panY.value - (n.h * z) / 2;
-  const bx = originX + cr.x * z, by = originY + cr.y * z;
-  const bw = cr.w * z, bh = cr.h * z;
-  cropBox.style.left = `${bx}px`; cropBox.style.top = `${by}px`;
-  cropBox.style.width = `${bw}px`; cropBox.style.height = `${bh}px`;
+  const bx = originX + cr.x * z,
+    by = originY + cr.y * z;
+  const bw = cr.w * z,
+    bh = cr.h * z;
+  cropBox.style.left = `${bx}px`;
+  cropBox.style.top = `${by}px`;
+  cropBox.style.width = `${bw}px`;
+  cropBox.style.height = `${bh}px`;
   const pos: Record<string, [number, number]> = {
-    nw: [0, 0], n: [bw / 2, 0], ne: [bw, 0], e: [bw, bh / 2], se: [bw, bh], s: [bw / 2, bh], sw: [0, bh], w: [0, bh / 2],
+    nw: [0, 0],
+    n: [bw / 2, 0],
+    ne: [bw, 0],
+    e: [bw, bh / 2],
+    se: [bw, bh],
+    s: [bw / 2, bh],
+    sw: [0, bh],
+    w: [0, bh / 2],
   };
-  for (const hh of CROP_HANDLES) { cropHandleEls[hh].style.left = `${pos[hh][0]}px`; cropHandleEls[hh].style.top = `${pos[hh][1]}px`; }
+  for (const hh of CROP_HANDLES) {
+    cropHandleEls[hh].style.left = `${pos[hh][0]}px`;
+    cropHandleEls[hh].style.top = `${pos[hh][1]}px`;
+  }
   cropDimsEl.textContent = `${Math.round(cr.w)} × ${Math.round(cr.h)}`;
 });
 
@@ -444,7 +695,10 @@ effect(() => {
 function cropAspectRatio(): number | null {
   const v = cropAspect.value;
   if (v === "free") return null;
-  if (v === "orig") { const n = svgNaturalSize(); return n.h > 0 ? n.w / n.h : null; }
+  if (v === "orig") {
+    const n = svgNaturalSize();
+    return n.h > 0 ? n.w / n.h : null;
+  }
   const r = parseFloat(v);
   return Number.isFinite(r) && r > 0 ? r : null;
 }
@@ -454,12 +708,27 @@ function cropAspectRatio(): number | null {
 // (w:h) is non-null the free-form result is constrained to that ratio via
 // `constrainResizeToAspect` (DM-1107) — the pure math lives in crop.ts so it's
 // unit-tested.
-function applyCropDrag(start: { x: number; y: number; w: number; h: number }, handle: CropHandle, dxU: number, dyU: number, n: { w: number; h: number }, aspect?: number | null): { x: number; y: number; w: number; h: number } {
+function applyCropDrag(
+  start: { x: number; y: number; w: number; h: number },
+  handle: CropHandle,
+  dxU: number,
+  dyU: number,
+  n: { w: number; h: number },
+  aspect?: number | null,
+): { x: number; y: number; w: number; h: number } {
   const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(v, hi));
   if (handle === "move") {
-    return { x: clamp(start.x + dxU, 0, n.w - start.w), y: clamp(start.y + dyU, 0, n.h - start.h), w: start.w, h: start.h };
+    return {
+      x: clamp(start.x + dxU, 0, n.w - start.w),
+      y: clamp(start.y + dyU, 0, n.h - start.h),
+      w: start.w,
+      h: start.h,
+    };
   }
-  let L = start.x, R = start.x + start.w, T = start.y, B = start.y + start.h;
+  let L = start.x,
+    R = start.x + start.w,
+    T = start.y,
+    B = start.y + start.h;
   if (handle.includes("w")) L = clamp(start.x + dxU, 0, R - CROP_MIN);
   if (handle.includes("e")) R = clamp(start.x + start.w + dxU, L + CROP_MIN, n.w);
   if (handle.includes("n")) T = clamp(start.y + dyU, 0, B - CROP_MIN);
@@ -469,23 +738,32 @@ function applyCropDrag(start: { x: number; y: number; w: number; h: number }, ha
   return constrainResizeToAspect(free, handle, aspect, n.w, n.h, CROP_MIN);
 }
 
-let cropDrag: { handle: CropHandle; start: { x: number; y: number; w: number; h: number }; px: number; py: number } | null = null;
+let cropDrag: {
+  handle: CropHandle;
+  start: { x: number; y: number; w: number; h: number };
+  px: number;
+  py: number;
+} | null = null;
 void delegate(app, "pointerdown", ".crop-box", (e, _box) => {
   if (cropRect.value == null) return;
   const ev = e as PointerEvent;
   const realTarget = ev.target as HTMLElement;
-  const handle = (realTarget.classList.contains("crop-h") ? (realTarget.dataset.handle as CropHandle) : "move");
+  const handle = realTarget.classList.contains("crop-h") ? (realTarget.dataset.handle as CropHandle) : "move";
   cropDrag = { handle, start: { ...cropRect.value }, px: ev.clientX, py: ev.clientY };
   cropBox.setPointerCapture(ev.pointerId);
-  ev.preventDefault(); ev.stopPropagation();
+  ev.preventDefault();
+  ev.stopPropagation();
 });
 cropBox.addEventListener("pointermove", (ev) => {
   if (cropDrag == null) return;
   const z = zoom.value || 1;
-  const dxU = (ev.clientX - cropDrag.px) / z, dyU = (ev.clientY - cropDrag.py) / z;
+  const dxU = (ev.clientX - cropDrag.px) / z,
+    dyU = (ev.clientY - cropDrag.py) / z;
   cropRect.value = applyCropDrag(cropDrag.start, cropDrag.handle, dxU, dyU, svgNaturalSize(), cropAspectRatio());
 });
-const endCropDrag = (): void => { cropDrag = null; };
+const endCropDrag = (): void => {
+  cropDrag = null;
+};
 cropBox.addEventListener("pointerup", endCropDrag);
 cropBox.addEventListener("pointercancel", endCropDrag);
 
@@ -503,7 +781,11 @@ const regionLayer = app.querySelector<HTMLElement>("[data-region-layer]")!;
 function svgOriginLocal(): { ox: number; oy: number; z: number } {
   const n = svgNaturalSize();
   const z = zoom.value || 1;
-  return { ox: stageEl.clientWidth / 2 + panX.value - (n.w * z) / 2, oy: stageEl.clientHeight / 2 + panY.value - (n.h * z) / 2, z };
+  return {
+    ox: stageEl.clientWidth / 2 + panX.value - (n.w * z) / 2,
+    oy: stageEl.clientHeight / 2 + panY.value - (n.h * z) / 2,
+    z,
+  };
 }
 function clientToSvgUnits(clientX: number, clientY: number): { x: number; y: number } {
   const r = stageEl.getBoundingClientRect();
@@ -523,7 +805,9 @@ effect(() => {
   const all = draw != null ? [...rs, draw] : rs;
   // Sync the pool of box divs to the number of rects.
   while (regionLayer.children.length < all.length) {
-    const b = document.createElement("div"); b.className = "region-box"; regionLayer.appendChild(b);
+    const b = document.createElement("div");
+    b.className = "region-box";
+    regionLayer.appendChild(b);
   }
   while (regionLayer.children.length > all.length) regionLayer.lastChild!.remove();
   all.forEach((rr, i) => {
@@ -576,13 +860,26 @@ function stageAnims(): Animation[] {
   });
 }
 function seekAll(ms: number): void {
-  for (const a of stageAnims()) { try { a.pause(); a.currentTime = ms; } catch { /* refuses seek */ } }
+  for (const a of stageAnims()) {
+    try {
+      a.pause();
+      a.currentTime = ms;
+    } catch {
+      /* refuses seek */
+    }
+  }
   if (svgEl != null && typeof svgEl.pauseAnimations === "function") {
-    try { svgEl.pauseAnimations(); svgEl.setCurrentTime(ms / 1000); } catch { /* no SMIL timeline */ }
+    try {
+      svgEl.pauseAnimations();
+      svgEl.setCurrentTime(ms / 1000);
+    } catch {
+      /* no SMIL timeline */
+    }
   }
 }
 function localDuration(): number {
-  let finite = 0, period = 0;
+  let finite = 0,
+    period = 0;
   for (const a of stageAnims()) {
     const ct = (a.effect as KeyframeEffect).getComputedTiming();
     const d = Number(ct.duration);
@@ -598,14 +895,20 @@ function tick(ts: number): void {
     const dt = (ts - lastTs) * speed.value;
     lastTs = ts;
     let p = playhead.value + dt;
-    const lo = rangeStart.value, hi = rangeEnd.value > rangeStart.value ? rangeEnd.value : durationMs.value;
+    const lo = rangeStart.value,
+      hi = rangeEnd.value > rangeStart.value ? rangeEnd.value : durationMs.value;
     if (p >= hi) {
       if (loop.value) p = lo + ((p - lo) % Math.max(1, hi - lo));
-      else { p = hi; playing.value = false; }
+      else {
+        p = hi;
+        playing.value = false;
+      }
     }
     playhead.value = p;
     seekAll(p);
-  } else { lastTs = 0; }
+  } else {
+    lastTs = 0;
+  }
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
@@ -623,13 +926,20 @@ function stageSize(): { w: number; h: number } {
   return { w: r.width, h: r.height };
 }
 function fitZoom(mode: "fit" | "fill"): number {
-  const s = stageSize(), n = svgNaturalSize();
-  const sx = s.w / n.w, sy = s.h / n.h;
+  const s = stageSize(),
+    n = svgNaturalSize();
+  const sx = s.w / n.w,
+    sy = s.h / n.h;
   return mode === "fit" ? Math.min(sx, sy) : Math.max(sx, sy);
 }
 let zoomMode: "fit" | "fill" | "manual" = "fit";
-function fitZoomKeep(): void { if (zoomMode !== "manual" && svgEl != null) zoom.value = fitZoom(zoomMode); }
-function setZoom(z: number): void { zoom.value = Math.min(16, Math.max(0.02, z)); zoomMode = "manual"; }
+function fitZoomKeep(): void {
+  if (zoomMode !== "manual" && svgEl != null) zoom.value = fitZoom(zoomMode);
+}
+function setZoom(z: number): void {
+  zoom.value = Math.min(16, Math.max(0.02, z));
+  zoomMode = "manual";
+}
 
 function embeddedViewState(): ScrubberEmbedViewState {
   return {
@@ -662,13 +972,24 @@ effect(() => {
 });
 
 // ── load ────────────────────────────────────────────────────────────────────
-async function loadSvg(text: string, name: string, options: { durationMs?: number; restoreState?: ScrubberEmbedViewState; sourceKey?: string } = {}): Promise<void> {
+async function loadSvg(
+  text: string,
+  name: string,
+  options: { durationMs?: number; restoreState?: ScrubberEmbedViewState; sourceKey?: string } = {},
+): Promise<void> {
   svgText = text;
   svgName = name.replace(/\.svg$/i, "") || "animation";
-  const tmp = document.createElement("div"); tmp.innerHTML = text;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = text;
   const svg = tmp.querySelector("svg");
   if (svg == null) {
-    if (embeddedMode) postEmbeddedEvent({ channel: SCRUBBER_EMBED_CHANNEL, type: "error", sourceKey: options.sourceKey, message: "No <svg> element found in the preview artifact." });
+    if (embeddedMode)
+      postEmbeddedEvent({
+        channel: SCRUBBER_EMBED_CHANNEL,
+        type: "error",
+        sourceKey: options.sourceKey,
+        message: "No <svg> element found in the preview artifact.",
+      });
     else alert("No <svg> element found in the file.");
     return;
   }
@@ -680,15 +1001,27 @@ async function loadSvg(text: string, name: string, options: { durationMs?: numbe
   svgHost.replaceChildren(svg);
   svgEl = svg;
   // Render the SVG at its natural size; zoom transforms the host.
-  const n = (() => { const vb = svg.viewBox?.baseVal; return vb && vb.width > 0 ? { w: vb.width, h: vb.height } : { w: 800, h: 600 }; })();
-  svg.style.width = `${n.w}px`; svg.style.height = `${n.h}px`; svg.removeAttribute("width"); svg.removeAttribute("height");
+  const n = (() => {
+    const vb = svg.viewBox?.baseVal;
+    return vb && vb.width > 0 ? { w: vb.width, h: vb.height } : { w: 800, h: 600 };
+  })();
+  svg.style.width = `${n.w}px`;
+  svg.style.height = `${n.h}px`;
+  svg.removeAttribute("width");
+  svg.removeAttribute("height");
   embeddedSourceKey = options.sourceKey ?? null;
   let dur = options.durationMs ?? 0;
   if (!(dur > 0)) {
     try {
-      const r = await fetch("/timing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: text }) });
-      dur = (await r.json() as { durationMs: number | null }).durationMs ?? localDuration();
-    } catch { dur = localDuration(); }
+      const r = await fetch("/timing", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ svg: text }),
+      });
+      dur = ((await r.json()) as { durationMs: number | null }).durationMs ?? localDuration();
+    } catch {
+      dur = localDuration();
+    }
   }
   if (!(dur > 0)) dur = 1000;
   const restored = normalizeScrubberEmbedViewState(options.restoreState, dur);
@@ -699,7 +1032,10 @@ async function loadSvg(text: string, name: string, options: { durationMs?: numbe
   playing.value = false;
   seekAll(playhead.value);
   if (options.restoreState == null) {
-    zoomMode = "fit"; panX.value = 0; panY.value = 0; fitZoomKeep();
+    zoomMode = "fit";
+    panX.value = 0;
+    panY.value = 0;
+    fitZoomKeep();
   } else {
     zoomMode = "manual";
     zoom.value = restored.zoom;
@@ -708,8 +1044,15 @@ async function loadSvg(text: string, name: string, options: { durationMs?: numbe
     speed.value = restored.speed;
     loop.value = restored.loop;
   }
-  cropMode.value = false; cropRect.value = null; cropAspect.value = "free"; cropTick.value++; // DM-1104 / DM-1107: reset crop + ratio lock for the new SVG
-  regionMode.value = false; regions.value = []; drawingRect.value = null; regionTick.value++; ticketStatus.value = { kind: "", msg: "" }; // DM-1445/DM-1449: reset review regions/status
+  cropMode.value = false;
+  cropRect.value = null;
+  cropAspect.value = "free";
+  cropTick.value++; // DM-1104 / DM-1107: reset crop + ratio lock for the new SVG
+  regionMode.value = false;
+  regions.value = [];
+  drawingRect.value = null;
+  regionTick.value++;
+  ticketStatus.value = { kind: "", msg: "" }; // DM-1445/DM-1449: reset review regions/status
   measureTrack();
   svgLoaded.value = true;
   if (embeddedSourceKey != null) {
@@ -731,7 +1074,9 @@ function svgPxSize(): { w: number; h: number } {
 }
 function download(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
-  dlAnchor.href = url; dlAnchor.download = filename; dlAnchor.click();
+  dlAnchor.href = url;
+  dlAnchor.download = filename;
+  dlAnchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 function rangeSE(): { s: number; e: number } {
@@ -752,33 +1097,64 @@ async function exportFrame(): Promise<void> {
   busy.value = true;
   try {
     const { w, h } = svgPxSize();
-    const r = await fetch("/export-frame", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, timeMs: playhead.value, width: w, height: h, crop: activeCrop() }) });
+    const r = await fetch("/export-frame", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ svg: svgText, timeMs: playhead.value, width: w, height: h, crop: activeCrop() }),
+    });
     if (!r.ok) throw new Error(`export failed (${r.status})`);
     download(await r.blob(), `${svgName}-${Math.round(playhead.value)}ms.png`);
-  } catch (err) { alert(err instanceof Error ? err.message : "export failed"); }
-  finally { busy.value = false; }
+  } catch (err) {
+    alert(err instanceof Error ? err.message : "export failed");
+  } finally {
+    busy.value = false;
+  }
 }
 async function exportTrim(): Promise<void> {
-  const { s, e } = rangeSE(); busy.value = true;
+  const { s, e } = rangeSE();
+  busy.value = true;
   try {
-    const r = await fetch("/trim", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, periodMs: durationMs.value, crop: activeCrop() }) });
+    const r = await fetch("/trim", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, periodMs: durationMs.value, crop: activeCrop() }),
+    });
     if (!r.ok) throw new Error(`trim failed (${r.status})`);
-    download(new Blob([(await r.json() as { svg: string }).svg], { type: "image/svg+xml" }), `${svgName}-trim-${Math.round(s)}-${Math.round(e)}ms.svg`);
-  } catch (err) { alert(err instanceof Error ? err.message : "trim failed"); }
-  finally { busy.value = false; }
+    download(
+      new Blob([((await r.json()) as { svg: string }).svg], { type: "image/svg+xml" }),
+      `${svgName}-trim-${Math.round(s)}-${Math.round(e)}ms.svg`,
+    );
+  } catch (err) {
+    alert(err instanceof Error ? err.message : "trim failed");
+  } finally {
+    busy.value = false;
+  }
 }
 async function exportVideo(): Promise<void> {
-  const { s, e } = rangeSE(); const { w, h } = svgPxSize(); busy.value = true;
+  const { s, e } = rangeSE();
+  const { w, h } = svgPxSize();
+  busy.value = true;
   try {
-    const r = await fetch("/export-range-video", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, width: w, height: h, crop: activeCrop() }) });
+    const r = await fetch("/export-range-video", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, width: w, height: h, crop: activeCrop() }),
+    });
     if (!r.ok) {
       let msg = `export failed (${r.status})`;
-      try { msg = (await r.json() as { error?: string }).error ?? msg; } catch { /* non-JSON */ }
+      try {
+        msg = ((await r.json()) as { error?: string }).error ?? msg;
+      } catch {
+        /* non-JSON */
+      }
       throw new Error(msg);
     }
     download(await r.blob(), `${svgName}-${Math.round(s)}-${Math.round(e)}ms.mp4`);
-  } catch (err) { alert(err instanceof Error ? err.message : "video export failed"); }
-  finally { busy.value = false; }
+  } catch (err) {
+    alert(err instanceof Error ? err.message : "video export failed");
+  } finally {
+    busy.value = false;
+  }
 }
 
 // DM-1445: write the current issue as a `.ticket` file via POST /ticket.
@@ -787,13 +1163,17 @@ async function saveTicket(): Promise<void> {
   const noteEl = app.querySelector<HTMLTextAreaElement>(".rv-note");
   const catEl = app.querySelector<HTMLSelectElement>("[data-action=rv-category]");
   const title = (titleEl?.value ?? "").trim();
-  if (title === "") { ticketStatus.value = { kind: "err", msg: "⚠ enter an issue title first" }; return; }
+  if (title === "") {
+    ticketStatus.value = { kind: "err", msg: "⚠ enter an issue title first" };
+    return;
+  }
   const { s, e } = rangeSE();
   savingTicket.value = true;
   ticketStatus.value = { kind: "", msg: "saving…" };
   try {
     const r = await fetch("/ticket", {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         title,
         note: noteEl?.value ?? "",
@@ -811,15 +1191,22 @@ async function saveTicket(): Promise<void> {
     });
     if (!r.ok) {
       let msg = `save failed (${r.status})`;
-      try { msg = (await r.json() as { error?: string }).error ?? msg; } catch { /* non-JSON */ }
+      try {
+        msg = ((await r.json()) as { error?: string }).error ?? msg;
+      } catch {
+        /* non-JSON */
+      }
       throw new Error(msg);
     }
-    const { path, framePng } = await r.json() as { path: string; framePng?: string | null };
+    const { path, framePng } = (await r.json()) as { path: string; framePng?: string | null };
     ticketStatus.value = { kind: "ok", msg: `✓ wrote ${path}${framePng ? ` (+ frame PNG)` : ""}` };
     // Reset for the next issue (keep the SVG / range / playhead as-is).
     if (titleEl) titleEl.value = "";
     if (noteEl) noteEl.value = "";
-    regions.value = []; drawingRect.value = null; regionMode.value = false; regionTick.value++;
+    regions.value = [];
+    drawingRect.value = null;
+    regionMode.value = false;
+    regionTick.value++;
   } catch (err) {
     ticketStatus.value = { kind: "err", msg: `⚠ ${err instanceof Error ? err.message : "save failed"}` };
   } finally {
@@ -832,7 +1219,8 @@ const togglePlay = (): void => {
   if (durationMs.value <= 0) return;
   const hi = rangeEnd.value > rangeStart.value ? rangeEnd.value : durationMs.value;
   if (!playing.value && playhead.value >= hi) playhead.value = rangeStart.value;
-  playing.value = !playing.value; lastTs = 0;
+  playing.value = !playing.value;
+  lastTs = 0;
 };
 const stepFrame = (deltaMs: number): void => {
   playing.value = false;
@@ -844,12 +1232,22 @@ const CLICK: Record<string, () => void> = {
   play: togglePlay,
   "step-back": () => stepFrame(-1000 / 30),
   "step-forward": () => stepFrame(1000 / 30),
-  setin: () => { rangeStart.value = Math.min(playhead.value, rangeEnd.value); },
-  setout: () => { rangeEnd.value = Math.max(playhead.value, rangeStart.value); },
-  resetrange: () => { rangeStart.value = 0; rangeEnd.value = durationMs.value; },
+  setin: () => {
+    rangeStart.value = Math.min(playhead.value, rangeEnd.value);
+  },
+  setout: () => {
+    rangeEnd.value = Math.max(playhead.value, rangeStart.value);
+  },
+  resetrange: () => {
+    rangeStart.value = 0;
+    rangeEnd.value = durationMs.value;
+  },
   zoomin: () => setZoom(zoom.value * 1.25),
   zoomout: () => setZoom(zoom.value / 1.25),
-  center: () => { panX.value = 0; panY.value = 0; },
+  center: () => {
+    panX.value = 0;
+    panY.value = 0;
+  },
   // DM-1104: toggle crop mode. Enabling seeds the rect to the whole frame (drag
   // the handles in to crop); disabling resets the rect so the next enable starts
   // fresh from the full frame.
@@ -864,19 +1262,40 @@ const CLICK: Record<string, () => void> = {
     }
     cropTick.value++;
   },
-  exporttoggle: () => { exportMenuOpen.value = !exportMenuOpen.value; },
-  "export-frame": () => { exportMenuOpen.value = false; void exportFrame(); },
-  "export-trim": () => { exportMenuOpen.value = false; void exportTrim(); },
-  "export-video": () => { exportMenuOpen.value = false; void exportVideo(); },
+  exporttoggle: () => {
+    exportMenuOpen.value = !exportMenuOpen.value;
+  },
+  "export-frame": () => {
+    exportMenuOpen.value = false;
+    void exportFrame();
+  },
+  "export-trim": () => {
+    exportMenuOpen.value = false;
+    void exportTrim();
+  },
+  "export-video": () => {
+    exportMenuOpen.value = false;
+    void exportVideo();
+  },
   // DM-1445/DM-1449: review-mode controls.
-  "rv-region": () => { regionMode.value = !regionMode.value; regionTick.value++; },
+  "rv-region": () => {
+    regionMode.value = !regionMode.value;
+    regionTick.value++;
+  },
   "rv-region-center": () => {
     const n = svgNaturalSize();
     regions.value = [...regions.value, { x: n.w / 4, y: n.h / 4, w: n.w / 2, h: n.h / 2 }];
     regionTick.value++;
   },
-  "rv-clear-region": () => { regions.value = []; drawingRect.value = null; regionMode.value = false; regionTick.value++; },
-  "rv-save": () => { void saveTicket(); },
+  "rv-clear-region": () => {
+    regions.value = [];
+    drawingRect.value = null;
+    regionMode.value = false;
+    regionTick.value++;
+  },
+  "rv-save": () => {
+    void saveTicket();
+  },
 };
 
 void delegate(app, "click", "[data-action]", (e, target) => {
@@ -887,30 +1306,54 @@ void delegate(app, "click", "[data-action]", (e, target) => {
 void delegate(app, "click", "[data-drop]", () => {
   (app.querySelector(".file-input") as HTMLInputElement | null)?.click();
 });
-void delegate(app, "click", "[data-stage]", () => { if (exportMenuOpen.value) exportMenuOpen.value = false; });
+void delegate(app, "click", "[data-stage]", () => {
+  if (exportMenuOpen.value) exportMenuOpen.value = false;
+});
 
 void delegate(app, "input", "[data-action=scrub]", (e, target) => {
   playing.value = false;
   playhead.value = (parseFloat((target as HTMLInputElement).value) / 1000) * (durationMs.value || 1);
   seekAll(playhead.value);
 });
-void delegate(app, "change", "[data-action=speed]", (e, target) => { speed.value = parseFloat((target as HTMLInputElement).value) || 1; });
-void delegate(app, "change", "[data-action=inn]", (e, target) => { rangeStart.value = Math.max(0, Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value)); });
-void delegate(app, "change", "[data-action=outn]", (e, target) => { rangeEnd.value = Math.max(rangeStart.value, Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value)); });
-void delegate(app, "change", "[data-action=loop]", (e, target) => { loop.value = (target as HTMLInputElement).checked; });
-void delegate(app, "change", "[data-action=rv-attach]", (e, target) => { attachFrame.value = (target as HTMLInputElement).checked; }); // DM-1449
+void delegate(app, "change", "[data-action=speed]", (e, target) => {
+  speed.value = parseFloat((target as HTMLInputElement).value) || 1;
+});
+void delegate(app, "change", "[data-action=inn]", (e, target) => {
+  rangeStart.value = Math.max(
+    0,
+    Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value),
+  );
+});
+void delegate(app, "change", "[data-action=outn]", (e, target) => {
+  rangeEnd.value = Math.max(
+    rangeStart.value,
+    Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value),
+  );
+});
+void delegate(app, "change", "[data-action=loop]", (e, target) => {
+  loop.value = (target as HTMLInputElement).checked;
+});
+void delegate(app, "change", "[data-action=rv-attach]", (e, target) => {
+  attachFrame.value = (target as HTMLInputElement).checked;
+}); // DM-1449
 // DM-1107: pick a crop aspect-ratio lock. Snap the existing crop box to the new
 // ratio immediately so the constraint is visible before the next drag.
 void delegate(app, "change", "[data-action=cropaspect]", (e, target) => {
   cropAspect.value = (target as HTMLSelectElement).value;
   const ar = cropAspectRatio();
-  if (ar != null && cropRect.value != null) { const n = svgNaturalSize(); cropRect.value = fitRectToAspect(cropRect.value, ar, n.w, n.h); }
+  if (ar != null && cropRect.value != null) {
+    const n = svgNaturalSize();
+    cropRect.value = fitRectToAspect(cropRect.value, ar, n.w, n.h);
+  }
 });
 void delegate(app, "change", "[data-action=zoompreset]", (e, target) => {
   const v = (target as HTMLSelectElement).value;
-  panX.value = 0; panY.value = 0; // re-center on an explicit preset pick
-  if (v === "fit" || v === "fill") { zoomMode = v; fitZoomKeep(); }
-  else if (v !== "custom") setZoom(parseFloat(v));
+  panX.value = 0;
+  panY.value = 0; // re-center on an explicit preset pick
+  if (v === "fit" || v === "fill") {
+    zoomMode = v;
+    fitZoomKeep();
+  } else if (v !== "custom") setZoom(parseFloat(v));
 });
 
 // Drag the in/out range markers along the timeline. Pointer-capture the tick at
@@ -938,7 +1381,9 @@ void delegate(app, "pointermove", "[data-tick]", (e) => {
   if (dragTick === "in") rangeStart.value = Math.min(ms, rangeEnd.value);
   else rangeEnd.value = Math.max(ms, rangeStart.value);
 });
-void delegate(app, "pointerup", "[data-tick]", () => { dragTick = null; });
+void delegate(app, "pointerup", "[data-tick]", () => {
+  dragTick = null;
+});
 
 // Wheel on the stage: ctrl/⌘ + wheel (trackpad pinch) zooms about the cursor;
 // plain wheel pans.
@@ -949,7 +1394,8 @@ void delegate(app, "wheel", "[data-stage]", (e) => {
     const factor = Math.exp(-w.deltaY * 0.01);
     setZoom(zoom.value * factor);
   } else {
-    panX.value -= w.deltaX; panY.value -= w.deltaY;
+    panX.value -= w.deltaX;
+    panY.value -= w.deltaY;
   }
 });
 
@@ -958,11 +1404,24 @@ function readFile(f: File | undefined): void {
   // DM-1445: a drag-dropped / picked file has no server-side path — tickets
   // then record the name only (no `svg` path). The preloaded CLI file keeps
   // its path (set from the bootstrap).
-  if (f) { svgPath = null; void f.text().then((t) => loadSvg(t, f.name)); }
+  if (f) {
+    svgPath = null;
+    void f.text().then((t) => loadSvg(t, f.name));
+  }
 }
-void delegate(app, "dragover", "[data-stage]", (e) => { e.preventDefault(); dragging.value = true; });
-void delegate(app, "dragleave", "[data-stage]", (e) => { e.preventDefault(); dragging.value = false; });
-void delegate(app, "drop", "[data-stage]", (e) => { e.preventDefault(); dragging.value = false; readFile((e as DragEvent).dataTransfer?.files?.[0]); });
+void delegate(app, "dragover", "[data-stage]", (e) => {
+  e.preventDefault();
+  dragging.value = true;
+});
+void delegate(app, "dragleave", "[data-stage]", (e) => {
+  e.preventDefault();
+  dragging.value = false;
+});
+void delegate(app, "drop", "[data-stage]", (e) => {
+  e.preventDefault();
+  dragging.value = false;
+  readFile((e as DragEvent).dataTransfer?.files?.[0]);
+});
 
 void delegate(app, "change", ".file-input", (_e, target) => {
   readFile((target as HTMLInputElement).files?.[0] ?? undefined);
@@ -974,14 +1433,20 @@ window.addEventListener("keydown", (e) => {
   const tag = (e.target as HTMLElement)?.tagName;
   if (tag === "INPUT" && (e.target as HTMLInputElement).type !== "range") return;
   if (tag === "TEXTAREA" || tag === "SELECT") return; // DM-1445: don't hijack space/arrows while typing a note
-  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
-  else if (e.code === "ArrowLeft") { stepFrame(-(e.shiftKey ? 1 : 1000 / 30)); }
-  else if (e.code === "ArrowRight") { stepFrame(e.shiftKey ? 1 : 1000 / 30); }
+  if (e.code === "Space") {
+    e.preventDefault();
+    togglePlay();
+  } else if (e.code === "ArrowLeft") {
+    stepFrame(-(e.shiftKey ? 1 : 1000 / 30));
+  } else if (e.code === "ArrowRight") {
+    stepFrame(e.shiftKey ? 1 : 1000 / 30);
+  }
 });
 
 if (embeddedMode) {
   window.addEventListener("message", (event) => {
-    if (event.source !== window.parent || event.origin !== location.origin || !isScrubberEmbedCommand(event.data)) return;
+    if (event.source !== window.parent || event.origin !== location.origin || !isScrubberEmbedCommand(event.data))
+      return;
     if (event.data.type === "request-state") {
       if (embeddedSourceKey != null && svgLoaded.value) {
         postEmbeddedEvent({

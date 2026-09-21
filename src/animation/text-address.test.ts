@@ -7,7 +7,10 @@ import { addressableLength, findAddressedElement, resolveCaretPoint, resolveRang
 function el(opts: Partial<CapturedElement> & { tag: string }): CapturedElement {
   return {
     text: "",
-    x: 0, y: 0, width: 100, height: 20,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 20,
     children: [],
     styles: { fontSize: "16px", fontFamily: "Helvetica, sans-serif", fontWeight: "400" } as CapturedElement["styles"],
     ...opts,
@@ -22,21 +25,31 @@ function seg(opts: Partial<TextSegment> & { text: string; x: number; y: number }
 // point, both units at the same painted x per the capture convention) at 18,
 // 'b' at 30; captured run width 34 → right edge 44.
 function astralTree(): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "t1", fontAscent: 12, fontDescent: 4,
-    textSegments: [seg({ text: "a\u{1F600}b", x: 10, y: 100, width: 34, xOffsets: [10, 18, 18, 30] })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "t1",
+      fontAscent: 12,
+      fontDescent: 4,
+      textSegments: [seg({ text: "a\u{1F600}b", x: 10, y: 100, width: 34, xOffsets: [10, 18, 18, 30] })],
+    }),
+  ];
 }
 
 // Two wrapped lines: "ab" then "cd" (a second segment on the next baseline).
 function twoLineTree(): CapturedElement[] {
-  return [el({
-    tag: "p", animId: "wrap", fontAscent: 12, fontDescent: 4,
-    textSegments: [
-      seg({ text: "ab", x: 10, y: 100, width: 20, xOffsets: [10, 20] }),
-      seg({ text: "cd", x: 10, y: 124, width: 22, xOffsets: [10, 21] }),
-    ],
-  })];
+  return [
+    el({
+      tag: "p",
+      animId: "wrap",
+      fontAscent: 12,
+      fontDescent: 4,
+      textSegments: [
+        seg({ text: "ab", x: 10, y: 100, width: 20, xOffsets: [10, 20] }),
+        seg({ text: "cd", x: 10, y: 124, width: 22, xOffsets: [10, 21] }),
+      ],
+    }),
+  ];
 }
 
 describe("findAddressedElement", () => {
@@ -86,7 +99,7 @@ describe("resolveCaretPoint — code-point indexing over captured xOffsets", () 
 
   it("cell width = the addressed char's painted advance (astral-aware); space advance at end", () => {
     const roots = astralTree();
-    expect(resolveCaretPoint(roots, { animId: "t1" }, 0)?.cellWidthPx).toBe(8);  // a: 18-10
+    expect(resolveCaretPoint(roots, { animId: "t1" }, 0)?.cellWidthPx).toBe(8); // a: 18-10
     expect(resolveCaretPoint(roots, { animId: "t1" }, 1)?.cellWidthPx).toBe(12); // 😀: 30-18 (skips the pair's 2nd unit)
     expect(resolveCaretPoint(roots, { animId: "t1" }, 2)?.cellWidthPx).toBe(14); // b: right edge 44 - 30
     const end = resolveCaretPoint(roots, { animId: "t1" }, 3)!;
@@ -107,10 +120,15 @@ describe("resolveCaretPoint — code-point indexing over captured xOffsets", () 
   });
 
   it("falls back to advance-derived offsets when xOffsets are missing", () => {
-    const roots = [el({
-      tag: "div", animId: "nf", fontAscent: 12, fontDescent: 4,
-      textSegments: [seg({ text: "abc", x: 50, y: 10 })], // no xOffsets, no width
-    })];
+    const roots = [
+      el({
+        tag: "div",
+        animId: "nf",
+        fontAscent: 12,
+        fontDescent: 4,
+        textSegments: [seg({ text: "abc", x: 50, y: 10 })], // no xOffsets, no width
+      }),
+    ];
     const p0 = resolveCaretPoint(roots, { animId: "nf" }, 0)!;
     const p1 = resolveCaretPoint(roots, { animId: "nf" }, 1)!;
     const p3 = resolveCaretPoint(roots, { animId: "nf" }, 3)!;
@@ -121,11 +139,19 @@ describe("resolveCaretPoint — code-point indexing over captured xOffsets", () 
   });
 
   it("addresses a captured form field via the input-value synthesis", () => {
-    const roots = [el({
-      tag: "input", animId: "field", text: "hi", fontAscent: 11, fontDescent: 3,
-      textLeft: 24, textTop: 40, textWidth: 18,
-      inputXOffsets: [24, 32],
-    })];
+    const roots = [
+      el({
+        tag: "input",
+        animId: "field",
+        text: "hi",
+        fontAscent: 11,
+        fontDescent: 3,
+        textLeft: 24,
+        textTop: 40,
+        textWidth: 18,
+        inputXOffsets: [24, 32],
+      }),
+    ];
     const p = resolveCaretPoint(roots, { animId: "field" }, 1)!;
     expect(p.x).toBe(32);
     expect(p.baselineY).toBe(51); // textTop 40 + fontAscent 11
@@ -201,17 +227,26 @@ describe("resolveRangeRects", () => {
 // them in visual x. The engine must interleave them into "plain bold tail".
 function mixedInlineTree(): CapturedElement[] {
   const b = el({
-    tag: "b", fontAscent: 14, fontDescent: 4, height: 18,
+    tag: "b",
+    fontAscent: 14,
+    fontDescent: 4,
+    height: 18,
     textSegments: [seg({ text: "bold", x: 58, y: 22, width: 34, height: 18, xOffsets: [58, 68, 78, 82] })],
   });
-  return [el({
-    tag: "p", animId: "para", fontAscent: 14, fontDescent: 4, height: 18,
-    textSegments: [
-      seg({ text: "plain ", x: 20, y: 22, width: 38, height: 18, xOffsets: [20, 29, 32, 41, 45, 54] }),
-      seg({ text: " tail", x: 92, y: 22, width: 25, height: 18, xOffsets: [92, 96, 101, 110, 113] }),
-    ],
-    children: [b],
-  })];
+  return [
+    el({
+      tag: "p",
+      animId: "para",
+      fontAscent: 14,
+      fontDescent: 4,
+      height: 18,
+      textSegments: [
+        seg({ text: "plain ", x: 20, y: 22, width: 38, height: 18, xOffsets: [20, 29, 32, 41, 45, 54] }),
+        seg({ text: " tail", x: 92, y: 22, width: 25, height: 18, xOffsets: [92, 96, 101, 110, 113] }),
+      ],
+      children: [b],
+    }),
+  ];
 }
 
 // A tokenized code line: <div>[<span>const</span>][ = ][<span>42</span>][;]
@@ -219,21 +254,33 @@ function mixedInlineTree(): CapturedElement[] {
 // tokens. All on one baseline, resolved as one string by x order.
 function codeLineTree(): CapturedElement[] {
   const kw = el({
-    tag: "span", fontAscent: 13, fontDescent: 4, height: 20,
+    tag: "span",
+    fontAscent: 13,
+    fontDescent: 4,
+    height: 20,
     textSegments: [seg({ text: "const", x: 20, y: 64, width: 45, height: 20, xOffsets: [20, 29, 38, 47, 56] })],
   });
   const num = el({
-    tag: "span", fontAscent: 13, fontDescent: 4, height: 20,
+    tag: "span",
+    fontAscent: 13,
+    fontDescent: 4,
+    height: 20,
     textSegments: [seg({ text: "42", x: 110, y: 64, width: 18, height: 20, xOffsets: [110, 119] })],
   });
-  return [el({
-    tag: "div", animId: "code", fontAscent: 13, fontDescent: 4, height: 20,
-    textSegments: [
-      seg({ text: " = ", x: 74, y: 64, width: 27, height: 20, xOffsets: [74, 83, 92] }),
-      seg({ text: ";", x: 128, y: 64, width: 9, height: 20, xOffsets: [128] }),
-    ],
-    children: [kw, num],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "code",
+      fontAscent: 13,
+      fontDescent: 4,
+      height: 20,
+      textSegments: [
+        seg({ text: " = ", x: 74, y: 64, width: 27, height: 20, xOffsets: [74, 83, 92] }),
+        seg({ text: ";", x: 128, y: 64, width: 9, height: 20, xOffsets: [128] }),
+      ],
+      children: [kw, num],
+    }),
+  ];
 }
 
 // Nested deeper: <p>a <span><em>x</em></span> b</p> — the <span> is an empty
@@ -241,18 +288,27 @@ function codeLineTree(): CapturedElement[] {
 // levels down, between p's own "a " and " b".
 function nestedDeepTree(): CapturedElement[] {
   const em = el({
-    tag: "em", fontAscent: 14, fontDescent: 4, height: 18,
+    tag: "em",
+    fontAscent: 14,
+    fontDescent: 4,
+    height: 18,
     textSegments: [seg({ text: "x", x: 33, y: 107, width: 8, height: 18, xOffsets: [33] })],
   });
   const span = el({ tag: "span", height: 0, children: [em] }); // empty wrapper
-  return [el({
-    tag: "p", animId: "nested", fontAscent: 14, fontDescent: 4, height: 18,
-    textSegments: [
-      seg({ text: "a ", x: 20, y: 107, width: 13, height: 18, xOffsets: [20, 29] }),
-      seg({ text: " b", x: 41, y: 107, width: 13, height: 18, xOffsets: [41, 46] }),
-    ],
-    children: [span],
-  })];
+  return [
+    el({
+      tag: "p",
+      animId: "nested",
+      fontAscent: 14,
+      fontDescent: 4,
+      height: 18,
+      textSegments: [
+        seg({ text: "a ", x: 20, y: 107, width: 13, height: 18, xOffsets: [20, 29] }),
+        seg({ text: " b", x: 41, y: 107, width: 13, height: 18, xOffsets: [41, 46] }),
+      ],
+      children: [span],
+    }),
+  ];
 }
 
 describe("mixed content — addressing across descendant elements (DM-1756)", () => {
@@ -319,7 +375,6 @@ describe("mixed content — addressing across descendant elements (DM-1756)", ()
     expect(addressableLength(roots, { animId: "nested" })).toBe(5);
     const xs = Array.from({ length: 6 }, (_, i) => resolveCaretPoint(roots, { animId: "nested" }, i)?.x);
     expect(xs).toEqual([20, 29, 33, 41, 46, 54]); // end = " b" x 41 + width 13
-
   });
 
   it("descendant runs keep their own font metrics, not the target's", () => {
@@ -328,33 +383,47 @@ describe("mixed content — addressing across descendant elements (DM-1756)", ()
     const sup = el({
       tag: "sup",
       styles: { fontSize: "10px", fontFamily: "Helvetica", fontWeight: "400" } as CapturedElement["styles"],
-      fontAscent: 8, fontDescent: 2, height: 12,
+      fontAscent: 8,
+      fontDescent: 2,
+      height: 12,
       textSegments: [seg({ text: "2", x: 40, y: 98, width: 6, height: 12, xOffsets: [40] })],
     });
-    const roots = [el({
-      tag: "p", animId: "sup", fontAscent: 14, fontDescent: 4, height: 18,
-      textSegments: [seg({ text: "x", x: 20, y: 100, width: 18, height: 18, xOffsets: [20] })],
-      children: [sup],
-    })];
+    const roots = [
+      el({
+        tag: "p",
+        animId: "sup",
+        fontAscent: 14,
+        fontDescent: 4,
+        height: 18,
+        textSegments: [seg({ text: "x", x: 20, y: 100, width: 18, height: 18, xOffsets: [20] })],
+        children: [sup],
+      }),
+    ];
     // base "x" baseline 100+14=114; sup "2" baseline 98+8=106 — within 0.6em of
     // the base, so ONE line, ordered x → "x" then "2".
     expect(addressableLength(roots, { animId: "sup" })).toBe(2);
     expect(resolveCaretPoint(roots, { animId: "sup" }, 0)?.x).toBe(20);
     const two = resolveCaretPoint(roots, { animId: "sup" }, 1)!;
     expect(two.x).toBe(40);
-    expect(two.fontSize).toBe(10);   // the sup's own size, not the p's 16
-    expect(two.ascentPx).toBe(8);    // the sup's own ascent
+    expect(two.fontSize).toBe(10); // the sup's own size, not the p's 16
+    expect(two.ascentPx).toBe(8); // the sup's own ascent
   });
 
   it("block-level descendants become separate lines top-to-bottom", () => {
     // Two <div> lines inside the target (each its own baseline a line apart):
     // addressed as one string, the second line's chars follow the first's.
     const line2 = el({
-      tag: "div", fontAscent: 14, fontDescent: 4, height: 18,
+      tag: "div",
+      fontAscent: 14,
+      fontDescent: 4,
+      height: 18,
       textSegments: [seg({ text: "yz", x: 20, y: 130, width: 18, height: 18, xOffsets: [20, 29] })],
     });
     const line1 = el({
-      tag: "div", fontAscent: 14, fontDescent: 4, height: 18,
+      tag: "div",
+      fontAscent: 14,
+      fontDescent: 4,
+      height: 18,
       textSegments: [seg({ text: "ab", x: 20, y: 100, width: 18, height: 18, xOffsets: [20, 29] })],
     });
     // Children deliberately out of DOM/visual order to prove geometry ordering.
@@ -374,10 +443,19 @@ describe("mixed content — addressing across descendant elements (DM-1756)", ()
     expect(addressableLength(astralTree(), { animId: "t1" })).toBe(3);
     expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 3)?.x).toBe(44);
     expect(resolveCaretPoint(twoLineTree(), { animId: "wrap" }, 2)?.baselineY).toBe(136);
-    const input = [el({
-      tag: "input", animId: "field", text: "hi", fontAscent: 11, fontDescent: 3,
-      textLeft: 24, textTop: 40, textWidth: 18, inputXOffsets: [24, 32],
-    })];
+    const input = [
+      el({
+        tag: "input",
+        animId: "field",
+        text: "hi",
+        fontAscent: 11,
+        fontDescent: 3,
+        textLeft: 24,
+        textTop: 40,
+        textWidth: 18,
+        inputXOffsets: [24, 32],
+      }),
+    ];
     expect(resolveCaretPoint(input, { animId: "field" }, 2)?.x).toBe(42);
   });
 });
@@ -394,27 +472,57 @@ describe("mixed content — addressing across descendant elements (DM-1756)", ()
 // LTR paragraph "abc שלום def": levels 0,0,0,0,1,1,1,1,0,0,0,0. Visual layout is
 // `abc ` [20, 65.38) · `םולש` [65.38, 113.44) · ` def` [113.44, 153.47).
 function ltrBidiTree(): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "l", fontAscent: 22, fontDescent: 6,
-    styles: { fontSize: "24px", fontFamily: "Helvetica", fontWeight: "400", direction: "ltr" } as CapturedElement["styles"],
-    textSegments: [seg({
-      text: "abc שלום def", x: 20, y: 100, width: 133.47,
-      xOffsets: [20, 33.34, 46.69, 58.69, 96.77, 85.66, 79.73, 65.38, 113.44, 120.09, 133.45, 146.8],
-    })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "l",
+      fontAscent: 22,
+      fontDescent: 6,
+      styles: {
+        fontSize: "24px",
+        fontFamily: "Helvetica",
+        fontWeight: "400",
+        direction: "ltr",
+      } as CapturedElement["styles"],
+      textSegments: [
+        seg({
+          text: "abc שלום def",
+          x: 20,
+          y: 100,
+          width: 133.47,
+          xOffsets: [20, 33.34, 46.69, 58.69, 96.77, 85.66, 79.73, 65.38, 113.44, 120.09, 133.45, 146.8],
+        }),
+      ],
+    }),
+  ];
 }
 
 // RTL paragraph "שלום abc עולם": levels 1,1,1,1,1,2,2,2,1,1,1,1,1. Visual layout
 // is `םלוע ` [20, 70.77) · `abc` [70.77, 109.47) · ` םולש` [109.47, 164.2).
 function rtlBidiTree(): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "r", fontAscent: 22, fontDescent: 6,
-    styles: { fontSize: "24px", fontFamily: "Helvetica", fontWeight: "400", direction: "rtl" } as CapturedElement["styles"],
-    textSegments: [seg({
-      text: "שלום abc עולם", x: 20, y: 100, width: 144.19,
-      xOffsets: [147.53, 136.42, 130.5, 116.13, 109.47, 70.77, 84.11, 97.45, 64.09, 51.39, 45.47, 34.36, 20],
-    })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "r",
+      fontAscent: 22,
+      fontDescent: 6,
+      styles: {
+        fontSize: "24px",
+        fontFamily: "Helvetica",
+        fontWeight: "400",
+        direction: "rtl",
+      } as CapturedElement["styles"],
+      textSegments: [
+        seg({
+          text: "שלום abc עולם",
+          x: 20,
+          y: 100,
+          width: 144.19,
+          xOffsets: [147.53, 136.42, 130.5, 116.13, 109.47, 70.77, 84.11, 97.45, 64.09, 51.39, 45.47, 34.36, 20],
+        }),
+      ],
+    }),
+  ];
 }
 
 describe("bidi: logical-order addressing over RTL runs (DM-1754)", () => {
@@ -467,7 +575,7 @@ describe("bidi: logical-order addressing over RTL runs (DM-1754)", () => {
     const [latin, heb] = r.rects;
     expect(+latin.x.toFixed(2)).toBe(46.69);
     expect(+(latin.x + latin.width).toFixed(2)).toBe(65.38);
-    expect(+heb.x.toFixed(2)).toBe(85.66);        // ל's left
+    expect(+heb.x.toFixed(2)).toBe(85.66); // ל's left
     expect(+(heb.x + heb.width).toFixed(2)).toBe(113.44); // ש's right
     expect(heb.x).toBeGreaterThan(latin.x + latin.width); // a real visual gap
     // The RTL rect sweeps right-to-left: edges are successive LEFT edges.
@@ -501,13 +609,24 @@ describe("bidi: logical-order addressing over RTL runs (DM-1754)", () => {
   it("orders mixed-content runs right-to-left within a line in an RTL paragraph", () => {
     // Two child spans on one baseline in an RTL paragraph: reading order is the
     // RIGHTMOST box first.
-    const rtlStyles = { fontSize: "16px", fontFamily: "Helvetica", fontWeight: "400", direction: "rtl" } as CapturedElement["styles"];
+    const rtlStyles = {
+      fontSize: "16px",
+      fontFamily: "Helvetica",
+      fontWeight: "400",
+      direction: "rtl",
+    } as CapturedElement["styles"];
     const left = el({
-      tag: "span", styles: rtlStyles, fontAscent: 12, fontDescent: 4,
+      tag: "span",
+      styles: rtlStyles,
+      fontAscent: 12,
+      fontDescent: 4,
       textSegments: [seg({ text: "םלוע", x: 20, y: 100, width: 30, xOffsets: [44, 36, 28, 20] })],
     });
     const right = el({
-      tag: "span", styles: rtlStyles, fontAscent: 12, fontDescent: 4,
+      tag: "span",
+      styles: rtlStyles,
+      fontAscent: 12,
+      fontDescent: 4,
       textSegments: [seg({ text: "םולש", x: 60, y: 100, width: 30, xOffsets: [84, 76, 68, 60] })],
     });
     const roots = [el({ tag: "p", animId: "p", styles: rtlStyles, children: [left, right] })];
@@ -534,14 +653,32 @@ const V_Y = [20, 44, 68, 92, 106.203125, 122.109375, 136.296875, 160.296875, 184
 const V_ADV = [24, 24, 24, 14.21875, 15.921875, 14.203125, 24.015625, 24.015625, 24.015625];
 
 function verticalTree(mode = "vertical-rl"): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "v", fontAscent: 21, fontDescent: 3,
-    styles: { fontSize: "24px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: mode } as CapturedElement["styles"],
-    textSegments: [seg({
-      text: "縦書きabcテスト", x: 430, y: 20, width: 24, height: 188.3125,
-      verticalWritingMode: mode, yOffsets: V_Y, verticalAdvances: V_ADV,
-    })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "v",
+      fontAscent: 21,
+      fontDescent: 3,
+      styles: {
+        fontSize: "24px",
+        fontFamily: "Hiragino Sans",
+        fontWeight: "400",
+        writingMode: mode,
+      } as CapturedElement["styles"],
+      textSegments: [
+        seg({
+          text: "縦書きabcテスト",
+          x: 430,
+          y: 20,
+          width: 24,
+          height: 188.3125,
+          verticalWritingMode: mode,
+          yOffsets: V_Y,
+          verticalAdvances: V_ADV,
+        }),
+      ],
+    }),
+  ];
 }
 
 describe("vertical writing modes (DM-1753)", () => {
@@ -553,9 +690,9 @@ describe("vertical writing modes (DM-1753)", () => {
     for (let o = 0; o < V_Y.length; o++) {
       const p = resolveCaretPoint(verticalTree(), { animId: "v" }, o)!;
       expect(p.vertical).toBe("vertical-rl");
-      expect(p.baselineY).toBe(V_Y[o]);   // the along-column position
-      expect(p.x).toBe(430);              // the column's left edge
-      expect(p.columnWidthPx).toBe(24);   // its cross extent
+      expect(p.baselineY).toBe(V_Y[o]); // the along-column position
+      expect(p.x).toBe(430); // the column's left edge
+      expect(p.columnWidthPx).toBe(24); // its cross extent
     }
     // The insertion cell's extent runs DOWN the column: a full em for the
     // upright CJK cells, the rotated glyph's own advance for the Latin ones.
@@ -578,9 +715,9 @@ describe("vertical writing modes (DM-1753)", () => {
     expect(r.rects).toHaveLength(1);
     const rect = r.rects[0];
     expect(rect.vertical).toBe(true);
-    expect(rect.x).toBe(430);      // the column's cross extent is fixed…
+    expect(rect.x).toBe(430); // the column's cross extent is fixed…
     expect(rect.width).toBe(24);
-    expect(rect.y).toBe(44);       // …and the swept span runs down it
+    expect(rect.y).toBe(44); // …and the swept span runs down it
     expect(rect.height).toBeCloseTo(62.2, 1);
     expect(rect.edges.map((e) => +e.toFixed(2))).toEqual([68, 92, 106.2]);
     expect(rect.edges[rect.edges.length - 1]).toBeCloseTo(rect.y + rect.height, 5);
@@ -593,11 +730,23 @@ describe("vertical writing modes (DM-1753)", () => {
   });
 
   it("falls back to the captured advances when yOffsets are missing", () => {
-    const roots = [el({
-      tag: "div", animId: "nv", fontAscent: 21, fontDescent: 3,
-      styles: { fontSize: "20px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: "vertical-rl" } as CapturedElement["styles"],
-      textSegments: [seg({ text: "あいう", x: 100, y: 50, width: 20, height: 60, verticalWritingMode: "vertical-rl" })],
-    })];
+    const roots = [
+      el({
+        tag: "div",
+        animId: "nv",
+        fontAscent: 21,
+        fontDescent: 3,
+        styles: {
+          fontSize: "20px",
+          fontFamily: "Hiragino Sans",
+          fontWeight: "400",
+          writingMode: "vertical-rl",
+        } as CapturedElement["styles"],
+        textSegments: [
+          seg({ text: "あいう", x: 100, y: 50, width: 20, height: 60, verticalWritingMode: "vertical-rl" }),
+        ],
+      }),
+    ];
     expect(resolveCaretPoint(roots, { animId: "nv" }, 0)!.baselineY).toBe(50);
     expect(resolveCaretPoint(roots, { animId: "nv" }, 1)!.baselineY).toBe(70); // + fontSize
     expect(resolveCaretPoint(roots, { animId: "nv" }, 3)!.baselineY).toBe(110); // column bottom
@@ -607,14 +756,47 @@ describe("vertical writing modes (DM-1753)", () => {
     // Two column boxes in a vertical-rl block: reading order is the RIGHTMOST
     // column first, then top-to-bottom inside it.
     const vStyles = (mode: string): CapturedElement["styles"] =>
-      ({ fontSize: "20px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: mode }) as CapturedElement["styles"];
+      ({
+        fontSize: "20px",
+        fontFamily: "Hiragino Sans",
+        fontWeight: "400",
+        writingMode: mode,
+      }) as CapturedElement["styles"];
     const leftCol = el({
-      tag: "span", styles: vStyles("vertical-rl"), fontAscent: 17, fontDescent: 3,
-      textSegments: [seg({ text: "cd", x: 100, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-rl", yOffsets: [20, 40], verticalAdvances: [20, 20] })],
+      tag: "span",
+      styles: vStyles("vertical-rl"),
+      fontAscent: 17,
+      fontDescent: 3,
+      textSegments: [
+        seg({
+          text: "cd",
+          x: 100,
+          y: 20,
+          width: 20,
+          height: 40,
+          verticalWritingMode: "vertical-rl",
+          yOffsets: [20, 40],
+          verticalAdvances: [20, 20],
+        }),
+      ],
     });
     const rightCol = el({
-      tag: "span", styles: vStyles("vertical-rl"), fontAscent: 17, fontDescent: 3,
-      textSegments: [seg({ text: "ab", x: 140, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-rl", yOffsets: [20, 40], verticalAdvances: [20, 20] })],
+      tag: "span",
+      styles: vStyles("vertical-rl"),
+      fontAscent: 17,
+      fontDescent: 3,
+      textSegments: [
+        seg({
+          text: "ab",
+          x: 140,
+          y: 20,
+          width: 20,
+          height: 40,
+          verticalWritingMode: "vertical-rl",
+          yOffsets: [20, 40],
+          verticalAdvances: [20, 20],
+        }),
+      ],
     });
     const roots = [el({ tag: "div", animId: "cols", styles: vStyles("vertical-rl"), children: [leftCol, rightCol] })];
     expect(addressableLength(roots, { animId: "cols" })).toBe(4);
@@ -622,13 +804,45 @@ describe("vertical writing modes (DM-1753)", () => {
     expect(resolveCaretPoint(roots, { animId: "cols" }, 1)!.baselineY).toBe(40);
     expect(resolveCaretPoint(roots, { animId: "cols" }, 2)!.x).toBe(100); // then the left one
     // vertical-lr reverses the column order.
-    const lrRoots = [el({
-      tag: "div", animId: "cols", styles: vStyles("vertical-lr"),
-      children: [
-        el({ ...leftCol, styles: vStyles("vertical-lr"), textSegments: [seg({ text: "cd", x: 100, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-lr", yOffsets: [20, 40] })] }),
-        el({ ...rightCol, styles: vStyles("vertical-lr"), textSegments: [seg({ text: "ab", x: 140, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-lr", yOffsets: [20, 40] })] }),
-      ],
-    })];
+    const lrRoots = [
+      el({
+        tag: "div",
+        animId: "cols",
+        styles: vStyles("vertical-lr"),
+        children: [
+          el({
+            ...leftCol,
+            styles: vStyles("vertical-lr"),
+            textSegments: [
+              seg({
+                text: "cd",
+                x: 100,
+                y: 20,
+                width: 20,
+                height: 40,
+                verticalWritingMode: "vertical-lr",
+                yOffsets: [20, 40],
+              }),
+            ],
+          }),
+          el({
+            ...rightCol,
+            styles: vStyles("vertical-lr"),
+            textSegments: [
+              seg({
+                text: "ab",
+                x: 140,
+                y: 20,
+                width: 20,
+                height: 40,
+                verticalWritingMode: "vertical-lr",
+                yOffsets: [20, 40],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     expect(resolveCaretPoint(lrRoots, { animId: "cols" }, 0)!.x).toBe(100);
   });
 
@@ -636,19 +850,35 @@ describe("vertical writing modes (DM-1753)", () => {
     // A horizontal paragraph with a vertical-writing child: the vertical run is
     // a different reading order and contributes no offsets (and vice versa).
     const vChild = el({
-      tag: "span", fontAscent: 12, fontDescent: 4,
-      styles: { fontSize: "16px", fontFamily: "Helvetica", fontWeight: "400", writingMode: "vertical-rl" } as CapturedElement["styles"],
-      textSegments: [seg({ text: "縦", x: 200, y: 100, width: 16, height: 16, verticalWritingMode: "vertical-rl", yOffsets: [100] })],
+      tag: "span",
+      fontAscent: 12,
+      fontDescent: 4,
+      styles: {
+        fontSize: "16px",
+        fontFamily: "Helvetica",
+        fontWeight: "400",
+        writingMode: "vertical-rl",
+      } as CapturedElement["styles"],
+      textSegments: [
+        seg({ text: "縦", x: 200, y: 100, width: 16, height: 16, verticalWritingMode: "vertical-rl", yOffsets: [100] }),
+      ],
     });
     const hChild = el({
-      tag: "b", fontAscent: 12, fontDescent: 4,
+      tag: "b",
+      fontAscent: 12,
+      fontDescent: 4,
       textSegments: [seg({ text: "bold", x: 60, y: 100, width: 30, xOffsets: [60, 67, 74, 82] })],
     });
-    const roots = [el({
-      tag: "p", animId: "mix", fontAscent: 12, fontDescent: 4,
-      textSegments: [seg({ text: "hi ", x: 20, y: 100, width: 20, xOffsets: [20, 27, 34] })],
-      children: [hChild, vChild],
-    })];
+    const roots = [
+      el({
+        tag: "p",
+        animId: "mix",
+        fontAscent: 12,
+        fontDescent: 4,
+        textSegments: [seg({ text: "hi ", x: 20, y: 100, width: 20, xOffsets: [20, 27, 34] })],
+        children: [hChild, vChild],
+      }),
+    ];
     // "hi " + "bold" — the vertical child is not part of the string.
     expect(addressableLength(roots, { animId: "mix" })).toBe(7);
     expect(resolveCaretPoint(roots, { animId: "mix" }, 3)!.x).toBe(60);
@@ -660,6 +890,9 @@ describe("vertical writing modes (DM-1753)", () => {
     // geometry (re-pinned here alongside the new axis).
     expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 1)!.vertical).toBeUndefined();
     expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 3)!.x).toBe(44);
-    expect(resolveRangeRects(twoLineTree(), { animId: "wrap" }, 1, 4)!.rects.map((r) => r.vertical)).toEqual([undefined, undefined]);
+    expect(resolveRangeRects(twoLineTree(), { animId: "wrap" }, 1, 4)!.rects.map((r) => r.vertical)).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 });

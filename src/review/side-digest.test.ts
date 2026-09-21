@@ -9,14 +9,21 @@
  * which is the event worth catching.
  */
 import { describe, it, expect } from "vitest";
-import { attributeMovement, attributeMovementWithBytes, compareDigest, compareSideEvidence, perceptualDigest } from "./side-digest.js";
+import {
+  attributeMovement,
+  attributeMovementWithBytes,
+  compareDigest,
+  compareSideEvidence,
+  perceptualDigest,
+} from "./side-digest.js";
 
 /** RGBA buffer of `w`×`h`, filled by a per-pixel callback returning gray 0..255. */
 function img(w: number, h: number, f: (x: number, y: number) => number): Uint8Array {
   const d = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const v = f(x, y), i = (y * w + x) * 4;
+      const v = f(x, y),
+        i = (y * w + x) * 4;
       d[i] = d[i + 1] = d[i + 2] = v;
       d[i + 3] = 255;
     }
@@ -49,8 +56,16 @@ describe("perceptual side digest (DM-1874)", () => {
   it("is comparable across differing image sizes", () => {
     // Fixed 16×16 grid, not a fixed cell size — so a resized fixture does not
     // read as a content change in every cell.
-    const small = perceptualDigest(img(32, 32, (x) => (x < 16 ? 0 : 255)), 32, 32);
-    const large = perceptualDigest(img(128, 128, (x) => (x < 64 ? 0 : 255)), 128, 128);
+    const small = perceptualDigest(
+      img(32, 32, (x) => (x < 16 ? 0 : 255)),
+      32,
+      32,
+    );
+    const large = perceptualDigest(
+      img(128, 128, (x) => (x < 64 ? 0 : 255)),
+      128,
+      128,
+    );
     expect(small).toBe(large);
   });
 
@@ -63,8 +78,12 @@ describe("perceptual side digest (DM-1874)", () => {
   });
 
   it("returns a fixed-length lower-case hex string", () => {
-    const d = perceptualDigest(img(8, 8, () => 128), 8, 8);
-    expect(d).toHaveLength(256);          // 16×16 cells, one nibble each
+    const d = perceptualDigest(
+      img(8, 8, () => 128),
+      8,
+      8,
+    );
+    expect(d).toHaveLength(256); // 16×16 cells, one nibble each
     expect(d).toMatch(/^[0-9a-f]+$/);
   });
 
@@ -147,8 +166,12 @@ describe("byte-aware movement attribution (DM-1937)", () => {
     // commit while actual.png was byte-identical — with all four perceptual
     // digests EQUAL. Digest-only attribution said "neither"; byte identity
     // exonerates our side and pins the movement on the oracle.
-    const r = attributeMovementWithBytes("d", "d", "d", "d",
-      { expectedBefore: "e1", expectedAfter: "e2", actualBefore: "a1", actualAfter: "a1" });
+    const r = attributeMovementWithBytes("d", "d", "d", "d", {
+      expectedBefore: "e1",
+      expectedAfter: "e2",
+      actualBefore: "a1",
+      actualAfter: "a1",
+    });
     expect(r.verdict).toBe("oracle");
     expect(r.proven).toBe(true);
     expect(r.expected).toBe("sub-digest");
@@ -158,31 +181,41 @@ describe("byte-aware movement attribution (DM-1937)", () => {
   });
 
   it("PROVES the renderer symmetrically", () => {
-    const r = attributeMovementWithBytes("d", "d", "d", "d",
-      { expectedBefore: "e1", expectedAfter: "e1", actualBefore: "a1", actualAfter: "a2" });
+    const r = attributeMovementWithBytes("d", "d", "d", "d", {
+      expectedBefore: "e1",
+      expectedAfter: "e1",
+      actualBefore: "a1",
+      actualAfter: "a2",
+    });
     expect(r.verdict).toBe("renderer");
     expect(r.proven).toBe(true);
   });
 
   it("byte identity on a side wins even over a 'moved' digest on the other", () => {
-    const r = attributeMovementWithBytes("e1", "e2", "d", "d",
-      { actualBefore: "a1", actualAfter: "a1" });
+    const r = attributeMovementWithBytes("e1", "e2", "d", "d", { actualBefore: "a1", actualAfter: "a1" });
     expect(r.verdict).toBe("oracle");
     expect(r.proven).toBe(true);
     expect(r.expected).toBe("moved");
   });
 
   it("both byte-identical is a PROVEN neither — indicting the comparator, not the images", () => {
-    const r = attributeMovementWithBytes("d", "d", "d", "d",
-      { expectedBefore: "e1", expectedAfter: "e1", actualBefore: "a1", actualAfter: "a1" });
+    const r = attributeMovementWithBytes("d", "d", "d", "d", {
+      expectedBefore: "e1",
+      expectedAfter: "e1",
+      actualBefore: "a1",
+      actualAfter: "a1",
+    });
     expect(r.verdict).toBe("neither");
     expect(r.proven).toBe(true);
   });
 
   it("degrades to exactly the digest-only semantics when no shas are recorded", () => {
     for (const [eb, ea, ab, aa] of [
-      ["x", "y", "z", "z"], ["x", "x", "z", "w"], ["x", "y", "z", "w"],
-      ["x", "x", "z", "z"], [undefined, "y", "z", "z"],
+      ["x", "y", "z", "z"],
+      ["x", "x", "z", "w"],
+      ["x", "y", "z", "w"],
+      ["x", "x", "z", "z"],
+      [undefined, "y", "z", "z"],
     ] as const) {
       const r = attributeMovementWithBytes(eb, ea, ab, aa);
       expect(r.verdict).toBe(attributeMovement(eb, ea, ab, aa));
@@ -191,8 +224,12 @@ describe("byte-aware movement attribution (DM-1937)", () => {
   });
 
   it("bytes differing on both sides proves nothing — AA jitter is bytewise change", () => {
-    const r = attributeMovementWithBytes("d", "d", "d", "d",
-      { expectedBefore: "e1", expectedAfter: "e2", actualBefore: "a1", actualAfter: "a2" });
+    const r = attributeMovementWithBytes("d", "d", "d", "d", {
+      expectedBefore: "e1",
+      expectedAfter: "e2",
+      actualBefore: "a1",
+      actualAfter: "a2",
+    });
     expect(r.verdict).toBe("neither");
     expect(r.proven).toBe(false);
     expect(r.expected).toBe("sub-digest");

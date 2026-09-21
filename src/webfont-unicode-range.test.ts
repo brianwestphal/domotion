@@ -1,7 +1,15 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach } from "vitest";
 import { parseUnicodeRangeDescriptor } from "./capture/index.js";
-import { __pickWebfontVariantMetaForCodepointForTest, __pickWebfontVariantMetaForTest, __pickLocalFontAliasVariantForTest, clearWebfonts, registerWebfont, registerLocalFontAlias, unicodeRangeCovers } from "./render/text-to-path.js";
+import {
+  __pickWebfontVariantMetaForCodepointForTest,
+  __pickWebfontVariantMetaForTest,
+  __pickLocalFontAliasVariantForTest,
+  clearWebfonts,
+  registerWebfont,
+  registerLocalFontAlias,
+  unicodeRangeCovers,
+} from "./render/text-to-path.js";
 
 // DM-517: webfont registration honors the `@font-face { unicode-range: ... }`
 // descriptor. Google-Fonts-style partitioning declares the same `(family,
@@ -53,7 +61,10 @@ describe("unicodeRangeCovers", () => {
   });
 
   it("returns true for codepoints inside any interval", () => {
-    const ranges: Array<[number, number]> = [[0x0, 0x7f], [0x0400, 0x04ff]];
+    const ranges: Array<[number, number]> = [
+      [0x0, 0x7f],
+      [0x0400, 0x04ff],
+    ];
     expect(unicodeRangeCovers(ranges, 0x0041)).toBe(true); // 'A' in Basic Latin
     expect(unicodeRangeCovers(ranges, 0x0410)).toBe(true); // Cyrillic 'А'
   });
@@ -85,55 +96,76 @@ describe("pickWebfontVariant: unicode-range preference (DM-517)", () => {
     clearWebfonts();
   });
 
-  it.skipIf(!haveFontFixture)("prefers Latin-covering variant when ties on weight + italic (Cyrillic-first registration order)", () => {
-    // Simulates Google Fonts' Geist@400 partitioning: Cyrillic partition
-    // registers first, then the Latin partition. Without unicode-range
-    // awareness, `pickWebfontVariant` would return the Cyrillic variant for
-    // a request like (geist, 400, italic=false) because it scores first.
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0301, 0x0301], [0x0400, 0x045f]]);
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff], [0x0131, 0x0131]]);
+  it.skipIf(!haveFontFixture)(
+    "prefers Latin-covering variant when ties on weight + italic (Cyrillic-first registration order)",
+    () => {
+      // Simulates Google Fonts' Geist@400 partitioning: Cyrillic partition
+      // registers first, then the Latin partition. Without unicode-range
+      // awareness, `pickWebfontVariant` would return the Cyrillic variant for
+      // a request like (geist, 400, italic=false) because it scores first.
+      registerWebfont("geist", 400, "normal", helveticaBuf!, [
+        [0x0301, 0x0301],
+        [0x0400, 0x045f],
+      ]);
+      registerWebfont("geist", 400, "normal", helveticaBuf!, [
+        [0x0000, 0x00ff],
+        [0x0131, 0x0131],
+      ]);
 
-    const picked = __pickWebfontVariantMetaForTest("geist", 400, false);
-    expect(picked).not.toBeNull();
-    // The Latin-covering partition (second registration) must win.
-    expect(picked!.unicodeRange).toEqual([[0x0000, 0x00ff], [0x0131, 0x0131]]);
-  });
+      const picked = __pickWebfontVariantMetaForTest("geist", 400, false);
+      expect(picked).not.toBeNull();
+      // The Latin-covering partition (second registration) must win.
+      expect(picked!.unicodeRange).toEqual([
+        [0x0000, 0x00ff],
+        [0x0131, 0x0131],
+      ]);
+    },
+  );
 
-  it.skipIf(!haveFontFixture)("variant with no unicode-range (CSS default = U+0..U+10FFFF) ties non-partitioned cases unchanged", () => {
-    // Single registration, no unicode-range — most common case (single woff2
-    // covering everything). Behavior unchanged from pre-DM-517.
-    registerWebfont("inter", 500, "normal", helveticaBuf!);
-    const picked = __pickWebfontVariantMetaForTest("inter", 500, false);
-    expect(picked).not.toBeNull();
-    expect(picked!.unicodeRange).toBeUndefined();
-    expect(picked!.weight).toBe(500);
-  });
+  it.skipIf(!haveFontFixture)(
+    "variant with no unicode-range (CSS default = U+0..U+10FFFF) ties non-partitioned cases unchanged",
+    () => {
+      // Single registration, no unicode-range — most common case (single woff2
+      // covering everything). Behavior unchanged from pre-DM-517.
+      registerWebfont("inter", 500, "normal", helveticaBuf!);
+      const picked = __pickWebfontVariantMetaForTest("inter", 500, false);
+      expect(picked).not.toBeNull();
+      expect(picked!.unicodeRange).toBeUndefined();
+      expect(picked!.weight).toBe(500);
+    },
+  );
 
-  it.skipIf(!haveFontFixture)("range coverage outweighs italic mismatch — synthesized italic on Latin font beats tofu from italic Cyrillic font", () => {
-    // Pathological registration: italic Cyrillic-only + upright Latin-only.
-    // Asked for italic, the picker should still prefer the Latin variant
-    // because rendering tofu (.notdef) is far worse than synthesized italic.
-    registerWebfont("geist", 400, "italic", helveticaBuf!, [[0x0400, 0x045f]]);
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);
+  it.skipIf(!haveFontFixture)(
+    "range coverage outweighs italic mismatch — synthesized italic on Latin font beats tofu from italic Cyrillic font",
+    () => {
+      // Pathological registration: italic Cyrillic-only + upright Latin-only.
+      // Asked for italic, the picker should still prefer the Latin variant
+      // because rendering tofu (.notdef) is far worse than synthesized italic.
+      registerWebfont("geist", 400, "italic", helveticaBuf!, [[0x0400, 0x045f]]);
+      registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);
 
-    const picked = __pickWebfontVariantMetaForTest("geist", 400, true);
-    expect(picked).not.toBeNull();
-    // Upright Latin-covering variant wins despite italic mismatch.
-    expect(picked!.italic).toBe(false);
-    expect(picked!.unicodeRange).toEqual([[0x0000, 0x00ff]]);
-  });
+      const picked = __pickWebfontVariantMetaForTest("geist", 400, true);
+      expect(picked).not.toBeNull();
+      // Upright Latin-covering variant wins despite italic mismatch.
+      expect(picked!.italic).toBe(false);
+      expect(picked!.unicodeRange).toEqual([[0x0000, 0x00ff]]);
+    },
+  );
 
-  it.skipIf(!haveFontFixture)("when only non-Latin partitions are registered, picker returns the closest by weight (last-resort fallback)", () => {
-    // No Latin-covering variant available — picker still returns the best
-    // available (weight match). Avoids returning null for pages where only
-    // non-Latin partitions were fetched.
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]);
-    registerWebfont("geist", 700, "normal", helveticaBuf!, [[0x0400, 0x045f]]);
+  it.skipIf(!haveFontFixture)(
+    "when only non-Latin partitions are registered, picker returns the closest by weight (last-resort fallback)",
+    () => {
+      // No Latin-covering variant available — picker still returns the best
+      // available (weight match). Avoids returning null for pages where only
+      // non-Latin partitions were fetched.
+      registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]);
+      registerWebfont("geist", 700, "normal", helveticaBuf!, [[0x0400, 0x045f]]);
 
-    const picked = __pickWebfontVariantMetaForTest("geist", 400, false);
-    expect(picked).not.toBeNull();
-    expect(picked!.weight).toBe(400);
-  });
+      const picked = __pickWebfontVariantMetaForTest("geist", 400, false);
+      expect(picked).not.toBeNull();
+      expect(picked!.weight).toBe(400);
+    },
+  );
 });
 
 describe("pickWebfontVariantForCodepoint: per-codepoint partition routing (DM-557)", () => {
@@ -142,7 +174,8 @@ describe("pickWebfontVariantForCodepoint: per-codepoint partition routing (DM-55
   // coverage of the codepoint, then scores remaining variants by italic +
   // weight match.
   const helveticaBuf = require("fs").existsSync("/System/Library/Fonts/Helvetica.ttc")
-    ? require("fs").readFileSync("/System/Library/Fonts/Helvetica.ttc") : null;
+    ? require("fs").readFileSync("/System/Library/Fonts/Helvetica.ttc")
+    : null;
   const haveFontFixture = helveticaBuf != null;
 
   beforeEach(() => {
@@ -153,9 +186,9 @@ describe("pickWebfontVariantForCodepoint: per-codepoint partition routing (DM-55
     // Multi-partition Geist: Latin + Cyrillic + Latin-Ext partitions all
     // registered at weight=400. Asking for codepoint U+0410 (Cyrillic 'А')
     // must return the Cyrillic partition.
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);                  // Latin
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]);                  // Cyrillic
-    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0100, 0x017f]]);                  // Latin Ext
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]); // Latin
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]); // Cyrillic
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0100, 0x017f]]); // Latin Ext
 
     const picked = __pickWebfontVariantMetaForCodepointForTest("geist", 400, false, 0x0410);
     expect(picked).not.toBeNull();
@@ -224,7 +257,10 @@ describe("registerLocalFontAlias: variant scoring (DM-303/DM-360/DM-1597)", () =
     registerLocalFontAlias("Fam", "georgia-bold", 700, false);
     // Request bold+italic: italic(400) scores 0 + |400-700|=300; bold(700) scores
     // 1000 + 0 = 1000. Italic wins despite the larger weight gap.
-    expect(__pickLocalFontAliasVariantForTest("Fam", 700, true)).toMatchObject({ baseKey: "georgia-italic", italic: true });
+    expect(__pickLocalFontAliasVariantForTest("Fam", 700, true)).toMatchObject({
+      baseKey: "georgia-italic",
+      italic: true,
+    });
     // Request bold+upright: bold(700) is the exact match.
     expect(__pickLocalFontAliasVariantForTest("Fam", 700, false)).toMatchObject({ baseKey: "georgia-bold" });
   });
@@ -248,6 +284,10 @@ describe("registerLocalFontAlias: variant scoring (DM-303/DM-360/DM-1597)", () =
     expect(__pickLocalFontAliasVariantForTest("Fam", 400, false)).toBeNull();
     // A fresh registration after clear starts clean (no accumulated duplicates).
     registerLocalFontAlias("Fam", "arial", 700, true);
-    expect(__pickLocalFontAliasVariantForTest("Fam", 700, true)).toMatchObject({ baseKey: "arial", weight: 700, italic: true });
+    expect(__pickLocalFontAliasVariantForTest("Fam", 700, true)).toMatchObject({
+      baseKey: "arial",
+      weight: 700,
+      italic: true,
+    });
   });
 });

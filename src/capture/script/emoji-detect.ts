@@ -15,15 +15,15 @@ const RE_REGIONAL_INDICATOR = /\p{Regional_Indicator}/u;
 
 export const emojiCategory = (cp) => {
   const ch = String.fromCodePoint(cp);
-  if (cp <= 0x7F) return cp === 0x23 || cp === 0x2A || (cp >= 0x30 && cp <= 0x39) ? "keycap" : "other";
-  if (cp === 0x20E3) return "keycap-mark";
-  if (cp === 0x20E0) return "circle-backslash";
-  if (cp === 0x200D) return "zwj";
-  if (cp === 0xFE0E) return "vs15";
-  if (cp === 0xFE0F) return "vs16";
-  if (cp === 0x1F3F4) return "tag-base";
-  if (cp >= 0xE0020 && cp <= 0xE007E) return "tag-sequence";
-  if (cp === 0xE007F) return "tag-term";
+  if (cp <= 0x7f) return cp === 0x23 || cp === 0x2a || (cp >= 0x30 && cp <= 0x39) ? "keycap" : "other";
+  if (cp === 0x20e3) return "keycap-mark";
+  if (cp === 0x20e0) return "circle-backslash";
+  if (cp === 0x200d) return "zwj";
+  if (cp === 0xfe0e) return "vs15";
+  if (cp === 0xfe0f) return "vs16";
+  if (cp === 0x1f3f4) return "tag-base";
+  if (cp >= 0xe0020 && cp <= 0xe007e) return "tag-sequence";
+  if (cp === 0xe007f) return "tag-term";
   if (RE_EMOJI_MODIFIER_BASE.test(ch)) return "modifier-base";
   if (RE_EMOJI_MODIFIER.test(ch)) return "modifier";
   if (RE_REGIONAL_INDICATOR.test(ch)) return "regional-indicator";
@@ -32,8 +32,12 @@ export const emojiCategory = (cp) => {
   return "other";
 };
 
-const isAnyEmoji = (cat) => cat === "text-default" || cat === "emoji-default"
-  || cat === "keycap" || cat === "modifier-base" || cat === "tag-base";
+const isAnyEmoji = (cat) =>
+  cat === "text-default" ||
+  cat === "emoji-default" ||
+  cat === "keycap" ||
+  cat === "modifier-base" ||
+  cat === "tag-base";
 
 /** Port of emoji_presentation_scanner.rl at Chromium's pinned submodule. */
 export const scanEmojiPresentation = (text, classify = emojiCategory) => {
@@ -45,12 +49,13 @@ export const scanEmojiPresentation = (text, classify = emojiCategory) => {
     i += ch.length;
   }
   const spans = [];
-  const push = (startUnit, endUnit, presentation, hasVs) => spans.push({
-    start: units[startUnit].start,
-    end: units[endUnit - 1].end,
-    presentation,
-    hasVs,
-  });
+  const push = (startUnit, endUnit, presentation, hasVs) =>
+    spans.push({
+      start: units[startUnit].start,
+      end: units[endUnit - 1].end,
+      presentation,
+      hasVs,
+    });
   const elementEnd = (at) => {
     if (at >= units.length || !isAnyEmoji(units[at].cat)) return at;
     if (at + 1 < units.length && units[at + 1].cat === "vs16") return at + 2;
@@ -64,12 +69,15 @@ export const scanEmojiPresentation = (text, classify = emojiCategory) => {
     if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === "vs15") {
       let end = i + 2;
       if (c === "keycap" && end < units.length && units[end].cat === "keycap-mark") end++;
-      push(i, end, "text", true); i = end; continue;
+      push(i, end, "text", true);
+      i = end;
+      continue;
     }
     let end = 0;
     let hasVs = false;
     if (isAnyEmoji(c) && i + 1 < units.length && units[i + 1].cat === "vs16") {
-      end = i + 2; hasVs = true;
+      end = i + 2;
+      hasVs = true;
       if (c === "keycap" && end < units.length && units[end].cat === "keycap-mark") end++;
     } else if (c === "modifier-base" && i + 1 < units.length && units[i + 1].cat === "modifier") {
       end = i + 2;
@@ -96,9 +104,16 @@ export const scanEmojiPresentation = (text, classify = emojiCategory) => {
         joined = true;
         j = nextEnd;
       }
-      if (joined) { end = j; hasVs = false; }
+      if (joined) {
+        end = j;
+        hasVs = false;
+      }
     }
-    if (end > i) { push(i, end, "emoji", hasVs); i = end; continue; }
+    if (end > i) {
+      push(i, end, "emoji", hasVs);
+      i = end;
+      continue;
+    }
     i++;
   }
   return spans;
@@ -108,23 +123,23 @@ export const createEmojiDetect = () => {
   const rasterCandidates = (text, fontVariantEmoji = "normal") => {
     const spans = scanEmojiPresentation(text);
     if (fontVariantEmoji != null && fontVariantEmoji !== "normal" && fontVariantEmoji !== "unicode") {
-    // Explicit selector tokens keep their source priority. For unselected
-    // Emoji-property scalars, Blink's CSS property changes glyph lookup mode;
-    // retain whole scanner tokens and add singleton candidates where needed.
-    const covered = new Set();
-    for (const span of spans) for (let i = span.start; i < span.end; i++) covered.add(i);
-    for (let i = 0; i < text.length;) {
-      const cp = text.codePointAt(i);
-      const ch = String.fromCodePoint(cp);
-      const next = i + ch.length < text.length ? text.codePointAt(i + ch.length) : 0;
-      if (!covered.has(i) && RE_EMOJI.test(ch) && next !== 0xFE0E && next !== 0xFE0F) {
-        spans.push({ start: i, end: i + ch.length, presentation: fontVariantEmoji, hasVs: false });
-      } else if (fontVariantEmoji === "text") {
-        const span = spans.find((s) => s.start === i);
-        if (span != null && !span.hasVs) span.presentation = "text";
+      // Explicit selector tokens keep their source priority. For unselected
+      // Emoji-property scalars, Blink's CSS property changes glyph lookup mode;
+      // retain whole scanner tokens and add singleton candidates where needed.
+      const covered = new Set();
+      for (const span of spans) for (let i = span.start; i < span.end; i++) covered.add(i);
+      for (let i = 0; i < text.length;) {
+        const cp = text.codePointAt(i);
+        const ch = String.fromCodePoint(cp);
+        const next = i + ch.length < text.length ? text.codePointAt(i + ch.length) : 0;
+        if (!covered.has(i) && RE_EMOJI.test(ch) && next !== 0xfe0e && next !== 0xfe0f) {
+          spans.push({ start: i, end: i + ch.length, presentation: fontVariantEmoji, hasVs: false });
+        } else if (fontVariantEmoji === "text") {
+          const span = spans.find((s) => s.start === i);
+          if (span != null && !span.hasVs) span.presentation = "text";
+        }
+        i += ch.length;
       }
-      i += ch.length;
-    }
     }
     // Raster capability is not restricted to Emoji-property text: arbitrary
     // author fonts can put a symbol in COLR/CBDT/sbix/SVG. Return every
@@ -133,19 +148,24 @@ export const createEmojiDetect = () => {
     // matching tokens for priority tests and diagnostics.
     const byStart = new Map(spans.map((span) => [span.start, span]));
     const candidates = [];
-    const segmenter = typeof Intl !== "undefined" && Intl.Segmenter != null
-      ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+    const segmenter =
+      typeof Intl !== "undefined" && Intl.Segmenter != null
+        ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+        : null;
     if (segmenter != null) {
       for (const part of segmenter.segment(text)) {
         if (/^\s+$/u.test(part.segment)) continue;
         const source = byStart.get(part.index);
-        candidates.push(source ?? { start: part.index, end: part.index + part.segment.length, presentation: "text", hasVs: false });
+        candidates.push(
+          source ?? { start: part.index, end: part.index + part.segment.length, presentation: "text", hasVs: false },
+        );
       }
     } else {
       for (let i = 0; i < text.length;) {
         const cp = text.codePointAt(i);
         const ch = String.fromCodePoint(cp);
-        if (!/^\s+$/u.test(ch)) candidates.push(byStart.get(i) ?? { start: i, end: i + ch.length, presentation: "text", hasVs: false });
+        if (!/^\s+$/u.test(ch))
+          candidates.push(byStart.get(i) ?? { start: i, end: i + ch.length, presentation: "text", hasVs: false });
         i += ch.length;
       }
     }

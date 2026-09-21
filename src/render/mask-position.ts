@@ -35,18 +35,17 @@ function toLayoutUnit(value: number): number {
 /** LayoutUnit::Round(), whose exact fixed-point expression ties toward +∞. */
 function roundLayoutUnit(value: number): number {
   const integer = Math.trunc(value);
-  return integer + Math.floor((value - integer) + 0.5);
+  return integer + Math.floor(value - integer + 0.5);
 }
 
 /** PhysicalRect::PixelSnappedSize / SnapSizeToPixel. */
 function snappedExtent(start: number, extent: number): number {
   const fraction = start - Math.trunc(start);
-  const snapped = roundLayoutUnit(toLayoutUnit(fraction + extent))
-    - roundLayoutUnit(toLayoutUnit(fraction));
+  const snapped = roundLayoutUnit(toLayoutUnit(fraction + extent)) - roundLayoutUnit(toLayoutUnit(fraction));
   // Blink preserves a non-trivial subpixel extent that would otherwise snap
   // to zero. Mask positioning areas in normal captures are positive, but keep
   // the source rule here so zoomed hairline controls do not disappear.
-  if (snapped === 0 && Math.abs(extent) > (4 / LAYOUT_UNIT_SCALE)) {
+  if (snapped === 0 && Math.abs(extent) > 4 / LAYOUT_UNIT_SCALE) {
     return extent > 0 ? 1 : -1;
   }
   return snapped;
@@ -83,9 +82,7 @@ export function resolveMaskPositionAxis(component: string, freeSpace: number): n
   if (value === "center") return freeSpace / 2;
   if (value === "right" || value === "bottom") return freeSpace;
 
-  const expression = value.startsWith("calc(") && value.endsWith(")")
-    ? value.slice(5, -1).trim()
-    : value;
+  const expression = value.startsWith("calc(") && value.endsWith(")") ? value.slice(5, -1).trim() : value;
   let resolved = 0;
   let cursor = 0;
   let matched = false;
@@ -101,7 +98,7 @@ export function resolveMaskPositionAxis(component: string, freeSpace: number): n
     const number = Number.parseFloat(match[2]);
     const unit = match[3] ?? "";
     if (unit === "" && number !== 0) return 0;
-    resolved += sign * (unit === "%" ? freeSpace * number / 100 : number);
+    resolved += sign * (unit === "%" ? (freeSpace * number) / 100 : number);
     matched = true;
     cursor = term.lastIndex;
     while (/\s/.test(expression[cursor] ?? "")) cursor++;
@@ -114,11 +111,7 @@ export function resolveMaskPositionAxis(component: string, freeSpace: number): n
 }
 
 /** Resolve the canonical two-axis computed mask-position value. */
-export function resolveMaskPosition(
-  value: string,
-  freeWidth: number,
-  freeHeight: number,
-): { x: number; y: number } {
+export function resolveMaskPosition(value: string, freeWidth: number, freeHeight: number): { x: number; y: number } {
   const components = splitMaskPositionComponents(value);
   if (components.length === 0) return { x: 0, y: 0 };
 
@@ -165,20 +158,23 @@ export function resolveMaskContainCoverRect(
   position: string,
 ): MaskImageRect | null {
   if (
-    area.width <= 0 || area.height <= 0
-    || !Number.isFinite(intrinsic.w) || !Number.isFinite(intrinsic.h)
-    || intrinsic.w <= 0 || intrinsic.h <= 0
-  ) return null;
+    area.width <= 0 ||
+    area.height <= 0 ||
+    !Number.isFinite(intrinsic.w) ||
+    !Number.isFinite(intrinsic.h) ||
+    intrinsic.w <= 0 ||
+    intrinsic.h <= 0
+  )
+    return null;
 
   const snappedWidth = snappedExtent(area.x, area.width);
   const snappedHeight = snappedExtent(area.y, area.height);
   if (snappedWidth <= 0 || snappedHeight <= 0) return null;
 
-  const aspectRatio = intrinsic.ratio != null
-    && Number.isFinite(intrinsic.ratio)
-    && intrinsic.ratio > 0
-    ? intrinsic.ratio
-    : intrinsic.w / intrinsic.h;
+  const aspectRatio =
+    intrinsic.ratio != null && Number.isFinite(intrinsic.ratio) && intrinsic.ratio > 0
+      ? intrinsic.ratio
+      : intrinsic.w / intrinsic.h;
   const constrainedHeight = toLayoutUnit(snappedWidth / aspectRatio);
   const grow = sizing === "cover";
   let tileWidth: number;

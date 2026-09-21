@@ -4,10 +4,23 @@ title: "182 — Native-control sampled-fallback retirement"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2458","DM-2615","DM-2628","DM-2634"]
-code: [".github/workflows/native-control-fallback-parity.yml","src/capture/input-value-geometry.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/native-control-fallback-activation.e2e.test.ts","tests/native-control-fallback-gate.test.ts","tools/native-control-fallback-gate.ts"]
-aliases: ["docs/182-native-control-fallback-retirement.md","doc-182"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2458", "DM-2615", "DM-2628", "DM-2634"]
+code:
+  [
+    ".github/workflows/native-control-fallback-parity.yml",
+    "src/capture/input-value-geometry.ts",
+    "src/capture/pseudo-style-cdp.test.ts",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/capture/script/walker/form-controls.ts",
+    "src/capture/script/walker/input-value.ts",
+    "src/render/form-controls.test.ts",
+    "src/render/form-controls.ts",
+    "tests/native-control-fallback-activation.e2e.test.ts",
+    "tests/native-control-fallback-gate.test.ts",
+    "tools/native-control-fallback-gate.ts",
+  ]
+aliases: ["docs/182-native-control-fallback-retirement.md", "doc-182"]
 ---
 
 # 182 — Native-control sampled-fallback retirement
@@ -45,13 +58,13 @@ The implementation is pinned to Chromium revision
 
 `formControlRenderRoute` enumerates the complete entry boundary:
 
-| Captured state | Renderer route | Result |
-| --- | --- | --- |
-| `nativeControlRaster` record present | `native-raster` | The parent emitter handles `dataUri`, authoritative empty, or warned absence and never calls structural paint. |
-| Whole-host native EffectiveAppearance without a record | `missing-native-raster` | Warn and emit nothing. |
-| Unknown/old capture with no EffectiveAppearance fact | `missing-native-raster` | Warn and emit nothing; old bytes do not authorize a platform guess. |
-| `none`, `base`, `base-select`, `listbox`, or `menulist-button` | `structural` | Consume only captured CSS/pseudo geometry and paint. |
-| Non-control element | `not-form-control` | No form-control paint. |
+| Captured state                                                 | Renderer route          | Result                                                                                                         |
+| -------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `nativeControlRaster` record present                           | `native-raster`         | The parent emitter handles `dataUri`, authoritative empty, or warned absence and never calls structural paint. |
+| Whole-host native EffectiveAppearance without a record         | `missing-native-raster` | Warn and emit nothing.                                                                                         |
+| Unknown/old capture with no EffectiveAppearance fact           | `missing-native-raster` | Warn and emit nothing; old bytes do not authorize a platform guess.                                            |
+| `none`, `base`, `base-select`, `listbox`, or `menulist-button` | `structural`            | Consume only captured CSS/pseudo geometry and paint.                                                           |
+| Non-control element                                            | `not-form-control`      | No form-control paint.                                                                                         |
 
 The terminal native-raster guard in `element-tree-to-svg.ts` remains before
 `renderFormControl`. A missing or empty record cannot fall through.

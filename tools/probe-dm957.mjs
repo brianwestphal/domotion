@@ -24,6 +24,8 @@ const info = await page.evaluate(() => {
 });
 console.log(JSON.stringify(info, null, 2));
 // Screenshot the .vert area with margin to see the underline
-const buf = await page.screenshot({ clip: { x: info.ulRect.x - 10, y: info.ulRect.y - 5, width: info.ulRect.w + 20, height: info.ulRect.h + 10 } });
+const buf = await page.screenshot({
+  clip: { x: info.ulRect.x - 10, y: info.ulRect.y - 5, width: info.ulRect.w + 20, height: info.ulRect.h + 10 },
+});
 writeFileSync("/tmp/dm957-chrome.png", buf);
 await browser.close();

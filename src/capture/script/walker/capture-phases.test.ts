@@ -61,8 +61,10 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
     expect(second).not.toBe(first);
     expect(geometry(element(), { display: "none" })).toBeNull();
     expect(geometry(element(), { visibility: "hidden" })).toBeNull();
-    expect(geometry(element("td"), { visibility: "hidden", borderCollapse: "collapse" }))
-      .toMatchObject({ tag: "td", bordersOnlyCell: true });
+    expect(geometry(element("td"), { visibility: "hidden", borderCollapse: "collapse" })).toMatchObject({
+      tag: "td",
+      bordersOnlyCell: true,
+    });
   });
 
   it("normalizes pseudo and closed-shadow facts without sharing a session", () => {
@@ -107,15 +109,26 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
   it("splices traversal overlays in paint order and isolates result arrays", () => {
     const parent = element();
     parent.append(element("span"));
-    const makeCapture = () => vi.fn(() => ({
-      id: "child",
-      scrollMarkerGroup: { id: "marker" },
-      _scrollMarkerGroupBefore: true,
-      scrollButtons: [{ id: "button" }],
-    }));
+    const makeCapture = () =>
+      vi.fn(() => ({
+        id: "child",
+        scrollMarkerGroup: { id: "marker" },
+        _scrollMarkerGroupBefore: true,
+        scrollButtons: [{ id: "button" }],
+      }));
     const firstCapture = makeCapture();
-    const first = captureTraversalPhase({ el: parent, tag: "div", contentVisibilityHidden: false, capture: firstCapture });
-    const second = captureTraversalPhase({ el: parent, tag: "div", contentVisibilityHidden: true, capture: makeCapture() });
+    const first = captureTraversalPhase({
+      el: parent,
+      tag: "div",
+      contentVisibilityHidden: false,
+      capture: firstCapture,
+    });
+    const second = captureTraversalPhase({
+      el: parent,
+      tag: "div",
+      contentVisibilityHidden: true,
+      capture: makeCapture(),
+    });
     expect(first.map((entry) => entry.id)).toEqual(["marker", "child", "button"]);
     expect(first[1]).not.toHaveProperty("scrollMarkerGroup");
     expect(first[1]).not.toHaveProperty("scrollButtons");
@@ -145,12 +158,24 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
     const first = makeCaptured();
     const second = makeCaptured();
     assembleCaptureResultPhase({
-      captured: first, el: element("td"), cs: {}, tag: "td", rect, vp: viewport,
-      bordersOnlyCell: true, ...dependencies,
+      captured: first,
+      el: element("td"),
+      cs: {},
+      tag: "td",
+      rect,
+      vp: viewport,
+      bordersOnlyCell: true,
+      ...dependencies,
     });
     assembleCaptureResultPhase({
-      captured: second, el: element(), cs: {}, tag: "div", rect, vp: viewport,
-      bordersOnlyCell: false, ...dependencies,
+      captured: second,
+      el: element(),
+      cs: {},
+      tag: "div",
+      rect,
+      vp: viewport,
+      bordersOnlyCell: false,
+      ...dependencies,
     });
     expect(first).toMatchObject({ text: "", children: [], styles: { backgroundColor: "rgba(0, 0, 0, 0)" } });
     expect(first.imageSrc).toBeUndefined();

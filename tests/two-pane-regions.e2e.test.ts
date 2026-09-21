@@ -60,7 +60,9 @@ const OUT_DIR = "tests/output/two-pane-regions-e2e";
  *  text lines on the SAME 19px grid. `paneOverflow` picks which discriminator
  *  rule has to fire — `hidden` makes each pane a clipping ancestor, `visible`
  *  leaves only the side-by-side column geometry to go on. */
-const pageHtml = (paneOverflow: "hidden" | "visible"): string => String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
+const pageHtml = (
+  paneOverflow: "hidden" | "visible",
+): string => String.raw`<!doctype html><html><head><meta charset="utf-8"><style>${FIXTURE_FONT_CSS}
   * { box-sizing: border-box; }
   body { margin: 0; width: ${W}px; height: ${H}px; overflow: hidden; background: #0f172a; }
   .split { display: flex; height: ${H}px; }
@@ -164,10 +166,13 @@ async function measure(
   await page.evaluate(() => document.fonts.ready);
   const trees: CapturedElement[][] = [];
   for (const [k, off] of steps) {
-    await page.evaluate((a: [number, number]) => {
-      (window as unknown as { setLeft: (n: number) => void }).setLeft(a[0]);
-      (window as unknown as { setRight: (n: number) => void }).setRight(a[1]);
-    }, [k, off] as [number, number]);
+    await page.evaluate(
+      (a: [number, number]) => {
+        (window as unknown as { setLeft: (n: number) => void }).setLeft(a[0]);
+        (window as unknown as { setRight: (n: number) => void }).setRight(a[1]);
+      },
+      [k, off] as [number, number],
+    );
     trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H }));
   }
   await page.close();
@@ -176,7 +181,10 @@ async function measure(
   const boundaries = holds.map((_, i) => holds.slice(0, i).reduce((a, b) => a + b, 0));
   const rootBg = (trees[0][0]?.styles as { rootBgComputed?: string } | undefined)?.rootBgComputed;
 
-  const plan = buildCompressedRunPlan(trees.map((tree, i) => ({ tree: structuredClone(tree), holdMs: holds[i] })), idPrefix);
+  const plan = buildCompressedRunPlan(
+    trees.map((tree, i) => ({ tree: structuredClone(tree), holdMs: holds[i] })),
+    idPrefix,
+  );
   const regions = new Set(plan.thread.all.map((t) => t.rec.region)).size;
   const buckets = new Set(plan.thread.all.map((t) => t.rec.lineKey)).size;
 
@@ -196,7 +204,8 @@ async function assertFlipbookParity(ctx: BrowserContext, m: Measured, label: str
   clearEmbeddedFonts();
   clearGlyphDefs();
   const flipbookSvg = generateAnimatedSvg({
-    width: W, height: H,
+    width: W,
+    height: H,
     frames: m.trees.map((tree, i) => ({
       svgContent: elementTreeToSvgInner(structuredClone(tree), W, H, `f${i}-`, true, 2, false),
       duration: m.holds[i],
@@ -206,13 +215,16 @@ async function assertFlipbookParity(ctx: BrowserContext, m: Measured, label: str
     ...(m.rootBg != null ? { background: m.rootBg } : {}),
   });
   const outerSvg = generateAnimatedSvg({
-    width: W, height: H,
-    frames: [{
-      svgContent: namespaceEmbeddedAnimatedSvg(m.run.svg, `cmp_${label}`),
-      duration: m.run.durationMs,
-      embeddedAnimationPeriodMs: m.run.durationMs,
-      transition: { type: "cut", duration: 0 },
-    }],
+    width: W,
+    height: H,
+    frames: [
+      {
+        svgContent: namespaceEmbeddedAnimatedSvg(m.run.svg, `cmp_${label}`),
+        duration: m.run.durationMs,
+        embeddedAnimationPeriodMs: m.run.durationMs,
+        transition: { type: "cut", duration: 0 },
+      },
+    ],
     fontFaceCss: "",
   });
   writeFileSync(join(dir, "flipbook.svg"), flipbookSvg);
@@ -266,9 +278,11 @@ describeBrowser("two independently-updating regions in one compressed run (docs/
       const steps = Array.from({ length: 6 }, (_, s) => [s * 2, s] as [number, number]);
       const m = await measure(ctx, "hidden", steps, "tp0");
       const st = m.run.pairingStats;
-      console.log(`[two-pane e2e clipping] regions=${m.regions} buckets=${m.buckets} paired=${(st.pairedPct * 100).toFixed(1)}% `
-        + `births=${st.births} deaths=${st.deaths} groups=${st.groupCount} `
-        + `raw=${(st.rawBytes / 1024).toFixed(1)}KB compressed=${(st.compressedBytes / 1024).toFixed(1)}KB (${(st.compressedBytes / st.rawBytes).toFixed(3)}x)`);
+      console.log(
+        `[two-pane e2e clipping] regions=${m.regions} buckets=${m.buckets} paired=${(st.pairedPct * 100).toFixed(1)}% ` +
+          `births=${st.births} deaths=${st.deaths} groups=${st.groupCount} ` +
+          `raw=${(st.rawBytes / 1024).toFixed(1)}KB compressed=${(st.compressedBytes / 1024).toFixed(1)}KB (${(st.compressedBytes / st.rawBytes).toFixed(3)}x)`,
+      );
 
       // The two panes are two regions, and their lines never share a bucket:
       // 12 editor rows + 20 preview rows on the same 19px grid would collapse
@@ -304,9 +318,11 @@ describeBrowser("two independently-updating regions in one compressed run (docs/
       const steps = Array.from({ length: 6 }, (_, s) => [s * 2, s] as [number, number]);
       const m = await measure(ctx, "visible", steps, "tp1");
       const st = m.run.pairingStats;
-      console.log(`[two-pane e2e non-clipping] regions=${m.regions} buckets=${m.buckets} paired=${(st.pairedPct * 100).toFixed(1)}% `
-        + `births=${st.births} deaths=${st.deaths} groups=${st.groupCount} `
-        + `raw=${(st.rawBytes / 1024).toFixed(1)}KB compressed=${(st.compressedBytes / 1024).toFixed(1)}KB (${(st.compressedBytes / st.rawBytes).toFixed(3)}x)`);
+      console.log(
+        `[two-pane e2e non-clipping] regions=${m.regions} buckets=${m.buckets} paired=${(st.pairedPct * 100).toFixed(1)}% ` +
+          `births=${st.births} deaths=${st.deaths} groups=${st.groupCount} ` +
+          `raw=${(st.rawBytes / 1024).toFixed(1)}KB compressed=${(st.compressedBytes / 1024).toFixed(1)}KB (${(st.compressedBytes / st.rawBytes).toFixed(3)}x)`,
+      );
 
       // No clipping ancestor anywhere — the discriminator has only the
       // side-by-side column geometry to go on, and still separates the panes.

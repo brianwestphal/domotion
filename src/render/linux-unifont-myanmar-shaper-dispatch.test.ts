@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  resolvedFaceNeedsHarfbuzzShaping,
-  resolvedFaceUsesDefaultOpenTypeShaper,
-} from "./font-resolution.js";
+import { resolvedFaceNeedsHarfbuzzShaping, resolvedFaceUsesDefaultOpenTypeShaper } from "./font-resolution.js";
 
 // HarfBuzz rev 4de187d `hb_ot_shaper_categorize` (hb-ot-shaper.hh:247-264):
 // Myanmar DFLT/latn/legacy-mymr select DEFAULT; only modern mym2 selects the

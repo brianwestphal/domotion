@@ -71,8 +71,12 @@ function buildOnboardingCast(): string {
     [11.9, "o", `\r\n${g("✓")} Dev server running — you're up and running 🎉\r\n`],
     [14.0, "o", ""],
   ];
-  return JSON.stringify({ version: 2, width: 64, height: 16, title: "onboarding" }) + "\n" +
-    ev.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  return (
+    JSON.stringify({ version: 2, width: 64, height: 16, title: "onboarding" }) +
+    "\n" +
+    ev.map((e) => JSON.stringify(e)).join("\n") +
+    "\n"
+  );
 }
 
 /** macOS window chrome (traffic lights + title bar) sized to the terminal box. */
@@ -121,12 +125,21 @@ async function main(): Promise<void> {
     const layers: CompositeLayer[] = [
       { svg: backdrop(W, H, MARGIN, MARGIN, winW, winH), x: 0, y: 0, width: W, height: H },
       { svg: windowChrome(term.width, term.height), x: MARGIN, y: MARGIN, width: winW, height: winH },
-      { svg: term.svg, periodMs: term.totalDurationMs, x: MARGIN, y: MARGIN + BAR, width: term.width, height: term.height },
+      {
+        svg: term.svg,
+        periodMs: term.totalDurationMs,
+        x: MARGIN,
+        y: MARGIN + BAR,
+        width: term.width,
+        height: term.height,
+      },
     ];
 
     const result = composeAnimatedLayers(layers, { width: W, height: H, durationMs: term.totalDurationMs });
     writeFileSync(OUTPUT, result.svg);
-    console.log(`Generated: ${OUTPUT} (${result.width}×${result.height}px, ${(result.svg.length / 1024).toFixed(1)} KB, ${term.frameCount} frames)`);
+    console.log(
+      `Generated: ${OUTPUT} (${result.width}×${result.height}px, ${(result.svg.length / 1024).toFixed(1)} KB, ${term.frameCount} frames)`,
+    );
   } finally {
     await browser.close();
   }

@@ -10,11 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
-import {
-  _dataUriCache,
-  _resizedDataUriCache,
-  embedResizedDataUri,
-} from "../render/element-tree-to-svg.js";
+import { _dataUriCache, _resizedDataUriCache, embedResizedDataUri } from "../render/element-tree-to-svg.js";
 import { embedOriginalDataUri } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
@@ -25,7 +21,10 @@ function makeImg(url: string, w: number, h: number): CapturedElement {
   return {
     tag: "img",
     text: "",
-    x: 0, y: 0, width: w, height: h,
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
     children: [],
     imageSrc: url,
     styles: {} as CapturedElement["styles"],
@@ -36,7 +35,9 @@ function makeImg(url: string, w: number, h: number): CapturedElement {
 async function makePngDataUri(w: number, h: number): Promise<string> {
   const buf = await sharp({
     create: { width: w, height: h, channels: 4, background: { r: 200, g: 100, b: 50, alpha: 1 } },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
   return `data:image/png;base64,${buf.toString("base64")}`;
 }
 
@@ -64,44 +65,91 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
     _dataUriCache.set(sourceDataUri, sourceDataUri);
     const records = await resizeEmbeddedImages([makeImg(sourceDataUri, 200, 100)], {
       hiDPIFactor: 2,
-      authenticatedAnimatedFrames: [{
-        selector: "#image", requestedFrameIndex: 3, sourceEpochDigest: "a".repeat(64),
-        sourceSha256: "b".repeat(64), mimeType: "image/gif",
-        browser: { sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3", productVersion: "151.0.7918.0",
-          userAgent: "headless", platform: "test", secureContext: true },
-        track: { selectedIndex: 0, frameCount: 4, animated: true, repetitionCount: "Infinity" },
-        observation: { complete: true, rgbaSha256: "c".repeat(64), pngSha256,
-          codedWidth: 1200, codedHeight: 800, displayWidth: 1200, displayHeight: 800,
-          visibleRect: { x: 0, y: 0, width: 1200, height: 800 }, timestamp: 0, duration: 1,
-          format: "RGBA", colorSpace: { primaries: null, transfer: null, matrix: null, fullRange: null } },
-        pngDataUrl: sourceDataUri, transactionDigest: "d".repeat(64),
-      }],
+      authenticatedAnimatedFrames: [
+        {
+          selector: "#image",
+          requestedFrameIndex: 3,
+          sourceEpochDigest: "a".repeat(64),
+          sourceSha256: "b".repeat(64),
+          mimeType: "image/gif",
+          browser: {
+            sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
+            productVersion: "151.0.7918.0",
+            userAgent: "headless",
+            platform: "test",
+            secureContext: true,
+          },
+          track: { selectedIndex: 0, frameCount: 4, animated: true, repetitionCount: "Infinity" },
+          observation: {
+            complete: true,
+            rgbaSha256: "c".repeat(64),
+            pngSha256,
+            codedWidth: 1200,
+            codedHeight: 800,
+            displayWidth: 1200,
+            displayHeight: 800,
+            visibleRect: { x: 0, y: 0, width: 1200, height: 800 },
+            timestamp: 0,
+            duration: 1,
+            format: "RGBA",
+            colorSpace: { primaries: null, transfer: null, matrix: null, fullRange: null },
+          },
+          pngDataUrl: sourceDataUri,
+          transactionDigest: "d".repeat(64),
+        },
+      ],
     });
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({
-      sourceEpochDigest: "a".repeat(64), encodedSourceSha256: "b".repeat(64),
-      requestedFrameIndex: 3, frozenPngSha256: pngSha256,
-      target: { width: 400, height: 200 }, output: { width: 300, height: 200, resized: true },
+      sourceEpochDigest: "a".repeat(64),
+      encodedSourceSha256: "b".repeat(64),
+      requestedFrameIndex: 3,
+      frozenPngSha256: pngSha256,
+      target: { width: 400, height: 200 },
+      output: { width: 300, height: 200, resized: true },
     });
     expect(records[0].output.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("DM-2580 fails closed when frozen PNG bytes differ from authenticated provenance", async () => {
-    const sourceDataUri = await makePngDataUri(100, 100); _dataUriCache.set(sourceDataUri, sourceDataUri);
+    const sourceDataUri = await makePngDataUri(100, 100);
+    _dataUriCache.set(sourceDataUri, sourceDataUri);
     const frame = {
-      selector: "#image", requestedFrameIndex: 1, sourceEpochDigest: "a".repeat(64), sourceSha256: "b".repeat(64),
-      mimeType: "image/gif", browser: { sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3" as const,
-        productVersion: "151.0.7918.0", userAgent: "headless", platform: "test", secureContext: true as const },
+      selector: "#image",
+      requestedFrameIndex: 1,
+      sourceEpochDigest: "a".repeat(64),
+      sourceSha256: "b".repeat(64),
+      mimeType: "image/gif",
+      browser: {
+        sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3" as const,
+        productVersion: "151.0.7918.0",
+        userAgent: "headless",
+        platform: "test",
+        secureContext: true as const,
+      },
       track: { selectedIndex: 0, frameCount: 2, animated: true, repetitionCount: "0" },
-      observation: { complete: true, rgbaSha256: "c".repeat(64), pngSha256: "0".repeat(64),
-        codedWidth: 100, codedHeight: 100, displayWidth: 100, displayHeight: 100,
-        visibleRect: { x: 0, y: 0, width: 100, height: 100 }, timestamp: 0, duration: 1,
-        format: "RGBA", colorSpace: { primaries: null, transfer: null, matrix: null, fullRange: null } },
-      pngDataUrl: sourceDataUri, transactionDigest: "d".repeat(64),
+      observation: {
+        complete: true,
+        rgbaSha256: "c".repeat(64),
+        pngSha256: "0".repeat(64),
+        codedWidth: 100,
+        codedHeight: 100,
+        displayWidth: 100,
+        displayHeight: 100,
+        visibleRect: { x: 0, y: 0, width: 100, height: 100 },
+        timestamp: 0,
+        duration: 1,
+        format: "RGBA",
+        colorSpace: { primaries: null, transfer: null, matrix: null, fullRange: null },
+      },
+      pngDataUrl: sourceDataUri,
+      transactionDigest: "d".repeat(64),
     };
-    await expect(resizeEmbeddedImages([makeImg(sourceDataUri, 50, 50)], {
-      authenticatedAnimatedFrames: [frame],
-    })).rejects.toThrow("strict animated-image frozen PNG digest mismatch");
+    await expect(
+      resizeEmbeddedImages([makeImg(sourceDataUri, 50, 50)], {
+        authenticatedAnimatedFrames: [frame],
+      }),
+    ).rejects.toThrow("strict animated-image frozen PNG digest mismatch");
   });
   it("DM-2242: lets nine-slice consumers bypass incompatible resized variants", async () => {
     const url = "https://example.com/border-nine-slice.png";
@@ -146,11 +194,7 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   it("dedupes consumers of the same URL at the same target size", async () => {
     const url = "https://example.com/shared.png";
     _dataUriCache.set(url, await makePngDataUri(1000, 1000));
-    const tree = [
-      makeImg(url, 100, 100),
-      makeImg(url, 100, 100),
-      makeImg(url, 100, 100),
-    ];
+    const tree = [makeImg(url, 100, 100), makeImg(url, 100, 100), makeImg(url, 100, 100)];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
 
     const sizeCache = _resizedDataUriCache.get(url);
@@ -162,10 +206,7 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   it("creates distinct cache entries for distinct target sizes against the same source", async () => {
     const url = "https://example.com/multi.png";
     _dataUriCache.set(url, await makePngDataUri(2000, 2000));
-    const tree = [
-      makeImg(url, 100, 100),
-      makeImg(url, 250, 250),
-    ];
+    const tree = [makeImg(url, 100, 100), makeImg(url, 250, 250)];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
 
     const sizeCache = _resizedDataUriCache.get(url);
@@ -204,16 +245,21 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
     const bgUrl = "https://example.com/bg.png";
     _dataUriCache.set(pseudoUrl, await makePngDataUri(500, 500));
     _dataUriCache.set(bgUrl, await makePngDataUri(1200, 800));
-    const tree: CapturedElement[] = [{
-      tag: "div",
-      text: "",
-      x: 0, y: 0, width: 400, height: 300,
-      children: [],
-      pseudoImages: [{ url: pseudoUrl, x: 0, y: 0, width: 50, height: 50 }],
-      styles: {
-        backgroundImage: `url("${bgUrl}")`,
-      } as CapturedElement["styles"],
-    } as CapturedElement];
+    const tree: CapturedElement[] = [
+      {
+        tag: "div",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        children: [],
+        pseudoImages: [{ url: pseudoUrl, x: 0, y: 0, width: 50, height: 50 }],
+        styles: {
+          backgroundImage: `url("${bgUrl}")`,
+        } as CapturedElement["styles"],
+      } as CapturedElement,
+    ];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
 
     expect(_resizedDataUriCache.get(pseudoUrl)?.has("100x100")).toBe(true);
@@ -226,15 +272,20 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   it("walks CSS mask-image consumers (consumer element rect)", async () => {
     const maskUrl = "https://example.com/mask.png";
     _dataUriCache.set(maskUrl, await makePngDataUri(1024, 1024));
-    const tree: CapturedElement[] = [{
-      tag: "div",
-      text: "",
-      x: 0, y: 0, width: 200, height: 100,
-      children: [],
-      styles: {
-        maskImage: `url("${maskUrl}")`,
-      } as CapturedElement["styles"],
-    } as CapturedElement];
+    const tree: CapturedElement[] = [
+      {
+        tag: "div",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 100,
+        children: [],
+        styles: {
+          maskImage: `url("${maskUrl}")`,
+        } as CapturedElement["styles"],
+      } as CapturedElement,
+    ];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
     expect(_resizedDataUriCache.get(maskUrl)?.has("400x200")).toBe(true);
   });
@@ -242,15 +293,20 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   it("walks CSS border-image-source consumers (full border box)", async () => {
     const borderUrl = "https://example.com/border.png";
     _dataUriCache.set(borderUrl, await makePngDataUri(1500, 1500));
-    const tree: CapturedElement[] = [{
-      tag: "div",
-      text: "",
-      x: 0, y: 0, width: 250, height: 80,
-      children: [],
-      styles: {
-        borderImageSource: `url("${borderUrl}")`,
-      } as CapturedElement["styles"],
-    } as CapturedElement];
+    const tree: CapturedElement[] = [
+      {
+        tag: "div",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 250,
+        height: 80,
+        children: [],
+        styles: {
+          borderImageSource: `url("${borderUrl}")`,
+        } as CapturedElement["styles"],
+      } as CapturedElement,
+    ];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
     expect(_resizedDataUriCache.get(borderUrl)?.has("500x160")).toBe(true);
   });
@@ -258,16 +314,21 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   it("walks CSS list-style-image consumers (em-box at element font-size)", async () => {
     const listUrl = "https://example.com/bullet.png";
     _dataUriCache.set(listUrl, await makePngDataUri(64, 64));
-    const tree: CapturedElement[] = [{
-      tag: "li",
-      text: "",
-      x: 0, y: 0, width: 300, height: 24,
-      children: [],
-      styles: {
-        listStyleImage: `url("${listUrl}")`,
-        fontSize: "20px",
-      } as CapturedElement["styles"],
-    } as CapturedElement];
+    const tree: CapturedElement[] = [
+      {
+        tag: "li",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 24,
+        children: [],
+        styles: {
+          listStyleImage: `url("${listUrl}")`,
+          fontSize: "20px",
+        } as CapturedElement["styles"],
+      } as CapturedElement,
+    ];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
     // em-box at 20px font-size × 2x hiDPI = 40x40
     expect(_resizedDataUriCache.get(listUrl)?.has("40x40")).toBe(true);
@@ -282,12 +343,26 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
     const animated = await sharp({
       create: { width: 200, height: 200, channels: 4, background: { r: 220, g: 0, b: 0, alpha: 1 } },
       pages: 2,
-    } as any).gif().toBuffer().catch(async () => {
-      // Fallback build path: composite a second frame onto the first.
-      const f1 = await sharp({ create: { width: 200, height: 200, channels: 4, background: { r: 220, g: 0, b: 0, alpha: 1 } } }).png().toBuffer();
-      const f2 = await sharp({ create: { width: 200, height: 200, channels: 4, background: { r: 0, g: 0, b: 220, alpha: 1 } } }).png().toBuffer();
-      return sharp(f1, { animated: true }).composite([{ input: f2 }]).gif().toBuffer();
-    });
+    } as any)
+      .gif()
+      .toBuffer()
+      .catch(async () => {
+        // Fallback build path: composite a second frame onto the first.
+        const f1 = await sharp({
+          create: { width: 200, height: 200, channels: 4, background: { r: 220, g: 0, b: 0, alpha: 1 } },
+        })
+          .png()
+          .toBuffer();
+        const f2 = await sharp({
+          create: { width: 200, height: 200, channels: 4, background: { r: 0, g: 0, b: 220, alpha: 1 } },
+        })
+          .png()
+          .toBuffer();
+        return sharp(f1, { animated: true })
+          .composite([{ input: f2 }])
+          .gif()
+          .toBuffer();
+      });
 
     _dataUriCache.set(gifUrl, `data:image/gif;base64,${animated.toString("base64")}`);
     const tree = [makeImg(gifUrl, 50, 50)];
@@ -321,19 +396,24 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   it("CSS `none` and empty values for url() consumers are ignored", async () => {
     // Defense-in-depth: a `none` literal or empty string for any CSS url()
     // consumer should not raise nor populate the cache.
-    const tree: CapturedElement[] = [{
-      tag: "div",
-      text: "",
-      x: 0, y: 0, width: 100, height: 100,
-      children: [],
-      styles: {
-        backgroundImage: "none",
-        maskImage: "",
-        borderImageSource: "none",
-        listStyleImage: "none",
-        fontSize: "16px",
-      } as CapturedElement["styles"],
-    } as CapturedElement];
+    const tree: CapturedElement[] = [
+      {
+        tag: "div",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        children: [],
+        styles: {
+          backgroundImage: "none",
+          maskImage: "",
+          borderImageSource: "none",
+          listStyleImage: "none",
+          fontSize: "16px",
+        } as CapturedElement["styles"],
+      } as CapturedElement,
+    ];
     await resizeEmbeddedImages(tree, { hiDPIFactor: 2 });
     expect(_resizedDataUriCache.size).toBe(0);
   });

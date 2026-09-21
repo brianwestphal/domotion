@@ -22,15 +22,16 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // carry a `rasterGlyphs` overlay, while a real color emoji in the SAME cascade
 // still must.
 
-const W = 320, H = 120;
+const W = 320,
+  H = 120;
 const FONT = `"Apple Symbols","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
 function cell(cp: number): string {
   return `<x><g>${String.fromCodePoint(cp)}</g><n>U+${cp.toString(16).toUpperCase()}</n></x>`;
 }
 // U+1F76F / U+1F770 = tall apparatus glyphs that were clipped; U+1F747 = the
 // precipitate symbol; U+1F600 = a real color emoji control (must still raster).
-const ALCHEMICAL = [0x1F747, 0x1F76F, 0x1F770];
-const EMOJI_CONTROL = 0x1F600;
+const ALCHEMICAL = [0x1f747, 0x1f76f, 0x1f770];
+const EMOJI_CONTROL = 0x1f600;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>` +
   `body{margin:0}` +
@@ -58,14 +59,22 @@ afterAll(async () => {
 
 const describeBrowser = env ? describe : describe.skip;
 
-interface RasterSeg { text?: string; rasterGlyphs?: unknown[]; rasterRect?: unknown; rasterDataUri?: string }
+interface RasterSeg {
+  text?: string;
+  rasterGlyphs?: unknown[];
+  rasterRect?: unknown;
+  rasterDataUri?: string;
+}
 function findSegByCodepoint(tree: CapturedElement[], cp: number): RasterSeg | null {
   let hit: RasterSeg | null = null;
   const visit = (nodes: CapturedElement[]): void => {
     for (const n of nodes) {
-      for (const s of ((n.textSegments ?? []) as RasterSeg[])) {
+      for (const s of (n.textSegments ?? []) as RasterSeg[]) {
         const first = typeof s.text === "string" ? s.text.codePointAt(0) : undefined;
-        if (first === cp) { hit = s; return; }
+        if (first === cp) {
+          hit = s;
+          return;
+        }
       }
       if (n.children) visit(n.children as CapturedElement[]);
       if (hit) return;

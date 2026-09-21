@@ -51,7 +51,12 @@ import {
   sortChildrenByPaintOrder,
 } from "./stacking.js";
 
-interface ClipRect { x: number; y: number; w: number; h: number }
+interface ClipRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 interface HitEntry {
   el: CapturedElement;
@@ -61,8 +66,7 @@ interface HitEntry {
 
 function overflowClips(el: CapturedElement): boolean {
   const s = el.styles;
-  return (s.overflowX != null && s.overflowX !== "visible")
-    || (s.overflowY != null && s.overflowY !== "visible");
+  return (s.overflowX != null && s.overflowX !== "visible") || (s.overflowY != null && s.overflowY !== "visible");
 }
 
 function rectOf(el: CapturedElement): ClipRect {
@@ -124,11 +128,25 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
     const zSortedForEl = new Set<CapturedElement>();
     let childrenForSort: CapturedElement[];
     if (establishesStackingContext(el, parentDisplay)) {
-      childrenForSort = gatherStackingContextChildren(el.children, hoisted, display, inlineForEl, clipForHoisted, zSortedForEl);
+      childrenForSort = gatherStackingContextChildren(
+        el.children,
+        hoisted,
+        display,
+        inlineForEl,
+        clipForHoisted,
+        zSortedForEl,
+      );
     } else {
       childrenForSort = el.children.filter((c) => !hoisted.has(c));
     }
-    let sorted = sortChildrenByPaintOrder(childrenForSort, display, el.styles.flexDirection, inlineForEl, zSortedForEl, new Set(el.children));
+    let sorted = sortChildrenByPaintOrder(
+      childrenForSort,
+      display,
+      el.styles.flexDirection,
+      inlineForEl,
+      zSortedForEl,
+      new Set(el.children),
+    );
     if (el.styles.transformStyle === "preserve-3d") {
       sorted = sorted
         .map((c, idx) => ({ c, idx, z: c.styles.translateZ ?? 0 }))
@@ -139,9 +157,7 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
       // A hoisted descendant that escaped an overflow-only scroller keeps
       // that scroller's clip (unless fixed, which escapes overflow clips).
       const escaped = clipForHoisted.get(c);
-      const cClips = escaped != null && c.styles.position !== "fixed"
-        ? [...childClips, rectOf(escaped)]
-        : childClips;
+      const cClips = escaped != null && c.styles.position !== "fixed" ? [...childClips, rectOf(escaped)] : childClips;
       visit(c, display, cClips);
     }
   };
@@ -173,7 +189,10 @@ export function hitTestTopmost(elements: CapturedElement[], x: number, y: number
     if (x < el.x || x >= el.x + el.width || y < el.y || y >= el.y + el.height) continue;
     let clipped = false;
     for (const c of clips) {
-      if (x < c.x || x >= c.x + c.w || y < c.y || y >= c.y + c.h) { clipped = true; break; }
+      if (x < c.x || x >= c.x + c.w || y < c.y || y >= c.y + c.h) {
+        clipped = true;
+        break;
+      }
     }
     if (clipped) continue;
     best = el;

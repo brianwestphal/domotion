@@ -1,10 +1,7 @@
 {
   "generatedAt": "harvested:v2:5d0b526ac25f771f",
   "platform": "linux",
-  "sources": [
-    "external/html-test",
-    "../html-test/unicode"
-  ],
+  "sources": ["external/html-test", "../html-test/unicode"],
   "stacks": [
     {
       "fontFamily": "\"Times New Roman\"",

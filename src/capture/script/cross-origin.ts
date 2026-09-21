@@ -21,9 +21,7 @@ export type CrossOriginAllowlist = "*" | CrossOriginAllowEntry[];
  * `null` when no cross-origin recursion is requested (empty / undefined).
  * `"*"` (alone or as any entry) collapses to recurse-all.
  */
-export function parseCrossOriginAllowlist(
-  value: string | undefined | null,
-): CrossOriginAllowlist | null {
+export function parseCrossOriginAllowlist(value: string | undefined | null): CrossOriginAllowlist | null {
   if (value == null) return null;
   const trimmed = value.trim();
   if (trimmed === "") return null;

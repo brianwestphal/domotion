@@ -4,10 +4,33 @@ title: "99 — Hinting-preserving embedded-font subsets (hb-subset)"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2623","DM-2626","DM-2627","DM-2632","DM-2643","DM-2652","DM-2662","DM-2663"]
-code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/glyph-helper-boundaries.test.ts","src/render/glyph-helper-font.ts","src/render/glyph-helper-outline.ts","src/render/glyph-helper-protocol.ts","src/render/glyph-helper-transport.ts","src/render/glyph-helper.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/linux-target-strike.ts","src/render/synth-test-fonts.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tests/linux-target-strike-small-caps.e2e.test.ts","tools/linux-glyph-extractor/src/main.cpp","tools/linux-terminal-mask-oracle.ts"]
-aliases: ["docs/99-hinted-embedded-subset.md","doc-99"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2623", "DM-2626", "DM-2627", "DM-2632", "DM-2643", "DM-2652", "DM-2662", "DM-2663"]
+code:
+  [
+    ".github/workflows/visual-tests.yml",
+    "src/render/embedded-font-builder.test.ts",
+    "src/render/embedded-font-builder.ts",
+    "src/render/embedded-font-snapshot.test.ts",
+    "src/render/font-resolution-cache-reset.test.ts",
+    "src/render/font-resolution.ts",
+    "src/render/glyph-helper-boundaries.test.ts",
+    "src/render/glyph-helper-font.ts",
+    "src/render/glyph-helper-outline.ts",
+    "src/render/glyph-helper-protocol.ts",
+    "src/render/glyph-helper-transport.ts",
+    "src/render/glyph-helper.ts",
+    "src/render/hb-subset.test.ts",
+    "src/render/hb-subset.ts",
+    "src/render/linux-target-strike.ts",
+    "src/render/synth-test-fonts.ts",
+    "src/render/text-to-path.test.ts",
+    "src/render/text-to-path.ts",
+    "tests/linux-target-strike-small-caps.e2e.test.ts",
+    "tools/linux-glyph-extractor/src/main.cpp",
+    "tools/linux-terminal-mask-oracle.ts",
+  ]
+aliases: ["docs/99-hinted-embedded-subset.md", "doc-99"]
 ---
 
 # 99 — Hinting-preserving embedded-font subsets (hb-subset)
@@ -177,20 +200,20 @@ fully self-contained; no host font is consulted during playback.
 
 The production allowlist is twelve exact PostScript-name / size / weight tuples:
 
-| Exact target strike | Evidence owner | Admission evidence |
-|---|---|---|
-| `WenQuanYiZenHeiMono` 17 px / 400 | DM-2623 label fixture + quarter-phase oracle | The ordinary embedded control changed 512 pixels with vertical centroid −0.523 px; the target strike is exact in all 16 phase cells. |
-| `WenQuanYiZenHeiMono` 26 px / 700 | DM-2627 `06-deep-field-sizing` header | Joint two-strike fixture evidence removed the header's remaining major region; the 26 px monospace segment became pixel-exact. Disabling `geometricPrecision` worsened the crop (4,117 → 4,226 changed pixels; RMSE 0.0661 → 0.0826). |
-| `WenQuanYiZenHei` 32 px / 700 | DM-2627 `06-deep-field-sizing` header | The same joint gate proved the proportional title strike and removed the requested header region; it does not admit another WQY size or weight. |
-| `LiberationSans` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | The fixture-level oracle passed 520/520 face, gid, cluster, span, metric, and outline checks before the three-strike fixture gate reduced 21 regions / 0.05427% coverage / 0.23824% diff to one residual region / 0.00344% / 0.04402%. |
-| `LiberationSans` 16 px / 400 | DM-2652 `14-deep-float-bfc` | Together with the two exact bold strikes below, reduced the requested body and heading crops from 4,679 / 2,234 changed pixels to 22 / 6 while preserving captured x. |
-| `LiberationSans-Bold` 32 px / 700 | DM-2652 `14-deep-float-bfc` | Same grouped fixture gate; applies only to the measured page-title strike. |
-| `LiberationSans-Bold` 14 px / 700 | DM-2652 `14-deep-float-bfc` | Same grouped fixture gate; applies only to the measured section-label strike. |
-| `LiberationSerif` 13 px / 400 | DM-2662 `20-deep-font-feature-values` + focused scale probe | Chromium's synthesized 18 px small caps use a separately rounded 13 px strike. At a mid-ink threshold the native and target-strike `H` are both 8 px high; the ordinary embedded control is 9 px. |
-| `LiberationSerif` 18 px / 400 | DM-2662 `20-deep-font-feature-values` + focused scale probe | The full-size `T` and synthesized 13 px `H` match Chromium independently at three ink thresholds, correcting the visible small-cap height ratio without changing their glyphs, baselines, or x positions. |
-| `LiberationSerif` 44 px / 400 | DM-2662 `20-deep-font-feature-values` | The fixture's separate 44 px feature row is admitted by the same before/after gate; 36/25 and 72/50 controls remain outside the allowlist. |
-| `FreeSans` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | Same grouped fixture gate. A full hinted-x experiment did not improve the remaining U+1EFE residual, so production deliberately retains design x. |
-| `FreeSerif` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | Same grouped fixture gate; no evidence is claimed for another FreeSerif strike. |
+| Exact target strike               | Evidence owner                                              | Admission evidence                                                                                                                                                                                                                     |
+| --------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WenQuanYiZenHeiMono` 17 px / 400 | DM-2623 label fixture + quarter-phase oracle                | The ordinary embedded control changed 512 pixels with vertical centroid −0.523 px; the target strike is exact in all 16 phase cells.                                                                                                   |
+| `WenQuanYiZenHeiMono` 26 px / 700 | DM-2627 `06-deep-field-sizing` header                       | Joint two-strike fixture evidence removed the header's remaining major region; the 26 px monospace segment became pixel-exact. Disabling `geometricPrecision` worsened the crop (4,117 → 4,226 changed pixels; RMSE 0.0661 → 0.0826).  |
+| `WenQuanYiZenHei` 32 px / 700     | DM-2627 `06-deep-field-sizing` header                       | The same joint gate proved the proportional title strike and removed the requested header region; it does not admit another WQY size or weight.                                                                                        |
+| `LiberationSans` 32 px / 400      | DM-2626 `1E00-1EFF-latin-extended-additional`               | The fixture-level oracle passed 520/520 face, gid, cluster, span, metric, and outline checks before the three-strike fixture gate reduced 21 regions / 0.05427% coverage / 0.23824% diff to one residual region / 0.00344% / 0.04402%. |
+| `LiberationSans` 16 px / 400      | DM-2652 `14-deep-float-bfc`                                 | Together with the two exact bold strikes below, reduced the requested body and heading crops from 4,679 / 2,234 changed pixels to 22 / 6 while preserving captured x.                                                                  |
+| `LiberationSans-Bold` 32 px / 700 | DM-2652 `14-deep-float-bfc`                                 | Same grouped fixture gate; applies only to the measured page-title strike.                                                                                                                                                             |
+| `LiberationSans-Bold` 14 px / 700 | DM-2652 `14-deep-float-bfc`                                 | Same grouped fixture gate; applies only to the measured section-label strike.                                                                                                                                                          |
+| `LiberationSerif` 13 px / 400     | DM-2662 `20-deep-font-feature-values` + focused scale probe | Chromium's synthesized 18 px small caps use a separately rounded 13 px strike. At a mid-ink threshold the native and target-strike `H` are both 8 px high; the ordinary embedded control is 9 px.                                      |
+| `LiberationSerif` 18 px / 400     | DM-2662 `20-deep-font-feature-values` + focused scale probe | The full-size `T` and synthesized 13 px `H` match Chromium independently at three ink thresholds, correcting the visible small-cap height ratio without changing their glyphs, baselines, or x positions.                              |
+| `LiberationSerif` 44 px / 400     | DM-2662 `20-deep-font-feature-values`                       | The fixture's separate 44 px feature row is admitted by the same before/after gate; 36/25 and 72/50 controls remain outside the allowlist.                                                                                             |
+| `FreeSans` 32 px / 400            | DM-2626 `1E00-1EFF-latin-extended-additional`               | Same grouped fixture gate. A full hinted-x experiment did not improve the remaining U+1EFE residual, so production deliberately retains design x.                                                                                      |
+| `FreeSerif` 32 px / 400           | DM-2626 `1E00-1EFF-latin-extended-additional`               | Same grouped fixture gate; no evidence is claimed for another FreeSerif strike.                                                                                                                                                        |
 
 This route is deliberately narrower than the general hb-subset path. It is on
 only when every effective glyph size in a run has an exact tuple above on
@@ -233,7 +256,7 @@ glyphs were tracked in. Under a nested composition (`manageFonts: false` — the
 mode the compressed-run and terminal composers use) that registry is shared with
 the whole outer run.
 
-That makes a *speculative* compose — render a variant purely to measure its real
+That makes a _speculative_ compose — render a variant purely to measure its real
 byte size, then throw it away and compose the real thing — impossible by
 default: the discarded trial permanently shifts the addressing the real output
 goes on to use, and its bytes change. `snapshotGeneration()` /
@@ -241,8 +264,8 @@ goes on to use, and its bytes change. `snapshotGeneration()` /
 
 ```ts
 const marker = snapshotGeneration();
-const trialBytes = composeVariant(candidate).length;  // measure for real
-restoreGeneration(marker);                            // as if it never ran
+const trialBytes = composeVariant(candidate).length; // measure for real
+restoreGeneration(marker); // as if it never ran
 ```
 
 The marker is opaque and holds **values**, not cursors, so the rollback survives
@@ -255,12 +278,12 @@ it.
 
 What is rolled back:
 
-| registry | state restored |
-|---|---|
+| registry                     | state restored                                                                                                                                                                                                                                                                                                       |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | embedded-font subset builder | tracked instances + their insertion order (the `@font-face` emission order), per-entry glyph outlines, glyph-id → PUA assignments, the per-entry PUA allocation cursor, the tracked weight range (`font-weight: min max` descriptor), the hinted-source disqualification latch, and the global `dmfN` family counter |
-| paths-mode glyph defs | the `<path id="gN">` def map, the key → id map, and the `gN` id counter |
+| paths-mode glyph defs        | the `<path id="gN">` def map, the key → id map, and the `gN` id counter                                                                                                                                                                                                                                              |
 
-Both are bundled because *which* registry is live depends on the process-global
+Both are bundled because _which_ registry is live depends on the process-global
 render-text mode, so a caller snapshotting only one is correct right up until
 someone flips the mode — the same footgun `resetGeneration()` exists to prevent.
 `snapshotEmbeddedFonts()` / `restoreEmbeddedFonts()` are the subset-builder half
@@ -295,15 +318,15 @@ test cannot quietly become vacuous.
 
 Windows CI, `0000-007F-basic-latin`, same commit, svg2ttf vs hb-subset:
 
-| metric | svg2ttf | hb-subset | Δ |
-|---|---|---|---|
-| diffPct | 0.239% | **0.018%** | **−92.6%** |
-| nonAaPixelPct | 1.19% | 0.05% | −95.5% |
-| shiftedPixels | 36484 | 7038 | −80.7% |
-| shiftyRegionCount | 147 | **0** | −100% |
-| scatteredPixels | 8678 | **0** | −100% |
+| metric            | svg2ttf | hb-subset  | Δ          |
+| ----------------- | ------- | ---------- | ---------- |
+| diffPct           | 0.239%  | **0.018%** | **−92.6%** |
+| nonAaPixelPct     | 1.19%   | 0.05%      | −95.5%     |
+| shiftedPixels     | 36484   | 7038       | −80.7%     |
+| shiftyRegionCount | 147     | **0**      | −100%      |
+| scatteredPixels   | 8678    | **0**      | −100%      |
 
-The grid-fitting *shift* signature (shifty/scattered pixels) is eliminated —
+The grid-fitting _shift_ signature (shifty/scattered pixels) is eliminated —
 exactly the unhinted-outline floor. macOS stays pixel-exact with the hinted
 path on (the subset is glyph-identical; CoreText was never sensitive to the
 hinting program).

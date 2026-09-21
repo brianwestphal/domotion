@@ -10,12 +10,18 @@ import { fileURLToPath } from "node:url";
 const TESTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "tests");
 const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 
-interface Region { id: string; x: number; y: number; w: number; h: number }
+interface Region {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 const REGIONS: Region[] = [
-  { id: "DM-661 titlebar gradient",  x: 132, y: 0,   w: 100, h: 41 },
-  { id: "DM-662 login button",       x: 296, y: 6,   w: 89,  h: 31 },
-  { id: "DM-663 missing underline",  x: 16,  y: 79,  w: 90,  h: 30 },
-  { id: "DM-664 italic font",        x: 5,   y: 417, w: 375, h: 141 },
+  { id: "DM-661 titlebar gradient", x: 132, y: 0, w: 100, h: 41 },
+  { id: "DM-662 login button", x: 296, y: 6, w: 89, h: 31 },
+  { id: "DM-663 missing underline", x: 16, y: 79, w: 90, h: 30 },
+  { id: "DM-664 italic font", x: 5, y: 417, w: 375, h: 141 },
 ];
 
 async function main() {
@@ -25,7 +31,8 @@ async function main() {
     deviceScaleFactor: 1,
     isMobile: true,
     hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
   await context.routeFromHAR(resolve(CACHE_DIR, "slashdot-mobile.har"), { url: "**/*", notFound: "fallback" });
   const page = await context.newPage();
@@ -77,7 +84,9 @@ async function main() {
         e.textDecoration && e.textDecoration !== "none" ? `td=${e.textDecoration}` : "",
         e.src ? `src=${e.src.slice(0, 100)}` : "",
         e.fontFamily ? `ff=${e.fontFamily.slice(0, 60)}` : "",
-      ].filter(Boolean).join(" ");
+      ]
+        .filter(Boolean)
+        .join(" ");
       console.log("  " + summary);
     }
   }

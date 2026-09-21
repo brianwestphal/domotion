@@ -15,13 +15,13 @@ name: Release
 
 permissions:
   contents: write
-  id-token: write   # npm OIDC trusted publishing
+  id-token: write # npm OIDC trusted publishing
 
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
   workflow_dispatch:
     inputs:
       release_ref:
@@ -38,9 +38,9 @@ env:
   # bundled npm (its `@npmcli/arborist` is missing `promise-retry`), which
   # crashes any `npm install -g` before it can replace itself. Bumping back
   # to a major-version range (`'22'`) is safe once 22.22.2 ages out.
-  NODE_VERSION: '22.21.0'
+  NODE_VERSION: "22.21.0"
   RELEASE_REF: ${{ inputs.release_ref || github.ref_name }}
-  DOMOTION_NO_OPEN: '1'
+  DOMOTION_NO_OPEN: "1"
 
 jobs:
   # ─── Phase 1: validation (parallel) ─────────────────────────────────
@@ -53,9 +53,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ env.RELEASE_REF }}' }
+        with: { ref: "${{ env.RELEASE_REF }}" }
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - name: Materialize pinned source authorities
         # workflow_dispatch can resume a tag cut before DM-2664 added this
@@ -82,9 +82,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ env.RELEASE_REF }}' }
+        with: { ref: "${{ env.RELEASE_REF }}" }
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npm run typecheck
 
@@ -92,9 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ env.RELEASE_REF }}' }
+        with: { ref: "${{ env.RELEASE_REF }}" }
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npm run build
       - run: npm pack --dry-run
@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ env.RELEASE_REF }}' }
+        with: { ref: "${{ env.RELEASE_REF }}" }
       - name: Extract release notes from CHANGELOG (stable)
         if: needs.detect.outputs.is_beta == 'false'
         run: |
@@ -167,7 +167,7 @@ jobs:
           name: v${{ needs.detect.outputs.version }}
           body_path: release-notes.md
           prerelease: false
-          make_latest: 'true'
+          make_latest: "true"
       - name: Create GitHub Release (beta)
         if: needs.detect.outputs.is_beta == 'true'
         uses: softprops/action-gh-release@v2
@@ -176,7 +176,7 @@ jobs:
           name: v${{ needs.detect.outputs.version }}
           body_path: release-notes.md
           prerelease: true
-          make_latest: 'false'  # defense-in-depth
+          make_latest: "false" # defense-in-depth
 
   # Native assets start only after the release exists. The reusable workflow
   # retains every staged binary as an Actions artifact before its one attach
@@ -196,12 +196,12 @@ jobs:
     environment: npm-publish
     steps:
       - uses: actions/checkout@v4
-        with: { ref: '${{ env.RELEASE_REF }}' }
+        with: { ref: "${{ env.RELEASE_REF }}" }
       - uses: actions/setup-node@v4
         with:
-          node-version: '${{ env.NODE_VERSION }}'
+          node-version: "${{ env.NODE_VERSION }}"
           cache: npm
-          registry-url: 'https://registry.npmjs.org/'
+          registry-url: "https://registry.npmjs.org/"
       # Trusted publishing needs npm >= 11.5.1. Pin a known-compatible version:
       # npm@latest can cross an engine boundary independently of NODE_VERSION.
       - run: npm install -g npm@11.6.2

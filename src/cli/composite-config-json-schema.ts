@@ -60,8 +60,7 @@ export function buildCompositeConfigJsonSchema(): Record<string, unknown> {
     properties: {
       $schema: {
         type: "string",
-        description:
-          "Optional pointer to this JSON Schema for editor support; ignored by the CLI.",
+        description: "Optional pointer to this JSON Schema for editor support; ignored by the CLI.",
       },
       ...props,
     },

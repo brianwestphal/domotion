@@ -19,7 +19,11 @@ function flatten(elements: readonly CapturedElement[]): CapturedElement[] {
 }
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -68,8 +72,11 @@ describeBrowser("DM-2501 decoration physical-fragment coordinate ownership", () 
         expect(target!.fontAscent).toBe(measure.ascF);
 
         const spec: CaseSpec = {
-          id: "dm2501", family: "Helvetica", fontSize: 12,
-          lines: "underline", style: "solid",
+          id: "dm2501",
+          family: "Helvetica",
+          fontSize: 12,
+          lines: "underline",
+          style: "solid",
         };
         const predicted = predictCase(spec, measure).bars;
         const parsed = parseSvgDecorations(elementTreeToSvgInner(tree, 900, 520));

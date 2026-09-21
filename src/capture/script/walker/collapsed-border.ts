@@ -10,7 +10,8 @@ export interface CollapsedBorderCandidate {
 }
 
 export type CollapsedBorderPhysicalSide = "top" | "right" | "bottom" | "left";
-export type CollapsedBorderWritingMode = "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr";
+export type CollapsedBorderWritingMode =
+  "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-rl" | "sideways-lr";
 export type CollapsedBorderDirection = "ltr" | "rtl";
 
 export interface CollapsedBorderSource extends CollapsedBorderCandidate {
@@ -65,8 +66,15 @@ export interface CollapsedBorderSectionFragment {
 }
 
 export const COLLAPSED_BORDER_STYLE_RANK: Record<string, number> = {
-  none: 0, inset: 2, groove: 3, outset: 4, ridge: 5,
-  dotted: 6, dashed: 7, solid: 8, double: 9,
+  none: 0,
+  inset: 2,
+  groove: 3,
+  outset: 4,
+  ridge: 5,
+  dotted: 6,
+  dashed: 7,
+  solid: 8,
+  double: 9,
 };
 
 /** CSS collapsed-border normalization used by ComputedStyle::CollapsedBorderStyle. */
@@ -76,15 +84,21 @@ export function collapsedBorderStyle(style: string): string {
   return style;
 }
 
-export function resolveCollapsedBorderWinner<T extends CollapsedBorderCandidate>(candidates: Array<T | null>): T | { hidden: true } | null {
+export function resolveCollapsedBorderWinner<T extends CollapsedBorderCandidate>(
+  candidates: Array<T | null>,
+): T | { hidden: true } | null {
   let best: T | null = null;
   for (const candidate of candidates) {
     if (candidate == null) continue;
     if (candidate.style === "hidden") return { hidden: true };
     if (candidate.style === "none" || candidate.w === 0) continue;
-    if (best == null || candidate.w > best.w) { best = candidate; continue; }
+    if (best == null || candidate.w > best.w) {
+      best = candidate;
+      continue;
+    }
     if (candidate.w < best.w) continue;
-    if ((COLLAPSED_BORDER_STYLE_RANK[candidate.style] ?? 0) > (COLLAPSED_BORDER_STYLE_RANK[best.style] ?? 0)) best = candidate;
+    if ((COLLAPSED_BORDER_STYLE_RANK[candidate.style] ?? 0) > (COLLAPSED_BORDER_STYLE_RANK[best.style] ?? 0))
+      best = candidate;
   }
   return best;
 }
@@ -95,7 +109,8 @@ export function physicalSidesForTable(
 ): LogicalBorderSides {
   if (writingMode === "horizontal-tb") {
     return {
-      blockStart: "top", blockEnd: "bottom",
+      blockStart: "top",
+      blockEnd: "bottom",
       inlineStart: direction === "ltr" ? "left" : "right",
       inlineEnd: direction === "ltr" ? "right" : "left",
     };
@@ -111,7 +126,10 @@ export function physicalSidesForTable(
 
 const emptyEdge = <T extends CollapsedBorderSource>(): CollapsedBorderEdge<T> => ({ winner: null, doNotFill: false });
 
-export function createCollapsedBorderGrid<T extends CollapsedBorderSource>(rows: number, columns: number): CollapsedBorderGrid<T> {
+export function createCollapsedBorderGrid<T extends CollapsedBorderSource>(
+  rows: number,
+  columns: number,
+): CollapsedBorderGrid<T> {
   return {
     rows,
     columns,
@@ -175,7 +193,9 @@ export function mergeCollapsedBorderBox<T extends CollapsedBorderSource>(
   }
 }
 
-const canPaintCollapsedEdge = <T extends CollapsedBorderSource>(edge: CollapsedBorderEdge<T> | null): edge is CollapsedBorderEdge<T> & { winner: T } =>
+const canPaintCollapsedEdge = <T extends CollapsedBorderSource>(
+  edge: CollapsedBorderEdge<T> | null,
+): edge is CollapsedBorderEdge<T> & { winner: T } =>
   edge?.winner != null && edge.winner.style !== "none" && edge.winner.style !== "hidden" && edge.winner.w > 0;
 
 /** Mirrors TableCollapsedEdge::CompareForPaint: 1 means lhs wins, -1 means
@@ -185,14 +205,17 @@ export function compareCollapsedEdgesForPaint<T extends CollapsedBorderSource>(
   lhs: CollapsedBorderEdge<T> | null,
   rhs: CollapsedBorderEdge<T> | null,
 ): -1 | 0 | 1 {
-  const lp = canPaintCollapsedEdge(lhs), rp = canPaintCollapsedEdge(rhs);
+  const lp = canPaintCollapsedEdge(lhs),
+    rp = canPaintCollapsedEdge(rhs);
   if (lp && rp) {
     if (lhs.winner.w !== rhs.winner.w) return lhs.winner.w > rhs.winner.w ? 1 : -1;
     if (lhs.winner.style === rhs.winner.style) {
       if (lhs.winner.order === rhs.winner.order) return 0;
       return lhs.winner.order < rhs.winner.order ? 1 : -1;
     }
-    return (COLLAPSED_BORDER_STYLE_RANK[lhs.winner.style] ?? 0) > (COLLAPSED_BORDER_STYLE_RANK[rhs.winner.style] ?? 0) ? 1 : -1;
+    return (COLLAPSED_BORDER_STYLE_RANK[lhs.winner.style] ?? 0) > (COLLAPSED_BORDER_STYLE_RANK[rhs.winner.style] ?? 0)
+      ? 1
+      : -1;
   }
   if (!lp && !rp) return 0;
   return lp ? 1 : -1;
@@ -201,7 +224,11 @@ export function compareCollapsedEdgesForPaint<T extends CollapsedBorderSource>(
 const winnerWidth = <T extends CollapsedBorderSource>(edge: CollapsedBorderEdge<T> | null): number =>
   canPaintCollapsedEdge(edge) ? edge.winner.w : 0;
 
-const edgeAt = <T extends CollapsedBorderSource>(rows: Array<Array<CollapsedBorderEdge<T>>>, row: number, column: number): CollapsedBorderEdge<T> | null =>
+const edgeAt = <T extends CollapsedBorderSource>(
+  rows: Array<Array<CollapsedBorderEdge<T>>>,
+  row: number,
+  column: number,
+): CollapsedBorderEdge<T> | null =>
   row >= 0 && row < rows.length && column >= 0 && column < rows[row].length ? rows[row][column] : null;
 
 // TableBorders stores each block-axis edge immediately before the row-axis
@@ -234,9 +261,10 @@ function jointDecision<T extends CollapsedBorderSource>(
   const blockCompare = compareCollapsedEdgesForPaint(over, under);
   const blockWinner = blockCompare === 1 ? over : under;
   const inlineVsBlock = compareCollapsedEdgesForPaint(inlineWinner, blockWinner);
-  const wins = axis === "row"
-    ? inlineVsBlock !== -1 && inlineCompare !== (end ? -1 : 1)
-    : inlineVsBlock !== 1 && blockCompare !== (end ? -1 : 1);
+  const wins =
+    axis === "row"
+      ? inlineVsBlock !== -1 && inlineCompare !== (end ? -1 : 1)
+      : inlineVsBlock !== 1 && blockCompare !== (end ? -1 : 1);
   const blockWidthSuppressed = !end
     ? overFragmentBoundary || (underFragmentBoundary && axis === "row")
     : (overFragmentBoundary && axis === "row") || underFragmentBoundary;
@@ -260,7 +288,7 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
   if (inlineLines.length !== grid.columns + 1)
     throw new Error("collapsed-border inline tracks do not match the edge grid");
   const rects: Array<CollapsedBorderLogicalRect<T>> = [];
-  const half = (value: number): number => rawLayoutUnits ? Math.trunc(value / 2) : value / 2;
+  const half = (value: number): number => (rawLayoutUnits ? Math.trunc(value / 2) : value / 2);
   let previousPaintedRow: number | null = null;
   for (const section of sections) {
     const sectionRectStart = rects.length;
@@ -281,14 +309,24 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
           const edge = edgeAt(grid.rowAxis, tableRow, column);
           if (!canPaintCollapsedEdge(edge)) continue;
           const start = jointDecision(
-            edgeAt(grid.rowAxis, tableRow, column - 1), edge,
-            edgeAt(grid.columnAxis, tableRow - 1, column), edgeAt(grid.columnAxis, tableRow, column),
-            "row", false, overBoundary, underBoundary,
+            edgeAt(grid.rowAxis, tableRow, column - 1),
+            edge,
+            edgeAt(grid.columnAxis, tableRow - 1, column),
+            edgeAt(grid.columnAxis, tableRow, column),
+            "row",
+            false,
+            overBoundary,
+            underBoundary,
           );
           const end = jointDecision(
-            edge, edgeAt(grid.rowAxis, tableRow, column + 1),
-            edgeAt(grid.columnAxis, tableRow - 1, column + 1), edgeAt(grid.columnAxis, tableRow, column + 1),
-            "row", true, overBoundary, underBoundary,
+            edge,
+            edgeAt(grid.rowAxis, tableRow, column + 1),
+            edgeAt(grid.columnAxis, tableRow - 1, column + 1),
+            edgeAt(grid.columnAxis, tableRow, column + 1),
+            "row",
+            true,
+            overBoundary,
+            underBoundary,
           );
           let inlineStart = inlineLines[column];
           let inlineSize = inlineLines[column + 1] - inlineStart;
@@ -299,7 +337,9 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
           inlineSize += end.wins ? endDelta : -endDelta;
           const width = edge.winner.w;
           rects.push({
-            axis: "row", row: tableRow, column,
+            axis: "row",
+            row: tableRow,
+            column,
             inlineStart,
             blockStart: overBoundary ? lines[localRow] : lines[localRow] - half(width),
             inlineSize,
@@ -319,14 +359,24 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
         const edge = edgeAt(grid.columnAxis, tableRow, column);
         if (!canPaintCollapsedEdge(edge)) continue;
         const start = jointDecision(
-          edgeAt(grid.rowAxis, tableRow, column - 1), edgeAt(grid.rowAxis, tableRow, column),
-          edgeAt(grid.columnAxis, tableRow - 1, column), edge,
-          "column", false, overBoundary, underSegmentBoundary,
+          edgeAt(grid.rowAxis, tableRow, column - 1),
+          edgeAt(grid.rowAxis, tableRow, column),
+          edgeAt(grid.columnAxis, tableRow - 1, column),
+          edge,
+          "column",
+          false,
+          overBoundary,
+          underSegmentBoundary,
         );
         const end = jointDecision(
-          edgeAt(grid.rowAxis, tableRow + 1, column - 1), edgeAt(grid.rowAxis, tableRow + 1, column),
-          edge, edgeAt(grid.columnAxis, tableRow + 1, column),
-          "column", true, overBoundary, underSegmentBoundary,
+          edgeAt(grid.rowAxis, tableRow + 1, column - 1),
+          edgeAt(grid.rowAxis, tableRow + 1, column),
+          edge,
+          edgeAt(grid.columnAxis, tableRow + 1, column),
+          "column",
+          true,
+          overBoundary,
+          underSegmentBoundary,
         );
         let blockStart = lines[localRow];
         let blockSize = lines[localRow + 1] - blockStart;
@@ -340,9 +390,14 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
           blockSize += end.wins ? delta : -delta;
         }
         rects.push({
-          axis: "column", row: tableRow, column,
+          axis: "column",
+          row: tableRow,
+          column,
           inlineStart: inlineLines[column] - half(edge.winner.w),
-          blockStart, inlineSize: edge.winner.w, blockSize, winner: edge.winner,
+          blockStart,
+          inlineSize: edge.winner.w,
+          blockSize,
+          winner: edge.winner,
           startJoint: {
             wins: start.wins,
             suppressedAtFragmentBoundary: overBoundary || startFragmented,
@@ -355,7 +410,9 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
       }
     }
     const sectionRects = rects.splice(sectionRectStart);
-    sectionRects.sort((a, b) => collapsedBorderPaintIndex(a, grid.columns) - collapsedBorderPaintIndex(b, grid.columns));
+    sectionRects.sort(
+      (a, b) => collapsedBorderPaintIndex(a, grid.columns) - collapsedBorderPaintIndex(b, grid.columns),
+    );
     rects.push(...sectionRects);
     previousPaintedRow = section.endRowFragmented ? null : finalRowEdge;
   }
@@ -379,12 +436,20 @@ export function collapsedBorderLogicalRects<T extends CollapsedBorderSource>(
       const edge = grid.rowAxis[row][column];
       if (!canPaintCollapsedEdge(edge)) continue;
       const start = jointDecision(
-        edgeAt(grid.rowAxis, row, column - 1), edge,
-        edgeAt(grid.columnAxis, row - 1, column), edgeAt(grid.columnAxis, row, column), "row", false,
+        edgeAt(grid.rowAxis, row, column - 1),
+        edge,
+        edgeAt(grid.columnAxis, row - 1, column),
+        edgeAt(grid.columnAxis, row, column),
+        "row",
+        false,
       );
       const end = jointDecision(
-        edge, edgeAt(grid.rowAxis, row, column + 1),
-        edgeAt(grid.columnAxis, row - 1, column + 1), edgeAt(grid.columnAxis, row, column + 1), "row", true,
+        edge,
+        edgeAt(grid.rowAxis, row, column + 1),
+        edgeAt(grid.columnAxis, row - 1, column + 1),
+        edgeAt(grid.columnAxis, row, column + 1),
+        "row",
+        true,
       );
       let inlineStart = inlineLines[column];
       let inlineSize = inlineLines[column + 1] - inlineStart;
@@ -393,7 +458,16 @@ export function collapsedBorderLogicalRects<T extends CollapsedBorderSource>(
       inlineSize += start.wins ? startDelta : -startDelta;
       const endDelta = end.inlineWidth / 2;
       inlineSize += end.wins ? endDelta : -endDelta;
-      rects.push({ axis: "row", row, column, inlineStart, blockStart: blockLines[row] - edge.winner.w / 2, inlineSize, blockSize: edge.winner.w, winner: edge.winner });
+      rects.push({
+        axis: "row",
+        row,
+        column,
+        inlineStart,
+        blockStart: blockLines[row] - edge.winner.w / 2,
+        inlineSize,
+        blockSize: edge.winner.w,
+        winner: edge.winner,
+      });
     }
   }
   for (let row = 0; row < grid.rows; row++) {
@@ -401,12 +475,20 @@ export function collapsedBorderLogicalRects<T extends CollapsedBorderSource>(
       const edge = grid.columnAxis[row][column];
       if (!canPaintCollapsedEdge(edge)) continue;
       const start = jointDecision(
-        edgeAt(grid.rowAxis, row, column - 1), edgeAt(grid.rowAxis, row, column),
-        edgeAt(grid.columnAxis, row - 1, column), edge, "column", false,
+        edgeAt(grid.rowAxis, row, column - 1),
+        edgeAt(grid.rowAxis, row, column),
+        edgeAt(grid.columnAxis, row - 1, column),
+        edge,
+        "column",
+        false,
       );
       const end = jointDecision(
-        edgeAt(grid.rowAxis, row + 1, column - 1), edgeAt(grid.rowAxis, row + 1, column),
-        edge, edgeAt(grid.columnAxis, row + 1, column), "column", true,
+        edgeAt(grid.rowAxis, row + 1, column - 1),
+        edgeAt(grid.rowAxis, row + 1, column),
+        edge,
+        edgeAt(grid.columnAxis, row + 1, column),
+        "column",
+        true,
       );
       let blockStart = blockLines[row];
       let blockSize = blockLines[row + 1] - blockStart;
@@ -415,7 +497,16 @@ export function collapsedBorderLogicalRects<T extends CollapsedBorderSource>(
       blockSize += start.wins ? startDelta : -startDelta;
       const endDelta = end.blockWidth / 2;
       blockSize += end.wins ? endDelta : -endDelta;
-      rects.push({ axis: "column", row, column, inlineStart: inlineLines[column] - edge.winner.w / 2, blockStart, inlineSize: edge.winner.w, blockSize, winner: edge.winner });
+      rects.push({
+        axis: "column",
+        row,
+        column,
+        inlineStart: inlineLines[column] - edge.winner.w / 2,
+        blockStart,
+        inlineSize: edge.winner.w,
+        blockSize,
+        winner: edge.winner,
+      });
     }
   }
   rects.sort((a, b) => collapsedBorderPaintIndex(a, grid.columns) - collapsedBorderPaintIndex(b, grid.columns));

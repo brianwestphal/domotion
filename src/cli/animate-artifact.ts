@@ -25,15 +25,12 @@ export interface AnimateArtifactResult {
 /** Optimize, resolve the destination, and write one completed animation. */
 export async function writeAnimateArtifact(request: AnimateArtifactRequest): Promise<AnimateArtifactResult> {
   const svgz = isSvgzPath(request.outputArg);
-  const optimize = request.optimizeRequested
-    || (request.optimizeConfigured && !request.noOptimize)
-    || (svgz && !request.noOptimize);
+  const optimize =
+    request.optimizeRequested || (request.optimizeConfigured && !request.noOptimize) || (svgz && !request.noOptimize);
   let svg = request.svg;
   if (optimize) {
-    svg = await timed(
-      request.log,
-      `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`,
-      () => compressEmbeddedFontsToWoff2(optimizeSvg(svg)),
+    svg = await timed(request.log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () =>
+      compressEmbeddedFontsToWoff2(optimizeSvg(svg)),
     );
   }
   const outPath = resolveOutputPath(request.outputArg, request.configPath, ".svg");

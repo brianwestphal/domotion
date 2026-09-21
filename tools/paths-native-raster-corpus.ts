@@ -120,7 +120,12 @@ const state = (
   phaseX: number,
   phaseY: number,
 ): MatrixState => ({
-  label, transform, fontSizePx, weight, phaseX, phaseY,
+  label,
+  transform,
+  fontSizePx,
+  weight,
+  phaseX,
+  phaseY,
   matrix: [...TRANSFORM_MATRICES[transform]] as MatrixState["matrix"],
 });
 
@@ -132,9 +137,11 @@ export const PATHS_NATIVE_RASTER_STATES: readonly MatrixState[] = [
   state("size-32", "none", 32, 400, 0, 0),
   state("weight-600", "none", 20, 600, 0, 0),
   state("weight-800", "none", 20, 800, 0, 0),
-  ...QUARTER_PHASES.flatMap((phaseX) => QUARTER_PHASES
-    .filter((phaseY) => phaseX !== 0 || phaseY !== 0)
-    .map((phaseY) => state(`phase-${phaseX}-${phaseY}`, "none", 20, 400, phaseX, phaseY))),
+  ...QUARTER_PHASES.flatMap((phaseX) =>
+    QUARTER_PHASES.filter((phaseY) => phaseX !== 0 || phaseY !== 0).map((phaseY) =>
+      state(`phase-${phaseX}-${phaseY}`, "none", 20, 400, phaseX, phaseY),
+    ),
+  ),
   state("transform-translate", "translate", 20, 400, 0, 0),
   state("transform-scale", "scale", 20, 400, 0, 0),
   state("transform-rotate", "rotate", 20, 400, 0, 0),
@@ -142,9 +149,11 @@ export const PATHS_NATIVE_RASTER_STATES: readonly MatrixState[] = [
 ];
 
 const HINTED_INTERACTION_STATES: readonly MatrixState[] = ["rotate", "affine"].flatMap((transform) =>
-  QUARTER_PHASES.flatMap((phaseX) => QUARTER_PHASES
-    .filter((phaseY) => phaseX !== 0 || phaseY !== 0)
-    .map((phaseY) => state(`interaction-${transform}-${phaseX}-${phaseY}`, transform as "rotate" | "affine", 20, 400, phaseX, phaseY))),
+  QUARTER_PHASES.flatMap((phaseX) =>
+    QUARTER_PHASES.filter((phaseY) => phaseX !== 0 || phaseY !== 0).map((phaseY) =>
+      state(`interaction-${transform}-${phaseX}-${phaseY}`, transform as "rotate" | "affine", 20, 400, phaseX, phaseY),
+    ),
+  ),
 );
 
 export interface PathsRasterMatrixCell {
@@ -164,54 +173,73 @@ function axesFor(technology: PathsRasterTechnology, weight: number): Record<stri
 export function pathsNativeRasterMatrix(): PathsRasterMatrixCell[] {
   return [1, 2].flatMap((deviceScaleFactor) =>
     PATHS_NATIVE_RASTER_FIXTURES.flatMap((fixture) =>
-      [...PATHS_NATIVE_RASTER_STATES, ...(fixture.technology === "glyf-hinted" ? HINTED_INTERACTION_STATES : [])].map((state) => ({
-        id: `${fixture.technology}-${state.label}-dpr${deviceScaleFactor}`,
-        fixture,
-        dimensions: {
-          fontTechnology: fixture.technology,
-          fontSizePx: state.fontSizePx,
-          weight: state.weight,
-          phaseX: state.phaseX,
-          phaseY: state.phaseY,
-          transform: state.transform,
-          deviceScaleFactor: deviceScaleFactor as 1 | 2,
-        },
-        matrix: [
-          state.matrix[0], state.matrix[1], state.matrix[2], state.matrix[3],
-          state.matrix[4] + state.phaseX, state.matrix[5] + state.phaseY,
-        ],
-        variationAxes: axesFor(fixture.technology, state.weight),
-      }))),
+      [...PATHS_NATIVE_RASTER_STATES, ...(fixture.technology === "glyf-hinted" ? HINTED_INTERACTION_STATES : [])].map(
+        (state) => ({
+          id: `${fixture.technology}-${state.label}-dpr${deviceScaleFactor}`,
+          fixture,
+          dimensions: {
+            fontTechnology: fixture.technology,
+            fontSizePx: state.fontSizePx,
+            weight: state.weight,
+            phaseX: state.phaseX,
+            phaseY: state.phaseY,
+            transform: state.transform,
+            deviceScaleFactor: deviceScaleFactor as 1 | 2,
+          },
+          matrix: [
+            state.matrix[0],
+            state.matrix[1],
+            state.matrix[2],
+            state.matrix[3],
+            state.matrix[4] + state.phaseX,
+            state.matrix[5] + state.phaseY,
+          ],
+          variationAxes: axesFor(fixture.technology, state.weight),
+        }),
+      ),
+    ),
   );
 }
 
-const stable = (value: unknown): unknown => Array.isArray(value) ? value.map(stable)
-  : value != null && typeof value === "object"
-    ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => [key, stable(entry)]))
-    : value;
+const stable = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(stable)
+    : value != null && typeof value === "object"
+      ? Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, entry]) => [key, stable(entry)]),
+        )
+      : value;
 
 /** Canonical identity used by both observations and ratified envelopes. */
 export function pathsRasterCellSha256(cell: PathsRasterMatrixCell): string {
   const sourceSha256 = cell.fixture.derivedSha256 ?? cell.fixture.upstreamSha256;
-  return createHash("sha256").update(JSON.stringify(stable({
-    schemaVersion: 2,
-    metricAlgorithm: PATHS_NATIVE_RASTER_METRIC_ALGORITHM,
-    id: cell.id,
-    dimensions: cell.dimensions,
-    text: cell.fixture.text,
-    sourceSha256,
-    faceIndex: 0,
-    variationAxes: cell.variationAxes,
-    features: PATHS_NATIVE_RASTER_FEATURES,
-    viewport: PATHS_NATIVE_RASTER_VIEWPORT,
-    origin: PATHS_NATIVE_RASTER_ORIGIN,
-    paintColors: { foreground: "#000", background: "#fff" },
-    matrix: cell.matrix,
-    paintPlan: {
-      syntheticBold: !cell.fixture.technology.startsWith("variable-") && cell.dimensions.weight >= 600,
-      syntheticOblique: false,
-    },
-  }))).digest("hex");
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        stable({
+          schemaVersion: 2,
+          metricAlgorithm: PATHS_NATIVE_RASTER_METRIC_ALGORITHM,
+          id: cell.id,
+          dimensions: cell.dimensions,
+          text: cell.fixture.text,
+          sourceSha256,
+          faceIndex: 0,
+          variationAxes: cell.variationAxes,
+          features: PATHS_NATIVE_RASTER_FEATURES,
+          viewport: PATHS_NATIVE_RASTER_VIEWPORT,
+          origin: PATHS_NATIVE_RASTER_ORIGIN,
+          paintColors: { foreground: "#000", background: "#fff" },
+          matrix: cell.matrix,
+          paintPlan: {
+            syntheticBold: !cell.fixture.technology.startsWith("variable-") && cell.dimensions.weight >= 600,
+            syntheticOblique: false,
+          },
+        }),
+      ),
+    )
+    .digest("hex");
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -246,7 +274,10 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
     let bytes = upstream;
     if (fixture.derive === "drop-glyf-hinting") {
       const opened: any = fontkit.create(upstream);
-      const gids = [0, ...new Set([...fixture.text].map((character) => opened.glyphForCodePoint(character.codePointAt(0)!).id))];
+      const gids = [
+        0,
+        ...new Set([...fixture.text].map((character) => opened.glyphForCodePoint(character.codePointAt(0)!).id)),
+      ];
       bytes = hbSubsetRetainGids(upstream, gids, 0, false);
       const derivedHash = sha256(bytes);
       if (derivedHash !== fixture.derivedSha256) {
@@ -254,11 +285,14 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
       }
     }
     const tables = tableTags(bytes);
-    for (const tag of fixture.requiredTables) if (!tables.includes(tag)) throw new Error(`${fixture.technology}: required ${tag} table is absent`);
-    for (const tag of fixture.forbiddenTables ?? []) if (tables.includes(tag)) throw new Error(`${fixture.technology}: forbidden ${tag} table is present`);
+    for (const tag of fixture.requiredTables)
+      if (!tables.includes(tag)) throw new Error(`${fixture.technology}: required ${tag} table is absent`);
+    for (const tag of fixture.forbiddenTables ?? [])
+      if (tables.includes(tag)) throw new Error(`${fixture.technology}: forbidden ${tag} table is present`);
     const opened: any = fontkit.create(bytes);
     for (const character of fixture.text) {
-      if (opened.glyphForCodePoint(character.codePointAt(0)!).id === 0) throw new Error(`${fixture.technology}: fixture does not cover ${JSON.stringify(character)}`);
+      if (opened.glyphForCodePoint(character.codePointAt(0)!).id === 0)
+        throw new Error(`${fixture.technology}: fixture does not cover ${JSON.stringify(character)}`);
     }
     return {
       fixture,
@@ -276,27 +310,38 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
 
 export function pathsRasterFixtureInventorySha256(fixtures: readonly LoadedPathsRasterFixture[]): string {
   return createHash("sha256")
-    .update(fixtures.map(({ fixture, sha256: hash }) => `${fixture.technology}:${hash}`).sort().join("\n"))
+    .update(
+      fixtures
+        .map(({ fixture, sha256: hash }) => `${fixture.technology}:${hash}`)
+        .sort()
+        .join("\n"),
+    )
     .digest("hex");
 }
 
 export function requiredPathsRasterIds(): string[] {
-  return pathsNativeRasterMatrix().map((cell) => cell.id).sort();
+  return pathsNativeRasterMatrix()
+    .map((cell) => cell.id)
+    .sort();
 }
 
-type DeclaredPathsRasterRow = Pick<PathsRasterRow, "id" | "dimensions" | "cellSha256">
-  & Partial<Pick<PathsRasterRow, "expectedLogical">>;
+type DeclaredPathsRasterRow = Pick<PathsRasterRow, "id" | "dimensions" | "cellSha256"> &
+  Partial<Pick<PathsRasterRow, "expectedLogical">>;
 
 /** Bind caller-supplied logical expectations back to the source-owned cell. */
 export function assertPathsRasterRowDeclaration(row: DeclaredPathsRasterRow): void {
   const cell = pathsNativeRasterMatrix().find((candidate) => candidate.id === row.id);
   if (cell == null) throw new Error(`undeclared paths/native raster row id: ${row.id}`);
-  if (JSON.stringify(cell.dimensions) !== JSON.stringify(row.dimensions)) throw new Error(`${row.id}: dimensions do not match the declared matrix`);
-  if (pathsRasterCellSha256(cell) !== row.cellSha256) throw new Error(`${row.id}: cellSha256 does not match the declared corpus`);
+  if (JSON.stringify(cell.dimensions) !== JSON.stringify(row.dimensions))
+    throw new Error(`${row.id}: dimensions do not match the declared matrix`);
+  if (pathsRasterCellSha256(cell) !== row.cellSha256)
+    throw new Error(`${row.id}: cellSha256 does not match the declared corpus`);
   if (row.expectedLogical != null) {
     const sourceSha256 = cell.fixture.derivedSha256 ?? cell.fixture.upstreamSha256;
-    if (row.expectedLogical.sourceSha256 !== sourceSha256) throw new Error(`${row.id}: expected sourceSha256 does not match the declared fixture`);
-    if (row.expectedLogical.faceIndex !== 0) throw new Error(`${row.id}: expected faceIndex does not match the declared fixture`);
+    if (row.expectedLogical.sourceSha256 !== sourceSha256)
+      throw new Error(`${row.id}: expected sourceSha256 does not match the declared fixture`);
+    if (row.expectedLogical.faceIndex !== 0)
+      throw new Error(`${row.id}: expected faceIndex does not match the declared fixture`);
     if (JSON.stringify(stable(row.expectedLogical.variationAxes)) !== JSON.stringify(stable(cell.variationAxes))) {
       throw new Error(`${row.id}: expected variationAxes do not match the declared matrix`);
     }
@@ -304,10 +349,15 @@ export function assertPathsRasterRowDeclaration(row: DeclaredPathsRasterRow): vo
 }
 
 export function assertCompletePathsRasterMatrix(rows: readonly DeclaredPathsRasterRow[]): void {
-  const expected = new Map(pathsNativeRasterMatrix().map((cell) => [cell.id, {
-    dimensions: JSON.stringify(cell.dimensions),
-    cellSha256: pathsRasterCellSha256(cell),
-  }]));
+  const expected = new Map(
+    pathsNativeRasterMatrix().map((cell) => [
+      cell.id,
+      {
+        dimensions: JSON.stringify(cell.dimensions),
+        cellSha256: pathsRasterCellSha256(cell),
+      },
+    ]),
+  );
   const seen = new Set<string>();
   for (const row of rows) {
     if (seen.has(row.id)) throw new Error(`duplicate paths/native raster row id: ${row.id}`);

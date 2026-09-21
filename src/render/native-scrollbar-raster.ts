@@ -11,11 +11,7 @@
  * vertical axis, scroll corner, then resizer (`scrollable_area_painter.cc`).
  */
 
-import type {
-  CapturedElement,
-  CapturedNativeScrollbarRaster,
-  CapturedScrollbarSet,
-} from "../capture/types.js";
+import type { CapturedElement, CapturedNativeScrollbarRaster, CapturedScrollbarSet } from "../capture/types.js";
 import { esc, r } from "./format.js";
 
 type NativeScrollbarAxis = "horizontal" | "vertical" | "corner";
@@ -43,16 +39,20 @@ export function paintNativeScrollbarRasters(el: CapturedElement, indent: string)
   const output: string[] = [];
   for (const set of elementScrollbarSets(el)) {
     if (set.status === "absent" || set.status === "unavailable") continue;
-    const horizontal = set.horizontal?.route === "native-raster"
-      ? paintRaster(set.horizontal.nativeRaster, "horizontal", `${indent}  `)
-      : null;
-    const vertical = set.vertical?.route === "native-raster"
-      ? paintRaster(set.vertical.nativeRaster, "vertical", `${indent}  `)
-      : null;
+    const horizontal =
+      set.horizontal?.route === "native-raster"
+        ? paintRaster(set.horizontal.nativeRaster, "horizontal", `${indent}  `)
+        : null;
+    const vertical =
+      set.vertical?.route === "native-raster"
+        ? paintRaster(set.vertical.nativeRaster, "vertical", `${indent}  `)
+        : null;
     const corner = paintRaster(set.nativeCornerRaster, "corner", `${indent}  `);
     const parts = [horizontal, vertical, corner].filter((part): part is string => part != null);
     if (parts.length === 0) continue;
-    output.push(`${indent}<g data-domotion-scrollbar-route="native-raster" data-domotion-scrollbar-phase="${set.paintPhase}">`);
+    output.push(
+      `${indent}<g data-domotion-scrollbar-route="native-raster" data-domotion-scrollbar-phase="${set.paintPhase}">`,
+    );
     output.push(...parts);
     output.push(`${indent}</g>`);
   }

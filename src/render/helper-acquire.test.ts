@@ -12,7 +12,7 @@ import {
   assetNameFor,
   cacheDirFor,
   downloadAndInstall,
-  parseSha256Sidecar
+  parseSha256Sidecar,
 } from "./helper-acquire.js";
 
 // DM-886: the on-demand glyph-helper acquisition layer. Pure resolvers + the
@@ -44,9 +44,12 @@ describe("cacheDirFor", () => {
     expect(cacheDirFor("darwin", "1.2.3", {}, home)).toBe("/home/u/Library/Caches/domotion/1.2.3/bin");
   });
   it("uses %LOCALAPPDATA% on Windows (default AppData/Local)", () => {
-    expect(cacheDirFor("win32", "1.2.3", { LOCALAPPDATA: "C:\\Local" }, home))
-      .toBe(path.join("C:\\Local", "domotion", "1.2.3", "bin"));
-    expect(cacheDirFor("win32", "1.2.3", {}, home)).toBe(path.join(home, "AppData", "Local", "domotion", "1.2.3", "bin"));
+    expect(cacheDirFor("win32", "1.2.3", { LOCALAPPDATA: "C:\\Local" }, home)).toBe(
+      path.join("C:\\Local", "domotion", "1.2.3", "bin"),
+    );
+    expect(cacheDirFor("win32", "1.2.3", {}, home)).toBe(
+      path.join(home, "AppData", "Local", "domotion", "1.2.3", "bin"),
+    );
   });
   it("uses $XDG_DATA_HOME on Linux (default ~/.local/share)", () => {
     expect(cacheDirFor("linux", "1.2.3", { XDG_DATA_HOME: "/xdg" }, home)).toBe("/xdg/domotion/1.2.3/bin");
@@ -85,8 +88,7 @@ describe("acquisition failure / cache behavior (offline)", () => {
     try {
       const asset = assetNameFor("linux", "x64")!;
       writeFileSync(path.join(dir, asset), "stub");
-      expect(acquireGlyphHelperSync({ platform: "linux", arch: "x64", cacheDir: dir }))
-        .toBe(path.join(dir, asset));
+      expect(acquireGlyphHelperSync({ platform: "linux", arch: "x64", cacheDir: dir })).toBe(path.join(dir, asset));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -102,15 +104,28 @@ const goodSha = createHash("sha256").update(payload).digest("hex");
 async function tryStartServer(): Promise<{ base: string; close: () => void } | null> {
   return new Promise((resolve) => {
     const server: Server = createServer((req, res) => {
-      if (req.url === "/asset") { res.writeHead(200); res.end(payload); }
-      else if (req.url === "/asset.sha256") { res.writeHead(200); res.end(`${goodSha}  asset\n`); }
-      else if (req.url === "/asset.badsha256") { res.writeHead(200); res.end(`${"0".repeat(64)}  asset\n`); }
-      else { res.writeHead(404); res.end("nope"); }
+      if (req.url === "/asset") {
+        res.writeHead(200);
+        res.end(payload);
+      } else if (req.url === "/asset.sha256") {
+        res.writeHead(200);
+        res.end(`${goodSha}  asset\n`);
+      } else if (req.url === "/asset.badsha256") {
+        res.writeHead(200);
+        res.end(`${"0".repeat(64)}  asset\n`);
+      } else {
+        res.writeHead(404);
+        res.end("nope");
+      }
     });
     server.on("error", () => resolve(null));
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address();
-      if (addr == null || typeof addr === "string") { server.close(); resolve(null); return; }
+      if (addr == null || typeof addr === "string") {
+        server.close();
+        resolve(null);
+        return;
+      }
       resolve({ base: `http://127.0.0.1:${addr.port}`, close: () => server.close() });
     });
   });

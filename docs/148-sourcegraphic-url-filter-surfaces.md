@@ -6,8 +6,8 @@ status: "current"
 owners: ["paint-effects"]
 platforms: []
 tickets: ["DM-2360"]
-code: ["src/stacking-context.test.ts","tests/raster-fallback-content.e2e.test.ts"]
-aliases: ["docs/148-sourcegraphic-url-filter-surfaces.md","doc-148"]
+code: ["src/stacking-context.test.ts", "tests/raster-fallback-content.e2e.test.ts"]
+aliases: ["docs/148-sourcegraphic-url-filter-surfaces.md", "doc-148"]
 ---
 
 # 148 — Blink SourceGraphic ownership for HTML URL-filter convolution

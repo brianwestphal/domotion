@@ -4,10 +4,16 @@ title: "189 — Nested projective-context raster ownership"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2356","DM-2359","DM-2492","DM-2493"]
-code: ["tests/nested-projective-ownership-audit.e2e.test.ts","tests/nested-projective-ownership-audit.test.ts","tools/nested-projective-ownership-audit.ts","tools/parity-program.json"]
-aliases: ["docs/189-nested-projective-context-ownership.md","doc-189"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493"]
+code:
+  [
+    "tests/nested-projective-ownership-audit.e2e.test.ts",
+    "tests/nested-projective-ownership-audit.test.ts",
+    "tools/nested-projective-ownership-audit.ts",
+    "tools/parity-program.json",
+  ]
+aliases: ["docs/189-nested-projective-context-ownership.md", "doc-189"]
 ---
 
 # 189 — Nested projective-context raster ownership
@@ -18,7 +24,7 @@ aliases: ["docs/189-nested-projective-context-ownership.md","doc-189"]
 
 Domotion already keeps non-affine CSS paint in an atomic Chromium raster and
 emits each selected raster once. This investigation asks a narrower question:
-which element is the *smallest* raster owner when projective descendants cross
+which element is the _smallest_ raster owner when projective descendants cross
 perspective, `preserve-3d`, ordinary/flat intermediaries, or grouping
 properties? The answer is not “the outermost ancestor with a 3D symptom.” It is
 Blink's used rendering-context root, or the non-affine plane itself when no
@@ -49,7 +55,7 @@ Blink's state machine is explicit:
    either non-visible overflow axis.
 2. A transform node inherits the current `RenderingContextId`. A used
    `preserve-3d` element outside a context creates an ID
-   (`paint_property_tree_builder.cc:1458-1466`). Only a parent whose *used*
+   (`paint_property_tree_builder.cc:1458-1466`). Only a parent whose _used_
    style preserves 3D propagates that ID to children; an ordinary nonanonymous
    object or a flat/grouping object resets it
    (`paint_property_tree_builder.cc:1634-1651`).
@@ -74,7 +80,7 @@ Blink's state machine is explicit:
 
 Fixed-position containing-block ownership is separate. It intentionally uses
 computed transform-related properties in places where projective paint uses
-the *used* rendering context. A grouping property can therefore flatten paint
+the _used_ rendering context. A grouping property can therefore flatten paint
 without erasing the computed `preserve-3d` containing-block signal.
 
 ## Exact ownership algorithm
@@ -121,13 +127,13 @@ Chromium's quad rather than a parsed transform string.
 
 Local macOS evidence on the pinned Chromium is:
 
-| Evidence | DPR 1 | DPR 2 |
-| --- | ---: | ---: |
-| source-model rows | 13/13 | 13/13 |
-| minimal production owners | 13/13 | 13/13 |
-| over-owned production rows | 0/13 | 0/13 |
-| atomic rasters emitted once | 13/13 | 13/13 |
-| over-owned rows that absorbed the vector sentinel | 0 | 0 |
+| Evidence                                                  |    DPR 1 |    DPR 2 |
+| --------------------------------------------------------- | -------: | -------: |
+| source-model rows                                         |    13/13 |    13/13 |
+| minimal production owners                                 |    13/13 |    13/13 |
+| over-owned production rows                                |     0/13 |     0/13 |
+| atomic rasters emitted once                               |    13/13 |    13/13 |
+| over-owned rows that absorbed the vector sentinel         |        0 |        0 |
 | source/generated changed-pixel fraction (diagnostic only) | 0.16053% | 0.07388% |
 
 All thirteen source-discriminating families now select the same minimal owner
@@ -150,7 +156,7 @@ gate is 64/64 at DPR 1/2 with 5/5 mutations.
 
 Likewise, the inline-SVG affine freeze and opaque-clone promotion in doc 162
 remain source-owned. What is partial is the HTML nested-context owner chosen
-*before* that promotion.
+_before_ that promotion.
 
 ## Follow-up boundary
 

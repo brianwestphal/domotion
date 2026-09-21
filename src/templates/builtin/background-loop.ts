@@ -45,22 +45,36 @@ const DEFAULT_COLORS = ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"];
  */
 const colorsSchema = z
   .union([
-    z.string().transform((s) => s.split(",").map((c) => c.trim()).filter((c) => c !== "")),
+    z.string().transform((s) =>
+      s
+        .split(",")
+        .map((c) => c.trim())
+        .filter((c) => c !== ""),
+    ),
     z.array(z.string()),
   ])
   .pipe(z.array(z.string()).min(1))
   .default(DEFAULT_COLORS);
 
 export const backgroundLoopParamsSchema = z.object({
-  variant: z.enum(VARIANTS).default("aurora")
-    .describe('"aurora" (soft mesh) | "orbs" (floating circles) | "stars" (twinkling particle field) | "gradient-pan" (sweeping color wash) | "grid" (drifting dot grid) | "wave" (parallax ribbon bands).'),
-  colors: colorsSchema
-    .describe("Colors, cycled across the elements (CSS colors; a JSON array, or a comma-separated string)."),
+  variant: z
+    .enum(VARIANTS)
+    .default("aurora")
+    .describe(
+      '"aurora" (soft mesh) | "orbs" (floating circles) | "stars" (twinkling particle field) | "gradient-pan" (sweeping color wash) | "grid" (drifting dot grid) | "wave" (parallax ribbon bands).',
+    ),
+  colors: colorsSchema.describe(
+    "Colors, cycled across the elements (CSS colors; a JSON array, or a comma-separated string).",
+  ),
   background: z.string().default("#0b1020").describe("Base fill behind the blobs (CSS color)."),
   count: z.coerce.number().int().min(1).max(24).default(5).describe("Number of blobs."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  durationMs: z.coerce.number().int().positive().default(9000)
+  durationMs: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(9000)
     .describe("Base loop period in ms (each blob varies around it)."),
   seed: z.coerce.number().int().default(1).describe("PRNG seed — same seed ⇒ identical layout."),
 });
@@ -72,7 +86,8 @@ export type BackgroundLoopParams = z.infer<typeof backgroundLoopParamsSchema>;
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -81,28 +96,37 @@ function mulberry32(seed: number): () => number {
 
 interface VariantStyle {
   /** Blob radius as a fraction of the smaller canvas dimension. */
-  sizeMin: number; sizeMax: number;
+  sizeMin: number;
+  sizeMax: number;
   /** radial-gradient transparent-falloff stop (%). */
   falloff: number;
   /** Breathe opacity range. */
-  opacityLow: number; opacityHigh: number;
+  opacityLow: number;
+  opacityHigh: number;
   /** Drift distance as a fraction of the canvas. */
   drift: number;
 }
 
 const VARIANT_STYLES: Record<"aurora" | "orbs", VariantStyle> = {
   aurora: { sizeMin: 0.55, sizeMax: 0.95, falloff: 72, opacityLow: 0.35, opacityHigh: 0.7, drift: 0.18 },
-  orbs:   { sizeMin: 0.18, sizeMax: 0.34, falloff: 55, opacityLow: 0.55, opacityHigh: 0.95, drift: 0.28 },
+  orbs: { sizeMin: 0.18, sizeMax: 0.34, falloff: 55, opacityLow: 0.55, opacityHigh: 0.95, drift: 0.28 },
 };
 
 interface Blob {
   idx: number;
   color: string;
   /** size, left/top, drift dx/dy (px); breathe + drift loop durations (ms); phases (ms). */
-  size: number; left: number; top: number;
-  dx: number; dy: number;
-  driftMs: number; breatheMs: number; driftDelay: number; breatheDelay: number;
-  opacityLow: number; opacityHigh: number;
+  size: number;
+  left: number;
+  top: number;
+  dx: number;
+  dy: number;
+  driftMs: number;
+  breatheMs: number;
+  driftDelay: number;
+  breatheDelay: number;
+  opacityLow: number;
+  opacityHigh: number;
   falloff: number;
 }
 
@@ -155,9 +179,9 @@ export function buildBackgroundHtml(p: BackgroundLoopParams, blobs: Blob[]): str
   const blobMarkup = blobs
     .map(
       (b) =>
-        `<div class="bg-pos bg-pos-${b.idx}" style="left:${b.left}px;top:${b.top}px;width:${b.size}px;height:${b.size}px">`
-        + `<div class="bg-blob bg-blob-${b.idx}" style="background:radial-gradient(circle at center, ${b.color} 0%, transparent ${b.falloff}%)"></div>`
-        + `</div>`,
+        `<div class="bg-pos bg-pos-${b.idx}" style="left:${b.left}px;top:${b.top}px;width:${b.size}px;height:${b.size}px">` +
+        `<div class="bg-blob bg-blob-${b.idx}" style="background:radial-gradient(circle at center, ${b.color} 0%, transparent ${b.falloff}%)"></div>` +
+        `</div>`,
     )
     .join("\n  ");
   return `<!doctype html>
@@ -251,19 +275,26 @@ export function buildGradientPanHtml(p: BackgroundLoopParams): string {
  *  NON-`alternate` — the repeating pattern wraps into itself, so it never backs out). */
 export function buildGradientPanAnimations(p: BackgroundLoopParams): Anims {
   const { shift } = gradientPanGeometry(p);
-  return [{
-    selector: ".gp-layer",
-    property: "transform",
-    from: "translate(0px, 0px)",
-    to: `translate(-${shift}px, 0px)`,
-    duration: p.durationMs,
-    easing: "linear",
-    repeat: "infinite",
-  }];
+  return [
+    {
+      selector: ".gp-layer",
+      property: "transform",
+      from: "translate(0px, 0px)",
+      to: `translate(-${shift}px, 0px)`,
+      duration: p.durationMs,
+      easing: "linear",
+      repeat: "infinite",
+    },
+  ];
 }
 
 /** A grid dot in the layer's own (svg-local) coordinates. */
-interface GridDot { cx: number; cy: number; r: number; color: string; }
+interface GridDot {
+  cx: number;
+  cy: number;
+  r: number;
+  color: string;
+}
 
 /**
  * Lay out a dot grid covering one cell beyond every edge, in the grid LAYER's own
@@ -279,7 +310,12 @@ interface GridDot { cx: number; cy: number; r: number; color: string; }
  * down-right drift (`(col-1) - (row-1) === col - row`), so a dot sliding into a
  * position carries the same color as the one it replaced (no seam flicker).
  */
-export function planGridDots(p: BackgroundLoopParams): { dots: GridDot[]; cell: number; layerW: number; layerH: number } {
+export function planGridDots(p: BackgroundLoopParams): {
+  dots: GridDot[];
+  cell: number;
+  layerW: number;
+  layerH: number;
+} {
   const minDim = Math.min(p.width, p.height);
   const cell = Math.max(40, Math.round(minDim / 8));
   const r = Math.max(2, Math.round(cell * 0.07));
@@ -301,10 +337,11 @@ export function planGridDots(p: BackgroundLoopParams): { dots: GridDot[]; cell: 
 /** Standalone HTML for the dot grid: a single inline `<svg>` of `<circle>`s,
  *  offset `-cell, -cell` so the extra margin row/column sits just off-canvas and
  *  slides in as the layer drifts. Pure. */
-export function buildGridHtml(p: BackgroundLoopParams, grid: { dots: GridDot[]; cell: number; layerW: number; layerH: number }): string {
-  const circles = grid.dots
-    .map((d) => `<circle cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="${d.color}"/>`)
-    .join("");
+export function buildGridHtml(
+  p: BackgroundLoopParams,
+  grid: { dots: GridDot[]; cell: number; layerW: number; layerH: number },
+): string {
+  const circles = grid.dots.map((d) => `<circle cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="${d.color}"/>`).join("");
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
@@ -322,23 +359,31 @@ export function buildGridHtml(p: BackgroundLoopParams, grid: { dots: GridDot[]; 
  *  one-cell shift every dot sits where its neighbor was — the loop is seamless and
  *  the motion never backs out, reading as an endless drift. */
 export function buildGridAnimations(p: BackgroundLoopParams, cell: number): Anims {
-  return [{
-    selector: ".gd-layer",
-    property: "transform",
-    from: "translate(0px, 0px)",
-    to: `translate(${cell}px, ${cell}px)`,
-    duration: p.durationMs,
-    easing: "linear",
-    repeat: "infinite",
-  }];
+  return [
+    {
+      selector: ".gd-layer",
+      property: "transform",
+      from: "translate(0px, 0px)",
+      to: `translate(${cell}px, ${cell}px)`,
+      duration: p.durationMs,
+      easing: "linear",
+      repeat: "infinite",
+    },
+  ];
 }
 
 interface Star {
   idx: number;
   color: string;
-  left: number; top: number; size: number;
-  twMs: number; twDelay: number; opacityLow: number;   // opacity twinkle
-  scMs: number; scDelay: number; scaleLow: number;      // scale sparkle
+  left: number;
+  top: number;
+  size: number;
+  twMs: number;
+  twDelay: number;
+  opacityLow: number; // opacity twinkle
+  scMs: number;
+  scDelay: number;
+  scaleLow: number; // scale sparkle
 }
 
 /**
@@ -380,9 +425,9 @@ export function buildStarsHtml(p: BackgroundLoopParams, stars: Star[]): string {
   const markup = stars
     .map(
       (s) =>
-        `<div class="st-pos st-pos-${s.idx}" style="left:${s.left}px;top:${s.top}px;width:${s.size}px;height:${s.size}px">`
-        + `<div class="st-star st-star-${s.idx}" style="background:radial-gradient(circle, #ffffff 0%, ${s.color} 38%, transparent 72%)"></div>`
-        + `</div>`,
+        `<div class="st-pos st-pos-${s.idx}" style="left:${s.left}px;top:${s.top}px;width:${s.size}px;height:${s.size}px">` +
+        `<div class="st-star st-star-${s.idx}" style="background:radial-gradient(circle, #ffffff 0%, ${s.color} 38%, transparent 72%)"></div>` +
+        `</div>`,
     )
     .join("\n  ");
   return `<!doctype html>
@@ -454,7 +499,14 @@ function sineWavePath(width: number, floor: number, baseline: number, amp: numbe
   // Pin the final sample exactly at `width` so the tile closes cleanly.
   const lastY = (baseline - amp * Math.sin((2 * Math.PI * width) / period)).toFixed(1);
   pts.push(`${width} ${lastY}`);
-  return `M ${pts[0]} ` + pts.slice(1).map((pt) => `L ${pt}`).join(" ") + ` L ${width} ${floor} L 0 ${floor} Z`;
+  return (
+    `M ${pts[0]} ` +
+    pts
+      .slice(1)
+      .map((pt) => `L ${pt}`)
+      .join(" ") +
+    ` L ${width} ${floor} L 0 ${floor} Z`
+  );
 }
 
 /**
@@ -494,9 +546,9 @@ export function buildWaveHtml(p: BackgroundLoopParams, layers: WaveLayer[]): str
   const markup = layers
     .map(
       (l) =>
-        `<div class="wv-layer wv-layer-${l.idx}" style="opacity:${l.opacity.toFixed(3)}">`
-        + `<svg width="${w2}" height="${p.height}" viewBox="0 0 ${w2} ${p.height}" preserveAspectRatio="none">`
-        + `<path d="${l.path}" fill="${l.color}"/></svg></div>`,
+        `<div class="wv-layer wv-layer-${l.idx}" style="opacity:${l.opacity.toFixed(3)}">` +
+        `<svg width="${w2}" height="${p.height}" viewBox="0 0 ${w2} ${p.height}" preserveAspectRatio="none">` +
+        `<path d="${l.path}" fill="${l.color}"/></svg></div>`,
     )
     .join("\n  ");
   return `<!doctype html>
@@ -527,7 +579,11 @@ export function buildWaveAnimations(p: BackgroundLoopParams, layers: WaveLayer[]
 }
 
 /** A variant family's built HTML + intra-frame animations + log line. */
-interface VariantBuild { html: string; animations: Anims; log: string }
+interface VariantBuild {
+  html: string;
+  animations: Anims;
+  log: string;
+}
 type VariantFamily = "blob" | "stars" | "gradient-pan" | "wave" | "grid";
 
 /** Map a variant name to its layout family. The blob layout backs several
@@ -544,20 +600,40 @@ function variantFamily(v: BackgroundVariant): VariantFamily {
 const VARIANT_BUILDERS: Record<VariantFamily, (p: BackgroundLoopParams) => VariantBuild> = {
   blob: (p) => {
     const blobs = planBlobs(p);
-    return { html: buildBackgroundHtml(p, blobs), animations: buildBackgroundAnimations(blobs), log: `template background-loop: ${p.variant}, ${blobs.length} blobs, ${p.width}×${p.height}` };
+    return {
+      html: buildBackgroundHtml(p, blobs),
+      animations: buildBackgroundAnimations(blobs),
+      log: `template background-loop: ${p.variant}, ${blobs.length} blobs, ${p.width}×${p.height}`,
+    };
   },
   stars: (p) => {
     const stars = planStars(p);
-    return { html: buildStarsHtml(p, stars), animations: buildStarsAnimations(stars), log: `template background-loop: stars, ${stars.length} stars, ${p.width}×${p.height}` };
+    return {
+      html: buildStarsHtml(p, stars),
+      animations: buildStarsAnimations(stars),
+      log: `template background-loop: stars, ${stars.length} stars, ${p.width}×${p.height}`,
+    };
   },
-  "gradient-pan": (p) => ({ html: buildGradientPanHtml(p), animations: buildGradientPanAnimations(p), log: `template background-loop: gradient-pan, ${p.colors.length} colors, ${p.width}×${p.height}` }),
+  "gradient-pan": (p) => ({
+    html: buildGradientPanHtml(p),
+    animations: buildGradientPanAnimations(p),
+    log: `template background-loop: gradient-pan, ${p.colors.length} colors, ${p.width}×${p.height}`,
+  }),
   wave: (p) => {
     const layers = planWaves(p);
-    return { html: buildWaveHtml(p, layers), animations: buildWaveAnimations(p, layers), log: `template background-loop: wave, ${layers.length} layers, ${p.width}×${p.height}` };
+    return {
+      html: buildWaveHtml(p, layers),
+      animations: buildWaveAnimations(p, layers),
+      log: `template background-loop: wave, ${layers.length} layers, ${p.width}×${p.height}`,
+    };
   },
   grid: (p) => {
     const grid = planGridDots(p);
-    return { html: buildGridHtml(p, grid), animations: buildGridAnimations(p, grid.cell), log: `template background-loop: grid, ${grid.dots.length} dots, ${p.width}×${p.height}` };
+    return {
+      html: buildGridHtml(p, grid),
+      animations: buildGridAnimations(p, grid.cell),
+      log: `template background-loop: grid, ${grid.dots.length} dots, ${p.width}×${p.height}`,
+    };
   },
 };
 

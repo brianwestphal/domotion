@@ -307,8 +307,9 @@ function stepEasing(count: number, position: string): EasingModel | null {
   const pos = position === "start" ? "jump-start" : position === "end" ? "jump-end" : position;
   if (!new Set(["jump-start", "jump-end", "jump-none", "jump-both"]).has(pos)) return null;
   if (pos === "jump-none" && count < 2) return null;
-  const discontinuities = Array.from({ length: count + 1 }, (_, i) => i / count)
-    .filter((value) => value > 0 && value < 1);
+  const discontinuities = Array.from({ length: count + 1 }, (_, i) => i / count).filter(
+    (value) => value > 0 && value < 1,
+  );
   const evalStep = (t: number, right: boolean): number => {
     const x = Math.max(0, Math.min(1, t));
     // A tiny directed offset includes both sides of a discontinuity in a
@@ -337,7 +338,10 @@ function parseEasing(value: string | undefined): EasingModel | null {
   if (source === "ease-in-out") return cubicEasing(0.42, 0, 0.58, 1);
   if (source === "step-start") return stepEasing(1, "jump-start");
   if (source === "step-end") return stepEasing(1, "jump-end");
-  const bezier = new RegExp(`^cubic-bezier\\(\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*\\)$`, "i").exec(source);
+  const bezier = new RegExp(
+    `^cubic-bezier\\(\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*\\)$`,
+    "i",
+  ).exec(source);
   if (bezier != null) return cubicEasing(Number(bezier[1]), Number(bezier[2]), Number(bezier[3]), Number(bezier[4]));
   const steps = /^steps\(\s*(\d+)\s*(?:,\s*(jump-start|jump-end|jump-none|jump-both|start|end)\s*)?\)$/i.exec(source);
   if (steps != null) return stepEasing(Number(steps[1]), (steps[2] ?? "jump-end").toLowerCase());
@@ -410,13 +414,23 @@ function resolveTransformOrigin(spec: string | undefined, box: SweptBox | undefi
   let yToken: Token;
   if (tokens.length === 1) {
     const center: Token = { axis: "any", fraction: 0.5 };
-    if (first.axis === "y") { xToken = center; yToken = first; }
-    else { xToken = first; yToken = center; }
+    if (first.axis === "y") {
+      xToken = center;
+      yToken = first;
+    } else {
+      xToken = first;
+      yToken = center;
+    }
   } else {
     const second = parse(tokens[1]);
     if (second == null) return null;
-    if (first.axis === "y" || second.axis === "x") { xToken = second; yToken = first; }
-    else { xToken = first; yToken = second; }
+    if (first.axis === "y" || second.axis === "x") {
+      xToken = second;
+      yToken = first;
+    } else {
+      xToken = first;
+      yToken = second;
+    }
     if (xToken.axis === "y" || yToken.axis === "x") return null;
   }
   const resolve = (token: Token, start: number, size: number): number =>
@@ -430,17 +444,24 @@ function buildWrapper(ctx: SweptAnimationContext): WrapperModel | "identity" | n
   const tracks: Track[] = [{ property: ctx.anim.property, from: ctx.anim.from, to: ctx.anim.to }];
   tracks.push(...(ctx.anim.fuse ?? []));
   const transformTracks = tracks.filter((track) => TRANSFORM_FAMILY.has(track.property));
-  const sampledFusion = ctx.anim.repeat == null &&
-    (ctx.anim.fuse ?? []).some((track) =>
-      track.duration != null || track.delay != null || track.easing != null);
+  const sampledFusion =
+    ctx.anim.repeat == null &&
+    (ctx.anim.fuse ?? []).some((track) => track.duration != null || track.delay != null || track.easing != null);
   // `composeAnimStop` concatenates all transform-family strings. `none` is
   // valid only as the complete transform value, so `none translate(...)`
   // would be dropped by CSS parsing. Retain instead of modelling motion that
   // the generated SVG does not actually apply.
-  if (transformTracks.length > 1 && transformTracks.some((track) =>
-    (track.property === "transform" &&
-      (track.from.trim() === "" || track.from.trim().toLowerCase() === "none" ||
-       track.to.trim() === "" || track.to.trim().toLowerCase() === "none")))) {
+  if (
+    transformTracks.length > 1 &&
+    transformTracks.some(
+      (track) =>
+        track.property === "transform" &&
+        (track.from.trim() === "" ||
+          track.from.trim().toLowerCase() === "none" ||
+          track.to.trim() === "" ||
+          track.to.trim().toLowerCase() === "none"),
+    )
+  ) {
     return null;
   }
   const operations: AnimatedOperation[] = [];
@@ -469,7 +490,9 @@ function buildWrapper(ctx: SweptAnimationContext): WrapperModel | "identity" | n
     }
   }
   if (!hasTransformTrack || operations.length === 0) return "identity";
-  const origin = needsOrigin ? resolveTransformOrigin(ctx.anim.transformOrigin, ctx.transformReferenceBox) : { x: 0, y: 0 };
+  const origin = needsOrigin
+    ? resolveTransformOrigin(ctx.anim.transformOrigin, ctx.transformReferenceBox)
+    : { x: 0, y: 0 };
   return origin == null ? null : { operations, origin };
 }
 
@@ -514,9 +537,10 @@ function terminalProgress(timing: TimingModel): number {
 
 function progressRange(timing: TimingModel, startPct: number, endPct: number): [number, number] | null {
   const midpoint = (startPct + endPct) / 2;
-  const activeEnd = timing.iterations === "infinite"
-    ? Number.POSITIVE_INFINITY
-    : timing.startPct + timing.durationPct * timing.iterations;
+  const activeEnd =
+    timing.iterations === "infinite"
+      ? Number.POSITIVE_INFINITY
+      : timing.startPct + timing.durationPct * timing.iterations;
   if (midpoint < timing.startPct) return [0, 0];
   if (midpoint >= activeEnd) {
     const value = terminalProgress(timing);
@@ -555,12 +579,7 @@ function outwardBox(minX: number, minY: number, maxX: number, maxY: number): Swe
 }
 
 function mapTranslateRange(box: SweptBox, x: [number, number], y: [number, number]): SweptBox | null {
-  return outwardBox(
-    box.x + x[0],
-    box.y + y[0],
-    box.x + box.w + x[1],
-    box.y + box.h + y[1],
-  );
+  return outwardBox(box.x + x[0], box.y + y[0], box.x + box.w + x[1], box.y + box.h + y[1]);
 }
 
 function mapScaleRange(box: SweptBox, x: [number, number], y: [number, number]): SweptBox | null {
@@ -635,11 +654,12 @@ function sweepWrapper(box: SweptBox, wrapper: WrapperModel, startPct: number, en
     if (progress == null || !finite(progress[0], progress[1])) return null;
     const x = lerpRange(operation.fromX, operation.toX, progress);
     const y = lerpRange(operation.fromY, operation.toY, progress);
-    result = operation.kind === "translate"
-      ? mapTranslateRange(result, x, y)
-      : operation.kind === "scale"
-        ? mapScaleRange(result, x, y)
-        : mapRotateRange(result, x);
+    result =
+      operation.kind === "translate"
+        ? mapTranslateRange(result, x, y)
+        : operation.kind === "scale"
+          ? mapScaleRange(result, x, y)
+          : mapRotateRange(result, x);
     if (result == null) return null;
   }
   return translateBox(result, wrapper.origin.x, wrapper.origin.y);

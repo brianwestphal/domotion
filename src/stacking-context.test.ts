@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { elementTreeToSvgInner } from "./render/element-tree-to-svg.js";
 import type { CapturedElement } from "./capture/types.js";
-import {
-  establishesStackingContext,
-  isFixedContainingBlock,
-  isOverflowOnlySC,
-} from "./render/stacking.js";
+import { establishesStackingContext, isFixedContainingBlock, isOverflowOnlySC } from "./render/stacking.js";
 
 /**
  * DM-473: cross-stacking-context z-index unit tests.
@@ -157,26 +153,45 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     //
     // Paint order: bg → red → green → blue (blue hoists into positive(1) bucket
     // so it paints AFTER both auto-bucket positioned siblings).
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "1",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(63,185,80)", "rgb(88,166,255)"]);
@@ -195,26 +210,45 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     //   └── green  (absolute, z:2, IS SC)          — bucket: positive(2), paints after red
     //
     // Paint order: red → blue (inside red) → green
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "2", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(220,38,38)" },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "2", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
@@ -228,32 +262,51 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
   it("transform creates a stacking context — descendants don't escape", () => {
     // Same shape as the boundary test but the SC root uses `transform`
     // instead of an explicit z-index.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: {
-            ...makeElement().styles,
-            position: "absolute",
-            transform: "translate(0px, 0px) matrix(1, 0, 0, 1, 0, 0)",
-            transformOrigin: "60px 60px",
-            backgroundColor: "rgb(220,38,38)",
-          },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: {
+              ...makeElement().styles,
+              position: "absolute",
+              transform: "translate(0px, 0px) matrix(1, 0, 0, 1, 0, 0)",
+              transformOrigin: "60px 60px",
+              backgroundColor: "rgb(220,38,38)",
+            },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
@@ -273,26 +326,45 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     //
     // Paint order: bg → blue (negative bucket, first) → gray → red.
     // Visually: blue paints behind both gray and red.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 220, height: 50,
-          styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(148,163,184)" },
-        }),
-        makeElement({
-          x: 60, y: 40, width: 120, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 30, y: 20, width: 200, height: 120,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "-1", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 220,
+            height: 50,
+            styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(148,163,184)" },
+          }),
+          makeElement({
+            x: 60,
+            y: 40,
+            width: 120,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" },
+            children: [
+              makeElement({
+                x: 30,
+                y: 20,
+                width: 200,
+                height: 120,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "-1",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(88,166,255)", "rgb(148,163,184)", "rgb(220,38,38)"]);
@@ -309,26 +381,50 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     // spec, this MUST create a stacking context. Without DM-498, Domotion
     // missed this and positioned descendants escaped past the wrapper into
     // the parent SC's flat list, disrupting paint order.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "absolute", willChange: "transform", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: {
+              ...makeElement().styles,
+              position: "absolute",
+              willChange: "transform",
+              backgroundColor: "rgb(220,38,38)",
+            },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
@@ -343,126 +439,205 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     // `contain: paint | strict | content` per CSS Containment spec creates
     // a stacking context. Mirrors the will-change test — descendants stay
     // inside.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "absolute", contain: "paint", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: {
+              ...makeElement().styles,
+              position: "absolute",
+              contain: "paint",
+              backgroundColor: "rgb(220,38,38)",
+            },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
-    expect(order).toEqual([
-      "rgb(220,38,38)",
-      "rgb(88,166,255)",
-      "rgb(63,185,80)",
-    ]);
+    expect(order).toEqual(["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
   });
 
   it("isolation: isolate creates a stacking context (DM-498)", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "absolute", isolation: "isolate", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: {
+              ...makeElement().styles,
+              position: "absolute",
+              isolation: "isolate",
+              backgroundColor: "rgb(220,38,38)",
+            },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
-    expect(order).toEqual([
-      "rgb(220,38,38)",
-      "rgb(88,166,255)",
-      "rgb(63,185,80)",
-    ]);
+    expect(order).toEqual(["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
   });
 
   it("will-change: scroll-position does NOT create a stacking context", () => {
     // CSS-Will-Change-1: only properties that themselves create SCs trigger
     // SC formation when listed in will-change. `scroll-position` is not such
     // a property — listing it should leave normal hoist behavior intact.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "absolute", willChange: "scroll-position", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              // z-index:5, but parent is NOT an SC → blue hoists to root SC.
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: {
+              ...makeElement().styles,
+              position: "absolute",
+              willChange: "scroll-position",
+              backgroundColor: "rgb(220,38,38)",
+            },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                // z-index:5, but parent is NOT an SC → blue hoists to root SC.
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     // blue (z:5 hoisted to root) paints LAST — over green (z:1).
-    expect(order).toEqual([
-      "rgb(220,38,38)",
-      "rgb(63,185,80)",
-      "rgb(88,166,255)",
-    ]);
+    expect(order).toEqual(["rgb(220,38,38)", "rgb(63,185,80)", "rgb(88,166,255)"]);
   });
 
   it("position:fixed/sticky always create a stacking context (modern CSS)", () => {
     // A fixed-positioned ancestor with z-index:auto still creates an SC
     // per the "modern CSS" rule. Its z-indexed descendants stay inside.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 240, height: 160,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 10, y: 10, width: 120, height: 120,
-          styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-          children: [
-            makeElement({
-              x: 40, y: 40, width: 140, height: 90,
-              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 80, y: 50, width: 140, height: 80,
-          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 240,
+        height: 160,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 10,
+            y: 10,
+            width: 120,
+            height: 120,
+            styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            children: [
+              makeElement({
+                x: 40,
+                y: 40,
+                width: 140,
+                height: 90,
+                styles: {
+                  ...makeElement().styles,
+                  position: "absolute",
+                  zIndex: "5",
+                  backgroundColor: "rgb(88,166,255)",
+                },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 80,
+            y: 50,
+            width: 140,
+            height: 80,
+            styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
@@ -485,24 +660,38 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
   it("paints a flex item with z-index:10 ABOVE its later DOM-order siblings (default position:static)", () => {
     // Tree: a flex container with three static-positioned children.
     // The first child has z-index:10 — per spec, it should paint LAST.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" }, // red, z:10
-        }),
-        makeElement({
-          x: 100, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" }, // green, z:auto
-        }),
-        makeElement({
-          x: 200, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" }, // blue, z:auto
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" }, // red, z:10
+          }),
+          makeElement({
+            x: 100,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" }, // green, z:auto
+          }),
+          makeElement({
+            x: 200,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" }, // blue, z:auto
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)"]);
     expect(order).toEqual([
@@ -513,27 +702,41 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
   });
 
   it("z-sorts multiple flex items by their z-index, regardless of DOM order", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        // a: z:5 — should paint last
-        makeElement({
-          x: 0, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, zIndex: "5", backgroundColor: "rgb(220,38,38)" },
-        }),
-        // b: z:1 — paints between auto-bucket and z:5
-        makeElement({
-          x: 100, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, zIndex: "1", backgroundColor: "rgb(22,163,74)" },
-        }),
-        // c: z:auto — paints first (before any explicit-z item per CSS)
-        makeElement({
-          x: 200, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          // a: z:5 — should paint last
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, zIndex: "5", backgroundColor: "rgb(220,38,38)" },
+          }),
+          // b: z:1 — paints between auto-bucket and z:5
+          makeElement({
+            x: 100,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, zIndex: "1", backgroundColor: "rgb(22,163,74)" },
+          }),
+          // c: z:auto — paints first (before any explicit-z item per CSS)
+          makeElement({
+            x: 200,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)"]);
     expect(order).toEqual([
@@ -546,20 +749,31 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
   it("does NOT z-sort children of a non-flex/grid container with z-index (DOM order preserved)", () => {
     // Sanity check: a regular block container ignores z-index on static
     // children — they paint in DOM order.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, display: "block", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" }, // red, z:10 IGNORED
-        }),
-        makeElement({
-          x: 0, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" }, // green
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, display: "block", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" }, // red, z:10 IGNORED
+          }),
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" }, // green
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
@@ -569,20 +783,31 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
   });
 
   it("treats grid items the same as flex items (display: grid)", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, display: "grid", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" },
-        }),
-        makeElement({
-          x: 100, y: 0, width: 100, height: 100,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, display: "grid", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" },
+          }),
+          makeElement({
+            x: 100,
+            y: 0,
+            width: 100,
+            height: 100,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
@@ -626,42 +851,64 @@ describe("DM-558 flex/grid item z-index — buried-inside-non-SC-ancestor hoist"
     //     │         └─ a.button (position:static, z:4) — must paint LAST
     //     └─ tile-image-wrapper (position:absolute, z:auto — non-SC) [DOM 1]
     //          └─ image-bg (the bg that wrongly painted on top of button)
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: {
-        ...makeElement().styles,
-        display: "flex",
-        overflowX: "clip",
-        overflowY: "clip",
-        backgroundColor: "rgb(13,17,23)",
-      },
-      children: [
-        // tile-content
-        makeElement({
-          x: 0, y: 0, width: 300, height: 100,
-          styles: { ...makeElement().styles, display: "flex", position: "relative", backgroundColor: "rgb(255,255,255)" },
-          children: [
-            // tile-ctas (display:grid)
-            makeElement({
-              x: 100, y: 30, width: 100, height: 40,
-              styles: { ...makeElement().styles, display: "grid", backgroundColor: "rgb(255,255,255)" },
-              children: [
-                // a.button (grid-item with z:4, position:static)
-                makeElement({
-                  x: 100, y: 30, width: 100, height: 40,
-                  styles: { ...makeElement().styles, zIndex: "4", backgroundColor: "rgb(0,113,227)" }, // blue button
-                }),
-              ],
-            }),
-          ],
-        }),
-        // tile-image-wrapper (positioned, covers same x range)
-        makeElement({
-          x: 0, y: 0, width: 300, height: 100,
-          styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" }, // red image bg
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: {
+          ...makeElement().styles,
+          display: "flex",
+          overflowX: "clip",
+          overflowY: "clip",
+          backgroundColor: "rgb(13,17,23)",
+        },
+        children: [
+          // tile-content
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 100,
+            styles: {
+              ...makeElement().styles,
+              display: "flex",
+              position: "relative",
+              backgroundColor: "rgb(255,255,255)",
+            },
+            children: [
+              // tile-ctas (display:grid)
+              makeElement({
+                x: 100,
+                y: 30,
+                width: 100,
+                height: 40,
+                styles: { ...makeElement().styles, display: "grid", backgroundColor: "rgb(255,255,255)" },
+                children: [
+                  // a.button (grid-item with z:4, position:static)
+                  makeElement({
+                    x: 100,
+                    y: 30,
+                    width: 100,
+                    height: 40,
+                    styles: { ...makeElement().styles, zIndex: "4", backgroundColor: "rgb(0,113,227)" }, // blue button
+                  }),
+                ],
+              }),
+            ],
+          }),
+          // tile-image-wrapper (positioned, covers same x range)
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 100,
+            styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" }, // red image bg
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(0,113,227)", "rgb(220,38,38)"]);
     // tile-image-wrapper (red) must paint BEFORE the button (blue) so that
@@ -691,65 +938,148 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
     // Tree: 5 flex items, A first in DOM with order:5 (visually rightmost)
     // through E last in DOM with order:1 (visually leftmost). Paint must
     // be E, D, C, B, A — visual L-to-R / order-modified.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 600, height: 60,
-      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({ x: 480, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "5", backgroundColor: "rgb(220,38,38)" } }), // A
-        makeElement({ x: 360, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "4", backgroundColor: "rgb(22,163,74)" } }),  // B
-        makeElement({ x: 240, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "3", backgroundColor: "rgb(37,99,235)" } }),  // C
-        makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "2", backgroundColor: "rgb(234,88,12)" } }),  // D
-        makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(124,58,237)" } }), // E
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 600,
+        height: 60,
+        styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 480,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, order: "5", backgroundColor: "rgb(220,38,38)" },
+          }), // A
+          makeElement({
+            x: 360,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, order: "4", backgroundColor: "rgb(22,163,74)" },
+          }), // B
+          makeElement({
+            x: 240,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, order: "3", backgroundColor: "rgb(37,99,235)" },
+          }), // C
+          makeElement({
+            x: 120,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, order: "2", backgroundColor: "rgb(234,88,12)" },
+          }), // D
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(124,58,237)" },
+          }), // E
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 600, 60);
     const order = fillOrder(svg, [
-      "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)", "rgb(124,58,237)",
+      "rgb(220,38,38)",
+      "rgb(22,163,74)",
+      "rgb(37,99,235)",
+      "rgb(234,88,12)",
+      "rgb(124,58,237)",
     ]);
     expect(order).toEqual([
       "rgb(124,58,237)", // E (order:1) first
-      "rgb(234,88,12)",  // D (order:2)
-      "rgb(37,99,235)",  // C (order:3)
-      "rgb(22,163,74)",  // B (order:4)
-      "rgb(220,38,38)",  // A (order:5) last/top
+      "rgb(234,88,12)", // D (order:2)
+      "rgb(37,99,235)", // C (order:3)
+      "rgb(22,163,74)", // B (order:4)
+      "rgb(220,38,38)", // A (order:5) last/top
     ]);
   });
 
   it("breaks `order` ties with source (DOM) order", () => {
     // Two items share order:0, two share order:1. Within each bucket the
     // painted-first is the one earlier in DOM order.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 60,
-      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" } }), // red, order:1, DOM 0
-        makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(22,163,74)" } }), // green, order:0, DOM 1
-        makeElement({ x: 200, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(37,99,235)" } }), // blue, order:1, DOM 2
-        makeElement({ x: 300, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(234,88,12)" } }), // orange, order:0, DOM 3
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 60,
+        styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" },
+          }), // red, order:1, DOM 0
+          makeElement({
+            x: 100,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(22,163,74)" },
+          }), // green, order:0, DOM 1
+          makeElement({
+            x: 200,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(37,99,235)" },
+          }), // blue, order:1, DOM 2
+          makeElement({
+            x: 300,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(234,88,12)" },
+          }), // orange, order:0, DOM 3
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 60);
-    const order = fillOrder(svg, [
-      "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)",
-    ]);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)"]);
     expect(order).toEqual([
-      "rgb(22,163,74)",  // green (order:0, DOM 1) — first
-      "rgb(234,88,12)",  // orange (order:0, DOM 3)
-      "rgb(220,38,38)",  // red (order:1, DOM 0)
-      "rgb(37,99,235)",  // blue (order:1, DOM 2) — last
+      "rgb(22,163,74)", // green (order:0, DOM 1) — first
+      "rgb(234,88,12)", // orange (order:0, DOM 3)
+      "rgb(220,38,38)", // red (order:1, DOM 0)
+      "rgb(37,99,235)", // blue (order:1, DOM 2) — last
     ]);
   });
 
   it("ignores `order` on children of a non-flex/non-grid container (DOM order preserved)", () => {
     // Plain block container — `order` has no effect.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 200, height: 60,
-      styles: { ...makeElement().styles, display: "block", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "5", backgroundColor: "rgb(220,38,38)" } }),
-        makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(22,163,74)" } }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 60,
+        styles: { ...makeElement().styles, display: "block", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "5", backgroundColor: "rgb(220,38,38)" },
+          }),
+          makeElement({
+            x: 100,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(22,163,74)" },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 200, 60);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
@@ -767,41 +1097,102 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
     // in source order (A first, E last) and the colored stripes at the
     // box-overlap zones diff'd because the wrong sibling owned each
     // overlap (DM-537 follow-up to DM-525).
-    const tree = [makeElement({
-      x: 0, y: 0, width: 600, height: 60,
-      styles: { ...makeElement().styles, display: "flex", flexDirection: "row-reverse", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({ x: 480, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(220,38,38)" } }), // A — DOM 0, visually rightmost
-        makeElement({ x: 360, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" } }),  // B
-        makeElement({ x: 240, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" } }),  // C
-        makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(234,88,12)" } }),  // D
-        makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" } }), // E — DOM 4, visually leftmost
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 600,
+        height: 60,
+        styles: {
+          ...makeElement().styles,
+          display: "flex",
+          flexDirection: "row-reverse",
+          backgroundColor: "rgb(13,17,23)",
+        },
+        children: [
+          makeElement({
+            x: 480,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(220,38,38)" },
+          }), // A — DOM 0, visually rightmost
+          makeElement({
+            x: 360,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" },
+          }), // B
+          makeElement({
+            x: 240,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" },
+          }), // C
+          makeElement({
+            x: 120,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(234,88,12)" },
+          }), // D
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" },
+          }), // E — DOM 4, visually leftmost
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 600, 60);
     const order = fillOrder(svg, [
-      "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)", "rgb(124,58,237)",
+      "rgb(220,38,38)",
+      "rgb(22,163,74)",
+      "rgb(37,99,235)",
+      "rgb(234,88,12)",
+      "rgb(124,58,237)",
     ]);
     expect(order).toEqual([
       "rgb(124,58,237)", // E (DOM-last) paints first under row-reverse
-      "rgb(234,88,12)",  // D
-      "rgb(37,99,235)",  // C
-      "rgb(22,163,74)",  // B
-      "rgb(220,38,38)",  // A (DOM-first, visually rightmost) paints last/top
+      "rgb(234,88,12)", // D
+      "rgb(37,99,235)", // C
+      "rgb(22,163,74)", // B
+      "rgb(220,38,38)", // A (DOM-first, visually rightmost) paints last/top
     ]);
   });
 
   it("does NOT reverse paint order for flex-direction:row (default — DOM order)", () => {
     // Section 1 sanity: same items but `flex-direction: row` (default) with
     // no `order` set → paint = source/DOM order, A first, E last.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 600, height: 60,
-      styles: { ...makeElement().styles, display: "flex", flexDirection: "row", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(220,38,38)" } }),
-        makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" } }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 600,
+        height: 60,
+        styles: { ...makeElement().styles, display: "flex", flexDirection: "row", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(220,38,38)" },
+          }),
+          makeElement({
+            x: 120,
+            y: 0,
+            width: 120,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 600, 60);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(124,58,237)"]);
     expect(order).toEqual(["rgb(220,38,38)", "rgb(124,58,237)"]);
@@ -810,14 +1201,31 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
   it("combines `order` reordering with explicit z-index buckets (z-index wins)", () => {
     // green has order:5 (visually last) but z:1 — should paint AFTER red
     // (z:auto) regardless of order. Red is order:1 (visually first) z:auto.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 200, height: 60,
-      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
-      children: [
-        makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "5", zIndex: "1", backgroundColor: "rgb(22,163,74)" } }), // green
-        makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" } }), // red
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 60,
+        styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+        children: [
+          makeElement({
+            x: 100,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "5", zIndex: "1", backgroundColor: "rgb(22,163,74)" },
+          }), // green
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 60,
+            styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" },
+          }), // red
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 200, 60);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
@@ -933,8 +1341,14 @@ describe("DM-2385 computed perspective owns stacking and fixed containment", () 
 
   it("honors will-change:perspective but not perspective-origin or scroll-position", () => {
     for (const value of [
-      "transform", "transform-style", "perspective", "translate", "rotate",
-      "scale", "offset-path", "offset-position",
+      "transform",
+      "transform-style",
+      "perspective",
+      "translate",
+      "rotate",
+      "scale",
+      "offset-path",
+      "offset-position",
     ]) {
       const hinted = makeElement({
         styles: { ...makeElement().styles, willChange: value },
@@ -943,8 +1357,11 @@ describe("DM-2385 computed perspective owns stacking and fixed containment", () 
       expect(isFixedContainingBlock(hinted)).toBe(true);
     }
     for (const value of [
-      "offset-distance", "offset-rotate", "transform-origin",
-      "perspective-origin", "scroll-position",
+      "offset-distance",
+      "offset-rotate",
+      "transform-origin",
+      "perspective-origin",
+      "scroll-position",
     ]) {
       const control = makeElement({
         styles: { ...makeElement().styles, willChange: value },
@@ -989,22 +1406,33 @@ describe("DM-543/DM-2385 position:fixed escapes ancestor overflow clips", () => 
     //   section (overflow:auto SC, NOT a fixed CB)
     //     innerDiv (static, no CB)
     //       pin (position:fixed)  ← should escape section's clip-path group
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 300, height: 200,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)" },
-          children: [
-            makeElement({
-              x: 250, y: 80, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 200,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)" },
+            children: [
+              makeElement({
+                x: 250,
+                y: 80,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
@@ -1014,118 +1442,188 @@ describe("DM-543/DM-2385 position:fixed escapes ancestor overflow clips", () => 
     //   section (overflow:auto SC, NOT a fixed CB)
     //     frame (transform:translate(0) — IS a fixed CB)
     //       pin (position:fixed)  ← stays trapped under frame inside section's clip
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 300, height: 200,
-          styles: { ...makeElement().styles, position: "relative", transform: "matrix(1, 0, 0, 1, 0, 0)", backgroundColor: "rgb(254,243,199)" },
-          children: [
-            makeElement({
-              x: 250, y: 180, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 200,
+            styles: {
+              ...makeElement().styles,
+              position: "relative",
+              transform: "matrix(1, 0, 0, 1, 0, 0)",
+              backgroundColor: "rgb(254,243,199)",
+            },
+            children: [
+              makeElement({
+                x: 250,
+                y: 180,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
   it("traps position:fixed inside a contain:paint ancestor", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 300, height: 200,
-          styles: { ...makeElement().styles, position: "relative", contain: "paint", backgroundColor: "rgb(254,243,199)" },
-          children: [
-            makeElement({
-              x: 250, y: 180, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 200,
+            styles: {
+              ...makeElement().styles,
+              position: "relative",
+              contain: "paint",
+              backgroundColor: "rgb(254,243,199)",
+            },
+            children: [
+              makeElement({
+                x: 250,
+                y: 180,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
   it("traps position:fixed inside a will-change:transform ancestor", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 300, height: 200,
-          styles: { ...makeElement().styles, position: "relative", willChange: "transform", backgroundColor: "rgb(254,243,199)" },
-          children: [
-            makeElement({
-              x: 250, y: 180, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 200,
+            styles: {
+              ...makeElement().styles,
+              position: "relative",
+              willChange: "transform",
+              backgroundColor: "rgb(254,243,199)",
+            },
+            children: [
+              makeElement({
+                x: 250,
+                y: 180,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
   it("traps fixed paint inside nested clips when the inner ancestor has perspective", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden" },
-      children: [
-        makeElement({
-          x: 20, y: 10, width: 220, height: 70,
-          styles: {
-            ...makeElement().styles,
-            perspective: "420px",
-            perspectiveOrigin: "33px 52px",
-            overflowX: "hidden",
-            overflowY: "hidden",
-          },
-          children: [
-            makeElement({
-              x: 260, y: 82, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden" },
+        children: [
+          makeElement({
+            x: 20,
+            y: 10,
+            width: 220,
+            height: 70,
+            styles: {
+              ...makeElement().styles,
+              perspective: "420px",
+              perspectiveOrigin: "33px 52px",
+              overflowX: "hidden",
+              overflowY: "hidden",
+            },
+            children: [
+              makeElement({
+                x: 260,
+                y: 82,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
   it("hoists the same fixed paint past nested clips when perspective computes to none", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden" },
-      children: [
-        makeElement({
-          x: 20, y: 10, width: 220, height: 70,
-          styles: {
-            ...makeElement().styles,
-            perspective: "none",
-            perspectiveOrigin: "33px 52px",
-            overflowX: "hidden",
-            overflowY: "hidden",
-          },
-          children: [
-            makeElement({
-              x: 260, y: 82, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden" },
+        children: [
+          makeElement({
+            x: 20,
+            y: 10,
+            width: 220,
+            height: 70,
+            styles: {
+              ...makeElement().styles,
+              perspective: "none",
+              perspectiveOrigin: "33px 52px",
+              overflowX: "hidden",
+              overflowY: "hidden",
+            },
+            children: [
+              makeElement({
+                x: 260,
+                y: 82,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
@@ -1133,22 +1631,38 @@ describe("DM-543/DM-2385 position:fixed escapes ancestor overflow clips", () => 
   it("hoists position:fixed past nested non-CB SC ancestors (overflow scroller inside overflow scroller)", () => {
     // section1 (overflow:auto) > section2 (overflow:auto) > pin (fixed)
     // Both scrollers are SCs but neither is a fixed-CB; pin escapes to root.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 300, height: 100,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 300, height: 200,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)", overflowX: "auto", overflowY: "auto" },
-          children: [
-            makeElement({
-              x: 250, y: 80, width: 40, height: 16,
-              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 200,
+            styles: {
+              ...makeElement().styles,
+              backgroundColor: "rgb(241,245,249)",
+              overflowX: "auto",
+              overflowY: "auto",
+            },
+            children: [
+              makeElement({
+                x: 250,
+                y: 80,
+                width: 40,
+                height: 16,
+                styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
@@ -1168,15 +1682,24 @@ describe("DM-1052 flex-*-reverse keeps a hoisted descendant painting after its a
   // badge background still paints before (below) its icon.
   function buildBadgeRow(badgeBg: string, iconBg: string): CapturedElement {
     return makeElement({
-      x: 0, y: 0, width: 200, height: 40,
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 40,
       styles: { ...makeElement().styles, display: "flex" },
       children: [
         makeElement({
-          x: 0, y: 0, width: 36, height: 36,
+          x: 0,
+          y: 0,
+          width: 36,
+          height: 36,
           styles: { ...makeElement().styles, display: "flex", backgroundColor: badgeBg },
           children: [
             makeElement({
-              x: 6, y: 6, width: 24, height: 24,
+              x: 6,
+              y: 6,
+              width: 24,
+              height: 24,
               styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden", backgroundColor: iconBg },
             }),
           ],
@@ -1185,30 +1708,35 @@ describe("DM-1052 flex-*-reverse keeps a hoisted descendant painting after its a
     });
   }
   it("badge gradient paints below its own hoisted icon under column-reverse", () => {
-    const tree = [makeElement({
-      x: 0, y: 0, width: 200, height: 120, // SC root column: relative z:1, flex column-reverse
-      styles: {
-        ...makeElement().styles,
-        position: "relative", zIndex: "1",
-        display: "flex", flexDirection: "column-reverse",
-        backgroundColor: "rgb(1,1,1)",
-      },
-      children: [
-        buildBadgeRow("rgb(220,38,38)", "rgb(37,99,235)"),  // Row A: red badge, blue icon
-        buildBadgeRow("rgb(22,163,74)", "rgb(234,179,8)"),  // Row B: green badge, yellow icon
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 120, // SC root column: relative z:1, flex column-reverse
+        styles: {
+          ...makeElement().styles,
+          position: "relative",
+          zIndex: "1",
+          display: "flex",
+          flexDirection: "column-reverse",
+          backgroundColor: "rgb(1,1,1)",
+        },
+        children: [
+          buildBadgeRow("rgb(220,38,38)", "rgb(37,99,235)"), // Row A: red badge, blue icon
+          buildBadgeRow("rgb(22,163,74)", "rgb(234,179,8)"), // Row B: green badge, yellow icon
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 200, 120);
-    const order = fillOrder(svg, [
-      "rgb(220,38,38)", "rgb(37,99,235)", "rgb(22,163,74)", "rgb(234,179,8)",
-    ]);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(37,99,235)", "rgb(22,163,74)", "rgb(234,179,8)"]);
     // column-reverse paints Row B's group before Row A's group, and within
     // each group the badge background paints before (below) its icon.
     expect(order).toEqual([
-      "rgb(22,163,74)",  // Row B badge (green)
-      "rgb(234,179,8)",  // Row B icon  (yellow) — on top of its badge
-      "rgb(220,38,38)",  // Row A badge (red)
-      "rgb(37,99,235)",  // Row A icon  (blue)  — on top of its badge
+      "rgb(22,163,74)", // Row B badge (green)
+      "rgb(234,179,8)", // Row B icon  (yellow) — on top of its badge
+      "rgb(220,38,38)", // Row A badge (red)
+      "rgb(37,99,235)", // Row A icon  (blue)  — on top of its badge
     ]);
   });
 });
@@ -1224,26 +1752,39 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
    *  gradient glow pseudoBox. `zIndex` / `filter` are parameterized so one
    *  helper covers both the negative-z glow and the z:auto fade-overlay. */
   function pillTree(after: { zIndex?: number; filter?: string }) {
-    return [makeElement({
-      x: 78, y: 286, width: 233, height: 32,
-      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgba(0, 0, 0, 0)" },
-      pseudoBoxes: [{
-        pseudo: "::after",
-        x: 78, y: 286, width: 233, height: 32,
-        backgroundImage: "linear-gradient(110deg, rgba(2,252,239,0.44) 0%, rgba(160,43,254,0.44) 100%)",
-        borderRadius: 16,
-        transform: "matrix(0.95, 0, 0, 0.6, 0, 0)",
-        transformOrigin: "116px 16px",
-        ...after,
-      }],
-      children: [
-        // The dark pill interior, painted as a child of the host.
-        makeElement({
-          x: 79, y: 287, width: 231, height: 30,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(11,14,20)" },
-        }),
-      ],
-    } as Partial<CapturedElement>)];
+    return [
+      makeElement({
+        x: 78,
+        y: 286,
+        width: 233,
+        height: 32,
+        styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgba(0, 0, 0, 0)" },
+        pseudoBoxes: [
+          {
+            pseudo: "::after",
+            x: 78,
+            y: 286,
+            width: 233,
+            height: 32,
+            backgroundImage: "linear-gradient(110deg, rgba(2,252,239,0.44) 0%, rgba(160,43,254,0.44) 100%)",
+            borderRadius: 16,
+            transform: "matrix(0.95, 0, 0, 0.6, 0, 0)",
+            transformOrigin: "116px 16px",
+            ...after,
+          },
+        ],
+        children: [
+          // The dark pill interior, painted as a child of the host.
+          makeElement({
+            x: 79,
+            y: 287,
+            width: 231,
+            height: 30,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(11,14,20)" },
+          }),
+        ],
+      } as Partial<CapturedElement>),
+    ];
   }
 
   it("paints the z-index:-10 glow BEHIND the dark child with Blink's native CSS filter", () => {
@@ -1279,17 +1820,21 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
 
 describe("DM-2172 CSS SVG reference-filter coordinate space", () => {
   it("localizes the filtered group so userSpaceOnUse primitives see an HTML-style reference box", () => {
-    const tree = [makeElement({
-      x: 120,
-      y: 75,
-      width: 180,
-      height: 60,
-      styles: { ...makeElement().styles, filter: 'url("#distort")' },
-      filterDefs: [{
-        id: "distort",
-        outerHTML: '<filter id="distort"><feTurbulence baseFrequency="0.02"/></filter>',
-      }],
-    })];
+    const tree = [
+      makeElement({
+        x: 120,
+        y: 75,
+        width: 180,
+        height: 60,
+        styles: { ...makeElement().styles, filter: 'url("#distort")' },
+        filterDefs: [
+          {
+            id: "distort",
+            outerHTML: '<filter id="distort"><feTurbulence baseFrequency="0.02"/></filter>',
+          },
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 400, 240);
     expect(svg).toContain('<filter id="distort"><feTurbulence baseFrequency="0.02"/></filter>');
@@ -1298,11 +1843,17 @@ describe("DM-2172 CSS SVG reference-filter coordinate space", () => {
   });
 
   it("does not add coordinate wrappers to ordinary CSS filter functions", () => {
-    const svg = elementTreeToSvgInner([makeElement({
-      x: 120,
-      y: 75,
-      styles: { ...makeElement().styles, filter: "blur(4px)" },
-    })], 400, 240);
+    const svg = elementTreeToSvgInner(
+      [
+        makeElement({
+          x: 120,
+          y: 75,
+          styles: { ...makeElement().styles, filter: "blur(4px)" },
+        }),
+      ],
+      400,
+      240,
+    );
 
     expect(svg).not.toContain('transform="translate(120 75)"');
   });
@@ -1311,12 +1862,23 @@ describe("DM-2172 CSS SVG reference-filter coordinate space", () => {
 describe("DM-2415 SourceGraphic URL-filter ownership", () => {
   it("emits the captured convolve surface atomically and suppresses vector descendants", () => {
     const dataUri = "data:image/png;base64,Y29udm9sdmVk";
-    const svg = elementTreeToSvgInner([makeElement({
-      text: "must not double paint",
-      styles: { ...makeElement().styles, filter: 'url("#emboss")', opacity: "0.5", transform: "matrix(1, 0, 0, 1, 12, 8)" },
-      urlFilterRaster: { x: 17, y: 23, width: 91, height: 47, dataUri },
-      children: [makeElement({ text: "suppressed child" })],
-    })], 240, 160);
+    const svg = elementTreeToSvgInner(
+      [
+        makeElement({
+          text: "must not double paint",
+          styles: {
+            ...makeElement().styles,
+            filter: 'url("#emboss")',
+            opacity: "0.5",
+            transform: "matrix(1, 0, 0, 1, 12, 8)",
+          },
+          urlFilterRaster: { x: 17, y: 23, width: 91, height: 47, dataUri },
+          children: [makeElement({ text: "suppressed child" })],
+        }),
+      ],
+      240,
+      160,
+    );
 
     expect(svg).toContain(`<image href="${dataUri}" x="17" y="23" width="91" height="47" preserveAspectRatio="none"/>`);
     expect(svg).not.toContain("must not double paint");
@@ -1325,11 +1887,17 @@ describe("DM-2415 SourceGraphic URL-filter ownership", () => {
   });
 
   it("keeps the vector fallback when Chromium surface capture failed", () => {
-    const svg = elementTreeToSvgInner([makeElement({
-      text: "vector fallback",
-      styles: { ...makeElement().styles, filter: 'url("#emboss")' },
-      urlFilterRaster: { x: 0, y: 0, width: 80, height: 40, token: "uf0" },
-    })], 240, 160);
+    const svg = elementTreeToSvgInner(
+      [
+        makeElement({
+          text: "vector fallback",
+          styles: { ...makeElement().styles, filter: 'url("#emboss")' },
+          urlFilterRaster: { x: 0, y: 0, width: 80, height: 40, token: "uf0" },
+        }),
+      ],
+      240,
+      160,
+    );
     expect(svg).toContain("vector fallback");
     expect(svg).toContain("filter:url");
   });
@@ -1357,25 +1925,36 @@ describe("float paint order — floats paint above every block box and below eve
     // The root is `position: static` so the floats resolve against the
     // implicit document stacking context — a `position: relative; z-index:
     // auto` root would paint atomically and block the hoist on its own.
-    return [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          tag: "p",
-          text: parentText,
-          x: 0, y: 0, width: 400, height: 120,
-          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
-          children: [
-            makeElement({
-              tag: "span",
-              x: 0, y: 0, width: 140, height: 80,
-              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    return [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            tag: "p",
+            text: parentText,
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 120,
+            styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+            children: [
+              makeElement({
+                tag: "span",
+                x: 0,
+                y: 0,
+                width: 140,
+                height: 80,
+                styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
   }
 
   it("emits the float exactly once, before the paragraph's own text", () => {
@@ -1396,34 +1975,54 @@ describe("float paint order — floats paint above every block box and below eve
    * approximation gets wrong, whichever way it leans.
    */
   function floatUnderLaterParagraphsTree() {
-    return [makeElement({
-      x: 0, y: 0, width: 400, height: 300,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          tag: "p", text: "first paragraph",
-          x: 0, y: 0, width: 400, height: 20,
-          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
-          children: [
-            makeElement({
-              tag: "span",
-              x: 0, y: 0, width: 140, height: 200,
-              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-            }),
-          ],
-        }),
-        makeElement({
-          tag: "p", text: "second paragraph",
-          x: 0, y: 20, width: 400, height: 20,
-          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
-        }),
-        makeElement({
-          tag: "p", text: "third paragraph",
-          x: 0, y: 40, width: 400, height: 20,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
-        }),
-      ],
-    })];
+    return [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            tag: "p",
+            text: "first paragraph",
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 20,
+            styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+            children: [
+              makeElement({
+                tag: "span",
+                x: 0,
+                y: 0,
+                width: 140,
+                height: 200,
+                styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+              }),
+            ],
+          }),
+          makeElement({
+            tag: "p",
+            text: "second paragraph",
+            x: 0,
+            y: 20,
+            width: 400,
+            height: 20,
+            styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+          }),
+          makeElement({
+            tag: "p",
+            text: "third paragraph",
+            x: 0,
+            y: 40,
+            width: 400,
+            height: 20,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
+          }),
+        ],
+      }),
+    ];
   }
 
   it("paints the float below the text of EVERY paragraph in the context, not just its own parent's", () => {
@@ -1449,27 +2048,42 @@ describe("float paint order — floats paint above every block box and below eve
     // 6, so the floats in its subtree belong to ITS internal paint order — not
     // the parent context's step 4. Hoisting past it would paint the float
     // beneath the ancestor's own content.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 300,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          tag: "p", text: "later block text",
-          x: 0, y: 0, width: 400, height: 40,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
-        }),
-        makeElement({
-          x: 0, y: 0, width: 400, height: 200,
-          styles: { ...makeElement().styles, position: "relative", zIndex: "auto", backgroundColor: "rgb(30,41,59)" },
-          children: [
-            makeElement({
-              x: 0, y: 0, width: 140, height: 200,
-              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            tag: "p",
+            text: "later block text",
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 40,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
+          }),
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 200,
+            styles: { ...makeElement().styles, position: "relative", zIndex: "auto", backgroundColor: "rgb(30,41,59)" },
+            children: [
+              makeElement({
+                x: 0,
+                y: 0,
+                width: 140,
+                height: 200,
+                styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 300);
     const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
     expect(svg.split('fill="rgb(147,197,253)"').length - 1).toBe(1);
@@ -1486,22 +2100,33 @@ describe("float paint order — floats paint above every block box and below eve
     // Hoisting them to the enclosing context's step 4 puts them BEFORE the
     // wrapper's own background, which then erases them — the failure mode a
     // `display: inline-block` BFC wrapper around a float swatch shows.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 400, height: 120,
-          styles: { ...makeElement().styles, display: "inline-block", backgroundColor: "rgb(224,231,255)" },
-          children: [
-            makeElement({
-              x: 0, y: 0, width: 80, height: 80,
-              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 120,
+            styles: { ...makeElement().styles, display: "inline-block", backgroundColor: "rgb(224,231,255)" },
+            children: [
+              makeElement({
+                x: 0,
+                y: 0,
+                width: 80,
+                height: 80,
+                styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 200);
     const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
     expect(floatIdx).toBeGreaterThanOrEqual(0);
@@ -1511,22 +2136,33 @@ describe("float paint order — floats paint above every block box and below eve
   it("keeps a float inside a flex item, above that item's own background", () => {
     // CSS Flexbox 1 §5.4: "flex items paint exactly the same as inline blocks"
     // — so a flex item owns its floats for the same reason an inline-block does.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)", display: "flex" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 400, height: 120,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(224,231,255)" },
-          children: [
-            makeElement({
-              x: 0, y: 0, width: 80, height: 80,
-              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)", display: "flex" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 120,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(224,231,255)" },
+            children: [
+              makeElement({
+                x: 0,
+                y: 0,
+                width: 80,
+                height: 80,
+                styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 200);
     const floatIdx = svg.indexOf('fill="rgb(147,197,253)"');
     expect(floatIdx).toBeGreaterThanOrEqual(0);
@@ -1538,26 +2174,40 @@ describe("float paint order — floats paint above every block box and below eve
     // because floats are out of flow) parent paints on top of block content
     // that follows in document order rather than being covered by it. A
     // parent with no inline content of its own keeps that behavior.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 300,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          x: 0, y: 0, width: 400, height: 0,
-          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
-          children: [
-            makeElement({
-              x: 0, y: 0, width: 140, height: 200,
-              styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-            }),
-          ],
-        }),
-        makeElement({
-          x: 0, y: 100, width: 400, height: 60,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 0,
+            styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+            children: [
+              makeElement({
+                x: 0,
+                y: 0,
+                width: 140,
+                height: 200,
+                styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+              }),
+            ],
+          }),
+          makeElement({
+            x: 0,
+            y: 100,
+            width: 400,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(221,221,221)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 400, 300);
     const floatFill = 'fill="rgb(147,197,253)"';
@@ -1579,21 +2229,33 @@ describe("block / inline paint phases", () => {
     // Step 3 (all block backgrounds) precedes step 5 (all inline content), so
     // a negative-margin section pulled up over the previous paragraph cannot
     // cover its text — the same seam the float phase sits in.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          tag: "p", text: "earlier paragraph text",
-          x: 0, y: 0, width: 400, height: 40,
-          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
-        }),
-        makeElement({
-          x: 0, y: 20, width: 400, height: 60,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(190,18,60)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            tag: "p",
+            text: "earlier paragraph text",
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 40,
+            styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+          }),
+          makeElement({
+            x: 0,
+            y: 20,
+            width: 400,
+            height: 60,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(190,18,60)" },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 200);
     expect(svg.indexOf('fill="rgb(190,18,60)"')).toBeLessThan(svg.indexOf("earlier paragraph text"));
   });
@@ -1602,22 +2264,35 @@ describe("block / inline paint phases", () => {
     // An inline box's background, border and content paint together while
     // walking line boxes (step 5) — it is NOT split across the phases, so its
     // background stays above the inline content that precedes it.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          tag: "p", text: "earlier paragraph text",
-          x: 0, y: 0, width: 400, height: 40,
-          styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
-        }),
-        makeElement({
-          tag: "span", text: "inline chip",
-          x: 0, y: 20, width: 120, height: 20,
-          styles: { ...makeElement().styles, display: "inline-block", backgroundColor: "rgb(190,18,60)" },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            tag: "p",
+            text: "earlier paragraph text",
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 40,
+            styles: { ...makeElement().styles, backgroundColor: "rgba(0, 0, 0, 0)" },
+          }),
+          makeElement({
+            tag: "span",
+            text: "inline chip",
+            x: 0,
+            y: 20,
+            width: 120,
+            height: 20,
+            styles: { ...makeElement().styles, display: "inline-block", backgroundColor: "rgb(190,18,60)" },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 200);
     expect(svg.indexOf('fill="rgb(190,18,60)"')).toBeGreaterThan(svg.indexOf("earlier paragraph text"));
   });
@@ -1625,24 +2300,40 @@ describe("block / inline paint phases", () => {
   it("mints one clipPath for a split element's overflow clip, and clips both phases with it", () => {
     // The scroller is a plain in-flow block, so it is visited in both phases;
     // each pass wraps its own half of the child paint in the SAME clip.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          text: "scroller text",
-          x: 0, y: 0, width: 200, height: 100,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)", overflowX: "hidden", overflowY: "hidden" },
-          children: [
-            makeElement({
-              text: "child text",
-              x: 0, y: 0, width: 200, height: 400,
-              styles: { ...makeElement().styles, backgroundColor: "rgb(30,41,59)" },
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            text: "scroller text",
+            x: 0,
+            y: 0,
+            width: 200,
+            height: 100,
+            styles: {
+              ...makeElement().styles,
+              backgroundColor: "rgb(241,245,249)",
+              overflowX: "hidden",
+              overflowY: "hidden",
+            },
+            children: [
+              makeElement({
+                text: "child text",
+                x: 0,
+                y: 0,
+                width: 200,
+                height: 400,
+                styles: { ...makeElement().styles, backgroundColor: "rgb(30,41,59)" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 200);
     const ovIds = [...svg.matchAll(/<clipPath id="(ov\d+)"/g)].map((m) => m[1]);
     expect(ovIds).toHaveLength(1);
@@ -1657,24 +2348,33 @@ describe("block / inline paint phases", () => {
     // The gradient paint server is built with the background layers (block
     // phase) but consumed as the glyph fill (inline phase). Losing it across
     // the phase boundary would paint the headline in its plain text color.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 200,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          tag: "h1", text: "gradient headline",
-          x: 0, y: 0, width: 400, height: 40,
-          styles: {
-            ...makeElement().styles,
-            backgroundColor: "rgba(0, 0, 0, 0)",
-            backgroundImage: "linear-gradient(90deg, rgb(2,132,199) 0%, rgb(190,18,60) 100%)",
-            backgroundClip: "text",
-            webkitTextFillColor: "rgba(0, 0, 0, 0)",
-            fontSize: "32px",
-          },
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            tag: "h1",
+            text: "gradient headline",
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 40,
+            styles: {
+              ...makeElement().styles,
+              backgroundColor: "rgba(0, 0, 0, 0)",
+              backgroundImage: "linear-gradient(90deg, rgb(2,132,199) 0%, rgb(190,18,60) 100%)",
+              backgroundClip: "text",
+              webkitTextFillColor: "rgba(0, 0, 0, 0)",
+              fontSize: "32px",
+            },
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 200);
     const gradIds = [...svg.matchAll(/<linearGradient id="(bg\d+)"/g)].map((m) => m[1]);
     expect(gradIds).toHaveLength(1);
@@ -1686,36 +2386,64 @@ describe("block / inline paint phases", () => {
   it("does not double-emit an element whose subtree is walked in both phases", () => {
     // Every fill in this tree must appear exactly once: the phase split
     // multiplies the number of VISITS, not the number of emissions.
-    const tree = [makeElement({
-      x: 0, y: 0, width: 400, height: 300,
-      styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
-      children: [
-        makeElement({
-          text: "section",
-          x: 0, y: 0, width: 400, height: 120,
-          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)" },
-          children: [
-            makeElement({
-              text: "nested",
-              x: 10, y: 10, width: 200, height: 60,
-              styles: { ...makeElement().styles, backgroundColor: "rgb(30,41,59)" },
-              children: [
-                makeElement({
-                  x: 20, y: 20, width: 40, height: 40,
-                  styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
-                }),
-                makeElement({
-                  x: 80, y: 20, width: 40, height: 40,
-                  styles: { ...makeElement().styles, position: "absolute", zIndex: "3", backgroundColor: "rgb(234,179,8)" },
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        styles: { ...makeElement().styles, backgroundColor: "rgb(255,255,255)" },
+        children: [
+          makeElement({
+            text: "section",
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 120,
+            styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)" },
+            children: [
+              makeElement({
+                text: "nested",
+                x: 10,
+                y: 10,
+                width: 200,
+                height: 60,
+                styles: { ...makeElement().styles, backgroundColor: "rgb(30,41,59)" },
+                children: [
+                  makeElement({
+                    x: 20,
+                    y: 20,
+                    width: 40,
+                    height: 40,
+                    styles: { ...makeElement().styles, float: "left", backgroundColor: "rgb(147,197,253)" },
+                  }),
+                  makeElement({
+                    x: 80,
+                    y: 20,
+                    width: 40,
+                    height: 40,
+                    styles: {
+                      ...makeElement().styles,
+                      position: "absolute",
+                      zIndex: "3",
+                      backgroundColor: "rgb(234,179,8)",
+                    },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
     const svg = elementTreeToSvgInner(tree, 400, 300);
-    for (const fill of ["rgb(255,255,255)", "rgb(241,245,249)", "rgb(30,41,59)", "rgb(147,197,253)", "rgb(234,179,8)"]) {
+    for (const fill of [
+      "rgb(255,255,255)",
+      "rgb(241,245,249)",
+      "rgb(30,41,59)",
+      "rgb(147,197,253)",
+      "rgb(234,179,8)",
+    ]) {
       expect(svg.split(`fill="${fill}"`).length - 1, fill).toBe(1);
     }
     for (const text of ["section", "nested"]) {
@@ -1725,18 +2453,22 @@ describe("block / inline paint phases", () => {
 
   it("replaces a backdrop-filter box surface while retaining vector descendants", () => {
     const dataUri = "data:image/png;base64,aXNvbGF0ZWQ=";
-    const tree = [makeElement({
-      x: 12,
-      y: 18,
-      width: 160,
-      height: 90,
-      backdropFilterRaster: { x: 12, y: 18, width: 160, height: 90, dataUri },
-      styles: { ...makeElement().styles, backdropFilter: "blur(12px)" },
-      children: [makeElement({
-        text: "vector descendant",
-        styles: { ...makeElement().styles, backgroundColor: "rgb(1,2,3)" },
-      })],
-    })];
+    const tree = [
+      makeElement({
+        x: 12,
+        y: 18,
+        width: 160,
+        height: 90,
+        backdropFilterRaster: { x: 12, y: 18, width: 160, height: 90, dataUri },
+        styles: { ...makeElement().styles, backdropFilter: "blur(12px)" },
+        children: [
+          makeElement({
+            text: "vector descendant",
+            styles: { ...makeElement().styles, backgroundColor: "rgb(1,2,3)" },
+          }),
+        ],
+      }),
+    ];
 
     const svg = elementTreeToSvgInner(tree, 400, 300);
     expect(svg).toContain(`href="${dataUri}"`);

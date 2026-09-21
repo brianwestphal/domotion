@@ -2,10 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { STUDIO_PROJECT_SCHEMA_ID } from "./project-schema.js";
-import {
-  buildStudioProjectJsonSchema,
-  studioProjectJsonSchemaText,
-} from "./project-json-schema.js";
+import { buildStudioProjectJsonSchema, studioProjectJsonSchemaText } from "./project-json-schema.js";
 
 describe("Studio project JSON Schema", () => {
   it("publishes the v1 identity and recursive composition shape", () => {

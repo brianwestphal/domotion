@@ -122,7 +122,7 @@ function gcd(a: number, b: number): number {
 }
 function lcm(a: number, b: number): number {
   if (a === 0 || b === 0) return 0;
-  return Math.abs(a / gcd(a, b) * b);
+  return Math.abs((a / gcd(a, b)) * b);
 }
 
 /**
@@ -174,17 +174,15 @@ export interface AnimTiming {
  * Throws (asking for --duration) when nothing finite can be derived or the
  * derived value exceeds `maxAutoMs` (incommensurate infinite periods).
  */
-export function resolveDurationMs(
-  anims: AnimTiming[],
-  overrideSec?: number,
-  maxAutoMs = 600_000,
-): number {
+export function resolveDurationMs(anims: AnimTiming[], overrideSec?: number, maxAutoMs = 600_000): number {
   if (overrideSec != null) {
     if (!(overrideSec > 0)) throw new Error(`--duration must be positive, got ${overrideSec}`);
     return Math.round(overrideSec * 1000);
   }
   if (anims.length === 0) {
-    throw new Error("No animations found in the SVG, and no --duration given — nothing to render. Pass --duration <seconds>.");
+    throw new Error(
+      "No animations found in the SVG, and no --duration given — nothing to render. Pass --duration <seconds>.",
+    );
   }
   let finiteEnd = 0;
   const infinitePeriods: number[] = [];
@@ -263,8 +261,12 @@ const FORMAT_MAP: Record<string, FormatEntry> = {
   // encoder; opaque uses the HQ profile (3, `yuv422p10le`), transparent the 4444
   // profile (4, `yuva444p10le`). DM-1142.
   prores: {
-    codec: "prores_ks", container: "mov", pixFmt: "yuv422p10le", alphaPixFmt: "yuva444p10le",
-    extraArgs: ["-profile:v", "3"], alphaExtraArgs: ["-profile:v", "4"],
+    codec: "prores_ks",
+    container: "mov",
+    pixFmt: "yuv422p10le",
+    alphaPixFmt: "yuva444p10le",
+    extraArgs: ["-profile:v", "3"],
+    alphaExtraArgs: ["-profile:v", "4"],
   },
   // Animated-image formats (DM-885). These take a distinct ffmpeg path in
   // `buildFfmpegArgs` (no audio/soft-caption track): GIF via a palette
@@ -299,7 +301,7 @@ export function resolveFormat(format: string, containerOverride?: string, transp
   }
   // A container override is meaningless for gif/apng (the format *is* the
   // container) — ignore it so `--format gif --container mp4` can't desync.
-  const container = isAnimatedImageContainer(f.container) ? f.container : containerOverride ?? f.container;
+  const container = isAnimatedImageContainer(f.container) ? f.container : (containerOverride ?? f.container);
   const animated = isAnimatedImageContainer(f.container);
   const alphaCapable = animated || f.alphaPixFmt != null;
   const alpha = transparent && alphaCapable;
@@ -408,8 +410,10 @@ export function buildFfmpegArgs(o: FfmpegArgsInput): string[] {
     args.push(
       "-filter_complex",
       `[${musicIndex}:a][${audioIndex}:a]amix=inputs=2:duration=longest:dropout_transition=0[aout]`,
-      "-map", "0:v:0",
-      "-map", "[aout]",
+      "-map",
+      "0:v:0",
+      "-map",
+      "[aout]",
     );
   } else if (hasMusic) {
     args.push("-map", "0:v:0", "-map", `${musicIndex}:a:0`);
@@ -482,16 +486,15 @@ function buildAnimatedImageArgs(o: FfmpegArgsInput): string[] {
     // out via `paletteuse`. GIF alpha is 1-bit, so semi-transparent edges snap
     // to fully on/off — acceptable for the format. Opaque GIFs keep the prior
     // quality preset unchanged.
-    const palettegen = o.fmt.alpha
-      ? `palettegen=reserve_transparent=1:stats_mode=diff`
-      : `palettegen=stats_mode=diff`;
+    const palettegen = o.fmt.alpha ? `palettegen=reserve_transparent=1:stats_mode=diff` : `palettegen=stats_mode=diff`;
     const paletteuse = o.fmt.alpha
       ? `paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle:alpha_threshold=128`
       : `paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`;
     args.push(
       "-filter_complex",
       `[0:v]${pre}split[s0][s1];[s0]${palettegen}[p];[s1][p]${paletteuse}[v]`,
-      "-map", "[v]",
+      "-map",
+      "[v]",
     );
   } else {
     // apng — the `rgba` pix_fmt preserves the alpha the captured frames carry
@@ -583,7 +586,7 @@ function fmtBytes(n: number): string {
  */
 export function htmlWrapper(svgMarkup: string, background: string, pauseAnimations = false): string {
   return (
-    "<!doctype html><html><head><meta charset=\"utf-8\"><style>" +
+    '<!doctype html><html><head><meta charset="utf-8"><style>' +
     `html,body{margin:0;padding:0;background:${background}}` +
     "svg{display:block;width:100vw;height:100vh}" +
     (pauseAnimations ? "*{animation-play-state:paused!important}" : "") +
@@ -617,7 +620,9 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     renderBackground = "transparent";
     omitBackground = true;
   } else if (transparent && !fmt.alphaCapable) {
-    log(`note: ${opts.format} can't carry an alpha channel — compositing onto opaque white. Use vp9/prores/apng/gif for a transparent output.`);
+    log(
+      `note: ${opts.format} can't carry an alpha channel — compositing onto opaque white. Use vp9/prores/apng/gif for a transparent output.`,
+    );
     renderBackground = "#ffffff";
   }
 
@@ -655,50 +660,57 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     const frameIntervalMs = 1000 / opts.fps;
     const timings: { anims: AnimTiming[]; smil: boolean; minVisibleWindowMs: number; subFrameCount: number } =
       await page.evaluate((intervalMs: number) => {
-      const out: { duration: number; iterations: number; endTime: number }[] = [];
-      const anims = typeof document.getAnimations === "function" ? document.getAnimations() : [];
-      let minVisibleWindowMs = Infinity;
-      let subFrameCount = 0;
-      for (const a of anims) {
-        const eff = a.effect as KeyframeEffect | null;
-        if (!eff) continue;
-        try {
-          const ct = eff.getComputedTiming();
-          out.push({ duration: Number(ct.duration), iterations: Number(ct.iterations), endTime: Number(ct.endTime) });
-          // The fully-visible window = span between the first and last opacity≈1
-          // keyframe, scaled by the iteration duration. Only opacity-stepped
-          // (flipbook) animations carry this; continuous transforms are skipped.
-          if (typeof eff.getKeyframes === "function") {
-            const kfs = eff.getKeyframes() as Array<{ offset: number | null; opacity?: string | number }>;
-            const on = kfs.filter((k) => k.opacity != null && Number(k.opacity) >= 0.99 && k.offset != null).map((k) => Number(k.offset));
-            const dur = Number(ct.duration);
-            if (on.length >= 2 && Number.isFinite(dur)) {
-              const span = (Math.max(...on) - Math.min(...on)) * dur;
-              if (span > 0) {
-                if (span < minVisibleWindowMs) minVisibleWindowMs = span;
-                if (span < intervalMs - 0.5) subFrameCount++;
+        const out: { duration: number; iterations: number; endTime: number }[] = [];
+        const anims = typeof document.getAnimations === "function" ? document.getAnimations() : [];
+        let minVisibleWindowMs = Infinity;
+        let subFrameCount = 0;
+        for (const a of anims) {
+          const eff = a.effect as KeyframeEffect | null;
+          if (!eff) continue;
+          try {
+            const ct = eff.getComputedTiming();
+            out.push({ duration: Number(ct.duration), iterations: Number(ct.iterations), endTime: Number(ct.endTime) });
+            // The fully-visible window = span between the first and last opacity≈1
+            // keyframe, scaled by the iteration duration. Only opacity-stepped
+            // (flipbook) animations carry this; continuous transforms are skipped.
+            if (typeof eff.getKeyframes === "function") {
+              const kfs = eff.getKeyframes() as Array<{ offset: number | null; opacity?: string | number }>;
+              const on = kfs
+                .filter((k) => k.opacity != null && Number(k.opacity) >= 0.99 && k.offset != null)
+                .map((k) => Number(k.offset));
+              const dur = Number(ct.duration);
+              if (on.length >= 2 && Number.isFinite(dur)) {
+                const span = (Math.max(...on) - Math.min(...on)) * dur;
+                if (span > 0) {
+                  if (span < minVisibleWindowMs) minVisibleWindowMs = span;
+                  if (span < intervalMs - 0.5) subFrameCount++;
+                }
               }
             }
+          } catch {
+            // skip animations whose timing can't be read
           }
-        } catch {
-          // skip animations whose timing can't be read
         }
-      }
-      let smil = false;
-      document.querySelectorAll("svg").forEach((svg) => {
-        if (typeof svg.pauseAnimations === "function" && svg.querySelector("animate, animateTransform, animateMotion, set")) {
-          smil = true;
-        }
-      });
-      return { anims: out, smil, minVisibleWindowMs, subFrameCount };
-    }, frameIntervalMs);
+        let smil = false;
+        document.querySelectorAll("svg").forEach((svg) => {
+          if (
+            typeof svg.pauseAnimations === "function" &&
+            svg.querySelector("animate, animateTransform, animateMotion, set")
+          ) {
+            smil = true;
+          }
+        });
+        return { anims: out, smil, minVisibleWindowMs, subFrameCount };
+      }, frameIntervalMs);
     let durationMs: number;
     try {
       durationMs = resolveDurationMs(timings.anims, opts.durationSec);
     } catch (err) {
       // SMIL-only SVGs expose no WAAPI timings; require --duration explicitly.
       if (timings.smil && opts.durationSec == null) {
-        throw new Error("This SVG uses SMIL animation, whose duration can't be auto-detected — pass --duration <seconds>.");
+        throw new Error(
+          "This SVG uses SMIL animation, whose duration can't be auto-detected — pass --duration <seconds>.",
+        );
       }
       throw err;
     }
@@ -708,26 +720,34 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     if (timings.subFrameCount > 0) {
       const shortest = timings.minVisibleWindowMs;
       const minFps = Math.ceil(1000 / Math.max(1, shortest));
-      log(`note: ${timings.subFrameCount} frame(s) are shorter than one output frame at ${opts.fps}fps (shortest ≈ ${shortest.toFixed(0)}ms vs ${(1000 / opts.fps).toFixed(0)}ms/frame) — they'll be dropped/aliased; render at --fps ${minFps} or higher to keep them.`);
+      log(
+        `note: ${timings.subFrameCount} frame(s) are shorter than one output frame at ${opts.fps}fps (shortest ≈ ${shortest.toFixed(0)}ms vs ${(1000 / opts.fps).toFixed(0)}ms/frame) — they'll be dropped/aliased; render at --fps ${minFps} or higher to keep them.`,
+      );
     }
     // DM-1149: seek-vs-playback hazards we can detect. svg-to-video renders by
     // pausing + seeking currentTime; a few constructs render differently when
     // seeked than when played continuously, so the video can diverge from the SVG.
     if (timings.smil) {
-      log(`note: this SVG uses SMIL animation — Chromium's seeked render (svg-to-video pauses + sets the timeline) can differ from continuous playback for additive/accumulate or event-timed SMIL.`);
+      log(
+        `note: this SVG uses SMIL animation — Chromium's seeked render (svg-to-video pauses + sets the timeline) can differ from continuous playback for additive/accumulate or event-timed SMIL.`,
+      );
     }
     // Duplicate ids: DM-1145 namespaces these for domotion-generated SVGs; author
     // SVGs may still carry them.
     const dupes = findDuplicateIds(svgMarkup);
     if (dupes.length > 0) {
-      log(`note: ${dupes.length} duplicate id(s) in the SVG (e.g. "${dupes[0]}") — a url(#id)/clip-path/use referencing one may render differently when the timeline is seeked than when played, so an element can vanish in the video.`);
+      log(
+        `note: ${dupes.length} duplicate id(s) in the SVG (e.g. "${dupes[0]}") — a url(#id)/clip-path/use referencing one may render differently when the timeline is seeked than when played, so an element can vanish in the video.`,
+      );
     }
 
     const frameCount = Math.max(1, Math.round((durationMs / 1000) * opts.fps));
     const frameWidth = outWidth * opts.scale;
     const frameHeight = outHeight * opts.scale;
     const intrinsicDesc = intrinsic ? `${intrinsic.w}×${intrinsic.h}` : "(unsized)";
-    log(`SVG ${intrinsicDesc} → video ${outWidth}×${outHeight} @ ${opts.fps}fps, ${(durationMs / 1000).toFixed(2)}s, ${frameCount} frames (render scale ${opts.scale}×)`);
+    log(
+      `SVG ${intrinsicDesc} → video ${outWidth}×${outHeight} @ ${opts.fps}fps, ${(durationMs / 1000).toFixed(2)}s, ${frameCount} frames (render scale ${opts.scale}×)`,
+    );
 
     // Render frame 0 to size the disk-space estimate accurately. DM-1144: sample
     // at the interval CENTER (see `frameSampleTimeMs`).
@@ -754,7 +774,9 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
         log(`note: ${fmt.container} can't soft-mux captions — pass --burn-captions to render them in`);
       }
       if (fmt.container === "gif" && 100 % opts.fps !== 0) {
-        log(`note: GIF frame delays are centiseconds — fps ${opts.fps} doesn't divide 100, so timing is approximate (try 50/25/20/10)`);
+        log(
+          `note: GIF frame delays are centiseconds — fps ${opts.fps} doesn't divide 100, so timing is approximate (try 50/25/20/10)`,
+        );
       }
     }
     const ffArgs = buildFfmpegArgs({

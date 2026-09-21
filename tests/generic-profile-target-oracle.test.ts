@@ -9,14 +9,17 @@ import {
   type ProfileFaceRow,
 } from "../tools/generic-profile-target-oracle.js";
 
-const rows = (owner: "Clean" | "Profile"): ProfileFaceRow[] => SCRIPTS.flatMap((script) => GENERICS.map((generic) => ({
-  script,
-  generic,
-  familyName: `${owner}-${script}-${generic}`,
-  postScriptName: null,
-  glyphCount: 1,
-  isCustomFont: false,
-})));
+const rows = (owner: "Clean" | "Profile"): ProfileFaceRow[] =>
+  SCRIPTS.flatMap((script) =>
+    GENERICS.map((generic) => ({
+      script,
+      generic,
+      familyName: `${owner}-${script}-${generic}`,
+      postScriptName: null,
+      glyphCount: 1,
+      isCustomFont: false,
+    })),
+  );
 
 const sourceTable = {
   linux: { fontFamilies: { standard: "Linux Standard", fixed: "Linux Fixed" } },
@@ -44,12 +47,15 @@ describe("authenticated generic profile/target adjudication", () => {
   });
 
   it("derives each OS overlay field from Playwright's source structure", () => {
-    expect(derivePlaywrightOverlayMask("linux", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`))
-      .toEqual(["Zyyy/standard", "Zyyy/fixed"]);
-    expect(derivePlaywrightOverlayMask("mac", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`))
-      .toEqual(["Zyyy/standard", "Zyyy/sansserif", "Jpan/serif", "Jpan/math"]);
-    expect(derivePlaywrightOverlayMask("win", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`))
-      .toEqual(["Zyyy/fixed", "Deva/cursive"]);
+    expect(
+      derivePlaywrightOverlayMask("linux", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`),
+    ).toEqual(["Zyyy/standard", "Zyyy/fixed"]);
+    expect(
+      derivePlaywrightOverlayMask("mac", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`),
+    ).toEqual(["Zyyy/standard", "Zyyy/sansserif", "Jpan/serif", "Jpan/math"]);
+    expect(
+      derivePlaywrightOverlayMask("win", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`),
+    ).toEqual(["Zyyy/fixed", "Deva/cursive"]);
   });
 
   it("grades source-masked rows against clean headless and every other row against the profile", () => {
@@ -57,7 +63,7 @@ describe("authenticated generic profile/target adjudication", () => {
     const clean = rows("Clean");
     const mask = derivePlaywrightOverlayMask("mac", sourceTable);
     const maskKeys = new Set(mask.fields.map(({ script, generic }) => `${script}/${generic}`));
-    const actual = profile.map((row, index) => maskKeys.has(`${row.script}/${row.generic}`) ? clean[index] : row);
+    const actual = profile.map((row, index) => (maskKeys.has(`${row.script}/${row.generic}`) ? clean[index] : row));
     expect(adjudicateOverlay(profile, clean, actual, mask)).toMatchObject({
       expectedRows: 21,
       exactRows: 21,
@@ -86,9 +92,9 @@ describe("authenticated generic profile/target adjudication", () => {
   });
 
   it("uses an explicitly authenticated candidate when clean generics collapse to one face", () => {
-    const collapsed = rows("Clean").map((row) => row.script === "Deva"
-      ? { ...row, familyName: "Nirmala UI", postScriptName: "NirmalaUI" }
-      : row);
+    const collapsed = rows("Clean").map((row) =>
+      row.script === "Deva" ? { ...row, familyName: "Nirmala UI", postScriptName: "NirmalaUI" } : row,
+    );
     const derived = deriveNonInertProfile(collapsed, [
       {
         script: "Deva",
@@ -108,12 +114,15 @@ describe("authenticated generic profile/target adjudication", () => {
       },
     ]);
 
-    expect(derived.mutation.fields.filter((field) => field.script === "Deva"))
-      .toHaveLength(GENERICS.length);
-    expect(derived.mutation.fields.filter((field) => field.script === "Deva")
-      .every((field) => field.before === "Nirmala UI"
-        && ["Aparajita", "Kokila"].includes(field.requested) && field.nonInert))
-      .toBe(true);
+    expect(derived.mutation.fields.filter((field) => field.script === "Deva")).toHaveLength(GENERICS.length);
+    expect(
+      derived.mutation.fields
+        .filter((field) => field.script === "Deva")
+        .every(
+          (field) =>
+            field.before === "Nirmala UI" && ["Aparajita", "Kokila"].includes(field.requested) && field.nonInert,
+        ),
+    ).toBe(true);
     expect(derived.mutation.pass).toBe(true);
   });
 });

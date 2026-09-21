@@ -14,15 +14,19 @@
 // outer-page environment exposes `document` / `window` / `Image` without the
 // project's tsconfig DOM lib applying.
 
-export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics }) => {
-
+export const createListsCountersHandler = ({
+  normColor,
+  resolveCounterStyle,
+  isCustomCounterStyle,
+  measureFontMetrics,
+}) => {
   const captureListsCounters = (el, cs, tag) => {
     // CSS treats any element with display:list-item as a list item — the tag
     // alone isn't enough. An <li> with display:inline-block (e.g. a horizontal
     // social-icon strip) does NOT paint a marker per spec. Conversely a <div>
     // or <span> with `display: list-item` DOES paint one and contributes to
     // the implicit counter.
-    const isListItem = cs.display != null && cs.display.includes('list-item');
+    const isListItem = cs.display != null && cs.display.includes("list-item");
 
     let listMarkerIntrinsic = undefined;
     let listItemIndex = undefined;
@@ -45,10 +49,12 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
           markerFirstLineDy = rects[0].top - liTop;
           markerFirstLineHeight = rects[0].height;
         }
-      } catch (e) { /* no line box */ }
+      } catch (e) {
+        /* no line box */
+      }
       // Intrinsic dims of list-style-image so the renderer paints the marker
       // at its natural size (CSS default).
-      if (cs.listStyleImage && cs.listStyleImage !== 'none') {
+      if (cs.listStyleImage && cs.listStyleImage !== "none") {
         const u = /^url\((?:"|')?([^"')]+)/.exec(cs.listStyleImage);
         if (u != null) {
           const img = new Image();
@@ -61,25 +67,32 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
       // just count display:list-item siblings in DOM order.
       const parent = el.parentElement;
       if (parent != null) {
-        if (tag === 'li') {
-          const siblings = Array.from(parent.children).filter((c) => c.tagName.toLowerCase() === 'li');
+        if (tag === "li") {
+          const siblings = Array.from(parent.children).filter((c) => c.tagName.toLowerCase() === "li");
           const parentTag = parent.tagName.toLowerCase();
-          const reversed = parentTag === 'ol' && parent.hasAttribute('reversed');
+          const reversed = parentTag === "ol" && parent.hasAttribute("reversed");
           let start = 1;
-          if (parentTag === 'ol' && parent.hasAttribute('start')) start = parseInt(parent.getAttribute('start'), 10) || 1;
+          if (parentTag === "ol" && parent.hasAttribute("start"))
+            start = parseInt(parent.getAttribute("start"), 10) || 1;
           if (reversed) start = siblings.length;
           let cur = start;
           for (const s of siblings) {
-            if (s.hasAttribute('value')) cur = parseInt(s.getAttribute('value'), 10) || cur;
-            if (s === el) { listItemIndex = cur; break; }
+            if (s.hasAttribute("value")) cur = parseInt(s.getAttribute("value"), 10) || cur;
+            if (s === el) {
+              listItemIndex = cur;
+              break;
+            }
             cur += reversed ? -1 : 1;
           }
         } else {
           let cur = 1;
           for (const s of parent.children) {
             const sd = window.getComputedStyle(s).display;
-            if (sd != null && sd.includes('list-item')) {
-              if (s === el) { listItemIndex = cur; break; }
+            if (sd != null && sd.includes("list-item")) {
+              if (s === el) {
+                listItemIndex = cur;
+                break;
+              }
               cur += 1;
             }
           }
@@ -90,7 +103,7 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
     // ::marker pseudo styles. Only meaningful on list items; for everything
     // else the values come back equal to the element's own font and are
     // quietly ignored at render time, so leave them undefined.
-    const markerCs = isListItem ? window.getComputedStyle(el, '::marker') : null;
+    const markerCs = isListItem ? window.getComputedStyle(el, "::marker") : null;
     let markerContent = markerCs ? markerCs.content : undefined;
 
     // DM-770: if list-style-type names a custom @counter-style and the
@@ -102,13 +115,13 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
     if (isListItem && resolveCounterStyle != null && listItemIndex != null) {
       const lsType = cs.listStyleType;
       const isCustom = lsType != null && isCustomCounterStyle != null && isCustomCounterStyle(lsType);
-      const noAuthorContent = markerContent == null || markerContent === '' || markerContent === 'normal';
+      const noAuthorContent = markerContent == null || markerContent === "" || markerContent === "normal";
       if (isCustom && noAuthorContent) {
         const resolved = resolveCounterStyle(lsType, listItemIndex);
         if (resolved != null) {
           // Wrap as a CSS-string so the render-time `rawContent` parser
           // (which strips surrounding quotes) accepts it.
-          markerContent = '"' + resolved.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+          markerContent = '"' + resolved.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
         }
       }
     }

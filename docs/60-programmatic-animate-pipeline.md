@@ -5,9 +5,17 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1130","DM-1132","DM-1137","DM-1138","DM-2636","DM-2641"]
-code: ["src/cli/animate-capture-session.ts","src/cli/animate-debug.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts","tests/animate-debug.e2e.test.ts"]
-aliases: ["docs/60-programmatic-animate-pipeline.md","doc-60"]
+tickets: ["DM-1130", "DM-1132", "DM-1137", "DM-1138", "DM-2636", "DM-2641"]
+code:
+  [
+    "src/cli/animate-capture-session.ts",
+    "src/cli/animate-debug.ts",
+    "src/cli/animate-frame-capture.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate.ts",
+    "tests/animate-debug.e2e.test.ts",
+  ]
+aliases: ["docs/60-programmatic-animate-pipeline.md", "doc-60"]
 ---
 
 # 60 — Programmatic declarative-animate pipeline
@@ -35,14 +43,14 @@ uses the low-level scripting API.
 
 Re-exported from the package root (`domotion-svg`):
 
-| Export | Kind | What it does |
-| --- | --- | --- |
-| `validateAnimateConfig(raw)` | function | Parse + validate an untrusted object (`JSON.parse` of a config) into a typed `AnimateConfig`; throws `animate: <path>: <msg>` on failure. |
-| `interpolateConfigVars(cfg)` | function | Resolve `${name}` against `cfg.vars` in every string field, returning a new config. (Called internally by `composeAnimateConfig`; exposed for callers who want the resolved config first.) |
-| `composeAnimateConfig(browser, cfg, configDir?, log?)` | function | Capture + compose every frame into one animated SVG string (unoptimized), on a caller-owned Playwright `Browser`. Equals `generateAnimatedSvg(await composeAnimateFrames(...))`. |
+| Export                                                 | Kind     | What it does                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `validateAnimateConfig(raw)`                           | function | Parse + validate an untrusted object (`JSON.parse` of a config) into a typed `AnimateConfig`; throws `animate: <path>: <msg>` on failure.                                                                                                                                                                                                                 |
+| `interpolateConfigVars(cfg)`                           | function | Resolve `${name}` against `cfg.vars` in every string field, returning a new config. (Called internally by `composeAnimateConfig`; exposed for callers who want the resolved config first.)                                                                                                                                                                |
+| `composeAnimateConfig(browser, cfg, configDir?, log?)` | function | Capture + compose every frame into one animated SVG string (unoptimized), on a caller-owned Playwright `Browser`. Equals `generateAnimatedSvg(await composeAnimateFrames(...))`.                                                                                                                                                                          |
 | `composeAnimateFrames(browser, cfg, configDir?, log?)` | function | **Frames-out variant (DM-1137, doc 62 §1).** Same pipeline, but returns the assembled `AnimationConfig` (`{ width, height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background }`) instead of rendering — so callers can mutate the composed frames (add an overlay, drop a frame, post-process glyphs) before `generateAnimatedSvg(config)`. |
-| `AnimateConfig` | type | `z.infer` of the animate-config zod schema. |
-| `AnimationConfig` | type | The render-ready config `composeAnimateFrames` returns / `generateAnimatedSvg` accepts (distinct from the authoring-time `AnimateConfig`). |
+| `AnimateConfig`                                        | type     | `z.infer` of the animate-config zod schema.                                                                                                                                                                                                                                                                                                               |
+| `AnimationConfig`                                      | type     | The render-ready config `composeAnimateFrames` returns / `generateAnimatedSvg` accepts (distinct from the authoring-time `AnimateConfig`).                                                                                                                                                                                                                |
 
 Typical in-process use:
 
@@ -76,7 +84,7 @@ import { composeAnimateFrames, generateAnimatedSvg } from "domotion-svg";
 
 const config = await composeAnimateFrames(browser, cfg, configDir);
 config.frames = config.frames.filter((f) => /* keep some */ true); // mutate
-const svg = generateAnimatedSvg(config);                           // then render
+const svg = generateAnimatedSvg(config); // then render
 ```
 
 Caveat: mutating a frame's captured tree after the fact does NOT re-render its
@@ -152,6 +160,6 @@ change; it just makes the dependency direction one-way (root → cli → feature
 - `docs/43-declarative-animate-config.md` — the config format itself.
 - `docs/59-overlay-schema-ssot.md` — the overlay shapes the config + renderer
   share.
-- **DM-1132** — exposing the overlay *resolution* step (`anchor` → concrete
+- **DM-1132** — exposing the overlay _resolution_ step (`anchor` → concrete
   `x`/`y`/`bgWidth`) as a standalone primitive, so imperative callers building
   their own frames (not whole configs) can opt into selector anchoring.

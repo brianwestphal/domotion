@@ -12,23 +12,39 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // mechanism end-to-end against a loopback HTTP server (skips where the browser
 // can't launch, like the other browser-driven e2e tests).
 
-const W = 200, H = 160;
+const W = 200,
+  H = 160;
 
-async function setup(): Promise<{ server: Server; base: string; browser: Awaited<ReturnType<typeof launchChromium>> } | null> {
-  const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: { r: 220, g: 40, b: 90 } } }).png().toBuffer();
+async function setup(): Promise<{
+  server: Server;
+  base: string;
+  browser: Awaited<ReturnType<typeof launchChromium>>;
+} | null> {
+  const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: { r: 220, g: 40, b: 90 } } })
+    .png()
+    .toBuffer();
   const html =
     `<!doctype html><html><head><style>body{margin:0;background:#fff}` +
     `img{position:absolute;left:20px;top:20px;width:120px;height:100px}</style></head>` +
     `<body><img src="/pic.png"></body></html>`;
   const started = await new Promise<{ server: Server; base: string } | null>((resolve) => {
     const server = createServer((req, res) => {
-      if ((req.url ?? "").startsWith("/pic.png")) { res.writeHead(200, { "content-type": "image/png" }); res.end(png); }
-      else { res.writeHead(200, { "content-type": "text/html" }); res.end(html); }
+      if ((req.url ?? "").startsWith("/pic.png")) {
+        res.writeHead(200, { "content-type": "image/png" });
+        res.end(png);
+      } else {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(html);
+      }
     });
     server.on("error", () => resolve(null));
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address();
-      if (addr == null || typeof addr === "string") { server.close(); resolve(null); return; }
+      if (addr == null || typeof addr === "string") {
+        server.close();
+        resolve(null);
+        return;
+      }
       resolve({ server, base: `http://127.0.0.1:${addr.port}` });
     });
   });

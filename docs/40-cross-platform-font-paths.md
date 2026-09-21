@@ -3,11 +3,11 @@ id: "requirements/cross-platform-font-paths"
 title: "Domotion: Cross-platform font path discovery"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-258","DM-259","DM-260","DM-261","DM-262"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-258", "DM-259", "DM-260", "DM-261", "DM-262"]
 code: ["src/render/font-resolution.ts"]
-aliases: ["docs/40-cross-platform-font-paths.md","doc-40"]
+aliases: ["docs/40-cross-platform-font-paths.md", "doc-40"]
 ---
 
 # Domotion: Cross-platform font path discovery
@@ -23,10 +23,10 @@ paths (`/System/Library/Fonts/...`). On Linux and Windows none of those paths
 exist, so `getFontInstance` returned null for every primary and fallback font
 and the renderer produced `.notdef` tofu (or `<text>` fallback) for everything.
 Domotion ships as an npm package and must function on all three platforms, so
-font *path discovery* has to be platform-aware.
+font _path discovery_ has to be platform-aware.
 
 This doc covers **path discovery only** — mapping each logical key to a font
-file that exists on the host. The separate question of *which* logical key
+file that exists on the host. The separate question of _which_ logical key
 Chromium actually paints for each Unicode block (the fallback-chain
 calibration) is platform-specific and tracked per platform:
 
@@ -34,7 +34,7 @@ calibration) is platform-specific and tracked per platform:
 - Windows fallback-chain calibration — DM-260.
 - Bundled fallback fonts for headless CI without system fonts — DM-261.
 
-So after this change the *primary* families resolve to a real face on every
+So after this change the _primary_ families resolve to a real face on every
 platform (no universal tofu), but symbol / CJK / RTL / Indic block coverage on
 Linux and Windows is not yet pixel-faithful to Chromium-on-that-platform.
 
@@ -42,11 +42,11 @@ Linux and Windows is not yet pixel-faithful to Chromium-on-that-platform.
 
 A single resolver, `resolveFontSpec(key)`, dispatches by `process.platform`:
 
-| Platform | Source | Discovery |
-| --- | --- | --- |
-| `darwin` | `FONT_PATHS` (unchanged) | Direct lookup; file existence handled downstream by `fontkit.openSync` / the CoreText helper, preserving the family-chain fall-through for fonts that aren't installed (e.g. Source Serif Pro). |
-| `linux` | `LINUX_FONT_PATHS` | Canonical `/usr/share/fonts/...` path tried first when it exists; otherwise `fc-match -f '%{file}\t%{postscriptname}' <pattern>` (fontconfig) — robust across Debian / Arch / Fedora layout differences. |
-| `win32` | `WIN32_FONT_PATHS` | `%WINDIR%\Fonts\<file>` (stable across Windows 10/11), guarded by an existence check. |
+| Platform | Source                   | Discovery                                                                                                                                                                                                |
+| -------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `darwin` | `FONT_PATHS` (unchanged) | Direct lookup; file existence handled downstream by `fontkit.openSync` / the CoreText helper, preserving the family-chain fall-through for fonts that aren't installed (e.g. Source Serif Pro).          |
+| `linux`  | `LINUX_FONT_PATHS`       | Canonical `/usr/share/fonts/...` path tried first when it exists; otherwise `fc-match -f '%{file}\t%{postscriptname}' <pattern>` (fontconfig) — robust across Debian / Arch / Fedora layout differences. |
+| `win32`  | `WIN32_FONT_PATHS`       | `%WINDIR%\Fonts\<file>` (stable across Windows 10/11), guarded by an existence check.                                                                                                                    |
 
 Resolved specs are cached per logical key in `resolvedSpecCache` (the
 `fc-match` shell-out is the main cost this avoids repeating). Because
@@ -64,7 +64,7 @@ for `resolveFontSpec(effectiveKey)`.
 Hardcoded `/usr/share/fonts/...` paths are brittle: package layouts differ
 across distros and the Playwright CI image installs a specific (and evolving)
 font set. `fc-match` is how Chromium-on-Linux itself resolves fonts (both go
-through fontconfig), it's present wherever Chromium can run, and it *always*
+through fontconfig), it's present wherever Chromium can run, and it _always_
 returns a best-match file — so even when the requested family is absent the
 resolver gets a real, existing path instead of null. We pass through
 `%{postscriptname}` so collection (`.ttc`) files pick the right member.
@@ -85,30 +85,30 @@ family installed instead resolves the generic primaries to Noto via the opt-in
 **Noto profile overlay** (`LINUX_FONT_PATHS_NOTO`, active when
 `linuxFontProfile() === "noto"`); see `docs/42-cross-platform-fallback-calibration.md`.
 
-| Logical key(s) | macOS | Linux — noble image (`LINUX_FONT_PATHS`) | Windows (file) |
-| --- | --- | --- | --- |
-| `helvetica` (= CSS `sans-serif`) | Helvetica | Liberation Sans | `arial.ttf` |
-| `arial` | Arial | Liberation Sans | `arial.ttf` |
-| `times` (= CSS `serif`) | Times | Liberation Serif | `times.ttf` (Times New Roman) |
-| `times-new-roman` | Times New Roman | Liberation Serif | `times.ttf` |
-| `georgia` | Georgia | Liberation Serif | `georgia.ttf` |
-| `courier` (= CSS `monospace`) | Courier | WenQuanYi Zen Hei Mono | `cour.ttf` (Courier New) |
-| `courier-new` (= explicit `"Courier New"`; direct match — the Courier alias is a lookup-failure retry only) | Courier New (Supplemental) | Liberation Mono (fontconfig metric class) | `cour.ttf` (Courier New) |
-| `menlo` / `monaco` / `sf-mono` | Menlo / Monaco / SF Mono | WenQuanYi Zen Hei Mono | `consola.ttf` (Consolas) |
-| `sf-pro` (= `system-ui`) | SF Pro | Liberation Sans | `segoeui.ttf` (Segoe UI) |
-| `cjk` / `pingfang-*` / `korean` | Hiragino Sans GB / PingFang / Apple SD Gothic | WenQuanYi Zen Hei | `msyh.ttc` (YaHei) / `msjh.ttc` (JhengHei) / `malgun.ttf` |
-| `cjk-serif` | Songti SC | WenQuanYi Zen Hei (no separate serif CJK face) | `simsun.ttc` (SimSun) |
-| `hiragino-jp` | Hiragino Kaku | IPAGothic (`fonts-japanese-gothic.ttf`) | `YuGothR.ttc` (Yu Gothic) |
-| `thai` | Thonburi | Loma (`tlwg/Loma.otf`) | `leeluisl.ttf` (Leelawadee UI Semilight, PS `LeelawadeeUI-Semilight`) |
-| `devanagari` | Kohinoor | FreeSans | `Nirmala.ttc` (Nirmala UI, PS `NirmalaUI`) |
-| `sf-arabic` | Geeza Pro | FreeSerif | `segoeui.ttf` (Segoe UI) |
-| `sf-hebrew` | SF Hebrew | Liberation Sans | `segoeui.ttf` (Segoe UI) |
-| `symbols` / `zapf-dingbats` | Apple Symbols / Zapf Dingbats | FreeSans | `seguisym.ttf` (Segoe UI Symbol) |
-| `stix-math` | STIX Two Math | FreeSerif | `cambria.ttc` (Cambria Math) |
-| `lucida-grande` | Lucida Grande | Liberation Sans | `arial.ttf` |
-| `snell` / `apple-chancery` (= `cursive`) | Snell / Apple Chancery | (fontconfig `cursive`) | `comic.ttf` (Comic Sans MS) |
-| `papyrus` (= `fantasy`) | Papyrus | (fontconfig `fantasy`) | `impact.ttf` (Impact) |
-| `source-serif-pro` | `/Library/Fonts/...` (if installed) | — (unmapped → chain falls through) | — (unmapped → chain falls through) |
+| Logical key(s)                                                                                              | macOS                                         | Linux — noble image (`LINUX_FONT_PATHS`)       | Windows (file)                                                        |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| `helvetica` (= CSS `sans-serif`)                                                                            | Helvetica                                     | Liberation Sans                                | `arial.ttf`                                                           |
+| `arial`                                                                                                     | Arial                                         | Liberation Sans                                | `arial.ttf`                                                           |
+| `times` (= CSS `serif`)                                                                                     | Times                                         | Liberation Serif                               | `times.ttf` (Times New Roman)                                         |
+| `times-new-roman`                                                                                           | Times New Roman                               | Liberation Serif                               | `times.ttf`                                                           |
+| `georgia`                                                                                                   | Georgia                                       | Liberation Serif                               | `georgia.ttf`                                                         |
+| `courier` (= CSS `monospace`)                                                                               | Courier                                       | WenQuanYi Zen Hei Mono                         | `cour.ttf` (Courier New)                                              |
+| `courier-new` (= explicit `"Courier New"`; direct match — the Courier alias is a lookup-failure retry only) | Courier New (Supplemental)                    | Liberation Mono (fontconfig metric class)      | `cour.ttf` (Courier New)                                              |
+| `menlo` / `monaco` / `sf-mono`                                                                              | Menlo / Monaco / SF Mono                      | WenQuanYi Zen Hei Mono                         | `consola.ttf` (Consolas)                                              |
+| `sf-pro` (= `system-ui`)                                                                                    | SF Pro                                        | Liberation Sans                                | `segoeui.ttf` (Segoe UI)                                              |
+| `cjk` / `pingfang-*` / `korean`                                                                             | Hiragino Sans GB / PingFang / Apple SD Gothic | WenQuanYi Zen Hei                              | `msyh.ttc` (YaHei) / `msjh.ttc` (JhengHei) / `malgun.ttf`             |
+| `cjk-serif`                                                                                                 | Songti SC                                     | WenQuanYi Zen Hei (no separate serif CJK face) | `simsun.ttc` (SimSun)                                                 |
+| `hiragino-jp`                                                                                               | Hiragino Kaku                                 | IPAGothic (`fonts-japanese-gothic.ttf`)        | `YuGothR.ttc` (Yu Gothic)                                             |
+| `thai`                                                                                                      | Thonburi                                      | Loma (`tlwg/Loma.otf`)                         | `leeluisl.ttf` (Leelawadee UI Semilight, PS `LeelawadeeUI-Semilight`) |
+| `devanagari`                                                                                                | Kohinoor                                      | FreeSans                                       | `Nirmala.ttc` (Nirmala UI, PS `NirmalaUI`)                            |
+| `sf-arabic`                                                                                                 | Geeza Pro                                     | FreeSerif                                      | `segoeui.ttf` (Segoe UI)                                              |
+| `sf-hebrew`                                                                                                 | SF Hebrew                                     | Liberation Sans                                | `segoeui.ttf` (Segoe UI)                                              |
+| `symbols` / `zapf-dingbats`                                                                                 | Apple Symbols / Zapf Dingbats                 | FreeSans                                       | `seguisym.ttf` (Segoe UI Symbol)                                      |
+| `stix-math`                                                                                                 | STIX Two Math                                 | FreeSerif                                      | `cambria.ttc` (Cambria Math)                                          |
+| `lucida-grande`                                                                                             | Lucida Grande                                 | Liberation Sans                                | `arial.ttf`                                                           |
+| `snell` / `apple-chancery` (= `cursive`)                                                                    | Snell / Apple Chancery                        | (fontconfig `cursive`)                         | `comic.ttf` (Comic Sans MS)                                           |
+| `papyrus` (= `fantasy`)                                                                                     | Papyrus                                       | (fontconfig `fantasy`)                         | `impact.ttf` (Impact)                                                 |
+| `source-serif-pro`                                                                                          | `/Library/Fonts/...` (if installed)           | — (unmapped → chain falls through)             | — (unmapped → chain falls through)                                    |
 
 The weight/slant sibling keys (`-bold`, `-italic`, `-bold-italic`, and the
 `-light` cut Helvetica adds) are resolved through the same per-platform tables,
@@ -155,7 +155,7 @@ through fontkit like any other file.
 
 ## Follow-ups
 
-This doc captures the DM-258 *path-discovery* foundation. The fallback-chain
+This doc captures the DM-258 _path-discovery_ foundation. The fallback-chain
 calibration that built on it has since shipped — see
 `docs/42-cross-platform-fallback-calibration.md` for the current per-platform
 state:

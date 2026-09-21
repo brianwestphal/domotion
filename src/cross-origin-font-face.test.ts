@@ -43,7 +43,10 @@ describe("parseFontFaceRulesFromCssText", () => {
     expect(out[0].family).toBe("Geist");
     expect(out[0].weight).toBe("400");
     expect(out[0].style).toBe("italic");
-    expect(out[0].unicodeRange).toEqual([[0x0000, 0x00ff], [0x0131, 0x0131]]);
+    expect(out[0].unicodeRange).toEqual([
+      [0x0000, 0x00ff],
+      [0x0131, 0x0131],
+    ]);
   });
 
   it("ranks src urls woff2 > woff > ttf/otf, skipping eot/svg", () => {
@@ -58,10 +61,7 @@ describe("parseFontFaceRulesFromCssText", () => {
     const out = parseFontFaceRulesFromCssText(css, BASE);
     expect(out).toHaveLength(1);
     // woff first (woff2 not present), then ttf. eot/svg dropped.
-    expect(out[0].urls).toEqual([
-      "https://cdn.example.com/sdicon.woff",
-      "https://cdn.example.com/sdicon.ttf",
-    ]);
+    expect(out[0].urls).toEqual(["https://cdn.example.com/sdicon.woff", "https://cdn.example.com/sdicon.ttf"]);
   });
 
   it("recurses into @media-nested @font-face (Stripe pattern)", () => {

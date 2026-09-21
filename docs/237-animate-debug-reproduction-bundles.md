@@ -4,10 +4,18 @@ title: "Animate debug reproduction bundles"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2636"]
-code: ["src/cli/animate-command.ts","src/cli/animate-debug.ts","src/cli/animate-orchestrator.ts","src/cli/animate-capture-session.ts","src/cli/debug-bundle.ts","tests/animate-debug.e2e.test.ts"]
-aliases: ["docs/237-animate-debug-reproduction-bundles.md","doc-237"]
+code:
+  [
+    "src/cli/animate-command.ts",
+    "src/cli/animate-debug.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate-capture-session.ts",
+    "src/cli/debug-bundle.ts",
+    "tests/animate-debug.e2e.test.ts",
+  ]
+aliases: ["docs/237-animate-debug-reproduction-bundles.md", "doc-237"]
 ---
 
 # Animate debug reproduction bundles

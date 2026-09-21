@@ -45,9 +45,7 @@ describe("Blink affine text baseline protocol investigation", () => {
       expect(solved?.[index]).toBeCloseTo(expected[index], 12);
     }
     const neutralBaseline = { x: 70, y: 42 };
-    expect(mapTextBaselinePoint(solved!, neutralBaseline)).toEqual(
-      mapTextBaselinePoint(expected, neutralBaseline),
-    );
+    expect(mapTextBaselinePoint(solved!, neutralBaseline)).toEqual(mapTextBaselinePoint(expected, neutralBaseline));
   });
 
   it("keeps vertical-rl line-relative and physical baseline planes distinct", () => {

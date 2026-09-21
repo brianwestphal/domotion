@@ -28,10 +28,34 @@ interface Case {
 
 const CASES: Case[] = [
   { name: "none", place: { x: 0, y: 0, w: 120, h: 120 }, viewBox: [0, 0, 100, 50], par: "none", rect: [40, 20] },
-  { name: "xMidYMid meet", place: { x: 0, y: 0, w: 120, h: 120 }, viewBox: [0, 0, 100, 50], par: "xMidYMid meet", rect: [50, 25] },
-  { name: "xMidYMid slice", place: { x: 0, y: 0, w: 120, h: 120 }, viewBox: [0, 0, 100, 50], par: "xMidYMid slice", rect: [50, 25] },
-  { name: "xMaxYMax meet + offset", place: { x: 20, y: 30, w: 100, h: 100 }, viewBox: [10, 5, 100, 50], par: "xMaxYMax meet", rect: [60, 30] },
-  { name: "icon 24→16", place: { x: 8, y: 8, w: 16, h: 16 }, viewBox: [0, 0, 24, 24], par: "xMidYMid meet", rect: [12, 12] },
+  {
+    name: "xMidYMid meet",
+    place: { x: 0, y: 0, w: 120, h: 120 },
+    viewBox: [0, 0, 100, 50],
+    par: "xMidYMid meet",
+    rect: [50, 25],
+  },
+  {
+    name: "xMidYMid slice",
+    place: { x: 0, y: 0, w: 120, h: 120 },
+    viewBox: [0, 0, 100, 50],
+    par: "xMidYMid slice",
+    rect: [50, 25],
+  },
+  {
+    name: "xMaxYMax meet + offset",
+    place: { x: 20, y: 30, w: 100, h: 100 },
+    viewBox: [10, 5, 100, 50],
+    par: "xMaxYMax meet",
+    rect: [60, 30],
+  },
+  {
+    name: "icon 24→16",
+    place: { x: 8, y: 8, w: 16, h: 16 },
+    viewBox: [0, 0, 24, 24],
+    par: "xMidYMid meet",
+    rect: [12, 12],
+  },
 ];
 
 describe("computeViewportMatrix vs Chrome-painted nested <svg> (DM-DQXZ6K)", () => {
@@ -41,16 +65,20 @@ describe("computeViewportMatrix vs Chrome-painted nested <svg> (DM-DQXZ6K)", () 
       const [rx, ry] = c.rect;
       await page.setContent(
         `<!doctype html><body style="margin:0">` +
-        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">` +
-        `<svg x="${c.place.x}" y="${c.place.y}" width="${c.place.w}" height="${c.place.h}" ` +
-        `viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="${c.par}" overflow="visible">` +
-        `<rect id="m" x="${rx}" y="${ry}" width="2" height="2" fill="red"/></svg></svg></body>`,
+          `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">` +
+          `<svg x="${c.place.x}" y="${c.place.y}" width="${c.place.w}" height="${c.place.h}" ` +
+          `viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="${c.par}" overflow="visible">` +
+          `<rect id="m" x="${rx}" y="${ry}" width="2" height="2" fill="red"/></svg></svg></body>`,
       );
       const chrome = await page.evaluate(() => {
         const r = document.getElementById("m")!.getBoundingClientRect();
         return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
       });
-      const m = computeViewportMatrix(c.place, { minX: vx, minY: vy, width: vw, height: vh }, parsePreserveAspectRatio(c.par))!;
+      const m = computeViewportMatrix(
+        c.place,
+        { minX: vx, minY: vy, width: vw, height: vh },
+        parsePreserveAspectRatio(c.par),
+      )!;
       // Marker center in viewBox coords, mapped through our matrix.
       const px = rx + 1;
       const py = ry + 1;

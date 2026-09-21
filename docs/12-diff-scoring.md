@@ -4,10 +4,19 @@ title: "Domotion: visual-diff scoring"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1783","DM-1784","DM-262","DM-2700","DM-281","DM-379","DM-383","DM-715","DM-884"]
-code: ["src/review/compare-pngs.test.ts","src/review/compare-pngs.ts","tests/fixture-fonts.ts","tests/flipbook-parity.ts","tests/html-test-suite.tsx","tests/real-world.tsx","tests/runner.tsx"]
-aliases: ["docs/12-diff-scoring.md","doc-12"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1783", "DM-1784", "DM-262", "DM-2700", "DM-281", "DM-379", "DM-383", "DM-715", "DM-884"]
+code:
+  [
+    "src/review/compare-pngs.test.ts",
+    "src/review/compare-pngs.ts",
+    "tests/fixture-fonts.ts",
+    "tests/flipbook-parity.ts",
+    "tests/html-test-suite.tsx",
+    "tests/real-world.tsx",
+    "tests/runner.tsx",
+  ]
+aliases: ["docs/12-diff-scoring.md", "doc-12"]
 ---
 
 # Domotion: visual-diff scoring
@@ -26,11 +35,11 @@ practice even when nothing structural is wrong.
 ## Pass criterion (DM-715)
 
 A fixture passes iff **`regionCount === 0`** — i.e. there is no surviving
-connected-component *region* of real, structural change. `passes(cmp)` is exactly
+connected-component _region_ of real, structural change. `passes(cmp)` is exactly
 `cmp.regionCount === 0`.
 
 Scatter (a pixel here, a pixel there from glyph-edge differences) is allowed; a
-*contiguous block* of genuine change (a missing border, a recolored element, a
+_contiguous block_ of genuine change (a missing border, a recolored element, a
 swapped image, a misplaced shadow) is not. The earlier `nonAaPixels === 0` rule
 (DM-383) is gone; `nonAaPixels` and the old bucketed percentages are now
 **diagnostic only** — still computed and printed so reviewers can gauge severity,
@@ -45,7 +54,7 @@ in this order, then counts what survives. (All constants are exported from
 
 1. **Sub-pixel shift pre-filter** (`SHIFT_MATCH_RADIUS = 2`, `SHIFT_MATCH_DIST = 35`).
    For every differing pixel, sample the `(2·radius+1)²` neighborhood in the
-   *opposite* image; if `expected[x,y]` finds a near-match in `actual` **and**
+   _opposite_ image; if `expected[x,y]` finds a near-match in `actual` **and**
    `actual[x,y]` finds a near-match in `expected` (both within `SHIFT_MATCH_DIST`),
    the pixel is a shift artifact and is removed from the diff mask **before** AA
    detection and region analysis. This cleanly catches the "whole text block
@@ -61,11 +70,11 @@ in this order, then counts what survives. (All constants are exported from
 3. **Connected-components region detection** (`REGION_DILATE_PX = 3`,
    `MIN_REGION_AREA = 15`; DM-715). The surviving non-AA diff pixels are dilated by
    3 px so neighbors merge, then flood-filled into components. A component whose
-   *original* (un-dilated) diff-pixel area is below `MIN_REGION_AREA` is dropped as
+   _original_ (un-dilated) diff-pixel area is below `MIN_REGION_AREA` is dropped as
    residual scatter.
 
 4. **High-severity gate** (`HIGH_SEV_PCT = 50`, `MIN_HIGH_SEV_FRACTION = 0.15`). A
-   surviving component counts as a *real* structural change only when at least 15%
+   surviving component counts as a _real_ structural change only when at least 15%
    of its diff pixels exceed 50% per-pixel severity (normalized color distance).
    Text-rendering / font-substitution diffs concentrate in low-severity edge
    pixels; a genuine image swap or recolor produces large runs of high-severity
@@ -77,7 +86,7 @@ to be zero.
 
 ## The no-motion bar (`passesStrict`)
 
-Layers 1 and 4 both forgive differences that *look like moved content*. That is
+Layers 1 and 4 both forgive differences that _look like moved content_. That is
 correct for the fidelity sweeps, where the two images come from different
 rasterizers. It is wrong for a caller comparing two renders of the **same
 content at the same positions**, because a whole element can change place — or
@@ -85,7 +94,7 @@ two elements can swap paint order — and still be scored away:
 
 - Layer 4 is severity-based, not size-based. Two solid blocks swapping z-order
   differ by ~44% of max RGB distance, just under the 50% high-severity
-  threshold, so *every* pixel of the flip is "low severity" and the entire
+  threshold, so _every_ pixel of the flip is "low severity" and the entire
   component is filed under `shiftyRegionCount` / `shiftyRegionArea`. Measured on
   a deliberately broken frame-sequence compressor: **3712 differing pixels,
   `regionCount === 0`, `coveragePct` 0, verdict `clean`.**
@@ -95,11 +104,11 @@ with layer 4 lifted (layers 1–3 still apply). They are **purely derived** from
 the same components — there is no second region pass — so they cannot drift from
 the primary numbers:
 
-| metric | meaning |
-|---|---|
-| `strictRegionCount` | components clearing `MIN_REGION_AREA`, severity gate ignored. Exactly `regionCount + shiftyRegionCount`. |
-| `strictRegionArea` | their total diff-pixel area. Exactly `totalChangedArea + shiftyRegionArea`. |
-| `strictMaxRegionArea` | area of the largest single one (0 when there are none). |
+| metric                | meaning                                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `strictRegionCount`   | components clearing `MIN_REGION_AREA`, severity gate ignored. Exactly `regionCount + shiftyRegionCount`. |
+| `strictRegionArea`    | their total diff-pixel area. Exactly `totalChangedArea + shiftyRegionArea`.                              |
+| `strictMaxRegionArea` | area of the largest single one (0 when there are none).                                                  |
 
 `passesStrict(cmp, caps?)` requires `strictMaxRegionArea <= caps.maxRegionArea`
 and `strictRegionArea <= caps.totalRegionArea`. It deliberately does not also
@@ -121,7 +130,7 @@ than taste:
   crossed layer 4's 15% high-severity-fraction classification, demonstrating
   why the strict bar must consume the severity-inclusive aggregates rather than
   separately require `regionCount === 0`.
-- **Known break.** The z-order flip above is a single *dense* component —
+- **Known break.** The z-order flip above is a single _dense_ component —
   measured at 3712 px on macOS, 3718 px in the Linux container, and 3712 px on
   Windows, with `regionCount === 0` on all three, so the caps are the only thing
   that catches it.
@@ -133,7 +142,7 @@ one big one, while retaining measured headroom above the 2835 px runner floor.
 
 ### One cap set for every platform — and what the fixtures owe it
 
-The bar was macOS-only at first. The *same correct build* scored up to 749 px
+The bar was macOS-only at first. The _same correct build_ scored up to 749 px
 largest / 3289 px total in the Linux container (and 829 px / 11423 px once every
 fixture was counted), overlapping the 3712-px known break — so no Linux cap could
 both pass a correct build and fail a broken one, and non-darwin callers degraded
@@ -159,13 +168,13 @@ or the shared caps stop holding off macOS:
    naming host-dependent families (`Menlo`, `system-ui`, `Georgia`), which
    resolve to a different face per platform. This took the remaining 59 px to 0.
    The module documents the two-halves contract: the page needs the
-   `@font-face` CSS (for Chrome's layout) *and* the test needs
+   `@font-face` CSS (for Chrome's layout) _and_ the test needs
    `registerFixtureFonts()` (for Domotion's outlines) — miss either and the
    fixture silently falls back to a host font on one side.
 
    **Scope:** this platform-independence holds only because both compared images
-   come from *our* renderer (same fontkit outlines/advances on every host). It
-   does **not** make Chrome-*captured* metrics platform-independent — Chrome-on-
+   come from _our_ renderer (same fontkit outlines/advances on every host). It
+   does **not** make Chrome-_captured_ metrics platform-independent — Chrome-on-
    Linux (FreeType) grid-fits even a pinned face's advances to integer pixels
    where CoreText/fontkit use the fractional advance (DM-1783). An assertion that
    compares a Domotion-rendered overlay against a Chrome-captured page still
@@ -173,7 +182,7 @@ or the shared caps stop holding off macOS:
    capture browser with `--font-render-hinting=none` does — DM-1783/DM-1784).
 
 Unlike the per-platform hinting floor below, this bar needs no per-platform
-relief: there the two images come from *different* rasterizers, so the host's
+relief: there the two images come from _different_ rasterizers, so the host's
 text rendering is inherently part of the measurement; here both come from ours.
 
 To re-measure after a change, set `FLIPBOOK_METRICS=<path>` and run the
@@ -215,17 +224,17 @@ AA-classified pixels contribute 0 to every metric. They are still drawn into
 
 ## Metrics
 
-| metric | role | meaning |
-|---|---|---|
-| `regionCount` | **pass/fail gate** | surviving structural-change regions (layers 3+4). Pass = 0. |
-| `totalChangedArea` | diagnostic | total original-diff-pixel area inside surviving regions |
-| `maxRegionSeverity` | diagnostic | max per-pixel normalized distance % inside any region |
-| `coveragePct` | diagnostic | `totalChangedArea / totalPixels · 100` — drives the verdict tier |
-| `nonAaPixels` / `nonAaPixelPct` | diagnostic | differing pixels not classified AA (the old DM-383 gate) |
-| `diffPct` | diagnostic | average normalized color distance %, AA pixels excluded |
-| `sigPixelPct` | diagnostic | % of pixels with `dist > SIGNIFICANT_PIXEL_DIST (40)` and !AA |
-| `worstTilePct` / `worstTileSignificantPct` | diagnostic | per-`TILE_PX(64)`-tile avg / sig% for the worst tile |
-| `shiftyRegionCount` / `shiftyRegionArea` | diagnostic | components that cleared the area floor but were culled by layer 4 |
+| metric                                                           | role               | meaning                                                                                             |
+| ---------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------- |
+| `regionCount`                                                    | **pass/fail gate** | surviving structural-change regions (layers 3+4). Pass = 0.                                         |
+| `totalChangedArea`                                               | diagnostic         | total original-diff-pixel area inside surviving regions                                             |
+| `maxRegionSeverity`                                              | diagnostic         | max per-pixel normalized distance % inside any region                                               |
+| `coveragePct`                                                    | diagnostic         | `totalChangedArea / totalPixels · 100` — drives the verdict tier                                    |
+| `nonAaPixels` / `nonAaPixelPct`                                  | diagnostic         | differing pixels not classified AA (the old DM-383 gate)                                            |
+| `diffPct`                                                        | diagnostic         | average normalized color distance %, AA pixels excluded                                             |
+| `sigPixelPct`                                                    | diagnostic         | % of pixels with `dist > SIGNIFICANT_PIXEL_DIST (40)` and !AA                                       |
+| `worstTilePct` / `worstTileSignificantPct`                       | diagnostic         | per-`TILE_PX(64)`-tile avg / sig% for the worst tile                                                |
+| `shiftyRegionCount` / `shiftyRegionArea`                         | diagnostic         | components that cleared the area floor but were culled by layer 4                                   |
 | `strictRegionCount` / `strictRegionArea` / `strictMaxRegionArea` | **no-motion gate** | the same components with layer 4 lifted — see the no-motion bar above. Not consulted by `passes()`. |
 
 `classifyDiff(regionCount, coveragePct)` buckets a result into a one-word
@@ -257,7 +266,7 @@ Two overlays are painted on top of the difference fill:
   navigator. (Pre-DM-715 this tile was the pass/fail signal; it's now just a
   pointer.)
 
-To know *which* pixels were classified AA, re-derive from the source images with
+To know _which_ pixels were classified AA, re-derive from the source images with
 the algorithm above — the diff PNG doesn't encode that distinction.
 
 ## Per-platform coverage floor

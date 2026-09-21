@@ -11,7 +11,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // field-sizing input — the DM-1259 regression). Deterministic capture-level guard
 // — the perceptual diff reads an ~8px-high value as a sub-% diff.
 
-const W = 500, H = 200;
+const W = 500,
+  H = 200;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font-family:system-ui,sans-serif}` +
   `input{font-size:16px;padding:6px;border:1px solid #ccc;box-sizing:content-box}` +
@@ -21,7 +22,15 @@ const HTML =
   `<input id="norm" type="text" value="user@example.com">` +
   `</body></html>`;
 
-interface InputNode { tag?: string; text?: string; y?: number; textTop?: number; fontAscent?: number; fontDescent?: number; styles?: { borderTopWidth?: string; paddingTop?: string; lineHeight?: string } }
+interface InputNode {
+  tag?: string;
+  text?: string;
+  y?: number;
+  textTop?: number;
+  fontAscent?: number;
+  fontDescent?: number;
+  styles?: { borderTopWidth?: string; paddingTop?: string; lineHeight?: string };
+}
 function inputs(tree: CapturedElement[]): InputNode[] {
   const out: InputNode[] = [];
   const visit = (nodes: CapturedElement[]): void => {
@@ -35,10 +44,16 @@ function inputs(tree: CapturedElement[]): InputNode[] {
 }
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("DM-1259: input value baseline centers in a tall line-height", () => {
@@ -51,7 +66,10 @@ describeBrowser("DM-1259: input value baseline centers in a tall line-height", (
       const found = inputs(tree);
       expect(found.length).toBe(2);
       for (const n of found) {
-        const contentTop = (n.y ?? 0) + (parseFloat(n.styles?.borderTopWidth ?? "0") || 0) + (parseFloat(n.styles?.paddingTop ?? "0") || 0);
+        const contentTop =
+          (n.y ?? 0) +
+          (parseFloat(n.styles?.borderTopWidth ?? "0") || 0) +
+          (parseFloat(n.styles?.paddingTop ?? "0") || 0);
         const lh = n.styles?.lineHeight ?? "";
         const overTop = (n.textTop ?? 0) - contentTop; // how far the line/text sits below the content-box top
         if (lh.endsWith("px")) {

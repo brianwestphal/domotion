@@ -97,7 +97,10 @@ describe("variable faces shape at the run's axis location", () => {
   function advances(axes: Record<string, number> | null): string {
     const r = harfbuzzShapeRun(SFNS, 0, "Hamburgefonstiv", undefined, 16, axes);
     expect(r).not.toBeNull();
-    return r!.positions.slice(0, 4).map((p) => p.xAdvance).join(" ");
+    return r!.positions
+      .slice(0, 4)
+      .map((p) => p.xAdvance)
+      .join(" ");
   }
 
   varOnly("shapes two weights differently, and neither as the default", () => {

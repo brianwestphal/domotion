@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2487","DM-2488","DM-2489","DM-2490"]
+tickets: ["DM-2487", "DM-2488", "DM-2489", "DM-2490"]
 code: ["tools/backdrop-source-surface-audit.ts"]
-aliases: ["docs/192-fixed-backdrop-paint-order.md","doc-192"]
+aliases: ["docs/192-fixed-backdrop-paint-order.md", "doc-192"]
 ---
 
 # Fixed backdrop paint order (DM-2489)

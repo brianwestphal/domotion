@@ -3,8 +3,7 @@ import { findFillBoxInClipOrMask, assertNoFillBoxInClipOrMask } from "./clip-tra
 
 describe("findFillBoxInClipOrMask (DM-1529)", () => {
   it("flags an inline transform-box:fill-box on a clipPath child", () => {
-    const svg =
-      `<svg><clipPath id="c"><rect style="transform-box: fill-box; transform-origin: left top" width="10" height="10"/></clipPath></svg>`;
+    const svg = `<svg><clipPath id="c"><rect style="transform-box: fill-box; transform-origin: left top" width="10" height="10"/></clipPath></svg>`;
     const v = findFillBoxInClipOrMask(svg);
     expect(v).toHaveLength(1);
     expect(v[0]).toContain("<clipPath>");

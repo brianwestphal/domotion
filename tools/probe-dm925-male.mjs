@@ -13,7 +13,8 @@ const w = await page.evaluate(() => {
   if (!node) return null;
   const idx = node.textContent.indexOf("♂");
   const r = document.createRange();
-  r.setStart(node, idx); r.setEnd(node, idx + 1);
+  r.setStart(node, idx);
+  r.setEnd(node, idx + 1);
   return r.getBoundingClientRect().width;
 });
 console.log("Chrome ♂ width:", w);
@@ -27,11 +28,14 @@ const fonts = [
 for (const [name, path, ps] of fonts) {
   try {
     const file = fontkit.openSync(path);
-    const font = ps && file.fonts ? file.getFont(ps) : (file.fonts ? file.fonts[0] : file);
+    const font = ps && file.fonts ? file.getFont(ps) : file.fonts ? file.fonts[0] : file;
     if (!font) continue;
     const g = font.glyphForCodePoint(0x2642);
-    if (!g || g.id === 0) { console.log(`  ${name}: NO GLYPH`); continue; }
-    const adv = g.advanceWidth * 18 / font.unitsPerEm;
+    if (!g || g.id === 0) {
+      console.log(`  ${name}: NO GLYPH`);
+      continue;
+    }
+    const adv = (g.advanceWidth * 18) / font.unitsPerEm;
     console.log(`  ${name}: ${adv.toFixed(2)}px`);
   } catch {}
 }

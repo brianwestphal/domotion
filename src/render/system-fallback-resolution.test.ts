@@ -14,9 +14,13 @@ import {
 
 describe("system-fallback resolution toggle save/restore (DM-1350)", () => {
   let original: boolean;
-  beforeEach(() => { original = getSystemFallbackResolution(); });
+  beforeEach(() => {
+    original = getSystemFallbackResolution();
+  });
   // Never let a test leak the process-global into the next test.
-  afterEach(() => { setSystemFallbackResolution(original); });
+  afterEach(() => {
+    setSystemFallbackResolution(original);
+  });
 
   it("withSystemFallbackResolution applies the toggle inside and restores it after", () => {
     setSystemFallbackResolution(false);
@@ -25,8 +29,8 @@ describe("system-fallback resolution toggle save/restore (DM-1350)", () => {
       seenInside = getSystemFallbackResolution();
       return 42;
     });
-    expect(seenInside).toBe(true);          // applied for the duration of fn
-    expect(result).toBe(42);                // returns fn's value
+    expect(seenInside).toBe(true); // applied for the duration of fn
+    expect(result).toBe(42); // returns fn's value
     expect(getSystemFallbackResolution()).toBe(false); // restored to the prior value
   });
 

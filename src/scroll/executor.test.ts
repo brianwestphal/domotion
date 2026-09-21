@@ -14,7 +14,10 @@ import type { ScrollAction, AbsoluteTarget } from "./pattern.js";
 
 // ── Fake PageQuery for the pure helpers' tests ─────────────────────────────
 
-function fakePageQuery(opts: Partial<PageStateSnapshot> = {}, selectors: Record<string, { x: number; y: number; width?: number; height?: number }> = {}): { query: PageQuery; snap: PageStateSnapshot } {
+function fakePageQuery(
+  opts: Partial<PageStateSnapshot> = {},
+  selectors: Record<string, { x: number; y: number; width?: number; height?: number }> = {},
+): { query: PageQuery; snap: PageStateSnapshot } {
   const snap: PageStateSnapshot = {
     maxScrollX: opts.maxScrollX ?? 0,
     maxScrollY: opts.maxScrollY ?? 4000,
@@ -24,7 +27,9 @@ function fakePageQuery(opts: Partial<PageStateSnapshot> = {}, selectors: Record<
     scrollY: opts.scrollY ?? 0,
   };
   const query: PageQuery = {
-    async snapshot() { return { ...snap }; },
+    async snapshot() {
+      return { ...snap };
+    },
     async selectorBbox(css) {
       const r = selectors[css];
       if (r == null) return null;
@@ -38,10 +43,34 @@ function fakePageQuery(opts: Partial<PageStateSnapshot> = {}, selectors: Record<
 
 describe("axisOfScroll", () => {
   it("direction prefix wins", () => {
-    expect(axisOfScroll({ kind: "scroll", direction: "up",    target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } } } as ScrollAction)).toBe("y");
-    expect(axisOfScroll({ kind: "scroll", direction: "down",  target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } } } as ScrollAction)).toBe("y");
-    expect(axisOfScroll({ kind: "scroll", direction: "left",  target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } } } as ScrollAction)).toBe("x");
-    expect(axisOfScroll({ kind: "scroll", direction: "right", target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } } } as ScrollAction)).toBe("x");
+    expect(
+      axisOfScroll({
+        kind: "scroll",
+        direction: "up",
+        target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } },
+      } as ScrollAction),
+    ).toBe("y");
+    expect(
+      axisOfScroll({
+        kind: "scroll",
+        direction: "down",
+        target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } },
+      } as ScrollAction),
+    ).toBe("y");
+    expect(
+      axisOfScroll({
+        kind: "scroll",
+        direction: "left",
+        target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } },
+      } as ScrollAction),
+    ).toBe("x");
+    expect(
+      axisOfScroll({
+        kind: "scroll",
+        direction: "right",
+        target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } },
+      } as ScrollAction),
+    ).toBe("x");
   });
 
   it("anchor type implies axis when no direction", () => {
@@ -236,7 +265,7 @@ describe("resolveScrollAction", () => {
       target: { kind: "delta", signedLength: { sign: -1, value: 100, unit: "px" } },
     };
     const r = await resolveScrollAction(action, query, snap, 1500);
-    expect(r.destY).toBe(400);   // 500 + (1 * -100) = 400
+    expect(r.destY).toBe(400); // 500 + (1 * -100) = 400
   });
 
   it("`up:100px` from y=500 → destY=400", async () => {
@@ -257,7 +286,7 @@ describe("resolveScrollAction", () => {
       target: { kind: "delta", signedLength: { sign: 1, value: 500, unit: "px" } },
     };
     const r = await resolveScrollAction(action, query, snap, 1500);
-    expect(r.destY).toBe(4000);   // clamped
+    expect(r.destY).toBe(4000); // clamped
   });
 
   it("delta clamped to top (not negative)", async () => {
@@ -275,7 +304,11 @@ describe("resolveScrollAction", () => {
     const action: ScrollAction = {
       kind: "scroll",
       direction: "up",
-      target: { kind: "absolute", anchor: { kind: "named", name: "top" }, offsets: [{ op: "+", length: { value: 200, unit: "px" } }] },
+      target: {
+        kind: "absolute",
+        anchor: { kind: "named", name: "top" },
+        offsets: [{ op: "+", length: { value: 200, unit: "px" } }],
+      },
     };
     const r = await resolveScrollAction(action, query, snap, 1500);
     expect(r.destY).toBe(200);
@@ -313,8 +346,12 @@ describe("until <position> final-iteration clamp", () => {
     };
     const destYs: number[] = [];
     const query: PageQuery = {
-      async snapshot() { return { ...state }; },
-      async selectorBbox() { return null; },
+      async snapshot() {
+        return { ...state };
+      },
+      async selectorBbox() {
+        return null;
+      },
     };
     return { query, state, destYs };
   }
@@ -327,12 +364,21 @@ describe("until <position> final-iteration clamp", () => {
     const { query, state, destYs } = statefulPage(4000);
     await __walkPatternForTest(
       parseScrollPattern("down:700px until bottom - 1000px"),
-      query, 1000,
+      query,
+      1000,
       async (op) => {
-        if (op.kind === "scroll") { state.scrollX = op.destX; state.scrollY = op.destY; destYs.push(op.destY); }
+        if (op.kind === "scroll") {
+          state.scrollX = op.destX;
+          state.scrollY = op.destY;
+          destYs.push(op.destY);
+        }
       },
-      () => { /* no timeout */ },
-      () => { /* silent log */ },
+      () => {
+        /* no timeout */
+      },
+      () => {
+        /* silent log */
+      },
     );
     expect(destYs).toEqual([700, 1400, 2100, 2800, 3000]);
     expect(state.scrollY).toBe(3000);
@@ -344,9 +390,14 @@ describe("until <position> final-iteration clamp", () => {
     const { query, state, destYs } = statefulPage(4000);
     await __walkPatternForTest(
       parseScrollPattern("down:600px until bottom - 1000px"),
-      query, 1000,
+      query,
+      1000,
       async (op) => {
-        if (op.kind === "scroll") { state.scrollX = op.destX; state.scrollY = op.destY; destYs.push(op.destY); }
+        if (op.kind === "scroll") {
+          state.scrollX = op.destX;
+          state.scrollY = op.destY;
+          destYs.push(op.destY);
+        }
       },
       () => {},
       () => {},
@@ -361,7 +412,8 @@ describe("until <position> final-iteration clamp", () => {
     const logs: string[] = [];
     await __walkPatternForTest(
       parseScrollPattern("down:700px until bottom - 1000px"),
-      query, 1000,
+      query,
+      1000,
       async (op) => {
         // Simulate a page that accepts the operation but remains pinned. The
         // second condition snapshot must terminate instead of looping 1,000×.

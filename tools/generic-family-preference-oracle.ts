@@ -197,8 +197,18 @@ const PROTOCOL_KEYS: Readonly<Record<SettingsGenericName, ProtocolFamilyKey>> = 
 const MODES: LaunchMode[] = [
   { id: "pinned-headless", engine: "playwright-pinned-chromium", headless: true, options: { headless: true } },
   { id: "pinned-headed", engine: "playwright-pinned-chromium", headless: false, options: { headless: false } },
-  { id: "full-chrome-headless", engine: "full-chrome-channel", headless: true, options: { channel: "chrome", headless: true } },
-  { id: "full-chrome-headed", engine: "full-chrome-channel", headless: false, options: { channel: "chrome", headless: false } },
+  {
+    id: "full-chrome-headless",
+    engine: "full-chrome-channel",
+    headless: true,
+    options: { channel: "chrome", headless: true },
+  },
+  {
+    id: "full-chrome-headed",
+    engine: "full-chrome-channel",
+    headless: false,
+    options: { channel: "chrome", headless: false },
+  },
 ];
 
 let probeSequence = 0;
@@ -206,13 +216,14 @@ const face = (row: BlinkPreferenceRow): string => row.postScriptName ?? row.fami
 export const settingsPreferenceRequestName = (
   hostPlatform: NodeJS.Platform,
   row: Pick<BlinkPreferenceRow, "familyName" | "postScriptName">,
-): string => hostPlatform === "darwin" && !/^[\x20-\x7e]+$/.test(row.familyName)
-  ? row.postScriptName || row.familyName
-  : row.familyName;
-const settingsRequestName = (row: BlinkPreferenceRow): string =>
-  settingsPreferenceRequestName(process.platform, row);
+): string =>
+  hostPlatform === "darwin" && !/^[\x20-\x7e]+$/.test(row.familyName)
+    ? row.postScriptName || row.familyName
+    : row.familyName;
+const settingsRequestName = (row: BlinkPreferenceRow): string => settingsPreferenceRequestName(process.platform, row);
 const normFace = (value: string | null | undefined): string => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-const targetKey = (target: Pick<LogicalProbeTarget, "script" | "generic">): string => `${target.script ?? "COMMON"}/${target.generic}`;
+const targetKey = (target: Pick<LogicalProbeTarget, "script" | "generic">): string =>
+  `${target.script ?? "COMMON"}/${target.generic}`;
 const isSettingsGeneric = (generic: GenericName): generic is SettingsGenericName =>
   generic !== "system-ui" && generic !== "quoted-serif";
 
@@ -251,28 +262,32 @@ export function logicalProbeTargets(): LogicalProbeTarget[] {
 async function readBlinkPreferenceRows(page: Page, cdp: CDPSession): Promise<BlinkPreferenceRow[]> {
   const targets = logicalProbeTargets();
   const containerId = `__domotion_dm2351_${++probeSequence}`;
-  await page.evaluate(({ id, rows }) => {
-    const container = document.createElement("div");
-    container.id = id;
-    container.setAttribute("aria-hidden", "true");
-    container.style.cssText = "all:initial;position:fixed;left:-100000px;top:0;display:block;contain:strict;width:4000px;height:4000px;pointer-events:none";
-    for (const row of rows) {
-      const span = document.createElement("span");
-      span.id = `${id}_${row.id}`;
-      span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
-      if (row.lang != null) span.lang = row.lang;
-      // `lang` maps to Blink's inherited -webkit-locale presentation
-      // property. `all: initial` above resets it, so restore the same quoted
-      // value after neutralization before asking which script preference won.
-      if (row.lang != null) span.style.setProperty("-webkit-locale", JSON.stringify(row.lang));
-      if (row.generic !== "standard") {
-        span.style.fontFamily = row.generic === "quoted-serif" ? '"serif"' : row.generic;
+  await page.evaluate(
+    ({ id, rows }) => {
+      const container = document.createElement("div");
+      container.id = id;
+      container.setAttribute("aria-hidden", "true");
+      container.style.cssText =
+        "all:initial;position:fixed;left:-100000px;top:0;display:block;contain:strict;width:4000px;height:4000px;pointer-events:none";
+      for (const row of rows) {
+        const span = document.createElement("span");
+        span.id = `${id}_${row.id}`;
+        span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
+        if (row.lang != null) span.lang = row.lang;
+        // `lang` maps to Blink's inherited -webkit-locale presentation
+        // property. `all: initial` above resets it, so restore the same quoted
+        // value after neutralization before asking which script preference won.
+        if (row.lang != null) span.style.setProperty("-webkit-locale", JSON.stringify(row.lang));
+        if (row.generic !== "standard") {
+          span.style.fontFamily = row.generic === "quoted-serif" ? '"serif"' : row.generic;
+        }
+        span.textContent = row.text;
+        container.appendChild(span);
       }
-      span.textContent = row.text;
-      container.appendChild(span);
-    }
-    document.documentElement.appendChild(container);
-  }, { id: containerId, rows: targets });
+      document.documentElement.appendChild(container);
+    },
+    { id: containerId, rows: targets },
+  );
 
   try {
     await page.evaluate(() => document.fonts.ready);
@@ -286,7 +301,7 @@ async function readBlinkPreferenceRows(page: Page, cdp: CDPSession): Promise<Bli
       if (nodeId === 0) throw new Error(`independent probe lost ${target.id}`);
       const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
       const primary = fonts.reduce(
-        (best, candidate) => best == null || candidate.glyphCount > best.glyphCount ? candidate : best,
+        (best, candidate) => (best == null || candidate.glyphCount > best.glyphCount ? candidate : best),
         null as (typeof fonts)[number] | null,
       );
       if (primary == null || primary.familyName === "") {
@@ -307,19 +322,25 @@ async function readBlinkPreferenceRows(page: Page, cdp: CDPSession): Promise<Bli
 }
 
 function rowsStable(a: BlinkPreferenceRow[], b: BlinkPreferenceRow[]): boolean {
-  return a.length === b.length && a.every((row, index) =>
-    targetKey(row) === targetKey(b[index])
-      && normFace(face(row)) === normFace(face(b[index]))
-      && row.glyphCount === b[index].glyphCount);
+  return (
+    a.length === b.length &&
+    a.every(
+      (row, index) =>
+        targetKey(row) === targetKey(b[index]) &&
+        normFace(face(row)) === normFace(face(b[index])) &&
+        row.glyphCount === b[index].glyphCount,
+    )
+  );
 }
 
 function probeMatchesRows(probe: SessionGenericFamilyProbe, rows: BlinkPreferenceRow[]): boolean {
-  return rows.filter((row) => isSettingsGeneric(row.generic)).every((row) => {
-    const observed = row.script == null
-      ? probe.common.get(row.generic)
-      : probe.byScript.get(row.script)?.get(row.generic);
-    return normFace(observed) === normFace(genericFamilyReplayName(process.platform, row));
-  });
+  return rows
+    .filter((row) => isSettingsGeneric(row.generic))
+    .every((row) => {
+      const observed =
+        row.script == null ? probe.common.get(row.generic) : probe.byScript.get(row.script)?.get(row.generic);
+      return normFace(observed) === normFace(genericFamilyReplayName(process.platform, row));
+    });
 }
 
 function observedPreferences(probe: SessionGenericFamilyProbe): PreferenceStateReport["observedPreferences"] {
@@ -331,14 +352,13 @@ function observedPreferences(probe: SessionGenericFamilyProbe): PreferenceStateR
   };
 }
 
-function domotionRows(
-  sourceRows: BlinkPreferenceRow[],
-  probe: SessionGenericFamilyProbe,
-): LogicalAgreementRow[] {
-  return withSessionGenericFamilyOverrides(probe, () => sourceRows.map((row) => {
-    const domotionFace = resolveDomotionPaintedFace(row);
-    return { ...row, domotionFace, exact: normFace(domotionFace) === normFace(face(row)) };
-  }));
+function domotionRows(sourceRows: BlinkPreferenceRow[], probe: SessionGenericFamilyProbe): LogicalAgreementRow[] {
+  return withSessionGenericFamilyOverrides(probe, () =>
+    sourceRows.map((row) => {
+      const domotionFace = resolveDomotionPaintedFace(row);
+      return { ...row, domotionFace, exact: normFace(domotionFace) === normFace(face(row)) };
+    }),
+  );
 }
 
 /** Resolve the face that paints the row's scalar, not merely its declared
@@ -346,9 +366,12 @@ function domotionRows(
  * rejects a dot-prefixed family as a direct setting, then reaches it from the
  * Common primary through CTFontCreateForString at the fallback stage. */
 function resolveDomotionPaintedFace(row: BlinkPreferenceRow): string | null {
-  const family = row.generic === "standard"
-    ? "__domotion_dm2351_missing_family__"
-    : row.generic === "quoted-serif" ? '"serif"' : row.generic;
+  const family =
+    row.generic === "standard"
+      ? "__domotion_dm2351_missing_family__"
+      : row.generic === "quoted-serif"
+        ? '"serif"'
+        : row.generic;
   const lang = row.lang ?? undefined;
   const primaryKey = resolveFontKey(family, lang);
   const primary = resolveFont(family, 400, 32, 0, undefined, 100, lang);
@@ -370,18 +393,21 @@ function resolveDomotionPaintedFace(row: BlinkPreferenceRow): string | null {
     family,
   );
   const instance = painted.fontOverride ?? getFontInstance(painted.key, 400, 32, 0);
-  return instance?.instantiatedPostscriptName
-    ?? instance?.postscriptName
-    ?? resolveFontSpec(painted.key)?.postscriptName
-    ?? null;
+  return (
+    instance?.instantiatedPostscriptName ??
+    instance?.postscriptName ??
+    resolveFontSpec(painted.key)?.postscriptName ??
+    null
+  );
 }
 
 /** Build mutations only from faces this exact browser/host just painted.
  * There is intentionally no committed OS preference table in this oracle. */
 export function buildPreferenceMutation(defaultRows: BlinkPreferenceRow[]): PreferenceMutationPlan {
   const candidatesFor = (rows: BlinkPreferenceRow[], owner: string): BlinkPreferenceRow[] => {
-    const candidates = rows.filter((row, index) => rows.findIndex((candidate) =>
-      normFace(face(candidate)) === normFace(face(row))) === index);
+    const candidates = rows.filter(
+      (row, index) => rows.findIndex((candidate) => normFace(face(candidate)) === normFace(face(row))) === index,
+    );
     if (candidates.length < 2) {
       throw new Error(`controlled mutation needs at least two distinct faces proven to paint ${owner}`);
     }
@@ -469,10 +495,12 @@ async function collectState(
 
   const rows = domotionRows(second, productionProbe);
   const expectedMutationRows = mutation == null ? null : Object.keys(mutation.expectedFaceByTarget).length;
-  const expectedMutationMatches = mutation == null ? null : second
-    .filter((row) => isSettingsGeneric(row.generic))
-    .filter((row) => normFace(face(row)) === normFace(mutation.expectedFaceByTarget[targetKey(row)]))
-    .length;
+  const expectedMutationMatches =
+    mutation == null
+      ? null
+      : second
+          .filter((row) => isSettingsGeneric(row.generic))
+          .filter((row) => normFace(face(row)) === normFace(mutation.expectedFaceByTarget[targetKey(row)])).length;
   // `system-ui` is owned by the separate platform route, not Page's generic
   // preference maps. Keep those rows in the report as mandatory stability
   // controls, but never grade their face identity as generic-map parity.
@@ -480,23 +508,25 @@ async function collectState(
   const exactRows = gradedRows.filter((row) => row.exact).length;
   const productionMatches = probeMatchesRows(productionProbe, second);
   const repeatStable = rowsStable(first, second);
-  const pass = repeatStable
-    && globalUntouched
-    && productionMatches
-    && exactRows === gradedRows.length
-    && (expectedMutationRows == null || expectedMutationMatches === expectedMutationRows);
+  const pass =
+    repeatStable &&
+    globalUntouched &&
+    productionMatches &&
+    exactRows === gradedRows.length &&
+    (expectedMutationRows == null || expectedMutationMatches === expectedMutationRows);
   return {
     sourceRows: second,
     probe: productionProbe,
     report: {
       kind,
-      requestedPreferences: mutation == null
-        ? null
-        : {
-            fontFamilies: mutation.fontFamilies,
-            forScripts: mutation.forScripts,
-            unavailableScripts: mutation.unavailableScripts,
-          },
+      requestedPreferences:
+        mutation == null
+          ? null
+          : {
+              fontFamilies: mutation.fontFamilies,
+              forScripts: mutation.forScripts,
+              unavailableScripts: mutation.unavailableScripts,
+            },
       observedPreferences: observedPreferences(productionProbe),
       productionProbeMatchesIndependentRows: productionMatches,
       productionProbeLeftPriorGlobalUntouched: globalUntouched,
@@ -560,10 +590,12 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
     const genericKeys = [...defaultMap].filter(([, row]) => isSettingsGeneric(row.generic)).map(([key]) => key);
     const systemUiKeys = [...defaultMap].filter(([, row]) => row.generic === "system-ui").map(([key]) => key);
     const quotedLiteralKeys = [...defaultMap].filter(([, row]) => row.generic === "quoted-serif").map(([key]) => key);
-    const mutatedGenericRows = genericKeys.filter((key) =>
-      normFace(face(defaultMap.get(key)!)) !== normFace(face(mutationMap.get(key)!))).length;
-    const systemUiNegativeControlStable = systemUiKeys.every((key) =>
-      normFace(face(defaultMap.get(key)!)) === normFace(face(mutationMap.get(key)!)));
+    const mutatedGenericRows = genericKeys.filter(
+      (key) => normFace(face(defaultMap.get(key)!)) !== normFace(face(mutationMap.get(key)!)),
+    ).length;
+    const systemUiNegativeControlStable = systemUiKeys.every(
+      (key) => normFace(face(defaultMap.get(key)!)) === normFace(face(mutationMap.get(key)!)),
+    );
     const quotedLiteralControlExact = mutationState.report.rows
       .filter((row) => row.generic === "quoted-serif")
       .every((row) => row.exact);
@@ -576,9 +608,8 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
     const scopedRows = defaultState.sourceRows.filter((row) => isSettingsGeneric(row.generic));
     setSessionGenericFamilyOverrides(mutationState.probe);
     const contaminatedExact = resolveAgainstCurrentGlobal(scopedRows);
-    const scopedExact = withSessionGenericFamilyOverrides(
-      defaultState.probe,
-      () => resolveAgainstCurrentGlobal(scopedRows),
+    const scopedExact = withSessionGenericFamilyOverrides(defaultState.probe, () =>
+      resolveAgainstCurrentGlobal(scopedRows),
     );
     const restored = getSessionGenericFamilyOverrides() === mutationState.probe;
     setSessionGenericFamilyOverrides(prior);
@@ -592,14 +623,15 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
     }));
     await Promise.all([defaultCdp.detach(), mutationCdp.detach()]);
     const mutationTargetCount = Object.keys(mutation.expectedFaceByTarget).length;
-    const pass = defaultState.report.pass
-      && mutationState.report.pass
-      && mutatedGenericRows === mutationTargetCount
-      && systemUiNegativeControlStable
-      && quotedLiteralControlExact
-      && legacyProcessGlobalContaminatedRows > 0
-      && scopedExact === scopedRows.length
-      && restored;
+    const pass =
+      defaultState.report.pass &&
+      mutationState.report.pass &&
+      mutatedGenericRows === mutationTargetCount &&
+      systemUiNegativeControlStable &&
+      quotedLiteralControlExact &&
+      legacyProcessGlobalContaminatedRows > 0 &&
+      scopedExact === scopedRows.length &&
+      restored;
     return {
       id: mode.id,
       engine: mode.engine,
@@ -632,7 +664,9 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
 
 function revision(repo: string, ref = "HEAD"): string {
   try {
-    return execFileSync("git", ["-C", resolve(ROOT, repo), "rev-parse", "--short=12", ref], { encoding: "utf8" }).trim();
+    return execFileSync("git", ["-C", resolve(ROOT, repo), "rev-parse", "--short=12", ref], {
+      encoding: "utf8",
+    }).trim();
   } catch {
     return "unavailable";
   }
@@ -644,7 +678,9 @@ function fontInventory(): GenericFamilyPreferenceReport["environment"]["fontInve
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  const parsed = JSON.parse(raw) as GenericFamilyPreferenceReport["environment"]["fontInventory"] & { entries?: string[] };
+  const parsed = JSON.parse(raw) as GenericFamilyPreferenceReport["environment"]["fontInventory"] & {
+    entries?: string[];
+  };
   return {
     platform: parsed.platform,
     arch: parsed.arch,
@@ -664,9 +700,7 @@ function selectedModes(args: string[]): LaunchMode[] {
   if (unknown.length > 0) throw new Error(`unknown modes: ${unknown.join(", ")}`);
   const headed = selected.filter((mode) => !mode.headless);
   if (headed.length > 0 && !allowHeaded) {
-    throw new Error(
-      `headed browser modes require --allow-headed-browser: ${headed.map((mode) => mode.id).join(", ")}`,
-    );
+    throw new Error(`headed browser modes require --allow-headed-browser: ${headed.map((mode) => mode.id).join(", ")}`);
   }
   return selected;
 }
@@ -691,14 +725,18 @@ export async function runGenericFamilyPreferenceOracle(
   }
   const available = reports.filter((report): report is ModeReport => !("unavailable" in report));
   const unavailable = reports.filter((report): report is UnavailableMode => "unavailable" in report);
-  const missingRequired = unavailable.filter((report) =>
-    !allowMissingFullChrome || !report.id.startsWith("full-chrome-"));
+  const missingRequired = unavailable.filter(
+    (report) => !allowMissingFullChrome || !report.id.startsWith("full-chrome-"),
+  );
   const exactRows = available.reduce((sum, mode) => sum + mode.default.exactRows + mode.mutation.exactRows, 0);
   const totalRows = available.reduce((sum, mode) => sum + mode.default.rows.length + mode.mutation.rows.length, 0);
   const allAvailablePass = available.length > 0 && available.every((mode) => mode.pass);
-  const verdict = missingRequired.length > 0 || available.length === 0
-    ? "unavailable"
-    : allAvailablePass ? "source-exact" : "source-drift";
+  const verdict =
+    missingRequired.length > 0 || available.length === 0
+      ? "unavailable"
+      : allAvailablePass
+        ? "source-exact"
+        : "source-drift";
   return {
     schemaVersion: 1,
     ticket: "DM-2351",

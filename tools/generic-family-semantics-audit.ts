@@ -38,13 +38,20 @@ export const GENERIC_FAMILY_SEMANTICS_SOURCE_PINS = {
 /** Entire-file fingerprints at the audited revisions. They make a dirty or
  * drifted checkout fail closed instead of silently grading a different rule. */
 export const GENERIC_FAMILY_SEMANTICS_SOURCE_FILES = {
-  "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc": "b507857c53282e750632d21f6ceb5061d73f1602193d551a1dadf25e8828d1f3",
-  "external/chromium/third_party/blink/renderer/platform/fonts/font_description.h": "984570a59a932af20ab361c3555b5759c44ebe8f7acdd4a4a3fb589a04020155",
-  "external/chromium/third_party/blink/renderer/platform/fonts/alternate_font_family.h": "7b7a768c34237aacc940229c58b832e5629f3e2efee7fa37ae7207a9e0968db7",
-  "external/chromium/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc": "44b983a99809e7288aa0307df2c6e40babebe7ffca7e088d9da523297be2d870",
-  "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm": "2479021eea4b6b0381c044e64a109b8d752c570bee022257a0af175671828b6f",
-  "external/chromium/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc": "bdfc5a44bf79c8f1b6ae39cc0b2ab0f6aa195e81c3a1bd00e569e6406f044092",
-  "external/chromium/third_party/blink/renderer/platform/fonts/win/font_fallback_win.cc": "dd2acdc5ed4f92b03c933f03da5d0e2e88c7ab20e3cf7c078832586b1e80dc1d",
+  "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc":
+    "b507857c53282e750632d21f6ceb5061d73f1602193d551a1dadf25e8828d1f3",
+  "external/chromium/third_party/blink/renderer/platform/fonts/font_description.h":
+    "984570a59a932af20ab361c3555b5759c44ebe8f7acdd4a4a3fb589a04020155",
+  "external/chromium/third_party/blink/renderer/platform/fonts/alternate_font_family.h":
+    "7b7a768c34237aacc940229c58b832e5629f3e2efee7fa37ae7207a9e0968db7",
+  "external/chromium/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc":
+    "44b983a99809e7288aa0307df2c6e40babebe7ffca7e088d9da523297be2d870",
+  "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm":
+    "2479021eea4b6b0381c044e64a109b8d752c570bee022257a0af175671828b6f",
+  "external/chromium/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc":
+    "bdfc5a44bf79c8f1b6ae39cc0b2ab0f6aa195e81c3a1bd00e569e6406f044092",
+  "external/chromium/third_party/blink/renderer/platform/fonts/win/font_fallback_win.cc":
+    "dd2acdc5ed4f92b03c933f03da5d0e2e88c7ab20e3cf7c078832586b1e80dc1d",
   "external/harfbuzz/src/hb-ot-shape.cc": "92575c190dbec89fed92b9e1dcf8f442532406221ae2be957dcdd5142426be13",
   "external/chromium/DEPS": "b97ed626e4139cbda579b5bee8a61a3b1ff03cc1a0797f1708e3de4f09593da3",
 } as const;
@@ -57,8 +64,7 @@ const PRODUCTION_FINGERPRINT_FILES = [
 ] as const;
 
 export type BlinkGenericFamily =
-  | "none" | "standard" | "webkit-body" | "serif" | "sans-serif"
-  | "monospace" | "cursive" | "fantasy";
+  "none" | "standard" | "webkit-body" | "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy";
 
 export type GenericFamilyGatePlatform = "darwin" | "linux" | "win32";
 
@@ -109,21 +115,29 @@ export interface GenericFamilySemanticsCase {
   expectedStandardLead: ScriptCase["expectedStandardLead"];
 }
 
-export const GENERIC_FAMILY_SEMANTICS_CASES: readonly GenericFamilySemanticsCase[] =
-  SCRIPT_CASES.flatMap((script) => STACK_CASES.map((stack) => ({
+export const GENERIC_FAMILY_SEMANTICS_CASES: readonly GenericFamilySemanticsCase[] = SCRIPT_CASES.flatMap((script) =>
+  STACK_CASES.map((stack) => ({
     ...stack,
     ...script,
     id: `${script.id}-${stack.id}`,
     stackId: stack.id,
     scriptId: script.id,
-  })));
+  })),
+);
 
-interface FamilyToken { value: string; quoted: boolean }
+interface FamilyToken {
+  value: string;
+  quoted: boolean;
+}
 
 const GENERIC_ENUM: ReadonlyMap<string, BlinkGenericFamily> = new Map([
-  ["serif", "serif"], ["sans-serif", "sans-serif"], ["monospace", "monospace"],
-  ["cursive", "cursive"], ["fantasy", "fantasy"],
-  ["-webkit-standard", "standard"], ["-webkit-body", "webkit-body"],
+  ["serif", "serif"],
+  ["sans-serif", "sans-serif"],
+  ["monospace", "monospace"],
+  ["cursive", "cursive"],
+  ["fantasy", "fantasy"],
+  ["-webkit-standard", "standard"],
+  ["-webkit-body", "webkit-body"],
 ]);
 
 const FAMILY_NODE_GENERICS = new Set([...GENERIC_ENUM.keys(), "system-ui", "math"]);
@@ -131,20 +145,42 @@ const FAMILY_NODE_GENERICS = new Set([...GENERIC_ENUM.keys(), "system-ui", "math
 /** Independent CSSOM family-list parser used only by the source adjudicator. */
 export function splitComputedFontFamily(value: string): FamilyToken[] {
   const raw: string[] = [];
-  let token = "", quote = "", escaped = false;
+  let token = "",
+    quote = "",
+    escaped = false;
   for (const ch of value) {
-    if (escaped) { token += ch; escaped = false; continue; }
-    if (ch === "\\") { token += ch; escaped = true; continue; }
-    if (quote !== "") { token += ch; if (ch === quote) quote = ""; continue; }
-    if (ch === '"' || ch === "'") { quote = ch; token += ch; continue; }
-    if (ch === ",") { raw.push(token.trim()); token = ""; continue; }
+    if (escaped) {
+      token += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      token += ch;
+      escaped = true;
+      continue;
+    }
+    if (quote !== "") {
+      token += ch;
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      token += ch;
+      continue;
+    }
+    if (ch === ",") {
+      raw.push(token.trim());
+      token = "";
+      continue;
+    }
     token += ch;
   }
   raw.push(token.trim());
   return raw.filter(Boolean).map((entry) => {
-    const quoted = entry.length >= 2
-      && ((entry.startsWith('"') && entry.endsWith('"'))
-        || (entry.startsWith("'") && entry.endsWith("'")));
+    const quoted =
+      entry.length >= 2 &&
+      ((entry.startsWith('"') && entry.endsWith('"')) || (entry.startsWith("'") && entry.endsWith("'")));
     return { value: quoted ? entry.slice(1, -1) : entry, quoted };
   });
 }
@@ -190,10 +226,22 @@ export function keyInferredWinFallbackMode(primaryKey: string): WinGenericFamily
 }
 
 const SOURCE_WIN_PAN_UNICODE_COMMON = [
-  "tahoma", "arial unicode ms", "lucida sans unicode", "microsoft sans serif",
-  "palatino linotype", "dejavu serif", "dejavu sasns", "freeserif",
-  "freesans", "gentium", "gentiumalt", "ms pgothic", "simsun", "gulim",
-  "pmingliu", "code2000",
+  "tahoma",
+  "arial unicode ms",
+  "lucida sans unicode",
+  "microsoft sans serif",
+  "palatino linotype",
+  "dejavu serif",
+  "dejavu sasns",
+  "freeserif",
+  "freesans",
+  "gentium",
+  "gentiumalt",
+  "ms pgothic",
+  "simsun",
+  "gulim",
+  "pmingliu",
+  "code2000",
 ] as const;
 
 /** Independent Windows Arabic/Hebrew hardcoded fallback order. */
@@ -203,12 +251,8 @@ export function sourcePlatformCandidateOrder(
   generic: BlinkGenericFamily,
 ): string[] {
   if (target !== "win32") return [];
-  const lead = generic === "monospace"
-    ? "courier new"
-    : scriptId === "arabic" ? "Tahoma" : "David";
-  return [lead, ...SOURCE_WIN_PAN_UNICODE_COMMON.filter(
-    (family) => family.toLowerCase() !== lead.toLowerCase(),
-  )];
+  const lead = generic === "monospace" ? "courier new" : scriptId === "arabic" ? "Tahoma" : "David";
+  return [lead, ...SOURCE_WIN_PAN_UNICODE_COMMON.filter((family) => family.toLowerCase() !== lead.toLowerCase())];
 }
 
 function sourceSkiaInitialFamily(generic: BlinkGenericFamily): string {
@@ -228,11 +272,16 @@ function sourceSkiaInitialFamily(generic: BlinkGenericFamily): string {
 
 function sourceSkiaInitialKey(generic: BlinkGenericFamily): string | null {
   switch (generic) {
-    case "sans-serif": return "helvetica";
-    case "serif": return "times";
-    case "monospace": return "courier";
-    case "cursive": return "apple-chancery";
-    case "fantasy": return "papyrus";
+    case "sans-serif":
+      return "helvetica";
+    case "serif":
+      return "times";
+    case "monospace":
+      return "courier";
+    case "cursive":
+      return "apple-chancery";
+    case "fantasy":
+      return "papyrus";
     case "none":
     case "standard":
     case "webkit-body":
@@ -241,10 +290,7 @@ function sourceSkiaInitialKey(generic: BlinkGenericFamily): string | null {
 }
 
 /** Raw family questions in Blink's platform terminal, before host matching. */
-export function sourceTerminalQuestionOrder(
-  target: GenericFamilyGatePlatform,
-  generic: BlinkGenericFamily,
-): string[] {
+export function sourceTerminalQuestionOrder(target: GenericFamilyGatePlatform, generic: BlinkGenericFamily): string[] {
   if (target === "darwin") return ["Times", "Lucida Grande"];
   const first = sourceSkiaInitialFamily(generic) || "<unnamed-default>";
   const common = [first, "Sans", "Arial"];
@@ -263,22 +309,18 @@ export function sourceTerminalQuestionOrder(
 }
 
 /** Source terminal normalized to Domotion's existing logical tail owners. */
-export function sourceTerminalOwnerOrder(
-  target: GenericFamilyGatePlatform,
-  generic: BlinkGenericFamily,
-): string[] {
+export function sourceTerminalOwnerOrder(target: GenericFamilyGatePlatform, generic: BlinkGenericFamily): string[] {
   if (target === "darwin") return ["times", "lucida-grande"];
   const tail = target === "win32" ? "arial" : "helvetica";
   const initial = sourceSkiaInitialKey(generic);
   return initial == null || initial === tail ? [tail] : [initial, tail];
 }
 
-export function sourceTerminalActivated(
-  target: GenericFamilyGatePlatform,
-  generic: BlinkGenericFamily,
-): boolean {
-  return JSON.stringify(sourceTerminalOwnerOrder(target, generic))
-    !== JSON.stringify(sourceTerminalOwnerOrder(target, "none"));
+export function sourceTerminalActivated(target: GenericFamilyGatePlatform, generic: BlinkGenericFamily): boolean {
+  return (
+    JSON.stringify(sourceTerminalOwnerOrder(target, generic)) !==
+    JSON.stringify(sourceTerminalOwnerOrder(target, "none"))
+  );
 }
 
 export function sourceSemanticCacheIdentity(
@@ -286,9 +328,7 @@ export function sourceSemanticCacheIdentity(
   fontFamily: string,
   generic: BlinkGenericFamily,
 ): string {
-  const terminal = target === "darwin"
-    ? "fixed:times"
-    : `initial:${sourceSkiaInitialFamily(generic) || "<unnamed>"}`;
+  const terminal = target === "darwin" ? "fixed:times" : `initial:${sourceSkiaInitialFamily(generic) || "<unnamed>"}`;
   return `${sourceDeclaredFamilyHeadIdentity(fontFamily)}|${terminal}`;
 }
 
@@ -297,9 +337,8 @@ function productionSemanticCacheIdentity(
   fontFamily: string,
   generic: BlinkGenericFamily,
 ): string {
-  const terminal = target === "darwin"
-    ? "fixed:times"
-    : `initial:${skiaLastResortInitialFamily(generic) || "<unnamed>"}`;
+  const terminal =
+    target === "darwin" ? "fixed:times" : `initial:${skiaLastResortInitialFamily(generic) || "<unnamed>"}`;
   return `${declaredFamilyHeadIdentity(fontFamily)}|${terminal}`;
 }
 
@@ -350,19 +389,13 @@ export function adjudicateGenericFamilySemanticsRow(
 ): GenericFamilySemanticsRow {
   const blockers: string[] = [];
   const expectedFallbackMode = sourceWinFallbackMode(row.expectedGeneric);
-  const expectedCandidateOrder = sourcePlatformCandidateOrder(
-    row.platform, row.scriptId, row.expectedGeneric,
-  );
+  const expectedCandidateOrder = sourcePlatformCandidateOrder(row.platform, row.scriptId, row.expectedGeneric);
   const expectedTerminalQuestions = sourceTerminalQuestionOrder(row.platform, row.expectedGeneric);
   const expectedTerminalOwners = sourceTerminalOwnerOrder(row.platform, row.expectedGeneric);
   const expectedTerminalActivation = sourceTerminalActivated(row.platform, row.expectedGeneric);
-  const expectedCacheIdentity = sourceSemanticCacheIdentity(
-    row.platform, row.computedFontFamily, row.expectedGeneric,
-  );
+  const expectedCacheIdentity = sourceSemanticCacheIdentity(row.platform, row.computedFontFamily, row.expectedGeneric);
   const expectedKeyGeneric = keyInferredGenericFamily(row.primaryKey);
-  const expectedKeyCandidateOrder = sourcePlatformCandidateOrder(
-    row.platform, row.scriptId, expectedKeyGeneric,
-  );
+  const expectedKeyCandidateOrder = sourcePlatformCandidateOrder(row.platform, row.scriptId, expectedKeyGeneric);
   const expectedKeyTerminalOwners = sourceTerminalOwnerOrder(row.platform, expectedKeyGeneric);
 
   if (row.sourceGeneric !== row.expectedGeneric) blockers.push("source-enum");
@@ -378,15 +411,13 @@ export function adjudicateGenericFamilySemanticsRow(
   if (JSON.stringify(row.sourceTerminalQuestionOrder) !== JSON.stringify(expectedTerminalQuestions)) {
     blockers.push("source-terminal-question-order");
   }
-  if (JSON.stringify(row.productionTerminalQuestionOrder)
-      !== JSON.stringify(row.sourceTerminalQuestionOrder)) {
+  if (JSON.stringify(row.productionTerminalQuestionOrder) !== JSON.stringify(row.sourceTerminalQuestionOrder)) {
     blockers.push("production-terminal-question-order");
   }
   if (JSON.stringify(row.sourceTerminalOwnerOrder) !== JSON.stringify(expectedTerminalOwners)) {
     blockers.push("source-terminal-owner-order");
   }
-  if (JSON.stringify(row.productionTerminalOwnerOrder)
-      !== JSON.stringify(row.sourceTerminalOwnerOrder)) {
+  if (JSON.stringify(row.productionTerminalOwnerOrder) !== JSON.stringify(row.sourceTerminalOwnerOrder)) {
     blockers.push("production-terminal-owner-order");
   }
   if (row.sourceTerminalActivated !== expectedTerminalActivation) {
@@ -400,12 +431,10 @@ export function adjudicateGenericFamilySemanticsRow(
     blockers.push("production-cache-identity");
   }
   if (row.keyDerivedGeneric !== expectedKeyGeneric) blockers.push("key-derived-generic");
-  if (JSON.stringify(row.keyDerivedCandidateOrder)
-      !== JSON.stringify(expectedKeyCandidateOrder)) {
+  if (JSON.stringify(row.keyDerivedCandidateOrder) !== JSON.stringify(expectedKeyCandidateOrder)) {
     blockers.push("key-derived-candidate-order");
   }
-  if (JSON.stringify(row.keyDerivedTerminalOwnerOrder)
-      !== JSON.stringify(expectedKeyTerminalOwners)) {
+  if (JSON.stringify(row.keyDerivedTerminalOwnerOrder) !== JSON.stringify(expectedKeyTerminalOwners)) {
     blockers.push("key-derived-terminal-order");
   }
   if (row.keyDerivedSemanticMismatch !== (row.sourceGeneric !== expectedKeyGeneric)) {
@@ -492,10 +521,11 @@ export function classifyGenericFamilySemanticsEvidence(
   sourcePinsMatch = true,
 ): Pick<GenericFamilySemanticsReport, "controls" | "verdict"> {
   const expectedIds = GENERIC_FAMILY_SEMANTICS_CASES.map((row) => row.id).sort();
-  const completeMatrix = orders.length === 2
-    && orders.some((order) => order.order === "forward")
-    && orders.some((order) => order.order === "reverse")
-    && orders.every((order) => {
+  const completeMatrix =
+    orders.length === 2 &&
+    orders.some((order) => order.order === "forward") &&
+    orders.some((order) => order.order === "reverse") &&
+    orders.every((order) => {
       const ids = order.rows.map((row) => row.id).sort();
       return JSON.stringify(ids) === JSON.stringify(expectedIds);
     });
@@ -504,62 +534,78 @@ export function classifyGenericFamilySemanticsEvidence(
   const byId = forward == null ? new Map<string, GenericFamilySemanticsRow>() : indexedRows(forward);
   const reverseRows = reverse == null ? new Map<string, GenericFamilySemanticsRow>() : indexedRows(reverse);
   const allRows = orders.flatMap((order) => order.rows);
-  const sourceEnumExact = allRows.length > 0
-    && allRows.every((row) => row.sourceGeneric === row.expectedGeneric);
-  const platformCandidateOrderExact = allRows.length > 0
-    && allRows.every((row) => JSON.stringify(row.productionCandidateOrder)
-      === JSON.stringify(row.sourceCandidateOrder));
-  const terminalQuestionOrderExact = allRows.length > 0
-    && allRows.every((row) => JSON.stringify(row.productionTerminalQuestionOrder)
-      === JSON.stringify(row.sourceTerminalQuestionOrder));
-  const terminalOwnerOrderExact = allRows.length > 0
-    && allRows.every((row) => JSON.stringify(row.productionTerminalOwnerOrder)
-      === JSON.stringify(row.sourceTerminalOwnerOrder));
-  const terminalActivationExact = allRows.length > 0
-    && allRows.every((row) => row.productionTerminalActivated === row.sourceTerminalActivated);
-  const cacheIdentityExact = allRows.length > 0
-    && allRows.every((row) => row.productionCacheIdentity === row.sourceCacheIdentity);
+  const sourceEnumExact = allRows.length > 0 && allRows.every((row) => row.sourceGeneric === row.expectedGeneric);
+  const platformCandidateOrderExact =
+    allRows.length > 0 &&
+    allRows.every((row) => JSON.stringify(row.productionCandidateOrder) === JSON.stringify(row.sourceCandidateOrder));
+  const terminalQuestionOrderExact =
+    allRows.length > 0 &&
+    allRows.every(
+      (row) => JSON.stringify(row.productionTerminalQuestionOrder) === JSON.stringify(row.sourceTerminalQuestionOrder),
+    );
+  const terminalOwnerOrderExact =
+    allRows.length > 0 &&
+    allRows.every(
+      (row) => JSON.stringify(row.productionTerminalOwnerOrder) === JSON.stringify(row.sourceTerminalOwnerOrder),
+    );
+  const terminalActivationExact =
+    allRows.length > 0 && allRows.every((row) => row.productionTerminalActivated === row.sourceTerminalActivated);
+  const cacheIdentityExact =
+    allRows.length > 0 && allRows.every((row) => row.productionCacheIdentity === row.sourceCacheIdentity);
   const productionRoutingExact = allRows.length > 0 && allRows.every((row) => row.pass);
-  const sourceDistinguishesDeclaredFromGeneric = SCRIPT_CASES.every((script) =>
-    byId.get(`${script.id}-declared-courier`)?.sourceGeneric === "none"
-      && byId.get(`${script.id}-generic-monospace`)?.sourceGeneric === "monospace");
-  const rightmostGenericWins = SCRIPT_CASES.every((script) =>
-    byId.get(`${script.id}-monospace-then-serif`)?.sourceGeneric === "serif"
-      && byId.get(`${script.id}-serif-then-monospace`)?.sourceGeneric === "monospace");
-  const nonOccupyingGenericsPreserveLegacyEnum = SCRIPT_CASES.every((script) =>
-    byId.get(`${script.id}-system-ui`)?.sourceGeneric === "none"
-      && byId.get(`${script.id}-math`)?.sourceGeneric === "none"
-      && byId.get(`${script.id}-courier-then-system-ui`)?.sourceGeneric === "none"
-      && byId.get(`${script.id}-monospace-then-math`)?.sourceGeneric === "monospace"
-      && byId.get(`${script.id}-monospace-then-controls`)?.sourceGeneric === "monospace");
-  const quotedGenericIsLiteral = SCRIPT_CASES.every((script) =>
-    byId.get(`${script.id}-quoted-monospace-then-courier`)?.sourceGeneric === "none");
+  const sourceDistinguishesDeclaredFromGeneric = SCRIPT_CASES.every(
+    (script) =>
+      byId.get(`${script.id}-declared-courier`)?.sourceGeneric === "none" &&
+      byId.get(`${script.id}-generic-monospace`)?.sourceGeneric === "monospace",
+  );
+  const rightmostGenericWins = SCRIPT_CASES.every(
+    (script) =>
+      byId.get(`${script.id}-monospace-then-serif`)?.sourceGeneric === "serif" &&
+      byId.get(`${script.id}-serif-then-monospace`)?.sourceGeneric === "monospace",
+  );
+  const nonOccupyingGenericsPreserveLegacyEnum = SCRIPT_CASES.every(
+    (script) =>
+      byId.get(`${script.id}-system-ui`)?.sourceGeneric === "none" &&
+      byId.get(`${script.id}-math`)?.sourceGeneric === "none" &&
+      byId.get(`${script.id}-courier-then-system-ui`)?.sourceGeneric === "none" &&
+      byId.get(`${script.id}-monospace-then-math`)?.sourceGeneric === "monospace" &&
+      byId.get(`${script.id}-monospace-then-controls`)?.sourceGeneric === "monospace",
+  );
+  const quotedGenericIsLiteral = SCRIPT_CASES.every(
+    (script) => byId.get(`${script.id}-quoted-monospace-then-courier`)?.sourceGeneric === "none",
+  );
   const keyDerivedFalsePositiveDetected = SCRIPT_CASES.every((script) => {
     const row = byId.get(`${script.id}-declared-courier`);
-    return row?.sourceGeneric === "none"
-      && (row.keyDerivedGeneric === "monospace"
+    return (
+      row?.sourceGeneric === "none" &&
+      (row.keyDerivedGeneric === "monospace"
         ? row.keyDerivedSemanticMismatch
-        // A live platform matcher may materialize declared Courier as an
-        // unambiguous dynamic face key (for example sysfb:LiberationMono).
-        // In that environment there is no key-derived false positive to
-        // detect; the stronger result is that key inference stays `none`.
-        : row.keyDerivedGeneric === "none" && !row.keyDerivedSemanticMismatch);
+        : // A live platform matcher may materialize declared Courier as an
+          // unambiguous dynamic face key (for example sysfb:LiberationMono).
+          // In that environment there is no key-derived false positive to
+          // detect; the stronger result is that key inference stays `none`.
+          row.keyDerivedGeneric === "none" && !row.keyDerivedSemanticMismatch)
+    );
   });
   const keyDerivedFalseNegativeDetected = SCRIPT_CASES.every((script) => {
     const row = byId.get(`${script.id}-arial-then-monospace`);
-    return row?.sourceGeneric === "monospace"
-      && row.primaryKey !== "courier"
-      && row.keyDerivedGeneric === "none"
-      && row.keyDerivedSemanticMismatch;
+    return (
+      row?.sourceGeneric === "monospace" &&
+      row.primaryKey !== "courier" &&
+      row.keyDerivedGeneric === "none" &&
+      row.keyDerivedSemanticMismatch
+    );
   });
-  const forwardReverseCacheStable = forward != null && reverse != null
-    && expectedIds.every((id) => {
+  const forwardReverseCacheStable =
+    forward != null &&
+    reverse != null &&
+    expectedIds.every((id) => {
       const a = byId.get(id);
       const b = reverseRows.get(id);
       return a != null && b != null && stableRowSignature(a) === stableRowSignature(b);
     });
-  const paintedFaceComplete = allRows.length > 0 && allRows.every((row) =>
-    row.paintedFaces.length === 1 && row.paintedFaces[0].glyphCount === 1);
+  const paintedFaceComplete =
+    allRows.length > 0 && allRows.every((row) => row.paintedFaces.length === 1 && row.paintedFaces[0].glyphCount === 1);
   const controls: GenericFamilySemanticsControls = {
     completeMatrix,
     sourcePinsMatch,
@@ -585,9 +631,7 @@ export function classifyGenericFamilySemanticsEvidence(
     .every(([, value]) => value);
   return {
     controls,
-    verdict: !evidenceComplete
-      ? "invalid-evidence"
-      : logicalExact ? "source-exact" : "source-drift",
+    verdict: !evidenceComplete ? "invalid-evidence" : logicalExact ? "source-exact" : "source-drift",
   };
 }
 
@@ -645,8 +689,8 @@ export function collectGenericFamilySourceFingerprints(): GenericFamilySemantics
   const localHarfbuzzRevision = checkoutRevision("external/harfbuzz");
   const localSkiaRevision = skiaDepsRevision();
   const verification = Object.values(sourceFiles).every((entry) => entry.available)
-    ? "local-checkout" as const
-    : "pinned-manifest" as const;
+    ? ("local-checkout" as const)
+    : ("pinned-manifest" as const);
   const chromiumRevision = localChromiumRevision ?? GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.chromium;
   const harfbuzzRevision = localHarfbuzzRevision ?? GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.harfbuzz;
   const skiaRevision = localSkiaRevision ?? GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.skia;
@@ -657,10 +701,11 @@ export function collectGenericFamilySourceFingerprints(): GenericFamilySemantics
     sourceFiles,
     productionFiles,
     verification,
-    match: chromiumRevision === GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.chromium
-      && harfbuzzRevision === GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.harfbuzz
-      && skiaRevision === GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.skia
-      && Object.values(sourceFiles).every((entry) => entry.match === true),
+    match:
+      chromiumRevision === GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.chromium &&
+      harfbuzzRevision === GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.harfbuzz &&
+      skiaRevision === GENERIC_FAMILY_SEMANTICS_SOURCE_PINS.skia &&
+      Object.values(sourceFiles).every((entry) => entry.match === true),
   };
 }
 
@@ -700,7 +745,8 @@ function productionCandidateOrder(
     fontSize: 32,
     declaredFamily: computedFontFamily,
     genericFamily: productionGeneric,
-  }).filter((key) => key.startsWith("winfam:"))
+  })
+    .filter((key) => key.startsWith("winfam:"))
     .map((key) => key.slice("winfam:".length));
 }
 
@@ -709,22 +755,24 @@ async function collectOrder(
   target: GenericFamilyGatePlatform,
   order: GenericFamilySemanticsOrder["order"],
 ): Promise<GenericFamilySemanticsOrder> {
-  const cases = order === "forward"
-    ? [...GENERIC_FAMILY_SEMANTICS_CASES]
-    : [...GENERIC_FAMILY_SEMANTICS_CASES].reverse();
+  const cases =
+    order === "forward" ? [...GENERIC_FAMILY_SEMANTICS_CASES] : [...GENERIC_FAMILY_SEMANTICS_CASES].reverse();
   await page.setContent("<!doctype html><meta charset=utf-8><main id=root></main>");
-  await page.locator("#root").evaluate((root, values) => {
-    for (const value of values) {
-      const span = document.createElement("span");
-      span.id = value.id;
-      span.lang = value.lang;
-      span.textContent = value.text;
-      span.style.display = "block";
-      span.style.fontFamily = value.fontFamily;
-      span.style.fontSize = "32px";
-      root.append(span);
-    }
-  }, cases.map(({ id, lang, text, fontFamily }) => ({ id, lang, text, fontFamily })));
+  await page.locator("#root").evaluate(
+    (root, values) => {
+      for (const value of values) {
+        const span = document.createElement("span");
+        span.id = value.id;
+        span.lang = value.lang;
+        span.textContent = value.text;
+        span.style.display = "block";
+        span.style.fontFamily = value.fontFamily;
+        span.style.fontSize = "32px";
+        root.append(span);
+      }
+    },
+    cases.map(({ id, lang, text, fontFamily }) => ({ id, lang, text, fontFamily })),
+  );
   await page.evaluate(() => document.fonts.ready);
 
   const cdp = await page.context().newCDPSession(page);
@@ -735,63 +783,64 @@ async function collectOrder(
     const rows: GenericFamilySemanticsRow[] = [];
     for (const spec of cases) {
       const selector = `#${spec.id}`;
-      const computedFontFamily = await page.locator(selector).evaluate((element) =>
-        getComputedStyle(element).fontFamily);
+      const computedFontFamily = await page
+        .locator(selector)
+        .evaluate((element) => getComputedStyle(element).fontFamily);
       const paintedFaces = await paintedFacesForNode(cdp, root.nodeId, selector);
       const sourceGeneric = blinkGenericFamilyFromComputedStack(computedFontFamily);
       const productionGeneric = blinkGenericFamilyFromDeclaredStack(computedFontFamily);
       const primaryKey = resolveFontKey(computedFontFamily, spec.lang);
       const productionTerminal = __skiaLastResortKeysForTest(
-        createFontFallbackSemanticContext(computedFontFamily), target,
+        createFontFallbackSemanticContext(computedFontFamily),
+        target,
       );
-      const productionTerminalQuestions = skiaLastResortFamilyQuestionOrder(
-        productionGeneric, target,
-      );
+      const productionTerminalQuestions = skiaLastResortFamilyQuestionOrder(productionGeneric, target);
       const productionTerminalBaseline = __skiaLastResortKeysForTest(
-        { declaredFamily: computedFontFamily, genericFamily: "none" }, target,
+        { declaredFamily: computedFontFamily, genericFamily: "none" },
+        target,
       );
       const keyDerivedGeneric = keyInferredGenericFamily(primaryKey);
-      rows.push(adjudicateGenericFamilySemanticsRow({
-        id: spec.id,
-        order,
-        platform: target,
-        stackId: spec.stackId,
-        scriptId: spec.scriptId,
-        lang: spec.lang,
-        codepoint: spec.codepoint,
-        requestedFontFamily: spec.fontFamily,
-        computedFontFamily,
-        expectedGeneric: spec.expectedGeneric,
-        sourceGeneric,
-        productionGeneric,
-        sourceFallbackMode: sourceWinFallbackMode(sourceGeneric),
-        productionFallbackMode: sourceWinFallbackMode(productionGeneric),
-        sourceCandidateOrder: sourcePlatformCandidateOrder(target, spec.scriptId, sourceGeneric),
-        productionCandidateOrder: productionCandidateOrder(
-          target, spec, computedFontFamily, productionGeneric, primaryKey,
-        ),
-        sourceTerminalQuestionOrder: sourceTerminalQuestionOrder(target, sourceGeneric),
-        productionTerminalQuestionOrder: productionTerminalQuestions,
-        sourceTerminalOwnerOrder: sourceTerminalOwnerOrder(target, sourceGeneric),
-        productionTerminalOwnerOrder: productionTerminal,
-        sourceTerminalActivated: sourceTerminalActivated(target, sourceGeneric),
-        productionTerminalActivated: JSON.stringify(productionTerminal)
-          !== JSON.stringify(productionTerminalBaseline),
-        sourceCacheIdentity: sourceSemanticCacheIdentity(
-          target, computedFontFamily, sourceGeneric,
-        ),
-        productionCacheIdentity: productionSemanticCacheIdentity(
-          target, computedFontFamily, productionGeneric,
-        ),
-        primaryKey,
-        keyDerivedGeneric,
-        keyDerivedCandidateOrder: sourcePlatformCandidateOrder(
-          target, spec.scriptId, keyDerivedGeneric,
-        ),
-        keyDerivedTerminalOwnerOrder: sourceTerminalOwnerOrder(target, keyDerivedGeneric),
-        keyDerivedSemanticMismatch: sourceGeneric !== keyDerivedGeneric,
-        paintedFaces,
-      }));
+      rows.push(
+        adjudicateGenericFamilySemanticsRow({
+          id: spec.id,
+          order,
+          platform: target,
+          stackId: spec.stackId,
+          scriptId: spec.scriptId,
+          lang: spec.lang,
+          codepoint: spec.codepoint,
+          requestedFontFamily: spec.fontFamily,
+          computedFontFamily,
+          expectedGeneric: spec.expectedGeneric,
+          sourceGeneric,
+          productionGeneric,
+          sourceFallbackMode: sourceWinFallbackMode(sourceGeneric),
+          productionFallbackMode: sourceWinFallbackMode(productionGeneric),
+          sourceCandidateOrder: sourcePlatformCandidateOrder(target, spec.scriptId, sourceGeneric),
+          productionCandidateOrder: productionCandidateOrder(
+            target,
+            spec,
+            computedFontFamily,
+            productionGeneric,
+            primaryKey,
+          ),
+          sourceTerminalQuestionOrder: sourceTerminalQuestionOrder(target, sourceGeneric),
+          productionTerminalQuestionOrder: productionTerminalQuestions,
+          sourceTerminalOwnerOrder: sourceTerminalOwnerOrder(target, sourceGeneric),
+          productionTerminalOwnerOrder: productionTerminal,
+          sourceTerminalActivated: sourceTerminalActivated(target, sourceGeneric),
+          productionTerminalActivated:
+            JSON.stringify(productionTerminal) !== JSON.stringify(productionTerminalBaseline),
+          sourceCacheIdentity: sourceSemanticCacheIdentity(target, computedFontFamily, sourceGeneric),
+          productionCacheIdentity: productionSemanticCacheIdentity(target, computedFontFamily, productionGeneric),
+          primaryKey,
+          keyDerivedGeneric,
+          keyDerivedCandidateOrder: sourcePlatformCandidateOrder(target, spec.scriptId, keyDerivedGeneric),
+          keyDerivedTerminalOwnerOrder: sourceTerminalOwnerOrder(target, keyDerivedGeneric),
+          keyDerivedSemanticMismatch: sourceGeneric !== keyDerivedGeneric,
+          paintedFaces,
+        }),
+      );
     }
     return { order, rows };
   } finally {
@@ -821,9 +870,7 @@ export async function runGenericFamilySemanticsAudit(): Promise<GenericFamilySem
       __setWin32FamilyKeyResolverForTest(null);
       await context.close();
     }
-    const classification = classifyGenericFamilySemanticsEvidence(
-      orders, sourceFingerprints.match,
-    );
+    const classification = classifyGenericFamilySemanticsEvidence(orders, sourceFingerprints.match);
     return {
       schemaVersion: 2,
       sourcePins: GENERIC_FAMILY_SEMANTICS_SOURCE_PINS,

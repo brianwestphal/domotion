@@ -7,7 +7,12 @@ import { launchChromium, captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { generateAnimatedSvg } from "../src/animation/index.js";
-import { assembleRegionStateTrees, composeAnimateFrames, planRegionCaptureRounds, validateAnimateConfig } from "../src/cli/animate.js";
+import {
+  assembleRegionStateTrees,
+  composeAnimateFrames,
+  planRegionCaptureRounds,
+  validateAnimateConfig,
+} from "../src/cli/animate.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
@@ -138,7 +143,13 @@ const PAGE_HTML = String.raw`<!doctype html><html><head><meta charset="utf-8"><s
  *  page configuration each state must depict. */
 const HOLDS = [260, 180, 180, 180, 180, 180, 700];
 const CONFIGURATIONS: Array<[number, number]> = [
-  [0, 0], [2, 0], [2, 1], [4, 1], [4, 2], [6, 2], [6, 3],
+  [0, 0],
+  [2, 0],
+  [2, 1],
+  [4, 1],
+  [4, 2],
+  [6, 2],
+  [6, 3],
 ];
 const BOUNDARIES = HOLDS.map((_, i) => HOLDS.slice(0, i).reduce((a, b) => a + b, 0));
 const TOTAL = HOLDS.reduce((a, b) => a + b, 0);
@@ -165,10 +176,13 @@ async function sequentialTrees(ctx: BrowserContext, stampRegions = false): Promi
   await page.evaluate(() => document.fonts.ready);
   const trees: CapturedElement[][] = [];
   for (const [k, off] of CONFIGURATIONS) {
-    await page.evaluate((a: [number, number]) => {
-      (window as unknown as { setLeft: (n: number) => void }).setLeft(a[0]);
-      (window as unknown as { setRight: (n: number) => void }).setRight(a[1]);
-    }, [k, off] as [number, number]);
+    await page.evaluate(
+      (a: [number, number]) => {
+        (window as unknown as { setLeft: (n: number) => void }).setLeft(a[0]);
+        (window as unknown as { setRight: (n: number) => void }).setRight(a[1]);
+      },
+      [k, off] as [number, number],
+    );
     if (stampRegions) await stampPanes(page);
     trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H }));
   }
@@ -190,7 +204,8 @@ async function sequentialFlipbook(ctx: BrowserContext): Promise<string> {
   clearEmbeddedFonts();
   clearGlyphDefs();
   return generateAnimatedSvg({
-    width: W, height: H,
+    width: W,
+    height: H,
     frames: trees.map((tree, i) => ({
       svgContent: elementTreeToSvgInner(structuredClone(tree), W, H, `f${i}-`, true, 2, false),
       duration: HOLDS[i],
@@ -287,7 +302,9 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
           const script = (REGION_STATES[s].actions![0] as { script: string }).script;
           // The states' actions are `evaluate` scripts; run them the same way
           // the config's action runner does.
-          await page.evaluate((src: string) => { (0, eval)(src); }, script);
+          await page.evaluate((src: string) => {
+            (0, eval)(src);
+          }, script);
         }
         await stampPanes(page);
         roundTrees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H }));
@@ -295,13 +312,21 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
       await page.close();
 
       const assembled = assembleRegionStateTrees(
-        roundTrees, plan, new Map([["editor", "f0rg0"], ["preview", "f0rg1"]]), "frames[0]",
+        roundTrees,
+        plan,
+        new Map([
+          ["editor", "f0rg0"],
+          ["preview", "f0rg1"],
+        ]),
+        "frames[0]",
       );
       const truth = await sequentialTrees(ctx, true);
       expect(assembled).toHaveLength(truth.length);
       for (let s = 0; s < truth.length; s++) {
-        expect(JSON.stringify(assembled[s]), `state ${s} assembled from rounds differs from its sequential capture`)
-          .toBe(JSON.stringify(truth[s]));
+        expect(
+          JSON.stringify(assembled[s]),
+          `state ${s} assembled from rounds differs from its sequential capture`,
+        ).toBe(JSON.stringify(truth[s]));
       }
     } finally {
       await ctx.close();
@@ -315,13 +340,15 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
       const cfg = validateAnimateConfig({
         width: W,
         height: H,
-        frames: [{
-          input: "./panes.html",
-          duration: TOTAL,
-          transition: { type: "cut", duration: 0 },
-          regions: { editor: "#ed", preview: "#pv" },
-          states: REGION_STATES,
-        }],
+        frames: [
+          {
+            input: "./panes.html",
+            duration: TOTAL,
+            transition: { type: "cut", duration: 0 },
+            regions: { editor: "#ed", preview: "#pv" },
+            states: REGION_STATES,
+          },
+        ],
       });
       const logs: string[] = [];
       const composed = await composeAnimateFrames(browser, cfg, { configDir: dir, log: (m) => logs.push(m) });
@@ -357,22 +384,28 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
       const cfg = validateAnimateConfig({
         width: W,
         height: H,
-        frames: [{
-          input: "./panes.html",
-          duration: TOTAL,
-          transition: { type: "cut", duration: 0 },
-          regions: { editor: "#ed", preview: "#pv" },
-          // The same seven configurations, hand-interleaved the old way.
-          states: REGION_STATES.map((s, i) => ({
-            duration: s.duration,
-            ...(i === 0 ? {} : {
-              actions: [{
-                type: "evaluate",
-                script: `setLeft(${CONFIGURATIONS[i][0]}); setRight(${CONFIGURATIONS[i][1]})`,
-              }],
-            }),
-          })),
-        }],
+        frames: [
+          {
+            input: "./panes.html",
+            duration: TOTAL,
+            transition: { type: "cut", duration: 0 },
+            regions: { editor: "#ed", preview: "#pv" },
+            // The same seven configurations, hand-interleaved the old way.
+            states: REGION_STATES.map((s, i) => ({
+              duration: s.duration,
+              ...(i === 0
+                ? {}
+                : {
+                    actions: [
+                      {
+                        type: "evaluate",
+                        script: `setLeft(${CONFIGURATIONS[i][0]}); setRight(${CONFIGURATIONS[i][1]})`,
+                      },
+                    ],
+                  }),
+            })),
+          },
+        ],
       });
       const logs: string[] = [];
       const composed = await composeAnimateFrames(browser, cfg, { configDir: dir, log: (m) => logs.push(m) });
@@ -393,22 +426,25 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
     const cfg = validateAnimateConfig({
       width: W,
       height: H,
-      frames: [{
-        input: "./panes.html",
-        duration: 600,
-        transition: { type: "cut", duration: 0 },
-        // Only the editor is declared, so the preview's scroll lands OUTSIDE
-        // every region — precisely the assembly the splice cannot express.
-        regions: { editor: "#ed" },
-        states: [
-          { duration: 200 },
-          { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(2)" }], duration: 200 },
-          { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(4); setRight(2)" }], duration: 200 },
-        ],
-      }],
+      frames: [
+        {
+          input: "./panes.html",
+          duration: 600,
+          transition: { type: "cut", duration: 0 },
+          // Only the editor is declared, so the preview's scroll lands OUTSIDE
+          // every region — precisely the assembly the splice cannot express.
+          regions: { editor: "#ed" },
+          states: [
+            { duration: 200 },
+            { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(2)" }], duration: 200 },
+            { advances: ["editor"], actions: [{ type: "evaluate", script: "setLeft(4); setRight(2)" }], duration: 200 },
+          ],
+        },
+      ],
     });
-    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} }))
-      .rejects.toThrow(/changed OUTSIDE the declared regions/);
+    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} })).rejects.toThrow(
+      /changed OUTSIDE the declared regions/,
+    );
   }, 240_000);
 
   it("rejects two regions that resolve to the same element", async () => {
@@ -416,30 +452,40 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
     // and a region is the unit a state advances, so they must be distinct.
     const { browser, dir } = env!;
     const cfg = validateAnimateConfig({
-      width: W, height: H,
-      frames: [{
-        input: "./panes.html", duration: 400,
-        transition: { type: "cut", duration: 0 },
-        regions: { editor: "#ed", alsoEditor: ".editor" },
-        states: [{ duration: 200 }, { advances: ["editor"], duration: 200 }],
-      }],
+      width: W,
+      height: H,
+      frames: [
+        {
+          input: "./panes.html",
+          duration: 400,
+          transition: { type: "cut", duration: 0 },
+          regions: { editor: "#ed", alsoEditor: ".editor" },
+          states: [{ duration: 200 }, { advances: ["editor"], duration: 200 }],
+        },
+      ],
     });
-    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} }))
-      .rejects.toThrow(/resolve to the SAME element/);
+    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} })).rejects.toThrow(
+      /resolve to the SAME element/,
+    );
   }, 240_000);
 
   it("rejects a region selector that matches nothing, naming the frame and the region", async () => {
     const { browser, dir } = env!;
     const cfg = validateAnimateConfig({
-      width: W, height: H,
-      frames: [{
-        input: "./panes.html", duration: 400,
-        transition: { type: "cut", duration: 0 },
-        regions: { editor: "#ed", ghost: "#nope" },
-        states: [{ duration: 200 }, { advances: ["editor"], duration: 200 }],
-      }],
+      width: W,
+      height: H,
+      frames: [
+        {
+          input: "./panes.html",
+          duration: 400,
+          transition: { type: "cut", duration: 0 },
+          regions: { editor: "#ed", ghost: "#nope" },
+          states: [{ duration: 200 }, { advances: ["editor"], duration: 200 }],
+        },
+      ],
     });
-    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} }))
-      .rejects.toThrow(/frames\[0\]\.regions\.ghost selector "#nope" matched no element/);
+    await expect(composeAnimateFrames(browser, cfg, { configDir: dir, log: () => {} })).rejects.toThrow(
+      /frames\[0\]\.regions\.ghost selector "#nope" matched no element/,
+    );
   }, 240_000);
 });

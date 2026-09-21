@@ -35,9 +35,7 @@ function escapeHtml(s: string): string {
 
 /** Pure HTML builder — no I/O, so it's unit-testable without a browser. */
 export function buildQuoteCardHtml(p: QuoteCardParams): string {
-  const author = p.author != null && p.author !== ""
-    ? `<div class="qc-author">— ${escapeHtml(p.author)}</div>`
-    : "";
+  const author = p.author != null && p.author !== "" ? `<div class="qc-author">— ${escapeHtml(p.author)}</div>` : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
@@ -91,7 +89,14 @@ export const quoteCardTemplate: Template<QuoteCardParams> = {
           // scale/rotate — see the guide).
           animations: [
             { selector: ".qc-inner", property: "opacity", from: "0", to: "1", duration: 500, easing: "ease-out" },
-            { selector: ".qc", property: "translateY", from: "0.6em", to: "0em", duration: 650, easing: "cubic-bezier(0.22,1,0.36,1)" },
+            {
+              selector: ".qc",
+              property: "translateY",
+              from: "0.6em",
+              to: "0em",
+              duration: 650,
+              easing: "cubic-bezier(0.22,1,0.36,1)",
+            },
           ],
         },
       ],

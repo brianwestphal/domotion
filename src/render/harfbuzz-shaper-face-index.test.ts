@@ -27,7 +27,7 @@ import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches 
 
 /** "A" is a rectangle whose right edge is `aXMax`; the advance is aXMax + 50. */
 const NARROW_ADVANCE = 600; // aXMax 550 (the builder's default)
-const WIDE_ADVANCE = 800;   // aXMax 750
+const WIDE_ADVANCE = 800; // aXMax 750
 
 let dir: string;
 /** 2-member collection: SynthNarrow (advance 600), SynthWide (advance 800). */
@@ -38,10 +38,13 @@ let sfntPath: string;
 beforeEach(() => {
   dir = mkdtempSync(path.join(tmpdir(), "domotion-hb-face-"));
   ttcPath = path.join(dir, "collection.ttc");
-  writeFileSync(ttcPath, wrapInTtc([
-    buildStaticHintedFont({ family: "SynthNarrow" }),
-    buildStaticHintedFont({ family: "SynthWide", aXMax: 750 }),
-  ]));
+  writeFileSync(
+    ttcPath,
+    wrapInTtc([
+      buildStaticHintedFont({ family: "SynthNarrow" }),
+      buildStaticHintedFont({ family: "SynthWide", aXMax: 750 }),
+    ]),
+  );
   sfntPath = path.join(dir, "solo.ttf");
   writeFileSync(sfntPath, buildStaticHintedFont({ family: "SynthSolo" }));
   _clearHbFontCache();
@@ -169,7 +172,8 @@ describe("AAT faces shape, rather than being declined", () => {
     for (let i = 0; i < dv.getUint16(4); i++) {
       const e = 12 + i * 16;
       const tag = String.fromCharCode(...[0, 1, 2, 3].map((k) => dv.getUint8(e + k)));
-      const off = dv.getUint32(e + 8), len = dv.getUint32(e + 12);
+      const off = dv.getUint32(e + 8),
+        len = dv.getUint32(e + 12);
       tables[tag] = Buffer.from(base.subarray(off, off + len));
     }
     tables.morx = Buffer.alloc(16);
@@ -216,8 +220,8 @@ describe("the proxy's identity, which run grouping depends on", () => {
     const b = base();
     const a1 = makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, null);
     const a2 = makeHarfbuzzShapingInstance(b, sfntPath, 0, 16, null);
-    expect(a1).not.toBe(b);       // it did wrap
-    expect(a2).toBe(a1);          // and it is the same wrapper
+    expect(a1).not.toBe(b); // it did wrap
+    expect(a2).toBe(a1); // and it is the same wrapper
   });
 
   it("does not share a proxy across arguments that shape differently", () => {
@@ -235,8 +239,10 @@ describe("the proxy's identity, which run grouping depends on", () => {
   it("keeps different base instances apart", () => {
     // Two fonts wrapping the same file must not collapse into one proxy — the
     // proxy forwards metrics and coverage to ITS base.
-    const b1 = base(), b2 = base();
-    expect(makeHarfbuzzShapingInstance(b1, sfntPath, 0, 16, null))
-      .not.toBe(makeHarfbuzzShapingInstance(b2, sfntPath, 0, 16, null));
+    const b1 = base(),
+      b2 = base();
+    expect(makeHarfbuzzShapingInstance(b1, sfntPath, 0, 16, null)).not.toBe(
+      makeHarfbuzzShapingInstance(b2, sfntPath, 0, 16, null),
+    );
   });
 });

@@ -4,10 +4,16 @@ title: "Domotion: CSS 2D transforms"
 kind: "contract"
 status: "current"
 owners: ["layout"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2473","DM-2475","SK-1091","SK-1127"]
-code: ["src/capture/script/index.ts","src/render/element-tree-to-svg.ts","src/render/stacking.ts","src/render/transforms.ts"]
-aliases: ["docs/06-css-transforms.md","doc-06"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2473", "DM-2475", "SK-1091", "SK-1127"]
+code:
+  [
+    "src/capture/script/index.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/stacking.ts",
+    "src/render/transforms.ts",
+  ]
+aliases: ["docs/06-css-transforms.md", "doc-06"]
 ---
 
 # Domotion: CSS 2D transforms
@@ -61,7 +67,7 @@ In `src/render/element-tree-to-svg.ts` `renderElement`, around the existing `<g>
 
 ## Edge cases
 
-- Static 3D transforms (`rotate3d`, `translate3d`, `perspective`, `matrix3d`) are measured as final border-plane corners while Blink's live transform tree is intact. An affine `matrix3d()` remains a nested vector matrix. A true projective fourth corner, preserve-3d depth composition, and backface/flattening paint instead activate a Chromium subtree snapshot: SVG transform attributes cannot perform perspective division or reproduce a 3D rendering context. Blink's *used* preserve-3d rendering-context root is the smallest owner; `perspective` alone does not create a rendering context, and an ordinary, explicit-flat, or grouping-property intermediary breaks propagation. The current descendant-union owner selector still climbs past those breaks and is a known partial boundary documented by [the nested projective-context audit](189-nested-projective-context-ownership.md). Atomic one-image emission is already enforced.
+- Static 3D transforms (`rotate3d`, `translate3d`, `perspective`, `matrix3d`) are measured as final border-plane corners while Blink's live transform tree is intact. An affine `matrix3d()` remains a nested vector matrix. A true projective fourth corner, preserve-3d depth composition, and backface/flattening paint instead activate a Chromium subtree snapshot: SVG transform attributes cannot perform perspective division or reproduce a 3D rendering context. Blink's _used_ preserve-3d rendering-context root is the smallest owner; `perspective` alone does not create a rendering context, and an ordinary, explicit-flat, or grouping-property intermediary breaks propagation. The current descendant-union owner selector still climbs past those breaks and is a known partial boundary documented by [the nested projective-context audit](189-nested-projective-context-ownership.md). Atomic one-image emission is already enforced.
 - **Audited inline-SVG exception:** a captured DOM inline `<svg>` is emitted as opaque cloned markup, so its descendants use a dedicated source-owned boundary. Blink-flattened SVG graphics-child transforms are captured from correlated used CTMs, stripped of nested-viewport intrinsic geometry, serialized once as valid `matrix(a b c d e f)`, and verified in an isolated clone. Unavailable/singular correlation fails closed to the same outer Chromium surface used by a projective root or HTML 3D inside `<foreignObject>`; no raster owner remains below the clone that suppresses it. [Doc 162](162-inline-svg-3d-transform-audit.md) records the shipped DM-2473/2474 boundary and DM-2475's hard macOS/Linux/Windows logical-plus-final-SVG pixel gate at DPR 1/2. [Doc 186](186-animated-3d-frame-state-parity.md) ships the matching exact animation-frame protocol and native DPR-1/2 gate.
 - **Animated 3D frames:** direct tree capture accepts `animationTimeMs`. It pauses CSS/WAAPI and SMIL timelines before every prepass, records the exact same-frame CDP content/border quad, composed transform/origin/perspective/style, fourth-corner residual, and selected raster owner, and rejects a drifting/refused/non-document timeline. Non-affine frames remain atomic Chromium images; no apparent 2D submatrix is emitted.
 - Computed `perspective` and `perspective-origin` are captured independently. `perspective-origin` is the resolved border-box point (for example `15% 70%` on a 200×120 border box becomes `30px 84px`), but it changes neither stacking nor containing-block ownership when perspective computes to `none`.
@@ -76,6 +82,7 @@ This model is source-owned at Chromium revision `7d859f271cbda744098ac69f44978d4
 - Chromium-pinned Skia revision `62efacd37737505732dbe3d8daa62abd679626a1` performs the projective point mapping in `SkMatrix::mapPointPerspective` by dividing mapped x/y by the perspective z term. That non-affine division is why the projective surface is Chromium-owned rather than reconstructed from a 2D SVG matrix.
 
 Domotion mirrors those separate decisions rather than inspecting matrix symptoms: `src/capture/script/index.ts` carries the computed perspective/origin values and asks Blink for transform-related `IsBox()` applicability with a candidate-only neutral host carrying the same computed `display`, active perspective, and a fixed child; this avoids mutating the source element or letting independent filter/contain ownership answer the question. Replaced/control and SVG owners retain the compatible fallback. `src/render/stacking.ts` combines the fact with `LayoutInline` layer rules for stacking and uses it directly for fixed-CB classification; `transformSubtreeRaster` owns non-representable paint. Thus static inline perspective is inert, while a positioned non-replaced inline can isolate z-index even though its fixed descendant continues to the viewport. `will-change: perspective` creates stacking/fixed ownership on a box without manufacturing an active perspective node or raster; `will-change: perspective-origin` and `scroll-position` are negative controls.
+
 - Pre-transformed bounding rect: the `getBoundingClientRect` returns the screen-space AABB of the rotated element, which is bigger than the unrotated rect. If we wrap our render in a transform around the captured center, the visual size will look right because we're rotating contents BACK from upright. But text inside the rotated box will be re-rendered along the rotated baseline, which is what we want.
 - Nested transforms: each element's captured rect already includes ancestor transforms, but if we apply our own transform we'd double-transform. Solution: apply the element's transform RELATIVE to its OWN center, not the ancestor's coordinate space. This is the same as Chrome's behavior.
 

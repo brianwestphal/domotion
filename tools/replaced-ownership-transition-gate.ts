@@ -88,11 +88,13 @@ export function adjudicateReplacedOwnershipTransitions(
     if (!row.exactCapture) errors.push(`${row.id}: capture was partial or inferred`);
     if (row.source.trim() === "") errors.push(`${row.id}: missing source-owned rationale`);
     if (Object.keys(row.facts).length === 0) errors.push(`${row.id}: missing captured decision facts`);
-    if (row.maxDevicePixelDelta != null && (
-      !Number.isFinite(row.maxDevicePixelDelta)
-      || row.maxDevicePixelDelta > requirements.toleranceDevicePixels
-    )) {
-      errors.push(`${row.id}: geometry delta ${row.maxDevicePixelDelta} exceeds ${requirements.toleranceDevicePixels} device px`);
+    if (
+      row.maxDevicePixelDelta != null &&
+      (!Number.isFinite(row.maxDevicePixelDelta) || row.maxDevicePixelDelta > requirements.toleranceDevicePixels)
+    ) {
+      errors.push(
+        `${row.id}: geometry delta ${row.maxDevicePixelDelta} exceeds ${requirements.toleranceDevicePixels} device px`,
+      );
     }
     if (row.mutationRequired === true && row.mutationDiscriminated !== true) {
       errors.push(`${row.id}: required mutation did not change the observed source fact`);
@@ -114,12 +116,10 @@ export function adjudicateReplacedOwnershipTransitions(
     }
     const modes = new Set(pair.map((row) => row.pairMode));
     if (modes.size !== 1) errors.push(`${pairId}: pair mode disagrees across rows`);
-    if (pair[0]?.pairMode === "ownership-transition"
-      && new Set(pair.map((row) => row.expectedOwner)).size < 2) {
+    if (pair[0]?.pairMode === "ownership-transition" && new Set(pair.map((row) => row.expectedOwner)).size < 2) {
       errors.push(`${pairId}: ownership control never crosses an ownership boundary`);
     }
-    if (pair[0]?.pairMode === "state-mutation"
-      && !pair.some((row) => row.mutationDiscriminated === true)) {
+    if (pair[0]?.pairMode === "state-mutation" && !pair.some((row) => row.mutationDiscriminated === true)) {
       errors.push(`${pairId}: state mutation is observationally inert`);
     }
   }

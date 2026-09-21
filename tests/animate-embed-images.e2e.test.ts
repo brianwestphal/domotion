@@ -41,7 +41,9 @@ const browser = await canLaunch();
 const noise = Buffer.alloc(48 * 48 * 3);
 for (let i = 0; i < noise.length; i++) noise[i] = (i * 2654435761) % 251;
 const PNG = browser
-  ? await sharp(noise, { raw: { width: 48, height: 48, channels: 3 } }).png().toBuffer()
+  ? await sharp(noise, { raw: { width: 48, height: 48, channels: 3 } })
+      .png()
+      .toBuffer()
   : Buffer.alloc(0);
 
 const dir = mkdtempSync(join(tmpdir(), "domotion-animate-embed-"));
@@ -76,9 +78,9 @@ function page(name: string, body: string, extraCss = ""): string {
   const p = join(dir, name);
   writeFileSync(
     p,
-    `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0;box-sizing:border-box}`
-    + `body{background:#111;color:#eee;font-family:sans-serif;width:320px}`
-    + `img{width:48px;height:48px}${extraCss}</style></head><body>${body}</body></html>`,
+    `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0;box-sizing:border-box}` +
+      `body{background:#111;color:#eee;font-family:sans-serif;width:320px}` +
+      `img{width:48px;height:48px}${extraCss}</style></head><body>${body}</body></html>`,
   );
   return p;
 }
@@ -103,14 +105,17 @@ describeBrowser("animate embeds remote images", () => {
     const htmlPath = page("page.html", `<img src="${origin}/logo.png" alt="logo">`, "body{height:200px}");
     const cfgPath = join(dir, "cfg.json");
     // Two frames, so a per-frame regression (embedding frame 0 only) is caught.
-    writeFileSync(cfgPath, JSON.stringify({
-      width: 320,
-      height: 200,
-      frames: [
-        { input: htmlPath, duration: 300 },
-        { input: htmlPath, duration: 300 },
-      ],
-    }));
+    writeFileSync(
+      cfgPath,
+      JSON.stringify({
+        width: 320,
+        height: 200,
+        frames: [
+          { input: htmlPath, duration: 300 },
+          { input: htmlPath, duration: 300 },
+        ],
+      }),
+    );
     const out = join(dir, "out.svg");
     await runAnimate([cfgPath, "--quiet", "-o", out], "");
     expectSelfContained(readFileSync(out, "utf8"));
@@ -121,16 +126,20 @@ describeBrowser("animate embeds remote images", () => {
     // of the bytes; the payload must now appear once, in a `<defs>` `<image>`
     // that each frame references with `<use>`.
     const htmlPath = page("hoist.html", `<img src="${origin}/logo.png" alt="logo">`, "body{height:200px}");
-    const svg = await composeAnimateConfig(browser!, {
-      width: 320,
-      height: 200,
-      frames: [
-        { input: htmlPath, duration: 200 },
-        { input: htmlPath, duration: 200 },
-        { input: htmlPath, duration: 200 },
-        { input: htmlPath, duration: 200 },
-      ],
-    }, dir);
+    const svg = await composeAnimateConfig(
+      browser!,
+      {
+        width: 320,
+        height: 200,
+        frames: [
+          { input: htmlPath, duration: 200 },
+          { input: htmlPath, duration: 200 },
+          { input: htmlPath, duration: 200 },
+          { input: htmlPath, duration: 200 },
+        ],
+      },
+      dir,
+    );
     expectSelfContained(svg);
     expect(countPayloads(svg)).toBe(1);
     expect(svg).toMatch(/<image id="dmi\d+"/);
@@ -147,11 +156,18 @@ describeBrowser("animate embeds remote images", () => {
       `<img class="a" src="${origin}/logo.png"><img class="b" src="${origin}/logo.png">`,
       `body{height:200px}.a{width:48px;height:48px}.b{width:96px;height:24px}`,
     );
-    const svg = await composeAnimateConfig(browser!, {
-      width: 320,
-      height: 200,
-      frames: [{ input: htmlPath, duration: 200 }, { input: htmlPath, duration: 200 }],
-    }, dir);
+    const svg = await composeAnimateConfig(
+      browser!,
+      {
+        width: 320,
+        height: 200,
+        frames: [
+          { input: htmlPath, duration: 200 },
+          { input: htmlPath, duration: 200 },
+        ],
+      },
+      dir,
+    );
     expectSelfContained(svg);
     // Two defs (one per size), four references (two sizes × two frames).
     expect((svg.match(/<image id="dmi\d+"/g) ?? []).length).toBe(2);
@@ -170,11 +186,15 @@ describeBrowser("the capture paths that don't go through Capturer embed too", ()
       `<div class="tall"><img src="${origin}/logo.png" alt="logo"></div>`,
       `body{height:auto}.tall{height:1400px;padding-top:40px}`,
     );
-    const svg = await composeAnimateConfig(browser!, {
-      width: 320,
-      height: 240,
-      frames: [{ input: htmlPath, duration: 900, scroll: { pattern: "down:bottom/400ms" } }],
-    }, dir);
+    const svg = await composeAnimateConfig(
+      browser!,
+      {
+        width: 320,
+        height: 240,
+        frames: [{ input: htmlPath, duration: 900, scroll: { pattern: "down:bottom/400ms" } }],
+      },
+      dir,
+    );
     expectSelfContained(svg);
   }, 120_000);
 
@@ -184,11 +204,15 @@ describeBrowser("the capture paths that don't go through Capturer embed too", ()
       `<img src="${origin}/logo.png" alt="logo"><input id="f" value="">`,
       `body{height:200px}#f{display:block;width:200px;font-size:16px}`,
     );
-    const svg = await composeAnimateConfig(browser!, {
-      width: 320,
-      height: 200,
-      frames: [{ input: htmlPath, duration: 900, typeResample: { selector: "#f", text: "ab", speed: 80 } }],
-    }, dir);
+    const svg = await composeAnimateConfig(
+      browser!,
+      {
+        width: 320,
+        height: 200,
+        frames: [{ input: htmlPath, duration: 900, typeResample: { selector: "#f", text: "ab", speed: 80 } }],
+      },
+      dir,
+    );
     expectSelfContained(svg);
     // Three keystroke states (empty, "a", "ab") all show the plate; one copy.
     expect(countPayloads(svg)).toBe(1);
@@ -197,16 +221,20 @@ describeBrowser("the capture paths that don't go through Capturer embed too", ()
   it("a jsReveal frame (rest + settled-mutation captures)", async () => {
     const htmlPath = page(
       "reveal.html",
-      `<img src="${origin}/logo.png" alt="logo"><button id="t">Account</button>`
-      + `<script>document.getElementById('t').addEventListener('mouseover',function(){`
-      + `var d=document.createElement('div');d.id='m';d.textContent='Menu';document.body.appendChild(d);});</script>`,
+      `<img src="${origin}/logo.png" alt="logo"><button id="t">Account</button>` +
+        `<script>document.getElementById('t').addEventListener('mouseover',function(){` +
+        `var d=document.createElement('div');d.id='m';d.textContent='Menu';document.body.appendChild(d);});</script>`,
       `body{height:200px}#m{padding:8px;background:#333}`,
     );
-    const svg = await composeAnimateConfig(browser!, {
-      width: 320,
-      height: 200,
-      frames: [{ input: htmlPath, duration: 1400, jsReveal: { selector: "#t", holdMs: 400, settleMs: 300 } }],
-    }, dir);
+    const svg = await composeAnimateConfig(
+      browser!,
+      {
+        width: 320,
+        height: 200,
+        frames: [{ input: htmlPath, duration: 1400, jsReveal: { selector: "#t", holdMs: 400, settleMs: 300 } }],
+      },
+      dir,
+    );
     expectSelfContained(svg);
     // Rest + after states both show the plate; one copy.
     expect(countPayloads(svg)).toBe(1);
@@ -214,14 +242,18 @@ describeBrowser("the capture paths that don't go through Capturer embed too", ()
 
   it("a storyboard capture scene", async () => {
     page("sb.html", `<img src="${origin}/logo.png" alt="logo">`, "body{height:200px}");
-    const svg = await composeStoryboardConfig(browser!, {
-      width: 320,
-      height: 200,
-      scenes: [
-        { capture: { file: "sb.html" }, duration: 800, transition: { type: "crossfade", duration: 150 } },
-        { capture: { file: "sb.html" }, duration: 800 },
-      ],
-    }, dir);
+    const svg = await composeStoryboardConfig(
+      browser!,
+      {
+        width: 320,
+        height: 200,
+        scenes: [
+          { capture: { file: "sb.html" }, duration: 800, transition: { type: "crossfade", duration: 150 } },
+          { capture: { file: "sb.html" }, duration: 800 },
+        ],
+      },
+      dir,
+    );
     expectSelfContained(svg);
   }, 120_000);
 });

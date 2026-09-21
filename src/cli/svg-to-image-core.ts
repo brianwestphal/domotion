@@ -75,7 +75,7 @@ export function resolveImageFormat(outputPath: string, override?: string): Image
   if (fmt == null) {
     throw new Error(
       `cannot infer image format from output "${outputPath}" (extension "${ext || "(none)"}"). ` +
-      `Use one of ${SUPPORTED_IMAGE_EXTS}, or pass --format.`,
+        `Use one of ${SUPPORTED_IMAGE_EXTS}, or pass --format.`,
     );
   }
   return fmt;
@@ -91,12 +91,7 @@ export { isTransparentBackground as isTransparentBg };
  * this preserves the intrinsic size exactly when no target is given — an image
  * doesn't need even dimensions, and the 1× output should match the SVG's box.
  */
-export function containSize(
-  nw: number,
-  nh: number,
-  tw?: number,
-  th?: number,
-): { width: number; height: number } {
+export function containSize(nw: number, nh: number, tw?: number, th?: number): { width: number; height: number } {
   if (tw == null && th == null) return { width: Math.round(nw), height: Math.round(nh) };
   if (tw != null && th == null) return { width: tw, height: Math.max(1, Math.round((nh * tw) / nw)) };
   if (tw == null && th != null) return { width: Math.max(1, Math.round((nw * th) / nh)), height: th };

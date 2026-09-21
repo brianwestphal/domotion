@@ -25,18 +25,22 @@ const b64 = buf.toString("base64");
 const result = await page.evaluate(async (b64) => {
   const img = new Image();
   img.src = "data:image/png;base64," + b64;
-  await new Promise((r) => { img.onload = r; });
+  await new Promise((r) => {
+    img.onload = r;
+  });
   const cvs = document.createElement("canvas");
-  cvs.width = img.width; cvs.height = img.height;
+  cvs.width = img.width;
+  cvs.height = img.height;
   const cx = cvs.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const w = img.width, h = img.height;
+  const w = img.width,
+    h = img.height;
   const id = cx.getImageData(0, 0, w, h).data;
   const pix = (x, y) => {
     const i = (y * w + x) * 4;
     return [id[i], id[i + 1], id[i + 2], id[i + 3]];
   };
-  const dist = (a, b) => Math.max(Math.abs(a[0]-b[0]), Math.abs(a[1]-b[1]), Math.abs(a[2]-b[2]));
+  const dist = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
 
   function classRow(elClass) {
     const el = document.querySelector("fieldset." + elClass);
@@ -61,9 +65,12 @@ const result = await page.evaluate(async (b64) => {
     // Sample the row at the top border centerline (i.e., fs.y + borderTopWidth/2).
     const btw = parseFloat(d.borderTopWidth) || 0;
     const yLine = Math.round(d.fs.y + btw / 2);
-    if (btw === 0) { d.topBorderRow = "(no top border)"; continue; }
+    if (btw === 0) {
+      d.topBorderRow = "(no top border)";
+      continue;
+    }
     // Sample colors across the top of the fieldset
-    const borderRgb = d.borderTopColor.match(/\d+/g)?.slice(0,3).map(Number) || [0,0,0];
+    const borderRgb = d.borderTopColor.match(/\d+/g)?.slice(0, 3).map(Number) || [0, 0, 0];
     const samples = [];
     const x0 = Math.round(d.fs.x);
     const x1 = Math.round(d.fs.x + d.fs.w);
@@ -73,8 +80,14 @@ const result = await page.evaluate(async (b64) => {
     for (let x = x0; x <= x1; x++) {
       const p = pix(x, yLine);
       const isBorder = dist(p, borderRgb) < 30;
-      if (isBorder && !inBorder) { runStart = x; inBorder = true; }
-      if (!isBorder && inBorder) { runs.push([runStart, x - 1]); inBorder = false; }
+      if (isBorder && !inBorder) {
+        runStart = x;
+        inBorder = true;
+      }
+      if (!isBorder && inBorder) {
+        runs.push([runStart, x - 1]);
+        inBorder = false;
+      }
     }
     if (inBorder) runs.push([runStart, x1]);
     d.topBorderRow = { yLine, runs, borderRgb };
@@ -96,7 +109,10 @@ const result = await page.evaluate(async (b64) => {
 for (const d of result) {
   console.log(`\n=== fieldset.${d.cls} ===`);
   console.log(`  fs bbox: x=${d.fs.x.toFixed(1)} y=${d.fs.y.toFixed(1)} w=${d.fs.w.toFixed(1)} h=${d.fs.h.toFixed(1)}`);
-  if (d.legend) console.log(`  legend bbox: x=${d.legend.x.toFixed(1)} y=${d.legend.y.toFixed(1)} w=${d.legend.w.toFixed(1)} h=${d.legend.h.toFixed(1)} text=${JSON.stringify(d.legend.text)}`);
+  if (d.legend)
+    console.log(
+      `  legend bbox: x=${d.legend.x.toFixed(1)} y=${d.legend.y.toFixed(1)} w=${d.legend.w.toFixed(1)} h=${d.legend.h.toFixed(1)} text=${JSON.stringify(d.legend.text)}`,
+    );
   console.log(`  border-top: ${d.borderTopWidth} ${d.borderTopColor}`);
   console.log(`  background: ${d.backgroundColor}`);
   console.log(`  padding-top: ${d.paddingTop}`);
@@ -104,12 +120,17 @@ for (const d of result) {
     console.log(`  ${d.topBorderRow}`);
   } else {
     console.log(`  top-border row y=${d.topBorderRow.yLine} (color ${d.topBorderRow.borderRgb.join(",")}):`);
-    for (const [a,b] of d.topBorderRow.runs) console.log(`    border run x=[${a}..${b}]  width=${b-a+1}`);
+    for (const [a, b] of d.topBorderRow.runs) console.log(`    border run x=[${a}..${b}]  width=${b - a + 1}`);
     if (d.topBorderRow.runs.length === 1) console.log(`    (single continuous run — no notch)`);
-    else if (d.topBorderRow.runs.length === 2) console.log(`    NOTCH: gap x=[${d.topBorderRow.runs[0][1]+1}..${d.topBorderRow.runs[1][0]-1}] width=${d.topBorderRow.runs[1][0] - d.topBorderRow.runs[0][1] - 1}`);
+    else if (d.topBorderRow.runs.length === 2)
+      console.log(
+        `    NOTCH: gap x=[${d.topBorderRow.runs[0][1] + 1}..${d.topBorderRow.runs[1][0] - 1}] width=${d.topBorderRow.runs[1][0] - d.topBorderRow.runs[0][1] - 1}`,
+      );
   }
   if (d.legendCenterPaint) {
-    console.log(`  legend-row paint: fs.left=${d.legendCenterPaint.atFsLeft.slice(0,3).join(",")} lg.left=${d.legendCenterPaint.atLegendLeft.slice(0,3).join(",")} lg.center=${d.legendCenterPaint.atLegendCenter.slice(0,3).join(",")} lg.right=${d.legendCenterPaint.atLegendRight.slice(0,3).join(",")} fs.right=${d.legendCenterPaint.atFsRight.slice(0,3).join(",")}`);
+    console.log(
+      `  legend-row paint: fs.left=${d.legendCenterPaint.atFsLeft.slice(0, 3).join(",")} lg.left=${d.legendCenterPaint.atLegendLeft.slice(0, 3).join(",")} lg.center=${d.legendCenterPaint.atLegendCenter.slice(0, 3).join(",")} lg.right=${d.legendCenterPaint.atLegendRight.slice(0, 3).join(",")} fs.right=${d.legendCenterPaint.atFsRight.slice(0, 3).join(",")}`,
+    );
   }
 }
 

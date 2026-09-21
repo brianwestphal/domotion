@@ -4,10 +4,17 @@ title: "Domotion: on-demand native glyph-helper acquisition"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2353","DM-2664","DM-393","DM-881","DM-886","DM-887","DM-890"]
-code: [".github/workflows/release-helpers.yml",".github/workflows/release.yml","src/render/glyph-helper.ts","src/render/helper-acquire.ts","tests/release-helpers-workflow.test.ts"]
-aliases: ["docs/50-glyph-helper-acquisition.md","doc-50"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2353", "DM-2664", "DM-393", "DM-881", "DM-886", "DM-887", "DM-890"]
+code:
+  [
+    ".github/workflows/release-helpers.yml",
+    ".github/workflows/release.yml",
+    "src/render/glyph-helper.ts",
+    "src/render/helper-acquire.ts",
+    "tests/release-helpers-workflow.test.ts",
+  ]
+aliases: ["docs/50-glyph-helper-acquisition.md", "doc-50"]
 ---
 
 # Domotion: on-demand native glyph-helper acquisition
@@ -44,11 +51,11 @@ it, cache it, and reuse it — adding a third resolution source ahead of the
 release for the explicit `vX.Y.Z` tag supplied by the caller (repo
 `brianwestphal/domotion`):
 
-| Platform | Asset name | Sidecar | Arch coverage |
-| --- | --- | --- | --- |
-| macOS | `domotion-glyph-paths-darwin-universal` | `…​.sha256` | universal (arm64 + x86_64), codesigned + notarized |
-| Linux | `domotion-glyph-paths-linux-{x64,arm64}` | `…​.sha256` | x86_64 + arm64 |
-| Windows | `domotion-glyph-paths-win32-{x64,arm64}.exe` | `…​.sha256` | x86_64 + arm64 |
+| Platform | Asset name                                   | Sidecar     | Arch coverage                                      |
+| -------- | -------------------------------------------- | ----------- | -------------------------------------------------- |
+| macOS    | `domotion-glyph-paths-darwin-universal`      | `…​.sha256` | universal (arm64 + x86_64), codesigned + notarized |
+| Linux    | `domotion-glyph-paths-linux-{x64,arm64}`     | `…​.sha256` | x86_64 + arm64                                     |
+| Windows  | `domotion-glyph-paths-win32-{x64,arm64}.exe` | `…​.sha256` | x86_64 + arm64                                     |
 
 Each `.sha256` sidecar is the `shasum -a 256` / `sha256sum` output (hex digest +
 filename). The asset is keyed to the package version via the release tag.
@@ -72,11 +79,11 @@ retried without repeating native builds/signing (DM-2664).
 ## Proposed design
 
 A self-contained `acquireGlyphHelper()` module (e.g. `src/render/helper-acquire.ts`),
-called by `glyph-helper.ts`'s resolution as the source *after* the in-tree path:
+called by `glyph-helper.ts`'s resolution as the source _after_ the in-tree path:
 
 1. **Resolve the target.** Asset name from the table above by `process.platform`
-   + `process.arch` (darwin universal, linux/win32 × x64/arm64); bail (→ fontkit)
-   on a combination with no asset.
+   - `process.arch` (darwin universal, linux/win32 × x64/arm64); bail (→ fontkit)
+     on a combination with no asset.
 2. **Check the cache.** Per-platform cache dir, versioned by the installed
    package `version` (so a Domotion upgrade fetches a fresh binary and old
    versions keep their own). If a verified binary is already cached, reuse it.
@@ -91,11 +98,11 @@ called by `glyph-helper.ts`'s resolution as the source *after* the in-tree path:
 
 ### Cache locations
 
-| Platform | Directory |
-| --- | --- |
-| Linux | `$XDG_DATA_HOME/domotion/<version>/bin/` (default `~/.local/share/domotion/<version>/bin/`) |
-| Windows | `%LOCALAPPDATA%\domotion\<version>\bin\` |
-| macOS | `~/Library/Caches/domotion/<version>/bin/` **or** `~/Library/Application Support/…` — see open decision 5 |
+| Platform | Directory                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------- |
+| Linux    | `$XDG_DATA_HOME/domotion/<version>/bin/` (default `~/.local/share/domotion/<version>/bin/`)               |
+| Windows  | `%LOCALAPPDATA%\domotion\<version>\bin\`                                                                  |
+| macOS    | `~/Library/Caches/domotion/<version>/bin/` **or** `~/Library/Application Support/…` — see open decision 5 |
 
 ### Integrity & safety
 

@@ -4,10 +4,15 @@ title: "188 — Generated SVG gradient, mask, and clip combinations"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2358","DM-2538"]
-code: [".github/workflows/svg-effect-combinations.yml","src/capture/script/walker/inline-svg.ts","tools/svg-effect-combination-corpus.ts"]
-aliases: ["docs/188-generated-svg-effect-combinations.md","doc-188"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2358", "DM-2538"]
+code:
+  [
+    ".github/workflows/svg-effect-combinations.yml",
+    "src/capture/script/walker/inline-svg.ts",
+    "tools/svg-effect-combination-corpus.ts",
+  ]
+aliases: ["docs/188-generated-svg-effect-combinations.md", "doc-188"]
 ---
 
 # 188 — Generated SVG gradient, mask, and clip combinations
@@ -24,19 +29,19 @@ mask, marker, viewport, and stroke geometry.
 The matrix is pinned to Chromium revision
 `7d859f271cbda744098ac69f44978d4edfa62be3`.
 
-| Decision | Pinned Blink owner |
-| --- | --- |
-| `gradientUnits` object bounding box versus user space | `layout/svg/layout_svg_resource_gradient.cc:100-141` |
-| SVG `sRGB` versus `linearRGB` interpolation | `layout/svg/layout_svg_resource_gradient.cc:129-138` |
-| fill, stroke, and local viewport effect boxes | `layout/svg/svg_resources.cc:53-102` |
-| `clipPathUnits` mapping | `layout/svg/layout_svg_resource_clipper.cc:229-248` |
-| `maskUnits` and `maskContentUnits` | `layout/svg/layout_svg_resource_masker.cc:73-110` |
-| CSS mask positioning, clipping, tiling, and composition | `paint/svg_mask_painter.cc:115-190` |
-| filter data cache and effect reference box | `layout/svg/svg_resources.cc:357-421` |
-| joint clip/mask paint-property invalidation | `layout/svg/layout_svg_model_object.cc:145-177` |
-| marker placement and viewport transform | `layout/svg/layout_svg_resource_marker.cc:120-168` |
-| non-scaling stroke host transform | `layout/svg/layout_svg_shape.cc:468-508` |
-| transform/reference-box dependency | `layout/svg/transform_helper.cc:64-176` |
+| Decision                                                | Pinned Blink owner                                   |
+| ------------------------------------------------------- | ---------------------------------------------------- |
+| `gradientUnits` object bounding box versus user space   | `layout/svg/layout_svg_resource_gradient.cc:100-141` |
+| SVG `sRGB` versus `linearRGB` interpolation             | `layout/svg/layout_svg_resource_gradient.cc:129-138` |
+| fill, stroke, and local viewport effect boxes           | `layout/svg/svg_resources.cc:53-102`                 |
+| `clipPathUnits` mapping                                 | `layout/svg/layout_svg_resource_clipper.cc:229-248`  |
+| `maskUnits` and `maskContentUnits`                      | `layout/svg/layout_svg_resource_masker.cc:73-110`    |
+| CSS mask positioning, clipping, tiling, and composition | `paint/svg_mask_painter.cc:115-190`                  |
+| filter data cache and effect reference box              | `layout/svg/svg_resources.cc:357-421`                |
+| joint clip/mask paint-property invalidation             | `layout/svg/layout_svg_model_object.cc:145-177`      |
+| marker placement and viewport transform                 | `layout/svg/layout_svg_resource_marker.cc:120-168`   |
+| non-scaling stroke host transform                       | `layout/svg/layout_svg_shape.cc:468-508`             |
+| transform/reference-box dependency                      | `layout/svg/transform_helper.cc:64-176`              |
 
 Those classes are not reconstructed from screenshot bounds. XML units and
 viewports remain in the cloned SVG, affine transforms use the already captured

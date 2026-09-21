@@ -1,10 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-  launchChromium,
-  type CapturedElement,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvgInner, launchChromium, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-2162: replaced-element sizing is owned by Blink layout. Capture carries
@@ -15,10 +10,13 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // PhysicalContentBoxRect, and `image_painter.cc:140` paints that result.
 const W = 520;
 const H = 280;
-const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
-const SVG = "data:image/svg+xml," + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20"><rect width="40" height="20" fill="red"/></svg>`,
-);
+const PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+const SVG =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20"><rect width="40" height="20" fill="red"/></svg>`,
+  );
 const HTML = `<!doctype html><style>
   * { box-sizing: border-box }
   body { margin: 0 }

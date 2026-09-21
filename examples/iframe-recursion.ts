@@ -70,7 +70,8 @@ export const INNER_CARD = `<html><head><style>
 </body></html>`;
 
 async function sameOrigin(): Promise<void> {
-  const W = 760, H = 470;
+  const W = 760,
+    H = 470;
   const browser = await chromium.launch();
   try {
     const pg = await (await browser.newContext({ viewport: { width: W, height: H } })).newPage();
@@ -115,7 +116,8 @@ export const CROSS_ORIGIN_PAGE = `<!doctype html><html><head><style>
 
 // ── Deterministic cross-origin fixture (Phase 2) ────────────────────────────
 async function crossOrigin(): Promise<void> {
-  const W = 1000, H = 700;
+  const W = 1000,
+    H = 700;
   // The iframe stays genuinely cross-origin (`frame.example` vs about:blank),
   // but routing makes its bytes deterministic and offline-safe.
   const browser = await chromium.launch({ args: crossOriginFramesLaunchArgs("*") });
@@ -133,9 +135,14 @@ async function crossOrigin(): Promise<void> {
         </div>
       </div></body>`);
     await pg.waitForLoadState("networkidle").catch(() => {});
-    const { tree } = await captureElementTreeWithWarnings(pg, "body", { x: 0, y: 0, width: W, height: H }, {
-      crossOriginFrames: "frame.example",
-    });
+    const { tree } = await captureElementTreeWithWarnings(
+      pg,
+      "body",
+      { x: 0, y: 0, width: W, height: H },
+      {
+        crossOriginFrames: "frame.example",
+      },
+    );
     await embedRemoteImages(tree);
     const out = resolve(OUT_DIR, "iframe-recursion-cross-origin.svg");
     const svg = renderStatic(tree, W, H, "co-");

@@ -35,7 +35,11 @@ import { chromium, type Browser, type BrowserContext, type Page } from "@playwri
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import {
+  captureElementTreeWithWarnings,
+  elementTreeToSvgInner,
+  embedRemoteImages,
+} from "../src/render/element-tree-to-svg.js";
 import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
@@ -55,21 +59,29 @@ const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
 // HAR (or the whole dir) to force a re-fetch.
 const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 
-interface Site { name: string; url: string }
+interface Site {
+  name: string;
+  url: string;
+}
 const SITES: Site[] = [
-  { name: "google",   url: "https://www.google.com/" },
-  { name: "apple",    url: "https://www.apple.com/" },
-  { name: "nytimes",  url: "https://www.nytimes.com/" },
+  { name: "google", url: "https://www.google.com/" },
+  { name: "apple", url: "https://www.apple.com/" },
+  { name: "nytimes", url: "https://www.nytimes.com/" },
   { name: "slashdot", url: "https://slashdot.org/" },
-  { name: "stripe",   url: "https://stripe.com/" },
-  { name: "resend",   url: "https://resend.com/" },
-  { name: "framer",   url: "https://www.framer.com/" },
+  { name: "stripe", url: "https://stripe.com/" },
+  { name: "resend", url: "https://resend.com/" },
+  { name: "framer", url: "https://www.framer.com/" },
 ];
 
-interface Viewport { name: string; width: number; height: number; isMobile: boolean }
+interface Viewport {
+  name: string;
+  width: number;
+  height: number;
+  isMobile: boolean;
+}
 const VIEWPORTS: Viewport[] = [
   { name: "desktop", width: 1280, height: 800, isMobile: false },
-  { name: "mobile",  width:  390, height: 844, isMobile: true  },
+  { name: "mobile", width: 390, height: 844, isMobile: true },
 ];
 
 // Cap entire-page captures so multi-megapixel scrolls don't make the diff
@@ -171,7 +183,7 @@ interface Result {
 }
 
 interface PageJob {
-  test: string;          // e.g. "google-desktop-fold"
+  test: string; // e.g. "google-desktop-fold"
   site: Site;
   viewport: Viewport;
   mode: Mode;
@@ -224,7 +236,9 @@ async function main(): Promise<void> {
   await ensureHarsRecorded(browser, jobs);
 
   const workerCount = resolveWorkerCount();
-  console.log(`Running ${jobs.length} real-world capture jobs (${VIEWPORTS.length} viewports × ${MODES.length} modes × ${SITES.length} sites) with ${workerCount} workers...\n`);
+  console.log(
+    `Running ${jobs.length} real-world capture jobs (${VIEWPORTS.length} viewports × ${MODES.length} modes × ${SITES.length} sites) with ${workerCount} workers...\n`,
+  );
 
   const newResults = await runJobsInPool<PageJob, RealWorldWorker, Result>({
     jobs,
@@ -243,15 +257,13 @@ async function main(): Promise<void> {
       }
     },
     onResult: (result, job) => {
-      const status = result.skipped ? "- SKIP"
-        : result.error != null    ? "✗ ERROR"
-        : result.pass             ? "✓ PASS"
-        :                            "✗ FAIL";
-      const note = result.error != null
-        ? `  ERR: ${result.error}`
-        : result.skipped
-          ? `  (${result.skipReason ?? "skipped"})`
-          : ` ${result.verdict} · ${result.regionCount} region${result.regionCount === 1 ? "" : "s"} · ${result.coveragePct.toFixed(2)}% of image · ${result.width}×${result.height}`;
+      const status = result.skipped ? "- SKIP" : result.error != null ? "✗ ERROR" : result.pass ? "✓ PASS" : "✗ FAIL";
+      const note =
+        result.error != null
+          ? `  ERR: ${result.error}`
+          : result.skipped
+            ? `  (${result.skipReason ?? "skipped"})`
+            : ` ${result.verdict} · ${result.regionCount} region${result.regionCount === 1 ? "" : "s"} · ${result.coveragePct.toFixed(2)}% of image · ${result.width}×${result.height}`;
       console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
     },
   });
@@ -263,11 +275,15 @@ async function main(): Promise<void> {
   const merged = mergeResults(newResults);
   writeFileSync(
     resolve(OUTPUT_DIR, "results.json"),
-    JSON.stringify({
-      suite: "real-world",
-      generatedAt: new Date().toISOString(),
-      results: merged,
-    }, null, 2),
+    JSON.stringify(
+      {
+        suite: "real-world",
+        generatedAt: new Date().toISOString(),
+        results: merged,
+      },
+      null,
+      2,
+    ),
   );
 
   const passed = newResults.filter((r) => r.pass).length;
@@ -292,7 +308,9 @@ function mergeResults(newResults: Result[]): Result[] {
     try {
       const parsed = JSON.parse(readFileSync(existingPath, "utf8")) as { results?: Result[] };
       prior = parsed.results ?? [];
-    } catch { /* corrupt manifest — start fresh */ }
+    } catch {
+      /* corrupt manifest — start fresh */
+    }
   }
   const byName = new Map<string, Result>();
   for (const r of prior) byName.set(r.name, r);
@@ -356,10 +374,9 @@ async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<vo
       // Stretch to full document height + scroll end-to-end so the
       // entire-page / scroll modes find their lazy-loaded assets in the
       // HAR on the next pass.
-      const rawHeight = await page.evaluate(() => Math.max(
-        document.documentElement.scrollHeight,
-        document.body?.scrollHeight ?? 0,
-      ));
+      const rawHeight = await page.evaluate(() =>
+        Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
+      );
       const fullH = Math.min(FULL_PAGE_MAX_H, Math.max(viewport.height, rawHeight));
       await page.setViewportSize({ width: viewport.width, height: fullH });
       await page.waitForTimeout(400);
@@ -467,10 +484,7 @@ async function runJob(
   let captureTimedOut = false;
   const captureWatchdog = setTimeout(() => {
     captureTimedOut = true;
-    void closeTimedOutCaptureContext(
-      context,
-      `real-world capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m`,
-    );
+    void closeTimedOutCaptureContext(context, `real-world capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m`);
   }, CAPTURE_JOB_TIMEOUT_MS);
   captureWatchdog.unref();
 
@@ -487,10 +501,9 @@ async function runJob(
       // dimensions Domotion will be asked to render. (The capture script
       // reads geometry from the live layout, so the viewport size at
       // capture time IS the canvas size.)
-      const rawHeight = await page.evaluate(() => Math.max(
-        document.documentElement.scrollHeight,
-        document.body?.scrollHeight ?? 0,
-      ));
+      const rawHeight = await page.evaluate(() =>
+        Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
+      );
       canvasH = Math.min(FULL_PAGE_MAX_H, Math.max(viewport.height, rawHeight));
       await page.setViewportSize({ width: viewport.width, height: canvasH });
       // Brief settle after resize — sticky-nav recompute, sticky-cta
@@ -520,10 +533,7 @@ async function runJob(
       // lazy-loaded content; the executor's own prescroll is disabled
       // below since we've already done it here.
       await page.evaluate(async () => {
-        const h = Math.max(
-          document.documentElement.scrollHeight,
-          document.body?.scrollHeight ?? 0,
-        );
+        const h = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
         window.scrollTo(0, h);
         await new Promise((r) => setTimeout(r, 400));
         window.scrollTo(0, 0);
@@ -545,7 +555,11 @@ async function runJob(
     // mobile fold) that crashed the page-side WebGL/canvas during the
     // subsequent rasterize pass — fragile, not worth the marginal
     // 0.5-1pp diff improvement. Order alone is the robust fix.
-    try { await discoverAndRegisterWebfonts(page, fontUrls); } catch { /* best-effort */ }
+    try {
+      await discoverAndRegisterWebfonts(page, fontUrls);
+    } catch {
+      /* best-effort */
+    }
 
     // DM-510 / DM-556: freeze the DOM so the Chromium reference screenshot
     // and Domotion's captureElementTree see the SAME state. Without this,
@@ -582,35 +596,59 @@ async function runJob(
         try {
           if (typeof document.getAnimations === "function") {
             for (const a of document.getAnimations()) {
-              try { a.pause(); } catch { /* */ }
+              try {
+                a.pause();
+              } catch {
+                /* */
+              }
             }
           }
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
         // Cancel pending setTimeout handles (probe next handle, then iterate).
         try {
           const probe = window.setTimeout(() => {}, 0) as unknown as number;
           window.clearTimeout(probe);
           for (let i = 1; i <= probe; i++) {
-            try { window.clearTimeout(i); } catch { /* */ }
-            try { window.clearInterval(i); } catch { /* */ }
+            try {
+              window.clearTimeout(i);
+            } catch {
+              /* */
+            }
+            try {
+              window.clearInterval(i);
+            } catch {
+              /* */
+            }
           }
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
         // No-op future setTimeout / setInterval. Don't touch rAF.
         try {
           const noop = (() => 0) as any;
           window.setTimeout = noop;
           window.setInterval = noop;
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
         // DM-556: no-op fetch / XHR.send so async-loaded modals can't inject
         // DOM between the freeze and the screenshot. Returns a never-resolving
         // promise so callers that `await` the fetch hang harmlessly (the page
         // is going to be screenshotted within milliseconds anyway).
         try {
           window.fetch = (() => new Promise(() => {})) as typeof window.fetch;
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
         try {
-          XMLHttpRequest.prototype.send = function() { /* no-op */ };
-        } catch { /* */ }
+          XMLHttpRequest.prototype.send = function () {
+            /* no-op */
+          };
+        } catch {
+          /* */
+        }
         // DM-556: hide modal dialogs that were already injected during the
         // settle window (e.g. NYT mobile paywall). These appear in the
         // expected screenshot but not in the captured tree because they're
@@ -620,19 +658,30 @@ async function runJob(
         // sides. Heuristic: `[role=dialog][aria-modal=true]` is the web
         // standard for accessibility-flagged modals.
         try {
-          for (const el of document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]')) {
-            try { (el as HTMLElement).style.display = "none"; } catch { /* */ }
+          for (const el of document.querySelectorAll(
+            '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
+          )) {
+            try {
+              (el as HTMLElement).style.display = "none";
+            } catch {
+              /* */
+            }
           }
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
       });
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
 
     // Expected PNG: for `fold` and `scroll` we screenshot the viewport-
     // sized fold (the scroll mode uses this as the t=0 reference). For
     // `entire-page` we screenshot the full document.
-    const expectedClip = mode === "entire-page"
-      ? { x: 0, y: 0, width: viewport.width, height: canvasH }
-      : { x: 0, y: 0, width: viewport.width, height: viewport.height };
+    const expectedClip =
+      mode === "entire-page"
+        ? { x: 0, y: 0, width: viewport.width, height: canvasH }
+        : { x: 0, y: 0, width: viewport.width, height: viewport.height };
     await page.screenshot({ path: expectedPath, clip: expectedClip });
 
     const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
@@ -645,7 +694,7 @@ async function runJob(
     // rotating cross-origin-iframe content (NYT Google Ads, etc.). For
     // `scroll` mode the expected.png is only the viewport-sized t=0 fold,
     // so we fall back to per-rid screenshots there.
-    const rasterizeFromImagePath = (mode === "fold" || mode === "entire-page") ? expectedPath : undefined;
+    const rasterizeFromImagePath = mode === "fold" || mode === "entire-page" ? expectedPath : undefined;
     const cap = await captureElementTreeWithWarnings(page, "body", captureClip, { rasterizeFromImagePath });
     warnings = cap.warnings;
     // DM-512: real-world captures of public sites reference image URLs on
@@ -678,9 +727,12 @@ async function runJob(
     const rootStyles = cap.tree[0]?.styles;
     const rootBg = rootStyles?.rootBgComputed;
     const rootScheme = rootStyles?.rootColorScheme;
-    const transparentRootBg = (rootBg != null && rootBg !== "rgba(0, 0, 0, 0)" && rootBg !== "transparent")
-      ? rootBg
-      : (rootScheme === "dark" ? "#1c1c1c" : "#ffffff");
+    const transparentRootBg =
+      rootBg != null && rootBg !== "rgba(0, 0, 0, 0)" && rootBg !== "transparent"
+        ? rootBg
+        : rootScheme === "dark"
+          ? "#1c1c1c"
+          : "#ffffff";
     const bodyBg = bodyBgFromPage ?? transparentRootBg;
 
     // Build the SVG document. `scroll` mode (DM-613) now uses the new
@@ -727,12 +779,13 @@ async function runJob(
         hiDPIFactor: resizeOpts.hiDPI,
       });
     } else {
-      svgDoc = `<?xml version="1.0" encoding="UTF-8"?>`
-        + `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewport.width} ${canvasH}" `
-        + `width="${viewport.width}" height="${canvasH}">`
-        + `<rect width="${viewport.width}" height="${canvasH}" fill="${bodyBg}" />`
-        + `${svgInner}`
-        + `</svg>`;
+      svgDoc =
+        `<?xml version="1.0" encoding="UTF-8"?>` +
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewport.width} ${canvasH}" ` +
+        `width="${viewport.width}" height="${canvasH}">` +
+        `<rect width="${viewport.width}" height="${canvasH}" fill="${bodyBg}" />` +
+        `${svgInner}` +
+        `</svg>`;
     }
     writeFileSync(svgPath, svgDoc);
 
@@ -747,14 +800,16 @@ async function runJob(
     // actual screenshot is the t=0 frame of the animation — good enough
     // for a reviewer to spot-check top-of-page fidelity. The animation
     // itself plays when the .svg is opened from the review tool.
-    const actualClip = mode === "entire-page"
-      ? { x: 0, y: 0, width: viewport.width, height: canvasH }
-      : { x: 0, y: 0, width: viewport.width, height: viewport.height };
-    const wrapperHtml = `<!doctype html><html><head>`
-      + `<meta charset="utf-8">`
-      + `<meta name="viewport" content="width=${viewport.width}, initial-scale=1, maximum-scale=1, user-scalable=no">`
-      + `<style>html,body{margin:0;padding:0;background:${bodyBg};}svg{display:block;}</style>`
-      + `</head><body>${svgDoc.replace(/^<\?xml[^?]*\?>/, "")}</body></html>`;
+    const actualClip =
+      mode === "entire-page"
+        ? { x: 0, y: 0, width: viewport.width, height: canvasH }
+        : { x: 0, y: 0, width: viewport.width, height: viewport.height };
+    const wrapperHtml =
+      `<!doctype html><html><head>` +
+      `<meta charset="utf-8">` +
+      `<meta name="viewport" content="width=${viewport.width}, initial-scale=1, maximum-scale=1, user-scalable=no">` +
+      `<style>html,body{margin:0;padding:0;background:${bodyBg};}svg{display:block;}</style>` +
+      `</head><body>${svgDoc.replace(/^<\?xml[^?]*\?>/, "")}</body></html>`;
     const wrapperPath = svgPath.replace(/\.svg$/, ".wrapper.html");
     writeFileSync(wrapperPath, wrapperHtml);
     // DM-518: rendering the SVG wrapper on the same context that did the
@@ -765,7 +820,7 @@ async function runJob(
     // residual state by using a fresh disposable context just for the
     // wrapper render. The HAR is irrelevant to the wrapper (file:// URL
     // with inline SVG, no network).
-    const openRenderPage = async (): Promise<{ context: BrowserContext, page: Page }> => {
+    const openRenderPage = async (): Promise<{ context: BrowserContext; page: Page }> => {
       const c = await browser.newContext({
         viewport: { width: viewport.width, height: canvasH },
         deviceScaleFactor: 1,
@@ -794,13 +849,27 @@ async function runJob(
     // hits the same protocol error again. Retry on a fresh context — the
     // wrapper HTML is on disk, so reopening it costs little.
     try {
-      await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
+      await renderPage.screenshot({
+        path: actualPath,
+        clip: actualClip,
+        timeout: PLAYWRIGHT_TIMEOUT_MS,
+        animations: "disabled",
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); recreating context and retrying`);
-      try { await renderContext.close(); } catch { /* best-effort */ }
+      try {
+        await renderContext.close();
+      } catch {
+        /* best-effort */
+      }
       ({ context: renderContext, page: renderPage } = await openRenderPage());
-      await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
+      await renderPage.screenshot({
+        path: actualPath,
+        clip: actualClip,
+        timeout: PLAYWRIGHT_TIMEOUT_MS,
+        animations: "disabled",
+      });
     }
 
     // Per-chunk screenshots for `scroll` mode. The canonical screenshot
@@ -823,13 +892,24 @@ async function runJob(
           // paused animations active at that moment).
           await page.evaluate(() => {
             for (const a of document.getAnimations()) {
-              try { a.pause(); } catch { /* */ }
+              try {
+                a.pause();
+              } catch {
+                /* */
+              }
             }
           });
           await page.waitForTimeout(50);
-          await page.screenshot({ path: expectedChunk, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
+          await page.screenshot({
+            path: expectedChunk,
+            clip: actualClip,
+            timeout: PLAYWRIGHT_TIMEOUT_MS,
+            animations: "disabled",
+          });
         } catch (e) {
-          console.warn(`  ${test}: chunk ${i} expected screenshot failed: ${e instanceof Error ? e.message : String(e)}`);
+          console.warn(
+            `  ${test}: chunk ${i} expected screenshot failed: ${e instanceof Error ? e.message : String(e)}`,
+          );
         }
         try {
           // Seek the composed SVG's CSS animation to this segment's
@@ -842,7 +922,12 @@ async function runJob(
           // The pause() above is sufficient to freeze the moment.
           await renderPage.evaluate((timeMs) => {
             for (const a of document.getAnimations()) {
-              try { a.currentTime = timeMs; a.pause(); } catch { /* */ }
+              try {
+                a.currentTime = timeMs;
+                a.pause();
+              } catch {
+                /* */
+              }
             }
           }, seg.segmentEndMs);
           await renderPage.waitForTimeout(50);
@@ -853,10 +938,18 @@ async function runJob(
       }
     }
 
-    try { await renderContext.close(); } catch { /* best-effort */ }
+    try {
+      await renderContext.close();
+    } catch {
+      /* best-effort */
+    }
     // Wrapper is purely a render harness — the .svg file is the artifact
     // reviewers/consumers care about.
-    try { unlinkSync(wrapperPath); } catch { /* best-effort */ }
+    try {
+      unlinkSync(wrapperPath);
+    } catch {
+      /* best-effort */
+    }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     captureError = captureTimedOut ? `capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m: ${detail}` : detail;
@@ -868,7 +961,11 @@ async function runJob(
     // closed". Swallow that — the worker pool's onResult/onError logic
     // is what we want to surface, not a teardown error that masks the
     // real captureError.
-    try { await context.close(); } catch { /* best-effort */ }
+    try {
+      await context.close();
+    } catch {
+      /* best-effort */
+    }
   }
 
   if (captureError != null) {
@@ -887,7 +984,12 @@ async function runJob(
     cmp = await comparePngs(comparePage, expectedPath, actualPath, diffPath);
   } catch (e) {
     return makeErrorResult(
-      test, site, viewport, mode, viewport.width, diffH,
+      test,
+      site,
+      viewport,
+      mode,
+      viewport.width,
+      diffH,
       `compare failed: ${e instanceof Error ? e.message : String(e)}`,
       warnings,
     );
@@ -898,26 +1000,28 @@ async function runJob(
   // the per-chunk PNGs written during the renderPage loop above.
   let chunks: ChunkResult[] | undefined;
   if (mode === "scroll" && segments != null && segments.length > 0) {
-    chunks = [{
-      index: 0,
-      scrollY: segments[0].scrollY,
-      segmentEndMs: segments[0].segmentEndMs,
-      diffPct: cmp.diffPct,
-      sigPixelPct: cmp.sigPixelPct,
-      worstTilePct: cmp.worstTilePct,
-      worstTileSignificantPct: cmp.worstTileSignificantPct,
-      nonAaPixels: cmp.nonAaPixels,
-      nonAaPixelPct: cmp.nonAaPixelPct,
-      regionCount: cmp.regionCount,
-      totalChangedArea: cmp.totalChangedArea,
-      maxRegionSeverity: cmp.maxRegionSeverity,
-      scatteredPixels: cmp.scatteredPixels,
-      shiftedPixels: cmp.shiftedPixels,
-      shiftyRegionCount: cmp.shiftyRegionCount,
-      shiftyRegionArea: cmp.shiftyRegionArea,
-      coveragePct: cmp.coveragePct,
-      verdict: cmp.verdict,
-    }];
+    chunks = [
+      {
+        index: 0,
+        scrollY: segments[0].scrollY,
+        segmentEndMs: segments[0].segmentEndMs,
+        diffPct: cmp.diffPct,
+        sigPixelPct: cmp.sigPixelPct,
+        worstTilePct: cmp.worstTilePct,
+        worstTileSignificantPct: cmp.worstTileSignificantPct,
+        nonAaPixels: cmp.nonAaPixels,
+        nonAaPixelPct: cmp.nonAaPixelPct,
+        regionCount: cmp.regionCount,
+        totalChangedArea: cmp.totalChangedArea,
+        maxRegionSeverity: cmp.maxRegionSeverity,
+        scatteredPixels: cmp.scatteredPixels,
+        shiftedPixels: cmp.shiftedPixels,
+        shiftyRegionCount: cmp.shiftyRegionCount,
+        shiftyRegionArea: cmp.shiftyRegionArea,
+        coveragePct: cmp.coveragePct,
+        verdict: cmp.verdict,
+      },
+    ];
     for (let i = 1; i < segments.length; i++) {
       const seg = segments[i];
       const expectedChunk = expectedPath.replace(/\.png$/, `-${i}.png`);
@@ -987,17 +1091,39 @@ async function runJob(
 }
 
 function makeErrorResult(
-  name: string, site: Site, viewport: Viewport, mode: Mode,
-  width: number, height: number, error: string,
+  name: string,
+  site: Site,
+  viewport: Viewport,
+  mode: Mode,
+  width: number,
+  height: number,
+  error: string,
   warnings: Array<{ selector: string; feature: string; detail: string }>,
 ): Result {
   return {
-    name, site: site.name, viewport: viewport.name, mode,
+    name,
+    site: site.name,
+    viewport: viewport.name,
+    mode,
     pass: false,
-    diffPct: 100, sigPixelPct: 100, worstTilePct: 100, worstTileSignificantPct: 100,
-    nonAaPixels: 0, nonAaPixelPct: 100,
-    regionCount: Number.MAX_SAFE_INTEGER, totalChangedArea: 0, maxRegionSeverity: 0, scatteredPixels: 0, shiftedPixels: 0, shiftyRegionCount: 0, shiftyRegionArea: 0, coveragePct: 100, verdict: "major" as DiffVerdict,
-    width, height, error,
+    diffPct: 100,
+    sigPixelPct: 100,
+    worstTilePct: 100,
+    worstTileSignificantPct: 100,
+    nonAaPixels: 0,
+    nonAaPixelPct: 100,
+    regionCount: Number.MAX_SAFE_INTEGER,
+    totalChangedArea: 0,
+    maxRegionSeverity: 0,
+    scatteredPixels: 0,
+    shiftedPixels: 0,
+    shiftyRegionCount: 0,
+    shiftyRegionArea: 0,
+    coveragePct: 100,
+    verdict: "major" as DiffVerdict,
+    width,
+    height,
+    error,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
 }

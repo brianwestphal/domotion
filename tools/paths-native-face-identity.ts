@@ -68,13 +68,16 @@ export interface PathsNativeFaceIdentityEvidence {
   native: PathsNativeFaceObservation;
 }
 
-const stable = (value: unknown): unknown => Array.isArray(value)
-  ? value.map(stable)
-  : value != null && typeof value === "object"
-    ? Object.fromEntries(Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, entry]) => [key, stable(entry)]))
-    : value;
+const stable = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(stable)
+    : value != null && typeof value === "object"
+      ? Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, entry]) => [key, stable(entry)]),
+        )
+      : value;
 
 const equal = (a: unknown, b: unknown): boolean => JSON.stringify(stable(a)) === JSON.stringify(stable(b));
 
@@ -121,8 +124,8 @@ export function assessPathsNativeFaceIdentity(evidence: PathsNativeFaceIdentityE
     if (helper == null) {
       blockers.push("missing-win32-variable-helper");
     } else {
-      if (evidence.fingerprintHelperSha256 == null
-          || helper.helperSha256 !== evidence.fingerprintHelperSha256) blockers.push("helper-fingerprint");
+      if (evidence.fingerprintHelperSha256 == null || helper.helperSha256 !== evidence.fingerprintHelperSha256)
+        blockers.push("helper-fingerprint");
       if (helper.sourceSha256 !== expected.sourceSha256) blockers.push("helper-source-bytes");
       if (helper.faceIndex !== expected.faceIndex) blockers.push("helper-face-index");
       if (!equal(helper.resolvedAxes, expected.variationAxes)) blockers.push("helper-variation-axes");

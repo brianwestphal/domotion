@@ -16,10 +16,7 @@ function section(markdown: string, start: string, end: string): string {
 describe("AI generated-SVG visual-review guidance", () => {
   const llms = readFileSync(resolve(ROOT, "llms.txt"), "utf8");
   const reviewLoop = section(llms, "### Work the loop", "### Motion");
-  const siteGuide = readFileSync(
-    resolve(ROOT, "site/src/content/docs/developer/using-ai.md"),
-    "utf8",
-  );
+  const siteGuide = readFileSync(resolve(ROOT, "site/src/content/docs/developer/using-ai.md"), "utf8");
   const siteGuideText = siteGuide.replace(/\s+/g, " ");
 
   it("makes rendered output—not successful generation—the pre-handoff gate", () => {

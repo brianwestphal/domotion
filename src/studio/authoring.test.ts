@@ -18,13 +18,19 @@ function ids(): (prefix: string) => string {
 describe("Studio high-level authoring", () => {
   it("adds, duplicates, reorders, and removes scenes without mutating the input", () => {
     const original = createStudioProjectDocument({ title: "Story", createdAt: NOW });
-    original.scenes[0].tracks = [{
-      id: "track-opening",
-      kind: "semantic-interactions",
-      events: [{ id: "event-opening", kind: "click", atMs: 100, target: { role: "button", name: "Start" } }],
-    }];
+    original.scenes[0].tracks = [
+      {
+        id: "track-opening",
+        kind: "semantic-interactions",
+        events: [{ id: "event-opening", kind: "click", atMs: 100, target: { role: "button", name: "Start" } }],
+      },
+    ];
     const snapshot = structuredClone(original);
-    const duplicated = applyStudioAuthoringCommand(original, { kind: "scene.duplicate", sceneId: "scene-opening" }, { id: ids() });
+    const duplicated = applyStudioAuthoringCommand(
+      original,
+      { kind: "scene.duplicate", sceneId: "scene-opening" },
+      { id: ids() },
+    );
 
     expect(original).toEqual(snapshot);
     expect(duplicated.project.scenes).toHaveLength(2);
@@ -78,7 +84,13 @@ describe("Studio high-level authoring", () => {
           },
         },
         treatments: [{ kind: "browser-chrome", theme: "dark" }],
-        tracks: [{ id: "track-imported", kind: "semantic-interactions", events: [{ id: "event-imported", kind: "click", atMs: 640, target: { testId: "primary-action" } }] }],
+        tracks: [
+          {
+            id: "track-imported",
+            kind: "semantic-interactions",
+            events: [{ id: "event-imported", kind: "click", atMs: 640, target: { testId: "primary-action" } }],
+          },
+        ],
       },
     });
     expect(sceneUpdated.project.scenes[0]).toMatchObject({
@@ -95,7 +107,9 @@ describe("Studio high-level authoring", () => {
 
   it("refuses destructive removal when it would orphan annotations or the last scene", () => {
     const original = createStudioProjectDocument({ title: "Guarded story", createdAt: NOW });
-    expect(() => applyStudioAuthoringCommand(original, { kind: "scene.remove", sceneId: "scene-opening" })).toThrow(/at least one scene/);
+    expect(() => applyStudioAuthoringCommand(original, { kind: "scene.remove", sceneId: "scene-opening" })).toThrow(
+      /at least one scene/,
+    );
     const added = applyStudioAuthoringCommand(original, { kind: "scene.add" }, { id: ids() }).project;
     added.review.annotations.push({
       id: "annotation-opening",
@@ -106,8 +120,9 @@ describe("Studio high-level authoring", () => {
       createdRevisionId: added.review.headRevisionId,
       target: { scope: { kind: "scene", sceneId: "scene-opening" } },
     });
-    expect(() => applyStudioAuthoringCommand(added, { kind: "scene.remove", sceneId: "scene-opening" }))
-      .toThrow(StudioAuthoringError);
+    expect(() => applyStudioAuthoringCommand(added, { kind: "scene.remove", sceneId: "scene-opening" })).toThrow(
+      StudioAuthoringError,
+    );
   });
 
   it("commits authored changes as content revisions without letting generic saves rewrite review or artifacts", () => {
@@ -137,7 +152,8 @@ describe("Studio high-level authoring", () => {
       generator: { name: "browser" },
       sourceRevisionId: current.review.headRevisionId,
     });
-    expect(() => commitStudioAuthoringRevision(current, tampered, { expectedHeadRevisionId: current.review.headRevisionId }))
-      .toThrow(/generation API/);
+    expect(() =>
+      commitStudioAuthoringRevision(current, tampered, { expectedHeadRevisionId: current.review.headRevisionId }),
+    ).toThrow(/generation API/);
   });
 });

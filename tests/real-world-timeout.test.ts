@@ -15,18 +15,20 @@ describe("real-world capture timeout", () => {
 
     await closeTimedOutCaptureContext(context, "capture exceeded 6m");
 
-    expect(calls).toEqual([
-      "unroute:ignoreErrors",
-      "close:capture exceeded 6m",
-    ]);
+    expect(calls).toEqual(["unroute:ignoreErrors", "close:capture exceeded 6m"]);
   });
 
   it("still closes when route cleanup itself rejects", async () => {
     const close = vi.fn(async () => {});
-    await closeTimedOutCaptureContext({
-      unrouteAll: vi.fn(async () => { throw new Error("already closed"); }),
-      close,
-    }, "timed out");
+    await closeTimedOutCaptureContext(
+      {
+        unrouteAll: vi.fn(async () => {
+          throw new Error("already closed");
+        }),
+        close,
+      },
+      "timed out",
+    );
 
     expect(close).toHaveBeenCalledOnce();
   });

@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 import { ICU_BINARY, __resetIcuHelperForTest, isIcuHelperAvailable, queryIcuCodepoints } from "./icu-helper.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const HELPER = path.join(ROOT, "tools", "icu-helper", process.platform === "win32" ? "domotion-icu.exe" : "domotion-icu");
+const HELPER = path.join(
+  ROOT,
+  "tools",
+  "icu-helper",
+  process.platform === "win32" ? "domotion-icu.exe" : "domotion-icu",
+);
 const DATA = path.join(ROOT, "tools", "icu-helper", "icudtl.dat");
 const haveLocalCompanion = existsSync(HELPER) && existsSync(DATA);
 

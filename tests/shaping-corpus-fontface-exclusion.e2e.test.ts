@@ -90,8 +90,10 @@ describe("the run corpus excludes unretained @font-face-resolved families", () =
     // documents are byte-identical apart from the rule, so any other difference
     // would mean the guard is over-reaching.
     const others = (c: RunCorpus): string[] =>
-      c.runs.filter((r) => !r.fontFamily.toLowerCase().includes(FAMILY.toLowerCase()))
-        .map((r) => `${r.text}|${r.fontFamily}`).sort();
+      c.runs
+        .filter((r) => !r.fontFamily.toLowerCase().includes(FAMILY.toLowerCase()))
+        .map((r) => `${r.text}|${r.fontFamily}`)
+        .sort();
     expect(others(aliased)).toEqual(others(control));
   });
 });

@@ -105,8 +105,8 @@ describe("parseScrollPattern: absolute targets", () => {
     const t = a.target as AbsoluteTarget;
     expect(t.offsets).toEqual([
       { op: "+", length: { value: 100, unit: "px" } },
-      { op: "-", length: { value: 50,  unit: "px" } },
-      { op: "+", length: { value: 25,  unit: "%"  } },
+      { op: "-", length: { value: 50, unit: "px" } },
+      { op: "+", length: { value: 25, unit: "%" } },
     ]);
   });
 
@@ -283,10 +283,26 @@ describe("parseScrollPattern: [easing] suffix", () => {
   });
 
   it("steps(n) and steps(n, position) (DM-1245)", () => {
-    expect((onlyAction("720px[steps(4)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 4, position: undefined });
-    expect((onlyAction("720px/2s[steps(3, jump-start)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 3, position: "jump-start" });
-    expect((onlyAction("720px[steps(2, jump-none)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 2, position: "jump-none" });
-    expect((onlyAction("720px[steps(5, end)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 5, position: "end" });
+    expect((onlyAction("720px[steps(4)]") as ScrollAction).easing).toEqual({
+      kind: "steps",
+      count: 4,
+      position: undefined,
+    });
+    expect((onlyAction("720px/2s[steps(3, jump-start)]") as ScrollAction).easing).toEqual({
+      kind: "steps",
+      count: 3,
+      position: "jump-start",
+    });
+    expect((onlyAction("720px[steps(2, jump-none)]") as ScrollAction).easing).toEqual({
+      kind: "steps",
+      count: 2,
+      position: "jump-none",
+    });
+    expect((onlyAction("720px[steps(5, end)]") as ScrollAction).easing).toEqual({
+      kind: "steps",
+      count: 5,
+      position: "end",
+    });
   });
 
   it("rejects invalid steps() (non-positive-int count, bad position, jump-none with count<2)", () => {

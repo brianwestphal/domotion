@@ -35,17 +35,28 @@ body { margin:0; padding:20px; background:#fff; font-family:sans-serif; }
   const page = await ctx.newPage();
   await page.setContent(HTML);
   await page.waitForTimeout(500);
-  const { tree, warnings } = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 400, height: 500 });
+  const { tree, warnings } = await captureElementTreeWithWarnings(page, "body", {
+    x: 0,
+    y: 0,
+    width: 400,
+    height: 500,
+  });
   console.log("warnings:", warnings.length);
   const svg = elementTreeToSvg(tree, 400, 500);
   writeFileSync("/tmp/claude/border-radius-test.svg", svg);
-  await page.screenshot({ path: "/tmp/claude/border-radius-chrome.png", clip: { x: 0, y: 0, width: 400, height: 500 } });
+  await page.screenshot({
+    path: "/tmp/claude/border-radius-chrome.png",
+    clip: { x: 0, y: 0, width: 400, height: 500 },
+  });
 
   // Render the SVG using Playwright too for an apples-to-apples comparison.
   const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">${svg}</svg>`;
   const svgPage = await ctx.newPage();
   await svgPage.setContent(`<!doctype html><html><body style="margin:0;background:#fff">${fullSvg}</body></html>`);
-  await svgPage.screenshot({ path: "/tmp/claude/border-radius-svg.png", clip: { x: 0, y: 0, width: 400, height: 500 } });
+  await svgPage.screenshot({
+    path: "/tmp/claude/border-radius-svg.png",
+    clip: { x: 0, y: 0, width: 400, height: 500 },
+  });
   await browser.close();
   console.log("wrote /tmp/claude/border-radius-test.svg and chrome.png");
 })();

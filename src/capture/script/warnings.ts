@@ -17,19 +17,23 @@ export const createWarnings = () => {
     let cur = el;
     while (cur != null && cur.nodeType === 1 && cur !== document.documentElement && parts.length < 5) {
       let p = cur.tagName.toLowerCase();
-      if (cur.id) { p += '#' + cur.id; parts.unshift(p); break; }
-      if (cur.className && typeof cur.className === 'string') {
-        const cls = cur.className.trim().split(/\s+/).slice(0, 2).join('.');
-        if (cls !== '') p += '.' + cls;
+      if (cur.id) {
+        p += "#" + cur.id;
+        parts.unshift(p);
+        break;
+      }
+      if (cur.className && typeof cur.className === "string") {
+        const cls = cur.className.trim().split(/\s+/).slice(0, 2).join(".");
+        if (cls !== "") p += "." + cls;
       }
       parts.unshift(p);
       cur = cur.parentElement;
     }
-    return parts.join(' > ');
+    return parts.join(" > ");
   };
 
   const warn = (sel, feature, detail) => {
-    const k = feature + '|' + sel;
+    const k = feature + "|" + sel;
     if (seen.has(k)) return;
     seen.add(k);
     warnings.push({ selector: sel, feature, detail });

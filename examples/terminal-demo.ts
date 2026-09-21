@@ -44,13 +44,21 @@ function buildDemoCast(): string {
     [3.3, "o", `\r\n${prompt}`],
     [4.3, "o", "domotion term --cast build.cast -o build.svg"],
     [5.1, "o", "\r\n"],
-    [5.5, "o", `${ESC}[32m  ✓${ESC}[0m 17 frames ${ESC}[2m·${ESC}[0m 656×346px ${ESC}[2m·${ESC}[0m 13.6s ${ESC}[2m·${ESC}[0m 45.3 kB\r\n`],
+    [
+      5.5,
+      "o",
+      `${ESC}[32m  ✓${ESC}[0m 17 frames ${ESC}[2m·${ESC}[0m 656×346px ${ESC}[2m·${ESC}[0m 13.6s ${ESC}[2m·${ESC}[0m 45.3 kB\r\n`,
+    ],
     [5.9, "o", `${ESC}[2m    → real text, native SVG animation${ESC}[0m\r\n`],
     [6.3, "o", `\r\n${prompt}`],
     [8.0, "o", ""],
   ];
-  return JSON.stringify({ version: 2, width: 60, height: 14, title: "domotion" }) + "\n" +
-    ev.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  return (
+    JSON.stringify({ version: 2, width: 60, height: 14, title: "domotion" }) +
+    "\n" +
+    ev.map((e) => JSON.stringify(e)).join("\n") +
+    "\n"
+  );
 }
 
 /** macOS window chrome (traffic lights + title bar) sized to the terminal box. */
@@ -99,12 +107,21 @@ async function main(): Promise<void> {
     const layers: CompositeLayer[] = [
       { svg: backdrop(W, H, MARGIN, MARGIN, winW, winH), x: 0, y: 0, width: W, height: H },
       { svg: windowChrome(term.width, term.height), x: MARGIN, y: MARGIN, width: winW, height: winH },
-      { svg: term.svg, periodMs: term.totalDurationMs, x: MARGIN, y: MARGIN + BAR, width: term.width, height: term.height },
+      {
+        svg: term.svg,
+        periodMs: term.totalDurationMs,
+        x: MARGIN,
+        y: MARGIN + BAR,
+        width: term.width,
+        height: term.height,
+      },
     ];
 
     const result = composeAnimatedLayers(layers, { width: W, height: H, durationMs: term.totalDurationMs });
     writeFileSync(OUTPUT, result.svg);
-    console.log(`Generated: ${OUTPUT} (${result.width}×${result.height}px, ${(result.svg.length / 1024).toFixed(1)} KB, ${term.frameCount} frames)`);
+    console.log(
+      `Generated: ${OUTPUT} (${result.width}×${result.height}px, ${(result.svg.length / 1024).toFixed(1)} KB, ${term.frameCount} frames)`,
+    );
   } finally {
     await browser.close();
   }

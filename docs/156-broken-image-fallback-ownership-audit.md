@@ -3,11 +3,18 @@ id: "requirements/broken-image-fallback-ownership-audit"
 title: "156 — Chromium broken-image fallback ownership audit"
 kind: "evidence"
 status: "current"
-owners: ["images-media","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2463","DM-2464","DM-2465"]
-code: ["src/capture/broken-image-fallback.ts","src/capture/broken-image-icon-raster.ts","src/render/broken-image-fallback.ts","tests/broken-image-fallback-parity-gate.test.ts","tools/broken-image-fallback-oracle.ts"]
-aliases: ["docs/156-broken-image-fallback-ownership-audit.md","doc-156"]
+owners: ["images-media", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2463", "DM-2464", "DM-2465"]
+code:
+  [
+    "src/capture/broken-image-fallback.ts",
+    "src/capture/broken-image-icon-raster.ts",
+    "src/render/broken-image-fallback.ts",
+    "tests/broken-image-fallback-parity-gate.test.ts",
+    "tools/broken-image-fallback-oracle.ts",
+  ]
+aliases: ["docs/156-broken-image-fallback-ownership-audit.md", "doc-156"]
 ---
 
 # 156 — Chromium broken-image fallback ownership audit
@@ -136,17 +143,17 @@ the box (`html_image_fallback_helper.cc:274-280`).
 
 The resulting states are:
 
-| Inputs after failure | Layout/paint result |
-| --- | --- |
-| Error requests collapse | Collapsed; no fallback subtree paint. |
-| Non-empty `alt`, or missing `alt` with non-empty `title`, standards mode, not otherwise replaced | Non-replaced phrasing fallback. The 16 px icon floats inline-start and ordinary text follows it. Author width/height do not constrain the fallback. |
-| Non-empty `src`, empty `alt`, no replaced dimensions | Empty inline fallback; icon is `display:none`, no text paints. |
-| Missing/empty `src` and missing/empty `alt`, no replaced dimensions | Empty inline fallback; icon is `display:none`, no text paints. |
-| Missing `alt`, non-empty `src`, no replaced dimensions | Non-replaced icon-only fallback. |
-| Replaced dimensions/aspect ratio with missing or empty `alt` in standards mode | A fixed flow-root container with `overflow:hidden`, `pointer-events:none`, and the host width/height/max constraints. |
-| Replaced fallback smaller than 18 px on either fixed axis | The icon is hidden and the UA border/padding are omitted. |
-| Replaced fallback at least 18 px on both fixed axes | The container gets a solid silver border of `int(effectiveZoom)` layout units and padding of `effectiveZoom`, with `border-box` sizing. The 16 px icon paints inside and is clipped by the flow-root. |
-| Quirks mode with intrinsic dimensions | The replaced branch applies even with non-empty alt text; a sole dimension is mirrored before the test. |
+| Inputs after failure                                                                             | Layout/paint result                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Error requests collapse                                                                          | Collapsed; no fallback subtree paint.                                                                                                                                                                 |
+| Non-empty `alt`, or missing `alt` with non-empty `title`, standards mode, not otherwise replaced | Non-replaced phrasing fallback. The 16 px icon floats inline-start and ordinary text follows it. Author width/height do not constrain the fallback.                                                   |
+| Non-empty `src`, empty `alt`, no replaced dimensions                                             | Empty inline fallback; icon is `display:none`, no text paints.                                                                                                                                        |
+| Missing/empty `src` and missing/empty `alt`, no replaced dimensions                              | Empty inline fallback; icon is `display:none`, no text paints.                                                                                                                                        |
+| Missing `alt`, non-empty `src`, no replaced dimensions                                           | Non-replaced icon-only fallback.                                                                                                                                                                      |
+| Replaced dimensions/aspect ratio with missing or empty `alt` in standards mode                   | A fixed flow-root container with `overflow:hidden`, `pointer-events:none`, and the host width/height/max constraints.                                                                                 |
+| Replaced fallback smaller than 18 px on either fixed axis                                        | The icon is hidden and the UA border/padding are omitted.                                                                                                                                             |
+| Replaced fallback at least 18 px on both fixed axes                                              | The container gets a solid silver border of `int(effectiveZoom)` layout units and padding of `effectiveZoom`, with `border-box` sizing. The 16 px icon paints inside and is clipped by the flow-root. |
+| Quirks mode with intrinsic dimensions                                                            | The replaced branch applies even with non-empty alt text; a sole dimension is mirrored before the test.                                                                                               |
 
 `ImageRepresentsNothing()` and `ImageSmallerThanAltImage()` are the exact
 empty-state and 18 px predicates (`html_image_fallback_helper.cc:21-48`). The
@@ -168,10 +175,10 @@ no platform-theme or dark-scheme variant in that manifest.
 
 At the pinned revision the source files are:
 
-| Resource | Encoded size | SHA-256 |
-| --- | ---: | --- |
-| `default_100_percent/blink/broken_image.png` | 14×16 RGBA | `efcb5c77b9b97421b60982637d0a3d1e352b0275f294be3c62173743b3f0d8ee` |
-| `default_200_percent/blink/broken_image.png` | 28×32 RGBA | `072fb1710ffa7096a8ef3842ac168b1e774d8879054eedad39bc947306389c2d` |
+| Resource                                     | Encoded size | SHA-256                                                            |
+| -------------------------------------------- | -----------: | ------------------------------------------------------------------ |
+| `default_100_percent/blink/broken_image.png` |   14×16 RGBA | `efcb5c77b9b97421b60982637d0a3d1e352b0275f294be3c62173743b3f0d8ee` |
+| `default_200_percent/blink/broken_image.png` |   28×32 RGBA | `072fb1710ffa7096a8ef3842ac168b1e774d8879054eedad39bc947306389c2d` |
 
 The 14×16 source contains a shaded page, folded corner, blue fill, and green
 mountain—not a gray stroked SVG rectangle. The UA child still has a 16×16 CSS
@@ -206,22 +213,21 @@ not turn the otherwise-representable text run into a whole-surface raster.
 ### UA-shadow geometry
 
 CDP `DOM.getDocument({pierce:true})`, `DOM.getBoxModel`, and
-`CSS.getComputedStyleForNode` exposed the UA-shadow descendants in Chromium
-147. Selected DPR-1 rows were:
+`CSS.getComputedStyleForNode` exposed the UA-shadow descendants in Chromium 147. Selected DPR-1 rows were:
 
-| Case | Host rect | Container facts | Icon/text facts |
-| --- | --- | --- | --- |
-| Auto-size `alt="Auto alternative"` | 141.078×21 | inline, no border/padding | icon 16×16 at inline-start; text rect 127×20 |
-| CSS 160×44 plus non-empty alt | 178.109×21 | inline, no border/padding | author dimensions were cleared; icon + full text sized the host |
-| CSS 160×44, missing alt | 160×44 | flow-root, hidden overflow, 1 px silver border + 1 px padding | icon starts at host + (2,2) |
-| Auto-size `alt=""` | 0×0 | inline | icon `display:none`, no text |
-| 17×17, empty alt | 17×17 | flow-root, no border/padding | icon `display:none` |
-| 18×18, empty alt | 18×18 | flow-root, 1 px border + 1 px padding | 16×16 icon starts at +2,+2 and its far 2 px are clipped |
-| Missing alt, `title="Title fallback"` | 115.375×21 | inline | title becomes visible fallback text; current capture loses it |
-| RTL Arabic alt | 78.672×21 | inline | text occupies physical left; icon floats right at x=82.672 |
-| `writing-mode:vertical-rl`, 72×180 | 72×180 | vertical inline content | icon is at physical top-right; text rect is 20×90 below it |
-| `zoom:1.5` | 123.063×31 | inline | the nominal 16 px child paints in a 24×24 physical rect; text is 99.063×30 |
-| Author 3 px border and asymmetric padding | 169.094×39 | inline fallback inside the author box | icon x is host + 3 px border + 13 px left padding, not host + 1 |
+| Case                                      | Host rect  | Container facts                                               | Icon/text facts                                                            |
+| ----------------------------------------- | ---------- | ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Auto-size `alt="Auto alternative"`        | 141.078×21 | inline, no border/padding                                     | icon 16×16 at inline-start; text rect 127×20                               |
+| CSS 160×44 plus non-empty alt             | 178.109×21 | inline, no border/padding                                     | author dimensions were cleared; icon + full text sized the host            |
+| CSS 160×44, missing alt                   | 160×44     | flow-root, hidden overflow, 1 px silver border + 1 px padding | icon starts at host + (2,2)                                                |
+| Auto-size `alt=""`                        | 0×0        | inline                                                        | icon `display:none`, no text                                               |
+| 17×17, empty alt                          | 17×17      | flow-root, no border/padding                                  | icon `display:none`                                                        |
+| 18×18, empty alt                          | 18×18      | flow-root, 1 px border + 1 px padding                         | 16×16 icon starts at +2,+2 and its far 2 px are clipped                    |
+| Missing alt, `title="Title fallback"`     | 115.375×21 | inline                                                        | title becomes visible fallback text; current capture loses it              |
+| RTL Arabic alt                            | 78.672×21  | inline                                                        | text occupies physical left; icon floats right at x=82.672                 |
+| `writing-mode:vertical-rl`, 72×180        | 72×180     | vertical inline content                                       | icon is at physical top-right; text rect is 20×90 below it                 |
+| `zoom:1.5`                                | 123.063×31 | inline                                                        | the nominal 16 px child paints in a 24×24 physical rect; text is 99.063×30 |
+| Author 3 px border and asymmetric padding | 169.094×39 | inline fallback inside the author box                         | icon x is host + 3 px border + 13 px left padding, not host + 1            |
 
 The fixed current helper fails each discriminator without a pixel comparison.
 
@@ -245,12 +251,12 @@ blindly emitting one advance per code unit would double-count astral glyphs.
 
 Independent icon crops from the live browser produced:
 
-| DPR | Scheme | Crop pixels | RGB SHA-256 |
-| ---: | --- | ---: | --- |
-| 1 | light | 16×16 | `70f7946a75877ea608eed61421960e143568e89f59f0d800eb43b705038be378` |
-| 1 | dark | 16×16 | `70f7946a75877ea608eed61421960e143568e89f59f0d800eb43b705038be378` |
-| 2 | light | 32×32 | `114c8029ca6a8c4d258c4cad635d857193a6051bdad005212925e699f91468a7` |
-| 2 | dark | 32×32 | `114c8029ca6a8c4d258c4cad635d857193a6051bdad005212925e699f91468a7` |
+| DPR | Scheme | Crop pixels | RGB SHA-256                                                        |
+| --: | ------ | ----------: | ------------------------------------------------------------------ |
+|   1 | light  |       16×16 | `70f7946a75877ea608eed61421960e143568e89f59f0d800eb43b705038be378` |
+|   1 | dark   |       16×16 | `70f7946a75877ea608eed61421960e143568e89f59f0d800eb43b705038be378` |
+|   2 | light  |       32×32 | `114c8029ca6a8c4d258c4cad635d857193a6051bdad005212925e699f91468a7` |
+|   2 | dark   |       32×32 | `114c8029ca6a8c4d258c4cad635d857193a6051bdad005212925e699f91468a7` |
 
 Ordinary light/dark color-scheme selection does not change the icon; DPR does.
 Forced auto-dark processing remains a separate image-paint effect and should
@@ -260,12 +266,12 @@ be tested only when that browser mode is explicitly enabled.
 
 Playwright accessibility snapshots reported:
 
-| Markup | Snapshot |
-| --- | --- |
+| Markup                                     | Snapshot                 |
+| ------------------------------------------ | ------------------------ |
 | Broken image with `alt="Alternative name"` | `img "Alternative name"` |
-| Missing alt with `title="Title name"` | `img "Title name"` |
-| `alt=""` (auto or sized) | ignored/empty snapshot |
-| Missing alt and title | unnamed `img` |
+| Missing alt with `title="Title name"`      | `img "Title name"`       |
+| `alt=""` (auto or sized)                   | ignored/empty snapshot   |
+| Missing alt and title                      | unnamed `img`            |
 
 The visible text and the SVG accessible name should share a resolved source
 string, but one cannot stand in for the other. A decorative empty-alt image
@@ -280,10 +286,10 @@ Chromium carries separate macOS, Linux, and Windows expected PNGs for both
 dimensions, non-empty/missing/empty alt, and missing/empty/valueless/broken src.
 The pinned 800×600 expected images have distinct raw-RGBA fingerprints:
 
-| Fixture | macOS | Linux | Windows |
-| --- | --- | --- | --- |
+| Fixture       | macOS                                                              | Linux                                                              | Windows                                                            |
+| ------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | broken images | `8c6af157b3607241dfe446979c64c43276f4f06215e329a45a5321ca9cc2f8a7` | `5052e9a3f8ed49fbc550a06b3d168edff58b002427e97e76c45547d3ced7d07f` | `66fb48a4510f051b90b3f34bf00621f8680dbc219f06ef4646720cef170f165c` |
-| empty alt | `92ba6bf676d4ba57049b551abc88c321d3ff2e2f1a09c8948e845228ea5fcb12` | `1093301940a05eae600495652ff95a02f7522ceed9d36f1d8d54f025b303025c` | `422ab8f39f767f9d5018560b7912eb60dd6d1c505a455c12e86e8c93f2f51316` |
+| empty alt     | `92ba6bf676d4ba57049b551abc88c321d3ff2e2f1a09c8948e845228ea5fcb12` | `1093301940a05eae600495652ff95a02f7522ceed9d36f1d8d54f025b303025c` | `422ab8f39f767f9d5018560b7912eb60dd6d1c505a455c12e86e8c93f2f51316` |
 
 These are hashes of decoded RGBA bytes, not PNG file bytes, so metadata alone
 cannot explain the platform differences.
@@ -296,15 +302,15 @@ sharing a macOS baseline.
 
 ## Required ownership boundary
 
-| State/paint | Owner | Required Domotion representation |
-| --- | --- | --- |
-| Load/error/collapse/fallback disposition | Live Chromium DOM/layout | Structured capture fact from the actual UA-shadow state; no `complete && naturalWidth===0` inference as the sole authority. |
-| Author host background, border, padding, outline, shadow, transform, stacking | Existing DOM capture/render | Native SVG vectors. |
-| UA container geometry, silver border, effective-zoom padding, overflow clip | Blink fallback layout, observed through CDP | Captured physical facts emitted as SVG vectors/clip. Do not recreate layout from the host rect. |
-| Broken-image icon | Chromium GRIT bitmap selected by DPR and Skia image paint | Minimal raster `<image>` at the captured icon rect, preserving the live browser's DPR pixels. Never approximate it as vector geometry. |
-| Alternative text | Ordinary Blink inline/HarfBuzz text | The normal Domotion shaped vector-text path using captured hidden-node ranges, font/style, baseline metrics, direction, and writing mode. |
-| Accessibility name/ignored state | HTML/AX semantics | SVG semantic metadata independent from visible text paint. Empty alt stays decorative; title fallback and unnamed image remain distinguishable. |
-| Exact-fact acquisition failure | Capture boundary | Explicit warning and classified terminal raster fallback. Never silently reinstate the fixed mountain/baseline heuristic. |
+| State/paint                                                                   | Owner                                                     | Required Domotion representation                                                                                                                |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Load/error/collapse/fallback disposition                                      | Live Chromium DOM/layout                                  | Structured capture fact from the actual UA-shadow state; no `complete && naturalWidth===0` inference as the sole authority.                     |
+| Author host background, border, padding, outline, shadow, transform, stacking | Existing DOM capture/render                               | Native SVG vectors.                                                                                                                             |
+| UA container geometry, silver border, effective-zoom padding, overflow clip   | Blink fallback layout, observed through CDP               | Captured physical facts emitted as SVG vectors/clip. Do not recreate layout from the host rect.                                                 |
+| Broken-image icon                                                             | Chromium GRIT bitmap selected by DPR and Skia image paint | Minimal raster `<image>` at the captured icon rect, preserving the live browser's DPR pixels. Never approximate it as vector geometry.          |
+| Alternative text                                                              | Ordinary Blink inline/HarfBuzz text                       | The normal Domotion shaped vector-text path using captured hidden-node ranges, font/style, baseline metrics, direction, and writing mode.       |
+| Accessibility name/ignored state                                              | HTML/AX semantics                                         | SVG semantic metadata independent from visible text paint. Empty alt stays decorative; title fallback and unnamed image remain distinguishable. |
+| Exact-fact acquisition failure                                                | Capture boundary                                          | Explicit warning and classified terminal raster fallback. Never silently reinstate the fixed mountain/baseline heuristic.                       |
 
 This is a **hybrid**, not a whole-element raster boundary. Only the source
 bitmap icon is intrinsically raster. A terminal snapshot is acceptable as a

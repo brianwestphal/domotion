@@ -3,11 +3,20 @@ id: "requirements/studio-high-level-authoring"
 title: "High-level scene and story authoring in Domotion Studio"
 kind: "contract"
 status: "current"
-owners: ["studio","ui","ai"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2688","DM-S31XF3"]
-code: ["src/studio/authoring.ts","src/studio/authoring.test.ts","src/studio/client.tsx","src/studio/server.ts","src/studio/server.e2e.test.ts","src/cli/storyboard.ts","src/animation/embed-timeline.ts"]
-aliases: ["docs/251-studio-high-level-authoring.md","doc-251"]
+owners: ["studio", "ui", "ai"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2688", "DM-S31XF3"]
+code:
+  [
+    "src/studio/authoring.ts",
+    "src/studio/authoring.test.ts",
+    "src/studio/client.tsx",
+    "src/studio/server.ts",
+    "src/studio/server.e2e.test.ts",
+    "src/cli/storyboard.ts",
+    "src/animation/embed-timeline.ts",
+  ]
+aliases: ["docs/251-studio-high-level-authoring.md", "doc-251"]
 ---
 
 # High-level scene and story authoring in Domotion Studio

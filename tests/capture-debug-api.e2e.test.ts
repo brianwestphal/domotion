@@ -5,11 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { chromium } from "@playwright/test";
-import {
-  assembleCaptureDebugBundle,
-  captureElementTreeWithDebug,
-  elementTreeToSvg,
-} from "../src/index.js";
+import { assembleCaptureDebugBundle, captureElementTreeWithDebug, elementTreeToSvg } from "../src/index.js";
 
 let server: Server;
 let baseUrl = "";
@@ -76,7 +72,9 @@ describe("programmatic debug capture API (DM-2635)", () => {
         format: "png",
       });
       const rawPng = await sharp(bundle.expectedPng).removeAlpha().raw().toBuffer();
-      expect(rawPng[2], "the debug screenshot must observe the sought 750ms animation frame").toBeGreaterThan(rawPng[0]!);
+      expect(rawPng[2], "the debug screenshot must observe the sought 750ms animation frame").toBeGreaterThan(
+        rawPng[0]!,
+      );
       expect(JSON.parse(bundle.capturedTreeJson)).toEqual(result.tree);
       expect(bundle.capturedTreeJson).toContain("programmatic debug");
       expect(bundle.actualSvg).toMatch(/^<svg[^>]+width="160"[^>]+height="90"/);

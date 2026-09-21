@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const source = (name: string): string =>
-  readFileSync(new URL(name, import.meta.url), "utf8");
+const source = (name: string): string => readFileSync(new URL(name, import.meta.url), "utf8");
 
 describe("native glyph-helper module boundaries", () => {
   it("keeps transport, adapter, outline, and Linux strike ownership separate", () => {

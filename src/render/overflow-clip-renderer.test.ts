@@ -3,41 +3,133 @@ import type { CapturedElement } from "../capture/types.js";
 import { childOverflowClipGeometry, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 
 const BASE_STYLES = {
-  backgroundColor: "rgba(0,0,0,0)", backgroundImage: "none", backgroundSize: "auto",
-  backgroundPosition: "0% 0%", backgroundRepeat: "repeat", backgroundClip: "border-box",
-  backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
-  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
-  color: "rgb(0,0,0)", fontSize: "16px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
-  lineHeight: "20px", letterSpacing: "normal", textAlign: "left", textTransform: "none",
-  textDecoration: "none", textDecorationLine: "none", textDecorationStyle: "solid", textDecorationColor: "rgb(0,0,0)",
-  textDecorationThickness: "auto", textUnderlineOffset: "auto", whiteSpace: "normal", wordSpacing: "0",
-  verticalAlign: "baseline", direction: "ltr", writingMode: "horizontal-tb", textOverflow: "clip",
-  cursor: "auto", caretColor: "auto", outlineColor: "rgb(0,0,0)", outlineWidth: "0", outlineStyle: "none", outlineOffset: "0",
-  boxShadow: "none", opacity: "1", transform: "none", transformOrigin: "50% 50%", visibility: "visible",
-  borderCollapse: "separate", overflowX: "clip", overflowY: "clip", overflowClipMargin: "0px", scrollbarGutter: "auto",
-  scrollWidth: 200, scrollHeight: 200, clientWidth: 100, clientHeight: 60, scrollTop: 0, scrollLeft: 0,
-  objectFit: "fill", objectPosition: "50% 50%", filter: "none", backdropFilter: "none", mixBlendMode: "normal",
-  clipPath: "none", mask: "none", maskImage: "none", maskMode: "match-source", maskSize: "auto",
-  maskPosition: "0% 0%", maskRepeat: "repeat", maskComposite: "add",
-  listStyleType: "disc", listStyleImage: "none", display: "block", listStylePosition: "outside",
-  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
-  borderImageSource: "none", borderImageSlice: "100%", borderImageWidth: "1", borderImageOutset: "0", borderImageRepeat: "stretch",
-  zIndex: "auto", position: "static", float: "none", order: "0", flexDirection: "row", contain: "none",
+  backgroundColor: "rgba(0,0,0,0)",
+  backgroundImage: "none",
+  backgroundSize: "auto",
+  backgroundPosition: "0% 0%",
+  backgroundRepeat: "repeat",
+  backgroundClip: "border-box",
+  backgroundOrigin: "padding-box",
+  backgroundAttachment: "scroll",
+  borderColor: "rgb(0,0,0)",
+  borderWidth: "0",
+  borderRadius: "0",
+  borderTopLeftRadius: "0",
+  borderTopRightRadius: "0",
+  borderBottomRightRadius: "0",
+  borderBottomLeftRadius: "0",
+  borderTopWidth: "0",
+  borderRightWidth: "0",
+  borderBottomWidth: "0",
+  borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)",
+  borderRightColor: "rgb(0,0,0)",
+  borderBottomColor: "rgb(0,0,0)",
+  borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none",
+  borderRightStyle: "none",
+  borderBottomStyle: "none",
+  borderLeftStyle: "none",
+  color: "rgb(0,0,0)",
+  fontSize: "16px",
+  fontFamily: "sans-serif",
+  fontWeight: "400",
+  fontStyle: "normal",
+  lineHeight: "20px",
+  letterSpacing: "normal",
+  textAlign: "left",
+  textTransform: "none",
+  textDecoration: "none",
+  textDecorationLine: "none",
+  textDecorationStyle: "solid",
+  textDecorationColor: "rgb(0,0,0)",
+  textDecorationThickness: "auto",
+  textUnderlineOffset: "auto",
+  whiteSpace: "normal",
+  wordSpacing: "0",
+  verticalAlign: "baseline",
+  direction: "ltr",
+  writingMode: "horizontal-tb",
+  textOverflow: "clip",
+  cursor: "auto",
+  caretColor: "auto",
+  outlineColor: "rgb(0,0,0)",
+  outlineWidth: "0",
+  outlineStyle: "none",
+  outlineOffset: "0",
+  boxShadow: "none",
+  opacity: "1",
+  transform: "none",
+  transformOrigin: "50% 50%",
+  visibility: "visible",
+  borderCollapse: "separate",
+  overflowX: "clip",
+  overflowY: "clip",
+  overflowClipMargin: "0px",
+  scrollbarGutter: "auto",
+  scrollWidth: 200,
+  scrollHeight: 200,
+  clientWidth: 100,
+  clientHeight: 60,
+  scrollTop: 0,
+  scrollLeft: 0,
+  objectFit: "fill",
+  objectPosition: "50% 50%",
+  filter: "none",
+  backdropFilter: "none",
+  mixBlendMode: "normal",
+  clipPath: "none",
+  mask: "none",
+  maskImage: "none",
+  maskMode: "match-source",
+  maskSize: "auto",
+  maskPosition: "0% 0%",
+  maskRepeat: "repeat",
+  maskComposite: "add",
+  listStyleType: "disc",
+  listStyleImage: "none",
+  display: "block",
+  listStylePosition: "outside",
+  paddingTop: "0",
+  paddingRight: "0",
+  paddingBottom: "0",
+  paddingLeft: "0",
+  borderImageSource: "none",
+  borderImageSlice: "100%",
+  borderImageWidth: "1",
+  borderImageOutset: "0",
+  borderImageRepeat: "stretch",
+  zIndex: "auto",
+  position: "static",
+  float: "none",
+  order: "0",
+  flexDirection: "row",
+  contain: "none",
 } as unknown as CapturedElement["styles"];
 
-function tree(style: Partial<CapturedElement["styles"]> = {}, rect = { x: 10.4, y: 20.6, width: 100.3, height: 60.4 }): CapturedElement[] {
+function tree(
+  style: Partial<CapturedElement["styles"]> = {},
+  rect = { x: 10.4, y: 20.6, width: 100.3, height: 60.4 },
+): CapturedElement[] {
   const child: CapturedElement = {
-    tag: "div", text: "", x: rect.x - 30, y: rect.y - 30, width: rect.width + 60, height: rect.height + 60, children: [],
+    tag: "div",
+    text: "",
+    x: rect.x - 30,
+    y: rect.y - 30,
+    width: rect.width + 60,
+    height: rect.height + 60,
+    children: [],
     styles: { ...BASE_STYLES, overflowX: "visible", overflowY: "visible", backgroundColor: "rgb(255,0,0)" },
   };
-  return [{
-    tag: "div", text: "", ...rect, children: [child],
-    styles: { ...BASE_STYLES, ...style } as CapturedElement["styles"],
-  }];
+  return [
+    {
+      tag: "div",
+      text: "",
+      ...rect,
+      children: [child],
+      styles: { ...BASE_STYLES, ...style } as CapturedElement["styles"],
+    },
+  ];
 }
 
 function childClip(svg: string): string {
@@ -52,26 +144,47 @@ function rectGeometry(markup: string): { x: number; y: number; width: number; he
 }
 
 const ASYMMETRIC_BOX = {
-  borderTopWidth: "2.25px", borderRightWidth: "3.5px", borderBottomWidth: "4.25px", borderLeftWidth: "1.25px",
-  borderTopStyle: "solid", borderRightStyle: "solid", borderBottomStyle: "solid", borderLeftStyle: "solid",
-  paddingTop: "9px", paddingRight: "11px", paddingBottom: "13px", paddingLeft: "7px",
+  borderTopWidth: "2.25px",
+  borderRightWidth: "3.5px",
+  borderBottomWidth: "4.25px",
+  borderLeftWidth: "1.25px",
+  borderTopStyle: "solid",
+  borderRightStyle: "solid",
+  borderBottomStyle: "solid",
+  borderLeftStyle: "solid",
+  paddingTop: "9px",
+  paddingRight: "11px",
+  paddingBottom: "13px",
+  paddingLeft: "7px",
 } satisfies Partial<CapturedElement["styles"]>;
 
 describe("overflow-clip-margin renderer wiring (DM-2419)", () => {
   it("exposes the same rounded padding-box geometry used by compound renderers", () => {
     const [element] = tree({
-      overflowX: "hidden", overflowY: "hidden",
-      borderTopWidth: "4px", borderRightWidth: "4px", borderBottomWidth: "4px", borderLeftWidth: "4px",
-      borderTopLeftRadius: "20px", borderTopRightRadius: "20px",
-      borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px",
+      overflowX: "hidden",
+      overflowY: "hidden",
+      borderTopWidth: "4px",
+      borderRightWidth: "4px",
+      borderBottomWidth: "4px",
+      borderLeftWidth: "4px",
+      borderTopLeftRadius: "20px",
+      borderTopRightRadius: "20px",
+      borderBottomRightRadius: "20px",
+      borderBottomLeftRadius: "20px",
     });
     const geometry = childOverflowClipGeometry(element)!;
     expect({ x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height }).toEqual({
-      x: 14.4, y: 24.6, width: 92.3, height: 52.4,
+      x: 14.4,
+      y: 24.6,
+      width: 92.3,
+      height: 52.4,
     });
     expect(geometry.corners).toMatchObject({
-      tl: { h: 16, v: 16 }, tr: { h: 16, v: 16 },
-      br: { h: 16, v: 16 }, bl: { h: 16, v: 16 }, uniform: true,
+      tl: { h: 16, v: 16 },
+      tr: { h: 16, v: 16 },
+      br: { h: 16, v: 16 },
+      bl: { h: 16, v: 16 },
+      uniform: true,
     });
   });
 
@@ -85,11 +198,20 @@ describe("overflow-clip-margin renderer wiring (DM-2419)", () => {
   });
 
   it("emits the corrected elliptical contour instead of a rectangular extension", () => {
-    const svg = elementTreeToSvgInner(tree({
-      overflowClipMargin: "32px",
-      borderTopLeftRadius: "4px 8px", borderTopRightRadius: "12px 16px",
-      borderBottomRightRadius: "64px 0px", borderBottomLeftRadius: "0px 32px",
-    }, { x: 0, y: 0, width: 200, height: 200 }), 300, 300);
+    const svg = elementTreeToSvgInner(
+      tree(
+        {
+          overflowClipMargin: "32px",
+          borderTopLeftRadius: "4px 8px",
+          borderTopRightRadius: "12px 16px",
+          borderBottomRightRadius: "64px 0px",
+          borderBottomLeftRadius: "0px 32px",
+        },
+        { x: 0, y: 0, width: 200, height: 200 },
+      ),
+      300,
+      300,
+    );
     const markup = childClip(svg);
     expect(markup).toContain("<path");
     expect(markup).toContain("A14.6,26.5");
@@ -98,16 +220,51 @@ describe("overflow-clip-margin renderer wiring (DM-2419)", () => {
   });
 
   it("keeps one-axis visible+clip and scroll-container modes unchanged", () => {
-    const both = rectGeometry(childClip(elementTreeToSvgInner(tree({ ...ASYMMETRIC_BOX, overflowClipMargin: "5px" }), 300, 200)));
-    const oneAxis = rectGeometry(childClip(elementTreeToSvgInner(tree({
-      ...ASYMMETRIC_BOX, overflowX: "visible", overflowY: "clip", overflowClipMargin: "5px",
-    }), 300, 200)));
-    const hidden = rectGeometry(childClip(elementTreeToSvgInner(tree({
-      ...ASYMMETRIC_BOX, overflowX: "hidden", overflowY: "hidden", overflowClipMargin: "5px",
-    }), 300, 200)));
-    const auto = rectGeometry(childClip(elementTreeToSvgInner(tree({
-      ...ASYMMETRIC_BOX, overflowX: "auto", overflowY: "auto", overflowClipMargin: "5px",
-    }), 300, 200)));
+    const both = rectGeometry(
+      childClip(elementTreeToSvgInner(tree({ ...ASYMMETRIC_BOX, overflowClipMargin: "5px" }), 300, 200)),
+    );
+    const oneAxis = rectGeometry(
+      childClip(
+        elementTreeToSvgInner(
+          tree({
+            ...ASYMMETRIC_BOX,
+            overflowX: "visible",
+            overflowY: "clip",
+            overflowClipMargin: "5px",
+          }),
+          300,
+          200,
+        ),
+      ),
+    );
+    const hidden = rectGeometry(
+      childClip(
+        elementTreeToSvgInner(
+          tree({
+            ...ASYMMETRIC_BOX,
+            overflowX: "hidden",
+            overflowY: "hidden",
+            overflowClipMargin: "5px",
+          }),
+          300,
+          200,
+        ),
+      ),
+    );
+    const auto = rectGeometry(
+      childClip(
+        elementTreeToSvgInner(
+          tree({
+            ...ASYMMETRIC_BOX,
+            overflowX: "auto",
+            overflowY: "auto",
+            overflowClipMargin: "5px",
+          }),
+          300,
+          200,
+        ),
+      ),
+    );
     expect(both).toEqual({ x: 7, y: 18, width: 105, height: 64 });
     expect(oneAxis).toEqual({ x: -99989.6, y: 22.9, width: 200100.3, height: 53.9 });
     expect(hidden).toEqual({ x: 11.7, y: 22.9, width: 95.5, height: 53.9 });
@@ -115,20 +272,37 @@ describe("overflow-clip-margin renderer wiring (DM-2419)", () => {
   });
 
   it("treats an invalid negative length as the unchanged padding clip", () => {
-    const negative = rectGeometry(childClip(elementTreeToSvgInner(tree({
-      ...ASYMMETRIC_BOX, overflowClipMargin: "-4px",
-    }), 300, 200)));
+    const negative = rectGeometry(
+      childClip(
+        elementTreeToSvgInner(
+          tree({
+            ...ASYMMETRIC_BOX,
+            overflowClipMargin: "-4px",
+          }),
+          300,
+          200,
+        ),
+      ),
+    );
     expect(negative).toEqual({ x: 11.7, y: 22.9, width: 95.5, height: 53.9 });
   });
 
   it("uses the both-axis paint-containment edge without unbounding an authored visible axis", () => {
-    const geometry = rectGeometry(childClip(elementTreeToSvgInner(tree({
-      ...ASYMMETRIC_BOX,
-      overflowX: "visible",
-      overflowY: "clip",
-      contain: "paint",
-      overflowClipMargin: "5px",
-    }), 300, 200)));
+    const geometry = rectGeometry(
+      childClip(
+        elementTreeToSvgInner(
+          tree({
+            ...ASYMMETRIC_BOX,
+            overflowX: "visible",
+            overflowY: "clip",
+            contain: "paint",
+            overflowClipMargin: "5px",
+          }),
+          300,
+          200,
+        ),
+      ),
+    );
     expect(geometry).toEqual({ x: 7, y: 18, width: 105, height: 64 });
   });
 

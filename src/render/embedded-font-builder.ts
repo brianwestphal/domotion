@@ -39,7 +39,15 @@ import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { shearPathCommands } from "./embolden-outline.js";
-import { appendGlyphCopy, getHbSubsetAttemptDiagnostics, hbSubsetRetainGids, injectPuaCmap, resetHbSubsetAttemptDiagnostics, sfntHasSubsettableOutlines, type HbSubsetAttemptDiagnostic } from "./hb-subset.js";
+import {
+  appendGlyphCopy,
+  getHbSubsetAttemptDiagnostics,
+  hbSubsetRetainGids,
+  injectPuaCmap,
+  resetHbSubsetAttemptDiagnostics,
+  sfntHasSubsettableOutlines,
+  type HbSubsetAttemptDiagnostic,
+} from "./hb-subset.js";
 
 /** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
  *  default. Set DOMOTION_HINTED_SUBSET=0 to use the svg2ttf-only control arm.
@@ -219,8 +227,8 @@ const builderRegistry = new Map<string, BuilderEntry>();
 let builderIdCounter = 0;
 
 /** PUA-A block: U+E000..U+F8FF (6400 codepoints). Plenty for typical SVGs. */
-const PUA_START = 0xE000;
-const PUA_END = 0xF8FF;
+const PUA_START = 0xe000;
+const PUA_END = 0xf8ff;
 
 /**
  * Reset per-composition state. Call alongside `clearEmbeddedFonts` at the
@@ -288,22 +296,28 @@ function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
     puaForGlyphId: new Map(entry.puaForGlyphId),
     hintedSourceDisqualificationReasons: new Set(entry.hintedSourceDisqualificationReasons),
     runIds: new Set(entry.runIds),
-    buildDiagnostic: entry.buildDiagnostic == null ? null : {
-      ...entry.buildDiagnostic,
-      variationAxes: entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
-      hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
-      retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
-    },
+    buildDiagnostic:
+      entry.buildDiagnostic == null
+        ? null
+        : {
+            ...entry.buildDiagnostic,
+            variationAxes:
+              entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
+            hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
+            retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
+          },
     subsetAttempt: entry.subsetAttempt == null ? null : structuredClone(entry.subsetAttempt),
     subsetAttempts: structuredClone(entry.subsetAttempts),
-    hintedSource: entry.hintedSource == null
-      ? null
-      : {
-        ...entry.hintedSource,
-        variationAxes: entry.hintedSource.variationAxes == null
-          ? entry.hintedSource.variationAxes
-          : { ...entry.hintedSource.variationAxes },
-      },
+    hintedSource:
+      entry.hintedSource == null
+        ? null
+        : {
+            ...entry.hintedSource,
+            variationAxes:
+              entry.hintedSource.variationAxes == null
+                ? entry.hintedSource.variationAxes
+                : { ...entry.hintedSource.variationAxes },
+          },
   };
 }
 
@@ -364,7 +378,14 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number; shearFactor?: number; hintedSource?: HintedSource | null; targetStrike?: boolean; runToken?: object } = { italic: false, weight: 400 },
+  variant: {
+    italic: boolean;
+    weight: number;
+    shearFactor?: number;
+    hintedSource?: HintedSource | null;
+    targetStrike?: boolean;
+    runToken?: object;
+  } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -409,13 +430,19 @@ export function trackGlyphInEmbedFont(
   if (isSynthetic) entry.hintedSourceDisqualificationReasons.add("synthetic");
   if (variant.targetStrike) entry.hintedSourceDisqualificationReasons.add("target-strike");
   if (glyphSource == null || entry.hintedSource == null) entry.hintedSourceDisqualificationReasons.add("null-source");
-  if ((glyphSource != null && glyphSource.faceIndex == null)
-      || (entry.hintedSource != null && entry.hintedSource.faceIndex == null)) {
+  if (
+    (glyphSource != null && glyphSource.faceIndex == null) ||
+    (entry.hintedSource != null && entry.hintedSource.faceIndex == null)
+  ) {
     entry.hintedSourceDisqualificationReasons.add("null-face-index");
   }
-  if (glyphSource != null && entry.hintedSource != null
-      && (glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex
-        || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes))) {
+  if (
+    glyphSource != null &&
+    entry.hintedSource != null &&
+    (glyphSource.path !== entry.hintedSource.path ||
+      glyphSource.faceIndex !== entry.hintedSource.faceIndex ||
+      !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes))
+  ) {
     entry.hintedSourceDisqualificationReasons.add("source-axis-disagreement");
   }
   entry.hintedSourceDisqualified = entry.hintedSourceDisqualificationReasons.size > 0;
@@ -449,7 +476,10 @@ export function trackGlyphInEmbedFont(
 
 /** Same variable-axis location? Treats null / undefined / {} interchangeably
  *  only when both sides are empty — a pinned {wght:700} never matches {}. */
-function sameAxisLocation(a: Record<string, number> | null | undefined, b: Record<string, number> | null | undefined): boolean {
+function sameAxisLocation(
+  a: Record<string, number> | null | undefined,
+  b: Record<string, number> | null | undefined,
+): boolean {
   const ka = a != null ? Object.keys(a) : [];
   const kb = b != null ? Object.keys(b) : [];
   if (ka.length !== kb.length) return false;
@@ -470,12 +500,23 @@ function pathCommandsToSvgPath(pathCommands: PathCommand[]): string {
   for (const cmd of pathCommands) {
     const a = cmd.args;
     switch (cmd.command) {
-      case "moveTo":           parts.push(`M${a[0]} ${a[1]}`); break;
-      case "lineTo":           parts.push(`L${a[0]} ${a[1]}`); break;
-      case "quadraticCurveTo": parts.push(`Q${a[0]} ${a[1]} ${a[2]} ${a[3]}`); break;
-      case "bezierCurveTo":    parts.push(`C${a[0]} ${a[1]} ${a[2]} ${a[3]} ${a[4]} ${a[5]}`); break;
-      case "closePath":        parts.push("Z"); break;
-      default: throw new Error(`embedded-font-builder: unknown glyph path command "${(cmd as { command: string }).command}"`);
+      case "moveTo":
+        parts.push(`M${a[0]} ${a[1]}`);
+        break;
+      case "lineTo":
+        parts.push(`L${a[0]} ${a[1]}`);
+        break;
+      case "quadraticCurveTo":
+        parts.push(`Q${a[0]} ${a[1]} ${a[2]} ${a[3]}`);
+        break;
+      case "bezierCurveTo":
+        parts.push(`C${a[0]} ${a[1]} ${a[2]} ${a[3]} ${a[4]} ${a[5]}`);
+        break;
+      case "closePath":
+        parts.push("Z");
+        break;
+      default:
+        throw new Error(`embedded-font-builder: unknown glyph path command "${(cmd as { command: string }).command}"`);
     }
   }
   return parts.join("");
@@ -508,9 +549,9 @@ function determinizeFontTimestamps(bytes: Buffer): void {
     const headOff = bytes.readUInt32BE(rec + 8);
     // head layout: …, checkSumAdjustment@8, …, created@20 (8), modified@28 (8).
     if (headOff + 36 > bytes.length) return;
-    bytes.writeUInt32BE(0, rec + 4);            // directory per-table head checksum
-    bytes.writeUInt32BE(0, headOff + 8);        // head.checkSumAdjustment
-    bytes.fill(0, headOff + 20, headOff + 36);  // head.created + head.modified
+    bytes.writeUInt32BE(0, rec + 4); // directory per-table head checksum
+    bytes.writeUInt32BE(0, headOff + 8); // head.checkSumAdjustment
+    bytes.fill(0, headOff + 20, headOff + 36); // head.created + head.modified
     return;
   }
 }
@@ -571,8 +612,12 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
   // applies the same gvar deltas fontkit shaped with, and hinting survives its
   // instancer. Any failure falls through to the proven svg2ttf path so a bad
   // font never breaks a render.
-  if (hintedSubsetEnabled() && entry.hintedSource != null && entry.hintedSource.faceIndex != null
-      && !entry.hintedSourceDisqualified) {
+  if (
+    hintedSubsetEnabled() &&
+    entry.hintedSource != null &&
+    entry.hintedSource.faceIndex != null &&
+    !entry.hintedSourceDisqualified
+  ) {
     const srcFaceIndex = entry.hintedSource.faceIndex;
     const attemptStart = getHbSubsetAttemptDiagnostics().length;
     try {
@@ -600,8 +645,13 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         throw new Error("source has no subsettable outlines (memoized)");
       }
       const bytes = readFileSync(entry.hintedSource.path);
-      if (!rememberHintedOutlineGuard(entry.hintedSource.path, srcFaceIndex,
-                                      sfntHasSubsettableOutlines(bytes, srcFaceIndex))) {
+      if (
+        !rememberHintedOutlineGuard(
+          entry.hintedSource.path,
+          srcFaceIndex,
+          sfntHasSubsettableOutlines(bytes, srcFaceIndex),
+        )
+      ) {
         throw new Error("source has no subsettable outlines");
       }
       {
@@ -632,7 +682,9 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         }
         const out = injectPuaCmap(subset, puaToGid, { weight: entry.weightMin, italic: entry.italic });
         if (process.env.DOMOTION_HINTED_DEBUG === "1") {
-          console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${srcFaceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
+          console.warn(
+            `[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${srcFaceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`,
+          );
         }
         entry.buildDiagnostic = diagnosticFor(entry, instanceKey, "hb-subset", sfntTableTags(out), out);
         return out;
@@ -645,7 +697,10 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
       // A guard/subset failure silently falls back to the proven svg2ttf path —
       // a bad font never breaks a render. Opt-in visibility via the debug env.
       if (process.env.DOMOTION_HINTED_DEBUG === "1") {
-        console.warn(`[hinted-debug] ${entry.cssFamily}: hb-subset failed for ${entry.hintedSource.path}; falling back to svg2ttf:`, (e as Error).message);
+        console.warn(
+          `[hinted-debug] ${entry.cssFamily}: hb-subset failed for ${entry.hintedSource.path}; falling back to svg2ttf:`,
+          (e as Error).message,
+        );
       }
     }
   }
@@ -699,8 +754,12 @@ function diagnosticFor(
     variationAxes: entry.hintedSource?.variationAxes ?? null,
     inputUnitsPerEm: entry.unitsPerEm,
     sourcePostscriptName: entry.hintedSource?.postscriptName ?? null,
-    puaMappingSha256: createHash("sha256").update(JSON.stringify([...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0]))).digest("hex"),
-    outputGlyphs: [...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0]).map(([gid, pua]) => ({ gid, pua, advance: entry.glyphs.get(gid)?.advanceWidth ?? 0 })),
+    puaMappingSha256: createHash("sha256")
+      .update(JSON.stringify([...entry.puaForGlyphId.entries()].sort((a, b) => a[0] - b[0])))
+      .digest("hex"),
+    outputGlyphs: [...entry.puaForGlyphId.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([gid, pua]) => ({ gid, pua, advance: entry.glyphs.get(gid)?.advanceWidth ?? 0 })),
     subsetAttempt: entry.subsetAttempt,
     subsetAttempts: entry.subsetAttempts,
     selectedBuilder,
@@ -721,17 +780,25 @@ function diagnosticFor(
 
 /** Diagnostics for the font faces emitted by the most recent CSS build. */
 export function getEmbeddedFontBuildDiagnostics(): EmbeddedFontBuildDiagnostic[] {
-  return [...builderRegistry.values()].flatMap((entry) => entry.buildDiagnostic == null ? [] : [{
-    ...entry.buildDiagnostic,
-    variationAxes: entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
-    hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
-    retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
-    retainedHintTableTags: [...entry.buildDiagnostic.retainedHintTableTags],
-    finalRepresentation: { ...entry.buildDiagnostic.finalRepresentation },
-    outputGlyphs: entry.buildDiagnostic.outputGlyphs?.map((glyph) => ({ ...glyph })),
-    subsetAttempt: entry.buildDiagnostic.subsetAttempt == null ? null : structuredClone(entry.buildDiagnostic.subsetAttempt),
-    subsetAttempts: structuredClone(entry.buildDiagnostic.subsetAttempts ?? []),
-  }]);
+  return [...builderRegistry.values()].flatMap((entry) =>
+    entry.buildDiagnostic == null
+      ? []
+      : [
+          {
+            ...entry.buildDiagnostic,
+            variationAxes:
+              entry.buildDiagnostic.variationAxes == null ? null : { ...entry.buildDiagnostic.variationAxes },
+            hintedSourceDisqualifiedReasons: [...entry.buildDiagnostic.hintedSourceDisqualifiedReasons],
+            retainedTableTags: [...entry.buildDiagnostic.retainedTableTags],
+            retainedHintTableTags: [...entry.buildDiagnostic.retainedHintTableTags],
+            finalRepresentation: { ...entry.buildDiagnostic.finalRepresentation },
+            outputGlyphs: entry.buildDiagnostic.outputGlyphs?.map((glyph) => ({ ...glyph })),
+            subsetAttempt:
+              entry.buildDiagnostic.subsetAttempt == null ? null : structuredClone(entry.buildDiagnostic.subsetAttempt),
+            subsetAttempts: structuredClone(entry.buildDiagnostic.subsetAttempts ?? []),
+          },
+        ],
+  );
 }
 
 /**
@@ -753,16 +820,19 @@ export function getBuiltEmbeddedFontFaceCss(): string {
     // italic / faux bold on top of glyphs whose italic / bold shape is
     // already baked into the custom TTF.
     const styleDesc = entry.italic ? "italic" : "normal";
-    const weightDesc = entry.weightMin === entry.weightMax
-      ? `${entry.weightMin}`
-      : `${entry.weightMin} ${entry.weightMax}`;
-    rules.push(`@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${weightDesc}; src: url("data:font/ttf;base64,${b64}"); }`);
+    const weightDesc =
+      entry.weightMin === entry.weightMax ? `${entry.weightMin}` : `${entry.weightMin} ${entry.weightMax}`;
+    rules.push(
+      `@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${weightDesc}; src: url("data:font/ttf;base64,${b64}"); }`,
+    );
   }
   return rules.join("\n");
 }
 
 /** Test-only: inspect builder state for assertions. */
-export function _builderRegistrySize(): number { return builderRegistry.size; }
+export function _builderRegistrySize(): number {
+  return builderRegistry.size;
+}
 export function _builderGlyphsFor(instanceKey: string): number {
   return builderRegistry.get(instanceKey)?.glyphs.size ?? 0;
 }

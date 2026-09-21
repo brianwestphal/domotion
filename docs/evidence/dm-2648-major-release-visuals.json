@@ -13,19 +13,14 @@
       "commit": "e6a418288144cf0b73511c2279c4d03036f3442c",
       "artifactCommit": "2ea045769b09baa24207056eedcad8bc07dc587b",
       "artifactCommitMeaning": "Latest external commit containing the selected asset paths; refreshed bytes were regenerated from commit e6a418288144cf0b73511c2279c4d03036f3442c and are pinned by SHA-256 below.",
-      "commands": [
-        "npm run demo:capture",
-        "npm run demo:capture-stills -- --only risk-mode"
-      ]
+      "commands": ["npm run demo:capture", "npm run demo:capture-stills -- --only risk-mode"]
     },
     {
       "name": "Hot Sheet",
       "commit": "7788b8365369670d34ed555b3c0d7119904b8aaf",
       "artifactCommit": "d26c09b81309a61489904bc00f93225f74d143d4",
       "artifactCommitMeaning": "Latest external commit containing the selected asset paths; refreshed bytes were regenerated from commit 7788b8365369670d34ed555b3c0d7119904b8aaf and are pinned by SHA-256 below.",
-      "commands": [
-        "npx tsx scripts/capture-demos.ts 1 4 8"
-      ],
+      "commands": ["npx tsx scripts/capture-demos.ts 1 4 8"],
       "normalization": "Trailing whitespace only was removed from the committed copies."
     }
   ],
@@ -90,16 +85,8 @@
     ]
   },
   "siteRoutes": {
-    "desktop": [
-      "/domotion/",
-      "/domotion/showcase/",
-      "/domotion/usage/studio/"
-    ],
-    "narrow": [
-      "/domotion/",
-      "/domotion/showcase/",
-      "/domotion/usage/studio/"
-    ],
+    "desktop": ["/domotion/", "/domotion/showcase/", "/domotion/usage/studio/"],
+    "narrow": ["/domotion/", "/domotion/showcase/", "/domotion/usage/studio/"],
     "status": "passed",
     "builtDemoAssetCount": 109,
     "resolvedReferenceCount": 69,

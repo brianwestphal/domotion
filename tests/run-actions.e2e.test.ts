@@ -79,9 +79,7 @@ describeBrowser("runActions public primitive (DM-1140)", () => {
     const page = await browser.newPage();
     try {
       await page.setContent(HTML, { waitUntil: "load" });
-      await expect(
-        runActions(page, [{ type: "setText", selector: "#nope", value: "x" }]),
-      ).rejects.toThrow();
+      await expect(runActions(page, [{ type: "setText", selector: "#nope", value: "x" }])).rejects.toThrow();
     } finally {
       await page.close();
     }
@@ -92,7 +90,10 @@ describeBrowser("runActions public primitive (DM-1140)", () => {
     const page = await browser.newPage();
     try {
       await page.setContent(
-        HTML.replace("<button id=\"btn\">Go</button>", "<button id=\"btn\" onclick=\"this.textContent='Clicked'\">Go</button>"),
+        HTML.replace(
+          '<button id="btn">Go</button>',
+          '<button id="btn" onclick="this.textContent=\'Clicked\'">Go</button>',
+        ),
         { waitUntil: "load" },
       );
       const logs: string[] = [];

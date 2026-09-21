@@ -5,9 +5,23 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["SK-1094","SK-1113","SK-1125","SK-1138","SK-1191","SK-1192","SK-1193","SK-1222","SK-1223","SK-1224","SK-1225","SK-1226"]
-code: ["src/capture/pseudo-style-cdp.ts","src/capture/script/","src/render/form-controls.ts"]
-aliases: ["docs/04-input-pseudos.md","doc-04"]
+tickets:
+  [
+    "SK-1094",
+    "SK-1113",
+    "SK-1125",
+    "SK-1138",
+    "SK-1191",
+    "SK-1192",
+    "SK-1193",
+    "SK-1222",
+    "SK-1223",
+    "SK-1224",
+    "SK-1225",
+    "SK-1226",
+  ]
+code: ["src/capture/pseudo-style-cdp.ts", "src/capture/script/", "src/render/form-controls.ts"]
+aliases: ["docs/04-input-pseudos.md", "doc-04"]
 ---
 
 # Domotion: custom-styled input pseudos

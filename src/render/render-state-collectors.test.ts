@@ -10,9 +10,13 @@ import {
   fragmentDefinitionKey,
 } from "./render-state-collectors.js";
 
-const element = (tag: string, children: CapturedElement[] = [], extra: Record<string, unknown> = {}): CapturedElement => ({
-  tag, children, styles: {}, ...extra,
-}) as unknown as CapturedElement;
+const element = (tag: string, children: CapturedElement[] = [], extra: Record<string, unknown> = {}): CapturedElement =>
+  ({
+    tag,
+    children,
+    styles: {},
+    ...extra,
+  }) as unknown as CapturedElement;
 
 describe("SVG render-state collectors", () => {
   it("collects parent ownership without crossing render sessions", () => {
@@ -26,7 +30,14 @@ describe("SVG render-state collectors", () => {
   });
 
   it("deduplicates fragment resources by tree scope and first ownership", () => {
-    const maskA = { id: "m", scope: 1, outerHTML: "<mask id='a'/>", maskUnits: "userSpaceOnUse", maskContentUnits: "userSpaceOnUse", maskType: "alpha" };
+    const maskA = {
+      id: "m",
+      scope: 1,
+      outerHTML: "<mask id='a'/>",
+      maskUnits: "userSpaceOnUse",
+      maskContentUnits: "userSpaceOnUse",
+      maskType: "alpha",
+    };
     const maskB = { ...maskA, outerHTML: "<mask id='b'/>" };
     const clip = { id: "c", scope: 2, outerHTML: "<clipPath id='c'/>", clipPathUnits: "userSpaceOnUse" };
     const filterA = { id: "f", outerHTML: "<filter id='a'/>" };
@@ -46,15 +57,24 @@ describe("SVG render-state collectors", () => {
 
   it("keeps collapsed-border consensus scoped to each table", () => {
     const target = element("td", [], {
-      x: 1, y: 1, width: 10, height: 10,
+      x: 1,
+      y: 1,
+      width: 10,
+      height: 10,
       styles: { borderCollapse: "collapse" },
     });
     const voterA = element("td", [], {
-      x: 0, y: 0, width: 10, height: 10,
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
       styles: { borderCollapse: "collapse" },
     });
     const voterB = element("td", [], {
-      x: 0, y: 20, width: 10, height: 10,
+      x: 0,
+      y: 20,
+      width: 10,
+      height: 10,
       styles: { borderCollapse: "collapse" },
     });
     const tableA = element("table", [target]);

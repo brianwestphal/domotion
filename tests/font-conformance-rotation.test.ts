@@ -4,8 +4,12 @@ import { rotationForRevision } from "../tools/font-conformance-rotation.mjs";
 describe("font conformance revision rotation", () => {
   it("is deterministic and exposes a representative stack focus", () => {
     expect(rotationForRevision("0011223344556677", 1)).toEqual({
-      sampleByte: "01", stackBucket: "weight-style", stackBucketIndex: 1,
-      stackBucketTotal: 8, revision: "0011223344556677", ordinal: 1,
+      sampleByte: "01",
+      stackBucket: "weight-style",
+      stackBucketIndex: 1,
+      stackBucketTotal: 8,
+      revision: "0011223344556677",
+      ordinal: 1,
     });
   });
 

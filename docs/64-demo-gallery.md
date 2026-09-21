@@ -5,9 +5,24 @@ kind: "archive"
 status: "superseded"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1308","DM-1384","DM-1414"]
-code: ["examples/animate/README.md","examples/animate/before-after-refactor/","examples/animate/form-fill/","examples/animate/scroll-feed/","examples/animate/scroll-landing/","examples/animate/tab-switcher/","examples/animate/typing-search/","examples/output/terminal-onboarding.svg","examples/terminal-onboarding.ts","site/scripts/build-demos.mjs","site/src/content/docs/","site/src/content/docs/showcase.mdx","tests/animate-examples.tsx"]
-aliases: ["docs/64-demo-gallery.md","doc-64"]
+tickets: ["DM-1308", "DM-1384", "DM-1414"]
+code:
+  [
+    "examples/animate/README.md",
+    "examples/animate/before-after-refactor/",
+    "examples/animate/form-fill/",
+    "examples/animate/scroll-feed/",
+    "examples/animate/scroll-landing/",
+    "examples/animate/tab-switcher/",
+    "examples/animate/typing-search/",
+    "examples/output/terminal-onboarding.svg",
+    "examples/terminal-onboarding.ts",
+    "site/scripts/build-demos.mjs",
+    "site/src/content/docs/",
+    "site/src/content/docs/showcase.mdx",
+    "tests/animate-examples.tsx",
+  ]
+aliases: ["docs/64-demo-gallery.md", "doc-64"]
 ---
 
 # 64 — Demo gallery
@@ -41,15 +56,15 @@ sell what Domotion does, simplest to fanciest.
 
 The still-current animated demos and their headline capabilities:
 
-| Tier | Demo | Headline capability |
-|---|---|---|
-| animated, simple | Tab switcher | `actions` click-through + crossfade |
-| animated, simple | Typing search | a `typing` overlay |
-| animated, simple | Before / after refactor | `push-left` transition across two files |
-| animated, fancy | Terminal onboarding | a real `domotion term` cast (clone → install → configure → run) in window chrome |
-| animated, fancy | Form fill flow | a real interaction recorded entirely via `actions` |
-| animated, fancy | Scroll-through page | `--scroll` capture composed with a `scroll` transition |
-| transitions | Transition tour | crossfade → push-left → scroll → crossfade chained in one SVG (DM-1414) |
+| Tier             | Demo                    | Headline capability                                                              |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| animated, simple | Tab switcher            | `actions` click-through + crossfade                                              |
+| animated, simple | Typing search           | a `typing` overlay                                                               |
+| animated, simple | Before / after refactor | `push-left` transition across two files                                          |
+| animated, fancy  | Terminal onboarding     | a real `domotion term` cast (clone → install → configure → run) in window chrome |
+| animated, fancy  | Form fill flow          | a real interaction recorded entirely via `actions`                               |
+| animated, fancy  | Scroll-through page     | `--scroll` capture composed with a `scroll` transition                           |
+| transitions      | Transition tour         | crossfade → push-left → scroll → crossfade chained in one SVG (DM-1414)          |
 
 ## Tier 1 (single-capture) — retired
 
@@ -110,9 +125,9 @@ regression suite and surfaced on the site.
 - **Demonstrates:** a `push-left` transition between two semantically-distinct
   code cards (a verbose loop → its `filter`/`reduce` refactor).
 - **Both frames carry `push-left`.** A push-left transition is a coordinated
-  pair: the outgoing frame slides off to the left *while* the incoming frame
+  pair: the outgoing frame slides off to the left _while_ the incoming frame
   slides in from the right. (As of DM-1414 a frame's entrance is composed from
-  the *previous* frame's transition, so mixed-type chains also compose — see the
+  the _previous_ frame's transition, so mixed-type chains also compose — see the
   transition-tour demo — but a same-type pair like this is the simplest case.)
   `after` is the last frame and holds solid to the end via the last-frame hold
   (the slide-out is suppressed for the final frame unless `loopFade` is set).
@@ -126,7 +141,7 @@ terminal-onboarding demo is instead a runnable example script
 
 ### Terminal onboarding
 
-- **Source:** `examples/terminal-onboarding.ts` (a runnable example *script*, not
+- **Source:** `examples/terminal-onboarding.ts` (a runnable example _script_, not
   an animate config — run with `npx tsx examples/terminal-onboarding.ts`)
 - **Output:** `examples/output/terminal-onboarding.svg`
 - **Demonstrates:** a real `domotion term` capture (doc 67). One continuous
@@ -149,7 +164,7 @@ terminal-onboarding demo is instead a runnable example script
 - **Output:** `form-fill.svg` (560×480, 4 frames)
 - **Demonstrates:** a signup form filled out with **simulated typing**. Each
   frame `continue`s the live page, `focus`es the next field, and a `typing`
-  overlay (with a caret) types into it; the *following* frame `fill`s that field
+  overlay (with a caret) types into it; the _following_ frame `fill`s that field
   for real so its value persists while the next field types. The last frame
   clicks submit and a small `wait` lets the success banner render.
 - **Why a typing overlay + `fill` handoff?** `fill` alone sets a value
@@ -173,7 +188,7 @@ terminal-onboarding demo is instead a runnable example script
 - **Note:** the nav is intentionally opaque (no `backdrop-filter`) — a
   translucent sticky header lets scrolled content show through in the SVG,
   since the frosted-backdrop blur isn't reproduced (see `docs/19-frosted-
-  backdrop-fallback.md`). A complementary social-feed scroll lives in
+backdrop-fallback.md`). A complementary social-feed scroll lives in
   `examples/animate/scroll-feed/`.
 
 See `docs/08-animation-model.md` and `docs/43-declarative-animate-config.md`

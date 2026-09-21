@@ -1,4 +1,5 @@
-export const BRITISH_SPELLINGS = /\b(?:colou(?:r|rs|red|ring)|behaviou(?:r|rs|ral)|rasteris(?:e|ed|es|ing)|synthesis(?:e|ed|es|ing)|synthes(?:ise|ised|ises|ising)|centr(?:e|es|ed|ing)|honou(?:r|rs|red|ring)|optimis(?:e|ed|es|ing)|defences?|labelled|labelling|neighbou(?:r|rs|red|ring)|normalis(?:e|ed|es|ing)|serialis(?:e|ed|es|ing)|analys(?:e|ed|es|ing)|organis(?:e|ed|es|ing|ation|ations)|grey)\b/giu;
+export const BRITISH_SPELLINGS =
+  /\b(?:colou(?:r|rs|red|ring)|behaviou(?:r|rs|ral)|rasteris(?:e|ed|es|ing)|synthesis(?:e|ed|es|ing)|synthes(?:ise|ised|ises|ising)|centr(?:e|es|ed|ing)|honou(?:r|rs|red|ring)|optimis(?:e|ed|es|ing)|defences?|labelled|labelling|neighbou(?:r|rs|red|ring)|normalis(?:e|ed|es|ing)|serialis(?:e|ed|es|ing)|analys(?:e|ed|es|ing)|organis(?:e|ed|es|ing|ation|ations)|grey)\b/giu;
 
 const EXCLUDED_PATHS = [
   /^(?:AGENTS|CLAUDE)\.md$/,
@@ -20,10 +21,18 @@ export function isAmericanEnglishCheckPath(path) {
 function isKnownLiteral(path, line, spelling) {
   const word = spelling.toLowerCase();
   if (path === "site/scripts/generate-fidelity-proof.mjs" && word === "colours") return true;
-  if ((path === "src/render/colors.ts" || path === "src/render/colors.test.ts" || path === "src/capture/script/utils.ts") && word === "grey") return true;
-  return path === "docs/reference/raster-image-fallback-cases.md"
-    && word === "rasterise"
-    && line.includes('"rasterise the target element\'s paint');
+  if (
+    (path === "src/render/colors.ts" ||
+      path === "src/render/colors.test.ts" ||
+      path === "src/capture/script/utils.ts") &&
+    word === "grey"
+  )
+    return true;
+  return (
+    path === "docs/reference/raster-image-fallback-cases.md" &&
+    word === "rasterise" &&
+    line.includes("\"rasterise the target element's paint")
+  );
 }
 
 export function americanEnglishFindings(path, contents) {

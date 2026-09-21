@@ -23,20 +23,37 @@ describe("live backdrop source-surface transitions", () => {
     expect(report.rows.every((row) => row.ownershipComplete)).toBe(true);
     expect(report.rows.every((row) => row.ownerGeometry.exact)).toBe(true);
     expect(report.rows.every((row) => row.productionEquivalent)).toBe(true);
-    expect(report.rows.filter((row) => row.actualRasterOwners > 0).every((row) => row.underCapture.discriminated)).toBe(true);
-    expect(report.rows.filter((row) => row.actualRasterOwners > 0).every((row) => row.overCapture.discriminated)).toBe(true);
+    expect(report.rows.filter((row) => row.actualRasterOwners > 0).every((row) => row.underCapture.discriminated)).toBe(
+      true,
+    );
+    expect(report.rows.filter((row) => row.actualRasterOwners > 0).every((row) => row.overCapture.discriminated)).toBe(
+      true,
+    );
     expect(report.rows.every((row) => row.vectorOrder.rasterBeforeTargetVector !== false)).toBe(true);
-    expect(report.rows.filter((row) => row.id !== "pseudo").every((row) => row.vectorOrder.matchesSourceSiblingOrder)).toBe(true);
-    expect(report.rows.filter((row) => !row.pixelEquivalent).every((row) =>
-      row.sourceEdgeResidual.sourceEdgeOnly && row.sourceEdgeResidual.logicalInteriorChangedPixels === 0,
-    )).toBe(true);
-    expect(report.rows.filter((row) => row.id === "transform").every((row) =>
-      row.capturePasses.screenshots === 2
-      && row.productionEquivalent
-      && row.sourceEdgeResidual.logicalInteriorChangedPixels === 0,
-    )).toBe(true);
-    expect(report.rows.filter((row) => row.id === "pseudo").every((row) =>
-      row.expectedRasterOwners === 1 && row.actualRasterOwners === 1,
-    )).toBe(true);
+    expect(
+      report.rows.filter((row) => row.id !== "pseudo").every((row) => row.vectorOrder.matchesSourceSiblingOrder),
+    ).toBe(true);
+    expect(
+      report.rows
+        .filter((row) => !row.pixelEquivalent)
+        .every(
+          (row) => row.sourceEdgeResidual.sourceEdgeOnly && row.sourceEdgeResidual.logicalInteriorChangedPixels === 0,
+        ),
+    ).toBe(true);
+    expect(
+      report.rows
+        .filter((row) => row.id === "transform")
+        .every(
+          (row) =>
+            row.capturePasses.screenshots === 2 &&
+            row.productionEquivalent &&
+            row.sourceEdgeResidual.logicalInteriorChangedPixels === 0,
+        ),
+    ).toBe(true);
+    expect(
+      report.rows
+        .filter((row) => row.id === "pseudo")
+        .every((row) => row.expectedRasterOwners === 1 && row.actualRasterOwners === 1),
+    ).toBe(true);
   }, 240_000);
 });

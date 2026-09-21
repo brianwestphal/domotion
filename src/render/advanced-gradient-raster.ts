@@ -35,9 +35,7 @@ export function needsChromiumGradientRaster(layer: string): boolean {
 
 export function advancedGradientTile(layer: string, width: number, height: number): string | null {
   const sizeKey = `${Math.max(1, Math.round(width))}x${Math.max(1, Math.round(height))}`;
-  const cache = /^(?:repeating-)?conic-gradient\(/i.test(layer.trim())
-    ? _conicTileCache
-    : _advancedGradientTileCache;
+  const cache = /^(?:repeating-)?conic-gradient\(/i.test(layer.trim()) ? _conicTileCache : _advancedGradientTileCache;
   return cache.get(layer)?.get(sizeKey) ?? null;
 }
 
@@ -64,7 +62,11 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
         const sizes = splitTopLevelCommas(sizeCss ?? "auto");
         for (let index = 0; index < layers.length; index++) {
           const layer = layers[index].trim();
-          const tile = computeTileSize((sizes[index % Math.max(1, sizes.length)] ?? "auto").trim(), el.width, el.height);
+          const tile = computeTileSize(
+            (sizes[index % Math.max(1, sizes.length)] ?? "auto").trim(),
+            el.width,
+            el.height,
+          );
           consider(layer, tile.w, tile.h);
         }
       }
@@ -79,14 +81,16 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
   try {
     await scratch.setContent('<style>html,body{margin:0;background:transparent}</style><div id="tile"></div>');
     for (const { layer, width, height } of tuples.values()) {
-      await scratch.locator("#tile").evaluate((node, { layer, width, height }) => {
-        (node as HTMLElement).style.cssText = `width:${width}px;height:${height}px;background-color:transparent;background-repeat:no-repeat;background-size:100% 100%`;
-        (node as HTMLElement).style.backgroundImage = layer;
-      }, { layer, width, height });
+      await scratch.locator("#tile").evaluate(
+        (node, { layer, width, height }) => {
+          (node as HTMLElement).style.cssText =
+            `width:${width}px;height:${height}px;background-color:transparent;background-repeat:no-repeat;background-size:100% 100%`;
+          (node as HTMLElement).style.backgroundImage = layer;
+        },
+        { layer, width, height },
+      );
       const png = await scratch.locator("#tile").screenshot({ omitBackground: true });
-      const cache = /^(?:repeating-)?conic-gradient\(/i.test(layer)
-        ? _conicTileCache
-        : _advancedGradientTileCache;
+      const cache = /^(?:repeating-)?conic-gradient\(/i.test(layer) ? _conicTileCache : _advancedGradientTileCache;
       let bySize = cache.get(layer);
       if (bySize == null) {
         bySize = new Map();

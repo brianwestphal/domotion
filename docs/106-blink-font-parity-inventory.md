@@ -3,18 +3,18 @@ id: "requirements/blink-font-parity-inventory"
 title: "106 — Blink font-resolution parity inventory"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1811","DM-1844","DM-1852","DM-1854","DM-1859","DM-1868"]
-code: ["src/render/harfbuzz-shaper.ts","src/render/text-to-path.ts"]
-aliases: ["docs/106-blink-font-parity-inventory.md","doc-106"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1811", "DM-1844", "DM-1852", "DM-1854", "DM-1859", "DM-1868"]
+code: ["src/render/harfbuzz-shaper.ts", "src/render/text-to-path.ts"]
+aliases: ["docs/106-blink-font-parity-inventory.md", "doc-106"]
 ---
 
 # 106 — Blink font-resolution parity inventory
 
 Status: **in progress** (DM-1854 step 0). This is the reference the parity work hangs off: for each stage Blink runs, what we do, and whether it matches **by construction** or only **by measurement**.
 
-The goal (DM-1854) is a guaranteed match of the *mechanism*, not less code. A stage matches by construction when it is either transcribed Blink logic or the identical API call with identical arguments. "Scores well on the fixture corpus" is explicitly **not** a passing verdict here — every wrong-font bug in the 2026-07 cycle scored well right up until it didn't.
+The goal (DM-1854) is a guaranteed match of the _mechanism_, not less code. A stage matches by construction when it is either transcribed Blink logic or the identical API call with identical arguments. "Scores well on the fixture corpus" is explicitly **not** a passing verdict here — every wrong-font bug in the 2026-07 cycle scored well right up until it didn't.
 
 All Chromium references are to the in-repo checkout, `external/chromium`, at revision **7d859f27 (2026-06-27)**. Re-read it rather than trusting this doc if the two disagree; and when a transcribed constant later disagrees with measured paint, suspect checkout drift first (`git -C external/chromium log -1 --format='%h %cd' --date=short`).
 
@@ -48,11 +48,11 @@ Two details that are easy to get wrong and that we currently do get wrong:
 
 This is the single most important row in the inventory. Assuming one shape generalizes is exactly how the Windows gap went unnoticed until a fixture failed.
 
-| Platform | Entry point | Shape |
-|---|---|---|
-| macOS | `mac/font_cache_mac.mm` → `GetSubstituteFont` → `CTFontCreateForString(ct_font, string, range)` | asks CoreText, **base = the run's current font**; the answer depends on that base |
-| Linux | `linux/font_cache_linux.cc` → `FontCache::GetFontForCharacter` → `WebSandboxSupport::GetFallbackFontForCharacter(c, preferred_locale, …)` sandboxed, else `gfx::GetFallbackFontForChar(c, locale, …)` | fontconfig, keyed on **locale**; there is no base font |
-| Windows | `win/font_cache_skia_win.cc:286-295` → `GetFallbackFamilyNameFromHardcodedChoices` **first**, `GetDWriteFallbackFamily` only as fall-through | a transcribable table wins whenever it matches; the OS is the backstop, not the primary |
+| Platform | Entry point                                                                                                                                                                                           | Shape                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| macOS    | `mac/font_cache_mac.mm` → `GetSubstituteFont` → `CTFontCreateForString(ct_font, string, range)`                                                                                                       | asks CoreText, **base = the run's current font**; the answer depends on that base       |
+| Linux    | `linux/font_cache_linux.cc` → `FontCache::GetFontForCharacter` → `WebSandboxSupport::GetFallbackFontForCharacter(c, preferred_locale, …)` sandboxed, else `gfx::GetFallbackFontForChar(c, locale, …)` | fontconfig, keyed on **locale**; there is no base font                                  |
+| Windows  | `win/font_cache_skia_win.cc:286-295` → `GetFallbackFamilyNameFromHardcodedChoices` **first**, `GetDWriteFallbackFamily` only as fall-through                                                          | a transcribable table wins whenever it matches; the OS is the backstop, not the primary |
 
 The Windows table is `win/font_fallback_win.cc` (609 lines): `GetFallbackFamily()` → color emoji → text-presentation emoji → `GetFontBasedOnUnicodeBlock` → **74 `USCRIPT_*` → font-list mappings** in `InitializeScriptFontMap` → non-BMP plane routing → last resort `"Lucida Sans Unicode"`.
 
@@ -63,20 +63,20 @@ Two per-platform details of these procedures, both now transcribed:
 
 ## 3. Our implementation, mapped
 
-| Blink stage | Ours | Matches by construction? |
-|---|---|---|
-| `kFallbackPriorityFonts` | explicit `priority` stage in `cluster-fallback.ts` | **Yes** — one candidate, stage advances to system before the ask, normal uniqueness/first-candidate rules; classification is the pinned enum's emoji-text/emoji-emoji variants only |
-| `kFontGroupFonts` | `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey` | **Yes** — ordered lookup, generic/literal semantics, local/unique-name resolution, unavailable-family skipping, and first-candidate bookkeeping are source-mapped in [doc 122](122-declared-family-segmented-face-parity.md) |
-| `kSegmentedFace` | `webfontRegistry` + capability-group selection + unicode-range iteration | **Yes for settled loaded faces** — source-mapped in [doc 122](122-declared-family-segmented-face-parity.md); pending-load timing and unsupported formats are explicit exclusions |
-| — | **`fallbackFontChain`** — static per-block chains + the generated `unicode-font-routing.*.generated.ts` tables | **No Blink counterpart at all** — but no longer interposed; demoted to the net BELOW `kSystemFonts`, see §4 |
-| `FallbackFontForCharacter`'s PUA / noncharacter guard | `isPrivateUseCodepoint(cp) \|\| isNonCharacterCodepoint(cp)` gating both fallback stages in `resolveFontForCodepoint` | **Yes** — transcribed from `font_cache.cc:242-244`, predicates from `character.cc:290-296` |
-| `kSystemFonts` | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`) | **Yes on macOS** — same API, and since DM-1852 the same argument (the run's own primary as cascade base) |
-| `GetLastResortFallbackFont` | `last-resort` key → bundled `LastResortHE-Regular.ttf` | **No** — Blink returns **Times** on macOS; ours paints Unicode LastResort's per-block frames |
-| `kFirstCandidateForNotdefGlyph` | both modes render the primary's `.notdef` for the uncovered terminal; the one exception is paths mode's uncovered-EMOJI terminal, which deliberately pins the last chain entry so the captured rasterGlyph PNG overlay keeps its advance alignment (`src/render/text-to-path.ts`, the `emojiToTerminal` branch) | **Yes**, with one documented deliberate exception — the emoji-overlay pin is an overlay-alignment mechanism, not a Blink-parity decision |
+| Blink stage                                           | Ours                                                                                                                                                                                                                                                                                                            | Matches by construction?                                                                                                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kFallbackPriorityFonts`                              | explicit `priority` stage in `cluster-fallback.ts`                                                                                                                                                                                                                                                              | **Yes** — one candidate, stage advances to system before the ask, normal uniqueness/first-candidate rules; classification is the pinned enum's emoji-text/emoji-emoji variants only                                          |
+| `kFontGroupFonts`                                     | `resolveFontKey` / `resolveFontKeyChain` / `matchFamilyNameToKey`                                                                                                                                                                                                                                               | **Yes** — ordered lookup, generic/literal semantics, local/unique-name resolution, unavailable-family skipping, and first-candidate bookkeeping are source-mapped in [doc 122](122-declared-family-segmented-face-parity.md) |
+| `kSegmentedFace`                                      | `webfontRegistry` + capability-group selection + unicode-range iteration                                                                                                                                                                                                                                        | **Yes for settled loaded faces** — source-mapped in [doc 122](122-declared-family-segmented-face-parity.md); pending-load timing and unsupported formats are explicit exclusions                                             |
+| —                                                     | **`fallbackFontChain`** — static per-block chains + the generated `unicode-font-routing.*.generated.ts` tables                                                                                                                                                                                                  | **No Blink counterpart at all** — but no longer interposed; demoted to the net BELOW `kSystemFonts`, see §4                                                                                                                  |
+| `FallbackFontForCharacter`'s PUA / noncharacter guard | `isPrivateUseCodepoint(cp) \|\| isNonCharacterCodepoint(cp)` gating both fallback stages in `resolveFontForCodepoint`                                                                                                                                                                                           | **Yes** — transcribed from `font_cache.cc:242-244`, predicates from `character.cc:290-296`                                                                                                                                   |
+| `kSystemFonts`                                        | `resolveSystemFallbackKeyForCp` → `resolveSystemFallbackFonts` → native helper (`CTFontCreateForString` on macOS, `main.swift:482`)                                                                                                                                                                             | **Yes on macOS** — same API, and since DM-1852 the same argument (the run's own primary as cascade base)                                                                                                                     |
+| `GetLastResortFallbackFont`                           | `last-resort` key → bundled `LastResortHE-Regular.ttf`                                                                                                                                                                                                                                                          | **No** — Blink returns **Times** on macOS; ours paints Unicode LastResort's per-block frames                                                                                                                                 |
+| `kFirstCandidateForNotdefGlyph`                       | both modes render the primary's `.notdef` for the uncovered terminal; the one exception is paths mode's uncovered-EMOJI terminal, which deliberately pins the last chain entry so the captured rasterGlyph PNG overlay keeps its advance alignment (`src/render/text-to-path.ts`, the `emojiToTerminal` branch) | **Yes**, with one documented deliberate exception — the emoji-overlay pin is an overlay-alignment mechanism, not a Blink-parity decision                                                                                     |
 
 ## 4. The core structural divergence
 
-**`fallbackFontChain` has no counterpart in Blink.** Blink goes declared families → (segments) → system fallback. We interpose a static per-Unicode-block table between them, so on any codepoint that table covers, we answer *before* ever asking the OS the question Chrome asks.
+**`fallbackFontChain` has no counterpart in Blink.** Blink goes declared families → (segments) → system fallback. We interpose a static per-Unicode-block table between them, so on any codepoint that table covers, we answer _before_ ever asking the OS the question Chrome asks.
 
 That single interposition is the root of the whole 2026-07 wrong-font cycle:
 
@@ -90,18 +90,18 @@ Each was fixed as an instance. The structural fix is to stop interposing: let `k
 
 `resolveFontForCodepoint` now runs the two stages in Blink's order **on macOS and Linux** — the live system-fallback resolver answers, and `fallbackFontChain` is consulted only for what the OS declines. The chain is **not removed**, because it is genuinely load-bearing as a fall-through: a host without the glyph helper, a platform whose live resolver is flagged off, or a codepoint the platform engine has no answer for would otherwise drop straight to tofu. It is a net, not a competitor. `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old order for an A/B.
 
-**Tightened since to a degraded-mode-only net.** Measured after the reorder, the run-behind-the-OS chain answered **6 of 916,119** system-stage decisions on macOS and **0 of 779,964** on Linux — while being *asked* 492,624 times (~64% of the resolver's coverage probes) — and all six answers were lone variation selectors U+FE0x routed to Noto Sans, a *divergence* from Chrome (the shaper hides default-ignorables regardless of coverage — `hb_ot_hide_default_ignorables`, `hb-ot-shape.cc:824-846`, HarfBuzz rev 4de187d — so no fallback face is ever painted for them; that sampled route is dropped). So on macOS/Linux the chain stage is now gated on degraded mode outright: it answers only when the helper binary is absent or the resolver is flagged off (`DOMOTION_SYSTEM_FALLBACK=0`), i.e. exactly when the live resolver cannot run. A codepoint the OS *declines* on a live host now falls to the uncovered terminal — Chrome's own answer — instead of a chain guess. The win32 chain stays unconditional (and first) per the asymmetry below; its generated per-block tail remains separately deferred behind the live resolver via `win32DeferOrStatic`, which asks the deferral question with the run's full weight/slant/primary/locale so it cannot defer on a different verdict than the real ask reaches.
+**Tightened since to a degraded-mode-only net.** Measured after the reorder, the run-behind-the-OS chain answered **6 of 916,119** system-stage decisions on macOS and **0 of 779,964** on Linux — while being _asked_ 492,624 times (~64% of the resolver's coverage probes) — and all six answers were lone variation selectors U+FE0x routed to Noto Sans, a _divergence_ from Chrome (the shaper hides default-ignorables regardless of coverage — `hb_ot_hide_default_ignorables`, `hb-ot-shape.cc:824-846`, HarfBuzz rev 4de187d — so no fallback face is ever painted for them; that sampled route is dropped). So on macOS/Linux the chain stage is now gated on degraded mode outright: it answers only when the helper binary is absent or the resolver is flagged off (`DOMOTION_SYSTEM_FALLBACK=0`), i.e. exactly when the live resolver cannot run. A codepoint the OS _declines_ on a live host now falls to the uncovered terminal — Chrome's own answer — instead of a chain guess. The win32 chain stays unconditional (and first) per the asymmetry below; its generated per-block tail remains separately deferred behind the live resolver via `win32DeferOrStatic`, which asks the deferral question with the run's full weight/slant/primary/locale so it cannot defer on a different verdict than the real ask reaches.
 
 **Windows is excluded, which is the §4 asymmetry honored rather than simplified away.** `kSystemFonts` bottoms out in `FontCache::PlatformFallbackFontForCharacter`, and that is a different procedure per platform: macOS goes straight to `CTFontCreateForString`, Linux straight to fontconfig (`linux/font_cache_linux.cc:89-97`, no table stage before it), but Windows consults `GetFallbackFamilyNameFromHardcodedChoices` **first** and only "fall[s] through to running the API-based fallback" on a miss (`win/font_cache_skia_win.cc:285-295`). Since `win32FallbackChain` now transcribes that hardcoded table, running the static chain ahead of the live resolver is exactly what matches Chrome on Windows — flipping it there would put `MapCharacters` in front of the table and invert what the transcription was written to reproduce. Note that no macOS fixture sweep could have caught this; only reading the per-platform source could.
 
 The measurement that justified the flip, against the conformance oracle rather than fixture scores:
 
-| CJK slice (8 corpus stacks × 28,309 codepoints) | mismatches | routes | agree-exact |
-|---|---|---|---|
-| chain-first, named cascade base (both old) | 113,963 | 27 | 49.4% |
-| chain-first + UI-font cascade base | 113,908 | 23 | — |
-| OS-first, named cascade base | 113,407 | 16 | — |
-| **OS-first + UI-font cascade base (both now default)** | **29,025** | **4** | **86.9%** |
+| CJK slice (8 corpus stacks × 28,309 codepoints)        | mismatches | routes | agree-exact |
+| ------------------------------------------------------ | ---------- | ------ | ----------- |
+| chain-first, named cascade base (both old)             | 113,963    | 27     | 49.4%       |
+| chain-first + UI-font cascade base                     | 113,908    | 23     | —           |
+| OS-first, named cascade base                           | 113,407    | 16     | —           |
+| **OS-first + UI-font cascade base (both now default)** | **29,025** | **4**  | **86.9%**   |
 
 Completed as a full 2×2 in DM-1859, when the UI-font cascade base became the default too; all four cells are one revision measured with one instrument.
 
@@ -109,13 +109,13 @@ Two things this demonstrates, and they are the point of this whole entry. **A co
 
 That is also a reporting hazard worth naming, because this entry fell into it: the 29,025 figure was first recorded as the ordering flag's own result, when it in fact required a second flag that was still off by default. When two stages shadow each other, an A/B of either one measures near zero and reads as "not the problem".
 
-The full 818-fixture macOS unicode sweep moved 4 fixtures out of 818. The one that moved the wrong way is instructive: on the cell in question Chrome paints PingFang SC, the old order painted PingFang **HK** (the wrong regional variant), and the new order paints SC — yet the tile's pixel diff went *up*, because the wrong face's outline happened to rasterize nearer Chrome's Skia-hinted raster than the correct face's does. That is the §6 rasterization floor masquerading as a regression, and it is precisely why parity is gated on the oracle: a pixel metric cannot distinguish "right font" from "lucky wrong font".
+The full 818-fixture macOS unicode sweep moved 4 fixtures out of 818. The one that moved the wrong way is instructive: on the cell in question Chrome paints PingFang SC, the old order painted PingFang **HK** (the wrong regional variant), and the new order paints SC — yet the tile's pixel diff went _up_, because the wrong face's outline happened to rasterize nearer Chrome's Skia-hinted raster than the correct face's does. That is the §6 rasterization floor masquerading as a regression, and it is precisely why parity is gated on the oracle: a pixel metric cannot distinguish "right font" from "lucky wrong font".
 
 **Note the asymmetry** this creates with Windows, and do not "simplify" it away: on Windows a hardcoded per-script table **is** Blink's behavior, consulted before DirectWrite. The principle is not "no tables" — it is **transcribed from Chromium, not sampled from a machine**.
 
 ## 5. Verdict summary
 
-Stages matching by construction today: **`kSystemFonts` on macOS** and **its private-use / noncharacter guard**. The first calls the identical CoreText function, with the identical base argument, and — since the ordering fix — actually gets to answer. The second is the cheapest transcription in this document and closed two live wrong-glyph defects at once: it is a three-line early return, and not having it meant asking the OS a question Chrome never asks. Worth noting *why* it survived so long unnoticed — the private-use ranges are excluded from the 819-block unicode corpus, so no fixture had ever exercised the path. It became visible the day one fixture did. The remaining font-selection stages do not yet match.
+Stages matching by construction today: **`kSystemFonts` on macOS** and **its private-use / noncharacter guard**. The first calls the identical CoreText function, with the identical base argument, and — since the ordering fix — actually gets to answer. The second is the cheapest transcription in this document and closed two live wrong-glyph defects at once: it is a three-line early return, and not having it meant asking the OS a question Chrome never asks. Worth noting _why_ it survived so long unnoticed — the private-use ranges are excluded from the 819-block unicode corpus, so no fixture had ever exercised the path. It became visible the day one fixture did. The remaining font-selection stages do not yet match.
 
 Ordered by expected impact:
 
@@ -123,9 +123,9 @@ Ordered by expected impact:
 2. ~~**Fix the macOS base-font argument**~~ **Done** — the cascade base is the run's own primary, matching `CTFontCreateForString(ct_font, …)`.
 3. **Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.
 4. **Port the Windows table** ahead of our `MapCharacters` call.
-5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the *first* candidate. Done — the uncovered terminal pins the primary's `.notdef` in both modes; the single remaining exception is paths mode's uncovered-emoji terminal, which pins the chain tail on purpose so the raster-overlay advance stays aligned (an overlay mechanism, not a parity gap).
-7. ~~**Skip system fallback for private-use and noncharacter codepoints**~~ **Done** — `font_cache.cc:242-244`. Cost nothing to transcribe; the ranges are absent from the corpus, so measure it with a purpose-built fixture rather than expecting the sweep to speak.
-6. **Model `kFallbackPriorityFonts`** as the one-shot stage it is.
+5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the _first_ candidate. Done — the uncovered terminal pins the primary's `.notdef` in both modes; the single remaining exception is paths mode's uncovered-emoji terminal, which pins the chain tail on purpose so the raster-overlay advance stays aligned (an overlay mechanism, not a parity gap).
+6. ~~**Skip system fallback for private-use and noncharacter codepoints**~~ **Done** — `font_cache.cc:242-244`. Cost nothing to transcribe; the ranges are absent from the corpus, so measure it with a purpose-built fixture rather than expecting the sweep to speak.
+7. **Model `kFallbackPriorityFonts`** as the one-shot stage it is.
 
 Each has corpus-wide blast radius and needs a full-sweep A/B before landing, measured against the conformance oracle rather than fixture scores.
 

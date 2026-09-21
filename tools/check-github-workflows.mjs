@@ -115,8 +115,9 @@ export function lintWorkflowSource(source, file = "<workflow>") {
       const allowedContexts = JOB_FIELD_CONTEXTS.get(field);
       if (allowedContexts === undefined) continue;
       for (const scalar of stringScalars(fieldPair.value)) {
-        const invalidContexts = [...new Set(expressionContexts(scalar.value))]
-          .filter((context) => !allowedContexts.has(context));
+        const invalidContexts = [...new Set(expressionContexts(scalar.value))].filter(
+          (context) => !allowedContexts.has(context),
+        );
         for (const context of invalidContexts) {
           problems.push({
             file,

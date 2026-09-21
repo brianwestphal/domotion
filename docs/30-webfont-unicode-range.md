@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: []
-tickets: ["DM-294","DM-444","DM-517","DM-545","DM-557"]
-code: ["src/render/text-to-path.ts","src/webfont-unicode-range.test.ts"]
-aliases: ["docs/30-webfont-unicode-range.md","doc-30"]
+tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557"]
+code: ["src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"]
+aliases: ["docs/30-webfont-unicode-range.md", "doc-30"]
 ---
 
 # 30 — Webfont `unicode-range` partitioning
@@ -17,12 +17,27 @@ aliases: ["docs/30-webfont-unicode-range.md","doc-30"]
 Modern web font loaders (Google Fonts, self-hosted Next.js / Vercel font pipelines, …) split each `(family, weight, style)` into multiple `@font-face` rules differentiated by `unicode-range`. A typical Geist@400 declaration:
 
 ```css
-@font-face { font-family: Geist; font-weight: 400; src: url(.../latin.woff2);     unicode-range: U+0000-00FF, U+0131, …; }
-@font-face { font-family: Geist; font-weight: 400; src: url(.../latin-ext.woff2); unicode-range: U+0100-024F, …; }
-@font-face { font-family: Geist; font-weight: 400; src: url(.../cyrillic.woff2);  unicode-range: U+0400-045F, U+0490-0491, …; }
+@font-face {
+  font-family: Geist;
+  font-weight: 400;
+  src: url(.../latin.woff2);
+  unicode-range: U+0000-00FF, U+0131, …;
+}
+@font-face {
+  font-family: Geist;
+  font-weight: 400;
+  src: url(.../latin-ext.woff2);
+  unicode-range: U+0100-024F, …;
+}
+@font-face {
+  font-family: Geist;
+  font-weight: 400;
+  src: url(.../cyrillic.woff2);
+  unicode-range: U+0400-045F, U+0490-0491, …;
+}
 ```
 
-The browser fetches only the partitions whose declared range covers a codepoint that's actually rendered on the page. Per CSS Fonts 4 §11.5, when laying out a glyph for codepoint `cp`, Chromium picks the partition whose `unicode-range` contains `cp` — partitions whose range doesn't cover `cp` are skipped *even if they expose the right family name*.
+The browser fetches only the partitions whose declared range covers a codepoint that's actually rendered on the page. Per CSS Fonts 4 §11.5, when laying out a glyph for codepoint `cp`, Chromium picks the partition whose `unicode-range` contains `cp` — partitions whose range doesn't cover `cp` are skipped _even if they expose the right family name_.
 
 ## Problem the change solves
 
@@ -40,7 +55,7 @@ interface WebfontVariant {
   weight: number;
   italic: boolean;
   font: FontInstance;
-  unicodeRange?: Array<[number, number]>;  // inclusive intervals, undefined = U+0..U+10FFFF
+  unicodeRange?: Array<[number, number]>; // inclusive intervals, undefined = U+0..U+10FFFF
 }
 ```
 

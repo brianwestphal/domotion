@@ -4,7 +4,10 @@ import { firstColorRe } from "./utils.js";
 // DM-1236: the background-shorthand color extractor used to match only 9 popular
 // named colors, dropping the color layer for any other spec-valid name. It now
 // covers the full CSS Color 4 named-color set (mirrors render-side NAMED_COLORS).
-const firstColor = (s: string): string | null => { const m = s.match(firstColorRe); return m ? m[1] : null; };
+const firstColor = (s: string): string | null => {
+  const m = s.match(firstColorRe);
+  return m ? m[1] : null;
+};
 
 describe("firstColorRe (DM-1236)", () => {
   it("extracts extended named colors out of a background shorthand", () => {

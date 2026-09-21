@@ -54,8 +54,7 @@ describe("interpolateCssValue (DM-1517)", () => {
   });
 
   it("lerps each numeric token in a clip-path inset (only the changing one moves)", () => {
-    expect(interpolateCssValue("inset(-10% 100% -10% 0)", "inset(-10% 0% -10% 0)", 0.5))
-      .toBe("inset(-10% 50% -10% 0)");
+    expect(interpolateCssValue("inset(-10% 100% -10% 0)", "inset(-10% 0% -10% 0)", 0.5)).toBe("inset(-10% 50% -10% 0)");
   });
 
   it("steps at the midpoint when the skeletons don't match (different units)", () => {
@@ -102,7 +101,10 @@ describe("spring easing sampler (DM-1542)", () => {
     const css = springLinearEasing(0.25, 2 * Math.PI * 2.5, 40);
     expect(css.startsWith("linear(")).toBe(true);
     expect(css.endsWith(")")).toBe(true);
-    const nums = css.slice("linear(".length, -1).split(",").map((s) => parseFloat(s));
+    const nums = css
+      .slice("linear(".length, -1)
+      .split(",")
+      .map((s) => parseFloat(s));
     expect(nums).toHaveLength(41); // samples + 1
     expect(nums[0]).toBe(0);
     expect(nums[nums.length - 1]).toBe(1);

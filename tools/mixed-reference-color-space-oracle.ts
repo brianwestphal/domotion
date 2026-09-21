@@ -43,7 +43,7 @@ export const MIXED_SOURCE: Rgba = {
   r: 52 / 255,
   g: 164 / 255,
   b: 231 / 255,
-  a: .58,
+  a: 0.58,
 };
 
 export const MIXED_DESTINATION: Rgba = {
@@ -61,9 +61,9 @@ export const MIXED_LOCAL_DESTINATION: Rgba = {
 };
 
 export const MIXED_SHORTHAND: readonly ColorFilterOperation[] = [
-  { type: "brightness", amount: .74 },
-  { type: "invert", amount: .19 },
-  { type: "opacity", amount: .67 },
+  { type: "brightness", amount: 0.74 },
+  { type: "invert", amount: 0.19 },
+  { type: "opacity", amount: 0.67 },
 ];
 
 const SHORTHAND_CSS = "brightness(0.74) invert(0.19) opacity(0.67)";
@@ -76,17 +76,13 @@ const clamp = (value: number): number => Math.max(0, Math.min(1, value));
 /** IEC 61966-2-1 EOTF used by Skia's pinned sRGB -> linear color filter. */
 export function srgbChannelToLinear(value: number): number {
   const channel = clamp(value);
-  return channel <= .04045
-    ? channel / 12.92
-    : ((channel + .055) / 1.055) ** 2.4;
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 }
 
 /** IEC 61966-2-1 inverse EOTF used by Skia's pinned linear -> sRGB filter. */
 export function linearChannelToSrgb(value: number): number {
   const channel = clamp(value);
-  return channel <= .0031308
-    ? channel * 12.92
-    : 1.055 * channel ** (1 / 2.4) - .055;
+  return channel <= 0.0031308 ? channel * 12.92 : 1.055 * channel ** (1 / 2.4) - 0.055;
 }
 
 export function srgbToLinear(color: Rgba): Rgba {
@@ -110,9 +106,9 @@ export function linearToSrgb(color: Rgba): Rgba {
 /** The fixture's linearRGB feColorMatrix, evaluated on straight channels. */
 export function applyLinearReferenceMatrix(color: Rgba): Rgba {
   return {
-    r: clamp(.82 * color.r + .07),
-    g: clamp(.68 * color.g + .10),
-    b: clamp(.91 * color.b + .02),
+    r: clamp(0.82 * color.r + 0.07),
+    g: clamp(0.68 * color.g + 0.1),
+    b: clamp(0.91 * color.b + 0.02),
     a: color.a,
   };
 }
@@ -167,7 +163,12 @@ export function traceExplicitSrgbBoundary(sourceColor: Rgba = MIXED_SOURCE): Log
     surface("source-srgb", "sRGB", "SourceGraphic", sourceColor),
     surface("reference-input-linear", "linearRGB", "sRGB -> linearRGB", linearInput),
     surface("reference-output-linear", "linearRGB", "linearRGB feColorMatrix", referenceOutput),
-    surface("explicit-reference-boundary-srgb", "sRGB", "sRGB identity reference requests linearRGB -> sRGB", explicitSrgb),
+    surface(
+      "explicit-reference-boundary-srgb",
+      "sRGB",
+      "sRGB identity reference requests linearRGB -> sRGB",
+      explicitSrgb,
+    ),
     surface("shorthand-srgb", "sRGB", "CSS shorthand list", shorthandOutput),
   ];
 }
@@ -185,22 +186,24 @@ export function wronglyDecodePremultiplied(color: Rgba): Rgba {
 }
 
 export const MIXED_CHANNEL_TRANSFER_FACTS = {
-  srgbHalfToLinear: srgbChannelToLinear(.5),
-  linearHalfToSrgb: linearChannelToSrgb(.5),
-  srgbBreakpointToLinear: srgbChannelToLinear(.04045),
-  linearBreakpointToSrgb: linearChannelToSrgb(.0031308),
+  srgbHalfToLinear: srgbChannelToLinear(0.5),
+  linearHalfToSrgb: linearChannelToSrgb(0.5),
+  srgbBreakpointToLinear: srgbChannelToLinear(0.04045),
+  linearBreakpointToSrgb: linearChannelToSrgb(0.0031308),
 } as const;
 
 export function mixedReferenceColorSpaceFixtureHtml(): string {
-  return readFileSync(resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "../tests/fixtures/html-test/38-mixed-reference-color-space-stage.html",
-  ), "utf8");
+  return readFileSync(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../tests/fixtures/html-test/38-mixed-reference-color-space-stage.html",
+    ),
+    "utf8",
+  );
 }
 
 function toPixel(color: Rgba): Pixel {
-  return [color.r, color.g, color.b, color.a]
-    .map((value) => Math.round(clamp(value) * 255)) as Pixel;
+  return [color.r, color.g, color.b, color.a].map((value) => Math.round(clamp(value) * 255)) as Pixel;
 }
 
 function maxDistance(left: Pixel, right: Pixel): number {
@@ -214,9 +217,9 @@ function expectedPixels(): Map<string, Pixel> {
   const shorthandSrgb = applyColorFilters(MIXED_SOURCE, MIXED_SHORTHAND);
   const mixedPinned = linearToSrgb(applyColorFilters(referenceOutputLinear, MIXED_SHORTHAND));
   const explicitBoundary = applyColorFilters(referenceOutputSrgb, MIXED_SHORTHAND);
-  const shorthandFirst = linearToSrgb(applyLinearReferenceMatrix(
-    srgbToLinear(applyColorFilters(MIXED_SOURCE, MIXED_SHORTHAND)),
-  ));
+  const shorthandFirst = linearToSrgb(
+    applyLinearReferenceMatrix(srgbToLinear(applyColorFilters(MIXED_SOURCE, MIXED_SHORTHAND))),
+  );
   const identityMixed = linearToSrgb(applyColorFilters(srgbToLinear(MIXED_SOURCE), MIXED_SHORTHAND));
   return new Map([
     ["stage.source", toPixel(MIXED_SOURCE)],
@@ -259,9 +262,12 @@ function sample(image: DecodedImage, point: [number, number], dpr: number): Pixe
 }
 
 async function settle(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolveFrame) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
-  }));
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolveFrame) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
+      }),
+  );
 }
 
 async function screenshotSvg(page: Page, svg: string): Promise<Buffer> {
@@ -270,10 +276,12 @@ async function screenshotSvg(page: Page, svg: string): Promise<Buffer> {
     { waitUntil: "load" },
   );
   await settle(page);
-  return Buffer.from(await page.screenshot({
-    clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
-    omitBackground: true,
-  }));
+  return Buffer.from(
+    await page.screenshot({
+      clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
+      omitBackground: true,
+    }),
+  );
 }
 
 function flatten(tree: CapturedElement[]): CapturedElement[] {
@@ -396,10 +404,12 @@ async function sourceMutationPng(page: Page, fixture: string, operation: Mutatio
     else target.style.isolation = mutation.value;
   }, operation);
   await settle(page);
-  return Buffer.from(await page.screenshot({
-    clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
-    omitBackground: true,
-  }));
+  return Buffer.from(
+    await page.screenshot({
+      clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
+      omitBackground: true,
+    }),
+  );
 }
 
 export interface MixedColorSpaceProbeRow {
@@ -467,10 +477,11 @@ export interface MixedReferenceColorSpaceReport {
 
 function nativeOwnership(element: CapturedElement | undefined): MixedColorSpaceBoundaryRow["actual"] {
   if (element == null) return "missing";
-  const raster = element.backdropFilterRaster?.dataUri != null
-    || element.urlFilterRaster?.dataUri != null
-    || element.elementRaster?.dataUri != null
-    || element.transformSubtreeRaster?.dataUri != null;
+  const raster =
+    element.backdropFilterRaster?.dataUri != null ||
+    element.urlFilterRaster?.dataUri != null ||
+    element.elementRaster?.dataUri != null ||
+    element.transformSubtreeRaster?.dataUri != null;
   return raster ? "domotion-raster" : "chromium-native-vector";
 }
 
@@ -503,36 +514,54 @@ export async function runMixedReferenceColorSpaceOracle(
       const sourcePage = await context.newPage();
       await sourcePage.setContent(fixture, { waitUntil: "load" });
       await settle(sourcePage);
-      const points = await sourcePage.locator("[data-probe]").evaluateAll((elements) => Object.fromEntries(
-        elements.map((element) => {
-          const rect = element.getBoundingClientRect();
-          return [element.getAttribute("data-probe")!, [rect.left + rect.width / 2, rect.top + rect.height / 2]];
-        }),
+      const points = (await sourcePage.locator("[data-probe]").evaluateAll((elements) =>
+        Object.fromEntries(
+          elements.map((element) => {
+            const rect = element.getBoundingClientRect();
+            return [element.getAttribute("data-probe")!, [rect.left + rect.width / 2, rect.top + rect.height / 2]];
+          }),
+        ),
       )) as Record<string, [number, number]>;
       if (dpr === dprs[0]) {
-        Object.assign(computedFilterLists, await sourcePage.locator("[data-domotion-anim]").evaluateAll((elements) =>
-          Object.fromEntries(elements.map((element) => [
-            element.getAttribute("data-domotion-anim")!,
-            getComputedStyle(element).filter,
-          ]))));
+        Object.assign(
+          computedFilterLists,
+          await sourcePage
+            .locator("[data-domotion-anim]")
+            .evaluateAll((elements) =>
+              Object.fromEntries(
+                elements.map((element) => [
+                  element.getAttribute("data-domotion-anim")!,
+                  getComputedStyle(element).filter,
+                ]),
+              ),
+            ),
+        );
       }
-      const sourcePng = Buffer.from(await sourcePage.screenshot({
-        clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
-        omitBackground: true,
-      }));
-      const captured = await captureElementTreeWithWarnings(
-        sourcePage,
-        "#stage",
-        { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
+      const sourcePng = Buffer.from(
+        await sourcePage.screenshot({
+          clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
+          omitBackground: true,
+        }),
       );
-      warnings.push(...captured.warnings.map((warning) =>
-        `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`));
+      const captured = await captureElementTreeWithWarnings(sourcePage, "#stage", {
+        x: 0,
+        y: 0,
+        width: MIXED_COLOR_SPACE_WIDTH,
+        height: MIXED_COLOR_SPACE_HEIGHT,
+      });
+      warnings.push(
+        ...captured.warnings.map(
+          (warning) => `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`,
+        ),
+      );
       const svg = elementTreeToSvg(captured.tree, MIXED_COLOR_SPACE_WIDTH, MIXED_COLOR_SPACE_HEIGHT);
 
       if (!boundaryCaptured) {
-        const byAnimId = new Map(flatten(captured.tree)
-          .filter((element) => element.animId != null)
-          .map((element) => [element.animId!, element]));
+        const byAnimId = new Map(
+          flatten(captured.tree)
+            .filter((element) => element.animId != null)
+            .map((element) => [element.animId!, element]),
+        );
         for (const id of [
           "stage-linear-reference",
           "stage-mixed",
@@ -557,7 +586,9 @@ export async function runMixedReferenceColorSpaceOracle(
         ] as const) {
           const definition = definitions.find((candidate) => candidate.id === id);
           if (definition == null) structuralErrors.push(`missing captured filter def: ${id}`);
-          else if (!new RegExp(`color-interpolation-filters=[\"']${interpolation}[\"']`, "i").test(definition.outerHTML)) {
+          else if (
+            !new RegExp(`color-interpolation-filters=[\"']${interpolation}[\"']`, "i").test(definition.outerHTML)
+          ) {
             structuralErrors.push(`wrong captured interpolation space for ${id}`);
           }
         }
@@ -603,29 +634,21 @@ export async function runMixedReferenceColorSpaceOracle(
           structuralErrors.push(mutationError);
           continue;
         }
-        const mutationSvg = elementTreeToSvg(
-          mutatedTree,
-          MIXED_COLOR_SPACE_WIDTH,
-          MIXED_COLOR_SPACE_HEIGHT,
-        );
+        const mutationSvg = elementTreeToSvg(mutatedTree, MIXED_COLOR_SPACE_WIDTH, MIXED_COLOR_SPACE_HEIGHT);
         const renderedMutation = await screenshotSvg(renderPage, mutationSvg);
         const [sourceMutationImage, renderedMutationImage] = await Promise.all([
           decode(sourceMutation),
           decode(renderedMutation),
         ]);
-        const sourceDistance = maxDistance(
-          sample(sourceImage, point, dpr),
-          sample(sourceMutationImage, point, dpr),
-        );
+        const sourceDistance = maxDistance(sample(sourceImage, point, dpr), sample(sourceMutationImage, point, dpr));
         const renderedDistance = maxDistance(
           sample(renderedImage, point, dpr),
           sample(renderedMutationImage, point, dpr),
         );
-        const pass = mutation.movement === "moved"
-          ? sourceDistance >= MUTATION_MIN_CHANNEL_DISTANCE
-            && renderedDistance >= MUTATION_MIN_CHANNEL_DISTANCE
-          : sourceDistance <= STAGE_CHANNEL_TOLERANCE
-            && renderedDistance <= STAGE_CHANNEL_TOLERANCE;
+        const pass =
+          mutation.movement === "moved"
+            ? sourceDistance >= MUTATION_MIN_CHANNEL_DISTANCE && renderedDistance >= MUTATION_MIN_CHANNEL_DISTANCE
+            : sourceDistance <= STAGE_CHANNEL_TOLERANCE && renderedDistance <= STAGE_CHANNEL_TOLERANCE;
         mutationRows.push({
           id: mutation.id,
           probe: mutation.probe,
@@ -656,9 +679,9 @@ export async function runMixedReferenceColorSpaceOracle(
 
   const pinnedTerminal = tracePinnedMixedPipeline().at(-1)!.straight;
   const explicitTerminal = traceExplicitSrgbBoundary().at(-1)!.straight;
-  const reorderedTerminal = linearToSrgb(applyLinearReferenceMatrix(
-    srgbToLinear(applyColorFilters(MIXED_SOURCE, MIXED_SHORTHAND)),
-  ));
+  const reorderedTerminal = linearToSrgb(
+    applyLinearReferenceMatrix(srgbToLinear(applyColorFilters(MIXED_SOURCE, MIXED_SHORTHAND))),
+  );
   const correctDecoded = srgbToLinear(MIXED_SOURCE);
   const wrongDecoded = wronglyDecodePremultiplied(MIXED_SOURCE);
   const hostileLogicalControls = [
@@ -683,26 +706,29 @@ export async function runMixedReferenceColorSpaceOracle(
         toPixel(blend("normal", pinnedTerminal, MIXED_DESTINATION)),
         toPixel(blend("multiply", pinnedTerminal, MIXED_DESTINATION)),
       ),
-      pass: maxDistance(
-        toPixel(blend("normal", pinnedTerminal, MIXED_DESTINATION)),
-        toPixel(blend("multiply", pinnedTerminal, MIXED_DESTINATION)),
-      ) >= MUTATION_MIN_CHANNEL_DISTANCE,
+      pass:
+        maxDistance(
+          toPixel(blend("normal", pinnedTerminal, MIXED_DESTINATION)),
+          toPixel(blend("multiply", pinnedTerminal, MIXED_DESTINATION)),
+        ) >= MUTATION_MIN_CHANNEL_DISTANCE,
     },
   ];
   const configuredChromiumRevision = process.env.DOMOTION_CHROMIUM_REVISION;
-  if (configuredChromiumRevision != null
-    && configuredChromiumRevision !== MIXED_COLOR_SPACE_SOURCE_PINS.chromium) {
+  if (configuredChromiumRevision != null && configuredChromiumRevision !== MIXED_COLOR_SPACE_SOURCE_PINS.chromium) {
     structuralErrors.push(`chromium-roll:${configuredChromiumRevision}`);
   }
   const unexpectedFailures = [
-    ...rows.filter((row) => row.sourceModelMaxChannelError > STAGE_CHANNEL_TOLERANCE)
+    ...rows
+      .filter((row) => row.sourceModelMaxChannelError > STAGE_CHANNEL_TOLERANCE)
       .map((row) => `source-model:DPR${row.dpr}:${row.id}`),
-    ...rows.filter((row) => row.sourceModelMaxChannelError <= STAGE_CHANNEL_TOLERANCE
-      && row.renderedMaxChannelError > STAGE_CHANNEL_TOLERANCE
+    ...rows
+      .filter(
+        (row) =>
+          row.sourceModelMaxChannelError <= STAGE_CHANNEL_TOLERANCE &&
+          row.renderedMaxChannelError > STAGE_CHANNEL_TOLERANCE,
       )
       .map((row) => `unexpected-production-gap:DPR${row.dpr}:${row.id}`),
-    ...mutationRows.filter((row) => !row.pass)
-      .map((row) => `mutation:DPR${row.dpr}:${row.id}`),
+    ...mutationRows.filter((row) => !row.pass).map((row) => `mutation:DPR${row.dpr}:${row.id}`),
     ...boundaries.filter((row) => !row.pass).map((row) => `boundary:${row.id}`),
     ...hostileLogicalControls.filter((row) => !row.pass).map((row) => `hostile:${row.id}`),
     ...structuralErrors,
@@ -715,9 +741,12 @@ export async function runMixedReferenceColorSpaceOracle(
       configuredRevision: configuredChromiumRevision ?? MIXED_COLOR_SPACE_SOURCE_PINS.chromium,
       expectedRevision: MIXED_COLOR_SPACE_SOURCE_PINS.chromium,
       pinnedBehavior: "missing-linearRGB-to-sRGB-before-shorthand",
-      earlyConversionMutationDistance: hostileLogicalControls.find((row) => row.id === "insert-early-linear-to-srgb-transition")!.maxChannelCodeDistance,
-      pass: (configuredChromiumRevision == null || configuredChromiumRevision === MIXED_COLOR_SPACE_SOURCE_PINS.chromium)
-        && hostileLogicalControls.find((row) => row.id === "insert-early-linear-to-srgb-transition")!.pass,
+      earlyConversionMutationDistance: hostileLogicalControls.find(
+        (row) => row.id === "insert-early-linear-to-srgb-transition",
+      )!.maxChannelCodeDistance,
+      pass:
+        (configuredChromiumRevision == null || configuredChromiumRevision === MIXED_COLOR_SPACE_SOURCE_PINS.chromium) &&
+        hostileLogicalControls.find((row) => row.id === "insert-early-linear-to-srgb-transition")!.pass,
     },
     producer: { chromiumVersion, platform: process.platform, architecture: process.arch },
     fixedBounds: {
@@ -755,9 +784,7 @@ async function main(): Promise<void> {
   const dprAt = args.indexOf("--dpr");
   const jsonAt = args.indexOf("--json");
   const artifactsAt = args.indexOf("--artifact-dir");
-  const dprs = dprAt >= 0
-    ? args[dprAt + 1].split(",").map(Number).filter(Number.isFinite)
-    : [1, 2];
+  const dprs = dprAt >= 0 ? args[dprAt + 1].split(",").map(Number).filter(Number.isFinite) : [1, 2];
   const jsonPath = jsonAt >= 0 ? args[jsonAt + 1] : undefined;
   const artifactDir = artifactsAt >= 0 ? args[artifactsAt + 1] : undefined;
   const report = await runMixedReferenceColorSpaceOracle(dprs, artifactDir);

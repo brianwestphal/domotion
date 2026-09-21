@@ -14,8 +14,11 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import {
-  resolveFontKey, getFontInstance, getFontSourceInfo,
-  resolveDarwinAxisLocation, __resolveFaceInfoForFileForTest,
+  resolveFontKey,
+  getFontInstance,
+  getFontSourceInfo,
+  resolveDarwinAxisLocation,
+  __resolveFaceInfoForFileForTest,
 } from "./font-resolution.js";
 import { isGlyphHelperAvailable, resolveFamilyStyleMatch } from "./glyph-helper.js";
 
@@ -41,14 +44,16 @@ describe("resolveDarwinAxisLocation with the face's own coordinates", () => {
 
   it("excludes opsz from the face seed — the specified-size derivation stands", () => {
     const withOpsz = { ...fileAxes, opsz: { min: 17, default: 28, max: 96 } };
-    expect(resolveDarwinAxisLocation(withOpsz, 16, undefined, { opsz: 28, wght: 0.48 }))
-      .toEqual({ wght: 0.48, opsz: 17 }); // 16 clamps to the axis minimum
+    expect(resolveDarwinAxisLocation(withOpsz, 16, undefined, { opsz: 28, wght: 0.48 })).toEqual({
+      wght: 0.48,
+      opsz: 17,
+    }); // 16 clamps to the axis minimum
   });
 });
 
 const SKIA = "/System/Library/Fonts/Supplemental/Skia.ttf";
-const describeSkia = process.platform === "darwin" && existsSync(SKIA) && isGlyphHelperAvailable()
-  ? describe : describe.skip;
+const describeSkia =
+  process.platform === "darwin" && existsSync(SKIA) && isGlyphHelperAvailable() ? describe : describe.skip;
 
 describeSkia("declared `Skia` resolves the face Chrome paints, not the Black master", () => {
   it("uses the live declared-family matcher and never pins a CSS-valued axis", () => {

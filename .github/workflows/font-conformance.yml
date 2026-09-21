@@ -33,37 +33,37 @@ on:
   workflow_dispatch:
     inputs:
       os:
-        description: 'Platform to sweep — each has its own corpus and baseline'
+        description: "Platform to sweep — each has its own corpus and baseline"
         type: choice
         options: [macos, linux, windows, all]
         default: macos
       shards:
-        description: 'Number of stack shards to fan out across'
-        default: '6'
+        description: "Number of stack shards to fan out across"
+        default: "6"
       cp_shards:
-        description: 'DM-1887. Codepoint shards per stack shard (2nd matrix axis). 1 = the stack-only fan-out this workflow shipped with. Total jobs = shards x cp_shards, so mind the ~20-job concurrency ceiling. Widen for LINUX first: its per-job overhead is 49s against macOS''s 156s (36% of the job), so extra macOS jobs mostly buy more npm / Playwright / Swift setup.'
-        default: '1'
+        description: "DM-1887. Codepoint shards per stack shard (2nd matrix axis). 1 = the stack-only fan-out this workflow shipped with. Total jobs = shards x cp_shards, so mind the ~20-job concurrency ceiling. Widen for LINUX first: its per-job overhead is 49s against macOS's 156s (36% of the job), so extra macOS jobs mostly buy more npm / Playwright / Swift setup."
+        default: "1"
       max_stacks:
         description: 'Cap on the number of corpus stacks (most-used first). Use "all" for the whole corpus (hours per platform, sharded) — NOT an empty string: GitHub substitutes the default for an empty workflow_dispatch input, so a run meant to sweep everything silently swept the canonical six.'
-        default: '6'
+        default: "6"
       range:
-        description: 'Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)'
-        default: ''
+        description: "Optional codepoint range filter, e.g. 0000-2FFF (comma-separated for several)"
+        default: ""
       no_pua:
-        description: 'Skip private-use codepoints (137k of 292k) for a faster run'
+        description: "Skip private-use codepoints (137k of 292k) for a faster run"
         type: boolean
         default: false
       strict_alias:
-        description: 'Treat the documented macOS system-font naming alias as a mismatch'
+        description: "Treat the documented macOS system-font naming alias as a mismatch"
         type: boolean
         default: false
       update_baseline:
-        description: 'Write this run back as the platform baseline instead of gating on it (artifact only — commit it by hand)'
+        description: "Write this run back as the platform baseline instead of gating on it (artifact only — commit it by hand)"
         type: boolean
         default: false
 
 env:
-  NODE_VERSION: '22.21.0'
+  NODE_VERSION: "22.21.0"
 
 concurrency:
   group: font-conformance-${{ github.ref_name }}-${{ inputs.os }}
@@ -113,7 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
         # Without the native helper the macOS per-codepoint fallback resolver
@@ -213,7 +213,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
         # Same reasoning as macOS: without the DirectWrite helper the Windows
@@ -251,11 +251,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}' }
+        with: { node-version: "${{ env.NODE_VERSION }}" }
       - uses: actions/download-artifact@v4
         with:
           path: shards
-          pattern: 'font-conformance-${{ matrix.os }}-shard-*'
+          pattern: "font-conformance-${{ matrix.os }}-shard-*"
       - name: Merge shard reports
         run: |
           node scripts/merge-font-conformance-shards.mjs \

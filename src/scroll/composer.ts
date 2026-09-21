@@ -22,10 +22,7 @@
  */
 
 import type { ScrollSegmentCapture } from "./executor.js";
-import {
-  capturedScrollOwnerBindingSha256,
-  validateCapturedFrameScrollState,
-} from "../capture/frame-scroll-state.js";
+import { capturedScrollOwnerBindingSha256, validateCapturedFrameScrollState } from "../capture/frame-scroll-state.js";
 import type { CapturedElement, CapturedFrameScrollState } from "../capture/types.js";
 import {
   childOverflowClipGeometry,
@@ -145,7 +142,10 @@ function iframeIdentities(tree: readonly CapturedElement[]): Array<{
   return identities;
 }
 
-function scrollbarSets(tree: readonly CapturedElement[], topFrameId: string): Array<{
+function scrollbarSets(
+  tree: readonly CapturedElement[],
+  topFrameId: string,
+): Array<{
   element: CapturedElement;
   set: NonNullable<CapturedElement["scrollbars"]>;
   expectedFrameId: string;
@@ -159,9 +159,8 @@ function scrollbarSets(tree: readonly CapturedElement[], topFrameId: string): Ar
     for (const element of elements) {
       if (element.scrollbars != null) sets.push({ element, set: element.scrollbars, expectedFrameId: frameId });
       if (element.rootScrollbars != null) sets.push({ element, set: element.rootScrollbars, expectedFrameId: frameId });
-      const childFrameId = element.tag === "iframe" && element.frameScrollIdentity != null
-        ? element.frameScrollIdentity.frameId
-        : frameId;
+      const childFrameId =
+        element.tag === "iframe" && element.frameScrollIdentity != null ? element.frameScrollIdentity.frameId : frameId;
       visit(element.children ?? [], childFrameId);
     }
   };
@@ -235,15 +234,13 @@ export function splitElementScrollStaticLayers(
       elements,
       // A sibling shares the branch's clip ancestors but is not a descendant
       // of the branch's own overflow clip.
-      clips: ownerPath.slice(0, branchIndex).map(
-        (element) => childOverflowClipGeometry(element),
-      ).filter((clip): clip is ChildOverflowClipGeometry => clip != null),
+      clips: ownerPath
+        .slice(0, branchIndex)
+        .map((element) => childOverflowClipGeometry(element))
+        .filter((clip): clip is ChildOverflowClipGeometry => clip != null),
     });
   }
-  const underlay = mapTreePruning(
-    tree,
-    (element) => element === owner || foregroundSet.has(element),
-  );
+  const underlay = mapTreePruning(tree, (element) => element === owner || foregroundSet.has(element));
   return { underlay, foregroundLayers };
 }
 
@@ -254,9 +251,7 @@ export function splitElementScrollStaticLayers(
  * The existing stack translation then cancels the owner's per-segment offset,
  * leaving its border box in place while its captured children move inside it.
  */
-function isolateElementScrollOwner(
-  segments: readonly ScrollSegmentCapture[],
-): {
+function isolateElementScrollOwner(segments: readonly ScrollSegmentCapture[]): {
   segments: ScrollSegmentCapture[];
   staticUnderlay: CapturedElement[];
   staticForegroundLayers: ElementScrollStaticLayers["foregroundLayers"];
@@ -283,23 +278,26 @@ function isolateElementScrollOwner(
     if (ownerRecord?.kind !== "element" || ownerElement == null) {
       throw new Error(`composeScrollSvg: inner-scroll segment ${index} changed or omitted its element owner`);
     }
-    const sessionGenericFamilies = segment.tree.find((root) => root.sessionGenericFamilies != null)
-      ?.sessionGenericFamilies;
+    const sessionGenericFamilies = segment.tree.find(
+      (root) => root.sessionGenericFamilies != null,
+    )?.sessionGenericFamilies;
     return {
       ...segment,
-      tree: [{
-        ...ownerElement,
-        ...(sessionGenericFamilies == null ? {} : { sessionGenericFamilies }),
-      }],
+      tree: [
+        {
+          ...ownerElement,
+          ...(sessionGenericFamilies == null ? {} : { sessionGenericFamilies }),
+        },
+      ],
     };
   });
   return {
     segments: isolated,
     staticUnderlay: staticLayers.underlay,
     staticForegroundLayers: staticLayers.foregroundLayers,
-    ownerClips: firstOwnerPath.map((element) => childOverflowClipGeometry(element)).filter(
-      (clip): clip is ChildOverflowClipGeometry => clip != null,
-    ),
+    ownerClips: firstOwnerPath
+      .map((element) => childOverflowClipGeometry(element))
+      .filter((clip): clip is ChildOverflowClipGeometry => clip != null),
   };
 }
 
@@ -308,13 +306,14 @@ function isolateElementScrollOwner(
  * omitted, stale, or assigned to a sibling Chromium frame.
  */
 export function assertScrollFrameOwnership(segments: readonly ScrollSegmentCapture[]): void {
-  const frameAware = segments.some((segment) => (
-    segment.frameScrollState != null
-    || segment.scrollOwnerId != null
-    || segment.scrollOwnerBindingSha256 != null
-    || iframeIdentities(segment.tree).length > 0
-    || scrollbarSets(segment.tree, "").some(({ set }) => set.owner != null)
-  ));
+  const frameAware = segments.some(
+    (segment) =>
+      segment.frameScrollState != null ||
+      segment.scrollOwnerId != null ||
+      segment.scrollOwnerBindingSha256 != null ||
+      iframeIdentities(segment.tree).length > 0 ||
+      scrollbarSets(segment.tree, "").some(({ set }) => set.owner != null),
+  );
   if (!frameAware) return; // Legacy/synthetic unit inputs contain no frame authority.
   const captureIds = new Set<string>();
   let allowlistSha256: string | undefined;
@@ -345,56 +344,77 @@ export function assertScrollFrameOwnership(segments: readonly ScrollSegmentCaptu
     }
     const owner = scrollOwner(state, segment.scrollOwnerId);
     if (owner == null) {
-      throw new Error(`composeScrollSvg: segment ${index} scroll owner ${segment.scrollOwnerId} is absent or belongs to another frame`);
+      throw new Error(
+        `composeScrollSvg: segment ${index} scroll owner ${segment.scrollOwnerId} is absent or belongs to another frame`,
+      );
     }
     // The executor's selector is resolved with page.evaluate(), so both the
     // viewport route and selector(...) route are necessarily owned by the top
     // Chromium frame. Child-frame owners are carried for scrollbar/resource
     // correlation, never as a substitute composition anchor.
     if (owner.frameId !== state.topFrameId) {
-      throw new Error(`composeScrollSvg: segment ${index} scroll owner ${owner.ownerId} does not belong to the top Chromium frame`);
+      throw new Error(
+        `composeScrollSvg: segment ${index} scroll owner ${owner.ownerId} does not belong to the top Chromium frame`,
+      );
     }
     if (!Object.is(owner.scrollLeft, segment.scrollX) || !Object.is(owner.scrollTop, segment.scrollY)) {
-      throw new Error(`composeScrollSvg: segment ${index} offset does not match Chromium scroll owner ${owner.ownerId}`);
+      throw new Error(
+        `composeScrollSvg: segment ${index} offset does not match Chromium scroll owner ${owner.ownerId}`,
+      );
     }
-    if (capturedScrollOwnerBindingSha256(
-      state,
-      segment.scrollOwnerId,
-      segment.scrollX,
-      segment.scrollY,
-    ) !== segment.scrollOwnerBindingSha256) {
+    if (
+      capturedScrollOwnerBindingSha256(state, segment.scrollOwnerId, segment.scrollX, segment.scrollY) !==
+      segment.scrollOwnerBindingSha256
+    ) {
       throw new Error(`composeScrollSvg: segment ${index} scroll owner/offset binding was mutated`);
     }
     for (const { element, set, expectedFrameId } of scrollbarSets(segment.tree, state.topFrameId)) {
       if (set.owner == null) {
-        throw new Error(`composeScrollSvg: ${element.tag} scrollbar omitted its Chromium frame/scroll owner in segment ${index}`);
+        throw new Error(
+          `composeScrollSvg: ${element.tag} scrollbar omitted its Chromium frame/scroll owner in segment ${index}`,
+        );
       }
       const scrollbarOwner = scrollOwner(state, set.owner.ownerId);
-      if (scrollbarOwner == null || scrollbarOwner.frameId !== set.owner.frameId
-          || set.owner.frameId !== expectedFrameId) {
-        throw new Error(`composeScrollSvg: ${element.tag} scrollbar belongs to a missing or wrong Chromium frame in segment ${index}`);
+      if (
+        scrollbarOwner == null ||
+        scrollbarOwner.frameId !== set.owner.frameId ||
+        set.owner.frameId !== expectedFrameId
+      ) {
+        throw new Error(
+          `composeScrollSvg: ${element.tag} scrollbar belongs to a missing or wrong Chromium frame in segment ${index}`,
+        );
       }
       if (set.horizontal != null && !Object.is(set.horizontal.currentPosition, scrollbarOwner.scrollLeft)) {
-        throw new Error(`composeScrollSvg: ${element.tag} horizontal scrollbar offset does not match owner ${scrollbarOwner.ownerId}`);
+        throw new Error(
+          `composeScrollSvg: ${element.tag} horizontal scrollbar offset does not match owner ${scrollbarOwner.ownerId}`,
+        );
       }
       if (set.vertical != null && !Object.is(set.vertical.currentPosition, scrollbarOwner.scrollTop)) {
-        throw new Error(`composeScrollSvg: ${element.tag} vertical scrollbar offset does not match owner ${scrollbarOwner.ownerId}`);
+        throw new Error(
+          `composeScrollSvg: ${element.tag} vertical scrollbar offset does not match owner ${scrollbarOwner.ownerId}`,
+        );
       }
     }
     for (const { element, identity } of iframeIdentities(segment.tree)) {
       const frame = state.frames.find(({ frameId }) => frameId === identity.frameId);
-      if (identity.source !== state.source
-          || identity.captureId !== state.captureId
-          || identity.allowlistSha256 !== state.allowlist.sha256
-          || frame == null
-          || identity.parentFrameId !== frame.parentFrameId
-          || identity.access !== frame.access) {
-        throw new Error(`composeScrollSvg: iframe ${identity.frameId} carries stale/wrong-frame authority in segment ${index}`);
+      if (
+        identity.source !== state.source ||
+        identity.captureId !== state.captureId ||
+        identity.allowlistSha256 !== state.allowlist.sha256 ||
+        frame == null ||
+        identity.parentFrameId !== frame.parentFrameId ||
+        identity.access !== frame.access
+      ) {
+        throw new Error(
+          `composeScrollSvg: iframe ${identity.frameId} carries stale/wrong-frame authority in segment ${index}`,
+        );
       }
-      const recursed = frame.reachableFromTop
-        && (identity.access === "same-origin" || identity.access === "cross-origin-allowlisted");
+      const recursed =
+        frame.reachableFromTop && (identity.access === "same-origin" || identity.access === "cross-origin-allowlisted");
       if (recursed && element.replacedSnapshot != null) {
-        throw new Error(`composeScrollSvg: readable frame ${identity.frameId} was unexpectedly composed from a raster fallback`);
+        throw new Error(
+          `composeScrollSvg: readable frame ${identity.frameId} was unexpectedly composed from a raster fallback`,
+        );
       }
       if (!recursed && element.replacedSnapshot == null) {
         throw new Error(`composeScrollSvg: fail-closed frame ${identity.frameId} omitted its Chromium raster fallback`);
@@ -444,9 +464,7 @@ function buildStickyOverlays(
     const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
     const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, false, hiDPIFactor, false, realText);
     if (alwaysVisible) {
-      markup.push(
-        `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
-      );
+      markup.push(`\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`);
     } else {
       const cls = `${animClass}-k${i}`;
       cullCss.push(buildVisibilityKeyframes(cls, visStartPct, visEndPct, totalSec));
@@ -464,10 +482,7 @@ function buildStickyOverlays(
  * through each subsequent segment's anchor at its `segmentStartMs` →
  * `segmentEndMs` time slot.
  */
-export function composeScrollSvg(
-  segments: ScrollSegmentCapture[],
-  opts: ScrollComposerOptions,
-): string {
+export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollComposerOptions): string {
   if (segments.length === 0) {
     throw new Error("composeScrollSvg: at least one segment capture required");
   }
@@ -514,7 +529,13 @@ export function composeScrollSvg(
   try {
     return withRenderTextMode(renderTextMode, () =>
       composeScrollSvgBody(composedSegments, opts, {
-        axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
+        axis,
+        W,
+        VH,
+        bg,
+        paintBg,
+        hiDPIFactor,
+        chunkSize,
         staticUnderlay: elementScroll?.staticUnderlay,
         staticForegroundLayers: elementScroll?.staticForegroundLayers,
         elementOwnerClips: elementScroll?.ownerClips,
@@ -555,7 +576,8 @@ function buildScrollVisibility(
     // Out-of-range clamps to 0 / 100.
     let hit = mode === "first" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
     for (let s = 0; s + 1 < cycleStops.length; s++) {
-      const a = cycleStops[s], b = cycleStops[s + 1];
+      const a = cycleStops[s],
+        b = cycleStops[s + 1];
       const lo = Math.min(a.offset, b.offset);
       const hi = Math.max(a.offset, b.offset);
       if (targetY < lo - 0.001 || targetY > hi + 0.001) continue;
@@ -594,8 +616,16 @@ function composeScrollSvgBody(
   },
 ): string {
   const {
-    axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
-    staticUnderlay, staticForegroundLayers, elementOwnerClips,
+    axis,
+    W,
+    VH,
+    bg,
+    paintBg,
+    hiDPIFactor,
+    chunkSize,
+    staticUnderlay,
+    staticForegroundLayers,
+    elementOwnerClips,
   } = ctx;
   // DM-6SQXGF: whether each content region carries the paintless real-text layer.
   const realText = opts.realText === true;
@@ -617,8 +647,8 @@ function composeScrollSvgBody(
   const positions = segments.map((s) => (axis === "y" ? s.scrollY : s.scrollX));
   const minPos = Math.min(...positions);
   const maxPos = Math.max(...positions);
-  const compositeH = axis === "y" ? (maxPos - minPos) + VH : VH;
-  const compositeW = axis === "x" ? (maxPos - minPos) + W  : W;
+  const compositeH = axis === "y" ? maxPos - minPos + VH : VH;
+  const compositeW = axis === "x" ? maxPos - minPos + W : W;
 
   // DM-1073: derive the animation class from a stable signature of this
   // composite (axis, dimensions, segment scroll offsets) rather than
@@ -634,8 +664,8 @@ function composeScrollSvgBody(
   // viewport — so the consumer sees the header "scroll" once per segment.
   // Strip the fixed subtrees from every segment and hoist them onto a single
   // viewport-level overlay below.
-  const fixedStripped: typeof segments[number]["tree"][] = [];
-  const perSegFixed: typeof segments[number]["tree"][] = [];
+  const fixedStripped: (typeof segments)[number]["tree"][] = [];
+  const perSegFixed: (typeof segments)[number]["tree"][] = [];
   for (const { segment: seg } of paintSegments) {
     const { stripped, fixed } = extractFixedSubtrees(seg.tree);
     fixedStripped.push(stripped);
@@ -665,9 +695,7 @@ function composeScrollSvgBody(
   // ticks the keyframe that would bring it back in.
   // The full-cycle anchors come from `dedupedStops` below; build a temporary
   // helper here that mirrors the same data shape.
-  const segOffsets: number[] = segments.map((s) =>
-    (axis === "y" ? s.scrollY : s.scrollX) - minPos,
-  );
+  const segOffsets: number[] = segments.map((s) => (axis === "y" ? s.scrollY : s.scrollX) - minPos);
   const { cycleStops, pctAtScrollY } = buildScrollVisibility(segments, segOffsets, totalMs);
 
   // ── Render each capture's content at its position offset ──
@@ -676,7 +704,16 @@ function composeScrollSvgBody(
   for (let paintIndex = 0; paintIndex < paintSegments.length; paintIndex++) {
     const { segment: seg, index: segmentIndex } = paintSegments[paintIndex];
     const offset = segOffsets[segmentIndex];
-    const inner = elementTreeToSvgInner(strippedTrees[paintIndex], W, VH, `seg${segmentIndex}-`, false, hiDPIFactor, false, realText);
+    const inner = elementTreeToSvgInner(
+      strippedTrees[paintIndex],
+      W,
+      VH,
+      `seg${segmentIndex}-`,
+      false,
+      hiDPIFactor,
+      false,
+      realText,
+    );
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
     // Visibility window: visible while scroll-y is in the rasterisation
@@ -710,9 +747,9 @@ function composeScrollSvgBody(
       captureGroups.push(
         `  <g transform="translate(${tx} ${ty})">` +
           `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-            inner +
+          inner +
           `</svg>` +
-        `</g>`,
+          `</g>`,
       );
     } else {
       const cls = `${animClass}-s${segmentIndex}`;
@@ -722,24 +759,32 @@ function composeScrollSvgBody(
       captureGroups.push(
         `  <g class="${cls}" transform="translate(${tx} ${ty})">` +
           `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-            inner +
+          inner +
           `</svg>` +
-        `</g>`,
+          `</g>`,
       );
     }
   }
   // ── Sticky overlay markup + visibility keyframes (DM-647) ──
   const { markup: stickyMarkup, cullCss: stickyCullCss } = buildStickyOverlays(
-    stickyOverlays, paintSegments.map(({ segment }) => segment), totalMs, animClass, W, VH, hiDPIFactor, realText,
+    stickyOverlays,
+    paintSegments.map(({ segment }) => segment),
+    totalMs,
+    animClass,
+    W,
+    VH,
+    hiDPIFactor,
+    realText,
   );
 
-  const fixedMarkup = fixedOverlay.length === 0
-    ? ""
-    : `\n  <g>` +
+  const fixedMarkup =
+    fixedOverlay.length === 0
+      ? ""
+      : `\n  <g>` +
         `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-          elementTreeToSvgInner(fixedOverlay, W, VH, "fix-", false, hiDPIFactor, false, realText) +
+        elementTreeToSvgInner(fixedOverlay, W, VH, "fix-", false, hiDPIFactor, false, realText) +
         `</svg>` +
-      `</g>`;
+        `</g>`;
   const overlayMarkup = fixedMarkup + stickyMarkup.join("");
 
   // ── Keyframes — one stop per segment ──
@@ -762,20 +807,25 @@ function composeScrollSvgBody(
   // the interval that STARTS at it, i.e. `segments[k]` (the initial stop k=0 takes
   // segments[0]; the trailing stop takes the absent segments[n] → null). So derive
   // `stops` from `cycleStops` rather than rebuilding the same per-segment loop.
-  const stops: Array<{ pct: number; offset: number; tf: string | null }> =
-    cycleStops.map((s, k) => ({ ...s, tf: cssTimingFunction(segments[k]?.easing) }));
+  const stops: Array<{ pct: number; offset: number; tf: string | null }> = cycleStops.map((s, k) => ({
+    ...s,
+    tf: cssTimingFunction(segments[k]?.easing),
+  }));
   // Dedupe trivially equal stops to keep CSS small (pct + offset only — a stop
   // with the same position/time as its predecessor is a zero-motion interval
   // whose timing-function is moot).
-  const dedupedStops = stops.filter((s, i, arr) => i === 0 || !(s.pct === arr[i - 1].pct && s.offset === arr[i - 1].offset));
+  const dedupedStops = stops.filter(
+    (s, i, arr) => i === 0 || !(s.pct === arr[i - 1].pct && s.offset === arr[i - 1].offset),
+  );
   const translateFn = axis === "x" ? "X" : "Y";
   const keyframes = dedupedStops
-    .map((s) =>
-      // DM-642: use translate3d to coax the browser into promoting the
-      // animated <g> onto its own compositing layer so per-frame motion is
-      // a GPU paint rather than a CPU re-rasterisation of every embedded
-      // image/path under the composite.
-      `      ${s.pct.toFixed(3)}% { transform: translate3d(${translateFn === "X" ? `-${s.offset.toFixed(3)}px, 0` : `0, -${s.offset.toFixed(3)}px`}, 0);${s.tf != null ? ` animation-timing-function: ${s.tf};` : ""} }`,
+    .map(
+      (s) =>
+        // DM-642: use translate3d to coax the browser into promoting the
+        // animated <g> onto its own compositing layer so per-frame motion is
+        // a GPU paint rather than a CPU re-rasterisation of every embedded
+        // image/path under the composite.
+        `      ${s.pct.toFixed(3)}% { transform: translate3d(${translateFn === "X" ? `-${s.offset.toFixed(3)}px, 0` : `0, -${s.offset.toFixed(3)}px`}, 0);${s.tf != null ? ` animation-timing-function: ${s.tf};` : ""} }`,
     )
     .join("\n");
 
@@ -796,21 +846,34 @@ function composeScrollSvgBody(
   // glyph snapshots. Its text can add PUA glyphs to the same subset registries
   // as the moving owner captures; collecting first would leave those late
   // glyph references absent from the emitted embedded fonts.
-  const staticMarkup = staticUnderlay == null
-    ? ""
-    : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
+  const staticMarkup =
+    staticUnderlay == null
+      ? ""
+      : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
         elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false, realText) +
-      `</svg></g>`;
-  const staticForegroundMarkup = (staticForegroundLayers ?? []).map((layer, layerIndex) => {
-    const clipOpen = layer.clips.map((_clip, clipIndex) =>
-      `    <g clip-path="url(#${animClass}-foreground-${layerIndex}-clip-${clipIndex})">`,
-    ).join("\n");
-    const clipClose = layer.clips.map(() => "    </g>").join("\n");
-    const markup = `<g data-scroll-static-foreground="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-      elementTreeToSvgInner(layer.elements, W, VH, `static-foreground-${layerIndex}-`, false, hiDPIFactor, false, realText) +
-      `</svg></g>`;
-    return `${clipOpen === "" ? "" : clipOpen + "\n"}    ${markup}\n${clipClose}`;
-  }).join("\n");
+        `</svg></g>`;
+  const staticForegroundMarkup = (staticForegroundLayers ?? [])
+    .map((layer, layerIndex) => {
+      const clipOpen = layer.clips
+        .map((_clip, clipIndex) => `    <g clip-path="url(#${animClass}-foreground-${layerIndex}-clip-${clipIndex})">`)
+        .join("\n");
+      const clipClose = layer.clips.map(() => "    </g>").join("\n");
+      const markup =
+        `<g data-scroll-static-foreground="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
+        elementTreeToSvgInner(
+          layer.elements,
+          W,
+          VH,
+          `static-foreground-${layerIndex}-`,
+          false,
+          hiDPIFactor,
+          false,
+          realText,
+        ) +
+        `</svg></g>`;
+      return `${clipOpen === "" ? "" : clipOpen + "\n"}    ${markup}\n${clipClose}`;
+    })
+    .join("\n");
 
   // DM-652: collect every `@font-face` rule the embedded-font path
   // registered during segment + overlay rendering above, into a single
@@ -826,22 +889,38 @@ function composeScrollSvgBody(
   // an animate frame (Blink resolves local SVG IRIs through the shared TreeScope,
   // not through the nearest nested <svg> element).
   const glyphDefs = getGlyphDefs();
-  const ownerClipDefs = (elementOwnerClips ?? []).map((clip, index) =>
-    `    <clipPath id="${animClass}-owner-clip-${index}">${roundedRectSvg(
-      clip.x, clip.y, clip.width, clip.height, clip.corners, "",
-    )}</clipPath>`,
-  ).join("\n");
-  const ownerClipOpen = (elementOwnerClips ?? []).map((_clip, index) =>
-    `    <g clip-path="url(#${animClass}-owner-clip-${index})">`,
-  ).join("\n");
+  const ownerClipDefs = (elementOwnerClips ?? [])
+    .map(
+      (clip, index) =>
+        `    <clipPath id="${animClass}-owner-clip-${index}">${roundedRectSvg(
+          clip.x,
+          clip.y,
+          clip.width,
+          clip.height,
+          clip.corners,
+          "",
+        )}</clipPath>`,
+    )
+    .join("\n");
+  const ownerClipOpen = (elementOwnerClips ?? [])
+    .map((_clip, index) => `    <g clip-path="url(#${animClass}-owner-clip-${index})">`)
+    .join("\n");
   const ownerClipClose = (elementOwnerClips ?? []).map(() => "    </g>").join("\n");
-  const foregroundClipDefs = (staticForegroundLayers ?? []).flatMap((layer, layerIndex) =>
-    layer.clips.map((clip, clipIndex) =>
-      `    <clipPath id="${animClass}-foreground-${layerIndex}-clip-${clipIndex}">${roundedRectSvg(
-        clip.x, clip.y, clip.width, clip.height, clip.corners, "",
-      )}</clipPath>`,
-    ),
-  ).join("\n");
+  const foregroundClipDefs = (staticForegroundLayers ?? [])
+    .flatMap((layer, layerIndex) =>
+      layer.clips.map(
+        (clip, clipIndex) =>
+          `    <clipPath id="${animClass}-foreground-${layerIndex}-clip-${clipIndex}">${roundedRectSvg(
+            clip.x,
+            clip.y,
+            clip.width,
+            clip.height,
+            clip.corners,
+            "",
+          )}</clipPath>`,
+      ),
+    )
+    .join("\n");
 
   // ── Compose final SVG ──
   // Share each raster payload across the segments that show it (the `<image>`

@@ -17,8 +17,17 @@ function coveringFamilies(hex) {
   let fams = [];
   try {
     const s = execFileSync("fc-list", [`:charset=${hex}`, "family"], { encoding: "utf-8" });
-    fams = [...new Set(s.split("\n").map(l => l.split(",")[0].trim()).filter(Boolean))];
-  } catch { fams = []; }
+    fams = [
+      ...new Set(
+        s
+          .split("\n")
+          .map((l) => l.split(",")[0].trim())
+          .filter(Boolean),
+      ),
+    ];
+  } catch {
+    fams = [];
+  }
   coverCache.set(hex, fams);
   return fams;
 }
@@ -28,18 +37,40 @@ for (const x of d.diverge) {
   const fams = coveringFamilies(x.hex);
   const fcCovers = fams.includes(x.fcBare);
   const chromeCovers = fams.includes(x.chromium);
-  if (fams.length === 0) { out.harmlessNoCover++; continue; }
-  if (!fcCovers) { out.harmlessNoCover++; continue; } // fc pick doesn't really cover → walker rejects → tofu
+  if (fams.length === 0) {
+    out.harmlessNoCover++;
+    continue;
+  }
+  if (!fcCovers) {
+    out.harmlessNoCover++;
+    continue;
+  } // fc pick doesn't really cover → walker rejects → tofu
   // fc-match's pick truly covers cp.
-  if (chromeCovers && x.chromium === x.fcBare) { out.fcCoversMatchesChrome++; continue; }
+  if (chromeCovers && x.chromium === x.fcBare) {
+    out.fcCoversMatchesChrome++;
+    continue;
+  }
   // fc covers but with a different face than Chromium painted (and Chromium's face may or may not cover)
   out.fcCoversDiffChrome++;
-  out.cases.push({ block: x.block, hex: x.hex, ch: x.ch, chromium: x.chromium, fcBare: x.fcBare, chromeCovers, covering: fams.slice(0, 6) });
+  out.cases.push({
+    block: x.block,
+    hex: x.hex,
+    ch: x.ch,
+    chromium: x.chromium,
+    fcBare: x.fcBare,
+    chromeCovers,
+    covering: fams.slice(0, 6),
+  });
 }
 writeFileSync(OUT, JSON.stringify(out, null, 2));
-console.error(`harmlessNoCover=${out.harmlessNoCover}  fcCoversMatchesChrome=${out.fcCoversMatchesChrome}  fcCoversDiffChrome=${out.fcCoversDiffChrome}`);
+console.error(
+  `harmlessNoCover=${out.harmlessNoCover}  fcCoversMatchesChrome=${out.fcCoversMatchesChrome}  fcCoversDiffChrome=${out.fcCoversDiffChrome}`,
+);
 // roll up the meaningful cases by (chromium -> fcBare)
 const pair = new Map();
-for (const c of out.cases) { const k = `${c.chromium} (covers=${c.chromeCovers})  =>  ${c.fcBare}`; pair.set(k, (pair.get(k) || 0) + 1); }
+for (const c of out.cases) {
+  const k = `${c.chromium} (covers=${c.chromeCovers})  =>  ${c.fcBare}`;
+  pair.set(k, (pair.get(k) || 0) + 1);
+}
 console.error("\nMeaningful fc-covers divergences by pair:");
 for (const [k, n] of [...pair.entries()].sort((a, b) => b[1] - a[1])) console.error(String(n).padStart(5), k);

@@ -85,7 +85,10 @@ async function main(): Promise<void> {
     await page.waitForTimeout(100);
 
     const { tree } = await captureElementTreeWithWarnings(page, "body", {
-      x: 0, y: 0, width: 400, height: 200,
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
     });
 
     const canvas = findCanvasElement(tree);
@@ -106,11 +109,14 @@ async function main(): Promise<void> {
             <canvas id="dec" width="${Math.ceil(snap.width)}" height="${Math.ceil(snap.height)}"></canvas>
           </body></html>`,
         );
-        await page.evaluate(() => new Promise<void>((res) => {
-          const img = document.getElementById("snap") as HTMLImageElement;
-          if (img.complete && img.naturalWidth > 0) res();
-          else img.addEventListener("load", () => res(), { once: true });
-        }));
+        await page.evaluate(
+          () =>
+            new Promise<void>((res) => {
+              const img = document.getElementById("snap") as HTMLImageElement;
+              if (img.complete && img.naturalWidth > 0) res();
+              else img.addEventListener("load", () => res(), { once: true });
+            }),
+        );
         const greenStats = await page.evaluate(() => {
           const img = document.getElementById("snap") as HTMLImageElement;
           const cv = document.getElementById("dec") as HTMLCanvasElement;
@@ -120,7 +126,10 @@ async function main(): Promise<void> {
           let greenDominated = 0;
           let total = 0;
           for (let i = 0; i < data.length; i += 4) {
-            const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+            const r = data[i],
+              g = data[i + 1],
+              b = data[i + 2],
+              a = data[i + 3];
             if (a < 16) continue;
             total++;
             // "Green-dominated" = G clearly higher than both R and B. The

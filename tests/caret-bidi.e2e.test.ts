@@ -42,7 +42,10 @@ const PAGE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
   <div id="ar" data-domotion-anim="ar">مرحبا abc سلام</div>
 </body></html>`;
 
-interface ChromeRect { x: number; w: number }
+interface ChromeRect {
+  x: number;
+  w: number;
+}
 
 /** Chrome's own geometry for a logical range: the client rects Blink fragments
  *  the selection into (one per bidi level run), left-to-right. */
@@ -176,17 +179,17 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       // Every case is a bidi boundary crossing: Chrome answers with ONE RECT PER
       // BIDI LEVEL RUN, and so must we.
       const cases: Array<{ id: "ltr" | "rtl" | "ar"; start: number; end: number }> = [
-        { id: "ltr", start: 0, end: 4 },   // "abc " — all level 0
-        { id: "ltr", start: 2, end: 8 },   // "c " + the whole Hebrew word
-        { id: "ltr", start: 2, end: 6 },   // "c " + HALF the Hebrew word — DISCONTIGUOUS
-        { id: "ltr", start: 4, end: 12 },  // Hebrew + " def"
-        { id: "ltr", start: 0, end: 12 },  // the whole line — three level runs
-        { id: "rtl", start: 0, end: 4 },   // "שלום" — level 1
-        { id: "rtl", start: 2, end: 8 },   // Hebrew tail + "abc"
-        { id: "rtl", start: 4, end: 10 },  // space + "abc" + space + one Hebrew char
-        { id: "rtl", start: 0, end: 13 },  // the whole line
-        { id: "ar", start: 0, end: 9 },    // Arabic + "abc"
-        { id: "ar", start: 3, end: 12 },   // mid-Arabic through mid-Arabic
+        { id: "ltr", start: 0, end: 4 }, // "abc " — all level 0
+        { id: "ltr", start: 2, end: 8 }, // "c " + the whole Hebrew word
+        { id: "ltr", start: 2, end: 6 }, // "c " + HALF the Hebrew word — DISCONTIGUOUS
+        { id: "ltr", start: 4, end: 12 }, // Hebrew + " def"
+        { id: "ltr", start: 0, end: 12 }, // the whole line — three level runs
+        { id: "rtl", start: 0, end: 4 }, // "שלום" — level 1
+        { id: "rtl", start: 2, end: 8 }, // Hebrew tail + "abc"
+        { id: "rtl", start: 4, end: 10 }, // space + "abc" + space + one Hebrew char
+        { id: "rtl", start: 0, end: 13 }, // the whole line
+        { id: "ar", start: 0, end: 9 }, // Arabic + "abc"
+        { id: "ar", start: 3, end: 12 }, // mid-Arabic through mid-Arabic
       ];
 
       for (const c of cases) {
@@ -194,17 +197,24 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
         const expected = await chromeRangeRects(page, c.id, c.start, c.end);
         const got = resolveRangeRects(tree, { animId: c.id }, c.start, c.end);
         expect(got, label).not.toBeNull();
-        const ours = got!.rects
-          .map((r) => ({ x: +r.x.toFixed(2), w: +r.width.toFixed(2) }))
-          .sort((a, b) => a.x - b.x);
+        const ours = got!.rects.map((r) => ({ x: +r.x.toFixed(2), w: +r.width.toFixed(2) })).sort((a, b) => a.x - b.x);
         expect(ours.length, `${label} rect count`).toBe(expected.length);
         for (let i = 0; i < expected.length; i++) {
-          expect(Math.abs(ours[i].x - expected[i].x), `${label} rect ${i} x (ours ${ours[i].x} vs chrome ${expected[i].x})`).toBeLessThanOrEqual(1);
-          expect(Math.abs(ours[i].w - expected[i].w), `${label} rect ${i} w (ours ${ours[i].w} vs chrome ${expected[i].w})`).toBeLessThanOrEqual(1);
+          expect(
+            Math.abs(ours[i].x - expected[i].x),
+            `${label} rect ${i} x (ours ${ours[i].x} vs chrome ${expected[i].x})`,
+          ).toBeLessThanOrEqual(1);
+          expect(
+            Math.abs(ours[i].w - expected[i].w),
+            `${label} rect ${i} w (ours ${ours[i].w} vs chrome ${expected[i].w})`,
+          ).toBeLessThanOrEqual(1);
         }
         // Every covered code point contributes exactly one sweep edge.
         expect(got!.charCount, `${label} charCount`).toBe(c.end - c.start);
-        expect(got!.rects.reduce((n, r) => n + r.edges.length, 0), `${label} edges`).toBe(c.end - c.start);
+        expect(
+          got!.rects.reduce((n, r) => n + r.edges.length, 0),
+          `${label} edges`,
+        ).toBe(c.end - c.start);
       }
 
       // The discontiguous case is the load-bearing one: a logical range whose
@@ -287,7 +297,7 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       const frameSvg = elementTreeToSvgInner(tree, W, H);
 
       const cases: Array<{ id: "ltr" | "rtl"; start: number; end: number }> = [
-        { id: "ltr", start: 2, end: 6 },  // discontiguous
+        { id: "ltr", start: 2, end: 6 }, // discontiguous
         { id: "rtl", start: 4, end: 10 },
       ];
 
@@ -308,16 +318,23 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       // bidi painting rather than about our reproduction of it. The real check
       // is below: our span count and edges must match CHROME's, whatever Chrome
       // does here.
-      expect(chromePainted[0].length, "the discontiguous case must paint >1 piece, or it tests nothing").toBeGreaterThan(1);
+      expect(
+        chromePainted[0].length,
+        "the discontiguous case must paint >1 piece, or it tests nothing",
+      ).toBeGreaterThan(1);
 
       // Our SVG: one selection track per case, both fully swept at t=1500.
-      const tracks = cases.map((c) => resolveTextTrack(tree, {
-        target: { animId: c.id },
-        selectionColor: "#3b82f6",
-        events: [{ type: "select", t: 0, charStart: c.start, charEnd: c.end, sweepMs: 800 }],
-      }));
+      const tracks = cases.map((c) =>
+        resolveTextTrack(tree, {
+          target: { animId: c.id },
+          selectionColor: "#3b82f6",
+          events: [{ type: "select", t: 0, charStart: c.start, charEnd: c.end, sweepMs: 800 }],
+        }),
+      );
       const svg = generateAnimatedSvg({
-        width: W, height: H, background: "#ffffff",
+        width: W,
+        height: H,
+        background: "#ffffff",
         frames: [{ svgContent: frameSvg, duration: 3000 }],
         textTracks: tracks,
       });
@@ -327,7 +344,9 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
       // selection ink. Measured to contain exactly the spurious 2px spans that
       // were inflating our count from 2 to 7.
       const bareSvg = generateAnimatedSvg({
-        width: W, height: H, background: "#ffffff",
+        width: W,
+        height: H,
+        background: "#ffffff",
         frames: [{ svgContent: frameSvg, duration: 3000 }],
       });
       const bareViewer = await ctx.newPage();
@@ -350,7 +369,10 @@ describeBrowser("bidi caret + selection addressing, calibrated against Chrome (d
         const png = await viewer.screenshot({ clip: { x: 0, y: LINE_TOPS[c.id], width: W, height: 34 } });
         const ours = mergeSpans(dropBaselineSpans(await selectionSpans(viewer, png), ourBaseline[c.id]));
         const label = `${c.id}[${c.start},${c.end})`;
-        expect(ours.length, `${label} span count (ours ${JSON.stringify(ours)} vs chrome ${JSON.stringify(chromePainted[i])})`).toBe(chromePainted[i].length);
+        expect(
+          ours.length,
+          `${label} span count (ours ${JSON.stringify(ours)} vs chrome ${JSON.stringify(chromePainted[i])})`,
+        ).toBe(chromePainted[i].length);
         for (let k = 0; k < ours.length; k++) {
           expect(Math.abs(ours[k][0] - chromePainted[i][k][0]), `${label} span ${k} left`).toBeLessThanOrEqual(2);
           expect(Math.abs(ours[k][1] - chromePainted[i][k][1]), `${label} span ${k} right`).toBeLessThanOrEqual(2);

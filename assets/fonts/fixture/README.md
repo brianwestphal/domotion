@@ -24,10 +24,10 @@ Chrome's layout, `registerWebfont` for Domotion's outlines).
 
 ## Provenance
 
-| File | Upstream | License |
-|---|---|---|
-| `DomotionFixtureMono-Regular.ttf` | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) Regular | SIL OFL 1.1 — `LICENSE-jetbrains-mono.txt` |
-| `DomotionFixtureSerif-Regular.ttf` | [IBM Plex Serif](https://github.com/IBM/plex) Regular | SIL OFL 1.1 — `LICENSE-ibm-plex-serif.txt` |
+| File                               | Upstream                                                             | License                                    |
+| ---------------------------------- | -------------------------------------------------------------------- | ------------------------------------------ |
+| `DomotionFixtureMono-Regular.ttf`  | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) Regular | SIL OFL 1.1 — `LICENSE-jetbrains-mono.txt` |
+| `DomotionFixtureSerif-Regular.ttf` | [IBM Plex Serif](https://github.com/IBM/plex) Regular                | SIL OFL 1.1 — `LICENSE-ibm-plex-serif.txt` |
 
 Both are unmodified apart from being subsetted to the characters the fixtures
 paint. The OFL permits redistribution of modified copies under a reserved-name

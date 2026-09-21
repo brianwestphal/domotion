@@ -31,17 +31,35 @@ export interface TerminalRasterRecord {
 }
 
 const row = (
-  id: string, face: string, gid: number, advance: number, upem: number,
-  commands: number, area: number, width: number, height: number, severity: number,
-  maxEdgeDistance: number, positionKey: [number, number], expectedChanged = true,
+  id: string,
+  face: string,
+  gid: number,
+  advance: number,
+  upem: number,
+  commands: number,
+  area: number,
+  width: number,
+  height: number,
+  severity: number,
+  maxEdgeDistance: number,
+  positionKey: [number, number],
+  expectedChanged = true,
 ): TerminalRasterRecord => ({
-  id, face, glyphs: [{ gid, cluster: 0, advance }], upem,
+  id,
+  face,
+  glyphs: [{ gid, cluster: 0, advance }],
+  upem,
   fontSizePx: PINNED_RASTER_ENVIRONMENT.fontSizePx,
   paint: PINNED_RASTER_ENVIRONMENT.paint,
   sourceOutline: { commandCount: commands },
-  subsetOutline: { commandCount: commands, maxCoordinateDelta: face === ".SFMalayalam-Regular" ? 1.4210854715202004e-14 : 0 },
-  sourcePositionKey: positionKey, emittedPositionKey: positionKey,
-  residual: { area, width, height, severity, maxEdgeDistance }, expectedChanged,
+  subsetOutline: {
+    commandCount: commands,
+    maxCoordinateDelta: face === ".SFMalayalam-Regular" ? 1.4210854715202004e-14 : 0,
+  },
+  sourcePositionKey: positionKey,
+  emittedPositionKey: positionKey,
+  residual: { area, width, height, severity, maxEdgeDistance },
+  expectedChanged,
 });
 
 export const POSITIVE_RECORDS: TerminalRasterRecord[] = [
@@ -55,14 +73,22 @@ export const POSITIVE_RECORDS: TerminalRasterRecord[] = [
 ];
 
 export const ZERO_DIFF_CONTROLS = [
-  ["malayalam-d12", "MalayalamSangamMN", 128, 1302, 2048], ["malayalam-d15", "MalayalamSangamMN", 131, 1812, 2048],
-  ["malayalam-d59", ".SFMalayalam-Regular", 119, 888, 1000], ["malayalam-d5b", ".SFMalayalam-Regular", 121, 789, 1000],
-  ["malayalam-d77", ".SFMalayalam-Regular", 116, 1482, 1000], ["malayalam-d5d", ".SFMalayalam-Regular", 123, 1605, 1000],
-  ["sinhala-dd3", "SinhalaSangamMN", 155, 1113, 2048], ["sinhala-dd2", "SinhalaSangamMN", 154, 1113, 2048],
-  ["sinhala-dd8", "SinhalaSangamMN", 158, 770, 2048], ["myanmar-104e", "MyanmarSangamMN", 185, 1221, 2048],
-  ["myanmar-104d", "MyanmarSangamMN", 184, 1509, 2048], ["apple-symbols-10166", "AppleSymbols", 1974, 1049, 2048],
+  ["malayalam-d12", "MalayalamSangamMN", 128, 1302, 2048],
+  ["malayalam-d15", "MalayalamSangamMN", 131, 1812, 2048],
+  ["malayalam-d59", ".SFMalayalam-Regular", 119, 888, 1000],
+  ["malayalam-d5b", ".SFMalayalam-Regular", 121, 789, 1000],
+  ["malayalam-d77", ".SFMalayalam-Regular", 116, 1482, 1000],
+  ["malayalam-d5d", ".SFMalayalam-Regular", 123, 1605, 1000],
+  ["sinhala-dd3", "SinhalaSangamMN", 155, 1113, 2048],
+  ["sinhala-dd2", "SinhalaSangamMN", 154, 1113, 2048],
+  ["sinhala-dd8", "SinhalaSangamMN", 158, 770, 2048],
+  ["myanmar-104e", "MyanmarSangamMN", 185, 1221, 2048],
+  ["myanmar-104d", "MyanmarSangamMN", 184, 1509, 2048],
+  ["apple-symbols-10166", "AppleSymbols", 1974, 1049, 2048],
   ["apple-symbols-10168", "AppleSymbols", 1976, 1049, 2048],
-].map(([id, face, gid, advance, upem]) => row(id as string, face as string, gid as number, advance as number, upem as number, 1, 0, 0, 0, 0, 0, [0, 0], false));
+].map(([id, face, gid, advance, upem]) =>
+  row(id as string, face as string, gid as number, advance as number, upem as number, 1, 0, 0, 0, 0, 0, [0, 0], false),
+);
 
 const identity = (r: TerminalRasterRecord) => JSON.stringify({ face: r.face, glyphs: r.glyphs, upem: r.upem });
 const known = new Map([...POSITIVE_RECORDS, ...ZERO_DIFF_CONTROLS].map((r) => [identity(r), r]));
@@ -73,20 +99,48 @@ export function classifyTerminalRaster(record: TerminalRasterRecord) {
   if (expected == null) reasons.push("unknown-face-glyph-cluster-advance-upem");
   if (record.fontSizePx !== PINNED_RASTER_ENVIRONMENT.fontSizePx) reasons.push("font-size");
   if (record.paint !== PINNED_RASTER_ENVIRONMENT.paint) reasons.push("paint");
-  if (record.sourceOutline.commandCount !== record.subsetOutline.commandCount || record.subsetOutline.maxCoordinateDelta > 1.5e-14) reasons.push("outline");
-  if (record.sourcePositionKey[0] !== record.emittedPositionKey[0] || record.sourcePositionKey[1] !== record.emittedPositionKey[1]) reasons.push("position-key");
-  if (expected != null && JSON.stringify(record.sourcePositionKey) !== JSON.stringify(expected.sourcePositionKey)) reasons.push("unexpected-position-key");
+  if (
+    record.sourceOutline.commandCount !== record.subsetOutline.commandCount ||
+    record.subsetOutline.maxCoordinateDelta > 1.5e-14
+  )
+    reasons.push("outline");
+  if (
+    record.sourcePositionKey[0] !== record.emittedPositionKey[0] ||
+    record.sourcePositionKey[1] !== record.emittedPositionKey[1]
+  )
+    reasons.push("position-key");
+  if (expected != null && JSON.stringify(record.sourcePositionKey) !== JSON.stringify(expected.sourcePositionKey))
+    reasons.push("unexpected-position-key");
   if (reasons.length > 0) return { classification: "unclassified" as const, reasons };
   const { residual } = record;
-  const insideEnvelope = residual.maxEdgeDistance <= 1 && residual.area <= 47 && residual.width <= 23 && residual.height <= 24 && residual.severity <= 83.52941131591797;
+  const insideEnvelope =
+    residual.maxEdgeDistance <= 1 &&
+    residual.area <= 47 &&
+    residual.width <= 23 &&
+    residual.height <= 24 &&
+    residual.severity <= 83.52941131591797;
   const controlExact = expected!.expectedChanged || (residual.area === 0 && residual.severity === 0);
-  return { classification: insideEnvelope && controlExact ? "terminal-raster-evidence" as const : "envelope-violation" as const, reasons: [] };
+  return {
+    classification:
+      insideEnvelope && controlExact ? ("terminal-raster-evidence" as const) : ("envelope-violation" as const),
+    reasons: [],
+  };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const records = [...POSITIVE_RECORDS, ...ZERO_DIFF_CONTROLS];
-  const results = records.map((record) => ({ id: record.id, ...classifyTerminalRaster(record), residual: record.residual }));
+  const results = records.map((record) => ({
+    id: record.id,
+    ...classifyTerminalRaster(record),
+    residual: record.residual,
+  }));
   const failures = results.filter((result) => result.classification !== "terminal-raster-evidence");
-  console.log(JSON.stringify({ schemaVersion: 1, environment: PINNED_RASTER_ENVIRONMENT, authority: "diagnostic-only", results }, null, 2));
+  console.log(
+    JSON.stringify(
+      { schemaVersion: 1, environment: PINNED_RASTER_ENVIRONMENT, authority: "diagnostic-only", results },
+      null,
+      2,
+    ),
+  );
   if (failures.length > 0) process.exitCode = 1;
 }

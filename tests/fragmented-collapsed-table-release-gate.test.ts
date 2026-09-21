@@ -7,16 +7,24 @@ import {
 } from "../tools/fragmented-collapsed-table-release-gate.js";
 
 const screen = (os: string) => ({
-  schemaVersion: 3, pass: true, currentProtocolExact: true,
+  schemaVersion: 3,
+  pass: true,
+  currentProtocolExact: true,
   verdict: "screen-section-fragment-record-authenticated",
-  environment: { os }, print: { pixelsRead: false },
+  environment: { os },
+  print: { pixelsRead: false },
   discriminators: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`d${i}`, true])),
   mutations: Array.from({ length: 15 }, (_, i) => ({ id: `m${i}`, moved: true })),
 });
 const ink = (platform: string) => ({
-  schemaVersion: 1, platform, verdict: "ratified-source-exact",
-  artifactSetSha256: "a".repeat(64), ratifiedRows: 1152, unratifiedRows: 0,
-  unratifiedFamilies: [], findings: [],
+  schemaVersion: 1,
+  platform,
+  verdict: "ratified-source-exact",
+  artifactSetSha256: "a".repeat(64),
+  ratifiedRows: 1152,
+  unratifiedRows: 0,
+  unratifiedFamilies: [],
+  findings: [],
   scenarios: Array.from({ length: 9 }, (_, i) => ({ id: `s${i}`, pass: true })),
 });
 
@@ -32,9 +40,7 @@ describe("fragmented collapsed-table release gate", () => {
   it("does not let native ink excuse logical ownership drift", () => {
     const badScreen = FRAGMENTED_TABLE_PLATFORMS.map(screen);
     badScreen[0].mutations[0].moved = false;
-    const result = adjudicateFragmentedCollapsedTableRelease(
-      badScreen, FRAGMENTED_TABLE_PLATFORMS.map(ink),
-    );
+    const result = adjudicateFragmentedCollapsedTableRelease(badScreen, FRAGMENTED_TABLE_PLATFORMS.map(ink));
     expect(result.ready).toBe(false);
     expect(result.blockers).toContain("screen/darwin: destructive mutation matrix incomplete");
   });

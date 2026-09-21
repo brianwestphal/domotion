@@ -28,8 +28,8 @@ function sfnt(tables: Array<{ tag: string; length?: number }>): Buffer {
   tables.forEach((t, i) => {
     const at = 12 + i * 16;
     buf.write(t.tag, at, 4, "ascii");
-    buf.writeUInt32BE(0, at + 4);           // checksum
-    buf.writeUInt32BE(0x10000, at + 8);     // offset — never followed
+    buf.writeUInt32BE(0, at + 4); // checksum
+    buf.writeUInt32BE(0x10000, at + 8); // offset — never followed
     buf.writeUInt32BE(t.length ?? 64, at + 12);
   });
   return buf;
@@ -91,10 +91,9 @@ describe("the trak + STAT gate", () => {
     // The case that matters in practice: `PingFangUI.ttc` carries 20-odd
     // members and the cuts routed here are members 20 through 23. A reader
     // that answered for member 0 would answer for a different font.
-    const path = write(ttc([
-      sfnt([{ tag: "glyf" }, { tag: "GSUB" }]),
-      sfnt([{ tag: "glyf" }, { tag: "trak" }, { tag: "STAT" }]),
-    ]));
+    const path = write(
+      ttc([sfnt([{ tag: "glyf" }, { tag: "GSUB" }]), sfnt([{ tag: "glyf" }, { tag: "trak" }, { tag: "STAT" }])]),
+    );
     expect(faceHasTrakAndStat(path, 0)).toBe(false);
     expect(faceHasTrakAndStat(path, 1)).toBe(true);
     // Past the end is not member 0.
@@ -129,8 +128,8 @@ describe("the trak + STAT gate", () => {
     writeFileSync(p, sfnt([{ tag: "trak" }, { tag: "STAT" }]));
     expect(faceHasTrakAndStat(p, 0)).toBe(true);
     writeFileSync(p, sfnt([{ tag: "glyf" }]));
-    expect(faceHasTrakAndStat(p, 0)).toBe(true);   // memoised, not re-read
+    expect(faceHasTrakAndStat(p, 0)).toBe(true); // memoised, not re-read
     _clearTrakStatCache();
-    expect(faceHasTrakAndStat(p, 0)).toBe(false);  // the control
+    expect(faceHasTrakAndStat(p, 0)).toBe(false); // the control
   });
 });

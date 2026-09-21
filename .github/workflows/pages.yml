@@ -10,11 +10,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
-      - 'examples/output/**'
-      - 'examples/animate/**'
-      - 'schemas/**'
-      - '.github/workflows/pages.yml'
+      - "site/**"
+      - "examples/output/**"
+      - "examples/animate/**"
+      - "schemas/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -34,8 +34,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
           cache-dependency-path: site/package-lock.json
 
       - name: Install site deps

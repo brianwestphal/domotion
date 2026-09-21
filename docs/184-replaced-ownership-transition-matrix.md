@@ -3,11 +3,18 @@ id: "requirements/replaced-ownership-transition-matrix"
 title: "184 — Replaced and native ownership transition matrix"
 kind: "contract"
 status: "current"
-owners: ["images-media","animation"]
+owners: ["images-media", "animation"]
 platforms: []
 tickets: ["DM-2364"]
-code: ["src/capture/pseudo-fragment-cdp.ts","src/render/element-tree-to-svg.ts","tests/replaced-ownership-transition-gate.test.ts","tools/replaced-ownership-transition-gate.ts","tools/replaced-ownership-transition-oracle.ts"]
-aliases: ["docs/184-replaced-ownership-transition-matrix.md","doc-184"]
+code:
+  [
+    "src/capture/pseudo-fragment-cdp.ts",
+    "src/render/element-tree-to-svg.ts",
+    "tests/replaced-ownership-transition-gate.test.ts",
+    "tools/replaced-ownership-transition-gate.ts",
+    "tools/replaced-ownership-transition-oracle.ts",
+  ]
+aliases: ["docs/184-replaced-ownership-transition-matrix.md", "doc-184"]
 ---
 
 # 184 — Replaced and native ownership transition matrix
@@ -34,16 +41,16 @@ the detailed source rationale.
 
 ## Ownership transitions
 
-| Pair | Source state | Control state | Required result |
-| --- | --- | --- | --- |
-| Image sizing | zoom 1 | zoom 1.25 | natural object size changes by effective zoom; ≤1 device px |
-| Decode | loaded | loading/failed | vector image crosses to Blink's visible fallback owner |
-| Dynamic surface | frame A | frame B | same replaced-snapshot owner, different source SHA |
-| Checkbox/radio | auto | none/base | whole Chromium host crosses to structural/generated pseudo |
-| Button/progress/meter | auto | author paint | whole Chromium host crosses to structural vector |
-| Select | auto | author host | whole host crosses to narrow menulist decoration |
-| Native state | accent/scheme A | accent/scheme B | owner stays native; source pixels discriminate state |
-| Generated box | positioned | flow/axis/affine | authoritative physical fragments track source ink |
+| Pair                  | Source state    | Control state    | Required result                                             |
+| --------------------- | --------------- | ---------------- | ----------------------------------------------------------- |
+| Image sizing          | zoom 1          | zoom 1.25        | natural object size changes by effective zoom; ≤1 device px |
+| Decode                | loaded          | loading/failed   | vector image crosses to Blink's visible fallback owner      |
+| Dynamic surface       | frame A         | frame B          | same replaced-snapshot owner, different source SHA          |
+| Checkbox/radio        | auto            | none/base        | whole Chromium host crosses to structural/generated pseudo  |
+| Button/progress/meter | auto            | author paint     | whole Chromium host crosses to structural vector            |
+| Select                | auto            | author host      | whole host crosses to narrow menulist decoration            |
+| Native state          | accent/scheme A | accent/scheme B  | owner stays native; source pixels discriminate state        |
+| Generated box         | positioned      | flow/axis/affine | authoritative physical fragments track source ink           |
 
 ## Glassbox decisions
 

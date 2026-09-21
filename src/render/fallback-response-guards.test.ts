@@ -16,9 +16,7 @@ import { describe, expect, it, beforeAll, afterAll, beforeEach, afterEach } from
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  clearGlyphHelperCache, resolveSystemFallbackFonts, takeFallbackResponseAnomalies,
-} from "./glyph-helper.js";
+import { clearGlyphHelperCache, resolveSystemFallbackFonts, takeFallbackResponseAnomalies } from "./glyph-helper.js";
 
 let dir: string;
 let modeFile: string;

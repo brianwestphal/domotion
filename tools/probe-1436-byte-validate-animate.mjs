@@ -35,36 +35,78 @@ configs["trans-scroll-loopfade"] = {
 };
 configs["intra-anim"] = {
   ...base,
-  frames: [{
-    svgContent: `<rect class="anim-t" width="10" height="10"/>`,
-    duration: 1000,
-    animations: [
-      { animId: "t", property: "translateX", from: "0px", to: "10px", duration: 200 },
-      { animId: "o", property: "opacity", from: "1", to: "0.3", duration: 400, repeat: 3 },
-      { animId: "c", property: "opacity", from: "1", to: "0", duration: 530, repeat: "infinite", alternate: true },
-      { animId: "s", property: "scale", from: "0.6", to: "1", duration: 360, easing: "ease-out", transformOrigin: "bottom left" },
-    ],
-  }],
+  frames: [
+    {
+      svgContent: `<rect class="anim-t" width="10" height="10"/>`,
+      duration: 1000,
+      animations: [
+        { animId: "t", property: "translateX", from: "0px", to: "10px", duration: 200 },
+        { animId: "o", property: "opacity", from: "1", to: "0.3", duration: 400, repeat: 3 },
+        { animId: "c", property: "opacity", from: "1", to: "0", duration: 530, repeat: "infinite", alternate: true },
+        {
+          animId: "s",
+          property: "scale",
+          from: "0.6",
+          to: "1",
+          duration: 360,
+          easing: "ease-out",
+          transformOrigin: "bottom left",
+        },
+      ],
+    },
+  ],
 };
 configs["overlay-typing"] = {
   ...base,
-  frames: [{ svgContent: `<rect/>`, duration: 6000, overlays: [
-    { kind: "typing", text: "hello world this is a long first line second", x: 10, y: 30, fontSize: 14, caret: true, wrapWidth: 220 },
-  ] }],
+  frames: [
+    {
+      svgContent: `<rect/>`,
+      duration: 6000,
+      overlays: [
+        {
+          kind: "typing",
+          text: "hello world this is a long first line second",
+          x: 10,
+          y: 30,
+          fontSize: 14,
+          caret: true,
+          wrapWidth: 220,
+        },
+      ],
+    },
+  ],
 };
 configs["overlay-blink"] = {
   ...base,
-  frames: [{ svgContent: `<rect/>`, duration: 2000, overlays: [
-    { kind: "blink", x: 10, y: 10, width: 12, height: 12, periodMs: 800, color: "#ef4444", radius: 6 },
-  ] }],
+  frames: [
+    {
+      svgContent: `<rect/>`,
+      duration: 2000,
+      overlays: [{ kind: "blink", x: 10, y: 10, width: 12, height: 12, periodMs: 800, color: "#ef4444", radius: 6 }],
+    },
+  ],
 };
 for (const from of ["top", "bottom", "left", "right"]) {
   configs[`overlay-svg-${from}`] = {
     ...base,
-    frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{
-      kind: "svg", innerSvg: `<rect width="40" height="20" fill="green"/>`, x: 20, y: 20, width: 40, height: 20,
-      enter: { from, duration: 300 }, exit: { from, duration: 300 },
-    }] }],
+    frames: [
+      {
+        svgContent: `<rect/>`,
+        duration: 3000,
+        overlays: [
+          {
+            kind: "svg",
+            innerSvg: `<rect width="40" height="20" fill="green"/>`,
+            x: 20,
+            y: 20,
+            width: 40,
+            height: 20,
+            enter: { from, duration: 300 },
+            exit: { from, duration: 300 },
+          },
+        ],
+      },
+    ],
   };
 }
 configs["bg-and-mixed"] = {

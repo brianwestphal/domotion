@@ -5,9 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1287","DM-1292","DM-1293","DM-1294"]
-code: ["src/animation/embed-namespace.test.ts","src/animation/embed-namespace.ts","src/cli/animate.test.ts","src/cli/animate.ts","tests/compose-animate-frames.e2e.test.ts"]
-aliases: ["docs/73-template-frames.md","doc-73"]
+tickets: ["DM-1287", "DM-1292", "DM-1293", "DM-1294"]
+code:
+  [
+    "src/animation/embed-namespace.test.ts",
+    "src/animation/embed-namespace.ts",
+    "src/cli/animate.test.ts",
+    "src/cli/animate.ts",
+    "tests/compose-animate-frames.e2e.test.ts",
+  ]
+aliases: ["docs/73-template-frames.md", "doc-73"]
 ---
 
 # 73 — Template frames in the `animate` config
@@ -29,13 +36,17 @@ A new frame kind, alongside `input` / `cast` / `continue`:
 
 ```jsonc
 {
-  "width": 1280, "height": 720,
+  "width": 1280,
+  "height": 720,
   "frames": [
     { "input": "intro.html", "duration": 1500, "transition": { "type": "crossfade", "duration": 300 } },
-    { "template": "lower-third",
+    {
+      "template": "lower-third",
       "params": { "title": "Ada Lovelace", "subtitle": "First Programmer", "accent": "#22d3ee" },
-      "duration": 3000, "transition": { "type": "cut", "duration": 0 } }
-  ]
+      "duration": 3000,
+      "transition": { "type": "cut", "duration": 0 },
+    },
+  ],
 }
 ```
 
@@ -47,7 +58,7 @@ A new frame kind, alongside `input` / `cast` / `continue`:
 - **`params`** — the template's parameters, **validated against that template's
   own zod schema** at compose time. Unknown template name or invalid params fail
   with a path-specific error (`animate: frames[2]: template "lower-third": invalid
-  params — title: …`).
+params — title: …`).
 - `duration` and `transition` work as on any frame.
 
 ### Validation rules
@@ -96,7 +107,7 @@ computed staggered-reveal end, `background-loop` → one loop period), and the f
 takes that value. Set an explicit `duration` to override it (shorter → cut off,
 with a warning; longer → holds). A **static** decorator template (e.g.
 `device-mockup`) has no intrinsic play time, so a frame using one **must** set an
-explicit `duration` — omitting it is a clear error. Every *non*-template frame
+explicit `duration` — omitting it is a clear error. Every _non_-template frame
 still requires a positive `duration`.
 
 ## How it works (implementation)

@@ -3,11 +3,20 @@ id: "requirements/studio-application-shell"
 title: "Standalone Domotion Studio application shell"
 kind: "contract"
 status: "current"
-owners: ["studio","ui"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2687","DM-S31XF3"]
-code: ["src/cli/studio.ts","src/studio/app-projects.ts","src/studio/server.ts","src/studio/client.tsx","scripts/build-studio-client.mjs","src/studio/app-projects.test.ts","src/studio/server.e2e.test.ts"]
-aliases: ["docs/240-studio-application-shell.md","doc-240"]
+owners: ["studio", "ui"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2687", "DM-S31XF3"]
+code:
+  [
+    "src/cli/studio.ts",
+    "src/studio/app-projects.ts",
+    "src/studio/server.ts",
+    "src/studio/client.tsx",
+    "scripts/build-studio-client.mjs",
+    "src/studio/app-projects.test.ts",
+    "src/studio/server.e2e.test.ts",
+  ]
+aliases: ["docs/240-studio-application-shell.md", "doc-240"]
 ---
 
 # Standalone Domotion Studio application shell

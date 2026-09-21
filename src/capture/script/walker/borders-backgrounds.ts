@@ -69,12 +69,13 @@ export const physicalComputedPaintLength = (value, effectiveZoom) => {
  * including px components inside calc(). */
 export const physicalComputedTileSize = (value, effectiveZoom) => {
   if (effectiveZoom === 1) return value;
-  return value.replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g, (_match, number) =>
-    `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
+  return value.replace(
+    /(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g,
+    (_match, number) => `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`,
+  );
 };
 
-const scalePhysicalNumber = (value, effectiveZoom) =>
-  Math.round(value * effectiveZoom * 1e6) / 1e6;
+const scalePhysicalNumber = (value, effectiveZoom) => Math.round(value * effectiveZoom * 1e6) / 1e6;
 
 const splitGradientArguments = (value) => {
   const parts = [];
@@ -84,10 +85,22 @@ const splitGradientArguments = (value) => {
   let escaped = false;
   for (let index = 0; index < value.length; index++) {
     const ch = value[index];
-    if (escaped) { escaped = false; continue; }
-    if (ch === "\\") { escaped = true; continue; }
-    if (quote !== "") { if (ch === quote) quote = ""; continue; }
-    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== "") {
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
     if (ch === "(") depth++;
     else if (ch === ")") depth--;
     else if (ch === "," && depth === 0) {
@@ -114,10 +127,15 @@ export const physicalComputedLegacyGradient = (call, effectiveZoom) => {
   const args = splitGradientArguments(match[2]);
   if (args.length < (radial ? 4 : 2)) return call;
   const number = /^([+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?)$/i;
-  const point = (value) => value.trim().split(/\s+/).map((token) => {
-    const parsed = number.exec(token);
-    return parsed == null ? token : String(scalePhysicalNumber(Number(parsed[1]), effectiveZoom));
-  }).join(" ");
+  const point = (value) =>
+    value
+      .trim()
+      .split(/\s+/)
+      .map((token) => {
+        const parsed = number.exec(token);
+        return parsed == null ? token : String(scalePhysicalNumber(Number(parsed[1]), effectiveZoom));
+      })
+      .join(" ");
   args[0] = point(args[0]);
   if (radial) {
     const firstRadius = number.exec(args[1]);
@@ -145,10 +163,22 @@ export const physicalComputedGradientImage = (value, effectiveZoom) => {
     let escaped = false;
     for (let index = 0; index < end; index++) {
       const ch = value[index];
-      if (escaped) { escaped = false; continue; }
-      if (ch === "\\") { escaped = true; continue; }
-      if (quote !== "") { if (ch === quote) quote = ""; continue; }
-      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (quote !== "") {
+        if (ch === quote) quote = "";
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        continue;
+      }
       if (ch === "(") depth++;
       else if (ch === ")") depth--;
     }
@@ -172,18 +202,32 @@ export const physicalComputedGradientImage = (value, effectiveZoom) => {
     let end = start.lastIndex;
     for (; end < value.length && depth > 0; end++) {
       const ch = value[end];
-      if (escaped) { escaped = false; continue; }
-      if (ch === "\\") { escaped = true; continue; }
-      if (quote !== "") { if (ch === quote) quote = ""; continue; }
-      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (quote !== "") {
+        if (ch === quote) quote = "";
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        continue;
+      }
       if (ch === "(") depth++;
       else if (ch === ")") depth--;
     }
     const rawCall = value.slice(match.index, end);
     const call = /^-webkit-gradient/i.test(rawCall)
       ? physicalComputedLegacyGradient(rawCall, effectiveZoom)
-      : rawCall.replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g, (_token, number) =>
-          `${scalePhysicalNumber(parseFloat(number), effectiveZoom)}px`);
+      : rawCall.replace(
+          /(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g,
+          (_token, number) => `${scalePhysicalNumber(parseFloat(number), effectiveZoom)}px`,
+        );
     out += call;
     cursor = end;
     searchCursor = end;
@@ -198,7 +242,7 @@ export const physicalComputedGradientImage = (value, effectiveZoom) => {
  * margin needs to be restored. */
 export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
   const vertical = /^(?:vertical|sideways)-/.test(writingMode);
-  const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';
+  const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
   const blockExtent = vertical ? tableRect.width : tableRect.height;
   const logicalEdges = (rect) => {
     if (!vertical) return { start: rect.top - tableRect.top, end: rect.bottom - tableRect.top };
@@ -211,7 +255,7 @@ export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
   let sawBottom = false;
   for (const caption of captions) {
     const edges = logicalEdges(caption.rect);
-    if (caption.side === 'bottom') {
+    if (caption.side === "bottom") {
       if (!sawBottom) {
         blockEnd = edges.start - caption.marginBlockStart;
         sawBottom = true;
@@ -239,20 +283,36 @@ export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
   };
 };
 
-export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1, warn = () => {}, shortSelector = () => "", vp = { x: 0, y: 0 }, collapsedBorderFragmentRecordFor = () => undefined }) => {
+export const createBordersBackgroundsHandler = ({
+  normColor,
+  normGradientColors,
+  resolvePlaceholderShownBg,
+  resolveCornerRadius,
+  effectiveZoomFor = () => 1,
+  warn = () => {},
+  shortSelector = () => "",
+  vp = { x: 0, y: 0 },
+  collapsedBorderFragmentRecordFor = () => undefined,
+}) => {
   const isUaColorBorder = (tag, el, cs, side) =>
-    tag === 'input' && el.type === 'color'
-    && normColor(cs[side], cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)';
+    tag === "input" && el.type === "color" && normColor(cs[side], cs.color).replace(/\s+/g, "") === "rgb(0,0,0)";
 
   const tintedBorderColor = (tag, el, cs, side) =>
-    isUaColorBorder(tag, el, cs, side) ? 'rgb(118,118,118)' : normColor(cs[side], cs.color);
+    isUaColorBorder(tag, el, cs, side) ? "rgb(118,118,118)" : normColor(cs[side], cs.color);
 
   const pseudoCreatesInflowFragment = (el, pseudo) => {
     const styleWindow = el.ownerDocument?.defaultView ?? window;
     const pcs = styleWindow.getComputedStyle(el, pseudo);
     const content = pcs.content;
-    return content != null && content !== '' && content !== 'none' && content !== 'normal'
-      && pcs.display !== 'none' && pcs.position !== 'absolute' && pcs.position !== 'fixed';
+    return (
+      content != null &&
+      content !== "" &&
+      content !== "none" &&
+      content !== "normal" &&
+      pcs.display !== "none" &&
+      pcs.position !== "absolute" &&
+      pcs.position !== "fixed"
+    );
   };
 
   const nodeCreatesInflowFragment = (node) => {
@@ -269,53 +329,52 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     if (node.nodeType !== 1) return false;
     const styleWindow = node.ownerDocument?.defaultView ?? window;
     const ncs = styleWindow.getComputedStyle(node);
-    if (ncs.display === 'none' || ncs.position === 'absolute' || ncs.position === 'fixed') return false;
-    if (ncs.display !== 'contents') return true;
-    if (pseudoCreatesInflowFragment(node, '::before')) return true;
+    if (ncs.display === "none" || ncs.position === "absolute" || ncs.position === "fixed") return false;
+    if (ncs.display !== "contents") return true;
+    if (pseudoCreatesInflowFragment(node, "::before")) return true;
     for (const child of node.childNodes) if (nodeCreatesInflowFragment(child)) return true;
-    return pseudoCreatesInflowFragment(node, '::after');
+    return pseudoCreatesInflowFragment(node, "::after");
   };
 
   const tableCellHasInflowFragments = (cell) => {
-    if (pseudoCreatesInflowFragment(cell, '::before')) return true;
+    if (pseudoCreatesInflowFragment(cell, "::before")) return true;
     for (const child of cell.childNodes) if (nodeCreatesInflowFragment(child)) return true;
-    return pseudoCreatesInflowFragment(cell, '::after');
+    return pseudoCreatesInflowFragment(cell, "::after");
   };
 
   // `FinalizeTableCellLayout` checks whether the fragment builder has any
   // in-flow children. `empty-cells` is ignored for collapsed-border tables.
   const isTableCellHiddenByEmptyCells = (el, cs, tag) =>
-    (tag === 'td' || tag === 'th') && cs.borderCollapse !== 'collapse'
-      && cs.emptyCells === 'hide' && !tableCellHasInflowFragments(el);
+    (tag === "td" || tag === "th") &&
+    cs.borderCollapse !== "collapse" &&
+    cs.emptyCells === "hide" &&
+    !tableCellHasInflowFragments(el);
 
   // A td/th only participates in Blink's table border-collapse machinery
   // while its generated box is a table cell. Author CSS can change a td to a
   // block (the DM-2654 fixture does this via a shared `.lab` rule); the
   // inherited computed `border-collapse: collapse` value then remains visible
   // through CSSOM even though it is inert for that ordinary block box.
-  const isCollapsedTableCell = (tag, cs) =>
-    (tag === 'td' || tag === 'th') && cs.display === 'table-cell';
+  const isCollapsedTableCell = (tag, cs) => (tag === "td" || tag === "th") && cs.display === "table-cell";
 
   const resolveTableGridRect = (el, cs, tag, rect) => {
-    if (tag !== 'table') return undefined;
+    if (tag !== "table") return undefined;
     const captions = [];
     for (const child of el.children) {
       const styleWindow = child.ownerDocument?.defaultView ?? window;
       const ccs = styleWindow.getComputedStyle(child);
-      if (ccs.display !== 'table-caption') continue;
+      if (ccs.display !== "table-caption") continue;
       const captionRect = child.getBoundingClientRect();
       const zoom = effectiveZoomFor(child);
       const vertical = /^(?:vertical|sideways)-/.test(cs.writingMode);
-      const blockReverse = cs.writingMode === 'vertical-rl' || cs.writingMode === 'sideways-rl';
-      const marginBlockStart = parseFloat(vertical
-        ? (blockReverse ? ccs.marginRight : ccs.marginLeft)
-        : ccs.marginTop) * zoom || 0;
-      const marginBlockEnd = parseFloat(vertical
-        ? (blockReverse ? ccs.marginLeft : ccs.marginRight)
-        : ccs.marginBottom) * zoom || 0;
+      const blockReverse = cs.writingMode === "vertical-rl" || cs.writingMode === "sideways-rl";
+      const marginBlockStart =
+        parseFloat(vertical ? (blockReverse ? ccs.marginRight : ccs.marginLeft) : ccs.marginTop) * zoom || 0;
+      const marginBlockEnd =
+        parseFloat(vertical ? (blockReverse ? ccs.marginLeft : ccs.marginRight) : ccs.marginBottom) * zoom || 0;
       captions.push({
         rect: captionRect,
-        side: ccs.captionSide === 'bottom' ? 'bottom' : 'top',
+        side: ccs.captionSide === "bottom" ? "bottom" : "top",
         marginBlockStart,
         marginBlockEnd,
       });
@@ -326,8 +385,8 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   };
 
   const computeFrostedBgFallback = (cs) => {
-    const bdf = cs.backdropFilter || cs.webkitBackdropFilter || '';
-    if (bdf === '' || bdf === 'none') return undefined;
+    const bdf = cs.backdropFilter || cs.webkitBackdropFilter || "";
+    if (bdf === "" || bdf === "none") return undefined;
     const bgCol = normColor(cs.backgroundColor, cs.color);
     // Parse alpha out of "rgba(r,g,b,a)" / "rgb(r,g,b)" / "rgb(r g b / a)".
     // normColor canonicalises to one of these forms.
@@ -346,33 +405,33 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       const bav = parseFloat(bm[1]);
       if (!isNaN(bav)) bodyA = bav;
     }
-    return bodyA <= 0.1 ? 'rgb(255,255,255)' : bodyBg;
+    return bodyA <= 0.1 ? "rgb(255,255,255)" : bodyBg;
   };
 
   const computeBackgroundImages = (el, cs) => {
     const bgImage = cs.backgroundImage;
-    if (bgImage == null || bgImage === 'none' || bgImage === '') return undefined;
+    if (bgImage == null || bgImage === "none" || bgImage === "") return undefined;
     const records = el && el.__domotionBackgroundImages;
     if (!Array.isArray(records)) {
-      warn(shortSelector(el), 'background-image', 'capture-time selected-image sizing record was unavailable');
+      warn(shortSelector(el), "background-image", "capture-time selected-image sizing record was unavailable");
       return undefined;
     }
     const recordWarnings = [];
     for (const record of records) {
       if (record == null || record.warning == null) continue;
-      recordWarnings.push('layer ' + record.layerIndex + ': ' + record.warning);
+      recordWarnings.push("layer " + record.layerIndex + ": " + record.warning);
     }
     if (recordWarnings.length > 0) {
       // The warning buffer de-duplicates by selector + feature. Preserve every
       // failing layer in one diagnostic instead of letting the first one hide
       // later loading/opaque/unsupported states.
-      warn(shortSelector(el), 'background-image', recordWarnings.join('; '));
+      warn(shortSelector(el), "background-image", recordWarnings.join("; "));
     }
     return records;
   };
 
   const computeBorderImageIntrinsic = (cs, dim) => {
-    const url = extractCssUrl(cs.borderImageSource || '');
+    const url = extractCssUrl(cs.borderImageSource || "");
     if (url == null) return undefined;
     const img = new Image();
     img.src = url;
@@ -385,18 +444,23 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   const resolveCollapsedTableRects = (table) => {
     if (table.__dmCollapsedBorderRects !== undefined) return table.__dmCollapsedBorderRects;
     const tableCs = getComputedStyle(table);
-    if (tableCs.borderCollapse !== 'collapse') return (table.__dmCollapsedBorderRects = null);
-    const writingMode = tableCs.writingMode || 'horizontal-tb';
-    const direction = tableCs.direction === 'rtl' ? 'rtl' : 'ltr';
-    const sectionEls = Array.from(table.children).filter((x) => x.tagName === 'THEAD' || x.tagName === 'TBODY' || x.tagName === 'TFOOT');
-    const directRows = Array.from(table.children).filter((x) => x.tagName === 'TR');
+    if (tableCs.borderCollapse !== "collapse") return (table.__dmCollapsedBorderRects = null);
+    const writingMode = tableCs.writingMode || "horizontal-tb";
+    const direction = tableCs.direction === "rtl" ? "rtl" : "ltr";
+    const sectionEls = Array.from(table.children).filter(
+      (x) => x.tagName === "THEAD" || x.tagName === "TBODY" || x.tagName === "TFOOT",
+    );
+    const directRows = Array.from(table.children).filter((x) => x.tagName === "TR");
     const rowEntries = [];
     if (directRows.length) for (const row of directRows) rowEntries.push({ row, section: null, sectionIndex: -1 });
     for (let sectionIndex = 0; sectionIndex < sectionEls.length; sectionIndex++) {
-      for (const row of Array.from(sectionEls[sectionIndex].children).filter((x) => x.tagName === 'TR')) rowEntries.push({ row, section: sectionEls[sectionIndex], sectionIndex });
+      for (const row of Array.from(sectionEls[sectionIndex].children).filter((x) => x.tagName === "TR"))
+        rowEntries.push({ row, section: sectionEls[sectionIndex], sectionIndex });
     }
     if (!rowEntries.length) return (table.__dmCollapsedBorderRects = null);
-    const occupancy = [], cells = [], sections = new Map();
+    const occupancy = [],
+      cells = [],
+      sections = new Map();
     let columns = 0;
     for (let r = 0; r < rowEntries.length; r++) {
       occupancy[r] ||= [];
@@ -407,14 +471,14 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
         else current.count++;
       }
       let c = 0;
-      for (const cell of Array.from(entry.row.children).filter((x) =>
-        (x.tagName === 'TD' || x.tagName === 'TH')
-          && getComputedStyle(x).display === 'table-cell')) {
+      for (const cell of Array.from(entry.row.children).filter(
+        (x) => (x.tagName === "TD" || x.tagName === "TH") && getComputedStyle(x).display === "table-cell",
+      )) {
         while (occupancy[r][c] != null) c++;
         const colspan = Math.max(1, cell.colSpan || 1);
         let rowspan = Math.max(1, cell.rowSpan || 1);
         if (entry.section != null) {
-          const sectionRows = Array.from(entry.section.children).filter((x) => x.tagName === 'TR');
+          const sectionRows = Array.from(entry.section.children).filter((x) => x.tagName === "TR");
           const localRow = sectionRows.indexOf(entry.row);
           rowspan = Math.min(rowspan, sectionRows.length - localRow);
         } else rowspan = Math.min(rowspan, rowEntries.length - r);
@@ -435,42 +499,113 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       const cs = getComputedStyle(node);
       const zoom = effectiveZoomFor(node);
       const one = (side) => ({
-        side: side.toLowerCase(), order,
-        w: parseFloat(physicalComputedPaintLength(cs['border' + side + 'Width'], zoom)) || 0,
-        style: collapsedBorderStyle(cs['border' + side + 'Style']),
-        color: normColor(cs['border' + side + 'Color'], cs.color),
+        side: side.toLowerCase(),
+        order,
+        w: parseFloat(physicalComputedPaintLength(cs["border" + side + "Width"], zoom)) || 0,
+        style: collapsedBorderStyle(cs["border" + side + "Style"]),
+        color: normColor(cs["border" + side + "Color"], cs.color),
       });
-      return { top: one('Top'), right: one('Right'), bottom: one('Bottom'), left: one('Left') };
+      return { top: one("Top"), right: one("Right"), bottom: one("Bottom"), left: one("Left") };
     };
-    for (const meta of cells) mergeCollapsedBorderBox(grid, meta.row, meta.column, meta.rowspan, meta.colspan, physicalBorders(meta.cell, ++boxOrder), writingMode, direction, true);
-    for (let r = 0; r < rowEntries.length; r++) mergeCollapsedBorderBox(grid, r, 0, 1, columns, physicalBorders(rowEntries[r].row, ++boxOrder), writingMode, direction);
-    for (const [section, span] of sections) mergeCollapsedBorderBox(grid, span.start, 0, span.count, columns, physicalBorders(section, ++boxOrder), writingMode, direction);
+    for (const meta of cells)
+      mergeCollapsedBorderBox(
+        grid,
+        meta.row,
+        meta.column,
+        meta.rowspan,
+        meta.colspan,
+        physicalBorders(meta.cell, ++boxOrder),
+        writingMode,
+        direction,
+        true,
+      );
+    for (let r = 0; r < rowEntries.length; r++)
+      mergeCollapsedBorderBox(
+        grid,
+        r,
+        0,
+        1,
+        columns,
+        physicalBorders(rowEntries[r].row, ++boxOrder),
+        writingMode,
+        direction,
+      );
+    for (const [section, span] of sections)
+      mergeCollapsedBorderBox(
+        grid,
+        span.start,
+        0,
+        span.count,
+        columns,
+        physicalBorders(section, ++boxOrder),
+        writingMode,
+        direction,
+      );
     const columnEntries = [];
     for (const child of Array.from(table.children)) {
-      if (child.tagName === 'COL') {
-        columnEntries.push({ col: child, group: null, start: columnEntries.length, span: Math.max(1, child.span || 1) });
-      } else if (child.tagName === 'COLGROUP') {
+      if (child.tagName === "COL") {
+        columnEntries.push({
+          col: child,
+          group: null,
+          start: columnEntries.length,
+          span: Math.max(1, child.span || 1),
+        });
+      } else if (child.tagName === "COLGROUP") {
         const start = columnEntries.reduce((n, item) => Math.max(n, item.start + item.span), 0);
-        const cols = Array.from(child.children).filter((x) => x.tagName === 'COL');
+        const cols = Array.from(child.children).filter((x) => x.tagName === "COL");
         if (!cols.length) columnEntries.push({ col: null, group: child, start, span: Math.max(1, child.span || 1) });
         else {
           let at = start;
-          for (const col of cols) { const span = Math.max(1, col.span || 1); columnEntries.push({ col, group: child, start: at, span }); at += span; }
+          for (const col of cols) {
+            const span = Math.max(1, col.span || 1);
+            columnEntries.push({ col, group: child, start: at, span });
+            at += span;
+          }
         }
       }
     }
     const columnOrder = ++boxOrder;
-    for (const entry of columnEntries) if (entry.col != null) mergeCollapsedBorderBox(grid, 0, entry.start, rowEntries.length, entry.span, physicalBorders(entry.col, columnOrder), writingMode, direction);
+    for (const entry of columnEntries)
+      if (entry.col != null)
+        mergeCollapsedBorderBox(
+          grid,
+          0,
+          entry.start,
+          rowEntries.length,
+          entry.span,
+          physicalBorders(entry.col, columnOrder),
+          writingMode,
+          direction,
+        );
     const groupOrder = ++boxOrder;
     const groupsSeen = new Set();
-    for (const entry of columnEntries) if (entry.group != null && !groupsSeen.has(entry.group)) {
-      groupsSeen.add(entry.group);
-      const members = columnEntries.filter((x) => x.group === entry.group);
-      const start = Math.min(...members.map((x) => x.start));
-      const end = Math.max(...members.map((x) => x.start + x.span));
-      mergeCollapsedBorderBox(grid, 0, start, rowEntries.length, end - start, physicalBorders(entry.group, groupOrder), writingMode, direction);
-    }
-    mergeCollapsedBorderBox(grid, 0, 0, rowEntries.length, columns, physicalBorders(table, ++boxOrder), writingMode, direction);
+    for (const entry of columnEntries)
+      if (entry.group != null && !groupsSeen.has(entry.group)) {
+        groupsSeen.add(entry.group);
+        const members = columnEntries.filter((x) => x.group === entry.group);
+        const start = Math.min(...members.map((x) => x.start));
+        const end = Math.max(...members.map((x) => x.start + x.span));
+        mergeCollapsedBorderBox(
+          grid,
+          0,
+          start,
+          rowEntries.length,
+          end - start,
+          physicalBorders(entry.group, groupOrder),
+          writingMode,
+          direction,
+        );
+      }
+    mergeCollapsedBorderBox(
+      grid,
+      0,
+      0,
+      rowEntries.length,
+      columns,
+      physicalBorders(table, ++boxOrder),
+      writingMode,
+      direction,
+    );
 
     const tableRect = table.getBoundingClientRect();
     const trackLines = (samples, fallbackEnd) => {
@@ -482,10 +617,12 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       });
       if (lines[0] == null) lines[0] = 0;
       if (lines[lines.length - 1] == null) lines[lines.length - 1] = fallbackEnd;
-      for (let i = 1; i < lines.length - 1; i++) if (lines[i] == null) {
-        let hi = i + 1; while (hi < lines.length && lines[hi] == null) hi++;
-        lines[i] = lines[i - 1] + (lines[hi] - lines[i - 1]) / (hi - i + 1);
-      }
+      for (let i = 1; i < lines.length - 1; i++)
+        if (lines[i] == null) {
+          let hi = i + 1;
+          while (hi < lines.length && lines[hi] == null) hi++;
+          lines[i] = lines[i - 1] + (lines[hi] - lines[i - 1]) / (hi - i + 1);
+        }
       return lines;
     };
     const tableFragments = Array.from(table.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
@@ -498,25 +635,31 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       // an all-transform-neutral epoch; any missing/ambiguous record withholds
       // collapsed-border vector paint instead of reviving the old heuristic.
       const record = collapsedBorderFragmentRecordFor(table);
-      const recordErrors = record?.status === 'authenticated'
-        ? validateCollapsedBorderFragmentRecord(record)
-        : [record?.reason || 'authenticated physical section-fragment record missing'];
-      if (record?.status !== 'authenticated'
-          || recordErrors.length > 0
-          || record.writingMode !== writingMode
-          || record.direction !== direction
-          || record.totalRows !== grid.rows
-          || record.totalColumns !== grid.columns
-          || record.tableFragments.length !== tableFragments.length) {
-        warn(shortSelector(table), 'fragmented collapsed-table ownership',
-          `collapsed-border vector paint withheld: ${recordErrors.join('; ') || 'record/table structure mismatch'}`);
+      const recordErrors =
+        record?.status === "authenticated"
+          ? validateCollapsedBorderFragmentRecord(record)
+          : [record?.reason || "authenticated physical section-fragment record missing"];
+      if (
+        record?.status !== "authenticated" ||
+        recordErrors.length > 0 ||
+        record.writingMode !== writingMode ||
+        record.direction !== direction ||
+        record.totalRows !== grid.rows ||
+        record.totalColumns !== grid.columns ||
+        record.tableFragments.length !== tableFragments.length
+      ) {
+        warn(
+          shortSelector(table),
+          "fragmented collapsed-table ownership",
+          `collapsed-border vector paint withheld: ${recordErrors.join("; ") || "record/table structure mismatch"}`,
+        );
         table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));
         table.__dmCollapsedBorderRects = [];
         table.__dmCollapsedBorderFragmentRecord = record;
         return table.__dmCollapsedBorderRects;
       }
-      const horizontal = writingMode === 'horizontal-tb';
-      const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';
+      const horizontal = writingMode === "horizontal-tb";
+      const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
       const physicalRects = [];
       for (const fragment of record.tableFragments) {
         const fragmentIndex = fragment.fragmentIndex;
@@ -528,7 +671,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
           width: fragment.physicalRect.width,
           height: fragment.physicalRect.height,
         };
-        const inlineReverse = direction === 'rtl';
+        const inlineReverse = direction === "rtl";
         const groups = fragment.sectionFragments.map((section) => ({
           rowStart: section.globalStartRowIndex,
           blockLines: section.logicalRowOffsets,
@@ -541,61 +684,123 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
         for (const rect of logicalRects) {
           let x, y, width, height;
           if (horizontal) {
-            x = inlineReverse ? fragmentRect.right - rect.inlineStart - rect.inlineSize : fragmentRect.left + rect.inlineStart;
-            y = fragmentRect.top + rect.blockStart; width = rect.inlineSize; height = rect.blockSize;
+            x = inlineReverse
+              ? fragmentRect.right - rect.inlineStart - rect.inlineSize
+              : fragmentRect.left + rect.inlineStart;
+            y = fragmentRect.top + rect.blockStart;
+            width = rect.inlineSize;
+            height = rect.blockSize;
           } else {
-            x = blockReverse ? fragmentRect.right - rect.blockStart - rect.blockSize : fragmentRect.left + rect.blockStart;
-            y = inlineReverse ? fragmentRect.bottom - rect.inlineStart - rect.inlineSize : fragmentRect.top + rect.inlineStart;
-            width = rect.blockSize; height = rect.inlineSize;
+            x = blockReverse
+              ? fragmentRect.right - rect.blockStart - rect.blockSize
+              : fragmentRect.left + rect.blockStart;
+            y = inlineReverse
+              ? fragmentRect.bottom - rect.inlineStart - rect.inlineSize
+              : fragmentRect.top + rect.inlineStart;
+            width = rect.blockSize;
+            height = rect.inlineSize;
           }
-          const snap = (start, size) => { const rounded = Math.round(start); return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) }; };
-          const sx = snap(x, width), sy = snap(y, height);
-          if (sx.size > 0 && sy.size > 0) physicalRects.push({ x: sx.start, y: sy.start, width: sx.size, height: sy.size, axis: rect.axis, style: rect.winner.style, color: rect.winner.color, fragmentIndex });
+          const snap = (start, size) => {
+            const rounded = Math.round(start);
+            return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) };
+          };
+          const sx = snap(x, width),
+            sy = snap(y, height);
+          if (sx.size > 0 && sy.size > 0)
+            physicalRects.push({
+              x: sx.start,
+              y: sy.start,
+              width: sx.size,
+              height: sy.size,
+              axis: rect.axis,
+              style: rect.winner.style,
+              color: rect.winner.color,
+              fragmentIndex,
+            });
         }
       }
       table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));
       table.__dmCollapsedBorderRects = physicalRects;
       table.__dmCollapsedBorderFragmentRecord = {
         ...record,
-        consumedBy: 'collapsed-border-fragment-logical-rects-v1',
+        consumedBy: "collapsed-border-fragment-logical-rects-v1",
       };
       return physicalRects;
     }
     const inlineSamples = Array.from({ length: columns + 1 }, () => []);
     const blockSamples = Array.from({ length: rowEntries.length + 1 }, () => []);
-    const horizontal = writingMode === 'horizontal-tb';
-    const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';
-    const inlineReverse = direction === 'rtl';
+    const horizontal = writingMode === "horizontal-tb";
+    const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
+    const inlineReverse = direction === "rtl";
     for (const meta of cells) {
       const rect = meta.cell.getBoundingClientRect();
       const inlineStart = horizontal
-        ? (inlineReverse ? tableRect.right - rect.right : rect.left - tableRect.left)
-        : (inlineReverse ? tableRect.bottom - rect.bottom : rect.top - tableRect.top);
+        ? inlineReverse
+          ? tableRect.right - rect.right
+          : rect.left - tableRect.left
+        : inlineReverse
+          ? tableRect.bottom - rect.bottom
+          : rect.top - tableRect.top;
       const inlineEnd = horizontal
-        ? (inlineReverse ? tableRect.right - rect.left : rect.right - tableRect.left)
-        : (inlineReverse ? tableRect.bottom - rect.top : rect.bottom - tableRect.top);
-      const blockStart = horizontal ? rect.top - tableRect.top : (blockReverse ? tableRect.right - rect.right : rect.left - tableRect.left);
-      const blockEnd = horizontal ? rect.bottom - tableRect.top : (blockReverse ? tableRect.right - rect.left : rect.right - tableRect.left);
-      inlineSamples[meta.column].push(inlineStart); inlineSamples[meta.column + meta.colspan].push(inlineEnd);
-      blockSamples[meta.row].push(blockStart); blockSamples[meta.row + meta.rowspan].push(blockEnd);
+        ? inlineReverse
+          ? tableRect.right - rect.left
+          : rect.right - tableRect.left
+        : inlineReverse
+          ? tableRect.bottom - rect.top
+          : rect.bottom - tableRect.top;
+      const blockStart = horizontal
+        ? rect.top - tableRect.top
+        : blockReverse
+          ? tableRect.right - rect.right
+          : rect.left - tableRect.left;
+      const blockEnd = horizontal
+        ? rect.bottom - tableRect.top
+        : blockReverse
+          ? tableRect.right - rect.left
+          : rect.right - tableRect.left;
+      inlineSamples[meta.column].push(inlineStart);
+      inlineSamples[meta.column + meta.colspan].push(inlineEnd);
+      blockSamples[meta.row].push(blockStart);
+      blockSamples[meta.row + meta.rowspan].push(blockEnd);
     }
     const inlineExtent = horizontal ? tableRect.width : tableRect.height;
     const blockExtent = horizontal ? tableRect.height : tableRect.width;
-    const logicalRects = collapsedBorderLogicalRects(grid, trackLines(inlineSamples, inlineExtent), trackLines(blockSamples, blockExtent));
-    const snap = (start, size) => { const rounded = Math.round(start); return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) }; };
-    const physicalRects = logicalRects.map((rect) => {
-      let x, y, width, height;
-      if (horizontal) {
-        x = inlineReverse ? tableRect.right - rect.inlineStart - rect.inlineSize : tableRect.left + rect.inlineStart;
-        y = tableRect.top + rect.blockStart; width = rect.inlineSize; height = rect.blockSize;
-      } else {
-        x = blockReverse ? tableRect.right - rect.blockStart - rect.blockSize : tableRect.left + rect.blockStart;
-        y = inlineReverse ? tableRect.bottom - rect.inlineStart - rect.inlineSize : tableRect.top + rect.inlineStart;
-        width = rect.blockSize; height = rect.inlineSize;
-      }
-      const sx = snap(x, width), sy = snap(y, height);
-      return { x: sx.start, y: sy.start, width: sx.size, height: sy.size, axis: rect.axis, style: rect.winner.style, color: rect.winner.color };
-    }).filter((rect) => rect.width > 0 && rect.height > 0);
+    const logicalRects = collapsedBorderLogicalRects(
+      grid,
+      trackLines(inlineSamples, inlineExtent),
+      trackLines(blockSamples, blockExtent),
+    );
+    const snap = (start, size) => {
+      const rounded = Math.round(start);
+      return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) };
+    };
+    const physicalRects = logicalRects
+      .map((rect) => {
+        let x, y, width, height;
+        if (horizontal) {
+          x = inlineReverse ? tableRect.right - rect.inlineStart - rect.inlineSize : tableRect.left + rect.inlineStart;
+          y = tableRect.top + rect.blockStart;
+          width = rect.inlineSize;
+          height = rect.blockSize;
+        } else {
+          x = blockReverse ? tableRect.right - rect.blockStart - rect.blockSize : tableRect.left + rect.blockStart;
+          y = inlineReverse ? tableRect.bottom - rect.inlineStart - rect.inlineSize : tableRect.top + rect.inlineStart;
+          width = rect.blockSize;
+          height = rect.inlineSize;
+        }
+        const sx = snap(x, width),
+          sy = snap(y, height);
+        return {
+          x: sx.start,
+          y: sy.start,
+          width: sx.size,
+          height: sy.size,
+          axis: rect.axis,
+          style: rect.winner.style,
+          color: rect.winner.color,
+        };
+      })
+      .filter((rect) => rect.width > 0 && rect.height > 0);
     table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));
     table.__dmCollapsedBorderRects = physicalRects;
     return physicalRects;
@@ -604,180 +809,211 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   // column box borders don't paint as boxes — their contribution is resolved into
   // the cell edges above. Suppress them so we don't paint concentric structural
   // borders on top of the resolved cell borders.
-  const isCollapsedStructural = (tag, cs) => cs.borderCollapse === 'collapse'
-    && (tag === 'table' || tag === 'tr' || tag === 'thead' || tag === 'tbody' || tag === 'tfoot' || tag === 'colgroup' || tag === 'col');
+  const isCollapsedStructural = (tag, cs) =>
+    cs.borderCollapse === "collapse" &&
+    (tag === "table" ||
+      tag === "tr" ||
+      tag === "thead" ||
+      tag === "tbody" ||
+      tag === "tfoot" ||
+      tag === "colgroup" ||
+      tag === "col");
 
   const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture, effectiveZoom = 1) => {
     const backgroundImages = computeBackgroundImages(el, cs);
-    return ({
-    tableGridRect: resolveTableGridRect(el, cs, tag, rect),
-    backgroundColor: (function () {
-      if (isPlaceholderCapture) {
-        const psBg = resolvePlaceholderShownBg(el);
-        if (psBg !== '') return normColor(psBg);
-      }
-      return normColor(cs.backgroundColor, cs.color);
-    })(),
-    borderColor: normColor(cs.borderColor, cs.color),
-    borderWidth: physicalComputedPaintLength(cs.borderWidth, effectiveZoom),
-    borderRadius: cs.borderRadius,
-    borderTopLeftRadius: resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height, effectiveZoom),
-    borderTopRightRadius: resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height, effectiveZoom),
-    borderBottomRightRadius: resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height, effectiveZoom),
-    borderBottomLeftRadius: resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height, effectiveZoom),
-    cornerTopLeftShape: cs.cornerTopLeftShape,
-    cornerTopRightShape: cs.cornerTopRightShape,
-    cornerBottomRightShape: cs.cornerBottomRightShape,
-    cornerBottomLeftShape: cs.cornerBottomLeftShape,
-    borderTopWidth: physicalComputedPaintLength(cs.borderTopWidth, effectiveZoom),
-    borderRightWidth: physicalComputedPaintLength(cs.borderRightWidth, effectiveZoom),
-    borderBottomWidth: physicalComputedPaintLength(cs.borderBottomWidth, effectiveZoom),
-    borderLeftWidth: physicalComputedPaintLength(cs.borderLeftWidth, effectiveZoom),
-    borderTopStyle: cs.borderTopStyle,
-    borderRightStyle: cs.borderRightStyle,
-    borderBottomStyle: cs.borderBottomStyle,
-    borderLeftStyle: cs.borderLeftStyle,
-    borderTopColor: tintedBorderColor(tag, el, cs, 'borderTopColor'),
-    borderRightColor: tintedBorderColor(tag, el, cs, 'borderRightColor'),
-    borderBottomColor: tintedBorderColor(tag, el, cs, 'borderBottomColor'),
-    borderLeftColor: tintedBorderColor(tag, el, cs, 'borderLeftColor'),
-    // Normalize the inherited-but-inert value on DOM cells whose author style
-    // generates a non-table-cell box. This keeps the renderer's ordinary box
-    // border path from centering the stroke on a table grid line.
-    borderCollapse: (tag === 'td' || tag === 'th') && !isCollapsedTableCell(tag, cs)
-      ? 'separate'
-      : cs.borderCollapse,
-    // DM-1260: full collapsed-border conflict resolution. For a cell, override
-    // each side with the resolved winning border (overlapping the adjacent cell's
-    // matching resolved side); for a collapsed structural element, suppress its
-    // box border (folded into the cells). Placed AFTER the per-side width/style/
-    // color fields above so it wins. Complex tables (no resolution) fall through.
-    ...(function () {
-      let collapsedTable = null;
-      if (cs.borderCollapse === 'collapse'
-          && ((tag !== 'td' && tag !== 'th') || isCollapsedTableCell(tag, cs))) {
-        collapsedTable = tag === 'table' ? el : el.closest && el.closest('table');
-      }
-      const tableRects = collapsedTable != null ? resolveCollapsedTableRects(collapsedTable) : null;
-      if (tableRects != null && tag === 'table') {
-        return {
-          collapsedBorderRects: tableRects,
-          collapsedBorderFragmentRecord: collapsedTable.__dmCollapsedBorderFragmentRecord,
-          borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
-          borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
-          borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)',
-        };
-      }
-      if (tableRects != null && (isCollapsedStructural(tag, cs) || isCollapsedTableCell(tag, cs))) {
-        return {
-          borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
-          borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
-          borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)',
-        };
-      }
-      if (isCollapsedStructural(tag, cs)) {
-        return {
-          borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
-          borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
-          // Also clear the shorthands — the renderer's legacy uniform-border path
-          // falls back to `borderWidth` / `borderColor` when the per-side parses
-          // resolve to a zero-width border, which would re-paint the structural box.
-          borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)',
-        };
-      }
-      return {};
-    })(),
-    frostedBgFallback: computeFrostedBgFallback(cs),
-    backgroundImage: physicalComputedGradientImage(normGradientColors(cs.backgroundImage, cs.color), effectiveZoom),
-    backgroundSize: physicalComputedTileSize(cs.backgroundSize, effectiveZoom),
-    // Computed px terms are serialized before effective zoom, while the
-    // captured positioning/painting DOMRects are already physical. Blink's
-    // FillLayer stores zoomed Length values, so cross that boundary once here
-    // for position just as we already do for background-size.
-    backgroundPosition: physicalComputedTileSize(cs.backgroundPosition, effectiveZoom),
-    backgroundRepeat: cs.backgroundRepeat,
-    backgroundClip: cs.backgroundClip,
-    backgroundBlendMode: cs.backgroundBlendMode,
-    // DM-462: -webkit-text-fill-color is the property that actually makes
-    // the headline text transparent in the background-clip:text idiom
-    // (cs.color may still report a normal value).
-    webkitTextFillColor: cs.webkitTextFillColor || cs.WebkitTextFillColor || undefined,
-    // DM-749: Stripe's keynote-speaker headline pattern — a span with
-    // `background-image: <gradient>; background-clip: text; -webkit-text-
-    // fill-color: transparent` wraps a child div that holds the actual
-    // text. The gradient is on the parent but Chrome lets it paint through
-    // the child's glyphs because background-clip: text masks the gradient
-    // by the union of all descendant text shapes. When the element's own
-    // bg-image is none AND its text-fill-color is transparent AND an
-    // ancestor has background-clip: text with a gradient, capture that
-    // ancestor's gradient so the renderer can use it as the glyph fill.
-    ...(function () {
-      const ownTfc = cs.webkitTextFillColor || cs.WebkitTextFillColor || '';
-      // Only meaningful when our own text is transparent.
-      if (!/^(rgba\(0[^)]*?,\s*0\)|transparent)$/i.test(ownTfc.trim())) {
-        return { inheritedTextFillGradient: undefined };
-      }
-      // Walk up at most 8 ancestors looking for `background-clip: text`
-      // + a non-none `background-image`. 8 covers the Stripe hds-heading
-      // depth-of-2 nesting comfortably without scanning the whole tree.
-      let p = el.parentElement;
-      let depth = 0;
-      while (p != null && depth < 8) {
-        const pcs = window.getComputedStyle(p);
-        const bc = (pcs.backgroundClip || '') + ' ' + (pcs.webkitBackgroundClip || '');
-        if (/\btext\b/i.test(bc) && pcs.backgroundImage && pcs.backgroundImage !== 'none' && pcs.backgroundImage !== '') {
-          // DM-908: the gradient resolves against the ANCESTOR's bbox (the
-          // element that set `background-clip: text`), not the current
-          // child element. Capture both so the renderer can build a
-          // gradient def with the right `gradientUnits="userSpaceOnUse"`
-          // coordinates. When two sibling children inherit from the same
-          // ancestor, each then references the SAME gradient span — they
-          // share one continuous gradient instead of each repainting a
-          // full pink-to-purple ramp within its own bbox.
-          const prect = p.getBoundingClientRect();
+    return {
+      tableGridRect: resolveTableGridRect(el, cs, tag, rect),
+      backgroundColor: (function () {
+        if (isPlaceholderCapture) {
+          const psBg = resolvePlaceholderShownBg(el);
+          if (psBg !== "") return normColor(psBg);
+        }
+        return normColor(cs.backgroundColor, cs.color);
+      })(),
+      borderColor: normColor(cs.borderColor, cs.color),
+      borderWidth: physicalComputedPaintLength(cs.borderWidth, effectiveZoom),
+      borderRadius: cs.borderRadius,
+      borderTopLeftRadius: resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height, effectiveZoom),
+      borderTopRightRadius: resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height, effectiveZoom),
+      borderBottomRightRadius: resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height, effectiveZoom),
+      borderBottomLeftRadius: resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height, effectiveZoom),
+      cornerTopLeftShape: cs.cornerTopLeftShape,
+      cornerTopRightShape: cs.cornerTopRightShape,
+      cornerBottomRightShape: cs.cornerBottomRightShape,
+      cornerBottomLeftShape: cs.cornerBottomLeftShape,
+      borderTopWidth: physicalComputedPaintLength(cs.borderTopWidth, effectiveZoom),
+      borderRightWidth: physicalComputedPaintLength(cs.borderRightWidth, effectiveZoom),
+      borderBottomWidth: physicalComputedPaintLength(cs.borderBottomWidth, effectiveZoom),
+      borderLeftWidth: physicalComputedPaintLength(cs.borderLeftWidth, effectiveZoom),
+      borderTopStyle: cs.borderTopStyle,
+      borderRightStyle: cs.borderRightStyle,
+      borderBottomStyle: cs.borderBottomStyle,
+      borderLeftStyle: cs.borderLeftStyle,
+      borderTopColor: tintedBorderColor(tag, el, cs, "borderTopColor"),
+      borderRightColor: tintedBorderColor(tag, el, cs, "borderRightColor"),
+      borderBottomColor: tintedBorderColor(tag, el, cs, "borderBottomColor"),
+      borderLeftColor: tintedBorderColor(tag, el, cs, "borderLeftColor"),
+      // Normalize the inherited-but-inert value on DOM cells whose author style
+      // generates a non-table-cell box. This keeps the renderer's ordinary box
+      // border path from centering the stroke on a table grid line.
+      borderCollapse: (tag === "td" || tag === "th") && !isCollapsedTableCell(tag, cs) ? "separate" : cs.borderCollapse,
+      // DM-1260: full collapsed-border conflict resolution. For a cell, override
+      // each side with the resolved winning border (overlapping the adjacent cell's
+      // matching resolved side); for a collapsed structural element, suppress its
+      // box border (folded into the cells). Placed AFTER the per-side width/style/
+      // color fields above so it wins. Complex tables (no resolution) fall through.
+      ...(function () {
+        let collapsedTable = null;
+        if (cs.borderCollapse === "collapse" && ((tag !== "td" && tag !== "th") || isCollapsedTableCell(tag, cs))) {
+          collapsedTable = tag === "table" ? el : el.closest && el.closest("table");
+        }
+        const tableRects = collapsedTable != null ? resolveCollapsedTableRects(collapsedTable) : null;
+        if (tableRects != null && tag === "table") {
           return {
-            inheritedTextFillGradient: pcs.backgroundImage,
-            inheritedTextFillGradientRect: { x: prect.x, y: prect.y, width: prect.width, height: prect.height },
+            collapsedBorderRects: tableRects,
+            collapsedBorderFragmentRecord: collapsedTable.__dmCollapsedBorderFragmentRecord,
+            borderTopStyle: "none",
+            borderRightStyle: "none",
+            borderBottomStyle: "none",
+            borderLeftStyle: "none",
+            borderTopWidth: "0px",
+            borderRightWidth: "0px",
+            borderBottomWidth: "0px",
+            borderLeftWidth: "0px",
+            borderWidth: "0px",
+            borderColor: "rgba(0, 0, 0, 0)",
           };
         }
-        p = p.parentElement;
-        depth++;
-      }
-      return { inheritedTextFillGradient: undefined };
-    })(),
-    // DM-719: `-webkit-text-stroke-width` / `-webkit-text-stroke-color` paint a
-    // stroke around each glyph outline. Captured so the renderer can add a
-    // `stroke` attribute to the text-path emission.
-    webkitTextStrokeWidth: cs.webkitTextStrokeWidth || cs.WebkitTextStrokeWidth || undefined,
-    webkitTextStrokeColor: cs.webkitTextStrokeColor || cs.WebkitTextStrokeColor || undefined,
-    paintOrder: cs.paintOrder || undefined,
-    backgroundOrigin: cs.backgroundOrigin,
-    backgroundAttachment: cs.backgroundAttachment,
-    backgroundImages,
-    // Compatibility projection only. The selected candidate and complete
-    // natural-sizing state live in backgroundImages.
-    backgroundIntrinsic: (() => {
-      return backgroundImages?.map((record) => record != null
-        && record.naturalWidth != null && record.naturalHeight != null
-        ? { w: record.naturalWidth, h: record.naturalHeight }
-        : null);
-    })(),
-    borderImageSource: physicalComputedGradientImage(cs.borderImageSource, effectiveZoom),
-    borderImageSlice: cs.borderImageSlice,
-    borderImageWidth: cs.borderImageWidth,
-    borderImageOutset: cs.borderImageOutset,
-    borderImageRepeat: cs.borderImageRepeat,
-    borderImageIntrinsicWidth: computeBorderImageIntrinsic(cs, 'naturalWidth'),
-    borderImageIntrinsicHeight: computeBorderImageIntrinsic(cs, 'naturalHeight'),
-    outlineStyle: cs.outlineStyle,
-    outlineWidth: physicalComputedPaintLength(cs.outlineWidth, effectiveZoom),
-    outlineColor: normColor(cs.outlineColor),
-    outlineOffset: physicalComputedPaintLength(cs.outlineOffset, effectiveZoom),
-    boxShadow: cs.boxShadow,
-    // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
-    // paint of wrapped inline elements; see CapturedElement.inlineFragments.
-    boxDecorationBreak: cs.boxDecorationBreak || cs.webkitBoxDecorationBreak || 'slice',
-    });
+        if (tableRects != null && (isCollapsedStructural(tag, cs) || isCollapsedTableCell(tag, cs))) {
+          return {
+            borderTopStyle: "none",
+            borderRightStyle: "none",
+            borderBottomStyle: "none",
+            borderLeftStyle: "none",
+            borderTopWidth: "0px",
+            borderRightWidth: "0px",
+            borderBottomWidth: "0px",
+            borderLeftWidth: "0px",
+            borderWidth: "0px",
+            borderColor: "rgba(0, 0, 0, 0)",
+          };
+        }
+        if (isCollapsedStructural(tag, cs)) {
+          return {
+            borderTopStyle: "none",
+            borderRightStyle: "none",
+            borderBottomStyle: "none",
+            borderLeftStyle: "none",
+            borderTopWidth: "0px",
+            borderRightWidth: "0px",
+            borderBottomWidth: "0px",
+            borderLeftWidth: "0px",
+            // Also clear the shorthands — the renderer's legacy uniform-border path
+            // falls back to `borderWidth` / `borderColor` when the per-side parses
+            // resolve to a zero-width border, which would re-paint the structural box.
+            borderWidth: "0px",
+            borderColor: "rgba(0, 0, 0, 0)",
+          };
+        }
+        return {};
+      })(),
+      frostedBgFallback: computeFrostedBgFallback(cs),
+      backgroundImage: physicalComputedGradientImage(normGradientColors(cs.backgroundImage, cs.color), effectiveZoom),
+      backgroundSize: physicalComputedTileSize(cs.backgroundSize, effectiveZoom),
+      // Computed px terms are serialized before effective zoom, while the
+      // captured positioning/painting DOMRects are already physical. Blink's
+      // FillLayer stores zoomed Length values, so cross that boundary once here
+      // for position just as we already do for background-size.
+      backgroundPosition: physicalComputedTileSize(cs.backgroundPosition, effectiveZoom),
+      backgroundRepeat: cs.backgroundRepeat,
+      backgroundClip: cs.backgroundClip,
+      backgroundBlendMode: cs.backgroundBlendMode,
+      // DM-462: -webkit-text-fill-color is the property that actually makes
+      // the headline text transparent in the background-clip:text idiom
+      // (cs.color may still report a normal value).
+      webkitTextFillColor: cs.webkitTextFillColor || cs.WebkitTextFillColor || undefined,
+      // DM-749: Stripe's keynote-speaker headline pattern — a span with
+      // `background-image: <gradient>; background-clip: text; -webkit-text-
+      // fill-color: transparent` wraps a child div that holds the actual
+      // text. The gradient is on the parent but Chrome lets it paint through
+      // the child's glyphs because background-clip: text masks the gradient
+      // by the union of all descendant text shapes. When the element's own
+      // bg-image is none AND its text-fill-color is transparent AND an
+      // ancestor has background-clip: text with a gradient, capture that
+      // ancestor's gradient so the renderer can use it as the glyph fill.
+      ...(function () {
+        const ownTfc = cs.webkitTextFillColor || cs.WebkitTextFillColor || "";
+        // Only meaningful when our own text is transparent.
+        if (!/^(rgba\(0[^)]*?,\s*0\)|transparent)$/i.test(ownTfc.trim())) {
+          return { inheritedTextFillGradient: undefined };
+        }
+        // Walk up at most 8 ancestors looking for `background-clip: text`
+        // + a non-none `background-image`. 8 covers the Stripe hds-heading
+        // depth-of-2 nesting comfortably without scanning the whole tree.
+        let p = el.parentElement;
+        let depth = 0;
+        while (p != null && depth < 8) {
+          const pcs = window.getComputedStyle(p);
+          const bc = (pcs.backgroundClip || "") + " " + (pcs.webkitBackgroundClip || "");
+          if (
+            /\btext\b/i.test(bc) &&
+            pcs.backgroundImage &&
+            pcs.backgroundImage !== "none" &&
+            pcs.backgroundImage !== ""
+          ) {
+            // DM-908: the gradient resolves against the ANCESTOR's bbox (the
+            // element that set `background-clip: text`), not the current
+            // child element. Capture both so the renderer can build a
+            // gradient def with the right `gradientUnits="userSpaceOnUse"`
+            // coordinates. When two sibling children inherit from the same
+            // ancestor, each then references the SAME gradient span — they
+            // share one continuous gradient instead of each repainting a
+            // full pink-to-purple ramp within its own bbox.
+            const prect = p.getBoundingClientRect();
+            return {
+              inheritedTextFillGradient: pcs.backgroundImage,
+              inheritedTextFillGradientRect: { x: prect.x, y: prect.y, width: prect.width, height: prect.height },
+            };
+          }
+          p = p.parentElement;
+          depth++;
+        }
+        return { inheritedTextFillGradient: undefined };
+      })(),
+      // DM-719: `-webkit-text-stroke-width` / `-webkit-text-stroke-color` paint a
+      // stroke around each glyph outline. Captured so the renderer can add a
+      // `stroke` attribute to the text-path emission.
+      webkitTextStrokeWidth: cs.webkitTextStrokeWidth || cs.WebkitTextStrokeWidth || undefined,
+      webkitTextStrokeColor: cs.webkitTextStrokeColor || cs.WebkitTextStrokeColor || undefined,
+      paintOrder: cs.paintOrder || undefined,
+      backgroundOrigin: cs.backgroundOrigin,
+      backgroundAttachment: cs.backgroundAttachment,
+      backgroundImages,
+      // Compatibility projection only. The selected candidate and complete
+      // natural-sizing state live in backgroundImages.
+      backgroundIntrinsic: (() => {
+        return backgroundImages?.map((record) =>
+          record != null && record.naturalWidth != null && record.naturalHeight != null
+            ? { w: record.naturalWidth, h: record.naturalHeight }
+            : null,
+        );
+      })(),
+      borderImageSource: physicalComputedGradientImage(cs.borderImageSource, effectiveZoom),
+      borderImageSlice: cs.borderImageSlice,
+      borderImageWidth: cs.borderImageWidth,
+      borderImageOutset: cs.borderImageOutset,
+      borderImageRepeat: cs.borderImageRepeat,
+      borderImageIntrinsicWidth: computeBorderImageIntrinsic(cs, "naturalWidth"),
+      borderImageIntrinsicHeight: computeBorderImageIntrinsic(cs, "naturalHeight"),
+      outlineStyle: cs.outlineStyle,
+      outlineWidth: physicalComputedPaintLength(cs.outlineWidth, effectiveZoom),
+      outlineColor: normColor(cs.outlineColor),
+      outlineOffset: physicalComputedPaintLength(cs.outlineOffset, effectiveZoom),
+      boxShadow: cs.boxShadow,
+      // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
+      // paint of wrapped inline elements; see CapturedElement.inlineFragments.
+      boxDecorationBreak: cs.boxDecorationBreak || cs.webkitBoxDecorationBreak || "slice",
+    };
   };
 
   return { captureBordersBackgrounds, isTableCellHiddenByEmptyCells };

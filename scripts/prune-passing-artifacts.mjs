@@ -10,10 +10,16 @@ import { readFileSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2];
-if (dir == null) { console.error("prune-passing-artifacts: <output-dir> required"); process.exit(2); }
+if (dir == null) {
+  console.error("prune-passing-artifacts: <output-dir> required");
+  process.exit(2);
+}
 
 const resultsPath = join(dir, "results.json");
-if (!existsSync(resultsPath)) { console.error(`prune-passing-artifacts: no results.json in ${dir}`); process.exit(1); }
+if (!existsSync(resultsPath)) {
+  console.error(`prune-passing-artifacts: no results.json in ${dir}`);
+  process.exit(1);
+}
 
 const results = JSON.parse(readFileSync(resultsPath, "utf8"));
 // A fixture's artifacts are `<flatName>-{expected,actual,diff}.png` + `<flatName>.svg`
@@ -31,6 +37,11 @@ for (const r of results) {
 let removed = 0;
 for (const name of readdirSync(dir)) {
   if (!name.endsWith(".png") && !name.endsWith(".svg")) continue; // leave results.json / index.html / meta
-  if (!keep.has(name)) { rmSync(join(dir, name), { force: true }); removed++; }
+  if (!keep.has(name)) {
+    rmSync(join(dir, name), { force: true });
+    removed++;
+  }
 }
-console.log(`prune-passing-artifacts: kept ${keep.size} artifacts for failing fixtures, removed ${removed} from ${dir}`);
+console.log(
+  `prune-passing-artifacts: kept ${keep.size} artifacts for failing fixtures, removed ${removed} from ${dir}`,
+);

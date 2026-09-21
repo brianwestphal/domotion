@@ -3,12 +3,12 @@ import { relative, sep } from "node:path";
 const metric = () => ({ covered: 0, total: 0, pct: 100 });
 
 function finish(value) {
-  value.pct = value.total === 0 ? 100 : Number((value.covered / value.total * 100).toFixed(2));
+  value.pct = value.total === 0 ? 100 : Number(((value.covered / value.total) * 100).toFixed(2));
   return value;
 }
 
 function counters(values) {
-  const entries = Object.values(values ?? {}).flatMap((value) => Array.isArray(value) ? value : [value]);
+  const entries = Object.values(values ?? {}).flatMap((value) => (Array.isArray(value) ? value : [value]));
   return finish({ covered: entries.filter((value) => Number(value) > 0).length, total: entries.length, pct: 100 });
 }
 
@@ -89,17 +89,21 @@ function pct(metricValue) {
 export function formatCoverageSummary(summary) {
   const out = ["\nPer-directory merged coverage:", "directory             stmts    branch   funcs    lines"];
   for (const row of summary.directories) {
-    out.push(`${row.path.padEnd(21)} ${pct(row.statements)}  ${pct(row.branches)}  ${pct(row.functions)}  ${pct(row.lines)}`);
+    out.push(
+      `${row.path.padEnd(21)} ${pct(row.statements)}  ${pct(row.branches)}  ${pct(row.functions)}  ${pct(row.lines)}`,
+    );
   }
   out.push("\nInstrumented files below 50% statement coverage after all included lanes:");
   if (summary.lowStatementFiles.length === 0) out.push("  (none)");
-  else for (const file of summary.lowStatementFiles) {
-    out.push(`  ${pct(file.statements)}  ${file.path}`);
-  }
+  else
+    for (const file of summary.lowStatementFiles) {
+      out.push(`  ${pct(file.statements)}  ${file.path}`);
+    }
   out.push("\nBrowser-executed sources omitted by NODE_V8_COVERAGE:");
   if (summary.instrumentationOmissions.length === 0) out.push("  (none)");
-  else for (const file of summary.instrumentationOmissions) {
-    out.push(`  ${file.path} — ${file.reason}`);
-  }
+  else
+    for (const file of summary.instrumentationOmissions) {
+      out.push(`  ${file.path} — ${file.reason}`);
+    }
   return out.join("\n");
 }

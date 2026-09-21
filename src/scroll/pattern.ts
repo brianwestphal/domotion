@@ -173,20 +173,19 @@ type TokenKind =
   | "comma"
   | "colon"
   | "slash"
-  | "at"         // @ — introduces a `speed-suffix` (e.g. `@800pxps`)
+  | "at" // @ — introduces a `speed-suffix` (e.g. `@800pxps`)
   | "lbracket"
   | "rbracket"
   | "plus"
   | "minus"
   | "dot"
-  | "ident"      // identifier — direction names, anchor names, keywords, easing names
-  | "length"     // <n>px | <n>%
-  | "duration"   // <n>s | <n>ms
-  | "speed"      // <n>pxps (px/s; per-action speed override)
-  | "number"     // bare number, used for `<n> times`
-  | "string"     // "..."
-  | "eof"
-  ;
+  | "ident" // identifier — direction names, anchor names, keywords, easing names
+  | "length" // <n>px | <n>%
+  | "duration" // <n>s | <n>ms
+  | "speed" // <n>pxps (px/s; per-action speed override)
+  | "number" // bare number, used for `<n> times`
+  | "string" // "..."
+  | "eof";
 
 interface Token {
   kind: TokenKind;
@@ -206,25 +205,72 @@ function tokenize(source: string): Token[] {
   while (i < len) {
     const ch = source[i];
     // Whitespace
-    if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") { i++; continue; }
+    if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
+      i++;
+      continue;
+    }
     // Single-char punctuation
-    if (ch === "(") { tokens.push({ kind: "lparen",   text: "(", start: i, end: i + 1 }); i++; continue; }
-    if (ch === ")") { tokens.push({ kind: "rparen",   text: ")", start: i, end: i + 1 }); i++; continue; }
-    if (ch === ",") { tokens.push({ kind: "comma",    text: ",", start: i, end: i + 1 }); i++; continue; }
-    if (ch === ":") { tokens.push({ kind: "colon",    text: ":", start: i, end: i + 1 }); i++; continue; }
-    if (ch === "/") { tokens.push({ kind: "slash",    text: "/", start: i, end: i + 1 }); i++; continue; }
-    if (ch === "@") { tokens.push({ kind: "at",       text: "@", start: i, end: i + 1 }); i++; continue; }
-    if (ch === "[") { tokens.push({ kind: "lbracket", text: "[", start: i, end: i + 1 }); i++; continue; }
-    if (ch === "]") { tokens.push({ kind: "rbracket", text: "]", start: i, end: i + 1 }); i++; continue; }
-    if (ch === "+") { tokens.push({ kind: "plus",     text: "+", start: i, end: i + 1 }); i++; continue; }
-    if (ch === "-") { tokens.push({ kind: "minus",    text: "-", start: i, end: i + 1 }); i++; continue; }
-    if (ch === ".") { tokens.push({ kind: "dot",      text: ".", start: i, end: i + 1 }); i++; continue; }
+    if (ch === "(") {
+      tokens.push({ kind: "lparen", text: "(", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === ")") {
+      tokens.push({ kind: "rparen", text: ")", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === ",") {
+      tokens.push({ kind: "comma", text: ",", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === ":") {
+      tokens.push({ kind: "colon", text: ":", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === "/") {
+      tokens.push({ kind: "slash", text: "/", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === "@") {
+      tokens.push({ kind: "at", text: "@", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === "[") {
+      tokens.push({ kind: "lbracket", text: "[", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === "]") {
+      tokens.push({ kind: "rbracket", text: "]", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === "+") {
+      tokens.push({ kind: "plus", text: "+", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === "-") {
+      tokens.push({ kind: "minus", text: "-", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if (ch === ".") {
+      tokens.push({ kind: "dot", text: ".", start: i, end: i + 1 });
+      i++;
+      continue;
+    }
     // String literal: "..."
-    if (ch === "\"") {
+    if (ch === '"') {
       const start = i;
       i++;
       const valueStart = i;
-      while (i < len && source[i] !== "\"") i++;
+      while (i < len && source[i] !== '"') i++;
       if (i >= len) {
         throw new ScrollPatternError("Unterminated string literal", source, start);
       }
@@ -282,8 +328,12 @@ function tokenize(source: string): Token[] {
   return tokens;
 }
 
-function isDigit(ch: string): boolean { return ch >= "0" && ch <= "9"; }
-function isLetter(ch: string): boolean { return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z"); }
+function isDigit(ch: string): boolean {
+  return ch >= "0" && ch <= "9";
+}
+function isLetter(ch: string): boolean {
+  return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z");
+}
 
 // ── Parser ──────────────────────────────────────────────────────────────────
 
@@ -294,7 +344,10 @@ const STEP_POSITIONS = new Set(["jump-start", "jump-end", "jump-none", "jump-bot
 
 class Parser {
   private pos = 0;
-  constructor(private readonly tokens: Token[], private readonly source: string) {}
+  constructor(
+    private readonly tokens: Token[],
+    private readonly source: string,
+  ) {}
 
   parse(): ScrollPattern {
     const pattern = this.parsePattern();
@@ -339,7 +392,7 @@ class Parser {
     // can only legally start the until-clause of THIS segment, so we keep it).
     while (this.peek().kind === "comma") {
       const after = this.peekAhead(1);
-      if (after.kind === "lparen") break;       // next top-segment is bracketed
+      if (after.kind === "lparen") break; // next top-segment is bracketed
       this.consume("comma");
       actions.push(this.parseAction());
     }
@@ -393,7 +446,8 @@ class Parser {
         const conflict = this.peek();
         throw new ScrollPatternError(
           "Scroll action cannot carry both a `/<duration>` and `@<speed>` suffix",
-          this.source, conflict.start,
+          this.source,
+          conflict.start,
         );
       }
     } else if (this.peek().kind === "at") {
@@ -402,7 +456,8 @@ class Parser {
       if (!(sp.num != null && sp.num > 0)) {
         throw new ScrollPatternError(
           `Speed must be a positive number of px/s (got "${sp.text}")`,
-          this.source, sp.start,
+          this.source,
+          sp.start,
         );
       }
       speedPxPerSec = sp.num;
@@ -432,7 +487,11 @@ class Parser {
   }
 
   /** Parses the body of an anchored-expr: anchor[.x|.y] (op length)*. */
-  private parseAnchoredExprBody(): { anchor: Anchor; axisSuffix?: "x" | "y"; offsets: Array<{ op: "+" | "-"; length: Length }> } {
+  private parseAnchoredExprBody(): {
+    anchor: Anchor;
+    axisSuffix?: "x" | "y";
+    offsets: Array<{ op: "+" | "-"; length: Length }>;
+  } {
     const anchor = this.parseAnchor();
     let axisSuffix: "x" | "y" | undefined;
     if (this.peek().kind === "dot") {
@@ -456,7 +515,11 @@ class Parser {
   private parseAnchor(): Anchor {
     const tok = this.peek();
     if (tok.kind !== "ident") {
-      throw new ScrollPatternError(`Expected an anchor name or selector(...), got ${describeToken(tok)}`, this.source, tok.start);
+      throw new ScrollPatternError(
+        `Expected an anchor name or selector(...), got ${describeToken(tok)}`,
+        this.source,
+        tok.start,
+      );
     }
     if (tok.text === "selector") {
       // selector("css-selector")
@@ -474,7 +537,8 @@ class Parser {
     }
     throw new ScrollPatternError(
       `Expected anchor name (top|bottom|left|right|start|end) or selector("..."), got "${tok.text}"`,
-      this.source, tok.start,
+      this.source,
+      tok.start,
     );
   }
 
@@ -486,14 +550,19 @@ class Parser {
       this.expect("lparen");
       this.consume("lparen");
       const a = this.parseSignedNumberLiteral();
-      this.expect("comma"); this.consume("comma");
+      this.expect("comma");
+      this.consume("comma");
       const b = this.parseSignedNumberLiteral();
-      this.expect("comma"); this.consume("comma");
+      this.expect("comma");
+      this.consume("comma");
       const c = this.parseSignedNumberLiteral();
-      this.expect("comma"); this.consume("comma");
+      this.expect("comma");
+      this.consume("comma");
       const d = this.parseSignedNumberLiteral();
-      this.expect("rparen"); this.consume("rparen");
-      this.expect("rbracket"); this.consume("rbracket");
+      this.expect("rparen");
+      this.consume("rparen");
+      this.expect("rbracket");
+      this.consume("rbracket");
       return { kind: "cubic-bezier", values: [a, b, c, d] };
     }
     if (tok.text === "steps") {
@@ -504,7 +573,8 @@ class Parser {
       if (!Number.isInteger(count) || count < 1) {
         throw new ScrollPatternError(
           `steps() count must be a positive integer, got "${count}"`,
-          this.source, tok.start,
+          this.source,
+          tok.start,
         );
       }
       let position: StepPosition | undefined;
@@ -514,7 +584,8 @@ class Parser {
         if (!STEP_POSITIONS.has(posTok.text)) {
           throw new ScrollPatternError(
             `Unknown steps() position "${posTok.text}" (expected one of ${[...STEP_POSITIONS].join(", ")})`,
-            this.source, posTok.start,
+            this.source,
+            posTok.start,
           );
         }
         position = posTok.text as StepPosition;
@@ -522,31 +593,49 @@ class Parser {
         if (position === "jump-none" && count < 2) {
           throw new ScrollPatternError(
             `steps(${count}, jump-none) is invalid — jump-none requires a count ≥ 2`,
-            this.source, tok.start,
+            this.source,
+            tok.start,
           );
         }
       }
-      this.expect("rparen"); this.consume("rparen");
-      this.expect("rbracket"); this.consume("rbracket");
+      this.expect("rparen");
+      this.consume("rparen");
+      this.expect("rbracket");
+      this.consume("rbracket");
       return { kind: "steps", count, position };
     }
     if (!EASING_NAMES.has(tok.text)) {
       throw new ScrollPatternError(
         `Unknown easing "${tok.text}" (expected one of ${[...EASING_NAMES].join(", ")}, steps(...), or cubic-bezier(...))`,
-        this.source, tok.start,
+        this.source,
+        tok.start,
       );
     }
-    this.expect("rbracket"); this.consume("rbracket");
-    return { kind: "named", name: tok.text as ("linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out" | "step-start" | "step-end") };
+    this.expect("rbracket");
+    this.consume("rbracket");
+    return {
+      kind: "named",
+      name: tok.text as "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out" | "step-start" | "step-end",
+    };
   }
 
   private parseSignedNumberLiteral(): number {
     let sign = 1;
-    if (this.peek().kind === "minus") { this.consume("minus"); sign = -1; }
-    else if (this.peek().kind === "plus") { this.consume("plus"); }
+    if (this.peek().kind === "minus") {
+      this.consume("minus");
+      sign = -1;
+    } else if (this.peek().kind === "plus") {
+      this.consume("plus");
+    }
     const tok = this.peek();
-    if (tok.kind === "number") { this.consume("number"); return sign * (tok.num as number); }
-    if (tok.kind === "length" && tok.unit === "px") { this.consume("length"); return sign * (tok.num as number); }
+    if (tok.kind === "number") {
+      this.consume("number");
+      return sign * (tok.num as number);
+    }
+    if (tok.kind === "length" && tok.unit === "px") {
+      this.consume("length");
+      return sign * (tok.num as number);
+    }
     throw new ScrollPatternError(`Expected a number, got ${describeToken(tok)}`, this.source, tok.start);
   }
 
@@ -567,12 +656,20 @@ class Parser {
       const numTok = this.consume("number");
       const timesTok = this.peek();
       if (timesTok.kind !== "ident" || timesTok.text !== "times") {
-        throw new ScrollPatternError(`Expected "times" after number in until clause, got ${describeToken(timesTok)}`, this.source, timesTok.start);
+        throw new ScrollPatternError(
+          `Expected "times" after number in until clause, got ${describeToken(timesTok)}`,
+          this.source,
+          timesTok.start,
+        );
       }
       this.consume("ident");
       const count = numTok.num as number;
       if (!Number.isInteger(count) || count <= 0) {
-        throw new ScrollPatternError(`Count in "until ${count} times" must be a positive integer`, this.source, numTok.start);
+        throw new ScrollPatternError(
+          `Count in "until ${count} times" must be a positive integer`,
+          this.source,
+          numTok.start,
+        );
       }
       return { kind: "count", count };
     }
@@ -583,8 +680,12 @@ class Parser {
 
   // ── token helpers ──
 
-  private peek(): Token { return this.tokens[this.pos]; }
-  private peekAhead(n: number): Token { return this.tokens[Math.min(this.pos + n, this.tokens.length - 1)]; }
+  private peek(): Token {
+    return this.tokens[this.pos];
+  }
+  private peekAhead(n: number): Token {
+    return this.tokens[Math.min(this.pos + n, this.tokens.length - 1)];
+  }
   private consume(kind: TokenKind): Token {
     const tok = this.tokens[this.pos];
     if (tok.kind !== kind) {
@@ -608,7 +709,7 @@ function describeToken(t: Token): string {
 
 function durationToMs(t: Token): number {
   if (t.unit === "s") return (t.num as number) * 1000;
-  if (t.unit === "ms") return (t.num as number);
+  if (t.unit === "ms") return t.num as number;
   throw new ScrollPatternError(`Unknown duration unit "${t.unit}"`, "", t.start);
 }
 

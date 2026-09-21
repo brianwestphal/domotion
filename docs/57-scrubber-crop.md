@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1104","DM-1107"]
-code: ["src/scrubber/client.tsx","src/scrubber/crop.ts","src/scrubber/server.ts"]
-aliases: ["docs/57-scrubber-crop.md","doc-57"]
+tickets: ["DM-1104", "DM-1107"]
+code: ["src/scrubber/client.tsx", "src/scrubber/crop.ts", "src/scrubber/server.ts"]
+aliases: ["docs/57-scrubber-crop.md", "doc-57"]
 ---
 
 # 57 — `svg-scrubber` crop (DM-1104)
@@ -64,11 +64,11 @@ The crop rect is sent with each export request (omitted when crop mode is off or
 the rect still covers the whole frame — a no-op). The server (`src/scrubber/
 server.ts`) clamps it to the frame (`clampCrop`) and applies it per export:
 
-| Export | Endpoint | How crop is applied |
-|---|---|---|
-| **Frame (PNG)** | `POST /export-frame` | Playwright `screenshot({ clip })` — the SVG renders at its natural size, so the crop's user-units map 1:1 to viewport px. |
-| **Range (MP4)** | `POST /export-range-video` | Each frame screenshot is `clip`ped to the rect. The clip dims are rounded **down to even** values (H.264 yuv420p requires even W/H) and the encoder frame size becomes the cropped size. |
-| **Trim (SVG)** | `POST /trim` | **Vector crop** — `cropSvgViewBox` rewrites the trimmed SVG's root `viewBox` + `width`/`height` to the rect and forces `overflow:hidden`. The content is untouched; only the viewport window moves, so the downloaded SVG stays scalable and self-contained. |
+| Export          | Endpoint                   | How crop is applied                                                                                                                                                                                                                                          |
+| --------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Frame (PNG)** | `POST /export-frame`       | Playwright `screenshot({ clip })` — the SVG renders at its natural size, so the crop's user-units map 1:1 to viewport px.                                                                                                                                    |
+| **Range (MP4)** | `POST /export-range-video` | Each frame screenshot is `clip`ped to the rect. The clip dims are rounded **down to even** values (H.264 yuv420p requires even W/H) and the encoder frame size becomes the cropped size.                                                                     |
+| **Trim (SVG)**  | `POST /trim`               | **Vector crop** — `cropSvgViewBox` rewrites the trimmed SVG's root `viewBox` + `width`/`height` to the rect and forces `overflow:hidden`. The content is untouched; only the viewport window moves, so the downloaded SVG stays scalable and self-contained. |
 
 A degenerate or off-canvas crop (zero overlap with the frame) is ignored and the
 export proceeds full-frame. A non-positive crop size (`w`/`h` ≤ 0) is rejected at

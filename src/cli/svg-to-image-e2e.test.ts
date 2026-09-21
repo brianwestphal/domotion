@@ -203,16 +203,27 @@ describe("svg-to-image end-to-end (Chromium)", () => {
     const d = setup();
     const input = path.join(d, "loop.svg");
     const output = path.join(d, "loop-end.png");
-    writeFileSync(input, generateAnimatedSvg({
-      width: 32,
-      height: 32,
-      background: "#000000",
-      loopFade: true,
-      frames: [
-        { svgContent: `<rect width="32" height="32" fill="#ff0000"/>`, duration: 100, transition: { type: "crossfade", duration: 100 } },
-        { svgContent: `<rect width="32" height="32" fill="#0000ff"/>`, duration: 100, transition: { type: "crossfade", duration: 100 } },
-      ],
-    }));
+    writeFileSync(
+      input,
+      generateAnimatedSvg({
+        width: 32,
+        height: 32,
+        background: "#000000",
+        loopFade: true,
+        frames: [
+          {
+            svgContent: `<rect width="32" height="32" fill="#ff0000"/>`,
+            duration: 100,
+            transition: { type: "crossfade", duration: 100 },
+          },
+          {
+            svgContent: `<rect width="32" height="32" fill="#0000ff"/>`,
+            duration: 100,
+            transition: { type: "crossfade", duration: 100 },
+          },
+        ],
+      }),
+    );
     try {
       // At 390/400ms the outgoing blue frame is nearly transparent and the
       // wrapped red frame should be nearly opaque. Before the wrap fix this
@@ -220,7 +231,7 @@ describe("svg-to-image end-to-end (Chromium)", () => {
       await runSvgToImage(opts(input, output, { atMs: 390, background: "#000000" }));
       const sharp = (await import("sharp")).default;
       const { data, info } = await sharp(readFileSync(output)).raw().toBuffer({ resolveWithObject: true });
-      const p = ((Math.floor(info.height / 2) * info.width) + Math.floor(info.width / 2)) * info.channels;
+      const p = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
       expect(data[p]).toBeGreaterThan(150);
       expect(data[p]).toBeGreaterThan(data[p + 2]);
     } finally {

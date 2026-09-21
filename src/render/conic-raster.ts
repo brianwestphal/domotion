@@ -150,11 +150,7 @@ export async function rasterizeConicGradients(
  * to a fractional sweep offset in [0, 1), look up the color via stop-list
  * interpolation, and write RGBA bytes.
  */
-export function rasterizeConic(
-  gradient: ConicGradient,
-  width: number,
-  height: number,
-): Buffer {
+export function rasterizeConic(gradient: ConicGradient, width: number, height: number): Buffer {
   const buf = Buffer.allocUnsafe(width * height * 4);
   const cx = resolvePx(gradient.position.x, width);
   const cy = resolvePx(gradient.position.y, height);
@@ -219,7 +215,10 @@ export function resolveConicStops(stops: ConicStop[]): ResolvedStop[] {
   if (out[out.length - 1].offset == null) out[out.length - 1].offset = 1;
   let i = 0;
   while (i < out.length) {
-    if (out[i].offset != null) { i++; continue; }
+    if (out[i].offset != null) {
+      i++;
+      continue;
+    }
     let j = i + 1;
     while (j < out.length && out[j].offset == null) j++;
     const prev = out[i - 1].offset ?? 0;
@@ -251,7 +250,7 @@ function lookupColor(stops: ResolvedStop[], frac: number, repeating: boolean): R
   if (repeating) {
     const period = last - first;
     if (period > 0) {
-      const t = ((frac - first) / period);
+      const t = (frac - first) / period;
       const wrapped = t - Math.floor(t);
       frac = first + wrapped * period;
     }

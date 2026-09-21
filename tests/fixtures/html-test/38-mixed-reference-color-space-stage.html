@@ -1,8 +1,14 @@
 <!doctype html>
-<meta charset="utf-8">
+<meta charset="utf-8" />
 <style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: transparent; }
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    background: transparent;
+  }
   #stage {
     width: 760px;
     height: 340px;
@@ -21,36 +27,40 @@
   .subject {
     position: absolute;
     inset: 8px;
-    background: rgba(52, 164, 231, .58);
+    background: rgba(52, 164, 231, 0.58);
   }
   .linear-reference {
     filter: url(#linear-matrix);
   }
   .srgb-shorthand {
-    filter: brightness(.74) invert(.19) opacity(.67);
+    filter: brightness(0.74) invert(0.19) opacity(0.67);
   }
   .mixed-reference-shorthand {
-    filter: url(#linear-matrix) brightness(.74) invert(.19) opacity(.67);
+    filter: url(#linear-matrix) brightness(0.74) invert(0.19) opacity(0.67);
   }
   .explicit-srgb-boundary {
-    filter: url(#linear-matrix) url(#srgb-identity) brightness(.74) invert(.19) opacity(.67);
+    filter: url(#linear-matrix) url(#srgb-identity) brightness(0.74) invert(0.19) opacity(0.67);
   }
   .shorthand-first {
-    filter: brightness(.74) invert(.19) opacity(.67) url(#linear-matrix);
+    filter: brightness(0.74) invert(0.19) opacity(0.67) url(#linear-matrix);
   }
   .linear-identity {
     filter: url(#linear-identity);
   }
   .identity-mixed {
-    filter: url(#linear-identity) brightness(.74) invert(.19) opacity(.67);
+    filter: url(#linear-identity) brightness(0.74) invert(0.19) opacity(0.67);
   }
   .identity-explicit {
-    filter: url(#linear-identity) url(#srgb-identity) brightness(.74) invert(.19) opacity(.67);
+    filter: url(#linear-identity) url(#srgb-identity) brightness(0.74) invert(0.19) opacity(0.67);
   }
-  #blend-grid { margin-top: 18px; }
-  .blend-case { background: rgb(194, 79, 43); }
+  #blend-grid {
+    margin-top: 18px;
+  }
+  .blend-case {
+    background: rgb(194, 79, 43);
+  }
   .blend-subject {
-    filter: url(#linear-matrix) brightness(.74) invert(.19) opacity(.67);
+    filter: url(#linear-matrix) brightness(0.74) invert(0.19) opacity(0.67);
     mix-blend-mode: multiply;
   }
   .isolation-owner,
@@ -60,7 +70,9 @@
     inset: 0;
   }
   .isolation-owner,
-  .local-isolation-owner { isolation: isolate; }
+  .local-isolation-owner {
+    isolation: isolate;
+  }
   .local-backplate {
     position: absolute;
     inset: 0;
@@ -70,13 +82,13 @@
 
 <svg width="0" height="0" aria-hidden="true">
   <filter id="linear-matrix" color-interpolation-filters="linearRGB">
-    <feColorMatrix values=".82 0 0 0 .07  0 .68 0 0 .10  0 0 .91 0 .02  0 0 0 1 0"/>
+    <feColorMatrix values=".82 0 0 0 .07  0 .68 0 0 .10  0 0 .91 0 .02  0 0 0 1 0" />
   </filter>
   <filter id="linear-identity" color-interpolation-filters="linearRGB">
-    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
   </filter>
   <filter id="srgb-identity" color-interpolation-filters="sRGB">
-    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
   </filter>
 </svg>
 

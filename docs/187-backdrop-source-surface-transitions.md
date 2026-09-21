@@ -3,11 +3,11 @@ id: "requirements/backdrop-source-surface-transitions"
 title: "187 — Backdrop-filter source-surface transitions"
 kind: "contract"
 status: "current"
-owners: ["paint-effects","animation"]
+owners: ["paint-effects", "animation"]
 platforms: []
-tickets: ["DM-2488","DM-2489","DM-2490"]
+tickets: ["DM-2488", "DM-2489", "DM-2490"]
 code: ["tools/backdrop-source-surface-audit.ts"]
-aliases: ["docs/187-backdrop-source-surface-transitions.md","doc-187"]
+aliases: ["docs/187-backdrop-source-surface-transitions.md", "doc-187"]
 ---
 
 # 187 — Backdrop-filter source-surface transitions
@@ -20,8 +20,8 @@ effect-space parity is now a strict native gate in
 
 Doc 126 established the right coarse boundary: an `<img>`-embedded SVG cannot
 sample pixels already painted behind one of its internal groups, so an active
-`backdrop-filter` needs Chromium pixels. The remaining question is *which
-surface owns those pixels* as the target crosses stacking contexts, Backdrop
+`backdrop-filter` needs Chromium pixels. The remaining question is _which
+surface owns those pixels_ as the target crosses stacking contexts, Backdrop
 Roots, transforms, clips, masks, scrolling, generated content, and overlapping
 paint.
 
@@ -60,16 +60,16 @@ target's reconstructed box:
 
 The resulting nearest-ancestor Backdrop Root classifier is:
 
-| Creates a Backdrop Root | Does not create a Backdrop Root |
-| --- | --- |
-| document root | ordinary positioned/z-index stacking context |
-| `opacity < 1` | `isolation:isolate` by itself |
-| noninitial `filter` | 2D/3D transform by itself |
-| noninitial `backdrop-filter` | overflow clip or scroll container |
-| `clip-path` | fixed positioning |
-| mask / mask-border | sticky positioning |
-| nonnormal `mix-blend-mode` | |
-| matching `will-change` values | |
+| Creates a Backdrop Root       | Does not create a Backdrop Root              |
+| ----------------------------- | -------------------------------------------- |
+| document root                 | ordinary positioned/z-index stacking context |
+| `opacity < 1`                 | `isolation:isolate` by itself                |
+| noninitial `filter`           | 2D/3D transform by itself                    |
+| noninitial `backdrop-filter`  | overflow clip or scroll container            |
+| `clip-path`                   | fixed positioning                            |
+| mask / mask-border            | sticky positioning                           |
+| nonnormal `mix-blend-mode`    |                                              |
+| matching `will-change` values |                                              |
 
 `isolation:isolate` remains an important blend-group boundary, but it is not a
 Backdrop Root trigger in Filter Effects 2 and does not take the auxiliary-root
@@ -129,13 +129,13 @@ candidate, under-capture, over-capture, and SVG artifacts per DPR.
 
 Both native runs returned `investigation-complete` with no evidence blockers:
 
-| Evidence | DPR 1 | DPR 2 |
-| --- | ---: | ---: |
-| Source-root classifications | 17/17 | 17/17 |
-| Serialized raster ownership | 16/17 | 16/17 |
-| Under-capture mutations killed | 16/16 | 16/16 |
-| Over-capture mutations killed | 16/16 | 16/16 |
-| Raster before target vector | 16/16 | 16/16 |
+| Evidence                            | DPR 1 | DPR 2 |
+| ----------------------------------- | ----: | ----: |
+| Source-root classifications         | 17/17 | 17/17 |
+| Serialized raster ownership         | 16/17 | 16/17 |
+| Under-capture mutations killed      | 16/16 | 16/16 |
+| Over-capture mutations killed       | 16/16 | 16/16 |
+| Raster before target vector         | 16/16 | 16/16 |
 | Raster/later sibling matches source | 15/16 | 15/16 |
 
 The missing owner is the generated-pseudo row; it has an active computed
@@ -148,21 +148,21 @@ The target-region changed-pixel fractions make the effect-space problem
 visible. Small edge differences remain diagnostic rather than being declared
 pixel-exact:
 
-| Family | DPR 1 | DPR 2 | Interpretation |
-| --- | ---: | ---: | --- |
-| plain / stacking / isolation | 0.49% | 0.25% | Same document-root surface; stacking/isolation do not change it. |
-| opacity root | 98.02% | 97.57% | Final crop is processed again by the ancestor opacity group. |
-| transformed non-root | 64.29% | 63.77% | Viewport-final pixels and emitted transform space disagree. |
-| clip-path root | 0.49% | 0.25% | Binary interior is stable; edge ownership still needs the root contract. |
-| mask root | 10.42% | 4.13% | Reapplying the ancestor mask changes coverage. |
-| scroll / sticky | 1.20% / 1.02% | 0.24% / 0.18% | They remain document-root transitions. |
-| fixed | 0.45% | 0.22% | DM-2489 preserves the independently measured sibling order. |
-| generated pseudo | 91.55% | 91.85% | No serialized backdrop owner. |
+| Family                         |         DPR 1 |         DPR 2 | Interpretation                                                           |
+| ------------------------------ | ------------: | ------------: | ------------------------------------------------------------------------ |
+| plain / stacking / isolation   |         0.49% |         0.25% | Same document-root surface; stacking/isolation do not change it.         |
+| opacity root                   |        98.02% |        97.57% | Final crop is processed again by the ancestor opacity group.             |
+| transformed non-root           |        64.29% |        63.77% | Viewport-final pixels and emitted transform space disagree.              |
+| clip-path root                 |         0.49% |         0.25% | Binary interior is stable; edge ownership still needs the root contract. |
+| mask root                      |        10.42% |         4.13% | Reapplying the ancestor mask changes coverage.                           |
+| scroll / sticky                | 1.20% / 1.02% | 0.24% / 0.18% | They remain document-root transitions.                                   |
+| fixed                          |         0.45% |         0.22% | DM-2489 preserves the independently measured sibling order.              |
+| generated pseudo               |        91.55% |        91.85% | No serialized backdrop owner.                                            |
 | nested / overlapping backdrops | 0.56% / 0.45% | 0.32% / 0.34% | Both targets serialize independent surfaces and preserve ordinary order. |
-| filter root | 88.18% | 87.89% | The already-final crop is filtered again by the ancestor root. |
-| target-local filter chain | 3.30% | 2.91% | Splitting the baked box from vector descendants loses one group surface. |
-| overflow clip | 0.51% | 0.27% | Overflow does not create a Backdrop Root. |
-| blend root | 98.86% | 98.78% | The already-composited crop participates in the ancestor blend again. |
+| filter root                    |        88.18% |        87.89% | The already-final crop is filtered again by the ancestor root.           |
+| target-local filter chain      |         3.30% |         2.91% | Splitting the baked box from vector descendants loses one group surface. |
+| overflow clip                  |         0.51% |         0.27% | Overflow does not create a Backdrop Root.                                |
+| blend root                     |        98.86% |        98.78% | The already-composited crop participates in the ancestor blend again.    |
 
 ## Why the current representation is insufficient
 

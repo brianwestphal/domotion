@@ -21,8 +21,14 @@ const corners = (
   tr: { h: tr[0], v: tr[1] },
   br: { h: br[0], v: br[1] },
   bl: { h: bl[0], v: bl[1] },
-  uniform: tl[0] === tl[1] && tl[0] === tr[0] && tl[0] === tr[1]
-    && tl[0] === br[0] && tl[0] === br[1] && tl[0] === bl[0] && tl[0] === bl[1],
+  uniform:
+    tl[0] === tl[1] &&
+    tl[0] === tr[0] &&
+    tl[0] === tr[1] &&
+    tl[0] === br[0] &&
+    tl[0] === br[1] &&
+    tl[0] === bl[0] &&
+    tl[0] === bl[1],
 });
 
 const parsed = (referenceBox: ParsedOverflowClipMargin["referenceBox"], margin: number): ParsedOverflowClipMargin => ({
@@ -36,8 +42,16 @@ describe("overflow-clip-margin parsing and activation (DM-2419)", () => {
     expect(parseOverflowClipMargin("0px")).toEqual({ referenceBox: "padding-box", margin: 0, hasEffect: false });
     expect(parseOverflowClipMargin("12.5px")).toEqual({ referenceBox: "padding-box", margin: 12.5, hasEffect: true });
     expect(parseOverflowClipMargin("content-box")).toEqual({ referenceBox: "content-box", margin: 0, hasEffect: true });
-    expect(parseOverflowClipMargin("border-box 0px")).toEqual({ referenceBox: "border-box", margin: 0, hasEffect: true });
-    expect(parseOverflowClipMargin("4px content-box")).toEqual({ referenceBox: "content-box", margin: 4, hasEffect: true });
+    expect(parseOverflowClipMargin("border-box 0px")).toEqual({
+      referenceBox: "border-box",
+      margin: 0,
+      hasEffect: true,
+    });
+    expect(parseOverflowClipMargin("4px content-box")).toEqual({
+      referenceBox: "content-box",
+      margin: 4,
+      hasEffect: true,
+    });
     expect(parseOverflowClipMargin("0")).toEqual({ referenceBox: "padding-box", margin: 0, hasEffect: false });
     expect(parseOverflowClipMargin("4")).toBeNull();
     expect(parseOverflowClipMargin("content-box border-box 4px")).toBeNull();
@@ -57,16 +71,28 @@ describe("overflow-clip-margin parsing and activation (DM-2419)", () => {
 
   it("applies through paint containment only when the box is not a scroll container", () => {
     const value = parsed("border-box", 0);
-    expect(shouldApplyOverflowClipMargin(value, { overflowX: "visible", overflowY: "visible", contain: "paint" })).toBe(true);
-    expect(shouldApplyOverflowClipMargin(value, { overflowX: "visible", overflowY: "visible", contain: "content" })).toBe(true);
-    expect(shouldApplyOverflowClipMargin(value, { overflowX: "hidden", overflowY: "hidden", contain: "paint" })).toBe(false);
-    expect(shouldApplyOverflowClipMargin(value, { overflowX: "clip", overflowY: "clip", respectsCssOverflow: false })).toBe(false);
+    expect(shouldApplyOverflowClipMargin(value, { overflowX: "visible", overflowY: "visible", contain: "paint" })).toBe(
+      true,
+    );
+    expect(
+      shouldApplyOverflowClipMargin(value, { overflowX: "visible", overflowY: "visible", contain: "content" }),
+    ).toBe(true);
+    expect(shouldApplyOverflowClipMargin(value, { overflowX: "hidden", overflowY: "hidden", contain: "paint" })).toBe(
+      false,
+    );
+    expect(
+      shouldApplyOverflowClipMargin(value, { overflowX: "clip", overflowY: "clip", respectsCssOverflow: false }),
+    ).toBe(false);
   });
 
   it("uses non-visible used overflow on both axes for replaced elements", () => {
     const value = parsed("content-box", 0);
-    expect(shouldApplyOverflowClipMargin(value, { overflowX: "hidden", overflowY: "auto", isReplaced: true })).toBe(true);
-    expect(shouldApplyOverflowClipMargin(value, { overflowX: "clip", overflowY: "visible", isReplaced: true })).toBe(false);
+    expect(shouldApplyOverflowClipMargin(value, { overflowX: "hidden", overflowY: "auto", isReplaced: true })).toBe(
+      true,
+    );
+    expect(shouldApplyOverflowClipMargin(value, { overflowX: "clip", overflowY: "visible", isReplaced: true })).toBe(
+      false,
+    );
     expect(isOverflowRespectingReplacedElement("img")).toBe(true);
     expect(isOverflowRespectingReplacedElement("svg")).toBe(true);
     expect(isOverflowRespectingReplacedElement("input")).toBe(false);
@@ -100,11 +126,17 @@ describe("Blink rounded overflow-clip-margin contour geometry (DM-2419)", () => 
     expect(actual.corners.br).toEqual({ h: 96, v: 0 });
 
     const sharp = overflowClipMarginGeometry(
-      { x: 0, y: 0, width: 40, height: 20 }, zeroSides, zeroSides,
-      corners([0, 0], [0, 0], [0, 0], [0, 0]), parsed("padding-box", 30),
+      { x: 0, y: 0, width: 40, height: 20 },
+      zeroSides,
+      zeroSides,
+      corners([0, 0], [0, 0], [0, 0], [0, 0]),
+      parsed("padding-box", 30),
     );
     expect(sharp.corners).toMatchObject({
-      tl: { h: 0, v: 0 }, tr: { h: 0, v: 0 }, br: { h: 0, v: 0 }, bl: { h: 0, v: 0 },
+      tl: { h: 0, v: 0 },
+      tr: { h: 0, v: 0 },
+      br: { h: 0, v: 0 },
+      bl: { h: 0, v: 0 },
     });
   });
 
@@ -112,8 +144,11 @@ describe("Blink rounded overflow-clip-margin contour geometry (DM-2419)", () => 
     // Chromium's companion 200x100 oracle catches implementations that use
     // width for both coverage terms or adjust the two axes independently.
     const actual = overflowClipMarginGeometry(
-      { x: 0, y: 0, width: 200, height: 100 }, zeroSides, zeroSides,
-      corners([50, 8], [12, 56], [64, 0], [0, 32]), parsed("padding-box", 32),
+      { x: 0, y: 0, width: 200, height: 100 },
+      zeroSides,
+      zeroSides,
+      corners([50, 8], [12, 56], [64, 0], [0, 32]),
+      parsed("padding-box", 32),
     );
     expect(actual.corners.tl.h).toBeCloseTo(82, 3);
     expect(actual.corners.tl.v).toBeCloseTo(26.5553, 3);
@@ -127,13 +162,19 @@ describe("Blink rounded overflow-clip-margin contour geometry (DM-2419)", () => 
     const padding = { top: 9, right: 11, bottom: 13, left: 7 };
     const value = parsed("border-box", 5);
     const actual = overflowClipMarginGeometry(
-      borderBox, borders, padding,
-      corners([8, 10], [20, 6], [0, 0], [30, 16]), value,
+      borderBox,
+      borders,
+      padding,
+      corners([8, 10], [20, 6], [0, 0], [30, 16]),
+      value,
     );
     // Snapped inner rect = (12,23)..(107,77), then TLBR outsets are
     // border widths + 5 = 7.25 / 8.5 / 9.25 / 6.25.
     expect(actual).toMatchObject({
-      x: 5.75, y: 15.75, width: 109.75, height: 70.5,
+      x: 5.75,
+      y: 15.75,
+      width: 109.75,
+      height: 70.5,
       outsets: { top: 7.25, right: 8.5, bottom: 9.25, left: 6.25 },
     });
     const extension = overflowClipMarginOuterExtension(borderBox, actual);
@@ -152,7 +193,10 @@ describe("Blink rounded overflow-clip-margin contour geometry (DM-2419)", () => 
       parsed("content-box", 0),
     );
     expect(actual).toMatchObject({
-      x: 19, y: 32, width: 77, height: 32,
+      x: 19,
+      y: 32,
+      width: 77,
+      height: 32,
       outsets: { top: -9, right: -11, bottom: -13, left: -7 },
       corners: {
         tl: { h: 0, v: 0 },
@@ -165,8 +209,20 @@ describe("Blink rounded overflow-clip-margin contour geometry (DM-2419)", () => 
 
   it("moves each edge by exactly the margin mutation while correcting radii continuously", () => {
     const box = { x: 0, y: 0, width: 80, height: 40 };
-    const base = overflowClipMarginGeometry(box, zeroSides, zeroSides, corners([6, 4], [6, 4], [6, 4], [6, 4]), parsed("padding-box", 10));
-    const mutated = overflowClipMarginGeometry(box, zeroSides, zeroSides, corners([6, 4], [6, 4], [6, 4], [6, 4]), parsed("padding-box", 11));
+    const base = overflowClipMarginGeometry(
+      box,
+      zeroSides,
+      zeroSides,
+      corners([6, 4], [6, 4], [6, 4], [6, 4]),
+      parsed("padding-box", 10),
+    );
+    const mutated = overflowClipMarginGeometry(
+      box,
+      zeroSides,
+      zeroSides,
+      corners([6, 4], [6, 4], [6, 4], [6, 4]),
+      parsed("padding-box", 11),
+    );
     expect(mutated.x).toBe(base.x - 1);
     expect(mutated.y).toBe(base.y - 1);
     expect(mutated.width).toBe(base.width + 2);

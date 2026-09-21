@@ -21,7 +21,8 @@ type Wawoff2 = { compress: (b: Uint8Array) => Promise<Uint8Array> };
 // Matches `url(data:font/ttf;base64,X)` and the svgo-minified `url("…")` /
 // `url('…')` variants, plus any existing `format(...)` hint after it. Group 2 is
 // the TTF base64. Robust to whether this runs before or after the svgo pass.
-const TTF_DATA_URI = /url\(\s*(["']?)data:font\/ttf;base64,([A-Za-z0-9+/=]+)\1\s*\)(\s*format\((?:"[^"]*"|'[^']*'|[^)]*)\))?/g;
+const TTF_DATA_URI =
+  /url\(\s*(["']?)data:font\/ttf;base64,([A-Za-z0-9+/=]+)\1\s*\)(\s*format\((?:"[^"]*"|'[^']*'|[^)]*)\))?/g;
 
 /**
  * Re-compress every embedded TTF `@font-face` data URI in `svg` to WOFF2.
@@ -41,6 +42,8 @@ export async function compressEmbeddedFontsToWoff2(svg: string): Promise<string>
     const woff2 = Buffer.from(await wawoff.compress(new Uint8Array(ttf)));
     cache.set(ttfB64, woff2.toString("base64"));
   }
-  return svg.replace(TTF_DATA_URI, (_full, _q: string, ttfB64: string) =>
-    `url("data:font/woff2;base64,${cache.get(ttfB64)}") format("woff2")`);
+  return svg.replace(
+    TTF_DATA_URI,
+    (_full, _q: string, ttfB64: string) => `url("data:font/woff2;base64,${cache.get(ttfB64)}") format("woff2")`,
+  );
 }

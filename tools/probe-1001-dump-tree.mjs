@@ -55,7 +55,14 @@ walk(cap.tree, (el) => {
   const band = Math.floor(y / 500) * 500;
   yBands.set(band, (yBands.get(band) ?? 0) + 1);
   if (y >= 5050 && y <= 5500) {
-    elementsInDiffZone.push({ tag: el.tag, y, h: el.rect.height, w: el.rect.width, hasText: !!el.text, childCount: el.children?.length ?? 0 });
+    elementsInDiffZone.push({
+      tag: el.tag,
+      y,
+      h: el.rect.height,
+      w: el.rect.width,
+      hasText: !!el.text,
+      childCount: el.children?.length ?? 0,
+    });
   }
 });
 console.log(`\nTotal captured elements: ${totalEls}`);
@@ -67,7 +74,9 @@ for (const [band, count] of sortedBands) {
 }
 console.log(`\nElements in y=5050-5500 diff zone: ${elementsInDiffZone.length}`);
 for (const el of elementsInDiffZone.slice(0, 30)) {
-  console.log(`  <${el.tag}> y=${el.y.toFixed(0)} w=${el.w.toFixed(0)} h=${el.h.toFixed(0)} hasText=${el.hasText} children=${el.childCount}`);
+  console.log(
+    `  <${el.tag}> y=${el.y.toFixed(0)} w=${el.w.toFixed(0)} h=${el.h.toFixed(0)} hasText=${el.hasText} children=${el.childCount}`,
+  );
 }
 
 await browser.close();

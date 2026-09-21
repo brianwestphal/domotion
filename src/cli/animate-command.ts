@@ -41,7 +41,10 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       help: { type: "boolean", short: "h" },
     },
   });
-  if (values.help === true) { process.stdout.write(help); process.exit(0); }
+  if (values.help === true) {
+    process.stdout.write(help);
+    process.exit(0);
+  }
   if (positionals.length === 0) throw new Error("animate: missing <config.json>");
   if (positionals.length > 1) throw new Error(`animate: unexpected extra argument "${positionals[1]}"`);
   if (values.optimize === true && values["no-optimize"] === true) {
@@ -51,7 +54,9 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     throw new Error("animate: --auto-compress and --no-auto-compress are mutually exclusive");
   }
   if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
-    throw new Error(`animate: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`);
+    throw new Error(
+      `animate: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`,
+    );
   }
   // DM-FJZQ34: select the text-emit strategy for this one-shot CLI process,
   // mirroring `capture` (DM-2716). The mode is a render-side process-global, so

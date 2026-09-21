@@ -71,10 +71,14 @@ async function main(): Promise<void> {
   function walk(n: any, depth = 0): void {
     if (depth > 30) return;
     if (n.classList && n.classList.includes("pin")) {
-      console.log(`  d=${depth} <${n.tag}.${n.classList.join(".")}> rect=(${n.x.toFixed(1)}, ${n.y.toFixed(1)}, ${n.width.toFixed(1)}, ${n.height.toFixed(1)}) text="${n.text?.slice(0, 30)}"`);
-      console.log(`    styles.position=${n.styles?.position} fixedCBAncestor=${n.fixedCBAncestor ?? "(none)"} hoistedTo=${n.viewportFixed ? "viewport" : "none"}`);
+      console.log(
+        `  d=${depth} <${n.tag}.${n.classList.join(".")}> rect=(${n.x.toFixed(1)}, ${n.y.toFixed(1)}, ${n.width.toFixed(1)}, ${n.height.toFixed(1)}) text="${n.text?.slice(0, 30)}"`,
+      );
+      console.log(
+        `    styles.position=${n.styles?.position} fixedCBAncestor=${n.fixedCBAncestor ?? "(none)"} hoistedTo=${n.viewportFixed ? "viewport" : "none"}`,
+      );
     }
-    for (const c of (n.children ?? [])) walk(c, depth + 1);
+    for (const c of n.children ?? []) walk(c, depth + 1);
   }
   for (const root of cap.tree) walk(root);
   await browser.close();

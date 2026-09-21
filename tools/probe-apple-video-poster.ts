@@ -19,10 +19,18 @@ function walk(n: CapturedElement, pred: (n: CapturedElement) => boolean, out: Ca
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   await page.goto("https://www.apple.com/", { waitUntil: "domcontentloaded" });
@@ -67,15 +75,19 @@ async function main() {
   for (const v of videos.slice(0, 5)) {
     const rs = (v as any).replacedSnapshot;
     console.log(` video rect=(${Math.round(v.x)},${Math.round(v.y)},${Math.round(v.width)},${Math.round(v.height)})`);
-    console.log(`   opacity=${(v.styles as any).opacity} visibility=${(v.styles as any).visibility} transform="${(v.styles as any).transform || 'none'}"`);
+    console.log(
+      `   opacity=${(v.styles as any).opacity} visibility=${(v.styles as any).visibility} transform="${(v.styles as any).transform || "none"}"`,
+    );
     if (rs != null) {
-      console.log(`   replacedSnapshot rect=(${rs.x},${rs.y},${rs.width},${rs.height}) dataUri.len=${(rs.dataUri || '').length}`);
+      console.log(
+        `   replacedSnapshot rect=(${rs.x},${rs.y},${rs.width},${rs.height}) dataUri.len=${(rs.dataUri || "").length}`,
+      );
       if (rs.dataUri) {
         // Save to file for inspection
         const m = String(rs.dataUri).match(/^data:image\/[a-z]+;base64,(.+)$/);
         if (m) {
-          const buf = Buffer.from(m[1], 'base64');
-          const out = '/tmp/apple-video-poster.png';
+          const buf = Buffer.from(m[1], "base64");
+          const out = "/tmp/apple-video-poster.png";
           writeFileSync(out, buf);
           console.log(`   poster saved to ${out} (${buf.length} bytes)`);
         }
@@ -87,4 +99,7 @@ async function main() {
 
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -4,11 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { launchChromium } from "../src/capture/index.js";
-import {
-  composeAnimateConfig,
-  composeAnimateFrames,
-  validateAnimateConfig,
-} from "../src/cli/animate.js";
+import { composeAnimateConfig, composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { generateAnimatedSvg } from "../src/animation/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
@@ -52,7 +48,11 @@ describeCrossEngine("clock-wipe viewport geometry (DM-1996)", () => {
       width: 1440,
       height: 900,
       frames: [
-        { svgContent: '<rect width="1440" height="900"/>', duration: 500, transition: { type: "wipe-clock", duration: 400 } },
+        {
+          svgContent: '<rect width="1440" height="900"/>',
+          duration: 500,
+          transition: { type: "wipe-clock", duration: 400 },
+        },
         { svgContent: '<rect width="1440" height="900"/>', duration: 500, transition: { type: "cut", duration: 0 } },
       ],
     });
@@ -74,14 +74,21 @@ describeCrossEngine("clock-wipe viewport geometry (DM-1996)", () => {
               incoming: Number.parseFloat(style(".f-1").opacity),
             };
           }, time);
-          const points = [...state.clip.matchAll(/([-\d.]+)px\s+([-\d.]+)px/g)]
-            .map((match) => [Number(match[1]), Number(match[2])]);
+          const points = [...state.clip.matchAll(/([-\d.]+)px\s+([-\d.]+)px/g)].map((match) => [
+            Number(match[1]),
+            Number(match[2]),
+          ]);
           expect(points).toHaveLength(7);
           expect(points[0][0]).toBeCloseTo(720, 1);
           expect(points[0][1]).toBeCloseTo(450, 1);
           expect(Math.max(state.outgoing, state.incoming)).toBe(1);
           if (time === 900) {
-            for (const corner of [[0, 0], [1440, 0], [1440, 900], [0, 900]]) {
+            for (const corner of [
+              [0, 0],
+              [1440, 0],
+              [1440, 900],
+              [0, 900],
+            ]) {
               expect(points.some(([x, y]) => x === corner[0] && y === corner[1])).toBe(true);
             }
           }
@@ -96,17 +103,57 @@ describeCrossEngine("clock-wipe viewport geometry (DM-1996)", () => {
 describeCrossEngine("parameterized transition families (DM-2071)", () => {
   it("samples rectangular mixed-family handoffs in Chromium and WebKit", async () => {
     const svg = generateAnimatedSvg({
-      width: 1440, height: 900,
+      width: 1440,
+      height: 900,
       frames: [
-        { svgContent: '<rect width="1440" height="900" fill="red"/>', duration: 400, transition: { type: "push", duration: 300, push: { angle: 35, distance: 0.75 } } },
-        { svgContent: '<rect width="1440" height="900" fill="blue"/>', duration: 400, transition: { type: "reveal", duration: 300, reveal: { shape: "clock", origin: { x: 0.35, y: 0.6 }, startAngle: 45, direction: "counterclockwise" } } },
-        { svgContent: '<rect width="1440" height="900" fill="green"/>', duration: 400, transition: { type: "zoom", duration: 300, zoom: { fromScale: 1.35, origin: { x: 0.7, y: 0.3 } } } },
-        { svgContent: '<rect width="1440" height="900" fill="black"/>', duration: 400, transition: { type: "custom", duration: 300, custom: {
-          incoming: { opacity: 0.1, translate: { x: 0.15, y: -0.1 }, scale: { from: 0.85, origin: { x: 0.5, y: 0.5 } } },
-          outgoing: { opacity: 0, translate: { x: -0.1, y: 0.05 }, scale: { to: 1.15, origin: { x: 0.3, y: 0.7 } } },
-          overlay: { angle: 25, bandWidth: 0.2, color: "#ffeeaa", opacity: 0.4 }, reducedMotion: "crossfade", loop: "hold-last", zOrder: "incoming-on-top",
-        } } },
-        { svgContent: '<rect width="1440" height="900" fill="white"/>', duration: 400, transition: { type: "cut", duration: 0 } },
+        {
+          svgContent: '<rect width="1440" height="900" fill="red"/>',
+          duration: 400,
+          transition: { type: "push", duration: 300, push: { angle: 35, distance: 0.75 } },
+        },
+        {
+          svgContent: '<rect width="1440" height="900" fill="blue"/>',
+          duration: 400,
+          transition: {
+            type: "reveal",
+            duration: 300,
+            reveal: { shape: "clock", origin: { x: 0.35, y: 0.6 }, startAngle: 45, direction: "counterclockwise" },
+          },
+        },
+        {
+          svgContent: '<rect width="1440" height="900" fill="green"/>',
+          duration: 400,
+          transition: { type: "zoom", duration: 300, zoom: { fromScale: 1.35, origin: { x: 0.7, y: 0.3 } } },
+        },
+        {
+          svgContent: '<rect width="1440" height="900" fill="black"/>',
+          duration: 400,
+          transition: {
+            type: "custom",
+            duration: 300,
+            custom: {
+              incoming: {
+                opacity: 0.1,
+                translate: { x: 0.15, y: -0.1 },
+                scale: { from: 0.85, origin: { x: 0.5, y: 0.5 } },
+              },
+              outgoing: {
+                opacity: 0,
+                translate: { x: -0.1, y: 0.05 },
+                scale: { to: 1.15, origin: { x: 0.3, y: 0.7 } },
+              },
+              overlay: { angle: 25, bandWidth: 0.2, color: "#ffeeaa", opacity: 0.4 },
+              reducedMotion: "crossfade",
+              loop: "hold-last",
+              zOrder: "incoming-on-top",
+            },
+          },
+        },
+        {
+          svgContent: '<rect width="1440" height="900" fill="white"/>',
+          duration: 400,
+          transition: { type: "cut", duration: 0 },
+        },
       ],
     });
     for (const browser of [env!.browser, webkitBrowser!]) {
@@ -115,11 +162,17 @@ describeCrossEngine("parameterized transition families (DM-2071)", () => {
         await page.setContent(svg);
         for (const time of [475, 625, 775, 1175, 1325, 1475, 2575, 2650, 2725]) {
           const state = await page.evaluate((at) => {
-            for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at; }
+            for (const animation of document.getAnimations()) {
+              animation.pause();
+              animation.currentTime = at;
+            }
             const frames = [...document.querySelectorAll<SVGGElement>(".f")];
-            return frames.map(frame => ({ opacity: Number.parseFloat(getComputedStyle(frame).opacity), display: getComputedStyle(frame).display }));
+            return frames.map((frame) => ({
+              opacity: Number.parseFloat(getComputedStyle(frame).opacity),
+              display: getComputedStyle(frame).display,
+            }));
           }, time);
-          expect(state.some(frame => frame.display !== "none" && frame.opacity > 0.99)).toBe(true);
+          expect(state.some((frame) => frame.display !== "none" && frame.opacity > 0.99)).toBe(true);
         }
         const geometry = await page.evaluate(() => ({
           clockOrigin: getComputedStyle(document.querySelector(".fr-2")!).clipPath,
@@ -127,7 +180,9 @@ describeCrossEngine("parameterized transition families (DM-2071)", () => {
         }));
         expect(geometry.clockOrigin).toMatch(/^polygon\(504px 540px,/);
         expect(geometry.zoomOrigin).toBe("1008px 270px");
-      } finally { await page.close(); }
+      } finally {
+        await page.close();
+      }
     }
   });
 });
@@ -143,10 +198,18 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
           svgContent: '<rect width="300" height="120" fill="red"/>',
           duration: 1000,
           transition: { type: "cut", duration: 0 },
-          overlays: [{
-            kind: "svg", innerSvg: '<rect width="20" height="20"/>',
-            x: 0, y: 0, width: 20, height: 20, animId: "boundary", endAt: 1000,
-          }],
+          overlays: [
+            {
+              kind: "svg",
+              innerSvg: '<rect width="20" height="20"/>',
+              x: 0,
+              y: 0,
+              width: 20,
+              height: 20,
+              animId: "boundary",
+              endAt: 1000,
+            },
+          ],
         },
         {
           svgContent: '<rect width="300" height="120" fill="blue"/>',
@@ -158,15 +221,16 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     const page = await browser.newPage({ viewport: { width: 300, height: 120 } });
     try {
       await page.setContent(svg);
-      const sample = async (time: number) => page.evaluate((at) => {
-        for (const animation of document.getAnimations()) {
-          animation.pause();
-          animation.currentTime = at;
-        }
-        const opacity = (selector: string) =>
-          Number.parseFloat(getComputedStyle(document.querySelector(selector)!).opacity);
-        return { outgoing: opacity(".f-0"), incoming: opacity(".f-1"), overlay: opacity(".ov-0-boundary") };
-      }, time);
+      const sample = async (time: number) =>
+        page.evaluate((at) => {
+          for (const animation of document.getAnimations()) {
+            animation.pause();
+            animation.currentTime = at;
+          }
+          const opacity = (selector: string) =>
+            Number.parseFloat(getComputedStyle(document.querySelector(selector)!).opacity);
+          return { outgoing: opacity(".f-0"), incoming: opacity(".f-1"), overlay: opacity(".ov-0-boundary") };
+        }, time);
 
       expect(await sample(999)).toEqual({ outgoing: 1, incoming: 0, overlay: 1 });
       expect(await sample(1000)).toEqual({ outgoing: 0, incoming: 1, overlay: 0 });
@@ -182,7 +246,11 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       width: 400,
       height: 200,
       frames: [
-        { svgContent: '<rect width="400" height="200"/>', duration: 500, transition: { type: "wipe", duration: 400, wipeAngle: 90 } },
+        {
+          svgContent: '<rect width="400" height="200"/>',
+          duration: 500,
+          transition: { type: "wipe", duration: 400, wipeAngle: 90 },
+        },
         { svgContent: '<rect width="400" height="200"/>', duration: 500, transition: { type: "cut", duration: 0 } },
       ],
     });
@@ -213,7 +281,8 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       writeFileSync(path.join(dir, "a.html"), PAGE("Frame A", "#fff"));
       writeFileSync(path.join(dir, "b.html"), PAGE("Frame B", "#eee"));
       const rawCfg = {
-        width: 200, height: 120,
+        width: 200,
+        height: 120,
         frames: [
           { input: "a.html", duration: 500 },
           { input: "b.html", duration: 500 },
@@ -243,7 +312,9 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       // 4. composeAnimateConfig is byte-identical to frames-out + render (one
       //    engine — modulo the run-varying embedded-font bytes, normalized).
       const viaConfig = await composeAnimateConfig(browser, validateAnimateConfig(rawCfg), dir, () => {});
-      const viaFrames = generateAnimatedSvg(await composeAnimateFrames(browser, validateAnimateConfig(rawCfg), dir, () => {}));
+      const viaFrames = generateAnimatedSvg(
+        await composeAnimateFrames(browser, validateAnimateConfig(rawCfg), dir, () => {}),
+      );
       expect(normFonts(viaConfig)).toBe(normFonts(viaFrames));
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -259,7 +330,8 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     try {
       writeFileSync(path.join(dir, "intro.html"), PAGE("Intro", "#0d1117"));
       const rawCfg = {
-        width: 320, height: 180,
+        width: 320,
+        height: 180,
         frames: [
           { input: "intro.html", duration: 800, transition: { type: "crossfade", duration: 200 } },
           {
@@ -298,31 +370,43 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     const { browser } = env!;
     const dir = mkdtempSync(path.join(tmpdir(), "scroll-frame-namespace-"));
     try {
-      writeFileSync(path.join(dir, "page.html"),
+      writeFileSync(
+        path.join(dir, "page.html"),
         `<!doctype html><html><head><meta charset="utf-8"><style>` +
-        `html,body{margin:0;width:320px;height:1200px;background:#fff}` +
-        `#word{margin:20px;font:700 32px Arial}.tail{margin-top:900px}` +
-        `</style></head><body><div id="word">FIRST ABCD</div><div class="tail">bottom</div></body></html>`);
+          `html,body{margin:0;width:320px;height:1200px;background:#fff}` +
+          `#word{margin:20px;font:700 32px Arial}.tail{margin-top:900px}` +
+          `</style></head><body><div id="word">FIRST ABCD</div><div class="tail">bottom</div></body></html>`,
+      );
       const first = { input: "page.html", duration: 500, transition: { type: "cut", duration: 0 } };
-      const baseline = await composeAnimateConfig(browser, validateAnimateConfig({
-        width: 320,
-        height: 200,
-        frames: [first],
-      }), dir, () => {});
-      const mixedFrames = await composeAnimateFrames(browser, validateAnimateConfig({
-        width: 320,
-        height: 200,
-        frames: [
-          first,
-          {
-            continue: true,
-            duration: 600,
-            transition: { type: "cut", duration: 0 },
-            actions: [{ type: "setText", selector: "#word", value: "SCROLL ZYXW" }],
-            scroll: { pattern: "down:bottom/300ms" },
-          },
-        ],
-      }), dir, () => {});
+      const baseline = await composeAnimateConfig(
+        browser,
+        validateAnimateConfig({
+          width: 320,
+          height: 200,
+          frames: [first],
+        }),
+        dir,
+        () => {},
+      );
+      const mixedFrames = await composeAnimateFrames(
+        browser,
+        validateAnimateConfig({
+          width: 320,
+          height: 200,
+          frames: [
+            first,
+            {
+              continue: true,
+              duration: 600,
+              transition: { type: "cut", duration: 0 },
+              actions: [{ type: "setText", selector: "#word", value: "SCROLL ZYXW" }],
+              scroll: { pattern: "down:bottom/300ms" },
+            },
+          ],
+        }),
+        dir,
+        () => {},
+      );
       expect(mixedFrames.frames[1].embeddedAnimationPeriodMs).toBe(300);
       const mixed = generateAnimatedSvg(mixedFrames);
 
@@ -366,10 +450,20 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       // an explicit 1500. composeAnimateFrames returns frames with the resolved
       // durations, so the total timeline = 2600 + 1500 (+ default transitions).
       const rawCfg = {
-        width: 320, height: 180,
+        width: 320,
+        height: 180,
         frames: [
-          { template: "lower-third", params: { title: "Derived", holdMs: 2600 }, transition: { type: "cut", duration: 0 } },
-          { template: "lower-third", params: { title: "Explicit", holdMs: 9999 }, duration: 1500, transition: { type: "cut", duration: 0 } },
+          {
+            template: "lower-third",
+            params: { title: "Derived", holdMs: 2600 },
+            transition: { type: "cut", duration: 0 },
+          },
+          {
+            template: "lower-third",
+            params: { title: "Explicit", holdMs: 9999 },
+            duration: 1500,
+            transition: { type: "cut", duration: 0 },
+          },
         ],
       };
       const config = await composeAnimateFrames(browser, validateAnimateConfig(rawCfg), dir, () => {});
@@ -398,7 +492,8 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       ].join("\n");
       writeFileSync(path.join(dir, "session.cast"), cast);
       const rawCfg = {
-        width: 320, height: 180,
+        width: 320,
+        height: 180,
         realText: true,
         frames: [
           { input: "intro.html", duration: 600, transition: { type: "crossfade", duration: 200 } },
@@ -441,8 +536,12 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       writeFileSync(path.join(dir, "a.html"), PAGE("Frame A", "#fff"));
       writeFileSync(path.join(dir, "b.html"), PAGE("Frame B", "#eee"));
       const rawCfg = {
-        width: 200, height: 120,
-        frames: [{ input: "a.html", duration: 500 }, { input: "b.html", duration: 500 }],
+        width: 200,
+        height: 120,
+        frames: [
+          { input: "a.html", duration: 500 },
+          { input: "b.html", duration: 500 },
+        ],
       };
 
       const seen: Array<{ index: number; treeNull: boolean; framePushed: boolean }> = [];
@@ -459,7 +558,15 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
           if (ctx.index === 0) {
             frame.overlays = [
               ...(frame.overlays ?? []),
-              { kind: "svg", innerSvg: '<rect width="4" height="4"/>', x: 1, y: 1, width: 4, height: 4, animId: "onframemarker" },
+              {
+                kind: "svg",
+                innerSvg: '<rect width="4" height="4"/>',
+                x: 1,
+                y: 1,
+                width: 4,
+                height: 4,
+                animId: "onframemarker",
+              },
             ];
           }
         },
@@ -490,7 +597,8 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     const { browser } = env!;
     const dir = mkdtempSync(path.join(tmpdir(), "cursor-hittest-"));
     try {
-      writeFileSync(path.join(dir, "stage.html"),
+      writeFileSync(
+        path.join(dir, "stage.html"),
         `<!doctype html><html><head><meta charset="utf-8"><style>
           body{margin:0;width:640px;height:480px;position:relative;font:16px sans-serif}
           .win{position:absolute;inset:0}
@@ -503,14 +611,19 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
           <div class="win front"><button id="btn">Clicked 0 times</button></div>
           <div class="win back"><div class="code">const x = 1;</div></div>
           <div class="deco"></div>
-        </body></html>`);
+        </body></html>`,
+      );
       const rawCfg = {
-        width: 640, height: 480,
+        width: 640,
+        height: 480,
         cursor: "auto",
-        frames: [{
-          input: "stage.html", duration: 800,
-          actions: [{ type: "click", selector: "#btn", cursorOffset: { dx: 40, dy: 0 } }],
-        }],
+        frames: [
+          {
+            input: "stage.html",
+            duration: 800,
+            actions: [{ type: "click", selector: "#btn", cursorOffset: { dx: 40, dy: 0 } }],
+          },
+        ],
       };
       const config = await composeAnimateFrames(browser, validateAnimateConfig(rawCfg), dir, () => {});
 
@@ -535,7 +648,8 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     const { browser } = env!;
     const dir = mkdtempSync(path.join(tmpdir(), "cursor-pre-action-"));
     try {
-      writeFileSync(path.join(dir, "dismiss.html"),
+      writeFileSync(
+        path.join(dir, "dismiss.html"),
         `<!doctype html><html><head><meta charset="utf-8"><style>
           body{margin:0;width:320px;height:180px;font:16px sans-serif}
           #under{position:absolute;left:80px;top:60px;width:160px;height:50px;cursor:text}
@@ -543,13 +657,19 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
         </style></head><body>
           <div id="under">Underlying text</div>
           <button id="save" onclick="this.remove()">Save</button>
-        </body></html>`);
-      const config = await composeAnimateFrames(browser, validateAnimateConfig({
-        width: 320,
-        height: 180,
-        cursor: "auto",
-        frames: [{ input: "dismiss.html", duration: 800, actions: [{ type: "click", selector: "#save" }] }],
-      }), dir, () => {});
+        </body></html>`,
+      );
+      const config = await composeAnimateFrames(
+        browser,
+        validateAnimateConfig({
+          width: 320,
+          height: 180,
+          cursor: "auto",
+          frames: [{ input: "dismiss.html", duration: 800, actions: [{ type: "click", selector: "#save" }] }],
+        }),
+        dir,
+        () => {},
+      );
 
       const move = config.cursorOverlay?.events.find((event) => event.type === "move");
       expect(move).toMatchObject({ type: "move", to: { x: 160, y: 85 }, cursor: "pointer" });

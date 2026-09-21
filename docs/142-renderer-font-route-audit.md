@@ -3,11 +3,17 @@ id: "requirements/renderer-font-route-audit"
 title: "Renderer font-route audit"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release"]
+owners: ["text-fonts", "platform-release"]
 platforms: []
-tickets: ["DM-2330","DM-2341","DM-2348","DM-2387","DM-2392","DM-2393","DM-2398","DM-2399"]
-code: ["src/render/text-run-provenance.ts","tools/renderer-font-route-oracle.ts","tools/parity-program.json","tools/semantic-coverage.json"]
-aliases: ["docs/142-renderer-font-route-audit.md","doc-142"]
+tickets: ["DM-2330", "DM-2341", "DM-2348", "DM-2387", "DM-2392", "DM-2393", "DM-2398", "DM-2399"]
+code:
+  [
+    "src/render/text-run-provenance.ts",
+    "tools/renderer-font-route-oracle.ts",
+    "tools/parity-program.json",
+    "tools/semantic-coverage.json",
+  ]
+aliases: ["docs/142-renderer-font-route-audit.md", "doc-142"]
 ---
 
 # Renderer font-route audit
@@ -38,20 +44,20 @@ may be preceded by a declared or priority face.
 
 ## Production decision inventory
 
-| Production mechanism | Resolver's role | What reaches emission | Current activation evidence | Remaining proof gap |
-| --- | --- | --- | --- | --- |
-| Primary and later declared families | None until those faces shape `.notdef` | The caller's exact primary instance or a declared/webfont partition | Cluster tests cover primary and segmented webfont acceptance | No per-run source/member/axis record tied to emitted glyphs |
-| Shape-then-requeue cluster fallback | The resolver supplies only the `system` iterator stage | Contiguous `FontRun`s, then a same-face HarfBuzz shaping proxy | `_clusterFallbackCounters`, cluster tests, and `DOMOTION_CLUSTER_FALLBACK=0` A/B | Counters prove invocation, not which selected source produced each emitted glyph |
-| Legacy per-codepoint fallback | It is the whole assignment procedure | Per-codepoint runs, followed by a HarfBuzz shaping override | Only the explicit `DOMOTION_CLUSTER_FALLBACK=0` arm exercises it | Default shaping never restarts here after an unopenable candidate; the route oracle records `cluster-disabled-legacy` only for the mutation arm |
-| Priority emoji face | Bypassed for the one-shot priority candidate; the resolver may run afterward | Color-capable run or later fallback | Cluster priority counters and font-variant-emoji tests | Raster-overlay ownership can replace vector emission after this choice |
-| Dotted-circle shaping | The resolver may supply the ordinary system-stage candidate; no mark face is pinned | The authored range shaped on the iterator-selected face; HarfBuzz alone may insert U+25CC | Orphan/explicit-circle exact records plus the cluster-disabled mutation | Capture compatibility rewrites remain separately classified; they are not fallback owners |
-| Canonical decomposition | The resolver may supply candidate coverage evidence; substituted text is not committed | The authored range shaped by that candidate's HarfBuzz normalizer | Menlo composition and broad exact glyph/cluster/advance rows | Helper-absent legacy decomposition remains confined to the explicit legacy route |
-| Feature and general HarfBuzz overrides | Selection is already complete | A proxy that preserves the selected outline/source face and changes shaping only | Exact shaping controls move features/script/language/direction | The proxy identity is not joined to the eventual glyph definition/subset |
-| Paths emitter | The selected `FontRun` is consumed directly | `<path>` definitions and `<use>` placements | Glyph-path run tests | Glyph IDs are globally renumbered into `gN`; the SVG cannot recover face/file/axes or the selecting mechanism |
-| Embedded-font emitter | The selected `FontRun` is consumed directly | PUA-mapped `<text>` plus hb-subset or svg2ttf bytes | `EmbeddedFontBuildDiagnostic` proves aggregate source/builder state | Diagnostics have no source spans, selected keys, clusters, or embedded-decline reason |
-| Embedded decline to paths | Both emitters rerun from the same entry inputs | Paths output after a null embedded result | Mode-parity tests exercise successful arms | The transition and null reason are not recorded, so activation cannot be proven from a result artifact |
-| Raster glyph overlay | Vector selection can be suppressed for captured raster-owned spans | Captured PNG region plus vector remainder | Raster-boundary oracle and emoji fixtures | Production ownership still depends on hardcoded capture-side emoji gates; DM-2392 owns removal |
-| Raw `<text>` fallback in `text.ts` | The original decision is discarded | The consumer browser resolves the captured CSS family again | Partial/all-raster suppression tests | This is an unowned second font-selection pass; DM-2399 owns its removal or explicit degraded-boundary classification |
+| Production mechanism                   | Resolver's role                                                                        | What reaches emission                                                                     | Current activation evidence                                                      | Remaining proof gap                                                                                                                             |
+| -------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary and later declared families    | None until those faces shape `.notdef`                                                 | The caller's exact primary instance or a declared/webfont partition                       | Cluster tests cover primary and segmented webfont acceptance                     | No per-run source/member/axis record tied to emitted glyphs                                                                                     |
+| Shape-then-requeue cluster fallback    | The resolver supplies only the `system` iterator stage                                 | Contiguous `FontRun`s, then a same-face HarfBuzz shaping proxy                            | `_clusterFallbackCounters`, cluster tests, and `DOMOTION_CLUSTER_FALLBACK=0` A/B | Counters prove invocation, not which selected source produced each emitted glyph                                                                |
+| Legacy per-codepoint fallback          | It is the whole assignment procedure                                                   | Per-codepoint runs, followed by a HarfBuzz shaping override                               | Only the explicit `DOMOTION_CLUSTER_FALLBACK=0` arm exercises it                 | Default shaping never restarts here after an unopenable candidate; the route oracle records `cluster-disabled-legacy` only for the mutation arm |
+| Priority emoji face                    | Bypassed for the one-shot priority candidate; the resolver may run afterward           | Color-capable run or later fallback                                                       | Cluster priority counters and font-variant-emoji tests                           | Raster-overlay ownership can replace vector emission after this choice                                                                          |
+| Dotted-circle shaping                  | The resolver may supply the ordinary system-stage candidate; no mark face is pinned    | The authored range shaped on the iterator-selected face; HarfBuzz alone may insert U+25CC | Orphan/explicit-circle exact records plus the cluster-disabled mutation          | Capture compatibility rewrites remain separately classified; they are not fallback owners                                                       |
+| Canonical decomposition                | The resolver may supply candidate coverage evidence; substituted text is not committed | The authored range shaped by that candidate's HarfBuzz normalizer                         | Menlo composition and broad exact glyph/cluster/advance rows                     | Helper-absent legacy decomposition remains confined to the explicit legacy route                                                                |
+| Feature and general HarfBuzz overrides | Selection is already complete                                                          | A proxy that preserves the selected outline/source face and changes shaping only          | Exact shaping controls move features/script/language/direction                   | The proxy identity is not joined to the eventual glyph definition/subset                                                                        |
+| Paths emitter                          | The selected `FontRun` is consumed directly                                            | `<path>` definitions and `<use>` placements                                               | Glyph-path run tests                                                             | Glyph IDs are globally renumbered into `gN`; the SVG cannot recover face/file/axes or the selecting mechanism                                   |
+| Embedded-font emitter                  | The selected `FontRun` is consumed directly                                            | PUA-mapped `<text>` plus hb-subset or svg2ttf bytes                                       | `EmbeddedFontBuildDiagnostic` proves aggregate source/builder state              | Diagnostics have no source spans, selected keys, clusters, or embedded-decline reason                                                           |
+| Embedded decline to paths              | Both emitters rerun from the same entry inputs                                         | Paths output after a null embedded result                                                 | Mode-parity tests exercise successful arms                                       | The transition and null reason are not recorded, so activation cannot be proven from a result artifact                                          |
+| Raster glyph overlay                   | Vector selection can be suppressed for captured raster-owned spans                     | Captured PNG region plus vector remainder                                                 | Raster-boundary oracle and emoji fixtures                                        | Production ownership still depends on hardcoded capture-side emoji gates; DM-2392 owns removal                                                  |
+| Raw `<text>` fallback in `text.ts`     | The original decision is discarded                                                     | The consumer browser resolves the captured CSS family again                               | Partial/all-raster suppression tests                                             | This is an unowned second font-selection pass; DM-2399 owns its removal or explicit degraded-boundary classification                            |
 
 ## Findings
 

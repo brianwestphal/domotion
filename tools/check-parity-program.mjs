@@ -14,7 +14,7 @@ const oracleStatusValues = new Set([
   "paint-model-gate",
   "visual-only",
   "documented-classifier",
-  "pixel-integration-gate"
+  "pixel-integration-gate",
 ]);
 
 async function requirePath(path, label) {
@@ -42,7 +42,11 @@ for (const area of matrix.areas ?? []) {
   if (area.browserOracle) await requirePath(area.browserOracle, area.id);
 }
 
-if (!matrix.areas?.some((area) => ["partial-stage-gate", "visual-only", "documented-classifier"].includes(area.oracleStatus))) {
+if (
+  !matrix.areas?.some((area) =>
+    ["partial-stage-gate", "visual-only", "documented-classifier"].includes(area.oracleStatus),
+  )
+) {
   errors.push("matrix must preserve explicitly unresolved areas until every decision stage has an exact oracle");
 }
 

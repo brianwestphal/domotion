@@ -37,7 +37,10 @@ export function parseBoxShadow(value: string): BoxShadow[] {
     let inset = false;
     const lengths: number[] = [];
     for (const t of tokens) {
-      if (t === "inset") { inset = true; continue; }
+      if (t === "inset") {
+        inset = true;
+        continue;
+      }
       const n = parseFloat(t);
       if (!isNaN(n)) lengths.push(n);
     }

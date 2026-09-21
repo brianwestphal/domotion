@@ -7,11 +7,7 @@ import { launchChromium } from "../capture/index.js";
 import { runSvgToVideo } from "../cli/svg-to-video-core.js";
 import { applyStudioAnnotationCommand } from "./annotations.js";
 import { validateStudioProject } from "./project.js";
-import {
-  studioAnnotationTargetSchema,
-  studioIdSchema,
-  type StudioProject,
-} from "./project-schema.js";
+import { studioAnnotationTargetSchema, studioIdSchema, type StudioProject } from "./project-schema.js";
 
 export const STUDIO_VIDEO_REVIEW_DIMENSIONS = [
   "pacing",
@@ -23,7 +19,7 @@ export const STUDIO_VIDEO_REVIEW_DIMENSIONS = [
   "overall-polish",
 ] as const;
 
-export type StudioVideoReviewDimension = typeof STUDIO_VIDEO_REVIEW_DIMENSIONS[number];
+export type StudioVideoReviewDimension = (typeof STUDIO_VIDEO_REVIEW_DIMENSIONS)[number];
 export type StudioVideoReviewSeverity = "info" | "minor" | "major" | "critical";
 
 const nonEmpty = z.string().trim().min(1);
@@ -48,21 +44,32 @@ export const studioVideoReviewReportSchema = z
     kind: z.literal("report"),
     summary: nonEmpty,
     findings: z.array(studioVideoReviewFindingSchema).min(STUDIO_VIDEO_REVIEW_DIMENSIONS.length),
-    comparison: z.strictObject({
-      summary: nonEmpty,
-      improvements: z.array(nonEmpty),
-      regressions: z.array(nonEmpty),
-    }).optional(),
+    comparison: z
+      .strictObject({
+        summary: nonEmpty,
+        improvements: z.array(nonEmpty),
+        regressions: z.array(nonEmpty),
+      })
+      .optional(),
   })
   .superRefine((report, ctx) => {
     const ids = new Set<string>();
     report.findings.forEach((finding, index) => {
-      if (ids.has(finding.id)) ctx.addIssue({ code: "custom", path: ["findings", index, "id"], message: `duplicate finding id "${finding.id}"` });
+      if (ids.has(finding.id))
+        ctx.addIssue({
+          code: "custom",
+          path: ["findings", index, "id"],
+          message: `duplicate finding id "${finding.id}"`,
+        });
       ids.add(finding.id);
     });
     for (const dimension of STUDIO_VIDEO_REVIEW_DIMENSIONS) {
       if (!report.findings.some((finding) => finding.dimension === dimension)) {
-        ctx.addIssue({ code: "custom", path: ["findings"], message: `missing authoritative rubric dimension "${dimension}"` });
+        ctx.addIssue({
+          code: "custom",
+          path: ["findings"],
+          message: `missing authoritative rubric dimension "${dimension}"`,
+        });
       }
     }
   });
@@ -208,27 +215,30 @@ function applyReport(
   const persistedText = `${JSON.stringify(persistedReport, null, 2)}\n`;
 
   let project = clone(source);
-  project.artifacts.push({
-    id: videoArtifactId,
-    kind: "review-video",
-    path: artifactPath(projectDir, media.path),
-    generatedAt: now,
-    generator: { name: "domotion-svg-to-video" },
-    sourceRevisionId: media.sourceRevisionId,
-    sceneIds: project.scenes.map((scene) => scene.id),
-    sha256: media.sha256,
-    metadata: { width: media.width, height: media.height, mimeType: media.mimeType },
-  }, {
-    id: reportArtifactId,
-    kind: "other",
-    path: artifactPath(projectDir, reportPath),
-    generatedAt: now,
-    generator: { name: "domotion-studio-ai-review" },
-    sourceRevisionId: media.sourceRevisionId,
-    derivedFromArtifactIds: [videoArtifactId],
-    sha256: digest(persistedText),
-    metadata: { mediaType: "application/json", rubric: [...STUDIO_VIDEO_REVIEW_DIMENSIONS] },
-  });
+  project.artifacts.push(
+    {
+      id: videoArtifactId,
+      kind: "review-video",
+      path: artifactPath(projectDir, media.path),
+      generatedAt: now,
+      generator: { name: "domotion-svg-to-video" },
+      sourceRevisionId: media.sourceRevisionId,
+      sceneIds: project.scenes.map((scene) => scene.id),
+      sha256: media.sha256,
+      metadata: { width: media.width, height: media.height, mimeType: media.mimeType },
+    },
+    {
+      id: reportArtifactId,
+      kind: "other",
+      path: artifactPath(projectDir, reportPath),
+      generatedAt: now,
+      generator: { name: "domotion-studio-ai-review" },
+      sourceRevisionId: media.sourceRevisionId,
+      derivedFromArtifactIds: [videoArtifactId],
+      sha256: digest(persistedText),
+      metadata: { mediaType: "application/json", rubric: [...STUDIO_VIDEO_REVIEW_DIMENSIONS] },
+    },
+  );
   project.review.revisions.push({
     id: revisionId,
     parentId: project.review.headRevisionId,
@@ -248,21 +258,25 @@ function applyReport(
   });
   project.review.headRevisionId = revisionId;
   for (const finding of report.findings) {
-    project = applyStudioAnnotationCommand(project, {
-      kind: "create",
-      body: findingBody(finding),
-      author: { kind: "ai", name: aiName },
-      ...(finding.target != null ? { target: finding.target } : {}),
-      evidenceArtifactIds: [videoArtifactId, reportArtifactId],
-      origin: {
-        kind: "studio",
-        data: { producer: "ai-video-review", findingId: finding.id, dimension: finding.dimension },
+    project = applyStudioAnnotationCommand(
+      project,
+      {
+        kind: "create",
+        body: findingBody(finding),
+        author: { kind: "ai", name: aiName },
+        ...(finding.target != null ? { target: finding.target } : {}),
+        evidenceArtifactIds: [videoArtifactId, reportArtifactId],
+        origin: {
+          kind: "studio",
+          data: { producer: "ai-video-review", findingId: finding.id, dimension: finding.dimension },
+        },
       },
-    }, {
-      now,
-      annotationId: `annotation-ai-${signature.slice(0, 10)}-${digest(finding.id).slice(0, 12)}`,
-      attachToHeadRevision: true,
-    }).project;
+      {
+        now,
+        annotationId: `annotation-ai-${signature.slice(0, 10)}-${digest(finding.id).slice(0, 12)}`,
+        attachToHeadRevision: true,
+      },
+    ).project;
   }
   project.updatedAt = now;
   const validated = validateStudioProject(project);
@@ -270,7 +284,9 @@ function applyReport(
   return validated;
 }
 
-function validateComparison(comparison: StudioVideoReviewComparison | undefined): StudioVideoReviewComparison | undefined {
+function validateComparison(
+  comparison: StudioVideoReviewComparison | undefined,
+): StudioVideoReviewComparison | undefined {
   if (comparison == null) return undefined;
   const checked = clone(comparison);
   checked.project = validateStudioProject(checked.project);
@@ -290,15 +306,20 @@ async function decide(
   comparison?: StudioVideoReviewComparison,
   clarification?: { question: string; answer: string },
 ): Promise<StudioVideoReviewDecision> {
-  const raw = await review(clone({
-    project,
-    media,
-    rubric: [...STUDIO_VIDEO_REVIEW_DIMENSIONS],
-    ...(comparison != null ? { comparison } : {}),
-    ...(clarification != null ? { clarification } : {}),
-  }));
+  const raw = await review(
+    clone({
+      project,
+      media,
+      rubric: [...STUDIO_VIDEO_REVIEW_DIMENSIONS],
+      ...(comparison != null ? { comparison } : {}),
+      ...(clarification != null ? { clarification } : {}),
+    }),
+  );
   const parsed = decisionSchema.safeParse(raw);
-  if (!parsed.success) throw new StudioVideoReviewError(`AI video review returned an invalid decision: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
+  if (!parsed.success)
+    throw new StudioVideoReviewError(
+      `AI video review returned an invalid decision: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
+    );
   return parsed.data;
 }
 
@@ -311,7 +332,10 @@ export async function renderAndReviewStudioVideo(
   const comparison = validateComparison(options.comparison);
   const projectDir = resolve(options.projectDir ?? process.cwd());
   const svgPath = resolve(projectDir, options.svgPath);
-  const outputPath = resolve(projectDir, options.outputPath ?? project.exportTargets?.reviewVideoPath ?? "generated/studio-review.mp4");
+  const outputPath = resolve(
+    projectDir,
+    options.outputPath ?? project.exportTargets?.reviewVideoPath ?? "generated/studio-review.mp4",
+  );
   mkdirSync(dirname(outputPath), { recursive: true });
   if (options.renderVideo != null) {
     await options.renderVideo({ svgPath, outputPath, project: clone(project) });
@@ -365,7 +389,14 @@ export async function renderAndReviewStudioVideo(
   }
   return {
     status: "reviewed",
-    project: applyReport(project, media, decision, projectDir, options.aiName ?? "Studio AI", options.timestamp ?? (() => new Date().toISOString())),
+    project: applyReport(
+      project,
+      media,
+      decision,
+      projectDir,
+      options.aiName ?? "Studio AI",
+      options.timestamp ?? (() => new Date().toISOString()),
+    ),
     report: decision,
     media,
   };
@@ -380,7 +411,11 @@ export async function resumeStudioVideoReview(
   if (answer.trim() === "") throw new StudioVideoReviewError("clarification answer must not be empty");
   const project = validateStudioProject(checkpoint.project);
   const { checkpointDigest: recordedDigest, ...checkpointBase } = checkpoint;
-  if (checkpoint.version !== 1 || projectDigest(project) !== checkpoint.projectDigest || checkpointDigest(checkpointBase) !== recordedDigest) {
+  if (
+    checkpoint.version !== 1 ||
+    projectDigest(project) !== checkpoint.projectDigest ||
+    checkpointDigest(checkpointBase) !== recordedDigest
+  ) {
     throw new StudioVideoReviewError("video-review clarification checkpoint was modified");
   }
   if (!existsSync(checkpoint.media.path) || digest(readFileSync(checkpoint.media.path)) !== checkpoint.media.sha256) {
@@ -408,7 +443,14 @@ export async function resumeStudioVideoReview(
   }
   return {
     status: "reviewed",
-    project: applyReport(project, checkpoint.media, decision, resolve(checkpoint.projectDir), options.aiName ?? "Studio AI", options.timestamp ?? (() => new Date().toISOString())),
+    project: applyReport(
+      project,
+      checkpoint.media,
+      decision,
+      resolve(checkpoint.projectDir),
+      options.aiName ?? "Studio AI",
+      options.timestamp ?? (() => new Date().toISOString()),
+    ),
     report: decision,
     media: checkpoint.media,
   };

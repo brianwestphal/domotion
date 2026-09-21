@@ -1,7 +1,7 @@
 # domotion-template-quote-card
 
 A worked example of a **third-party Domotion template** — copy this directory as
-the starting point for your own. It is a *generator* template that animates a
+the starting point for your own. It is a _generator_ template that animates a
 pull-quote card rising + fading into place.
 
 The full walkthrough is **[`docs/74-template-authoring.md`](../../docs/74-template-authoring.md)**;
@@ -60,15 +60,16 @@ import { quoteCardTemplate, buildQuoteCardHtml } from "./index.js";
 describe("quote-card", () => {
   // Pure builders need no browser.
   it("escapes the quote text", () => {
-    expect(buildQuoteCardHtml({ quote: "<b>", accent: "#000", color: "#fff", width: 100, height: 100, holdMs: 1000 }))
-      .toContain("&lt;b&gt;");
+    expect(
+      buildQuoteCardHtml({ quote: "<b>", accent: "#000", color: "#fff", width: 100, height: 100, holdMs: 1000 }),
+    ).toContain("&lt;b&gt;");
   });
 
   // The full render needs Chromium (Playwright).
   it("renders a self-contained animated SVG", async () => {
     const out = await renderTemplateToSvg(quoteCardTemplate, { quote: "Ship it.", author: "Ada" });
     expect(out.svg).toContain("<svg");
-    expect(out.svg).toMatch(/@keyframes/);     // the rise + fade reveal
+    expect(out.svg).toMatch(/@keyframes/); // the rise + fade reveal
     expect(out.durationMs).toBe(2600);
   });
 });

@@ -137,11 +137,18 @@ describe("renderer-owned viewBox-culling geometry", () => {
 
   it("clips overflow-visible descendant paint at the emitted child clip", () => {
     const child = el(750, 20, 200, 30, { backgroundColor: "red" });
-    const parent = el(900, 0, 100, 100, {
-      overflowX: "hidden",
-      overflowY: "hidden",
-      backgroundColor: "blue",
-    }, [child]);
+    const parent = el(
+      900,
+      0,
+      100,
+      100,
+      {
+        overflowX: "hidden",
+        overflowY: "hidden",
+        backgroundColor: "blue",
+      },
+      [child],
+    );
     const facts = buildRendererCullGeometry(parent, 800, 600).get(parent)!;
     expect(facts.visualBounds).toEqual({
       kind: "bounded",
@@ -219,31 +226,70 @@ describe("renderer-owned viewBox-culling geometry", () => {
 
   it("unions capture-viewport native scrollbar strips and retains missing crops", () => {
     const fingerprint = {
-      platform: "darwin" as const, architecture: "arm64", osRelease: "25.6.0",
-      runnerImage: "macos15", runnerImageVersion: "1", chromiumVersion: "147",
-      chromiumRevision: "123", playwrightVersion: "1.59", launchArguments: ["--headless"],
+      platform: "darwin" as const,
+      architecture: "arm64",
+      osRelease: "25.6.0",
+      runnerImage: "macos15",
+      runnerImageVersion: "1",
+      chromiumVersion: "147",
+      chromiumRevision: "123",
+      playwrightVersion: "1.59",
+      launchArguments: ["--headless"],
       hideScrollbarsDefaultRemoved: true,
     };
     const bar = (dataUri?: string) => ({
-      orientation: "vertical" as const, route: "native-raster" as const,
-      frameRect: { x: 5, y: 20, width: 8, height: 40 }, usedWidth: "auto" as const,
-      logicalSide: "left" as const, visibleSize: 20, totalSize: 40, currentPosition: 0,
-      enabled: true, hoveredPart: null, pressedPart: null, hiddenIfOverlay: false,
-      opacity: 1, usedColorScheme: "light" as const, standardColors: null, parts: [],
+      orientation: "vertical" as const,
+      route: "native-raster" as const,
+      frameRect: { x: 5, y: 20, width: 8, height: 40 },
+      usedWidth: "auto" as const,
+      logicalSide: "left" as const,
+      visibleSize: 20,
+      totalSize: 40,
+      currentPosition: 0,
+      enabled: true,
+      hoveredPart: null,
+      pressedPart: null,
+      hiddenIfOverlay: false,
+      opacity: 1,
+      usedColorScheme: "light" as const,
+      standardColors: null,
+      parts: [],
       missingFacts: dataUri == null ? ["native-strip-raster"] : [],
-      nativeRaster: dataUri == null ? undefined : {
-        x: 5, y: 20, width: 8, height: 40, pixelWidth: 16, pixelHeight: 80,
-        captureDpr: 2, dataUri, precomposited: true as const,
-        sourceFrameSha256: "a".repeat(64), cropSha256: "b".repeat(64),
-        opacitySource: "precomposited-source-frame" as const,
-        interaction: { hostHovered: false, hostPressed: false }, platformFingerprint: fingerprint,
-      },
+      nativeRaster:
+        dataUri == null
+          ? undefined
+          : {
+              x: 5,
+              y: 20,
+              width: 8,
+              height: 40,
+              pixelWidth: 16,
+              pixelHeight: 80,
+              captureDpr: 2,
+              dataUri,
+              precomposited: true as const,
+              sourceFrameSha256: "a".repeat(64),
+              cropSha256: "b".repeat(64),
+              opacitySource: "precomposited-source-frame" as const,
+              interaction: { hostHovered: false, hostPressed: false },
+              platformFingerprint: fingerprint,
+            },
     });
     const set = (vertical: ReturnType<typeof bar>, status: "captured" | "partial") => ({
-      status, source: "blink-live-marker-probe-v1" as const, rootScroller: false,
-      vertical, overlay: false, paintPhase: "background" as const, overflowControlsClip: null,
-      outputTransform: { space: "capture-viewport" as const, matrix: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number] },
-      effectiveZoom: 1, captureDpr: 2, forcedColors: false,
+      status,
+      source: "blink-live-marker-probe-v1" as const,
+      rootScroller: false,
+      vertical,
+      overlay: false,
+      paintPhase: "background" as const,
+      overflowControlsClip: null,
+      outputTransform: {
+        space: "capture-viewport" as const,
+        matrix: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
+      },
+      effectiveZoom: 1,
+      captureDpr: 2,
+      forcedColors: false,
       missingFacts: status === "partial" ? ["native-strip-raster"] : [],
     });
     const materialized = el(20, 30, 100, 40);
@@ -252,10 +298,12 @@ describe("renderer-owned viewBox-culling geometry", () => {
     missing.scrollbars = set(bar(), "partial");
     const index = buildRendererCullGeometry([materialized, missing], 800, 600);
     expect(index.get(materialized)!.visualBounds).toEqual({
-      kind: "bounded", box: { x: 5, y: 20, w: 8, h: 40 },
+      kind: "bounded",
+      box: { x: 5, y: 20, w: 8, h: 40 },
     });
     expect(index.get(missing)!.visualBounds).toEqual({
-      kind: "unknown", reason: "native-scrollbar-raster-unavailable",
+      kind: "unknown",
+      reason: "native-scrollbar-raster-unavailable",
     });
   });
 
@@ -292,14 +340,25 @@ describe("renderer-owned viewBox-culling geometry", () => {
   it("keeps split backdrop surfaces and a collapsed unknown clip fail-closed", () => {
     const backdrop = el(900, 0, 100, 20, { backgroundColor: "red" });
     backdrop.backdropFilterRaster = {
-      x: 900, y: 0, width: 100, height: 20, dataUri: "data:image/png;base64,AA==",
+      x: 900,
+      y: 0,
+      width: 100,
+      height: 20,
+      dataUri: "data:image/png;base64,AA==",
     };
     const unknownChild = el(900, 0, 100, 20);
     unknownChild.text = "unknown ink";
-    const zeroClip = el(900, 0, 0, 0, {
-      overflowX: "hidden",
-      overflowY: "hidden",
-    }, [unknownChild]);
+    const zeroClip = el(
+      900,
+      0,
+      0,
+      0,
+      {
+        overflowX: "hidden",
+        overflowY: "hidden",
+      },
+      [unknownChild],
+    );
     const index = buildRendererCullGeometry([backdrop, zeroClip], 800, 600);
     expect(index.get(backdrop)!.visualBounds).toEqual({
       kind: "unknown",
@@ -311,14 +370,28 @@ describe("renderer-owned viewBox-culling geometry", () => {
   it("does not turn nested one-axis clips into a finite two-axis proof", () => {
     const text = el(900, 20, 100, 20);
     text.text = "unknown horizontal ink";
-    const inner = el(900, 0, 100, 100, {
-      overflowX: "visible",
-      overflowY: "clip",
-    }, [text]);
-    const outer = el(900, 0, 100, 100, {
-      overflowX: "visible",
-      overflowY: "clip",
-    }, [inner]);
+    const inner = el(
+      900,
+      0,
+      100,
+      100,
+      {
+        overflowX: "visible",
+        overflowY: "clip",
+      },
+      [text],
+    );
+    const outer = el(
+      900,
+      0,
+      100,
+      100,
+      {
+        overflowX: "visible",
+        overflowY: "clip",
+      },
+      [inner],
+    );
     const index = buildRendererCullGeometry(outer, 800, 600);
     expect(index.get(text)!.visualBounds.kind).toBe("unknown");
     expect(index.get(inner)!.visualBounds.kind).toBe("unknown");

@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1537","DM-1541","DM-1560","DM-1568"]
-code: ["src/templates/builtin/text-card-common.ts","src/templates/formats.ts"]
-aliases: ["docs/91-adaptive-format-scaling.md","doc-91"]
+tickets: ["DM-1537", "DM-1541", "DM-1560", "DM-1568"]
+code: ["src/templates/builtin/text-card-common.ts", "src/templates/formats.ts"]
+aliases: ["docs/91-adaptive-format-scaling.md", "doc-91"]
 ---
 
 # 91 — Adaptive format scaling (per-ratio type)
@@ -61,16 +61,16 @@ with the canvas.
 
 All are opt-in via `safeInset` (no format → byte-identical):
 
-| Template | Scaled |
-|---|---|
-| `title-card` | eyebrow / headline / subtitle font sizes + gap |
-| `quote` | quote mark, quote text, rule, avatar, name/role + gaps |
-| `caption` | caption text + scrim padding |
-| `cta` | logo cap, headline, button, handles, url + gaps |
-| `stat` | value cell + label + delta (width-capped, see below) |
-| `counter` | value cell (width-capped) |
-| `compare` | label pill font/height/pad + honors the safe inset for placement |
-| `chart` | title / axis-tick / value-label / category-label / legend type + the single-series bar-thickness cap (DM-1560) |
+| Template     | Scaled                                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `title-card` | eyebrow / headline / subtitle font sizes + gap                                                                 |
+| `quote`      | quote mark, quote text, rule, avatar, name/role + gaps                                                         |
+| `caption`    | caption text + scrim padding                                                                                   |
+| `cta`        | logo cap, headline, button, handles, url + gaps                                                                |
+| `stat`       | value cell + label + delta (width-capped, see below)                                                           |
+| `counter`    | value cell (width-capped)                                                                                      |
+| `compare`    | label pill font/height/pad + honors the safe inset for placement                                               |
+| `chart`      | title / axis-tick / value-label / category-label / legend type + the single-series bar-thickness cap (DM-1560) |
 
 The flex text cards (`title-card` / `quote` / `caption` / `cta`) are the core
 case — their text wraps, so scaling up is unambiguously a legibility win.
@@ -93,7 +93,7 @@ _fits_, never clipped. The cap is only applied under a chosen format
 - `fs(px, sf, exp=1)` → a scaled `"…px"` string (`fs(84, 1)` → `"84px"`, unchanged).
 - `fsNum(px, sf, exp=1)` → a scaled bare number (for an SVG `font-size` attribute).
 - **Per-element scale exponent (`exp`, DM-1568).** Both helpers take an optional
-  exponent so different type roles can scale *differently* with format: the scaled
+  exponent so different type roles can scale _differently_ with format: the scaled
   size is `round(px · sf^exp · 100)/100`. A role that should grow harder than the
   linear default uses `exp > 1`, one that should stay closer to its base size uses
   `exp < 1`. `title-card` wires this via `TC_EXP = { headline: 1.25, support: 0.9 }`

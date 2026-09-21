@@ -27,11 +27,7 @@ export const TRACKING_FIXTURE_SHA256 = "cf3fdeb89ad8e723633fa7f364d0c00974482368
 
 export type ApplicableShapingControl = "axes" | "ptem";
 export type ControlApplicability = "applicable" | "inapplicable";
-export type ControlMovement =
-  | "moved-as-expected"
-  | "non-moving"
-  | "unexpected-logical-change"
-  | "not-run";
+export type ControlMovement = "moved-as-expected" | "non-moving" | "unexpected-logical-change" | "not-run";
 
 export interface ExactControlGlyph {
   id: number;
@@ -229,10 +225,7 @@ function exactGlyphs(result: ShapeResult, text: string): ExactControlGlyph[] {
   return result.glyphs.map((glyph, index) => ({
     id: glyph.id,
     cluster: result.clusters[index],
-    sourceSpan: [
-      result.clusters[index],
-      sourceEnd(text, result.clusters[index], result.clusters),
-    ],
+    sourceSpan: [result.clusters[index], sourceEnd(text, result.clusters[index], result.clusters)],
     xAdvance: result.positions[index].xAdvance,
     yAdvance: result.positions[index].yAdvance,
     xOffset: result.positions[index].xOffset,
@@ -258,7 +251,9 @@ export function changedExactFields(baseline: ExactControlGlyph[], mutation: Exac
   const changed: string[] = [];
   if (baseline.length !== mutation.length) changed.push("glyphCount");
   for (const field of EXACT_FIELDS) {
-    if (JSON.stringify(baseline.map((glyph) => glyph[field])) !== JSON.stringify(mutation.map((glyph) => glyph[field]))) {
+    if (
+      JSON.stringify(baseline.map((glyph) => glyph[field])) !== JSON.stringify(mutation.map((glyph) => glyph[field]))
+    ) {
       changed.push(field);
     }
   }
@@ -333,11 +328,7 @@ function expectedState(
   return { fontSizePx, axes, expected: logicalStream(glyphs), actual: null };
 }
 
-function inapplicableRow(
-  spec: ControlSpec,
-  fixture: ExactControlFixture,
-  reason: string,
-): ApplicableShapingControlRow {
+function inapplicableRow(spec: ControlSpec, fixture: ExactControlFixture, reason: string): ApplicableShapingControlRow {
   return {
     id: spec.id,
     control: spec.control,
@@ -356,11 +347,7 @@ function inapplicableRow(
   };
 }
 
-function runControl(
-  spec: ControlSpec,
-  bytes: Buffer,
-  fixture: ExactControlFixture,
-): ApplicableShapingControlRow {
+function runControl(spec: ControlSpec, bytes: Buffer, fixture: ExactControlFixture): ApplicableShapingControlRow {
   const input = { text: spec.text, direction: "ltr" as const, script: "Latn" as const, language: "en" as const };
   const baseline = expectedState(spec.baselineFontSizePx, spec.baselineAxes, spec.baselineGlyphs);
   const destructiveMutation = expectedState(spec.mutationFontSizePx, spec.mutationAxes, spec.mutationGlyphs);
@@ -391,15 +378,18 @@ function runControl(
   const changedExactlyAsExpected = JSON.stringify(changedFields) === JSON.stringify(["xAdvance"]);
   const baselineExact = baseline.actual.logicalSha256 === baseline.expected.logicalSha256;
   const mutationExact = destructiveMutation.actual.logicalSha256 === destructiveMutation.expected.logicalSha256;
-  const movementStatus: ControlMovement = changedFields.length === 0
-    ? "non-moving"
-    : changedExactlyAsExpected && baselineExact && mutationExact
-      ? "moved-as-expected"
-      : "unexpected-logical-change";
+  const movementStatus: ControlMovement =
+    changedFields.length === 0
+      ? "non-moving"
+      : changedExactlyAsExpected && baselineExact && mutationExact
+        ? "moved-as-expected"
+        : "unexpected-logical-change";
   const mismatches = [
     !changedExactlyAsExpected ? `changed fields were [${changedFields.join(", ")}]` : null,
     !baselineExact ? `baseline digest ${baseline.actual.logicalSha256} != ${baseline.expected.logicalSha256}` : null,
-    !mutationExact ? `destructive mutation digest ${destructiveMutation.actual.logicalSha256} != ${destructiveMutation.expected.logicalSha256}` : null,
+    !mutationExact
+      ? `destructive mutation digest ${destructiveMutation.actual.logicalSha256} != ${destructiveMutation.expected.logicalSha256}`
+      : null,
   ].filter((reason): reason is string => reason != null);
   return {
     id: spec.id,
@@ -414,9 +404,12 @@ function runControl(
     applicability: { status: "applicable", reason: null },
     movement: {
       status: movementStatus,
-      reason: movementStatus === "moved-as-expected" ? null
-        : movementStatus === "non-moving" ? "destructive omission did not change the logical stream"
-          : mismatches.join("; "),
+      reason:
+        movementStatus === "moved-as-expected"
+          ? null
+          : movementStatus === "non-moving"
+            ? "destructive omission did not change the logical stream"
+            : mismatches.join("; "),
     },
     applicable: true,
     movementProven: movementStatus === "moved-as-expected",
@@ -445,10 +438,12 @@ function runFixtureGroup(
  * and only changed field. Invalid fixtures are reported as inapplicable instead
  * of throwing before the caller can write its evidence artifact.
  */
-export function runApplicableShapingControls(options: {
-  variableFixture?: string;
-  trackingFixture?: string;
-} = {}): ApplicableShapingControlReport {
+export function runApplicableShapingControls(
+  options: {
+    variableFixture?: string;
+    trackingFixture?: string;
+  } = {},
+): ApplicableShapingControlReport {
   const variablePath = options.variableFixture ?? DEFAULT_VARIABLE_FIXTURE;
   const trackingPath = options.trackingFixture ?? DEFAULT_TRACKING_FIXTURE;
   const controlRows = [
@@ -479,7 +474,9 @@ export function runApplicableShapingControls(options: {
   };
   const inapplicableControls = controlRows.filter((row) => !row.applicable).map((row) => row.id);
   const nonMovingControls = controlRows.filter((row) => row.movement.status === "non-moving").map((row) => row.id);
-  const unexpectedControls = controlRows.filter((row) => row.movement.status === "unexpected-logical-change").map((row) => row.id);
+  const unexpectedControls = controlRows
+    .filter((row) => row.movement.status === "unexpected-logical-change")
+    .map((row) => row.id);
   const failedControls = controlRows.filter((row) => !row.movementProven).map((row) => row.id);
   return {
     controlRows,

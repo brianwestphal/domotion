@@ -19,7 +19,10 @@ describe("composeAnimatedLayers (DM-1323)", () => {
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const r = composeAnimatedLayers(
-        [{ svg: staticDoc, x: 0, y: 0, width: 400, height: 300 }, { svg: trapLayer, x: 10, y: 10, width: 200, height: 100 }],
+        [
+          { svg: staticDoc, x: 0, y: 0, width: 400, height: 300 },
+          { svg: trapLayer, x: 10, y: 10, width: 200, height: 100 },
+        ],
         { width: 400, height: 300 },
       );
       // Non-fatal: the composite still assembled.
@@ -37,7 +40,10 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("emits no warnings for clean layers (Domotion's own output never trips the trap)", () => {
     const r = composeAnimatedLayers(
-      [{ svg: staticDoc, x: 0, y: 0, width: 400, height: 300 }, { svg: animatedDoc(4), periodMs: 4000 }],
+      [
+        { svg: staticDoc, x: 0, y: 0, width: 400, height: 300 },
+        { svg: animatedDoc(4), periodMs: 4000 },
+      ],
       { width: 400, height: 300 },
     );
     expect(r.warnings).toBeUndefined();
@@ -45,7 +51,10 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("stacks layers z-ordered into one outer svg sized to the canvas", () => {
     const r = composeAnimatedLayers(
-      [{ svg: staticDoc, x: 0, y: 0, width: 400, height: 300 }, { svg: animatedDoc(4), periodMs: 4000, x: 50, y: 40 }],
+      [
+        { svg: staticDoc, x: 0, y: 0, width: 400, height: 300 },
+        { svg: animatedDoc(4), periodMs: 4000, x: 50, y: 40 },
+      ],
       { width: 400, height: 300 },
     );
     expect(r.width).toBe(400);
@@ -59,7 +68,10 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("namespaces each layer's global names so identical content can't collide", () => {
     const r = composeAnimatedLayers(
-      [{ svg: animatedDoc(4, "x"), periodMs: 4000 }, { svg: animatedDoc(4, "x"), periodMs: 4000, x: 10 }],
+      [
+        { svg: animatedDoc(4, "x"), periodMs: 4000 },
+        { svg: animatedDoc(4, "x"), periodMs: 4000, x: 10 },
+      ],
       { width: 200, height: 100 },
     );
     // The reused id `r-x` and keyframe `grow` are prefixed per layer.
@@ -72,10 +84,11 @@ describe("composeAnimatedLayers (DM-1323)", () => {
   it("re-anchors a layer's internal timeline to its start within the master loop", () => {
     // Layer starts at 2000ms; master forced to 10000ms. Its 4s animation retimes
     // to the master period and its keyframes offset off the origin.
-    const r = composeAnimatedLayers(
-      [{ svg: animatedDoc(4), periodMs: 4000, start: 2000 }],
-      { width: 200, height: 100, durationMs: 10000 },
-    );
+    const r = composeAnimatedLayers([{ svg: animatedDoc(4), periodMs: 4000, start: 2000 }], {
+      width: 200,
+      height: 100,
+      durationMs: 10000,
+    });
     expect(r.svg).toContain("animation:c0_grow 10s linear infinite");
     // leading 0% hold + the original 0% stop pushed to 20%.
     expect(r.svg).toMatch(/@keyframes c0_grow \{ 0% \{ opacity:0 \} 20% \{ opacity:0 \}/);
@@ -83,7 +96,12 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("emits a layer-level animation on the layer group (move/scale)", () => {
     const r = composeAnimatedLayers(
-      [{ svg: staticDoc, animations: [{ property: "scale", from: 1, to: 1.3, start: 6000, duration: 800, transformOrigin: "0 0" }] }],
+      [
+        {
+          svg: staticDoc,
+          animations: [{ property: "scale", from: 1, to: 1.3, start: 6000, duration: 800, transformOrigin: "0 0" }],
+        },
+      ],
       { width: 400, height: 300, durationMs: 10000 },
     );
     expect(r.svg).toContain("@keyframes c0_a0");
@@ -96,8 +114,19 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("clipScaleX emits a clip-path with a scaleX-animated clip rect (resize the box, not the contents)", () => {
     const r = composeAnimatedLayers(
-      [{ svg: staticDoc, x: 20, y: 30, width: 400, height: 300, clipRadius: 11,
-         animations: [{ property: "clipScaleX", from: 1, to: 0.64, start: 6000, duration: 800, transformOrigin: "left" }] }],
+      [
+        {
+          svg: staticDoc,
+          x: 20,
+          y: 30,
+          width: 400,
+          height: 300,
+          clipRadius: 11,
+          animations: [
+            { property: "clipScaleX", from: 1, to: 0.64, start: 6000, duration: 800, transformOrigin: "left" },
+          ],
+        },
+      ],
       { width: 500, height: 400, durationMs: 10000 },
     );
     // A clipPath whose rect covers the layer box, referenced by the layer group.
@@ -117,11 +146,19 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("DM-1529: clip-scale origin keywords resolve to userspace px from the rect box", () => {
     const r = composeAnimatedLayers(
-      [{ svg: staticDoc, x: 100, y: 50, width: 400, height: 200,
-         animations: [
-           { property: "clipScaleX", from: 1, to: 0.5, start: 0, duration: 800, transformOrigin: "right" },
-           { property: "clipScaleY", from: 1, to: 0.5, start: 0, duration: 800, transformOrigin: "center" },
-         ] }],
+      [
+        {
+          svg: staticDoc,
+          x: 100,
+          y: 50,
+          width: 400,
+          height: 200,
+          animations: [
+            { property: "clipScaleX", from: 1, to: 0.5, start: 0, duration: 800, transformOrigin: "right" },
+            { property: "clipScaleY", from: 1, to: 0.5, start: 0, duration: 800, transformOrigin: "center" },
+          ],
+        },
+      ],
       { width: 600, height: 400, durationMs: 4000 },
     );
     // right → x = 100 + 400 = 500; center (y) → 50 + 200/2 = 150.
@@ -142,7 +179,10 @@ describe("composeAnimatedLayers (DM-1323)", () => {
   });
 
   it("leaves a static layer (no periodMs) untouched and just places it", () => {
-    const r = composeAnimatedLayers([{ svg: staticDoc, x: 5, y: 6, width: 100, height: 75 }], { width: 400, height: 300 });
+    const r = composeAnimatedLayers([{ svg: staticDoc, x: 5, y: 6, width: 100, height: 75 }], {
+      width: 400,
+      height: 300,
+    });
     expect(r.svg).toContain('<svg x="5" y="6" width="100" height="75"');
     expect(r.svg).toContain('fill="#222"');
   });
@@ -150,7 +190,8 @@ describe("composeAnimatedLayers (DM-1323)", () => {
   it("dedupes byte-identical embedded fonts across layers (DM-1329)", () => {
     // Two layers (tokens c0_/c1_) carry the same font payload under namespaced
     // family names — the renderer emits identical base64 for identical glyph sets.
-    const face = (fam: string) => `@font-face { font-family: "${fam}"; font-style: normal; font-weight: 400; src: url("data:font/ttf;base64,AAAABBBBCCCCDDDD"); }`;
+    const face = (fam: string) =>
+      `@font-face { font-family: "${fam}"; font-style: normal; font-weight: 400; src: url("data:font/ttf;base64,AAAABBBBCCCCDDDD"); }`;
     const svg =
       `<svg><style>${face("c0_dmf0")}</style><style>${face("c1_dmf0")}</style>` +
       `<text font-family="c0_dmf0">a</text><text font-family="c1_dmf0">b</text>` +
@@ -170,10 +211,11 @@ describe("composeAnimatedLayers (DM-1323)", () => {
 
   it("deferFonts keeps a layer's dmfN families un-prefixed and emits fontFaceCss once (DM-1331)", () => {
     const fontDoc = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><text font-family="dmf0">hi</text></svg>`;
-    const r = composeAnimatedLayers(
-      [{ svg: fontDoc, deferFonts: true, x: 0, y: 0 }],
-      { width: 200, height: 100, fontFaceCss: '@font-face { font-family: "dmf0"; src: url("data:font/ttf;base64,AAAA"); }' },
-    );
+    const r = composeAnimatedLayers([{ svg: fontDoc, deferFonts: true, x: 0, y: 0 }], {
+      width: 200,
+      height: 100,
+      fontFaceCss: '@font-face { font-family: "dmf0"; src: url("data:font/ttf;base64,AAAA"); }',
+    });
     // The shared family stays un-prefixed (resolves against the shared block)…
     expect(r.svg).toContain('font-family="dmf0"');
     expect(r.svg).not.toContain('font-family="c0_dmf0"');
@@ -200,8 +242,14 @@ describe("composeAnimatedLayers (DM-1323)", () => {
   // predicate suppresses every transparent CSS form.
   it("paints no background rect for any transparent CSS form (DM-1457)", () => {
     for (const transparent of [
-      "transparent", "rgba(0, 0, 0, 0)", "rgba(0,0,0,0)", "",
-      "none", "#0000", "#00000000", "hsla(0, 0%, 0%, 0)",
+      "transparent",
+      "rgba(0, 0, 0, 0)",
+      "rgba(0,0,0,0)",
+      "",
+      "none",
+      "#0000",
+      "#00000000",
+      "hsla(0, 0%, 0%, 0)",
     ]) {
       const out = composeAnimatedLayers([{ svg: staticDoc }], { width: 10, height: 10, background: transparent });
       expect(out.svg, transparent).not.toMatch(/<rect width="10" height="10" fill=/);

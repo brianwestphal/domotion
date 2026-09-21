@@ -47,7 +47,10 @@ describe("the fixture", () => {
     const walk = (dir: string): void => {
       for (const name of readdirSync(dir)) {
         const path = `${dir}/${name}`;
-        if (statSync(path).isDirectory()) { walk(path); continue; }
+        if (statSync(path).isDirectory()) {
+          walk(path);
+          continue;
+        }
         if (/\.tsx?$/.test(name) && readFileSync(path).includes(0)) offenders.push(path);
       }
     };
@@ -82,7 +85,7 @@ describe("the fixture", () => {
   });
 
   it("paints the same text at three different axis locations", () => {
-    const settings = [...html.matchAll(/data-settings='([^']*)'/g)].map((m) => m[1]);
+    const settings = [...html.matchAll(/data-settings=(['"])(.*?)\1/g)].map((m) => m[2]);
     expect(settings).toEqual(["normal", '"wght" 800', '"wdth" 75']);
     // Whitespace-free: the shaping oracle's corpus excludes runs containing
     // whitespace (Chrome counts space glyphs, our renderer usually emits no
@@ -93,10 +96,13 @@ describe("the fixture", () => {
 });
 
 describe("the embedded face", () => {
-  const font = html === "" ? null : (fontkit.create(fontBytesFromFixture(html)) as unknown as {
-    postscriptName: string;
-    variationAxes: Record<string, { min: number; max: number; default: number }>;
-  });
+  const font =
+    html === ""
+      ? null
+      : (fontkit.create(fontBytesFromFixture(html)) as unknown as {
+          postscriptName: string;
+          variationAxes: Record<string, { min: number; max: number; default: number }>;
+        });
 
   it("survived subsetting as a VARIABLE font", () => {
     // An instanced subset has no axis to drive, which would make the fixture
@@ -132,8 +138,7 @@ describe("our side is name-blind and geometry-live", () => {
   });
 
   it("reports ONE PostScript name at every axis location — the blindness itself", () => {
-    const names = [null, { wght: 800 }, { wdth: 75 }]
-      .map((axes) => ourFaceFor(family, fontSize, axes).postscriptName);
+    const names = [null, { wght: 800 }, { wdth: 75 }].map((axes) => ourFaceFor(family, fontSize, axes).postscriptName);
     expect(names[0]).not.toBeNull();
     expect(new Set(names).size).toBe(1);
   });
@@ -194,8 +199,9 @@ describe("aligning our metrics to Chrome's (grid-fitted vs linear advances)", ()
     // exactness is the claim; a threshold would have hidden whether the rule was
     // right or merely close.
     const chrome = [0, 35, 62, 106, 135, 164, 184, 210, 237, 253, 282, 311, 334, 351, 363];
-    const ours = [0, 35.39, 62.06, 106.5, 135.87, 165.3, 184.92, 210.98, 237.94,
-      254.09, 282.96, 312.4, 335.27, 352.38, 364.5];
+    const ours = [
+      0, 35.39, 62.06, 106.5, 135.87, 165.3, 184.92, 210.98, 237.94, 254.09, 282.96, 312.4, 335.27, 352.38, 364.5,
+    ];
     expect(alignMetricsToChrome(chrome, ours)).toEqual(chrome);
   });
 

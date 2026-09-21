@@ -3,11 +3,11 @@ id: "requirements/kinetic-text-template"
 title: "72 — kinetic-text template"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","product-tooling"]
+owners: ["text-fonts", "product-tooling"]
 platforms: []
-tickets: ["DM-1277","DM-1286","DM-1296","DM-1297"]
-code: ["src/templates/builtin/kinetic-text.ts","src/templates/registry.ts"]
-aliases: ["docs/72-kinetic-text-template.md","doc-72"]
+tickets: ["DM-1277", "DM-1286", "DM-1296", "DM-1297"]
+code: ["src/templates/builtin/kinetic-text.ts", "src/templates/registry.ts"]
+aliases: ["docs/72-kinetic-text-template.md", "doc-72"]
 ---
 
 # 72 — `kinetic-text` template
@@ -40,22 +40,22 @@ domotion template kinetic-text \
 
 ## Parameters
 
-| Param | Type | Default | Meaning |
-|---|---|---|---|
-| `text` | string (1–400) | — | The headline (**required**). `\n` → line break; a light set of inline tags styles words (see *Multi-line & emphasis*). |
-| `variant` | `rise` \| `slide` \| `fade` \| `clip` \| `pop` | `rise` | Reveal style: rise up, slide in from the left, fade, `clip` (a left-to-right wipe), or `pop` (scale up from the unit's center with an overshoot). |
-| `loop` | `loop` \| `boomerang` | `loop` | `loop` replays the reveal each scene cycle; `boomerang` makes each unit assemble + disassemble continuously. |
-| `by` | `word` \| `char` | `word` | Animate per word or per character. |
-| `width` / `height` | int | `1280` / `720` | Output size in px. |
-| `fontSize` | int | `88` | Font size in px. |
-| `fontWeight` | int | `800` | Font weight. |
-| `color` | string | `#f5f7fa` | Text color. |
-| `background` | string | `#0b1020` | Frame background (or `transparent`). |
-| `align` | `center` \| `left` | `center` | Text alignment. |
-| `fontFamily` | string | system sans | CSS font-family stack. |
-| `staggerMs` | int | `90` | Delay between units. |
-| `revealMs` | int | `600` | Per-unit reveal duration. |
-| `holdMs` | int | `1600` | Hold after the full reveal. |
+| Param              | Type                                           | Default        | Meaning                                                                                                                                           |
+| ------------------ | ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`             | string (1–400)                                 | —              | The headline (**required**). `\n` → line break; a light set of inline tags styles words (see _Multi-line & emphasis_).                            |
+| `variant`          | `rise` \| `slide` \| `fade` \| `clip` \| `pop` | `rise`         | Reveal style: rise up, slide in from the left, fade, `clip` (a left-to-right wipe), or `pop` (scale up from the unit's center with an overshoot). |
+| `loop`             | `loop` \| `boomerang`                          | `loop`         | `loop` replays the reveal each scene cycle; `boomerang` makes each unit assemble + disassemble continuously.                                      |
+| `by`               | `word` \| `char`                               | `word`         | Animate per word or per character.                                                                                                                |
+| `width` / `height` | int                                            | `1280` / `720` | Output size in px.                                                                                                                                |
+| `fontSize`         | int                                            | `88`           | Font size in px.                                                                                                                                  |
+| `fontWeight`       | int                                            | `800`          | Font weight.                                                                                                                                      |
+| `color`            | string                                         | `#f5f7fa`      | Text color.                                                                                                                                       |
+| `background`       | string                                         | `#0b1020`      | Frame background (or `transparent`).                                                                                                              |
+| `align`            | `center` \| `left`                             | `center`       | Text alignment.                                                                                                                                   |
+| `fontFamily`       | string                                         | system sans    | CSS font-family stack.                                                                                                                            |
+| `staggerMs`        | int                                            | `90`           | Delay between units.                                                                                                                              |
+| `revealMs`         | int                                            | `600`          | Per-unit reveal duration.                                                                                                                         |
+| `holdMs`           | int                                            | `1600`         | Hold after the full reveal.                                                                                                                       |
 
 On-screen time (`loop`) = `(units − 1) × staggerMs + revealMs + holdMs`; for
 `boomerang` it's `(units − 1) × staggerMs + 2 × revealMs` (one assemble +
@@ -69,13 +69,13 @@ global stagger sequence across the whole headline.
 
 A light, safelisted set of **inline emphasis tags** styles individual words:
 
-| Tag(s) | Effect |
-|---|---|
-| `<b>`, `<strong>` | bold (`font-weight:900`) |
-| `<i>`, `<em>` | italic |
-| `<u>`, `<ins>` | underline |
-| `<s>`, `<del>`, `<strike>` | line-through |
-| `<font color="…">` | text color |
+| Tag(s)                     | Effect                   |
+| -------------------------- | ------------------------ |
+| `<b>`, `<strong>`          | bold (`font-weight:900`) |
+| `<i>`, `<em>`              | italic                   |
+| `<u>`, `<ins>`             | underline                |
+| `<s>`, `<del>`, `<strike>` | line-through             |
+| `<font color="…">`         | text color               |
 
 Tags nest, and a word with mixed styling is split into per-style segments inside
 its animated unit (so the reveal still applies to the whole word/char). **Anything
@@ -90,7 +90,7 @@ The composed SVG always loops. `loop` (default) replays the staggered reveal eac
 cycle — a hard cut at the loop seam, the classic "re-type" look. `boomerang` sets
 every reveal animation to `repeat: infinite` with `alternate`, so each unit
 assembles then disassembles forever (phase-offset by its stagger) — a continuous
-shimmer with no seam. (A coordinated assemble → *hold* → disassemble cycle would
+shimmer with no seam. (A coordinated assemble → _hold_ → disassemble cycle would
 need multi-stop intra-frame keyframes, which the `animations` API doesn't yet
 express — a possible future enhancement.)
 
@@ -118,7 +118,7 @@ The motion respects the same two constraints as `background-loop` (doc 71):
    `pop` (DM-1297) scales the wrapper `0.3 → 1` with a back-eased overshoot, using
    the new intra-frame `scale` property + `transformOrigin: "center"` so the scale
    resolves about the unit's OWN box (the renderer emits `transform-box: fill-box;
-   transform-origin: center`) rather than the SVG origin — see doc 08.
+transform-origin: center`) rather than the SVG origin — see doc 08.
 
 All generation is pure and unit-tested without a browser: `planUnits` (split +
 index), `buildKineticHtml`, `buildKineticAnimations`, `kineticDurationMs`.

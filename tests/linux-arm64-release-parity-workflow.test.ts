@@ -25,7 +25,7 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("linux-arm64-release-evidence.ts acquire");
     expect(workflow).toContain("$RUNNER_TEMP");
     expect(workflow).toContain("--cache-root");
-    expect(workflow).toContain("--github-env \"$GITHUB_ENV\"");
+    expect(workflow).toContain('--github-env "$GITHUB_ENV"');
     expect(workflow).not.toMatch(/linux-glyph-extractor\/(build\.sh|CMakeLists)/);
     expect(workflow).not.toMatch(/icu-helper\/(build-unix|cmake)/i);
   });
@@ -47,7 +47,9 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("--max-stacks 13");
     expect(workflow).toContain("--variable-control-fixture tests/fixtures/variable-axis/variable-axis.html");
     expect(workflow).toContain("--tracking-control-fixture tests/fixtures/exact-shaping/TRAK.ttf.base64");
-    expect(workflow).toMatch(/name: Same-DPR decoration geometry oracle[\s\S]*node --import tsx tools\/decoration-oracle\.ts[\s\S]*--json "\$EVIDENCE_DIR\/decoration\.json"/);
+    expect(workflow).toMatch(
+      /name: Same-DPR decoration geometry oracle[\s\S]*node --import tsx tools\/decoration-oracle\.ts[\s\S]*--json "\$EVIDENCE_DIR\/decoration\.json"/,
+    );
     expect(workflow).not.toMatch(/decoration-oracle\.ts[^\n]*(--no-gate|--tolerance)/);
     expect(workflow).toContain("paint-geometry-browser-oracle.ts");
     expect(workflow).toContain("tests/html-test-suite.tsx");
@@ -61,6 +63,8 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("actions/upload-artifact@v4");
     expect(workflow).toContain("include-hidden-files: true");
     expect(workflow).toContain("exact-arm64-release-parity");
-    expect(workflow.indexOf("actions/upload-artifact@v4")).toBeLessThan(workflow.lastIndexOf("exact-arm64-release-parity"));
+    expect(workflow.indexOf("actions/upload-artifact@v4")).toBeLessThan(
+      workflow.lastIndexOf("exact-arm64-release-parity"),
+    );
   });
 });

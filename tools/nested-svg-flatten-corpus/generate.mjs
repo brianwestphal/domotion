@@ -15,12 +15,14 @@ const OUT = dirname(fileURLToPath(import.meta.url));
 mkdirSync(OUT, { recursive: true });
 
 const PLACE = { x: 20, y: 20, w: 120, h: 120, par: "xMidYMid meet", idPrefix: "n" };
-const outer = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">` +
+const outer = (inner) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">` +
   `<rect width="160" height="160" fill="#fff"/>${inner}</svg>\n`;
-const nested = (bodySvg) => outer(
-  `<svg x="${PLACE.x}" y="${PLACE.y}" width="${PLACE.w}" height="${PLACE.h}" ` +
-  `viewBox="0 0 24 24" preserveAspectRatio="${PLACE.par}">${bodySvg}</svg>`,
-);
+const nested = (bodySvg) =>
+  outer(
+    `<svg x="${PLACE.x}" y="${PLACE.y}" width="${PLACE.w}" height="${PLACE.h}" ` +
+      `viewBox="0 0 24 24" preserveAspectRatio="${PLACE.par}">${bodySvg}</svg>`,
+  );
 
 // The source `<svg>` bodies for each dimension.
 const DIMS = {

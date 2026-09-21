@@ -77,13 +77,15 @@ describe("DM-2353 Linux arm64 release evidence", () => {
 
   it("fails closed when any governing source revision is absent or abbreviated", () => {
     expect(sourceFingerprintErrors(exactAcquisition.environment)).toEqual([]);
-    expect(sourceFingerprintErrors({
-      source: {
-        ...exactAcquisition.environment.source,
-        chromiumRevision: null,
-        skiaRevision: "62efacd",
-      },
-    }).join("\n")).toMatch(/chromiumRevision[\s\S]*skiaRevision/);
+    expect(
+      sourceFingerprintErrors({
+        source: {
+          ...exactAcquisition.environment.source,
+          chromiumRevision: null,
+          skiaRevision: "62efacd",
+        },
+      }).join("\n"),
+    ).toMatch(/chromiumRevision[\s\S]*skiaRevision/);
   });
 
   it("requires the complete coherent-DPR decoration matrix without widening its envelope", () => {
@@ -104,11 +106,13 @@ describe("DM-2353 Linux arm64 release evidence", () => {
       })),
     };
     expect(decorationEvidenceErrors(exact)).toEqual([]);
-    expect(decorationEvidenceErrors({
-      ...exact,
-      coordinateOwnership: { ...exact.coordinateOwnership, domotionCaptureDeviceScaleFactor: 1 },
-      tolerances: { svgGeometry: 1.3 },
-    }).join("\n")).toMatch(/required DPR 4[\s\S]*0\.3 CSS px/);
+    expect(
+      decorationEvidenceErrors({
+        ...exact,
+        coordinateOwnership: { ...exact.coordinateOwnership, domotionCaptureDeviceScaleFactor: 1 },
+        tolerances: { svgGeometry: 1.3 },
+      }).join("\n"),
+    ).toMatch(/required DPR 4[\s\S]*0\.3 CSS px/);
   });
 
   it("emits an exact verdict only for the complete arm64 outcome and artifact set", () => {

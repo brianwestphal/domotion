@@ -16,15 +16,8 @@ import {
   type MetaResponse,
   type PathCommand,
 } from "./glyph-helper-outline.js";
-import type {
-  HelperRequest,
-  HelperResponse,
-  ShapeResponseGlyph,
-} from "./glyph-helper-protocol.js";
-import {
-  callGlyphHelper as callHelper,
-  isGlyphHelperAvailable,
-} from "./glyph-helper-transport.js";
+import type { HelperRequest, HelperResponse, ShapeResponseGlyph } from "./glyph-helper-protocol.js";
+import { callGlyphHelper as callHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
 
 export interface GlyphHelperFontInstance {
   unitsPerEm: number;
@@ -33,8 +26,10 @@ export interface GlyphHelperFontInstance {
   underlinePosition: number;
   underlineThickness: number;
   "OS/2"?: {
-    yStrikeoutPosition?: number; yStrikeoutSize?: number;
-    typoAscender?: number; typoDescender?: number;
+    yStrikeoutPosition?: number;
+    yStrikeoutSize?: number;
+    typoAscender?: number;
+    typoDescender?: number;
   };
   availableFeatures?: string[];
   embeddedBitmapPaint?: boolean;
@@ -100,21 +95,25 @@ export function buildGlyphHelperFontProbeEnvelope(spec: {
   // Dot-prefixed Apple system faces cannot be reopened by name: CoreText logs
   // a warning and substitutes Times New Roman. The existing response guard
   // rejects that geometry, so avoid asking the known-impossible question.
-  const probeByName = spec.postscriptName != null
-    && spec.variations == null
-    && !spec.postscriptName.startsWith(".");
+  const probeByName = spec.postscriptName != null && spec.variations == null && !spec.postscriptName.startsWith(".");
   return {
     fonts: [
-      { ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: 1000 },
+      {
+        ref: "f",
+        postscriptName: spec.postscriptName,
+        fontPath: spec.fontPath,
+        variations: spec.variations,
+        size: 1000,
+      },
       ...(probeByName ? [{ ref: "n", postscriptName: spec.postscriptName, size: 1000 }] : []),
     ],
     queries: [
       { type: "meta" as const, fontRef: "f", ...(spec.fontSizePx != null ? { fontSizePx: spec.fontSizePx } : {}) },
       ...(probeByName
         ? [
-          { type: "meta" as const, fontRef: "n" },
-          { type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) },
-        ]
+            { type: "meta" as const, fontRef: "n" },
+            { type: "glyphs" as const, fontRef: "n", glyphs: OFFSET_PROBE_GLYPHS.map((id) => ({ id })) },
+          ]
         : []),
     ],
   };
@@ -214,9 +213,11 @@ export function createGlyphHelperFont(spec: {
     // defense in depth rather than a fix for a live misrender — but it removes
     // the dependence on two thresholds happening to absorb a wrong font's
     // geometry.
-    const byNameIsRequestedFace = nMeta != null && nMeta.type === "meta"
-      && nMeta.nameMatched !== false
-      && (nMeta.postscriptName == null || nMeta.postscriptName === spec.postscriptName);
+    const byNameIsRequestedFace =
+      nMeta != null &&
+      nMeta.type === "meta" &&
+      nMeta.nameMatched !== false &&
+      (nMeta.postscriptName == null || nMeta.postscriptName === spec.postscriptName);
     if (byNameIsRequestedFace && r1 != null && r1.type === "glyphs") offsetProbe = r1.glyphs;
   } catch {
     return null;
@@ -267,7 +268,12 @@ export function createGlyphHelperFont(spec: {
     return translateCommandsY(parseSvgPath(d), outlineOffsetY);
   }
   function glyphBounds(bbox: GlyphResponse["bbox"]): NonNullable<GlyphHelperGlyph["bbox"]> {
-    return { minX: bbox.x, minY: bbox.y + outlineOffsetY, maxX: bbox.x + bbox.w, maxY: bbox.y + bbox.h + outlineOffsetY };
+    return {
+      minX: bbox.x,
+      minY: bbox.y + outlineOffsetY,
+      maxX: bbox.x + bbox.w,
+      maxY: bbox.y + bbox.h + outlineOffsetY,
+    };
   }
   // DM-1028: per-run-text shape cache so identical runs shape once.
   const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();
@@ -300,7 +306,8 @@ export function createGlyphHelperFont(spec: {
         bbox: glyphBounds(g.bbox),
         codePoints: [cp],
         ...(isGlyphRasterRepresentation(g.rasterRepresentation)
-          ? { rasterRepresentation: g.rasterRepresentation } : {}),
+          ? { rasterRepresentation: g.rasterRepresentation }
+          : {}),
       };
       cpToGlyph.set(cp, glyph);
       if (g.id !== 0) idToGlyph.set(g.id, glyph);
@@ -311,8 +318,16 @@ export function createGlyphHelperFont(spec: {
     const need = cps.filter((cp) => !cpToGlyph.has(cp) && !missingCp.has(cp));
     if (need.length === 0) return;
     const resp = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
-      queries: [{ type: "glyphs", fontRef: "f", glyphs: need.map((cp) => ({ cp })) }]
+      fonts: [
+        {
+          ref: "f",
+          postscriptName: spec.postscriptName,
+          fontPath: spec.fontPath,
+          variations: spec.variations,
+          size: renderSize,
+        },
+      ],
+      queries: [{ type: "glyphs", fontRef: "f", glyphs: need.map((cp) => ({ cp })) }],
     });
     const r = resp.results[0];
     if (r.type !== "glyphs") return;
@@ -323,8 +338,16 @@ export function createGlyphHelperFont(spec: {
     const cached = idToGlyph.get(id);
     if (cached != null) return cached;
     const resp = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
-      queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ id }] }]
+      fonts: [
+        {
+          ref: "f",
+          postscriptName: spec.postscriptName,
+          fontPath: spec.fontPath,
+          variations: spec.variations,
+          size: renderSize,
+        },
+      ],
+      queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ id }] }],
     });
     const r = resp.results[0];
     if (r.type !== "glyphs") {
@@ -338,8 +361,7 @@ export function createGlyphHelperFont(spec: {
       advanceWidth: g.advance,
       path: { commands: glyphCommands(g.d) },
       bbox: glyphBounds(g.bbox),
-      ...(isGlyphRasterRepresentation(g.rasterRepresentation)
-        ? { rasterRepresentation: g.rasterRepresentation } : {}),
+      ...(isGlyphRasterRepresentation(g.rasterRepresentation) ? { rasterRepresentation: g.rasterRepresentation } : {}),
     };
     idToGlyph.set(id, glyph);
     return glyph;
@@ -359,8 +381,16 @@ export function createGlyphHelperFont(spec: {
     let shaped: ShapeResponseGlyph[] | null = null;
     try {
       const resp = callHelper({
-        fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
-        queries: [{ type: "shape", fontRef: "f", text }]
+        fonts: [
+          {
+            ref: "f",
+            postscriptName: spec.postscriptName,
+            fontPath: spec.fontPath,
+            variations: spec.variations,
+            size: renderSize,
+          },
+        ],
+        queries: [{ type: "shape", fontRef: "f", text }],
       });
       const r = resp.results[0];
       if (r.type === "shape" && Array.isArray(r.glyphs)) shaped = r.glyphs;
@@ -396,7 +426,11 @@ export function createGlyphHelperFont(spec: {
     let ext: ShapedRunFallback | null = null;
     // A shaper is an optimisation of correctness, never a correctness
     // requirement: if it throws, the caller's remaining paths still render text.
-    try { ext = spec.shapeFallback(text, direction, features, script, language); } catch { ext = null; }
+    try {
+      ext = spec.shapeFallback(text, direction, features, script, language);
+    } catch {
+      ext = null;
+    }
     if (ext == null || ext.ids.length === 0 || ext.ids.length !== ext.positions.length) return null;
     return { glyphs: ext.ids.map((id) => fetchById(id)), positions: ext.positions, clusters: ext.clusters };
   }
@@ -425,12 +459,12 @@ export function createGlyphHelperFont(spec: {
     // featureless and real small caps (Georgia's smcp+c2sc) were replaced by
     // Blink's 0.7 synthetic fallback.
     availableFeatures: Array.isArray(metaResp.availableFeatures) ? metaResp.availableFeatures : [],
-    ...(metaResp.embeddedBitmapPaint != null
-      ? { embeddedBitmapPaint: metaResp.embeddedBitmapPaint }
+    ...(metaResp.embeddedBitmapPaint != null ? { embeddedBitmapPaint: metaResp.embeddedBitmapPaint } : {}),
+    ...(metaResp.supportedColorTables != null
+      ? {
+          directory: { tables: Object.fromEntries(metaResp.supportedColorTables.map((tag) => [tag, true])) },
+        }
       : {}),
-    ...(metaResp.supportedColorTables != null ? {
-      directory: { tables: Object.fromEntries(metaResp.supportedColorTables.map((tag) => [tag, true])) }
-    } : {}),
 
     warmGlyphs(cps: number[]): void {
       fetchByCps(cps);
@@ -457,17 +491,23 @@ export function createGlyphHelperFont(spec: {
         // skip and let `layout()` shape this text lazily — no behavior change,
         // just no batching win for that one text.
         const cps = [...t].map((c) => c.codePointAt(0)!);
-        const fullyCovered = cps.every(
-          (cp) => cpToGlyph.has(cp) && !missingCp.has(cp) && (cpToGlyph.get(cp)!.id) !== 0
-        );
+        const fullyCovered = cps.every((cp) => cpToGlyph.has(cp) && !missingCp.has(cp) && cpToGlyph.get(cp)!.id !== 0);
         if (fullyCovered) need.push(t);
       }
       if (need.length === 0) return;
       let resp: HelperResponse;
       try {
         resp = callHelper({
-          fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, variations: spec.variations, size: renderSize }],
-          queries: need.map((t) => ({ type: "shape" as const, fontRef: "f", text: t }))
+          fonts: [
+            {
+              ref: "f",
+              postscriptName: spec.postscriptName,
+              fontPath: spec.fontPath,
+              variations: spec.variations,
+              size: renderSize,
+            },
+          ],
+          queries: need.map((t) => ({ type: "shape" as const, fontRef: "f", text: t })),
         });
       } catch {
         return; // batch failed wholesale — leave cache empty so layout() retries per-text
@@ -498,7 +538,9 @@ export function createGlyphHelperFont(spec: {
 
     layout(
       text: string,
-      features?: string[], script?: string, language?: string,
+      features?: string[],
+      script?: string,
+      language?: string,
       // DM-1894: forwarded to the injected shaper. Blink passes direction into
       // the shaper rather than letting it be inferred from content, and a
       // helper-backed face is exactly where that inference used to happen.
@@ -532,9 +574,10 @@ export function createGlyphHelperFont(spec: {
       // `fullyCovered` gate as below and for the same reason: an uncovered
       // codepoint must reach the naive branch so the renderer's own `.notdef`
       // handling applies rather than a shaper's substituted tofu.
-      const preferred = (spec.preferShapeFallback === true && fullyCovered)
-        ? shapeViaFallback(text, direction, features, script, language)
-        : null;
+      const preferred =
+        spec.preferShapeFallback === true && fullyCovered
+          ? shapeViaFallback(text, direction, features, script, language)
+          : null;
       if (preferred != null) return preferred;
       const shaped = fullyCovered ? shapeText(text) : null;
       if (shaped != null && shaped.length > 0) {
@@ -610,6 +653,6 @@ export function createGlyphHelperFont(spec: {
         positions.push({ xAdvance: g.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 });
       }
       return { glyphs, positions };
-    }
+    },
   };
 }

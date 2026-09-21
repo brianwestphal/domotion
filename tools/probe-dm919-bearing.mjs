@@ -5,7 +5,7 @@ if (fc.fonts) {
   for (const f of fc.fonts) console.log("  font:", f.fullName, f.postscriptName);
   const font = fc.getFont("AppleColorEmoji");
   if (font) {
-    const sm = font.glyphForCodePoint(0x1F600);
+    const sm = font.glyphForCodePoint(0x1f600);
     if (sm) {
       const scale = 48 / font.unitsPerEm;
       console.log("smiley advance:", sm.advanceWidth, "px:", sm.advanceWidth * scale);

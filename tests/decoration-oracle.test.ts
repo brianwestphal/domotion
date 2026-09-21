@@ -28,14 +28,18 @@ describe("DM-2501 decoration coordinate ownership", () => {
     const raster = [{ top: 655.903, height: 1.213, x0: 0, x1: 10, segments: [] }];
     expect(reconstructSnappedBars(raster)).toMatchObject([{ top: 656, height: 1 }]);
     expect(compareBars([{ top: 656, height: 1 }], reconstructSnappedBars(raster), 0.2, "rule", "chrome").ok).toBe(true);
-    expect(compareBars([{ top: 657, height: 1 }], reconstructSnappedBars(raster), 0.2, "mutant", "chrome").ok).toBe(false);
+    expect(compareBars([{ top: 657, height: 1 }], reconstructSnappedBars(raster), 0.2, "mutant", "chrome").ok).toBe(
+      false,
+    );
   });
 
   it("uses the DPR-1 wavy centerline without hiding SVG amplitude mutations", () => {
     const rule = [{ top: 190.4255354137804, height: 13.748929172439201 }];
     const raster = [{ top: 191, height: 13 }];
     expect(compareBarCenters(rule, raster, 0.2, "rule", "chrome").ok).toBe(true);
-    expect(compareBarCenters([{ top: rule[0].top + 1, height: rule[0].height }], raster, 0.2, "mutant", "chrome").ok).toBe(false);
+    expect(
+      compareBarCenters([{ top: rule[0].top + 1, height: rule[0].height }], raster, 0.2, "mutant", "chrome").ok,
+    ).toBe(false);
     expect(compareBars(rule, [{ top: rule[0].top, height: rule[0].height - 1 }], 0.3, "rule", "svg").ok).toBe(false);
   });
 
@@ -48,8 +52,12 @@ describe("DM-2501 decoration coordinate ownership", () => {
 
   it("keeps the 0.3px geometry envelope strict against a one-pixel origin mutation", () => {
     const expected = [{ top: 134, height: 1 }];
-    expect(compareBars(expected, [{ top: 134, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(true);
-    expect(compareBars(expected, [{ top: 135, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(false);
+    expect(compareBars(expected, [{ top: 134, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(
+      true,
+    );
+    expect(compareBars(expected, [{ top: 135, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(
+      false,
+    );
   });
 });
 
@@ -68,7 +76,11 @@ const meas = (ascF: number, effectiveFontSize = 24): PageMeasure => ({
 });
 
 const base: Omit<CaseSpec, "id"> & { id: string } = {
-  id: "t", family: "NoSuchFontFamily", fontSize: 24, lines: "underline", style: "solid",
+  id: "t",
+  family: "NoSuchFontFamily",
+  fontSize: 24,
+  lines: "underline",
+  style: "solid",
 };
 
 describe("lengthPx", () => {
@@ -104,9 +116,13 @@ describe("predictCase — Blink rule algebra", () => {
     expect(p.bars).toEqual([{ top: 125, height: 5 }]);
   });
   it("applies CSS zoom to used size and absolute decoration lengths", () => {
-    const p = predictCase({ ...base, thickness: "3px", underlineOffset: "2px", zoom: 1.25 }, {
-      ...meas(27.5, 30), rect: { x: 10, y: 100, w: 250, h: 35 },
-    });
+    const p = predictCase(
+      { ...base, thickness: "3px", underlineOffset: "2px", zoom: 1.25 },
+      {
+        ...meas(27.5, 30),
+        rect: { x: 10, y: 100, w: 250, h: 35 },
+      },
+    );
     expect(p.thickness).toBe(4);
     expect(p.bars).toEqual([{ top: 131, height: 4 }]);
   });
@@ -137,7 +153,10 @@ describe("predictCase — Blink rule algebra", () => {
   });
   it("double: second bar at +(t+1), snapped independently", () => {
     const p = predictCase({ ...base, style: "double" }, meas(22));
-    expect(p.bars).toEqual([{ top: 124, height: 2 }, { top: 127, height: 2 }]);
+    expect(p.bars).toEqual([
+      { top: 124, height: 2 },
+      { top: 127, height: 2 },
+    ]);
   });
   it("dashed/dotted: stroke band at the snapped midline with the UNROUNDED width", () => {
     // fs 24 -> t 2.4, auto gap 2 -> topRel 24; midY = floor(24 + 1.2) = 25,
@@ -190,7 +209,10 @@ describe("parseSvgDecorations", () => {
     const bars = svgBarsInWindow(parseSvgDecorations(svg), { top: 0, bottom: 100 });
     expect(bars).toHaveLength(1);
     expect(bars[0]).toMatchObject({ top: 49, height: 2 });
-    expect(bars[0].segments).toEqual([{ x0: 0, x1: 40 }, { x0: 60, x1: 100 }]);
+    expect(bars[0].segments).toEqual([
+      { x0: 0, x1: 40 },
+      { x0: 60, x1: 100 },
+    ]);
   });
   it("parses clipPath rects and attaches element- and group-level clip-path references", () => {
     const svg = `
@@ -226,24 +248,47 @@ describe("parseSvgDecorations", () => {
     expect(bars).toHaveLength(1);
     // Dashes at 0,10,20,... width 6; ∩ [0,20]∪[50,100]:
     expect(bars[0].segments).toEqual([
-      { x0: 0, x1: 6 }, { x0: 10, x1: 16 },
-      { x0: 50, x1: 56 }, { x0: 60, x1: 66 }, { x0: 70, x1: 76 }, { x0: 80, x1: 86 }, { x0: 90, x1: 96 },
+      { x0: 0, x1: 6 },
+      { x0: 10, x1: 16 },
+      { x0: 50, x1: 56 },
+      { x0: 60, x1: 66 },
+      { x0: 70, x1: 76 },
+      { x0: 80, x1: 86 },
+      { x0: 90, x1: 96 },
     ]);
   });
 });
 
 describe("expandDashSegments", () => {
   const lineOf = (dash: number[] | undefined, roundCaps?: boolean) => ({
-    kind: "line" as const, y: 21, w: 4, x0: 2, x1: 42, dash, roundCaps, clipId: undefined, cpDist: undefined,
+    kind: "line" as const,
+    y: 21,
+    w: 4,
+    x0: 2,
+    x1: 42,
+    dash,
+    roundCaps,
+    clipId: undefined,
+    cpDist: undefined,
   });
   it("walks the dasharray from the line start (SVG phase 0), clamping the last dash", () => {
-    expect(expandDashSegments(lineOf([6, 4]), null)).toEqual([
-      { x0: 2, x1: 8 }, { x0: 12, x1: 18 }, { x0: 22, x1: 28 }, { x0: 32, x1: 38 }, { x0: 42, x1: 42 },
-    ].filter((s) => s.x1 - s.x0 > 0));
+    expect(expandDashSegments(lineOf([6, 4]), null)).toEqual(
+      [
+        { x0: 2, x1: 8 },
+        { x0: 12, x1: 18 },
+        { x0: 22, x1: 28 },
+        { x0: 32, x1: 38 },
+        { x0: 42, x1: 42 },
+      ].filter((s) => s.x1 - s.x0 > 0),
+    );
   });
   it("zero-length round-cap dashes paint dots of diameter stroke-width", () => {
     expect(expandDashSegments(lineOf([0, 10], true), null)).toEqual([
-      { x0: 0, x1: 4 }, { x0: 10, x1: 14 }, { x0: 20, x1: 24 }, { x0: 30, x1: 34 }, { x0: 40, x1: 44 },
+      { x0: 0, x1: 4 },
+      { x0: 10, x1: 14 },
+      { x0: 20, x1: 24 },
+      { x0: 30, x1: 34 },
+      { x0: 40, x1: 44 },
     ]);
   });
   it("no dasharray → one solid segment", () => {
@@ -253,7 +298,16 @@ describe("expandDashSegments", () => {
 
 describe("compareSegments", () => {
   it("passes when every edge is within tolerance", () => {
-    const r = compareSegments([[10, 40], [60, 100]], [[10.5, 39.6], [60.2, 100]]);
+    const r = compareSegments(
+      [
+        [10, 40],
+        [60, 100],
+      ],
+      [
+        [10.5, 39.6],
+        [60.2, 100],
+      ],
+    );
     expect(r.ok).toBe(true);
   });
   it("fails on an edge beyond tolerance", () => {
@@ -261,16 +315,64 @@ describe("compareSegments", () => {
     expect(r.ok).toBe(false);
   });
   it("fails on segment-count mismatch, ignoring sub-1px slivers", () => {
-    expect(compareSegments([[10, 40]], [[10, 40], [50, 50.5]]).ok).toBe(true);
-    expect(compareSegments([[10, 40]], [[10, 40], [50, 55]]).ok).toBe(false);
+    expect(
+      compareSegments(
+        [[10, 40]],
+        [
+          [10, 40],
+          [50, 50.5],
+        ],
+      ).ok,
+    ).toBe(true);
+    expect(
+      compareSegments(
+        [[10, 40]],
+        [
+          [10, 40],
+          [50, 55],
+        ],
+      ).ok,
+    ).toBe(false);
   });
   it("forgives a one-sided filter-boundary sliver but keeps grading later pairs by overlap", () => {
     // Chrome kept a 1.2px dash fragment our sub-tolerance edge drift dropped;
     // the later segments still pair up and their edges still gate.
-    expect(compareSegments([[10, 11.2], [20, 26], [30, 36]], [[20, 26], [30, 36]]).ok).toBe(true);
-    expect(compareSegments([[10, 11.2], [20, 26], [30, 36]], [[20, 26], [32, 36]]).ok).toBe(false);
+    expect(
+      compareSegments(
+        [
+          [10, 11.2],
+          [20, 26],
+          [30, 36],
+        ],
+        [
+          [20, 26],
+          [30, 36],
+        ],
+      ).ok,
+    ).toBe(true);
+    expect(
+      compareSegments(
+        [
+          [10, 11.2],
+          [20, 26],
+          [30, 36],
+        ],
+        [
+          [20, 26],
+          [32, 36],
+        ],
+      ).ok,
+    ).toBe(false);
   });
   it("does not forgive a missing WIDE segment (a swallowed gap or dropped dash)", () => {
-    expect(compareSegments([[10, 16], [20, 26]], [[20, 26]]).ok).toBe(false);
+    expect(
+      compareSegments(
+        [
+          [10, 16],
+          [20, 26],
+        ],
+        [[20, 26]],
+      ).ok,
+    ).toBe(false);
   });
 });

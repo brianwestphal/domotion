@@ -32,7 +32,8 @@ function html(zoom: number): string {
 function masked(nodes: CapturedElement[]): CapturedElement[] {
   const out: CapturedElement[] = [];
   for (const node of nodes) {
-    if (node.styles.maskImage != null && node.styles.maskImage !== "" && node.styles.maskImage !== "none") out.push(node);
+    if (node.styles.maskImage != null && node.styles.maskImage !== "" && node.styles.maskImage !== "none")
+      out.push(node);
     out.push(...masked(node.children ?? []));
   }
   return out;
@@ -73,22 +74,27 @@ function coloredInkBounds(
   let minY = y1;
   let maxX = -1;
   let maxY = -1;
-  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-    const offset = (y * image.width + x) * 3;
-    // Both source and SVG pages have an opaque white backdrop. A channel-sum
-    // threshold retains antialiased colored edge pixels without keying to any
-    // authored mask position or expected bucket.
-    if (765 - image.data[offset] - image.data[offset + 1] - image.data[offset + 2] <= 30) continue;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
-  }
+  for (let y = y0; y < y1; y++)
+    for (let x = x0; x < x1; x++) {
+      const offset = (y * image.width + x) * 3;
+      // Both source and SVG pages have an opaque white backdrop. A channel-sum
+      // threshold retains antialiased colored edge pixels without keying to any
+      // authored mask position or expected bucket.
+      if (765 - image.data[offset] - image.data[offset + 1] - image.data[offset + 2] <= 30) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
   return maxX < 0 ? null : [minX, minY, maxX, maxY];
 }
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env ? describe : describe.skip;
@@ -99,36 +105,50 @@ describeBrowser("arbitrary contain/cover mask-position Chromium oracle (DM-2379)
     { dpr: 2, zoom: 1.25 },
   ]) {
     it(`matches independent Chromium pixels at DPR ${row.dpr}, zoom ${row.zoom}`, async () => {
-      const context = await env!.browser.newContext({ viewport: { width: 380, height: 380 }, deviceScaleFactor: row.dpr });
+      const context = await env!.browser.newContext({
+        viewport: { width: 380, height: 380 },
+        deviceScaleFactor: row.dpr,
+      });
       const source = await context.newPage();
       const rendered = await context.newPage();
       try {
         await source.setContent(html(row.zoom), { waitUntil: "load" });
-        await source.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-        const caseRects = await source.evaluate(() => [
-          "percentage", "length", "calculated", "vertical", "layers", "zoomed", "odd",
-        ].map((id) => {
-          const rect = document.getElementById(id)!.getBoundingClientRect();
-          return { id, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-        }));
+        await source.evaluate(
+          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        );
+        const caseRects = await source.evaluate(() =>
+          ["percentage", "length", "calculated", "vertical", "layers", "zoomed", "odd"].map((id) => {
+            const rect = document.getElementById(id)!.getBoundingClientRect();
+            return { id, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+          }),
+        );
         const expected = await source.screenshot({ clip: { x: 0, y: 0, width: 380, height: 380 } });
         const tree = await captureElementTree(source, "#stage", { x: 0, y: 0, width: 380, height: 380 });
         const cases = masked(tree);
         expect(cases).toHaveLength(7);
-        expect(cases.map((element) => element.styles.maskIntrinsic?.map((intrinsic) => intrinsic == null ? null : { w: intrinsic.w, h: intrinsic.h }))).toEqual([
+        expect(
+          cases.map((element) =>
+            element.styles.maskIntrinsic?.map((intrinsic) =>
+              intrinsic == null ? null : { w: intrinsic.w, h: intrinsic.h },
+            ),
+          ),
+        ).toEqual([
           [{ w: 200, h: 100 }],
           [{ w: 200, h: 100 }],
           [{ w: 100, h: 200 }],
           [{ w: 200, h: 100 }],
-          [{ w: 200, h: 100 }, { w: 100, h: 200 }],
+          [
+            { w: 200, h: 100 },
+            { w: 100, h: 200 },
+          ],
           [{ w: 200, h: 100 }],
           [{ w: 64, h: 150 }],
         ]);
         expect(cases[6].styles.maskIntrinsic![0]!.ratio).toBeCloseTo(3 / 7, 6);
         // px terms cross effective zoom once; percentage terms remain deferred.
-        expect(cases[5].styles.maskPosition).toBe(row.zoom === 1
-          ? "calc(25% + 7px) calc(75% - 3px)"
-          : "calc(25% + 8.75px) calc(75% - 3.75px)");
+        expect(cases[5].styles.maskPosition).toBe(
+          row.zoom === 1 ? "calc(25% + 7px) calc(75% - 3px)" : "calc(25% + 8.75px) calc(75% - 3.75px)",
+        );
 
         const svg = elementTreeToSvg(tree, 380, 380);
         expect(svg).toContain('preserveAspectRatio="none"');
@@ -157,19 +177,24 @@ describeBrowser("arbitrary contain/cover mask-position Chromium oracle (DM-2379)
     const context = await env!.browser.newContext({ viewport: { width: 180, height: 140 }, deviceScaleFactor: 1 });
     const source = await context.newPage();
     try {
-      await source.setContent(`<style>
+      await source.setContent(
+        `<style>
         body{margin:0}
         #explicit{width:120px;height:90px;background:#16834a;mask-mode:alpha;mask-repeat:no-repeat;
           mask-image:url("${WIDE}");mask-size:40px 30px;mask-position:17px 9px}
-      </style><div id="explicit"></div>`, { waitUntil: "load" });
+      </style><div id="explicit"></div>`,
+        { waitUntil: "load" },
+      );
       const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: 180, height: 140 });
       const cases = masked(tree);
       expect(cases).toHaveLength(1);
       expect(cases[0].styles.maskIntrinsic).toEqual([null]);
-      expect(await source.evaluate(() => ({
-        hostProbe: "__domotionMaskIntrinsicTargets" in globalThis,
-        elementProbe: "__domotionMaskIntrinsic" in document.querySelector("#explicit")!,
-      }))).toEqual({ hostProbe: false, elementProbe: false });
+      expect(
+        await source.evaluate(() => ({
+          hostProbe: "__domotionMaskIntrinsicTargets" in globalThis,
+          elementProbe: "__domotionMaskIntrinsic" in document.querySelector("#explicit")!,
+        })),
+      ).toEqual({ hostProbe: false, elementProbe: false });
     } finally {
       await context.close();
     }
@@ -180,11 +205,14 @@ describeBrowser("arbitrary contain/cover mask-position Chromium oracle (DM-2379)
     const page = await context.newPage();
     const rendered = await context.newPage();
     try {
-      await page.setContent(`<!doctype html><style>
+      await page.setContent(
+        `<!doctype html><style>
         body{margin:0;width:150px;font:20px/28px Arial;color:rgb(32,95,210)}
         span{mask-image:url("${WIDE}");mask-size:contain;mask-position:23% 73%;mask-repeat:no-repeat;mask-mode:alpha}
         #clone{box-decoration-break:clone;-webkit-box-decoration-break:clone}
-      </style><div><span id="slice">wrapping inline fragment strip geometry</span></div><div><span id="clone">wrapping inline fragment clone geometry</span></div>`, { waitUntil: "load" });
+      </style><div><span id="slice">wrapping inline fragment strip geometry</span></div><div><span id="clone">wrapping inline fragment clone geometry</span></div>`,
+        { waitUntil: "load" },
+      );
       const expected = await page.screenshot();
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 360, height: 220 });
       const cases = masked(tree);
@@ -192,8 +220,9 @@ describeBrowser("arbitrary contain/cover mask-position Chromium oracle (DM-2379)
       expect(cases[0].inlineFragments!.length).toBeGreaterThan(1);
       expect(cases[1].inlineFragments!.length).toBeGreaterThan(1);
       const svg = elementTreeToSvg(tree, 360, 220);
-      expect((svg.match(/id="[^" ]*fc\d+-\d+"/g) ?? []).length)
-        .toBe(cases[0].inlineFragments!.length + cases[1].inlineFragments!.length);
+      expect((svg.match(/id="[^" ]*fc\d+-\d+"/g) ?? []).length).toBe(
+        cases[0].inlineFragments!.length + cases[1].inlineFragments!.length,
+      );
       expect(svg).toContain('clip-path="url(#');
       await rendered.setContent(`<body style="margin:0;background:white">${svg}</body>`, { waitUntil: "load" });
       const actual = await rendered.screenshot();

@@ -5,11 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  executeRegionCrops,
-  parseRegionsBlock,
-  planRegionCrops,
-} from "./region-feedback.js";
+import { executeRegionCrops, parseRegionsBlock, planRegionCrops } from "./region-feedback.js";
 
 describe("parseRegionsBlock", () => {
   it("returns no regions and no warnings when the block is absent", () => {
@@ -53,9 +49,7 @@ REGIONS:
   });
 
   it("accepts a plain hyphen as the caption separator", () => {
-    const { regions } = parseRegionsBlock(
-      `REGIONS:\n- [1] (x=0 y=0 w=10 h=10) - quick note`,
-    );
+    const { regions } = parseRegionsBlock(`REGIONS:\n- [1] (x=0 y=0 w=10 h=10) - quick note`);
     expect(regions[0]!.caption).toBe("quick note");
   });
 
@@ -146,25 +140,17 @@ describe("planRegionCrops", () => {
       noteId: "n-abc",
     });
     expect(plans[0]!.outputPath).toBe(
-      path.join(
-        "tests/output/region-crops",
-        "DM-564",
-        "n-abc",
-        "[3]-framer-mobile-fold-actual.png",
-      ),
+      path.join("tests/output/region-crops", "DM-564", "n-abc", "[3]-framer-mobile-fold-actual.png"),
     );
   });
 
   it("caps no-image fan-out to tripletPaths when provided, leaves image= matching full attachment list", () => {
-    const attachmentsWithExtra = [
-      ...attachments,
-      "/tmp/DM-564_Screenshot 2026-05-11 at 10.36.29 AM.png",
-    ];
+    const attachmentsWithExtra = [...attachments, "/tmp/DM-564_Screenshot 2026-05-11 at 10.36.29 AM.png"];
     const triplet = attachments;
     const { plans } = planRegionCrops({
       regions: [
-        { index: 1, x: 0, y: 0, w: 10, h: 10 },                                  // no image → triplet only
-        { index: 2, image: "Screenshot", x: 0, y: 0, w: 5, h: 5 },               // pinned to the extra
+        { index: 1, x: 0, y: 0, w: 10, h: 10 }, // no image → triplet only
+        { index: 2, image: "Screenshot", x: 0, y: 0, w: 5, h: 5 }, // pinned to the extra
       ],
       attachmentPaths: attachmentsWithExtra,
       tripletPaths: triplet,
@@ -201,11 +187,7 @@ describe("executeRegionCrops", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  async function writePng(
-    file: string,
-    width: number,
-    height: number,
-  ): Promise<string> {
+  async function writePng(file: string, width: number, height: number): Promise<string> {
     const fullPath = path.join(tmpDir, file);
     await sharp({
       create: {

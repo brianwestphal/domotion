@@ -4,10 +4,10 @@ title: "Domotion: per-glyph helper fallback in embedded-font mode"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1666","DM-259","DM-260","DM-891","DM-892"]
-code: ["src/render/embedded-font-builder.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts"]
-aliases: ["docs/52-embedded-mode-glyph-fallback.md","doc-52"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1666", "DM-259", "DM-260", "DM-891", "DM-892"]
+code: ["src/render/embedded-font-builder.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"]
+aliases: ["docs/52-embedded-mode-glyph-fallback.md", "doc-52"]
 ---
 
 # Domotion: per-glyph helper fallback in embedded-font mode
@@ -31,7 +31,7 @@ Domotion has two text render modes (`src/render/text-to-path.ts`):
 
 - **`paths` mode** emits each shaped glyph as an SVG `<path>`. DM-891 added the
   per-glyph helper fallback here: at the five glyph sites, `commandsFor(glyph,
-  …)` returns fontkit's outline when present, else — for an inkable,
+…)` returns fontkit's outline when present, else — for an inkable,
   cmap-covered glyph fontkit decoded as empty — the helper's outline, fetched by
   glyph id from the same file fontkit loaded.
 - **embedded-font mode** (`renderTextAsEmbedded`, the production default) instead

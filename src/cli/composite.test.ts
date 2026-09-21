@@ -18,8 +18,14 @@ describe("validateCompositeConfig (DM-1323)", () => {
       duration: 10000,
       layers: [
         { svg: "desktop.svg", x: 0, y: 0, width: 800, height: 600 },
-        { cast: "build.cast", term: { mode: "incremental" }, chrome: { device: "window", label: "build" }, x: 100, y: 80,
-          animations: [{ property: "scale", from: 1, to: 1.3, start: 5000, duration: 800, transformOrigin: "0 0" }] },
+        {
+          cast: "build.cast",
+          term: { mode: "incremental" },
+          chrome: { device: "window", label: "build" },
+          x: 100,
+          y: 80,
+          animations: [{ property: "scale", from: 1, to: 1.3, start: 5000, duration: 800, transformOrigin: "0 0" }],
+        },
         { template: "lower-third", params: { title: "Hi" }, x: 0, y: 500, start: 2000, mode: "hold" },
       ],
     });
@@ -33,7 +39,9 @@ describe("validateCompositeConfig (DM-1323)", () => {
   });
 
   it("rejects a layer with two sources", () => {
-    expect(() => validateCompositeConfig({ ...base, layers: [{ svg: "a.svg", cast: "b.cast" }] })).toThrow(/exactly one source/);
+    expect(() => validateCompositeConfig({ ...base, layers: [{ svg: "a.svg", cast: "b.cast" }] })).toThrow(
+      /exactly one source/,
+    );
   });
 
   it("rejects an empty layers array", () => {
@@ -42,7 +50,10 @@ describe("validateCompositeConfig (DM-1323)", () => {
 
   it("rejects an unknown layer-animation property", () => {
     expect(() =>
-      validateCompositeConfig({ ...base, layers: [{ svg: "a.svg", animations: [{ property: "blur", from: 0, to: 1 }] }] }),
+      validateCompositeConfig({
+        ...base,
+        layers: [{ svg: "a.svg", animations: [{ property: "blur", from: 0, to: 1 }] }],
+      }),
     ).toThrow();
   });
 

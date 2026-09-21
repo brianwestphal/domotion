@@ -22,10 +22,15 @@ function walk(nodes: CapturedElement[]): CapturedElement[] {
 }
 
 function controls(tree: CapturedElement[]): CapturedElement[] {
-  return walk(tree).filter((node) => (
-    node.tag === "button" || node.tag === "input" || node.tag === "select"
-    || node.tag === "textarea" || node.tag === "progress" || node.tag === "meter"
-  ));
+  return walk(tree).filter(
+    (node) =>
+      node.tag === "button" ||
+      node.tag === "input" ||
+      node.tag === "select" ||
+      node.tag === "textarea" ||
+      node.tag === "progress" ||
+      node.tag === "meter",
+  );
 }
 
 describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
@@ -48,7 +53,7 @@ describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
         pq: [],
         pqk: "",
       };
-      const result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`) as {
+      const result = (await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`)) as {
         tree: CapturedElement[];
         warnings: Array<{ feature: string; detail: string }>;
       };
@@ -107,9 +112,7 @@ describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
         <select class="control" style="appearance:base-select"><option>base select</option></select>
       </div>`);
 
-      const capture = await captureElementTreeWithWarnings(
-        page, "body", { x: 0, y: 0, ...viewport },
-      );
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
       expect(capture.warnings.filter((warning) => warning.feature === "effective-appearance-cascade")).toEqual([]);
 
       const actual = controls(capture.tree).map((node) => ({
@@ -154,9 +157,21 @@ describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
 
   it("keeps default button ownership across interaction, scheme, forced colors, zoom, DPR, writing mode, and direction", async () => {
     const rows = [
-      { colorScheme: "light" as const, forcedColors: "none" as const, dpr: 1, writing: "horizontal-tb", direction: "ltr" },
+      {
+        colorScheme: "light" as const,
+        forcedColors: "none" as const,
+        dpr: 1,
+        writing: "horizontal-tb",
+        direction: "ltr",
+      },
       { colorScheme: "dark" as const, forcedColors: "none" as const, dpr: 2, writing: "vertical-rl", direction: "rtl" },
-      { colorScheme: "light" as const, forcedColors: "active" as const, dpr: 1, writing: "sideways-lr", direction: "ltr" },
+      {
+        colorScheme: "light" as const,
+        forcedColors: "active" as const,
+        dpr: 1,
+        writing: "sideways-lr",
+        direction: "ltr",
+      },
     ];
     for (const row of rows) {
       const context = await env!.browser.newContext({
@@ -181,9 +196,7 @@ describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
         </style><button id="state">state</button>`);
 
         const assertNative = async () => {
-          const capture = await captureElementTreeWithWarnings(
-            page, "body", { x: 0, y: 0, width: 320, height: 190 },
-          );
+          const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 320, height: 190 });
           expect(capture.warnings.filter((warning) => warning.feature === "effective-appearance-cascade")).toEqual([]);
           const button = controls(capture.tree).find((node) => node.tag === "button")!;
           expect(button.styles.effectiveAppearance).toBe("button");

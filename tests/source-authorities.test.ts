@@ -16,15 +16,15 @@ describe("clean-checkout source authority materialization", () => {
     const plan = sourceAuthorityPlan(inventory, parityProgram);
     const planned = new Set([...plan.files, ...plan.directories]);
     const semanticRefs = inventory.transitions
-      .flatMap((row: Record<string, unknown>) => Object.values(row)
-        .flatMap((value) => Array.isArray(value) ? value : []))
+      .flatMap((row: Record<string, unknown>) =>
+        Object.values(row).flatMap((value) => (Array.isArray(value) ? value : [])),
+      )
       .filter((ref: unknown): ref is string => typeof ref === "string")
       .filter((ref: string) => ref.startsWith("external/"));
     const parityRefs = parityProgram.areas
       .flatMap((area: { upstreamSources?: string[] }) => area.upstreamSources ?? [])
       .filter((ref: string) => ref.startsWith("external/"));
-    expect([...semanticRefs, ...parityRefs, ...DIRECT_SOURCE_FILES]
-      .filter((ref) => !planned.has(ref))).toEqual([]);
+    expect([...semanticRefs, ...parityRefs, ...DIRECT_SOURCE_FILES].filter((ref) => !planned.has(ref))).toEqual([]);
     expect(plan.files.length).toBeGreaterThan(100);
   });
 

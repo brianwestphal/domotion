@@ -44,13 +44,9 @@ export interface ResolvedMaskLayerGeometry {
   clip: string;
 }
 
-const finiteNonNegative = (value: number): number =>
-  Number.isFinite(value) ? Math.max(0, value) : 0;
+const finiteNonNegative = (value: number): number => (Number.isFinite(value) ? Math.max(0, value) : 0);
 
-export function insetMaskRect(
-  rect: MaskImageRect,
-  edges: MaskPhysicalEdges,
-): MaskImageRect {
+export function insetMaskRect(rect: MaskImageRect, edges: MaskPhysicalEdges): MaskImageRect {
   const top = finiteNonNegative(edges.top);
   const right = finiteNonNegative(edges.right);
   const bottom = finiteNonNegative(edges.bottom);
@@ -113,14 +109,8 @@ export function resolveMaskOriginClipLayer(
   const clips = splitTopLevelCommas(context.clipCss);
   const origin = normalizeHtmlMaskBox(cyclic(origins, layerIndex, "border-box"), false);
   const clip = normalizeHtmlMaskBox(cyclic(clips, layerIndex, "border-box"), true);
-  const positioningArea = resolveHtmlMaskReferenceBox(
-    borderBox,
-    origin,
-    context.border,
-    context.padding,
-  );
-  const paintingArea = clip === "no-clip"
-    ? null
-    : resolveHtmlMaskReferenceBox(borderBox, clip, context.border, context.padding);
+  const positioningArea = resolveHtmlMaskReferenceBox(borderBox, origin, context.border, context.padding);
+  const paintingArea =
+    clip === "no-clip" ? null : resolveHtmlMaskReferenceBox(borderBox, clip, context.border, context.padding);
   return { positioningArea, paintingArea, origin, clip };
 }

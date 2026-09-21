@@ -21,12 +21,12 @@ on:
   workflow_dispatch:
     inputs:
       os:
-        description: 'Runner OS'
+        description: "Runner OS"
         type: choice
         options: [macos, linux, windows, all]
         default: macos
       suite:
-        description: 'Which suite to run'
+        description: "Which suite to run"
         type: choice
         options: [unicode, html]
         default: unicode
@@ -34,42 +34,42 @@ on:
         description: 'Shards per OS ("auto" = per-OS concurrency caps: macOS 5 / Linux 16 / Windows 10)'
         default: auto
       only:
-        description: 'Optional fixture name filter (passed to --only)'
-        default: ''
+        description: "Optional fixture name filter (passed to --only)"
+        default: ""
       update_baseline:
-        description: 'Write this run as the committed CI baseline artifact (review + commit it locally)'
+        description: "Write this run as the committed CI baseline artifact (review + commit it locally)"
         type: boolean
         default: false
       keep_passing:
-        description: 'Keep PASSING fixtures'' expected/actual/diff artifacts too (default: keep everything for review; set false to prune passing and shrink artifacts)'
+        description: "Keep PASSING fixtures' expected/actual/diff artifacts too (default: keep everything for review; set false to prune passing and shrink artifacts)"
         type: boolean
         default: true
       include_svg:
-        description: 'Include the generated .svg files in artifacts (default false — they are ~85% of the weight and the review UI only needs the PNGs)'
+        description: "Include the generated .svg files in artifacts (default false — they are ~85% of the weight and the review UI only needs the PNGs)"
         type: boolean
         default: false
       dpr:
-        description: 'Capture device pixel ratio (default 1). dpr=2 renders expected+actual at 2× — a diagnostic for glyph-sheet-audit so ink clears the DM-1686 comparator''s ≥32px regime.'
-        default: '1'
+        description: "Capture device pixel ratio (default 1). dpr=2 renders expected+actual at 2× — a diagnostic for glyph-sheet-audit so ink clears the DM-1686 comparator's ≥32px regime."
+        default: "1"
       hinted_subset:
-        description: 'DOMOTION_HINTED_SUBSET override. Empty/1 = default hb-subset embedded path; 0 = svg2ttf control.'
-        default: ''
+        description: "DOMOTION_HINTED_SUBSET override. Empty/1 = default hb-subset embedded path; 0 = svg2ttf control."
+        default: ""
       fallback_base:
-        description: 'DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (ON — ask CoreText from the run''s own primary); 0 = force the old hardcoded Helvetica cascade base for A/B. Both arms of the A/B run from ONE ref so the only difference is the flag.'
-        default: ''
+        description: "DOMOTION_FALLBACK_BASE override (DM-1852). Empty = renderer default (ON — ask CoreText from the run's own primary); 0 = force the old hardcoded Helvetica cascade base for A/B. Both arms of the A/B run from ONE ref so the only difference is the flag."
+        default: ""
       live_fallback_first:
-        description: 'DOMOTION_LIVE_FALLBACK_FIRST override (DM-1868). Empty = renderer default (ON — Blink''s kSystemFonts order, OS first and the static chain only as the net); 0 = force the old static-chain-first order for A/B.'
-        default: ''
+        description: "DOMOTION_LIVE_FALLBACK_FIRST override (DM-1868). Empty = renderer default (ON — Blink's kSystemFonts order, OS first and the static chain only as the net); 0 = force the old static-chain-first order for A/B."
+        default: ""
       system_ui_base:
-        description: 'DOMOTION_SYSTEM_UI_BASE override (DM-1859). Empty = renderer default (ON — a system-ui run''s cascade is walked from the CoreText UI font, the way MatchSystemUIFont builds it); 0 = force the old non-UI base for A/B. Only meaningful together with live_fallback_first ON, since the static chain otherwise answers first.'
-        default: ''
+        description: "DOMOTION_SYSTEM_UI_BASE override (DM-1859). Empty = renderer default (ON — a system-ui run's cascade is walked from the CoreText UI font, the way MatchSystemUIFont builds it); 0 = force the old non-UI base for A/B. Only meaningful together with live_fallback_first ON, since the static chain otherwise answers first."
+        default: ""
       trak_hb_shaping:
-        description: 'DOMOTION_TRAK_HB_SHAPING override (DM-1916). Empty = renderer default (ON — a trak+STAT face is shaped by HarfBuzz at the run''s point size, with outlines still from the platform helper); 0 = force the platform shaper for A/B. Both arms run from ONE ref so the flag is the only difference.'
-        default: ''
+        description: "DOMOTION_TRAK_HB_SHAPING override (DM-1916). Empty = renderer default (ON — a trak+STAT face is shaped by HarfBuzz at the run's point size, with outlines still from the platform helper); 0 = force the platform shaper for A/B. Both arms run from ONE ref so the flag is the only difference."
+        default: ""
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
-  NODE_VERSION: '22.21.0'
+  NODE_VERSION: "22.21.0"
   # Keep in sync with the installed @playwright/test version (test-linux.yml too).
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
   # Stage evidence is collected from a lean checkout, so give every shard the
@@ -137,7 +137,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - name: Font env probe (diagnostic — grep FONTPROBE in this step's log)
         run: npx tsx tools/font-env-probe.mjs
@@ -187,7 +187,7 @@ jobs:
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
         env:
-          HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:b7dbd02956ea90258b9dfa294403bdd9bc52ca1c3a3cb5187301fe9166243b67
+          HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:67ffe95242c8e7e1ed467507c08c4362b09af47edf291cbc4746d1417cbef630
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
@@ -196,7 +196,7 @@ jobs:
         shell: bash
         env:
           HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
-          DOMOTION_NO_NICE: '1'
+          DOMOTION_NO_NICE: "1"
           ONLY: ${{ inputs.only }}
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
@@ -292,7 +292,7 @@ jobs:
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
         env:
-          HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:b7dbd02956ea90258b9dfa294403bdd9bc52ca1c3a3cb5187301fe9166243b67
+          HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:67ffe95242c8e7e1ed467507c08c4362b09af47edf291cbc4746d1417cbef630
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
@@ -301,7 +301,7 @@ jobs:
         shell: bash
         env:
           HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
-          DOMOTION_NO_NICE: '1'
+          DOMOTION_NO_NICE: "1"
           ONLY: ${{ inputs.only }}
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
@@ -344,7 +344,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
         # Same reason as the macOS job above: the win32 per-codepoint resolver
@@ -370,7 +370,7 @@ jobs:
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
         env:
-          HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:b7dbd02956ea90258b9dfa294403bdd9bc52ca1c3a3cb5187301fe9166243b67
+          HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:67ffe95242c8e7e1ed467507c08c4362b09af47edf291cbc4746d1417cbef630
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
@@ -379,7 +379,7 @@ jobs:
         shell: bash
         env:
           HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
-          DOMOTION_NO_NICE: '1'
+          DOMOTION_NO_NICE: "1"
           ONLY: ${{ inputs.only }}
           CAPTURE_DPR: ${{ inputs.dpr }}
           DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}

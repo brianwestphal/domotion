@@ -32,13 +32,21 @@ import { computeRunEnv, envComparability, mergeShardEnvs } from "../scripts/run-
 
 /** The two real macOS runner environments, as observed in the two CI runs. */
 const MACOS_26_4 = computeRunEnv({
-  image: "macos26-arm64", imageVersion: "20260720.0258", osRelease: "25.4.0",
-  platform: "darwin", arch: "arm64", node: "v22.21.0",
+  image: "macos26-arm64",
+  imageVersion: "20260720.0258",
+  osRelease: "25.4.0",
+  platform: "darwin",
+  arch: "arm64",
+  node: "v22.21.0",
   fontInventory: { digest: "a8a5b567b046c5c5", count: 370 },
 });
 const MACOS_26_5 = computeRunEnv({
-  image: "macos26-arm64", imageVersion: "20260728.0273", osRelease: "25.5.0",
-  platform: "darwin", arch: "arm64", node: "v22.21.0",
+  image: "macos26-arm64",
+  imageVersion: "20260728.0273",
+  osRelease: "25.5.0",
+  platform: "darwin",
+  arch: "arm64",
+  node: "v22.21.0",
   fontInventory: { digest: "a8a5b567b046c5c5", count: 370 },
 });
 
@@ -54,10 +62,14 @@ describe("computeRunEnv", () => {
   });
 
   it("keeps a numeric font count but nulls a non-numeric one", () => {
-    expect(computeRunEnv({ fontInventory: { digest: "abc", count: 370 } }).fontInventory)
-      .toEqual({ digest: "abc", count: 370, entries: null });
-    expect(computeRunEnv({ fontInventory: { digest: "abc", count: "370" as unknown as number } }).fontInventory)
-      .toEqual({ digest: "abc", count: null, entries: null });
+    expect(computeRunEnv({ fontInventory: { digest: "abc", count: 370 } }).fontInventory).toEqual({
+      digest: "abc",
+      count: 370,
+      entries: null,
+    });
+    expect(
+      computeRunEnv({ fontInventory: { digest: "abc", count: "370" as unknown as number } }).fontInventory,
+    ).toEqual({ digest: "abc", count: null, entries: null });
   });
 
   it("carries the font list, not just its digest", () => {
@@ -66,15 +78,19 @@ describe("computeRunEnv", () => {
     // here — the recorded inventory could not answer "does this runner even
     // have the face that would produce that glyph", so the only way to find out
     // was to spend another CI run.
-    const inv = computeRunEnv({ fontInventory: { digest: "abc", count: 2, entries: ["Helvetica.ttc", "SFNS.ttf"] } }).fontInventory;
+    const inv = computeRunEnv({
+      fontInventory: { digest: "abc", count: 2, entries: ["Helvetica.ttc", "SFNS.ttf"] },
+    }).fontInventory;
     expect(inv).toEqual({ digest: "abc", count: 2, entries: ["Helvetica.ttc", "SFNS.ttf"] });
   });
 
   it("nulls a non-array entries rather than coercing it", () => {
     // Same convention as every other field: absent reads as "cannot tell".
     // A record written before this field existed must not read as "no fonts".
-    expect(computeRunEnv({ fontInventory: { digest: "abc", count: 1, entries: "Helvetica.ttc" as unknown as string[] } }).fontInventory?.entries)
-      .toBeNull();
+    expect(
+      computeRunEnv({ fontInventory: { digest: "abc", count: 1, entries: "Helvetica.ttc" as unknown as string[] } })
+        .fontInventory?.entries,
+    ).toBeNull();
   });
 });
 
@@ -103,9 +119,7 @@ describe("envComparability", () => {
     // The semantic ground truth: font selection is what a sweep measures, so an
     // image that keeps its version but rotates fonts must still be caught.
     const rotated = computeRunEnv({ ...MACOS_26_5, fontInventory: { digest: "ffffffffffffffff", count: 372 } });
-    expect(envComparability(rotated, MACOS_26_5)).toEqual([
-      expect.stringContaining("font inventory digest"),
-    ]);
+    expect(envComparability(rotated, MACOS_26_5)).toEqual([expect.stringContaining("font inventory digest")]);
   });
 
   it("skips a field absent on either side instead of calling it a difference", () => {
@@ -134,9 +148,7 @@ describe("envComparability", () => {
     const on148 = computeRunEnv({ ...MACOS_26_5, chromium: "148.0.7778.96" });
     expect(on147.image).toBe(on148.image);
     expect(on147.fontInventory?.digest).toBe(on148.fontInventory?.digest);
-    expect(envComparability(on147, on148)).toEqual([
-      expect.stringContaining("Chromium"),
-    ]);
+    expect(envComparability(on147, on148)).toEqual([expect.stringContaining("Chromium")]);
     // …and an older baseline that predates the field still reads as comparable.
     expect(envComparability(on147, MACOS_26_5)).toEqual([]);
   });
@@ -158,8 +170,10 @@ describe("mergeShardEnvs", () => {
     // This is what actually happened, and the half a baseline-vs-run check
     // cannot provide: the disagreement was INSIDE one sweep.
     const { combined, heterogeneous, conflicts } = mergeShardEnvs([
-      { shard: 1, env: MACOS_26_5 }, { shard: 2, env: MACOS_26_5 },
-      { shard: 3, env: MACOS_26_5 }, { shard: 4, env: MACOS_26_5 },
+      { shard: 1, env: MACOS_26_5 },
+      { shard: 2, env: MACOS_26_5 },
+      { shard: 3, env: MACOS_26_5 },
+      { shard: 4, env: MACOS_26_5 },
       { shard: 5, env: MACOS_26_4 },
     ]);
     expect(heterogeneous).toBe(true);
@@ -188,7 +202,9 @@ describe("mergeShardEnvs", () => {
     const on147 = computeRunEnv({ ...MACOS_26_5, chromium: "147.0.7727.15" });
     const on148 = computeRunEnv({ ...MACOS_26_5, chromium: "148.0.7778.96" });
     const { combined, heterogeneous, conflicts } = mergeShardEnvs([
-      { shard: 1, env: on147 }, { shard: 2, env: on147 }, { shard: 3, env: on148 },
+      { shard: 1, env: on147 },
+      { shard: 2, env: on147 },
+      { shard: 3, env: on148 },
     ]);
     expect(heterogeneous).toBe(true);
     const c = conflicts.find((x) => x.field === "Chromium");
@@ -218,7 +234,8 @@ describe("mergeShardEnvs", () => {
     // "different" — degrading to a conflict would cry wolf on a flaky probe.
     const noFonts = computeRunEnv({ ...MACOS_26_5, fontInventory: null });
     const { heterogeneous, combined } = mergeShardEnvs([
-      { shard: 1, env: MACOS_26_5 }, { shard: 2, env: noFonts },
+      { shard: 1, env: MACOS_26_5 },
+      { shard: 2, env: noFonts },
     ]);
     expect(heterogeneous).toBe(false);
     expect(combined.fontInventory?.digest).toBe("a8a5b567b046c5c5");
@@ -245,9 +262,19 @@ describe("shard tree -> merge -> baseline -> diff (end to end)", () => {
       const d = join(dir, `results-macos-shard${shard}`);
       mkdirSync(d, { recursive: true });
       const mine = Object.entries(fixtures).filter((_, i) => i % Object.keys(envPerShard).length === Number(shard) - 1);
-      writeFileSync(join(d, "results.json"), JSON.stringify(
-        mine.map(([name, diffPct]) => ({ name, pass: true, skipped: false, diffPct, worstTilePct: 0, regionCount: 0 })),
-      ));
+      writeFileSync(
+        join(d, "results.json"),
+        JSON.stringify(
+          mine.map(([name, diffPct]) => ({
+            name,
+            pass: true,
+            skipped: false,
+            diffPct,
+            worstTilePct: 0,
+            regionCount: 0,
+          })),
+        ),
+      );
       writeFileSync(join(d, "run-env.json"), JSON.stringify(env));
     }
   }
@@ -281,7 +308,9 @@ describe("shard tree -> merge -> baseline -> diff (end to end)", () => {
 
     const good = mkdtempSync(join(tmpdir(), "dm1897-strict-ok-"));
     tree(good, { 1: MACOS_26_5, 2: MACOS_26_5 }, FIXTURES);
-    expect(() => run("scripts/merge-shard-results.mjs", ["--input", good, "--out", good, "--strict-env"])).not.toThrow();
+    expect(() =>
+      run("scripts/merge-shard-results.mjs", ["--input", good, "--out", good, "--strict-env"]),
+    ).not.toThrow();
 
     rmSync(bad, { recursive: true, force: true });
     rmSync(good, { recursive: true, force: true });
@@ -294,8 +323,18 @@ describe("shard tree -> merge -> baseline -> diff (end to end)", () => {
     tree(dir, { 1: MACOS_26_5, 2: MACOS_26_5 }, FIXTURES);
     run("scripts/merge-shard-results.mjs", ["--input", dir, "--out", dir, "--summary", join(dir, "m.md")]);
     const basePath = join(dir, "baseline.json");
-    run("scripts/write-baseline.mjs", ["--results", join(dir, "results-macos.json"), "--out", basePath,
-      "--suite", "unicode", "--os", "macos", "--env", join(dir, "run-env-macos.json")]);
+    run("scripts/write-baseline.mjs", [
+      "--results",
+      join(dir, "results-macos.json"),
+      "--out",
+      basePath,
+      "--suite",
+      "unicode",
+      "--os",
+      "macos",
+      "--env",
+      join(dir, "run-env-macos.json"),
+    ]);
 
     // The baseline really did record the environment — without this the check
     // below would pass for the wrong reason.
@@ -303,8 +342,16 @@ describe("shard tree -> merge -> baseline -> diff (end to end)", () => {
 
     const otherEnv = join(dir, "other-env.json");
     writeFileSync(otherEnv, JSON.stringify(MACOS_26_4));
-    run("scripts/diff-against-baseline.mjs", ["--results", join(dir, "results-macos.json"),
-      "--baseline", basePath, "--env", otherEnv, "--summary", join(dir, "d.md")]);
+    run("scripts/diff-against-baseline.mjs", [
+      "--results",
+      join(dir, "results-macos.json"),
+      "--baseline",
+      basePath,
+      "--env",
+      otherEnv,
+      "--summary",
+      join(dir, "d.md"),
+    ]);
     const md = readFileSync(join(dir, "d.md"), "utf8");
 
     expect(md).toContain("measured in a DIFFERENT environment");
@@ -322,10 +369,26 @@ describe("shard tree -> merge -> baseline -> diff (end to end)", () => {
     run("scripts/merge-shard-results.mjs", ["--input", dir, "--out", dir]);
     const basePath = join(dir, "old-baseline.json");
     // No --env: an older baseline, exactly like every one committed today.
-    run("scripts/write-baseline.mjs", ["--results", join(dir, "results-macos.json"), "--out", basePath,
-      "--suite", "unicode", "--os", "macos"]);
-    run("scripts/diff-against-baseline.mjs", ["--results", join(dir, "results-macos.json"),
-      "--baseline", basePath, "--env", join(dir, "run-env-macos.json"), "--summary", join(dir, "d.md")]);
+    run("scripts/write-baseline.mjs", [
+      "--results",
+      join(dir, "results-macos.json"),
+      "--out",
+      basePath,
+      "--suite",
+      "unicode",
+      "--os",
+      "macos",
+    ]);
+    run("scripts/diff-against-baseline.mjs", [
+      "--results",
+      join(dir, "results-macos.json"),
+      "--baseline",
+      basePath,
+      "--env",
+      join(dir, "run-env-macos.json"),
+      "--summary",
+      join(dir, "d.md"),
+    ]);
 
     const md = readFileSync(join(dir, "d.md"), "utf8");
     expect(md).toContain("predates environment recording");
@@ -353,9 +416,11 @@ describe("ci-baseline-aggregate refuses to write a baseline without provenance",
 
   const run = (dir: string) => {
     try {
-      execFileSync("node", ["scripts/ci-baseline-aggregate.mjs",
-        "--input", dir, "--suite", "html", "--out", dir, "--update-baseline"],
-        { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" });
+      execFileSync(
+        "node",
+        ["scripts/ci-baseline-aggregate.mjs", "--input", dir, "--suite", "html", "--out", dir, "--update-baseline"],
+        { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" },
+      );
       return { code: 0, err: "" };
     } catch (e: unknown) {
       const x = e as { status?: number; stderr?: string };
@@ -372,7 +437,9 @@ describe("ci-baseline-aggregate refuses to write a baseline without provenance",
       expect(err).toContain("run-env-macos.json");
       // ...and must not have left a baseline behind.
       expect(() => readFileSync(join(dir, "baseline-html-macos.json"), "utf-8")).toThrow();
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   // The positive case is asserted against `write-baseline.mjs` directly rather
@@ -384,16 +451,33 @@ describe("ci-baseline-aggregate refuses to write a baseline without provenance",
     const dir = mkdtempSync(join(tmpdir(), "dm1911-"));
     try {
       writeFileSync(join(dir, "results-macos.json"), JSON.stringify(RESULTS));
-      writeFileSync(join(dir, "run-env-macos.json"),
-        JSON.stringify({ image: "macos26-arm64", platform: "darwin", arch: "arm64", node: "v22.21.0" }));
-      execFileSync("node", ["scripts/write-baseline.mjs",
-        "--results", join(dir, "results-macos.json"), "--out", join(dir, "b.json"),
-        "--suite", "html", "--os", "macos", "--env", join(dir, "run-env-macos.json")],
-        { cwd: repoRoot, stdio: "pipe" });
+      writeFileSync(
+        join(dir, "run-env-macos.json"),
+        JSON.stringify({ image: "macos26-arm64", platform: "darwin", arch: "arm64", node: "v22.21.0" }),
+      );
+      execFileSync(
+        "node",
+        [
+          "scripts/write-baseline.mjs",
+          "--results",
+          join(dir, "results-macos.json"),
+          "--out",
+          join(dir, "b.json"),
+          "--suite",
+          "html",
+          "--os",
+          "macos",
+          "--env",
+          join(dir, "run-env-macos.json"),
+        ],
+        { cwd: repoRoot, stdio: "pipe" },
+      );
       const written = JSON.parse(readFileSync(join(dir, "b.json"), "utf-8"));
       expect(written.meta.env).not.toBeNull();
       expect(written.meta.env.image).toBe("macos26-arm64");
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -419,8 +503,11 @@ describe("byte-aware attribution reaches the baseline and the report", () => {
 
   const DIGEST = "f".repeat(256); // one perceptual digest, shared everywhere below
   const baseRow = {
-    name: "2150-218F-number-forms", skipped: false, worstTilePct: 0.14,
-    expectedDigest: DIGEST, actualDigest: DIGEST,
+    name: "2150-218F-number-forms",
+    skipped: false,
+    worstTilePct: 0.14,
+    expectedDigest: DIGEST,
+    actualDigest: DIGEST,
     actualSha256: "a".repeat(64),
     chromeFaces: [".SFNS-Bold:12", ".SFNS-Regular:148"],
   };
@@ -430,15 +517,25 @@ describe("byte-aware attribution reaches the baseline and the report", () => {
     try {
       const results = [{ ...baseRow, pass: true, diffPct: 0.02, regionCount: 0, expectedSha256: "b".repeat(64) }];
       writeFileSync(join(dir, "results-macos.json"), JSON.stringify(results));
-      run("scripts/write-baseline.mjs", ["--results", join(dir, "results-macos.json"),
-        "--out", join(dir, "b.json"), "--suite", "unicode", "--os", "macos"]);
+      run("scripts/write-baseline.mjs", [
+        "--results",
+        join(dir, "results-macos.json"),
+        "--out",
+        join(dir, "b.json"),
+        "--suite",
+        "unicode",
+        "--os",
+        "macos",
+      ]);
       const fx = JSON.parse(readFileSync(join(dir, "b.json"), "utf8")).fixtures[baseRow.name];
       expect(fx.expectedDigest).toBe(DIGEST);
       expect(fx.actualDigest).toBe(DIGEST);
       expect(fx.expectedSha256).toBe("b".repeat(64));
       expect(fx.actualSha256).toBe("a".repeat(64));
       expect(fx.chromeFaces).toEqual(baseRow.chromeFaces);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("labels a regression PROVEN oracle when actual is byte-identical and every digest is equal", () => {
@@ -451,19 +548,35 @@ describe("byte-aware attribution reaches the baseline and the report", () => {
     try {
       const baseline = [{ ...baseRow, pass: true, diffPct: 0.02, regionCount: 0, expectedSha256: "b".repeat(64) }];
       writeFileSync(join(dir, "results-base.json"), JSON.stringify(baseline));
-      run("scripts/write-baseline.mjs", ["--results", join(dir, "results-base.json"),
-        "--out", join(dir, "b.json"), "--suite", "unicode", "--os", "macos"]);
+      run("scripts/write-baseline.mjs", [
+        "--results",
+        join(dir, "results-base.json"),
+        "--out",
+        join(dir, "b.json"),
+        "--suite",
+        "unicode",
+        "--os",
+        "macos",
+      ]);
       // Same digests, same actual bytes — but Chrome's PNG differs and the
       // fixture now fails.
       const current = [{ ...baseRow, pass: false, diffPct: 0.057, regionCount: 4, expectedSha256: "c".repeat(64) }];
       writeFileSync(join(dir, "results-cur.json"), JSON.stringify(current));
-      run("scripts/diff-against-baseline.mjs", ["--results", join(dir, "results-cur.json"),
-        "--baseline", join(dir, "b.json"), "--summary", join(dir, "d.md")]);
+      run("scripts/diff-against-baseline.mjs", [
+        "--results",
+        join(dir, "results-cur.json"),
+        "--baseline",
+        join(dir, "b.json"),
+        "--summary",
+        join(dir, "d.md"),
+      ]);
       const md = readFileSync(join(dir, "d.md"), "utf8");
       expect(md).toContain("**oracle** ✓ (actual byte-identical)");
       expect(md).toContain("ORACLE-SIDE");
       expect(md).toContain("bisecting is not");
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -475,14 +588,28 @@ describe("write-baseline accepts suite result wrappers", () => {
     try {
       const row = { name: "wrapped", pass: true, skipped: false, diffPct: 0.1, worstTilePct: 0.2, regionCount: 1 };
       writeFileSync(join(dir, "results.json"), JSON.stringify({ generatedAt: "2026-08-21", results: [row] }));
-      execFileSync("node", ["scripts/write-baseline.mjs",
-        "--results", join(dir, "results.json"), "--out", join(dir, "baseline.json"),
-        "--suite", "features", "--os", "macos"], { cwd: repoRoot, stdio: "pipe" });
+      execFileSync(
+        "node",
+        [
+          "scripts/write-baseline.mjs",
+          "--results",
+          join(dir, "results.json"),
+          "--out",
+          join(dir, "baseline.json"),
+          "--suite",
+          "features",
+          "--os",
+          "macos",
+        ],
+        { cwd: repoRoot, stdio: "pipe" },
+      );
       const written = JSON.parse(readFileSync(join(dir, "baseline.json"), "utf8"));
       expect(written.meta.counts).toEqual({ passed: 1, failed: 0, skipped: 0, total: 1 });
       const { name: _name, ...storedFields } = row;
       expect(written.fixtures.wrapped).toMatchObject(storedFields);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -3,11 +3,11 @@ id: "requirements/layout-stage-parity"
 title: "Text layout and SVG placement parity"
 kind: "evidence"
 status: "current"
-owners: ["layout","platform-release"]
+owners: ["layout", "platform-release"]
 platforms: []
 tickets: ["DM-2498"]
 code: ["tools/layout-stage-matrix.ts"]
-aliases: ["docs/116-layout-stage-parity.md","doc-116"]
+aliases: ["docs/116-layout-stage-parity.md", "doc-116"]
 ---
 
 # Text layout and SVG placement parity
@@ -25,7 +25,7 @@ The default tolerance is `0.001` CSS px. It exists only for JSON/browser floatin
 
 Schema v4 records the full doc-120 parity environment fingerprint and emits an independent logical verdict. Source revisions come from explicit CI environment pins, real source checkouts, or the pin-authenticated manifest written by `scripts/materialize-source-authorities.mjs`; a shallow materialized source subset is therefore complete evidence even though it has no nested Git metadata. The generated corpus is owned by `tools/layout-stage-matrix.ts`: its deterministic covering array proves every value pair across direction, all `unicode-bidi` modes, horizontal/vertical/sideways writing, orientation/combine, whitespace and wrapping, line/word breaking, hyphenation, tabs, spacing, ruby position/alignment, emphasis, justification, synthesis permissions, zoom, transforms, and multicol fragmentation. A focused unit test compares the generated pair set with the complete declarative product, so adding a value without exercising its pair transitions is impossible. Logical axes must move at least one captured-origin signature. Paint-only emphasis is left to the ink stage, and diagnostic-owned justification is not allowed to counterfeit geometry movement.
 
-The matrix text exercises ligatures/kerning, soft hyphens, combining marks, Latin/Hebrew bidi transitions, tabs, kana, ruby base/annotation text, and numbers. Five metamorphic variants cover a neutral inline wrapper, a shaping-safe text-node split, equivalent shorthand/longhand computed style, translation covariance, and scale-normalized 2× geometry. The oracle compares the *relation* observed in Chromium with the relation captured by Domotion, so a real Blink LayoutUnit shift at a node boundary is preserved rather than incorrectly declared invariant. Cursor, selection, decoration, action-overlay, clipping, and SVG placement code already consumes the captured `xOffsets`/`yOffsets` and segment rectangles; focused unit suites guard those consumers.
+The matrix text exercises ligatures/kerning, soft hyphens, combining marks, Latin/Hebrew bidi transitions, tabs, kana, ruby base/annotation text, and numbers. Five metamorphic variants cover a neutral inline wrapper, a shaping-safe text-node split, equivalent shorthand/longhand computed style, translation covariance, and scale-normalized 2× geometry. The oracle compares the _relation_ observed in Chromium with the relation captured by Domotion, so a real Blink LayoutUnit shift at a node boundary is preserved rather than incorrectly declared invariant. Cursor, selection, decoration, action-overlay, clipping, and SVG placement code already consumes the captured `xOffsets`/`yOffsets` and segment rectangles; focused unit suites guard those consumers.
 
 Unsupported CSS text/layout features must take the renderer's visible warning/raster-fallback route. In particular, a layout construct that capture cannot express as line boxes plus per-character origins must not be approximated from HarfBuzz advances. Browser zoom/device scale are recorded as geometry inputs; raster device scaling remains outside the logical comparison.
 

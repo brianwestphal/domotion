@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildBrowserHarfBuzzSubstitutionReport,
-} from "../tools/browser-harfbuzz-substitution-oracle.js";
+import { buildBrowserHarfBuzzSubstitutionReport } from "../tools/browser-harfbuzz-substitution-oracle.js";
 
 describe("browser HarfBuzz substitution-stream ownership", () => {
   it("authenticates each exact data-URI face and browser glyph count before raster", async () => {

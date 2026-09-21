@@ -79,7 +79,8 @@ function rectMapTransform(
   prev: { x: number; y: number; width: number; height: number },
   next: { x: number; y: number; width: number; height: number },
 ): string {
-  const sizeChanged = Math.abs(prev.width - next.width) > BBOX_TOLERANCE || Math.abs(prev.height - next.height) > BBOX_TOLERANCE;
+  const sizeChanged =
+    Math.abs(prev.width - next.width) > BBOX_TOLERANCE || Math.abs(prev.height - next.height) > BBOX_TOLERANCE;
   if (!sizeChanged || next.width <= 0 || next.height <= 0) {
     return `translate(${r(prev.x - next.x)}px, ${r(prev.y - next.y)}px)`;
   }
@@ -89,8 +90,12 @@ function rectMapTransform(
 }
 
 /** Round to 2dp (px positions) / 5dp (scale factors), trimming trailing zeros. */
-function r(n: number): number { return Number(n.toFixed(2)); }
-function r5(n: number): number { return Number(n.toFixed(5)); }
+function r(n: number): number {
+  return Number(n.toFixed(2));
+}
+function r5(n: number): number {
+  return Number(n.toFixed(5));
+}
 
 /** True iff `a` is a strict prefix of `b` (i.e. `a` is an ancestor path of `b`). */
 function isAncestorPath(a: number[], b: number[]): boolean {
@@ -138,11 +143,13 @@ function appearanceChanged(prev: CapturedElement, next: CapturedElement): boolea
   const p = prev.styles;
   const q = next.styles;
   if (p == null || q == null) return false;
-  return p.color !== q.color
-    || (p.backgroundColor ?? "") !== (q.backgroundColor ?? "")
-    || (p.borderColor ?? "") !== (q.borderColor ?? "")
-    || (p.borderTopColor ?? "") !== (q.borderTopColor ?? "")
-    || p.opacity !== q.opacity;
+  return (
+    p.color !== q.color ||
+    (p.backgroundColor ?? "") !== (q.backgroundColor ?? "") ||
+    (p.borderColor ?? "") !== (q.borderColor ?? "") ||
+    (p.borderTopColor ?? "") !== (q.borderTopColor ?? "") ||
+    p.opacity !== q.opacity
+  );
 }
 
 /** True iff the two rects differ in origin or size beyond the diff tolerance. */
@@ -150,8 +157,12 @@ function rectChanged(
   p: { x: number; y: number; width: number; height: number },
   q: { x: number; y: number; width: number; height: number },
 ): boolean {
-  return Math.abs(q.x - p.x) > BBOX_TOLERANCE || Math.abs(q.y - p.y) > BBOX_TOLERANCE
-    || Math.abs(q.width - p.width) > BBOX_TOLERANCE || Math.abs(q.height - p.height) > BBOX_TOLERANCE;
+  return (
+    Math.abs(q.x - p.x) > BBOX_TOLERANCE ||
+    Math.abs(q.y - p.y) > BBOX_TOLERANCE ||
+    Math.abs(q.width - p.width) > BBOX_TOLERANCE ||
+    Math.abs(q.height - p.height) > BBOX_TOLERANCE
+  );
 }
 
 /**
@@ -210,9 +221,14 @@ export function buildMagicMove(
   // size isn't in its fingerprint (a grow-in-place lands as `static`). Skip
   // elements a key already claimed.
   const heuristicMovers: Mover[] = entriesOfKind(diff, "static", "translated", "modified")
-    .filter((e) => e.nextPath != null && e.prev != null && e.next != null
-      && !keyedNextPaths.has(e.nextPath.join(","))
-      && rectChanged(e.prev, e.next))
+    .filter(
+      (e) =>
+        e.nextPath != null &&
+        e.prev != null &&
+        e.next != null &&
+        !keyedNextPaths.has(e.nextPath.join(",")) &&
+        rectChanged(e.prev, e.next),
+    )
     .map((e) => ({ nextPath: e.nextPath!, prev: e.prev!, next: e.next! }));
 
   // Keyed pairs animate only when their rect actually changed (a keyed but
@@ -224,15 +240,15 @@ export function buildMagicMove(
   // ancestor's transform already carries them — animating each would
   // double-apply. Keep a mover only when no other mover is its ancestor.
   const allMoverPaths = allMovers.map((m) => m.nextPath);
-  const rootMovers = allMovers.filter(
-    (m) => !allMoverPaths.some((p) => isAncestorPath(p, m.nextPath)),
-  );
+  const rootMovers = allMovers.filter((m) => !allMoverPaths.some((p) => isAncestorPath(p, m.nextPath)));
 
   // Added / removed, minus anything a key force-paired (those slide, not fade).
-  const added = entriesOfKind(diff, "added")
-    .filter((e) => e.nextPath == null || !keyedNextPaths.has(e.nextPath.join(",")));
-  const removed = entriesOfKind(diff, "removed")
-    .filter((e) => e.prevPath == null || !keyedPrevPaths.has(e.prevPath.join(",")));
+  const added = entriesOfKind(diff, "added").filter(
+    (e) => e.nextPath == null || !keyedNextPaths.has(e.nextPath.join(",")),
+  );
+  const removed = entriesOfKind(diff, "removed").filter(
+    (e) => e.prevPath == null || !keyedPrevPaths.has(e.prevPath.join(",")),
+  );
 
   if (rootMovers.length === 0 && added.length === 0 && removed.length === 0) {
     return null; // nothing to magic-move → caller uses crossfade

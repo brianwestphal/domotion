@@ -4,10 +4,10 @@ title: "Source-owned text failure boundary"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2399","DM-2511"]
-code: ["src/render/form-controls.ts","src/render/text-to-path.test.ts","src/render/text.ts"]
-aliases: ["docs/152-source-owned-text-failure-boundary.md","doc-152"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2399", "DM-2511"]
+code: ["src/render/form-controls.ts", "src/render/text-to-path.test.ts", "src/render/text.ts"]
+aliases: ["docs/152-source-owned-text-failure-boundary.md", "doc-152"]
 ---
 
 # Source-owned text failure boundary
@@ -52,15 +52,15 @@ selection is not a fourth engine outcome.
 
 `resolveGlyphCommands` returns commands plus one of these dispositions:
 
-| Evidence | Disposition | Paint owner |
-| --- | --- | --- |
-| fontkit returned commands | `source-outline` | source vector |
-| same selected file/gid returned helper commands | `helper-outline` | source helper vector |
-| source span is whitespace/default-ignorable | `legitimately-inkless` | source, intentionally no ink |
-| capture selected a raster representation | `capture-raster` | captured image overlay |
-| absent glyph or gid 0 without an outline | `missing-glyph` | documented degraded span |
-| no trustworthy source cluster | `unclassified-empty-glyph` | documented degraded span |
-| helper disabled, source file unavailable, helper file unopenable, or helper glyph absent | exact `helper-*` / `source-unavailable` reason | documented degraded span |
+| Evidence                                                                                 | Disposition                                    | Paint owner                  |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------- |
+| fontkit returned commands                                                                | `source-outline`                               | source vector                |
+| same selected file/gid returned helper commands                                          | `helper-outline`                               | source helper vector         |
+| source span is whitespace/default-ignorable                                              | `legitimately-inkless`                         | source, intentionally no ink |
+| capture selected a raster representation                                                 | `capture-raster`                               | captured image overlay       |
+| absent glyph or gid 0 without an outline                                                 | `missing-glyph`                                | documented degraded span     |
+| no trustworthy source cluster                                                            | `unclassified-empty-glyph`                     | documented degraded span     |
+| helper disabled, source file unavailable, helper file unopenable, or helper glyph absent | exact `helper-*` / `source-unavailable` reason | documented degraded span     |
 
 Classification reads the source text's UTF-16 span before falling back to
 `Glyph.codePoints`. fontkit memoizes glyph objects by gid, so the latter can

@@ -21,11 +21,15 @@ const OUTPUT = resolve(OUT_DIR, "transition-tour.mp4");
 
 async function main(): Promise<void> {
   if (spawnSync("ffmpeg", ["-version"], { encoding: "utf-8" }).status !== 0) {
-    console.log("[svg-to-video-demo] ffmpeg not found — skipping. Install it to run this demo: brew / apt-get / winget install ffmpeg.");
+    console.log(
+      "[svg-to-video-demo] ffmpeg not found — skipping. Install it to run this demo: brew / apt-get / winget install ffmpeg.",
+    );
     return;
   }
   if (!existsSync(INPUT)) {
-    console.log(`[svg-to-video-demo] ${INPUT} not found — run showcase-transitions.ts first (it's earlier in the demos:examples chain).`);
+    console.log(
+      `[svg-to-video-demo] ${INPUT} not found — run showcase-transitions.ts first (it's earlier in the demos:examples chain).`,
+    );
     return;
   }
 

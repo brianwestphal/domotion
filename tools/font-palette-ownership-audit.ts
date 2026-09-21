@@ -22,11 +22,7 @@ import {
   discoverAndRegisterWebfonts,
 } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
-import {
-  clearGlyphDefs,
-  clearWebfonts,
-  selectedGlyphRasterSpans,
-} from "../src/render/text-to-path.js";
+import { clearGlyphDefs, clearWebfonts, selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 
 export const FONT_PALETTE_FIXTURE = "tests/fixtures/font-palette/COLR-palettes-test-font.ttf";
 export const FONT_PALETTE_FIXTURE_SHA256 = "39002caac7857a2553ab2f9c832755b91a9c5976a6a303a927837d76a333f607";
@@ -41,7 +37,12 @@ const FAMILY = "DomotionPaletteAudit";
 const GLYPH = "A";
 const VIEWPORT = { width: 1280, height: 180 } as const;
 
-export interface RgbaColor { red: number; green: number; blue: number; alpha: number }
+export interface RgbaColor {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+}
 export interface PaletteSourceFacts {
   sha256: string;
   familyName: string;
@@ -61,7 +62,7 @@ type PaletteOverride = Readonly<Record<number, RgbaColor>>;
 function parseOpaqueColor(value: string): [number, number, number, number] | null {
   const channels = value.split(",").map(Number);
   return channels.length === 4 && channels.every(Number.isFinite)
-    ? channels as [number, number, number, number]
+    ? (channels as [number, number, number, number])
     : null;
 }
 
@@ -71,15 +72,22 @@ function parseOpaqueColor(value: string): [number, number, number, number] | nul
  * present exactly, and every observed opaque color must be within `tolerance`
  * of one expected entry in every channel. */
 export function opaquePaletteColorsWithinTolerance(
-  observed: readonly string[], expected: readonly string[], tolerance = 1,
+  observed: readonly string[],
+  expected: readonly string[],
+  tolerance = 1,
 ): boolean {
   if (!expected.every((color) => observed.includes(color))) return false;
   const expectedChannels = expected.map(parseOpaqueColor);
   if (expectedChannels.some((color) => color == null)) return false;
   return observed.every((value) => {
     const actual = parseOpaqueColor(value);
-    return actual != null && expectedChannels.some((candidate) => candidate != null
-      && actual.every((channel, index) => Math.abs(channel - candidate[index]) <= tolerance));
+    return (
+      actual != null &&
+      expectedChannels.some(
+        (candidate) =>
+          candidate != null && actual.every((channel, index) => Math.abs(channel - candidate[index]) <= tolerance),
+      )
+    );
   });
 }
 
@@ -100,10 +108,28 @@ export const FONT_PALETTE_CASES: readonly PaletteCase[] = [
   { id: "dark-flag", value: "dark", expectedBase: 3, expectedRuleName: null },
   { id: "named-base2", value: "--base2", expectedBase: 2, expectedRuleName: "--base2" },
   { id: "named-base3", value: "--base3", expectedBase: 3, expectedRuleName: "--base3" },
-  { id: "override-two-entries", value: "--override", expectedBase: 0, expectedRuleName: "--override", overrides: { 3: MAGENTA, 7: RED } },
-  { id: "duplicate-override-later-wins", value: "--duplicate", expectedBase: 0, expectedRuleName: "--duplicate", overrides: { 3: MAGENTA, 7: RED } },
+  {
+    id: "override-two-entries",
+    value: "--override",
+    expectedBase: 0,
+    expectedRuleName: "--override",
+    overrides: { 3: MAGENTA, 7: RED },
+  },
+  {
+    id: "duplicate-override-later-wins",
+    value: "--duplicate",
+    expectedBase: 0,
+    expectedRuleName: "--duplicate",
+    overrides: { 3: MAGENTA, 7: RED },
+  },
   { id: "out-of-range-base-falls-to-zero", value: "--oor-base", expectedBase: 0, expectedRuleName: "--oor-base" },
-  { id: "out-of-range-override-ignored", value: "--oor-override", expectedBase: 0, expectedRuleName: "--oor-override", overrides: { 3: MAGENTA } },
+  {
+    id: "out-of-range-override-ignored",
+    value: "--oor-override",
+    expectedBase: 0,
+    expectedRuleName: "--oor-override",
+    overrides: { 3: MAGENTA },
+  },
   { id: "family-mismatch-collapses", value: "--wrong-family", expectedBase: 0, expectedRuleName: null },
   { id: "missing-rule-collapses", value: "--missing", expectedBase: 0, expectedRuleName: null },
 ] as const;
@@ -115,7 +141,8 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 export function readPaletteSourceFacts(path = FONT_PALETTE_FIXTURE): PaletteSourceFacts {
   const bytes = readFileSync(resolve(path));
   const digest = sha256(bytes);
-  if (digest !== FONT_PALETTE_FIXTURE_SHA256) throw new Error(`font-palette fixture SHA-256 ${digest} != ${FONT_PALETTE_FIXTURE_SHA256}`);
+  if (digest !== FONT_PALETTE_FIXTURE_SHA256)
+    throw new Error(`font-palette fixture SHA-256 ${digest} != ${FONT_PALETTE_FIXTURE_SHA256}`);
   const font: any = fontkit.create(bytes);
   const cpal = font.CPAL;
   const colr = font.COLR;
@@ -126,10 +153,12 @@ export function readPaletteSourceFacts(path = FONT_PALETTE_FIXTURE): PaletteSour
   const layerPaletteIndices = colr.layerRecords
     .slice(base.firstLayerIndex, base.firstLayerIndex + base.numLayers)
     .map((layer: { paletteIndex: number }) => layer.paletteIndex);
-  const palettes = cpal.colorRecordIndices.map((start: number) => Array.from({ length: cpal.numPaletteEntries }, (_, entry) => {
-    const record = cpal.colorRecords[start + entry];
-    return { red: record.red, green: record.green, blue: record.blue, alpha: record.alpha };
-  }));
+  const palettes = cpal.colorRecordIndices.map((start: number) =>
+    Array.from({ length: cpal.numPaletteEntries }, (_, entry) => {
+      const record = cpal.colorRecords[start + entry];
+      return { red: record.red, green: record.green, blue: record.blue, alpha: record.alpha };
+    }),
+  );
   return {
     sha256: digest,
     familyName: font.familyName,
@@ -187,10 +216,13 @@ export function adjudicateNativePaletteRow(
   if (row.paintedGlyphCount !== 1) blockers.push("glyph-count");
   if (!opaquePaletteColorsWithinTolerance(row.observedOpaqueColors, row.expectedColors)) blockers.push("source-colors");
   if (row.expectedColors.some((color) => (row.observedColorCounts[color] ?? 0) === 0)) blockers.push("inert-color");
-  if (spec.expectedRuleName == null
-    ? row.cssomRule != null
-    : row.cssomRule == null || row.cssomRule.name !== spec.expectedRuleName
-      || row.cssomRule.fontFamily.toLowerCase() !== FAMILY.toLowerCase()) {
+  if (
+    spec.expectedRuleName == null
+      ? row.cssomRule != null
+      : row.cssomRule == null ||
+        row.cssomRule.name !== spec.expectedRuleName ||
+        row.cssomRule.fontFamily.toLowerCase() !== FAMILY.toLowerCase()
+  ) {
     blockers.push("cssom-rule");
   }
   return { ...row, pass: blockers.length === 0, blockers };
@@ -211,7 +243,8 @@ export interface ProductionOrderEvidence {
   svg: string;
 }
 
-export type PaletteAuditVerdict = "source-exact" | "confirmed-palette-identity-gap" | "invalid-evidence" | "inconclusive";
+export type PaletteAuditVerdict =
+  "source-exact" | "confirmed-palette-identity-gap" | "invalid-evidence" | "inconclusive";
 
 export function classifyPaletteAudit(
   nativeRows: readonly NativePaletteRow[],
@@ -220,18 +253,42 @@ export function classifyPaletteAudit(
 ): PaletteAuditVerdict {
   const expectedKeys = expectedDprs.flatMap((dpr) => FONT_PALETTE_CASES.map((spec) => `${dpr}:${spec.id}`));
   const observedKeys = nativeRows.map((row) => `${row.dpr}:${row.id}`);
-  if (nativeRows.length !== expectedKeys.length || new Set(observedKeys).size !== observedKeys.length
-    || expectedKeys.some((key) => !observedKeys.includes(key)) || nativeRows.some((row) => !row.pass)) return "invalid-evidence";
-  if (orders.length !== 2 || orders.some((row) => row.warnings.length > 0 || row.sourcePngSha256.length !== 2
-      || row.sourcePngSha256[0] === row.sourcePngSha256[1] || row.selectedRepresentation !== "colr"
-      || row.svgImageCount !== 2)) return "invalid-evidence";
-  const exact = orders.every((row) => row.capturedPngCount === 2 && row.capturedUniquePngCount === 2
-    && row.captureHasFontPaletteFact && row.capturedPaletteRecords.length === 2
-    && row.capturedPngSha256.every((hash, index) => hash === row.sourcePngSha256[index]));
+  if (
+    nativeRows.length !== expectedKeys.length ||
+    new Set(observedKeys).size !== observedKeys.length ||
+    expectedKeys.some((key) => !observedKeys.includes(key)) ||
+    nativeRows.some((row) => !row.pass)
+  )
+    return "invalid-evidence";
+  if (
+    orders.length !== 2 ||
+    orders.some(
+      (row) =>
+        row.warnings.length > 0 ||
+        row.sourcePngSha256.length !== 2 ||
+        row.sourcePngSha256[0] === row.sourcePngSha256[1] ||
+        row.selectedRepresentation !== "colr" ||
+        row.svgImageCount !== 2,
+    )
+  )
+    return "invalid-evidence";
+  const exact = orders.every(
+    (row) =>
+      row.capturedPngCount === 2 &&
+      row.capturedUniquePngCount === 2 &&
+      row.captureHasFontPaletteFact &&
+      row.capturedPaletteRecords.length === 2 &&
+      row.capturedPngSha256.every((hash, index) => hash === row.sourcePngSha256[index]),
+  );
   if (exact) return "source-exact";
-  const contaminated = orders.every((row) => row.capturedPngCount === 2 && row.capturedUniquePngCount === 1
-      && !row.captureHasFontPaletteFact && row.capturedPngSha256.every((hash) => hash === row.sourcePngSha256[0]))
-    && orders[0].capturedPngSha256[0] !== orders[1].capturedPngSha256[0];
+  const contaminated =
+    orders.every(
+      (row) =>
+        row.capturedPngCount === 2 &&
+        row.capturedUniquePngCount === 1 &&
+        !row.captureHasFontPaletteFact &&
+        row.capturedPngSha256.every((hash) => hash === row.sourcePngSha256[0]),
+    ) && orders[0].capturedPngSha256[0] !== orders[1].capturedPngSha256[0];
   return contaminated ? "confirmed-palette-identity-gap" : "inconclusive";
 }
 
@@ -261,29 +318,48 @@ function paletteCss(fontUrl: string): string {
 }
 
 async function ready(page: Page): Promise<void> {
-  await page.evaluate(async ({ family }) => {
-    await document.fonts.ready;
-    await document.fonts.load(`100px ${family}`, "A");
-  }, { family: FAMILY });
+  await page.evaluate(
+    async ({ family }) => {
+      await document.fonts.ready;
+      await document.fonts.load(`100px ${family}`, "A");
+    },
+    { family: FAMILY },
+  );
 }
 
-async function cdpFace(page: Page, selector: string): Promise<{ family: string; postscript: string; custom: boolean; glyphCount: number }> {
+async function cdpFace(
+  page: Page,
+  selector: string,
+): Promise<{ family: string; postscript: string; custom: boolean; glyphCount: number }> {
   const cdp = await page.context().newCDPSession(page);
   try {
-    await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
     const painted = fonts.filter((font) => font.glyphCount > 0);
     if (painted.length !== 1) throw new Error(`${selector}: expected one painted face, got ${JSON.stringify(painted)}`);
-    return { family: painted[0].familyName, postscript: painted[0].postScriptName, custom: painted[0].isCustomFont, glyphCount: painted[0].glyphCount };
-  } finally { await cdp.detach(); }
+    return {
+      family: painted[0].familyName,
+      postscript: painted[0].postScriptName,
+      custom: painted[0].isCustomFont,
+      glyphCount: painted[0].glyphCount,
+    };
+  } finally {
+    await cdp.detach();
+  }
 }
 
 function collectDataUris(value: unknown, out: string[] = []): string[] {
   if (value == null || typeof value !== "object") return out;
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    if ((key === "dataUri" || key === "rasterDataUri") && typeof entry === "string" && entry.startsWith("data:image/png;base64,")) out.push(entry);
+    if (
+      (key === "dataUri" || key === "rasterDataUri") &&
+      typeof entry === "string" &&
+      entry.startsWith("data:image/png;base64,")
+    )
+      out.push(entry);
     else collectDataUris(entry, out);
   }
   return out;
@@ -291,27 +367,46 @@ function collectDataUris(value: unknown, out: string[] = []): string[] {
 
 function hasKey(value: unknown, wanted: string): boolean {
   if (value == null || typeof value !== "object") return false;
-  return Object.entries(value as Record<string, unknown>).some(([key, entry]) => key === wanted || hasKey(entry, wanted));
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, entry]) => key === wanted || hasKey(entry, wanted),
+  );
 }
 
 function valuesForKey(value: unknown, wanted: string, out: unknown[] = []): unknown[] {
   if (value == null || typeof value !== "object") return out;
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    if (key === wanted) out.push(entry); else valuesForKey(entry, wanted, out);
+    if (key === wanted) out.push(entry);
+    else valuesForKey(entry, wanted, out);
   }
   return out;
 }
 
-async function nativeRows(browser: Browser, fontUrl: string, facts: PaletteSourceFacts, dpr: 1 | 2, artifactDir?: string): Promise<NativePaletteRow[]> {
+async function nativeRows(
+  browser: Browser,
+  fontUrl: string,
+  facts: PaletteSourceFacts,
+  dpr: 1 | 2,
+  artifactDir?: string,
+): Promise<NativePaletteRow[]> {
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr });
   const page = await context.newPage();
   try {
-    const samples = FONT_PALETTE_CASES.map((spec) => `<span id="${spec.id}" class="sample" style="font-palette:${spec.value}">A</span>`).join("");
+    const samples = FONT_PALETTE_CASES.map(
+      (spec) => `<span id="${spec.id}" class="sample" style="font-palette:${spec.value}">A</span>`,
+    ).join("");
     await page.setContent(`<style>${paletteCss(fontUrl)}</style><main>${samples}</main>`);
     await ready(page);
-    const rules = await page.evaluate(() => Array.from(document.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules))
-      .filter((rule) => rule.constructor.name === "CSSFontPaletteValuesRule")
-      .map((rule: any) => ({ name: rule.name, fontFamily: rule.fontFamily, basePalette: rule.basePalette, overrideColors: rule.overrideColors })));
+    const rules = await page.evaluate(() =>
+      Array.from(document.styleSheets)
+        .flatMap((sheet) => Array.from(sheet.cssRules))
+        .filter((rule) => rule.constructor.name === "CSSFontPaletteValuesRule")
+        .map((rule: any) => ({
+          name: rule.name,
+          fontFamily: rule.fontFamily,
+          basePalette: rule.basePalette,
+          overrideColors: rule.overrideColors,
+        })),
+    );
     const rows: NativePaletteRow[] = [];
     for (const spec of FONT_PALETTE_CASES) {
       const locator = page.locator(`#${spec.id}`);
@@ -321,40 +416,68 @@ async function nativeRows(browser: Browser, fontUrl: string, facts: PaletteSourc
       const computedFontPalette = await locator.evaluate((element) => getComputedStyle(element).fontPalette);
       const face = await cdpFace(page, `#${spec.id}`);
       const cssomRule = spec.value.startsWith("--")
-        ? rules.find((rule) => rule.name === spec.value && rule.fontFamily.toLowerCase() === FAMILY.toLowerCase()) ?? null
+        ? (rules.find((rule) => rule.name === spec.value && rule.fontFamily.toLowerCase() === FAMILY.toLowerCase()) ??
+          null)
         : null;
-      rows.push(adjudicateNativePaletteRow({
-        id: spec.id, dpr, computedFontPalette, cssomRule,
-        sourceGlyphId: facts.glyphId,
-        paintedFamilyDisplayName: face.family,
-        paintedPostscriptDisplayName: face.postscript,
-        isCustomFont: face.custom,
-        paintedGlyphCount: face.glyphCount,
-        expectedColors: expectedPaletteColors(facts, spec),
-        observedOpaqueColors: observed.colors,
-        observedColorCounts: observed.counts,
-        pngSha256: sha256(png),
-      }, spec, facts.glyphId));
+      rows.push(
+        adjudicateNativePaletteRow(
+          {
+            id: spec.id,
+            dpr,
+            computedFontPalette,
+            cssomRule,
+            sourceGlyphId: facts.glyphId,
+            paintedFamilyDisplayName: face.family,
+            paintedPostscriptDisplayName: face.postscript,
+            isCustomFont: face.custom,
+            paintedGlyphCount: face.glyphCount,
+            expectedColors: expectedPaletteColors(facts, spec),
+            observedOpaqueColors: observed.colors,
+            observedColorCounts: observed.counts,
+            pngSha256: sha256(png),
+          },
+          spec,
+          facts.glyphId,
+        ),
+      );
     }
     return rows;
-  } finally { await context.close(); }
+  } finally {
+    await context.close();
+  }
 }
 
-async function productionOrder(browser: Browser, fontUrl: string, order: ProductionOrderEvidence["order"], artifactDir?: string): Promise<ProductionOrderEvidence> {
+async function productionOrder(
+  browser: Browser,
+  fontUrl: string,
+  order: ProductionOrderEvidence["order"],
+  artifactDir?: string,
+): Promise<ProductionOrderEvidence> {
   const context = await browser.newContext({ viewport: { width: 240, height: 120 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   const tracker = attachWebfontTracker(page);
   try {
-    const spans = order.map((name) => `<span id="${name}" class="sample" style="font-palette:--${name}">A</span>`).join("");
+    const spans = order
+      .map((name) => `<span id="${name}" class="sample" style="font-palette:--${name}">A</span>`)
+      .join("");
     await page.setContent(`<style>${paletteCss(fontUrl)}</style><main id="stage">${spans}</main>`);
     await ready(page);
-    const sourcePngs = await Promise.all(order.map((name) => page.locator(`#${name}`).screenshot({ omitBackground: true, type: "png" })));
+    const sourcePngs = await Promise.all(
+      order.map((name) => page.locator(`#${name}`).screenshot({ omitBackground: true, type: "png" })),
+    );
     const sourceColors = await Promise.all(sourcePngs.map(pngColors));
-    clearWebfonts(); clearGlyphDefs();
+    clearWebfonts();
+    clearGlyphDefs();
     const registration = await discoverAndRegisterWebfonts(page, tracker.urls);
-    if (!registration.some((row) => row.ok && row.family === FAMILY)) throw new Error(`palette webfont registration failed: ${JSON.stringify(registration)}`);
+    if (!registration.some((row) => row.ok && row.family === FAMILY))
+      throw new Error(`palette webfont registration failed: ${JSON.stringify(registration)}`);
     const selected = selectedGlyphRasterSpans("A", [{ start: 0, end: 1 }], {
-      fontSize: 100, fontFamily: FAMILY, fontWeight: 400, fontStyle: "normal", fontStretch: "100%", lang: "en",
+      fontSize: 100,
+      fontFamily: FAMILY,
+      fontWeight: 400,
+      fontStyle: "normal",
+      fontStretch: "100%",
+      lang: "en",
     })[0];
     const capture = await captureElementTreeWithWarnings(page, "#stage", { x: 0, y: 0, width: 240, height: 120 });
     const dataUris = collectDataUris(capture.tree);
@@ -381,7 +504,10 @@ async function productionOrder(browser: Browser, fontUrl: string, order: Product
       svg,
     };
   } finally {
-    tracker.detach(); clearWebfonts(); clearGlyphDefs(); await context.close();
+    tracker.detach();
+    clearWebfonts();
+    clearGlyphDefs();
+    await context.close();
   }
 }
 
@@ -395,7 +521,8 @@ function fixtureServer(bytes: Buffer): Promise<{ server: Server; url: string }> 
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
-      if (address == null || typeof address === "string") return reject(new Error("font fixture server did not bind a TCP port"));
+      if (address == null || typeof address === "string")
+        return reject(new Error("font fixture server did not bind a TCP port"));
       resolveServer({ server, url: `http://127.0.0.1:${address.port}/font.ttf` });
     });
   });
@@ -423,7 +550,9 @@ export interface FontPaletteAuditReport {
   followUps: string[];
 }
 
-export async function runFontPaletteOwnershipAudit(options: { dprs?: Array<1 | 2>; artifactDir?: string } = {}): Promise<FontPaletteAuditReport> {
+export async function runFontPaletteOwnershipAudit(
+  options: { dprs?: Array<1 | 2>; artifactDir?: string } = {},
+): Promise<FontPaletteAuditReport> {
   const facts = readPaletteSourceFacts();
   const artifactDir = options.artifactDir == null ? undefined : resolve(options.artifactDir);
   if (artifactDir != null) mkdirSync(artifactDir, { recursive: true });
@@ -432,7 +561,9 @@ export async function runFontPaletteOwnershipAudit(options: { dprs?: Array<1 | 2
   const browser = await chromium.launch({ headless: true });
   try {
     const dprs = options.dprs ?? [1, 2];
-    const native = (await Promise.all(dprs.map((dpr) => nativeRows(browser, hosted.url, facts, dpr, artifactDir)))).flat();
+    const native = (
+      await Promise.all(dprs.map((dpr) => nativeRows(browser, hosted.url, facts, dpr, artifactDir)))
+    ).flat();
     // Production font registries/caches are process-global. Run the two order
     // arms serially so the reverse-order mutation changes only DOM order, not
     // an interleaved clear/register race between two captures.
@@ -451,20 +582,36 @@ export async function runFontPaletteOwnershipAudit(options: { dprs?: Array<1 | 2
       sourcePins: FONT_PALETTE_SOURCE_PINS,
       fixture: facts,
       fingerprint: {
-        platform: platform(), architecture: arch(), osRelease: release(),
-        chromium: browser.version(), chromiumRevision: browserVersion.revision,
+        platform: platform(),
+        architecture: arch(),
+        osRelease: release(),
+        chromium: browser.version(),
+        chromiumRevision: browserVersion.revision,
         browserExecutableSha256: await sha256File(chromium.executablePath()),
-        node: process.version, sharp: sharp.versions.sharp, libvips: sharp.versions.vips,
+        node: process.version,
+        sharp: sharp.versions.sharp,
+        libvips: sharp.versions.vips,
       },
       nativeRows: native,
       productionOrders: orders,
-      followUps: verdict === "confirmed-palette-identity-gap" ? [
-        "DM-2509: capture resolved font-palette ownership and add palette/face/gid/representation to browser-raster cache identity.",
-      ] : verdict === "source-exact" ? [
-        "DM-2510: promote this audit to a strict COLRv1/COLRv0 three-platform paint gate.",
-      ] : [],
+      followUps:
+        verdict === "confirmed-palette-identity-gap"
+          ? [
+              "DM-2509: capture resolved font-palette ownership and add palette/face/gid/representation to browser-raster cache identity.",
+            ]
+          : verdict === "source-exact"
+            ? ["DM-2510: promote this audit to a strict COLRv1/COLRv0 three-platform paint gate."]
+            : [],
     };
-    if (artifactDir != null) writeFileSync(resolve(artifactDir, "font-palette-ownership-report.json"), JSON.stringify({ ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) }, null, 2));
+    if (artifactDir != null)
+      writeFileSync(
+        resolve(artifactDir, "font-palette-ownership-report.json"),
+        JSON.stringify(
+          { ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) },
+          null,
+          2,
+        ),
+      );
     return report;
   } finally {
     await browser.close();
@@ -473,12 +620,34 @@ export async function runFontPaletteOwnershipAudit(options: { dprs?: Array<1 | 2
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const value = (name: string): string | undefined => { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1]; };
+  const value = (name: string): string | undefined => {
+    const index = process.argv.indexOf(name);
+    return index < 0 ? undefined : process.argv[index + 1];
+  };
   const json = value("--json");
   const artifactDir = value("--artifact-dir");
   const report = await runFontPaletteOwnershipAudit({ ...(artifactDir == null ? {} : { artifactDir }) });
   const serializable = { ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) };
-  if (json != null) { mkdirSync(dirname(resolve(json)), { recursive: true }); writeFileSync(resolve(json), JSON.stringify(serializable, null, 2)); }
-  console.log(JSON.stringify({ verdict: report.verdict, nativeRows: report.nativeRows.length, nativePass: report.nativeRows.filter((row) => row.pass).length, productionOrders: report.productionOrders.map((row) => ({ order: row.order, source: row.sourcePngSha256, captured: row.capturedPngSha256, captureHasFontPaletteFact: row.captureHasFontPaletteFact })) }, null, 2));
+  if (json != null) {
+    mkdirSync(dirname(resolve(json)), { recursive: true });
+    writeFileSync(resolve(json), JSON.stringify(serializable, null, 2));
+  }
+  console.log(
+    JSON.stringify(
+      {
+        verdict: report.verdict,
+        nativeRows: report.nativeRows.length,
+        nativePass: report.nativeRows.filter((row) => row.pass).length,
+        productionOrders: report.productionOrders.map((row) => ({
+          order: row.order,
+          source: row.sourcePngSha256,
+          captured: row.capturedPngSha256,
+          captureHasFontPaletteFact: row.captureHasFontPaletteFact,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
   if (report.verdict === "invalid-evidence" || report.verdict === "inconclusive") process.exitCode = 1;
 }

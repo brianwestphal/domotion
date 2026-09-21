@@ -18,7 +18,9 @@ const env = await (async () => {
     return null;
   }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
 
 function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null {
@@ -30,7 +32,10 @@ function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null 
   return null;
 }
 
-function rgbaDifference(a: Uint8Array, b: Uint8Array): {
+function rgbaDifference(
+  a: Uint8Array,
+  b: Uint8Array,
+): {
   changedPixels: number;
   maxChannelDelta: number;
   firstChangedByte: number | null;
@@ -78,8 +83,12 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         #target{width:100px;height:70px;overflow:auto;scrollbar-width:none}
         #target>i{display:block;width:240px;height:190px}
       </style><div id="target"><i></i></div>`);
-      await page.evaluate("Object.defineProperty(globalThis, '__name', { value: 'authored-sentinel', configurable: true })");
-      await child.evaluate("Object.defineProperty(globalThis, '__name', { value: 'child-sentinel', configurable: true })");
+      await page.evaluate(
+        "Object.defineProperty(globalThis, '__name', { value: 'authored-sentinel', configurable: true })",
+      );
+      await child.evaluate(
+        "Object.defineProperty(globalThis, '__name', { value: 'child-sentinel', configurable: true })",
+      );
       const frameScrollCapture = await prepareFrameScrollCapture(page, undefined);
       const prepared = await prepareCapturedScrollbarSets(
         page,
@@ -89,14 +98,20 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         { frameScrollCapture },
       );
       try {
-        const topFacts = await page.locator("#target").evaluate((element, propertyKey) => ({
-          authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
-          status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
-        }), prepared.propertyKey);
-        const childFacts = await child.locator("#target").evaluate((element, propertyKey) => ({
-          authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
-          status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
-        }), prepared.propertyKey);
+        const topFacts = await page.locator("#target").evaluate(
+          (element, propertyKey) => ({
+            authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
+            status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
+          }),
+          prepared.propertyKey,
+        );
+        const childFacts = await child.locator("#target").evaluate(
+          (element, propertyKey) => ({
+            authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
+            status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
+          }),
+          prepared.propertyKey,
+        );
         expect(topFacts).toEqual({ authoredName: "authored-sentinel", status: "absent" });
         expect(childFacts).toEqual({ authoredName: "child-sentinel", status: "absent" });
       } finally {
@@ -175,16 +190,15 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         missingFacts: [],
       });
       expect(typeof set.overlay).toBe("boolean");
-      expect(set.paintPhase).toBe(
-        set.overlay ? "overlay-overflow-controls" : "background",
-      );
+      expect(set.paintPhase).toBe(set.overlay ? "overlay-overflow-controls" : "background");
       const source = await sharp(sourcePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const capturedBars = [set.horizontal, set.vertical].filter((bar) => bar != null);
       expect(capturedBars.length).toBeGreaterThan(0);
       for (const bar of capturedBars) {
         const raster = bar?.nativeRaster;
         expect(raster).toMatchObject({
-          captureDpr: 2, precomposited: true,
+          captureDpr: 2,
+          precomposited: true,
           opacitySource: "precomposited-source-frame",
           interaction: { hostHovered: true, hostPressed: false },
           platformFingerprint: { hideScrollbarsDefaultRemoved: true },
@@ -214,7 +228,9 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       try {
         await outputPage.setContent(`<style>html,body{margin:0}</style>${svg}`);
         const output = await sharp(await outputPage.screenshot({ type: "png" }))
-          .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
         for (const bar of [set.horizontal, set.vertical]) {
           const raster = bar!.nativeRaster!;
           const left = Math.round(raster.x * 2);
@@ -222,19 +238,13 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
           const resizer = set.resizerOverlap?.rect;
           const laterOwnedRects: Array<{ x: number; y: number; width: number; height: number }> =
             bar!.orientation === "horizontal"
-              ? [set.vertical?.nativeRaster, set.nativeCornerRaster].flatMap((owner) => owner == null ? [] : [owner])
-              : [set.nativeCornerRaster].flatMap((owner) => owner == null ? [] : [owner]);
+              ? [set.vertical?.nativeRaster, set.nativeCornerRaster].flatMap((owner) => (owner == null ? [] : [owner]))
+              : [set.nativeCornerRaster].flatMap((owner) => (owner == null ? [] : [owner]));
           for (let y = 0; y < raster.pixelHeight; y++) {
             const sourceStart = ((top + y) * source.info.width + left) * 4;
             const outputStart = ((top + y) * output.info.width + left) * 4;
-            const sourceRow = Buffer.from(source.data.subarray(
-              sourceStart,
-              sourceStart + raster.pixelWidth * 4,
-            ));
-            const outputRow = Buffer.from(output.data.subarray(
-              outputStart,
-              outputStart + raster.pixelWidth * 4,
-            ));
+            const sourceRow = Buffer.from(source.data.subarray(sourceStart, sourceStart + raster.pixelWidth * 4));
+            const outputRow = Buffer.from(output.data.subarray(outputStart, outputStart + raster.pixelWidth * 4));
             // The renderer follows ScrollableAreaPainter order: horizontal,
             // vertical, corner, then resizer. The encoded strip itself was
             // required byte-exact above. In the composed surface, compare only
@@ -247,9 +257,11 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
               const ownerRight = Math.ceil((owner.x + owner.width) * 2);
               const ownerBottom = Math.ceil((owner.y + owner.height) * 2);
               if (absoluteY < ownerTop || absoluteY >= ownerBottom) continue;
-              for (let absoluteX = Math.max(left, ownerLeft);
+              for (
+                let absoluteX = Math.max(left, ownerLeft);
                 absoluteX < Math.min(left + raster.pixelWidth, ownerRight);
-                absoluteX++) {
+                absoluteX++
+              ) {
                 const offset = (absoluteX - left) * 4;
                 sourceRow.copy(outputRow, offset, offset, offset + 4);
               }
@@ -268,9 +280,11 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
               const resizerRight = Math.ceil((resizer.x + resizer.width) * 2) + 1;
               const resizerBottom = Math.ceil((resizer.y + resizer.height) * 2) + 1;
               if (absoluteY >= resizerTop && absoluteY < resizerBottom) {
-                for (let absoluteX = Math.max(left, resizerLeft);
+                for (
+                  let absoluteX = Math.max(left, resizerLeft);
                   absoluteX < Math.min(left + raster.pixelWidth, resizerRight);
-                  absoluteX++) {
+                  absoluteX++
+                ) {
                   const offset = (absoluteX - left) * 4;
                   sourceRow.copy(outputRow, offset, offset, offset + 4);
                 }
@@ -430,10 +444,16 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         },
         corner: { kind: "corner", rect: { width: 16, height: 14 } },
       });
-      expect(ltr.scrollbars?.vertical?.parts.find(({ kind }) => kind === "thumb")?.finalPseudoStyle)
-        .toMatchObject({ backgroundColor: "rgb(33, 61, 203)", border: "2px solid rgb(201, 31, 32)" });
+      expect(ltr.scrollbars?.vertical?.parts.find(({ kind }) => kind === "thumb")?.finalPseudoStyle).toMatchObject({
+        backgroundColor: "rgb(33, 61, 203)",
+        border: "2px solid rgb(201, 31, 32)",
+      });
       expect(ltr.scrollbars?.horizontal?.parts.map(({ kind }) => kind)).toEqual([
-        "background", "track", "back-track", "forward-track", "thumb",
+        "background",
+        "track",
+        "back-track",
+        "forward-track",
+        "thumb",
       ]);
       expect(rtl.scrollbars?.vertical?.logicalSide).toBe("left");
       expect(rtl.scrollbars?.horizontal?.currentPosition).toBe(-70);
@@ -459,7 +479,9 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         html,body{margin:0}${CUSTOM_CSS}
         #zoomed{margin:20px;zoom:1.25}
       </style><div id="zoomed" class="scrollbox" data-domotion-anim="zoomed"><div style="width:500px;height:500px"></div></div>`);
-      await page.locator("#zoomed").evaluate((element) => { element.scrollTop = 100; });
+      await page.locator("#zoomed").evaluate((element) => {
+        element.scrollTop = 100;
+      });
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 420, height: 280 });
       const set = byAnimId(capture.tree, "zoomed")!.scrollbars!;
       expect(set.captureDpr).toBe(2);
@@ -483,10 +505,12 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       const set = byAnimId(capture.tree, "rotated")!.scrollbars!;
       expect(set).toMatchObject({ status: "unavailable", horizontal: undefined, vertical: undefined });
       expect(set.missingFacts).toContain("scrollbar-axis-under-non-axis-aligned-transform");
-      expect(capture.warnings).toContainEqual(expect.objectContaining({
-        selector: "div#rotated",
-        feature: "scrollbar-capture",
-      }));
+      expect(capture.warnings).toContainEqual(
+        expect.objectContaining({
+          selector: "div#rotated",
+          feature: "scrollbar-capture",
+        }),
+      );
     } finally {
       await page.close();
     }
@@ -513,10 +537,7 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         // a runner whose native bars occupy layout space. That is an honest
         // unavailable observation, not proof of either a visible or faded
         // overlay; retain the context and the missing-fact explanation.
-        expect(set.missingFacts).toEqual(expect.arrayContaining([
-          "marker-paint",
-          "scrollbar-object-existence",
-        ]));
+        expect(set.missingFacts).toEqual(expect.arrayContaining(["marker-paint", "scrollbar-object-existence"]));
       } else {
         expect(["captured", "partial"]).toContain(set.status);
         for (const bar of [set.horizontal, set.vertical]) {
@@ -540,7 +561,9 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         html::-webkit-scrollbar-button{display:none}
         main{width:700px;height:650px;background:#eee}
       </style><main></main>`);
-      await page.evaluate(() => { window.scrollTo(80, 110); });
+      await page.evaluate(() => {
+        window.scrollTo(80, 110);
+      });
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
       expect(capture.tree[0]?.rootScrollbars).toMatchObject({
         rootScroller: true,
@@ -548,10 +571,15 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         horizontal: { route: "author-custom", currentPosition: 80 },
         vertical: { route: "author-custom", currentPosition: 110 },
       });
-      expect(await page.evaluate(() => ({
-        computed: [getComputedStyle(document.documentElement).overflowX, getComputedStyle(document.documentElement).overflowY],
-        inline: [document.documentElement.style.overflowX, document.documentElement.style.overflowY],
-      }))).toEqual({ computed: ["visible", "visible"], inline: ["", ""] });
+      expect(
+        await page.evaluate(() => ({
+          computed: [
+            getComputedStyle(document.documentElement).overflowX,
+            getComputedStyle(document.documentElement).overflowY,
+          ],
+          inline: [document.documentElement.style.overflowX, document.documentElement.style.overflowY],
+        })),
+      ).toEqual({ computed: ["visible", "visible"], inline: ["", ""] });
     } finally {
       await page.close();
     }
@@ -563,15 +591,19 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
     try {
       await page.setContent(`<!doctype html><style>html,body{margin:0}${CUSTOM_CSS}</style>
         <div id="hidden" class="scrollbox" data-domotion-anim="hidden"><div style="width:500px;height:500px"></div></div>`);
-      await page.locator("#hidden").evaluate((element) => { element.scrollTop = 80; });
+      await page.locator("#hidden").evaluate((element) => {
+        element.scrollTop = 80;
+      });
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
       const set = byAnimId(capture.tree, "hidden")!.scrollbars!;
       expect(set.status).toBe("unavailable");
       expect(set.missingFacts).toEqual(expect.arrayContaining(["scrollbar-object-existence", "marker-paint"]));
-      expect(capture.warnings).toContainEqual(expect.objectContaining({
-        selector: "div#hidden",
-        feature: "scrollbar-capture",
-      }));
+      expect(capture.warnings).toContainEqual(
+        expect.objectContaining({
+          selector: "div#hidden",
+          feature: "scrollbar-capture",
+        }),
+      );
     } finally {
       await page.close();
       await closeBrowserSafely(hiddenBrowser);

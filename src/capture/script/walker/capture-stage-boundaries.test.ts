@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isOutsideCaptureViewport } from "../utils.js";
-import {
-  parsePseudoContentValue,
-  physicalPseudoTransform,
-  pseudoCanvasFont,
-} from "./pseudo-content.js";
+import { parsePseudoContentValue, physicalPseudoTransform, pseudoCanvasFont } from "./pseudo-content.js";
 import { isMixedVerticalUpright, resolveCharOrientation } from "./text-segments.js";
 
 describe("capture stage boundaries", () => {
@@ -29,27 +25,29 @@ describe("capture stage boundaries", () => {
 
   it("builds the pseudo emoji canvas font with browser defaults", () => {
     expect(pseudoCanvasFont({})).toBe("normal normal 16px sans-serif");
-    expect(pseudoCanvasFont({ fontStyle: "italic", fontWeight: "700", fontSize: "20px", fontFamily: "Arial" }))
-      .toBe("italic 700 20px Arial");
+    expect(pseudoCanvasFont({ fontStyle: "italic", fontWeight: "700", fontSize: "20px", fontFamily: "Arial" })).toBe(
+      "italic 700 20px Arial",
+    );
   });
 
   it("scales only matrix translation terms for physical pseudo transforms", () => {
     const zoom = () => 2;
-    expect(physicalPseudoTransform({}, "matrix(1, 0, 0, 1, 3, 4)", zoom))
-      .toBe("matrix(1, 0, 0, 1, 6, 8)");
+    expect(physicalPseudoTransform({}, "matrix(1, 0, 0, 1, 3, 4)", zoom)).toBe("matrix(1, 0, 0, 1, 6, 8)");
     expect(physicalPseudoTransform({}, "rotate(20deg)", zoom)).toBe("rotate(20deg)");
   });
 
   it("parses mixed pseudo content through explicit counter and quote services", () => {
-    const element = { getAttribute: (name: string) => name === "data-label" ? "Ready" : null };
+    const element = { getAttribute: (name: string) => (name === "data-label" ? "Ready" : null) };
     const counterSnapshot = new Map([[element, { element: [{ name: "step", value: 4 }] }]]);
-    expect(parsePseudoContentValue({
-      content: 'attr(data-label) " " counter(step, upper-roman) open-quote url("icon.svg")',
-      el: element,
-      counterSnapshot,
-      pseudo: "::before",
-      resolveCounterValue: (_style: string, value: number) => value === 4 ? "IV" : String(value),
-      pickQuoteChar: () => "«",
-    })).toEqual({ text: "Ready IV«", imageUrl: "icon.svg" });
+    expect(
+      parsePseudoContentValue({
+        content: 'attr(data-label) " " counter(step, upper-roman) open-quote url("icon.svg")',
+        el: element,
+        counterSnapshot,
+        pseudo: "::before",
+        resolveCounterValue: (_style: string, value: number) => (value === 4 ? "IV" : String(value)),
+        pickQuoteChar: () => "«",
+      }),
+    ).toEqual({ text: "Ready IV«", imageUrl: "icon.svg" });
   });
 });

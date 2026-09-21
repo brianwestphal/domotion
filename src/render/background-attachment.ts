@@ -4,10 +4,7 @@
  * (DM-2478); this module only selects positioning and painting rectangles.
  */
 
-import type {
-  CapturedBackgroundAttachmentGeometry,
-  CapturedBackgroundRect,
-} from "../capture/types.js";
+import type { CapturedBackgroundAttachmentGeometry, CapturedBackgroundRect } from "../capture/types.js";
 
 export type EffectiveBackgroundAttachment = "scroll" | "fixed" | "local";
 
@@ -20,9 +17,12 @@ export interface ResolvedBackgroundAttachment {
 }
 
 const finiteRect = (rect: CapturedBackgroundRect): boolean =>
-  Number.isFinite(rect.x) && Number.isFinite(rect.y)
-  && Number.isFinite(rect.width) && Number.isFinite(rect.height)
-  && rect.width >= 0 && rect.height >= 0;
+  Number.isFinite(rect.x) &&
+  Number.isFinite(rect.y) &&
+  Number.isFinite(rect.width) &&
+  Number.isFinite(rect.height) &&
+  rect.width >= 0 &&
+  rect.height >= 0;
 
 /** Reapply reference-box insets from one border box to another. */
 function rebaseReferenceBox(
@@ -62,8 +62,8 @@ export function resolveBackgroundAttachment(
   captureViewport: { w: number; h: number },
 ): ResolvedBackgroundAttachment {
   const token = computedAttachment.trim().toLowerCase();
-  const compatible = geometry?.source === "blink-box-background-paint-context-v1"
-    && finiteRect(geometry.layoutViewport);
+  const compatible =
+    geometry?.source === "blink-box-background-paint-context-v1" && finiteRect(geometry.layoutViewport);
   const canvas = compatible ? geometry.canvas : undefined;
   const canvasPaint = { x: 0, y: 0, width: captureViewport.w, height: captureViewport.h };
 

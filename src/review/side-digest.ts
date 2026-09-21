@@ -157,8 +157,10 @@ export type SideEvidence = "byte-identical" | "moved" | "sub-digest" | "same-at-
  *  byte hashes. Empty strings are treated as missing, matching
  *  `compareDigest`. */
 export function compareSideEvidence(
-  digestA: string | undefined, digestB: string | undefined,
-  shaA?: string, shaB?: string,
+  digestA: string | undefined,
+  digestB: string | undefined,
+  shaA?: string,
+  shaB?: string,
 ): SideEvidence {
   const bytesKnown = shaA != null && shaA !== "" && shaB != null && shaB !== "";
   if (bytesKnown && shaA === shaB) return "byte-identical";
@@ -187,8 +189,10 @@ export function compareSideEvidence(
  *   `unknown`  digests unavailable on one side.
  */
 export function attributeMovement(
-  expectedBefore: string | undefined, expectedAfter: string | undefined,
-  actualBefore: string | undefined, actualAfter: string | undefined,
+  expectedBefore: string | undefined,
+  expectedAfter: string | undefined,
+  actualBefore: string | undefined,
+  actualAfter: string | undefined,
 ): "oracle" | "renderer" | "both" | "neither" | "unknown" {
   const exp = compareDigest(expectedBefore, expectedAfter);
   const act = compareDigest(actualBefore, actualAfter);
@@ -234,17 +238,25 @@ export interface MovementAttribution {
  * semantics of `attributeMovement`.
  */
 export function attributeMovementWithBytes(
-  expectedBefore: string | undefined, expectedAfter: string | undefined,
-  actualBefore: string | undefined, actualAfter: string | undefined,
+  expectedBefore: string | undefined,
+  expectedAfter: string | undefined,
+  actualBefore: string | undefined,
+  actualAfter: string | undefined,
   shas?: {
-    expectedBefore?: string; expectedAfter?: string;
-    actualBefore?: string; actualAfter?: string;
+    expectedBefore?: string;
+    expectedAfter?: string;
+    actualBefore?: string;
+    actualAfter?: string;
   },
 ): MovementAttribution {
   const exp = compareSideEvidence(expectedBefore, expectedAfter, shas?.expectedBefore, shas?.expectedAfter);
   const act = compareSideEvidence(actualBefore, actualAfter, shas?.actualBefore, shas?.actualAfter);
-  const done = (verdict: MovementAttribution["verdict"], proven: boolean): MovementAttribution =>
-    ({ verdict, proven, expected: exp, actual: act });
+  const done = (verdict: MovementAttribution["verdict"], proven: boolean): MovementAttribution => ({
+    verdict,
+    proven,
+    expected: exp,
+    actual: act,
+  });
 
   // Byte identity dominates: an unchanged input cannot have moved the metric.
   if (exp === "byte-identical" && act === "byte-identical") return done("neither", true);

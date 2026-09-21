@@ -1,10 +1,6 @@
 import { resolve } from "node:path";
 
-const CLIENT_SOURCES = [
-  "src/review/client.tsx",
-  "src/scrubber/client.tsx",
-  "src/studio/client.tsx",
-];
+const CLIENT_SOURCES = ["src/review/client.tsx", "src/scrubber/client.tsx", "src/studio/client.tsx"];
 
 export function requiredBrowserClientSources(root) {
   return CLIENT_SOURCES.map((source) => resolve(root, source));

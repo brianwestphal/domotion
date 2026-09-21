@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-642","DM-643","DM-645","DM-646"]
-code: ["src/render/element-tree-to-svg.ts","src/scroll/composer.test.ts","src/scroll/composer.ts"]
-aliases: ["docs/36-scroll-composite-layer-chunking.md","doc-36"]
+tickets: ["DM-642", "DM-643", "DM-645", "DM-646"]
+code: ["src/render/element-tree-to-svg.ts", "src/scroll/composer.test.ts", "src/scroll/composer.ts"]
+aliases: ["docs/36-scroll-composite-layer-chunking.md", "doc-36"]
 ---
 
 # 36. Scroll composer: per-chunk compositing layers

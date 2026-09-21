@@ -35,7 +35,11 @@ import { clearGlyphHelperCache, createGlyphHelperFont } from "./glyph-helper.js"
 
 const HELPER = path.resolve(
   path.dirname(new URL(import.meta.url).pathname),
-  "..", "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths",
+  "..",
+  "..",
+  "tools",
+  "macos-glyph-extractor",
+  "domotion-glyph-paths",
 );
 
 const SF_INDIA = "/System/Library/Fonts/SFIndia.ttc";
@@ -48,7 +52,9 @@ const describeMac = available ? describe : describe.skip;
 
 /** Design-unit advances for `gids`, as the helper reports them. */
 function helperAdvances(
-  fontPath: string, postscriptName: string, gids: number[],
+  fontPath: string,
+  postscriptName: string,
+  gids: number[],
   variations?: Record<string, number>,
 ): number[] {
   clearGlyphHelperCache();
@@ -59,7 +65,9 @@ function helperAdvances(
 
 /** The same advances read straight out of the file by fontkit. */
 function fontkitAdvances(
-  fontPath: string, postscriptName: string, gids: number[],
+  fontPath: string,
+  postscriptName: string,
+  gids: number[],
   variations?: Record<string, number>,
 ): number[] {
   const opened = fontkit.openSync(fontPath) as unknown as {
@@ -68,10 +76,12 @@ function fontkitAdvances(
   const collection = opened.fonts;
   const base = (collection != null
     ? collection.find((x) => x.postscriptName === postscriptName)
-    : opened) as unknown as {
-      getVariation(v: Record<string, number>): { getGlyph(id: number): { advanceWidth: number } };
-      getGlyph(id: number): { advanceWidth: number };
-    } | undefined;
+    : opened) as unknown as
+    | {
+        getVariation(v: Record<string, number>): { getGlyph(id: number): { advanceWidth: number } };
+        getGlyph(id: number): { advanceWidth: number };
+      }
+    | undefined;
   if (base == null) throw new Error(`fontkit found no face ${postscriptName} in ${fontPath}`);
   const face = variations != null ? base.getVariation(variations) : base;
   return gids.map((id) => face.getGlyph(id).advanceWidth);
@@ -92,7 +102,9 @@ const GIDS = [5, 10, 20, 38, 55, 80, 120];
  * orders of magnitude tighter than the tracking offset this file exists to catch.
  */
 function expectAgreement(
-  label: string, fontPath: string, postscriptName: string,
+  label: string,
+  fontPath: string,
+  postscriptName: string,
   variations?: Record<string, number>,
 ): void {
   const mine = helperAdvances(fontPath, postscriptName, GIDS, variations);
@@ -100,12 +112,11 @@ function expectAgreement(
   // Compared as one rendered line so a failure shows every gid's delta at once —
   // the shape of the deltas is the diagnosis. A constant across all of them is a
   // table lookup (tracking); a varying one is an axis or instance difference.
-  const rendered = GIDS
-    .map((gid, i) => `g${gid} ${mine[i]}-${theirs[i].toFixed(4)}=${(mine[i] - theirs[i]).toFixed(4)}`)
-    .join(" ");
+  const rendered = GIDS.map(
+    (gid, i) => `g${gid} ${mine[i]}-${theirs[i].toFixed(4)}=${(mine[i] - theirs[i]).toFixed(4)}`,
+  ).join(" ");
   const withinHalfUnit = mine.every((a, i) => Math.abs(a - theirs[i]) <= 0.5);
-  expect(`${label} within 0.5u: ${withinHalfUnit} [${rendered}]`)
-    .toBe(`${label} within 0.5u: true [${rendered}]`);
+  expect(`${label} within 0.5u: ${withinHalfUnit} [${rendered}]`).toBe(`${label} within 0.5u: true [${rendered}]`);
 }
 
 describeMac("design-unit advances carry no AAT tracking", () => {

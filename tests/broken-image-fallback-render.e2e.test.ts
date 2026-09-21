@@ -10,7 +10,8 @@ import {
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const BROKEN = "data:image/png;base64,AAAA";
-const GOOD = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+const GOOD =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 const WIDTH = 760;
 const HEIGHT = 360;
 
@@ -30,7 +31,11 @@ async function meanAbsoluteError(left: Buffer, right: Buffer): Promise<number> {
 }
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -45,7 +50,8 @@ describeBrowser("hybrid broken-image fallback renderer (DM-2464)", () => {
       const source = await context.newPage();
       const generated = await context.newPage();
       try {
-        await source.setContent(`<!doctype html><style>
+        await source.setContent(
+          `<!doctype html><style>
           html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:white}
           #stage{position:relative;width:${WIDTH}px;height:${HEIGHT}px;background:white;color:rgb(23,34,45);font:18px/26px Arial,sans-serif}
           img{position:absolute}
@@ -72,14 +78,17 @@ describeBrowser("hybrid broken-image fallback renderer (DM-2464)", () => {
           <img id="zoom" src="${BROKEN}" alt="Zoom">
           <img id="author" src="${BROKEN}" alt="Author box">
           <img id="good" src="${GOOD}" alt="successful">
-        </div>`, { waitUntil: "load" });
+        </div>`,
+          { waitUntil: "load" },
+        );
         await source.evaluate(() => document.fonts.ready);
         const expected = await source.screenshot();
-        const capture = await captureElementTreeWithWarnings(
-          source,
-          "#stage",
-          { x: 0, y: 0, width: WIDTH, height: HEIGHT },
-        );
+        const capture = await captureElementTreeWithWarnings(source, "#stage", {
+          x: 0,
+          y: 0,
+          width: WIDTH,
+          height: HEIGHT,
+        });
         expect(capture.warnings.filter(({ feature }) => feature === "broken-image-fallback")).toEqual([]);
         const images = flatten(capture.tree).filter((node) => node.tag === "img");
         expect(images).toHaveLength(11);
@@ -87,7 +96,9 @@ describeBrowser("hybrid broken-image fallback renderer (DM-2464)", () => {
         const visibleIcons = records.filter((record) => record.icon?.visible === true);
         const hiddenIcons = records.filter((record) => record.icon?.visible === false);
         expect(visibleIcons.length).toBeGreaterThan(5);
-        expect(visibleIcons.every((record) => record.icon?.raster?.source === "chromium-isolated-ua-shadow-icon-v1")).toBe(true);
+        expect(
+          visibleIcons.every((record) => record.icon?.raster?.source === "chromium-isolated-ua-shadow-icon-v1"),
+        ).toBe(true);
         expect(visibleIcons.every((record) => record.icon?.raster?.rgbaSha256.length === 64)).toBe(true);
         expect(visibleIcons.every((record) => record.icon?.raster?.pngSha256.length === 64)).toBe(true);
         const ltr = records.find((record) => record.source.resolvedText === "A😀 fallback")!;
@@ -112,9 +123,11 @@ describeBrowser("hybrid broken-image fallback renderer (DM-2464)", () => {
         expect(svg.match(/data-broken-image-text="vector"/g)).toHaveLength(vectorTextRecords.length);
         // The vertical record used to disappear at renderer dispatch because
         // its UA-shadow segments lacked per-character UAX #50 orientation.
-        expect(records.find((record) => record.source.resolvedText === "縦書き")?.text?.segments.every(
-          (segment) => segment.verticalOrientations != null,
-        )).toBe(true);
+        expect(
+          records
+            .find((record) => record.source.resolvedText === "縦書き")
+            ?.text?.segments.every((segment) => segment.verticalOrientations != null),
+        ).toBe(true);
         expect(svg).toContain('aria-label="Title fallback"');
         expect(svg).toContain('aria-hidden="true"');
         // The ordinary successful image remains independent of the icon
@@ -122,13 +135,17 @@ describeBrowser("hybrid broken-image fallback renderer (DM-2464)", () => {
         // `<use>` references, so ownership is asserted by the marker above.
         expect(svg).toContain(GOOD);
 
-        await generated.setContent(`<style>html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:white}</style>${svg}`);
+        await generated.setContent(
+          `<style>html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:white}</style>${svg}`,
+        );
         await generated.evaluate(() => document.fonts.ready);
         await generated.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
         const axSession = await generated.context().newCDPSession(generated);
         await axSession.send("Accessibility.enable");
         const axTree = await axSession.send("Accessibility.getFullAXTree");
-        const titleAx = axTree.nodes.filter((node) => node.role?.value === "image" && node.name?.value === "Title fallback");
+        const titleAx = axTree.nodes.filter(
+          (node) => node.role?.value === "image" && node.name?.value === "Title fallback",
+        );
         expect(titleAx).toHaveLength(1);
         const actual = await generated.screenshot();
         // Text outlines are independently shaped by Domotion, while every icon

@@ -53,11 +53,12 @@ export function shearPathCommands(cmds: PathCommand[], factor: number): PathComm
 export function skiaFakeBoldStrokeExtraPx(fontSizePx: number): number {
   const lowScale = 1 / 24;
   const highScale = 1 / 32;
-  const scale = fontSizePx <= 9
-    ? lowScale
-    : fontSizePx >= 36
-      ? highScale
-      : lowScale + ((fontSizePx - 9) / 27) * (highScale - lowScale);
+  const scale =
+    fontSizePx <= 9
+      ? lowScale
+      : fontSizePx >= 36
+        ? highScale
+        : lowScale + ((fontSizePx - 9) / 27) * (highScale - lowScale);
   return fontSizePx * scale;
 }
 
@@ -117,23 +118,22 @@ export function resolveFakeBoldTextPaint(opts: {
 }): FakeBoldTextPaintPlan {
   const platform = opts.platform ?? process.platform;
   const strokeActive = opts.strokeWidthPx > 0;
-  const extraPx = opts.faceLacksWeight
-    ? skiaFakeBoldStrokeExtraPx(opts.fontSizePx)
-    : 0;
+  const extraPx = opts.faceLacksWeight ? skiaFakeBoldStrokeExtraPx(opts.fontSizePx) : 0;
 
-  const fillStage: SkiaFakeBoldPaintStage = extraPx > 0
-    ? {
-        paint: "fill",
-        frameWidthPx: extraPx,
-        frameAndFill: true,
-        visible: !opts.fillIsTransparent,
-      }
-    : {
-        paint: "fill",
-        frameWidthPx: -1,
-        frameAndFill: false,
-        visible: !opts.fillIsTransparent,
-      };
+  const fillStage: SkiaFakeBoldPaintStage =
+    extraPx > 0
+      ? {
+          paint: "fill",
+          frameWidthPx: extraPx,
+          frameAndFill: true,
+          visible: !opts.fillIsTransparent,
+        }
+      : {
+          paint: "fill",
+          frameWidthPx: -1,
+          frameAndFill: false,
+          visible: !opts.fillIsTransparent,
+        };
   const strokeStage: SkiaFakeBoldPaintStage | null = strokeActive
     ? {
         paint: "stroke",
@@ -142,20 +142,19 @@ export function resolveFakeBoldTextPaint(opts: {
         visible: true,
       }
     : null;
-  const stages = strokeStage == null
-    ? [fillStage]
-    : opts.strokeFirst
-      ? [strokeStage, fillStage]
-      : [fillStage, strokeStage];
+  const stages =
+    strokeStage == null ? [fillStage] : opts.strokeFirst ? [strokeStage, fillStage] : [fillStage, strokeStage];
 
   let svgPasses: FakeBoldSvgPaintPass[];
   if (strokeStage == null) {
-    svgPasses = [{
-      kind: "combined",
-      fill: "source",
-      stroke: extraPx > 0 ? "source-fill" : "none",
-      strokeWidthPx: extraPx,
-    }];
+    svgPasses = [
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: extraPx > 0 ? "source-fill" : "none",
+        strokeWidthPx: extraPx,
+      },
+    ];
   } else if (opts.strokeFirst && fillStage.visible && extraPx > 0) {
     // Two colors remain visible, so preserve the two source passes verbatim.
     svgPasses = [
@@ -173,13 +172,15 @@ export function resolveFakeBoldTextPaint(opts: {
       },
     ];
   } else {
-    svgPasses = [{
-      kind: "combined",
-      fill: "source",
-      stroke: "author",
-      strokeWidthPx: strokeStage.frameWidthPx,
-      ...(opts.strokeFirst ? { paintOrder: "stroke fill" as const } : {}),
-    }];
+    svgPasses = [
+      {
+        kind: "combined",
+        fill: "source",
+        stroke: "author",
+        strokeWidthPx: strokeStage.frameWidthPx,
+        ...(opts.strokeFirst ? { paintOrder: "stroke fill" as const } : {}),
+      },
+    ];
   }
 
   return { outline: "source", platform, extraPx, stages, svgPasses };

@@ -21,9 +21,7 @@ describe("parseBoxShadow", () => {
   });
 
   it("recovers a trailing (non-functional) color token", () => {
-    expect(parseBoxShadow("2px 4px red")).toEqual([
-      { inset: false, x: 2, y: 4, blur: 0, spread: 0, color: "red" },
-    ]);
+    expect(parseBoxShadow("2px 4px red")).toEqual([{ inset: false, x: 2, y: 4, blur: 0, spread: 0, color: "red" }]);
   });
 
   it("defaults to currentcolor when no color is present", () => {

@@ -192,7 +192,10 @@ export interface CompareResult {
     area: number;
     maxSeverity: number;
     highSevFraction: number;
-    x: number; y: number; w: number; h: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
   }>;
 }
 
@@ -205,9 +208,7 @@ interface EvalDiffResult extends Omit<CompareResult, "verdict"> {
 }
 
 /** Node-side serialization stage for the browser analyzer's wire result. */
-export function finalizeEvalDiffResult(
-  result: EvalDiffResult,
-): { pngBytes: Buffer; metrics: CompareResult } {
+export function finalizeEvalDiffResult(result: EvalDiffResult): { pngBytes: Buffer; metrics: CompareResult } {
   const comma = result.diffDataUrl.indexOf(",");
   if (comma < 0) throw new Error("PNG comparison returned an invalid data URL");
   const { diffDataUrl: _diffDataUrl, ...rawMetrics } = result;
@@ -682,9 +683,7 @@ async function analyzeDifferentPngs(
   tilePx: number,
   significantDist: number,
 ): Promise<EvalDiffResult> {
-  const source = buildBrowserComparisonSource(
-    expectedBytes, actualBytes, tilePx, significantDist,
-  );
+  const source = buildBrowserComparisonSource(expectedBytes, actualBytes, tilePx, significantDist);
   return (await comparePage.evaluate(source)) as EvalDiffResult;
 }
 
@@ -697,9 +696,7 @@ async function compareDifferentPngs(
   tilePx: number = TILE_PX,
   significantDist: number = SIGNIFICANT_PIXEL_DIST,
 ): Promise<CompareResult> {
-  const result = await analyzeDifferentPngs(
-    comparePage, expectedBytes, actualBytes, tilePx, significantDist,
-  );
+  const result = await analyzeDifferentPngs(comparePage, expectedBytes, actualBytes, tilePx, significantDist);
 
   // Drop the data URL (written to disk below); every remaining field IS a
   // CompareResult metric, so the spread can't drift from the interface.
@@ -724,9 +721,7 @@ export async function comparePngs(
     copyFileSync(expectedPath, diffPath);
     return cleanCompareResult();
   }
-  return compareDifferentPngs(
-    comparePage, expectedBytes, actualBytes, diffPath, tilePx, significantDist,
-  );
+  return compareDifferentPngs(comparePage, expectedBytes, actualBytes, diffPath, tilePx, significantDist);
 }
 
 /** DM-715: pre-region pass criterion (every differing pixel must be classified
@@ -826,6 +821,5 @@ export const STRICT_CAPS = strictCapsFor(process.platform);
  *  `null` deliberately degrades the bar to plain `passes()`. */
 export function passesStrict(cmp: CompareResult, caps: StrictCaps | null = STRICT_CAPS): boolean {
   if (caps == null) return passes(cmp);
-  return cmp.strictMaxRegionArea <= caps.maxRegionArea
-    && cmp.strictRegionArea <= caps.totalRegionArea;
+  return cmp.strictMaxRegionArea <= caps.maxRegionArea && cmp.strictRegionArea <= caps.totalRegionArea;
 }

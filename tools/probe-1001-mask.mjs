@@ -48,13 +48,23 @@ const masked = await page.evaluate(() => {
     const wm = cs.webkitMaskImage;
     const mask = cs.mask;
     const wmask = cs.webkitMask;
-    if ((m && m !== "none") || (wm && wm !== "none") || (mask && !mask.startsWith("none")) || (wmask && !wmask.startsWith("none"))) {
+    if (
+      (m && m !== "none") ||
+      (wm && wm !== "none") ||
+      (mask && !mask.startsWith("none")) ||
+      (wmask && !wmask.startsWith("none"))
+    ) {
       const r = el.getBoundingClientRect();
-      const sel = el.tagName.toLowerCase() + (el.id ? "#" + el.id : "")
-        + (typeof el.className === "string" && el.className ? "." + el.className.split(" ").slice(0, 2).join(".") : "");
+      const sel =
+        el.tagName.toLowerCase() +
+        (el.id ? "#" + el.id : "") +
+        (typeof el.className === "string" && el.className ? "." + el.className.split(" ").slice(0, 2).join(".") : "");
       out.push({
         sel: sel.slice(0, 80),
-        x: r.x, y: r.y + window.scrollY, w: r.width, h: r.height,
+        x: r.x,
+        y: r.y + window.scrollY,
+        w: r.width,
+        h: r.height,
         maskImage: m || "",
         webkitMaskImage: wm || "",
         maskMode: cs.maskMode,
@@ -92,7 +102,9 @@ for (let sy = 0; sy < 7000; sy += 1500) {
       const m = cs.maskImage || cs.webkitMaskImage;
       if (m && m !== "none") {
         const r = el.getBoundingClientRect();
-        const sel = el.tagName.toLowerCase() + (typeof el.className === "string" && el.className ? "." + el.className.split(" ").slice(0, 2).join(".") : "");
+        const sel =
+          el.tagName.toLowerCase() +
+          (typeof el.className === "string" && el.className ? "." + el.className.split(" ").slice(0, 2).join(".") : "");
         out.push({ sel: sel.slice(0, 80), y: r.y + window.scrollY, w: r.width, h: r.height, m: m.slice(0, 150) });
       }
     }

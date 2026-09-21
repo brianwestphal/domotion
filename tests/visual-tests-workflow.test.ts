@@ -76,8 +76,8 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job, "test-macos job must exist").toBeDefined();
     expect(
       /macos-glyph-extractor/.test(job),
-      "test-macos runs the sweep without building tools/macos-glyph-extractor — the live CoreText "
-      + "fallback resolver will be OFF and font selection will not match the browser",
+      "test-macos runs the sweep without building tools/macos-glyph-extractor — the live CoreText " +
+        "fallback resolver will be OFF and font selection will not match the browser",
     ).toBe(true);
   });
 
@@ -95,8 +95,8 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job, "test-windows job must exist").toBeDefined();
     expect(
       /win32-glyph-extractor/.test(job),
-      "test-windows runs the sweep without building tools/win32-glyph-extractor — the live "
-      + "DirectWrite fallback resolver will be OFF",
+      "test-windows runs the sweep without building tools/win32-glyph-extractor — the live " +
+        "DirectWrite fallback resolver will be OFF",
     ).toBe(true);
   });
 
@@ -122,8 +122,8 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job, "test-linux job must exist").toBeDefined();
     expect(
       /linux-glyph-extractor/.test(job),
-      "test-linux runs the sweep without building tools/linux-glyph-extractor — the transcribed "
-      + "declared-family matcher will be inert and cut selection drops to the two-slot table",
+      "test-linux runs the sweep without building tools/linux-glyph-extractor — the transcribed " +
+        "declared-family matcher will be inert and cut selection drops to the two-slot table",
     ).toBe(true);
   });
 
@@ -163,7 +163,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       expect(job).toMatch(/matrix\.shard == 1/);
     }
     expect(jobs.aggregate).toContain("stage-evidence-*.json");
-    expect(jobs.aggregate).toContain('stage-evidence-$os.json');
+    expect(jobs.aggregate).toContain("stage-evidence-$os.json");
   });
 
   it("pins every upstream runtime used by the stage-evidence fingerprint", () => {
@@ -231,9 +231,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
 
     for (const { input, env } of AB_FLAGS) {
       it(`${env} has a workflow input and is wired into macOS, Linux and Windows`, () => {
-        expect(yaml, `missing workflow_dispatch input \`${input}\``).toMatch(
-          new RegExp(`^ {6}${input}:`, "m"),
-        );
+        expect(yaml, `missing workflow_dispatch input \`${input}\``).toMatch(new RegExp(`^ {6}${input}:`, "m"));
         for (const job of ["test-macos", "test-linux", "test-windows"]) {
           expect(
             jobs[job]?.includes(`${env}: \${{ inputs.${input} }}`),
@@ -248,11 +246,15 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       expect(linux).toContain("Install CFF validation face");
       expect(linux).toMatch(/if: inputs\.hinted_subset == '1'/);
       expect(linux).toMatch(/apt-get install[^\n]*fonts-stix/);
-      expect(linux).toMatch(/cp tests\/fixtures\/html-test-unicode\/cff-stix-math\.html external\/html-test\/unicode\//);
+      expect(linux).toMatch(
+        /cp tests\/fixtures\/html-test-unicode\/cff-stix-math\.html external\/html-test\/unicode\//,
+      );
     });
 
     it("labels the empty hinted-subset input as the default-on production arm", () => {
-      expect(yaml).toMatch(/hinted_subset:[\s\S]*?Empty\/1 = default hb-subset embedded path; 0 = svg2ttf control\.[\s\S]*?default: ''/);
+      expect(yaml).toMatch(
+        /hinted_subset:[\s\S]*?Empty\/1 = default hb-subset embedded path; 0 = svg2ttf control\.[\s\S]*?default: ["']{2}/,
+      );
     });
 
     it("every renderer DOMOTION_ env the workflow passes is dispatch-controlled, not a hardcoded arm", () => {
@@ -298,9 +300,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
 // directions: dropping the build step turns the gate green about code that is
 // not running, and there is no output difference that would say so.
 describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => {
-  const yaml = readFileSync(
-    resolve(__dirname, "..", ".github", "workflows", "test-linux.yml"), "utf-8",
-  );
+  const yaml = readFileSync(resolve(__dirname, "..", ".github", "workflows", "test-linux.yml"), "utf-8");
 
   const jobs = (() => {
     const out: Record<string, string> = {};
@@ -331,8 +331,9 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
     // against prose rather than a step.
     const run = job.search(/^\s+run: npm run demos:test/m);
     expect(
-      build, "the fidelity gate runs demos:test without building the helper — it would grade the "
-      + "degraded two-slot cut selection, not the transcribed fontconfig matcher",
+      build,
+      "the fidelity gate runs demos:test without building the helper — it would grade the " +
+        "degraded two-slot cut selection, not the transcribed fontconfig matcher",
     ).toBeGreaterThanOrEqual(0);
     expect(build, "the helper must be built before the suite runs").toBeLessThan(run);
   });

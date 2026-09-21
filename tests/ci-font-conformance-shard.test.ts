@@ -83,8 +83,9 @@ describe("the conformance shard script passes exactly the flags it was asked for
 
   it("selects an alternate stack corpus when one is named", () => {
     // How the synthetic sweep shares this script without a second copy of it.
-    expect(argsFor({ STACKS: "tools/font-conformance-stacks.synthetic.json" }))
-      .toContain("--stacks tools/font-conformance-stacks.synthetic.json");
+    expect(argsFor({ STACKS: "tools/font-conformance-stacks.synthetic.json" })).toContain(
+      "--stacks tools/font-conformance-stacks.synthetic.json",
+    );
     expect(argsFor({})).not.toContain("--stacks");
   });
 

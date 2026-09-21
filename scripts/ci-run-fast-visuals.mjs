@@ -33,7 +33,14 @@ for (const [suite, script] of suites) {
   const exitCode = run.status ?? 1;
   const error = run.error?.message;
   if (error != null) console.error(`FASTVISUAL ${suite} launch failed: ${error}`);
-  results.push({ suite, script, startedAt, completedAt: new Date().toISOString(), exitCode, ...(error != null ? { error } : {}) });
+  results.push({
+    suite,
+    script,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    exitCode,
+    ...(error != null ? { error } : {}),
+  });
 }
 
 const manifest = {
@@ -43,10 +50,7 @@ const manifest = {
   complete: results.every((result) => result.exitCode === 0),
   suites: results,
 };
-writeFileSync(
-  resolve(outputDir, "fast-visual-completeness.json"),
-  `${JSON.stringify(manifest, null, 2)}\n`,
-);
+writeFileSync(resolve(outputDir, "fast-visual-completeness.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
 for (const result of results) {
   console.log(`FASTVISUAL ${result.suite} exit=${result.exitCode}`);

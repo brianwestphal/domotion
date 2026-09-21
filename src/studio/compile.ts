@@ -2,16 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Browser } from "@playwright/test";
-import {
-  composeCompositeConfig,
-  type CompositeConfig,
-  type CompositeLayerConfig,
-} from "../cli/composite.js";
-import {
-  composeStoryboardConfig,
-  validateStoryboardConfig,
-  type StoryboardScene,
-} from "../cli/storyboard.js";
+import { composeCompositeConfig, type CompositeConfig, type CompositeLayerConfig } from "../cli/composite.js";
+import { composeStoryboardConfig, validateStoryboardConfig, type StoryboardScene } from "../cli/storyboard.js";
 import { loadStudioProject, validateStudioProject } from "./project.js";
 import type { StudioComposition, StudioProject } from "./project-schema.js";
 import { applyStudioTreatments, resolveStudioTreatmentPlan } from "./treatments.js";
@@ -57,11 +49,7 @@ async function materializeComposition(
       layers.push(layer.source);
       continue;
     }
-    const nestedSvg = await materializeComposition(
-      layer.composition,
-      `${path}.layers[${index}].composition`,
-      ctx,
-    );
+    const nestedSvg = await materializeComposition(layer.composition, `${path}.layers[${index}].composition`, ctx);
     layers.push({
       svg: writeIntermediateSvg(ctx, nestedSvg),
       ...(layer.placement ?? {}),
@@ -129,13 +117,20 @@ export async function compileStudioProjectWithSceneOverrides(
   const bySceneId = new Map(overrides.map((override) => [override.sceneId, override.recipe]));
   for (const override of overrides) {
     if (!project.scenes.some((scene) => scene.id === override.sceneId)) {
-      throw new StudioProjectCompileError("$.scenes", `generated recipe references unknown scene id "${override.sceneId}"`);
+      throw new StudioProjectCompileError(
+        "$.scenes",
+        `generated recipe references unknown scene id "${override.sceneId}"`,
+      );
     }
   }
   project.scenes.forEach((scene, sceneIndex) => {
-    const active = (scene.tracks ?? []).some((track) => track.events.length > 0) || (scene.scriptHooks?.length ?? 0) > 0;
+    const active =
+      (scene.tracks ?? []).some((track) => track.events.length > 0) || (scene.scriptHooks?.length ?? 0) > 0;
     if (active && !bySceneId.has(scene.id)) {
-      throw new StudioProjectCompileError(`$.scenes[${sceneIndex}]`, `active scene "${scene.id}" has no generated recipe override`);
+      throw new StudioProjectCompileError(
+        `$.scenes[${sceneIndex}]`,
+        `active scene "${scene.id}" has no generated recipe override`,
+      );
     }
   });
   return compileValidatedStudioProject(browser, project, overrides, options);
@@ -186,12 +181,17 @@ async function compileValidatedStudioProject(
         const visual = scene.treatments!.filter((treatment) => treatment.kind !== "scene-transition");
         if (visual.length > 0) {
           log(`Rendering ${scene.id} before applying ${visual.length} cinematic treatment(s)…`);
-          const isolated = await composeStoryboardConfig(browser, {
-            width: project.canvas.width,
-            height: project.canvas.height,
-            ...(project.canvas.background != null ? { background: project.canvas.background } : {}),
-            scenes: [{ ...recipe, transition: { type: "cut", duration: 0 } }],
-          }, projectDir, log);
+          const isolated = await composeStoryboardConfig(
+            browser,
+            {
+              width: project.canvas.width,
+              height: project.canvas.height,
+              ...(project.canvas.background != null ? { background: project.canvas.background } : {}),
+              scenes: [{ ...recipe, transition: { type: "cut", duration: 0 } }],
+            },
+            projectDir,
+            log,
+          );
           const treated = applyStudioTreatments(isolated, visual, {
             width: project.canvas.width,
             height: project.canvas.height,
@@ -202,7 +202,9 @@ async function compileValidatedStudioProject(
             svg: writeIntermediateSvg(ctx, treated.svg),
             ...(recipe.duration != null ? { duration: recipe.duration } : {}),
             fit: "contain",
-            ...(plan.transition != null || recipe.transition != null ? { transition: plan.transition ?? recipe.transition } : {}),
+            ...(plan.transition != null || recipe.transition != null
+              ? { transition: plan.transition ?? recipe.transition }
+              : {}),
           };
         } else if (plan.transition != null) {
           recipe = { ...recipe, transition: plan.transition };

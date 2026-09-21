@@ -3,11 +3,21 @@ id: "requirements/studio-unified-review-annotations"
 title: "Domotion Studio unified human and AI review annotations"
 kind: "contract"
 status: "current"
-owners: ["studio","review","ai"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "review", "ai"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2690"]
-code: ["src/studio/annotations.ts","src/studio/annotations.test.ts","src/studio/project-schema.ts","src/studio/client.tsx","src/studio/server.ts","src/studio/server.e2e.test.ts","src/studio/video-review.ts","src/utils/regions-parser.ts"]
-aliases: ["docs/248-studio-unified-review-annotations.md","doc-248"]
+code:
+  [
+    "src/studio/annotations.ts",
+    "src/studio/annotations.test.ts",
+    "src/studio/project-schema.ts",
+    "src/studio/client.tsx",
+    "src/studio/server.ts",
+    "src/studio/server.e2e.test.ts",
+    "src/studio/video-review.ts",
+    "src/utils/regions-parser.ts",
+  ]
+aliases: ["docs/248-studio-unified-review-annotations.md", "doc-248"]
 ---
 
 # Domotion Studio unified human and AI review annotations

@@ -3,11 +3,18 @@ id: "requirements/studio-interaction-observation"
 title: "Domotion Studio proactive interaction observation"
 kind: "contract"
 status: "current"
-owners: ["studio","capture"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2684","DM-2698"]
-code: ["src/studio/interaction-observer.ts","src/studio/interaction-observer.e2e.test.ts","src/studio/interactions.ts","src/cli/hover-detect.ts","src/cli/mutation-detect.ts"]
-aliases: ["docs/243-studio-interaction-observation.md","doc-243"]
+owners: ["studio", "capture"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2684", "DM-2698"]
+code:
+  [
+    "src/studio/interaction-observer.ts",
+    "src/studio/interaction-observer.e2e.test.ts",
+    "src/studio/interactions.ts",
+    "src/cli/hover-detect.ts",
+    "src/cli/mutation-detect.ts",
+  ]
+aliases: ["docs/243-studio-interaction-observation.md", "doc-243"]
 ---
 
 # Domotion Studio proactive interaction observation

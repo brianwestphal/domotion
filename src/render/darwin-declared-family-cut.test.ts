@@ -20,14 +20,11 @@
 // the reported array is not ordered by coverage).
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import {
-  getFontInstance, resolveFont, resolveFontKey, __resolveFontSpecForTest,
-} from "./font-resolution.js";
+import { getFontInstance, resolveFont, resolveFontKey, __resolveFontSpecForTest } from "./font-resolution.js";
 import { isGlyphHelperAvailable } from "./glyph-helper.js";
 
-const available = process.platform === "darwin"
-  && existsSync("/System/Library/Fonts/Helvetica.ttc")
-  && isGlyphHelperAvailable();
+const available =
+  process.platform === "darwin" && existsSync("/System/Library/Fonts/Helvetica.ttc") && isGlyphHelperAvailable();
 const describeMac = available ? describe : describe.skip;
 
 const psName = (key: string, weight: number, slant = 0): string | undefined =>
@@ -72,9 +69,15 @@ describeMac("declared-family cut selection in the render path", () => {
 
   it("reaches all seven Hiragino Sans cuts, which two slots cannot represent", () => {
     const ladder: Array<[number, string]> = [
-      [100, "HiraginoSans-W0"], [200, "HiraginoSans-W1"], [300, "HiraginoSans-W3"],
-      [400, "HiraginoSans-W4"], [500, "HiraginoSans-W5"], [600, "HiraginoSans-W6"],
-      [700, "HiraginoSans-W7"], [800, "HiraginoSans-W8"], [900, "HiraginoSans-W9"],
+      [100, "HiraginoSans-W0"],
+      [200, "HiraginoSans-W1"],
+      [300, "HiraginoSans-W3"],
+      [400, "HiraginoSans-W4"],
+      [500, "HiraginoSans-W5"],
+      [600, "HiraginoSans-W6"],
+      [700, "HiraginoSans-W7"],
+      [800, "HiraginoSans-W8"],
+      [900, "HiraginoSans-W9"],
     ];
     for (const [w, expected] of ladder) expect(psName("hiragino-jp", w), `weight ${w}`).toBe(expected);
   });
@@ -121,8 +124,12 @@ describeMac("declared-family cut selection in the render path", () => {
     // area has already paid for twice.
     const seq = [700, 100, 700, 400, 100, 500, 400];
     const want = [
-      "PingFangSC-Semibold", "PingFangSC-Ultralight", "PingFangSC-Semibold",
-      "PingFangSC-Regular", "PingFangSC-Ultralight", "PingFangSC-Medium",
+      "PingFangSC-Semibold",
+      "PingFangSC-Ultralight",
+      "PingFangSC-Semibold",
+      "PingFangSC-Regular",
+      "PingFangSC-Ultralight",
+      "PingFangSC-Medium",
       "PingFangSC-Regular",
     ];
     const key = resolveFontKey('"PingFang SC"');
@@ -156,10 +163,24 @@ describeMac("declared-family cut selection in the render path", () => {
     // Without this, adding a family to `matchFamilyNameToKey` would silently
     // opt it out of style matching.
     const names = [
-      "sans-serif", "serif", "monospace", "cursive", "fantasy",
-      "helvetica", "arial", "times", "times new roman", "georgia",
-      "courier", "menlo", "monaco", "helvetica neue", "papyrus",
-      "snell roundhand", "apple chancery", "hiragino sans",
+      "sans-serif",
+      "serif",
+      "monospace",
+      "cursive",
+      "fantasy",
+      "helvetica",
+      "arial",
+      "times",
+      "times new roman",
+      "georgia",
+      "courier",
+      "menlo",
+      "monaco",
+      "helvetica neue",
+      "papyrus",
+      "snell roundhand",
+      "apple chancery",
+      "hiragino sans",
     ];
     for (const name of names) {
       const key = resolveFontKey(name);

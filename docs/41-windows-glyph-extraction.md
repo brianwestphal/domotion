@@ -3,11 +3,17 @@ id: "requirements/windows-glyph-extraction"
 title: "Domotion: Windows native glyph-outline extraction (DirectWrite)"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1035","DM-1721","DM-2056","DM-2403","DM-260","DM-389","DM-390","DM-391","DM-837"]
-code: ["src/render/glyph-helper.ts","tests/win32-glyph-extractor.test.ts","tools/win32-glyph-extractor/","tools/win32-glyph-extractor/build.ps1"]
-aliases: ["docs/41-windows-glyph-extraction.md","doc-41"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-1035", "DM-1721", "DM-2056", "DM-2403", "DM-260", "DM-389", "DM-390", "DM-391", "DM-837"]
+code:
+  [
+    "src/render/glyph-helper.ts",
+    "tests/win32-glyph-extractor.test.ts",
+    "tools/win32-glyph-extractor/",
+    "tools/win32-glyph-extractor/build.ps1",
+  ]
+aliases: ["docs/41-windows-glyph-extraction.md", "doc-41"]
 ---
 
 # Domotion: Windows native glyph-outline extraction (DirectWrite)
@@ -100,8 +106,8 @@ Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
    A returned index of `0` is `.notdef` → emit an empty path (parity with the
    CoreText "missing glyph → empty `d`" rule).
 4. **Outline extraction.** `fontFace->GetGlyphRunOutline(emSize, glyphIndices,
-   nullptr /*advances*/, nullptr /*offsets*/, count, isSideways=FALSE,
-   isRtl=FALSE, geometrySink)` where `emSize` is the face's units-per-em so the
+nullptr /*advances*/, nullptr /*offsets*/, count, isSideways=FALSE,
+isRtl=FALSE, geometrySink)` where `emSize` is the face's units-per-em so the
    result stays in design-unit space. The custom sink (below) records the path
    commands.
 5. **Selected-glyph paint ownership (DM-2403).** For a color-capable selected
@@ -115,7 +121,7 @@ Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
    can expose a monochrome base outline for a COLR glyph, but Skia selects the
    color paint first and marks the path as never requested.
 6. **Advances + bbox.** `fontFace->GetDesignGlyphMetrics(glyphIndices, count,
-   metrics)` → scale `advanceWidth` by `emSize / unitsPerEm`. Derive bbox from
+metrics)` → scale `advanceWidth` by `emSize / unitsPerEm`. Derive bbox from
    the sink's accumulated min/max, or from `GetDesignGlyphMetrics`'
    `leftSideBearing` / `topSideBearing` / `advanceHeight` scaled to px.
 7. **Meta query.** `IDWriteFontMetrics` (via
@@ -138,13 +144,13 @@ Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
 `IDWriteGeometrySink` is `ID2D1SimplifiedGeometrySink`. Implement a minimal
 sink class that translates the callbacks into SVG path-data:
 
-| Sink callback | SVG emitted |
-| --- | --- |
-| `BeginFigure(startPoint, …)` | `M {x} {y}` |
-| `AddLines(points[], n)` | `L {x} {y}` per point |
-| `AddBeziers(beziers[], n)` | `C {c1x} {c1y} {c2x} {c2y} {x} {y}` per segment |
-| `EndFigure(FIGURE_END_CLOSED)` | `Z` |
-| `SetFillMode` / `SetSegmentFlags` | (record fill mode; outlines use nonzero) |
+| Sink callback                     | SVG emitted                                     |
+| --------------------------------- | ----------------------------------------------- |
+| `BeginFigure(startPoint, …)`      | `M {x} {y}`                                     |
+| `AddLines(points[], n)`           | `L {x} {y}` per point                           |
+| `AddBeziers(beziers[], n)`        | `C {c1x} {c1y} {c2x} {c2y} {x} {y}` per segment |
+| `EndFigure(FIGURE_END_CLOSED)`    | `Z`                                             |
+| `SetFillMode` / `SetSegmentFlags` | (record fill mode; outlines use nonzero)        |
 
 DirectWrite emits **cubic** Béziers only (no quadratics) via `AddBeziers` —
 TrueType quadratics are already elevated to cubics by `GetGlyphRunOutline`. So
@@ -152,14 +158,14 @@ unlike the CoreText helper (which sees quads and emits `Q`), the Windows helper
 emits `C` for all curves. This is fine: the downstream SVG `<path>` consumer
 handles both, and the dedup cache keys on the emitted string.
 
-### Coordinate system *(as built — DM-837)*
+### Coordinate system _(as built — DM-837)_
 
 The renderer consumes outlines in **fontkit's convention: design units, y-up**
 (it applies `scale(fontSize/unitsPerEm, -…)` to flip to SVG y-down at draw time).
 The macOS and Linux helpers emit that directly because CoreText and FreeType are
 natively y-up. **DirectWrite is the exception:** `GetGlyphRunOutline` emits
 Direct2D screen-space geometry, which is y-**down**. So this helper **negates y**
-on every emitted coordinate to reach the y-up convention — the *opposite* of
+on every emitted coordinate to reach the y-up convention — the _opposite_ of
 "the same flip CoreText applies" (CoreText does no flip). The sign is pinned by
 the `H` parity test (`tests/win32-glyph-extractor.test.ts`), which asserts the
 cap-height bbox lands above the baseline and matches fontkit; treat the negation
@@ -174,12 +180,13 @@ request is accepted for envelope compatibility but does not rescale the outline.
 Emit all numbers at fixed 3-decimal precision for deterministic, dedup-friendly
 output (parity with the other helpers).
 
-### Persistent `--serve` mode *(DM-1035)*
+### Persistent `--serve` mode _(DM-1035)_
 
 By default the helper is one-shot: read one JSON request envelope from stdin (or
 `--input <path>`), write one JSON response to stdout, exit. Spawning the binary
 fresh per call pays a fixed cost each time — process spawn + `DWriteCreateFactory`
-+ `CreateFontFace` — which dominates when a render issues many helper round-trips.
+
+- `CreateFontFace` — which dominates when a render issues many helper round-trips.
 
 `--serve` amortizes that cost exactly as the macOS CoreText and Linux FreeType
 serve modes do (the protocol is platform-neutral):
@@ -325,7 +332,7 @@ a cert is provisioned.
   via DirectWrite's own mapping"; that was a ridge-fit artifact — one width
   measurement can't distinguish a nearby SEGUIVAR instance from Times — so
   do NOT add a typographic-model (`DWRITE_FONT_FAMILY_MODEL_TYPOGRAPHIC`)
-  fallback to `runFamilyQuery`: resolving the bare name would *diverge* from
+  fallback to `runFamilyQuery`: resolving the bare name would _diverge_ from
   Chrome.
 - ✅ **Helper written + CI wired** (DM-837): `tools/win32-glyph-extractor/`
   (`src/main.cpp` + `CMakeLists.txt` + `build.ps1` + `README.md`; the JSON
@@ -345,7 +352,7 @@ a cert is provisioned.
   `GetInformationalStrings(POSTSCRIPT_NAME)`, and the DirectWrite-3 variation path.
 - ⏳ **Remaining:** Windows Authenticode signing in CI (pending a cert — open
   question 1); arm64 asset (open question 2). (The JS-side dispatch that
-  *invokes* the helper is already wired — `src/render/glyph-helper.ts` is fully
+  _invokes_ the helper is already wired — `src/render/glyph-helper.ts` is fully
   platform-aware: `HELPER_BINARIES` includes `win32` and `resolveHelperPath` /
   `isGlyphHelperAvailable` / `startPersistent` dispatch by `process.platform`
   with no darwin gate. See the DM-1035 ✅ item below.)

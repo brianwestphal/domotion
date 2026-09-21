@@ -79,21 +79,27 @@ export interface BorderPhaseEnvelope {
   sourcePins: typeof BORDER_PHASE_SOURCE_PINS;
   requiredScenarioIds: string[];
   unratifiedFamilies: string[];
-  platforms: Record<string, {
-    fingerprint: RunnerFingerprint;
-    evidence: {
-      workflowRuns: number[];
-      repeatedArtifactSetSha256: string[];
-    };
-    scenarios: Record<string, {
-      edgeCeilingCssPx: number;
-      profileRmseCeiling: number;
-      observedWorstEdge: number;
-      observedWorstRmse: number;
-      repeatedMaxEdgeDelta: number;
-      repeatedMaxRmseDelta: number;
-    }>;
-  }>;
+  platforms: Record<
+    string,
+    {
+      fingerprint: RunnerFingerprint;
+      evidence: {
+        workflowRuns: number[];
+        repeatedArtifactSetSha256: string[];
+      };
+      scenarios: Record<
+        string,
+        {
+          edgeCeilingCssPx: number;
+          profileRmseCeiling: number;
+          observedWorstEdge: number;
+          observedWorstRmse: number;
+          repeatedMaxEdgeDelta: number;
+          repeatedMaxRmseDelta: number;
+        }
+      >;
+    }
+  >;
 }
 
 export interface RunEnvironment extends RunnerFingerprint {
@@ -121,22 +127,26 @@ export interface BorderPhaseAdjudication {
   }>;
 }
 
-const sha256 = (value: Buffer | string): string =>
-  createHash("sha256").update(value).digest("hex");
+const sha256 = (value: Buffer | string): string => createHash("sha256").update(value).digest("hex");
 
-const stableArtifactSetHash = (scenario: ScenarioReport): string => sha256([
-  scenario.scenario.id,
-  scenario.artifacts.htmlPngSha256,
-  scenario.artifacts.svgSha256,
-  scenario.artifacts.svgPngSha256,
-].join("\n"));
+const stableArtifactSetHash = (scenario: ScenarioReport): string =>
+  sha256(
+    [
+      scenario.scenario.id,
+      scenario.artifacts.htmlPngSha256,
+      scenario.artifacts.svgSha256,
+      scenario.artifacts.svgPngSha256,
+    ].join("\n"),
+  );
 
 export function artifactSetFingerprint(report: BorderPhaseReport): string {
-  return sha256(report.scenarios
-    .slice()
-    .sort((a, b) => a.scenario.id.localeCompare(b.scenario.id))
-    .map(stableArtifactSetHash)
-    .join("\n"));
+  return sha256(
+    report.scenarios
+      .slice()
+      .sort((a, b) => a.scenario.id.localeCompare(b.scenario.id))
+      .map(stableArtifactSetHash)
+      .join("\n"),
+  );
 }
 
 function compareFingerprint(
@@ -169,11 +179,7 @@ function compareReportFingerprint(
   }
 }
 
-function verifyArtifactHashes(
-  scenario: ScenarioReport,
-  artifactDir: string,
-  findings: string[],
-): void {
+function verifyArtifactHashes(scenario: ScenarioReport, artifactDir: string, findings: string[]): void {
   const dir = join(artifactDir, scenario.scenario.id);
   const entries = [
     ["html.png", scenario.artifacts.htmlPngSha256],
@@ -187,8 +193,7 @@ function verifyArtifactHashes(
       continue;
     }
     const actual = sha256(readFileSync(path));
-    if (actual !== expected)
-      findings.push(`${scenario.scenario.id} ${name} hash mismatch`);
+    if (actual !== expected) findings.push(`${scenario.scenario.id} ${name} hash mismatch`);
   }
 }
 
@@ -202,10 +207,11 @@ export function adjudicateBorderPhaseReport(
   const platformBaseline = baseline.platforms[report.meta.platform];
   if (report.schemaVersion !== 2) findings.push(`report schema ${report.schemaVersion} != 2`);
   if (baseline.schemaVersion !== 1) findings.push(`baseline schema ${baseline.schemaVersion} != 1`);
-  if (report.corpusFingerprint !== baseline.corpusFingerprint)
-    findings.push("corpus fingerprint drift");
-  if (JSON.stringify(report.sourcePins) !== JSON.stringify(baseline.sourcePins)
-      || JSON.stringify(report.sourcePins) !== JSON.stringify(BORDER_PHASE_SOURCE_PINS))
+  if (report.corpusFingerprint !== baseline.corpusFingerprint) findings.push("corpus fingerprint drift");
+  if (
+    JSON.stringify(report.sourcePins) !== JSON.stringify(baseline.sourcePins) ||
+    JSON.stringify(report.sourcePins) !== JSON.stringify(BORDER_PHASE_SOURCE_PINS)
+  )
     findings.push("upstream source pin drift");
   if (platformBaseline == null) findings.push(`no ratified platform ${report.meta.platform}`);
 
@@ -213,9 +219,11 @@ export function adjudicateBorderPhaseReport(
     compareReportFingerprint(platformBaseline.fingerprint, report.meta, findings);
     if (runEnvironment == null) findings.push("missing runner fingerprint");
     else compareFingerprint(platformBaseline.fingerprint, runEnvironment, "runner", findings);
-    if (platformBaseline.evidence.workflowRuns.length < 2
-        || platformBaseline.evidence.repeatedArtifactSetSha256.length < 2
-        || new Set(platformBaseline.evidence.repeatedArtifactSetSha256).size !== 1)
+    if (
+      platformBaseline.evidence.workflowRuns.length < 2 ||
+      platformBaseline.evidence.repeatedArtifactSetSha256.length < 2 ||
+      new Set(platformBaseline.evidence.repeatedArtifactSetSha256).size !== 1
+    )
       findings.push(`${report.meta.platform} baseline lacks repeated stable artifact evidence`);
   }
 
@@ -262,8 +270,7 @@ export function adjudicateBorderPhaseReport(
       if (expected == null) continue;
       const exactFields = ["kind", "style", "width", "phase", "x", "y", "boxWidth", "boxHeight"] as const;
       for (const field of exactFields) {
-        if (row[field] !== expected[field])
-          findings.push(`${id}/${row.id} ${field} corpus drift`);
+        if (row[field] !== expected[field]) findings.push(`${id}/${row.id} ${field} corpus drift`);
       }
       if (Math.abs(row.nominalCenter - expected.nominalCenter * expectedScenario.zoom) > 1e-12)
         findings.push(`${id}/${row.id} nominalCenter corpus drift`);
@@ -275,19 +282,29 @@ export function adjudicateBorderPhaseReport(
     unratifiedRows += unratified.length;
     if (sourceExact.length !== 128 || unratified.length !== 0)
       findings.push(`${id} ownership split ${sourceExact.length}/${unratified.length} != 128/0`);
-    if (scenario.geometryOwnership.ratifiedRows !== sourceExact.length
-        || scenario.geometryOwnership.unratifiedRows !== unratified.length
-        || JSON.stringify(scenario.geometryOwnership.unratifiedFamilies) !== JSON.stringify([]))
+    if (
+      scenario.geometryOwnership.ratifiedRows !== sourceExact.length ||
+      scenario.geometryOwnership.unratifiedRows !== unratified.length ||
+      JSON.stringify(scenario.geometryOwnership.unratifiedFamilies) !== JSON.stringify([])
+    )
       findings.push(`${id} serialized geometry ownership drift`);
-    if (scenario.geometry.htmlSnapFits[0]?.rule !== "css-edge-round"
-        || scenario.geometry.svgSnapFits[0]?.rule !== "css-edge-round")
+    if (
+      scenario.geometry.htmlSnapFits[0]?.rule !== "css-edge-round" ||
+      scenario.geometry.svgSnapFits[0]?.rule !== "css-edge-round"
+    )
       findings.push(`${id} no longer selects Blink CSS-edge snapping in both arms`);
 
-    const invalidMetrics = sourceExact.filter((row) => !Number.isFinite(row.outerError)
-      || !Number.isFinite(row.innerError) || !Number.isFinite(row.centerError)
-      || !Number.isFinite(row.profileRmse));
+    const invalidMetrics = sourceExact.filter(
+      (row) =>
+        !Number.isFinite(row.outerError) ||
+        !Number.isFinite(row.innerError) ||
+        !Number.isFinite(row.centerError) ||
+        !Number.isFinite(row.profileRmse),
+    );
     if (invalidMetrics.length !== 0)
-      findings.push(`${id} has non-finite ratified metrics: ${invalidMetrics.map(({ id: rowId }) => rowId).join(", ")}`);
+      findings.push(
+        `${id} has non-finite ratified metrics: ${invalidMetrics.map(({ id: rowId }) => rowId).join(", ")}`,
+      );
     const worstEdge = Math.max(...sourceExact.flatMap((row) => [row.outerError, row.innerError]));
     const worstRmse = Math.max(...sourceExact.map((row) => row.profileRmse));
     const edgeCeiling = envelope?.edgeCeilingCssPx ?? 0;
@@ -298,8 +315,10 @@ export function adjudicateBorderPhaseReport(
       findings.push(`${id} ratified profile ${worstRmse} > ${rmseCeiling}`);
     if (scenario.ratifiedPaintResiduals.failed.length !== 0)
       findings.push(`${id} producer reports ratified failures: ${scenario.ratifiedPaintResiduals.failed.join(", ")}`);
-    if (Math.abs(scenario.ratifiedPaintResiduals.worstEdge - worstEdge) > 1e-12
-        || Math.abs(scenario.ratifiedPaintResiduals.worstRmse - worstRmse) > 1e-12)
+    if (
+      Math.abs(scenario.ratifiedPaintResiduals.worstEdge - worstEdge) > 1e-12 ||
+      Math.abs(scenario.ratifiedPaintResiduals.worstRmse - worstRmse) > 1e-12
+    )
       findings.push(`${id} ratified summary does not match row evidence`);
     if (artifactDir != null) verifyArtifactHashes(scenario, artifactDir, findings);
     scenarioResults.push({
@@ -313,8 +332,7 @@ export function adjudicateBorderPhaseReport(
       pass: findings.length === scenarioFindingsBefore,
     });
   }
-  for (const id of reportById.keys())
-    if (!requiredScenarioIds.includes(id)) findings.push(`unexpected scenario ${id}`);
+  for (const id of reportById.keys()) if (!requiredScenarioIds.includes(id)) findings.push(`unexpected scenario ${id}`);
 
   return {
     schemaVersion: 1,
@@ -355,6 +373,10 @@ function main(): number {
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try { process.exitCode = main(); }
-  catch (error: unknown) { console.error(error); process.exitCode = 2; }
+  try {
+    process.exitCode = main();
+  } catch (error: unknown) {
+    console.error(error);
+    process.exitCode = 2;
+  }
 }

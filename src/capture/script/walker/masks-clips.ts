@@ -64,7 +64,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   // capture maps by the same deterministic scope carried by each consumer.
   const fragmentTarget = (el, id) => {
     const root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
-    if (root != null && typeof root.getElementById === 'function') {
+    if (root != null && typeof root.getElementById === "function") {
       return root.getElementById(id);
     }
     return (el.ownerDocument || document).getElementById(id);
@@ -76,31 +76,66 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   // and resource containers nested under <defs> remain dormant until an
   // actual edge reaches them. Capture that graph before cloning any markup.
   const svgResourceTags = new Set([
-    'clippath', 'filter', 'lineargradient', 'marker', 'mask', 'pattern',
-    'radialgradient', 'symbol',
+    "clippath",
+    "filter",
+    "lineargradient",
+    "marker",
+    "mask",
+    "pattern",
+    "radialgradient",
+    "symbol",
   ]);
   const svgPaintProperties = [
-    'color', 'display', 'visibility', 'opacity',
-    'fill', 'fill-opacity', 'fill-rule',
-    'stroke', 'stroke-opacity', 'stroke-width', 'stroke-dasharray',
-    'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
-    'paint-order', 'marker-start', 'marker-mid', 'marker-end',
-    'clip-path', 'filter',
-    'mask-image', 'mask-origin', 'mask-clip', 'mask-position', 'mask-size',
-    'mask-repeat', 'mask-composite', 'mask-mode', 'mask-type',
-    'stop-color', 'stop-opacity', 'flood-color', 'flood-opacity',
-    'lighting-color', 'color-interpolation', 'color-interpolation-filters',
-    'vector-effect', 'shape-rendering', 'mix-blend-mode',
+    "color",
+    "display",
+    "visibility",
+    "opacity",
+    "fill",
+    "fill-opacity",
+    "fill-rule",
+    "stroke",
+    "stroke-opacity",
+    "stroke-width",
+    "stroke-dasharray",
+    "stroke-dashoffset",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-miterlimit",
+    "paint-order",
+    "marker-start",
+    "marker-mid",
+    "marker-end",
+    "clip-path",
+    "filter",
+    "mask-image",
+    "mask-origin",
+    "mask-clip",
+    "mask-position",
+    "mask-size",
+    "mask-repeat",
+    "mask-composite",
+    "mask-mode",
+    "mask-type",
+    "stop-color",
+    "stop-opacity",
+    "flood-color",
+    "flood-opacity",
+    "lighting-color",
+    "color-interpolation",
+    "color-interpolation-filters",
+    "vector-effect",
+    "shape-rendering",
+    "mix-blend-mode",
   ];
   const documentUrlWithoutFragment = (source) => {
     const doc = source.ownerDocument || document;
-    const href = String(doc.URL || doc.baseURI || '');
-    const hash = href.indexOf('#');
+    const href = String(doc.URL || doc.baseURI || "");
+    const hash = href.indexOf("#");
     return hash < 0 ? href : href.slice(0, hash);
   };
   const buildFragmentDependencyGraph = (rootTarget, sel, property) => {
-    const svgNs = 'http://www.w3.org/2000/svg';
-    const xlinkNs = 'http://www.w3.org/1999/xlink';
+    const svgNs = "http://www.w3.org/2000/svg";
+    const xlinkNs = "http://www.w3.org/1999/xlink";
     const nodes = [];
     const sourceByNode = [];
     const nodeBySource = new Map();
@@ -108,19 +143,19 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     const plansBySource = new Map();
     const queue = [];
     let refSequence = 0;
-    let failure = '';
+    let failure = "";
 
     const ensureNode = (target) => {
       const existing = nodeBySource.get(target);
       if (existing != null) return existing;
-      const id = target.getAttribute && target.getAttribute('id');
-      if (target.namespaceURI !== svgNs || id == null || id === '') return null;
+      const id = target.getAttribute && target.getAttribute("id");
+      if (target.namespaceURI !== svgNs || id == null || id === "") return null;
       const index = nodes.length;
       nodes.push({
         id,
         scope: referenceScopeFor(target),
-        tagName: (target.localName || '').toLowerCase(),
-        serialization: index === 0 ? 'root' : 'dependency',
+        tagName: (target.localName || "").toLowerCase(),
+        serialization: index === 0 ? "root" : "dependency",
       });
       sourceByNode.push(target);
       nodeBySource.set(target, index);
@@ -136,8 +171,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         source.baseURI || (source.ownerDocument && source.ownerDocument.baseURI),
         documentUrlWithoutFragment(source),
       );
-      if (classified.status === 'safe') return null;
-      const token = '__domotion_fragment_ref_' + (refSequence++) + '__';
+      if (classified.status === "safe") return null;
+      const token = "__domotion_fragment_ref_" + refSequence++ + "__";
       const scope = referenceScopeFor(source);
       const edge = {
         from,
@@ -145,20 +180,20 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         kind,
         token,
         target: classified.target || raw,
-        status: 'external',
+        status: "external",
       };
-      if (classified.status === 'local') {
+      if (classified.status === "local") {
         const target = fragmentTarget(source, classified.target);
         if (target == null || target.namespaceURI !== svgNs) {
-          edge.status = 'missing';
+          edge.status = "missing";
         } else if (!target.isConnected || target.getRootNode() !== source.getRootNode()) {
-          edge.status = 'stale';
+          edge.status = "stale";
         } else {
           const targetIndex = ensureNode(target);
           if (targetIndex == null || nodes[targetIndex].scope !== scope) {
-            edge.status = 'stale';
+            edge.status = "stale";
           } else {
-            edge.status = 'resolved';
+            edge.status = "resolved";
             edge.to = targetIndex;
           }
         }
@@ -170,12 +205,12 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       return token;
     };
     const scanUrls = (source, from, surface, value) => {
-      replaceCssUrls(value, (raw) => addPlan(source, from, surface, 'url', raw));
+      replaceCssUrls(value, (raw) => addPlan(source, from, surface, "url", raw));
     };
     const hasDefsAncestorBefore = (node, target) => {
       let current = node.parentElement;
       while (current != null && current !== target) {
-        if ((current.localName || '').toLowerCase() === 'defs') return true;
+        if ((current.localName || "").toLowerCase() === "defs") return true;
         current = current.parentElement;
       }
       return false;
@@ -186,23 +221,23 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         if (source !== target) {
           const knownNode = nodeBySource.get(source);
           if (knownNode != null && knownNode !== index) return;
-          const tag = (source.localName || '').toLowerCase();
-          if (tag === 'defs' || hasDefsAncestorBefore(source, target) || svgResourceTags.has(tag)) return;
+          const tag = (source.localName || "").toLowerCase();
+          if (tag === "defs" || hasDefsAncestorBefore(source, target) || svgResourceTags.has(tag)) return;
         }
         if (source.namespaceURI !== svgNs) return;
-        const href = source.getAttribute('href') || source.getAttributeNS(xlinkNs, 'href') || '';
-        if (href !== '') addPlan(source, index, 'href', 'href', href);
+        const href = source.getAttribute("href") || source.getAttributeNS(xlinkNs, "href") || "";
+        if (href !== "") addPlan(source, index, "href", "href", href);
         for (const attr of Array.from(source.attributes || [])) {
-          const name = String(attr.name || '').toLowerCase();
-          if (name === 'style' || name === 'href' || name === 'xlink:href') continue;
-          if (/url\(/i.test(attr.value)) scanUrls(source, index, 'attr:' + attr.name, attr.value);
+          const name = String(attr.name || "").toLowerCase();
+          if (name === "style" || name === "href" || name === "xlink:href") continue;
+          if (/url\(/i.test(attr.value)) scanUrls(source, index, "attr:" + attr.name, attr.value);
         }
         const view = source.ownerDocument && source.ownerDocument.defaultView;
         const computed = view != null ? view.getComputedStyle(source) : null;
         if (computed != null) {
           for (const prop of svgPaintProperties) {
             const value = computed.getPropertyValue(prop).trim();
-            if (value !== '' && /url\(/i.test(value)) scanUrls(source, index, 'computed:' + prop, value);
+            if (value !== "" && /url\(/i.test(value)) scanUrls(source, index, "computed:" + prop, value);
           }
         }
         for (const child of Array.from(source.children || [])) walk(child);
@@ -217,14 +252,17 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     // rather than binding to stale markup.
     for (let index = 0; index < nodes.length; index++) {
       const target = sourceByNode[index];
-      if (!target.isConnected || fragmentTarget(target, nodes[index].id) !== target
-          || referenceScopeFor(target) !== nodes[index].scope) {
-        failure = 'resource #' + nodes[index].id + ' changed identity or TreeScope during capture';
+      if (
+        !target.isConnected ||
+        fragmentTarget(target, nodes[index].id) !== target ||
+        referenceScopeFor(target) !== nodes[index].scope
+      ) {
+        failure = "resource #" + nodes[index].id + " changed identity or TreeScope during capture";
         break;
       }
     }
-    if (failure !== '') {
-      warn(sel, property, failure + '; omitted the stale fragment graph');
+    if (failure !== "") {
+      warn(sel, property, failure + "; omitted the stale fragment graph");
       return null;
     }
 
@@ -240,7 +278,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         if (container == null || sourceByNode[container].contains(ancestor)) container = candidate;
       }
       if (container != null) {
-        nodes[index].serialization = 'embedded';
+        nodes[index].serialization = "embedded";
         nodes[index].containedIn = container;
       }
     }
@@ -250,8 +288,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       return false;
     };
     const hasPotentialFragmentReference = (source) => {
-      for (const node of [source].concat(Array.from(source.querySelectorAll ? source.querySelectorAll('*') : []))) {
-        const href = node.getAttribute && (node.getAttribute('href') || node.getAttributeNS(xlinkNs, 'href'));
+      for (const node of [source].concat(Array.from(source.querySelectorAll ? source.querySelectorAll("*") : []))) {
+        const href = node.getAttribute && (node.getAttribute("href") || node.getAttributeNS(xlinkNs, "href"));
         if (href) return true;
         for (const attr of Array.from(node.attributes || [])) if (/url\(/i.test(attr.value)) return true;
         const view = node.ownerDocument && node.ownerDocument.defaultView;
@@ -265,9 +303,9 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     const planValue = (source, surface, value) => {
       const plans = (plansBySource.get(source) || []).filter((plan) => plan.surface === surface);
       let cursor = 0;
-      if (surface === 'href') {
+      if (surface === "href") {
         const plan = plans[0];
-        return plan == null ? value : '#' + plan.token;
+        return plan == null ? value : "#" + plan.token;
       }
       return replaceCssUrls(value, () => {
         const plan = plans[cursor++];
@@ -278,38 +316,37 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       const cloneRoot = sourceRoot.cloneNode(true);
       const bake = (source, clone) => {
         if (source.namespaceURI !== svgNs) return;
-        const tag = (source.localName || '').toLowerCase();
-        if (tag === 'script' || tag === 'style') {
+        const tag = (source.localName || "").toLowerCase();
+        if (tag === "script" || tag === "style") {
           clone.remove();
           return;
         }
-        const dormantDefinition = source !== sourceRoot
-          && (svgResourceTags.has(tag) || hasDefsAncestorBefore(source, sourceRoot));
-        if (dormantDefinition && !containsGraphTarget(source)
-            && hasPotentialFragmentReference(source)) {
+        const dormantDefinition =
+          source !== sourceRoot && (svgResourceTags.has(tag) || hasDefsAncestorBefore(source, sourceRoot));
+        if (dormantDefinition && !containsGraphTarget(source) && hasPotentialFragmentReference(source)) {
           clone.remove();
           return;
         }
         const nodeIndex = nodeBySource.get(source);
-        if (nodeIndex != null) clone.setAttribute('data-domotion-fragment-node', String(nodeIndex));
-        clone.removeAttribute('style');
+        if (nodeIndex != null) clone.setAttribute("data-domotion-fragment-node", String(nodeIndex));
+        clone.removeAttribute("style");
         const view = source.ownerDocument && source.ownerDocument.defaultView;
         const computed = view != null ? view.getComputedStyle(source) : null;
         if (computed != null) {
           for (const prop of svgPaintProperties) {
             let value = computed.getPropertyValue(prop).trim();
-            if (value === '') continue;
-            value = planValue(source, 'computed:' + prop, value);
+            if (value === "") continue;
+            value = planValue(source, "computed:" + prop, value);
             clone.style.setProperty(prop, value);
           }
         }
         for (const attr of Array.from(clone.attributes || [])) {
-          const name = String(attr.name || '').toLowerCase();
-          if (name === 'style' || name === 'data-domotion-fragment-node') continue;
-          if (name === 'href' || name === 'xlink:href') {
-            clone.setAttribute(attr.name, planValue(source, 'href', attr.value));
+          const name = String(attr.name || "").toLowerCase();
+          if (name === "style" || name === "data-domotion-fragment-node") continue;
+          if (name === "href" || name === "xlink:href") {
+            clone.setAttribute(attr.name, planValue(source, "href", attr.value));
           } else if (/url\(/i.test(attr.value)) {
-            clone.setAttribute(attr.name, planValue(source, 'attr:' + attr.name, attr.value));
+            clone.setAttribute(attr.name, planValue(source, "attr:" + attr.name, attr.value));
           }
         }
         const sourceChildren = Array.from(source.children || []);
@@ -325,7 +362,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
 
     const rootOuterHTML = serialize(rootTarget, rootIndex);
     for (let index = 1; index < nodes.length; index++) {
-      if (nodes[index].serialization === 'dependency') {
+      if (nodes[index].serialization === "dependency") {
         nodes[index].outerHTML = serialize(sourceByNode[index], index);
       }
     }
@@ -346,8 +383,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   const computeMaskIntrinsic = (el, cs) => {
     const primed = el && el.__domotionMaskIntrinsic;
     if (Array.isArray(primed)) return primed;
-    const maskImage = cs.maskImage || cs.webkitMaskImage || '';
-    if (maskImage === '' || maskImage === 'none') return [];
+    const maskImage = cs.maskImage || cs.webkitMaskImage || "";
+    if (maskImage === "" || maskImage === "none") return [];
     const layers = splitCssLayers(maskImage);
     return layers.map((layer) => {
       const url = extractCssUrl(layer);
@@ -361,7 +398,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   };
 
   const discoverMasks = (el, cs, sel) => {
-    if (!cs.mask || cs.mask === 'none' || cs.mask === '') return;
+    if (!cs.mask || cs.mask === "none" || cs.mask === "") return;
     // DM-1446/DM-2338: element() remains document-local. Fragment URL refs
     // below are narrower still: Blink resolves them in the originating
     // TreeScope, so a ShadowRoot miss must not fall through to this document.
@@ -373,7 +410,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     // warning. Local inline-SVG fragments are resolved below; only sources
     // that still cannot be materialized receive a warning.
     // See docs/20-css-mask-emission.md.
-    const miSrc = cs.maskImage || cs.webkitMaskImage || '';
+    const miSrc = cs.maskImage || cs.webkitMaskImage || "";
 
     // Blink constructs one FillLayer per comma-separated image and resolves
     // each local mask source through the consumer's OriginatingTreeScope.
@@ -390,17 +427,17 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       const scope = referenceScopeFor(el);
       const key = scopedFragmentKey(scope, fragId);
       const target = fragmentTarget(el, fragId);
-      if (target == null || target.tagName.toLowerCase() !== 'mask') {
-        warn(sel, 'mask', 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
+      if (target == null || target.tagName.toLowerCase() !== "mask") {
+        warn(sel, "mask", 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
         continue;
       }
       if (!maskDefs.has(key)) {
-        const capturedGraph = buildFragmentDependencyGraph(target, sel, 'mask');
+        const capturedGraph = buildFragmentDependencyGraph(target, sel, "mask");
         if (capturedGraph == null) continue;
-        const maskUnits = svgUnit(target.maskUnits, target.getAttribute('maskUnits'));
-        const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute('maskContentUnits'));
+        const maskUnits = svgUnit(target.maskUnits, target.getAttribute("maskUnits"));
+        const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute("maskContentUnits"));
         const targetView = target.ownerDocument && target.ownerDocument.defaultView;
-        const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : '';
+        const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : "";
         maskDefs.set(key, {
           id: fragId,
           scope,
@@ -408,12 +445,12 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
           dependencyGraph: capturedGraph.dependencyGraph,
           maskUnits,
           maskContentUnits,
-          maskType: computedMaskType === 'alpha' ? 'alpha' : 'luminance',
+          maskType: computedMaskType === "alpha" ? "alpha" : "luminance",
           region: {
-            x: svgLengthString(target.x, '-10%'),
-            y: svgLengthString(target.y, '-10%'),
-            width: svgLengthString(target.width, '120%'),
-            height: svgLengthString(target.height, '120%'),
+            x: svgLengthString(target.x, "-10%"),
+            y: svgLengthString(target.y, "-10%"),
+            width: svgLengthString(target.width, "120%"),
+            height: svgLengthString(target.height, "120%"),
           },
           userSpaceRegion: {
             x: svgLengthValue(target.x),
@@ -435,7 +472,11 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     // tag fragment) → the element paints unmasked, the prior baseline.
     const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(miSrc);
     if (extFragMatch != null) {
-      warn(sel, 'mask', 'external-file SVG mask-image fragment ref (url("./file.svg#id")) could not be resolved — element renders unmasked');
+      warn(
+        sel,
+        "mask",
+        'external-file SVG mask-image fragment ref (url("./file.svg#id")) could not be resolved — element renders unmasked',
+      );
       return;
     }
 
@@ -456,18 +497,18 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       // chain — so a target inside a recursed iframe is screenshotted correctly.
       const refTarget = doc.getElementById(refId);
       if (refTarget == null) {
-        warn(sel, 'mask', 'mask-image: element(#' + refId + ') target not found in document');
+        warn(sel, "mask", "mask-image: element(#" + refId + ") target not found in document");
         return;
       }
       const refCs = window.getComputedStyle(refTarget);
-      if (refCs.display === 'none' || refCs.visibility === 'hidden') {
-        warn(sel, 'mask', 'mask-image: element(#' + refId + ') target is display:none / hidden — emitting empty mask');
+      if (refCs.display === "none" || refCs.visibility === "hidden") {
+        warn(sel, "mask", "mask-image: element(#" + refId + ") target is display:none / hidden — emitting empty mask");
         maskRasters.set(refId, null);
         return;
       }
       const refRect = refTarget.getBoundingClientRect();
       if (refRect.width <= 0 || refRect.height <= 0) {
-        warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has zero-area painted box — emitting empty mask');
+        warn(sel, "mask", "mask-image: element(#" + refId + ") target has zero-area painted box — emitting empty mask");
         maskRasters.set(refId, null);
         return;
       }
@@ -475,16 +516,26 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       // mask in sync with a JS-driven canvas / CSS animation. Emit the
       // snapshot anyway (better than the alternative of empty mask hiding
       // the consumer entirely).
-      if (typeof refTarget.getAnimations === 'function') {
+      if (typeof refTarget.getAnimations === "function") {
         try {
           const anims = refTarget.getAnimations();
           if (anims != null && anims.length > 0) {
-            warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has ' + anims.length + ' active animation(s); the rasterized snapshot is t=0 only');
+            warn(
+              sel,
+              "mask",
+              "mask-image: element(#" +
+                refId +
+                ") target has " +
+                anims.length +
+                " active animation(s); the rasterized snapshot is t=0 only",
+            );
           }
-        } catch (e) { /* getAnimations not supported, skip */ }
+        } catch (e) {
+          /* getAnimations not supported, skip */
+        }
       }
-      const refRid = 'mr' + (maskRasterIdx++);
-      refTarget.setAttribute('data-domotion-rid', refRid);
+      const refRid = "mr" + maskRasterIdx++;
+      refTarget.setAttribute("data-domotion-rid", refRid);
       maskRasters.set(refId, {
         id: refId,
         rid: refRid,
@@ -500,10 +551,9 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       return;
     }
 
-    const supported = /^(?:repeating-)?(?:linear|radial)-gradient\(/i.test(miSrc)
-      || /^url\(/i.test(miSrc);
+    const supported = /^(?:repeating-)?(?:linear|radial)-gradient\(/i.test(miSrc) || /^url\(/i.test(miSrc);
     if (!supported) {
-      warn(sel, 'mask', 'non-gradient/non-url()/non-element() mask source — not emitted');
+      warn(sel, "mask", "non-gradient/non-url()/non-element() mask source — not emitted");
     }
   };
 
@@ -523,7 +573,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   // fires when that pre-pass couldn't resolve it (fetch failed / non-http).
   const discoverClipPaths = (el, cs, sel) => {
     const cp = cs.clipPath;
-    if (!cp || cp === 'none' || cp === '') return;
+    if (!cp || cp === "none" || cp === "") return;
     const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
 
     // Blink parses url() as an exclusive ReferenceClipPathOperation. A
@@ -538,22 +588,26 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       const key = scopedFragmentKey(scope, fragId);
       if (!clipPathDefs.has(key)) {
         const target = fragmentTarget(el, fragId);
-        if (target != null && target.tagName.toLowerCase() === 'clippath') {
-          const capturedGraph = buildFragmentDependencyGraph(target, sel, 'clip-path');
+        if (target != null && target.tagName.toLowerCase() === "clippath") {
+          const capturedGraph = buildFragmentDependencyGraph(target, sel, "clip-path");
           if (capturedGraph == null) return undefined;
           // SVG default for clipPathUnits is userSpaceOnUse (DM-828). The
           // renderer translates that per consumer and materializes an
           // objectBoundingBox def through each HTML border rect (DM-2362).
-          const units = (target.getAttribute('clipPathUnits') || 'userSpaceOnUse').toLowerCase();
+          const units = (target.getAttribute("clipPathUnits") || "userSpaceOnUse").toLowerCase();
           clipPathDefs.set(key, {
             id: fragId,
             scope,
             outerHTML: capturedGraph.outerHTML,
             dependencyGraph: capturedGraph.dependencyGraph,
-            clipPathUnits: units === 'objectboundingbox' ? 'objectBoundingBox' : 'userSpaceOnUse',
+            clipPathUnits: units === "objectboundingbox" ? "objectBoundingBox" : "userSpaceOnUse",
           });
         } else {
-          warn(sel, 'clip-path', 'clip-path fragment "#' + fragId + '" did not resolve to an inline <clipPath> element');
+          warn(
+            sel,
+            "clip-path",
+            'clip-path fragment "#' + fragId + '" did not resolve to an inline <clipPath> element',
+          );
         }
       }
       return clipPathDefs.has(key) ? scope : undefined;
@@ -564,7 +618,11 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       // external refs to same-document before this walk; reaching here means it
       // couldn't (fetch failed, non-http origin, or missing fragment) — the
       // element renders unclipped, same as the pre-DM-829 baseline.
-      warn(sel, 'clip-path', 'external-file SVG fragment ref (url("./file.svg#id")) could not be resolved — element renders unclipped');
+      warn(
+        sel,
+        "clip-path",
+        'external-file SVG fragment ref (url("./file.svg#id")) could not be resolved — element renders unclipped',
+      );
     }
   };
 
@@ -589,22 +647,22 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   const filterContainsConvolveMatrix = (filter, seen) => {
     if (filter == null || seen.has(filter)) return false;
     seen.add(filter);
-    const descendants = filter.getElementsByTagName('*');
+    const descendants = filter.getElementsByTagName("*");
     for (let i = 0; i < descendants.length; i++) {
-      if ((descendants[i].localName || '').toLowerCase() === 'feconvolvematrix') return true;
+      if ((descendants[i].localName || "").toLowerCase() === "feconvolvematrix") return true;
     }
-    const href = filter.getAttribute('href')
-      || filter.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
-      || '';
-    if (!href.startsWith('#')) return false;
+    const href = filter.getAttribute("href") || filter.getAttributeNS("http://www.w3.org/1999/xlink", "href") || "";
+    if (!href.startsWith("#")) return false;
     const inherited = filter.ownerDocument.getElementById(href.slice(1));
-    return inherited != null
-      && inherited.localName.toLowerCase() === 'filter'
-      && filterContainsConvolveMatrix(inherited, seen);
+    return (
+      inherited != null &&
+      inherited.localName.toLowerCase() === "filter" &&
+      filterContainsConvolveMatrix(inherited, seen)
+    );
   };
   const discoverFilters = (el, cs, sel) => {
     const f = cs.filter;
-    if (!f || f === 'none' || f === '') return undefined;
+    if (!f || f === "none" || f === "") return undefined;
     const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
     let needsSourceRaster = false;
 
@@ -613,21 +671,29 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     while ((m = re.exec(f)) != null) {
       const fragId = m[1];
       const target = doc.getElementById(fragId);
-      if (target != null && target.tagName.toLowerCase() === 'filter') {
+      if (target != null && target.tagName.toLowerCase() === "filter") {
         if (!filterDefs.has(fragId)) filterDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
-        if (el.namespaceURI === 'http://www.w3.org/1999/xhtml'
-            && filterContainsConvolveMatrix(target, new Set())) {
+        if (el.namespaceURI === "http://www.w3.org/1999/xhtml" && filterContainsConvolveMatrix(target, new Set())) {
           needsSourceRaster = true;
         }
       } else {
-        warn(sel, 'filter', 'filter fragment "#' + fragId + '" did not resolve to an inline <filter> element');
+        warn(sel, "filter", 'filter fragment "#' + fragId + '" did not resolve to an inline <filter> element');
       }
     }
     if (!needsSourceRaster) return undefined;
-    const token = 'uf' + (urlFilterRasterIdx++);
-    el.setAttribute('data-domotion-url-filter-raster', token);
+    const token = "uf" + urlFilterRasterIdx++;
+    el.setAttribute("data-domotion-url-filter-raster", token);
     return token;
   };
 
-  return { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs, maskRasters, clipPathDefs, filterDefs };
+  return {
+    discoverMasks,
+    computeMaskIntrinsic,
+    discoverClipPaths,
+    discoverFilters,
+    maskDefs,
+    maskRasters,
+    clipPathDefs,
+    filterDefs,
+  };
 };

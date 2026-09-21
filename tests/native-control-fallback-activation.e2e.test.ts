@@ -1,10 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  captureElementTreeWithWarnings,
-  elementTreeToSvgInner,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTreeWithWarnings, elementTreeToSvgInner, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { formControlRenderRoute } from "../src/render/form-controls.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -32,13 +28,25 @@ function byId(tree: CapturedElement[], id: string): CapturedElement {
 }
 
 const COMPLETE_NATIVE = [
-  "native-checkbox", "native-radio", "native-range", "native-progress",
-  "native-meter", "native-date", "native-select",
+  "native-checkbox",
+  "native-radio",
+  "native-range",
+  "native-progress",
+  "native-meter",
+  "native-date",
+  "native-select",
 ] as const;
 
 const STRUCTURAL = [
-  "author-checkbox", "author-radio", "author-range", "author-progress",
-  "author-meter", "native-file", "author-file", "author-date", "author-select",
+  "author-checkbox",
+  "author-radio",
+  "author-range",
+  "author-progress",
+  "author-meter",
+  "native-file",
+  "author-file",
+  "author-date",
+  "author-select",
 ] as const;
 
 describeBrowser("DM-2458 native-control fallback activation matrix", () => {
@@ -101,14 +109,15 @@ describeBrowser("DM-2458 native-control fallback activation matrix", () => {
           <details id="hidden-marker" open><summary data-domotion-anim="hidden-marker">hidden marker</summary><p>content</p></details>
         </main>`);
 
-        const capture = await captureElementTreeWithWarnings(
-          page, "#scene", { x: 0, y: 0, ...viewport },
-        );
-        expect(capture.warnings.filter(({ feature }) =>
-          feature === "effective-appearance-cascade"
-          || feature === "native-control-raster"
-          || feature === "native-control-decoration-raster"
-        )).toEqual([]);
+        const capture = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...viewport });
+        expect(
+          capture.warnings.filter(
+            ({ feature }) =>
+              feature === "effective-appearance-cascade" ||
+              feature === "native-control-raster" ||
+              feature === "native-control-decoration-raster",
+          ),
+        ).toEqual([]);
 
         for (const id of COMPLETE_NATIVE) {
           const control = byId(capture.tree, id);
@@ -121,13 +130,16 @@ describeBrowser("DM-2458 native-control fallback activation matrix", () => {
           expect(control.nativeControlRaster, id).toBeUndefined();
         }
 
-        expect(byId(capture.tree, "native-file").nativeControlDecorationRaster?.kinds)
-          .toEqual(["file-selector-button"]);
+        expect(byId(capture.tree, "native-file").nativeControlDecorationRaster?.kinds).toEqual([
+          "file-selector-button",
+        ]);
         expect(byId(capture.tree, "author-file").nativeControlDecorationRaster).toBeUndefined();
-        expect(byId(capture.tree, "author-date").nativeControlDecorationRaster?.kinds)
-          .toEqual(["calendar-picker-indicator"]);
-        expect(byId(capture.tree, "author-select").nativeControlDecorationRaster?.kinds)
-          .toEqual(["menulist-button-arrow"]);
+        expect(byId(capture.tree, "author-date").nativeControlDecorationRaster?.kinds).toEqual([
+          "calendar-picker-indicator",
+        ]);
+        expect(byId(capture.tree, "author-select").nativeControlDecorationRaster?.kinds).toEqual([
+          "menulist-button-arrow",
+        ]);
         expect(byId(capture.tree, "source-marker").summaryMarkerGeometry).toBeDefined();
         expect(byId(capture.tree, "hidden-marker").summaryMarkerGeometry).toBeUndefined();
 
@@ -135,7 +147,7 @@ describeBrowser("DM-2458 native-control fallback activation matrix", () => {
         expect(svg).not.toContain("rgb(0,117,255)");
         expect(svg).not.toContain("rgb(203,203,203)");
         expect(svg).not.toContain("Choose File</text>");
-        expect(svg).toContain("data-domotion-pseudo-owner=\"source-fragments\"");
+        expect(svg).toContain('data-domotion-pseudo-owner="source-fragments"');
       } finally {
         await context.close();
       }

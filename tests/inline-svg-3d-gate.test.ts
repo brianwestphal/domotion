@@ -10,27 +10,27 @@ import {
 describe("inline SVG 3D two-leg gate corpus", () => {
   it("retains every required logical/raster route and source-owned family", () => {
     expect(validateInlineSvg3dCorpus()).toEqual([]);
-    expect(new Set(INLINE_SVG_3D_CASES.map((row) => row.expectedRoute))).toEqual(new Set([
-      "clone-equivalent",
-      "outer-raster",
-      "promoted-inline-svg-raster",
-    ]));
-    expect(INLINE_SVG_3D_CASES.map((row) => row.id)).toEqual(expect.arrayContaining([
-      "native-transform-attribute-negative",
-      "css-affine-matrix3d-fill-box",
-      "css-rotate-x-svg-flatten",
-      "css-rotate-y-svg-flatten",
-      "css-rotate-3d-svg-flatten",
-      "css-perspective-function-svg-flatten",
-      "css-matrix-non-scaling-stroke",
-      "svg-layer-grouping-filter-flattens",
-      "svg-layer-grouping-clip-flattens",
-      "svg-layer-grouping-mask-flattens",
-      "svg-layer-grouping-overflow-flattens",
-      "root-svg-own-projective-transform-raster",
-      "html-ancestor-perspective-raster",
-      "foreign-object-nested-projective-owner-promoted",
-    ]));
+    expect(new Set(INLINE_SVG_3D_CASES.map((row) => row.expectedRoute))).toEqual(
+      new Set(["clone-equivalent", "outer-raster", "promoted-inline-svg-raster"]),
+    );
+    expect(INLINE_SVG_3D_CASES.map((row) => row.id)).toEqual(
+      expect.arrayContaining([
+        "native-transform-attribute-negative",
+        "css-affine-matrix3d-fill-box",
+        "css-rotate-x-svg-flatten",
+        "css-rotate-y-svg-flatten",
+        "css-rotate-3d-svg-flatten",
+        "css-perspective-function-svg-flatten",
+        "css-matrix-non-scaling-stroke",
+        "svg-layer-grouping-filter-flattens",
+        "svg-layer-grouping-clip-flattens",
+        "svg-layer-grouping-mask-flattens",
+        "svg-layer-grouping-overflow-flattens",
+        "root-svg-own-projective-transform-raster",
+        "html-ancestor-perspective-raster",
+        "foreign-object-nested-projective-owner-promoted",
+      ]),
+    );
   });
 
   it("pins all six unsafe implementation mutations", () => {

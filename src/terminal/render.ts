@@ -93,7 +93,8 @@ export async function buildFrames(
     applyResizesUpTo(Infinity);
     const grid = emu.snapshot();
     const last = frames.length > 0 ? frames[frames.length - 1].grid : null;
-    const dimsChanged = last == null || last.length !== grid.length || (last[0]?.length ?? 0) !== (grid[0]?.length ?? 0);
+    const dimsChanged =
+      last == null || last.length !== grid.length || (last[0]?.length ?? 0) !== (grid[0]?.length ?? 0);
     if (dimsChanged || gridSignature(grid) !== lastSig) {
       frames.push({ grid, durationMs: Math.max(minFrameMs, Math.round(tailMs)), cursor: emu.cursor() });
     }
@@ -117,8 +118,14 @@ function cellStyle(cell: TermCell, theme: TerminalTheme): string {
 
 /** Two cells share a `<span>` run when every visible style attribute matches. */
 function sameStyle(a: TermCell, b: TermCell): boolean {
-  return a.fg === b.fg && a.bg === b.bg && a.bold === b.bold
-    && a.italic === b.italic && a.dim === b.dim && a.underline === b.underline;
+  return (
+    a.fg === b.fg &&
+    a.bg === b.bg &&
+    a.bold === b.bold &&
+    a.italic === b.italic &&
+    a.dim === b.dim &&
+    a.underline === b.underline
+  );
 }
 
 /**
@@ -140,7 +147,10 @@ export function rowInnerHtml(row: TermCell[], theme: TerminalTheme): string {
   let runStart = 0;
   for (let x = 1; x <= end; x++) {
     if (x === end || !sameStyle(row[x], row[runStart])) {
-      const text = row.slice(runStart, x).map((c) => c.char).join("");
+      const text = row
+        .slice(runStart, x)
+        .map((c) => c.char)
+        .join("");
       const style = cellStyle(row[runStart], theme);
       spans.push(style === "" ? escapeHtml(text) : `<span style="${style}">${escapeHtml(text)}</span>`);
       runStart = x;
@@ -201,7 +211,15 @@ export function gridToHtml(grid: TermGrid, opts: HtmlRenderOptions): string {
  */
 export function makeReferenceGrid(rows: number, cols: number): TermGrid {
   return Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
+    Array.from({ length: cols }, () => ({
+      char: "M",
+      fg: null,
+      bg: null,
+      bold: false,
+      italic: false,
+      dim: false,
+      underline: false,
+    })),
   );
 }
 

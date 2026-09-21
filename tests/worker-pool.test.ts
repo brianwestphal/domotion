@@ -132,7 +132,11 @@ describe("lowerProcessPriority (DM-459 v2)", () => {
     // (raising it back to 0 from a positive value) is also allowed for
     // the calling process per POSIX setpriority. If neither works the
     // test process just stays niced; harmless inside vitest.
-    try { os.setPriority(0, originalNice); } catch { /* best-effort */ }
+    try {
+      os.setPriority(0, originalNice);
+    } catch {
+      /* best-effort */
+    }
     if (originalEnv == null) delete process.env["DOMOTION_NO_NICE"];
     else process.env["DOMOTION_NO_NICE"] = originalEnv;
   });

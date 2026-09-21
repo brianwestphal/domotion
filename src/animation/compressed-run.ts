@@ -110,7 +110,13 @@ import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../r
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 import { IDENTITY_TEXT_AFFINE, prepareAffineTextPaint, textAffineEquals } from "../render/text-affine.js";
 import { alignLineGlyphs, type AlignGlyph } from "./glyph-align.js";
-import { textTrackMarkup, CARET_BLINK_MS, DEFAULT_SELECTION_COLOR, type ResolvedTextTrack, type ResolvedSelection } from "./caret-track.js";
+import {
+  textTrackMarkup,
+  CARET_BLINK_MS,
+  DEFAULT_SELECTION_COLOR,
+  type ResolvedTextTrack,
+  type ResolvedSelection,
+} from "./caret-track.js";
 import { DEFAULT_CARET_WIDTH_PX, type CaretShape } from "./caret-metrics.js";
 import { resolveRangeRects, type TextAddressTarget } from "./text-address.js";
 
@@ -327,12 +333,33 @@ function paintsBox(el: CapturedElement): boolean {
   if (colorPaints(s.backgroundColor)) return true;
   if (s.backgroundImage != null && s.backgroundImage !== "none" && s.backgroundImage !== "") return true;
   const side = (w: string | undefined, st: string | undefined): boolean => num(w) > 0 && st !== "none" && st != null;
-  if (side(s.borderTopWidth, s.borderTopStyle) || side(s.borderRightWidth, s.borderRightStyle)
-    || side(s.borderBottomWidth, s.borderBottomStyle) || side(s.borderLeftWidth, s.borderLeftStyle)) return true;
+  if (
+    side(s.borderTopWidth, s.borderTopStyle) ||
+    side(s.borderRightWidth, s.borderRightStyle) ||
+    side(s.borderBottomWidth, s.borderBottomStyle) ||
+    side(s.borderLeftWidth, s.borderLeftStyle)
+  )
+    return true;
   if (s.boxShadow != null && s.boxShadow !== "none" && s.boxShadow !== "") return true;
   if (s.outlineStyle != null && s.outlineStyle !== "none" && num(s.outlineWidth) > 0) return true;
   if (el.elementRaster != null) return true;
-  const REPLACED = new Set(["img", "canvas", "video", "svg", "iframe", "embed", "object", "picture", "input", "textarea", "select", "button", "progress", "meter", "hr"]);
+  const REPLACED = new Set([
+    "img",
+    "canvas",
+    "video",
+    "svg",
+    "iframe",
+    "embed",
+    "object",
+    "picture",
+    "input",
+    "textarea",
+    "select",
+    "button",
+    "progress",
+    "meter",
+    "hr",
+  ]);
   return REPLACED.has(el.tag);
 }
 
@@ -347,7 +374,13 @@ interface AncestorCtx {
 
 function maxBorderRadius(el: CapturedElement): number {
   const s = el.styles;
-  return Math.max(num(s.borderRadius), num(s.borderTopLeftRadius), num(s.borderTopRightRadius), num(s.borderBottomRightRadius), num(s.borderBottomLeftRadius));
+  return Math.max(
+    num(s.borderRadius),
+    num(s.borderTopLeftRadius),
+    num(s.borderTopRightRadius),
+    num(s.borderBottomRightRadius),
+    num(s.borderBottomLeftRadius),
+  );
 }
 
 /** Does this element's OWN style block glyph-layer handling for it AND its
@@ -377,8 +410,13 @@ function segmentEligible(seg: TextSegment): boolean {
   // they proved inert: no PNG was materialized and the ordinary glyph remains
   // the sole paint. Only a real overlay or the zero-area ::first-letter
   // suppression marker changes rendering and must stay in the chrome layer.
-  if (seg.rasterGlyphs?.some((glyph) => glyph.dataUri != null
-    || (glyph.suppressGlyph === true && glyph.rect.width === 0 && glyph.rect.height === 0))) return false;
+  if (
+    seg.rasterGlyphs?.some(
+      (glyph) =>
+        glyph.dataUri != null || (glyph.suppressGlyph === true && glyph.rect.width === 0 && glyph.rect.height === 0),
+    )
+  )
+    return false;
   if (seg.dottedCircleMarks != null && seg.dottedCircleMarks.length > 0) return false;
   if (seg.pseudoBox != null) return false;
   if (seg.textShadow != null && seg.textShadow !== "none") return false;
@@ -396,8 +434,7 @@ function textPlaneForCompression(el: CapturedElement): CapturedElement | null {
   // The compressor emits absolute glyph coordinates and its own translation
   // tracks. A non-identity residual would need matrix-aware track composition;
   // keep that text in the byte-safe chrome flipbook until such support exists.
-  if (prepared.residualMatrix != null
-    && !textAffineEquals(prepared.residualMatrix, IDENTITY_TEXT_AFFINE)) return null;
+  if (prepared.residualMatrix != null && !textAffineEquals(prepared.residualMatrix, IDENTITY_TEXT_AFFINE)) return null;
   return prepared.element;
 }
 
@@ -411,15 +448,20 @@ function elementTextEligible(el: CapturedElement, textEl: CapturedElement | null
   if (s.textShadow != null && s.textShadow !== "none" && s.textShadow !== "") return false;
   if (s.textEmphasisStyle != null && s.textEmphasisStyle !== "none" && s.textEmphasisStyle !== "") return false;
   if (num(s.webkitTextStrokeWidth) > 0) return false;
-  if (s.webkitTextFillColor != null && !colorPaints(s.webkitTextFillColor) && s.webkitTextFillColor !== "") return false;
+  if (s.webkitTextFillColor != null && !colorPaints(s.webkitTextFillColor) && s.webkitTextFillColor !== "")
+    return false;
   if (s.direction === "rtl") return false;
   for (const seg of textEl.textSegments) {
     if (!segmentEligible(seg)) return false;
     for (const clip of ctx.clips) {
       const inset = clip.inset;
-      if (seg.x < clip.x + inset - 0.5 || seg.y < clip.y + inset - 0.5
-        || seg.x + seg.width > clip.x + clip.w - inset + 0.5
-        || seg.y + seg.height > clip.y + clip.h - inset + 0.5) return false;
+      if (
+        seg.x < clip.x + inset - 0.5 ||
+        seg.y < clip.y + inset - 0.5 ||
+        seg.x + seg.width > clip.x + clip.w - inset + 0.5 ||
+        seg.y + seg.height > clip.y + clip.h - inset + 0.5
+      )
+        return false;
     }
   }
   return true;
@@ -532,7 +574,10 @@ function regionRootChildren(children: CapturedElement[]): Set<CapturedElement> {
       const vOverlap = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
       if (!(vOverlap > 1)) continue;
       const hOverlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-      if (hOverlap <= 0) { roots.add(a); break; }
+      if (hOverlap <= 0) {
+        roots.add(a);
+        break;
+      }
     }
   }
   return roots;
@@ -577,7 +622,11 @@ interface ExtractedState {
  *  `demoted` are region keys whose text must be forced INELIGIBLE — the same
  *  path an occluded / undecorated-ineligible element takes, so `strip` keeps it
  *  in the chrome tree. Empty (the default) demotes nothing. */
-function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string>, demoted: ReadonlySet<string>): ExtractedState {
+function extractState(
+  tree: CapturedElement[],
+  regionRootIds: ReadonlySet<string>,
+  demoted: ReadonlySet<string>,
+): ExtractedState {
   // Pass 1: the renderer's REAL paint order — the same
   // `gatherStackingContextChildren` / `sortChildrenByPaintOrder` traversal
   // `elementTreeToSvg` emits with (stacking contexts, z-index buckets,
@@ -598,11 +647,15 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
       const f = order[i];
       if (!paintsBox(f.el)) continue;
       // The occluder only paints inside its own overflow clips.
-      let fx = f.el.x, fy = f.el.y;
-      let fr = fx + f.el.width, fb = fy + f.el.height;
+      let fx = f.el.x,
+        fy = f.el.y;
+      let fr = fx + f.el.width,
+        fb = fy + f.el.height;
       for (const c of f.clips) {
-        fx = Math.max(fx, c.x); fy = Math.max(fy, c.y);
-        fr = Math.min(fr, c.x + c.w); fb = Math.min(fb, c.y + c.h);
+        fx = Math.max(fx, c.x);
+        fy = Math.max(fy, c.y);
+        fr = Math.min(fr, c.x + c.w);
+        fb = Math.min(fb, c.y + c.h);
       }
       if (!(fr - fx > 0 && fb - fy > 0)) continue;
       for (const seg of textSegments) {
@@ -642,15 +695,25 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
         for (const ch of seg.text) {
           const x = xs[u];
           const nextU = u + ch.length;
-          let advance = nextU < seg.text.length ? xs[nextU] - x : (seg.width > 0 ? seg.x + seg.width - x : 0);
+          let advance = nextU < seg.text.length ? xs[nextU] - x : seg.width > 0 ? seg.x + seg.width - x : 0;
           if (!(advance > 0)) advance = fontSize * 0.6;
           const isWs = WS_RE.test(ch);
           glyphs.push({
-            ch, x, advance,
-            lineKey: lineKeyOf(ctx.region, seg.y), region: ctx.region, segY: seg.y, segHeight: seg.height,
-            fill: isWs ? "" : fillResolved, isWs, styleKey,
-            fontSize, ascent, descent,
-            srcEl: textEl!, srcSeg: seg,
+            ch,
+            x,
+            advance,
+            lineKey: lineKeyOf(ctx.region, seg.y),
+            region: ctx.region,
+            segY: seg.y,
+            segHeight: seg.height,
+            fill: isWs ? "" : fillResolved,
+            isWs,
+            styleKey,
+            fontSize,
+            ascent,
+            descent,
+            srcEl: textEl!,
+            srcSeg: seg,
           });
           u = nextU;
         }
@@ -736,8 +799,18 @@ interface BucketPairing {
   key: string;
 }
 
-interface LiveBucket { k: string; glyphs: ThreadedGlyph[]; y: number; sig: string }
-interface NextBucket { k: string; recs: GlyphRec[]; y: number; sig: string }
+interface LiveBucket {
+  k: string;
+  glyphs: ThreadedGlyph[];
+  y: number;
+  sig: string;
+}
+interface NextBucket {
+  k: string;
+  recs: GlyphRec[];
+  y: number;
+  sig: string;
+}
 
 /**
  * Pair live line buckets to the next state's line buckets **within one region**
@@ -768,10 +841,20 @@ interface NextBucket { k: string; recs: GlyphRec[]; y: number; sig: string }
 function pairBuckets(live: Map<string, ThreadedGlyph[]>, next: Map<string, GlyphRec[]>): BucketPairing[] {
   const result: BucketPairing[] = [];
   const liveArr: LiveBucket[] = [...live.entries()]
-    .map(([k, glyphs]) => ({ k, glyphs, y: liveBucketY(glyphs), sig: lineSignature(glyphs.map((t) => ({ ch: t.rec.ch, styleKey: t.rec.styleKey, x: t.xs[t.xs.length - 1] }))) }))
+    .map(([k, glyphs]) => ({
+      k,
+      glyphs,
+      y: liveBucketY(glyphs),
+      sig: lineSignature(glyphs.map((t) => ({ ch: t.rec.ch, styleKey: t.rec.styleKey, x: t.xs[t.xs.length - 1] }))),
+    }))
     .sort((a, b) => a.y - b.y);
   const nextArr: NextBucket[] = [...next.entries()]
-    .map(([k, recs]) => ({ k, recs, y: recs[0].segY, sig: lineSignature(recs.map((g) => ({ ch: g.ch, styleKey: g.styleKey, x: g.x }))) }))
+    .map(([k, recs]) => ({
+      k,
+      recs,
+      y: recs[0].segY,
+      sig: lineSignature(recs.map((g) => ({ ch: g.ch, styleKey: g.styleKey, x: g.x }))),
+    }))
     .sort((a, b) => a.y - b.y);
   const usedLive = new Set<string>();
   const usedNext = new Set<string>();
@@ -785,7 +868,10 @@ function pairBuckets(live: Map<string, ThreadedGlyph[]>, next: Map<string, Glyph
     for (const Nn of nextArr) {
       if (usedNext.has(Nn.k) || Nn.sig !== L.sig) continue;
       const ad = Math.abs(round2(Nn.y - L.y));
-      if (ad < bestAbs || (ad === bestAbs && best != null && Nn.y < best.y)) { bestAbs = ad; best = Nn; }
+      if (ad < bestAbs || (ad === bestAbs && best != null && Nn.y < best.y)) {
+        bestAbs = ad;
+        best = Nn;
+      }
     }
     if (best != null) {
       result.push({ prev: L.glyphs, next: best.recs, key: best.k });
@@ -804,7 +890,10 @@ function pairBuckets(live: Map<string, ThreadedGlyph[]>, next: Map<string, Glyph
     if (cand == null) {
       for (const d of sortedDeltas) {
         const c = nextArr.find((Nn) => !usedNext.has(Nn.k) && round2(Nn.y) === round2(L.y + d));
-        if (c != null) { cand = c; break; }
+        if (c != null) {
+          cand = c;
+          break;
+        }
       }
     }
     if (cand != null) {
@@ -839,21 +928,29 @@ function pairBucketsAcrossRegions(live: Map<string, ThreadedGlyph[]>, next: Map<
   for (const [k, glyphs] of live) {
     const r = glyphs[0].rec.region;
     let m = liveByRegion.get(r);
-    if (m == null) { m = new Map(); liveByRegion.set(r, m); }
+    if (m == null) {
+      m = new Map();
+      liveByRegion.set(r, m);
+    }
     m.set(k, glyphs);
   }
   const nextByRegion = new Map<string, Map<string, GlyphRec[]>>();
   for (const [k, recs] of next) {
     const r = recs[0].region;
     let m = nextByRegion.get(r);
-    if (m == null) { m = new Map(); nextByRegion.set(r, m); }
+    if (m == null) {
+      m = new Map();
+      nextByRegion.set(r, m);
+    }
     m.set(k, recs);
   }
   const regions = new Set([...liveByRegion.keys(), ...nextByRegion.keys()]);
   const empty = <T>(): Map<string, T> => new Map<string, T>();
   const result: BucketPairing[] = [];
   for (const r of regions) {
-    result.push(...pairBuckets(liveByRegion.get(r) ?? empty<ThreadedGlyph[]>(), nextByRegion.get(r) ?? empty<GlyphRec[]>()));
+    result.push(
+      ...pairBuckets(liveByRegion.get(r) ?? empty<ThreadedGlyph[]>(), nextByRegion.get(r) ?? empty<GlyphRec[]>()),
+    );
   }
   return result;
 }
@@ -883,7 +980,11 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
   }
 
   const edits: CompressedRunEdit[] = [];
-  let paired = 0, totalNext = 0, recolored = 0, births = 0, deaths = 0;
+  let paired = 0,
+    totalNext = 0,
+    recolored = 0,
+    births = 0,
+    deaths = 0;
 
   for (let s = 1; s < stateCount; s++) {
     const nextBuckets = bucket(perState[s] ?? []);
@@ -895,7 +996,12 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
       const prevList = pairing.prev.slice().sort((a, b) => a.xs[a.xs.length - 1] - b.xs[b.xs.length - 1]);
       const nextList = pairing.next;
       totalNext += nextList.length;
-      const prevSeq: AlignGlyph[] = prevList.map((t) => ({ ch: t.rec.ch, x: t.xs[t.xs.length - 1], fill: t.fills[t.fills.length - 1], styleKey: t.rec.styleKey }));
+      const prevSeq: AlignGlyph[] = prevList.map((t) => ({
+        ch: t.rec.ch,
+        x: t.xs[t.xs.length - 1],
+        fill: t.fills[t.fills.length - 1],
+        styleKey: t.rec.styleKey,
+      }));
       const nextSeq: AlignGlyph[] = nextList.map((g) => ({ ch: g.ch, x: g.x, fill: g.fill, styleKey: g.styleKey }));
       const align = alignLineGlyphs(prevSeq, nextSeq);
 
@@ -908,7 +1014,10 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
         t.fills.push(g.fill);
         survivors.push(t);
         paired++;
-        if (p.recolored) { recolored++; stateRecolors++; }
+        if (p.recolored) {
+          recolored++;
+          stateRecolors++;
+        }
       }
       const changes = { births: [] as GlyphRec[], deaths: [] as ThreadedGlyph[] };
       for (const idx of align.unpairedPrev) {
@@ -941,7 +1050,10 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
     let bestCount = 0;
     for (const [key, c] of lineChanges) {
       const count = c.births.length + c.deaths.length;
-      if (count > bestCount) { bestCount = count; bestKey = key; }
+      if (count > bestCount) {
+        bestCount = count;
+        bestKey = key;
+      }
     }
     if (bestKey != null) {
       const c = lineChanges.get(bestKey)!;
@@ -956,12 +1068,28 @@ function threadGlyphs(perState: GlyphRec[][], stateCount: number): ThreadResult 
         if (placeBirths.length > 0) {
           let last = placeBirths[0];
           for (const g of placeBirths) if (g.x > last.x) last = g;
-          edits.push({ state: s, x: last.x + last.advance, lineTop: last.segY, ascent: last.ascent, descent: last.descent, fontSize: last.fontSize, cellWidth: last.advance });
+          edits.push({
+            state: s,
+            x: last.x + last.advance,
+            lineTop: last.segY,
+            ascent: last.ascent,
+            descent: last.descent,
+            fontSize: last.fontSize,
+            cellWidth: last.advance,
+          });
         } else {
           let first = placeDeaths[0];
           for (const t of placeDeaths) if (t.xs[t.xs.length - 1] < first.xs[first.xs.length - 1]) first = t;
           const r = first.rec;
-          edits.push({ state: s, x: first.xs[first.xs.length - 1], lineTop: r.segY, ascent: r.ascent, descent: r.descent, fontSize: r.fontSize, cellWidth: r.advance });
+          edits.push({
+            state: s,
+            x: first.xs[first.xs.length - 1],
+            lineTop: r.segY,
+            ascent: r.ascent,
+            descent: r.descent,
+            fontSize: r.fontSize,
+            cellWidth: r.advance,
+          });
         }
       }
     }
@@ -1023,7 +1151,18 @@ function buildGlyphGroups(threaded: ThreadedGlyph[], uid: string): GlyphGroup[] 
     const dxTl = t.xs.map((x) => round2(x - t.xs[0])).join(",");
     const dyTl = t.ys.map((y) => round2(y - t.ys[0])).join(",");
     const fillTl = t.fills.join("~");
-    const key = [t.birth, t.death, t.rec.lineKey, t.rec.styleKey, round2(t.rec.segY), round2(t.rec.segHeight), round2(t.rec.ascent), dxTl, dyTl, fillTl].join("§");
+    const key = [
+      t.birth,
+      t.death,
+      t.rec.lineKey,
+      t.rec.styleKey,
+      round2(t.rec.segY),
+      round2(t.rec.segHeight),
+      round2(t.rec.ascent),
+      dxTl,
+      dyTl,
+      fillTl,
+    ].join("§");
     const arr = byKey.get(key);
     if (arr != null) arr.push(t);
     else byKey.set(key, [t]);
@@ -1105,7 +1244,7 @@ function groupElement(group: GlyphGroup): CapturedElement {
   // output is byte-identical.
   if (el.textTop != null) {
     const firstSegY = first.rec.srcEl.textSegments?.[0]?.y ?? first.ys[0];
-    el.textTop += (first.ys[0] - firstSegY) + dyTotal;
+    el.textTop += first.ys[0] - firstSegY + dyTotal;
   }
   return el;
 }
@@ -1123,7 +1262,17 @@ const shallowKeyCache = new WeakMap<CapturedElement, string>();
 function shallowKeyOf(el: CapturedElement): string {
   let k = shallowKeyCache.get(el);
   if (k == null) {
-    k = fnv(JSON.stringify({ ...el, children: undefined, animId: undefined, animatedProperties: undefined, magicKey: undefined, cullClass: undefined, displayNone: undefined }));
+    k = fnv(
+      JSON.stringify({
+        ...el,
+        children: undefined,
+        animId: undefined,
+        animatedProperties: undefined,
+        magicKey: undefined,
+        cullClass: undefined,
+        displayNone: undefined,
+      }),
+    );
     shallowKeyCache.set(el, k);
   }
   return k;
@@ -1217,14 +1366,16 @@ function mergeLevel(unionList: UnionNode[], nextEls: CapturedElement[], s: numbe
     }
   }
   const matches: Array<{ a: number; b: number; deep: boolean }> = [];
-  let i = n, j = m;
+  let i = n,
+    j = m;
   while (i > 0 && j > 0) {
     const cur = score[i * width + j];
     const deep = activeDeep[i - 1] === nextDeep[j - 1];
     const shallow = deep || active[i - 1].shallowKey === nextShallow[j - 1];
     if (shallow && Math.abs(score[(i - 1) * width + (j - 1)] + (deep ? 2 : 1) - cur) < 1e-9) {
       matches.push({ a: i - 1, b: j - 1, deep });
-      i--; j--;
+      i--;
+      j--;
       continue;
     }
     if (score[(i - 1) * width + j] >= score[i * width + (j - 1)]) i--;
@@ -1324,7 +1475,10 @@ class TrackCss {
   private kf: string[] = [];
   private rules = new Map<string, string[]>(); // animation list → selectors
   private n = 0;
-  constructor(private uid: string, private totalMs: number) {}
+  constructor(
+    private uid: string,
+    private totalMs: number,
+  ) {}
 
   pct(ms: number): string {
     return `${Number(Math.max(0, Math.min(100, (ms / this.totalMs) * 100)).toFixed(4))}%`;
@@ -1409,7 +1563,10 @@ export function buildCompressedRunPlan(
   const declaredRoots = new Set(regionRootIds);
   const demoted = new Set(demotedRegions);
   const extracted = states.map((st) => extractState(st.tree, declaredRoots, demoted));
-  const thread = threadGlyphs(extracted.map((e) => e.glyphs), stateCount);
+  const thread = threadGlyphs(
+    extracted.map((e) => e.glyphs),
+    stateCount,
+  );
   const groups = buildGlyphGroups(thread.all, idPrefix);
   const chromeRoots = buildChromeUnion(extracted.map((e) => e.chromeTree));
   // Distinct region keys the glyph layer actually bucketed text into, in
@@ -1418,7 +1575,10 @@ export function buildCompressedRunPlan(
   const seen = new Set<string>();
   for (const e of extracted) {
     for (const g of e.glyphs) {
-      if (!seen.has(g.region)) { seen.add(g.region); regions.push(g.region); }
+      if (!seen.has(g.region)) {
+        seen.add(g.region);
+        regions.push(g.region);
+      }
     }
   }
   return { stateCount, boundaries, totalMs, groups, chromeRoots, edits: thread.edits, thread, regions };
@@ -1426,7 +1586,8 @@ export function buildCompressedRunPlan(
 
 // ── Composition ─────────────────────────────────────────────────────────────
 
-const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /**
  * Compose N captured continue+cut states into one nested animated SVG. See
@@ -1448,7 +1609,15 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   // rendered independently, exactly as continue+cut frames would be.
   let rawBytes = 0;
   for (let s = 0; s < states.length; s++) {
-    rawBytes += elementTreeToSvgInner(structuredClone(states[s].tree), width, height, `${uid}raw${s}-`, true, 2, false).length;
+    rawBytes += elementTreeToSvgInner(
+      structuredClone(states[s].tree),
+      width,
+      height,
+      `${uid}raw${s}-`,
+      true,
+      2,
+      false,
+    ).length;
   }
 
   const plan = buildCompressedRunPlan(
@@ -1546,9 +1715,7 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   };
   if (opts.realText === true) withRealTextLayerVisualSemantics(renderVisibleLayers);
   else renderVisibleLayers();
-  const realTextLayer = opts.realText === true
-    ? renderRealTextLayer(structuredClone(states[stateCount - 1].tree))
-    : "";
+  const realTextLayer = opts.realText === true ? renderRealTextLayer(structuredClone(states[stateCount - 1].tree)) : "";
 
   // Behind-glyph selection: docs/101 selection rects resolved against each
   // selection's appear-state captured tree, emitted into the chrome↔glyph gap
@@ -1577,8 +1744,13 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
           : {}),
       };
       const track: ResolvedTextTrack = {
-        shape: "bar", color: "#111111", barWidthPx: DEFAULT_CARET_WIDTH_PX,
-        blinkMs: CARET_BLINK_MS, waypoints: [], hides: [], selections: [sel],
+        shape: "bar",
+        color: "#111111",
+        barWidthPx: DEFAULT_CARET_WIDTH_PX,
+        blinkMs: CARET_BLINK_MS,
+        waypoints: [],
+        hides: [],
+        selections: [sel],
       };
       parts.push(textTrackMarkup(track, totalMs, 100 + i));
     }
@@ -1599,8 +1771,12 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
       selections: [],
     };
     const pointOf = (e: CompressedRunEdit) => ({
-      x: e.x, baselineY: e.lineTop + e.ascent, ascentPx: e.ascent, descentPx: e.descent,
-      fontSize: e.fontSize, cellWidthPx: e.cellWidth,
+      x: e.x,
+      baselineY: e.lineTop + e.ascent,
+      ascentPx: e.ascent,
+      descentPx: e.descent,
+      fontSize: e.fontSize,
+      cellWidthPx: e.cellWidth,
     });
     // Parked at the first upcoming edit point from t=0 (reads as "about to
     // type here"), then stepping to each edit's after-position at its boundary.
@@ -1613,9 +1789,11 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
   const fontFaceCss = manageFonts ? getEmbeddedFontFaceCss() : "";
   const trackCss = css.css();
   const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${trackCss}`;
-  const bgRect = opts.background != null ? `<rect width="${width}" height="${height}" fill="${esc(opts.background)}"/>` : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${styleCss}</style>${bgRect}${chromeInner}${selectionMarkup}${glyphInner}${caretMarkup}${realTextLayer}</svg>`;
+  const bgRect =
+    opts.background != null ? `<rect width="${width}" height="${height}" fill="${esc(opts.background)}"/>` : "";
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<style>${styleCss}</style>${bgRect}${chromeInner}${selectionMarkup}${glyphInner}${caretMarkup}${realTextLayer}</svg>`;
 
   const pairingStats: CompressedRunPairingStats = {
     states: stateCount,
@@ -1631,7 +1809,9 @@ export function composeCompressedRun(states: CompressedRunState[], opts: Compres
     compressedBytes: svg.length - fontFaceCss.length,
   };
   const kb = (n: number): string => (n / 1024).toFixed(1);
-  log(`compress: run of ${stateCount} states, ${(pairingStats.pairedPct * 100).toFixed(1)}% glyphs paired, ${kb(rawBytes)} KB → ${kb(svg.length)} KB`);
+  log(
+    `compress: run of ${stateCount} states, ${(pairingStats.pairedPct * 100).toFixed(1)}% glyphs paired, ${kb(rawBytes)} KB → ${kb(svg.length)} KB`,
+  );
 
   return { svg, width, height, durationMs: totalMs, pairingStats, edits: plan.edits, regions: plan.regions };
 }

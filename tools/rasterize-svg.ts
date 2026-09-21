@@ -4,7 +4,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const SVG_PATH = process.argv[2];
 const OUT_PATH = process.argv[3];
-if (!SVG_PATH || !OUT_PATH) { console.error("usage: rasterize-svg.ts <input.svg> <output.png>"); process.exit(1); }
+if (!SVG_PATH || !OUT_PATH) {
+  console.error("usage: rasterize-svg.ts <input.svg> <output.png>");
+  process.exit(1);
+}
 
 (async () => {
   const svg = readFileSync(SVG_PATH, "utf8");

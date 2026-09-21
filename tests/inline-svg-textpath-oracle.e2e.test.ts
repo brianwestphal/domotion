@@ -1,10 +1,6 @@
-import { afterAll, describe, expect, it } from 'vitest';
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-  launchChromium,
-} from '../src/index.js';
-import { closeBrowserSafely } from '../src/test-support/close-browser-safely.js';
+import { afterAll, describe, expect, it } from "vitest";
+import { captureElementTree, elementTreeToSvgInner, launchChromium } from "../src/index.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const browser = await launchChromium().catch(() => null);
 afterAll(async () => closeBrowserSafely(browser), 15_000);
@@ -42,25 +38,29 @@ const HTML = `<!doctype html><style>body{margin:0}svg{display:block;margin:0}</s
 
 type Matrix = Record<string, unknown>;
 
-async function snapshot(page: import('@playwright/test').Page): Promise<Matrix> {
+async function snapshot(page: import("@playwright/test").Page): Promise<Matrix> {
   return page.evaluate(() => {
     const round = (value: number) => Number(value.toFixed(4));
-    const matrix = (value: DOMMatrix | null) => value == null ? null
-      : [value.a, value.b, value.c, value.d, value.e, value.f].map(round);
+    const matrix = (value: DOMMatrix | null) =>
+      value == null ? null : [value.a, value.b, value.c, value.d, value.e, value.f].map(round);
     const result: Record<string, unknown> = {};
-    for (const text of document.querySelectorAll<SVGTextElement>('text[data-case]')) {
-      const textPath = text.querySelector<SVGTextPathElement>('textPath')!;
-      const href = textPath.getAttribute('href');
-      const referenced = href?.startsWith('#')
-        ? document.getElementById(href.slice(1)) as SVGPathElement | null
+    for (const text of document.querySelectorAll<SVGTextElement>("text[data-case]")) {
+      const textPath = text.querySelector<SVGTextPathElement>("textPath")!;
+      const href = textPath.getAttribute("href");
+      const referenced = href?.startsWith("#")
+        ? (document.getElementById(href.slice(1)) as SVGPathElement | null)
         : null;
       let pathLength: number | null = null;
       if (referenced instanceof SVGPathElement) pathLength = round(referenced.getTotalLength());
-      else if (textPath.getAttribute('path')) {
-        const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        probe.setAttribute('d', textPath.getAttribute('path')!);
+      else if (textPath.getAttribute("path")) {
+        const probe = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        probe.setAttribute("d", textPath.getAttribute("path")!);
         text.ownerSVGElement!.appendChild(probe);
-        try { pathLength = round(probe.getTotalLength()); } catch { pathLength = null; }
+        try {
+          pathLength = round(probe.getTotalLength());
+        } catch {
+          pathLength = null;
+        }
         probe.remove();
       }
       const chars = [];
@@ -91,33 +91,38 @@ async function snapshot(page: import('@playwright/test').Page): Promise<Matrix> 
   });
 }
 
-describeBrowser('DM-2416 Blink inline SVG textPath intermediate oracle', () => {
-  it('preserves Blink path, transform, glyph geometry, rotation, and visibility branches', async () => {
+describeBrowser("DM-2416 Blink inline SVG textPath intermediate oracle", () => {
+  it("preserves Blink path, transform, glyph geometry, rotation, and visibility branches", async () => {
     const context = await browser!.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
     const source = await context.newPage();
     const consumer = await context.newPage();
     try {
       await source.setContent(HTML);
       const expected = await snapshot(source);
-      const tree = await captureElementTree(source, 'body', { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+      const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
       const inner = elementTreeToSvgInner(tree, WIDTH, HEIGHT);
-      await consumer.setContent(`<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">${inner}</svg>`);
+      await consumer.setContent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">${inner}</svg>`,
+      );
       const actual = await snapshot(consumer);
 
       expect(actual).toEqual(expected);
-      expect(expected['href-percent']).toEqual(expected['path-length-equivalent']);
-      for (const name of ['invalid', 'unresolved']) {
+      expect(expected["href-percent"]).toEqual(expected["path-length-equivalent"]);
+      for (const name of ["invalid", "unresolved"]) {
         const hidden = expected[name] as { chars: Array<{ start: number[]; end: number[] } | null> };
-        expect(hidden.chars.every((char) => char == null
-          || (char.start[0] === 0 && char.start[1] === 0
-            && char.end[0] === 0 && char.end[1] === 0))).toBe(true);
+        expect(
+          hidden.chars.every(
+            (char) =>
+              char == null || (char.start[0] === 0 && char.start[1] === 0 && char.end[0] === 0 && char.end[1] === 0),
+          ),
+        ).toBe(true);
       }
     } finally {
       await context.close();
     }
   }, 60_000);
 
-  it('namespaces duplicate fragment ids when independent tree scopes are combined', async () => {
+  it("namespaces duplicate fragment ids when independent tree scopes are combined", async () => {
     const context = await browser!.newContext({ viewport: { width: 500, height: 260 } });
     const source = await context.newPage();
     const consumer = await context.newPage();
@@ -125,23 +130,35 @@ describeBrowser('DM-2416 Blink inline SVG textPath intermediate oracle', () => {
       <path id="shared-text-path" d="${path}"/>
       <text data-owner="${owner}" font-family="Arial" font-size="14"><textPath href="#shared-text-path">scope ${owner}</textPath></text>
     </svg>`;
-    const escaped = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const escaped = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
     try {
-      await source.setContent(`<iframe srcdoc="${escaped(child('a', 'M10 25 H200'))}"></iframe>
-        <iframe srcdoc="${escaped(child('b', 'M10 75 H200'))}"></iframe>`);
-      const expected = await Promise.all(source.frames().slice(1).map((frame) => frame.locator('text').evaluate((text: SVGTextElement) => {
-        const point = text.getStartPositionOfChar(0);
-        return [point.x, point.y];
-      })));
-      const tree = await captureElementTree(source, 'body', { x: 0, y: 0, width: 500, height: 260 });
+      await source.setContent(`<iframe srcdoc="${escaped(child("a", "M10 25 H200"))}"></iframe>
+        <iframe srcdoc="${escaped(child("b", "M10 75 H200"))}"></iframe>`);
+      const expected = await Promise.all(
+        source
+          .frames()
+          .slice(1)
+          .map((frame) =>
+            frame.locator("text").evaluate((text: SVGTextElement) => {
+              const point = text.getStartPositionOfChar(0);
+              return [point.x, point.y];
+            }),
+          ),
+      );
+      const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: 500, height: 260 });
       const inner = elementTreeToSvgInner(tree, 500, 260);
       await consumer.setContent(`<svg xmlns="http://www.w3.org/2000/svg" width="500" height="260">${inner}</svg>`);
-      const actual = await consumer.locator('text[data-owner]').evaluateAll((texts: SVGTextElement[]) => texts.map((text) => {
-        const point = text.getStartPositionOfChar(0);
-        return [point.x, point.y];
-      }));
+      const actual = await consumer.locator("text[data-owner]").evaluateAll((texts: SVGTextElement[]) =>
+        texts.map((text) => {
+          const point = text.getStartPositionOfChar(0);
+          return [point.x, point.y];
+        }),
+      );
 
-      expect(expected).toEqual([[10, 25], [10, 75]]);
+      expect(expected).toEqual([
+        [10, 25],
+        [10, 75],
+      ]);
       expect(actual).toEqual(expected);
       expect(inner).toContain('id="svgscope0-shared-text-path"');
       expect(inner).toContain('id="svgscope1-shared-text-path"');

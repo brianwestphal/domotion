@@ -53,14 +53,54 @@ describe("hard URL background geometry adjudication", () => {
 
   it("rejects every former observational escape hatch", () => {
     const mutations = [
-      { name: "route", mutate: (row: ReturnType<typeof evidence>) => { row.expectedRoute = "current-gap"; } },
-      { name: "warning", mutate: (row: ReturnType<typeof evidence>) => { row.warnings.push("capture warning"); } },
-      { name: "palette", mutate: (row: ReturnType<typeof evidence>) => { row.comparison.sourceBounds.red = null; } },
-      { name: "ink", mutate: (row: ReturnType<typeof evidence>) => { row.comparison.maxInkBoundDelta = 2; } },
-      { name: "pattern count", mutate: (row: ReturnType<typeof evidence>) => { row.expectedPatternCount = 2; } },
-      { name: "pattern geometry", mutate: (row: ReturnType<typeof evidence>) => { row.patterns[0] = { ...pattern, width: Number.NaN }; } },
-      { name: "pixel envelope", mutate: (row: ReturnType<typeof evidence>) => { row.comparison.maxColorBoundDelta = 2; } },
-      { name: "restart discriminator", mutate: (row: ReturnType<typeof evidence>) => { row.requiresRestartMutation = true; } },
+      {
+        name: "route",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.expectedRoute = "current-gap";
+        },
+      },
+      {
+        name: "warning",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.warnings.push("capture warning");
+        },
+      },
+      {
+        name: "palette",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.comparison.sourceBounds.red = null;
+        },
+      },
+      {
+        name: "ink",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.comparison.maxInkBoundDelta = 2;
+        },
+      },
+      {
+        name: "pattern count",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.expectedPatternCount = 2;
+        },
+      },
+      {
+        name: "pattern geometry",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.patterns[0] = { ...pattern, width: Number.NaN };
+        },
+      },
+      {
+        name: "pixel envelope",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.comparison.maxColorBoundDelta = 2;
+        },
+      },
+      {
+        name: "restart discriminator",
+        mutate: (row: ReturnType<typeof evidence>) => {
+          row.requiresRestartMutation = true;
+        },
+      },
     ];
     for (const mutation of mutations) {
       const row = evidence();

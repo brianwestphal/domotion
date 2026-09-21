@@ -17,8 +17,9 @@ describe("DM-2525 three-platform vertical-orientation gate", () => {
     expect(workflow).toContain("vertical-orientation-capture.e2e.test.ts");
     expect(workflow).toContain("vertical-orientation-${{ runner.os }}.json");
     expect(workflow).not.toContain("continue-on-error");
-    expect(packageJson.scripts?.["unicode:vertical-orientation:oracle"])
-      .toBe("node --import tsx tools/vertical-orientation-oracle.ts");
+    expect(packageJson.scripts?.["unicode:vertical-orientation:oracle"]).toBe(
+      "node --import tsx tools/vertical-orientation-oracle.ts",
+    );
   });
 
   it("contains no visual-fitting escape hatch", () => {

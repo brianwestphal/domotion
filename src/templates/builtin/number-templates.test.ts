@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  formatNumber, planOdometer, formatTimer, planTimer, buildOdometerMarkup, MAX_SPINS,
+  formatNumber,
+  planOdometer,
+  formatTimer,
+  planTimer,
+  buildOdometerMarkup,
+  MAX_SPINS,
   type OdometerColumn,
 } from "./odometer.js";
 import { counterTemplate, buildCounterHtml, planCounter, counterParamsSchema } from "./counter.js";
@@ -49,9 +54,9 @@ describe("odometer.planOdometer (DM-1532)", () => {
     // ends on 5 — ticks 20 times over the count (105→…→125), so it spins. That's
     // real odometer behavior, not a bug.
     const ds = digits(planOdometer(105, 125).columns);
-    expect(ds[0].steps).toBe(0);           // hundreds — never ticks
+    expect(ds[0].steps).toBe(0); // hundreds — never ticks
     expect(ds[1].steps).toBeGreaterThan(0); // tens — changes
-    expect(ds[2].steps).toBe(20);           // units — ticks 20× (2 full turns), lands on 5
+    expect(ds[2].steps).toBe(20); // units — ticks 20× (2 full turns), lands on 5
   });
 
   it("low-order digits of a big count spin through multiple turns", () => {
@@ -147,7 +152,9 @@ describe("counter template (DM-1532)", () => {
 
   it("brandDefaults maps text→color, background, font", () => {
     expect(counterTemplate.brandDefaults!(BRAND)).toEqual({
-      color: "#e6edf3", background: "#0b1020", fontFamily: "Inter, sans-serif",
+      color: "#e6edf3",
+      background: "#0b1020",
+      fontFamily: "Inter, sans-serif",
     });
   });
 });

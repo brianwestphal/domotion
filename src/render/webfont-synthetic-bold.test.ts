@@ -46,7 +46,10 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
-  webfontSyntheticBold, registerWebfont, clearWebfonts, resolveFont,
+  webfontSyntheticBold,
+  registerWebfont,
+  clearWebfonts,
+  resolveFont,
   type WebfontSynthesisFace,
 } from "./font-resolution.js";
 import { renderTextAsPath, setRenderTextMode } from "./text-to-path.js";
@@ -54,7 +57,10 @@ import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss } from "./embedde
 import { skiaFakeBoldStrokeExtraPx } from "./embolden-outline.js";
 
 const face = (o: Partial<WebfontSynthesisFace>): WebfontSynthesisFace => ({
-  declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false, ...o,
+  declaredWeightCaps: null,
+  wghtAxisMax: null,
+  baseIsBold: false,
+  ...o,
 });
 
 describe("webfontSyntheticBold — the rule", () => {
@@ -160,8 +166,12 @@ describeWithSerif("registered webfont variants carry their synthesis facts", () 
     // registration stamps — this fixture's face has no explicit style
     // descriptor either, so they read the same "auto, not italic" defaults.
     expect(inst?.webfontFace).toEqual({
-      declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
-      declaredStyleCaps: null, slntAxisMin: null, baseIsItalic: false,
+      declaredWeightCaps: null,
+      wghtAxisMax: null,
+      baseIsBold: false,
+      declaredStyleCaps: null,
+      slntAxisMin: null,
+      baseIsItalic: false,
     });
     expect(webfontSyntheticBold(inst!.webfontFace!, 700)).toBe(true);
     expect(webfontSyntheticBold(inst!.webfontFace!, 400)).toBe(false);
@@ -240,8 +250,15 @@ describeWithVar("variable webfonts: auto exempts, declared does not", () => {
 // only the system-font branch set the fields it reads.
 
 describeWithSerif("the emitted run carries the synthetic bold (DM-1970)", () => {
-  beforeEach(() => { clearWebfonts(); clearEmbeddedFontBuilder(); });
-  afterEach(() => { clearWebfonts(); clearEmbeddedFontBuilder(); setRenderTextMode("embedded-font"); });
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFontBuilder();
+  });
+  afterEach(() => {
+    clearWebfonts();
+    clearEmbeddedFontBuilder();
+    setRenderTextMode("embedded-font");
+  });
 
   /**
    * The synthetic-bold FRAME width the embedded-font path emits for one short
@@ -264,7 +281,10 @@ describeWithSerif("the emitted run carries the synthetic bold (DM-1970)", () => 
     clearEmbeddedFontBuilder();
     setRenderTextMode("embedded-font");
     const markup = renderTextAsPath("Hn", 0, 100, {
-      fontSize: 100, fontFamily: `"${family}"`, fontWeight: weight, fill: "#000",
+      fontSize: 100,
+      fontFamily: `"${family}"`,
+      fontWeight: weight,
+      fill: "#000",
     });
     const m = /<text[^>]*\sstroke-width="([\d.]+)"/.exec(markup ?? "");
     return m == null ? null : Number(m[1]);
@@ -303,7 +323,10 @@ describeWithSerif("the emitted run carries the synthetic bold (DM-1970)", () => 
       clearEmbeddedFontBuilder();
       setRenderTextMode("embedded-font");
       const markup = renderTextAsPath("Hn", 0, px * 2, {
-        fontSize: px, fontFamily: `"SeamSize"`, fontWeight: 700, fill: "#000",
+        fontSize: px,
+        fontFamily: `"SeamSize"`,
+        fontWeight: 700,
+        fill: "#000",
       });
       const m = /<text[^>]*\sstroke-width="([\d.]+)"/.exec(markup ?? "");
       return m == null ? null : Number(m[1]);

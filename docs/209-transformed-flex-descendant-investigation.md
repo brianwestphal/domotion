@@ -4,10 +4,10 @@ title: "Transformed flex descendant investigation"
 kind: "investigation"
 status: "current"
 owners: ["layout"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2336","DM-587"]
-code: ["src/render/format.ts","tests/transformed-flex-geometry.e2e.test.ts"]
-aliases: ["docs/209-transformed-flex-descendant-investigation.md","doc-209"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2336", "DM-587"]
+code: ["src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"]
+aliases: ["docs/209-transformed-flex-descendant-investigation.md", "doc-209"]
 ---
 
 # Transformed flex descendant investigation

@@ -41,8 +41,7 @@ import { shapingDirectionAt } from "./text-to-path.js";
 
 /** `bidiLevelsFor` returns undefined when it decides the text cannot contain a
  *  direction boundary — i.e. when the UBA is skipped entirely. */
-const reachesBidi = (cp: number): boolean =>
-  bidiLevelsFor(`A${String.fromCodePoint(cp)}B`) !== undefined;
+const reachesBidi = (cp: number): boolean => bidiLevelsFor(`A${String.fromCodePoint(cp)}B`) !== undefined;
 
 describe("bidiLevelsFor — SMP RTL scripts reach the bidi algorithm", () => {
   it.each([

@@ -4,10 +4,16 @@ title: "Domotion: appearance: none checkbox / radio / switch"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2459","DM-247","DM-285"]
-code: ["src/capture/pseudo-fragment-cdp.ts","src/render/pseudo-fragments.ts","tests/checkable-pseudo-indicators.e2e.test.ts","tools/pseudo-fragment-render-oracle.ts"]
-aliases: ["docs/11-custom-checkbox-radio.md","doc-11"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2459", "DM-247", "DM-285"]
+code:
+  [
+    "src/capture/pseudo-fragment-cdp.ts",
+    "src/render/pseudo-fragments.ts",
+    "tests/checkable-pseudo-indicators.e2e.test.ts",
+    "tools/pseudo-fragment-render-oracle.ts",
+  ]
+aliases: ["docs/11-custom-checkbox-radio.md", "doc-11"]
 ---
 
 # Domotion: `appearance: none` checkbox / radio / switch

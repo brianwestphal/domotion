@@ -61,16 +61,18 @@ function discriminatorTree(): CapturedElement {
     height: 200,
     animId: "glide",
     styles: styles("rgba(0, 0, 0, 0)"),
-    children: [{
-      tag: "div",
-      text: "",
-      x: 300,
-      y: 100,
-      width: 20,
-      height: 20,
-      styles: styles("rgb(220, 20, 60)"),
-      children: [],
-    }],
+    children: [
+      {
+        tag: "div",
+        text: "",
+        x: 300,
+        y: 100,
+        width: 20,
+        height: 20,
+        styles: styles("rgb(220, 20, 60)"),
+        children: [],
+      },
+    ],
   };
 }
 
@@ -106,12 +108,14 @@ describeBrowser("DM-2460 live Chromium renderer-owned culling discriminator", ()
           const svg = generateAnimatedSvg({
             width: WIDTH,
             height: HEIGHT,
-            frames: [{
-              svgContent: inner,
-              duration: 1000,
-              animations: [GLIDE],
-              cullCss: css,
-            }],
+            frames: [
+              {
+                svgContent: inner,
+                duration: 1000,
+                animations: [GLIDE],
+                cullCss: css,
+              },
+            ],
           });
           const page = await context.newPage();
           try {

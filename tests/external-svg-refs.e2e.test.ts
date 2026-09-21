@@ -11,7 +11,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // Gated on a launchable browser (skips in a sandbox that blocks browser
 // launch), like the other browser-driven tests.
 
-const W = 280, H = 200;
+const W = 280,
+  H = 200;
 // A box at page (40,40) 160x120, clipped by an external userSpaceOnUse triangle
 // (also exercises DM-828 positioning via the external path). The clip keeps a
 // downward triangle: apex at element-local (80,120), base across the top.
@@ -52,26 +53,39 @@ const MASK_HTML =
 // since whether the browser launches decides skip-vs-run. Start the loopback
 // server + launch the browser up front; skip cleanly if either is unavailable
 // (e.g. a sandbox that blocks browser launch or socket listen).
-async function setup(): Promise<{ server: Server; base: string; browser: Awaited<ReturnType<typeof launchChromium>> } | null> {
+async function setup(): Promise<{
+  server: Server;
+  base: string;
+  browser: Awaited<ReturnType<typeof launchChromium>>;
+} | null> {
   const started = await new Promise<{ server: Server; base: string } | null>((resolve) => {
     const server = createServer((req, res) => {
       const url = req.url ?? "";
       if (url.startsWith("/shapes.svg")) {
-        res.writeHead(200, { "content-type": "image/svg+xml" }); res.end(SHAPES_SVG);
+        res.writeHead(200, { "content-type": "image/svg+xml" });
+        res.end(SHAPES_SVG);
       } else if (url.startsWith("/maskdef.svg")) {
-        res.writeHead(200, { "content-type": "image/svg+xml" }); res.end(MASK_SVG);
+        res.writeHead(200, { "content-type": "image/svg+xml" });
+        res.end(MASK_SVG);
       } else if (url.startsWith("/mask.html")) {
-        res.writeHead(200, { "content-type": "text/html" }); res.end(MASK_HTML);
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(MASK_HTML);
       } else if (url.startsWith("/invalid-clip.html")) {
-        res.writeHead(200, { "content-type": "text/html" }); res.end(INVALID_CLIP_HTML);
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(INVALID_CLIP_HTML);
       } else {
-        res.writeHead(200, { "content-type": "text/html" }); res.end(INDEX_HTML);
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(INDEX_HTML);
       }
     });
     server.on("error", () => resolve(null));
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address();
-      if (addr == null || typeof addr === "string") { server.close(); resolve(null); return; }
+      if (addr == null || typeof addr === "string") {
+        server.close();
+        resolve(null);
+        return;
+      }
       resolve({ server, base: `http://127.0.0.1:${addr.port}` });
     });
   });
@@ -94,7 +108,7 @@ afterAll(async () => {
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
-  it("resolves url(\"./shapes.svg#id\"), inlines the clipPath, and clips in place", async () => {
+  it('resolves url("./shapes.svg#id"), inlines the clipPath, and clips in place', async () => {
     const { base, browser } = env!;
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
@@ -110,8 +124,8 @@ describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
         return [data[i], data[i + 1], data[i + 2]] as [number, number, number];
       };
       const pink = (p: [number, number, number]) => p[0] > 150 && p[1] < 100 && p[2] > 60 && p[2] < 150;
-      expect(pink(await px(expected, 120, 52))).toBe(true);   // inside the triangle
-      expect(pink(await px(expected, 45, 150))).toBe(false);  // bottom-left corner clipped
+      expect(pink(await px(expected, 120, 52))).toBe(true); // inside the triangle
+      expect(pink(await px(expected, 45, 150))).toBe(false); // bottom-left corner clipped
 
       // Capture → SVG. The pre-pass should have fetched + inlined the external
       // clipPath and rewritten the ref to same-document.
@@ -122,15 +136,15 @@ describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
       // The external triangle was inlined as a <clipPath> def and the box group
       // references it — i.e. the external ref was resolved, not dropped.
       expect(svg).toMatch(/<clipPath\b[^>]*>/i);
-      expect(svg).toContain("clip-path=\"url(#");
+      expect(svg).toContain('clip-path="url(#');
       expect(svg).toMatch(/<polygon[^>]*points="0,0 160,0 80,120"/);
 
       // Render Domotion's SVG and confirm the clip lands in the same place.
       const svgDoc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#ffffff"/>${svg}</svg>`;
       await page.setContent(`<!doctype html><body style="margin:0">${svgDoc}</body>`, { waitUntil: "load" });
       const actual = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
-      expect(pink(await px(actual, 120, 52))).toBe(true);   // inside → painted
-      expect(pink(await px(actual, 45, 150))).toBe(false);  // clipped corner → bg
+      expect(pink(await px(actual, 120, 52))).toBe(true); // inside → painted
+      expect(pink(await px(actual, 45, 150))).toBe(false); // clipped corner → bg
     } finally {
       await page.close();
     }
@@ -141,11 +155,13 @@ describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       await page.goto(`${base}/invalid-clip.html`, { waitUntil: "load" });
-      expect(await page.locator("#box").evaluate((element) => ({
-        specified: (element as HTMLElement).style.clipPath,
-        computed: getComputedStyle(element).clipPath,
-        supported: CSS.supports("clip-path", "url(./shapes.svg#tri) padding-box"),
-      }))).toEqual({ specified: "", computed: "none", supported: false });
+      expect(
+        await page.locator("#box").evaluate((element) => ({
+          specified: (element as HTMLElement).style.clipPath,
+          computed: getComputedStyle(element).clipPath,
+          supported: CSS.supports("clip-path", "url(./shapes.svg#tri) padding-box"),
+        })),
+      ).toEqual({ specified: "", computed: "none", supported: false });
 
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       expect((tree[0].clipPathDefs ?? []).map((def) => def.id)).not.toContain("tri");
@@ -169,7 +185,7 @@ describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
 });
 
 describeBrowser("external-file mask-image fragment refs (DM-496)", () => {
-  it("resolves url(\"./maskdef.svg#id\"), inlines the <mask>, and masks in place", async () => {
+  it('resolves url("./maskdef.svg#id"), inlines the <mask>, and masks in place', async () => {
     const { base, browser } = env!;
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
@@ -184,8 +200,8 @@ describeBrowser("external-file mask-image fragment refs (DM-496)", () => {
 
       // Chrome's native paint (sanity: the external mask really applies over http).
       const expected = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
-      expect(green(await px(expected, 180, 140))).toBe(true);   // outside the black polygon → painted
-      expect(green(await px(expected, 60, 50))).toBe(false);    // inside it → masked (bg)
+      expect(green(await px(expected, 180, 140))).toBe(true); // outside the black polygon → painted
+      expect(green(await px(expected, 60, 50))).toBe(false); // inside it → masked (bg)
 
       setRenderTextMode("paths");
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
@@ -193,13 +209,13 @@ describeBrowser("external-file mask-image fragment refs (DM-496)", () => {
 
       // The external <mask> was inlined as a same-document def and applied.
       expect(svg).toMatch(/<mask\b[^>]*>/i);
-      expect(svg).toContain("mask=\"url(#");
+      expect(svg).toContain('mask="url(#');
 
       const svgDoc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#ffffff"/>${svg}</svg>`;
       await page.setContent(`<!doctype html><body style="margin:0">${svgDoc}</body>`, { waitUntil: "load" });
       const actual = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
-      expect(green(await px(actual, 180, 140))).toBe(true);   // unmasked region → painted
-      expect(green(await px(actual, 60, 50))).toBe(false);    // masked region → bg
+      expect(green(await px(actual, 180, 140))).toBe(true); // unmasked region → painted
+      expect(green(await px(actual, 60, 50))).toBe(false); // masked region → bg
     } finally {
       await page.close();
     }

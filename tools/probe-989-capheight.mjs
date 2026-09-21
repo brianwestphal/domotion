@@ -36,11 +36,13 @@ console.log("canvas H probe:", txt);
 const realProbe = await page.evaluate(() => {
   const tests = [];
   for (let fs = 160; fs <= 220; fs += 5) {
-    const span = document.createElement('span');
+    const span = document.createElement("span");
     span.style.font = `800 ${fs}px Georgia, serif`;
-    span.style.position = 'absolute'; span.style.left = '0'; span.style.top = '-1000px';
-    span.style.lineHeight = 'normal';
-    span.textContent = 'W';
+    span.style.position = "absolute";
+    span.style.left = "0";
+    span.style.top = "-1000px";
+    span.style.lineHeight = "normal";
+    span.textContent = "W";
     document.body.appendChild(span);
     const r = document.createRange();
     r.selectNodeContents(span);

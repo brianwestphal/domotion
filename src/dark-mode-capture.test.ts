@@ -13,7 +13,10 @@ function makeRoot(overrides: { rootColorScheme?: "light" | "dark"; rootBgCompute
   return {
     tag: "body",
     text: "",
-    x: 0, y: 0, width: 100, height: 100,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
     children: [],
     styles: {
       backgroundColor: "rgb(255,255,255)",
@@ -120,12 +123,14 @@ describe("wrapSvg with tree option (DM-552)", () => {
     expect(out).toBe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><g/></svg>`);
   });
 
-  it("includes color-scheme=\"dark\" on the root <svg> when tree's root reports dark scheme", () => {
+  it('includes color-scheme="dark" on the root <svg> when tree\'s root reports dark scheme', () => {
     const out = wrapSvg("<g/>", 100, 50, { tree: [makeRoot({ rootColorScheme: "dark" })] });
-    expect(out).toBe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50" color-scheme="dark"><g/></svg>`);
+    expect(out).toBe(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50" color-scheme="dark"><g/></svg>`,
+    );
   });
 
-  it("does NOT add color-scheme=\"light\" — the absence of the attribute IS the light default (today's output preserved verbatim)", () => {
+  it('does NOT add color-scheme="light" — the absence of the attribute IS the light default (today\'s output preserved verbatim)', () => {
     const out = wrapSvg("<g/>", 100, 50, { tree: [makeRoot({ rootColorScheme: "light" })] });
     expect(out).not.toContain("color-scheme");
   });
@@ -151,8 +156,16 @@ describe("transparentRootBgRect (DM-554)", () => {
   });
 
   it("uses the same color whether the scheme is light or dark — the rect mirrors Chromium's resolved bg, not a hardcoded scheme palette", () => {
-    const lightOut = transparentRootBgRect([makeRoot({ rootBgComputed: "rgb(255, 255, 255)", rootColorScheme: "light" })], 100, 50);
-    const darkOut = transparentRootBgRect([makeRoot({ rootBgComputed: "rgb(28, 28, 28)", rootColorScheme: "dark" })], 100, 50);
+    const lightOut = transparentRootBgRect(
+      [makeRoot({ rootBgComputed: "rgb(255, 255, 255)", rootColorScheme: "light" })],
+      100,
+      50,
+    );
+    const darkOut = transparentRootBgRect(
+      [makeRoot({ rootBgComputed: "rgb(28, 28, 28)", rootColorScheme: "dark" })],
+      100,
+      50,
+    );
     expect(lightOut).toBe(`<rect width="100" height="50" fill="rgb(255, 255, 255)" />`);
     expect(darkOut).toBe(`<rect width="100" height="50" fill="rgb(28, 28, 28)" />`);
   });
@@ -161,7 +174,9 @@ describe("transparentRootBgRect (DM-554)", () => {
 describe("wrapSvg with body-bg rect injection (DM-554)", () => {
   it("emits the body-bg rect BEFORE the inner content so the inner paints on top", () => {
     const out = wrapSvg("<g class='content'/>", 100, 50, { tree: [makeRoot({ rootBgComputed: "rgb(28, 28, 28)" })] });
-    expect(out).toBe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><rect width="100" height="50" fill="rgb(28, 28, 28)" /><g class='content'/></svg>`);
+    expect(out).toBe(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><rect width="100" height="50" fill="rgb(28, 28, 28)" /><g class='content'/></svg>`,
+    );
   });
 
   it("combines color-scheme attr and body-bg rect when the tree has both signals", () => {

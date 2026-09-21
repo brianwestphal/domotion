@@ -53,15 +53,12 @@ describe("helperImplementationDigest", () => {
   });
 });
 
-const ours = (o: Partial<OurFace>): OurFace =>
-  ({ key: "x", path: null, postscriptName: null, covered: true, ...o });
-const chrome = (o: Partial<ChromeFace>): ChromeFace =>
-  ({ familyName: "", glyphCount: 1, ...o });
+const ours = (o: Partial<OurFace>): OurFace => ({ key: "x", path: null, postscriptName: null, covered: true, ...o });
+const chrome = (o: Partial<ChromeFace>): ChromeFace => ({ familyName: "", glyphCount: 1, ...o });
 
 describe("oracle resolver question", () => {
   it("passes the raw CSS family stack used by Blink's standard-style retry", () => {
-    const source = readFileSync(join(process.cwd(), "tools/font-conformance.ts"), "utf8")
-      .replace(/\s+/g, " ");
+    const source = readFileSync(join(process.cwd(), "tools/font-conformance.ts"), "utf8").replace(/\s+/g, " ");
     expect(source).toMatch(
       /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily, lang\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
     );
@@ -72,7 +69,7 @@ describe("verdictForCodepoint", () => {
   it("does not grade HarfBuzz default-ignorables by CDP's bookkeeping face", () => {
     const c = chrome({ postScriptName: "Times-Roman", familyName: "Times" });
     const o = ours({ postscriptName: "AppleColorEmoji" });
-    for (const cp of [0x00AD, 0x061C, 0x180B, 0x2064, 0xFE0F, 0xE0061]) {
+    for (const cp of [0x00ad, 0x061c, 0x180b, 0x2064, 0xfe0f, 0xe0061]) {
       expect(verdictForCodepoint(cp, c, o, false)).toBe("agree-not-painted");
     }
   });
@@ -110,7 +107,7 @@ describe("buildUniverse", () => {
 
   it("excludes unassigned codepoints", () => {
     const u = new Set(buildUniverse({ includePua: true, ranges: [[0x0870, 0x089f]] }));
-    expect(u.has(0x0870)).toBe(true);   // Arabic Extended-B, assigned
+    expect(u.has(0x0870)).toBe(true); // Arabic Extended-B, assigned
     // Reserved hole in the same block. `buildUniverse` deliberately tracks the
     // RUNTIME's `\p{Assigned}` tables (the baselines record the Unicode version
     // and refuse to compare across a change), so this pin must be a codepoint
@@ -130,7 +127,13 @@ describe("buildUniverse", () => {
   });
 
   it("honors multiple ranges", () => {
-    const u = buildUniverse({ includePua: true, ranges: [[0x41, 0x43], [0x61, 0x62]] });
+    const u = buildUniverse({
+      includePua: true,
+      ranges: [
+        [0x41, 0x43],
+        [0x61, 0x62],
+      ],
+    });
     expect(u).toEqual([0x41, 0x42, 0x43, 0x61, 0x62]);
   });
 
@@ -160,27 +163,33 @@ describe("needsIsolatedQuery", () => {
 
 describe("identifyFace", () => {
   it("matches on PostScript name", () => {
-    expect(identifyFace(
-      chrome({ postScriptName: "Arimo-Bold", familyName: "Arimo" }),
-      ours({ postscriptName: "Arimo-Bold" }),
-      false,
-    )).toBe("agree-exact");
+    expect(
+      identifyFace(
+        chrome({ postScriptName: "Arimo-Bold", familyName: "Arimo" }),
+        ours({ postscriptName: "Arimo-Bold" }),
+        false,
+      ),
+    ).toBe("agree-exact");
   });
 
   it("does NOT match a different cut of the same family", () => {
-    expect(identifyFace(
-      chrome({ postScriptName: "Arimo-Bold", familyName: "Arimo" }),
-      ours({ postscriptName: "Arimo-Regular", path: "/tmp/Arimo-Regular.ttf" }),
-      false,
-    )).toBe(null);
+    expect(
+      identifyFace(
+        chrome({ postScriptName: "Arimo-Bold", familyName: "Arimo" }),
+        ours({ postscriptName: "Arimo-Regular", path: "/tmp/Arimo-Regular.ttf" }),
+        false,
+      ),
+    ).toBe(null);
   });
 
   it("does not match on family name alone when the PostScript names disagree", () => {
-    expect(identifyFace(
-      chrome({ postScriptName: "TimesNewRomanPSMT", familyName: "Times New Roman" }),
-      ours({ postscriptName: "Times-Roman", path: "/System/Library/Fonts/Times.ttc" }),
-      false,
-    )).toBe(null);
+    expect(
+      identifyFace(
+        chrome({ postScriptName: "TimesNewRomanPSMT", familyName: "Times New Roman" }),
+        ours({ postscriptName: "Times-Roman", path: "/System/Library/Fonts/Times.ttc" }),
+        false,
+      ),
+    ).toBe(null);
   });
 
   it("does not alias an exact named SF Pro face to the system SFNS face", () => {
@@ -191,11 +200,13 @@ describe("identifyFace", () => {
   });
 
   it("does not let the system-font alias absorb an unrelated face", () => {
-    expect(identifyFace(
-      chrome({ postScriptName: "SFProText-Regular", familyName: "SF Pro Text" }),
-      ours({ key: "u-arial-unicode-ms", postscriptName: "ArialUnicodeMS", path: "/x/Arial Unicode.ttf" }),
-      false,
-    )).toBe(null);
+    expect(
+      identifyFace(
+        chrome({ postScriptName: "SFProText-Regular", familyName: "SF Pro Text" }),
+        ours({ key: "u-arial-unicode-ms", postscriptName: "ArialUnicodeMS", path: "/x/Arial Unicode.ttf" }),
+        false,
+      ),
+    ).toBe(null);
   });
 
   it("refuses to identify a face from an unusably short name", () => {
@@ -207,11 +218,13 @@ describe("identifyFace", () => {
     // path. Accepting the file match here is precisely what let a wrong-cut
     // pick score as agreement, so two differing PostScript names must lose even
     // when the file is identical.
-    expect(identifyFace(
-      chrome({ postScriptName: "Helvetica-Bold", familyName: "Helvetica" }),
-      ours({ key: "helvetica", postscriptName: "Helvetica", path: "/System/Library/Fonts/Helvetica.ttc" }),
-      false,
-    )).toBe(null);
+    expect(
+      identifyFace(
+        chrome({ postScriptName: "Helvetica-Bold", familyName: "Helvetica" }),
+        ours({ key: "helvetica", postscriptName: "Helvetica", path: "/System/Library/Fonts/Helvetica.ttc" }),
+        false,
+      ),
+    ).toBe(null);
   });
 
   // Tier 2 needs the host's font matcher to resolve a real name to a real file,
@@ -221,7 +234,9 @@ describe("identifyFace", () => {
       try {
         const f = resolveInstalledFont(name);
         if (f != null && f.path !== "") return f;
-      } catch { /* helper unavailable on this host */ }
+      } catch {
+        /* helper unavailable on this host */
+      }
     }
     return null;
   })();
@@ -229,32 +244,38 @@ describe("identifyFace", () => {
   it.skipIf(installed == null)("still uses the file when our side has no name of its own", () => {
     // Path-table entries that declare no PostScript name are the case tier 2
     // exists for; the guard above must not take that away.
-    expect(identifyFace(
-      chrome({ postScriptName: installed!.postscriptName, familyName: "whatever" }),
-      ours({ key: "k", postscriptName: null, path: installed!.path }),
-      false,
-    )).toBe("agree-same-file");
+    expect(
+      identifyFace(
+        chrome({ postScriptName: installed!.postscriptName, familyName: "whatever" }),
+        ours({ key: "k", postscriptName: null, path: installed!.path }),
+        false,
+      ),
+    ).toBe("agree-same-file");
   });
 
   it.skipIf(installed == null)("drops to a mismatch once our side IS named and the names disagree", () => {
     // Same file, same Chrome face as the test above — the only thing that
     // changed is that we can now name our face, and it is a different one.
-    expect(identifyFace(
-      chrome({ postScriptName: installed!.postscriptName, familyName: "whatever" }),
-      ours({ key: "k", postscriptName: `${installed!.postscriptName}-SomeOtherCut`, path: installed!.path }),
-      false,
-    )).toBe(null);
+    expect(
+      identifyFace(
+        chrome({ postScriptName: installed!.postscriptName, familyName: "whatever" }),
+        ours({ key: "k", postscriptName: `${installed!.postscriptName}-SomeOtherCut`, path: installed!.path }),
+        false,
+      ),
+    ).toBe(null);
   });
 
   it("never file-resolves a hidden `.`-prefixed system name (CoreText answers those with Times New Roman)", () => {
     // If the guard regressed, this would resolve `.SFArabic-Bold` to
     // /System/Library/Fonts/Supplemental/Times New Roman.ttf and agree with a
     // Times pick — inventing parity out of a CoreText quirk.
-    expect(identifyFace(
-      chrome({ postScriptName: ".SFArabic-Bold", familyName: ".SF Arabic" }),
-      ours({ key: "times", postscriptName: null, path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" }),
-      false,
-    )).toBe(null);
+    expect(
+      identifyFace(
+        chrome({ postScriptName: ".SFArabic-Bold", familyName: ".SF Arabic" }),
+        ours({ key: "times", postscriptName: null, path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" }),
+        false,
+      ),
+    ).toBe(null);
   });
 });
 
@@ -308,22 +329,25 @@ describe("allowlist", () => {
   });
 
   it("rejects a malformed codepoint", () => {
-    expect(() => loadAllowlist(write({ entries: [{ cp: "U+20BF", reason: "a properly worded reason" }] })))
-      .toThrow(/0xNNNN/);
+    expect(() => loadAllowlist(write({ entries: [{ cp: "U+20BF", reason: "a properly worded reason" }] }))).toThrow(
+      /0xNNNN/,
+    );
   });
 
   it("matches single codepoints, ranges and stack scoping, and counts hits", () => {
-    const al = loadAllowlist(write({
-      entries: [
-        { cp: "0x20BF", reason: "a properly worded reason for this one codepoint" },
-        { cp: "0x1F000-0x1F00F", stack: "Times", reason: "a properly worded reason for this range" },
-      ],
-    }));
+    const al = loadAllowlist(
+      write({
+        entries: [
+          { cp: "0x20BF", reason: "a properly worded reason for this one codepoint" },
+          { cp: "0x1F000-0x1F00F", stack: "Times", reason: "a properly worded reason for this range" },
+        ],
+      }),
+    );
     expect(allowlisted(al, 0x20bf, "anything")).toBe(true);
     expect(allowlisted(al, 0x20c0, "anything")).toBe(false);
     expect(allowlisted(al, 0x1f005, "Times")).toBe(true);
-    expect(allowlisted(al, 0x1f005, "Menlo")).toBe(false);   // stack-scoped
-    expect(allowlisted(al, 0x1f010, "Times")).toBe(false);   // past the range end
+    expect(allowlisted(al, 0x1f005, "Menlo")).toBe(false); // stack-scoped
+    expect(allowlisted(al, 0x1f010, "Times")).toBe(false); // past the range end
     expect(al.hits).toEqual([1, 1]);
   });
 
@@ -360,8 +384,20 @@ describe("parseArgs", () => {
   });
 
   it("parses ranges, shards and flags", () => {
-    const o = parseArgs(["--range", "0000-00FF,1F600", "--shard", "2/8", "--stack-shard", "3/16", "--no-pua", "--strict-alias"]);
-    expect(o.ranges).toEqual([[0x0, 0xff], [0x1f600, 0x1f600]]);
+    const o = parseArgs([
+      "--range",
+      "0000-00FF,1F600",
+      "--shard",
+      "2/8",
+      "--stack-shard",
+      "3/16",
+      "--no-pua",
+      "--strict-alias",
+    ]);
+    expect(o.ranges).toEqual([
+      [0x0, 0xff],
+      [0x1f600, 0x1f600],
+    ]);
     expect(o.shard).toEqual([2, 8]);
     expect(o.stackShard).toEqual([3, 16]);
     expect(o.includePua).toBe(false);
@@ -398,23 +434,46 @@ describe("parseArgs", () => {
  * test says so instead of silently passing on zero cases.
  */
 describe("faceFor reports the cut the renderer would load", () => {
-  const stack = (o: Partial<StackSpec>): StackSpec =>
-    ({ fontFamily: "sans-serif", fontSize: 32, fontWeight: 400, fontStyle: "normal", fixtures: 1, example: "x.html", ...o });
+  const stack = (o: Partial<StackSpec>): StackSpec => ({
+    fontFamily: "sans-serif",
+    fontSize: 32,
+    fontWeight: 400,
+    fontStyle: "normal",
+    fixtures: 1,
+    example: "x.html",
+    ...o,
+  });
 
   /** Faces that route to a different cut somewhere on this host, if any. */
-  const CUT_FAMILIES = ["sans-serif", "serif", "monospace", "Helvetica", "Arial", "Times", "Georgia", "Courier", "Menlo"];
+  const CUT_FAMILIES = [
+    "sans-serif",
+    "serif",
+    "monospace",
+    "Helvetica",
+    "Arial",
+    "Times",
+    "Georgia",
+    "Courier",
+    "Menlo",
+  ];
 
   const cutCases = CUT_FAMILIES.flatMap((fontFamily) =>
-    [{ fontWeight: 700, fontStyle: "normal" }, { fontWeight: 400, fontStyle: "italic" }, { fontWeight: 100, fontStyle: "normal" }]
-      .map((v) => stack({ fontFamily, ...v })))
+    [
+      { fontWeight: 700, fontStyle: "normal" },
+      { fontWeight: 400, fontStyle: "italic" },
+      { fontWeight: 100, fontStyle: "normal" },
+    ].map((v) => stack({ fontFamily, ...v })),
+  )
     .map((spec) => ({ spec, rs: prepareStack(spec) }))
     .filter((c): c is { spec: StackSpec; rs: NonNullable<ReturnType<typeof prepareStack>> } => c.rs != null)
     .filter((c) => {
       const base = resolveFontSpec(c.rs.primaryKey);
       const real = getFontSourceInfo(c.rs.primary);
-      return (base?.path ?? null) !== (real?.path ?? null)
-        || (base?.postscriptName ?? null) !== (real?.postscriptName ?? null)
-        || c.rs.primary.postscriptName != null;
+      return (
+        (base?.path ?? null) !== (real?.path ?? null) ||
+        (base?.postscriptName ?? null) !== (real?.postscriptName ?? null) ||
+        c.rs.primary.postscriptName != null
+      );
     });
 
   it("finds at least one cut-routed family on this host to assert against", () => {
@@ -446,10 +505,16 @@ describe("faceFor reports the cut the renderer would load", () => {
     const boldFace = faceFor(bold, bold.primaryKey, true, null);
     // Same key, and yet the answers track the instances rather than the key.
     expect(light.primaryKey).toBe(bold.primaryKey);
-    expect(lightFace.postscriptName ?? lightFace.path)
-      .toBe(getFontSourceInfo(light.primary)?.postscriptName ?? light.primary.postscriptName ?? getFontSourceInfo(light.primary)?.path);
-    expect(boldFace.postscriptName ?? boldFace.path)
-      .toBe(getFontSourceInfo(bold.primary)?.postscriptName ?? bold.primary.postscriptName ?? getFontSourceInfo(bold.primary)?.path);
+    expect(lightFace.postscriptName ?? lightFace.path).toBe(
+      getFontSourceInfo(light.primary)?.postscriptName ??
+        light.primary.postscriptName ??
+        getFontSourceInfo(light.primary)?.path,
+    );
+    expect(boldFace.postscriptName ?? boldFace.path).toBe(
+      getFontSourceInfo(bold.primary)?.postscriptName ??
+        bold.primary.postscriptName ??
+        getFontSourceInfo(bold.primary)?.path,
+    );
     // On any host whose sans-serif ships a bold sibling these are two faces.
     const differentInstances = light.primary !== bold.primary;
     if (differentInstances && light.primary.postscriptName !== bold.primary.postscriptName) {
@@ -509,17 +574,28 @@ describe("faceFor reports the cut the renderer would load", () => {
  * reads as a stable number rather than as a failure.
  */
 describe("the probe page declares every property the corpus records", () => {
-  const spec = (o: Partial<StackSpec>): StackSpec =>
-    ({ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 400, fontStyle: "normal", fixtures: 1, example: "x.html", ...o });
+  const spec = (o: Partial<StackSpec>): StackSpec => ({
+    fontFamily: "Georgia, serif",
+    fontSize: 24,
+    fontWeight: 400,
+    fontStyle: "normal",
+    fixtures: 1,
+    example: "x.html",
+    ...o,
+  });
 
   it("declares the full font description, not just family/size/weight/style", () => {
-    const html = probePageHtml([0x41], spec({
-      fontStretch: "75%",
-      fontVariationSettings: '"wght" 350',
-      fontFeatureSettings: '"smcp" 1',
-      fontVariantAlternates: "historical-forms",
-      fontVariantEmoji: "emoji",
-    }), "en");
+    const html = probePageHtml(
+      [0x41],
+      spec({
+        fontStretch: "75%",
+        fontVariationSettings: '"wght" 350',
+        fontFeatureSettings: '"smcp" 1',
+        fontVariantAlternates: "historical-forms",
+        fontVariantEmoji: "emoji",
+      }),
+      "en",
+    );
     expect(html).toContain("font-family:Georgia, serif");
     expect(html).toContain("font-size:24px");
     expect(html).toContain("font-weight:400");
@@ -559,8 +635,7 @@ describe("the probe page declares every property the corpus records", () => {
     // makes pinning the DECLARATION the only thing standing between "extracted"
     // and "actually asked".
     for (const v of ["text", "emoji", "unicode"]) {
-      expect(probePageHtml([0x2764], spec({ fontVariantEmoji: v }), "en"))
-        .toContain(`font-variant-emoji:${v}`);
+      expect(probePageHtml([0x2764], spec({ fontVariantEmoji: v }), "en")).toContain(`font-variant-emoji:${v}`);
     }
   });
 
@@ -590,10 +665,17 @@ describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (pl
     platform?: string;
     sources: string[];
     stacks: Array<{
-      fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string;
-      fontStretch?: string; fontVariationSettings?: string; fontFeatureSettings?: string;
-      fontVariantAlternates?: string; fontVariantEmoji?: string;
-      fixtures: number; example: string;
+      fontFamily: string;
+      fontSize: number;
+      fontWeight: number;
+      fontStyle: string;
+      fontStretch?: string;
+      fontVariationSettings?: string;
+      fontFeatureSettings?: string;
+      fontVariantAlternates?: string;
+      fontVariantEmoji?: string;
+      fixtures: number;
+      example: string;
     }>;
   };
 
@@ -656,7 +738,9 @@ describe.each(["darwin", "linux", "win32"])("the committed %s stack corpus", (pl
     // `swash()` / `character-variant()` / `annotation()` / `ornaments()` /
     // `historical-forms`, so an all-`normal` column means the extraction is
     // reading from the wrong place rather than that the fixtures are quiet.
-    const nonNormal = corpus.stacks.filter((s) => s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal");
+    const nonNormal = corpus.stacks.filter(
+      (s) => s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal",
+    );
     expect(nonNormal.length).toBeGreaterThan(0);
     for (const s of nonNormal) expect(s.example).toMatch(/\.html$/);
   });

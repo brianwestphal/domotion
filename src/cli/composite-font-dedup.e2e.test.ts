@@ -19,7 +19,11 @@ import { composeCompositeConfig } from "./composite.js";
 const E = "\x1b";
 const ev = (t: number, d: string): string => JSON.stringify([t, "o", d]);
 const castOf = (lines: string[]): string =>
-  [JSON.stringify({ version: 2, width: 40, height: 6, title: "c" }), ...lines.map((l, i) => ev(0.5 + i, `${l}\r\n`)), ev(5, "")].join("\n");
+  [
+    JSON.stringify({ version: 2, width: 40, height: 6, title: "c" }),
+    ...lines.map((l, i) => ev(0.5 + i, `${l}\r\n`)),
+    ev(5, ""),
+  ].join("\n");
 
 // Two casts in the SAME monospace but DIFFERENT text → different glyph subsets.
 const CAST_A = castOf([`${E}[32malpha bravo${E}[0m`, `${E}[33mcharlie${E}[0m`]);
@@ -51,7 +55,8 @@ describeBrowser("composite cross-layer font dedup (DM-1331)", () => {
     const svg = await composeCompositeConfig(
       browser,
       {
-        width: 400, height: 400,
+        width: 400,
+        height: 400,
         layers: [
           { cast: "a.cast", term: { mode: "incremental", theme: "dark" }, x: 0, y: 0 },
           { cast: "b.cast", term: { mode: "incremental", theme: "dark" }, x: 0, y: 200 },

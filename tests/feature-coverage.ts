@@ -51,7 +51,8 @@ export const FEATURES: FeatureEntry[] = [
   // ── Capture ────────────────────────────────────────────────────────────
   {
     id: "capture.element-tree",
-    behavior: "Walk a live Chromium page into a serializable element tree (with computed styles / geometry), optionally envelope its exact Page authority, and preserve that authority when a descendant is promoted to a render root.",
+    behavior:
+      "Walk a live Chromium page into a serializable element tree (with computed styles / geometry), optionally envelope its exact Page authority, and preserve that authority when a descendant is promoted to a render root.",
     doc: "docs/198-live-generic-family-preference-parity.md",
     exports: [
       "captureElementTree",
@@ -71,14 +72,16 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "capture.warnings",
-    behavior: "Collect + surface capture-time warnings (unsupported CSS, fetch failures) rather than silently dropping.",
+    behavior:
+      "Collect + surface capture-time warnings (unsupported CSS, fetch failures) rather than silently dropping.",
     doc: "docs/01-fidelity.md",
     exports: ["getLastCaptureWarnings", "logCaptureWarnings"],
     tests: ["src/capture/warnings.test.ts"],
   },
   {
     id: "capture.debug-bundle",
-    behavior: "Capture Chromium source pixels and the raw element tree from one stable frame in memory, then combine them with caller-rendered SVG and caller-owned HAR bytes without imposing CLI paths or filesystem writes.",
+    behavior:
+      "Capture Chromium source pixels and the raw element tree from one stable frame in memory, then combine them with caller-rendered SVG and caller-owned HAR bytes without imposing CLI paths or filesystem writes.",
     doc: "docs/238-programmatic-debug-capture-bundles.md",
     exports: ["assembleCaptureDebugBundle", "captureElementTreeWithDebug"],
     tests: ["src/capture/debug-bundle.test.ts", "tests/capture-debug-api.e2e.test.ts"],
@@ -92,12 +95,25 @@ export const FEATURES: FeatureEntry[] = [
       "tests/iframe-inner-prepasses.e2e.test.ts",
       "tests/cross-origin-iframe-recursion.e2e.test.ts",
     ],
-    transition: "raster-fallback → native-recursion when contentDocument becomes readable (same-origin, or cross-origin via --cross-origin-frames).",
+    transition:
+      "raster-fallback → native-recursion when contentDocument becomes readable (same-origin, or cross-origin via --cross-origin-frames).",
     transitionEvidence: [
-      { test: "tests/iframe-inner-prepasses.e2e.test.ts", title: "resolves CSS counters and pre-scales text under an inner transform" },
-      { test: "tests/cross-origin-iframe-recursion.e2e.test.ts", title: "recurses a cross-origin frame whose host:port is on the allowlist" },
-      { test: "tests/cross-origin-iframe-recursion.e2e.test.ts", title: "leaves a non-allowlisted cross-origin frame as a raster snapshot (blast-radius limit)" },
-      { test: "tests/cross-origin-iframe-recursion.e2e.test.ts", title: "leaves cross-origin frames as raster when no allowlist is given (default)" },
+      {
+        test: "tests/iframe-inner-prepasses.e2e.test.ts",
+        title: "resolves CSS counters and pre-scales text under an inner transform",
+      },
+      {
+        test: "tests/cross-origin-iframe-recursion.e2e.test.ts",
+        title: "recurses a cross-origin frame whose host:port is on the allowlist",
+      },
+      {
+        test: "tests/cross-origin-iframe-recursion.e2e.test.ts",
+        title: "leaves a non-allowlisted cross-origin frame as a raster snapshot (blast-radius limit)",
+      },
+      {
+        test: "tests/cross-origin-iframe-recursion.e2e.test.ts",
+        title: "leaves cross-origin frames as raster when no allowlist is given (default)",
+      },
     ],
   },
   {
@@ -109,18 +125,23 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "capture.inline-svg-projective-owner",
-    behavior: "Chromium-measured non-affine paint involving inline SVG crosses one reachable outer raster owner; affine/property-only controls remain vector and foreignObject descendants promote through opaque clones.",
+    behavior:
+      "Chromium-measured non-affine paint involving inline SVG crosses one reachable outer raster owner; affine/property-only controls remain vector and foreignObject descendants promote through opaque clones.",
     doc: "docs/162-inline-svg-3d-transform-audit.md",
-    tests: [
-      "src/capture/projective-owner.test.ts",
-      "tests/inline-svg-projective-ownership.e2e.test.ts",
-    ],
+    tests: ["src/capture/projective-owner.test.ts", "tests/inline-svg-projective-ownership.e2e.test.ts"],
   },
   {
     id: "capture.animated-projective-frame",
-    behavior: "Pause document/progress timelines and own a bounded pre-navigation Window rAF queue across main/OOPIF targets before every capture prepass, while retaining the exact Chromium quad, composed 3D state, and raster owner.",
+    behavior:
+      "Pause document/progress timelines and own a bounded pre-navigation Window rAF queue across main/OOPIF targets before every capture prepass, while retaining the exact Chromium quad, composed 3D state, and raster owner.",
     doc: "docs/228-pre-navigation-raf-capture-ownership.md",
-    exports: ["installCaptureRafClock", "reverifyAnimationsAtFrame", "reverifyCaptureRafClock", "sampleCaptureRafClock", "seekAnimationsToFrame"],
+    exports: [
+      "installCaptureRafClock",
+      "reverifyAnimationsAtFrame",
+      "reverifyCaptureRafClock",
+      "sampleCaptureRafClock",
+      "seekAnimationsToFrame",
+    ],
     tests: [
       "tests/animated-projective-frame-oracle.test.ts",
       "tests/animation-frame.e2e.test.ts",
@@ -130,33 +151,57 @@ export const FEATURES: FeatureEntry[] = [
     ],
     transition: "affine → projective and preserve-3d → flat/grouped ownership at exact paused timeline samples.",
     transitionEvidence: [
-      { test: "tests/animated-projective-frame-oracle.test.ts", title: "kills stale time, shifted quad, dropped owner, 2D fitting, and composition collapse" },
-      { test: "tests/animated-projective-frame-oracle.test.ts", title: "requires an affine/inactive sample to stay vector-owned without a fabricated frame record" },
-      { test: "tests/raf-clock.e2e.test.ts", title: "orders the controlled callback before timeline seek and all capture prepasses" },
-      { test: "tests/animated-projective-frame.e2e.test.ts", title: "matches independent Chromium quads, composition, and raster owners at DPR 1" },
+      {
+        test: "tests/animated-projective-frame-oracle.test.ts",
+        title: "kills stale time, shifted quad, dropped owner, 2D fitting, and composition collapse",
+      },
+      {
+        test: "tests/animated-projective-frame-oracle.test.ts",
+        title: "requires an affine/inactive sample to stay vector-owned without a fabricated frame record",
+      },
+      {
+        test: "tests/raf-clock.e2e.test.ts",
+        title: "orders the controlled callback before timeline seek and all capture prepasses",
+      },
+      {
+        test: "tests/animated-projective-frame.e2e.test.ts",
+        title: "matches independent Chromium quads, composition, and raster owners at DPR 1",
+      },
     ],
   },
   {
     id: "capture.text-paint-geometry",
-    behavior: "Measure live, transform-neutral, and restored text quads behind strict phase barriers while bounded in-phase CDP workers preserve row order, isolate failures, and release every acquired object.",
+    behavior:
+      "Measure live, transform-neutral, and restored text quads behind strict phase barriers while bounded in-phase CDP workers preserve row order, isolate failures, and release every acquired object.",
     doc: "docs/215-affine-text-baseline-protocol.md",
     tests: ["src/capture/text-paint-geometry-cdp.test.ts", "tests/text-paint-geometry.e2e.test.ts"],
   },
   {
     id: "capture.atomic-replaced-media-frame",
-    behavior: "Preflight, freeze, screenshot, digest, and reverify every finite-video/origin-clean-canvas replaced owner under one caller-owned document/rAF frame, failing closed on navigation, decoder, seek, surface, or compositor drift.",
+    behavior:
+      "Preflight, freeze, screenshot, digest, and reverify every finite-video/origin-clean-canvas replaced owner under one caller-owned document/rAF frame, failing closed on navigation, decoder, seek, surface, or compositor drift.",
     doc: "docs/229-live-replaced-media-frame-ownership.md",
-    tests: [
-      "src/capture/replaced-media-frame.test.ts",
-      "tests/replaced-media-frame.e2e.test.ts",
-    ],
-    transition: "decoded/seeked/presented and origin-clean surface → bound owner PNG → exact post-capture owner/frame epoch, with every hostile movement rejected.",
+    tests: ["src/capture/replaced-media-frame.test.ts", "tests/replaced-media-frame.e2e.test.ts"],
+    transition:
+      "decoded/seeked/presented and origin-clean surface → bound owner PNG → exact post-capture owner/frame epoch, with every hostile movement rejected.",
     transitionEvidence: [
-      { test: "tests/replaced-media-frame.e2e.test.ts", title: "screenshots every canvas/video owner in one stable epoch across repeated production captures" },
-      { test: "tests/replaced-media-frame.e2e.test.ts", title: "fails closed when a canvas surface mutates after owner binding" },
-      { test: "tests/replaced-media-frame.e2e.test.ts", title: "waits for a concrete video frame and rejects a hostile post-bind seek" },
+      {
+        test: "tests/replaced-media-frame.e2e.test.ts",
+        title: "screenshots every canvas/video owner in one stable epoch across repeated production captures",
+      },
+      {
+        test: "tests/replaced-media-frame.e2e.test.ts",
+        title: "fails closed when a canvas surface mutates after owner binding",
+      },
+      {
+        test: "tests/replaced-media-frame.e2e.test.ts",
+        title: "waits for a concrete video frame and rejects a hostile post-bind seek",
+      },
       { test: "tests/replaced-media-frame.e2e.test.ts", title: "rejects owner detachment and document replacement" },
-      { test: "tests/replaced-media-frame.e2e.test.ts", title: "rejects child-frame navigation even when the main document remains stable" },
+      {
+        test: "tests/replaced-media-frame.e2e.test.ts",
+        title: "rejects child-frame navigation even when the main document remains stable",
+      },
     ],
   },
 
@@ -166,18 +211,34 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Render a captured tree to a complete <svg> document (and body-only inner markup for composers).",
     doc: "docs/ai/code-summary.md",
     exports: ["elementTreeToSvg", "elementTreeToSvgInner", "wrapSvg"],
-    tests: ["src/render/borders.test.ts", "src/render/box-shadow.test.ts", "src/mask.test.ts", "src/render/gradients.test.ts", "tests/gradient-length-units.e2e.test.ts", "src/render/list-markers.test.ts", "src/render/list-marker-geometry.test.ts"],
+    tests: [
+      "src/render/borders.test.ts",
+      "src/render/box-shadow.test.ts",
+      "src/mask.test.ts",
+      "src/render/gradients.test.ts",
+      "tests/gradient-length-units.e2e.test.ts",
+      "src/render/list-markers.test.ts",
+      "src/render/list-marker-geometry.test.ts",
+    ],
   },
   {
     id: "render.text",
-    behavior: "Emit text as real glyph paths (single-line / multi-segment / multi-line / input), with bidi mirroring + decorations.",
+    behavior:
+      "Emit text as real glyph paths (single-line / multi-segment / multi-line / input), with bidi mirroring + decorations.",
     doc: "docs/03-font-family-chain.md",
     exports: [],
-    tests: ["src/render/text.test.ts", "src/render/text-to-path.test.ts", "src/render/vertical-text.test.ts", "tests/vertical-font-metrics.e2e.test.ts", "tests/generated-pseudo-layout-probe.e2e.test.ts"],
+    tests: [
+      "src/render/text.test.ts",
+      "src/render/text-to-path.test.ts",
+      "src/render/vertical-text.test.ts",
+      "tests/vertical-font-metrics.e2e.test.ts",
+      "tests/generated-pseudo-layout-probe.e2e.test.ts",
+    ],
   },
   {
     id: "render.real-text-layer",
-    behavior: "Opt into paintless authored SVG text for inline search, selection, copy, and accessibility while suppressing duplicate visual-run labels and preserving default bytes.",
+    behavior:
+      "Opt into paintless authored SVG text for inline search, selection, copy, and accessibility while suppressing duplicate visual-run labels and preserving default bytes.",
     doc: "docs/260-inline-svg-real-text-layer.md",
     exports: ["elementTreeToSvg", "elementTreeToSvgInner"],
     verbs: ["capture"],
@@ -185,14 +246,16 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "capture.input-value-text-geometry",
-    behavior: "A single-line input can use Chromium's closed-UA-shadow FragmentItem top only from one finite, positive-area, axis-aligned host/text quad pair whose recorded host dimensions still match the live walk; ambiguous or transformed records retain the metric compatibility path.",
+    behavior:
+      "A single-line input can use Chromium's closed-UA-shadow FragmentItem top only from one finite, positive-area, axis-aligned host/text quad pair whose recorded host dimensions still match the live walk; ambiguous or transformed records retain the metric compatibility path.",
     doc: "docs/171-closed-shadow-control-decorations.md",
     exports: [],
     tests: ["src/capture/pseudo-style-cdp.test.ts"],
   },
   {
     id: "render.base-select-picker-icon",
-    behavior: "Structural base-select disclosure paint is a vector at the logical inline end using the captured resolved ::picker-icon color; native menulist decoration ownership suppresses it.",
+    behavior:
+      "Structural base-select disclosure paint is a vector at the logical inline end using the captured resolved ::picker-icon color; native menulist decoration ownership suppresses it.",
     doc: "docs/171-closed-shadow-control-decorations.md",
     exports: [],
     tests: ["src/render/form-controls.test.ts", "src/capture/native-control-decoration.test.ts"],
@@ -206,14 +269,16 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "postprocess.clip-transform-safety",
-    behavior: "Detect the Firefox-only trap of `transform-box: fill-box` inside a `<clipPath>`/`<mask>` (ignored by Firefox → clip/mask pivots about the SVG origin). Surfaced non-fatally by composite over caller-supplied layers; assert variant fails fast.",
+    behavior:
+      "Detect the Firefox-only trap of `transform-box: fill-box` inside a `<clipPath>`/`<mask>` (ignored by Firefox → clip/mask pivots about the SVG origin). Surfaced non-fatally by composite over caller-supplied layers; assert variant fails fast.",
     doc: "docs/84-viewer-browser-support.md",
     exports: ["findFillBoxInClipOrMask", "assertNoFillBoxInClipOrMask"],
     tests: ["src/post-processing/clip-transform-safety.test.ts", "src/animation/composite.test.ts"],
   },
   {
     id: "render.embed-images",
-    behavior: "Embed remote images as data URIs and resize oversized embeds to the target raster size. `captureElementTreeSelfContained` pairs the capture + embed so a new capture site can't omit it.",
+    behavior:
+      "Embed remote images as data URIs and resize oversized embeds to the target raster size. `captureElementTreeSelfContained` pairs the capture + embed so a new capture site can't omit it.",
     doc: "docs/26-self-contained-svgs.md",
     exports: ["embedRemoteImages", "resizeEmbeddedImages", "captureElementTreeSelfContained"],
     tests: [
@@ -224,7 +289,8 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "postprocess.hoist-image-payloads",
-    behavior: "Serialize each repeated raster payload once — one `<defs>` `<image id=dmiN>` referenced by `<use>` — instead of re-encoding it per frame / per element. Keyed on payload + width + height + preserveAspectRatio, since `<use>` can't override an `<image>` referent's geometry.",
+    behavior:
+      "Serialize each repeated raster payload once — one `<defs>` `<image id=dmiN>` referenced by `<use>` — instead of re-encoding it per frame / per element. Keyed on payload + width + height + preserveAspectRatio, since `<use>` can't override an `<image>` referent's geometry.",
     doc: "docs/26-self-contained-svgs.md",
     exports: ["hoistDuplicateImagePayloads"],
     tests: [
@@ -242,43 +308,76 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "animate.opacity-channel",
-    behavior: "An intra-frame opacity animation owns the element's opacity channel: the captured opacity is not baked onto the wrapper (no multiplicative cap) and opacity:0 elements it targets still emit markup so they can fade in.",
+    behavior:
+      "An intra-frame opacity animation owns the element's opacity channel: the captured opacity is not baked onto the wrapper (no multiplicative cap) and opacity:0 elements it targets still emit markup so they can fade in.",
     doc: "docs/08-animation-model.md",
     exports: ["annotateAnimatedProperties"],
-    tests: ["src/tree-ops/annotate-animated-properties.test.ts", "src/render/anim-opacity-channel.test.ts", "tests/anim-opacity-fade-in.e2e.test.ts"],
+    tests: [
+      "src/tree-ops/annotate-animated-properties.test.ts",
+      "src/render/anim-opacity-channel.test.ts",
+      "tests/anim-opacity-fade-in.e2e.test.ts",
+    ],
   },
   {
     id: "render.transparent-bg",
     behavior: "A transparent page/root/canvas background yields a transparent SVG — no opaque backdrop rect painted.",
     doc: "docs/26-self-contained-svgs.md",
     exports: [],
-    tests: ["src/animation/animator.test.ts", "src/scroll/composer.test.ts", "src/animation/composite.test.ts", "src/cli/svg-to-video-core.test.ts"],
+    tests: [
+      "src/animation/animator.test.ts",
+      "src/scroll/composer.test.ts",
+      "src/animation/composite.test.ts",
+      "src/cli/svg-to-video-core.test.ts",
+    ],
   },
 
   // ── Text-render mode (STATEFUL: process-global save/restore) ────────────
   {
     id: "text.mode",
-    behavior: "Text-render mode is a process-global (embedded-font vs paths vs system-font); withRenderTextMode is a synchronous save/restore scope guard that rejects Promise-like callbacks. RENDER_TEXT_MODES + isRenderTextMode are the shared accepted-value set and guard the capture/animate CLIs use to validate --text-mode.",
+    behavior:
+      "Text-render mode is a process-global (embedded-font vs paths vs system-font); withRenderTextMode is a synchronous save/restore scope guard that rejects Promise-like callbacks. RENDER_TEXT_MODES + isRenderTextMode are the shared accepted-value set and guard the capture/animate CLIs use to validate --text-mode.",
     doc: "docs/ai/code-summary.md",
     exports: ["getRenderTextMode", "setRenderTextMode", "withRenderTextMode", "RENDER_TEXT_MODES", "isRenderTextMode"],
-    tests: ["src/render/render-text-mode-guard.test.ts", "src/render/synchronous-scope.test.ts", "src/cli/animate.test.ts"],
-    transition: "default(embedded-font) → set(paths) → withRenderTextMode(embedded-font, cb) restores paths afterward, EVEN WHEN cb throws or returns a rejected Promise-like result.",
+    tests: [
+      "src/render/render-text-mode-guard.test.ts",
+      "src/render/synchronous-scope.test.ts",
+      "src/cli/animate.test.ts",
+    ],
+    transition:
+      "default(embedded-font) → set(paths) → withRenderTextMode(embedded-font, cb) restores paths afterward, EVEN WHEN cb throws or returns a rejected Promise-like result.",
     transitionEvidence: [
-      { test: "src/render/render-text-mode-guard.test.ts", title: "sets the mode for the callback and restores the prior value" },
-      { test: "src/render/render-text-mode-guard.test.ts", title: "restores the prior mode even when the callback throws" },
-      { test: "src/render/synchronous-scope.test.ts", title: "rejects async render-text-mode work and restores before its continuation" },
+      {
+        test: "src/render/render-text-mode-guard.test.ts",
+        title: "sets the mode for the callback and restores the prior value",
+      },
+      {
+        test: "src/render/render-text-mode-guard.test.ts",
+        title: "restores the prior mode even when the callback throws",
+      },
+      {
+        test: "src/render/synchronous-scope.test.ts",
+        title: "rejects async render-text-mode work and restores before its continuation",
+      },
     ],
   },
   {
     id: "text.glyph-defs",
-    behavior: "The shared glyph-defs registry is live in paths mode (visual harness / scroll composer); cleared per generation.",
+    behavior:
+      "The shared glyph-defs registry is live in paths mode (visual harness / scroll composer); cleared per generation.",
     doc: "docs/ai/code-summary.md",
     exports: ["getGlyphDefs", "clearGlyphDefs"],
     tests: ["src/render/glyph-registry.test.ts", "src/render/render-text-mode-guard.test.ts"],
-    transition: "empty → ensureGlyphDef populates (paths mode) → resetGeneration/clearGlyphDefs empties it for the next frame.",
+    transition:
+      "empty → ensureGlyphDef populates (paths mode) → resetGeneration/clearGlyphDefs empties it for the next frame.",
     transitionEvidence: [
-      { test: "src/render/glyph-registry.test.ts", title: "clearGlyphDefs empties the def map and rewinds the id counter" },
-      { test: "src/render/glyph-registry.test.ts", title: "two back-to-back renders separated by clearGlyphDefs do not accumulate" },
+      {
+        test: "src/render/glyph-registry.test.ts",
+        title: "clearGlyphDefs empties the def map and rewinds the id counter",
+      },
+      {
+        test: "src/render/glyph-registry.test.ts",
+        title: "two back-to-back renders separated by clearGlyphDefs do not accumulate",
+      },
     ],
   },
   {
@@ -287,9 +386,13 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/ai/code-summary.md",
     exports: ["getEmbeddedFontFaceCss", "clearEmbeddedFonts"],
     tests: ["src/render/embedded-font-builder.test.ts"],
-    transition: "clear → per-run registration accumulates → getEmbeddedFontFaceCss emits once → clearEmbeddedFonts resets.",
+    transition:
+      "clear → per-run registration accumulates → getEmbeddedFontFaceCss emits once → clearEmbeddedFonts resets.",
     transitionEvidence: [
-      { test: "src/render/embedded-font-builder.test.ts", title: "accumulates one generation, emits it once, and resets before the next generation" },
+      {
+        test: "src/render/embedded-font-builder.test.ts",
+        title: "accumulates one generation, emits it once, and resets before the next generation",
+      },
     ],
   },
   {
@@ -299,14 +402,25 @@ export const FEATURES: FeatureEntry[] = [
     // package barrel — see the note in src/render/index.ts. In-package callers
     // deep-import them from ../render/font-resolution.js, as animator.ts already
     // does for the glyph-defs equivalents.
-    behavior: "Snapshot/restore rolls the shared font + glyph-def registries back so a discarded speculative compose leaves the real output byte-identical.",
+    behavior:
+      "Snapshot/restore rolls the shared font + glyph-def registries back so a discarded speculative compose leaves the real output byte-identical.",
     doc: "docs/99-hinted-embedded-subset.md",
     tests: ["src/render/embedded-font-snapshot.test.ts"],
-    transition: "populated → snapshot → speculative compose (different PUA/dmfN/gN allocation, possibly a clear) → restore → recompose yields the SAME bytes; nested snapshot/snapshot/restore/restore unwinds to each marker; markers are reusable and never throw on an empty builder.",
+    transition:
+      "populated → snapshot → speculative compose (different PUA/dmfN/gN allocation, possibly a clear) → restore → recompose yields the SAME bytes; nested snapshot/snapshot/restore/restore unwinds to each marker; markers are reusable and never throw on an empty builder.",
     transitionEvidence: [
-      { test: "src/render/embedded-font-snapshot.test.ts", title: "composes → speculates → rolls back → recomposes to the same bytes" },
-      { test: "src/render/embedded-font-snapshot.test.ts", title: "nests: take, take, restore, restore unwinds to each marker in turn" },
-      { test: "src/render/embedded-font-snapshot.test.ts", title: "never throws on an empty / never-used builder, or on a repeated restore" },
+      {
+        test: "src/render/embedded-font-snapshot.test.ts",
+        title: "composes → speculates → rolls back → recomposes to the same bytes",
+      },
+      {
+        test: "src/render/embedded-font-snapshot.test.ts",
+        title: "nests: take, take, restore, restore unwinds to each marker in turn",
+      },
+      {
+        test: "src/render/embedded-font-snapshot.test.ts",
+        title: "never throws on an empty / never-used builder, or on a repeated restore",
+      },
     ],
   },
 
@@ -323,7 +437,14 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Acquire the platform glyph-extraction helper and Chromium-pinned ICU classification companion.",
     doc: "docs/80-cross-platform-system-fallback-resolver.md",
     exports: ["acquireGlyphHelper", "acquireIcuCompanion"],
-    tests: ["src/render/helper-acquire.test.ts", "src/render/glyph-helper.test.ts", "src/render/icu-helper-acquire.test.ts", "src/render/icu-helper.test.ts", "tests/linux-arm64-release-evidence.test.ts", "tests/linux-arm64-release-parity-workflow.test.ts"],
+    tests: [
+      "src/render/helper-acquire.test.ts",
+      "src/render/glyph-helper.test.ts",
+      "src/render/icu-helper-acquire.test.ts",
+      "src/render/icu-helper.test.ts",
+      "tests/linux-arm64-release-evidence.test.ts",
+      "tests/linux-arm64-release-parity-workflow.test.ts",
+    ],
   },
 
   // ── Scroll (STATEFUL: pattern → executor state machine) ─────────────────
@@ -336,19 +457,28 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "scroll.execute",
-    behavior: "Execute a parsed pattern against a page: axis resolution, sign-multiplied delta, speed→duration, until loops.",
+    behavior:
+      "Execute a parsed pattern against a page: axis resolution, sign-multiplied delta, speed→duration, until loops.",
     doc: "docs/37-scroll-pattern-grammar.md",
     exports: ["executeScrollPattern", "ScrollExecutionError"],
     tests: ["src/scroll/executor.test.ts"],
-    transition: "until-loop re-evaluates the condition per iteration; the final iteration clamps to the target (clampScrollToTarget), and a no-progress body ends the loop.",
+    transition:
+      "until-loop re-evaluates the condition per iteration; the final iteration clamps to the target (clampScrollToTarget), and a no-progress body ends the loop.",
     transitionEvidence: [
-      { test: "src/scroll/executor.test.ts", title: "`until bottom - 1000px` lands exactly on the target, not one step past" },
-      { test: "src/scroll/executor.test.ts", title: "an until loop stops and reports when its body makes no scroll progress" },
+      {
+        test: "src/scroll/executor.test.ts",
+        title: "`until bottom - 1000px` lands exactly on the target, not one step past",
+      },
+      {
+        test: "src/scroll/executor.test.ts",
+        title: "an until loop stops and reports when its body makes no scroll progress",
+      },
     ],
   },
   {
     id: "scroll.compose",
-    behavior: "Compose captured scroll segments into one animated scrolling SVG (fixed/sticky hoisting, visibility windows).",
+    behavior:
+      "Compose captured scroll segments into one animated scrolling SVG (fixed/sticky hoisting, visibility windows).",
     doc: "docs/ai/code-summary.md",
     exports: ["composeScrollSvg"],
     tests: ["src/scroll/composer.test.ts", "src/scroll/hoist-fixed.test.ts", "src/scroll/hoist-sticky.test.ts"],
@@ -364,20 +494,37 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "animate.transitions",
-    behavior: "One canonical schema validates frame transitions; legacy names normalize to bounded motion channels and compose each scene's entrance from its predecessor.",
+    behavior:
+      "One canonical schema validates frame transitions; legacy names normalize to bounded motion channels and compose each scene's entrance from its predecessor.",
     doc: "docs/116-transition-schema-and-normalization.md",
     exports: ["transitionSchema", "transitionTypeSchema", "normalizeTransition"],
-    tests: ["src/animation/transition-schema.test.ts", "src/animation/animator-parameterized-transitions.test.ts", "src/animation/animator-mixed-transitions.test.ts", "tests/compose-animate-frames.e2e.test.ts"],
-    transition: "a frame's entrance depends on the PREVIOUS transition type (fade-in after crossfade, slide-in after a same-axis slide, cut after cut) — the transition-to-transition matrix.",
+    tests: [
+      "src/animation/transition-schema.test.ts",
+      "src/animation/animator-parameterized-transitions.test.ts",
+      "src/animation/animator-mixed-transitions.test.ts",
+      "tests/compose-animate-frames.e2e.test.ts",
+    ],
+    transition:
+      "a frame's entrance depends on the PREVIOUS transition type (fade-in after crossfade, slide-in after a same-axis slide, cut after cut) — the transition-to-transition matrix.",
     transitionEvidence: [
-      { test: "src/animation/animator-mixed-transitions.test.ts", title: "a push frame after a crossfade FADES in (no slide-in) and exits sliding left" },
-      { test: "src/animation/animator-mixed-transitions.test.ts", title: "same-type chains are unchanged: a push frame after a push still SLIDES in" },
-      { test: "tests/compose-animate-frames.e2e.test.ts", title: "renders exact frame/overlay boundaries without ghost layers (DM-1994)" },
+      {
+        test: "src/animation/animator-mixed-transitions.test.ts",
+        title: "a push frame after a crossfade FADES in (no slide-in) and exits sliding left",
+      },
+      {
+        test: "src/animation/animator-mixed-transitions.test.ts",
+        title: "same-type chains are unchanged: a push frame after a push still SLIDES in",
+      },
+      {
+        test: "tests/compose-animate-frames.e2e.test.ts",
+        title: "renders exact frame/overlay boundaries without ghost layers (DM-1994)",
+      },
     ],
   },
   {
     id: "animate.magic-move",
-    behavior: "Magic-move: matched elements glide prev→next, added fade in, removed fade out, across a bridge composite.",
+    behavior:
+      "Magic-move: matched elements glide prev→next, added fade in, removed fade out, across a bridge composite.",
     doc: "docs/53-magic-move-transition.md",
     exports: ["buildMagicMove"],
     tests: ["src/animation/magic-move.test.ts"],
@@ -392,7 +539,8 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "animate.debug-bundle",
-    behavior: "Record one shared animation HAR and a complete expected-PNG/raw-tree pair per composed frame, alongside the final plain actual.svg.",
+    behavior:
+      "Record one shared animation HAR and a complete expected-PNG/raw-tree pair per composed frame, alongside the final plain actual.svg.",
     doc: "docs/237-animate-debug-reproduction-bundles.md",
     verbs: ["animate"],
     tests: ["src/cli/debug-bundle.test.ts", "tests/animate-debug.e2e.test.ts"],
@@ -406,7 +554,8 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "animate.motion-presets",
-    behavior: "Named motion + easing preset vocabulary (fade-up/pop/slide-in-<dir>/wipe-in; spring/back/standard eases) that expand to intra-frame animation fields — on the animate config's `preset`/`easing` and reused by the templates' reveals.",
+    behavior:
+      "Named motion + easing preset vocabulary (fade-up/pop/slide-in-<dir>/wipe-in; spring/back/standard eases) that expand to intra-frame animation fields — on the animate config's `preset`/`easing` and reused by the templates' reveals.",
     doc: "docs/08-animation-model.md",
     exports: ["EASING_PRESETS", "easingPresetNames", "resolveEasingPreset", "motionPresetNames", "resolveMotionPreset"],
     tests: ["src/animation/motion-presets.test.ts"],
@@ -416,10 +565,18 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Resolve typing/tap/svg/blink overlays + DOM-mutation/interaction actions.",
     doc: "docs/61-overlay-resolution-primitive.md",
     exports: ["resolveOverlays", "runActions"],
-    tests: ["src/animation/resolve-overlays.test.ts", "src/animation/overlay-schema.test.ts", "tests/cross-region-anchor.e2e.test.ts"],
-    transition: "DM-1799 — two box producers, one arithmetic: the page probe (`getBoundingClientRect` + computed styles + canvas `measureText`) and a TREE-side producer reading the same inputs off a captured element (including `fontAscent`/`fontDescent`, the same canvas measurement, captured since DM-587). Both feed one `applyAnchorBox`, so corner math / `maxWidth:\"anchor\"` / `fontFamily:\"anchor\"` / baseline placement / shine+interact auto-size cannot drift. The tree producer exists for per-region-timing compressed runs, where the live page never stands in a state's ASSEMBLED configuration, so a cross-region anchor could not be exact page-side; targets are located by a pre-capture `data-domotion-anim` stamp rather than a selector engine over the tree.",
+    tests: [
+      "src/animation/resolve-overlays.test.ts",
+      "src/animation/overlay-schema.test.ts",
+      "tests/cross-region-anchor.e2e.test.ts",
+    ],
+    transition:
+      'DM-1799 — two box producers, one arithmetic: the page probe (`getBoundingClientRect` + computed styles + canvas `measureText`) and a TREE-side producer reading the same inputs off a captured element (including `fontAscent`/`fontDescent`, the same canvas measurement, captured since DM-587). Both feed one `applyAnchorBox`, so corner math / `maxWidth:"anchor"` / `fontFamily:"anchor"` / baseline placement / shine+interact auto-size cannot drift. The tree producer exists for per-region-timing compressed runs, where the live page never stands in a state\'s ASSEMBLED configuration, so a cross-region anchor could not be exact page-side; targets are located by a pre-capture `data-domotion-anim` stamp rather than a selector engine over the tree.',
     transitionEvidence: [
-      { test: "tests/cross-region-anchor.e2e.test.ts", title: "resolves each state's anchor against that state's assembled tree, not its capture round" },
+      {
+        test: "tests/cross-region-anchor.e2e.test.ts",
+        title: "resolves each state's anchor against that state's assembled tree, not its capture round",
+      },
     ],
   },
   {
@@ -433,68 +590,136 @@ export const FEATURES: FeatureEntry[] = [
     id: "animate.cursor",
     behavior: "Cursor overlay (explicit path or auto): glyph, timeline, click resolution, element anchoring.",
     doc: "docs/63-cursor-action-primitives.md",
-    exports: ["cursorOverlayMarkup", "cursorAtPoint", "cursorGlyphSvg", "resolveCursorScript", "resolveCursorTarget", "CURSOR_CATEGORIES", "CURSOR_GLYPHS", "boxAnchorPoint"],
+    exports: [
+      "cursorOverlayMarkup",
+      "cursorAtPoint",
+      "cursorGlyphSvg",
+      "resolveCursorScript",
+      "resolveCursorTarget",
+      "CURSOR_CATEGORIES",
+      "CURSOR_GLYPHS",
+      "boxAnchorPoint",
+    ],
     tests: ["src/animation/cursor-overlay.test.ts"],
   },
   {
     id: "animate.text-track",
-    behavior: "Caret + selection track: node-side captured-text addressing (code-point offsets over segment xOffsets, LOGICAL order through bidi embedding levels so an RTL caret sits on the addressed character's right edge and a logical range emits one rect per bidi level run; vertical writing modes address the same way down a column via yOffsets) → blinking caret (bar/block/underscore, mirrored for RTL insertion points, quarter-turned for vertical columns) + sweeping selection rects as global-timeline CSS (width across a line, height down a column), layered via AnimationConfig.textTracks.",
+    behavior:
+      "Caret + selection track: node-side captured-text addressing (code-point offsets over segment xOffsets, LOGICAL order through bidi embedding levels so an RTL caret sits on the addressed character's right edge and a logical range emits one rect per bidi level run; vertical writing modes address the same way down a column via yOffsets) → blinking caret (bar/block/underscore, mirrored for RTL insertion points, quarter-turned for vertical columns) + sweeping selection rects as global-timeline CSS (width across a line, height down a column), layered via AnimationConfig.textTracks.",
     doc: "docs/101-caret-selection-track.md",
-    exports: ["resolveCaretPoint", "resolveRangeRects", "findAddressedElement", "addressableLength", "resolveTextTrack", "textTrackMarkup"],
-    tests: ["src/animation/text-address.test.ts", "src/animation/caret-track.test.ts", "tests/caret-track.e2e.test.ts", "tests/caret-bidi.e2e.test.ts", "tests/caret-vertical.e2e.test.ts"],
+    exports: [
+      "resolveCaretPoint",
+      "resolveRangeRects",
+      "findAddressedElement",
+      "addressableLength",
+      "resolveTextTrack",
+      "textTrackMarkup",
+    ],
+    tests: [
+      "src/animation/text-address.test.ts",
+      "src/animation/caret-track.test.ts",
+      "tests/caret-track.e2e.test.ts",
+      "tests/caret-bidi.e2e.test.ts",
+      "tests/caret-vertical.e2e.test.ts",
+    ],
   },
   {
     id: "animate.compressed-run",
-    behavior: "Frame-sequence compressor (opt-in run block): N captured continue+cut editing states compose into ONE nested animated SVG — per-line order-preserving glyph pairing (LCS on char+style, fill diffed into recolor steps), shared content emitted once, changes as step-end opacity births/deaths + translateX tail waypoints + fill steps (groups anchored at their FINAL x so rest = identity and run exits cut byte-identically), chrome union with display-windowed variants that REOPEN when a subtree reappears byte-identical after an absence (A→B→A emits A once with two windows), paint-order-accurate occlusion demotion (the renderer's real stacking/paint-order walk plus overflow clips, not DFS order + a z-index heuristic), cross-line identity (a whole line that moves vertically pairs across the move via nearest-|Δy| content matching and rides a translateY instead of dying+re-birthing), re-emit on any doubt, optional auto-caret from the detected edit points, and optional behind-glyph selection (docs/101 rects interleaved into the chrome↔glyph gap — true editor z-order).",
+    behavior:
+      "Frame-sequence compressor (opt-in run block): N captured continue+cut editing states compose into ONE nested animated SVG — per-line order-preserving glyph pairing (LCS on char+style, fill diffed into recolor steps), shared content emitted once, changes as step-end opacity births/deaths + translateX tail waypoints + fill steps (groups anchored at their FINAL x so rest = identity and run exits cut byte-identically), chrome union with display-windowed variants that REOPEN when a subtree reappears byte-identical after an absence (A→B→A emits A once with two windows), paint-order-accurate occlusion demotion (the renderer's real stacking/paint-order walk plus overflow clips, not DFS order + a z-index heuristic), cross-line identity (a whole line that moves vertically pairs across the move via nearest-|Δy| content matching and rides a translateY instead of dying+re-birthing), re-emit on any doubt, optional auto-caret from the detected edit points, and optional behind-glyph selection (docs/101 rects interleaved into the chrome↔glyph gap — true editor z-order).",
     doc: "docs/100-rich-text-editing.md",
     exports: ["composeCompressedRun", "alignLineGlyphs"],
-    tests: ["src/animation/glyph-align.test.ts", "src/animation/compressed-run.test.ts", "tests/compressed-run.e2e.test.ts"],
-    transition: "type → colorize → select-ish chrome change → backspace ×2 across two lines threads one identity pool (birth/shift/recolor/death per glyph, windowed chrome variants) — asserted as a single multi-state sequence, not isolated pairs.",
+    tests: [
+      "src/animation/glyph-align.test.ts",
+      "src/animation/compressed-run.test.ts",
+      "tests/compressed-run.e2e.test.ts",
+    ],
+    transition:
+      "type → colorize → select-ish chrome change → backspace ×2 across two lines threads one identity pool (birth/shift/recolor/death per glyph, windowed chrome variants) — asserted as a single multi-state sequence, not isolated pairs.",
     transitionEvidence: [
-      { test: "src/animation/compressed-run.test.ts", title: "threads one realistic editing session's identities end to end" },
+      {
+        test: "src/animation/compressed-run.test.ts",
+        title: "threads one realistic editing session's identities end to end",
+      },
     ],
   },
   {
     id: "animate.states-config",
-    behavior: "Declarative compressed-run surface: a frame's `states: [...]` block (per-state actions + hold durations, state 0 = the frame's own post-actions state) captures N editing states of the live page and composes them via composeCompressedRun into the frame's nested svgContent (embeddedAnimationPeriodMs re-anchor), with `caret: true|{shape,color}` auto-caret and the pairing-ratio log surfaced through the CLI logger; mutually exclusive with the other content-producing frame kinds.",
+    behavior:
+      "Declarative compressed-run surface: a frame's `states: [...]` block (per-state actions + hold durations, state 0 = the frame's own post-actions state) captures N editing states of the live page and composes them via composeCompressedRun into the frame's nested svgContent (embeddedAnimationPeriodMs re-anchor), with `caret: true|{shape,color}` auto-caret and the pairing-ratio log surfaced through the CLI logger; mutually exclusive with the other content-producing frame kinds.",
     doc: "docs/43-declarative-animate-config.md",
     tests: ["src/cli/animate.test.ts", "tests/compressed-run-config.e2e.test.ts", "tests/animate-examples.tsx"],
-    transition: "load → frame actions → state-0 capture → per-state actions+capture ×N → compose → nested embed, asserted end-to-end through composeAnimateFrames with the rasterized tail shift + colorize recolor at seeked state midpoints.",
+    transition:
+      "load → frame actions → state-0 capture → per-state actions+capture ×N → compose → nested embed, asserted end-to-end through composeAnimateFrames with the rasterized tail shift + colorize recolor at seeked state midpoints.",
     transitionEvidence: [
-      { test: "tests/compressed-run-config.e2e.test.ts", title: "composes a states frame into a nested compressed run, logs the pairing ratio, and the rasterized tail shifts per state" },
+      {
+        test: "tests/compressed-run-config.e2e.test.ts",
+        title:
+          "composes a states frame into a nested compressed run, logs the pairing ratio, and the rasterized tail shifts per state",
+      },
     ],
   },
   {
     id: "animate.overlay-window",
-    behavior: "Explicit per-overlay window + per-state overlays inside a compressed run: `endAt` on every overlay kind (the ms from frame start at which THAT overlay's window closes instead of the frame's end — clamped to the frame's duration so an overlay may end early but never leak across the cut; it replaces the frame end wherever a kind consulted it, and on the self-timed `tap` it CUTS the ripple / suppresses it entirely), a `delay` on the `svg` kind so all six kinds share one `[delay, endAt]` window (`enter.delay` staying an additional nudge from that appear time), and a per-state `overlays` list on a `states:` run whose members are anchor-resolved WHILE the page is at that state (not the run's last) and re-based onto the frame's timeline (effective `delay` += the state's offset, `endAt` pinned to the state's end) — which is what lets `autoCompress` collapse an overlay-carrying run whole instead of splitting it, each member's overlays becoming its state's.",
+    behavior:
+      "Explicit per-overlay window + per-state overlays inside a compressed run: `endAt` on every overlay kind (the ms from frame start at which THAT overlay's window closes instead of the frame's end — clamped to the frame's duration so an overlay may end early but never leak across the cut; it replaces the frame end wherever a kind consulted it, and on the self-timed `tap` it CUTS the ripple / suppresses it entirely), a `delay` on the `svg` kind so all six kinds share one `[delay, endAt]` window (`enter.delay` staying an additional nudge from that appear time), and a per-state `overlays` list on a `states:` run whose members are anchor-resolved WHILE the page is at that state (not the run's last) and re-based onto the frame's timeline (effective `delay` += the state's offset, `endAt` pinned to the state's end) — which is what lets `autoCompress` collapse an overlay-carrying run whole instead of splitting it, each member's overlays becoming its state's.",
     doc: "docs/104-overlay-windows.md",
-    tests: ["src/animation/animator.test.ts", "src/cli/animate.test.ts", "tests/overlay-window.e2e.test.ts", "tests/typing-handoff-seam.e2e.test.ts", "tests/animate-examples.tsx"],
-    transition: "DM-1796 — a typing overlay HOLDS at full opacity through its window's end and exits the way its frame does (hard cut at a `cut` boundary or a compressed-run state snap, dissolve across a non-`cut` transition, historical 150 ms-early fade only on the scene's LAST frame where nothing takes over), because the overlay exists to be replaced by the same value as real captured text and any early fade blanks the field for ~120 ms; also, three plain continue+cut frames whose MIDDLE member anchors an overlay to a MOVING element collapse into one run; the composed SVG is rasterized at each state's midpoint and the overlay's painted pixels are asserted absent in state 0, present in state 1 at STATE 1's anchor position (not the run's final position), and absent again in state 2 (the window closed with its state).",
+    tests: [
+      "src/animation/animator.test.ts",
+      "src/cli/animate.test.ts",
+      "tests/overlay-window.e2e.test.ts",
+      "tests/typing-handoff-seam.e2e.test.ts",
+      "tests/animate-examples.tsx",
+    ],
+    transition:
+      "DM-1796 — a typing overlay HOLDS at full opacity through its window's end and exits the way its frame does (hard cut at a `cut` boundary or a compressed-run state snap, dissolve across a non-`cut` transition, historical 150 ms-early fade only on the scene's LAST frame where nothing takes over), because the overlay exists to be replaced by the same value as real captured text and any early fade blanks the field for ~120 ms; also, three plain continue+cut frames whose MIDDLE member anchors an overlay to a MOVING element collapse into one run; the composed SVG is rasterized at each state's midpoint and the overlay's painted pixels are asserted absent in state 0, present in state 1 at STATE 1's anchor position (not the run's final position), and absent again in state 2 (the window closed with its state).",
     transitionEvidence: [
-      { test: "tests/typing-handoff-seam.e2e.test.ts", title: "never blanks the field between the typed overlay and the real captured value" },
-      { test: "tests/overlay-window.e2e.test.ts", title: "collapses a run whose member carries an anchored overlay, and paints it in that state only, at that state's layout" },
+      {
+        test: "tests/typing-handoff-seam.e2e.test.ts",
+        title: "never blanks the field between the typed overlay and the real captured value",
+      },
+      {
+        test: "tests/overlay-window.e2e.test.ts",
+        title:
+          "collapses a run whose member carries an anchored overlay, and paints it in that state only, at that state's layout",
+      },
     ],
   },
   {
     id: "animate.states-regions",
-    behavior: "Independent per-region timing in a compressed run: a frame's `regions: { name: selector }` map stamps each declared element `data-domotion-anim` at capture and hands the ids to the compressor as EXPLICIT region roots (overriding the auto-detected clipping-ancestor / side-by-side-column discriminator only inside them, keying on the declared NAME so a resized pane still pairs, with auto-detection still the default outside and still subdividing within); a per-state `advances: [name…]` then schedules capture so states advancing DISJOINT regions share one whole-page capture (`planRegionCaptureRounds`, a minimal longest-chain assignment) and each state's tree is assembled from the round holding each region's own state — 1+max(nᵢ) captures instead of 1+Σnᵢ — guarded by a hard error when the page changes outside every declared region, when two regions resolve to the same element, or when a region selector matches nothing.",
+    behavior:
+      "Independent per-region timing in a compressed run: a frame's `regions: { name: selector }` map stamps each declared element `data-domotion-anim` at capture and hands the ids to the compressor as EXPLICIT region roots (overriding the auto-detected clipping-ancestor / side-by-side-column discriminator only inside them, keying on the declared NAME so a resized pane still pairs, with auto-detection still the default outside and still subdividing within); a per-state `advances: [name…]` then schedules capture so states advancing DISJOINT regions share one whole-page capture (`planRegionCaptureRounds`, a minimal longest-chain assignment) and each state's tree is assembled from the round holding each region's own state — 1+max(nᵢ) captures instead of 1+Σnᵢ — guarded by a hard error when the page changes outside every declared region, when two regions resolve to the same element, or when a region selector matches nothing.",
     doc: "docs/43-declarative-animate-config.md",
-    tests: ["src/cli/animate.test.ts", "src/animation/compressed-run.test.ts", "tests/region-timing.e2e.test.ts", "tests/animate-examples.tsx"],
-    transition: "state 0 → editor advances → preview advances → editor advances → … is captured in FOUR rounds and re-assembled into seven states; the assembled trees are asserted BYTE-IDENTICAL to capturing all seven configurations one at a time (the page is never driven into the assembled configuration, so this is the only exact check available), then the composed run is rasterized against the uncompressed flipbook of those same sequential captures at every state.",
+    tests: [
+      "src/cli/animate.test.ts",
+      "src/animation/compressed-run.test.ts",
+      "tests/region-timing.e2e.test.ts",
+      "tests/animate-examples.tsx",
+    ],
+    transition:
+      "state 0 → editor advances → preview advances → editor advances → … is captured in FOUR rounds and re-assembled into seven states; the assembled trees are asserted BYTE-IDENTICAL to capturing all seven configurations one at a time (the page is never driven into the assembled configuration, so this is the only exact check available), then the composed run is rasterized against the uncompressed flipbook of those same sequential captures at every state.",
     transitionEvidence: [
-      { test: "tests/region-timing.e2e.test.ts", title: "the 4-round assembly reproduces the 7 sequential captures EXACTLY, tree for tree" },
-      { test: "tests/region-timing.e2e.test.ts", title: "two regions on their own schedules compose correctly, at 4 whole-page captures instead of 7" },
+      {
+        test: "tests/region-timing.e2e.test.ts",
+        title: "the 4-round assembly reproduces the 7 sequential captures EXACTLY, tree for tree",
+      },
+      {
+        test: "tests/region-timing.e2e.test.ts",
+        title: "two regions on their own schedules compose correctly, at 4 whole-page captures instead of 7",
+      },
     ],
   },
   {
     id: "animate.text-tracks-config",
-    behavior: "Declarative caret/selection surface: a frame's `textTracks: [...]` list — selector stamped `data-domotion-anim` at capture (hard error on no match, naming frame + path), events with frame-relative `at` mapped to global time (park/move/hide/select/clearSelection, code-point offsets), resolved against the captured tree into AnimationConfig.textTracks.",
+    behavior:
+      "Declarative caret/selection surface: a frame's `textTracks: [...]` list — selector stamped `data-domotion-anim` at capture (hard error on no match, naming frame + path), events with frame-relative `at` mapped to global time (park/move/hide/select/clearSelection, code-point offsets), resolved against the captured tree into AnimationConfig.textTracks.",
     doc: "docs/101-caret-selection-track.md",
     tests: ["src/cli/animate.test.ts", "tests/compressed-run-config.e2e.test.ts", "tests/animate-examples.tsx"],
   },
   {
     id: "animate.interaction-state",
-    behavior: "Force real CSS pseudo-state (:hover / :active / :focus) on selectors via CDP CSS.forcePseudoState before capture, so a frame paints the page's OWN interaction styling — the animate config's per-frame `forceState` and the imperative `applyForcedPseudoStates` primitive.",
+    behavior:
+      "Force real CSS pseudo-state (:hover / :active / :focus) on selectors via CDP CSS.forcePseudoState before capture, so a frame paints the page's OWN interaction styling — the animate config's per-frame `forceState` and the imperative `applyForcedPseudoStates` primitive.",
     doc: "docs/94-interaction-state-capture.md",
     exports: ["applyForcedPseudoStates"],
     tests: ["src/cli/force-state.test.ts", "src/cli/force-state.e2e.test.ts"],
@@ -503,23 +728,37 @@ export const FEATURES: FeatureEntry[] = [
   // ── Composite (STATEFUL: nested animated timelines) ─────────────────────
   {
     id: "composite.layers",
-    behavior: "Stack already-rendered (possibly animated) SVGs into one, each on its own re-anchored timeline, id-namespaced.",
+    behavior:
+      "Stack already-rendered (possibly animated) SVGs into one, each on its own re-anchored timeline, id-namespaced.",
     doc: "docs/77-nested-animated-compositing.md",
     exports: ["composeAnimatedLayers", "namespaceEmbeddedAnimatedSvg", "offsetEmbeddedAnimatedSvgTimeline"],
     verbs: ["composite"],
-    tests: ["src/animation/composite.test.ts", "src/animation/embed-namespace.test.ts", "src/animation/embed-timeline.test.ts", "src/cli/composite.test.ts"],
-    transition: "a layer's internal timeline is re-anchored to start at its own `start` within the composite master loop and hold/stretch/loop before/after.",
+    tests: [
+      "src/animation/composite.test.ts",
+      "src/animation/embed-namespace.test.ts",
+      "src/animation/embed-timeline.test.ts",
+      "src/cli/composite.test.ts",
+    ],
+    transition:
+      "a layer's internal timeline is re-anchored to start at its own `start` within the composite master loop and hold/stretch/loop before/after.",
     transitionEvidence: [
-      { test: "src/animation/composite.test.ts", title: "re-anchors a layer's internal timeline to its start within the master loop" },
+      {
+        test: "src/animation/composite.test.ts",
+        title: "re-anchors a layer's internal timeline to its start within the master loop",
+      },
       { test: "src/animation/embed-timeline.test.ts", title: "stretch mode time-scales the content to fill windowMs" },
-      { test: "src/animation/embed-timeline.test.ts", title: "loop mode keeps the content's own period and just delays its start" },
+      {
+        test: "src/animation/embed-timeline.test.ts",
+        title: "loop mode keeps the content's own period and just delays its start",
+      },
     ],
   },
 
   // ── Domotion Studio project source ────────────────────────────────────
   {
     id: "studio.project-model",
-    behavior: "Validate, persist, migrate, and statically compile the versioned Studio authoring graph while preserving stable narrative/scene/track/layer/review identities and generated-artifact provenance.",
+    behavior:
+      "Validate, persist, migrate, and statically compile the versioned Studio authoring graph while preserving stable narrative/scene/track/layer/review identities and generated-artifact provenance.",
     doc: "docs/239-studio-project-model.md",
     exports: [
       "StudioProjectCompileError",
@@ -556,154 +795,295 @@ export const FEATURES: FeatureEntry[] = [
       "studioSemanticTrackSchema",
       "validateStudioProject",
     ],
-    tests: [
-      "src/studio/project.test.ts",
-      "src/studio/project-json-schema.test.ts",
-      "src/studio/project.e2e.test.ts",
-    ],
+    tests: ["src/studio/project.test.ts", "src/studio/project-json-schema.test.ts", "src/studio/project.e2e.test.ts"],
   },
   {
     id: "studio.semantic-interactions",
-    behavior: "Validate and stable-merge scene-relative semantic interaction tracks, require exact accessibility-first targets for actions, observe zero-to-one and one-to-zero attachment lifecycle waits without weakening ambiguity failures, and execute click, hover, type, scroll, drag, waits, and explicitly authorized hooks through Playwright.",
+    behavior:
+      "Validate and stable-merge scene-relative semantic interaction tracks, require exact accessibility-first targets for actions, observe zero-to-one and one-to-zero attachment lifecycle waits without weakening ambiguity failures, and execute click, hover, type, scroll, drag, waits, and explicitly authorized hooks through Playwright.",
     doc: "docs/241-studio-semantic-interactions.md",
-    exports: ["StudioInteractionError", "compileStudioSemanticTracks", "runStudioSemanticPlan", "runStudioSemanticStep", "runStudioSemanticTracks"],
+    exports: [
+      "StudioInteractionError",
+      "compileStudioSemanticTracks",
+      "runStudioSemanticPlan",
+      "runStudioSemanticStep",
+      "runStudioSemanticTracks",
+    ],
     tests: ["src/studio/interactions.test.ts", "src/studio/interactions.e2e.test.ts"],
   },
   {
     id: "studio.cursor-choreography",
-    behavior: "Inspect semantic targets in the live DOM/CSS and turn their box, cursor, action, distance, viewport, and seeded variation into bounded curved CursorOverlay paths with exact endpoints, natural pacing, drag travel, and explicit overrides.",
+    behavior:
+      "Inspect semantic targets in the live DOM/CSS and turn their box, cursor, action, distance, viewport, and seeded variation into bounded curved CursorOverlay paths with exact endpoints, natural pacing, drag travel, and explicit overrides.",
     doc: "docs/242-studio-cursor-choreography.md",
-    exports: ["buildStudioCursorChoreography", "inspectStudioCursorTargets", "planStudioCursorChoreography", "resolveStudioSemanticTarget"],
+    exports: [
+      "buildStudioCursorChoreography",
+      "inspectStudioCursorTargets",
+      "planStudioCursorChoreography",
+      "resolveStudioSemanticTarget",
+    ],
     tests: ["src/studio/cursor-choreography.test.ts", "src/studio/cursor-choreography.e2e.test.ts"],
   },
   {
     id: "studio.interaction-observation",
-    behavior: "Passively inspect the live DOM and computed CSS before, during, and after a semantic action, retain deterministic target/related references and ordered lifecycle evidence, and separate direct feedback and action effects from pre-existing ambient churn.",
+    behavior:
+      "Passively inspect the live DOM and computed CSS before, during, and after a semantic action, retain deterministic target/related references and ordered lifecycle evidence, and separate direct feedback and action effects from pre-existing ambient churn.",
     doc: "docs/243-studio-interaction-observation.md",
     exports: ["StudioInteractionObservationError", "observeStudioInteraction", "observeStudioSemanticStep"],
     tests: ["src/studio/interaction-observer.e2e.test.ts"],
   },
   {
     id: "studio.interactive-segments",
-    behavior: "Capture semantic actions and their observed DOM/CSS states in one live page, synthesize timed state transitions and cursor feedback into replaceable self-contained scene artifacts, preserve revision provenance, and compose them through the ordinary Studio storyboard path.",
+    behavior:
+      "Capture semantic actions and their observed DOM/CSS states in one live page, synthesize timed state transitions and cursor feedback into replaceable self-contained scene artifacts, preserve revision provenance, and compose them through the ordinary Studio storyboard path.",
     doc: "docs/244-studio-interactive-segments.md",
     exports: ["compileStudioInteractiveProject"],
     tests: ["src/studio/interactive-compile.test.ts", "src/studio/interactive-compile.e2e.test.ts"],
   },
   {
     id: "studio.ai-healing-loop",
-    behavior: "Route actionable replay failures with live browser evidence through required AI healing, record exact evidence-backed revisions, regenerate and require AI review, pause/resume ambiguous intent through digest-checked checkpoints, and hand only an AI-accepted candidate to a human.",
+    behavior:
+      "Route actionable replay failures with live browser evidence through required AI healing, record exact evidence-backed revisions, regenerate and require AI review, pause/resume ambiguous intent through digest-checked checkpoints, and hand only an AI-accepted candidate to a human.",
     doc: "docs/245-studio-ai-healing-loop.md",
-    exports: ["StudioHealingError", "StudioInteractiveSceneError", "inspectStudioHealingPage", "resumeStudioHealingLoop", "runStudioHealingLoop"],
+    exports: [
+      "StudioHealingError",
+      "StudioInteractiveSceneError",
+      "inspectStudioHealingPage",
+      "resumeStudioHealingLoop",
+      "runStudioHealingLoop",
+    ],
     tests: ["src/studio/healing.test.ts", "src/studio/healing.e2e.test.ts"],
   },
   {
     id: "studio.ai-video-review",
-    behavior: "Render revision-provenanced review media through the production SVG-to-video pipeline, require AI findings across the complete visual-quality rubric, ground them to Studio identities/space/time, and append them to the shared human review queue.",
+    behavior:
+      "Render revision-provenanced review media through the production SVG-to-video pipeline, require AI findings across the complete visual-quality rubric, ground them to Studio identities/space/time, and append them to the shared human review queue.",
     doc: "docs/246-studio-ai-video-review.md",
-    exports: ["STUDIO_VIDEO_REVIEW_DIMENSIONS", "StudioVideoReviewError", "renderAndReviewStudioVideo", "resumeStudioVideoReview", "studioVideoReviewFindingSchema", "studioVideoReviewReportSchema"],
+    exports: [
+      "STUDIO_VIDEO_REVIEW_DIMENSIONS",
+      "StudioVideoReviewError",
+      "renderAndReviewStudioVideo",
+      "resumeStudioVideoReview",
+      "studioVideoReviewFindingSchema",
+      "studioVideoReviewReportSchema",
+    ],
     tests: ["src/studio/video-review.test.ts", "src/studio/video-review.e2e.test.ts"],
   },
   {
     id: "studio.cinematic-treatments",
-    behavior: "Expand validated, brand-aware device/browser/terminal chrome, zoom/pan, spotlight, callout, title, logo, and scene-transition presets into composable layer/mask/transform/overlay/timing primitives and self-contained collision-safe SVG.",
+    behavior:
+      "Expand validated, brand-aware device/browser/terminal chrome, zoom/pan, spotlight, callout, title, logo, and scene-transition presets into composable layer/mask/transform/overlay/timing primitives and self-contained collision-safe SVG.",
     doc: "docs/247-studio-cinematic-treatments.md",
-    exports: ["StudioTreatmentError", "applyStudioTreatments", "resolveStudioTreatmentPlan", "studioTreatmentLayerPrimitiveSchema", "studioTreatmentMaskPrimitiveSchema", "studioTreatmentOverlayPrimitiveSchema", "studioTreatmentSchema", "studioTreatmentTimingSchema", "studioTreatmentTransformPrimitiveSchema", "studioTreatmentsSchema"],
-    tests: ["src/studio/treatments.test.ts", "src/studio/treatments.e2e.test.ts", "src/studio/treatments.visual.e2e.test.ts"],
+    exports: [
+      "StudioTreatmentError",
+      "applyStudioTreatments",
+      "resolveStudioTreatmentPlan",
+      "studioTreatmentLayerPrimitiveSchema",
+      "studioTreatmentMaskPrimitiveSchema",
+      "studioTreatmentOverlayPrimitiveSchema",
+      "studioTreatmentSchema",
+      "studioTreatmentTimingSchema",
+      "studioTreatmentTransformPrimitiveSchema",
+      "studioTreatmentsSchema",
+    ],
+    tests: [
+      "src/studio/treatments.test.ts",
+      "src/studio/treatments.e2e.test.ts",
+      "src/studio/treatments.visual.e2e.test.ts",
+    ],
   },
   {
     id: "studio.unified-review-annotations",
-    behavior: "Create, edit, resolve, reopen, supersede, round-trip, and migrate human or AI annotations through one revision-provenanced API with project/scene, independent point/range, multi-region, layer, semantic action, structured DOM, and evidence grounding.",
+    behavior:
+      "Create, edit, resolve, reopen, supersede, round-trip, and migrate human or AI annotations through one revision-provenanced API with project/scene, independent point/range, multi-region, layer, semantic action, structured DOM, and evidence grounding.",
     doc: "docs/248-studio-unified-review-annotations.md",
-    exports: ["StudioAnnotationError", "applyStudioAnnotationCommand", "importSvgReviewRegionsAnnotation", "importSvgScrubberReviewAnnotation", "normalizeStudioAnnotationTarget", "parseSvgReviewRegions", "studioAnnotationCommandSchema", "svgScrubberReviewTicketSchema"],
+    exports: [
+      "StudioAnnotationError",
+      "applyStudioAnnotationCommand",
+      "importSvgReviewRegionsAnnotation",
+      "importSvgScrubberReviewAnnotation",
+      "normalizeStudioAnnotationTarget",
+      "parseSvgReviewRegions",
+      "studioAnnotationCommandSchema",
+      "svgScrubberReviewTicketSchema",
+    ],
     tests: ["src/studio/annotations.test.ts", "src/studio/server.e2e.test.ts"],
   },
   {
     id: "studio.agent-tools",
-    behavior: "Expose a versioned MCP-shaped tool protocol over the Studio project source for compact inspection, bounded narrative/scene/track edits, capture compilation, preview/video generation, and shared annotations, with trusted host authority, exact artifact paths, compare-and-swap conflicts, explicit permissions, required AI review, and clarification states.",
+    behavior:
+      "Expose a versioned MCP-shaped tool protocol over the Studio project source for compact inspection, bounded narrative/scene/track edits, capture compilation, preview/video generation, and shared annotations, with trusted host authority, exact artifact paths, compare-and-swap conflicts, explicit permissions, required AI review, and clarification states.",
     doc: "docs/249-studio-agent-tools.md",
-    exports: ["StudioAgentToolError", "buildStudioAgentToolRequestJsonSchema", "runStudioAgentTool", "studioAgentProjectDigest", "studioAgentToolArtifactSchema", "studioAgentToolRequestSchema", "studioAgentToolResponseSchema"],
+    exports: [
+      "StudioAgentToolError",
+      "buildStudioAgentToolRequestJsonSchema",
+      "runStudioAgentTool",
+      "studioAgentProjectDigest",
+      "studioAgentToolArtifactSchema",
+      "studioAgentToolRequestSchema",
+      "studioAgentToolResponseSchema",
+    ],
     tests: ["src/studio/agent-tools.test.ts"],
-    transition: "project create → authored capture recipe/semantic track → DOM/CSS-backed capture → preview → grounded AI annotation → revision, with stale/destructive/ambiguous operations stopped at explicit protocol states.",
+    transition:
+      "project create → authored capture recipe/semantic track → DOM/CSS-backed capture → preview → grounded AI annotation → revision, with stale/destructive/ambiguous operations stopped at explicit protocol states.",
     transitionEvidence: [
-      { test: "src/studio/agent-tools.test.ts", title: "supports an agent create → capture → preview → annotate → revise workflow" },
-      { test: "src/studio/agent-tools.test.ts", title: "returns explicit clarification, conflict, and bounded permission states" },
-      { test: "src/studio/agent-tools.test.ts", title: "keeps artifact writes inside the workspace and makes required AI video review observable" },
+      {
+        test: "src/studio/agent-tools.test.ts",
+        title: "supports an agent create → capture → preview → annotate → revise workflow",
+      },
+      {
+        test: "src/studio/agent-tools.test.ts",
+        title: "returns explicit clarification, conflict, and bounded permission states",
+      },
+      {
+        test: "src/studio/agent-tools.test.ts",
+        title: "keeps artifact writes inside the workspace and makes required AI video review observable",
+      },
     ],
   },
   {
     id: "studio.application-shell",
-    behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
+    behavior:
+      "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",
     verbs: ["domotion-studio"],
     tests: ["src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
   },
   {
     id: "studio.scrubber-preview",
-    behavior: "Preview provenance-selected scene and whole-story SVG artifacts in Studio through the existing Scrubber playback engine, retaining bounded playhead, range, zoom/pan, speed, and loop context across regeneration while enforcing workspace, real-path, digest, and duration authority.",
+    behavior:
+      "Preview provenance-selected scene and whole-story SVG artifacts in Studio through the existing Scrubber playback engine, retaining bounded playhead, range, zoom/pan, speed, and loop context across regeneration while enforcing workspace, real-path, digest, and duration authority.",
     doc: "docs/250-studio-embedded-scrubber-preview.md",
     exports: ["isScrubberEmbedCommand", "isScrubberEmbedEvent", "normalizeScrubberEmbedViewState"],
     tests: ["src/scrubber/embed.test.ts", "src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
   },
   {
     id: "studio.high-level-authoring",
-    behavior: "Author narrative beats and scene structure, sources, trim/duration, fit, transitions, generation instructions, cinematic presets, and annotations through a reversible immutable command layer; commit content revisions and regenerate only through required AI healing/review or an explicit clarification.",
+    behavior:
+      "Author narrative beats and scene structure, sources, trim/duration, fit, transitions, generation instructions, cinematic presets, and annotations through a reversible immutable command layer; commit content revisions and regenerate only through required AI healing/review or an explicit clarification.",
     doc: "docs/251-studio-high-level-authoring.md",
-    exports: ["StudioAuthoringError", "applyStudioAuthoringCommand", "commitStudioAuthoringRevision", "studioContentRevisionId"],
-    tests: ["src/studio/authoring.test.ts", "src/cli/storyboard.test.ts", "src/animation/embed-timeline.test.ts", "src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
+    exports: [
+      "StudioAuthoringError",
+      "applyStudioAuthoringCommand",
+      "commitStudioAuthoringRevision",
+      "studioContentRevisionId",
+    ],
+    tests: [
+      "src/studio/authoring.test.ts",
+      "src/cli/storyboard.test.ts",
+      "src/animation/embed-timeline.test.ts",
+      "src/studio/app-projects.test.ts",
+      "src/studio/server.e2e.test.ts",
+    ],
   },
   {
     id: "studio.real-interaction-import",
-    behavior: "Record real pointer, keyboard, input, scroll, navigation, DOM, geometry, state, and computed-CSS evidence with in-page secret redaction; require AI healing and review or clarification; preserve raw evidence; and import an ordinary editable semantic scene that survives modest application changes.",
+    behavior:
+      "Record real pointer, keyboard, input, scroll, navigation, DOM, geometry, state, and computed-CSS evidence with in-page secret redaction; require AI healing and review or clarification; preserve raw evidence; and import an ordinary editable semantic scene that survives modest application changes.",
     doc: "docs/252-studio-real-interaction-import.md",
-    exports: ["StudioRecordingError", "importStudioInteractionRecording", "persistStudioRecordingEvidence", "recordStudioInteractions", "studioInteractionRecordingSchema", "studioRecordedEventSchema", "studioRecordedTargetSchema"],
+    exports: [
+      "StudioRecordingError",
+      "importStudioInteractionRecording",
+      "persistStudioRecordingEvidence",
+      "recordStudioInteractions",
+      "studioInteractionRecordingSchema",
+      "studioRecordedEventSchema",
+      "studioRecordedTargetSchema",
+    ],
     tests: ["src/studio/recording.test.ts", "src/studio/recording.e2e.test.ts", "src/studio/app-projects.test.ts"],
   },
   {
     id: "studio.detailed-multitrack-timeline",
-    behavior: "Project scene, semantic action, cursor, overlay, transition, treatment, annotation, and layer-animation timing onto the production clock and edit it through one snapped, multiselect, pointer/keyboard/AI command with exact revisioned undo/redo and Scrubber selection sync.",
+    behavior:
+      "Project scene, semantic action, cursor, overlay, transition, treatment, annotation, and layer-animation timing onto the production clock and edit it through one snapped, multiselect, pointer/keyboard/AI command with exact revisioned undo/redo and Scrubber selection sync.",
     doc: "docs/253-studio-detailed-multitrack-timeline.md",
-    exports: ["STUDIO_TIMELINE_KINDS", "StudioTimelineError", "applyStudioTimelineCommand", "buildStudioTimeline", "moveStudioTimelineItems", "resizeStudioTimelineItems", "studioSceneDurationMs", "studioTimelineCommandSchema", "studioTimelineTimingChangeSchema"],
+    exports: [
+      "STUDIO_TIMELINE_KINDS",
+      "StudioTimelineError",
+      "applyStudioTimelineCommand",
+      "buildStudioTimeline",
+      "moveStudioTimelineItems",
+      "resizeStudioTimelineItems",
+      "studioSceneDurationMs",
+      "studioTimelineCommandSchema",
+      "studioTimelineTimingChangeSchema",
+    ],
     tests: ["src/studio/timeline.test.ts", "src/studio/timeline.e2e.test.ts", "src/scrubber/embed.test.ts"],
   },
   {
     id: "studio.glassbox-acceptance-benchmark",
-    behavior: "Use a durable AI-authored Studio project and bounded hooks to capture Glassbox's real review loop, require evidence-backed AI revision and rendered-video review, prove controlled accessible-name healing and recapture, and publish only a self-contained accepted SVG.",
+    behavior:
+      "Use a durable AI-authored Studio project and bounded hooks to capture Glassbox's real review loop, require evidence-backed AI revision and rendered-video review, prove controlled accessible-name healing and recapture, and publish only a self-contained accepted SVG.",
     doc: "docs/254-glassbox-studio-acceptance-benchmark.md",
     tests: ["tests/glassbox-studio-benchmark.test.ts", "benchmarks/glassbox/run.ts"],
-    transition: "baseline capture → AI review edit → recapture → AI acceptance → production video review → controlled accessible-name failure → DOM/CSS-evidenced AI heal → recapture → AI acceptance → human handoff/publication.",
+    transition:
+      "baseline capture → AI review edit → recapture → AI acceptance → production video review → controlled accessible-name failure → DOM/CSS-evidenced AI heal → recapture → AI acceptance → human handoff/publication.",
     transitionEvidence: [
-      { test: "tests/glassbox-studio-benchmark.test.ts", title: "heals the controlled accessible-name change from live DOM and computed-style evidence" },
-      { test: "tests/glassbox-studio-benchmark.test.ts", title: "revises persistent brand framing once, then accepts only a capture containing every causal beat" },
+      {
+        test: "tests/glassbox-studio-benchmark.test.ts",
+        title: "heals the controlled accessible-name change from live DOM and computed-style evidence",
+      },
+      {
+        test: "tests/glassbox-studio-benchmark.test.ts",
+        title: "revises persistent brand framing once, then accepts only a capture containing every causal beat",
+      },
     ],
   },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {
     id: "templates.registry",
-    behavior: "Resolve a template by name (built-in first, else domotion-template-<name> npm), render + describe + validate params.",
+    behavior:
+      "Resolve a template by name (built-in first, else domotion-template-<name> npm), render + describe + validate params.",
     doc: "docs/70-template-system.md",
-    exports: ["loadTemplate", "getBuiltinTemplate", "listBuiltinTemplates", "isTemplate", "renderTemplateToSvg", "describeTemplateParams", "templateParamsJsonSchema", "validateTemplateParams", "templatePackageName"],
+    exports: [
+      "loadTemplate",
+      "getBuiltinTemplate",
+      "listBuiltinTemplates",
+      "isTemplate",
+      "renderTemplateToSvg",
+      "describeTemplateParams",
+      "templateParamsJsonSchema",
+      "validateTemplateParams",
+      "templatePackageName",
+    ],
     verbs: ["template"],
     tests: ["src/templates/templates.test.ts"],
   },
   {
     id: "templates.formats",
-    behavior: "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template`/`capture`/`animate` with explicit>format>default size precedence. safeAreaPadding + per-template safe-area reflow keep content within canvas − safeInset at each ratio; formatScaleFactor (sqrt of the safe-area vs an ADAPTIVE_REFERENCE box) scales themeable-template type per ratio so it reads at 9:16 (DM-1541); safeAreaGuideSvg overlays the informational safe-area rectangle on a raw capture (--safe-guide, DM-1538).",
+    behavior:
+      "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template`/`capture`/`animate` with explicit>format>default size precedence. safeAreaPadding + per-template safe-area reflow keep content within canvas − safeInset at each ratio; formatScaleFactor (sqrt of the safe-area vs an ADAPTIVE_REFERENCE box) scales themeable-template type per ratio so it reads at 9:16 (DM-1541); safeAreaGuideSvg overlays the informational safe-area rectangle on a raw capture (--safe-guide, DM-1538).",
     doc: "docs/87-format-presets.md",
-    exports: ["FORMATS", "resolveFormat", "applyFormatSize", "safeAreaPadding", "formatNames", "formatScaleFactor", "safeAreaGuideSvg", "ADAPTIVE_REFERENCE"],
-    tests: ["src/templates/formats.test.ts", "src/templates/templates.e2e.test.ts", "tests/capture-format.e2e.test.ts", "tests/animate-format.e2e.test.ts"],
+    exports: [
+      "FORMATS",
+      "resolveFormat",
+      "applyFormatSize",
+      "safeAreaPadding",
+      "formatNames",
+      "formatScaleFactor",
+      "safeAreaGuideSvg",
+      "ADAPTIVE_REFERENCE",
+    ],
+    tests: [
+      "src/templates/formats.test.ts",
+      "src/templates/templates.e2e.test.ts",
+      "tests/capture-format.e2e.test.ts",
+      "tests/animate-format.e2e.test.ts",
+    ],
   },
   {
     id: "templates.brand",
-    behavior: "Brand kit (design tokens across templates): brandSchema + loadBrand (parse/validate a brand file, resolve logo) + per-template brandDefaults mapping + the --brand flag, merged beneath explicit params (explicit>brand>default).",
+    behavior:
+      "Brand kit (design tokens across templates): brandSchema + loadBrand (parse/validate a brand file, resolve logo) + per-template brandDefaults mapping + the --brand flag, merged beneath explicit params (explicit>brand>default).",
     doc: "docs/85-brand-kit.md",
     exports: ["brandSchema", "loadBrand", "brandParams", "brandSeriesColors", "brandBackground", "applyBrandDefaults"],
     tests: ["src/templates/brand.test.ts"],
   },
   {
     id: "capture.brand",
-    behavior: "Brand for capture/animate (docs/92): brandCustomProperties / brandRootCss map a brand to --brand-* CSS variables; injectBrandVariables injects them onto a captured page's :root before it paints (the --brand flag on `capture`/`animate`), so a page authored against var(--brand-*) picks up the brand.",
+    behavior:
+      "Brand for capture/animate (docs/92): brandCustomProperties / brandRootCss map a brand to --brand-* CSS variables; injectBrandVariables injects them onto a captured page's :root before it paints (the --brand flag on `capture`/`animate`), so a page authored against var(--brand-*) picks up the brand.",
     doc: "docs/92-brand-for-capture.md",
     verbs: ["capture", "animate"],
     exports: ["brandCustomProperties", "brandRootCss", "injectBrandVariables"],
@@ -713,26 +1093,37 @@ export const FEATURES: FeatureEntry[] = [
     id: "templates.builtins",
     behavior: "The seven core built-in template generators.",
     doc: "docs/70-template-system.md",
-    exports: ["lowerThirdTemplate", "chartTemplate", "chatTemplate", "subscribeTemplate", "kineticTextTemplate", "backgroundLoopTemplate", "deviceMockupTemplate"],
+    exports: [
+      "lowerThirdTemplate",
+      "chartTemplate",
+      "chatTemplate",
+      "subscribeTemplate",
+      "kineticTextTemplate",
+      "backgroundLoopTemplate",
+      "deviceMockupTemplate",
+    ],
     tests: ["src/templates/templates.test.ts"],
   },
   {
     id: "templates.creative-pack",
-    behavior: "Creative-pack Batch A text cards: title-card, quote, caption, cta — HTML generators sharing a staggered fade-up/pop reveal, brandDefaults, and safe-area layout.",
+    behavior:
+      "Creative-pack Batch A text cards: title-card, quote, caption, cta — HTML generators sharing a staggered fade-up/pop reveal, brandDefaults, and safe-area layout.",
     doc: "docs/86-creative-template-pack.md",
     exports: ["titleCardTemplate", "quoteTemplate", "captionTemplate", "ctaTemplate"],
     tests: ["src/templates/builtin/text-cards.test.ts"],
   },
   {
     id: "templates.number-animation",
-    behavior: "Creative-pack Batch B number animation: the counter (count up/down/timer) and stat (KPI + trend chip) templates, built on an internal odometer digit-reel module (translateY per digit column, cross-engine-safe).",
+    behavior:
+      "Creative-pack Batch B number animation: the counter (count up/down/timer) and stat (KPI + trend chip) templates, built on an internal odometer digit-reel module (translateY per digit column, cross-engine-safe).",
     doc: "docs/86-creative-template-pack.md",
     exports: ["counterTemplate", "statTemplate"],
     tests: ["src/templates/builtin/number-templates.test.ts"],
   },
   {
     id: "templates.compare",
-    behavior: "Creative-pack Batch C before/after compare: reveal the 'after' over the 'before' with a clip wipe (optional divider) + labels, via composeAnimatedLayers' Firefox-safe clipScale reveal (page/image/SVG inputs).",
+    behavior:
+      "Creative-pack Batch C before/after compare: reveal the 'after' over the 'before' with a clip wipe (optional divider) + labels, via composeAnimatedLayers' Firefox-safe clipScale reveal (page/image/SVG inputs).",
     doc: "docs/86-creative-template-pack.md",
     exports: ["compareTemplate"],
     tests: ["src/templates/builtin/compare.test.ts"],
@@ -813,14 +1204,25 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "bin.svg-scrubber",
-    behavior: "Animated-SVG timeline bench (play/scrub/trim/export-frame) + --review issue reporter (STATEFUL: review mode).",
+    behavior:
+      "Animated-SVG timeline bench (play/scrub/trim/export-frame) + --review issue reporter (STATEFUL: review mode).",
     doc: "docs/82-svg-scrubber-review-mode.md",
     verbs: ["svg-scrubber"],
-    tests: ["src/scrubber/trim.test.ts", "src/scrubber/crop.test.ts", "src/scrubber/ticket.test.ts", "src/scrubber/server.validation.test.ts", "src/scrubber/server.e2e.test.ts"],
-    transition: "POST /ticket is review-only (404 unless --review); after review mode is armed, the region overlay stays armed across multiple drags.",
+    tests: [
+      "src/scrubber/trim.test.ts",
+      "src/scrubber/crop.test.ts",
+      "src/scrubber/ticket.test.ts",
+      "src/scrubber/server.validation.test.ts",
+      "src/scrubber/server.e2e.test.ts",
+    ],
+    transition:
+      "POST /ticket is review-only (404 unless --review); after review mode is armed, the region overlay stays armed across multiple drags.",
     transitionEvidence: [
       { test: "src/scrubber/ticket.test.ts", title: "404s when review mode is not enabled" },
-      { test: "src/scrubber/server.e2e.test.ts", title: "supports keyboard file entry and keeps region drawing armed across repeated drags (DM-2599)" },
+      {
+        test: "src/scrubber/server.e2e.test.ts",
+        title: "supports keyboard file entry and keeps region drawing armed across repeated drags (DM-2599)",
+      },
     ],
   },
 ];

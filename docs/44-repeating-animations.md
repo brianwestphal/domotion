@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-840","DM-869","DM-870","DM-871"]
-code: ["src/animation/animator.ts","src/cli/animate.ts"]
-aliases: ["docs/44-repeating-animations.md","doc-44"]
+tickets: ["DM-840", "DM-869", "DM-870", "DM-871"]
+code: ["src/animation/animator.ts", "src/cli/animate.ts"]
+aliases: ["docs/44-repeating-animations.md", "doc-44"]
 ---
 
 # 44 — Repeating animations: blink, pulse, typing caret
@@ -27,14 +27,21 @@ These compose; each is independently useful. Recommended build order (smallest/m
 Extend `IntraFrameAnimation` (see `docs/08`) with two optional fields:
 
 ```jsonc
-{ "selector": ".caret", "property": "opacity", "from": "1", "to": "0",
-  "duration": 530, "repeat": "infinite", "alternate": true }
+{
+  "selector": ".caret",
+  "property": "opacity",
+  "from": "1",
+  "to": "0",
+  "duration": 530,
+  "repeat": "infinite",
+  "alternate": true,
+}
 ```
 
 - `repeat`: a positive integer (iteration count) or `"infinite"`. Maps to CSS `animation-iteration-count`.
 - `alternate`: boolean. When true, maps to `animation-direction: alternate` so the animation ping-pongs (`from`→`to`→`from`) instead of restarting at `from` each iteration. A smooth pulse/breathe wants `alternate: true`; a hard blink wants a step timing function (or just opacity 1↔0 with `alternate`).
 
-This is the most general form — it turns *any* intra-frame property animation into a loop: blinking carets (`opacity` 1→0), pulsing highlights (`background`/`opacity`), breathing dots (`transform: scale`). The keyframe block is unchanged; only the `animation` shorthand's iteration-count/direction change.
+This is the most general form — it turns _any_ intra-frame property animation into a loop: blinking carets (`opacity` 1→0), pulsing highlights (`background`/`opacity`), breathing dots (`transform: scale`). The keyframe block is unchanged; only the `animation` shorthand's iteration-count/direction change.
 
 Semantics: the repeat is **gated by the frame's visibility window** (same as one-shot intra-frame animations) — it loops only while the frame is on screen, and the loop period must divide sensibly into the frame's hold time (a partial last cycle is fine; it just pauses when the frame leaves).
 
@@ -45,8 +52,7 @@ Semantics: the repeat is **gated by the frame's visibility window** (same as one
 The `typing` overlay reveals text but leaves no insertion caret. Add a `caret` option that renders a blinking bar at the current type position and **persists blinking after typing completes** (until the frame ends):
 
 ```jsonc
-{ "kind": "typing", "text": "Sanitize the session id…", "x": 28, "y": 56,
-  "caret": true }
+{ "kind": "typing", "text": "Sanitize the session id…", "x": 28, "y": 56, "caret": true }
 // or: "caret": { "color": "#e6edf3", "width": 2, "blinkMs": 530 }
 ```
 
@@ -61,8 +67,14 @@ This is the concrete thing the review-loop demo needed. Implemented as an extens
 A general standalone blinker, for carets/dots not tied to a typing overlay (recording dot, attention pulse on a focused field):
 
 ```jsonc
-{ "kind": "blink", "anchor": { "selector": ".rec", "at": "center" },
-  "width": 10, "height": 10, "periodMs": 800, "color": "#ef4444" }
+{
+  "kind": "blink",
+  "anchor": { "selector": ".rec", "at": "center" },
+  "width": 10,
+  "height": 10,
+  "periodMs": 800,
+  "color": "#ef4444",
+}
 ```
 
 - Positioned by `x`/`y` or by an `anchor` (selector bbox — see `docs/43` §5).
@@ -71,7 +83,7 @@ A general standalone blinker, for carets/dots not tied to a typing overlay (reco
 
 ## Shared semantics
 
-- **Blink vs. fade.** A hard blink (caret, cursor) wants opacity to *snap* 1↔0 — emit with `step-end`/`steps(1)` timing or a two-stop keyframe. A pulse/breathe wants a smooth `ease-in-out` with `alternate`. The config picks via the timing function (mechanism 1's easing) or sensible per-kind defaults (caret = snap; pulse = smooth).
+- **Blink vs. fade.** A hard blink (caret, cursor) wants opacity to _snap_ 1↔0 — emit with `step-end`/`steps(1)` timing or a two-stop keyframe. A pulse/breathe wants a smooth `ease-in-out` with `alternate`. The config picks via the timing function (mechanism 1's easing) or sensible per-kind defaults (caret = snap; pulse = smooth).
 - **Looping is bounded by the frame.** All three loop only while their frame is on screen; the existing frame-visibility gating (`fv-`/cull) still applies. Across the scene's infinite outer loop the blink resumes each cycle.
 - **No JS.** All of this is CSS `@keyframes` with `animation-iteration-count` / `direction` — no `evaluate`, no runtime scripting.
 

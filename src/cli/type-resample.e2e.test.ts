@@ -42,7 +42,11 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
 </body></html>`;
 
 async function canLaunch(): Promise<Browser | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await canLaunch();
 
@@ -86,7 +90,10 @@ describeBrowser("buildTypeResampleAnimation → capture round-trip (DM-1556)", (
       await page.goto(`file://${htmlPath}`, { waitUntil: "networkidle" });
       const spec = resolveTypeResampleSpec({ selector: "#phone", text: "5551234567", speed: 50, tailMs: 200 });
       const res = await buildTypeResampleAnimation(page, spec, {
-        width: 400, height: 200, framePrefix: "tr0_", log: () => {},
+        width: 400,
+        height: 200,
+        framePrefix: "tr0_",
+        log: () => {},
       });
       // 10 keystrokes → 11 states. Nested animated SVG, namespaced, no XML prolog.
       expect(res.svgContent).not.toMatch(/^<\?xml/);

@@ -28,7 +28,9 @@ function walk(nodes: CapturedElement[]): CapturedElement[] {
 }
 
 function digest(uri: string): string {
-  return createHash("sha256").update(Buffer.from(uri.slice(uri.indexOf(",") + 1), "base64")).digest("hex");
+  return createHash("sha256")
+    .update(Buffer.from(uri.slice(uri.indexOf(",") + 1), "base64"))
+    .digest("hex");
 }
 
 async function averageRgb(uri: string): Promise<{ r: number; g: number; b: number }> {
@@ -67,7 +69,9 @@ describeBrowser("composed parity corpus live relations", () => {
           return { x: rect.x - stageRect.x, y: rect.y - stageRect.y, width: rect.width, height: rect.height };
         };
         const controlStyle = (variant: string) => {
-          const target = specimen("responsive-fragmented-controls", variant).querySelector("[data-probe=control-layout]")!;
+          const target = specimen("responsive-fragmented-controls", variant).querySelector(
+            "[data-probe=control-layout]",
+          )!;
           const style = getComputedStyle(target);
           const rect = target.getBoundingClientRect();
           return {
@@ -79,10 +83,11 @@ describeBrowser("composed parity corpus live relations", () => {
             height: rect.height,
           };
         };
-        const order = (variant: string) => Array.from(
-          specimen("gradient-mask-clip-stacking", variant).querySelectorAll<HTMLElement>("[data-layer]"),
-          (element) => ({ layer: element.dataset.layer!, zIndex: getComputedStyle(element).zIndex }),
-        );
+        const order = (variant: string) =>
+          Array.from(
+            specimen("gradient-mask-clip-stacking", variant).querySelectorAll<HTMLElement>("[data-layer]"),
+            (element) => ({ layer: element.dataset.layer!, zIndex: getComputedStyle(element).zIndex }),
+          );
         const splitTarget = specimen("multilingual-flex-grid", "node-split").querySelector("[data-probe=message]")!;
         return {
           multilingual: {
@@ -147,13 +152,15 @@ describeBrowser("composed parity corpus live relations", () => {
       const capturedColor = await averageRgb(snapshot!);
       expect(capturedColor.r).toBeGreaterThan(capturedColor.g + 35);
 
-      const liveBefore = await page.locator("canvas[data-probe=dynamic-canvas]").first().evaluate((canvas) =>
-        (canvas as HTMLCanvasElement).toDataURL("image/png"),
-      );
+      const liveBefore = await page
+        .locator("canvas[data-probe=dynamic-canvas]")
+        .first()
+        .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL("image/png"));
       await page.evaluate(() => (window as typeof window & { advanceComposedCanvas(): void }).advanceComposedCanvas());
-      const liveAfter = await page.locator("canvas[data-probe=dynamic-canvas]").first().evaluate((canvas) =>
-        (canvas as HTMLCanvasElement).toDataURL("image/png"),
-      );
+      const liveAfter = await page
+        .locator("canvas[data-probe=dynamic-canvas]")
+        .first()
+        .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL("image/png"));
       expect(digest(liveAfter)).not.toBe(digest(liveBefore));
       expect(digest(snapshot!)).not.toBe(digest(liveAfter));
       const mutatedColor = await averageRgb(liveAfter);

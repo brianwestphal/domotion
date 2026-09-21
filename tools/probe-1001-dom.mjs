@@ -35,8 +35,8 @@ const dump = await page.evaluate(() => {
     if (ay < 5050 || ay > 5500) continue;
     const cs = getComputedStyle(el);
     const cls = typeof el.className === "string" ? el.className : (el.className?.baseVal ?? "");
-    const sel = el.tagName.toLowerCase() + (el.id ? "#" + el.id : "")
-      + (cls ? "." + cls.split(" ").slice(0, 3).join(".") : "");
+    const sel =
+      el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (cls ? "." + cls.split(" ").slice(0, 3).join(".") : "");
     const tag = el.tagName.toLowerCase();
 
     // Only emit elements where SOMETHING interesting is going on

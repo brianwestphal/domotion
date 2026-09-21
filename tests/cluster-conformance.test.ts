@@ -41,10 +41,11 @@ describe("cluster conformance reconciliation", () => {
     const cell = buildCells()[0]!;
     expect(judgeCell(cell, [chrome("Helvetica", 2)], [run(ours("Helvetica"), cell.text)]).verdict).toBe("agree");
 
-    const extraOurs = judgeCell(cell, [chrome("Helvetica")], [
-      run(ours("Helvetica"), "x"),
-      run(ours("KohinoorDevanagari-Regular"), "॑"),
-    ]);
+    const extraOurs = judgeCell(
+      cell,
+      [chrome("Helvetica")],
+      [run(ours("Helvetica"), "x"), run(ours("KohinoorDevanagari-Regular"), "॑")],
+    );
     expect(extraOurs.verdict).toBe("mismatch");
     expect(extraOurs.unmatchedOurs).toEqual(["KohinoorDevanagari-Regular"]);
 
@@ -55,6 +56,8 @@ describe("cluster conformance reconciliation", () => {
 
   it("reconciles a registered webfont with Chrome's custom-font face", () => {
     const custom: ChromeFace = { familyName: "DM Cluster Partial Deva", glyphCount: 2, isCustomFont: true };
-    expect(reconciles(custom, ours("DM Cluster Partial Deva", "webfont:dm-cluster-partial-deva"), "DM Cluster Partial Deva")).toBe(true);
+    expect(
+      reconciles(custom, ours("DM Cluster Partial Deva", "webfont:dm-cluster-partial-deva"), "DM Cluster Partial Deva"),
+    ).toBe(true);
   });
 });

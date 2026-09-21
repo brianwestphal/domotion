@@ -56,9 +56,7 @@ interface ProbeRecord extends Partial<CapturedBrokenImageFallback> {
 
 interface TextProbe {
   text: string;
-  style: CapturedBrokenImageFallback["text"] extends infer T
-    ? T extends { style: infer S } ? S : never
-    : never;
+  style: CapturedBrokenImageFallback["text"] extends infer T ? (T extends { style: infer S } ? S : never) : never;
   metrics: {
     ascent: number;
     descent: number;
@@ -104,10 +102,7 @@ function finiteQuad(values: readonly number[] | undefined): values is CapturedBr
   return values?.length === 8 && values.every(Number.isFinite);
 }
 
-function localizeQuad(
-  values: readonly number[],
-  viewport: { x: number; y: number },
-): CapturedBrokenImageQuad {
+function localizeQuad(values: readonly number[], viewport: { x: number; y: number }): CapturedBrokenImageQuad {
   return values.map((value, index) => value - (index % 2 === 0 ? viewport.x : viewport.y)) as CapturedBrokenImageQuad;
 }
 
@@ -121,10 +116,14 @@ function quadRect(quad: CapturedBrokenImageQuad): { x: number; y: number; width:
 
 function rectQuad(rect: { x: number; y: number; width: number; height: number }): CapturedBrokenImageQuad {
   return [
-    rect.x, rect.y,
-    rect.x + rect.width, rect.y,
-    rect.x + rect.width, rect.y + rect.height,
-    rect.x, rect.y + rect.height,
+    rect.x,
+    rect.y,
+    rect.x + rect.width,
+    rect.y,
+    rect.x + rect.width,
+    rect.y + rect.height,
+    rect.x,
+    rect.y + rect.height,
   ];
 }
 
@@ -140,8 +139,13 @@ async function readBox(
 ): Promise<CapturedBrokenImagePhysicalBox | null> {
   try {
     const { model } = await session.send("DOM.getBoxModel", { backendNodeId });
-    if (!finiteQuad(model.content) || !finiteQuad(model.padding)
-        || !finiteQuad(model.border) || !finiteQuad(model.margin)) return null;
+    if (
+      !finiteQuad(model.content) ||
+      !finiteQuad(model.padding) ||
+      !finiteQuad(model.border) ||
+      !finiteQuad(model.margin)
+    )
+      return null;
     const content = localizeQuad(model.content, viewport);
     const padding = localizeQuad(model.padding, viewport);
     const border = localizeQuad(model.border, viewport);
@@ -196,7 +200,9 @@ export function classifyBrokenImageDisposition(input: {
   return "non-replaced-fallback";
 }
 
-function textBounds(codepoints: TextProbe["codepoints"]): { x: number; y: number; width: number; height: number } | null {
+function textBounds(
+  codepoints: TextProbe["codepoints"],
+): { x: number; y: number; width: number; height: number } | null {
   const rects = codepoints.flatMap((point) => point.rects).filter((rect) => rect.width > 0 || rect.height > 0);
   if (rects.length === 0) return null;
   const x = Math.min(...rects.map((rect) => rect.x));
@@ -210,9 +216,16 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
   const vertical = /^(?:vertical|sideways)-/.test(probe.style.writingMode);
   const placed = probe.codepoints
     .map((point) => ({ point, rect: point.rects.find((rect) => rect.width > 0 || rect.height > 0) }))
-    .filter((entry): entry is { point: TextProbe["codepoints"][number]; rect: { x: number; y: number; width: number; height: number } } => entry.rect != null);
+    .filter(
+      (
+        entry,
+      ): entry is {
+        point: TextProbe["codepoints"][number];
+        rect: { x: number; y: number; width: number; height: number };
+      } => entry.rect != null,
+    );
   if (placed.length === 0) return [];
-  const groups: typeof placed[] = [];
+  const groups: (typeof placed)[] = [];
   for (const entry of placed) {
     const coordinate = vertical ? entry.rect.x : entry.rect.y;
     let group = groups.find((candidate) => {
@@ -238,9 +251,7 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
     const effectiveOrientation = /^(?:sideways)-/.test(probe.style.writingMode)
       ? "sideways"
       : probe.style.textOrientation;
-    const verticalOrientations = vertical
-      ? resolveVerticalOrientations(text, effectiveOrientation)
-      : [];
+    const verticalOrientations = vertical ? resolveVerticalOrientations(text, effectiveOrientation) : [];
     for (const { point, rect } of group) {
       for (let offset = 0; offset < point.text.length; offset++) {
         xOffsets.push(rect.x);
@@ -252,7 +263,9 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
     const sidewaysLr = probe.style.writingMode === "sideways-lr";
     const baseline = !vertical
       ? y + probe.metrics.ascent
-      : sidewaysLr ? x + probe.metrics.ascent : right - probe.metrics.ascent;
+      : sidewaysLr
+        ? x + probe.metrics.ascent
+        : right - probe.metrics.ascent;
     return {
       text,
       sourceText: text,
@@ -270,13 +283,15 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
       fontWeight: probe.style.fontWeight,
       fontVariant: probe.style.fontVariant,
       fontAscent: probe.metrics.ascent,
-      ...(vertical ? {
-        verticalWritingMode: probe.style.writingMode,
-        verticalOrientations,
-        yOffsets,
-        verticalAdvances,
-        verticalNaturalWidths,
-      } : { xOffsets }),
+      ...(vertical
+        ? {
+            verticalWritingMode: probe.style.writingMode,
+            verticalOrientations,
+            yOffsets,
+            verticalAdvances,
+            verticalNaturalWidths,
+          }
+        : { xOffsets }),
     } satisfies TextSegment;
   });
 }
@@ -378,12 +393,17 @@ async function readTextQuads(
   }
 }
 
-async function readPlatformFonts(session: CDPSession, node: CdpNode): Promise<Array<{
-  familyName: string;
-  postScriptName: string;
-  isCustomFont: boolean;
-  glyphCount: number;
-}>> {
+async function readPlatformFonts(
+  session: CDPSession,
+  node: CdpNode,
+): Promise<
+  Array<{
+    familyName: string;
+    postScriptName: string;
+    isCustomFont: boolean;
+    glyphCount: number;
+  }>
+> {
   try {
     const nodeId = await frontendNodeId(session, node);
     const response = await session.send("CSS.getPlatformFontsForNode", { nodeId });
@@ -398,7 +418,10 @@ async function readPlatformFonts(session: CDPSession, node: CdpNode): Promise<Ar
   }
 }
 
-async function readAccessibility(session: CDPSession, backendNodeId: number): Promise<CapturedBrokenImageFallback["accessibility"]> {
+async function readAccessibility(
+  session: CDPSession,
+  backendNodeId: number,
+): Promise<CapturedBrokenImageFallback["accessibility"]> {
   try {
     const response = await session.send("Accessibility.getPartialAXTree", {
       backendNodeId,
@@ -463,7 +486,8 @@ export async function captureBrokenImageFallbackFacts(
   visit(elements);
   if (targets.length === 0) return;
   if (sourceNodeKey == null) {
-    for (const target of targets) warningFor(target.element, target.probe, warnings, "live image-node registry unavailable");
+    for (const target of targets)
+      warningFor(target.element, target.probe, warnings, "live image-node registry unavailable");
     return;
   }
 
@@ -501,8 +525,9 @@ export async function captureBrokenImageFallbackFacts(
         });
         const host = described.node as unknown as CdpNode;
         const shadow = (host.shadowRoots ?? []).find((root) => root.shadowRootType === "user-agent") ?? null;
-        const hostBox = await readBox(session, host.backendNodeId, viewport)
-          ?? (target.probe.hostRect != null ? boxFromRect(target.probe.hostRect) : null);
+        const hostBox =
+          (await readBox(session, host.backendNodeId, viewport)) ??
+          (target.probe.hostRect != null ? boxFromRect(target.probe.hostRect) : null);
         const accessibility = await readAccessibility(session, host.backendNodeId);
         if (shadow == null) {
           const disposition = classifyBrokenImageDisposition({ source: target.probe.source, uaShadowPresent: false });
@@ -532,8 +557,8 @@ export async function captureBrokenImageFallbackFacts(
           readBox(session, containerNode.backendNodeId, viewport),
           readBox(session, iconNode.backendNodeId, viewport),
         ]);
-        const iconVisible = iconStyle.display !== "none" && iconBox != null
-          && iconBox.rect.width > 0 && iconBox.rect.height > 0;
+        const iconVisible =
+          iconStyle.display !== "none" && iconBox != null && iconBox.rect.width > 0 && iconBox.rect.height > 0;
         const disposition = classifyBrokenImageDisposition({
           source: target.probe.source,
           uaShadowPresent: true,
@@ -585,13 +610,15 @@ export async function captureBrokenImageFallbackFacts(
           bottom: numberStyle(containerStyle, "padding-bottom"),
           left: numberStyle(containerStyle, "padding-left"),
         };
-        const iconRaster = iconVisible ? await captureBrokenImageIconRaster(page, session, {
-          sourceNodeKey,
-          sourceNodeIndex,
-          iconBackendNodeId: iconNode.backendNodeId,
-          iconRect: iconBox!.rect,
-          viewport,
-        }) : undefined;
+        const iconRaster = iconVisible
+          ? await captureBrokenImageIconRaster(page, session, {
+              sourceNodeKey,
+              sourceNodeIndex,
+              iconBackendNodeId: iconNode.backendNodeId,
+              iconRect: iconBox!.rect,
+              viewport,
+            })
+          : undefined;
         const record: CapturedBrokenImageFallback = {
           schemaVersion: 1,
           authority: "chromium-ua-shadow-v1",
@@ -607,13 +634,14 @@ export async function captureBrokenImageFallbackFacts(
             float: containerStyle.float ?? "none",
             overflowX: containerStyle["overflow-x"] ?? "visible",
             overflowY: containerStyle["overflow-y"] ?? "visible",
-            overflowClip: /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-x"] ?? "")
-              || /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-y"] ?? "")
-              ? containerBox?.padding ?? null : null,
+            overflowClip:
+              /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-x"] ?? "") ||
+              /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-y"] ?? "")
+                ? (containerBox?.padding ?? null)
+                : null,
             direction: containerStyle.direction ?? "ltr",
             writingMode: containerStyle["writing-mode"] ?? "horizontal-tb",
-            effectiveZoom: target.probe.effectiveZoom
-              ?? (numberStyle(containerStyle, "zoom") || 1),
+            effectiveZoom: target.probe.effectiveZoom ?? (numberStyle(containerStyle, "zoom") || 1),
             border,
             padding,
           },
@@ -625,7 +653,7 @@ export async function captureBrokenImageFallbackFacts(
             cssWidth: numberStyle(iconStyle, "width"),
             cssHeight: numberStyle(iconStyle, "height"),
             devicePixelRatio: await page.evaluate(() => devicePixelRatio),
-            resourceScale: await page.evaluate(() => devicePixelRatio >= 2 ? 2 as const : 1 as const),
+            resourceScale: await page.evaluate(() => (devicePixelRatio >= 2 ? (2 as const) : (1 as const))),
             raster: iconRaster,
           },
           text,
@@ -636,12 +664,7 @@ export async function captureBrokenImageFallbackFacts(
         }
         target.element.brokenImageFallback = record;
       } catch (error) {
-        warningFor(
-          target.element,
-          target.probe,
-          warnings,
-          error instanceof Error ? error.message : String(error),
-        );
+        warningFor(target.element, target.probe, warnings, error instanceof Error ? error.message : String(error));
       } finally {
         if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
       }

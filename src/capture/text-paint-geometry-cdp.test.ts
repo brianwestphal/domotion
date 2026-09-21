@@ -68,7 +68,10 @@ describe("bounded text paint CDP measurement (DM-2680)", () => {
       session,
       "probe",
       frames,
-      new Map([["f0", 10], ["f1", 11]]),
+      new Map([
+        ["f0", 10],
+        ["f1", 11],
+      ]),
       { x: 1, y: 2 },
       2,
     );

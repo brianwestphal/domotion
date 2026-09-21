@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1282","DM-1297"]
-code: ["examples/template-package/","src/templates/registry.ts"]
-aliases: ["docs/74-template-authoring.md","doc-74"]
+tickets: ["DM-1282", "DM-1297"]
+code: ["examples/template-package/", "src/templates/registry.ts"]
+aliases: ["docs/74-template-authoring.md", "doc-74"]
 ---
 
 # 74 — Authoring & publishing a third-party template
@@ -16,7 +16,7 @@ Status: **shipped** (DM-1282). This is the hands-on guide for **third-party
 authors** who want to publish a reusable Domotion template as an npm package.
 It builds on doc 70 (the template system + the `Template` contract) and doc 73
 (using a template inside an `animate` config). The contract reference lives in
-doc 70; this doc is the *how-to*.
+doc 70; this doc is the _how-to_.
 
 A complete, runnable scaffold lives in **`examples/template-package/`**
 (`domotion-template-quote-card`) — copy it as your starting point. Everything
@@ -34,9 +34,9 @@ domotion template quote-card --quote "Ship it." -o quote.svg
 ```
 
 …and `domotion template quote-card` resolves the bare name `quote-card` to the
-`domotion-template-quote-card` package by convention (see *Discovery* below).
+`domotion-template-quote-card` package by convention (see _Discovery_ below).
 Built-in templates and third-party packages use the **exact same mechanism** —
-the npm graph *is* the registry.
+the npm graph _is_ the registry.
 
 ## Package shape
 
@@ -60,7 +60,7 @@ Three things make a valid package:
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "peerDependencies": { "domotion-svg": ">=0.14.0" },
-  "dependencies": { "zod": "^4.0.0" }
+  "dependencies": { "zod": "^4.0.0" },
 }
 ```
 
@@ -68,15 +68,15 @@ Three things make a valid package:
 // index.ts
 import type { Template } from "domotion-svg";
 export const quoteCardTemplate: Template<QuoteCardParams> = { name, description, paramsSchema, render };
-export default quoteCardTemplate;   // ← what loadTemplate("quote-card") picks up
+export default quoteCardTemplate; // ← what loadTemplate("quote-card") picks up
 ```
 
 ## The contract you implement
 
 ```ts
 interface Template<P> {
-  name: string;          // the registry key + `domotion template <name>`
-  description: string;   // one line; shown by `domotion template list`
+  name: string; // the registry key + `domotion template <name>`
+  description: string; // one line; shown by `domotion template list`
   paramsSchema: ZodType<P>;
   render(params: P, ctx: TemplateRenderContext): Promise<TemplateOutput>;
 }
@@ -87,14 +87,19 @@ interface Template<P> {
 
 ```ts
 interface TemplateRenderContext {
-  browser: Browser;            // shared Chromium — do NOT close it
-  workDir: string;             // scratch dir; default base for relative `input` paths
-  log: (msg: string) => void;  // progress (stderr in the CLI)
-  runAnimateConfig(cfg, configDir?): Promise<string>;   // → an animated SVG (generators)
-  captureToSvg(params): Promise<TemplateOutput>;        // → a static SVG (decorators)
+  browser: Browser; // shared Chromium — do NOT close it
+  workDir: string; // scratch dir; default base for relative `input` paths
+  log: (msg: string) => void; // progress (stderr in the CLI)
+  runAnimateConfig(cfg, configDir?): Promise<string>; // → an animated SVG (generators)
+  captureToSvg(params): Promise<TemplateOutput>; // → a static SVG (decorators)
 }
 
-interface TemplateOutput { svg: string; width: number; height: number; durationMs?: number; }
+interface TemplateOutput {
+  svg: string;
+  width: number;
+  height: number;
+  durationMs?: number;
+}
 ```
 
 You return a **complete, self-contained `<svg>` document** plus its dimensions.
@@ -140,7 +145,7 @@ For a template that captures a user-supplied URL/file and post-processes it (lik
 **static** SVG, then transform it.
 
 **Use `captureToSvg`, not a one-frame `runAnimateConfig`, for decorators.** A
-static capture SVG nests cleanly inside a wrapper; an *animated* SVG's keyframe
+static capture SVG nests cleanly inside a wrapper; an _animated_ SVG's keyframe
 `<style>` + frame-group wrappers don't survive re-nesting (doc 70).
 
 ## The two animation constraints
@@ -149,8 +154,8 @@ These come straight from the SVG output model — respect them or motion breaks
 (both are demonstrated in `background-loop` / doc 71 and `kinetic-text` / doc 72):
 
 1. **One intra-frame animation per captured element.** A second `animations`
-   entry on the same selector overrides the first. So put the *move* on a wrapper
-   and the *fade* on an inner element — two distinct selectors, two animations.
+   entry on the same selector overrides the first. So put the _move_ on a wrapper
+   and the _fade_ on an inner element — two distinct selectors, two animations.
 2. **SVG transforms are origin-(0,0).** `scale`/`rotate` pivot about the SVG
    origin, not the element — so motion is normally restricted to origin-safe
    `translate` + `opacity`, looped with `alternate: true` for seamless ambient
@@ -167,7 +172,7 @@ and is **projected to CLI flags** + a JSON Schema.
 - Use **`z.coerce.number()` / `z.coerce.boolean()`** for non-string scalars so the
   CLI's string flags AND raw JSON values both parse.
 - Give every field a **`.describe()`** — it's the text `domotion template <name>
-  --help` prints.
+--help` prints.
 - Scalar params (string / number / boolean / enum) become `--flags`
   automatically; arrays / objects are reachable via `--params '<json>'` /
   `--params-file`. (A `union(string | array)` lets an array param also accept a
@@ -191,9 +196,9 @@ browser:
 import { renderTemplateToSvg } from "domotion-svg";
 import quoteCard, { buildQuoteCardHtml } from "./index.js";
 
-it("escapes text", () => expect(buildQuoteCardHtml({ quote: "<b>", /* … */ })).toContain("&lt;b&gt;"));
+it("escapes text", () => expect(buildQuoteCardHtml({ quote: "<b>" /* … */ })).toContain("&lt;b&gt;"));
 it("renders", async () => {
-  const out = await renderTemplateToSvg(quoteCard, { quote: "Ship it." });   // needs Chromium
+  const out = await renderTemplateToSvg(quoteCard, { quote: "Ship it." }); // needs Chromium
   expect(out.svg).toMatch(/@keyframes/);
 });
 ```
@@ -206,7 +211,7 @@ npm publish        # the name MUST be domotion-template-<name>
 ```
 
 Add the `domotion-template` keyword to `package.json` so the package is
-discoverable on the npm registry (see *Discovery*).
+discoverable on the npm registry (see _Discovery_).
 
 ## Discovery — the `domotion-template-*` convention
 

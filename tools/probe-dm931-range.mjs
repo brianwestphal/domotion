@@ -14,20 +14,32 @@ const info = await page.evaluate(() => {
   const r = range.getBoundingClientRect();
   // Use elementsFromPoint to identify what's there
   const samples = [];
-  for (const [x, y] of [[32, 774], [50, 800], [110, 880], [32, 882]]) {
+  for (const [x, y] of [
+    [32, 774],
+    [50, 800],
+    [110, 880],
+    [32, 882],
+  ]) {
     const els = document.elementsFromPoint(x, y);
-    samples.push({ x, y, els: els.slice(0, 3).map(e => e.tagName + (e.className ? "." + e.className : "")) });
+    samples.push({ x, y, els: els.slice(0, 3).map((e) => e.tagName + (e.className ? "." + e.className : "")) });
   }
   // Get the OFFSET of the floated ::first-letter via getBoxQuads
   let boxQuads = null;
-  if ((p).getBoxQuads) {
+  if (p.getBoxQuads) {
     try {
-      const quads = (p).getBoxQuads({ box: "border" });
-      boxQuads = quads.map(q => q.getBounds()).map(b => ({x:b.x,y:b.y,w:b.width,h:b.height}));
-    } catch(e) { boxQuads = "err:" + e.message; }
+      const quads = p.getBoxQuads({ box: "border" });
+      boxQuads = quads.map((q) => q.getBounds()).map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.height }));
+    } catch (e) {
+      boxQuads = "err:" + e.message;
+    }
   }
   return {
-    pRect: { x: p.getBoundingClientRect().x, y: p.getBoundingClientRect().y, w: p.getBoundingClientRect().width, h: p.getBoundingClientRect().height },
+    pRect: {
+      x: p.getBoundingClientRect().x,
+      y: p.getBoundingClientRect().y,
+      w: p.getBoundingClientRect().width,
+      h: p.getBoundingClientRect().height,
+    },
     firstCharRange: { x: r.x, y: r.y, w: r.width, h: r.height },
     samples,
     boxQuads,

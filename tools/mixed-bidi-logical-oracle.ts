@@ -1,17 +1,8 @@
 #!/usr/bin/env tsx
 import * as fk from "fontkit";
 import { writeFileSync } from "node:fs";
-import {
-  captureElementTree,
-  launchChromium,
-  type CapturedElement,
-  type TextSegment,
-} from "../src/index.js";
-import {
-  bidiLevelsFor,
-  segmentForShaping,
-  type BidiParagraphContext,
-} from "../src/render/script-segmentation.js";
+import { captureElementTree, launchChromium, type CapturedElement, type TextSegment } from "../src/index.js";
+import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "../src/render/script-segmentation.js";
 import {
   clearEmbeddedFonts,
   clearGlyphDefs,
@@ -31,7 +22,13 @@ const FONT_FAMILY = "Arial, sans-serif";
 const FONT_SIZE = 32;
 const LETTER_SPACING = 1.25;
 const CURSIVE_SPACING_SCRIPTS = new Set([
-  "Arabic", "Hanifi_Rohingya", "Mandaic", "Mongolian", "Nko", "Phags_Pa", "Syriac",
+  "Arabic",
+  "Hanifi_Rohingya",
+  "Mandaic",
+  "Mongolian",
+  "Nko",
+  "Phags_Pa",
+  "Syriac",
 ]);
 
 interface OracleCase {
@@ -72,13 +69,15 @@ function exactLevels(text: string, context: BidiParagraphContext): number[] {
 
 function signature(text: string, context: BidiParagraphContext): string {
   const levels = exactLevels(text, context);
-  return JSON.stringify(segmentForShaping(text, levels).map((segment) => [
-    segment.start,
-    segment.end,
-    levels[segment.start],
-    segment.script,
-    segment.rtl ? "rtl" : "ltr",
-  ]));
+  return JSON.stringify(
+    segmentForShaping(text, levels).map((segment) => [
+      segment.start,
+      segment.end,
+      levels[segment.start],
+      segment.script,
+      segment.rtl ? "rtl" : "ltr",
+    ]),
+  );
 }
 
 function sourceOffsets(text: string, segments: TextSegment[]): number[] {
@@ -87,7 +86,8 @@ function sourceOffsets(text: string, segments: TextSegment[]): number[] {
   for (const segment of segments) {
     const source = segment.sourceText ?? segment.text;
     const found = text.indexOf(source, cursor);
-    if (found < 0) throw new Error(`captured fragment ${JSON.stringify(source)} is not a logical slice of ${JSON.stringify(text)}`);
+    if (found < 0)
+      throw new Error(`captured fragment ${JSON.stringify(source)} is not a logical slice of ${JSON.stringify(text)}`);
     offsets.push(found);
     cursor = found + source.length;
   }
@@ -113,10 +113,13 @@ async function main(): Promise<number> {
   try {
     const page = await browser.newPage({ viewport: { width: 1200, height: 120 }, deviceScaleFactor: 1 });
     for (const item of CASES) {
-      await page.setContent(`<!doctype html><style>
+      await page.setContent(
+        `<!doctype html><style>
         *{box-sizing:border-box}body{margin:0;background:#fff}
         .row{direction:${item.direction};unicode-bidi:normal;font:400 ${FONT_SIZE}px/44px ${FONT_FAMILY};letter-spacing:${LETTER_SPACING}px;white-space:pre;padding:8px 20px}
-      </style><div class="row">${item.text}</div>`, { waitUntil: "load" });
+      </style><div class="row">${item.text}</div>`,
+        { waitUntil: "load" },
+      );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 1200, height: 120 });
       const node = findText(tree, item.text);
       if (node == null) throw new Error(`${item.id}: row was not captured`);
@@ -192,10 +195,13 @@ async function main(): Promise<number> {
 
         for (const run of provenance.runs) {
           if (run.shapeError != null || run.selected.sourcePath == null || run.glyphs.length === 0) {
-            throw new Error(`${item.id}/${fragmentIndex}: incomplete shaping provenance (${run.shapeError ?? "missing source/glyph"})`);
+            throw new Error(
+              `${item.id}/${fragmentIndex}: incomplete shaping provenance (${run.shapeError ?? "missing source/glyph"})`,
+            );
           }
-          const itemOwner = shapingItems.find((candidate) =>
-            candidate.start <= run.sourceSpan[0] && candidate.end >= run.sourceSpan[1]);
+          const itemOwner = shapingItems.find(
+            (candidate) => candidate.start <= run.sourceSpan[0] && candidate.end >= run.sourceSpan[1],
+          );
           if (itemOwner == null) throw new Error(`${item.id}/${fragmentIndex}: shaped run crossed an item boundary`);
           const upem = unitsPerEm(run.selected.sourcePath, run.selected.faceIndex);
           const scale = run.request.fontSizePx / upem;
@@ -216,22 +222,22 @@ async function main(): Promise<number> {
           let clusterCursor = 0;
           const helperPlacements = cursiveSpacing
             ? positions.map((position) => {
-              const xFontUnits = cursor + position.xOffset;
-              cursor += position.xAdvance;
-              return { xFontUnits, rightCss: physicalOrigin + cursor * scale };
-            })
+                const xFontUnits = cursor + position.xOffset;
+                cursor += position.xAdvance;
+                return { xFontUnits, rightCss: physicalOrigin + cursor * scale };
+              })
             : positionShapedClusters(
-              run.emittedText,
-              run.emittedText,
-              glyphInputs,
-              positions,
-              clusters,
-              relativeOffsets,
-              run.sourceSpan[0],
-              scale,
-              physicalOrigin,
-              run.request.direction === "rtl",
-            );
+                run.emittedText,
+                run.emittedText,
+                glyphInputs,
+                positions,
+                clusters,
+                relativeOffsets,
+                run.sourceSpan[0],
+                scale,
+                physicalOrigin,
+                run.request.direction === "rtl",
+              );
           cursor = 0;
           const glyphs = run.glyphs.map((glyph, glyphIndex) => {
             let independentOrigin: number;
@@ -290,8 +296,9 @@ async function main(): Promise<number> {
               physicalOrigin,
               run.request.direction === "rtl",
             );
-            const deltas = mutated.map((placement, index) =>
-              (placement.xFontUnits - helperPlacements[index].xFontUnits) * scale);
+            const deltas = mutated.map(
+              (placement, index) => (placement.xFontUnits - helperPlacements[index].xFontUnits) * scale,
+            );
             const maxDelta = Math.max(...deltas.map(Math.abs));
             if (maxDelta > 1e-6) {
               wrongClusterDeltas.push({
@@ -342,16 +349,24 @@ async function main(): Promise<number> {
     }
 
     const controls = {
-      exactLogicalRecords: records.length === CASES.length
-        && records.every((record) => {
-          const typed = record as { sourceText: string; levels: number[]; logicalRuns: Array<{ utf16Span: number[] }>; fragments: Array<{ runs: unknown[] }> };
-          return typed.levels.length === typed.sourceText.length
-            && typed.logicalRuns[0]?.utf16Span[0] === 0
-            && typed.logicalRuns.at(-1)?.utf16Span[1] === typed.sourceText.length
-            && typed.fragments.every((fragment) => fragment.runs.length > 0);
+      exactLogicalRecords:
+        records.length === CASES.length &&
+        records.every((record) => {
+          const typed = record as {
+            sourceText: string;
+            levels: number[];
+            logicalRuns: Array<{ utf16Span: number[] }>;
+            fragments: Array<{ runs: unknown[] }>;
+          };
+          return (
+            typed.levels.length === typed.sourceText.length &&
+            typed.logicalRuns[0]?.utf16Span[0] === 0 &&
+            typed.logicalRuns.at(-1)?.utf16Span[1] === typed.sourceText.length &&
+            typed.fragments.every((fragment) => fragment.runs.length > 0)
+          );
         }),
-      forwardReverseRows: new Set(CASES.map((item) => item.order)).size === 2
-        && new Set(CASES.map((item) => item.direction)).size === 2,
+      forwardReverseRows:
+        new Set(CASES.map((item) => item.order)).size === 2 && new Set(CASES.map((item) => item.direction)).size === 2,
       wrongLevelMutation: new Set(wrongLevelDeltas.map((row) => row.case)).size === CASES.length,
       wrongClusterMutation: new Set(wrongClusterDeltas.map((row) => row.case)).size === CASES.length,
       wrongOriginMutation: new Set(wrongOriginDeltas.map((row) => row.case)).size === CASES.length,
@@ -390,7 +405,11 @@ async function main(): Promise<number> {
   }
 }
 
-main().then((code) => { process.exitCode = code; }).catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 2;
-});
+main()
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 2;
+  });

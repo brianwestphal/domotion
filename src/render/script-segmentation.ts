@@ -125,14 +125,9 @@ const _bidi = bidiFactory();
  * that source-level normalization here rather than preserving a dependency's
  * spelling accident.
  */
-function primaryScriptFor(
-  cp: number,
-  pinned: ReadonlyMap<number, IcuCodepointProperties>,
-): string {
+function primaryScriptFor(cp: number, pinned: ReadonlyMap<number, IcuCodepointProperties>): string {
   const script = pinned.get(cp)?.scriptLongName ?? getScript(cp);
-  return script === "Katakana" || script === "Katakana_Or_Hiragana"
-    ? "Hiragana"
-    : script;
+  return script === "Katakana" || script === "Katakana_Or_Hiragana" ? "Hiragana" : script;
 }
 
 /** One native IPC query per text item, never one process launch per scalar. */
@@ -332,9 +327,7 @@ export function bidiLevelsFor(
   const ub = bidiContext?.unicodeBidi;
   // Blink supplies an explicit block direction for every ordinary paragraph.
   // `plaintext` is the one block value that asks ICU to determine it.
-  const paragraphDirection = ub === "plaintext"
-    ? "auto"
-    : (bidiContext?.direction ?? "ltr");
+  const paragraphDirection = ub === "plaintext" ? "auto" : (bidiContext?.direction ?? "ltr");
   const isOverride = ub === "bidi-override" || ub === "isolate-override";
   if (isOverride) {
     // U+202D LRO / U+202E RLO … U+202C PDF — Blink's exact pair.
@@ -344,10 +337,7 @@ export function bidiLevelsFor(
       // withBmpStandIns is 1-for-1 on code units, so the composed string's
       // length \u2014 and therefore the slice offsets below \u2014 are unaffected by
       // the substitution.
-      const levels = _bidi.getEmbeddingLevels(
-        withBmpStandIns(enter + text + "\u202C"),
-        paragraphDirection,
-      ).levels;
+      const levels = _bidi.getEmbeddingLevels(withBmpStandIns(enter + text + "\u202C"), paragraphDirection).levels;
       // Drop the level of the injected opener; the trailing PDF's level is past
       // the end of the slice already. What remains is one level per SOURCE
       // character, so every caller's indexing into `text` still lines up.
@@ -531,7 +521,12 @@ function scriptSegmentsForShaping(text: string, levels?: ArrayLike<number>): Scr
     const scriptChanged = charSet !== ANY_SCRIPT && merged === null;
 
     if (i > segStart && (levelChanged || scriptChanged)) {
-      segments.push({ start: segStart, end: i, script: resolveSegmentScript(openSet, preferred), rtl: (segLevel & 1) === 1 });
+      segments.push({
+        start: segStart,
+        end: i,
+        script: resolveSegmentScript(openSet, preferred),
+        rtl: (segLevel & 1) === 1,
+      });
       segStart = i;
       openSet = charSet;
       preferred = preferredNeutralScript(cp, primary);
@@ -543,7 +538,12 @@ function scriptSegmentsForShaping(text: string, levels?: ArrayLike<number>): Scr
     i += width;
   }
 
-  segments.push({ start: segStart, end: text.length, script: resolveSegmentScript(openSet, preferred), rtl: (segLevel & 1) === 1 });
+  segments.push({
+    start: segStart,
+    end: text.length,
+    script: resolveSegmentScript(openSet, preferred),
+    rtl: (segLevel & 1) === 1,
+  });
   return segments;
 }
 

@@ -1,10 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  captureElementTree,
-  launchChromium,
-  type CapturedElement,
-} from "../src/index.js";
+import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
 import type { TextSegment } from "../src/capture/types.js";
 import type { CapturedFontFamilyStack } from "../src/font-family-stack.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -59,10 +55,7 @@ function byText(tree: CapturedElement[], text: string): CapturedElement {
 }
 
 function allSegments(element: CapturedElement): TextSegment[] {
-  return [
-    ...(element.textSegments ?? []),
-    ...(element.children ?? []).flatMap(allSegments),
-  ];
+  return [...(element.textSegments ?? []), ...(element.children ?? []).flatMap(allSegments)];
 }
 
 function marker(element: CapturedElement): TextSegment {
@@ -115,8 +108,9 @@ describeBrowser("DM-2518 font-family ownership capture", () => {
     expect(pseudo?.status).toBe("exact");
     expectAuthoredStack(pseudo?.typography.fontFamilyStack);
 
-    const first = allSegments(byText(tree, "First-letter owner"))
-      .find((segment) => segment.text.includes("F") && segment.fontFamilyStack != null);
+    const first = allSegments(byText(tree, "First-letter owner")).find(
+      (segment) => segment.text.includes("F") && segment.fontFamilyStack != null,
+    );
     expectAuthoredStack(first?.fontFamilyStack);
 
     expectAuthoredStack(marker(byText(tree, "clamp-owner")).fontFamilyStack);
@@ -138,8 +132,9 @@ describeBrowser("DM-2518 font-family ownership capture", () => {
     const pseudo = byText(tree, "ua-pseudo-host").pseudoFragments?.find((record) => record.pseudo === "::before");
     expectStandardStack(pseudo?.typography.fontFamilyStack);
 
-    const first = allSegments(byText(tree, "Ua-first-letter owner"))
-      .find((segment) => segment.text.includes("U") && segment.fontFamilyStack != null);
+    const first = allSegments(byText(tree, "Ua-first-letter owner")).find(
+      (segment) => segment.text.includes("U") && segment.fontFamilyStack != null,
+    );
     expectStandardStack(first?.fontFamilyStack);
 
     expectStandardStack(marker(byText(tree, "ua-clamp-owner")).fontFamilyStack);
@@ -148,8 +143,6 @@ describeBrowser("DM-2518 font-family ownership capture", () => {
   it("does not relabel an authored same-face pseudo as inherited kStandardFamily", () => {
     const pseudo = byText(tree, "ua-same-host").pseudoFragments?.find((record) => record.pseudo === "::before");
     expect(pseudo?.typography.fontFamilyStack?.genericFamily).toBe("none");
-    expect(pseudo?.typography.fontFamilyStack?.entries).toEqual([
-      { name: expect.any(String), type: "family-name" },
-    ]);
+    expect(pseudo?.typography.fontFamilyStack?.entries).toEqual([{ name: expect.any(String), type: "family-name" }]);
   });
 });

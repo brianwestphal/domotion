@@ -81,11 +81,21 @@ function parseSvgPath(d: string): PathCommand[] {
   while (i < tokens.length) {
     const t = tokens[i++];
     switch (t) {
-      case "M": out.push({ command: "moveTo", args: [num(), num()] }); break;
-      case "L": out.push({ command: "lineTo", args: [num(), num()] }); break;
-      case "Q": out.push({ command: "quadraticCurveTo", args: [num(), num(), num(), num()] }); break;
-      case "C": out.push({ command: "bezierCurveTo", args: [num(), num(), num(), num(), num(), num()] }); break;
-      case "Z": out.push({ command: "closePath", args: [] }); break;
+      case "M":
+        out.push({ command: "moveTo", args: [num(), num()] });
+        break;
+      case "L":
+        out.push({ command: "lineTo", args: [num(), num()] });
+        break;
+      case "Q":
+        out.push({ command: "quadraticCurveTo", args: [num(), num(), num(), num()] });
+        break;
+      case "C":
+        out.push({ command: "bezierCurveTo", args: [num(), num(), num(), num(), num(), num()] });
+        break;
+      case "Z":
+        out.push({ command: "closePath", args: [] });
+        break;
     }
   }
   return out;
@@ -247,7 +257,9 @@ export function hbShapingBaseOf<T extends object>(view: T): T {
   return (hbProxyBase.get(view) as T | undefined) ?? view;
 }
 
-export function _clearHbFontCache(): void { hbFontCache.clear(); }
+export function _clearHbFontCache(): void {
+  hbFontCache.clear();
+}
 
 /**
  * Shape `text` with HarfBuzz using the font at `fontPath`. Returns glyphs (with
@@ -436,9 +448,14 @@ export function harfbuzzShapeRun(
   // harfbuzzjs takes HarfBuzz's numeric hb_direction_t, not a string:
   // HB_DIRECTION_LTR = 4, HB_DIRECTION_RTL = 5 (`hb.Direction`).
   if (direction != null) {
-    const hbDirection = direction === "rtl" ? hb.Direction.RTL
-      : direction === "ttb" ? hb.Direction.TTB
-        : direction === "btt" ? hb.Direction.BTT : hb.Direction.LTR;
+    const hbDirection =
+      direction === "rtl"
+        ? hb.Direction.RTL
+        : direction === "ttb"
+          ? hb.Direction.TTB
+          : direction === "btt"
+            ? hb.Direction.BTT
+            : hb.Direction.LTR;
     buf.setDirection(hbDirection);
   }
   // Feature strings parse through HarfBuzz's own `hb_feature_from_string`
@@ -508,7 +525,10 @@ export function harfbuzzShapeRun(
  *
  * Returns null when the face cannot be opened; glyph ids are 0 when absent.
  */
-export function harfbuzzGlyphQuery(fontPath: string, faceIndex: number | null): {
+export function harfbuzzGlyphQuery(
+  fontPath: string,
+  faceIndex: number | null,
+): {
   nominalGlyph(cp: number): number;
   variationGlyph(cp: number, selector: number): number;
 } | null {
@@ -594,14 +614,22 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
   } catch {
     result = false; // unreadable → treat as untracked, i.e. leave the caller's shaping alone
   } finally {
-    if (fd >= 0) { try { closeSync(fd); } catch { /* already gone */ } }
+    if (fd >= 0) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* already gone */
+      }
+    }
   }
   trakStatCache.set(key, result);
   return result;
 }
 
 /** Test seam: drop the memoised `trak`/`STAT` verdicts. */
-export function _clearTrakStatCache(): void { trakStatCache.clear(); }
+export function _clearTrakStatCache(): void {
+  trakStatCache.clear();
+}
 
 // ── Mirror-domain adapter for renderer-facing HarfBuzz shaping ───────────────
 //
@@ -640,14 +668,42 @@ const _bidi = bidiFactory();
  * they are deliberately absent.
  */
 const HB_RTL_HORIZONTAL_SCRIPTS = new Set([
-  "Arabic", "Hebrew", "Syriac", "Thaana", "Cypriot", "Kharoshthi",
-  "Phoenician", "Nko", "Lydian", "Avestan", "Imperial_Aramaic",
-  "Inscriptional_Pahlavi", "Inscriptional_Parthian", "Old_South_Arabian",
-  "Old_Turkic", "Samaritan", "Mandaic", "Meroitic_Cursive",
-  "Meroitic_Hieroglyphs", "Manichaean", "Mende_Kikakui", "Nabataean",
-  "Old_North_Arabian", "Palmyrene", "Psalter_Pahlavi", "Hatran", "Adlam",
-  "Hanifi_Rohingya", "Old_Sogdian", "Sogdian", "Elymaic", "Chorasmian",
-  "Yezidi", "Old_Uyghur", "Garay", "Sidetic",
+  "Arabic",
+  "Hebrew",
+  "Syriac",
+  "Thaana",
+  "Cypriot",
+  "Kharoshthi",
+  "Phoenician",
+  "Nko",
+  "Lydian",
+  "Avestan",
+  "Imperial_Aramaic",
+  "Inscriptional_Pahlavi",
+  "Inscriptional_Parthian",
+  "Old_South_Arabian",
+  "Old_Turkic",
+  "Samaritan",
+  "Mandaic",
+  "Meroitic_Cursive",
+  "Meroitic_Hieroglyphs",
+  "Manichaean",
+  "Mende_Kikakui",
+  "Nabataean",
+  "Old_North_Arabian",
+  "Palmyrene",
+  "Psalter_Pahlavi",
+  "Hatran",
+  "Adlam",
+  "Hanifi_Rohingya",
+  "Old_Sogdian",
+  "Sogdian",
+  "Elymaic",
+  "Chorasmian",
+  "Yezidi",
+  "Old_Uyghur",
+  "Garay",
+  "Sidetic",
 ]);
 
 /**
@@ -686,7 +742,12 @@ export function mirrorPairedCharacters(text: string, levels?: ArrayLike<number>)
   for (const ch of text) {
     if (levels == null || ((levels[i] ?? 0) & 1) === 1) {
       const m: string | null = _bidi.getMirroredCharacter(ch);
-      if (m != null) { out += m; any = true; i += ch.length; continue; }
+      if (m != null) {
+        out += m;
+        any = true;
+        i += ch.length;
+        continue;
+      }
     }
     out += ch;
     i += ch.length;
@@ -701,7 +762,10 @@ export function mirrorPairedCharacters(text: string, levels?: ArrayLike<number>)
  * buffer direction agree by construction), with the paint-domain text mapped
  * back through the BMG involution whenever that direction is RTL.
  */
-function rendererHbShapeArgs(text: string, direction: "ltr" | "rtl" | undefined): { text: string; direction: "ltr" | "rtl" } {
+function rendererHbShapeArgs(
+  text: string,
+  direction: "ltr" | "rtl" | undefined,
+): { text: string; direction: "ltr" | "rtl" } {
   const dir = direction ?? hbGuessedHorizontalDirection(text);
   return { text: dir === "rtl" ? mirrorPairedCharacters(text) : text, direction: dir };
 }
@@ -726,11 +790,16 @@ export function makeHarfbuzzShapeFallback(
    *  all, since it drives the `trak` lookup. See `harfbuzzShapeRun`. */
   fontSizePx?: number,
   axes?: Record<string, number> | null,
-): ((text: string, direction?: "ltr" | "rtl") => {
-  ids: number[];
-  positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
-  clusters: number[];
-} | null) | undefined {
+):
+  | ((
+      text: string,
+      direction?: "ltr" | "rtl",
+    ) => {
+      ids: number[];
+      positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+      clusters: number[];
+    } | null)
+  | undefined {
   if (getHbEntry(fontPath, faceIndex) == null) return undefined;
   return (text: string, direction?: "ltr" | "rtl") => {
     // Renderer-facing: the text is paint-domain (pre-mirrored by `applyBidi`),
@@ -745,7 +814,13 @@ export function makeHarfbuzzShapeFallback(
 /** A minimal FontInstance-shaped view used by the renderer. Declared loosely so
  *  this module doesn't depend on text-to-path's internal interface. */
 interface ShapingFontView {
-  layout(text: string, features?: string[], script?: string, language?: string, direction?: "ltr" | "rtl"): {
+  layout(
+    text: string,
+    features?: string[],
+    script?: string,
+    language?: string,
+    direction?: "ltr" | "rtl",
+  ): {
     glyphs: ShapedGlyph[];
     positions: ShapeResult["positions"];
     clusters?: number[];
@@ -813,7 +888,10 @@ export function installHarfbuzzShaping(
     // mirror-domain map (see `rendererHbShapeArgs`); the native-layout decline
     // path keeps the ORIGINAL text, since that engine draws what it is given.
     const eff = rendererHbShapeArgs(text, direction);
-    const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, undefined, { script, language });
+    const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, undefined, {
+      script,
+      language,
+    });
     if (res == null) return nativeLayout(text);
     if (getGlyph == null) return res;
     return {
@@ -822,7 +900,11 @@ export function installHarfbuzzShaping(
       ...res,
       glyphs: res.glyphs.map((g) => {
         let drawn: ShapedGlyph | null = null;
-        try { drawn = getGlyph(g.id); } catch { drawn = null; }
+        try {
+          drawn = getGlyph(g.id);
+        } catch {
+          drawn = null;
+        }
         return drawn ?? g; // an id this engine cannot draw keeps HarfBuzz's outline
       }),
     };
@@ -910,7 +992,10 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
   // was asked for would swap the outline engine silently.
   const memoKey = `${fontPath}#${faceIndex ?? "?"}|${fontSizePx ?? ""}|${axes == null ? "" : JSON.stringify(axes)}|${opts?.outlinesFromBase === true ? "ob" : ""}|${opts?.features != null ? opts.features.join(",") : ""}`;
   let perBase = hbProxyCache.get(base as object);
-  if (perBase == null) { perBase = new Map(); hbProxyCache.set(base as object, perBase); }
+  if (perBase == null) {
+    perBase = new Map();
+    hbProxyCache.set(base as object, perBase);
+  }
   const memo = perBase.get(memoKey);
   if (memo != null) return memo as T;
   const proxy: ShapingFontView = {
@@ -925,7 +1010,10 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
       // `rendererHbShapeArgs`. The decline path hands the base engine the
       // ORIGINAL text, since that engine draws what it is given.
       const eff = rendererHbShapeArgs(text, direction);
-      const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, opts?.features, { script, language });
+      const res = harfbuzzShapeRun(fontPath, faceIndex, eff.text, eff.direction, fontSizePx, axes, opts?.features, {
+        script,
+        language,
+      });
       if (res == null) return base.layout(text); // defensive — shouldn't happen post-getHbEntry
       if (opts?.outlinesFromBase !== true || base.getGlyph == null) return res;
       const getGlyph = base.getGlyph.bind(base);
@@ -935,21 +1023,45 @@ export function makeHarfbuzzShapingInstance<T extends ShapingFontView>(
         ...res,
         glyphs: res.glyphs.map((g) => {
           let drawn: ShapedGlyph | null = null;
-          try { drawn = getGlyph(g.id); } catch { drawn = null; }
+          try {
+            drawn = getGlyph(g.id);
+          } catch {
+            drawn = null;
+          }
           return drawn ?? g; // a base that cannot draw this id keeps HarfBuzz's outline
         }),
       };
     },
-    get unitsPerEm() { return base.unitsPerEm; },
-    get ascent() { return base.ascent; },
-    get descent() { return base.descent; },
-    get underlinePosition() { return base.underlinePosition; },
-    get underlineThickness() { return base.underlineThickness; },
-    get availableFeatures() { return base.availableFeatures; },
-    get "OS/2"() { return base["OS/2"]; },
-    get directory() { return base.directory; },
-    get COLR() { return base.COLR; },
-    glyphForCodePoint(cp: number) { return base.glyphForCodePoint(cp); },
+    get unitsPerEm() {
+      return base.unitsPerEm;
+    },
+    get ascent() {
+      return base.ascent;
+    },
+    get descent() {
+      return base.descent;
+    },
+    get underlinePosition() {
+      return base.underlinePosition;
+    },
+    get underlineThickness() {
+      return base.underlineThickness;
+    },
+    get availableFeatures() {
+      return base.availableFeatures;
+    },
+    get "OS/2"() {
+      return base["OS/2"];
+    },
+    get directory() {
+      return base.directory;
+    },
+    get COLR() {
+      return base.COLR;
+    },
+    glyphForCodePoint(cp: number) {
+      return base.glyphForCodePoint(cp);
+    },
     getGlyph: base.getGlyph?.bind(base),
     warmGlyphs: base.warmGlyphs?.bind(base),
     warmShapes: base.warmShapes?.bind(base),

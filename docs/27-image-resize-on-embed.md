@@ -5,9 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["linux"]
-tickets: ["DM-2477","DM-258","DM-260","DM-512","DM-526","DM-542","DM-FZ5734"]
-code: ["src/capture/embed-hidpi-scope.test.ts","src/capture/embed.ts","src/tree-ops/resize-embedded-images.test.ts","tests/real-world.tsx"]
-aliases: ["docs/27-image-resize-on-embed.md","doc-27"]
+tickets: ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734"]
+code:
+  [
+    "src/capture/embed-hidpi-scope.test.ts",
+    "src/capture/embed.ts",
+    "src/tree-ops/resize-embedded-images.test.ts",
+    "tests/real-world.tsx",
+  ]
+aliases: ["docs/27-image-resize-on-embed.md", "doc-27"]
 ---
 
 # 27 — Image resize-on-embed
@@ -34,10 +40,11 @@ A separate `embedRemoteImagesResize` flag on `CaptureOptions` controls the pass.
 
 ```ts
 const rec = new DemoRecorder("https://www.nytimes.com", {
-  width: 1280, height: 800,
-  selfContained: true,                  // DM-512 — inline remote URLs
-  embedRemoteImagesResize: true,        // DM-526 — downscale before inlining
-  embedRemoteImagesHiDPIFactor: 2,      // DM-526 — default 2.0
+  width: 1280,
+  height: 800,
+  selfContained: true, // DM-512 — inline remote URLs
+  embedRemoteImagesResize: true, // DM-526 — downscale before inlining
+  embedRemoteImagesHiDPIFactor: 2, // DM-526 — default 2.0
 });
 ```
 
@@ -45,7 +52,7 @@ The bare entry point is exported as `resizeEmbeddedImages(tree, options)`, mirro
 
 ### Resize threshold
 
-A consumer's rect is determined per element (see *Render-rect inference* below). The resize pass downscales **only when the source is meaningfully larger**:
+A consumer's rect is determined per element (see _Render-rect inference_ below). The resize pass downscales **only when the source is meaningfully larger**:
 
 ```
 shouldResize = sourceWidth  > targetWidth  * hiDPIFactor
@@ -82,20 +89,20 @@ Implications:
 
 Per consumer of each URL, the resize pass computes a target rect:
 
-| Consumer field | Target W | Target H |
-|---|---|---|
-| `el.imageSrc` (any `<img>`, `<input type=image>`) | `el.width` | `el.height` |
-| `el.pseudoImages[].url` (`::before` / `::after` `content: url(...)`) | pseudo-element's `width` / `height` from capture | same |
-| `styles.backgroundImage` `url(...)` | the consumer element's `width` / `height` | same |
-| `styles.maskImage` `url(...)` | consumer element's `width` / `height` | same |
-| `styles.borderImageSource` `url(...)` | consumer element's full border box | same |
-| `styles.listStyleImage` `url(...)` | em-box at the element's `font-size` (square) | same |
+| Consumer field                                                       | Target W                                         | Target H    |
+| -------------------------------------------------------------------- | ------------------------------------------------ | ----------- |
+| `el.imageSrc` (any `<img>`, `<input type=image>`)                    | `el.width`                                       | `el.height` |
+| `el.pseudoImages[].url` (`::before` / `::after` `content: url(...)`) | pseudo-element's `width` / `height` from capture | same        |
+| `styles.backgroundImage` `url(...)`                                  | the consumer element's `width` / `height`        | same        |
+| `styles.maskImage` `url(...)`                                        | consumer element's `width` / `height`            | same        |
+| `styles.borderImageSource` `url(...)`                                | consumer element's full border box               | same        |
+| `styles.listStyleImage` `url(...)`                                   | em-box at the element's `font-size` (square)     | same        |
 
 Each target is multiplied by `hiDPIFactor`. The result is **rounded up** (`Math.ceil`) so the resized output never under-resolves the target box.
 
-For URLs referenced from CSS (`backgroundImage`, etc.) the same URL may appear on many elements at many sizes. The pass enumerates **all consumer rects per URL**, computes the resized bytes for each unique target size, and produces one cache entry per `(URL, outputW, outputH)` tuple. This is the *dedup-after-resizing* behavior: identical target sizes share one PNG, distinct target sizes get distinct PNGs. The resized variants live in a **separate** cache — `_resizedDataUriCache: Map<string, Map<sizeKey, string>>` (`sizeKey = "${w}x${h}"`), added alongside the original full-size `_dataUriCache: Map<string, string>` in `src/capture/embed.ts` (the original cache keeps its `URL → string` shape; it was not re-keyed).
+For URLs referenced from CSS (`backgroundImage`, etc.) the same URL may appear on many elements at many sizes. The pass enumerates **all consumer rects per URL**, computes the resized bytes for each unique target size, and produces one cache entry per `(URL, outputW, outputH)` tuple. This is the _dedup-after-resizing_ behavior: identical target sizes share one PNG, distinct target sizes get distinct PNGs. The resized variants live in a **separate** cache — `_resizedDataUriCache: Map<string, Map<sizeKey, string>>` (`sizeKey = "${w}x${h}"`), added alongside the original full-size `_dataUriCache: Map<string, string>` in `src/capture/embed.ts` (the original cache keeps its `URL → string` shape; it was not re-keyed).
 
-`embedAsDataUri(url)` no longer has the consumer rect on hand at call time, so the renderer side gains a sibling helper `embedResizedDataUri(url, targetW, targetH)` that the image-emitting paths use when resize is enabled. When resize is disabled (the default), the existing `embedAsDataUri` path is unchanged. See *Renderer integration* below.
+`embedAsDataUri(url)` no longer has the consumer rect on hand at call time, so the renderer side gains a sibling helper `embedResizedDataUri(url, targetW, targetH)` that the image-emitting paths use when resize is enabled. When resize is disabled (the default), the existing `embedAsDataUri` path is unchanged. See _Renderer integration_ below.
 
 ### Resize library
 

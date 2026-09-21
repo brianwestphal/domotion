@@ -218,9 +218,9 @@ export function hoistDuplicateImagePayloads(svg: string, opts: HoistImagePayload
       defId = nextId();
       const par = attrValue(first, "preserveAspectRatio");
       newDefs.push(
-        `<image id="${defId}" width="${attrValue(first, "width")!}" height="${attrValue(first, "height")!}"`
-        + (par != null ? ` preserveAspectRatio="${par}"` : "")
-        + ` href="${attrValue(first, "href")!}"/>`,
+        `<image id="${defId}" width="${attrValue(first, "width")!}" height="${attrValue(first, "height")!}"` +
+          (par != null ? ` preserveAspectRatio="${par}"` : "") +
+          ` href="${attrValue(first, "href")!}"/>`,
       );
       toRewrite = members;
     }
@@ -231,18 +231,19 @@ export function hoistDuplicateImagePayloads(svg: string, opts: HoistImagePayload
       );
       const x = attrValue(img, "x");
       const y = attrValue(img, "y");
-      const useTag = `<use href="#${defId}"`
-        + (x != null ? ` x="${x}"` : "")
-        + (y != null ? ` y="${y}"` : "")
-        + fmtAttrs(useAttrs)
-        + `/>`;
+      const useTag =
+        `<use href="#${defId}"` +
+        (x != null ? ` x="${x}"` : "") +
+        (y != null ? ` y="${y}"` : "") +
+        fmtAttrs(useAttrs) +
+        `/>`;
       replacements.set(
         img.start,
         coordAttrs.length === 0 && img.children === ""
           ? useTag
-          // The `<g>` holds the clip/mask/filter so it resolves in the ORIGINAL
-          // user space; the `<use>` inside carries only the translate.
-          : `<g${fmtAttrs(coordAttrs)}>${img.children}${useTag}</g>`,
+          : // The `<g>` holds the clip/mask/filter so it resolves in the ORIGINAL
+            // user space; the `<use>` inside carries only the translate.
+            `<g${fmtAttrs(coordAttrs)}>${img.children}${useTag}</g>`,
       );
     }
   }

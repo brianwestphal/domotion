@@ -28,12 +28,21 @@ import { isTemplate, type Template } from "./types.js";
 /** First-party templates, keyed by name. */
 const BUILTINS: ReadonlyMap<string, Template> = new Map<string, Template>(
   [
-    lowerThirdTemplate, deviceMockupTemplate, backgroundLoopTemplate, kineticTextTemplate,
-    chartTemplate, chatTemplate, subscribeTemplate,
+    lowerThirdTemplate,
+    deviceMockupTemplate,
+    backgroundLoopTemplate,
+    kineticTextTemplate,
+    chartTemplate,
+    chatTemplate,
+    subscribeTemplate,
     // Creative pack — Batch A text cards (DM-1531).
-    titleCardTemplate, quoteTemplate, captionTemplate, ctaTemplate,
+    titleCardTemplate,
+    quoteTemplate,
+    captionTemplate,
+    ctaTemplate,
     // Creative pack — Batch B number animation (DM-1532).
-    counterTemplate, statTemplate,
+    counterTemplate,
+    statTemplate,
     // Creative pack — Batch C before/after compare (DM-1533).
     compareTemplate,
   ].map((t) => [t.name, t as Template]),
@@ -69,20 +78,21 @@ export async function loadTemplate(name: string): Promise<Template> {
   try {
     mod = await import(pkg);
   } catch (e) {
-    const builtins = listBuiltinTemplates().map((t) => t.name).join(", ");
+    const builtins = listBuiltinTemplates()
+      .map((t) => t.name)
+      .join(", ");
     throw new Error(
-      `unknown template "${name}". Built-in templates: ${builtins}. `
-      + `For a third-party template, install its package first:  npm install ${pkg}\n`
-      + `(underlying resolve error: ${(e as Error).message})`,
+      `unknown template "${name}". Built-in templates: ${builtins}. ` +
+        `For a third-party template, install its package first:  npm install ${pkg}\n` +
+        `(underlying resolve error: ${(e as Error).message})`,
     );
   }
-  const candidate = (mod as { default?: unknown; template?: unknown }).default
-    ?? (mod as { template?: unknown }).template
-    ?? mod;
+  const candidate =
+    (mod as { default?: unknown; template?: unknown }).default ?? (mod as { template?: unknown }).template ?? mod;
   if (!isTemplate(candidate)) {
     throw new Error(
-      `package "${pkg}" does not export a valid Domotion template `
-      + `(expected a default or \`template\` export with { name, description, paramsSchema, render }).`,
+      `package "${pkg}" does not export a valid Domotion template ` +
+        `(expected a default or \`template\` export with { name, description, paramsSchema, render }).`,
     );
   }
   return candidate;

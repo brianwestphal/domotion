@@ -22,33 +22,26 @@ export interface PseudoBackdropIsolationPlan {
   hideBackendNodeIds: number[];
 }
 
-function overlaps(
-  left: [number, number, number, number],
-  right: [number, number, number, number],
-): boolean {
-  return left[0] < right[0] + right[2] && left[0] + left[2] > right[0]
-    && left[1] < right[1] + right[3] && left[1] + left[3] > right[1];
+function overlaps(left: [number, number, number, number], right: [number, number, number, number]): boolean {
+  return (
+    left[0] < right[0] + right[2] &&
+    left[0] + left[2] > right[0] &&
+    left[1] < right[1] + right[3] &&
+    left[1] + left[3] > right[1]
+  );
 }
 
-function isAncestor(
-  nodes: readonly PseudoBackdropSnapshotNode[],
-  ancestor: number,
-  child: number,
-): boolean {
+function isAncestor(nodes: readonly PseudoBackdropSnapshotNode[], ancestor: number, child: number): boolean {
   for (let cursor = child; cursor >= 0; cursor = nodes[cursor]?.parentIndex ?? -1) {
     if (cursor === ancestor) return true;
   }
   return false;
 }
 
-function paintsLater(
-  candidate: PseudoBackdropSnapshotNode,
-  target: PseudoBackdropSnapshotNode,
-): boolean {
+function paintsLater(candidate: PseudoBackdropSnapshotNode, target: PseudoBackdropSnapshotNode): boolean {
   if (candidate.paintOrder == null || target.paintOrder == null) return false;
   if (candidate.paintOrder !== target.paintOrder) return candidate.paintOrder > target.paintOrder;
-  return candidate.layoutOrder != null && target.layoutOrder != null
-    && candidate.layoutOrder > target.layoutOrder;
+  return candidate.layoutOrder != null && target.layoutOrder != null && candidate.layoutOrder > target.layoutOrder;
 }
 
 /**

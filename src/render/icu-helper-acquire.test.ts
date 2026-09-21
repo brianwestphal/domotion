@@ -21,15 +21,16 @@ describe("ICU companion acquisition (DM-2254)", () => {
 
   it("keeps ICU releases independent from the npm package version", () => {
     expect(ICU_COMPANION_VERSION).toBe("78.2-domotion.1");
-    expect(icuCacheDir("linux", { XDG_DATA_HOME: "/cache" }, "/home/me"))
-      .toBe(path.join("/cache", "domotion", "icu", ICU_COMPANION_VERSION));
+    expect(icuCacheDir("linux", { XDG_DATA_HOME: "/cache" }, "/home/me")).toBe(
+      path.join("/cache", "domotion", "icu", ICU_COMPANION_VERSION),
+    );
   });
 
   it("installs a stable executable name beside the matching data file", () => {
     const target = resolveIcuCompanionTarget({ platform: "win32", arch: "arm64", cacheDir: "C:\\cache" });
     expect(target?.executableAsset).toBe("domotion-icu-win32-arm64.exe");
     expect(target?.dataAsset).toBe("domotion-icu-win32-arm64.icudtl.dat");
-    expect(target?.runtimeAssets.map(item => item.asset)).toEqual([
+    expect(target?.runtimeAssets.map((item) => item.asset)).toEqual([
       "domotion-icu-win32-arm64.icuuc78.dll",
       "domotion-icu-win32-arm64.icudt78.dll",
     ]);
@@ -40,9 +41,12 @@ describe("ICU companion acquisition (DM-2254)", () => {
   it("keeps the tsx loader when a source checkout launches the download worker", () => {
     const target = resolveIcuCompanionTarget({ platform: "linux", arch: "x64", cacheDir: "/cache" })!;
     expect(icuAcquireWorkerArgs("/repo/src/render/icu-helper-acquire.ts", target).slice(0, 3)).toEqual([
-      "--import", "tsx", "/repo/src/render/icu-helper-acquire.ts",
+      "--import",
+      "tsx",
+      "/repo/src/render/icu-helper-acquire.ts",
     ]);
-    expect(icuAcquireWorkerArgs("/pkg/dist/render/icu-helper-acquire.js", target)[0])
-      .toBe("/pkg/dist/render/icu-helper-acquire.js");
+    expect(icuAcquireWorkerArgs("/pkg/dist/render/icu-helper-acquire.js", target)[0]).toBe(
+      "/pkg/dist/render/icu-helper-acquire.js",
+    );
   });
 });

@@ -11,10 +11,16 @@ function flatten(tree: CapturedElement[]): CapturedElement[] {
 }
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("Chromium-owned conic raster boundary (DM-2327)", () => {
@@ -23,7 +29,9 @@ describeBrowser("Chromium-owned conic raster boundary (DM-2327)", () => {
     const page = await context.newPage();
     try {
       _conicTileCache.clear();
-      await page.setContent(`<div id="tile" style="width:80px;height:60px;zoom:1.25;background-image:conic-gradient(from 30deg at 40% 60% in oklch longer hue,red,blue);background-size:40px 30px;background-repeat:repeat"></div>`);
+      await page.setContent(
+        `<div id="tile" style="width:80px;height:60px;zoom:1.25;background-image:conic-gradient(from 30deg at 40% 60% in oklch longer hue,red,blue);background-size:40px 30px;background-repeat:repeat"></div>`,
+      );
       const layer = await page.locator("#tile").evaluate((element) => getComputedStyle(element).backgroundImage);
       // A process-global cache can contain a direct-tree fallback or pixels
       // from a previous browser context. Supported capture must overwrite it.

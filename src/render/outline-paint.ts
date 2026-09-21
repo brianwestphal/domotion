@@ -83,8 +83,7 @@ export function thinDottedEndpointPlan(pathLength: number, width: number): ThinD
     startDotGrowth = 1;
     startLineOffset = 1;
   }
-  if ((w === 2 && (mod4 === 0 || mod4 === 1)) ||
-      (w === 3 && (mod6 === 1 || mod6 === 2))) {
+  if ((w === 2 && (mod4 === 0 || mod4 === 1)) || (w === 3 && (mod6 === 1 || mod6 === 2))) {
     startDotGrowth = 0;
     startLineOffset = -1;
   }
@@ -104,8 +103,13 @@ export function thinDottedEndpointPlan(pathLength: number, width: number): ThinD
 }
 
 export function paintThinDottedLine(
-  x1: number, y1: number, x2: number, y2: number,
-  width: number, color: string, indent: string,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  width: number,
+  color: string,
+  indent: string,
 ): string[] {
   const vertical = x1 === x2;
   const w = Math.round(width);
@@ -113,14 +117,18 @@ export function paintThinDottedLine(
   const plan = thinDottedEndpointPlan(length, w);
   const out: string[] = [];
   if (plan.startDotGrowth != null) {
-    out.push(vertical
-      ? `${indent}<rect x="${r(x1 - w / 2)}" y="${r(y1)}" width="${r(w)}" height="${r(w + plan.startDotGrowth)}" fill="${color}" />`
-      : `${indent}<rect x="${r(x1)}" y="${r(y1 - w / 2)}" width="${r(w + plan.startDotGrowth)}" height="${r(w)}" fill="${color}" />`);
+    out.push(
+      vertical
+        ? `${indent}<rect x="${r(x1 - w / 2)}" y="${r(y1)}" width="${r(w)}" height="${r(w + plan.startDotGrowth)}" fill="${color}" />`
+        : `${indent}<rect x="${r(x1)}" y="${r(y1 - w / 2)}" width="${r(w + plan.startDotGrowth)}" height="${r(w)}" fill="${color}" />`,
+    );
   }
   if (plan.endDotGrowth != null) {
-    out.push(vertical
-      ? `${indent}<rect x="${r(x2 - w / 2)}" y="${r(y2 - w - plan.endDotGrowth)}" width="${r(w)}" height="${r(w + plan.endDotGrowth)}" fill="${color}" />`
-      : `${indent}<rect x="${r(x2 - w - plan.endDotGrowth)}" y="${r(y2 - w / 2)}" width="${r(w + plan.endDotGrowth)}" height="${r(w)}" fill="${color}" />`);
+    out.push(
+      vertical
+        ? `${indent}<rect x="${r(x2 - w / 2)}" y="${r(y2 - w - plan.endDotGrowth)}" width="${r(w)}" height="${r(w + plan.endDotGrowth)}" fill="${color}" />`
+        : `${indent}<rect x="${r(x2 - w - plan.endDotGrowth)}" y="${r(y2 - w / 2)}" width="${r(w + plan.endDotGrowth)}" height="${r(w)}" fill="${color}" />`,
+    );
   }
   // The caller passes the visible centerline (Chromium's integer center path
   // plus DrawLineWithStyle's odd-width 0.5 adjustment). Keeping that boundary
@@ -130,7 +138,9 @@ export function paintThinDottedLine(
   const ex = vertical ? x2 : x1 + plan.lineEnd;
   const ey = vertical ? y1 + plan.lineEnd : y2;
   if (plan.lineEnd >= plan.lineStart) {
-    out.push(`${indent}<line x1="${r(sx)}" y1="${r(sy)}" x2="${r(ex)}" y2="${r(ey)}" stroke="${color}" stroke-width="${r(w)}" stroke-dasharray="${r(w)} ${r(w)}" />`);
+    out.push(
+      `${indent}<line x1="${r(sx)}" y1="${r(sy)}" x2="${r(ex)}" y2="${r(ey)}" stroke="${color}" stroke-width="${r(w)}" stroke-dasharray="${r(w)} ${r(w)}" />`,
+    );
   }
   return out;
 }
@@ -217,18 +227,26 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         // single-rect emit remains the closest SVG-native fit.
         const thinDotted = ostyle === "dotted" && Math.round(ow) <= 3;
         const linecap = ostyle === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
-        const oxR = ox + owd, oyB = oy + oh;
+        const oxR = ox + owd,
+          oyB = oy + oh;
         const jointOffset = Math.floor((Math.round(ow) + 1) / 2);
-        const sideLeft = ox - jointOffset, sideRight = oxR + jointOffset;
-        const sideTop = oy - jointOffset, sideBottom = oyB + jointOffset;
-        const hLen = sideRight - sideLeft, vLen = sideBottom - sideTop;
+        const sideLeft = ox - jointOffset,
+          sideRight = oxR + jointOffset;
+        const sideTop = oy - jointOffset,
+          sideBottom = oyB + jointOffset;
+        const hLen = sideRight - sideLeft,
+          vLen = sideBottom - sideTop;
         const hAttrs = (() => {
           const { array, offset } = adjustedDashAttrs(ostyle, ow, hLen);
-          return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+          return array !== ""
+            ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}`
+            : "";
         })();
         const vAttrs = (() => {
           const { array, offset } = adjustedDashAttrs(ostyle, ow, vLen);
-          return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+          return array !== ""
+            ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}`
+            : "";
         })();
         const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
         // Four sides, each starting at its top-left corner so the

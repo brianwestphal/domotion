@@ -4,10 +4,10 @@ title: "122 — Declared-family and segmented-face fallback parity"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2090"]
-code: ["src/render/font-resolution.ts","src/render/webfont-declaration-order.test.ts"]
-aliases: ["docs/122-declared-family-segmented-face-parity.md","doc-122"]
+code: ["src/render/font-resolution.ts", "src/render/webfont-declaration-order.test.ts"]
+aliases: ["docs/122-declared-family-segmented-face-parity.md", "doc-122"]
 ---
 
 # 122 — Declared-family and segmented-face fallback parity
@@ -20,18 +20,18 @@ selection, registries) and `cluster-fallback.ts` (iterator and requeue loop).
 
 ## Declared families (`kFontGroupFonts`)
 
-| Blink branch | Pinned source | Domotion transcription |
-| --- | --- | --- |
-| Ordered family access; loading/unavailable skip | `font_fallback_list.cc`, `FontDataAt`; `font_fallback_iterator.cc`, `Next` | `splitFontFamilyNames` → `resolveFontKey` / `resolveFontKeyChain`; unavailable entries are omitted before `familyCycle` |
-| Generic substitution | `font_selector.cc`, `FamilyNameFromSettings`; `generic_font_family_settings.cc` | generic keyword bit plus session/script settings in `matchFamilyNameToKey` |
-| Quoted generic semantics | `font_selector.cc:25-32`; `font_family.cc`, `InferredTypeFor` | quoted/case-variant spellings remain literal families |
-| Platform aliases and case | `font_cache.cc`, platform creation; pinned Skia `SkFontConfigInterface_direct.cpp` | native family-style matchers; Linux `skiaFamilyMatchAcceptable`; dynamic concrete-face registration |
-| `local()` full/unique-name lookup and source fallback | `css_font_face_source.cc`; `font_face.cc` | browser probe plus ordered `localFontAliasRegistry`; unresolved sources walk on |
-| Literal first family reused later | platform fallback's `FontDescription::Family()` call sites | raw computed `fontFamily` is threaded as `declaredFamily`, separate from the resolved key |
-| First candidate / terminal donor | `font_fallback_iterator.cc`, `UniqueOrNext` and `kFirstCandidateForNotdefGlyph` | first materialized candidate is retained and re-returned after exhaustion |
+| Blink branch                                          | Pinned source                                                                      | Domotion transcription                                                                                                  |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Ordered family access; loading/unavailable skip       | `font_fallback_list.cc`, `FontDataAt`; `font_fallback_iterator.cc`, `Next`         | `splitFontFamilyNames` → `resolveFontKey` / `resolveFontKeyChain`; unavailable entries are omitted before `familyCycle` |
+| Generic substitution                                  | `font_selector.cc`, `FamilyNameFromSettings`; `generic_font_family_settings.cc`    | generic keyword bit plus session/script settings in `matchFamilyNameToKey`                                              |
+| Quoted generic semantics                              | `font_selector.cc:25-32`; `font_family.cc`, `InferredTypeFor`                      | quoted/case-variant spellings remain literal families                                                                   |
+| Platform aliases and case                             | `font_cache.cc`, platform creation; pinned Skia `SkFontConfigInterface_direct.cpp` | native family-style matchers; Linux `skiaFamilyMatchAcceptable`; dynamic concrete-face registration                     |
+| `local()` full/unique-name lookup and source fallback | `css_font_face_source.cc`; `font_face.cc`                                          | browser probe plus ordered `localFontAliasRegistry`; unresolved sources walk on                                         |
+| Literal first family reused later                     | platform fallback's `FontDescription::Family()` call sites                         | raw computed `fontFamily` is threaded as `declaredFamily`, separate from the resolved key                               |
+| First candidate / terminal donor                      | `font_fallback_iterator.cc`, `UniqueOrNext` and `kFirstCandidateForNotdefGlyph`    | first materialized candidate is retained and re-returned after exhaustion                                               |
 
 Family matching follows each platform's case behavior. Generic
-*classification* is case-sensitive: computed keywords serialize in canonical
+_classification_ is case-sensitive: computed keywords serialize in canonical
 lowercase, while quoted and case-variant names are literal. `system-ui` also has
 Blink's exact-name platform intercept.
 
@@ -94,7 +94,7 @@ capture waits for `document.fonts.ready` and transcribes the settled result.
 
 After declared families are exhausted, `cluster-fallback.ts` enters the explicit
 one-shot `kFallbackPriorityFonts` stage only for Blink's non-text emoji
-priorities. It advances to `kSystemFonts` *before* asking for one platform
+priorities. It advances to `kSystemFonts` _before_ asking for one platform
 priority face, so a missing or duplicate answer cannot try a second priority
 candidate or restart declared families. VS15/VS16 and `font-variant-emoji` feed
 the same classification. Pinned Chromium defines no symbol or math priority;

@@ -175,26 +175,37 @@ describe("template render end-to-end (DM-1276)", () => {
     );
     expect([col.width, col.height]).toEqual([700, 420]);
     expect(col.svg).toContain("<svg");
-    expect(col.svg).toMatch(/@keyframes/);          // the staggered grow
+    expect(col.svg).toMatch(/@keyframes/); // the staggered grow
     expect(col.svg).toMatch(/transform-box: fill-box/); // scaleY about the bar's bottom
-    expect(col.svg).toMatch(/Demo/);                // the title
+    expect(col.svg).toMatch(/Demo/); // the title
 
     const line = await renderTemplateToSvg(
       chartTemplate,
       { type: "line", data: [4, 8, 6, 12], width: 700, height: 420 },
       { browser: await getBrowser() },
     );
-    expect(line.svg).toMatch(/<polyline|<path/);    // the inline-SVG line
-    expect(line.svg).toMatch(/clip-path|inset/);    // the draw-in wipe
+    expect(line.svg).toMatch(/<polyline|<path/); // the inline-SVG line
+    expect(line.svg).toMatch(/clip-path|inset/); // the draw-in wipe
 
     // Multi-series stacked, with a legend + value-axis scale (DM-1301).
     const stacked = await renderTemplateToSvg(
       chartTemplate,
-      { type: "column", data: [[20, 35], [15, 25]], labels: "Mon,Tue", seriesNames: "A,B", layout: "stacked", width: 700, height: 420 },
+      {
+        type: "column",
+        data: [
+          [20, 35],
+          [15, 25],
+        ],
+        labels: "Mon,Tue",
+        seriesNames: "A,B",
+        layout: "stacked",
+        width: 700,
+        height: 420,
+      },
       { browser: await getBrowser() },
     );
     expect(stacked.svg).toMatch(/A|B|Mon|Tue|<path|<use/); // legend + labels rendered
-    expect(stacked.svg).toMatch(/@keyframes/);             // stacks grow
+    expect(stacked.svg).toMatch(/@keyframes/); // stacks grow
 
     // Pie/donut: arc-path slices that sweep in (DM-1300).
     const donut = await renderTemplateToSvg(
@@ -202,8 +213,8 @@ describe("template render end-to-end (DM-1276)", () => {
       { type: "donut", data: "50,30,20", labels: "A,B,C", title: "Share", width: 700, height: 420 },
       { browser: await getBrowser() },
     );
-    expect(donut.svg).toMatch(/<path/);          // arc slices
-    expect(donut.svg).toMatch(/@keyframes/);      // the spin/sweep
+    expect(donut.svg).toMatch(/<path/); // arc slices
+    expect(donut.svg).toMatch(/@keyframes/); // the spin/sweep
     expect(donut.svg).toMatch(/50%|A|B|C|<path|<use/); // legend with percentages
   }, 60_000);
 
@@ -214,10 +225,10 @@ describe("template render end-to-end (DM-1276)", () => {
       { browser: await getBrowser() },
     );
     expect([out.width, out.height]).toEqual([500, 600]);
-    expect(out.svg).toMatch(/@keyframes/);              // the staggered pop
+    expect(out.svg).toMatch(/@keyframes/); // the staggered pop
     expect(out.svg).toMatch(/transform-box: fill-box/); // scale about the bubble corner
-    expect(out.svg).toMatch(/Hey|Hi|Sam|<path|<use/);   // text present
-    expect(out.svg).toMatch(/ct-dot|translateY/);        // the typing indicator's bouncing dots (DM-1302)
+    expect(out.svg).toMatch(/Hey|Hi|Sam|<path|<use/); // text present
+    expect(out.svg).toMatch(/ct-dot|translateY/); // the typing indicator's bouncing dots (DM-1302)
   }, 60_000);
 
   it("subscribe (generator) pops a card in with a pulsing CTA (DM-1278)", async () => {
@@ -228,7 +239,7 @@ describe("template render end-to-end (DM-1276)", () => {
     );
     expect([out.width, out.height]).toEqual([700, 340]);
     expect(out.svg).toMatch(/@keyframes/);
-    expect(out.svg).toMatch(/infinite/);                // the looping CTA pulse
+    expect(out.svg).toMatch(/infinite/); // the looping CTA pulse
     expect(out.svg).toMatch(/Domotion|Subscribe|<path|<use/);
 
     // Click-through: the Subscribed second state is captured (not culled) so it
@@ -239,12 +250,15 @@ describe("template render end-to-end (DM-1276)", () => {
       { browser: await getBrowser() },
     );
     expect(click.svg).toMatch(/Subscribed|✓|<path|<use/);
-    expect(click.durationMs).toBeGreaterThan(1200);     // runs through the click
+    expect(click.durationMs).toBeGreaterThan(1200); // runs through the click
   }, 60_000);
 
   it("phone bezel grows the output by an even rim on every side", async () => {
     const htmlPath = join(work, "phone.html");
-    writeFileSync(htmlPath, `<!doctype html><html><body style="margin:0;background:#111"><p style="color:#fff">x</p></body></html>`);
+    writeFileSync(
+      htmlPath,
+      `<!doctype html><html><body style="margin:0;background:#111"><p style="color:#fff">x</p></body></html>`,
+    );
     const out = await renderTemplateToSvg(
       deviceMockupTemplate,
       { input: htmlPath, device: "phone", width: 390, height: 700 },
@@ -269,7 +283,10 @@ describe("format safe-area reflow (DM-1537)", () => {
   const safe = { l: s.left, t: s.top, r: width - s.right, b: height - s.bottom };
 
   /** Union bounding box (viewport px) of the elements matching `sel`. */
-  async function boundsOf(html: string, sel: string): Promise<{ minX: number; minY: number; maxX: number; maxY: number }> {
+  async function boundsOf(
+    html: string,
+    sel: string,
+  ): Promise<{ minX: number; minY: number; maxX: number; maxY: number }> {
     const ctx = await (await getBrowser()).newContext({ viewport: { width, height } });
     try {
       const page = await ctx.newPage();
@@ -277,11 +294,16 @@ describe("format safe-area reflow (DM-1537)", () => {
       await page.waitForTimeout(50);
       return await page.evaluate((sel) => {
         const els = [...document.querySelectorAll(sel)];
-        let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+        let minX = 1e9,
+          minY = 1e9,
+          maxX = -1e9,
+          maxY = -1e9;
         for (const el of els) {
           const r = el.getBoundingClientRect();
-          minX = Math.min(minX, r.left); minY = Math.min(minY, r.top);
-          maxX = Math.max(maxX, r.right); maxY = Math.max(maxY, r.bottom);
+          minX = Math.min(minX, r.left);
+          minY = Math.min(minY, r.top);
+          maxX = Math.max(maxX, r.right);
+          maxY = Math.max(maxY, r.bottom);
         }
         return { minX, minY, maxX, maxY };
       }, sel);
@@ -336,7 +358,12 @@ describe("format safe-area reflow (DM-1537)", () => {
 
   it("chart plots inside the safe rect at reel (9:16)", async () => {
     const p = validateTemplateParams(chartTemplate, {
-      type: "column", data: "42,68,55", labels: "A,B,C", title: "Growth", width, height,
+      type: "column",
+      data: "42,68,55",
+      labels: "A,B,C",
+      title: "Growth",
+      width,
+      height,
     });
     const inner = { ...p, width: width - s.left - s.right, height: height - s.top - s.bottom };
     const b = await boundsOf(buildChartHtml(inner, planChart(inner), s), ".ch-safe");

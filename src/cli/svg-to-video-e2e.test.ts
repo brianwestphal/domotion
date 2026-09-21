@@ -28,9 +28,18 @@ const ANIMATED_SVG =
 function ffprobe(file: string): Record<string, string> {
   const p = spawnSync(
     "ffprobe",
-    ["-v", "error", "-select_streams", "v:0",
-     "-show_entries", "stream=codec_name,width,height,nb_read_frames,pix_fmt:stream_tags=alpha_mode",
-     "-count_frames", "-of", "default=noprint_wrappers=1", file],
+    [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name,width,height,nb_read_frames,pix_fmt:stream_tags=alpha_mode",
+      "-count_frames",
+      "-of",
+      "default=noprint_wrappers=1",
+      file,
+    ],
     { encoding: "utf-8" },
   );
   const out: Record<string, string> = {};
@@ -80,7 +89,13 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
       // animation timeline was actually stepped (not frozen by the screenshot).
       const frames = readdirSync(framesDir).filter((f) => f.endsWith(".png"));
       expect(frames.length).toBe(4);
-      const hashes = new Set(frames.map((f) => createHash("md5").update(readFileSync(path.join(framesDir, f))).digest("hex")));
+      const hashes = new Set(
+        frames.map((f) =>
+          createHash("md5")
+            .update(readFileSync(path.join(framesDir, f)))
+            .digest("hex"),
+        ),
+      );
       expect(hashes.size).toBeGreaterThanOrEqual(2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -94,10 +109,19 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
     writeFileSync(input, ANIMATED_SVG);
     try {
       await runSvgToVideo({
-        input, output, width: 100, height: 100,
-        fps: 4, durationSec: 1, // 4 frames; 4 divides 100 → exact GIF timing
-        format: "gif", scale: 1, background: "#ffffff", burnCaptions: false,
-        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        input,
+        output,
+        width: 100,
+        height: 100,
+        fps: 4,
+        durationSec: 1, // 4 frames; 4 divides 100 → exact GIF timing
+        format: "gif",
+        scale: 1,
+        background: "#ffffff",
+        burnCaptions: false,
+        ffmpegPath: "ffmpeg",
+        quiet: true,
+        log: () => {},
         launchBrowser: () => launchChromium(),
       });
       const meta = ffprobe(output);
@@ -117,10 +141,19 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
     writeFileSync(input, ANIMATED_SVG);
     try {
       await runSvgToVideo({
-        input, output, width: 100, height: 100,
-        fps: 4, durationSec: 1,
-        format: "apng", scale: 1, background: "#ffffff", burnCaptions: false,
-        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        input,
+        output,
+        width: 100,
+        height: 100,
+        fps: 4,
+        durationSec: 1,
+        format: "apng",
+        scale: 1,
+        background: "#ffffff",
+        burnCaptions: false,
+        ffmpegPath: "ffmpeg",
+        quiet: true,
+        log: () => {},
         launchBrowser: () => launchChromium(),
       });
       const meta = ffprobe(output);
@@ -141,10 +174,19 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
     writeFileSync(input, ANIMATED_SVG);
     try {
       await runSvgToVideo({
-        input, output, width: 100, height: 100,
-        fps: 4, durationSec: 1,
-        format: "prores", scale: 1, background: "transparent", burnCaptions: false,
-        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        input,
+        output,
+        width: 100,
+        height: 100,
+        fps: 4,
+        durationSec: 1,
+        format: "prores",
+        scale: 1,
+        background: "transparent",
+        burnCaptions: false,
+        ffmpegPath: "ffmpeg",
+        quiet: true,
+        log: () => {},
         launchBrowser: () => launchChromium(),
       });
       const meta = ffprobe(output);
@@ -163,10 +205,19 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
     writeFileSync(input, ANIMATED_SVG);
     try {
       await runSvgToVideo({
-        input, output, width: 100, height: 100,
-        fps: 4, durationSec: 1,
-        format: "vp9", scale: 1, background: "transparent", burnCaptions: false,
-        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        input,
+        output,
+        width: 100,
+        height: 100,
+        fps: 4,
+        durationSec: 1,
+        format: "vp9",
+        scale: 1,
+        background: "transparent",
+        burnCaptions: false,
+        ffmpegPath: "ffmpeg",
+        quiet: true,
+        log: () => {},
         launchBrowser: () => launchChromium(),
       });
       const meta = ffprobe(output);
@@ -188,10 +239,19 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
     const notes: string[] = [];
     try {
       await runSvgToVideo({
-        input, output, width: 100, height: 100,
-        fps: 4, durationSec: 1,
-        format: "h264", scale: 1, background: "transparent", burnCaptions: false,
-        ffmpegPath: "ffmpeg", quiet: true, log: (m: string) => notes.push(m),
+        input,
+        output,
+        width: 100,
+        height: 100,
+        fps: 4,
+        durationSec: 1,
+        format: "h264",
+        scale: 1,
+        background: "transparent",
+        burnCaptions: false,
+        ffmpegPath: "ffmpeg",
+        quiet: true,
+        log: (m: string) => notes.push(m),
         launchBrowser: () => launchChromium(),
       });
       const meta = ffprobe(output);

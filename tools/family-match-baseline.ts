@@ -21,7 +21,12 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
-export interface FamilyMatchMiss { family: string; css: number; chrome: string; ours: string }
+export interface FamilyMatchMiss {
+  family: string;
+  css: number;
+  chrome: string;
+  ours: string;
+}
 
 export interface FamilyMatchReport {
   meta: {
@@ -80,9 +85,7 @@ export function readBaselineSet(file: string): FamilyMatchReport[] {
  * already carries the older ones. If that stops being true — a recorder that
  * drops `fontDigest`, say — the right fix is at the recorder, not here.
  */
-function envMatches(
-  a: Record<string, unknown>, b: Record<string, unknown>, keys: readonly string[],
-): boolean {
+function envMatches(a: Record<string, unknown>, b: Record<string, unknown>, keys: readonly string[]): boolean {
   return keys.every((k) => a[k] == null || b[k] == null || a[k] === b[k]);
 }
 
@@ -99,9 +102,7 @@ export function selectBaseline(
 }
 
 /** One line per recorded environment, for the refuse-to-judge message. */
-export function describeRecordedEnvs(
-  entries: readonly FamilyMatchReport[], keys: readonly string[],
-): string[] {
+export function describeRecordedEnvs(entries: readonly FamilyMatchReport[], keys: readonly string[]): string[] {
   return entries.map((e) => keys.map((k) => `${k}=${String(e.meta.env[k])}`).join(" "));
 }
 
@@ -110,7 +111,9 @@ export function describeRecordedEnvs(
  * matches, appends otherwise. Always writes the set form.
  */
 export function writeBaselineSet(
-  file: string, report: FamilyMatchReport, keys: readonly string[],
+  file: string,
+  report: FamilyMatchReport,
+  keys: readonly string[],
 ): { replaced: boolean; total: number } {
   const entries = readBaselineSet(file);
   const idx = entries.findIndex((e) => envMatches(e.meta.env, report.meta.env, keys));

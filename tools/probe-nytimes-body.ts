@@ -14,13 +14,21 @@ async function main() {
     const data = await page.evaluate(() => {
       // Walk body's direct children and report any with overflow + bbox at scrollY
       const body = document.body;
-      const kids: Array<{ tag: string; cls: string; overflow: string; bbox: { x: number; y: number; w: number; h: number }; height: string }> = [];
+      const kids: Array<{
+        tag: string;
+        cls: string;
+        overflow: string;
+        bbox: { x: number; y: number; w: number; h: number };
+        height: string;
+      }> = [];
       for (const c of Array.from(body.children) as HTMLElement[]) {
         const cs = getComputedStyle(c);
         const r = c.getBoundingClientRect();
         kids.push({
-          tag: c.tagName, cls: c.className.toString().slice(0, 60),
-          overflow: cs.overflow, height: cs.height,
+          tag: c.tagName,
+          cls: c.className.toString().slice(0, 60),
+          overflow: cs.overflow,
+          height: cs.height,
           bbox: { x: r.x, y: r.y, w: r.width, h: r.height },
         });
       }
@@ -31,4 +39,7 @@ async function main() {
   }
   await browser.close();
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

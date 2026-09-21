@@ -15,10 +15,18 @@ function walk(n: CapturedElement, pred: (n: CapturedElement) => boolean, out: Ca
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "nytimes-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "nytimes-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(60_000);
   await page.goto("https://www.nytimes.com/", { waitUntil: "domcontentloaded" });
@@ -34,18 +42,33 @@ async function main() {
 
   // Apply the same freeze as real-world.tsx does (DM-556 hides ReactModal!)
   await page.evaluate(() => {
-    try { if (typeof document.getAnimations === "function") for (const a of document.getAnimations()) { try { a.pause(); } catch {} } } catch {}
+    try {
+      if (typeof document.getAnimations === "function")
+        for (const a of document.getAnimations()) {
+          try {
+            a.pause();
+          } catch {}
+        }
+    } catch {}
     try {
       const noop = (() => 0) as any;
       window.setTimeout = noop;
       window.setInterval = noop;
     } catch {}
-    try { window.fetch = (() => new Promise(() => {})) as typeof window.fetch; } catch {}
-    try { XMLHttpRequest.prototype.send = function() {}; } catch {}
+    try {
+      window.fetch = (() => new Promise(() => {})) as typeof window.fetch;
+    } catch {}
+    try {
+      XMLHttpRequest.prototype.send = function () {};
+    } catch {}
     // DM-556 modal hiding
     try {
-      for (const el of document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]')) {
-        try { (el as HTMLElement).style.display = "none"; } catch {}
+      for (const el of document.querySelectorAll(
+        '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
+      )) {
+        try {
+          (el as HTMLElement).style.display = "none";
+        } catch {}
       }
     } catch {}
   });
@@ -99,13 +122,18 @@ async function main() {
   // Capture tree, look for video
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 390, height: 6000 });
   const videos: CapturedElement[] = [];
-  walk(tree[0]!, (n) => n.tag === 'video', videos);
+  walk(tree[0]!, (n) => n.tag === "video", videos);
   console.log(`\n=== Captured tree videos: ${videos.length} ===`);
   for (const v of videos) {
     const styles = v.styles as any;
-    console.log(`  video rect=(${Math.round(v.x)},${Math.round(v.y)},${Math.round(v.width)},${Math.round(v.height)}) op=${styles.opacity} replacedSnap=${(v as any).replacedSnapshot ? 'YES' : 'NO'}`);
+    console.log(
+      `  video rect=(${Math.round(v.x)},${Math.round(v.y)},${Math.round(v.width)},${Math.round(v.height)}) op=${styles.opacity} replacedSnap=${(v as any).replacedSnapshot ? "YES" : "NO"}`,
+    );
   }
 
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -12,14 +12,14 @@ animated SVG instead. Here's why that's worth it.
 The closest choices answer different needs. This focused table stays readable
 on a phone; less-direct alternatives follow below.
 
-| Need | Domotion SVG | Screen recording | Live iframe |
-| --- | --- | --- | --- |
-| Crisp when enlarged | Yes | No; fixed resolution | Yes |
-| Embeds as a plain `<img>` | Yes | No | No |
-| Works offline with no runtime | Yes | Yes | No |
-| Rebuild after a source change | Run the capture again | Re-record the flow | Updates live |
-| Simulated interaction | Yes | Recorded pixels | Real interaction |
-| Main trade-off | Not a live DOM | Larger, fixed-resolution media | Runtime, security, and availability dependencies |
+| Need                          | Domotion SVG          | Screen recording               | Live iframe                                      |
+| ----------------------------- | --------------------- | ------------------------------ | ------------------------------------------------ |
+| Crisp when enlarged           | Yes                   | No; fixed resolution           | Yes                                              |
+| Embeds as a plain `<img>`     | Yes                   | No                             | No                                               |
+| Works offline with no runtime | Yes                   | Yes                            | No                                               |
+| Rebuild after a source change | Run the capture again | Re-record the flow             | Updates live                                     |
+| Simulated interaction         | Yes                   | Recorded pixels                | Real interaction                                 |
+| Main trade-off                | Not a live DOM        | Larger, fixed-resolution media | Runtime, security, and availability dependencies |
 
 Other formats can still be the right fit:
 
@@ -82,7 +82,7 @@ the output as an image rather than semantic page text and provide an `alt`.
   <figcaption>Don't take our word for it. A real page — the <a href="https://en.wikipedia.org/wiki/Ada_Lovelace">Ada Lovelace</a> Wikipedia article — captured both ways on macOS Chromium. The Domotion SVG is one self-contained file, fonts and images and all; zoom in and its vector text stays razor-sharp where a screenshot or GIF turns to mush. Consumer antialiasing and hinting can vary slightly by platform.</figcaption>
 </figure>
 
-## Repeatable — for demos *and* review
+## Repeatable — for demos _and_ review
 
 A demo is defined by a small JSON config (or a script), so regenerating it after
 a UI change is one command, not a re-record. On the same platform, the same input
@@ -109,7 +109,7 @@ desktop, place a scrolling site inside a browser bezel — without re-shooting.
 ## Built for the AI era
 
 Domotion is driven by a declarative config and a documented design playbook, so
-an AI agent can author, render, *look at the pixels*, and iterate on a demo
+an AI agent can author, render, _look at the pixels_, and iterate on a demo
 end-to-end. See [Using AI to drive Domotion](/domotion/developer/using-ai/).
 
 ---

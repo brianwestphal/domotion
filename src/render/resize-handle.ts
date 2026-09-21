@@ -24,26 +24,24 @@ export function blinkOverflowValueIsScrollable(value: string | undefined): boole
 
 /** LayoutObject::IsScrollContainer, including Blink's replaced-layout exclusion. */
 export function blinkIsScrollContainer(input: BlinkResizerActivation): boolean {
-  return input.isLayoutReplaced !== true
-    && (blinkOverflowValueIsScrollable(input.overflowX)
-      || blinkOverflowValueIsScrollable(input.overflowY));
+  return (
+    input.isLayoutReplaced !== true &&
+    (blinkOverflowValueIsScrollable(input.overflowX) || blinkOverflowValueIsScrollable(input.overflowY))
+  );
 }
 
 /** LayoutBox::CanResize: (scroll container OR iframe) AND a non-none used resize. */
 export function blinkCanResize(input: BlinkResizerActivation): boolean {
   const resize = input.resize?.trim().toLowerCase();
-  return resize != null
-    && resize !== "none"
-    && (input.isLayoutIFrame === true || blinkIsScrollContainer(input));
+  return resize != null && resize !== "none" && (input.isLayoutIFrame === true || blinkIsScrollContainer(input));
 }
 
 /** ComputedStyle::ShouldPlaceBlockDirectionScrollbarOnLogicalLeft. */
-export function blinkResizerIsOnLogicalLeft(
-  direction: string | undefined,
-  writingMode: string | undefined,
-): boolean {
-  return direction?.trim().toLowerCase() === "rtl"
-    && (writingMode == null || writingMode.trim().toLowerCase() === "horizontal-tb");
+export function blinkResizerIsOnLogicalLeft(direction: string | undefined, writingMode: string | undefined): boolean {
+  return (
+    direction?.trim().toLowerCase() === "rtl" &&
+    (writingMode == null || writingMode.trim().toLowerCase() === "horizontal-tb")
+  );
 }
 
 export interface BlinkScrollbarThicknessInput {
@@ -116,9 +114,8 @@ export function blinkResizerCorner(input: BlinkResizerCornerInput): BlinkResizer
   const snappedWidth = blinkPixelSnappedSize(input.borderBoxWidth, input.x);
   const snappedHeight = blinkPixelSnappedSize(input.borderBoxHeight, input.y);
   return {
-    x: originX + (input.logicalLeft
-      ? input.borderLeftWidth
-      : snappedWidth - input.cornerWidth - input.borderRightWidth),
+    x:
+      originX + (input.logicalLeft ? input.borderLeftWidth : snappedWidth - input.cornerWidth - input.borderRightWidth),
     y: originY + snappedHeight - input.cornerHeight - input.borderBottomWidth,
     width: input.cornerWidth,
     height: input.cornerHeight,
@@ -144,9 +141,9 @@ export function blinkPlatformResizerStrokes(
 ): BlinkPlatformResizerStrokes {
   const edgeOffset = Math.ceil(scaleFromDIP);
   const halfWidth = Math.trunc(rect.width / 2);
-  const threeQuarterWidth = Math.trunc(rect.width * 3 / 4);
+  const threeQuarterWidth = Math.trunc((rect.width * 3) / 4);
   const halfHeight = Math.trunc(rect.height / 2);
-  const threeQuarterHeight = Math.trunc(rect.height * 3 / 4);
+  const threeQuarterHeight = Math.trunc((rect.height * 3) / 4);
 
   const p0 = {
     x: logicalLeft ? rect.x + edgeOffset : rect.x + rect.width - edgeOffset,
@@ -158,9 +155,7 @@ export function blinkPlatformResizerStrokes(
   };
   const p2 = { x: p0.x, y: rect.y + threeQuarterHeight };
   const p3 = {
-    x: logicalLeft
-      ? rect.x + rect.width - threeQuarterWidth
-      : rect.x + threeQuarterWidth,
+    x: logicalLeft ? rect.x + rect.width - threeQuarterWidth : rect.x + threeQuarterWidth,
     y: p1.y,
   };
 

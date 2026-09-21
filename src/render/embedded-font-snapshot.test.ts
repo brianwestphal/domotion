@@ -59,8 +59,7 @@ const BOX = [
 function composeReal(): string {
   trackGlyphInEmbedFont("real-a|w=400|s=0", 1000, 800, -200, 11, TRI, 600);
   trackGlyphInEmbedFont("real-a|w=400|s=0", 1000, 800, -200, 22, BOX, 640);
-  trackGlyphInEmbedFont("real-b|w=700|s=1", 2048, 1638, -410, 5, BOX, 1200,
-    { italic: true, weight: 700 });
+  trackGlyphInEmbedFont("real-b|w=700|s=1", 2048, 1638, -410, 5, BOX, 1200, { italic: true, weight: 700 });
   return getBuiltEmbeddedFontFaceCss();
 }
 
@@ -223,7 +222,7 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     expect(_builderRegistrySize()).toBe(0);
     restoreEmbeddedFonts(marker);
     expect(_builderRegistrySize()).toBe(1);
-    expect(_builderEntryState("keep|w=400|s=0")!.puas).toEqual([0xE000]);
+    expect(_builderEntryState("keep|w=400|s=0")!.puas).toEqual([0xe000]);
   });
 
   it("nests: take, take, restore, restore unwinds to each marker in turn", () => {
@@ -309,7 +308,10 @@ describe("snapshotGeneration / restoreGeneration — both registries in one tran
   ];
 
   beforeEach(() => resetGeneration());
-  afterEach(() => { setRenderTextMode("embedded-font"); resetGeneration(); });
+  afterEach(() => {
+    setRenderTextMode("embedded-font");
+    resetGeneration();
+  });
 
   it("rolls back the paths-mode glyph-defs registry too", () => {
     setRenderTextMode("paths");
@@ -374,43 +376,129 @@ describe("snapshotGeneration / restoreGeneration — both registries in one tran
 // ── Compose-level acceptance: a real elementTreeToSvg render ────────────────
 
 const BASE_STYLES = {
-  backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", backgroundSize: "auto",
-  backgroundPosition: "0% 0%", backgroundRepeat: "repeat", backgroundClip: "border-box",
-  backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
-  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
-  color: "rgb(0,0,0)", fontSize: "16px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
-  lineHeight: "20px", letterSpacing: "normal", textAlign: "left", textTransform: "none",
-  textDecoration: "none", textDecorationLine: "none", textDecorationStyle: "solid", textDecorationColor: "rgb(0,0,0)",
-  textDecorationThickness: "auto", textUnderlineOffset: "auto", whiteSpace: "normal", wordSpacing: "0",
-  verticalAlign: "baseline", direction: "ltr", writingMode: "horizontal-tb", textOverflow: "clip",
-  cursor: "auto", caretColor: "auto", outlineColor: "rgb(0,0,0)", outlineWidth: "0", outlineStyle: "none", outlineOffset: "0",
-  boxShadow: "none", opacity: "1", transform: "none", transformOrigin: "50% 50%", visibility: "visible",
-  borderCollapse: "separate", overflowX: "visible", overflowY: "visible", scrollbarGutter: "auto",
-  scrollWidth: 200, scrollHeight: 40, clientWidth: 200, clientHeight: 40, scrollTop: 0, scrollLeft: 0,
-  objectFit: "fill", objectPosition: "50% 50%", filter: "none", backdropFilter: "none", mixBlendMode: "normal",
-  clipPath: "none", mask: "none", maskImage: "none", maskMode: "match-source", maskSize: "auto",
-  maskPosition: "0% 0%", maskRepeat: "repeat", maskComposite: "add",
-  listStyleType: "disc", listStyleImage: "none", display: "block", listStylePosition: "outside",
-  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
-  borderImageSource: "none", borderImageSlice: "100%", borderImageWidth: "1", borderImageOutset: "0", borderImageRepeat: "stretch",
-  zIndex: "auto", position: "static", float: "none", order: "0", flexDirection: "row",
+  backgroundColor: "rgba(0, 0, 0, 0)",
+  backgroundImage: "none",
+  backgroundSize: "auto",
+  backgroundPosition: "0% 0%",
+  backgroundRepeat: "repeat",
+  backgroundClip: "border-box",
+  backgroundOrigin: "padding-box",
+  backgroundAttachment: "scroll",
+  borderColor: "rgb(0,0,0)",
+  borderWidth: "0",
+  borderRadius: "0",
+  borderTopLeftRadius: "0",
+  borderTopRightRadius: "0",
+  borderBottomRightRadius: "0",
+  borderBottomLeftRadius: "0",
+  borderTopWidth: "0",
+  borderRightWidth: "0",
+  borderBottomWidth: "0",
+  borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)",
+  borderRightColor: "rgb(0,0,0)",
+  borderBottomColor: "rgb(0,0,0)",
+  borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none",
+  borderRightStyle: "none",
+  borderBottomStyle: "none",
+  borderLeftStyle: "none",
+  color: "rgb(0,0,0)",
+  fontSize: "16px",
+  fontFamily: "sans-serif",
+  fontWeight: "400",
+  fontStyle: "normal",
+  lineHeight: "20px",
+  letterSpacing: "normal",
+  textAlign: "left",
+  textTransform: "none",
+  textDecoration: "none",
+  textDecorationLine: "none",
+  textDecorationStyle: "solid",
+  textDecorationColor: "rgb(0,0,0)",
+  textDecorationThickness: "auto",
+  textUnderlineOffset: "auto",
+  whiteSpace: "normal",
+  wordSpacing: "0",
+  verticalAlign: "baseline",
+  direction: "ltr",
+  writingMode: "horizontal-tb",
+  textOverflow: "clip",
+  cursor: "auto",
+  caretColor: "auto",
+  outlineColor: "rgb(0,0,0)",
+  outlineWidth: "0",
+  outlineStyle: "none",
+  outlineOffset: "0",
+  boxShadow: "none",
+  opacity: "1",
+  transform: "none",
+  transformOrigin: "50% 50%",
+  visibility: "visible",
+  borderCollapse: "separate",
+  overflowX: "visible",
+  overflowY: "visible",
+  scrollbarGutter: "auto",
+  scrollWidth: 200,
+  scrollHeight: 40,
+  clientWidth: 200,
+  clientHeight: 40,
+  scrollTop: 0,
+  scrollLeft: 0,
+  objectFit: "fill",
+  objectPosition: "50% 50%",
+  filter: "none",
+  backdropFilter: "none",
+  mixBlendMode: "normal",
+  clipPath: "none",
+  mask: "none",
+  maskImage: "none",
+  maskMode: "match-source",
+  maskSize: "auto",
+  maskPosition: "0% 0%",
+  maskRepeat: "repeat",
+  maskComposite: "add",
+  listStyleType: "disc",
+  listStyleImage: "none",
+  display: "block",
+  listStylePosition: "outside",
+  paddingTop: "0",
+  paddingRight: "0",
+  paddingBottom: "0",
+  paddingLeft: "0",
+  borderImageSource: "none",
+  borderImageSlice: "100%",
+  borderImageWidth: "1",
+  borderImageOutset: "0",
+  borderImageRepeat: "stretch",
+  zIndex: "auto",
+  position: "static",
+  float: "none",
+  order: "0",
+  flexDirection: "row",
 } as unknown as CapturedElement["styles"];
 
 function textTree(text: string, fontSize: string): CapturedElement[] {
-  return [{
-    tag: "div", text,
-    x: 10, y: 10, width: 400, height: 30, children: [],
-    textLeft: 10, textTop: 12, textWidth: 380, textHeight: 20, fontAscent: 15,
-    styles: { ...BASE_STYLES, fontSize },
-  } as CapturedElement];
+  return [
+    {
+      tag: "div",
+      text,
+      x: 10,
+      y: 10,
+      width: 400,
+      height: 30,
+      children: [],
+      textLeft: 10,
+      textTop: 12,
+      textWidth: 380,
+      textHeight: 20,
+      fontAscent: 15,
+      styles: { ...BASE_STYLES, fontSize },
+    } as CapturedElement,
+  ];
 }
 
-const composeSvg = (text: string, fontSize = "16px"): string =>
-  elementTreeToSvg(textTree(text, fontSize), 420, 50);
+const composeSvg = (text: string, fontSize = "16px"): string => elementTreeToSvg(textTree(text, fontSize), 420, 50);
 
 describe("speculative compose through elementTreeToSvg is byte-identical after rollback", () => {
   beforeEach(() => resetGeneration());

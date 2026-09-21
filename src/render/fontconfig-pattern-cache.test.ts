@@ -32,14 +32,12 @@ afterEach(() => {
 describe("Linux fc-match pattern memo", () => {
   it("launches once per exact pattern, including empty and error results, until cache clear", () => {
     const existingFile = fileURLToPath(import.meta.url);
-    childProcess.execFileSync.mockImplementation(
-      (_command: string, args: string[]) => {
-        const pattern = args[2];
-        if (pattern === "Liberation Sans") return `${existingFile}\tDmTestFace`;
-        if (pattern === "Liberation Serif") return "";
-        throw new Error("fontconfig unavailable");
-      },
-    );
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      const pattern = args[2];
+      if (pattern === "Liberation Sans") return `${existingFile}\tDmTestFace`;
+      if (pattern === "Liberation Serif") return "";
+      throw new Error("fontconfig unavailable");
+    });
 
     withHostPlatform("linux", () => {
       expect(resolveFontSpec("sf-pro")).toMatchObject({

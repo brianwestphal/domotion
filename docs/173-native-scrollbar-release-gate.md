@@ -3,11 +3,16 @@ id: "requirements/native-scrollbar-release-gate"
 title: "Native scrollbar release gate"
 kind: "contract"
 status: "partial"
-owners: ["layout","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2481","DM-2484"]
-code: [".github/workflows/native-scrollbar-parity.yml","tools/check-native-scrollbar-release.ts","tools/native-scrollbar-release-gate.ts"]
-aliases: ["docs/173-native-scrollbar-release-gate.md","doc-173"]
+owners: ["layout", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2481", "DM-2484"]
+code:
+  [
+    ".github/workflows/native-scrollbar-parity.yml",
+    "tools/check-native-scrollbar-release.ts",
+    "tools/native-scrollbar-release-gate.ts",
+  ]
+aliases: ["docs/173-native-scrollbar-release-gate.md", "doc-173"]
 ---
 
 # Native scrollbar release gate
@@ -65,7 +70,7 @@ retain:
   Cartesian cell (the deliberately clipped-border row scales its own source
   clip by the same zoom); and
 - row-level scheme, forced-colors state, capture route/status, source state,
-and lossless source/generated PNG metadata and SHA-256; and
+  and lossless source/generated PNG metadata and SHA-256; and
 - byte-exact equality for every authenticated native horizontal, vertical, and
   corner raster region in the generated PNG (the rest of the screenshot stays
   available as evidence but is not falsely assigned to scrollbar ownership);

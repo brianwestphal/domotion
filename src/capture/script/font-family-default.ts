@@ -39,10 +39,22 @@ import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
 // A computed first-family equal to one of these is a DECLARED or UA generic,
 // never the concrete standard initial value — so it is not this case.
 const GENERIC_FAMILY_KEYWORDS = {
-  "serif": 1, "sans-serif": 1, "monospace": 1, "cursive": 1, "fantasy": 1,
-  "system-ui": 1, "ui-serif": 1, "ui-sans-serif": 1, "ui-monospace": 1,
-  "ui-rounded": 1, "emoji": 1, "math": 1, "fangsong": 1,
-  "-webkit-body": 1, "-webkit-standard": 1, "-webkit-pictograph": 1,
+  serif: 1,
+  "sans-serif": 1,
+  monospace: 1,
+  cursive: 1,
+  fantasy: 1,
+  "system-ui": 1,
+  "ui-serif": 1,
+  "ui-sans-serif": 1,
+  "ui-monospace": 1,
+  "ui-rounded": 1,
+  emoji: 1,
+  math: 1,
+  fangsong: 1,
+  "-webkit-body": 1,
+  "-webkit-standard": 1,
+  "-webkit-pictograph": 1,
 };
 
 export const createFontFamilyDefault = () => {
@@ -52,54 +64,84 @@ export const createFontFamilyDefault = () => {
   const selectorsByDocument = new WeakMap();
   const splitSelectorList = (selectorText) => {
     const selectors = [];
-    let token = '', quote = '', square = 0, round = 0;
+    let token = "",
+      quote = "",
+      square = 0,
+      round = 0;
     for (let index = 0; index < selectorText.length; index++) {
       const ch = selectorText[index];
-      if (ch === '\\') {
+      if (ch === "\\") {
         token += ch;
         if (index + 1 < selectorText.length) token += selectorText[++index];
         continue;
       }
-      if (quote !== '') {
+      if (quote !== "") {
         token += ch;
-        if (ch === quote) quote = '';
+        if (ch === quote) quote = "";
         continue;
       }
-      if (ch === '"' || ch === "'") { quote = ch; token += ch; continue; }
-      if (ch === '[') square++;
-      else if (ch === ']') square = Math.max(0, square - 1);
-      else if (ch === '(') round++;
-      else if (ch === ')') round = Math.max(0, round - 1);
-      if (ch === ',' && square === 0 && round === 0) {
-        if (token.trim() !== '') selectors.push(token.trim());
-        token = '';
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        token += ch;
+        continue;
+      }
+      if (ch === "[") square++;
+      else if (ch === "]") square = Math.max(0, square - 1);
+      else if (ch === "(") round++;
+      else if (ch === ")") round = Math.max(0, round - 1);
+      if (ch === "," && square === 0 && round === 0) {
+        if (token.trim() !== "") selectors.push(token.trim());
+        token = "";
       } else token += ch;
     }
-    if (token.trim() !== '') selectors.push(token.trim());
+    if (token.trim() !== "") selectors.push(token.trim());
     return selectors;
   };
-  const pseudoNames = ['before', 'after', 'first-letter', 'first-line', 'placeholder', 'file-selector-button'];
+  const pseudoNames = ["before", "after", "first-letter", "first-line", "placeholder", "file-selector-button"];
   const pseudoHostSelector = (selector, pseudoName) => {
     const lower = selector.toLowerCase();
-    let quote = '', square = 0, round = 0;
+    let quote = "",
+      square = 0,
+      round = 0;
     for (let index = 0; index < selector.length; index++) {
       const ch = selector[index];
-      if (ch === '\\') { index++; continue; }
-      if (quote !== '') { if (ch === quote) quote = ''; continue; }
-      if (ch === '"' || ch === "'") { quote = ch; continue; }
-      if (ch === '[') { square++; continue; }
-      if (ch === ']') { square = Math.max(0, square - 1); continue; }
-      if (ch === '(') { round++; continue; }
-      if (ch === ')') { round = Math.max(0, round - 1); continue; }
-      if (square !== 0 || round !== 0 || ch !== ':') continue;
-      const double = selector[index + 1] === ':';
+      if (ch === "\\") {
+        index++;
+        continue;
+      }
+      if (quote !== "") {
+        if (ch === quote) quote = "";
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "[") {
+        square++;
+        continue;
+      }
+      if (ch === "]") {
+        square = Math.max(0, square - 1);
+        continue;
+      }
+      if (ch === "(") {
+        round++;
+        continue;
+      }
+      if (ch === ")") {
+        round = Math.max(0, round - 1);
+        continue;
+      }
+      if (square !== 0 || round !== 0 || ch !== ":") continue;
+      const double = selector[index + 1] === ":";
       const start = index + (double ? 2 : 1);
       if (!lower.startsWith(pseudoName, start)) continue;
       const end = start + pseudoName.length;
       if (end < selector.length && /[-_a-z0-9]/i.test(selector[end])) continue;
       // Legacy single-colon spelling exists only for CSS2 pseudos.
-      if (!double && !['before', 'after', 'first-letter', 'first-line'].includes(pseudoName)) continue;
-      return `${selector.slice(0, index)}${selector.slice(end)}`.trim() || '*';
+      if (!double && !["before", "after", "first-letter", "first-line"].includes(pseudoName)) continue;
+      return `${selector.slice(0, index)}${selector.slice(end)}`.trim() || "*";
     }
     return null;
   };
@@ -111,10 +153,15 @@ export const createFontFamilyDefault = () => {
       const sel = rule.selectorText;
       if (typeof sel === "string" && rule.style != null && rule.style.fontFamily !== "") {
         for (const selector of splitSelectorList(sel)) {
-          const pseudo = pseudoNames.map((name) => ({ name, hostSelector: pseudoHostSelector(selector, name) }))
+          const pseudo = pseudoNames
+            .map((name) => ({ name, hostSelector: pseudoHostSelector(selector, name) }))
             .find((candidate) => candidate.hostSelector != null);
           if (pseudo != null) {
-            pseudoFamilyRules.push({ pseudoName: pseudo.name, hostSelector: pseudo.hostSelector, value: rule.style.fontFamily });
+            pseudoFamilyRules.push({
+              pseudoName: pseudo.name,
+              hostSelector: pseudo.hostSelector,
+              value: rule.style.fontFamily,
+            });
           } else {
             familySelectors.push(selector);
           }
@@ -127,9 +174,14 @@ export const createFontFamilyDefault = () => {
   const selectorsFor = (doc) => {
     const cached = selectorsByDocument.get(doc);
     if (cached != null) return cached;
-    const familySelectors = [], pseudoFamilyRules = [];
+    const familySelectors = [],
+      pseudoFamilyRules = [];
     for (let i = 0; i < doc.styleSheets.length; i++) {
-      try { collect(doc.styleSheets[i].cssRules, familySelectors, pseudoFamilyRules); } catch (e) { /* CORS — skip */ }
+      try {
+        collect(doc.styleSheets[i].cssRules, familySelectors, pseudoFamilyRules);
+      } catch (e) {
+        /* CORS — skip */
+      }
     }
     const result = { familySelectors, pseudoFamilyRules };
     selectorsByDocument.set(doc, result);
@@ -156,7 +208,11 @@ export const createFontFamilyDefault = () => {
     // Any author rule that sets font-family and matches this node.
     for (let i = 0; i < familySelectors.length; i++) {
       let m = false;
-      try { m = n.matches(familySelectors[i]); } catch (e) { /* invalid/complex selector */ }
+      try {
+        m = n.matches(familySelectors[i]);
+      } catch (e) {
+        /* invalid/complex selector */
+      }
       if (m) return true;
     }
     return false;
@@ -183,17 +239,32 @@ export const createFontFamilyDefault = () => {
   // from an authored declaration of the same concrete settings face. Join the
   // pseudo back to matching author rules before inheriting the host sentinel.
   const pseudoFamilyIsAuthored = (el, pseudo) => {
-    const pseudoName = String(pseudo || '').replace(/^:+/, '').toLowerCase();
-    if (pseudoName === '') return false;
+    const pseudoName = String(pseudo || "")
+      .replace(/^:+/, "")
+      .toLowerCase();
+    if (pseudoName === "") return false;
     const { pseudoFamilyRules } = selectorsFor(el.ownerDocument || document);
     for (const rule of pseudoFamilyRules) {
       if (rule.pseudoName !== pseudoName) continue;
       let matches = false;
-      try { matches = el.matches(rule.hostSelector); } catch (e) { /* unsupported selector */ }
+      try {
+        matches = el.matches(rule.hostSelector);
+      } catch (e) {
+        /* unsupported selector */
+      }
       if (!matches) continue;
-      const value = String(rule.value || '').trim().toLowerCase();
-      if (value !== '' && value !== 'inherit' && value !== 'unset'
-          && value !== 'initial' && value !== 'revert' && value !== 'revert-layer') return true;
+      const value = String(rule.value || "")
+        .trim()
+        .toLowerCase();
+      if (
+        value !== "" &&
+        value !== "inherit" &&
+        value !== "unset" &&
+        value !== "initial" &&
+        value !== "revert" &&
+        value !== "revert-layer"
+      )
+        return true;
     }
     return false;
   };

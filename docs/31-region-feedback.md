@@ -7,7 +7,7 @@ owners: ["rendering"]
 platforms: []
 tickets: ["DM-570"]
 code: ["tests/review-server.tsx"]
-aliases: ["docs/31-region-feedback.md","doc-31"]
+aliases: ["docs/31-region-feedback.md", "doc-31"]
 ---
 
 # Region-scoped feedback in the demos-review tool
@@ -18,7 +18,7 @@ Tracked in DM-570.
 
 ## Problem
 
-When a real-world visual-regression test fails (e.g., `apple-mobile-fold`, `framer-mobile-fold`), the three PNGs the review tool shows for that test can be 1280 × 4000+ pixels. Verbal descriptions like *"look at the lowercase 'a'"* or *"the doodles around the apple icon"* are hard to ground without a coordinate system, and when those descriptions land on a Hot Sheet ticket as a comment, the AI iteration that follows has to skim the whole screenshot trying to find the area the user meant. Forcing the entire-page PNGs into the iteration prompt also burns context on mostly-unrelated pixels.
+When a real-world visual-regression test fails (e.g., `apple-mobile-fold`, `framer-mobile-fold`), the three PNGs the review tool shows for that test can be 1280 × 4000+ pixels. Verbal descriptions like _"look at the lowercase 'a'"_ or _"the doodles around the apple icon"_ are hard to ground without a coordinate system, and when those descriptions land on a Hot Sheet ticket as a comment, the AI iteration that follows has to skim the whole screenshot trying to find the area the user meant. Forcing the entire-page PNGs into the iteration prompt also burns context on mostly-unrelated pixels.
 
 The fix: let the user spatially constrain feedback by drawing rectangles directly on the review-tool images, persist those rectangles on the ticket alongside the typed comment, and have the iteration loop crop the sources accordingly.
 
@@ -36,9 +36,9 @@ This feature touches two surfaces and a metadata format that bridges them:
 
 - **Draw**: mousedown-drag-mouseup on any of the three images draws a rectangle. The same pixel-coord rectangle is mirrored onto the two sibling images (the triplet is always the same dimensions in the real-world suite; same-size-only is enforced).
 - **Resize**: dragging an edge of an existing rectangle resizes it; the change mirrors across the triplet.
-- **Delete**: clicking the *interior* of an existing rectangle removes it from all three images.
+- **Delete**: clicking the _interior_ of an existing rectangle removes it from all three images.
 - **Multiple**: the user can have any number of rectangles in flight before submitting.
-- **Numbering**: rectangles are auto-numbered `[1]`, `[2]`, … in the order drawn, with the badge rendered at the top-left corner of each overlay. The user can reference them by index in the comment text (*"the missing CTA in [1]"*).
+- **Numbering**: rectangles are auto-numbered `[1]`, `[2]`, … in the order drawn, with the badge rendered at the top-left corner of each overlay. The user can reference them by index in the comment text (_"the missing CTA in [1]"_).
 
 ### Fullscreen / lightbox view
 
@@ -82,6 +82,7 @@ Keyboard navigation:
   - `image=<basename>` pins the rectangle to a single attachment. The basename is the short suffix the review tool already uses internally (`expected`, `actual`, `diff`) — full filenames like `DM-564_framer-mobile-fold-diff.png` are NOT required in the note; the iteration loop resolves them against the ticket's attachments.
   - A rectangle without an `image=` token applies to all three triplet members. This is the common case ("look at this region across all three").
   - The trailing caption after `—` is optional, free-form, and reproduced verbatim in iteration context.
+
 - Newly filed ticket titles include a short classification prefix, and ticket details preserve the full classification and definition before the pixel metrics and reviewer evidence.
 
 - After submit, the rectangles are cleared from the review-tool overlay (they live in the comment text now; the UI canvas is the editor, not the archive).

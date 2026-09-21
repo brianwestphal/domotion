@@ -5,9 +5,49 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["windows"]
-tickets: ["DM-1297","DM-1414","DM-1511","DM-1512","DM-1517","DM-1524","DM-1526","DM-1542","DM-1548","DM-1767","DM-207","DM-208","DM-209","DM-210","DM-211","DM-2460","DM-2641","DM-599","DM-641","DM-854","DM-865","DM-898","DM-899","DM-900","DM-901"]
-code: ["examples/animate/","examples/animate/README.md","src/animation/animator.ts","src/animation/easing.ts","src/animation/frame-timeline.ts","src/animation/motion-presets.ts","src/animation/svg-generator.ts","src/animation/transition-schema.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts","src/utils/keyframe-pad.ts"]
-aliases: ["docs/08-animation-model.md","doc-08"]
+tickets:
+  [
+    "DM-1297",
+    "DM-1414",
+    "DM-1511",
+    "DM-1512",
+    "DM-1517",
+    "DM-1524",
+    "DM-1526",
+    "DM-1542",
+    "DM-1548",
+    "DM-1767",
+    "DM-207",
+    "DM-208",
+    "DM-209",
+    "DM-210",
+    "DM-211",
+    "DM-2460",
+    "DM-2641",
+    "DM-599",
+    "DM-641",
+    "DM-854",
+    "DM-865",
+    "DM-898",
+    "DM-899",
+    "DM-900",
+    "DM-901",
+  ]
+code:
+  [
+    "examples/animate/",
+    "examples/animate/README.md",
+    "src/animation/animator.ts",
+    "src/animation/easing.ts",
+    "src/animation/frame-timeline.ts",
+    "src/animation/motion-presets.ts",
+    "src/animation/svg-generator.ts",
+    "src/animation/transition-schema.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate.ts",
+    "src/utils/keyframe-pad.ts",
+  ]
+aliases: ["docs/08-animation-model.md", "doc-08"]
 ---
 
 # 08 — Animation model: transitions, overlays, intra-frame motion
@@ -31,25 +71,26 @@ A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
 
 The composer emits one `<svg>` document with a `<style>` block of `@keyframes` driving each frame's timeline. Routing by transition:
 
-- **crossfade** (and the default) **composites** — each frame is emitted as a complete, independently z-ordered `<g class="f f-N">` sub-SVG and the frames cross-dissolve via interpolated opacity. This is what a crossfade *is*: two fully-realized scenes fading into each other. It deliberately does **not** flatten the frames into one tree (doing so loses per-frame stacking — a later frame's full-bleed background could occlude its own foreground — and degrades the fade into a step-end switch).
+- **crossfade** (and the default) **composites** — each frame is emitted as a complete, independently z-ordered `<g class="f f-N">` sub-SVG and the frames cross-dissolve via interpolated opacity. This is what a crossfade _is_: two fully-realized scenes fading into each other. It deliberately does **not** flatten the frames into one tree (doing so loses per-frame stacking — a later frame's full-bleed background could occlude its own foreground — and degrades the fade into a step-end switch).
 - **push-left / scroll** use the same per-frame `<g>` groups plus a transform timeline (`translateX` / `translateY`) so the outgoing frame slides off while the incoming one slides in.
 - **cut** composites the same way, with a step-end `fv-${i}` opacity timeline so frames swap instantly (no fade). It does **not** merge.
 
-> **History.** There used to be an element-merge fast path (`mergeFrames`) that flattened cut/crossfade sequences into one de-duplicated tree to save bytes. It was removed: DM-854 (it dropped per-frame z-order and step-end-switched crossfades instead of fading) and DM-865 (it mis-rendered *near-identical* frames — the same DOM evolved, as continuous-session capture produces — because differing text in a shared element slot can't be gated per frame). Recovering the size win as `<defs>`/symbol-level glyph sharing across intact frame groups (which preserves each frame's layout) is future work. The `mergeFrames` fast path has since been removed entirely — every sequence now composites by z-ordering its per-frame `<g class="f f-N">` groups (see the history note in `src/animation/animator.ts`); there is no longer a merge module to call.
+> **History.** There used to be an element-merge fast path (`mergeFrames`) that flattened cut/crossfade sequences into one de-duplicated tree to save bytes. It was removed: DM-854 (it dropped per-frame z-order and step-end-switched crossfades instead of fading) and DM-865 (it mis-rendered _near-identical_ frames — the same DOM evolved, as continuous-session capture produces — because differing text in a shared element slot can't be gated per frame). Recovering the size win as `<defs>`/symbol-level glyph sharing across intact frame groups (which preserves each frame's layout) is future work. The `mergeFrames` fast path has since been removed entirely — every sequence now composites by z-ordering its per-frame `<g class="f f-N">` groups (see the history note in `src/animation/animator.ts`); there is no longer a merge module to call.
 
 ## Out-of-frame paint suppression (DM-599)
 
 Frames not currently in their show window are dropped from paint via `visibility: hidden` keyframes that run in parallel with the existing opacity timeline. Always-on; no opt-in required.
 
 - Each frame `i` gets a paired `fd-${i}` keyframes block that toggles `visibility` between `visible` and `hidden` around the frame's window, applied to `.f-${i}` alongside the `fv-${i}` opacity animation. The `fd-${i}` animation always uses `step-end` timing so the flip is instant, regardless of how `fv-${i}` is timed (linear for crossfade tails, step-end for cut). The base `.f { visibility: hidden; }` rule means frames start hidden until the keyframe flips them in. (DM-641: the parallel toggle moved from `display` to `visibility` — animating away from a `display: none` start never ticks in Chromium.)
-- **Opacity and visibility are ALWAYS decoupled — including for `cut` (DM-1511).** `fv-${i}` (opacity) alone drives the visible cut/fade; `fd-${i}` (visibility) is only the paint-cull gate. They used to be folded into one combined `fv-${i}` keyframe for cut frames (both snap together), but Firefox composites a `visibility` animation off the opacity clock and, at a step-end hand-off, dropped the outgoing frame's paint a few compositor frames before the incoming frame started painting — flashing the transparent page-through gap for ~30–70 ms at every cut ("hard flash to white/transparent"). Chromium and Safari stay in lock-step, so the sub-millisecond overlap was enough there; Firefox is not. The `fd-${i}` visible window is therefore padded OUTWARD by a wide wall-clock margin (`VISIBILITY_CULL_OVERLAP_MS`, ~150 ms — see `src/utils/keyframe-pad.ts`) so adjacent frames' paint windows OVERLAP well past any compositor slop, while `opacity:0` keeps the over-wide frame fully transparent outside its true window. The wide visibility is never itself visible; it only means a frame is *paintable* a little early and late, which is harmless.
-The CSS spec interpolates discrete properties by snapping at 50% of a segment by default. We sidestep that with `step-end` timing on the parallel `fd-${i}` animation, which yields an instant flip at the desired boundary.
+- **Opacity and visibility are ALWAYS decoupled — including for `cut` (DM-1511).** `fv-${i}` (opacity) alone drives the visible cut/fade; `fd-${i}` (visibility) is only the paint-cull gate. They used to be folded into one combined `fv-${i}` keyframe for cut frames (both snap together), but Firefox composites a `visibility` animation off the opacity clock and, at a step-end hand-off, dropped the outgoing frame's paint a few compositor frames before the incoming frame started painting — flashing the transparent page-through gap for ~30–70 ms at every cut ("hard flash to white/transparent"). Chromium and Safari stay in lock-step, so the sub-millisecond overlap was enough there; Firefox is not. The `fd-${i}` visible window is therefore padded OUTWARD by a wide wall-clock margin (`VISIBILITY_CULL_OVERLAP_MS`, ~150 ms — see `src/utils/keyframe-pad.ts`) so adjacent frames' paint windows OVERLAP well past any compositor slop, while `opacity:0` keeps the over-wide frame fully transparent outside its true window. The wide visibility is never itself visible; it only means a frame is _paintable_ a little early and late, which is harmless.
+  The CSS spec interpolates discrete properties by snapping at 50% of a segment by default. We sidestep that with `step-end` timing on the parallel `fd-${i}` animation, which yields an instant flip at the desired boundary.
 
 Frame compositing tracks (`fv-*` opacity and `fd-*` visibility) and whole-SVG-overlay visibility tracks (`ov-*-vis`) have a stronger emitted-CSS invariant: **each numeric keyframe offset appears exactly once per block**. Independent window segments can otherwise round onto the same 0%, frame boundary, or 100% offset and emit contradictory declarations; engines have disagreed in practice about which frame/overlay remains painted, producing ghost layers. The final composer consolidates only these layer-level tracks, merges properties in CSS source order (later declarations win), and leaves non-conflicting blocks byte-identical. Intra-frame effect tracks retain their independently-authored stops.
 
 When an animated SVG is embedded as a frame on a longer master timeline, its generated `fv-*` / `fd-*` tracks freeze at the source cycle's **left-limit** (the last stop before 100%) after their local period ends. Their standalone 100% declarations are loop resets that hide the frame before the cycle returns to 0%; treating those resets as the held terminal state would blank the outgoing scene at the exact start of an outer crossfade.
 
 **What this doesn't cover yet** (tracked separately):
+
 - **Element-level intersection inside a frame's hold time** (long-scroll captures where most rows are off-viewBox at any instant). Requires per-element bbox analysis at SVG-string composition time.
 - **Intra-frame animations** (`animations: [...]` declarations) whose `from`/`to` keep elements outside the viewBox. The rule: hide before / after the animation only, never during it (per DM-599 feedback). Requires bbox + transform analysis on the animated element.
 
@@ -61,17 +102,17 @@ Parameterized `push`, `reveal`, and `zoom` forms—and the optional `shine` para
 
 For motion beyond built-in families, the strict `custom` recipe in [doc 118](118-custom-transition-recipes.md) composes safe incoming/outgoing primitives on the same CSS clock. It accepts no raw CSS or viewer code and defines ownership, z-order, reduced-motion, and loop behavior explicitly.
 
-| Type | Behavior | Path |
-|---|---|---|
-| `crossfade` | Outgoing fades out while incoming fades in (windows overlap). | Composited (per-frame `<g class="f f-N">`). |
-| `push-left` | Outgoing slides off to the left, incoming slides in from the right. | Composited + transform. |
-| `scroll` | Vertical scroll between frames; both stay visible during the transition. | Composited + transform. |
-| `cut` | **New (DM-208).** Instant — no fade, no slide. `duration` ignored. | Composited (step-end `fv-N`). |
-| `magic-move` | **New (DM-898).** Elements shared between the two frames slide from their old position to their new one; added/removed elements cross-fade. Keynote "Magic Move". | Composited prev/next blobs (hard-cut at the window edges) + a bridge composite over the window. See `docs/53-magic-move-transition.md`. |
-| `push-right` / `push-up` / `push-down` | **New (DM-1524).** Directional siblings of `push-left`/`scroll` — both frames slide together on the named axis/direction (`push-up` == `scroll`). | Composited + transform (same slide engine). See `docs/88`. |
-| `wipe` / `iris` | **New (DM-1524).** The incoming frame unveils on top of the (held) outgoing frame via an animated `clip-path` — `wipe` a linear `inset()` reveal, `iris` an expanding `circle()`. Rests fully revealed. | Composited; outgoing hard-cuts, incoming clip-reveals. See `docs/88`. |
-| `zoom-in` / `zoom-out` | **New (DM-1524).** A scale dolly under a crossfade — the incoming frame grows (`0.9→1`) or settles (`1.1→1`) into place, resting at `scale(1)`, pivoting about the viewport center. | Composited crossfade + a scale wrapper. See `docs/88`. |
-| `shine` | **New (DM-1524).** A crossfade accented by a swept gradient highlight over the handoff window (the shared `buildShineSweep` helper). | Composited crossfade + a transform-driven gradient sweep on top. See `docs/88`. |
+| Type                                   | Behavior                                                                                                                                                                                                | Path                                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `crossfade`                            | Outgoing fades out while incoming fades in (windows overlap).                                                                                                                                           | Composited (per-frame `<g class="f f-N">`).                                                                                             |
+| `push-left`                            | Outgoing slides off to the left, incoming slides in from the right.                                                                                                                                     | Composited + transform.                                                                                                                 |
+| `scroll`                               | Vertical scroll between frames; both stay visible during the transition.                                                                                                                                | Composited + transform.                                                                                                                 |
+| `cut`                                  | **New (DM-208).** Instant — no fade, no slide. `duration` ignored.                                                                                                                                      | Composited (step-end `fv-N`).                                                                                                           |
+| `magic-move`                           | **New (DM-898).** Elements shared between the two frames slide from their old position to their new one; added/removed elements cross-fade. Keynote "Magic Move".                                       | Composited prev/next blobs (hard-cut at the window edges) + a bridge composite over the window. See `docs/53-magic-move-transition.md`. |
+| `push-right` / `push-up` / `push-down` | **New (DM-1524).** Directional siblings of `push-left`/`scroll` — both frames slide together on the named axis/direction (`push-up` == `scroll`).                                                       | Composited + transform (same slide engine). See `docs/88`.                                                                              |
+| `wipe` / `iris`                        | **New (DM-1524).** The incoming frame unveils on top of the (held) outgoing frame via an animated `clip-path` — `wipe` a linear `inset()` reveal, `iris` an expanding `circle()`. Rests fully revealed. | Composited; outgoing hard-cuts, incoming clip-reveals. See `docs/88`.                                                                   |
+| `zoom-in` / `zoom-out`                 | **New (DM-1524).** A scale dolly under a crossfade — the incoming frame grows (`0.9→1`) or settles (`1.1→1`) into place, resting at `scale(1)`, pivoting about the viewport center.                     | Composited crossfade + a scale wrapper. See `docs/88`.                                                                                  |
+| `shine`                                | **New (DM-1524).** A crossfade accented by a swept gradient highlight over the handoff window (the shared `buildShineSweep` helper).                                                                    | Composited crossfade + a transform-driven gradient sweep on top. See `docs/88`.                                                         |
 
 All the DM-1524 additions express motion in `transform` / `clip-path` / `opacity` / gradients only — never an animated CSS `filter` (Chromium-only inside `<img>`; docs/84). Full reference: **`docs/88-transition-effect-expansion.md`**.
 
@@ -105,17 +146,17 @@ Per-frame `animations` array:
 }
 ```
 
-| Field | Required | Meaning |
-|---|---|---|
-| `selector` | yes | CSS selector matching one or more elements in the frame's captured tree. Resolved at capture time, not at render time — so the selector is against the source HTML, not the SVG output. |
-| `property` | yes | One of `width`, `height`, `opacity`, `transform`, `translateX`, `translateY`, `scale`, `clipPath`. `scale` desugars to `transform: scale(<from→to>)` (a unitless factor). |
-| `from` / `to` | yes | CSS value strings (`"0%"`, `"240px"`, `"translateY(-200px)"`, `"0.6"` for `scale`, etc). |
-| `duration` | yes | Animation length in ms, scoped to this frame's hold time. Must be ≤ frame's `duration`. |
-| `easing` | no | CSS easing string. Default `linear`. |
-| `delay` | no | Ms after the frame becomes visible before the animation starts. Default `0`. |
-| `transformOrigin` | no | DM-1297/DM-2460. For a `transform` / `scale` / `translate*` animation, the origin the transform resolves about (`"center"`, `"50% 50%"`, `"left top"`, …). SVG transforms are origin-(0,0) by default; setting this emits `transform-origin: <value>` on the animated group and resolves it inside `transformBox`. Ignored for non-transform properties. |
-| `transformBox` | no | DM-2460. SVG reference box for `transformOrigin`: `fill-box` (default), `stroke-box`, or `view-box`. The culler uses the same renderer-owned generated-group box as Chromium; it never substitutes the source HTML carrier border box. |
-| `fuse` | no | **DM-1512/1513.** Additional property tracks (`[{ property, from, to }, …]`) fused into THIS animation so they animate as **one** CSS animation on one element — a single timeline that can't desync. `property` is the primary (track 0); `fuse` is the rest. Use it whenever a unit **moves and fades** (or clips, …) as one motion: emit the transform as the primary and `fuse: [{ property: "opacity", from: "0", to: "1" }]` instead of a separate opacity animation on a nested element. Two separate animations can drift apart under Firefox's off-main-thread compositing when it demotes one to the main thread under load; one animation cannot. Multiple transform-family tracks compose into a single `transform:`; other properties emit alongside. **By default each track rides the primary's `duration`/`delay`/`easing`** (emitted as from/to stops). **DM-1517:** a track may set its OWN `duration`/`delay`/`easing` (e.g. a fast fade over a slower slide) — then the animator SAMPLES each track's eased value over its own window into many `linear`-timed stops (easing baked in), still one animation. See `docs/84-viewer-browser-support.md`. |
+| Field             | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `selector`        | yes      | CSS selector matching one or more elements in the frame's captured tree. Resolved at capture time, not at render time — so the selector is against the source HTML, not the SVG output.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `property`        | yes      | One of `width`, `height`, `opacity`, `transform`, `translateX`, `translateY`, `scale`, `clipPath`. `scale` desugars to `transform: scale(<from→to>)` (a unitless factor).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `from` / `to`     | yes      | CSS value strings (`"0%"`, `"240px"`, `"translateY(-200px)"`, `"0.6"` for `scale`, etc).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `duration`        | yes      | Animation length in ms, scoped to this frame's hold time. Must be ≤ frame's `duration`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `easing`          | no       | CSS easing string. Default `linear`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `delay`           | no       | Ms after the frame becomes visible before the animation starts. Default `0`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `transformOrigin` | no       | DM-1297/DM-2460. For a `transform` / `scale` / `translate*` animation, the origin the transform resolves about (`"center"`, `"50% 50%"`, `"left top"`, …). SVG transforms are origin-(0,0) by default; setting this emits `transform-origin: <value>` on the animated group and resolves it inside `transformBox`. Ignored for non-transform properties.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `transformBox`    | no       | DM-2460. SVG reference box for `transformOrigin`: `fill-box` (default), `stroke-box`, or `view-box`. The culler uses the same renderer-owned generated-group box as Chromium; it never substitutes the source HTML carrier border box.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `fuse`            | no       | **DM-1512/1513.** Additional property tracks (`[{ property, from, to }, …]`) fused into THIS animation so they animate as **one** CSS animation on one element — a single timeline that can't desync. `property` is the primary (track 0); `fuse` is the rest. Use it whenever a unit **moves and fades** (or clips, …) as one motion: emit the transform as the primary and `fuse: [{ property: "opacity", from: "0", to: "1" }]` instead of a separate opacity animation on a nested element. Two separate animations can drift apart under Firefox's off-main-thread compositing when it demotes one to the main thread under load; one animation cannot. Multiple transform-family tracks compose into a single `transform:`; other properties emit alongside. **By default each track rides the primary's `duration`/`delay`/`easing`** (emitted as from/to stops). **DM-1517:** a track may set its OWN `duration`/`delay`/`easing` (e.g. a fast fade over a slower slide) — then the animator SAMPLES each track's eased value over its own window into many `linear`-timed stops (easing baked in), still one animation. See `docs/84-viewer-browser-support.md`. |
 
 ### Implementation
 
@@ -150,14 +191,14 @@ Today's overlays are typing and tap effects rendered procedurally. A new kind co
 }
 ```
 
-| Field | Meaning |
-|---|---|
-| `src` | Path to an SVG file. Inlined at composition time (NOT referenced as `<image href>`). Resolved relative to the config file's directory. |
-| `x` / `y` | Top-left corner in the captured frame's coordinate space. |
-| `width` / `height` | Render size. The embedded SVG's viewBox is preserved; it scales to fit. |
-| `enter` | Optional. Sugar over `animations` for entrance — see DM-211. |
-| `exit` | Optional. Same shape as `enter`. |
-| `animations` | Optional. Same intra-frame animations as on the parent frame, but scoped to elements within the embedded SVG. |
+| Field              | Meaning                                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `src`              | Path to an SVG file. Inlined at composition time (NOT referenced as `<image href>`). Resolved relative to the config file's directory. |
+| `x` / `y`          | Top-left corner in the captured frame's coordinate space.                                                                              |
+| `width` / `height` | Render size. The embedded SVG's viewBox is preserved; it scales to fit.                                                                |
+| `enter`            | Optional. Sugar over `animations` for entrance — see DM-211.                                                                           |
+| `exit`             | Optional. Same shape as `enter`.                                                                                                       |
+| `animations`       | Optional. Same intra-frame animations as on the parent frame, but scoped to elements within the embedded SVG.                          |
 
 Implementation notes:
 
@@ -184,7 +225,15 @@ Desugars into:
 ```json
 {
   "animations": [
-    { "selector": "<this overlay>", "property": "translateY", "from": "<height-or-width>px", "to": "0px", "duration": 400, "easing": "ease-out", "delay": 0 }
+    {
+      "selector": "<this overlay>",
+      "property": "translateY",
+      "from": "<height-or-width>px",
+      "to": "0px",
+      "duration": 400,
+      "easing": "ease-out",
+      "delay": 0
+    }
   ]
 }
 ```

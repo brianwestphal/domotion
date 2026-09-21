@@ -1,5 +1,5 @@
 <!doctype html>
-<meta charset="utf-8">
+<meta charset="utf-8" />
 <title>font-feature-settings disables on faces whose ligatures fire</title>
 <!--
   Shaping-oracle fixture (tools/shaping-conformance.ts extracts its runs).
@@ -18,11 +18,24 @@
   whitespace by the extractor).
 -->
 <style>
-  body { font-size: 24px; margin: 16px; }
-  .times { font-family: Times, serif; }
-  .helv { font-family: Helvetica, sans-serif; }
-  .liga0 { font-feature-settings: "liga" 0; }
-  .liga0-dlig0 { font-feature-settings: "liga" 0, "dlig" 0; }
+  body {
+    font-size: 24px;
+    margin: 16px;
+  }
+  .times {
+    font-family: Times, serif;
+  }
+  .helv {
+    font-family: Helvetica, sans-serif;
+  }
+  .liga0 {
+    font-feature-settings: "liga" 0;
+  }
+  .liga0-dlig0 {
+    font-feature-settings:
+      "liga" 0,
+      "dlig" 0;
+  }
 </style>
 <div class="times">office</div>
 <div class="times">waffle</div>

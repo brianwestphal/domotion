@@ -13,7 +13,11 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
@@ -40,9 +44,12 @@ async function colorBounds(
   for (let y = 0; y < info.height; y++) {
     for (let x = 0; x < info.width; x++) {
       const offset = (y * info.width + x) * info.channels;
-      if (Math.abs(data[offset] - rgb[0]) > 18
-          || Math.abs(data[offset + 1] - rgb[1]) > 18
-          || Math.abs(data[offset + 2] - rgb[2]) > 18) continue;
+      if (
+        Math.abs(data[offset] - rgb[0]) > 18 ||
+        Math.abs(data[offset + 1] - rgb[1]) > 18 ||
+        Math.abs(data[offset + 2] - rgb[2]) > 18
+      )
+        continue;
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
       maxX = Math.max(maxX, x);
@@ -104,19 +111,25 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
       expect(snapshot.rasterToOutput).toBeDefined();
       expect(snapshot.rasterToOutput!.cssPerPixelX).toBeCloseTo(0.5, 6);
       expect(snapshot.rasterToOutput!.cssPerPixelY).toBeCloseTo(0.5, 6);
-      expect(snapshot.rasterToOutput!.pixelWidth * snapshot.rasterToOutput!.cssPerPixelX)
-        .toBeCloseTo(snapshot.width, 6);
-      expect(snapshot.rasterToOutput!.pixelHeight * snapshot.rasterToOutput!.cssPerPixelY)
-        .toBeCloseTo(snapshot.height, 6);
+      expect(snapshot.rasterToOutput!.pixelWidth * snapshot.rasterToOutput!.cssPerPixelX).toBeCloseTo(
+        snapshot.width,
+        6,
+      );
+      expect(snapshot.rasterToOutput!.pixelHeight * snapshot.rasterToOutput!.cssPerPixelY).toBeCloseTo(
+        snapshot.height,
+        6,
+      );
       expect(snapshot.rasterToOutput!.contentQuad[0]).toBeLessThan(0);
       expect(nodes.filter((node) => node.styles.transform !== "none")).toHaveLength(2);
-      expect(await page.evaluate(() => ({
-        scrollY,
-        outerTransform: getComputedStyle(document.querySelector(".outer")!).transform,
-        innerTransform: getComputedStyle(document.querySelector(".inner")!).transform,
-        ridCount: document.querySelectorAll("[data-domotion-rid]").length,
-        targetCount: document.querySelectorAll("[data-domotion-snapshot-target]").length,
-      }))).toMatchObject({
+      expect(
+        await page.evaluate(() => ({
+          scrollY,
+          outerTransform: getComputedStyle(document.querySelector(".outer")!).transform,
+          innerTransform: getComputedStyle(document.querySelector(".inner")!).transform,
+          ridCount: document.querySelectorAll("[data-domotion-rid]").length,
+          targetCount: document.querySelectorAll("[data-domotion-snapshot-target]").length,
+        })),
+      ).toMatchObject({
         scrollY: 300,
         outerTransform: expect.stringMatching(/^matrix\(/),
         innerTransform: expect.stringMatching(/^matrix\(/),
@@ -128,22 +141,24 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="white"/>${body}</svg>`;
       expect(occurrences(body, snapshot.dataUri!)).toBe(1);
       expect(body).toContain('fill="rgb(0,187,85)"');
-      await rendered.setContent(`<img alt="rendered" style="display:block" src="data:image/svg+xml,${encodeURIComponent(svg)}">`);
+      await rendered.setContent(
+        `<img alt="rendered" style="display:block" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+      );
       const actual = await rendered.locator("img").screenshot();
 
       for (const color of [
         [237, 18, 52],
         [22, 78, 232],
       ] as Array<[number, number, number]>) {
-        expect(maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)))
-          .toBeLessThanOrEqual(3);
+        expect(
+          maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)),
+        ).toBeLessThanOrEqual(3);
       }
       // This control catches an isolation regression that turns the canvas
       // crop into a larger sibling-composited bitmap.
-      expect(maxBoundsDelta(
-        await colorBounds(expected, [0, 187, 85]),
-        await colorBounds(actual, [0, 187, 85]),
-      )).toBe(0);
+      expect(maxBoundsDelta(await colorBounds(expected, [0, 187, 85]), await colorBounds(actual, [0, 187, 85]))).toBe(
+        0,
+      );
     } finally {
       await page.close();
       await rendered.close();
@@ -175,7 +190,9 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
         context.fillStyle = "rgb(22,78,232)";
         context.fillRect(75, 0, 75, 90);
       });
-      await page.locator(".clip").evaluate((element) => { element.scrollLeft = 32; });
+      await page.locator(".clip").evaluate((element) => {
+        element.scrollLeft = 32;
+      });
       const expected = await page.screenshot();
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
       const nodes = walk(tree);
@@ -184,17 +201,21 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
       expect(snapshot.dataUri).toMatch(/^data:image\/png;base64,/);
       expect(snapshot.rasterToOutput).toBeDefined();
       expect(snapshot.rasterToOutput!.contentQuad[0]).toBeLessThan(0);
-      expect(await page.locator(".clip").evaluate((element) => ({
-        overflow: getComputedStyle(element).overflow,
-        scrollLeft: element.scrollLeft,
-        markerCount: document.querySelectorAll("[data-domotion-snapshot-target]").length,
-      }))).toEqual({ overflow: "hidden", scrollLeft: 32, markerCount: 0 });
+      expect(
+        await page.locator(".clip").evaluate((element) => ({
+          overflow: getComputedStyle(element).overflow,
+          scrollLeft: element.scrollLeft,
+          markerCount: document.querySelectorAll("[data-domotion-snapshot-target]").length,
+        })),
+      ).toEqual({ overflow: "hidden", scrollLeft: 32, markerCount: 0 });
 
       const body = elementTreeToSvgInner(tree, width, height);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="white"/>${body}</svg>`;
       expect(occurrences(body, snapshot.dataUri!)).toBe(1);
       expect(body).toContain("<clipPath");
-      await rendered.setContent(`<img alt="rendered" style="display:block" src="data:image/svg+xml,${encodeURIComponent(svg)}">`);
+      await rendered.setContent(
+        `<img alt="rendered" style="display:block" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+      );
       const actual = await rendered.locator("img").screenshot();
 
       // If the ancestor clip remains active while the off-page local surface
@@ -205,8 +226,9 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
         [237, 18, 52],
         [22, 78, 232],
       ] as Array<[number, number, number]>) {
-        expect(maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)))
-          .toBeLessThanOrEqual(3);
+        expect(
+          maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)),
+        ).toBeLessThanOrEqual(3);
       }
     } finally {
       await page.close();
@@ -221,7 +243,9 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
     const directory = await mkdtemp(join(tmpdir(), "domotion-dm2380-"));
     const sourcePath = join(directory, "source.png");
     try {
-      await page.setContent(`<style>html,body{margin:0;background:white}canvas{position:absolute;left:-12.25px;top:24.5px;width:80px;height:60px;transform:matrix3d(1.5,0,0,0,0,.75,0,0,0,0,1,0,0,0,0,1);transform-origin:0 0}</style><canvas width="80" height="60"></canvas>`);
+      await page.setContent(
+        `<style>html,body{margin:0;background:white}canvas{position:absolute;left:-12.25px;top:24.5px;width:80px;height:60px;transform:matrix3d(1.5,0,0,0,0,.75,0,0,0,0,1,0,0,0,0,1);transform-origin:0 0}</style><canvas width="80" height="60"></canvas>`,
+      );
       await page.locator("canvas").evaluate((element) => {
         const context = (element as HTMLCanvasElement).getContext("2d")!;
         context.fillStyle = "rgb(237,18,52)";
@@ -260,7 +284,7 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
     const rendered = await env!.browser.newPage({ viewport: { width: 430, height: 250 }, deviceScaleFactor: 1 });
     try {
       const poster = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"><rect width="100" height="60" fill="#ed1234"/></svg>')}`;
-      const frame = `data:text/html,${encodeURIComponent('<style>html,body{margin:0;width:100%;height:100%;background:#164ee8}</style>')}`;
+      const frame = `data:text/html,${encodeURIComponent("<style>html,body{margin:0;width:100%;height:100%;background:#164ee8}</style>")}`;
       await page.setContent(`<style>
         html,body{margin:0;background:white}
         .vc{position:absolute;left:40px;top:50px;width:78px;height:67px;overflow:hidden}
@@ -281,28 +305,37 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
         expect(snapshot.rasterToOutput!.contentQuad).toHaveLength(8);
         expect(snapshot.rasterToOutput!.pixelWidth).toBeGreaterThan(50);
         expect(snapshot.rasterToOutput!.pixelHeight).toBeGreaterThan(30);
-        expect(snapshot.rasterToOutput!.pixelWidth * snapshot.rasterToOutput!.cssPerPixelX)
-          .toBeCloseTo(snapshot.width, 6);
-        expect(snapshot.rasterToOutput!.pixelHeight * snapshot.rasterToOutput!.cssPerPixelY)
-          .toBeCloseTo(snapshot.height, 6);
+        expect(snapshot.rasterToOutput!.pixelWidth * snapshot.rasterToOutput!.cssPerPixelX).toBeCloseTo(
+          snapshot.width,
+          6,
+        );
+        expect(snapshot.rasterToOutput!.pixelHeight * snapshot.rasterToOutput!.cssPerPixelY).toBeCloseTo(
+          snapshot.height,
+          6,
+        );
       }
-      expect(await page.evaluate(() => ({
-        videoClip: getComputedStyle(document.querySelector(".vc")!).overflow,
-        frameClip: getComputedStyle(document.querySelector(".fc")!).overflow,
-      }))).toEqual({ videoClip: "hidden", frameClip: "clip" });
+      expect(
+        await page.evaluate(() => ({
+          videoClip: getComputedStyle(document.querySelector(".vc")!).overflow,
+          frameClip: getComputedStyle(document.querySelector(".fc")!).overflow,
+        })),
+      ).toEqual({ videoClip: "hidden", frameClip: "clip" });
 
       const body = elementTreeToSvgInner(tree, 430, 250);
       for (const snapshot of snapshots) expect(occurrences(body, snapshot.dataUri!)).toBe(1);
       expect(body).toContain("<clipPath");
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="430" height="250"><rect width="100%" height="100%" fill="white"/>${body}</svg>`;
-      await rendered.setContent(`<img alt="rendered" style="display:block" src="data:image/svg+xml,${encodeURIComponent(svg)}">`);
+      await rendered.setContent(
+        `<img alt="rendered" style="display:block" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+      );
       const actual = await rendered.locator("img").screenshot();
       for (const color of [
         [237, 18, 52],
         [22, 78, 232],
       ] as Array<[number, number, number]>) {
-        expect(maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)))
-          .toBeLessThanOrEqual(3);
+        expect(
+          maxBoundsDelta(await colorBounds(expected, color), await colorBounds(actual, color)),
+        ).toBeLessThanOrEqual(3);
       }
     } finally {
       await page.close();
@@ -313,7 +346,9 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
   it("leaves a canvas under projective ownership to the outer Chromium surface exactly once", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 }, deviceScaleFactor: 1 });
     try {
-      await page.setContent(`<style>html,body{margin:0}.projective{position:absolute;left:30px;top:30px;width:180px;height:130px;perspective:280px}.plane{width:140px;height:90px;transform:rotateY(31deg)}canvas{width:140px;height:90px}.vector{position:absolute;left:270px;top:30px;width:34px;height:34px;background:rgb(0,187,85)}</style><div class="projective"><div class="plane"><canvas width="140" height="90"></canvas></div></div><div class="vector"></div>`);
+      await page.setContent(
+        `<style>html,body{margin:0}.projective{position:absolute;left:30px;top:30px;width:180px;height:130px;perspective:280px}.plane{width:140px;height:90px;transform:rotateY(31deg)}canvas{width:140px;height:90px}.vector{position:absolute;left:270px;top:30px;width:34px;height:34px;background:rgb(0,187,85)}</style><div class="projective"><div class="plane"><canvas width="140" height="90"></canvas></div></div><div class="vector"></div>`,
+      );
       await page.locator("canvas").evaluate((element) => {
         const context = (element as HTMLCanvasElement).getContext("2d")!;
         context.fillStyle = "rgb(237,18,52)";

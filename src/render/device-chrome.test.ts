@@ -80,8 +80,8 @@ describe("device-chrome: format-aware phone bezel scaling (DM-1559)", () => {
   it("scales the rim/radius/notch proportionally for a reel-sized screen (1080×1920)", () => {
     const { width, height, svg } = wrapInDeviceChrome(CAPTURE, "phone", 1080, 1920);
     // s = min(1080,1920)/390 = 1080/390 ≈ 2.769 → rim 39, radius 155.
-    expect(width).toBe(1080 + 39 * 2);   // 1158
-    expect(height).toBe(1920 + 39 * 2);  // 1998
+    expect(width).toBe(1080 + 39 * 2); // 1158
+    expect(height).toBe(1920 + 39 * 2); // 1998
     expect(svg).toContain(`viewBox="0 0 1158 1998"`);
     // Outer body corner radius scales (round(56·2.769) = 155), not the fixed 56.
     expect(svg).toContain('rx="155" fill="#1c1c1e"');
@@ -134,7 +134,7 @@ describe("device-chrome: browser / window (DM-1211)", () => {
     // A tall reel screen (min 1080) scales by 1080/600 = 1.8.
     const reel = wrapInDeviceChrome(DESKTOP, "browser", 1080, 1920);
     expect(reel.height - 1920).toBeCloseTo(44 * 1.8, 1); // bar ~79.2
-    expect(reel.svg).toMatch(/r="10\.8" fill="#ff5f56"/);  // traffic dot 6 → 10.8
+    expect(reel.svg).toMatch(/r="10\.8" fill="#ff5f56"/); // traffic dot 6 → 10.8
     // Window title bar scales too (36 → 64.8).
     expect(wrapInDeviceChrome(DESKTOP, "window", 1080, 1920).height - 1920).toBeCloseTo(36 * 1.8, 1);
   });
@@ -181,8 +181,8 @@ describe("device-chrome: light/dark theme (DM-1212)", () => {
 
   it("theme:light swaps to the light palette (light bar, white screen backdrop) and adds a pill border", () => {
     const { svg } = wrapInDeviceChrome(DESKTOP, "browser", 960, 600, { theme: "light" });
-    expect(svg).toContain(`fill="#e8e8ea"`);     // light bar
-    expect(svg).toContain(`fill="#ffffff"`);     // white screen backdrop / pill
+    expect(svg).toContain(`fill="#e8e8ea"`); // light bar
+    expect(svg).toContain(`fill="#ffffff"`); // white screen backdrop / pill
     expect(svg).not.toContain(`fill="#2b2b2e"`); // no dark bar
     // Light theme gives the white URL pill a border for contrast on the light bar.
     expect(svg).toMatch(/rx="11" fill="#ffffff" stroke="#d1d1d6"/);

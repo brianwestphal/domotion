@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import {
-  embeddedBaselineY,
-  synthesizedSmallCapsScale,
-  textFontRequest,
-} from "./text-to-path.js";
+import { embeddedBaselineY, synthesizedSmallCapsScale, textFontRequest } from "./text-to-path.js";
 
 describe("text rendering stages", () => {
   it("normalizes the CSS font request shared by path and embedded modes", () => {
     expect(textFontRequest("700", "italic", "75%")).toEqual({
-      weight: 700, slant: -9.99, stretch: 75,
+      weight: 700,
+      slant: -9.99,
+      stretch: 75,
     });
     expect(textFontRequest("normal", undefined, undefined)).toEqual({
-      weight: 400, slant: 0, stretch: 100,
+      weight: 400,
+      slant: 0,
+      stretch: 100,
     });
   });
 

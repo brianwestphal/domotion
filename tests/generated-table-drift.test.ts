@@ -36,10 +36,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  * failure would assert drift that was never measured.
  */
 const harfbuzzAvailable = existsSync(path.join(repoRoot, "external/harfbuzz/src"));
-const chromiumUnicodeAvailable = existsSync(path.join(
-  repoRoot,
-  "external/chromium/third_party/icu/source/data/unidata/ppucd.txt",
-));
+const chromiumUnicodeAvailable = existsSync(
+  path.join(repoRoot, "external/chromium/third_party/icu/source/data/unidata/ppucd.txt"),
+);
 
 function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: string) {
   const generatedPath = path.join(repoRoot, generatedRelPath);

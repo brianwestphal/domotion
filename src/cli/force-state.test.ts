@@ -16,7 +16,10 @@ import type { Page } from "@playwright/test";
 import { applyForcedPseudoStates, validateAnimateConfig } from "./animate.js";
 
 // ── A fake Playwright Page whose CDP session records every send() ──────────────
-interface SentCall { method: string; params?: unknown }
+interface SentCall {
+  method: string;
+  params?: unknown;
+}
 function fakePage(opts: { matchesBySelector: Record<string, number[]>; detached?: { value: boolean } }): Page {
   const detached = opts.detached ?? { value: false };
   const session = {
@@ -30,14 +33,21 @@ function fakePage(opts: { matchesBySelector: Record<string, number[]>; detached?
       }
       return {};
     },
-    async detach(): Promise<void> { detached.value = true; },
+    async detach(): Promise<void> {
+      detached.value = true;
+    },
   };
   // Count how many times a CDP session is created — a fresh applyForcedPseudoStates
   // call must REUSE the cached per-page session (DM-1566), not open a new one, so
   // a `reset` on a later frame can clear an override an earlier frame set.
   const created = { count: 0 };
   const page = {
-    context: () => ({ newCDPSession: async (_p: unknown) => { created.count++; return session; } }),
+    context: () => ({
+      newCDPSession: async (_p: unknown) => {
+        created.count++;
+        return session;
+      },
+    }),
     __session: session,
     __created: created,
   };
@@ -89,13 +99,21 @@ describe("forceState config validation (DM-1516)", () => {
 
   it("rejects an entry with neither states nor reset", () => {
     expect(() =>
-      validateAnimateConfig({ ...base, frames: [{ input: "./x.html", duration: 1000, forceState: [{ selector: ".btn" }] }] }),
+      validateAnimateConfig({
+        ...base,
+        frames: [{ input: "./x.html", duration: 1000, forceState: [{ selector: ".btn" }] }],
+      }),
     ).toThrow(/at least one pseudo-state|reset/i);
   });
 
   it("rejects an entry that sets both states and reset", () => {
     expect(() =>
-      validateAnimateConfig({ ...base, frames: [{ input: "./x.html", duration: 1000, forceState: [{ selector: ".btn", states: ["hover"], reset: true }] }] }),
+      validateAnimateConfig({
+        ...base,
+        frames: [
+          { input: "./x.html", duration: 1000, forceState: [{ selector: ".btn", states: ["hover"], reset: true }] },
+        ],
+      }),
     ).toThrow(/cannot set both/i);
   });
 });
@@ -104,7 +122,11 @@ describe("applyForcedPseudoStates control flow (DM-1516)", () => {
   it("is a no-op on an empty / absent list (no CDP session created)", async () => {
     // A page whose context would throw if a session were requested — proves the
     // early return fires before any CDP work.
-    const page = { context: () => { throw new Error("should not open a CDP session"); } } as unknown as Page;
+    const page = {
+      context: () => {
+        throw new Error("should not open a CDP session");
+      },
+    } as unknown as Page;
     await expect(applyForcedPseudoStates(page, undefined)).resolves.toBeUndefined();
     await expect(applyForcedPseudoStates(page, [])).resolves.toBeUndefined();
   });
@@ -113,7 +135,13 @@ describe("applyForcedPseudoStates control flow (DM-1516)", () => {
     const page = fakePage({ matchesBySelector: { ".btn": [7] } });
     await applyForcedPseudoStates(page, [{ selector: ".btn", states: ["hover"] }]);
     const methods = sessionOf(page).sent.map((c) => c.method);
-    expect(methods).toEqual(["DOM.enable", "CSS.enable", "DOM.getDocument", "DOM.querySelectorAll", "CSS.forcePseudoState"]);
+    expect(methods).toEqual([
+      "DOM.enable",
+      "CSS.enable",
+      "DOM.getDocument",
+      "DOM.querySelectorAll",
+      "CSS.forcePseudoState",
+    ]);
     const force = sessionOf(page).sent.find((c) => c.method === "CSS.forcePseudoState");
     expect(force?.params).toEqual({ nodeId: 7, forcedPseudoClasses: ["hover"] });
   });
@@ -123,7 +151,10 @@ describe("applyForcedPseudoStates control flow (DM-1516)", () => {
     await applyForcedPseudoStates(page, [{ selector: ".item", states: ["focus", "focus-visible"] }]);
     const forced = sessionOf(page).sent.filter((c) => c.method === "CSS.forcePseudoState");
     expect(forced.map((c) => (c.params as { nodeId: number }).nodeId)).toEqual([11, 12, 13]);
-    expect((forced[0].params as { forcedPseudoClasses: string[] }).forcedPseudoClasses).toEqual(["focus", "focus-visible"]);
+    expect((forced[0].params as { forcedPseudoClasses: string[] }).forcedPseudoClasses).toEqual([
+      "focus",
+      "focus-visible",
+    ]);
   });
 
   it("throws when a selector matches nothing", async () => {
@@ -160,7 +191,10 @@ describe("applyForcedPseudoStates control flow (DM-1516)", () => {
     expect(sessionsCreated(page)).toBe(1);
     // DOM/CSS enabled once (session creation), then two force calls: set then clear.
     const forces = sessionOf(page).sent.filter((c) => c.method === "CSS.forcePseudoState");
-    expect(forces.map((c) => (c.params as { forcedPseudoClasses: string[] }).forcedPseudoClasses)).toEqual([["hover"], []]);
+    expect(forces.map((c) => (c.params as { forcedPseudoClasses: string[] }).forcedPseudoClasses)).toEqual([
+      ["hover"],
+      [],
+    ]);
     const enables = sessionOf(page).sent.filter((c) => c.method === "DOM.enable" || c.method === "CSS.enable");
     expect(enables).toHaveLength(2);
   });

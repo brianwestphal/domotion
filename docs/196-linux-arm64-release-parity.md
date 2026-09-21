@@ -4,10 +4,10 @@ title: "Linux arm64 published-helper and parity gate"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux"]
-tickets: ["DM-2353","DM-2501","DM-2507"]
-code: [".github/workflows/emoji-presentation-ownership-audit.yml",".github/workflows/linux-arm64-release-parity.yml"]
-aliases: ["docs/196-linux-arm64-release-parity.md","doc-196"]
+platforms: ["macos", "linux"]
+tickets: ["DM-2353", "DM-2501", "DM-2507"]
+code: [".github/workflows/emoji-presentation-ownership-audit.yml", ".github/workflows/linux-arm64-release-parity.yml"]
+aliases: ["docs/196-linux-arm64-release-parity.md", "doc-196"]
 ---
 
 # Linux arm64 published-helper and parity gate
@@ -27,11 +27,11 @@ The current package release, `v0.24.0`, contains
 The independently versioned `icu-v78.2-domotion.1` release contains both the
 arm64 executable and `icudtl.dat`, again with sidecars. The ratified bytes are:
 
-| Artifact | SHA-256 |
-| --- | --- |
-| glyph helper | `68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250` |
+| Artifact       | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| glyph helper   | `68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250` |
 | ICU executable | `dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf` |
-| ICU data | `9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe` |
+| ICU data       | `9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe` |
 
 Linux ELF helpers are not code-signed. The gate therefore requires four facts
 to agree before execution: the checked-in ratified digest, the release

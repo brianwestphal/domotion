@@ -4,15 +4,24 @@ title: "Domotion: platform-aware glyph-helper dispatch"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-259","DM-260","DM-385","DM-393","DM-837","DM-872","DM-881","DM-886","DM-888"]
-code: ["src/render/","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","tools/linux-glyph-extractor/","tools/macos-glyph-extractor/","tools/win32-glyph-extractor/"]
-aliases: ["docs/49-glyph-helper-dispatch.md","doc-49"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-259", "DM-260", "DM-385", "DM-393", "DM-837", "DM-872", "DM-881", "DM-886", "DM-888"]
+code:
+  [
+    "src/render/",
+    "src/render/glyph-helper.test.ts",
+    "src/render/glyph-helper.ts",
+    "src/render/helper-acquire.ts",
+    "tools/linux-glyph-extractor/",
+    "tools/macos-glyph-extractor/",
+    "tools/win32-glyph-extractor/",
+  ]
+aliases: ["docs/49-glyph-helper-dispatch.md", "doc-49"]
 ---
 
 # Domotion: platform-aware glyph-helper dispatch
 
-Requirements for making the renderer actually *invoke* the native glyph
+Requirements for making the renderer actually _invoke_ the native glyph
 extractors (macOS CoreText, Linux FreeType, Windows DirectWrite) instead of only
 the macOS one. Origin: DM-881 (follow-up to DM-385 / DM-872 / DM-837).
 
@@ -28,8 +37,9 @@ the macOS one. Origin: DM-881 (follow-up to DM-385 / DM-872 / DM-837).
 `src/render/coretext.ts` resolves the helper binary as:
 
 ```ts
-const HELPER_PATH = process.env.DOMOTION_HELPER_PATH
-  ?? path.resolve(HERE, "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
+const HELPER_PATH =
+  process.env.DOMOTION_HELPER_PATH ??
+  path.resolve(HERE, "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
 ```
 
 and `isGlyphHelperAvailable()` returns false unless `process.platform === "darwin"`
@@ -41,13 +51,13 @@ and `isGlyphHelperAvailable()` returns false unless `process.platform === "darwi
    SHA-verify, reuse" acquisition layer was **never built**. The macOS helper
    does not use it — it uses the in-tree `tools/` binary or `DOMOTION_HELPER_PATH`.
 2. **`tools/` is not in the published `files`** (`["dist", …]`). So a
-   published-npm consumer has no helper binary on *any* platform, and no way to
+   published-npm consumer has no helper binary on _any_ platform, and no way to
    acquire one. `isGlyphHelperAvailable()` is therefore false for every
    published consumer; the helper path only runs in in-repo dev (binary built
    locally) or when `DOMOTION_HELPER_PATH` points at a binary.
 
 So "wire the Linux helper in" is really two separable pieces, and the bigger one
-(acquisition) is missing for *all* platforms, not just Linux.
+(acquisition) is missing for _all_ platforms, not just Linux.
 
 ## Proposed design
 
@@ -57,16 +67,16 @@ Generalize `coretext.ts` (rename concept: "native glyph helper", not
 "coretext") so `isHelperAvailable()` / `HELPER_PATH` dispatch by
 `process.platform`:
 
-| Platform | In-tree binary | Asset name |
-| --- | --- | --- |
-| darwin | `tools/macos-glyph-extractor/domotion-glyph-paths` | `domotion-glyph-paths-darwin-universal` |
-| linux | `tools/linux-glyph-extractor/domotion-glyph-paths` | `domotion-glyph-paths-linux-x64` |
-| win32 | `tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe` |
+| Platform | In-tree binary                                         | Asset name                              |
+| -------- | ------------------------------------------------------ | --------------------------------------- |
+| darwin   | `tools/macos-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-darwin-universal` |
+| linux    | `tools/linux-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-linux-x64`        |
+| win32    | `tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe`    |
 
 `DOMOTION_HELPER_PATH` overrides on all platforms; `DOMOTION_DISABLE_HELPER`
 disables. The IPC envelope + `parseSvgPath` + the `createGlyphHelperFont` wrapper
 are already engine-agnostic (the Linux/win32 helpers emit the same design-unit,
-y-up JSON), so only the *resolution + platform gate* changes. macOS behavior is
+y-up JSON), so only the _resolution + platform gate_ changes. macOS behavior is
 unchanged when the existing path/env logic is preserved.
 
 This makes the Linux/Windows helpers usable **in in-repo dev and via
@@ -88,11 +98,11 @@ arguably its own ticket, not "the Linux part of DM-881".
 
 1. **Split or bundle?** Treat **A** (platform-aware resolution) as DM-881 now,
    and **B** (the DM-393 acquisition layer) as a separate prerequisite ticket
-   that lands the auto-download for *all three* platforms? *(recommended — A is
+   that lands the auto-download for _all three_ platforms? _(recommended — A is
    low-risk and unblocks Linux/win32 dispatch in dev/tests; B is shared work
-   that the macOS helper needs too.)*
+   that the macOS helper needs too.)_
 2. **Is A worth doing before DM-259?** The Linux fallback chain (DM-259) decides
-   *which* fonts route through the helper; until it's calibrated the trigger
+   _which_ fonts route through the helper; until it's calibrated the trigger
    fires only for genuine fontkit-can't-extract glyphs (CJK/CFF), which no
    current fixture exercises. So A is correct but low-impact until DM-259.
 3. **Naming** — rename `coretext.ts` → `glyph-helper.ts` (engine-agnostic) as
@@ -135,9 +145,9 @@ pre-DM-888 names.
 - **The probe-then-fallback trigger.** The renderer still routes to the helper
   only via the static `extractor: "coretext"` flag on `FONT_PATHS` entries
   (macOS PingFang only). The doc-16 "fontkit-empty path → consult helper for
-  *any* font" trigger is not built, so on Linux/Windows the helper is resolvable
-  + invocable but nothing routes through it yet. Filed as a follow-up; pairs
-  with the per-platform fallback calibration (DM-259 / DM-260).
+  _any_ font" trigger is not built, so on Linux/Windows the helper is resolvable
+  - invocable but nothing routes through it yet. Filed as a follow-up; pairs
+    with the per-platform fallback calibration (DM-259 / DM-260).
 - **On-demand acquisition** for published consumers — piece B, now landed in
   DM-886 (`src/render/helper-acquire.ts`; lazy first-render download → user
   cache → SHA-verify → reuse). `glyph-helper.ts`'s resolver falls through to it.

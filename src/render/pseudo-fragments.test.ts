@@ -23,35 +23,49 @@ function record(pseudo: "::checkmark" | "::before" | "::after" = "::before"): Ca
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
     },
     contentItems: [{ index: 0, kind: "text", layoutIndex: 1, text: "Hi" }],
-    boxFragments: [{
-      index: 0,
-      localBorderRect: { x: 0, y: 0, width: 40, height: 20 },
-      localContentRect: { x: 5, y: 2, width: 24, height: 16 },
-      physicalQuad: [{ x: 90, y: 40 }, { x: 130, y: 40 }, { x: 130, y: 60 }, { x: 90, y: 60 }],
-      physicalRect: { x: 90, y: 40, width: 40, height: 20 },
-      edgeOwnership: { inlineStart: true, inlineEnd: true, blockStart: true, blockEnd: true },
-      fragmentainerTranslation: { x: 90, y: 40 },
-    }],
-    fragments: [{
-      kind: "text",
-      contentItemIndex: 0,
-      sourceStartUtf16: 0,
-      sourceEndUtf16: 2,
-      text: "Hi",
-      visualOrder: 0,
-      boxFragmentIndex: 0,
-      localRect: { x: 5, y: 2, width: 24, height: 16 },
-      physicalRect: { x: 95, y: 42, width: 24, height: 16 },
-      physicalQuad: [{ x: 95, y: 42 }, { x: 119, y: 42 }, { x: 119, y: 58 }, { x: 95, y: 58 }],
-      protocolInlineAdvance: 24,
-      shapedInlineAdvance: 24,
-      baseline: {
-        origin: { x: 95, y: 54 },
-        end: { x: 119, y: 54 },
-        ascent: 12,
-        source: "TextFragmentPainter.primary-font-ascent+writing-transform",
+    boxFragments: [
+      {
+        index: 0,
+        localBorderRect: { x: 0, y: 0, width: 40, height: 20 },
+        localContentRect: { x: 5, y: 2, width: 24, height: 16 },
+        physicalQuad: [
+          { x: 90, y: 40 },
+          { x: 130, y: 40 },
+          { x: 130, y: 60 },
+          { x: 90, y: 60 },
+        ],
+        physicalRect: { x: 90, y: 40, width: 40, height: 20 },
+        edgeOwnership: { inlineStart: true, inlineEnd: true, blockStart: true, blockEnd: true },
+        fragmentainerTranslation: { x: 90, y: 40 },
       },
-    }],
+    ],
+    fragments: [
+      {
+        kind: "text",
+        contentItemIndex: 0,
+        sourceStartUtf16: 0,
+        sourceEndUtf16: 2,
+        text: "Hi",
+        visualOrder: 0,
+        boxFragmentIndex: 0,
+        localRect: { x: 5, y: 2, width: 24, height: 16 },
+        physicalRect: { x: 95, y: 42, width: 24, height: 16 },
+        physicalQuad: [
+          { x: 95, y: 42 },
+          { x: 119, y: 42 },
+          { x: 119, y: 58 },
+          { x: 95, y: 58 },
+        ],
+        protocolInlineAdvance: 24,
+        shapedInlineAdvance: 24,
+        baseline: {
+          origin: { x: 95, y: 54 },
+          end: { x: 119, y: 54 },
+          ascent: 12,
+          source: "TextFragmentPainter.primary-font-ascent+writing-transform",
+        },
+      },
+    ],
     typography: {
       fontFamily: "Arial, sans-serif",
       fontSize: 16,
@@ -200,7 +214,12 @@ describe("DM-2468 direct generated-pseudo paint", () => {
       boxFragmentIndex: 0,
       localRect: { x: 29, y: 4, width: 7, height: 7 },
       physicalRect: { x: 119, y: 44, width: 7, height: 7 },
-      physicalQuad: [{ x: 119, y: 44 }, { x: 126, y: 44 }, { x: 126, y: 51 }, { x: 119, y: 51 }],
+      physicalQuad: [
+        { x: 119, y: 44 },
+        { x: 126, y: 44 },
+        { x: 126, y: 51 },
+        { x: 119, y: 51 },
+      ],
     });
     const markup = renderPseudoFragmentRecord(source, { imageHref: (url) => url });
     expect(markup).not.toContain('stroke="green"');
@@ -216,7 +235,9 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     source.paint.borderLeftColor = "rgb(9, 8, 7)";
     source.paint.borderRadius = "10px";
     const markup = renderPseudoFragmentRecord(source);
-    expect(markup).toContain('<rect x="1" y="1" width="38" height="18" rx="9" ry="9" fill="none" stroke="rgb(9, 8, 7)" stroke-width="2"/>');
+    expect(markup).toContain(
+      '<rect x="1" y="1" width="38" height="18" rx="9" ry="9" fill="none" stroke="rgb(9, 8, 7)" stroke-width="2"/>',
+    );
     expect(markup).not.toContain("<line");
   });
 
@@ -230,8 +251,10 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     const scaledOut = record();
     scaledOut.paint.transform = "matrix(0, 0, 0, 0, 0, 0)";
     scaledOut.boxFragments[0].physicalQuad = [
-      { x: 100, y: 50 }, { x: 100, y: 50 },
-      { x: 100, y: 50 }, { x: 100, y: 50 },
+      { x: 100, y: 50 },
+      { x: 100, y: 50 },
+      { x: 100, y: 50 },
+      { x: 100, y: 50 },
     ];
     expect(pseudoFragmentIsUnpainted(scaledOut)).toBe(true);
     expect(pseudoFragmentRecordErrors(scaledOut)).toEqual([]);

@@ -39,7 +39,9 @@ describe("Blink resizer activation (LayoutBox::CanResize, rev 7d859f271c)", () =
     expect(blinkIsScrollContainer(replaced)).toBe(false);
     expect(blinkCanResize(replaced)).toBe(false);
     expect(blinkCanResize({ ...replaced, isLayoutIFrame: true })).toBe(true);
-    expect(blinkCanResize({ resize: "both", overflowX: "visible", overflowY: "visible", isLayoutIFrame: true })).toBe(true);
+    expect(blinkCanResize({ resize: "both", overflowX: "visible", overflowY: "visible", isLayoutIFrame: true })).toBe(
+      true,
+    );
   });
 
   it("covers ordinary div and textarea-style auto overflow without tag shortcuts", () => {
@@ -58,35 +60,61 @@ describe("Blink resizer side and thickness selection", () => {
   });
 
   it("uses theme thickness with no bars and copies a lone bar", () => {
-    expect(blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: null, horizontalScrollbarThickness: null }))
-      .toEqual({ width: 16, height: 16, hasScrollbar: false });
-    expect(blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: 13, horizontalScrollbarThickness: null }))
-      .toEqual({ width: 13, height: 13, hasScrollbar: true });
-    expect(blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: null, horizontalScrollbarThickness: 11 }))
-      .toEqual({ width: 11, height: 11, hasScrollbar: true });
+    expect(
+      blinkResizerThickness({
+        themeThickness: 16,
+        verticalScrollbarThickness: null,
+        horizontalScrollbarThickness: null,
+      }),
+    ).toEqual({ width: 16, height: 16, hasScrollbar: false });
+    expect(
+      blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: 13, horizontalScrollbarThickness: null }),
+    ).toEqual({ width: 13, height: 13, hasScrollbar: true });
+    expect(
+      blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: null, horizontalScrollbarThickness: 11 }),
+    ).toEqual({ width: 11, height: 11, hasScrollbar: true });
   });
 
   it("uses vertical width and horizontal height when both bars exist", () => {
-    expect(blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: 14, horizontalScrollbarThickness: 10 }))
-      .toEqual({ width: 14, height: 10, hasScrollbar: true });
+    expect(
+      blinkResizerThickness({ themeThickness: 16, verticalScrollbarThickness: 14, horizontalScrollbarThickness: 10 }),
+    ).toEqual({ width: 14, height: 10, hasScrollbar: true });
   });
 });
 
 describe("Blink rounded resizer corner geometry", () => {
   it("snaps the box and subtracts asymmetric right/bottom borders", () => {
-    expect(blinkResizerCorner({
-      x: 10.4, y: 20.6, borderBoxWidth: 100.3, borderBoxHeight: 80.2,
-      borderLeftWidth: 3, borderRightWidth: 7, borderBottomWidth: 5,
-      cornerWidth: 16, cornerHeight: 16, logicalLeft: false,
-    })).toEqual({ x: 88, y: 80, width: 16, height: 16 });
+    expect(
+      blinkResizerCorner({
+        x: 10.4,
+        y: 20.6,
+        borderBoxWidth: 100.3,
+        borderBoxHeight: 80.2,
+        borderLeftWidth: 3,
+        borderRightWidth: 7,
+        borderBottomWidth: 5,
+        cornerWidth: 16,
+        cornerHeight: 16,
+        logicalLeft: false,
+      }),
+    ).toEqual({ x: 88, y: 80, width: 16, height: 16 });
   });
 
   it("places horizontal RTL resizers after the left border", () => {
-    expect(blinkResizerCorner({
-      x: 10.4, y: 20.6, borderBoxWidth: 100.3, borderBoxHeight: 80.2,
-      borderLeftWidth: 3, borderRightWidth: 7, borderBottomWidth: 5,
-      cornerWidth: 14, cornerHeight: 10, logicalLeft: true,
-    })).toEqual({ x: 13, y: 86, width: 14, height: 10 });
+    expect(
+      blinkResizerCorner({
+        x: 10.4,
+        y: 20.6,
+        borderBoxWidth: 100.3,
+        borderBoxHeight: 80.2,
+        borderLeftWidth: 3,
+        borderRightWidth: 7,
+        borderBottomWidth: 5,
+        cornerWidth: 14,
+        cornerHeight: 10,
+        logicalLeft: true,
+      }),
+    ).toEqual({ x: 13, y: 86, width: 14, height: 10 });
   });
 
   it("preserves Blink's minimum non-zero snapped layout size", () => {
@@ -100,12 +128,16 @@ describe("Blink platform resizer paint", () => {
   it("matches the two dark and two light logical-right segments", () => {
     expect(blinkPlatformResizerStrokes({ x: 100, y: 200, width: 16, height: 16 }, 1, false)).toEqual({
       dark: [
-        { x: 115, y: 208 }, { x: 108, y: 215 },
-        { x: 115, y: 212 }, { x: 112, y: 215 },
+        { x: 115, y: 208 },
+        { x: 108, y: 215 },
+        { x: 115, y: 212 },
+        { x: 112, y: 215 },
       ],
       light: [
-        { x: 115, y: 209 }, { x: 109, y: 215 },
-        { x: 115, y: 213 }, { x: 113, y: 215 },
+        { x: 115, y: 209 },
+        { x: 109, y: 215 },
+        { x: 115, y: 213 },
+        { x: 113, y: 215 },
       ],
       strokeWidth: 1,
     });
@@ -114,12 +146,16 @@ describe("Blink platform resizer paint", () => {
   it("mirrors offsets on logical-left and ceil-scales the paint", () => {
     expect(blinkPlatformResizerStrokes({ x: 10, y: 20, width: 15, height: 11 }, 1.25, true)).toEqual({
       dark: [
-        { x: 12, y: 25 }, { x: 18, y: 29 },
-        { x: 12, y: 28 }, { x: 14, y: 29 },
+        { x: 12, y: 25 },
+        { x: 18, y: 29 },
+        { x: 12, y: 28 },
+        { x: 14, y: 29 },
       ],
       light: [
-        { x: 12, y: 27 }, { x: 16, y: 29 },
-        { x: 12, y: 30 }, { x: 12, y: 29 },
+        { x: 12, y: 27 },
+        { x: 16, y: 29 },
+        { x: 12, y: 30 },
+        { x: 12, y: 29 },
       ],
       strokeWidth: 2,
     });

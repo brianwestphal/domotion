@@ -4,10 +4,21 @@ title: "110 — Declared-family match conformance oracle (Linux)"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: [".github/workflows/test-linux.yml","src/render/font-resolution.ts","src/render/linux-declared-family-cut.test.ts","tests/baselines/family-match-linux.json","tests/family-match-baseline.test.ts","tools/family-match-baseline.ts","tools/family-match-conformance-linux.ts","tools/font-conformance-stacks.linux.json","tools/linux-glyph-extractor/src/main.cpp"]
-aliases: ["docs/110-family-match-conformance-linux.md","doc-110"]
+code:
+  [
+    ".github/workflows/test-linux.yml",
+    "src/render/font-resolution.ts",
+    "src/render/linux-declared-family-cut.test.ts",
+    "tests/baselines/family-match-linux.json",
+    "tests/family-match-baseline.test.ts",
+    "tools/family-match-baseline.ts",
+    "tools/family-match-conformance-linux.ts",
+    "tools/font-conformance-stacks.linux.json",
+    "tools/linux-glyph-extractor/src/main.cpp",
+  ]
+aliases: ["docs/110-family-match-conformance-linux.md", "doc-110"]
 ---
 
 # 110 — Declared-family match conformance oracle (Linux)
@@ -26,7 +37,7 @@ Chrome open? The pinned Chrome build (tag `147.0.7727.15`, the build
 Playwright ships) decides it as:
 
 1. `FontCache::CreateTypeface` → `skia::DefaultFontMgr()->matchFamilyStyle(
-   name, font_description.SkiaFontStyle())`
+name, font_description.SkiaFontStyle())`
    (`third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc`,
    verified identical at the tag and at local checkout rev `7d859f27`).
 2. On Linux that font manager is fontconfig-backed:

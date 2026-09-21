@@ -1,7 +1,9 @@
 import sharp from "sharp";
 async function crop(src, dst, ymin, ymax) {
   const meta = await sharp(src).metadata();
-  await sharp(src).extract({ left: 0, top: ymin, width: Math.min(800, meta.width), height: ymax - ymin }).toFile(dst);
+  await sharp(src)
+    .extract({ left: 0, top: ymin, width: Math.min(800, meta.width), height: ymax - ymin })
+    .toFile(dst);
 }
 const base = "tests/output/html-test/20-deep-first-letter-line";
 // Just save full-size diff for human view

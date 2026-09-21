@@ -20,8 +20,12 @@ import { harvestedCorpusIdentity } from "../tools/font-conformance.js";
 /** A minimal stack, with the bookkeeping fields the digest must ignore. */
 function stack(over: Record<string, unknown> = {}) {
   return {
-    fontFamily: "Times", fontSize: 16, fontWeight: 400, fontStyle: "normal",
-    fixtures: 3, example: "a.html",
+    fontFamily: "Times",
+    fontSize: 16,
+    fontWeight: 400,
+    fontStyle: "normal",
+    fixtures: 3,
+    example: "a.html",
     ...over,
   } as never;
 }
@@ -39,8 +43,9 @@ describe("harvested corpus identity", () => {
   });
 
   it("ignores which example fixture is cited — that is provenance, not a question", () => {
-    expect(harvestedCorpusIdentity([stack({ example: "b.html" })], "darwin"))
-      .toBe(harvestedCorpusIdentity([stack({ example: "a.html" })], "darwin"));
+    expect(harvestedCorpusIdentity([stack({ example: "b.html" })], "darwin")).toBe(
+      harvestedCorpusIdentity([stack({ example: "a.html" })], "darwin"),
+    );
   });
 
   it("ignores ORDER, because the corpus is sorted by fixture count and that moves", () => {
@@ -54,8 +59,9 @@ describe("harvested corpus identity", () => {
   });
 
   it("MOVES when a stack is added", () => {
-    expect(harvestedCorpusIdentity([stack(), stack({ fontFamily: "Menlo" })], "darwin"))
-      .not.toBe(harvestedCorpusIdentity([stack()], "darwin"));
+    expect(harvestedCorpusIdentity([stack(), stack({ fontFamily: "Menlo" })], "darwin")).not.toBe(
+      harvestedCorpusIdentity([stack()], "darwin"),
+    );
   });
 
   it.each([
@@ -69,8 +75,7 @@ describe("harvested corpus identity", () => {
     ["fontVariantAlternates", { fontVariantAlternates: "historical-forms" }],
     ["fontVariantEmoji", { fontVariantEmoji: "emoji" }],
   ])("MOVES when %s changes", (_label, over) => {
-    expect(harvestedCorpusIdentity([stack(over)], "darwin"))
-      .not.toBe(harvestedCorpusIdentity([stack()], "darwin"));
+    expect(harvestedCorpusIdentity([stack(over)], "darwin")).not.toBe(harvestedCorpusIdentity([stack()], "darwin"));
   });
 
   it("MOVES across platforms even when the question set is identical", () => {
@@ -83,8 +88,9 @@ describe("harvested corpus identity", () => {
   });
 
   it("treats an absent optional property as its default rather than as a distinct value", () => {
-    expect(harvestedCorpusIdentity([stack({ fontStretch: "" })], "darwin"))
-      .toBe(harvestedCorpusIdentity([stack()], "darwin"));
+    expect(harvestedCorpusIdentity([stack({ fontStretch: "" })], "darwin")).toBe(
+      harvestedCorpusIdentity([stack()], "darwin"),
+    );
   });
 
   describe("the committed corpora", () => {

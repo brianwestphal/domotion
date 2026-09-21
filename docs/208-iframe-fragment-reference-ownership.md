@@ -5,9 +5,9 @@ kind: "reference"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-2338","DM-2520"]
-code: ["src/mask.test.ts","tests/iframe-inner-defs.e2e.test.ts","tests/multi-layer-fragment-mask.e2e.test.ts"]
-aliases: ["docs/208-iframe-fragment-reference-ownership.md","doc-208"]
+tickets: ["DM-2338", "DM-2520"]
+code: ["src/mask.test.ts", "tests/iframe-inner-defs.e2e.test.ts", "tests/multi-layer-fragment-mask.e2e.test.ts"]
+aliases: ["docs/208-iframe-fragment-reference-ownership.md", "doc-208"]
 ---
 
 # 208 — Iframe-local SVG fragment reference ownership
@@ -77,14 +77,14 @@ For an HTML consumer, Blink uses the border box as the SVG resource reference
 box. Capture records the physical border rectangle already produced by layout
 and records EffectiveZoom separately for SVG user-space coordinates.
 
-| Resource fact | Generated root-space mapping |
-| --- | --- |
-| `clipPathUnits="objectBoundingBox"` | `translate(borderX,borderY) scale(borderW,borderH)` |
-| `clipPathUnits="userSpaceOnUse"` | `translate(borderX,borderY) scale(effectiveZoom)` |
-| `maskUnits="objectBoundingBox"` | region tokens resolve against the border box |
-| `maskUnits="userSpaceOnUse"` | source-viewport-resolved region, translated to the border origin and scaled by effective zoom |
-| `maskContentUnits="objectBoundingBox"` | `translate(borderX,borderY) scale(borderW,borderH)` |
-| `maskContentUnits="userSpaceOnUse"` | `translate(borderX,borderY) scale(effectiveZoom)` |
+| Resource fact                          | Generated root-space mapping                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `clipPathUnits="objectBoundingBox"`    | `translate(borderX,borderY) scale(borderW,borderH)`                                           |
+| `clipPathUnits="userSpaceOnUse"`       | `translate(borderX,borderY) scale(effectiveZoom)`                                             |
+| `maskUnits="objectBoundingBox"`        | region tokens resolve against the border box                                                  |
+| `maskUnits="userSpaceOnUse"`           | source-viewport-resolved region, translated to the border origin and scaled by effective zoom |
+| `maskContentUnits="objectBoundingBox"` | `translate(borderX,borderY) scale(borderW,borderH)`                                           |
+| `maskContentUnits="userSpaceOnUse"`    | `translate(borderX,borderY) scale(effectiveZoom)`                                             |
 
 The user-space mask region is resolved in the defining SVG document while it
 is live. This matters for percentages: the generated root SVG must not

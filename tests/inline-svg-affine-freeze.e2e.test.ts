@@ -1,17 +1,19 @@
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  captureElementTreeWithWarnings,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTree, captureElementTreeWithWarnings, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
@@ -21,7 +23,7 @@ function walk(nodes: CapturedElement[]): CapturedElement[] {
 }
 
 function svgMarkup(nodes: CapturedElement[]): string[] {
-  return walk(nodes).flatMap((node) => node.svgContent == null ? [] : [node.svgContent]);
+  return walk(nodes).flatMap((node) => (node.svgContent == null ? [] : [node.svgContent]));
 }
 
 function maxMatrixDelta(left: Matrix, right: Matrix): number {
@@ -88,25 +90,32 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
         root.setCurrentTime(25);
       });
       const ids = await source.locator("[data-freeze]").evaluateAll((nodes) => nodes.map((node) => node.id));
-      const sourceMatrices = await source.locator("#matrix-subject").evaluate((_, targetIds) => {
-        const matrix = (value: DOMMatrix | SVGMatrix) => ({ a: value.a, b: value.b, c: value.c, d: value.d, e: value.e, f: value.f });
-        return Object.fromEntries(targetIds.map((id) => {
-          const node = document.getElementById(id)! as SVGGraphicsElement;
-          const parent = node.parentElement! as SVGGraphicsElement;
-          return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];
-        }));
-      }, ids) as Record<string, Matrix>;
+      const sourceMatrices = (await source.locator("#matrix-subject").evaluate((_, targetIds) => {
+        const matrix = (value: DOMMatrix | SVGMatrix) => ({
+          a: value.a,
+          b: value.b,
+          c: value.c,
+          d: value.d,
+          e: value.e,
+          f: value.f,
+        });
+        return Object.fromEntries(
+          targetIds.map((id) => {
+            const node = document.getElementById(id)! as SVGGraphicsElement;
+            const parent = node.parentElement! as SVGGraphicsElement;
+            return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];
+          }),
+        );
+      }, ids)) as Record<string, Matrix>;
 
       const before = await source.locator("#matrix-subject").evaluate((svg) => ({
         childCount: svg.querySelectorAll("*").length,
         transforms: Array.from(svg.querySelectorAll<SVGElement>("[data-freeze]")).map((node) => ({
           id: node.id,
           attr: node.getAttribute("transform"),
-          style: ["transform", "transform-origin", "transform-box", "translate", "rotate", "scale", "offset-path"].map((property) => [
-            property,
-            node.style.getPropertyValue(property),
-            node.style.getPropertyPriority(property),
-          ]),
+          style: ["transform", "transform-origin", "transform-box", "translate", "rotate", "scale", "offset-path"].map(
+            (property) => [property, node.style.getPropertyValue(property), node.style.getPropertyPriority(property)],
+          ),
         })),
       }));
       const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: 760, height: 520 });
@@ -119,23 +128,37 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
       expect(markup).toContain(".paint-only");
 
       await rendered.setContent(markup);
-      const frozenAttrs = await rendered.locator("#matrix-subject").evaluate((_, targetIds) => targetIds.map(
-        (id) => document.getElementById(id)?.getAttribute("transform") ?? null,
-      ), ids);
+      const frozenAttrs = await rendered
+        .locator("#matrix-subject")
+        .evaluate(
+          (_, targetIds) => targetIds.map((id) => document.getElementById(id)?.getAttribute("transform") ?? null),
+          ids,
+        );
       for (let index = 0; index < ids.length; index++) {
         if (ids[index] === "use-row") continue; // replaced by the inlined .use-row wrapper
         expect(frozenAttrs[index], ids[index]).toMatch(/^matrix\(/);
       }
       expect(await rendered.locator("#plain").evaluate((node) => node.hasAttribute("transform"))).toBe(false);
 
-      const renderedMatrices = await rendered.locator("#matrix-subject").evaluate((_, targetIds) => {
-        const matrix = (value: DOMMatrix | SVGMatrix) => ({ a: value.a, b: value.b, c: value.c, d: value.d, e: value.e, f: value.f });
-        return Object.fromEntries(targetIds.filter((id) => id !== "use-row").map((id) => {
-          const node = document.getElementById(id)! as SVGGraphicsElement;
-          const parent = node.parentElement! as SVGGraphicsElement;
-          return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];
-        }));
-      }, ids) as Record<string, Matrix>;
+      const renderedMatrices = (await rendered.locator("#matrix-subject").evaluate((_, targetIds) => {
+        const matrix = (value: DOMMatrix | SVGMatrix) => ({
+          a: value.a,
+          b: value.b,
+          c: value.c,
+          d: value.d,
+          e: value.e,
+          f: value.f,
+        });
+        return Object.fromEntries(
+          targetIds
+            .filter((id) => id !== "use-row")
+            .map((id) => {
+              const node = document.getElementById(id)! as SVGGraphicsElement;
+              const parent = node.parentElement! as SVGGraphicsElement;
+              return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];
+            }),
+        );
+      }, ids)) as Record<string, Matrix>;
       for (const [id, matrix] of Object.entries(renderedMatrices)) {
         expect(maxMatrixDelta(matrix, sourceMatrices[id]), id).toBeLessThan(1 / 256);
       }
@@ -144,13 +167,23 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
         const rect = node.getBoundingClientRect();
         const root = node.ownerSVGElement!.getBoundingClientRect();
         const scale = root.width / 520;
-        return { x: (rect.x - root.x) / scale, y: (rect.y - root.y) / scale, width: rect.width / scale, height: rect.height / scale };
+        return {
+          x: (rect.x - root.x) / scale,
+          y: (rect.y - root.y) / scale,
+          width: rect.width / scale,
+          height: rect.height / scale,
+        };
       });
       const useRendered = await rendered.locator(".use-row").evaluate((node) => {
         const rect = node.getBoundingClientRect();
         const root = (node as SVGGraphicsElement).ownerSVGElement!.getBoundingClientRect();
         const scale = root.width / 520;
-        return { x: (rect.x - root.x) / scale, y: (rect.y - root.y) / scale, width: rect.width / scale, height: rect.height / scale };
+        return {
+          x: (rect.x - root.x) / scale,
+          y: (rect.y - root.y) / scale,
+          width: rect.width / scale,
+          height: rect.height / scale,
+        };
       });
       for (const key of ["x", "y", "width", "height"] as const) {
         expect(Math.abs(useRendered[key] - useSource[key]), `use ${key}`).toBeLessThan(1 / 64);
@@ -158,18 +191,28 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
 
       // Every neutral sibling probe and isolated validation host was removed;
       // capture did not mutate authored source markup or child cardinality.
-      expect(await source.locator("#matrix-subject").evaluate((svg) => ({
-        childCount: svg.querySelectorAll("*").length,
-        transforms: Array.from(svg.querySelectorAll<SVGElement>("[data-freeze]")).map((node) => ({
-          id: node.id,
-          attr: node.getAttribute("transform"),
-          style: ["transform", "transform-origin", "transform-box", "translate", "rotate", "scale", "offset-path"].map((property) => [
-            property,
-            node.style.getPropertyValue(property),
-            node.style.getPropertyPriority(property),
-          ]),
+      expect(
+        await source.locator("#matrix-subject").evaluate((svg) => ({
+          childCount: svg.querySelectorAll("*").length,
+          transforms: Array.from(svg.querySelectorAll<SVGElement>("[data-freeze]")).map((node) => ({
+            id: node.id,
+            attr: node.getAttribute("transform"),
+            style: [
+              "transform",
+              "transform-origin",
+              "transform-box",
+              "translate",
+              "rotate",
+              "scale",
+              "offset-path",
+            ].map((property) => [
+              property,
+              node.style.getPropertyValue(property),
+              node.style.getPropertyPriority(property),
+            ]),
+          })),
         })),
-      }))).toEqual(before);
+      ).toEqual(before);
     } finally {
       await context.close();
     }
@@ -197,17 +240,23 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
       const owners = walk(result.tree).filter((node) => node.transformSubtreeRaster != null);
       expect(owners).toHaveLength(2);
       expect(owners.every((owner) => owner.svgContent != null)).toBe(true);
-      expect(owners.every((owner) => owner.transformSubtreeRaster?.dataUri != null || owner.transformSubtreeRaster?.empty === true)).toBe(true);
+      expect(
+        owners.every(
+          (owner) => owner.transformSubtreeRaster?.dataUri != null || owner.transformSubtreeRaster?.empty === true,
+        ),
+      ).toBe(true);
       expect(result.warnings.filter((warning) => warning.feature === "inline-svg")).toHaveLength(2);
       expect(result.warnings.every((warning) => !/getBBox|stroke-width \/ 2/.test(warning.detail))).toBe(true);
-      expect(await page.locator("body").evaluate(() => ({
-        svgChildren: Array.from(document.querySelectorAll("svg")).map((svg) => svg.children.length),
-        transforms: Array.from(document.querySelectorAll("svg rect")).map((rect) => ({
-          attr: rect.getAttribute("transform"),
-          computed: getComputedStyle(rect).transform,
-          origin: getComputedStyle(rect).transformOrigin,
+      expect(
+        await page.locator("body").evaluate(() => ({
+          svgChildren: Array.from(document.querySelectorAll("svg")).map((svg) => svg.children.length),
+          transforms: Array.from(document.querySelectorAll("svg rect")).map((rect) => ({
+            attr: rect.getAttribute("transform"),
+            computed: getComputedStyle(rect).transform,
+            origin: getComputedStyle(rect).transformOrigin,
+          })),
         })),
-      }))).toEqual(before);
+      ).toEqual(before);
     } finally {
       await context.close();
     }
@@ -217,7 +266,9 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
     const context = await env!.browser.newContext({ viewport: { width: 280, height: 180 } });
     const page = await context.newPage();
     try {
-      await page.setContent(`<svg width="240" height="140"><rect id="target" x="45" y="28" width="96" height="54" style="transform:perspective(230px) rotateY(43deg) translateZ(22px);transform-origin:17% 83% 31px;transform-box:fill-box"/></svg>`);
+      await page.setContent(
+        `<svg width="240" height="140"><rect id="target" x="45" y="28" width="96" height="54" style="transform:perspective(230px) rotateY(43deg) translateZ(22px);transform-origin:17% 83% 31px;transform-box:fill-box"/></svg>`,
+      );
       const facts = await page.locator("#target").evaluate((node) => {
         const target = node as SVGGraphicsElement;
         const parent = target.parentElement as SVGGraphicsElement;
@@ -230,18 +281,21 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
           submatrix: `matrix(${matrix3d.m11} ${matrix3d.m12} ${matrix3d.m21} ${matrix3d.m22} ${matrix3d.m41} ${matrix3d.m42})`,
         };
       });
-      const mutationDelta = async (transform: string) => page.locator("#target").evaluate((node, value) => {
-        const target = node as SVGGraphicsElement;
-        target.removeAttribute("style");
-        target.setAttribute("transform", value);
-        const parent = target.parentElement as SVGGraphicsElement;
-        const actual = parent.getCTM()!.inverse().multiply(target.getCTM()!);
-        return { a: actual.a, b: actual.b, c: actual.c, d: actual.d, e: actual.e, f: actual.f };
-      }, transform);
+      const mutationDelta = async (transform: string) =>
+        page.locator("#target").evaluate((node, value) => {
+          const target = node as SVGGraphicsElement;
+          target.removeAttribute("style");
+          target.setAttribute("transform", value);
+          const parent = target.parentElement as SVGGraphicsElement;
+          const actual = parent.getCTM()!.inverse().multiply(target.getCTM()!);
+          return { a: actual.a, b: actual.b, c: actual.c, d: actual.d, e: actual.e, f: actual.f };
+        }, transform);
       expect(facts.computed).toMatch(/^matrix3d\(/);
       expect(maxMatrixDelta(await mutationDelta(facts.computed), facts.used)).toBeGreaterThan(1);
       await page.reload();
-      await page.setContent(`<svg width="240" height="140"><rect id="target" x="45" y="28" width="96" height="54" style="transform:perspective(230px) rotateY(43deg) translateZ(22px);transform-origin:17% 83% 31px;transform-box:fill-box"/></svg>`);
+      await page.setContent(
+        `<svg width="240" height="140"><rect id="target" x="45" y="28" width="96" height="54" style="transform:perspective(230px) rotateY(43deg) translateZ(22px);transform-origin:17% 83% 31px;transform-box:fill-box"/></svg>`,
+      );
       expect(maxMatrixDelta(await mutationDelta(facts.submatrix), facts.used)).toBeGreaterThan(1);
     } finally {
       await context.close();

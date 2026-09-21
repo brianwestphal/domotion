@@ -26,9 +26,10 @@ async function rasterPayloadsEquivalent(
     sharp(Buffer.from(golden.base64, "base64")).raw().toBuffer({ resolveWithObject: true }),
     sharp(Buffer.from(actual.base64, "base64")).raw().toBuffer({ resolveWithObject: true }),
   ]);
-  const sameShape = goldenPixels.info.width === actualPixels.info.width
-    && goldenPixels.info.height === actualPixels.info.height
-    && goldenPixels.info.channels === actualPixels.info.channels;
+  const sameShape =
+    goldenPixels.info.width === actualPixels.info.width &&
+    goldenPixels.info.height === actualPixels.info.height &&
+    goldenPixels.info.channels === actualPixels.info.channels;
   if (!sameShape) return false;
 
   let changedPixels = 0;
@@ -60,7 +61,7 @@ export async function animateGoldensEquivalent(goldenSvg: string, actualSvg: str
   if (golden.replace(RASTER_PATTERN, "__RASTER__") !== actual.replace(RASTER_PATTERN, "__RASTER__")) return false;
 
   for (let index = 0; index < goldenRasters.length; index++) {
-    if (!await rasterPayloadsEquivalent(goldenRasters[index], actualRasters[index])) return false;
+    if (!(await rasterPayloadsEquivalent(goldenRasters[index], actualRasters[index]))) return false;
   }
   return true;
 }

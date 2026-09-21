@@ -3,11 +3,19 @@ id: "requirements/studio-project-model"
 title: "Domotion Studio project model"
 kind: "contract"
 status: "current"
-owners: ["studio","animation"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "animation"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2682"]
-code: ["schemas/domotion-studio-project.schema.json","scripts/generate-studio-project-schema.ts","src/studio/","src/cli/composite.ts","src/cli/storyboard.ts","tests/fixtures/studio/static-storyboard.project.json"]
-aliases: ["docs/239-studio-project-model.md","doc-239"]
+code:
+  [
+    "schemas/domotion-studio-project.schema.json",
+    "scripts/generate-studio-project-schema.ts",
+    "src/studio/",
+    "src/cli/composite.ts",
+    "src/cli/storyboard.ts",
+    "tests/fixtures/studio/static-storyboard.project.json",
+  ]
+aliases: ["docs/239-studio-project-model.md", "doc-239"]
 ---
 
 # Domotion Studio project model

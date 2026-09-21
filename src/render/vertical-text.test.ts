@@ -11,7 +11,11 @@ vi.mock("./text-to-path.js", async (importOriginal) => {
   return {
     ...actual,
     measureEmphasisMarkMetrics: () => ({
-      fontSize: 9, ascent: 7, descent: 2, inkCenterX: 2, inkCenterY: -2,
+      fontSize: 9,
+      ascent: 7,
+      descent: 2,
+      inkCenterX: 2,
+      inkCenterY: -2,
     }),
     renderTextAsPath: (...args: unknown[]) => {
       calls.push(args);
@@ -124,25 +128,19 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
 
 describe("lineRelativeToPhysicalTransform", () => {
   it("maps vertical and sideways-rl boxes clockwise", () => {
-    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "vertical-rl"))
-      .toBe("matrix(0 1 -1 0 171 -50)");
-    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "vertical-lr"))
-      .toBe("matrix(0 1 -1 0 171 -50)");
-    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "sideways-rl"))
-      .toBe("matrix(0 1 -1 0 171 -50)");
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "vertical-rl")).toBe("matrix(0 1 -1 0 171 -50)");
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "vertical-lr")).toBe("matrix(0 1 -1 0 171 -50)");
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "sideways-rl")).toBe("matrix(0 1 -1 0 171 -50)");
   });
 
   it("maps sideways-lr boxes counter-clockwise", () => {
-    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "sideways-lr"))
-      .toBe("matrix(0 -1 1 0 50 162)");
+    expect(lineRelativeToPhysicalTransform(100, 50, 21, 12, "sideways-lr")).toBe("matrix(0 -1 1 0 50 162)");
   });
 
   it("uses physical width as block size and physical height as inline size", () => {
     // These are the dimension swaps in Blink CreateFromLineBox(false).
-    expect(lineRelativeToPhysicalTransform(4, 7, 30, 80, "vertical-rl"))
-      .toBe("matrix(0 1 -1 0 41 3)");
-    expect(lineRelativeToPhysicalTransform(4, 7, 30, 80, "sideways-lr"))
-      .toBe("matrix(0 -1 1 0 -3 91)");
+    expect(lineRelativeToPhysicalTransform(4, 7, 30, 80, "vertical-rl")).toBe("matrix(0 1 -1 0 41 3)");
+    expect(lineRelativeToPhysicalTransform(4, 7, 30, 80, "sideways-lr")).toBe("matrix(0 -1 1 0 -3 91)");
   });
 });
 
@@ -271,21 +269,35 @@ describe("renderVerticalSegments — vertical-form punctuation (DM-1122)", () =>
 });
 
 describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () => {
-  beforeEach(() => { calls.length = 0; });
+  beforeEach(() => {
+    calls.length = 0;
+  });
 
   function makeEmphasisEl(style: string, position?: string): CapturedElement {
     return {
       tag: "em",
       styles: {
-        fontSize: "18px", fontFamily: "sans-serif", fontWeight: "400", color: "rgb(0,0,0)",
-        textEmphasisStyle: style, ...(position != null ? { textEmphasisPosition: position } : {}),
+        fontSize: "18px",
+        fontFamily: "sans-serif",
+        fontWeight: "400",
+        color: "rgb(0,0,0)",
+        textEmphasisStyle: style,
+        ...(position != null ? { textEmphasisPosition: position } : {}),
       },
       fontAscent: 14,
       fontDescent: 4,
-      textSegments: [{
-        text: "右側", x: 100, y: 50, width: 18, height: 36,
-        verticalWritingMode: "vertical-rl", yOffsets: [50, 68], verticalAdvances: [18, 18],
-      }],
+      textSegments: [
+        {
+          text: "右側",
+          x: 100,
+          y: 50,
+          width: 18,
+          height: 36,
+          verticalWritingMode: "vertical-rl",
+          yOffsets: [50, 68],
+          verticalAdvances: [18, 18],
+        },
+      ],
     } as unknown as CapturedElement;
   }
 
@@ -312,8 +324,7 @@ describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () 
     el.textSegments![0].text = "A\u0301";
     el.textSegments![0].yOffsets = [50, 50];
     el.textSegments![0].verticalAdvances = [18, 18];
-    expect([...renderVerticalEmphasisMarks(el, "rgb(0,0,0)").matchAll(/<text /g)])
-      .toHaveLength(1);
+    expect([...renderVerticalEmphasisMarks(el, "rgb(0,0,0)").matchAll(/<text /g)]).toHaveLength(1);
   });
 
   it("returns empty markup when the element has no text-emphasis", () => {
@@ -323,10 +334,16 @@ describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () 
 
 describe("Blink vertical decoration resolution (DM-2514)", () => {
   it("keys the central side rule on locale script, not glyph text", () => {
-    expect(resolveVerticalDecoration("vertical-rl", "mixed", "auto", "ja"))
-      .toMatchObject({ baselineType: "central", localeScript: "KATAKANA_OR_HIRAGANA", flipUnderlineAndOverline: true });
-    expect(resolveVerticalDecoration("vertical-rl", "mixed", "auto", "en"))
-      .toMatchObject({ baselineType: "central", localeScript: "LATIN", flipUnderlineAndOverline: false });
+    expect(resolveVerticalDecoration("vertical-rl", "mixed", "auto", "ja")).toMatchObject({
+      baselineType: "central",
+      localeScript: "KATAKANA_OR_HIRAGANA",
+      flipUnderlineAndOverline: true,
+    });
+    expect(resolveVerticalDecoration("vertical-rl", "mixed", "auto", "en")).toMatchObject({
+      baselineType: "central",
+      localeScript: "LATIN",
+      flipUnderlineAndOverline: false,
+    });
     // These are intentionally the opposite character/script combinations:
     // Blink reads FontDescription::GetScript(), not Unicode from the run.
     expect(resolveVerticalDecoration("vertical-rl", "mixed", "auto", "ja").flipUnderlineAndOverline).toBe(true); // Latin under lang=ja
@@ -337,32 +354,48 @@ describe("Blink vertical decoration resolution (DM-2514)", () => {
     for (const lang of ["ja", "ko-KR"]) {
       expect(resolveVerticalDecoration("vertical-lr", "upright", "left", lang).flipUnderlineAndOverline).toBe(false);
       for (const pos of ["auto", "right", "under", "from-font", "under right"]) {
-        expect(resolveVerticalDecoration("vertical-lr", "upright", pos, lang).flipUnderlineAndOverline, `${lang} ${pos}`).toBe(true);
+        expect(
+          resolveVerticalDecoration("vertical-lr", "upright", pos, lang).flipUnderlineAndOverline,
+          `${lang} ${pos}`,
+        ).toBe(true);
       }
     }
     for (const lang of ["en", "zh-Hans", "ar"]) {
       expect(resolveVerticalDecoration("vertical-rl", "mixed", "right", lang).flipUnderlineAndOverline).toBe(true);
       for (const pos of ["auto", "left", "under", "from-font", "under left"]) {
-        expect(resolveVerticalDecoration("vertical-rl", "mixed", pos, lang).flipUnderlineAndOverline, `${lang} ${pos}`).toBe(false);
+        expect(
+          resolveVerticalDecoration("vertical-rl", "mixed", pos, lang).flipUnderlineAndOverline,
+          `${lang} ${pos}`,
+        ).toBe(false);
       }
     }
   });
 
   it("keeps sideways typography alphabetic and ignores left/right", () => {
     for (const wm of ["sideways-rl", "sideways-lr"]) {
-      expect(resolveVerticalDecoration(wm, "mixed", "right", "ja"))
-        .toMatchObject({ baselineType: "alphabetic", underlinePosition: "auto", flipUnderlineAndOverline: false });
-      expect(resolveVerticalDecoration(wm, "mixed", "from-font left", "en"))
-        .toMatchObject({ baselineType: "alphabetic", underlinePosition: "from-font", flipUnderlineAndOverline: false });
+      expect(resolveVerticalDecoration(wm, "mixed", "right", "ja")).toMatchObject({
+        baselineType: "alphabetic",
+        underlinePosition: "auto",
+        flipUnderlineAndOverline: false,
+      });
+      expect(resolveVerticalDecoration(wm, "mixed", "from-font left", "en")).toMatchObject({
+        baselineType: "alphabetic",
+        underlinePosition: "from-font",
+        flipUnderlineAndOverline: false,
+      });
     }
-    expect(resolveVerticalDecoration("vertical-rl", "sideways", "under right", "ja"))
-      .toMatchObject({ baselineType: "alphabetic", underlinePosition: "under", flipUnderlineAndOverline: false });
+    expect(resolveVerticalDecoration("vertical-rl", "sideways", "under right", "ja")).toMatchObject({
+      baselineType: "alphabetic",
+      underlinePosition: "under",
+      flipUnderlineAndOverline: false,
+    });
   });
 
   it("removes upright blobs from skip-ink while preserving UTF-16 anchors", () => {
-    const text = `gあ${String.fromCodePoint(0x1F600)}p`;
+    const text = `gあ${String.fromCodePoint(0x1f600)}p`;
     const seg = {
-      text, verticalOrientations: ["rotated", "upright", "upright", "upright", "rotated"],
+      text,
+      verticalOrientations: ["rotated", "upright", "upright", "upright", "rotated"],
     } as unknown as NonNullable<CapturedElement["textSegments"]>[number];
     const projected = verticalDecorationSkipInkText(seg)!;
     expect(projected).toHaveLength(text.length);
@@ -377,24 +410,44 @@ describe("renderVerticalSegments — line-relative decoration paint (DM-2514)", 
     return {
       tag: "div",
       styles: {
-        fontSize: "20px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
-        fontLogicalSize: "20px", textDecorationLine: "underline", textUnderlinePosition: tup,
-        textDecorationStyle: "solid", textDecorationThickness: "auto",
-        textUnderlineOffset: "auto", textDecorationSkipInk: "none", lang,
+        fontSize: "20px",
+        fontFamily: "sans-serif",
+        fontWeight: "400",
+        fontStyle: "normal",
+        fontLogicalSize: "20px",
+        textDecorationLine: "underline",
+        textUnderlinePosition: tup,
+        textDecorationStyle: "solid",
+        textDecorationThickness: "auto",
+        textUnderlineOffset: "auto",
+        textDecorationSkipInk: "none",
+        lang,
       },
       fontAscent: 16,
       fontDescent: 4,
-      textSegments: [{
-        text, x: 100, y: 50, width: 20, height: 40,
-        verticalWritingMode: wm, verticalOrientations: [text === "A" ? "rotated" : "upright"],
-        yOffsets: [50], verticalAdvances: [20], verticalNaturalWidths: [20],
-      }],
+      textSegments: [
+        {
+          text,
+          x: 100,
+          y: 50,
+          width: 20,
+          height: 40,
+          verticalWritingMode: wm,
+          verticalOrientations: [text === "A" ? "rotated" : "upright"],
+          yOffsets: [50],
+          verticalAdvances: [20],
+          verticalNaturalWidths: [20],
+        },
+      ],
     } as unknown as CapturedElement;
   }
 
   // Apply the decoration group's matrix to its first line-relative endpoint.
   const physicalLineX = (markup: string): number => {
-    const matrix = /<g transform="matrix\(([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)\)"><line x1="([-\d.]+)" y1="([-\d.]+)"/.exec(markup);
+    const matrix =
+      /<g transform="matrix\(([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)\)"><line x1="([-\d.]+)" y1="([-\d.]+)"/.exec(
+        markup,
+      );
     if (matrix == null) return NaN;
     const [, a, , c, , e, , x, y] = matrix.map(Number);
     return a * x + c * y + e;
@@ -408,14 +461,22 @@ describe("renderVerticalSegments — line-relative decoration paint (DM-2514)", 
   });
 
   it("maps Latin auto under left but locale-ja auto over right in clockwise vertical modes", () => {
-    expect(physicalLineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "auto", "en", "あ"), "black"))).toBeLessThan(100);
+    expect(
+      physicalLineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "auto", "en", "あ"), "black")),
+    ).toBeLessThan(100);
     // Character is Latin on purpose: locale owns the script branch.
-    expect(physicalLineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "auto", "ja", "A"), "black"))).toBeGreaterThan(120);
+    expect(
+      physicalLineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "auto", "ja", "A"), "black")),
+    ).toBeGreaterThan(120);
   });
 
   it("maps alphabetic under left for sideways-rl and right for sideways-lr", () => {
-    expect(physicalLineX(renderVerticalSegments(makeUnderlineEl("sideways-rl", "under", "ja"), "black"))).toBeLessThan(100);
-    expect(physicalLineX(renderVerticalSegments(makeUnderlineEl("sideways-lr", "under", "ja"), "black"))).toBeGreaterThan(120);
+    expect(physicalLineX(renderVerticalSegments(makeUnderlineEl("sideways-rl", "under", "ja"), "black"))).toBeLessThan(
+      100,
+    );
+    expect(
+      physicalLineX(renderVerticalSegments(makeUnderlineEl("sideways-lr", "under", "ja"), "black")),
+    ).toBeGreaterThan(120);
   });
 
   it("scales absolute thickness once at effective zoom without changing logical DPR geometry", () => {
@@ -443,11 +504,21 @@ describe("renderVerticalSegments — line-relative decoration paint (DM-2514)", 
   it("paints inherited declarations with the target vertical run's UsedFont metrics", () => {
     const inherited = makeUnderlineEl("vertical-lr", "left");
     inherited.styles.textDecorationLine = "none";
-    inherited.propagatedDecorations = [{
-      line: "underline", style: "solid", color: "rgb(12,34,56)", thickness: "auto",
-      underlineOffset: "auto", lengthScale: 2, fontFamily: "serif", fontSize: 50,
-      fontWeight: "700", fontAscent: 42, fontDescent: 8,
-    }];
+    inherited.propagatedDecorations = [
+      {
+        line: "underline",
+        style: "solid",
+        color: "rgb(12,34,56)",
+        thickness: "auto",
+        underlineOffset: "auto",
+        lengthScale: 2,
+        fontFamily: "serif",
+        fontSize: 50,
+        fontWeight: "700",
+        fontAscent: 42,
+        fontDescent: 8,
+      },
+    ];
     const markup = renderVerticalSegments(inherited, "black");
     expect(markup).toContain('stroke="rgb(12,34,56)"');
     // Non-horizontal decorating boxes are disabled in Blink: the ancestor's

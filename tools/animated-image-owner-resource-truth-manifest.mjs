@@ -6,38 +6,39 @@ import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
-const PINNED_CHROMIUM_REVISION =
-  "7d859f271cbda744098ac69f44978d4edfa62be3";
+const PINNED_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const ZERO_SHA256 = "0".repeat(64);
 
-export const ANIMATED_IMAGE_TRUTH_PATCH_FILES = Object.freeze([
-  "third_party/blink/public/devtools_protocol/BUILD.gn",
-  "third_party/blink/public/devtools_protocol/browser_protocol.pdl",
-  "third_party/blink/public/devtools_protocol/domains/DomotionAnimatedImageTruth.pdl",
-  "third_party/blink/renderer/core/css/css_image_set_value.cc",
-  "third_party/blink/renderer/core/css/css_image_set_value.h",
-  "third_party/blink/renderer/core/css/resolver/element_style_resources.cc",
-  "third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.cc",
-  "third_party/blink/renderer/core/inspector/BUILD.gn",
-  "third_party/blink/renderer/core/inspector/build.gni",
-  "third_party/blink/renderer/core/inspector/devtools_session.h",
-  "third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.cc",
-  "third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h",
-  "third_party/blink/renderer/core/inspector/inspector_network_agent.cc",
-  "third_party/blink/renderer/core/inspector/inspector_network_agent.h",
-  "third_party/blink/renderer/core/inspector/inspector_protocol_config.json",
-  "third_party/blink/renderer/core/inspector/network_resources_data.h",
-  "third_party/blink/renderer/core/loader/resource/image_resource.cc",
-  "third_party/blink/renderer/core/loader/resource/image_resource.h",
-  "third_party/blink/renderer/core/loader/resource/image_resource_content.cc",
-  "third_party/blink/renderer/core/loader/resource/image_resource_content.h",
-  "third_party/blink/renderer/core/loader/resource/image_resource_info.h",
-  "third_party/blink/renderer/core/style/style_image_set.cc",
-  "third_party/blink/renderer/core/style/style_image_set.h",
-  "third_party/blink/renderer/platform/loader/fetch/resource.cc",
-  "third_party/blink/renderer/platform/loader/fetch/resource.h",
-  "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc",
-].sort());
+export const ANIMATED_IMAGE_TRUTH_PATCH_FILES = Object.freeze(
+  [
+    "third_party/blink/public/devtools_protocol/BUILD.gn",
+    "third_party/blink/public/devtools_protocol/browser_protocol.pdl",
+    "third_party/blink/public/devtools_protocol/domains/DomotionAnimatedImageTruth.pdl",
+    "third_party/blink/renderer/core/css/css_image_set_value.cc",
+    "third_party/blink/renderer/core/css/css_image_set_value.h",
+    "third_party/blink/renderer/core/css/resolver/element_style_resources.cc",
+    "third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.cc",
+    "third_party/blink/renderer/core/inspector/BUILD.gn",
+    "third_party/blink/renderer/core/inspector/build.gni",
+    "third_party/blink/renderer/core/inspector/devtools_session.h",
+    "third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.cc",
+    "third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h",
+    "third_party/blink/renderer/core/inspector/inspector_network_agent.cc",
+    "third_party/blink/renderer/core/inspector/inspector_network_agent.h",
+    "third_party/blink/renderer/core/inspector/inspector_protocol_config.json",
+    "third_party/blink/renderer/core/inspector/network_resources_data.h",
+    "third_party/blink/renderer/core/loader/resource/image_resource.cc",
+    "third_party/blink/renderer/core/loader/resource/image_resource.h",
+    "third_party/blink/renderer/core/loader/resource/image_resource_content.cc",
+    "third_party/blink/renderer/core/loader/resource/image_resource_content.h",
+    "third_party/blink/renderer/core/loader/resource/image_resource_info.h",
+    "third_party/blink/renderer/core/style/style_image_set.cc",
+    "third_party/blink/renderer/core/style/style_image_set.h",
+    "third_party/blink/renderer/platform/loader/fetch/resource.cc",
+    "third_party/blink/renderer/platform/loader/fetch/resource.h",
+    "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc",
+  ].sort(),
+);
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -46,9 +47,10 @@ function sha256(value) {
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value !== null && typeof value === "object") {
-    return `{${Object.entries(value).sort(([left], [right]) =>
-      left.localeCompare(right)).map(([key, entry]) =>
-      `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(",")}}`;
+    return `{${Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
@@ -75,15 +77,10 @@ function gitRevision(root) {
   }).trim();
 }
 
-export async function buildAnimatedImageTruthSourceManifest({
-  chromiumRoot,
-  depotToolsRoot,
-}) {
+export async function buildAnimatedImageTruthSourceManifest({ chromiumRoot, depotToolsRoot }) {
   const sourceRevision = gitRevision(chromiumRoot);
   if (sourceRevision !== PINNED_CHROMIUM_REVISION) {
-    throw new Error(
-      `Chromium revision mismatch: ${sourceRevision} != ${PINNED_CHROMIUM_REVISION}`,
-    );
+    throw new Error(`Chromium revision mismatch: ${sourceRevision} != ${PINNED_CHROMIUM_REVISION}`);
   }
   const skiaRevision = gitRevision(resolve(chromiumRoot, "third_party/skia"));
   const depotToolsRevision = gitRevision(depotToolsRoot);
@@ -124,8 +121,7 @@ async function main() {
   for (let index = 2; index < process.argv.length; index += 2) {
     const flag = process.argv[index];
     const value = process.argv[index + 1];
-    if (!["--chromium-root", "--depot-tools-root", "--out"].includes(flag) ||
-        value == null) {
+    if (!["--chromium-root", "--depot-tools-root", "--out"].includes(flag) || value == null) {
       throw new Error(`unknown or valueless argument: ${flag}`);
     }
     values[flag.slice(2)] = value;
@@ -148,8 +144,7 @@ async function main() {
   }
 }
 
-if (process.argv[1] &&
-    resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   main().catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

@@ -33,13 +33,15 @@ describe("animated culling geometry oracle corpus", () => {
 
   it("pins all four unsafe-algorithm mutation discriminators plus fail-closed retention", () => {
     const controls = buildAnimatedCullingMutationControls();
-    expect(new Set(controls.map((control) => control.kind))).toEqual(new Set([
-      "reference-box-selection",
-      "ancestor-composition",
-      "function-first-interpolation",
-      "fixed-sampling-proof",
-      "fail-closed-retention",
-    ]));
+    expect(new Set(controls.map((control) => control.kind))).toEqual(
+      new Set([
+        "reference-box-selection",
+        "ancestor-composition",
+        "function-first-interpolation",
+        "fixed-sampling-proof",
+        "fail-closed-retention",
+      ]),
+    );
     expect(controls.every((control) => control.discriminator.length > 20)).toBe(true);
   });
 

@@ -182,7 +182,9 @@ export async function measureInstances(page: Page, fixturePath: string): Promise
     // a split means the webfont did not cover the text and the fixture is not
     // measuring what it claims.
     if (faces.length !== 1) {
-      throw new Error(`#${g.id}: Chrome painted ${faces.length} faces (${faces.map((f) => f.postScriptName ?? f.familyName).join("+")}) — the fixture's webfont did not cover the run`);
+      throw new Error(
+        `#${g.id}: Chrome painted ${faces.length} faces (${faces.map((f) => f.postScriptName ?? f.familyName).join("+")}) — the fixture's webfont did not cover the run`,
+      );
     }
     out.push({
       id: g.id,
@@ -268,10 +270,19 @@ export function alignMetricsToChrome(chromeXs: readonly number[], ourXs: readonl
 }
 
 /** Our renderer's own output for one axis location, read back off the markup. */
-export function ourGeometry(text: string, family: string, fontSize: number, axes: Record<string, number> | null): { xs: number[]; glyphCount: number; ok: boolean } {
+export function ourGeometry(
+  text: string,
+  family: string,
+  fontSize: number,
+  axes: Record<string, number> | null,
+): { xs: number[]; glyphCount: number; ok: boolean } {
   const svg = renderTextAsPath(text, 0, fontSize * 2, {
-    fontSize, fontFamily: `"${family}"`, fontWeight: "400", fill: "#000",
-    fontStyle: "normal", variationSettings: axes ?? undefined,
+    fontSize,
+    fontFamily: `"${family}"`,
+    fontWeight: "400",
+    fill: "#000",
+    fontStyle: "normal",
+    variationSettings: axes ?? undefined,
   });
   if (svg == null) return { xs: [], glyphCount: 0, ok: false };
   const xs: number[] = [];
@@ -360,8 +371,8 @@ export function pairingHolds(rows: PairVerdict[]): { ok: boolean; failures: stri
     const verdicts = new Set(group.map((r) => r.face));
     if (verdicts.size !== 1) {
       failures.push(
-        `chrome=${chromeInstance}: the face oracle's verdict MOVED with our axis (${[...verdicts].join(", ")}). `
-        + `That contradicts doc 107's documented name-blindness for variable instances — re-read both before trusting it.`,
+        `chrome=${chromeInstance}: the face oracle's verdict MOVED with our axis (${[...verdicts].join(", ")}). ` +
+          `That contradicts doc 107's documented name-blindness for variable instances — re-read both before trusting it.`,
       );
     }
   }
@@ -372,15 +383,15 @@ export function pairingHolds(rows: PairVerdict[]): { ok: boolean; failures: stri
     const shapingAgrees = r.shaping === "agree-exact";
     if (r.sameInstance && !shapingAgrees) {
       failures.push(
-        `${r.chromeInstance}: the shaping oracle disagrees on the CORRECT instance `
-        + `(${r.shaping}, maxDelta ${r.maxDelta}). Either the fixture's axis is inert or our renderer `
-        + `does not honor it — every other row is meaningless until this passes.`,
+        `${r.chromeInstance}: the shaping oracle disagrees on the CORRECT instance ` +
+          `(${r.shaping}, maxDelta ${r.maxDelta}). Either the fixture's axis is inert or our renderer ` +
+          `does not honor it — every other row is meaningless until this passes.`,
       );
     }
     if (!r.sameInstance && shapingAgrees) {
       failures.push(
-        `${r.chromeInstance} vs ${r.ourInstance}: the shaping oracle did NOT catch a wrong axis instance. `
-        + `Neither instrument covers this, which is the gap the pair is supposed to close.`,
+        `${r.chromeInstance} vs ${r.ourInstance}: the shaping oracle did NOT catch a wrong axis instance. ` +
+          `Neither instrument covers this, which is the gap the pair is supposed to close.`,
       );
     }
   }
@@ -431,7 +442,8 @@ async function main(argv: string[]): Promise<number> {
         // element's left edge, ours at 0. Compare SHAPES, not page coordinates,
         // by rebasing each list on its own first entry — otherwise every row
         // would "differ" by the body margin and nothing would be measured.
-        const rebase = (xs: number[]): number[] => (xs.length === 0 ? xs : xs.map((v) => Math.round((v - xs[0]) * 100) / 100));
+        const rebase = (xs: number[]): number[] =>
+          xs.length === 0 ? xs : xs.map((v) => Math.round((v - xs[0]) * 100) / 100);
         const chromeXs = rebase(chromeSide.xs);
         // Put both sides on the same metric footing first — see
         // `alignMetricsToChrome`. Without this, a Linux run compares our LINEAR
@@ -461,12 +473,28 @@ async function main(argv: string[]): Promise<number> {
 
     const { ok, failures } = pairingHolds(rows);
     if (json) {
-      process.stdout.write(`${JSON.stringify({
-        fixture, family, fontSize, text,
-        face: instances[0]?.face.postScriptName ?? null,
-        instances: instances.map((i) => ({ id: i.id, settings: i.settings, width: i.width, face: i.face.postScriptName ?? i.face.familyName })),
-        rows, ok, failures,
-      }, null, 2)}\n`);
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            fixture,
+            family,
+            fontSize,
+            text,
+            face: instances[0]?.face.postScriptName ?? null,
+            instances: instances.map((i) => ({
+              id: i.id,
+              settings: i.settings,
+              width: i.width,
+              face: i.face.postScriptName ?? i.face.familyName,
+            })),
+            rows,
+            ok,
+            failures,
+          },
+          null,
+          2,
+        )}\n`,
+      );
       return ok ? 0 : 1;
     }
 
@@ -476,28 +504,34 @@ async function main(argv: string[]): Promise<number> {
     lines.push("");
     lines.push("Chrome's own answer per instance (one face, three geometries):");
     for (const i of instances) {
-      lines.push(`  ${i.id.padEnd(9)} ${String(i.settings).padEnd(12)} face ${(i.face.postScriptName ?? i.face.familyName).padEnd(18)} width ${i.width}px`);
+      lines.push(
+        `  ${i.id.padEnd(9)} ${String(i.settings).padEnd(12)} face ${(i.face.postScriptName ?? i.face.familyName).padEnd(18)} width ${i.width}px`,
+      );
     }
     lines.push("");
     lines.push("Our renderer's reported face per instance (the same string every time — that IS the blindness):");
     for (const i of instances) {
-      lines.push(`  ${i.id.padEnd(9)} ${String(i.settings).padEnd(12)} face ${ourFaceFor(family, fontSize, i.axes).postscriptName ?? "(none)"}`);
+      lines.push(
+        `  ${i.id.padEnd(9)} ${String(i.settings).padEnd(12)} face ${ourFaceFor(family, fontSize, i.axes).postscriptName ?? "(none)"}`,
+      );
     }
     lines.push("");
     lines.push("chrome    ours       =/!  face oracle       shaping oracle        max pos delta");
     for (const r of rows) {
       lines.push(
-        `  ${r.chromeInstance.padEnd(8)} ${r.ourInstance.padEnd(9)} ${r.sameInstance ? "=" : "!"}    `
-        + `${r.face.padEnd(17)} ${r.shaping.padEnd(20)} `
-        + `${r.maxDelta == null ? "-" : `${r.maxDelta.toFixed(2)}px`}`,
+        `  ${r.chromeInstance.padEnd(8)} ${r.ourInstance.padEnd(9)} ${r.sameInstance ? "=" : "!"}    ` +
+          `${r.face.padEnd(17)} ${r.shaping.padEnd(20)} ` +
+          `${r.maxDelta == null ? "-" : `${r.maxDelta.toFixed(2)}px`}`,
       );
     }
     lines.push("");
-    lines.push(ok
-      ? "PAIR HOLDS: the face oracle's verdict never moved with OUR axis — it cannot see a wrong instance\n"
-        + "            in either direction. The shaping oracle agreed exactly when the axes matched and\n"
-        + "            caught every case where they did not."
-      : "PAIR FAILS:");
+    lines.push(
+      ok
+        ? "PAIR HOLDS: the face oracle's verdict never moved with OUR axis — it cannot see a wrong instance\n" +
+            "            in either direction. The shaping oracle agreed exactly when the axes matched and\n" +
+            "            caught every case where they did not."
+        : "PAIR FAILS:",
+    );
     for (const f of failures) lines.push(`  - ${f}`);
     process.stdout.write(`${lines.join("\n")}\n`);
     return ok ? 0 : 1;
@@ -506,12 +540,13 @@ async function main(argv: string[]): Promise<number> {
   }
 }
 
-const invokedDirectly = process.argv[1] != null
-  && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (invokedDirectly) {
   main(process.argv.slice(2)).then(
-    (code) => { process.exitCode = code; },
+    (code) => {
+      process.exitCode = code;
+    },
     (err: unknown) => {
       process.stderr.write(`variable-axis-oracle-pair failed: ${String(err instanceof Error ? err.stack : err)}\n`);
       process.exitCode = 2;

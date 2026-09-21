@@ -41,7 +41,14 @@
 
 import type { CapturedElement } from "../capture/types.js";
 import { caretShapeRect, BLOCK_CARET_ALPHA, DEFAULT_CARET_WIDTH_PX, type CaretShape } from "./caret-metrics.js";
-import { resolveCaretPoint, resolveRangeRects, findAddressedElement, type CaretPoint, type SelectionRectPlan, type TextAddressTarget } from "./text-address.js";
+import {
+  resolveCaretPoint,
+  resolveRangeRects,
+  findAddressedElement,
+  type CaretPoint,
+  type SelectionRectPlan,
+  type TextAddressTarget,
+} from "./text-address.js";
 import { renderTextAsPath } from "../render/text-to-path.js";
 import { withRenderTextMode } from "../render/font-resolution.js";
 
@@ -248,7 +255,11 @@ export function resolveTextTrack(roots: CapturedElement[], spec: TextTrackSpec):
  * reproduce, so a vertical block-invert caret degrades to the translucent
  * 0.5-alpha block and the page's own glyph shows through (docs/101 Limits).
  */
-function resolveCoveredGlyph(roots: CapturedElement[], target: TextAddressTarget, charOffset: number): CoveredGlyph | null {
+function resolveCoveredGlyph(
+  roots: CapturedElement[],
+  target: TextAddressTarget,
+  charOffset: number,
+): CoveredGlyph | null {
   if (charOffset < 0) return null;
   const el = findAddressedElement(roots, target);
   if (el == null) return null;
@@ -257,7 +268,13 @@ function resolveCoveredGlyph(roots: CapturedElement[], target: TextAddressTarget
   const elStyle = el.styles.fontStyle;
   const elSize = parseFloat(el.styles.fontSize) || 14;
 
-  interface CoveredRun { text: string; fontFamily: string; fontWeight: string; fontStyle?: string; fontSize: number; }
+  interface CoveredRun {
+    text: string;
+    fontFamily: string;
+    fontWeight: string;
+    fontStyle?: string;
+    fontSize: number;
+  }
   const runs: CoveredRun[] = [];
   if (el.textSegments != null && el.textSegments.length > 0) {
     for (const seg of el.textSegments) {
@@ -279,7 +296,13 @@ function resolveCoveredGlyph(roots: CapturedElement[], target: TextAddressTarget
   for (const run of runs) {
     for (const ch of run.text) {
       if (remaining === 0) {
-        return { char: ch, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: run.fontStyle, fontSize: run.fontSize };
+        return {
+          char: ch,
+          fontFamily: run.fontFamily,
+          fontWeight: run.fontWeight,
+          fontStyle: run.fontStyle,
+          fontSize: run.fontSize,
+        };
       }
       remaining--;
     }
@@ -320,7 +343,7 @@ export function textTrackMarkup(track: ResolvedTextTrack, totalDurationMs: numbe
   const totalSec = totalDurationMs / 1000;
   const uid = trackUid(
     `${index}|${totalDurationMs}|${track.waypoints.map((w) => `${w.t},${w.point.x},${w.point.baselineY}`).join(";")}|` +
-    `${track.selections.map((s) => `${s.t},${s.rects[0]?.x}`).join(";")}`,
+      `${track.selections.map((s) => `${s.t},${s.rects[0]?.x}`).join(";")}`,
   );
   const kf: string[] = [];
   const parts: string[] = [];
@@ -350,7 +373,13 @@ ${parts.join("\n")}
  * Visibility windows come from the hide times; the blink rides a nested group
  * on its own short cycle (`CARET_BLINK_MS`), exactly like the terminal cursor.
  */
-function caretMarkup(track: ResolvedTextTrack, uid: string, kf: string[], totalDurationMs: number, totalSec: number): string {
+function caretMarkup(
+  track: ResolvedTextTrack,
+  uid: string,
+  kf: string[],
+  totalDurationMs: number,
+  totalSec: number,
+): string {
   const wps = track.waypoints;
   const base = caretGeom(track, wps[0].point);
   // Transform per waypoint: translate to the shape rect's top-left, scaling
@@ -411,7 +440,13 @@ function caretMarkup(track: ResolvedTextTrack, uid: string, kf: string[], totalD
  * into the document `<defs>` — self-contained, deterministic across repeat
  * calls.
  */
-function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[], totalDurationMs: number, totalSec: number): string {
+function invertedCaretMarkup(
+  track: ResolvedTextTrack,
+  uid: string,
+  kf: string[],
+  totalDurationMs: number,
+  totalSec: number,
+): string {
   const wps = track.waypoints;
   const hides = [...track.hides].sort((a, b) => a - b);
   const blinkName = `tt-blink-${uid}`;
@@ -451,8 +486,12 @@ function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[]
         // The glyph is repainted at the CELL's left edge, which is the caret x
         // for an LTR insertion point and `x − cellWidth` for an RTL one.
         renderTextAsPath(cg.char, g.x, g.y, {
-          fontSize: cg.fontSize, fontFamily: cg.fontFamily, fontWeight: cg.fontWeight,
-          fill: glyphInk, fontStyle: cg.fontStyle, ascentOverride: wp.point.ascentPx,
+          fontSize: cg.fontSize,
+          fontFamily: cg.fontFamily,
+          fontWeight: cg.fontWeight,
+          fill: glyphInk,
+          fontStyle: cg.fontStyle,
+          ascentOverride: wp.point.ascentPx,
         }),
       );
       glyphMarkup = gm;
@@ -467,7 +506,9 @@ function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[]
     const degraded = glyphMarkup === "" && (cg != null || wp.point.vertical != null);
     const blockOpacity = degraded ? ` fill-opacity="${BLOCK_CARET_ALPHA}"` : "";
     const block = `<rect class="tt-caret" x="${num(g.x)}" y="${num(g.y)}" width="${num(g.width)}" height="${num(g.height)}" fill="${track.color}"${blockOpacity}/>`;
-    layers.push(`      <g class="tt-ivis" opacity="${onAtZero ? 1 : 0}" style="animation:${visName} ${totalSec.toFixed(2)}s step-end infinite">${block}${glyphMarkup}</g>`);
+    layers.push(
+      `      <g class="tt-ivis" opacity="${onAtZero ? 1 : 0}" style="animation:${visName} ${totalSec.toFixed(2)}s step-end infinite">${block}${glyphMarkup}</g>`,
+    );
   }
 
   return `    <g class="tt-blink" style="animation:${blinkName} ${blinkSec}s step-end infinite">
@@ -476,7 +517,10 @@ ${layers.join("\n")}
 }
 
 /** The shape rect for a caret point under this track's shape settings. */
-function caretGeom(track: ResolvedTextTrack, p: CaretPoint): { x: number; y: number; width: number; height: number; opacity: number } {
+function caretGeom(
+  track: ResolvedTextTrack,
+  p: CaretPoint,
+): { x: number; y: number; width: number; height: number; opacity: number } {
   return caretShapeRect({
     shape: track.shape,
     x: p.x,
@@ -519,7 +563,14 @@ function caretGeom(track: ResolvedTextTrack, p: CaretPoint): { x: number; y: num
  * `height` and the fixed one is `width` — the axes simply swap. Its `edges` are
  * the successive bottom edges.
  */
-function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: string[], totalDurationMs: number, totalSec: number): string {
+function selectionMarkup(
+  sel: ResolvedSelection,
+  si: number,
+  uid: string,
+  kf: string[],
+  totalDurationMs: number,
+  totalSec: number,
+): string {
   const discrete = sel.charCount <= MAX_DISCRETE_SWEEP_CHARS;
   const perCharMs = sel.charCount > 0 ? sel.sweepMs / sel.charCount : 0;
   const parts: string[] = [];
@@ -535,7 +586,7 @@ function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: st
     // Sweep anchor: the rect's leading edge in reading order. `edges` are the
     // successive trailing edges, so the swept extent is their distance from it.
     const rtl = rect.rtl === true;
-    const anchor = vertical ? rect.y : (rtl ? rect.x + rect.width : rect.x);
+    const anchor = vertical ? rect.y : rtl ? rect.x + rect.width : rect.x;
     const sweptTo = (edge: number): number => (rtl && !vertical ? anchor - edge : edge - anchor);
     const stops: string[] = [`0%{${prop}:0.01px}`];
     if (startMs > 0) stops.push(`${pct(startMs, totalDurationMs)}{${prop}:0.01px}`);
@@ -558,20 +609,22 @@ function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: st
     // before the clear time (duplicate adjacent values hold under linear).
     const timing = discrete || sel.sweepMs === 0 ? "step-end" : "linear";
     if (sel.clearT != null) {
-      if (timing === "linear") stops.push(`${pct(Math.max(sel.t, sel.clearT - 1), totalDurationMs)}{${prop}:${num(fullExtent)}px}`);
+      if (timing === "linear")
+        stops.push(`${pct(Math.max(sel.t, sel.clearT - 1), totalDurationMs)}{${prop}:${num(fullExtent)}px}`);
       stops.push(`${pct(sel.clearT, totalDurationMs)}{${prop}:0.01px}`);
       stops.push(`100%{${prop}:0.01px}`);
     } else {
       stops.push(`100%{${prop}:${num(fullExtent)}px}`);
     }
     kf.push(`@keyframes ${name}{${stops.join("")}}`);
-    const place = rtl && !vertical
-      ? `x="0" y="${num(rect.y)}" transform="translate(${num(anchor)},0) scale(-1,1)"`
-      : `x="${num(rect.x)}" y="${num(rect.y)}"`;
-    const size = vertical
-      ? `width="${num(rect.width)}" height="0.01"`
-      : `width="0.01" height="${num(rect.height)}"`;
-    parts.push(`    <rect class="tt-sel" ${place} ${size} fill="${sel.color}" style="animation:${name} ${totalSec.toFixed(2)}s ${timing} infinite"/>`);
+    const place =
+      rtl && !vertical
+        ? `x="0" y="${num(rect.y)}" transform="translate(${num(anchor)},0) scale(-1,1)"`
+        : `x="${num(rect.x)}" y="${num(rect.y)}"`;
+    const size = vertical ? `width="${num(rect.width)}" height="0.01"` : `width="0.01" height="${num(rect.height)}"`;
+    parts.push(
+      `    <rect class="tt-sel" ${place} ${size} fill="${sel.color}" style="animation:${name} ${totalSec.toFixed(2)}s ${timing} infinite"/>`,
+    );
     sweptBefore += rect.edges.length;
   }
   return parts.join("\n");

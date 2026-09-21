@@ -8,12 +8,25 @@
 
 export { parseScrollPattern, ScrollPatternError } from "./pattern.js";
 export type {
-  ScrollPattern, ScrollPatternSegment, BracketedSegment, FlatSegment,
-  ScrollPatternAction, ScrollAction, PauseAction,
-  ScrollTarget, DeltaTarget, AbsoluteTarget,
-  Anchor, NamedAnchor, SelectorAnchor,
-  SignedLength, Length, Easing,
-  UntilClause, PositionUntil, CountUntil,
+  ScrollPattern,
+  ScrollPatternSegment,
+  BracketedSegment,
+  FlatSegment,
+  ScrollPatternAction,
+  ScrollAction,
+  PauseAction,
+  ScrollTarget,
+  DeltaTarget,
+  AbsoluteTarget,
+  Anchor,
+  NamedAnchor,
+  SelectorAnchor,
+  SignedLength,
+  Length,
+  Easing,
+  UntilClause,
+  PositionUntil,
+  CountUntil,
 } from "./pattern.js";
 
 export {

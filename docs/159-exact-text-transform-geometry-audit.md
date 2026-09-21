@@ -3,11 +3,19 @@ id: "requirements/exact-text-transform-geometry-audit"
 title: "Exact text-transform geometry audit"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","layout","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2469","DM-2470","DM-2471","DM-2547"]
-code: ["src/capture/script/index.ts","src/capture/text-fragment-geometry.ts","src/capture/text-line-origin.ts","src/capture/text-paint-geometry-cdp.ts","src/render/text-affine.ts","src/render/text.ts"]
-aliases: ["docs/159-exact-text-transform-geometry-audit.md","doc-159"]
+owners: ["text-fonts", "layout", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2469", "DM-2470", "DM-2471", "DM-2547"]
+code:
+  [
+    "src/capture/script/index.ts",
+    "src/capture/text-fragment-geometry.ts",
+    "src/capture/text-line-origin.ts",
+    "src/capture/text-paint-geometry-cdp.ts",
+    "src/render/text-affine.ts",
+    "src/render/text.ts",
+  ]
+aliases: ["docs/159-exact-text-transform-geometry-audit.md", "doc-159"]
 ---
 
 # Exact text-transform geometry audit
@@ -182,24 +190,24 @@ The 2026-08-22 darwin/arm64 run used Playwright 1.59.1 and Chromium
 all fifteen affine rows kept `transformSubtreeRaster` inactive. The projective
 row missed by `17.4469` CSS px and activated `transformSubtreeRaster`.
 
-| Row | Browser fact | Current captured paint-metric scale |
-| --- | --- | ---: |
-| identity | affine identity | 1.000000 |
-| translation | affine translation; no font change | 1.000000 |
-| uniform scale 1.25 | affine scale | 1.250000 |
-| uniform `cos(37deg)` | diagonal affine matrix | 0.798634 |
-| rotation 37deg | determinant about 1; off-diagonals +/-0.601815 | 0.798638 |
-| anisotropic scale 1.6 by 0.7 | complete affine matrix | 1.058300 |
-| rotate 31deg plus scale 1.6 by 0.65 | complete affine matrix | 0.874144 |
-| two-axis skew | complete affine matrix | 1.000000 |
-| `scaleX(-1)` | determinant -1; signed quad winding retained | 1.000000, transform discarded |
-| nested asymmetric origins | composed affine matrix | 0.962231 |
-| `transform-box: border-box` | affine matrix about the border-box reference origin | 0.926416 |
-| `transform-box: content-box` | same linear matrix; translation moves 8.7268 px by 16.1049 px | 0.926416 |
-| wrapped skew text | seven independently returned fragment quads | 1.000000 |
-| zoom 1.5 | computed font 48 px from logical 32 px | 1.000000 relative to computed size |
-| zoom 1.5 plus rotation 37deg | zoom remains local; rotation remains affine | 0.798635 |
-| perspective plus `rotateY`/`translateZ` | non-affine fourth corner; outer raster active | 0.862059 before replacement |
+| Row                                     | Browser fact                                                  | Current captured paint-metric scale |
+| --------------------------------------- | ------------------------------------------------------------- | ----------------------------------: |
+| identity                                | affine identity                                               |                            1.000000 |
+| translation                             | affine translation; no font change                            |                            1.000000 |
+| uniform scale 1.25                      | affine scale                                                  |                            1.250000 |
+| uniform `cos(37deg)`                    | diagonal affine matrix                                        |                            0.798634 |
+| rotation 37deg                          | determinant about 1; off-diagonals +/-0.601815                |                            0.798638 |
+| anisotropic scale 1.6 by 0.7            | complete affine matrix                                        |                            1.058300 |
+| rotate 31deg plus scale 1.6 by 0.65     | complete affine matrix                                        |                            0.874144 |
+| two-axis skew                           | complete affine matrix                                        |                            1.000000 |
+| `scaleX(-1)`                            | determinant -1; signed quad winding retained                  |       1.000000, transform discarded |
+| nested asymmetric origins               | composed affine matrix                                        |                            0.962231 |
+| `transform-box: border-box`             | affine matrix about the border-box reference origin           |                            0.926416 |
+| `transform-box: content-box`            | same linear matrix; translation moves 8.7268 px by 16.1049 px |                            0.926416 |
+| wrapped skew text                       | seven independently returned fragment quads                   |                            1.000000 |
+| zoom 1.5                                | computed font 48 px from logical 32 px                        |  1.000000 relative to computed size |
+| zoom 1.5 plus rotation 37deg            | zoom remains local; rotation remains affine                   |                            0.798635 |
+| perspective plus `rotateY`/`translateZ` | non-affine fourth corner; outer raster active                 |         0.862059 before replacement |
 
 The mutation control is especially strong. The uniform-cosine and rotation
 rows have scalar values within `0.000004`, yet their recovered matrices are:

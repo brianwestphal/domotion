@@ -15,7 +15,10 @@
 
 const enabled = process.env.DEMO_TIMING === "1";
 
-export interface ProfAcc { ms: number; count: number }
+export interface ProfAcc {
+  ms: number;
+  count: number;
+}
 const acc: Record<string, ProfAcc> = Object.create(null);
 
 export const renderProfileEnabled = enabled;

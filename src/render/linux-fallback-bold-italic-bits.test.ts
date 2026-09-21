@@ -69,7 +69,8 @@ const FAKE_CP = 0x2605;
 describe("Linux fcfallback isBold/isItalic reach the registered spec (DM-2017)", () => {
   it("carries isBold/isItalic through to the resolved key's FontPath", () => {
     const key = host.withHostPlatform("linux", () =>
-      fonts.__resolveSystemFallbackKeyForCpForTest(FAKE_CP, 700, 0, 16, "helvetica"));
+      fonts.__resolveSystemFallbackKeyForCpForTest(FAKE_CP, 700, 0, 16, "helvetica"),
+    );
     expect(key).not.toBeNull();
     expect(key).toMatch(/^sysfb:/);
 
@@ -89,11 +90,11 @@ describe("Linux fcfallback isBold/isItalic reach the registered spec (DM-2017)",
     // wiring reports what the helper actually said rather than defaulting
     // every pick to bold.
     const key = host.withHostPlatform("linux", () =>
-      fonts.__resolveSystemFallbackKeyForCpForTest(0x4e2d, 400, 0, 16, "helvetica"));
+      fonts.__resolveSystemFallbackKeyForCpForTest(0x4e2d, 400, 0, 16, "helvetica"),
+    );
     expect(key).not.toBeNull();
     const spec = fonts.__resolveFontSpecForTest(key!);
     expect(spec!.linuxFallbackIsBold).toBe(false);
     expect(spec!.linuxFallbackIsItalic).toBe(false);
   });
-
 });

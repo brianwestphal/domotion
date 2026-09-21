@@ -11,14 +11,15 @@ import { describe, expect, it } from "vitest";
 // text fill, without flagging the intentionally-bright saturated neons (cyan,
 // yellow, green), which have at least one low channel.
 
-const SRC = readFileSync(
-  fileURLToPath(new URL("../examples/domotion-word-demo.ts", import.meta.url)),
-  "utf-8",
-);
+const SRC = readFileSync(fileURLToPath(new URL("../examples/domotion-word-demo.ts", import.meta.url)), "utf-8");
 
 function hexToRgb(h: string): [number, number, number] {
   let s = h.slice(1);
-  if (s.length === 3) s = s.split("").map((c) => c + c).join("");
+  if (s.length === 3)
+    s = s
+      .split("")
+      .map((c) => c + c)
+      .join("");
   return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
 }
 

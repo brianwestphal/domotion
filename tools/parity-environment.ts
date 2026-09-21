@@ -46,32 +46,56 @@ function revision(repo: string, ref: string, environmentKey: string, authority: 
 }
 
 function fontInventoryDigest(): string {
-  const rows = platformFontKeys().map((key) => {
-    const f = shapingFaceFor(key, 400, 16, 0);
-    return f == null ? `${key}:missing` : `${key}:${f.path}#${f.faceIndex}:${JSON.stringify(f.axes)}`;
-  }).sort();
+  const rows = platformFontKeys()
+    .map((key) => {
+      const f = shapingFaceFor(key, 400, 16, 0);
+      return f == null ? `${key}:missing` : `${key}:${f.path}#${f.faceIndex}:${JSON.stringify(f.axes)}`;
+    })
+    .sort();
   return createHash("sha256").update(rows.join("\n")).digest("hex");
 }
 
 export function parityEnvironment(input: {
-  chromium: string; launchFlags: string[]; deviceScaleFactor: number; zoom: number;
-  writingMode: string; direction: string; corpusIdentity: string; sampleIdentity: string;
+  chromium: string;
+  launchFlags: string[];
+  deviceScaleFactor: number;
+  zoom: number;
+  writingMode: string;
+  direction: string;
+  corpusIdentity: string;
+  sampleIdentity: string;
 }): Record<string, unknown> {
   return {
     chromium: { version: input.chromium, launchFlags: input.launchFlags },
     host: { os: platform(), release: release(), architecture: arch() },
     fonts: { inventoryDigest: fontInventoryDigest(), genericPreferences: "platform-session-resolver" },
     locale: { process: Intl.DateTimeFormat().resolvedOptions().locale, languages: process.env.LANG ?? "unset" },
-    helper: { implementation: `${process.platform}-glyph-helper`, buildRecipe: "repository-native-helper", disabled: process.env.DOMOTION_DISABLE_HELPER === "1" },
+    helper: {
+      implementation: `${process.platform}-glyph-helper`,
+      buildRecipe: "repository-native-helper",
+      disabled: process.env.DOMOTION_DISABLE_HELPER === "1",
+    },
     runtimes: {
-      node: process.version, icu: process.versions.icu, unicode: process.versions.unicode,
+      node: process.version,
+      icu: process.versions.icu,
+      unicode: process.versions.unicode,
       chromiumSource: revision("external/chromium", "HEAD", "DOMOTION_CHROMIUM_REVISION", "chromium"),
       harfbuzzSource: revision("external/harfbuzz", "HEAD", "DOMOTION_HARFBUZZ_REVISION", "harfbuzz"),
       skiaPinned: revision("external/skia", "62efacd3", "DOMOTION_SKIA_REVISION", "skia"),
       icuSource: revision("external/chromium/third_party/icu", "HEAD", "DOMOTION_ICU_SOURCE_REVISION", "icu"),
     },
-    viewport: { deviceScaleFactor: input.deviceScaleFactor, zoom: input.zoom, writingMode: input.writingMode, direction: input.direction },
-    corpus: { identity: input.corpusIdentity, sample: input.sampleIdentity, cacheIsolation: "new-process/new-document", resources: "inline-or-host-inventory" },
+    viewport: {
+      deviceScaleFactor: input.deviceScaleFactor,
+      zoom: input.zoom,
+      writingMode: input.writingMode,
+      direction: input.direction,
+    },
+    corpus: {
+      identity: input.corpusIdentity,
+      sample: input.sampleIdentity,
+      cacheIsolation: "new-process/new-document",
+      resources: "inline-or-host-inventory",
+    },
   };
 }
 

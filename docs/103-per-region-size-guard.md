@@ -5,9 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1764","DM-1771","DM-1772"]
-code: ["src/animation/compressed-run.ts","src/cli/animate.ts","src/render/embedded-font-snapshot.test.ts","tests/compress-size-guard.e2e.test.ts"]
-aliases: ["docs/103-per-region-size-guard.md","doc-103"]
+tickets: ["DM-1764", "DM-1771", "DM-1772"]
+code:
+  [
+    "src/animation/compressed-run.ts",
+    "src/cli/animate.ts",
+    "src/render/embedded-font-snapshot.test.ts",
+    "tests/compress-size-guard.e2e.test.ts",
+  ]
+aliases: ["docs/103-per-region-size-guard.md", "doc-103"]
 ---
 
 # Per-region size guard (frame-sequence compressor)
@@ -33,7 +39,7 @@ This doc is the canonical spec for that decision. It is a lockstep reference for
 
 ## Regions
 
-A *region* is the discriminator the compressor buckets glyph-layer text by
+A _region_ is the discriminator the compressor buckets glyph-layer text by
 (docs/100 "Independent regions in one scene"), keyed as a string:
 
 - `R<x>,<y>,<w>,<h>` — the innermost **clipping ancestor** (rounded box geometry).
@@ -48,7 +54,7 @@ keys the guard trials.
 ## Demotion
 
 **Demoting** a region means moving its text out of the animated glyph layer and
-into the chrome union — exactly the path *ineligible* text already takes
+into the chrome union — exactly the path _ineligible_ text already takes
 (occluded text, decorated/RTL/complex-script text, etc.). It is therefore
 **pixel-safe by the same argument**: the chrome tree flipbooks that text in
 place, so the painted result is unchanged.
@@ -69,16 +75,16 @@ guard decide each region on its own.
 The trigger `compressedBytes / rawBytes` is free (the compressor already reports
 both sides) and only **arms** the guard — it never decides. The choice is made on
 **real bytes** among three pixel-identical candidates, and only for runs the
-*automatic* pass created (`wasAutoCollapsed`); a hand-authored `states:` block or
+_automatic_ pass created (`wasAutoCollapsed`); a hand-authored `states:` block or
 `compress: true` marker is never silently rewritten (it gets a warning pointing
 at `compress: false`).
 
 The arming ratio differs by who asked for the run:
 
-| Run | Constant | Ratio | Why |
-|---|---|---|---|
-| automatic (`wasAutoCollapsed`) | `COMPRESS_SIZE_GUARD_AUTO_RATIO` | `> 1` | Any failure to shrink the chrome is reason to price the alternatives. Since the decision is on measured bytes and ties keep the compressed form, arming can only find wins, never cost output — it costs a few speculative composes. |
-| author-written (`states:` / `compress: true`) | `COMPRESS_SIZE_GUARD_RATIO` | `> 1.02` | This path only warns, so the 2% cushion keeps a run that merely ties on bytes from drawing a warning. |
+| Run                                           | Constant                         | Ratio    | Why                                                                                                                                                                                                                                  |
+| --------------------------------------------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| automatic (`wasAutoCollapsed`)                | `COMPRESS_SIZE_GUARD_AUTO_RATIO` | `> 1`    | Any failure to shrink the chrome is reason to price the alternatives. Since the decision is on measured bytes and ties keep the compressed form, arming can only find wins, never cost output — it costs a few speculative composes. |
+| author-written (`states:` / `compress: true`) | `COMPRESS_SIZE_GUARD_RATIO`      | `> 1.02` | This path only warns, so the 2% cushion keeps a run that merely ties on bytes from drawing a warning.                                                                                                                                |
 
 The automatic path used the 2% cushion too until it was found to leave large
 wins on the table: a mixed-pane scene (a well-pairing code pane beside a
@@ -101,7 +107,7 @@ The three candidates:
 2. **per-region demotion** — trial each region in `run.regions` demoted alone;
    demote every region whose demotion shrinks the run. Because regions are
    pixel-independent, demoting the set of individually-beneficial regions is the
-   minimum. Demoting *all* regions is the whole chrome union.
+   minimum. Demoting _all_ regions is the whole chrome union.
 3. **`composeStatesFlipbook`** — the uncompressed flipbook, retained as a
    candidate (the never-worse floor).
 
@@ -113,10 +119,10 @@ demotion is the primary fallback).
 
 Chrome demotion beats the flipbook **only when states share subtrees the union
 deduplicates**. On the mixed fixture below that is a 2× win (81.8 vs 97.8 KB).
-But for a *pure* wholesale slideshow the union can't dedupe and comes out
+But for a _pure_ wholesale slideshow the union can't dedupe and comes out
 slightly larger than the flipbook, so dropping the flipbook entirely would
 regress the DM-1764 guarantee that `autoCompress` never grows output. Keeping
-`composeStatesFlipbook` as a candidate — rather than *replacing* it with chrome
+`composeStatesFlipbook` as a candidate — rather than _replacing_ it with chrome
 demotion — is what preserves that guarantee while still taking the demotion win
 where it exists. (The DM-1772 ticket framed item 3 as "switch the fallback to
 chrome demotion"; the shipped guard keeps the flipbook as a floor for exactly
@@ -127,16 +133,16 @@ this reason.)
 A well-pairing editor pane beside a wholesale-change slideshow pane, 6 states,
 97.3 KB of raw flipbook payload:
 
-| candidate | composed bytes |
-| --- | --- |
-| compress both regions (keep-all) | 172.1 KB (1.77× raw) |
-| demote the wholesale-change region only | 83.2 KB |
-| demote the well-pairing region only | 170.9 KB |
-| demote both (per-region minimum) | **81.8 KB** |
-| `composeStatesFlipbook` (uncompressed floor) | 97.8 KB |
+| candidate                                    | composed bytes       |
+| -------------------------------------------- | -------------------- |
+| compress both regions (keep-all)             | 172.1 KB (1.77× raw) |
+| demote the wholesale-change region only      | 83.2 KB              |
+| demote the well-pairing region only          | 170.9 KB             |
+| demote both (per-region minimum)             | **81.8 KB**          |
+| `composeStatesFlipbook` (uncompressed floor) | 97.8 KB              |
 
 The guard here demotes both panes (each shrinks the run) → 81.8 KB, beating both
-keep-all and the flipbook. Demoting the *wrong* subset (the well-pairing pane
+keep-all and the flipbook. Demoting the _wrong_ subset (the well-pairing pane
 only) would be 170.9 KB — larger than the flipbook — so the guard would fall to
 the flipbook instead; a demotion that beats the flipbook is only reachable by
 demoting the right region(s).

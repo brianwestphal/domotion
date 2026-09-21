@@ -59,7 +59,7 @@ beforeAll(async () => {
   instances = await measureInstances(page, DEFAULT_FIXTURE);
 
   const rebase = (xs: number[]): number[] =>
-    (xs.length === 0 ? xs : xs.map((v) => Math.round((v - xs[0]) * 100) / 100));
+    xs.length === 0 ? xs : xs.map((v) => Math.round((v - xs[0]) * 100) / 100);
   rows = [];
   for (const chromeSide of instances) {
     for (const ourSide of instances) {

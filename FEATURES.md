@@ -5,6 +5,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 ## Rendering Features
 
 ### Text
+
 - [x] **text-basic**: Plain text rendering (font-size, font-family, color)
 - [x] **text-bold**: Bold/weight text
 - [x] **text-center**: Centered text (text-align: center)
@@ -18,6 +19,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **text-font-stretch-underline**: CSS `font-stretch` end to end — condensed/expanded cut selection for declared families (Blink's trait-based style matcher), the `wdth` variation axis on the macOS `system-ui` face and variable webfonts, and decoration metrics resolved on the same width-matched face as the glyphs
 
 ### Backgrounds & Colors
+
 - [x] **bg-solid**: Solid background colors
 - [x] **bg-transparent**: Semi-transparent backgrounds (rgba)
 - [x] **bg-nested**: Nested backgrounds (child on top of parent)
@@ -26,12 +28,14 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [ ] **bg-dark-mode** (DM-455, doc 29): Dark-mode capture support — caller-chosen `colorScheme`, dark form-control palette, scheme-aware transparent-root fallback
 
 ### Borders
+
 - [x] **border-solid**: Solid borders with color
 - [x] **border-radius**: Rounded corners
 - [x] **border-radius-pill**: Fully rounded (pill shape)
 - [x] **inline-box-decoration-break**: wrapped inline backgrounds / borders paint per line-fragment (`slice` + `clone`); first/last fragment own the start/end edges in slice mode, every fragment paints a full box in clone mode
 
 ### Layout
+
 - [x] **layout-flex-row**: Horizontal flex layout with gap
 - [x] **layout-flex-col**: Vertical flex layout
 - [x] **layout-flex-center**: Centered content (justify-content/align-items)
@@ -43,6 +47,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **animated-projective-frame-state** (DM-2359/DM-2356/DM-2492/DM-2493, docs 186/189): `animationTimeMs` exactly pauses document timelines before all capture prepasses and exposes the CDP quad, composed 3D state, residual, and selected atomic raster owner without a fitted 2D approximation. Same-frame used-preserve facts select Blink's direct-parent rendering-context root; a strict 25-family/four-profile native three-OS DPR-1/2 gate rejects larger crops, warnings, restoration drift, incomplete evidence, and nine ownership mutations.
 
 ### Components
+
 - [x] **comp-button**: Button with background, border, padding, text
 - [x] **comp-badge**: Small badge with colored background and text
 - [x] **comp-card**: Card with background, border, radius, content
@@ -54,17 +59,21 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [ ] **comp-nav**: Navigation bar with logo and links
 
 ### SVG
+
 - [x] **svg-inline**: Inline SVG elements are cloned as self-contained vectors; CSS-only clip/mask effects preserve native fill-box, stroke-box, and view-box resolution (DM-2328)
 - [x] **clip-path-url-reference-ownership** (DM-2362, docs 39/130): bare same-document/external URL clips preserve HTML border/object-bounding-box and SVG forced-fill ownership; Blink-invalid URL-plus-box declarations stay inactive, including stale captured trees and nested frames.
 
 ### Masks
+
 - [x] **mask-contain-cover-arbitrary-position** (DM-2379, doc 20): URL masks capture Chromium-decoded intrinsic ratios and emit concrete Blink-fitted rectangles for percentage, length, and calc positions; zoom/DPR, physical writing axes, multilayer, and slice/clone fragment controls reject the retired SVG Min/Mid/Max buckets.
 
 ### Text effects
+
 - [x] **text-bg-clip-gradient** (DM-462): `background-clip: text` + `-webkit-text-fill-color: transparent` — gradient fills the glyph shapes via SVG `<mask>` over the bg-color rect
 - [x] **pseudo-filter-functions** (DM-2367, doc 38): generated empty/text/image paint supports blur, drop-shadow, brightness, contrast, grayscale, hue-rotate, invert, opacity, saturate, sepia, and ordered lists through Chromium's native SVG CSS-filter pipeline; identity/none, transform, clip, stack slot, zoom, DPR, and filter-stripped mutation controls are browser-gated.
 
 ### Replaced elements (rasterized as static snapshot — DM-457)
+
 - [x] **replaced-canvas-shape**: `<canvas>` with drawn shapes — bitmap survives via `page.screenshot`
 - [x] **replaced-video-poster**: `<video poster=…>` paused — poster image captured
 - [x] **replaced-canvas-overlay**: `<canvas>` under a positioned `<div z-index:10>` overlay — overlay does NOT bleed into the canvas snapshot
@@ -79,11 +88,13 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **snapshot-isolation-pseudo-overlay** (DM-458, `tests/snapshot-isolation.tsx`): canvas covered by a sibling's `::after` pseudo overlay. Inspection-style — decodes the captured snapshot's PNG data URI and asserts no overlay-color pixels leaked through. Catches regressions in the hide-everything-else stylesheet that a comparison-style fixture wouldn't.
 
 ### Showcase Integration Tests
+
 - [x] **showcase-typography**: Full-page layout with headings, badges, code blocks, inline code, status text
 - [x] **showcase-cards**: Card list with badges, buttons, metadata
 - [x] **showcase-forms**: Publish form with labels, inputs, pre block, button
 
 ### Composed Parity Integration Tests
+
 - [x] **composed-multilingual-flex-grid**: Platform fallback and bidi isolation inside flex/grid messaging UI, with neutral-wrapper and node-split relations
 - [x] **composed-responsive-fragmented-controls**: Native controls inside responsive multicol layout with equivalent grid syntax
 - [x] **composed-gradient-mask-clip-stacking**: Gradients, masks, and clips under explicit stacking ownership and reversed DOM order
@@ -97,6 +108,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 Tests are defined in `tests/features.ts` (26 feature tests) and `tests/showcase.ts` (3 integration tests). Both use the shared runner in `tests/runner.ts`.
 
 For each test case:
+
 1. Define an HTML snippet (feature tests) or full-page HTML (showcase tests) exercising the feature
 2. Render the HTML in Playwright (Chromium) and capture as PNG ("expected")
 3. Capture the DOM via `captureElementTree` on the Playwright page

@@ -12,7 +12,12 @@
 // What is NOT here: `resolveFakeBoldTextPaint` (embolden-outline.ts), which
 // turns "yes, synthesize" into Skia scaler records and SVG paint passes.
 
-import { webfontSyntheticBold, webfontSyntheticItalic, BLINK_ITALIC_SLOPE_VALUE, type FontInstance } from "./font-resolution.js";
+import {
+  webfontSyntheticBold,
+  webfontSyntheticItalic,
+  BLINK_ITALIC_SLOPE_VALUE,
+  type FontInstance,
+} from "./font-resolution.js";
 import { hostPlatform } from "./host-platform.js";
 import { FAUX_BOLD_WEIGHT_DELTA } from "./embolden-outline.js";
 
@@ -38,19 +43,25 @@ export interface FontSynthesisAllowance {
 }
 
 /** Read one `font-synthesis` permission, defaulting to permitted (`auto`). */
-export function synthesisAllowed(
-  a: FontSynthesisAllowance | undefined, kind: keyof FontSynthesisAllowance,
-): boolean {
+export function synthesisAllowed(a: FontSynthesisAllowance | undefined, kind: keyof FontSynthesisAllowance): boolean {
   return a?.[kind] !== false;
 }
 
 /** The `FontInstance` fields the two predicates read — spelled out so a caller
  *  holding a partial instance (or a test fixture) can pass one without
  *  fabricating a whole font. */
-export type SynthesisFace = Pick<FontInstance,
-  "naturalWeight" | "faceIsBoldTrait" | "faceIsItalicTrait" | "webfontFace"
-  | "hasSlantAxis" | "isRoutedItalicCut" | "resolvedItalicAngle"
-  | "linuxFallbackIsBold" | "linuxFallbackIsItalic">;
+export type SynthesisFace = Pick<
+  FontInstance,
+  | "naturalWeight"
+  | "faceIsBoldTrait"
+  | "faceIsItalicTrait"
+  | "webfontFace"
+  | "hasSlantAxis"
+  | "isRoutedItalicCut"
+  | "resolvedItalicAngle"
+  | "linuxFallbackIsBold"
+  | "linuxFallbackIsItalic"
+>;
 
 /**
  * Whether Chrome would synthesize BOLD for this resolved face at this weight.
@@ -154,8 +165,7 @@ export function faceNeedsSyntheticBold(
     // up-front `naturalWeight == null` bail silently disabled synthetic bold
     // for every one of them (DM-2025). Bail only when both signals are absent,
     // where "not bold" is the safe degradation (never double-bold a real Bold).
-    const faceIsBold =
-      font.faceIsBoldTrait ?? (faceNaturalWeight != null ? faceNaturalWeight >= 600 : null);
+    const faceIsBold = font.faceIsBoldTrait ?? (faceNaturalWeight != null ? faceNaturalWeight >= 600 : null);
     if (faceIsBold == null) return false;
     return requestedWeight > 500 && !faceIsBold;
   }
@@ -168,8 +178,7 @@ export function faceNeedsSyntheticBold(
     // darwin: the DirectWrite default path is native-helper-backed and reports
     // the trait without an OS/2 weight, so gating on `naturalWeight` up front
     // disabled it there too (DM-2025).
-    const faceIsBold =
-      font.faceIsBoldTrait ?? (faceNaturalWeight != null ? faceNaturalWeight >= 600 : null);
+    const faceIsBold = font.faceIsBoldTrait ?? (faceNaturalWeight != null ? faceNaturalWeight >= 600 : null);
     if (faceIsBold == null) return false;
     return requestedWeight >= 600 && !faceIsBold;
   }
@@ -265,9 +274,10 @@ export function faceNeedsSyntheticOblique(
   // The pre-existing outline-derived signal: does the RESOLVED face already
   // lean, by any of the three ways that can be true? Shared by every
   // platform as the fallback when its native trait is unavailable.
-  const faceAlreadyLeans = font.hasSlantAxis === true
-    || font.isRoutedItalicCut === true
-    || (font.resolvedItalicAngle != null && Math.abs(font.resolvedItalicAngle) >= 1);
+  const faceAlreadyLeans =
+    font.hasSlantAxis === true ||
+    font.isRoutedItalicCut === true ||
+    (font.resolvedItalicAngle != null && Math.abs(font.resolvedItalicAngle) >= 1);
   if (platform === "darwin") {
     // `mac/font_cache_mac.mm:431-436`: ANY nonzero requested slope, tested
     // against the CoreText trait — full stop, when the trait is known. Falls

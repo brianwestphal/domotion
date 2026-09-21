@@ -26,9 +26,7 @@ interface CdpNode {
   contentDocument?: CdpNode;
 }
 
-const CONTROL_NODE_NAMES = new Set([
-  "BUTTON", "INPUT", "METER", "PROGRESS", "SELECT", "TEXTAREA",
-]);
+const CONTROL_NODE_NAMES = new Set(["BUTTON", "INPUT", "METER", "PROGRESS", "SELECT", "TEXTAREA"]);
 
 function errorText(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error);
@@ -134,13 +132,17 @@ export async function captureEffectiveAppearanceFacts(page: Page): Promise<Effec
     propertyKey,
     setupFailure,
     async dispose(): Promise<void> {
-      await Promise.all([...hostObjectIds].map(async (objectId) => {
-        await session.send("Runtime.callFunctionOn", {
-          objectId,
-          functionDeclaration: "function(key) { delete this[key]; }",
-          arguments: [{ value: propertyKey }],
-        }).catch(() => undefined);
-      }));
+      await Promise.all(
+        [...hostObjectIds].map(async (objectId) => {
+          await session
+            .send("Runtime.callFunctionOn", {
+              objectId,
+              functionDeclaration: "function(key) { delete this[key]; }",
+              arguments: [{ value: propertyKey }],
+            })
+            .catch(() => undefined);
+        }),
+      );
       await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => undefined);
       await session.detach().catch(() => undefined);
     },

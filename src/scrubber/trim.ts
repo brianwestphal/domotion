@@ -77,7 +77,8 @@ const NUM_RE = /-?\d*\.?\d+(?:[eE][+-]?\d+)?/g;
 function lerpValue(a: string, b: string, t: number): string | null {
   const an = a.match(NUM_RE);
   const bn = b.match(NUM_RE);
-  if (a.replace(NUM_RE, "\0") !== b.replace(NUM_RE, "\0") || an == null || bn == null || an.length !== bn.length) return null;
+  if (a.replace(NUM_RE, "\0") !== b.replace(NUM_RE, "\0") || an == null || bn == null || an.length !== bn.length)
+    return null;
   const parts = a.replace(NUM_RE, "\0").split("\0");
   let out = "";
   for (let i = 0; i < parts.length; i++) {
@@ -87,16 +88,24 @@ function lerpValue(a: string, b: string, t: number): string | null {
   return out;
 }
 
-interface Stop { at: number; value: string }
+interface Stop {
+  at: number;
+  value: string;
+}
 
 /** State of a single value channel at fraction `f`, given sorted stops. */
 function valueAt(stops: Stop[], f: number, discrete: boolean): string {
   if (stops.length === 0) return "";
   if (f <= stops[0].at) return stops[0].value;
   if (f >= stops[stops.length - 1].at) return stops[stops.length - 1].value;
-  let lo = stops[0], hi = stops[stops.length - 1];
+  let lo = stops[0],
+    hi = stops[stops.length - 1];
   for (let i = 0; i < stops.length - 1; i++) {
-    if (stops[i].at <= f && f <= stops[i + 1].at) { lo = stops[i]; hi = stops[i + 1]; break; }
+    if (stops[i].at <= f && f <= stops[i + 1].at) {
+      lo = stops[i];
+      hi = stops[i + 1];
+      break;
+    }
   }
   if (discrete) return lo.value; // hold the value of the stop at-or-before f
   const span = hi.at - lo.at;
@@ -118,7 +127,10 @@ function windowStops(stops: Stop[], f0: number, f1: number, discrete: boolean): 
 
 // ── CSS @keyframes parse / slice ────────────────────────────────────────────
 
-interface CssFrame { at: number; decls: Map<string, string> }
+interface CssFrame {
+  at: number;
+  decls: Map<string, string>;
+}
 
 function parseKeyframes(body: string): CssFrame[] {
   const frames: CssFrame[] = [];
@@ -137,7 +149,10 @@ function parseKeyframes(body: string): CssFrame[] {
       let at: number | null = null;
       if (s === "from") at = 0;
       else if (s === "to") at = 1;
-      else if (s.endsWith("%")) { const v = parseFloat(s); if (Number.isFinite(v)) at = v / 100; }
+      else if (s.endsWith("%")) {
+        const v = parseFloat(s);
+        if (Number.isFinite(v)) at = v / 100;
+      }
       if (at != null) frames.push({ at, decls: new Map(decls) });
     }
   }
@@ -151,15 +166,22 @@ function cssStateAt(frames: CssFrame[], f: number): Map<string, string> {
   if (frames.length === 0) return new Map();
   if (f <= frames[0].at) return new Map(frames[0].decls);
   if (f >= frames[frames.length - 1].at) return new Map(frames[frames.length - 1].decls);
-  let lo = frames[0], hi = frames[frames.length - 1];
+  let lo = frames[0],
+    hi = frames[frames.length - 1];
   for (let i = 0; i < frames.length - 1; i++) {
-    if (frames[i].at <= f && f <= frames[i + 1].at) { lo = frames[i]; hi = frames[i + 1]; break; }
+    if (frames[i].at <= f && f <= frames[i + 1].at) {
+      lo = frames[i];
+      hi = frames[i + 1];
+      break;
+    }
   }
   const t = hi.at > lo.at ? (f - lo.at) / (hi.at - lo.at) : 0;
   const out = new Map<string, string>();
   for (const p of new Set([...lo.decls.keys(), ...hi.decls.keys()])) {
-    const a = lo.decls.get(p), b = hi.decls.get(p);
-    if (a != null && b != null) out.set(p, lerpValue(a, b, t) ?? a); // lerp, else snap to lo
+    const a = lo.decls.get(p),
+      b = hi.decls.get(p);
+    if (a != null && b != null)
+      out.set(p, lerpValue(a, b, t) ?? a); // lerp, else snap to lo
     else out.set(p, (a ?? b)!);
   }
   return out;
@@ -175,7 +197,8 @@ function sliceKeyframesBody(body: string, f0: number, f1: number): string {
   stops.push({ at: 1, decls: cssStateAt(frames, f1) });
   const byPct = new Map<number, Map<string, string>>();
   for (const s of stops) byPct.set(Math.round(s.at * 1e5) / 1e3, s.decls);
-  return [...byPct.entries()].sort((a, b) => a[0] - b[0])
+  return [...byPct.entries()]
+    .sort((a, b) => a[0] - b[0])
     .map(([pct, decls]) => `${pct}% { ${[...decls.entries()].map(([k, v]) => `${k}: ${v}`).join("; ")} }`)
     .join(" ");
 }
@@ -185,11 +208,15 @@ function sliceKeyframesBody(body: string, f0: number, f1: number): string {
 /** Split a comma list ignoring commas inside parens (cubic-bezier(...)). */
 function splitTopLevel(s: string): string[] {
   const out: string[] = [];
-  let depth = 0, cur = "";
+  let depth = 0,
+    cur = "";
   for (const ch of s) {
     if (ch === "(") depth++;
     else if (ch === ")") depth = Math.max(0, depth - 1);
-    if (ch === "," && depth === 0) { out.push(cur); cur = ""; } else cur += ch;
+    if (ch === "," && depth === 0) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
   }
   if (cur.trim() !== "" || out.length > 0) out.push(cur);
   return out;
@@ -197,7 +224,12 @@ function splitTopLevel(s: string): string[] {
 
 const TIME_RE = /(-?\d*\.?\d+)(ms|s)\b/;
 
-interface CssAnim { seg: string; name: string | null; durMs: number | null; infinite: boolean }
+interface CssAnim {
+  seg: string;
+  name: string | null;
+  durMs: number | null;
+  infinite: boolean;
+}
 
 function parseCssAnims(value: string, keyframeNames: Set<string>): CssAnim[] {
   return splitTopLevel(value).map((seg) => {
@@ -220,7 +252,8 @@ export function trimAnimatedSvg(svgMarkup: string, startMs: number, endMs: numbe
   const period = periodMs && periodMs > 0 ? periodMs : t1; // fall back: treat the window's end as the period
   const f0 = t0 / period;
   const f1 = Math.min(1, t1 / period);
-  const isPeriod = (durMs: number | null): boolean => durMs != null && Math.abs(durMs - period) <= Math.max(4, period * 0.02);
+  const isPeriod = (durMs: number | null): boolean =>
+    durMs != null && Math.abs(durMs - period) <= Math.max(4, period * 0.02);
   const negT0 = secs(-t0);
   const winSec = secs(win);
 
@@ -238,7 +271,8 @@ export function trimAnimatedSvg(svgMarkup: string, startMs: number, endMs: numbe
     const allPeriod = anims.length > 0 && anims.every((a) => isPeriod(a.durMs) && a.infinite);
     for (const a of anims) {
       if (a.name == null) continue;
-      if (allPeriod) sliceNames.add(a.name); else rebaseRuleNames.add(a.name);
+      if (allPeriod) sliceNames.add(a.name);
+      else rebaseRuleNames.add(a.name);
     }
   }
   for (const n of rebaseRuleNames) sliceNames.delete(n); // a name used by any re-based rule is never sliced
@@ -246,10 +280,13 @@ export function trimAnimatedSvg(svgMarkup: string, startMs: number, endMs: numbe
   let out = svgMarkup;
 
   // 1. Slice the @keyframes bodies that belong to period-spanning rules.
-  out = out.replace(/@keyframes\s+([A-Za-z_][\w-]*)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (full, name: string, body: string) => {
-    if (!sliceNames.has(name)) return full;
-    return `@keyframes ${name} {${sliceKeyframesBody(body, f0, f1)}}`;
-  });
+  out = out.replace(
+    /@keyframes\s+([A-Za-z_][\w-]*)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g,
+    (full, name: string, body: string) => {
+      if (!sliceNames.has(name)) return full;
+      return `@keyframes ${name} {${sliceKeyframesBody(body, f0, f1)}}`;
+    },
+  );
 
   // 2. Rewrite each `animation` shorthand.
   out = out.replace(/animation\s*:\s*([^;}]+)/g, (full, value: string) => {
@@ -258,7 +295,9 @@ export function trimAnimatedSvg(svgMarkup: string, startMs: number, endMs: numbe
     if (allPeriod) {
       // Sliced: set each segment's duration to the window length; no delay.
       result.slicedCss++;
-      const newVal = splitTopLevel(value).map((seg) => seg.replace(TIME_RE, winSec)).join(",");
+      const newVal = splitTopLevel(value)
+        .map((seg) => seg.replace(TIME_RE, winSec))
+        .join(",");
       return `animation:${newVal}`;
     }
     // Re-based: shift the whole rule back by t0 (single delay applies to all
@@ -269,8 +308,9 @@ export function trimAnimatedSvg(svgMarkup: string, startMs: number, endMs: numbe
 
   // 3. SMIL: slice period-spanning elements; window-loop / drop the rest.
   const idCounter = { n: 0 };
-  out = out.replace(new RegExp(`<(?:${SMIL_TAGS})\\b[^>]*?/?>`, "g"),
-    (tag) => rewriteSmil(tag, t0, win, f0, f1, winSec, isPeriod, idCounter, result));
+  out = out.replace(new RegExp(`<(?:${SMIL_TAGS})\\b[^>]*?/?>`, "g"), (tag) =>
+    rewriteSmil(tag, t0, win, f0, f1, winSec, isPeriod, idCounter, result),
+  );
 
   return { ...result, svg: out };
 }
@@ -288,8 +328,15 @@ function setAttr(tag: string, name: string, value: string): string {
 }
 
 function rewriteSmil(
-  tag: string, t0: number, win: number, f0: number, f1: number, winSec: string,
-  isPeriod: (d: number | null) => boolean, idCounter: { n: number }, result: TrimResult,
+  tag: string,
+  t0: number,
+  win: number,
+  f0: number,
+  f1: number,
+  winSec: string,
+  isPeriod: (d: number | null) => boolean,
+  idCounter: { n: number },
+  result: TrimResult,
 ): string {
   const durMs = parseClockMs(attr(tag, "dur") ?? "");
   const repeat = attr(tag, "repeatCount");
@@ -303,10 +350,16 @@ function rewriteSmil(
   if (isPeriod(durMs) && looping && values != null && calcMode !== "paced" && calcMode !== "spline") {
     const vals = values.split(";").map((s) => s.trim());
     const ktAttr = attr(tag, "keyTimes");
-    const kt = ktAttr != null
-      ? ktAttr.split(";").map((s) => parseFloat(s))
-      : vals.map((_, i) => (vals.length === 1 ? 0 : i / (vals.length - 1)));
-    const sliced = windowStops(vals.map((value, i) => ({ at: kt[i] ?? 0, value })), f0, f1, calcMode === "discrete");
+    const kt =
+      ktAttr != null
+        ? ktAttr.split(";").map((s) => parseFloat(s))
+        : vals.map((_, i) => (vals.length === 1 ? 0 : i / (vals.length - 1)));
+    const sliced = windowStops(
+      vals.map((value, i) => ({ at: kt[i] ?? 0, value })),
+      f0,
+      f1,
+      calcMode === "discrete",
+    );
     let t = setAttr(tag, "values", sliced.map((s) => s.value).join(";"));
     t = setAttr(t, "keyTimes", sliced.map((s) => num(s.at)).join(";"));
     t = setAttr(t, "dur", winSec);
@@ -330,7 +383,10 @@ function rewriteSmil(
   // window). Self-referencing syncbase = a 2-entry begin/end, no long list.
   let id = attr(tag, "id");
   let t = tag;
-  if (id == null) { id = `tw${idCounter.n++}`; t = setAttr(t, "id", id); }
+  if (id == null) {
+    id = `tw${idCounter.n++}`;
+    t = setAttr(t, "id", id);
+  }
   t = setAttr(t, "begin", `${secs(delta)}; ${id}.begin+${winSec}`);
   t = setAttr(t, "end", `${winSec}; ${id}.end+${winSec}`);
   // `fill="remove"` so a clipped instance VANISHES at the loop boundary instead

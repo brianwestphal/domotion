@@ -5,9 +5,33 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1414","DM-1524","DM-1542","DM-1547","DM-1548","DM-1549","DM-1550","DM-1551","DM-1583","DM-1585","DM-1996"]
-code: ["examples/output/transition-mixed.svg","examples/showcase-transitions.ts","src/animation/animator.ts","src/animation/composite.ts","src/animation/easing.ts","src/animation/motion-presets.ts","src/animation/overlay-schema.ts","src/animation/shine.ts","src/cli/animate.ts"]
-aliases: ["docs/88-transition-effect-expansion.md","doc-88"]
+tickets:
+  [
+    "DM-1414",
+    "DM-1524",
+    "DM-1542",
+    "DM-1547",
+    "DM-1548",
+    "DM-1549",
+    "DM-1550",
+    "DM-1551",
+    "DM-1583",
+    "DM-1585",
+    "DM-1996",
+  ]
+code:
+  [
+    "examples/output/transition-mixed.svg",
+    "examples/showcase-transitions.ts",
+    "src/animation/animator.ts",
+    "src/animation/composite.ts",
+    "src/animation/easing.ts",
+    "src/animation/motion-presets.ts",
+    "src/animation/overlay-schema.ts",
+    "src/animation/shine.ts",
+    "src/cli/animate.ts",
+  ]
+aliases: ["docs/88-transition-effect-expansion.md", "doc-88"]
 ---
 
 # 88 — Transition & effect expansion (SVG-safe)
@@ -33,12 +57,12 @@ upward). DM-1524 completes the compass with **`push-right`**, **`push-up`**, and
 a signed displacement on an axis and the incoming frame slides in from the
 opposite side — **both frames move together**, a true push (not a cover).
 
-| Type | Outgoing exits | Incoming enters from |
-|---|---|---|
-| `push-left` | left (−X) | right |
-| `push-right` | right (+X) | left |
-| `push-up` (== `scroll`) | up (−Y) | below |
-| `push-down` | down (+Y) | above |
+| Type                    | Outgoing exits | Incoming enters from |
+| ----------------------- | -------------- | -------------------- |
+| `push-left`             | left (−X)      | right                |
+| `push-right`            | right (+X)     | left                 |
+| `push-up` (== `scroll`) | up (−Y)        | below                |
+| `push-down`             | down (+Y)      | above                |
 
 `push-up` is a byte-identical alias of `scroll` (same `{axis: Y, sign: −1}`);
 prefer whichever name reads better in your config.
@@ -184,13 +208,19 @@ backed by `buildShineSweep`:
 ```jsonc
 {
   "kind": "shine",
-  "x": 30, "y": 280, "width": 132, "height": 34,  // box the glint is clipped to
-  "radius": 8,           // DM-1551: round the clip to follow a pill/button's corners
-  "delay": 900,          // ms from frame start to the first sweep (default 200)
-  "duration": 850,       // one-shot sweep length in ms (default 900)
-  "repeat": "infinite",  // omit for a single sweep; a count / "infinite" shimmers
+  "x": 30,
+  "y": 280,
+  "width": 132,
+  "height": 34, // box the glint is clipped to
+  "radius": 8, // DM-1551: round the clip to follow a pill/button's corners
+  "delay": 900, // ms from frame start to the first sweep (default 200)
+  "duration": 850, // one-shot sweep length in ms (default 900)
+  "repeat": "infinite", // omit for a single sweep; a count / "infinite" shimmers
   "repeatPeriodMs": 2000,
-  "color": "#ffffff", "opacity": 0.55, "bandWidth": 40, "skewDeg": 14  // all optional
+  "color": "#ffffff",
+  "opacity": 0.55,
+  "bandWidth": 40,
+  "skewDeg": 14, // all optional
   // "anchor": { "selector": ".badge" }  // CLI: resolves x/y/width/height/radius from the box
 }
 ```

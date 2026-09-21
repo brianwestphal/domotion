@@ -17,53 +17,87 @@
 //   box's stitched size.
 
 const TRANSFORM_WILL_CHANGE = new Set([
-  'transform', 'transform-style', 'perspective', 'translate', 'rotate',
-  'scale', 'offset-path', 'offset-position',
+  "transform",
+  "transform-style",
+  "perspective",
+  "translate",
+  "rotate",
+  "scale",
+  "offset-path",
+  "offset-position",
 ]);
 
 const splitLayers = (value) => {
   const out = [];
   let depth = 0;
-  let quote = '';
+  let quote = "";
   let escaped = false;
   let start = 0;
   for (let i = 0; i < value.length; i++) {
     const ch = value[i];
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\') { escaped = true; continue; }
-    if (quote !== '') { if (ch === quote) quote = ''; continue; }
-    if (ch === '"' || ch === "'") { quote = ch; continue; }
-    if (ch === '(') depth++;
-    else if (ch === ')') depth = Math.max(0, depth - 1);
-    else if (ch === ',' && depth === 0) { out.push(value.slice(start, i).trim()); start = i + 1; }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== "") {
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    else if (ch === "," && depth === 0) {
+      out.push(value.slice(start, i).trim());
+      start = i + 1;
+    }
   }
   out.push(value.slice(start).trim());
   return out;
 };
 
 const hasAnyTransformWillChange = (style) => {
-  if (style.willChange == null || style.willChange === '' || style.willChange === 'auto') return false;
+  if (style.willChange == null || style.willChange === "" || style.willChange === "auto") return false;
   return style.willChange.split(/[\s,]+/).some((token) => TRANSFORM_WILL_CHANGE.has(token.toLowerCase()));
 };
 
 const hasPaintLayerTransform = (style) => {
-  if ((style.transform != null && style.transform !== '' && style.transform !== 'none')
-      || (style.translate != null && style.translate !== '' && style.translate !== 'none')
-      || (style.rotate != null && style.rotate !== '' && style.rotate !== 'none')
-      || (style.scale != null && style.scale !== '' && style.scale !== 'none')) return true;
+  if (
+    (style.transform != null && style.transform !== "" && style.transform !== "none") ||
+    (style.translate != null && style.translate !== "" && style.translate !== "none") ||
+    (style.rotate != null && style.rotate !== "" && style.rotate !== "none") ||
+    (style.scale != null && style.scale !== "" && style.scale !== "none")
+  )
+    return true;
   // ComputedStyle::HasTransform also includes motion-path transforms.
-  return style.offsetPath != null && style.offsetPath !== '' && style.offsetPath !== 'none';
+  return style.offsetPath != null && style.offsetPath !== "" && style.offsetPath !== "none";
 };
 
 const isVisibleCanvasBackground = (style) => {
   const image = style.backgroundImage;
   const color = style.backgroundColor;
-  return (image != null && image !== '' && image !== 'none')
-    || (color != null && color !== '' && color !== 'transparent'
-      && color !== 'rgba(0, 0, 0, 0)' && color !== 'rgba(0,0,0,0)');
+  return (
+    (image != null && image !== "" && image !== "none") ||
+    (color != null &&
+      color !== "" &&
+      color !== "transparent" &&
+      color !== "rgba(0, 0, 0, 0)" &&
+      color !== "rgba(0,0,0,0)")
+  );
 };
 
-export const createBackgroundAttachmentHandler = ({ vp, transformRelatedBoxFor, effectiveZoomFor, scrollbarPropertyKey }) => {
+export const createBackgroundAttachmentHandler = ({
+  vp,
+  transformRelatedBoxFor,
+  effectiveZoomFor,
+  scrollbarPropertyKey,
+}) => {
   const fixedToViewport = (el) => {
     const doc = el.ownerDocument;
     const root = doc.documentElement;
@@ -96,13 +130,12 @@ export const createBackgroundAttachmentHandler = ({ vp, transformRelatedBoxFor, 
     // scrollbars while retaining unused scrollbar-gutter tracks. The live
     // marker record owns scrollbar existence/side/geometry; never infer a bar
     // merely from scroll range.
-    const scrollbarSet = typeof scrollbarPropertyKey === 'string' && scrollbarPropertyKey !== ''
-      ? el[scrollbarPropertyKey]
-      : undefined;
+    const scrollbarSet =
+      typeof scrollbarPropertyKey === "string" && scrollbarPropertyKey !== "" ? el[scrollbarPropertyKey] : undefined;
     if (scrollbarSet != null && scrollbarSet.overlay === false) {
       const vertical = scrollbarSet.vertical && scrollbarSet.vertical.frameRect;
       if (vertical != null) {
-        if (scrollbarSet.vertical.logicalSide === 'left') {
+        if (scrollbarSet.vertical.logicalSide === "left") {
           const edge = vertical.x + vertical.width;
           const shrink = Math.max(0, edge - x);
           x += shrink;
@@ -126,9 +159,9 @@ export const createBackgroundAttachmentHandler = ({ vp, transformRelatedBoxFor, 
   };
 
   const captureBackgroundAttachment = (el, style, rect, scaleX = 1, scaleY = 1) => {
-    const attachments = splitLayers(style.backgroundAttachment || 'scroll');
-    const needsFixed = attachments.includes('fixed');
-    const needsLocal = attachments.includes('local');
+    const attachments = splitLayers(style.backgroundAttachment || "scroll");
+    const needsFixed = attachments.includes("fixed");
+    const needsLocal = attachments.includes("local");
     const doc = el.ownerDocument;
     const root = doc.documentElement;
     const ownsCanvas = el === canvasOwner(doc) && isVisibleCanvasBackground(style);
@@ -145,11 +178,12 @@ export const createBackgroundAttachmentHandler = ({ vp, transformRelatedBoxFor, 
     };
     const rootRect = root.getBoundingClientRect();
     const rootZoom = effectiveZoomFor(root);
-    const localScrollContainer = ['auto', 'hidden', 'overlay', 'scroll'].includes(style.overflowX)
-      || ['auto', 'hidden', 'overlay', 'scroll'].includes(style.overflowY);
+    const localScrollContainer =
+      ["auto", "hidden", "overlay", "scroll"].includes(style.overflowX) ||
+      ["auto", "hidden", "overlay", "scroll"].includes(style.overflowY);
 
     return {
-      source: 'blink-box-background-paint-context-v1',
+      source: "blink-box-background-paint-context-v1",
       fixedToViewport: needsFixed ? fixedToViewport(el) : false,
       layoutViewport: {
         x: -vp.x,
@@ -160,25 +194,29 @@ export const createBackgroundAttachmentHandler = ({ vp, transformRelatedBoxFor, 
         width: Math.min((doc.defaultView || window).innerWidth, doc.documentElement.clientWidth),
         height: Math.min((doc.defaultView || window).innerHeight, doc.documentElement.clientHeight),
       },
-      local: needsLocal ? {
-        active: localScrollContainer,
-        // ScrollOffsetInt is the physical, pixel-snapped offset. CSSOM scroll
-        // positions are zoom-adjusted, so cross that boundary before snapping.
-        scrollOffsetX: Math.round(Number(el.scrollLeft || 0) * zoom) * (physicalX / zoom),
-        scrollOffsetY: Math.round(Number(el.scrollTop || 0) * zoom) * (physicalY / zoom),
-        borderPaintWidth: Number(el.scrollWidth || 0) * physicalX + border.left + border.right,
-        borderPaintHeight: Number(el.scrollHeight || 0) * physicalY + border.top + border.bottom,
-        overflowClip: overflowClip(el, rect, border, physicalX, physicalY),
-      } : undefined,
-      canvas: ownsCanvas ? {
-        owner: el === root ? 'root' : 'body-propagated',
-        positioningRect: {
-          x: rootRect.left - vp.x,
-          y: rootRect.top - vp.y,
-          width: Math.max(rootRect.width, Number(root.scrollWidth || 0) * rootZoom),
-          height: Math.max(rootRect.height, Number(root.scrollHeight || 0) * rootZoom),
-        },
-      } : undefined,
+      local: needsLocal
+        ? {
+            active: localScrollContainer,
+            // ScrollOffsetInt is the physical, pixel-snapped offset. CSSOM scroll
+            // positions are zoom-adjusted, so cross that boundary before snapping.
+            scrollOffsetX: Math.round(Number(el.scrollLeft || 0) * zoom) * (physicalX / zoom),
+            scrollOffsetY: Math.round(Number(el.scrollTop || 0) * zoom) * (physicalY / zoom),
+            borderPaintWidth: Number(el.scrollWidth || 0) * physicalX + border.left + border.right,
+            borderPaintHeight: Number(el.scrollHeight || 0) * physicalY + border.top + border.bottom,
+            overflowClip: overflowClip(el, rect, border, physicalX, physicalY),
+          }
+        : undefined,
+      canvas: ownsCanvas
+        ? {
+            owner: el === root ? "root" : "body-propagated",
+            positioningRect: {
+              x: rootRect.left - vp.x,
+              y: rootRect.top - vp.y,
+              width: Math.max(rootRect.width, Number(root.scrollWidth || 0) * rootZoom),
+              height: Math.max(rootRect.height, Number(root.scrollHeight || 0) * rootZoom),
+            },
+          }
+        : undefined,
     };
   };
 

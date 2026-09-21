@@ -80,7 +80,7 @@ export function lowerProcessPriority(nice: number = 19): void {
     });
     if (r.status !== 0) {
       const stderr = r.stderr != null ? r.stderr.toString() : "";
-      const reason = r.error != null ? r.error.message : (stderr || `exit ${r.status}`);
+      const reason = r.error != null ? r.error.message : stderr || `exit ${r.status}`;
       process.stderr.write(`[worker-pool] taskpolicy -B failed: ${reason.trim()}\n`);
     }
   }
@@ -100,8 +100,14 @@ export function resolveWorkerCount(defaultWorkers: number = defaultWorkerCount()
   let raw: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--workers" && i + 1 < argv.length) { raw = argv[i + 1]; break; }
-    if (a.startsWith("--workers=")) { raw = a.slice("--workers=".length); break; }
+    if (a === "--workers" && i + 1 < argv.length) {
+      raw = argv[i + 1];
+      break;
+    }
+    if (a.startsWith("--workers=")) {
+      raw = a.slice("--workers=".length);
+      break;
+    }
   }
   if (raw == null) raw = process.env["DOMOTION_TEST_WORKERS"];
   if (raw == null) return Math.min(32, Math.max(1, defaultWorkers));
@@ -166,4 +172,3 @@ export async function runJobsInPool<TJob, TWorker, TResult>(opts: {
   await Promise.all(workers);
   return out;
 }
-

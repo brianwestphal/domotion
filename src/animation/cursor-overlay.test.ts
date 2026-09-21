@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
-import { type CursorAtResolver, type CursorOverlay, type SelectorResolver, cursorAtPoint, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
+import {
+  type CursorAtResolver,
+  type CursorOverlay,
+  type SelectorResolver,
+  cursorAtPoint,
+  cursorOverlayMarkup,
+  resolveCursorScript,
+} from "./cursor-overlay.js";
 
 const TOTAL = 4000;
 const FRAME_STARTS = [0, 1500, 3000];
 
 // Minimal captured element for hit-test tests.
-function el(x: number, y: number, w: number, h: number, cursor?: string, children: CapturedElement[] = []): CapturedElement {
+function el(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cursor?: string,
+  children: CapturedElement[] = [],
+): CapturedElement {
   return { tag: "div", text: "", x, y, width: w, height: h, cursor, children } as unknown as CapturedElement;
 }
 
@@ -87,7 +101,7 @@ describe("cursorOverlayMarkup: SVG emission", () => {
     expect(svg).toContain('class="cursor-click cursor-click-0"');
     expect(svg).toContain('class="cursor-click cursor-click-1"');
     // Secondary click adds the right-half-disc fill.
-    expect(svg).toContain('rgba(0,0,0,0.2)');
+    expect(svg).toContain("rgba(0,0,0,0.2)");
     // DM-1507: the overlay must be pure CSS — NO SMIL. SMIL runs on the SVG's own
     // timeline while the frames run on the CSS timeline; Safari pauses those two
     // clocks independently offscreen, desyncing the cursor. One timeline = no drift.
@@ -139,16 +153,18 @@ describe("cursorOverlayMarkup: SVG emission", () => {
 describe("cursorAtPoint: hit-test (DM-1106)", () => {
   it("returns the topmost (last-painted, deepest) element's cursor; default when none/omitted", () => {
     const tree = [
-      el(0, 0, 1000, 1000, undefined, [          // body: default (omitted)
-        el(10, 10, 200, 40, "pointer"),          // a link
-        el(10, 60, 400, 100, "text", [           // a paragraph
-          el(20, 70, 80, 20, "pointer"),         // a nested link inside the text
+      el(0, 0, 1000, 1000, undefined, [
+        // body: default (omitted)
+        el(10, 10, 200, 40, "pointer"), // a link
+        el(10, 60, 400, 100, "text", [
+          // a paragraph
+          el(20, 70, 80, 20, "pointer"), // a nested link inside the text
         ]),
       ]),
     ];
-    expect(cursorAtPoint(tree, 50, 25)).toBe("pointer");   // over the link
-    expect(cursorAtPoint(tree, 300, 120)).toBe("text");    // over the paragraph
-    expect(cursorAtPoint(tree, 40, 78)).toBe("pointer");   // nested link wins over the paragraph
+    expect(cursorAtPoint(tree, 50, 25)).toBe("pointer"); // over the link
+    expect(cursorAtPoint(tree, 300, 120)).toBe("text"); // over the paragraph
+    expect(cursorAtPoint(tree, 40, 78)).toBe("pointer"); // nested link wins over the paragraph
     expect(cursorAtPoint(tree, 800, 800)).toBe("default"); // only the body (omitted -> default)
     expect(cursorAtPoint(tree, 5000, 5000)).toBe("default"); // outside everything
   });
@@ -186,11 +202,14 @@ describe("resolveCursorScript: cursor-type timeline (DM-1106)", () => {
 
   it("hidden windows become null timeline entries", () => {
     const overlay: CursorOverlay = {
-      events: [{ type: "show", t: 200, x: 10, y: 10 }, { type: "hide", t: 600 }],
+      events: [
+        { type: "show", t: 200, x: 10, y: 10 },
+        { type: "hide", t: 600 },
+      ],
     };
     const r = resolveCursorScript(overlay, 1000, [0], null, resolveCursorAt);
     const tl = r.cursorTimeline!;
-    expect(tl[0]).toMatchObject({ t: 0, cursor: null });   // hidden before the show
+    expect(tl[0]).toMatchObject({ t: 0, cursor: null }); // hidden before the show
     expect(tl.some((e) => e.cursor === "pointer")).toBe(true); // visible after show
   });
 

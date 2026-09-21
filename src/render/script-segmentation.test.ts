@@ -22,32 +22,34 @@ import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-se
 function seg(text: string): Array<{ text: string; script: string; rtl: boolean }> {
   const levels = bidiLevelsFor(text);
   return segmentForShaping(text, levels).map((s) => ({
-    text: text.slice(s.start, s.end), script: s.script, rtl: s.rtl,
+    text: text.slice(s.start, s.end),
+    script: s.script,
+    rtl: s.rtl,
   }));
 }
 
 describe("shaping segmentation (DM-1894)", () => {
-  it.skipIf(!isIcuHelperAvailable())("uses Chromium-pinned ICU for scripts newer than unicode-properties (DM-2522)", () => {
-    // Blink starts ScriptRunIterator with ICU `uscript_getScript` and passes
-    // the resolved value to HarfBuzz. The legacy JS dependency reports the
-    // Unicode 16 additions below as Common; pinned ICU 78.2 reports their real
-    // scripts. U+1CF7 is the established Script_Extensions control from the
-    // same conformance finding.
-    const cases = [
-      [0x16120, "Gurung_Khema"],
-      [0x1CF7, "Bengali"],
-      [0x113C8, "Tulu_Tigalari"],
-      [0x11930, "Dives_Akuru"],
-      [0x11941, "Dives_Akuru"],
-    ] as const;
-    expect(cases.map(([cp]) => seg(String.fromCodePoint(cp))[0].script))
-      .toEqual(cases.map(([, script]) => script));
-  });
+  it.skipIf(!isIcuHelperAvailable())(
+    "uses Chromium-pinned ICU for scripts newer than unicode-properties (DM-2522)",
+    () => {
+      // Blink starts ScriptRunIterator with ICU `uscript_getScript` and passes
+      // the resolved value to HarfBuzz. The legacy JS dependency reports the
+      // Unicode 16 additions below as Common; pinned ICU 78.2 reports their real
+      // scripts. U+1CF7 is the established Script_Extensions control from the
+      // same conformance finding.
+      const cases = [
+        [0x16120, "Gurung_Khema"],
+        [0x1cf7, "Bengali"],
+        [0x113c8, "Tulu_Tigalari"],
+        [0x11930, "Dives_Akuru"],
+        [0x11941, "Dives_Akuru"],
+      ] as const;
+      expect(cases.map(([cp]) => seg(String.fromCodePoint(cp))[0].script)).toEqual(cases.map(([, script]) => script));
+    },
+  );
 
   it.skipIf(!isIcuHelperAvailable())("collapses Hiragana and Katakana the way Blink does before itemization", () => {
-    expect(seg("あア")).toEqual([
-      { text: "あア", script: "Hiragana", rtl: false },
-    ]);
+    expect(seg("あア")).toEqual([{ text: "あア", script: "Hiragana", rtl: false }]);
   });
 
   it("splits a Latin+Arabic line and marks the Arabic RTL", () => {
@@ -153,27 +155,17 @@ describe("shaping segmentation (DM-1894)", () => {
 
   describe("leading Inherited Script_Extensions (DM-2182)", () => {
     it("promotes a lone Vedic mark to Blink's preferred Indic script", () => {
-      expect(seg("\u1CD0")).toEqual([
-        { text: "\u1CD0", script: "Common", rtl: false },
-      ]);
-      expect(seg("\u1CD1")).toEqual([
-        { text: "\u1CD1", script: "Devanagari", rtl: false },
-      ]);
+      expect(seg("\u1CD0")).toEqual([{ text: "\u1CD0", script: "Common", rtl: false }]);
+      expect(seg("\u1CD1")).toEqual([{ text: "\u1CD1", script: "Devanagari", rtl: false }]);
     });
 
     it("still inherits from an established base script", () => {
-      expect(seg("a\u0301")).toEqual([
-        { text: "a\u0301", script: "Latin", rtl: false },
-      ]);
-      expect(seg("क\u1CD1")).toEqual([
-        { text: "क\u1CD1", script: "Devanagari", rtl: false },
-      ]);
+      expect(seg("a\u0301")).toEqual([{ text: "a\u0301", script: "Latin", rtl: false }]);
+      expect(seg("क\u1CD1")).toEqual([{ text: "क\u1CD1", script: "Devanagari", rtl: false }]);
     });
 
     it("establishes the script after a leading neutral dotted circle", () => {
-      expect(seg("◌\u1CD1")).toEqual([
-        { text: "◌\u1CD1", script: "Devanagari", rtl: false },
-      ]);
+      expect(seg("◌\u1CD1")).toEqual([{ text: "◌\u1CD1", script: "Devanagari", rtl: false }]);
     });
   });
 

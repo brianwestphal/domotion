@@ -28,7 +28,7 @@ describe("extractStickyWindows", () => {
   it("never stuck: sticky element whose y strictly decreases across segments → left inline, no overlays", () => {
     const seg0 = [el({ tag: "div", x: 0, y: 0 }), el({ tag: "nav", x: 0, y: 200, width: 800, height: 60 }, "sticky")];
     const seg1 = [el({ tag: "div", x: 0, y: 0 }), el({ tag: "nav", x: 0, y: 100, width: 800, height: 60 }, "sticky")];
-    const seg2 = [el({ tag: "div", x: 0, y: 0 }), el({ tag: "nav", x: 0, y:   0, width: 800, height: 60 }, "sticky")];
+    const seg2 = [el({ tag: "div", x: 0, y: 0 }), el({ tag: "nav", x: 0, y: 0, width: 800, height: 60 }, "sticky")];
     const r = extractStickyWindows([seg0, seg1, seg2]);
     expect(r.overlays).toEqual([]);
     // Trees are unmodified (returned by reference when no strikes apply).
@@ -78,19 +78,14 @@ describe("extractStickyWindows", () => {
   it("two stuck windows: sticks, un-sticks, sticks again → two overlay entries", () => {
     // Seg 0: in-flow (y=400). Seg 1–2: stuck (y=0). Seg 3: in-flow (y=200).
     // Seg 4–5: stuck again (y=0).
-    const stick = (y: number): CapturedElement =>
-      el({ tag: "nav", x: 0, y, width: 800, height: 50 }, "sticky");
-    const trees: CapturedElement[][] = [
-      [stick(400)],
-      [stick(0)],
-      [stick(0)],
-      [stick(200)],
-      [stick(0)],
-      [stick(0)],
-    ];
+    const stick = (y: number): CapturedElement => el({ tag: "nav", x: 0, y, width: 800, height: 50 }, "sticky");
+    const trees: CapturedElement[][] = [[stick(400)], [stick(0)], [stick(0)], [stick(200)], [stick(0)], [stick(0)]];
     const r = extractStickyWindows(trees);
     expect(r.overlays).toHaveLength(2);
-    expect(r.overlays.map((o) => [o.firstSegmentIdx, o.lastSegmentIdx])).toEqual([[1, 2], [4, 5]]);
+    expect(r.overlays.map((o) => [o.firstSegmentIdx, o.lastSegmentIdx])).toEqual([
+      [1, 2],
+      [4, 5],
+    ]);
     // Seg 0, 3 retain the nav (in-flow).
     expect(r.stripped[0]).toHaveLength(1);
     expect(r.stripped[3]).toHaveLength(1);
@@ -105,13 +100,12 @@ describe("extractStickyWindows", () => {
     // A sticky element captured at the same y in only ONE segment is not
     // stuck (could just be a momentary zero-velocity sample); needs ≥ 2
     // consecutive same-y segments to count.
-    const stick = (y: number): CapturedElement =>
-      el({ tag: "nav", x: 0, y, width: 800, height: 50 }, "sticky");
+    const stick = (y: number): CapturedElement => el({ tag: "nav", x: 0, y, width: 800, height: 50 }, "sticky");
     const r = extractStickyWindows([
       [stick(100)],
       [stick(50)],
-      [stick(50)],   // start of a potential run (but only 1 segment so far)
-      [stick(0)],    // run breaks here
+      [stick(50)], // start of a potential run (but only 1 segment so far)
+      [stick(0)], // run breaks here
     ]);
     // segs 1–2 are at the same y → that's a stuck window of length 2. Length-1
     // "windows" wouldn't qualify, but 2 does. This case demonstrates the ≥2
@@ -136,11 +130,19 @@ describe("extractStickyWindows", () => {
   it("doesn't mutate the input trees", () => {
     const stickyChild = el({ tag: "nav", x: 0, y: 0, width: 800, height: 50 }, "sticky");
     const body0 = el({
-      tag: "body", x: 0, y: 0, width: 800, height: 600,
+      tag: "body",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
       children: [el({ tag: "main", x: 0, y: 60 }), stickyChild],
     });
     const body1 = el({
-      tag: "body", x: 0, y: 0, width: 800, height: 600,
+      tag: "body",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
       children: [el({ tag: "main", x: 0, y: 60 }), stickyChild],
     });
     const tree0 = [body0];
@@ -154,8 +156,7 @@ describe("extractStickyWindows", () => {
   it("matches sticky elements across segments by (tag, size, path-in-tree)", () => {
     // Same tag/size, but different path-in-tree → treated as DIFFERENT
     // logical elements and NOT collapsed.
-    const stick1 = (y: number): CapturedElement =>
-      el({ tag: "nav", x: 0, y, width: 800, height: 50 }, "sticky");
+    const stick1 = (y: number): CapturedElement => el({ tag: "nav", x: 0, y, width: 800, height: 50 }, "sticky");
     const trees: CapturedElement[][] = [
       // Sticky nav as the 0th child.
       [stick1(0), el({ tag: "main", x: 0, y: 50 })],

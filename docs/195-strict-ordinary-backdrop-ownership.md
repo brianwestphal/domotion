@@ -4,10 +4,15 @@ title: "195 — Strict ordinary backdrop ownership and raster-floor adjudication
 kind: "contract"
 status: "current"
 owners: ["paint-effects"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: [".github/workflows/backdrop-source-surface-parity.yml","src/capture/backdrop-composite-raster.ts","tests/backdrop-source-surface-audit.test.ts"]
-aliases: ["docs/195-strict-ordinary-backdrop-ownership.md","doc-195"]
+code:
+  [
+    ".github/workflows/backdrop-source-surface-parity.yml",
+    "src/capture/backdrop-composite-raster.ts",
+    "tests/backdrop-source-surface-audit.test.ts",
+  ]
+aliases: ["docs/195-strict-ordinary-backdrop-ownership.md", "doc-195"]
 ---
 
 # 195 — Strict ordinary backdrop ownership and raster-floor adjudication
@@ -97,12 +102,12 @@ The local macOS arm64 Chromium 147 run produced `source-exact`, no blockers,
 no production gaps, and no backdrop materialization warnings across all 34
 rows. The focused rows were:
 
-| Row | DPR 1 changed pixels | DPR 2 changed pixels | Logical verdict |
-| --- | ---: | ---: | --- |
-| rotate/skew transform | 0 / 8,400 | 1 / 33,004 | exact terminal owner |
-| mask root | 472 / 7,920 | 0 / 31,680 | DPR1 source-edge-only; zero logical-interior pixels |
-| scroll | 95 / 7,920 | 74 / 31,680 | source-edge-only; document-root owner |
-| sticky | 81 / 7,920 | 52 / 31,680 | source-edge-only; document-root owner |
+| Row                   | DPR 1 changed pixels | DPR 2 changed pixels | Logical verdict                                     |
+| --------------------- | -------------------: | -------------------: | --------------------------------------------------- |
+| rotate/skew transform |            0 / 8,400 |           1 / 33,004 | exact terminal owner                                |
+| mask root             |          472 / 7,920 |           0 / 31,680 | DPR1 source-edge-only; zero logical-interior pixels |
+| scroll                |           95 / 7,920 |          74 / 31,680 | source-edge-only; document-root owner               |
+| sticky                |           81 / 7,920 |          52 / 31,680 | source-edge-only; document-root owner               |
 
 Every row has the expected nearest root, raster-owner count, outward source
 clip, screenshot/pass count, vector and sibling order, and discriminating

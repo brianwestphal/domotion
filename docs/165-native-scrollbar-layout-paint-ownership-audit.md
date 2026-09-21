@@ -3,11 +3,11 @@ id: "requirements/native-scrollbar-layout-paint-ownership-audit"
 title: "Native scrollbar layout and paint ownership audit"
 kind: "evidence"
 status: "current"
-owners: ["paint-effects","layout","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2368","DM-2481","DM-2482","DM-2483","DM-2484","SK-468"]
-code: ["src/capture/pseudo-style-cdp.ts","src/render/custom-scrollbar.ts"]
-aliases: ["docs/165-native-scrollbar-layout-paint-ownership-audit.md","doc-165"]
+owners: ["paint-effects", "layout", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2368", "DM-2481", "DM-2482", "DM-2483", "DM-2484", "SK-468"]
+code: ["src/capture/pseudo-style-cdp.ts", "src/render/custom-scrollbar.ts"]
+aliases: ["docs/165-native-scrollbar-layout-paint-ownership-audit.md", "doc-165"]
 ---
 
 # Native scrollbar layout and paint ownership audit
@@ -339,8 +339,7 @@ interface CapturedScrollbar {
 }
 
 interface CapturedScrollbarPart {
-  kind: "background" | "back-button" | "forward-button" | "track" |
-        "back-track" | "forward-track" | "thumb" | "corner";
+  kind: "background" | "back-button" | "forward-button" | "track" | "back-track" | "forward-track" | "thumb" | "corner";
   rect: PhysicalRect;
   finalPseudoStyle?: CapturedPseudoStyle;
   raster?: CapturedViewportRaster;
@@ -379,22 +378,22 @@ histograms rather than interpreting one platform's colors as a specification.
 
 The focused evidence includes:
 
-| Control | Live Chromium result at DPR 1 | Current generated SVG |
-| --- | --- | --- |
-| visible / hidden / clip / auto-no-overflow | no marker chrome | no synthetic thumb (correct negative) |
-| width:none at x=51,y=67 | no chrome | no scrollbar paint (correct explicit absence) |
-| custom `scroll`, no overflow | 16 px vertical + 14 px horizontal reservation; red disabled tracks and 16×14 green corner; no thumb | source-owned background/track/corner vectors; no invented thumb |
-| custom vertical top/mid/max | 16 px gutter; blue thumb y=33/70/109, 12×30, for scrollTop 0/122/250 | matching custom parts and marker bounds |
-| custom horizontal mid | authored 14 px bar; blue thumb 46×10 at x=92 | matching custom parts and marker bounds |
-| both axes | red tracks, both blue thumbs, green 16×14 corner | matching axes/corner in Blink order |
-| RTL horizontal-tb | vertical blue thumb moves from physical x=172 to x=40 | matching captured logical-left geometry |
-| vertical-rl | both physical bars/corner; negative horizontal offset retained | matching captured axes/corner |
-| asymmetric border + ancestor clip | marker bounds stay inside the 145×112 clip | custom vector parts stay inside the same clip |
-| zoom 1.25 | bar/corner bounds scale once; DPR 2 bounds normalize to within 1 CSS px of DPR 1 | source/generated bounds differ by at most 1 device px |
-| stock macOS light | overlay: zero layout gutter; 185 right-edge and 318 bottom-edge changed pixels | two synthetic pills |
-| stock macOS dark surface | separate scheme/surface fingerprint, still zero layout gutter | same hard-coded color |
-| standard thin + blue/red colors | zero layout gutter; 426 blue classified thumb pixels | no standard color ownership |
-| stable both-edges, no overflow | overlay platform reserves zero and paints zero on this host | current capture only stores the computed gutter token |
+| Control                                    | Live Chromium result at DPR 1                                                                       | Current generated SVG                                           |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| visible / hidden / clip / auto-no-overflow | no marker chrome                                                                                    | no synthetic thumb (correct negative)                           |
+| width:none at x=51,y=67                    | no chrome                                                                                           | no scrollbar paint (correct explicit absence)                   |
+| custom `scroll`, no overflow               | 16 px vertical + 14 px horizontal reservation; red disabled tracks and 16×14 green corner; no thumb | source-owned background/track/corner vectors; no invented thumb |
+| custom vertical top/mid/max                | 16 px gutter; blue thumb y=33/70/109, 12×30, for scrollTop 0/122/250                                | matching custom parts and marker bounds                         |
+| custom horizontal mid                      | authored 14 px bar; blue thumb 46×10 at x=92                                                        | matching custom parts and marker bounds                         |
+| both axes                                  | red tracks, both blue thumbs, green 16×14 corner                                                    | matching axes/corner in Blink order                             |
+| RTL horizontal-tb                          | vertical blue thumb moves from physical x=172 to x=40                                               | matching captured logical-left geometry                         |
+| vertical-rl                                | both physical bars/corner; negative horizontal offset retained                                      | matching captured axes/corner                                   |
+| asymmetric border + ancestor clip          | marker bounds stay inside the 145×112 clip                                                          | custom vector parts stay inside the same clip                   |
+| zoom 1.25                                  | bar/corner bounds scale once; DPR 2 bounds normalize to within 1 CSS px of DPR 1                    | source/generated bounds differ by at most 1 device px           |
+| stock macOS light                          | overlay: zero layout gutter; 185 right-edge and 318 bottom-edge changed pixels                      | two synthetic pills                                             |
+| stock macOS dark surface                   | separate scheme/surface fingerprint, still zero layout gutter                                       | same hard-coded color                                           |
+| standard thin + blue/red colors            | zero layout gutter; 426 blue classified thumb pixels                                                | no standard color ownership                                     |
+| stable both-edges, no overflow             | overlay platform reserves zero and paints zero on this host                                         | current capture only stores the computed gutter token           |
 
 The author both-axis row produced exact 2× device-pixel bounds at DPR 2: its
 red track union changed from 148×110 to 296×220, its green corner from 16×14
@@ -413,11 +412,11 @@ Those are capture facts for this host/frame only and must not become constants.
 The repository contains platform results for `25-deep-scrollbar-style` and
 `25-scrollbar-gutter`:
 
-| Platform record | scrollbar-style diff / regions | gutter diff / regions |
-| --- | ---: | ---: |
-| macOS arm64, commit `ebf0fa7`, 2026-08-02 | 0.0408% / 0 | 0.0457% / 0 |
-| Linux, older commit `913be89` | 0.8490% / 0 | 0.6262% / 0 |
-| Windows, older commit `913be89` | 0.2848% / 7 (failed) | 0.0057% / 1 |
+| Platform record                           | scrollbar-style diff / regions | gutter diff / regions |
+| ----------------------------------------- | -----------------------------: | --------------------: |
+| macOS arm64, commit `ebf0fa7`, 2026-08-02 |                    0.0408% / 0 |           0.0457% / 0 |
+| Linux, older commit `913be89`             |                    0.8490% / 0 |           0.6262% / 0 |
+| Windows, older commit `913be89`           |           0.2848% / 7 (failed) |           0.0057% / 1 |
 
 These broad screenshots mix text/layout and do not state whether their browser
 launch retained Playwright's default `--hide-scrollbars`. The apparently clean

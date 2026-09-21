@@ -4,10 +4,17 @@ title: "105 — Asymmetric capture-vs-raster browsers in the visual harnesses"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux"]
-tickets: ["DM-1789","DM-1790","DM-1794","DM-1797"]
-code: ["tests/harness-browsers.test.ts","tests/harness-browsers.ts","tests/html-test-suite.tsx","tests/real-world.tsx","tests/runner.tsx"]
-aliases: ["docs/105-asymmetric-harness-browsers.md","doc-105"]
+platforms: ["macos", "linux"]
+tickets: ["DM-1789", "DM-1790", "DM-1794", "DM-1797"]
+code:
+  [
+    "tests/harness-browsers.test.ts",
+    "tests/harness-browsers.ts",
+    "tests/html-test-suite.tsx",
+    "tests/real-world.tsx",
+    "tests/runner.tsx",
+  ]
+aliases: ["docs/105-asymmetric-harness-browsers.md", "doc-105"]
 ---
 
 # 105 — Asymmetric capture-vs-raster browsers in the visual harnesses
@@ -18,26 +25,26 @@ Status: **shipped** (DM-1790). An opt-in mode that lets `tests/runner.tsx` and `
 
 ## The problem
 
-Both harnesses drive **one** Chromium. The same page screenshots the fixture (the expected paint) and then loads the candidate Domotion SVG and screenshots that (the actual). So any `chromium.launch({ args })` flag intended to change *capture* also changes how the candidate SVG rasterizes — the two sides move together, and a whole class of capture-side experiments becomes unmeasurable.
+Both harnesses drive **one** Chromium. The same page screenshots the fixture (the expected paint) and then loads the candidate Domotion SVG and screenshots that (the actual). So any `chromium.launch({ args })` flag intended to change _capture_ also changes how the candidate SVG rasterizes — the two sides move together, and a whole class of capture-side experiments becomes unmeasurable.
 
-The case that forced this ([docs/66](66-ci-visual-tests.md), DM-1789): `--font-render-hinting=none` on the capture browser is a legitimate experiment in **paths** mode, where the SVG is vector `<path>` geometry and hinting can't apply to it — only the expected paint moves. It is **invalid** in **embedded** mode, where the SVG carries a hinting-preserving subset font ([docs/99](99-hinted-embedded-subset.md)): the same flagged browser rasterizes that font unhinted too, both sides go soft and agree, and the sweep's `diff%` *drops*. That number is a mirage — a real consumer opens the shipped SVG in an unflagged, hinted browser, so the very mismatch the flag would introduce is the thing the suite cannot see.
+The case that forced this ([docs/66](66-ci-visual-tests.md), DM-1789): `--font-render-hinting=none` on the capture browser is a legitimate experiment in **paths** mode, where the SVG is vector `<path>` geometry and hinting can't apply to it — only the expected paint moves. It is **invalid** in **embedded** mode, where the SVG carries a hinting-preserving subset font ([docs/99](99-hinted-embedded-subset.md)): the same flagged browser rasterizes that font unhinted too, both sides go soft and agree, and the sweep's `diff%` _drops_. That number is a mirage — a real consumer opens the shipped SVG in an unflagged, hinted browser, so the very mismatch the flag would introduce is the thing the suite cannot see.
 
 ## The surface
 
 Two environment variables, each a whitespace-separated list of Chromium args:
 
-| Variable | Applies to |
-|---|---|
-| `DOMOTION_CAPTURE_FLAGS` | the browser that renders the **fixture** — the expected paint |
-| `DOMOTION_RASTER_FLAGS` | the browser that rasterizes the **candidate SVG** — the consumer's condition |
+| Variable                 | Applies to                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `DOMOTION_CAPTURE_FLAGS` | the browser that renders the **fixture** — the expected paint                |
+| `DOMOTION_RASTER_FLAGS`  | the browser that rasterizes the **candidate SVG** — the consumer's condition |
 
 Three configurations matter:
 
-| Set | Result |
-|---|---|
-| neither | **one** browser for both — the default fast path, unchanged, no extra process |
-| capture only | **asymmetric**: flagged capture, unflagged raster. The consumer's condition, and the only honest way to measure a capture-only flag |
-| both, identical | symmetric-but-flagged — the coupled behavior the harness has always had, now reachable deliberately rather than by accident |
+| Set             | Result                                                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| neither         | **one** browser for both — the default fast path, unchanged, no extra process                                                       |
+| capture only    | **asymmetric**: flagged capture, unflagged raster. The consumer's condition, and the only honest way to measure a capture-only flag |
+| both, identical | symmetric-but-flagged — the coupled behavior the harness has always had, now reachable deliberately rather than by accident         |
 
 ```sh
 # the consumer's condition — capture unhinted, rasterize as a consumer would
@@ -52,13 +59,13 @@ Flag-list equality is **order-sensitive**: two lists differing only in order sti
 
 ## Two things it must not get wrong
 
-**1. The default path stays the default path.** With neither variable set, `launchHarnessBrowsers()` returns the *same* `Browser` object under both names, no second context is created per worker, and the raster page IS the capture page — so the emitted sequence is what it always was. Every committed baseline was measured under that condition and none of them move.
+**1. The default path stays the default path.** With neither variable set, `launchHarnessBrowsers()` returns the _same_ `Browser` object under both names, no second context is created per worker, and the raster page IS the capture page — so the emitted sequence is what it always was. Every committed baseline was measured under that condition and none of them move.
 
 **2. The expected-PNG cache must know about anything that changes the screenshot.** `tests/html-test-suite.tsx` caches the expected screenshot keyed on (source HTML, viewport, Playwright version, capture-script hash, capture-node hash). A capture-side Chromium flag changes that screenshot and **nothing else in the key** — so without a fix, a flagged run silently reuses the unflagged cached PNG and reports numbers for a condition it never ran. That was observed during this ticket's own build: three conditions produced coverage identical to four decimal places. `captureFlagsCacheToken()` folds the capture flags into the key, and returns the empty string when there are none so every existing cache entry stays valid.
 
-The same reasoning applies one level up, and DM-1794 acted on it: the cache holds *screenshots*, so it is also partitioned by the **platform** whose Chromium took them (`.expected-cache/<platform>/`). Platform is a directory rather than another key token — it makes the partition visible when you suspect cross-contamination, and it makes collision structurally impossible rather than merely improbable. The split of responsibilities: **platform = which machine painted these; flags = which variant within one machine.**
+The same reasoning applies one level up, and DM-1794 acted on it: the cache holds _screenshots_, so it is also partitioned by the **platform** whose Chromium took them (`.expected-cache/<platform>/`). Platform is a directory rather than another key token — it makes the partition visible when you suspect cross-contamination, and it makes collision structurally impossible rather than merely improbable. The split of responsibilities: **platform = which machine painted these; flags = which variant within one machine.**
 
-Only the *capture* flags belong in that key. The raster flags affect `actual.png`, which is never cached.
+Only the _capture_ flags belong in that key. The raster flags affect `actual.png`, which is never cached.
 
 ## Recording the condition
 
@@ -70,7 +77,7 @@ The failure mode this mode exists to prevent is a number measured under a flag n
 
 ## The control that catches plumbing bugs
 
-**On macOS, an asymmetric run under a flag that provably changes nothing must reproduce the default run exactly.** That invariant is worth keeping: it is what caught the one real bug in this change. The feature suite's raster page is `setContent`-ed with `<img src="file://…/<name>.svg">`, and `setContent` keeps the page's current URL as the document base — so a *fresh* raster page, sitting on `about:blank`, had Chromium refuse the `file://` subresource and every fixture screenshotted blank (~90% coverage on all 104). The default path never hits it, because it reuses the capture page, which is already on `file://…/<name>.html`. The fix is to navigate the raster page to a `file://` URL once at worker setup.
+**On macOS, an asymmetric run under a flag that provably changes nothing must reproduce the default run exactly.** That invariant is worth keeping: it is what caught the one real bug in this change. The feature suite's raster page is `setContent`-ed with `<img src="file://…/<name>.svg">`, and `setContent` keeps the page's current URL as the document base — so a _fresh_ raster page, sitting on `about:blank`, had Chromium refuse the `file://` subresource and every fixture screenshotted blank (~90% coverage on all 104). The default path never hits it, because it reuses the capture page, which is already on `file://…/<name>.html`. The fix is to navigate the raster page to a `file://` URL once at worker setup.
 
 Without the control that would have read as "the flag makes everything diverge" — a plausible-sounding conclusion, and completely wrong.
 
@@ -82,28 +89,28 @@ On **macOS** all three are identical, and that is the truth rather than a bug: a
 
 On **Linux** (the pinned Playwright container, `npm run test:linux-docker`), where `--disable-lcd-text` does change the paint:
 
-| Condition | mean coverage | max | passing |
-|---|---|---|---|
-| default (no flags) | 0.0157% | 0.0524% | 5 / 11 |
-| symmetric (`--disable-lcd-text` on both) | 0.0183% | 0.0590% | 3 / 11 |
-| **asymmetric** (capture flagged, raster not) | 0.0164% | 0.0670% | **8 / 11** |
+| Condition                                    | mean coverage | max     | passing    |
+| -------------------------------------------- | ------------- | ------- | ---------- |
+| default (no flags)                           | 0.0157%       | 0.0524% | 5 / 11     |
+| symmetric (`--disable-lcd-text` on both)     | 0.0183%       | 0.0590% | 3 / 11     |
+| **asymmetric** (capture flagged, raster not) | 0.0164%       | 0.0670% | **8 / 11** |
 
 Three genuinely different results, and — the point of the whole exercise — the asymmetric number is **not** between the other two. Coupling the sides doesn't produce a conservative estimate of the consumer's condition; it produces a number that isn't about the consumer's condition at all.
 
-> **Observation, not a recommendation.** On that fixture subset, capturing with `--disable-lcd-text` while the consumer rasterizes with LCD text on scored *better* than the fully-default run. One flag, 11 fixtures, one platform — far too narrow to act on. Also noted: `--font-render-hinting=none` produced a byte-identical screenshot in this container for this fixture, so DM-1789's paths-mode result came from the feature suite's fonts, not these.
+> **Observation, not a recommendation.** On that fixture subset, capturing with `--disable-lcd-text` while the consumer rasterizes with LCD text on scored _better_ than the fully-default run. One flag, 11 fixtures, one platform — far too narrow to act on. Also noted: `--font-render-hinting=none` produced a byte-identical screenshot in this container for this fixture, so DM-1789's paths-mode result came from the feature suite's fonts, not these.
 
 ## Where it lives
 
-| Concern | Code |
-|---|---|
-| Flag parsing, the launch decision, the cache token, the log line | `tests/harness-browsers.ts` |
-| Feature-suite plumbing (`rasterPage`, manifest field) | `tests/runner.tsx` |
-| html-test plumbing (`rasterPage`, cache key, sidecar) | `tests/html-test-suite.tsx` |
-| Unit tests for the pure decision logic | `tests/harness-browsers.test.ts` |
+| Concern                                                          | Code                             |
+| ---------------------------------------------------------------- | -------------------------------- |
+| Flag parsing, the launch decision, the cache token, the log line | `tests/harness-browsers.ts`      |
+| Feature-suite plumbing (`rasterPage`, manifest field)            | `tests/runner.tsx`               |
+| html-test plumbing (`rasterPage`, cache key, sidecar)            | `tests/html-test-suite.tsx`      |
+| Unit tests for the pure decision logic                           | `tests/harness-browsers.test.ts` |
 
 ## Not covered
 
 - **No CLI flag.** Env vars only — these harnesses already take their knobs (`HTML_TEST_SHARD`, `HTML_TEST_OUTPUT_DIR`, `DOMOTION_TEST_WORKERS`, `DEMO_TIMING`) that way, and the mode is for one-off experiments rather than routine runs.
 - **Nothing runs in this mode by default, on CI or locally.** It is an instrument, not a gate; the committed baselines all describe the default single-browser condition.
 - **`tests/real-world.tsx` and the animate-example harness are untouched.** They compare differently (HAR replay, committed golden SVGs) and had no capture-vs-raster coupling to break.
-- ~~The expected-PNG cache is still not platform-keyed.~~ **Fixed in DM-1794**: the cache now lives under `.expected-cache/<platform>/`, so a Linux container run writes to `linux/` and leaves the host's `darwin/` entries untouched (verified end-to-end — the container run added 11 `linux/` entries with all 11 `darwin/` entries intact, and the subsequent macOS run scored identically). `HTML_TEST_OUTPUT_DIR` is no longer needed for that. **DM-1797** then took it further: on Linux the partition is `linux-<digest>`, where the digest is a hash of the installed font-set (the font files under fontconfig's standard directories). `process.platform` is too coarse there — the pinned Playwright container and a Noto-installed desktop image both report `linux` and paint differently. Deliberately *not* keyed on `linuxFontProfile()`: that is a two-way `noto`/`bare` classification from a single Han-codepoint probe, so two images can share a profile while differing in their Latin fonts. Verified in the container: adding one font file changes the digest, removing it restores the original, so a cache stays hot across ordinary runs.
+- ~~The expected-PNG cache is still not platform-keyed.~~ **Fixed in DM-1794**: the cache now lives under `.expected-cache/<platform>/`, so a Linux container run writes to `linux/` and leaves the host's `darwin/` entries untouched (verified end-to-end — the container run added 11 `linux/` entries with all 11 `darwin/` entries intact, and the subsequent macOS run scored identically). `HTML_TEST_OUTPUT_DIR` is no longer needed for that. **DM-1797** then took it further: on Linux the partition is `linux-<digest>`, where the digest is a hash of the installed font-set (the font files under fontconfig's standard directories). `process.platform` is too coarse there — the pinned Playwright container and a Noto-installed desktop image both report `linux` and paint differently. Deliberately _not_ keyed on `linuxFontProfile()`: that is a two-way `noto`/`bare` classification from a single Han-codepoint probe, so two images can share a profile while differing in their Latin fonts. Verified in the container: adding one font file changes the digest, removing it restores the original, so a cache stays hot across ordinary runs.

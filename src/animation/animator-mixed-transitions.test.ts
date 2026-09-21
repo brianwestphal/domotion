@@ -153,30 +153,41 @@ describe("animator: frame entrance after a magic-move — bridged cuts, unbridge
   const bridge = buildMagicMove(
     mkEl({ tag: "body", x: 0, y: 0, children: [mkEl({ tag: "div", x: 10, y: 10, text: "card" })] }),
     mkEl({ tag: "body", x: 0, y: 0, children: [mkEl({ tag: "div", x: 60, y: 90, text: "card" })] }),
-    (roots) => `<g>${roots.length}</g>`, "mm0-",
+    (roots) => `<g>${roots.length}</g>`,
+    "mm0-",
   );
 
   // 4 frames so frame 2 (the one entering AFTER the magic-move) is NOT the last
   // frame (avoids the hold-to-loop special-casing) and uses a crossfade so its
   // entrance is a visible opacity ramp rather than a hard step.
-  const genAfterMagicMove = (withBridge: boolean): string => generateAnimatedSvg({
-    width: W, height: H,
-    frames: [
-      { svgContent: rect("#3366ff"), duration: 1000, transition: { type: "crossfade", duration: 400 } },
-      { svgContent: rect("#33cc66"), duration: 1000, transition: { type: "magic-move", duration: 400 }, ...(withBridge ? { magicMove: bridge } : {}) },
-      { svgContent: rect("#ffaa00"), duration: 1000, transition: { type: "crossfade", duration: 400 } },
-      { svgContent: rect("#cc3366"), duration: 1000, transition: { type: "cut", duration: 0 } },
-    ],
-  });
+  const genAfterMagicMove = (withBridge: boolean): string =>
+    generateAnimatedSvg({
+      width: W,
+      height: H,
+      frames: [
+        { svgContent: rect("#3366ff"), duration: 1000, transition: { type: "crossfade", duration: 400 } },
+        {
+          svgContent: rect("#33cc66"),
+          duration: 1000,
+          transition: { type: "magic-move", duration: 400 },
+          ...(withBridge ? { magicMove: bridge } : {}),
+        },
+        { svgContent: rect("#ffaa00"), duration: 1000, transition: { type: "crossfade", duration: 400 } },
+        { svgContent: rect("#cc3366"), duration: 1000, transition: { type: "cut", duration: 0 } },
+      ],
+    });
 
   /** The fade-in span of frame 2 = (first opacity:1 stop) − (the opacity:0 stop
    *  just below it). ~0 ⇒ a hard cut; a wide span ⇒ a gradual fade-in. */
   function fadeInSpan(svg: string): number {
     const block = keyframeBlock(svg, "fv-2");
-    const pctsFor = (op: string): number[] => block
-      .split("\n").filter((l) => l.includes(`opacity: ${op}`))
-      .flatMap((l) => [...l.matchAll(/([\d.]+)%/g)].map((m) => parseFloat(m[1])));
-    const zeros = pctsFor("0"), ones = pctsFor("1");
+    const pctsFor = (op: string): number[] =>
+      block
+        .split("\n")
+        .filter((l) => l.includes(`opacity: ${op}`))
+        .flatMap((l) => [...l.matchAll(/([\d.]+)%/g)].map((m) => parseFloat(m[1])));
+    const zeros = pctsFor("0"),
+      ones = pctsFor("1");
     const firstOne = Math.min(...ones);
     const zeroJustBelow = Math.max(...zeros.filter((z) => z < firstOne));
     return firstOne - zeroJustBelow;

@@ -3,11 +3,18 @@ id: "requirements/same-machine-text-parity-contract"
 title: "120 — Same-machine Chromium text parity contract"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release"]
-platforms: ["macos","linux","windows"]
+owners: ["text-fonts", "platform-release"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
-code: [".github/workflows/font-conformance-synthetic.yml","scripts/ci-font-conformance-shard.sh","tests/font-conformance.test.ts","tools/cluster-conformance.ts","tools/font-conformance.ts"]
-aliases: ["docs/120-same-machine-text-parity-contract.md","doc-120"]
+code:
+  [
+    ".github/workflows/font-conformance-synthetic.yml",
+    "scripts/ci-font-conformance-shard.sh",
+    "tests/font-conformance.test.ts",
+    "tools/cluster-conformance.ts",
+    "tools/font-conformance.ts",
+  ]
+aliases: ["docs/120-same-machine-text-parity-contract.md", "doc-120"]
 ---
 
 # 120 — Same-machine Chromium text parity contract

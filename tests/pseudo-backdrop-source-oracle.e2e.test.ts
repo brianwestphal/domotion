@@ -13,11 +13,17 @@ describe("DM-2488 generated-pseudo backdrop source oracle", () => {
     expect(report.rows).toHaveLength(PSEUDO_BACKDROP_CASES.length);
     expect(report.blockers).toEqual([]);
     expect(report.verdict).toBe("source-exact");
-    expect(report.rows.filter((row) => row.expectedRasterOwners === 1)
-      .every((row) => row.actualRasterOwners === 1
-        && row.noHostWideRaster
-        && row.underCapture.discriminated
-        && row.overCapture.discriminated
-        && row.rasterBeforeVector)).toBe(true);
+    expect(
+      report.rows
+        .filter((row) => row.expectedRasterOwners === 1)
+        .every(
+          (row) =>
+            row.actualRasterOwners === 1 &&
+            row.noHostWideRaster &&
+            row.underCapture.discriminated &&
+            row.overCapture.discriminated &&
+            row.rasterBeforeVector,
+        ),
+    ).toBe(true);
   }, 120_000);
 });

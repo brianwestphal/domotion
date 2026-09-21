@@ -76,14 +76,15 @@ export function shouldOpenInBrowser(
   interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),
 ): boolean {
   if (
-    env.VITEST != null
-    || env.DOMOTION_NO_OPEN === "1"
-    || env.CI != null
-    || env.CODEX_CI != null
-    || env.CODEX_SESSION_ID != null
-    || env.CODEX_THREAD_ID != null
-    || env.HOTSHEET_DRIVE_SPAWNED != null
-  ) return false;
+    env.VITEST != null ||
+    env.DOMOTION_NO_OPEN === "1" ||
+    env.CI != null ||
+    env.CODEX_CI != null ||
+    env.CODEX_SESSION_ID != null ||
+    env.CODEX_THREAD_ID != null ||
+    env.HOTSHEET_DRIVE_SPAWNED != null
+  )
+    return false;
   return interactive || env.DOMOTION_OPEN_BROWSER === "1";
 }
 
@@ -104,7 +105,9 @@ export async function openInBrowser(url: string): Promise<void> {
     if (process.platform === "darwin") await execFileP("open", [url]);
     else if (process.platform === "win32") await execFileP("cmd", ["/c", "start", "", url]);
     else await execFileP("xdg-open", [url]);
-  } catch { /* user can copy-paste the printed URL */ }
+  } catch {
+    /* user can copy-paste the printed URL */
+  }
 }
 
 /**
@@ -192,7 +195,17 @@ export function inferHarPageUrl(harPath: string): string {
   } catch (e) {
     throw new Error(`could not read HAR file ${harPath}: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const log = (har as { log?: { pages?: Array<{ title?: string }>; entries?: Array<{ request?: { url?: string }; response?: { status?: number; content?: { mimeType?: string } } }> } })?.log;
+  const log = (
+    har as {
+      log?: {
+        pages?: Array<{ title?: string }>;
+        entries?: Array<{
+          request?: { url?: string };
+          response?: { status?: number; content?: { mimeType?: string } };
+        }>;
+      };
+    }
+  )?.log;
   const pageTitle = log?.pages?.[0]?.title;
   if (typeof pageTitle === "string" && /^https?:\/\//i.test(pageTitle)) return pageTitle;
   const entries = Array.isArray(log?.entries) ? log!.entries! : [];
@@ -330,8 +343,13 @@ export function isSvgzPath(path: string | undefined): boolean {
  * webfont registration, capture, cull, compose, optimize).
  */
 export function makeLogger(quiet: boolean): (message: string) => void {
-  if (quiet) return (_msg: string): void => { /* silent */ };
-  return (msg: string): void => { process.stderr.write(`${msg}\n`); };
+  if (quiet)
+    return (_msg: string): void => {
+      /* silent */
+    };
+  return (msg: string): void => {
+    process.stderr.write(`${msg}\n`);
+  };
 }
 
 /**

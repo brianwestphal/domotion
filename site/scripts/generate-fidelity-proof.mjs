@@ -8,20 +8,8 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SOURCE = resolve(
-  HERE,
-  "..",
-  "demo-assets",
-  "fidelity",
-  "wikipedia-fidelity-source.png",
-);
-const OUTPUT = resolve(
-  HERE,
-  "..",
-  "demo-assets",
-  "fidelity",
-  "wikipedia-fidelity.png",
-);
+const SOURCE = resolve(HERE, "..", "demo-assets", "fidelity", "wikipedia-fidelity-source.png");
+const OUTPUT = resolve(HERE, "..", "demo-assets", "fidelity", "wikipedia-fidelity.png");
 
 const source = await readFile(SOURCE);
 const header = Buffer.from(`

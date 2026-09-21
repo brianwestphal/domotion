@@ -1,10 +1,7 @@
 // @ts-nocheck
 
 import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
-import {
-  fuseFontFeatureValueRules,
-  IMPLICIT_OUTER_LAYER_ORDER,
-} from "../../font-feature-values-cascade.js";
+import { fuseFontFeatureValueRules, IMPLICIT_OUTER_LAYER_ORDER } from "../../font-feature-values-cascade.js";
 
 /**
  * Collect Blink's effective document-owned `@font-feature-values` storage.
@@ -42,8 +39,10 @@ export function collectFontFeatureValues(doc) {
       }
       if (hex !== "") {
         const codePoint = Number.parseInt(hex, 16);
-        output += codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)
-          ? "\ufffd" : String.fromCodePoint(codePoint);
+        output +=
+          codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)
+            ? "\ufffd"
+            : String.fromCodePoint(codePoint);
         if (index < value.length && /[\t\n\f\r ]/.test(value[index])) index++;
       } else if (index < value.length) {
         output += value[index++];
@@ -88,8 +87,8 @@ export function collectFontFeatureValues(doc) {
     return layer;
   };
   const mediaMatches = (media) => media == null || media === "" || view.matchMedia(media).matches;
-  const supportsMatches = (condition) => condition == null || condition === ""
-    || (view.CSS != null && view.CSS.supports(condition));
+  const supportsMatches = (condition) =>
+    condition == null || condition === "" || (view.CSS != null && view.CSS.supports(condition));
 
   const readFeatureRule = (rule, layer) => {
     if (typeof rule.fontFamily !== "string" || rule.stylistic == null || !hasFamily(rule.fontFamily)) return;
@@ -118,9 +117,12 @@ export function collectFontFeatureValues(doc) {
       }
       if (kind === "CSSImportRule") {
         if (!mediaMatches(rule.media?.mediaText) || !supportsMatches(rule.supportsText)) continue;
-        const importLayer = rule.layerName == null
-          ? parentLayer : addLayer(parentLayer, rule.layerName || "");
-        try { visitRules(rule.styleSheet?.cssRules, importLayer); } catch { /* cross-origin import */ }
+        const importLayer = rule.layerName == null ? parentLayer : addLayer(parentLayer, rule.layerName || "");
+        try {
+          visitRules(rule.styleSheet?.cssRules, importLayer);
+        } catch {
+          /* cross-origin import */
+        }
         continue;
       }
       if (kind === "CSSMediaRule" && !mediaMatches(rule.media?.mediaText || rule.conditionText)) continue;
@@ -138,7 +140,11 @@ export function collectFontFeatureValues(doc) {
   const sheets = [...Array.from(doc.styleSheets), ...Array.from(doc.adoptedStyleSheets || [])];
   for (const sheet of sheets) {
     if (sheet.disabled || !mediaMatches(sheet.media?.mediaText)) continue;
-    try { visitRules(sheet.cssRules, rootLayer); } catch { /* cross-origin sheet */ }
+    try {
+      visitRules(sheet.cssRules, rootLayer);
+    } catch {
+      /* cross-origin sheet */
+    }
   }
 
   let nextOrder = 0;
@@ -148,9 +154,11 @@ export function collectFontFeatureValues(doc) {
   };
   assignPostorder(rootLayer);
 
-  return fuseFontFeatureValueRules(pending.map(({ fontFamily, layer, table }) => ({
-    fontFamily,
-    layerOrder: layer === rootLayer ? IMPLICIT_OUTER_LAYER_ORDER : layer.order,
-    table,
-  })));
+  return fuseFontFeatureValueRules(
+    pending.map(({ fontFamily, layer, table }) => ({
+      fontFamily,
+      layerOrder: layer === rootLayer ? IMPLICIT_OUTER_LAYER_ORDER : layer.order,
+      table,
+    })),
+  );
 }

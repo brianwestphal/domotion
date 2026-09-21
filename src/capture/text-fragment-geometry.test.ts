@@ -9,8 +9,16 @@ import {
 } from "./text-fragment-geometry.js";
 import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
 
-const rectQuad = (x: number, y: number, width: number, height: number): CapturedTextPaintQuad =>
-  [x, y, x + width, y, x + width, y + height, x, y + height];
+const rectQuad = (x: number, y: number, width: number, height: number): CapturedTextPaintQuad => [
+  x,
+  y,
+  x + width,
+  y,
+  x + width,
+  y + height,
+  x,
+  y + height,
+];
 
 const mapQuad = (matrix: CapturedTextPaintAffine, quad: CapturedTextPaintQuad): CapturedTextPaintQuad => {
   const result: number[] = [];
@@ -35,16 +43,18 @@ const node = (
   transformOrigin: "17px 23px",
   effectiveZoom: 1,
   ...overrides,
-  rangeFragments: overrides.rangeFragments ?? neutralQuads.map((quad, physicalFragmentIndex): BlinkRangeFragmentProbe => ({
-    physicalFragmentIndex,
-    domUtf16Span: [physicalFragmentIndex * 6, (physicalFragmentIndex + 1) * 6],
-    neutralRangeRect: {
-      x: quad[0],
-      y: quad[1],
-      width: quad[2] - quad[0],
-      height: quad[7] - quad[1],
-    },
-  })),
+  rangeFragments:
+    overrides.rangeFragments ??
+    neutralQuads.map((quad, physicalFragmentIndex): BlinkRangeFragmentProbe => ({
+      physicalFragmentIndex,
+      domUtf16Span: [physicalFragmentIndex * 6, (physicalFragmentIndex + 1) * 6],
+      neutralRangeRect: {
+        x: quad[0],
+        y: quad[1],
+        width: quad[2] - quad[0],
+        height: quad[7] - quad[1],
+      },
+    })),
 });
 
 const segment = (x: number, y: number, text = "Affine", sourceStart = 0): TextSegment => ({
@@ -72,7 +82,7 @@ const segment = (x: number, y: number, text = "Affine", sourceStart = 0): TextSe
 
 describe("affine text-fragment matrix recovery", () => {
   it("recovers signed rotation/scale/translation and validates held-out corners", () => {
-    const angle = 37 * Math.PI / 180;
+    const angle = (37 * Math.PI) / 180;
     const matrix: CapturedTextPaintAffine = [
       Math.cos(angle) * 1.6,
       Math.sin(angle) * 1.6,
@@ -97,10 +107,17 @@ describe("affine text-fragment matrix recovery", () => {
   });
 
   it("keeps equal-diagonal rotation and scale as distinct matrices", () => {
-    const cosine = Math.cos(37 * Math.PI / 180);
+    const cosine = Math.cos((37 * Math.PI) / 180);
     const neutral = rectQuad(20, 30, 70, 20);
     const scale: CapturedTextPaintAffine = [cosine, 0, 0, cosine, 0, 0];
-    const rotate: CapturedTextPaintAffine = [cosine, Math.sin(37 * Math.PI / 180), -Math.sin(37 * Math.PI / 180), cosine, 0, 0];
+    const rotate: CapturedTextPaintAffine = [
+      cosine,
+      Math.sin((37 * Math.PI) / 180),
+      -Math.sin((37 * Math.PI) / 180),
+      cosine,
+      0,
+      0,
+    ];
     const solvedScale = solveTextPaintAffine(neutral, mapQuad(scale, neutral))!;
     const solvedRotate = solveTextPaintAffine(neutral, mapQuad(rotate, neutral))!;
     expect(solvedScale[0]).toBeCloseTo(solvedRotate[0], 10);
@@ -118,19 +135,21 @@ describe("captured text paint geometry", () => {
     second.xOffsets = [12, 22, 32, 42];
     second.xAdvances = [10, 10, 10, 10];
     const matrix: CapturedTextPaintAffine = [0.8, 0.6, -0.2, 1.1, 50, 9];
-    const result = buildCapturedTextPaintGeometry(
-      [first, second],
-      14,
-      [node(matrix, [rectQuad(12, 18, 60, 20), rectQuad(12, 48, 40, 20)], {
+    const result = buildCapturedTextPaintGeometry([first, second], 14, [
+      node(matrix, [rectQuad(12, 18, 60, 20), rectQuad(12, 48, 40, 20)], {
         effectiveZoom: 1.5,
         transformBox: "content-box",
         transformOrigin: "73% 18%",
         rangeFragments: [
           { physicalFragmentIndex: 0, domUtf16Span: [0, 6], neutralRangeRect: { x: 12, y: 18, width: 60, height: 20 } },
-          { physicalFragmentIndex: 1, domUtf16Span: [6, 10], neutralRangeRect: { x: 12, y: 48, width: 40, height: 20 } },
+          {
+            physicalFragmentIndex: 1,
+            domUtf16Span: [6, 10],
+            neutralRangeRect: { x: 12, y: 48, width: 40, height: 20 },
+          },
         ],
-      })],
-    );
+      }),
+    ]);
     expect(result.failureReason).toBeUndefined();
     expect(result.geometry?.fragments).toHaveLength(2);
     expect(result.geometry?.fragments[0]).toMatchObject({
@@ -155,9 +174,9 @@ describe("captured text paint geometry", () => {
   it("preserves RTL physical inline start and vertical inline geometry", () => {
     const rtl = segment(30, 10, "RTL");
     rtl.width = 30;
-    const rtlResult = buildCapturedTextPaintGeometry(
-      [rtl], 15, [node([1, 0, 0, 1, 0, 0], [rectQuad(30, 10, 30, 20)], { direction: "rtl" })],
-    );
+    const rtlResult = buildCapturedTextPaintGeometry([rtl], 15, [
+      node([1, 0, 0, 1, 0, 0], [rectQuad(30, 10, 30, 20)], { direction: "rtl" }),
+    ]);
     expect(rtlResult.geometry?.fragments[0].inlineOffset).toBe(60);
 
     const vertical: TextSegment = {
@@ -183,16 +202,18 @@ describe("captured text paint geometry", () => {
       yOffsets: [14, 34],
       verticalAdvances: [20, 20],
     };
-    const verticalResult = buildCapturedTextPaintGeometry(
-      [vertical], 15, [node([1, 0, 0, 1, 0, 0], [rectQuad(70, 14, 22, 40)], {
+    const verticalResult = buildCapturedTextPaintGeometry([vertical], 15, [
+      node([1, 0, 0, 1, 0, 0], [rectQuad(70, 14, 22, 40)], {
         writingMode: "vertical-rl",
-        rangeFragments: [{
-          physicalFragmentIndex: 0,
-          domUtf16Span: [0, 2],
-          neutralRangeRect: { x: 70, y: 14, width: 22, height: 40 },
-        }],
-      })],
-    );
+        rangeFragments: [
+          {
+            physicalFragmentIndex: 0,
+            domUtf16Span: [0, 2],
+            neutralRangeRect: { x: 70, y: 14, width: 22, height: 40 },
+          },
+        ],
+      }),
+    ]);
     expect(verticalResult.geometry?.fragments[0]).toMatchObject({
       inlineOffset: 14,
       shapedOrigins: [14, 34],
@@ -212,17 +233,18 @@ describe("captured text paint geometry", () => {
     projective[4] -= 9;
     const projectedNode = node([1, 0, 0, 1, 0, 0], [local]);
     projectedNode.paintQuads = [projective];
-    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [projectedNode]).failureReason)
-      .toContain("non-affine");
+    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [projectedNode]).failureReason).toContain(
+      "non-affine",
+    );
 
     const drift = node([1, 0, 0, 1, 0, 0], [local]);
     drift.paintQuads = [];
-    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [drift]).failureReason)
-      .toContain("count changed");
+    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [drift]).failureReason).toContain("count changed");
 
     const wrongSpan = node([1, 0, 0, 1, 0, 0], [local]);
     wrongSpan.rangeFragments[0].domUtf16Span = [1, 6];
-    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [wrongSpan]).failureReason)
-      .toContain("crosses or ambiguously belongs");
+    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [wrongSpan]).failureReason).toContain(
+      "crosses or ambiguously belongs",
+    );
   });
 });

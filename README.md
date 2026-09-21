@@ -212,7 +212,7 @@ writes the final `actual.svg`, one shared HAR, and an `expected.png` plus
 `captured-tree.json` for each composed frame. Use `--debug-dir <path>` to choose
 the bundle location.
 
-For an *animated* SVG, the package also ships `svg-scrubber` — a local video-style bench to play / pause / scrub / mark an in-out range, export the current frame as PNG, export the range as MP4, or trim it to a new self-contained animated SVG. Add `--review` to file a focused issue against a moment in the timeline: it writes an importable `.ticket` (frame time, range, and drawn regions) the same way `svg-review` builds a report for a still.
+For an _animated_ SVG, the package also ships `svg-scrubber` — a local video-style bench to play / pause / scrub / mark an in-out range, export the current frame as PNG, export the range as MP4, or trim it to a new self-contained animated SVG. Add `--review` to file a focused issue against a moment in the timeline: it writes an importable `.ticket` (frame time, range, and drawn regions) the same way `svg-review` builds a report for a still.
 
 ### Scripting API
 
@@ -264,7 +264,7 @@ npm run demos:examples  # run the bundled example demo scripts
 - `FEATURES.md` — per-feature support checklist with links to test fixtures.
 - `docs/` — requirements docs covering rendering fidelity, supported CSS features, and known caveats.
 - [`llms.txt`](llms.txt) — a concise, self-contained guide for **AI agents using Domotion as a tool** (Claude, Cursor, etc.): the CLIs, config schema, template library, API, gotchas, and a required rendered-pixel/video review gate before an SVG is handed back. Point your agent at it.
-- `CLAUDE.md` — guidance for AI assistants working *on this repo's* source (different audience from `llms.txt`).
+- `CLAUDE.md` — guidance for AI assistants working _on this repo's_ source (different audience from `llms.txt`).
 
 ## License
 

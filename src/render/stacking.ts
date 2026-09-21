@@ -27,13 +27,18 @@ function transformRelatedCanOwnFixed(el: CapturedElement): boolean {
  * SC checks below.
  */
 function transformRelatedCreatesStackingBoundary(el: CapturedElement): boolean {
-  return transformRelatedCanOwnFixed(el)
-    || (el.styles.display === "inline" && el.styles.position === "relative");
+  return transformRelatedCanOwnFixed(el) || (el.styles.display === "inline" && el.styles.position === "relative");
 }
 
 const transformRelatedWillChangeProperties: ReadonlySet<string> = new Set([
-  "transform", "transform-style", "perspective", "translate", "rotate",
-  "scale", "offset-path", "offset-position",
+  "transform",
+  "transform-style",
+  "perspective",
+  "translate",
+  "rotate",
+  "scale",
+  "offset-path",
+  "offset-position",
 ]);
 
 /**
@@ -43,8 +48,7 @@ const transformRelatedWillChangeProperties: ReadonlySet<string> = new Set([
  */
 export function isFlexOrGridContainerDisplay(display: string | undefined | null): boolean {
   if (display == null) return false;
-  return display === "flex" || display === "inline-flex"
-      || display === "grid" || display === "inline-grid";
+  return display === "flex" || display === "inline-flex" || display === "grid" || display === "inline-grid";
 }
 
 /**
@@ -94,8 +98,7 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   if (positioned && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
   // DM-525: flex/grid item with explicit z-index — Chrome treats this as a
   // stacking context root even at position:static.
-  if (isFlexOrGridContainerDisplay(parentDisplay)
-      && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
+  if (isFlexOrGridContainerDisplay(parentDisplay) && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
   if (s.position === "fixed" || s.position === "sticky") return true;
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return true;
@@ -112,7 +115,8 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   // stripe.com's speaker-card uses preserve-3d so its z-index:-1 speaker
   // photo can paint at the card's local SC step 2 (above the white bg)
   // instead of hoisting to a higher SC where it'd render behind the card.
-  if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return true;
+  if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat")
+    return true;
   // DM-2385: Blink's ComputedStyle::HasTransformRelatedProperty includes
   // HasPerspective(), and CalculateIsStackingContextWithoutContainment uses
   // that predicate directly. Keep this authored/computed signal separate from
@@ -134,17 +138,34 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   // `scroll-position` (which doesn't create an SC) on the `position` token.
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const _scWcProps: ReadonlySet<string> = new Set([
-      "transform", "transform-style", "perspective", "translate", "rotate",
-      "scale", "offset-path", "offset-position", "opacity", "filter", "backdrop-filter",
-      "mask", "mask-image", "clip-path",
-      "top", "right", "bottom", "left",
-      "position", "z-index", "isolation", "mix-blend-mode", "contain",
+      "transform",
+      "transform-style",
+      "perspective",
+      "translate",
+      "rotate",
+      "scale",
+      "offset-path",
+      "offset-position",
+      "opacity",
+      "filter",
+      "backdrop-filter",
+      "mask",
+      "mask-image",
+      "clip-path",
+      "top",
+      "right",
+      "bottom",
+      "left",
+      "position",
+      "z-index",
+      "isolation",
+      "mix-blend-mode",
+      "contain",
     ]);
     const tokens = s.willChange.split(/[\s,]+/);
     for (const t of tokens) {
       const lt = t.toLowerCase();
-      if (_scWcProps.has(lt)
-          && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return true;
+      if (_scWcProps.has(lt) && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return true;
     }
   }
   // DM-498: `contain: paint | strict | content` creates an SC.
@@ -189,8 +210,7 @@ export function isNonPositionedFloat(c: CapturedElement): boolean {
  */
 export function isInlineLevelDisplay(display: string | undefined | null): boolean {
   if (display == null || display === "") return false;
-  return display === "inline" || display.startsWith("inline-")
-      || display === "ruby" || display.startsWith("ruby-");
+  return display === "inline" || display.startsWith("inline-") || display === "ruby" || display.startsWith("ruby-");
 }
 
 /**
@@ -271,7 +291,11 @@ export function gatherStackingContextChildren(
    * of `.stages { position:relative }`) was rendering before the white
    * `.river-prop` page background and disappeared completely.
    */
-  const collectFromNonSC = (parent: CapturedElement, floatHoistBlocked: boolean = false, currentOverflowAncestor: CapturedElement | null = null): void => {
+  const collectFromNonSC = (
+    parent: CapturedElement,
+    floatHoistBlocked: boolean = false,
+    currentOverflowAncestor: CapturedElement | null = null,
+  ): void => {
     const childParentDisplay = parent.styles.display;
     const parentIsFlexGrid = isFlexOrGridContainerDisplay(childParentDisplay);
     // DM-537: when the parent is a flex/grid container, flex items hoisted
@@ -454,7 +478,8 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   if (zRaw != null && zRaw !== "" && zRaw !== "auto") return false;
   if (transformRelated && s.transform != null && s.transform !== "" && s.transform !== "none") return false;
   if (transformRelated && s.transformCreatesSc) return false;
-  if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return false;
+  if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat")
+    return false;
   if (transformRelated && s.perspective != null && s.perspective !== "" && s.perspective !== "none") return false;
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return false;
@@ -468,17 +493,34 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   }
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const _scWcProps: ReadonlySet<string> = new Set([
-      "transform", "transform-style", "perspective", "translate", "rotate",
-      "scale", "offset-path", "offset-position", "opacity", "filter", "backdrop-filter",
-      "mask", "mask-image", "clip-path",
-      "top", "right", "bottom", "left",
-      "position", "z-index", "isolation", "mix-blend-mode", "contain",
+      "transform",
+      "transform-style",
+      "perspective",
+      "translate",
+      "rotate",
+      "scale",
+      "offset-path",
+      "offset-position",
+      "opacity",
+      "filter",
+      "backdrop-filter",
+      "mask",
+      "mask-image",
+      "clip-path",
+      "top",
+      "right",
+      "bottom",
+      "left",
+      "position",
+      "z-index",
+      "isolation",
+      "mix-blend-mode",
+      "contain",
     ]);
     const tokens = s.willChange.split(/[\s,]+/);
     for (const t of tokens) {
       const lt = t.toLowerCase();
-      if (_scWcProps.has(lt)
-          && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return false;
+      if (_scWcProps.has(lt) && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return false;
     }
   }
   return true;
@@ -568,7 +610,14 @@ export function sortChildrenByPaintOrder(
   paintAsZSorted?: Set<CapturedElement>,
   directChildren?: Set<CapturedElement>,
 ): CapturedElement[] {
-  const b = paintOrderBuckets(children, parentDisplay, parentFlexDirection, paintAsInline, paintAsZSorted, directChildren);
+  const b = paintOrderBuckets(
+    children,
+    parentDisplay,
+    parentFlexDirection,
+    paintAsInline,
+    paintAsZSorted,
+    directChildren,
+  );
   return [...b.negative, ...b.base, ...b.floats, ...b.inlines, ...b.zeroOrAuto, ...b.positive];
 }
 
@@ -628,8 +677,10 @@ export function paintOrderBuckets(
   // intuit from the reversed visual layout. Implement by reversing the
   // order-modified sequence when *-reverse is set; this preserves correct
   // ordering when both `order` AND a *-reverse direction are combined.
-  const reverseFlex = isFlexGrid && parentFlexDirection != null
-    && (parentFlexDirection === "row-reverse" || parentFlexDirection === "column-reverse");
+  const reverseFlex =
+    isFlexGrid &&
+    parentFlexDirection != null &&
+    (parentFlexDirection === "row-reverse" || parentFlexDirection === "column-reverse");
   let orderedChildren: CapturedElement[];
   if (isFlexGrid) {
     // DM-1052: group the (possibly flattened) list into runs led by a direct
@@ -650,9 +701,7 @@ export function paintOrderBuckets(
         runs[runs.length - 1].items.push(c);
       }
     }
-    const sortedRuns = runs
-      .slice()
-      .sort((a, b) => a.ord - b.ord || a.idx - b.idx);
+    const sortedRuns = runs.slice().sort((a, b) => a.ord - b.ord || a.idx - b.idx);
     const orderedRuns = reverseFlex ? sortedRuns.reverse() : sortedRuns;
     orderedChildren = orderedRuns.flatMap((rn) => rn.items);
   } else {
@@ -682,13 +731,8 @@ export function paintOrderBuckets(
     // covered it. Bucket non-positioned SCs into the z:0/auto bucket too.
     // `isOverflowOnlySC` keeps overflow scrollers atomic in normal flow
     // (DM-673), so exclude them from this hoisting.
-    const isNonPosSc = !positioned
-      && establishesStackingContext(c, parentDisplay)
-      && !isOverflowOnlySC(c);
-    const treatAsZSorted = positioned
-      || (isFlexGrid && !isNaN(z))
-      || (paintAsZSorted?.has(c) === true)
-      || isNonPosSc;
+    const isNonPosSc = !positioned && establishesStackingContext(c, parentDisplay) && !isOverflowOnlySC(c);
+    const treatAsZSorted = positioned || (isFlexGrid && !isNaN(z)) || paintAsZSorted?.has(c) === true || isNonPosSc;
     if (!treatAsZSorted && flt !== "none") {
       floats.push(c);
     } else if (!treatAsZSorted && paintAsInline?.has(c) === true) {

@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-2703","DM-2705","DM-2707"]
-code: ["src/scroll/composer.ts","src/scroll/executor.ts"]
-aliases: ["docs/147-inner-live-scroll-capture.md","doc-147"]
+tickets: ["DM-2703", "DM-2705", "DM-2707"]
+code: ["src/scroll/composer.ts", "src/scroll/executor.ts"]
+aliases: ["docs/147-inner-live-scroll-capture.md", "doc-147"]
 ---
 
 # 147. Inner live-scroll capture

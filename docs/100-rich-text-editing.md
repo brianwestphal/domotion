@@ -4,10 +4,37 @@ title: "100 — Rich-text typing & editing: captured states + compression + care
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1757","DM-1761","DM-1763","DM-1764","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772","DM-S9HCAT"]
-code: ["examples/animate/compressed-run/","examples/animate/editor-session/","examples/animate/region-timing/","src/animation/animator.ts","src/animation/caret-metrics.ts","src/animation/caret-track.ts","src/animation/compressed-run.ts","src/animation/glyph-align.ts","src/animation/magic-move.ts","src/animation/text-address.ts","src/cli/animate-compression.ts","src/cli/animate.ts","src/cli/type-resample.ts","src/terminal/incremental.ts","tests/auto-compress.e2e.test.ts","tests/compress-marker.e2e.test.ts","tests/compress-size-guard.e2e.test.ts","tests/compressed-run-config.e2e.test.ts","tests/compressed-run.e2e.test.ts","tests/editor-session.e2e.test.ts","tests/fixture-fonts.ts","tests/flipbook-parity.ts","tests/region-timing.e2e.test.ts","tests/two-pane-regions.e2e.test.ts"]
-aliases: ["docs/100-rich-text-editing.md","doc-100"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  ["DM-1757", "DM-1761", "DM-1763", "DM-1764", "DM-1767", "DM-1768", "DM-1770", "DM-1771", "DM-1772", "DM-S9HCAT"]
+code:
+  [
+    "examples/animate/compressed-run/",
+    "examples/animate/editor-session/",
+    "examples/animate/region-timing/",
+    "src/animation/animator.ts",
+    "src/animation/caret-metrics.ts",
+    "src/animation/caret-track.ts",
+    "src/animation/compressed-run.ts",
+    "src/animation/glyph-align.ts",
+    "src/animation/magic-move.ts",
+    "src/animation/text-address.ts",
+    "src/cli/animate-compression.ts",
+    "src/cli/animate.ts",
+    "src/cli/type-resample.ts",
+    "src/terminal/incremental.ts",
+    "tests/auto-compress.e2e.test.ts",
+    "tests/compress-marker.e2e.test.ts",
+    "tests/compress-size-guard.e2e.test.ts",
+    "tests/compressed-run-config.e2e.test.ts",
+    "tests/compressed-run.e2e.test.ts",
+    "tests/editor-session.e2e.test.ts",
+    "tests/fixture-fonts.ts",
+    "tests/flipbook-parity.ts",
+    "tests/region-timing.e2e.test.ts",
+    "tests/two-pane-regions.e2e.test.ts",
+  ]
+aliases: ["docs/100-rich-text-editing.md", "doc-100"]
 ---
 
 # 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
@@ -42,8 +69,8 @@ timing** ships too: a `states` frame may declare
 `advances`, so two panes are authored as two independent sequences instead of
 one hand-interleaved list — and the capture loop batches states that advance
 disjoint regions, costing `1 + max(nᵢ)` whole-page captures against `1 + Σnᵢ`
-(docs/43 §11.1; "Independent per-region timing" below). The per-region *size
-guard* is the one region-aware piece still open, and is tracked separately.
+(docs/43 §11.1; "Independent per-region timing" below). The per-region _size
+guard_ is the one region-aware piece still open, and is tracked separately.
 The automatic and marker-driven collapse state machine is isolated in
 `src/cli/animate-compression.ts`; it owns frame eligibility, split points,
 cursor reindexing, and automatic-collapse provenance, while the main animate
@@ -61,7 +88,7 @@ reflow trailing text) first-class in the animate pipeline. Plain text is the tri
 primitive: a styled document model in config JSON plus an operation timeline
 (type / insert / select / replace / restyle) compiled to a bespoke glyph renderer.
 That core is **superseded** (see "The superseded alternative" at the end for what
-it bought and why it lost). The adopted design keeps the *page* as the document
+it bought and why it lost). The adopted design keeps the _page_ as the document
 model — the capture page renders each editing state as real DOM, exactly the
 authoring model the ground-truth kerf capture already used — and adds two
 primitives that fix that model's real costs:
@@ -106,7 +133,7 @@ today's declarative surface required four classes of elaborate workaround:
    text snapping to its syntax-colored form) was a page-side swap of the whole
    line for a colored twin with identical glyph geometry, staged as its own frame.
 
-Of these, the *authoring model* — page renders states, one continue+cut frame per
+Of these, the _authoring model_ — page renders states, one continue+cut frame per
 state — was actually sound: real reflow and real syntax coloring come from the
 browser for free, and the per-state page helpers are simple. The genuine costs
 were (a) every state is a full copy of the scene in the output SVG (and in the
@@ -147,7 +174,7 @@ insert typed one keystroke per state through the production pipeline) measured:
   right of the insertion point.
 - **The tail shifts by a single uniform delta = exactly one glyph advance**
   (+7.53 px per state for Menlo 12.5px), so one `translateX` waypoint per
-  keystroke represents the whole tail *exactly*, not approximately.
+  keystroke represents the whole tail _exactly_, not approximately.
 - **Recolors pair glyph-exactly**: the colorize-on-completion state (the whole
   line re-tokenized from one plain span into multiple colored spans) pairs
   219/221 glyphs with 2 recolored and 0 moved — element identity is destroyed by
@@ -197,7 +224,7 @@ the block form preserves for free.
 
 **Per-run marker — shipped as `compress: true` (DM-1761).** The reindexing
 objection above dissolved once the automatic pass (below) proved that collapsing
-at *config* level rather than animator level handles it for free. The marker is
+at _config_ level rather than animator level handles it for free. The marker is
 therefore the same pre-pass with a different trigger and a different failure
 mode: `compress: true` on a run's **anchor** frame (greedy left-to-right, so a
 marker on a later member of the same run is a redundant no-op) collapses that one
@@ -215,9 +242,9 @@ matters because a wholesale-change run can come out marginally larger compressed
 Verified pixel-identical to the flipbook in `tests/compress-marker.e2e.test.ts`.
 Authoring reference: docs/43 §13.2.
 
-Rejected placements, for the record: a *transition type* (compression is
+Rejected placements, for the record: a _transition type_ (compression is
 run-scoped identity tracking, not a pairwise A→B effect), and — originally — an
-*automatic pass over all continue+cut runs* (right long-term, but it changes
+_automatic pass over all continue+cut runs_ (right long-term, but it changes
 every existing config's output shape; deferred until the machinery was proven
 behind the opt-in).
 
@@ -226,7 +253,7 @@ behind the opt-in).
 top-level flag (`autoCompress: true`, or `--auto-compress`; docs/43 §13). It
 does NOT need "shared-content groups spanning frame windows": rather than
 collapsing at the animator level, it is a **config pre-pass** that rewrites each
-maximal `continue` + `cut` run into a single `states` frame *before* the capture
+maximal `continue` + `cut` run into a single `states` frame _before_ the capture
 loop — so it reuses the block form's machinery verbatim and keeps the 1
 config-frame ↔ 1 animation-frame invariant that the block form preserves for
 free (the reindexing of `frameStartsMs` / cursor `events[].frame` falls out of
@@ -243,7 +270,7 @@ reason.
 **Sub-run splitting (DM-1764).** The pass no longer drops a whole run over one
 frame. The three interaction exclusions — an explicit cursor event addressing a
 member, an interaction action a `cursor: "auto"` pointer would be derived from,
-and a magic-move landing on the anchor — are single-*frame* reasons, so that
+and a magic-move landing on the anchor — are single-_frame_ reasons, so that
 frame splits the candidate window and the eligible sub-runs on either side
 collapse anyway (subject to the two-frame minimum). The split frame stays a
 plain sibling frame, so its pointer / its magic-move morph behaves exactly as it
@@ -256,14 +283,14 @@ split point is still a hard error: the author asked for that exact run.
 
 **Splitting is the settled answer for cursor and magic-move frames — decided,
 not pending (DM-1764).** Both alternatives were costed and declined by the
-maintainer. *Lifting a pointer onto the collapsed frame* fails twice over: a
+maintainer. _Lifting a pointer onto the collapsed frame_ fails twice over: a
 cursor target resolves against the live page during that frame's capture, and a
 collapsed run leaves the page at its LAST state, so a click authored for state 2
 would aim at state 5's layout — wrong precisely because the layout moved, which
 is the reason the run compresses at all; and the cursor-TYPE hit-test reads the
 frame's captured tree, which a collapsed run does not have (its content is a
 nested SVG), so the pointer would silently fall back to the plain arrow over a
-link or button. *Allowing a magic-move entry to collapse* downgrades an author's
+link or button. _Allowing a magic-move entry to collapse_ downgrades an author's
 deliberate morph to a crossfade with no indication why it stopped working. The
 whole remaining upside across both cases is ≤ 2.8 KB per run (measured: an
 8-state run composes at 10.6 KB whole, 11.9 KB split at the end, 13.4 KB split
@@ -274,7 +301,7 @@ the byte cost matters at some scale not yet seen.
 **Per-frame overlays inside a run — now RIDE ALONG (DM-1764 analysis,
 DM-1767 fix).** Attaching a member's overlay to the collapsed frame at its state
 offset was not the remap it looked like, for two reasons that both lived in the
-OVERLAY model rather than the collapse pass. Overlay lifetime was *frame*-scoped
+OVERLAY model rather than the collapse pass. Overlay lifetime was _frame_-scoped
 — every kind emitted against its frame's window, with `typing` / `blink` /
 `interact` holding until the frame ends — so an overlay authored on the third of
 five members would stop disappearing at that member's cut and hold to the end of
@@ -301,11 +328,11 @@ too kind. Measured across three run shapes at 640×360, comparing the composed
 run against the same states rendered independently (`rawBytes`, which the
 compressor already reports):
 
-| Run shape | Glyphs paired | Uncompressed | Compressed | Ratio |
-| --- | --- | --- | --- | --- |
-| Per-character typing (8 states) | 97.0% | 17.6 KB | 10.7 KB | **0.61×** |
-| Row-at-a-time append (7 states) | 80.1% | 14.2 KB | 7.1 KB | **0.50×** |
-| Wholesale-change slideshow (6 states) | 12.7% | 13.6 KB | 32.0 KB | **2.36×** |
+| Run shape                             | Glyphs paired | Uncompressed | Compressed | Ratio     |
+| ------------------------------------- | ------------- | ------------ | ---------- | --------- |
+| Per-character typing (8 states)       | 97.0%         | 17.6 KB      | 10.7 KB    | **0.61×** |
+| Row-at-a-time append (7 states)       | 80.1%         | 14.2 KB      | 7.1 KB     | **0.50×** |
+| Wholesale-change slideshow (6 states) | 12.7%         | 13.6 KB      | 32.0 KB    | **2.36×** |
 
 A wholesale-change run is not "marginally larger" — it more than doubles,
 because nothing pairs, everything re-emits as births + deaths, and the union
@@ -335,7 +362,7 @@ hard error: don't quietly turn what they wrote into something else.
 
 **Default-flip — SHIPPED (DM-1768). `autoCompress` is now default-ON.** The
 flip was gated on three prerequisites, all now met: (1) the excluded
-complex-interaction cases (per-frame overlays, cursor events, magic-move *inside*
+complex-interaction cases (per-frame overlays, cursor events, magic-move _inside_
 a run) — **met**: sub-run splitting (above) reduces every exclusion to a
 per-frame cost (and DM-1767 has since removed overlays from the exclusion set
 entirely — they ride along as per-state overlays);
@@ -359,7 +386,7 @@ cull-class collision class cannot occur within a merged run); magic-move to/from
 a run block degrades to crossfade like other block frames; embedded-font and
 glyph-defs accumulation are unaffected; the scrubber already supports nested
 animated SVGs. One documented v1 restriction: cursor-overlay events address
-config frames, so per-state pointer motion *inside* a run isn't addressable —
+config frames, so per-state pointer motion _inside_ a run isn't addressable —
 acceptable because editing runs have no pointer.
 
 ### Shipped engine (v1): `composeCompressedRun`
@@ -425,7 +452,7 @@ declarative run-block sugar is the config-surface stage below.
    glyph; at the close-up x of a deletion), emitted through the docs/101
    caret-track machinery. The detected `edits` are also returned.
 5. **Behind-glyph selection** (opt-in `selection: CompressedRunSelection |
-   CompressedRunSelection[]`, default off) — docs/101 selection rects
+CompressedRunSelection[]`, default off) — docs/101 selection rects
    (`resolveRangeRects`) resolved against each selection's appear-state
    captured tree and emitted **into the chrome↔glyph layer gap**, so the
    highlight paints BEHIND the glyph ink — true editor selection z-order,
@@ -437,7 +464,7 @@ declarative run-block sugar is the config-surface stage below.
 
 The glyph layer paints above the merged chrome (with selection rects, when
 requested, interleaved just below it). That yields true editor z-order
-(selection-style box paint lands *behind* the glyphs), guarded by an
+(selection-style box paint lands _behind_ the glyphs), guarded by an
 occlusion check: text only joins the glyph layer when no box-painting element
 that paints after it intersects its rects — otherwise the text stays in chrome
 and flipbooks. "Paints after" is the renderer's REAL paint order
@@ -462,13 +489,13 @@ code view and its minimap, a log tail beside a static sidebar — each changing 
 its own timing. Line buckets key on a text segment's y (a "visual line"), and
 two panes side by side sit at the SAME y values, so without a discriminator
 their glyphs merge into one logical line: the pairing pass then sees a line
-whose content changes wholesale whenever *either* pane changes, and the
+whose content changes wholesale whenever _either_ pane changes, and the
 cross-line phase can no longer express "this pane scrolled" as a move. Each
-run of text therefore carries a **region** — the innermost *clipping* ancestor
+run of text therefore carries a **region** — the innermost _clipping_ ancestor
 (an ancestor with a non-`visible` overflow: a scroll container, a pane, a
 clipped viewport), or, where nothing clips, the innermost side-by-side
 **column**: a box that overlaps a sibling vertically while being disjoint from
-it horizontally *and* is taller than one line box. Line bucketing and both
+it horizontally _and_ is taller than one line box. Line bucketing and both
 bucket-pairing phases are scoped to the region, so two panes never compete for a
 bucket and one pane's vertical move delta is never offered to another's edited
 lines.
@@ -476,12 +503,12 @@ lines.
 The discriminator was picked by measurement against a two-pane fixture (a code
 editor left, a Markdown-style preview right, lines on the same 19 px grid),
 in the case a merged bucket cannot express: the preview scrolls by one
-line-height *while* the editor is edited, in the same state. Over 6 states:
+line-height _while_ the editor is edited, in the same state. Over 6 states:
 
-| | glyphs paired | births / deaths | composed bytes |
-| --- | --- | --- | --- |
-| merged into one bucket | 59.7% | 1191 / 1179 | 62.7 KB (0.68× of flipbook) |
-| region-discriminated | **96.5%** | **102 / 90** | **28.3 KB (0.31×)** |
+|                        | glyphs paired | births / deaths | composed bytes              |
+| ---------------------- | ------------- | --------------- | --------------------------- |
+| merged into one bucket | 59.7%         | 1191 / 1179     | 62.7 KB (0.68× of flipbook) |
+| region-discriminated   | **96.5%**     | **102 / 90**    | **28.3 KB (0.31×)**         |
 
 ...and the region-discriminated numbers match, to the glyph, a control run of
 the same scene with the right pane nudged 6 px so the two panes fell into
@@ -500,7 +527,7 @@ ONE region, and every bucket partition, pairing decision, group, and emitted
 byte is identical to a build with no discriminator at all (verified: all 25
 animate goldens byte-identical, and the compressor's own fixtures unchanged at
 99.6% / 84.6% paired). A region whose own box changes between states (a pane
-that resized) is a *different* region, so its lines re-emit rather than mispair
+that resized) is a _different_ region, so its lines re-emit rather than mispair
 — re-emit on any doubt.
 
 Rasterized coverage: `tests/two-pane-regions.e2e.test.ts` holds both the
@@ -525,7 +552,7 @@ across all typed states, and the recolor landing in place.
 **The compressor's pixel bar is shift-inclusive, and deliberately stricter than
 the fidelity sweeps'.** Every compressed-run e2e assertion site goes through one
 helper, `tests/flipbook-parity.ts`. The sweeps gate on `regionCount === 0`,
-which excludes connected components whose pixels are mostly *low severity* — the
+which excludes connected components whose pixels are mostly _low severity_ — the
 signature of glyph-shape drift when comparing our outlines against Chrome's
 grid-fitted raster. That suppression is load-bearing there, and wrong here:
 both images come out of our own renderer and depict the same captured layout,
@@ -552,7 +579,7 @@ pixels): states are captured
 statics (intra-frame animations / per-state cursor-overlay addressing inside a
 run are unsupported — editing runs have no pointer); coding-ligature fonts may
 unligate across a split boundary (positions stay exact; the glyph shape at the
-boundary may differ from a ligated paint); no viewBox culling *inside* the run
+boundary may differ from a ligated paint); no viewBox culling _inside_ the run
 (the outer animator still culls the frame as one unit); the default
 embedded-font render mode is assumed (`paths` mode's glyph-defs registry is
 not deduped across the compressor's internal renders). Chrome variants DO
@@ -567,7 +594,7 @@ doubt).
 **That positional hold-back is settled, not a pending gap.** It was measured
 rather than assumed, and relaxing it does not pay:
 
-- *It almost never binds.* A reopen candidate needs the whole captured subtree
+- _It almost never binds._ A reopen candidate needs the whole captured subtree
   byte-equal, and captured records carry **absolute** geometry — so an in-flow
   sibling that returns at a different index also returns at a different painted
   position, its record differs, and no candidate exists at any position. Only
@@ -575,10 +602,10 @@ rather than assumed, and relaxing it does not pay:
   of DOM index, can reach the guard at all. Across both shipped compressed-run
   examples and a real 11-state keystroke capture, **zero** candidates were
   refused by it. The often-cited motivating case — a list row removed and
-  returned below a newly inserted sibling — is *not* blocked by this guard; it
+  returned below a newly inserted sibling — is _not_ blocked by this guard; it
   fails the byte-equality match one step earlier, so neither relaxing the guard
   nor a per-window-position mechanism would recover it.
-- *When it does bind, relaxing it usually costs bytes.* The union is one
+- _When it does bind, relaxing it usually costs bytes._ The union is one
   ordered list and the merge's LCS is order-preserving over (union order) ×
   (document order), so an inverted pair can never both be matched at a later
   state: the next state drops one and re-emits it in the right place. An
@@ -595,7 +622,7 @@ reopened-in-place variant would visibly flip the overlap.
 
 ### Independent per-region timing — SHIPPED (DM-1770)
 
-Region *discrimination* ships above: each pane gets its own line buckets and
+Region _discrimination_ ships above: each pane gets its own line buckets and
 its own pairing. Region **timing** now ships too — a run's states can each name
 which region(s) they advance, and the capture loop schedules accordingly. The
 authoring reference is docs/43 §11.1; this section keeps the design rationale
@@ -609,7 +636,7 @@ and the measurements behind it.
    `textTracks` and intra-frame animations already use — so the captured
    element carries an `animId` the compressor recognizes as an explicit region
    root (`composeCompressedRun`'s `regionRootIds`). Auto-detection remains the
-   default everywhere the author declares nothing, and still subdivides *within*
+   default everywhere the author declares nothing, and still subdivides _within_
    a declared region; the declaration is an override, not a replacement. A
    declared region also keys on its **name** rather than its box, so the "a
    resized pane is a different region" re-emission above applies only to
@@ -618,7 +645,7 @@ and the measurements behind it.
    Two hard errors: a selector matching nothing, and two regions resolving to
    the same element.
 2. **Per-region timing.** A state may declare `advances: [<name>…]`. Capture
-   stays whole-page; what changes is that one whole-page capture is *assigned*
+   stays whole-page; what changes is that one whole-page capture is _assigned_
    to several regions at once. States advancing **disjoint** regions are driven
    into the page together and captured once, and each state's tree is assembled
    by taking each region's subtree from the round holding its own state. The
@@ -631,12 +658,12 @@ and the measurements behind it.
 **Measured capture-count reduction** (two panes, alternating schedules, through
 the real CLI pipeline):
 
-| shape | states | captures, hand-interleaved | captures, per-region |
-| --- | --- | --- | --- |
-| 2 regions × 3 advances | 7 | 7 | **4** |
-| 2 regions × 5 advances | 11 | 11 | **6** |
-| 2 regions × 8 advances | 17 | 17 | **9** |
-| 3 regions × 4 advances | 13 | 13 | **5** |
+| shape                  | states | captures, hand-interleaved | captures, per-region |
+| ---------------------- | ------ | -------------------------- | -------------------- |
+| 2 regions × 3 advances | 7      | 7                          | **4**                |
+| 2 regions × 5 advances | 11     | 11                         | **6**                |
+| 2 regions × 8 advances | 17     | 17                         | **9**                |
+| 3 regions × 4 advances | 13     | 13                         | **5**                |
 
 That is exactly `1 + max(nᵢ)` against `1 + Σnᵢ` — the stated goal, reached in
 full for disjoint schedules. Composed **bytes are unchanged** across both paths
@@ -683,7 +710,7 @@ or splits the whole run).
 
 **Already region-aware before this.** Two of the three pieces people expect from
 "independent regions" were already in the shipped engine: the chrome union pairs
-per-*element* subtrees on byte-equality, so an unchanged pane's subtree is
+per-_element_ subtrees on byte-equality, so an unchanged pane's subtree is
 emitted once no matter how hard its neighbor churns; and glyph identity is
 threaded per line bucket per region, so each pane pairs, moves, and recolors on
 its own.
@@ -692,18 +719,18 @@ its own.
 that motivates per-region timing is that interleaving two schedules into their
 union grid makes every region carry a waypoint at every other region's
 boundary. It does not. Every track the compressor emits is `step-end` and the
-emitter only writes a stop where a value *changes*, so a state in which a region
+emitter only writes a stop where a value _changes_, so a state in which a region
 is unchanged contributes nothing to that region's keyframes. Measured on the
 two-pane fixture — identical visual content, grid granularity varied by
 inserting nothing-changed states:
 
-| grid | states | composed bytes | track CSS | groups | chrome tracks |
-| --- | --- | --- | --- | --- | --- |
-| natural | 6 | 24.2 KB | 42,497 B | 36 | 82 |
-| union (1 dup between each pair) | 11 | 24.3 KB | 42,562 B | 36 | 82 |
-| union (3 dups between each pair) | 21 | 24.3 KB | 42,562 B | 36 | 82 |
+| grid                             | states | composed bytes | track CSS | groups | chrome tracks |
+| -------------------------------- | ------ | -------------- | --------- | ------ | ------------- |
+| natural                          | 6      | 24.2 KB        | 42,497 B  | 36     | 82            |
+| union (1 dup between each pair)  | 11     | 24.3 KB        | 42,562 B  | 36     | 82            |
+| union (3 dups between each pair) | 21     | 24.3 KB        | 42,562 B  | 36     | 82            |
 
-A 3.5× finer grid costs **0.4%**. So per-region timing is *not* a payload
+A 3.5× finer grid costs **0.4%**. So per-region timing is _not_ a payload
 optimization, and any design that justifies itself on output size is
 mis-motivated. What the global grid actually cost — and what the shipped
 surface therefore attacks — is:
@@ -715,7 +742,7 @@ surface therefore attacks — is:
   grid composed in 177 ms against the 6-state grid's 120 ms. **Unchanged** — the
   composed run still has all N states on one grid, which is what keeps its
   output shape (and the 1 config-frame ↔ 1 animation-frame invariant) identical.
-  Only the number of *captures* backing those states drops.
+  Only the number of _captures_ backing those states drops.
 - **Authoring.** The author had to interleave the schedules by hand into one
   `states:` list and make each state's `actions` drive whichever pane moved at
   that moment. This was the real pain. **Fixed** by `regions` + `advances`:
@@ -726,23 +753,23 @@ per-region decision. When a run trips the size trigger, the guard no longer
 reverts the whole scene; it decides on REAL BYTES which of the run's regions to
 demote. See `docs/103-per-region-size-guard.md` for the full spec; the summary:
 
-The per-region fallback is *not* the whole-run flipbook — it is **demoting that
+The per-region fallback is _not_ the whole-run flipbook — it is **demoting that
 region's text into the chrome union**, the path ineligible text already takes
 (pixel-safe by the same argument, and the occlusion promotion check stays
 whole-tree, so one region's demotion can't change another's). Measured on a
 deliberately mixed scene — a well-pairing editor pane beside a wholesale-change
 slideshow pane, 6 states, 97.3 KB of raw flipbook payload:
 
-| | composed bytes |
-| --- | --- |
-| compress both regions (unguarded compressed output) | 172.1 KB (1.77× raw) |
-| demote the wholesale-change region only | 83.2 KB |
-| demote the well-pairing region only (the *wrong* single choice) | 170.9 KB |
-| demote both (per-region minimum here) | **81.8 KB** |
-| `composeStatesFlipbook` (the old whole-run fallback) | 97.8 KB |
+|                                                                 | composed bytes       |
+| --------------------------------------------------------------- | -------------------- |
+| compress both regions (unguarded compressed output)             | 172.1 KB (1.77× raw) |
+| demote the wholesale-change region only                         | 83.2 KB              |
+| demote the well-pairing region only (the _wrong_ single choice) | 170.9 KB             |
+| demote both (per-region minimum here)                           | **81.8 KB**          |
+| `composeStatesFlipbook` (the old whole-run fallback)            | 97.8 KB              |
 
 **The decision procedure (shipped).** The trigger (`compressedBytes / rawBytes`)
-is free and only *arms* the guard. The choice is then made on real bytes among
+is free and only _arms_ the guard. The choice is then made on real bytes among
 three pixel-identical candidates, each SIZED in a `snapshotGeneration()` /
 `restoreGeneration()` trial so a discarded compose's PUA / `dmfN` addressing
 never leaks (doc 99 § speculative composition; DM-1771):
@@ -754,7 +781,7 @@ never leaks (doc 99 § speculative composition; DM-1771):
    all is the chrome union. On the mixed fixture both panes shrink → 81.8 KB.
 3. **`composeStatesFlipbook`** — the uncompressed floor, kept as a candidate so
    the DM-1764 guarantee (`autoCompress` never grows output) still holds for a
-   *pure* wholesale run whose union can't dedupe and comes out slightly larger
+   _pure_ wholesale run whose union can't dedupe and comes out slightly larger
    than the flipbook. Chrome demotion beats the flipbook only when states share
    subtrees the union deduplicates (the mixed fixture: 81.8 < 97.8); for a pure
    slideshow the flipbook floor wins and the guard reverts to it as before.
@@ -769,7 +796,7 @@ Two rejected alternatives, for the record: a **proxy metric** (per-region
 births-per-identity, no trial compose) lands 1.7% off the optimum and breaks the
 "decide on real bytes" principle; **leaving it** was rejected because per-region
 recovers the 2× gap between "never worse than the flipbook" and "as good as it
-could be." The reason the whole-run fallback couldn't simply *become* chrome
+could be." The reason the whole-run fallback couldn't simply _become_ chrome
 demotion (dropping the flipbook) is item 3 above: it would regress the DM-1764
 never-worse-than-uncompressed guarantee on pure-wholesale runs.
 
@@ -778,8 +805,8 @@ were costed:
 
 - **A — auto-detected (no new surface).** The shipped discriminator: innermost
   clipping ancestor, else innermost side-by-side column. Zero authoring, and it
-  demonstrably separates real panes. Its limit is that it detects *layout*
-  regions, not *update* regions: two panes that always change together are still
+  demonstrably separates real panes. Its limit is that it detects _layout_
+  regions, not _update_ regions: two panes that always change together are still
   two regions (harmless), and one pane containing two independently-updating
   halves with no clip or column split between them is one region (a missed
   opportunity, not a bug).
@@ -791,23 +818,23 @@ were costed:
   the detection where the author knows better.
 
 **C is what shipped** (docs/43 §11.1): auto-detection is the default and needs
-no config, an explicit declaration overrides it *only for the elements it
-covers*, and auto-detection still subdivides inside a declared region. B's
+no config, an explicit declaration overrides it _only for the elements it
+covers_, and auto-detection still subdivides inside a declared region. B's
 `advances` rides on top of the same declaration, so the surface that unlocks
 per-region capture counts is the same one that overrides the detector.
 
 **Overlapping and z-ordered regions.** The layering is global and stays that
 way: one chrome union below, selection rects in the gap, all glyph groups above,
-caret on top. Regions partition the *glyph layer's bucketing*, not the paint
+caret on top. Regions partition the _glyph layer's bucketing_, not the paint
 order, so two regions that overlap spatially are still painted in the scene's
 real paint order within each layer. The promotion rule already handles the
 dangerous case: text only joins the glyph layer when nothing that paints after
 it (in `paintOrderHitSequence` order, clipped to its own overflow) intersects
-it — so a region that sits *under* another region's opaque chrome never reaches
+it — so a region that sits _under_ another region's opaque chrome never reaches
 the glyph layer at all and flipbooks in place. A per-region design must not
 weaken that check; it should stay whole-scene, because "paints after" is a
 property of the scene and not of any region. The one shape that needs a decision
-is a region whose glyphs must paint *below* another region's chrome — today
+is a region whose glyphs must paint _below_ another region's chrome — today
 that text is demoted, which is correct but costs compression, and recovering it
 would need per-region glyph sub-layers interleaved into the chrome union rather
 than one glyph layer on top.
@@ -815,7 +842,7 @@ than one glyph layer on top.
 **Capture stays whole-page.** Not negotiable, and written into the shipped
 surface: the browser paints the page, so every capture is a capture of the
 entire viewport. Per-region timing does not mean per-region capture; it means
-each whole-page capture is *assigned* to the region(s) that changed at that
+each whole-page capture is _assigned_ to the region(s) that changed at that
 moment, and regions that did not change reuse their previous tree. That
 assignment is what lets a region be captured at its own rate rather than at the
 union rate, cutting Σnᵢ back to max(nᵢ). The assignment is **authored**
@@ -838,8 +865,8 @@ even a forced `data-magic-key` pair goes through `appearanceChanged()` into the
 dual-render cross-fade; the measured pairable unit is the glyph. (2) **motion
 model** — magic-move interpolates continuously; editors need step-end snaps, and
 an unchanged prefix must not participate in any fade. (3) **cost model** — each
-bridge is a full composite render of the next tree, so N states would *grow*
-output, not shrink it. The compressor keeps magic-move's *idea* (identity across
+bridge is a full composite render of the next tree, so N states would _grow_
+output, not shrink it. The compressor keeps magic-move's _idea_ (identity across
 frames) and its caller-side placement; the identity unit, timing function, and
 scope are all different.
 
@@ -850,7 +877,7 @@ compressor (it must not be gated on it):
 
 - **Addressing**: `{ selector, charOffset }` (ranges: `charStart`/`charEnd`),
   resolved **node-side against the captured tree** — the captured segments carry
-  per-char `xOffsets` and baseline `y`, so the caret sits on *Chromium's* painted
+  per-char `xOffsets` and baseline `y`, so the caret sits on _Chromium's_ painted
   x with no live-page probe, no fontkit advance model, and no hand-tuned
   `dy ≈ ascent` constant. Vertical geometry from the element's captured
   `fontAscent` (fallback: the `overlayAdvances` fontkit path).
@@ -863,7 +890,7 @@ compressor (it must not be gated on it):
 - **Selection**: a rect track from `xOffsets[start]` to `xOffsets[end]`, grown
   over `sweepMs` via width keyframes (per-char x is available, so sweep geometry
   is exact), cleared on command. Z-order note: true editor selection paints
-  *behind* the glyphs — inside a compressed run the merged emission can do that;
+  _behind_ the glyphs — inside a compressed run the merged emission can do that;
   as a standalone overlay on an ordinary frame the rect sits above the text
   (a translucent highlight-marker look, right for walkthrough highlighting).
 - **Auto-caret inside compressed runs**: the pairing pass computes each state's
@@ -898,7 +925,7 @@ regardless of (and before) everything above:
 
 1. **`holdToFrameEnd: true`** on the `typing` overlay — opt out of the forced
    end-of-frame fade. Today `renderTypingOverlay` computes `holdEndMs = frameEnd
-   − disappearGap` (150 ms) and fades the overlay (and its mask) out over the
+− disappearGap` (150 ms) and fades the overlay (and its mask) out over the
    remainder; the flag instead holds full opacity to the frame's end and drops
    with a hard `step-end` cut at the frame boundary (the mask rect too). With the
    next frame carrying identical page text, the handoff becomes seamless without

@@ -67,9 +67,7 @@ describe("animated-image frame selection adjudicator", () => {
 
     const reordered = structuredClone(exactEvidence());
     reordered.arms[1].order = [0, 0, 1, 1];
-    expect(adjudicateAnimatedImageFormat(reordered)).toContain(
-      "gif: validation order is not reverse same-frame pairs",
-    );
+    expect(adjudicateAnimatedImageFormat(reordered)).toContain("gif: validation order is not reverse same-frame pairs");
 
     const cacheDependent = structuredClone(exactEvidence());
     cacheDependent.arms[1].observations[3].pngSha256 = "moved-after-reverse-decode";
@@ -80,10 +78,12 @@ describe("animated-image frame selection adjudicator", () => {
     const unbounded = structuredClone(exactEvidence());
     unbounded.track.frameCount = 9;
     unbounded.outOfRange.name = "none";
-    expect(adjudicateAnimatedImageFormat(unbounded)).toEqual(expect.arrayContaining([
-      "gif: frameCount 9 is outside bounded 2..8 corpus",
-      "gif: out-of-range frame index did not reject with RangeError",
-    ]));
+    expect(adjudicateAnimatedImageFormat(unbounded)).toEqual(
+      expect.arrayContaining([
+        "gif: frameCount 9 is outside bounded 2..8 corpus",
+        "gif: out-of-range frame index did not reject with RangeError",
+      ]),
+    );
   });
 
   it("rejects unauthenticated source, unsupported track, and malformed frame facts", () => {
@@ -98,33 +98,35 @@ describe("animated-image frame selection adjudicator", () => {
     malformed.arms[0].observations[0].codedWidth = 0;
     malformed.arms[0].observations[0].timestamp = -1;
     malformed.arms[0].observations[0].visibleRect = null;
-    expect(adjudicateAnimatedImageFormat(malformed)).toEqual(expect.arrayContaining([
-      "gif: MIME type image/png does not match the format",
-      "gif: pinned source path does not match the format",
-      "gif: encoded source identity is incomplete",
-      "gif: ImageDecoder type unsupported",
-      "gif: selected track is not animated",
-      "gif: preferAnimation selected unexpected track 1",
-      "gif/proposal: frame 0 has invalid dimensions",
-      "gif/proposal: frame 0 has invalid timing metadata",
-      "gif/proposal: frame 0 has invalid visible rect",
-    ]));
+    expect(adjudicateAnimatedImageFormat(malformed)).toEqual(
+      expect.arrayContaining([
+        "gif: MIME type image/png does not match the format",
+        "gif: pinned source path does not match the format",
+        "gif: encoded source identity is incomplete",
+        "gif: ImageDecoder type unsupported",
+        "gif: selected track is not animated",
+        "gif: preferAnimation selected unexpected track 1",
+        "gif/proposal: frame 0 has invalid dimensions",
+        "gif/proposal: frame 0 has invalid timing metadata",
+        "gif/proposal: frame 0 has invalid visible rect",
+      ]),
+    );
   });
 
   it("rejects missing control roles, observation reindexing, and incomplete arms", () => {
     const missingRole = structuredClone(exactEvidence());
     missingRole.arms[1].role = "proposal";
-    expect(adjudicateAnimatedImageFormat(missingRole)).toContain(
-      "gif: proposal/validation roles missing or reordered",
-    );
+    expect(adjudicateAnimatedImageFormat(missingRole)).toContain("gif: proposal/validation roles missing or reordered");
 
     const moved = structuredClone(exactEvidence());
     moved.arms[0].observations[0].requestedIndex = 2;
     moved.arms[1].observations.pop();
-    expect(adjudicateAnimatedImageFormat(moved)).toEqual(expect.arrayContaining([
-      "gif/proposal: requested index moved at position 0",
-      "gif/proposal: requested frame index is outside the selected track",
-      "gif/validation: observation count does not match order",
-    ]));
+    expect(adjudicateAnimatedImageFormat(moved)).toEqual(
+      expect.arrayContaining([
+        "gif/proposal: requested index moved at position 0",
+        "gif/proposal: requested frame index is outside the selected track",
+        "gif/validation: observation count does not match order",
+      ]),
+    );
   });
 });

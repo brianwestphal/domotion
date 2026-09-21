@@ -54,16 +54,13 @@ const TEXT_DEFAULT_MODIFIER_BASES = [
 ];
 
 describe("isEmojiPresentationCp — emoji-modifier bases", () => {
-  it.each(TEXT_DEFAULT_MODIFIER_BASES)(
-    "treats U+%s as emoji presentation despite Emoji_Presentation=No",
-    (cp) => {
-      // The premise of the test, asserted so it fails loudly rather than
-      // silently passing if Unicode ever flips the property on these.
-      expect(/\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))).toBe(false);
-      expect(/\p{Emoji_Modifier_Base}/u.test(String.fromCodePoint(cp))).toBe(true);
-      expect(isEmojiPresentationCp(cp)).toBe(true);
-    },
-  );
+  it.each(TEXT_DEFAULT_MODIFIER_BASES)("treats U+%s as emoji presentation despite Emoji_Presentation=No", (cp) => {
+    // The premise of the test, asserted so it fails loudly rather than
+    // silently passing if Unicode ever flips the property on these.
+    expect(/\p{Emoji_Presentation}/u.test(String.fromCodePoint(cp))).toBe(false);
+    expect(/\p{Emoji_Modifier_Base}/u.test(String.fromCodePoint(cp))).toBe(true);
+    expect(isEmojiPresentationCp(cp)).toBe(true);
+  });
 
   it("still treats emoji-presentation defaults as emoji presentation", () => {
     expect(isEmojiPresentationCp(0x1f600)).toBe(true); // 😀

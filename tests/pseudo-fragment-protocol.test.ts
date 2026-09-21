@@ -42,7 +42,9 @@ function mixedInput(): PseudoProtocolInput {
         layoutIndex: 1,
         bounds: { x: 20, y: 20, width: 10, height: 10 },
         text: "A ",
-        textBoxes: [{ bounds: { x: 20, y: 20, width: 10, height: 10 }, startUtf16: 0, lengthUtf16: 2, shapedAdvance: 10 }],
+        textBoxes: [
+          { bounds: { x: 20, y: 20, width: 10, height: 10 }, startUtf16: 0, lengthUtf16: 2, shapedAdvance: 10 },
+        ],
       },
       { layoutIndex: 2, bounds: { x: 30, y: 22, width: 8, height: 6 }, textBoxes: [] },
       {
@@ -61,21 +63,27 @@ function mixedInput(): PseudoProtocolInput {
 
 describe("DM-2466 pseudo protocol decoder", () => {
   it("distinguishes generated-image intrinsic paint from its pseudo layout slot", () => {
-    expect(generatedImageIntrinsicPaintExceedsSlot({
-      contentBoxWidth: 24,
-      contentBoxHeight: 24,
-      naturalSizes: [{ width: 128, height: 128 }],
-    })).toBe(true);
-    expect(generatedImageIntrinsicPaintExceedsSlot({
-      contentBoxWidth: 24,
-      contentBoxHeight: 24,
-      naturalSizes: [{ width: 24, height: 24 }],
-    })).toBe(false);
-    expect(generatedImageIntrinsicPaintExceedsSlot({
-      contentBoxWidth: null,
-      contentBoxHeight: null,
-      naturalSizes: [{ width: 128, height: 128 }, null],
-    })).toBe(false);
+    expect(
+      generatedImageIntrinsicPaintExceedsSlot({
+        contentBoxWidth: 24,
+        contentBoxHeight: 24,
+        naturalSizes: [{ width: 128, height: 128 }],
+      }),
+    ).toBe(true);
+    expect(
+      generatedImageIntrinsicPaintExceedsSlot({
+        contentBoxWidth: 24,
+        contentBoxHeight: 24,
+        naturalSizes: [{ width: 24, height: 24 }],
+      }),
+    ).toBe(false);
+    expect(
+      generatedImageIntrinsicPaintExceedsSlot({
+        contentBoxWidth: null,
+        contentBoxHeight: null,
+        naturalSizes: [{ width: 128, height: 128 }, null],
+      }),
+    ).toBe(false);
   });
 
   it("retains content-item boundaries, UTF-16 slices, visual order, image rows, and fragmentainer translations", () => {
@@ -92,8 +100,18 @@ describe("DM-2466 pseudo protocol decoder", () => {
       [0, 3, "B😀"],
       [4, 8, "tail"],
     ]);
-    expect(record.boxFragments[0].edgeOwnership).toEqual({ inlineStart: true, inlineEnd: false, blockStart: true, blockEnd: true });
-    expect(record.boxFragments[1].edgeOwnership).toEqual({ inlineStart: false, inlineEnd: true, blockStart: true, blockEnd: true });
+    expect(record.boxFragments[0].edgeOwnership).toEqual({
+      inlineStart: true,
+      inlineEnd: false,
+      blockStart: true,
+      blockEnd: true,
+    });
+    expect(record.boxFragments[1].edgeOwnership).toEqual({
+      inlineStart: false,
+      inlineEnd: true,
+      blockStart: true,
+      blockEnd: true,
+    });
     expect(record.boxFragments[0].fragmentainerTranslation).toEqual({ x: 0, y: 0 });
     expect(record.boxFragments[1].fragmentainerTranslation).toEqual({ x: 100, y: 0 });
     expect(protocolRecordErrors(input, record)).toEqual([]);
@@ -119,25 +137,34 @@ describe("DM-2466 pseudo protocol decoder", () => {
     };
     const record = decodePseudoFragmentProtocol(input);
     expect(record.status).toBe("exact");
-    expect(record.fragments.filter((fragment) => fragment.kind === "text").map((fragment) => fragment.sourceStartUtf16)).toEqual([7, 0]);
+    expect(
+      record.fragments.filter((fragment) => fragment.kind === "text").map((fragment) => fragment.sourceStartUtf16),
+    ).toEqual([7, 0]);
     expect(protocolRecordErrors(input, record)).toEqual([]);
   });
 
   it("transcribes TextFragmentPainter's clockwise and counter-clockwise writing transforms", () => {
     expect(blinkTextPaintBaseline({ x: 10, y: 20, width: 12, height: 40 }, "horizontal-tb", 9, 30)).toEqual({
-      origin: { x: 10, y: 29 }, end: { x: 40, y: 29 },
+      origin: { x: 10, y: 29 },
+      end: { x: 40, y: 29 },
     });
     expect(blinkTextPaintBaseline({ x: 10, y: 20, width: 12, height: 40 }, "vertical-rl", 9, 30)).toEqual({
-      origin: { x: 13, y: 20 }, end: { x: 13, y: 50 },
+      origin: { x: 13, y: 20 },
+      end: { x: 13, y: 50 },
     });
     expect(blinkTextPaintBaseline({ x: 10, y: 20, width: 12, height: 40 }, "sideways-lr", 9, 30)).toEqual({
-      origin: { x: 19, y: 60 }, end: { x: 19, y: 30 },
+      origin: { x: 19, y: 60 },
+      end: { x: 19, y: 30 },
     });
   });
 
   it("fails closed for unavailable, unpainted, and cardinality-ambiguous protocol rows", () => {
-    expect(decodePseudoFragmentProtocol({ ...mixedInput(), protocolAvailable: false }).status).toBe("protocol-unavailable");
-    expect(decodePseudoFragmentProtocol({ ...mixedInput(), layoutRows: [], contentQuads: [] }).status).toBe("unpainted");
+    expect(decodePseudoFragmentProtocol({ ...mixedInput(), protocolAvailable: false }).status).toBe(
+      "protocol-unavailable",
+    );
+    expect(decodePseudoFragmentProtocol({ ...mixedInput(), layoutRows: [], contentQuads: [] }).status).toBe(
+      "unpainted",
+    );
     const ambiguous = decodePseudoFragmentProtocol({ ...mixedInput(), contentQuads: [mixedInput().contentQuads[0]] });
     expect(ambiguous.status).toBe("ambiguous");
     expect(ambiguous.fragments).toEqual([]);
@@ -155,39 +182,77 @@ describe("DM-2466 pseudo protocol decoder", () => {
     };
     const firstTextIndex = pristine.fragments.findIndex((fragment) => fragment.kind === "text");
 
-    expect(mutationErrors((record) => {
-      const fragment = record.fragments[firstTextIndex];
-      if (fragment.kind === "text") fragment.baseline.origin.y = fragment.localRect.y + (24 - 10) / 2;
-    })).not.toEqual([]); // font-size half-leading
-    expect(mutationErrors((record) => {
-      const fragment = record.fragments[firstTextIndex];
-      if (fragment.kind === "text") fragment.baseline.origin.y += 7;
-    })).not.toEqual([]); // host baseline copy
-    expect(mutationErrors((record) => { record.fragments.splice(2, 1); })).not.toEqual([]); // fragment union
-    expect(mutationErrors((record) => { [record.fragments[0], record.fragments[2]] = [record.fragments[2], record.fragments[0]]; })).not.toEqual([]); // logical reorder
-    expect(mutationErrors((record) => { record.boxFragments[1].fragmentainerTranslation = { x: 0, y: 0 }; })).not.toEqual([]); // dropped fragmentainer translation
-    expect(mutationErrors((record) => { record.fragments.forEach((fragment) => { fragment.contentItemIndex = 0; }); })).not.toEqual([]); // concatenated content items
-    expect(mutationErrors((record) => { record.boxFragments[0].edgeOwnership.inlineEnd = true; })).not.toEqual([]); // wrong slice edges
+    expect(
+      mutationErrors((record) => {
+        const fragment = record.fragments[firstTextIndex];
+        if (fragment.kind === "text") fragment.baseline.origin.y = fragment.localRect.y + (24 - 10) / 2;
+      }),
+    ).not.toEqual([]); // font-size half-leading
+    expect(
+      mutationErrors((record) => {
+        const fragment = record.fragments[firstTextIndex];
+        if (fragment.kind === "text") fragment.baseline.origin.y += 7;
+      }),
+    ).not.toEqual([]); // host baseline copy
+    expect(
+      mutationErrors((record) => {
+        record.fragments.splice(2, 1);
+      }),
+    ).not.toEqual([]); // fragment union
+    expect(
+      mutationErrors((record) => {
+        [record.fragments[0], record.fragments[2]] = [record.fragments[2], record.fragments[0]];
+      }),
+    ).not.toEqual([]); // logical reorder
+    expect(
+      mutationErrors((record) => {
+        record.boxFragments[1].fragmentainerTranslation = { x: 0, y: 0 };
+      }),
+    ).not.toEqual([]); // dropped fragmentainer translation
+    expect(
+      mutationErrors((record) => {
+        record.fragments.forEach((fragment) => {
+          fragment.contentItemIndex = 0;
+        });
+      }),
+    ).not.toEqual([]); // concatenated content items
+    expect(
+      mutationErrors((record) => {
+        record.boxFragments[0].edgeOwnership.inlineEnd = true;
+      }),
+    ).not.toEqual([]); // wrong slice edges
     const verticalInput: PseudoProtocolInput = {
       ...input,
       hostCorrelationId: "vertical-mutation",
       style: { ...input.style, writingMode: "vertical-rl" },
       layoutRows: [
         { layoutIndex: 0, bounds: { x: 10, y: 10, width: 16, height: 34 }, textBoxes: [] },
-        { layoutIndex: 1, bounds: { x: 13, y: 13, width: 10, height: 28 }, text: "vertical", textBoxes: [
-          { bounds: { x: 13, y: 13, width: 10, height: 28 }, startUtf16: 0, lengthUtf16: 8, shapedAdvance: 28 },
-        ] },
+        {
+          layoutIndex: 1,
+          bounds: { x: 13, y: 13, width: 10, height: 28 },
+          text: "vertical",
+          textBoxes: [
+            { bounds: { x: 13, y: 13, width: 10, height: 28 }, startUtf16: 0, lengthUtf16: 8, shapedAdvance: 28 },
+          ],
+        },
       ],
       contentQuads: [quad(10, 10, 16, 34)],
     };
     const vertical = decodePseudoFragmentProtocol(verticalInput);
     const verticalText = vertical.fragments.find((fragment) => fragment.kind === "text");
-    if (verticalText?.kind === "text") verticalText.baseline.origin = { x: verticalText.localRect.x, y: verticalText.localRect.y + 8 };
+    if (verticalText?.kind === "text")
+      verticalText.baseline.origin = { x: verticalText.localRect.x, y: verticalText.localRect.y + 8 };
     expect(protocolRecordErrors(verticalInput, vertical)).not.toEqual([]); // universal horizontal baseline
-    expect(mutationErrors((record) => {
-      const astral = record.fragments.find((fragment) => fragment.kind === "text" && fragment.text.includes("😀"));
-      if (astral?.kind === "text") astral.sourceEndUtf16--;
-    })).not.toEqual([]); // codepoint offsets
-    expect(mutationErrors((record) => { record.fragments.splice(1, 1); })).not.toEqual([]); // dropped anonymous image row
+    expect(
+      mutationErrors((record) => {
+        const astral = record.fragments.find((fragment) => fragment.kind === "text" && fragment.text.includes("😀"));
+        if (astral?.kind === "text") astral.sourceEndUtf16--;
+      }),
+    ).not.toEqual([]); // codepoint offsets
+    expect(
+      mutationErrors((record) => {
+        record.fragments.splice(1, 1);
+      }),
+    ).not.toEqual([]); // dropped anonymous image row
   });
 });

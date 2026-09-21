@@ -25,8 +25,12 @@ const info = await page.evaluate(() => {
 console.log(JSON.stringify(info, null, 2));
 // Screenshot the first .vert content area
 const er = info[0];
-const buf = await page.screenshot({ clip: { x: er.rect.x - 5, y: er.rect.y - 5, width: er.rect.w + 10, height: er.rect.h + 10 } });
+const buf = await page.screenshot({
+  clip: { x: er.rect.x - 5, y: er.rect.y - 5, width: er.rect.w + 10, height: er.rect.h + 10 },
+});
 writeFileSync("/tmp/dm936-vert-left.png", buf);
-const buf2 = await page.screenshot({ clip: { x: info[1].rect.x - 5, y: info[1].rect.y - 5, width: info[1].rect.w + 10, height: info[1].rect.h + 10 } });
+const buf2 = await page.screenshot({
+  clip: { x: info[1].rect.x - 5, y: info[1].rect.y - 5, width: info[1].rect.w + 10, height: info[1].rect.h + 10 },
+});
 writeFileSync("/tmp/dm936-vert-right.png", buf2);
 await browser.close();

@@ -17,7 +17,10 @@ async function main() {
   for (const t of [0, 200, 400, 1000, 2000, 4000, 6000, 10000]) {
     await page.evaluate((timeMs) => {
       for (const a of document.getAnimations()) {
-        try { a.currentTime = timeMs; a.pause(); } catch {}
+        try {
+          a.currentTime = timeMs;
+          a.pause();
+        } catch {}
       }
     }, t);
     await page.waitForTimeout(100);
@@ -47,4 +50,7 @@ async function main() {
   await ctx.close();
   await browser.close();
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

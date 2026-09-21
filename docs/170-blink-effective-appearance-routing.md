@@ -4,10 +4,17 @@ title: "Blink EffectiveAppearance ownership routing"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2453","DM-2455"]
-code: [".github/workflows/visual-tests.yml","src/capture/effective-appearance-cdp.ts","src/capture/effective-appearance.test.ts","src/capture/effective-appearance.ts","tests/effective-appearance.e2e.test.ts"]
-aliases: ["docs/170-blink-effective-appearance-routing.md","doc-170"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2453", "DM-2455"]
+code:
+  [
+    ".github/workflows/visual-tests.yml",
+    "src/capture/effective-appearance-cdp.ts",
+    "src/capture/effective-appearance.test.ts",
+    "src/capture/effective-appearance.ts",
+    "tests/effective-appearance.e2e.test.ts",
+  ]
+aliases: ["docs/170-blink-effective-appearance-routing.md", "doc-170"]
 ---
 
 # Blink EffectiveAppearance ownership routing
@@ -36,16 +43,17 @@ All source references below are pinned at Chromium
   `kNone`.
 - `layout_theme.cc:485-506` is the complete activation table:
 
-  | Appearance before adjustment | Author background | Author border | Resolved box-shadow |
-  |---|---:|---:|---:|
-  | button / push-button / square-button | CSS-owned | CSS-owned | no change |
-  | progress-bar / meter | CSS-owned | CSS-owned | no change |
-  | menulist | menulist-button | menulist-button | menulist-button |
-  | searchfield / textarea / textfield | CSS-owned | CSS-owned | CSS-owned |
-  | checkbox / radio / slider | no change | no change | no change |
+  | Appearance before adjustment         | Author background |   Author border | Resolved box-shadow |
+  | ------------------------------------ | ----------------: | --------------: | ------------------: |
+  | button / push-button / square-button |         CSS-owned |       CSS-owned |           no change |
+  | progress-bar / meter                 |         CSS-owned |       CSS-owned |           no change |
+  | menulist                             |   menulist-button | menulist-button |     menulist-button |
+  | searchfield / textarea / textfield   |         CSS-owned |       CSS-owned |           CSS-owned |
+  | checkbox / radio / slider            |         no change |       no change |           no change |
 
   Font, color, padding, accent-color, and text-shadow are absent from this
   switch and therefore cannot deactivate a native button.
+
 - `style_cascade.cc:1174-1203` resolves substitutions and `revert`,
   `revert-layer`, and `revert-rule` before calling `CollectFlags`.
   `cascade_resolver.h:119-130` retains a property flag only when the final

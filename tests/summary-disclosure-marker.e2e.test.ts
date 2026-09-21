@@ -58,8 +58,24 @@ const HTML = `<!doctype html><style>
 <details id="flex"><summary>known flex pseudo residual</summary></details>`;
 
 const SUMMARY_IDS = [
-  "closed", "open", "rtl", "outside", "styled", "mixed", "vrl", "vlr", "srl", "slr", "zoom",
-  "nested-parent", "nested-child", "exclusive-a", "exclusive-b", "none", "transparent", "flex",
+  "closed",
+  "open",
+  "rtl",
+  "outside",
+  "styled",
+  "mixed",
+  "vrl",
+  "vlr",
+  "srl",
+  "slr",
+  "zoom",
+  "nested-parent",
+  "nested-child",
+  "exclusive-a",
+  "exclusive-b",
+  "none",
+  "transparent",
+  "flex",
 ] as const;
 
 function flatten(nodes: CapturedElement[]): CapturedElement[] {
@@ -72,7 +88,13 @@ function rgb(value: string): [number, number, number] {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-interface InkBounds { left: number; top: number; right: number; bottom: number; count: number }
+interface InkBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  count: number;
+}
 
 async function inkBounds(
   png: Buffer,
@@ -85,16 +107,22 @@ async function inkBounds(
   const top = Math.max(0, Math.floor((rect.y - 2) * dpr));
   const right = Math.min(info.width - 1, Math.ceil((rect.x + rect.width + 2) * dpr));
   const bottom = Math.min(info.height - 1, Math.ceil((rect.y + rect.height + 2) * dpr));
-  let minX = info.width, minY = info.height, maxX = -1, maxY = -1, count = 0;
+  let minX = info.width,
+    minY = info.height,
+    maxX = -1,
+    maxY = -1,
+    count = 0;
   for (let y = top; y <= bottom; y++) {
     for (let x = left; x <= right; x++) {
       const index = (y * info.width + x) * info.channels;
-      const distance = Math.abs(data[index] - color[0])
-        + Math.abs(data[index + 1] - color[1])
-        + Math.abs(data[index + 2] - color[2]);
+      const distance =
+        Math.abs(data[index] - color[0]) + Math.abs(data[index + 1] - color[1]) + Math.abs(data[index + 2] - color[2]);
       if (distance > 90) continue;
-      minX = Math.min(minX, x); minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); count++;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      count++;
     }
   }
   return { left: minX, top: minY, right: maxX, bottom: maxY, count };
@@ -109,24 +137,55 @@ const describeBrowser = describe;
 describeBrowser("source-owned summary disclosure marker (DM-2457)", () => {
   for (const dpr of [1, 2]) {
     it(`captures Blink's first-line marker and matches Chromium ink at DPR ${dpr}`, async () => {
-      const context = await env.browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
+      const context = await env.browser.newContext({
+        viewport: { width: WIDTH, height: HEIGHT },
+        deviceScaleFactor: dpr,
+      });
       const source = await context.newPage();
       const generated = await context.newPage();
       try {
         await source.setContent(HTML);
         const expected = await source.screenshot();
-        const capture = await captureElementTreeWithWarnings(source, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+        const capture = await captureElementTreeWithWarnings(source, "body", {
+          x: 0,
+          y: 0,
+          width: WIDTH,
+          height: HEIGHT,
+        });
         expect(capture.warnings.filter(({ feature }) => feature === "summary-disclosure-marker-geometry")).toEqual([]);
         const summaries = flatten(capture.tree).filter((node) => node.tag === "summary");
         expect(summaries).toHaveLength(SUMMARY_IDS.length);
         const byId = new Map(SUMMARY_IDS.map((id, index) => [id, summaries[index]]));
-        const shown = ["closed", "open", "rtl", "outside", "styled", "mixed", "vrl", "vlr", "srl", "slr", "zoom", "nested-parent", "nested-child", "exclusive-a", "exclusive-b"];
+        const shown = [
+          "closed",
+          "open",
+          "rtl",
+          "outside",
+          "styled",
+          "mixed",
+          "vrl",
+          "vlr",
+          "srl",
+          "slr",
+          "zoom",
+          "nested-parent",
+          "nested-child",
+          "exclusive-a",
+          "exclusive-b",
+        ];
         for (const id of shown) expect(byId.get(id)?.summaryMarkerGeometry, id).toBeDefined();
-        for (const id of ["none", "transparent", "flex"]) expect(byId.get(id)?.summaryMarkerGeometry, id).toBeUndefined();
-        expect(byId.get("closed")!.summaryMarkerGeometry).toMatchObject({ listStyleType: "disclosure-closed", listStylePosition: "inside" });
+        for (const id of ["none", "transparent", "flex"])
+          expect(byId.get(id)?.summaryMarkerGeometry, id).toBeUndefined();
+        expect(byId.get("closed")!.summaryMarkerGeometry).toMatchObject({
+          listStyleType: "disclosure-closed",
+          listStylePosition: "inside",
+        });
         expect(byId.get("open")!.summaryMarkerGeometry).toMatchObject({ listStyleType: "disclosure-open" });
         expect(byId.get("outside")!.summaryMarkerGeometry).toMatchObject({ listStylePosition: "outside" });
-        expect(byId.get("styled")!.summaryMarkerGeometry).toMatchObject({ specifiedFontSize: 31, color: "rgb(91, 33, 182)" });
+        expect(byId.get("styled")!.summaryMarkerGeometry).toMatchObject({
+          specifiedFontSize: 31,
+          color: "rgb(91, 33, 182)",
+        });
         expect(byId.get("zoom")!.summaryMarkerGeometry!.effectiveZoom).toBeCloseTo(1.25, 5);
 
         const svg = elementTreeToSvg(capture.tree, WIDTH, HEIGHT);
@@ -145,7 +204,9 @@ describeBrowser("source-owned summary disclosure marker (DM-2457)", () => {
             expect(isolated, `${id}: source-owned marker route`).toContain("<polygon");
           }
         }
-        await generated.setContent(`<style>html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:white}</style>${svg}`);
+        await generated.setContent(
+          `<style>html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:white}</style>${svg}`,
+        );
         const actual = await generated.screenshot();
         for (const id of shown) {
           const record = byId.get(id)!.summaryMarkerGeometry!;
@@ -171,8 +232,9 @@ describeBrowser("source-owned summary disclosure marker (DM-2457)", () => {
           // selected pixels, so one antialiased boundary row is quantized to
           // more than 8%. Keep the proportional bound for larger rows while
           // allowing at most eight device pixels for the smallest symbols.
-          expect(Math.abs(svgInk.count - browserInk.count), `${id}: ink area`)
-            .toBeLessThanOrEqual(Math.max(8, Math.ceil(browserInk.count * 0.08)));
+          expect(Math.abs(svgInk.count - browserInk.count), `${id}: ink area`).toBeLessThanOrEqual(
+            Math.max(8, Math.ceil(browserInk.count * 0.08)),
+          );
         }
       } finally {
         await context.close();

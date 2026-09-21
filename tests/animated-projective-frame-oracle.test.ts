@@ -60,10 +60,17 @@ describe("animated projective frame adjudication", () => {
       { ...observation, state: { ...observation.state!, contentQuad: [21, 20, 122, 25, 113, 101, 27, 98] } },
       { ...observation, ownerId: null, ownerCount: 0, rasterMaterialized: false },
       { ...observation, noProjective2dApproximation: false },
-      { ...observation, state: { ...observation.state!, computed: { ...computed, transform: "matrix(1, 0, 0, 1, 0, 0)" } } },
+      {
+        ...observation,
+        state: { ...observation.state!, computed: { ...computed, transform: "matrix(1, 0, 0, 1, 0, 0)" } },
+      },
     ];
     expect(mutations.map((actual) => adjudicateAnimatedProjectiveFrame(expected, actual).pass)).toEqual([
-      false, false, false, false, false,
+      false,
+      false,
+      false,
+      false,
+      false,
     ]);
   });
 

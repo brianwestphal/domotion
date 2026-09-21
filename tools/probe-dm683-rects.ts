@@ -31,9 +31,11 @@ async function main(): Promise<void> {
     if (depth > 25) return;
     if (n.y != null && n.y > 300 && n.y < 1050 && n.x != null && n.x >= 42 && n.x < 250) {
       const cls = JSON.stringify(n.classList);
-      console.log(`  d=${depth} <${n.tag}> cls=${cls} rect=${JSON.stringify({ x: n.x, y: n.y, w: n.width, h: n.height })}`);
+      console.log(
+        `  d=${depth} <${n.tag}> cls=${cls} rect=${JSON.stringify({ x: n.x, y: n.y, w: n.width, h: n.height })}`,
+      );
     }
-    for (const c of (n.children ?? [])) walk(c, depth + 1);
+    for (const c of n.children ?? []) walk(c, depth + 1);
   }
   for (const root of cap.tree) walk(root);
   await browser.close();

@@ -19,11 +19,7 @@ import {
   discoverAndRegisterWebfonts,
 } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
-import {
-  clearGlyphDefs,
-  clearWebfonts,
-  selectedGlyphRasterSpans,
-} from "../src/render/text-to-path.js";
+import { clearGlyphDefs, clearWebfonts, selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 import {
   FONT_PALETTE_FIXTURE,
   FONT_PALETTE_SOURCE_PINS,
@@ -140,35 +136,46 @@ function dynamicV0Cases(facts: PaletteSourceFacts): V0Case[] {
     // Exact expected records are transcribed from pinned Blink's
     // PaletteInterpolationTest MixCustomPalettesInSRGB / InOklab vectors for
     // base palettes 3 -> 7; only COLRv0 A's owned entries 3 and 7 are used.
-    { id: "mix-srgb-30", computedPalette: "palette-mix(in srgb, --base3 70%, --base7)", expectedColors: ["0,255,179,255", "0,255,77,255"].sort() },
-    { id: "animation-oklab-30", computedPalette: "palette-mix(in oklab, --base3 70%, --base7)", expectedColors: ["0,255,205,255", "0,255,128,255"].sort() },
-    { id: "animation-oklab-50", computedPalette: "palette-mix(in oklab, --base3, --base7)", expectedColors: ["0,255,169,255"].sort() },
+    {
+      id: "mix-srgb-30",
+      computedPalette: "palette-mix(in srgb, --base3 70%, --base7)",
+      expectedColors: ["0,255,179,255", "0,255,77,255"].sort(),
+    },
+    {
+      id: "animation-oklab-30",
+      computedPalette: "palette-mix(in oklab, --base3 70%, --base7)",
+      expectedColors: ["0,255,205,255", "0,255,128,255"].sort(),
+    },
+    {
+      id: "animation-oklab-50",
+      computedPalette: "palette-mix(in oklab, --base3, --base7)",
+      expectedColors: ["0,255,169,255"].sort(),
+    },
     { id: "shadow-document-rule", computedPalette: "--scope", expectedColors: sourceColors(facts, 3) },
     { id: "shadow-local-rule-ignored", computedPalette: "--shadow-only", expectedColors: sourceColors(facts, 0) },
     { id: "document-adopted-rule", computedPalette: "--adopted", expectedColors: sourceColors(facts, 3) },
   ];
 }
 
-export function adjudicateDynamicV0Row(
-  row: Omit<DynamicV0Row, "pass" | "blockers">,
-): DynamicV0Row {
+export function adjudicateDynamicV0Row(row: Omit<DynamicV0Row, "pass" | "blockers">): DynamicV0Row {
   const blockers: string[] = [];
   if (row.computedPalette !== row.expectedComputedPalette) blockers.push("computed-palette");
-  if (!opaquePaletteColorsWithinTolerance(row.observedOpaqueColors, row.expectedOpaqueColors)) blockers.push("source-colors");
+  if (!opaquePaletteColorsWithinTolerance(row.observedOpaqueColors, row.expectedOpaqueColors))
+    blockers.push("source-colors");
   return { ...row, pass: blockers.length === 0, blockers };
 }
 
-export function adjudicateDynamicV1Row(
-  row: Omit<DynamicV1Row, "pass" | "blockers">,
-): DynamicV1Row {
+export function adjudicateDynamicV1Row(row: Omit<DynamicV1Row, "pass" | "blockers">): DynamicV1Row {
   const blockers: string[] = [];
   if (row.computedPalette !== row.expectedComputedPalette) blockers.push("computed-palette");
   if (row.opaquePixelCount === 0) blockers.push("no-opaque-paint");
   for (let channel = 0; channel < 3; channel += 1) {
     const low = Math.min(row.expectedEndpoints[0][channel], row.expectedEndpoints[1][channel]);
     const high = Math.max(row.expectedEndpoints[0][channel], row.expectedEndpoints[1][channel]);
-    if (row.channelMin[channel] < low || row.channelMax[channel] > high) blockers.push(`channel-${channel}-outside-source`);
-    if (low === high && (row.channelMin[channel] !== low || row.channelMax[channel] !== high)) blockers.push(`channel-${channel}-constant`);
+    if (row.channelMin[channel] < low || row.channelMax[channel] > high)
+      blockers.push(`channel-${channel}-outside-source`);
+    if (low === high && (row.channelMin[channel] !== low || row.channelMax[channel] !== high))
+      blockers.push(`channel-${channel}-constant`);
     if (low !== high && row.channelMin[channel] === row.channelMax[channel]) blockers.push(`channel-${channel}-inert`);
   }
   return { ...row, pass: blockers.length === 0, blockers };
@@ -188,11 +195,17 @@ function lightSample(id: DynamicV0CaseId): string {
   return `<span id="${id}" class="sample">${V0_GLYPH}</span>`;
 }
 
-async function setDynamicV0Content(page: Page, fontUrl: string, order: DynamicV0CaseId[]): Promise<Map<DynamicV0CaseId, ReturnType<Page["locator"]>>> {
+async function setDynamicV0Content(
+  page: Page,
+  fontUrl: string,
+  order: DynamicV0CaseId[],
+): Promise<Map<DynamicV0CaseId, ReturnType<Page["locator"]>>> {
   // Open author shadow trees are deliberately outside the light-DOM walker.
   // A hyphenated host is the production custom-element raster boundary, so
   // these two cases exercise the same ownership path as real captures.
-  const nodes = order.map((id) => id.startsWith("shadow-") ? `<x-palette id="host-${id}" class="host"></x-palette>` : lightSample(id)).join("");
+  const nodes = order
+    .map((id) => (id.startsWith("shadow-") ? `<x-palette id="host-${id}" class="host"></x-palette>` : lightSample(id)))
+    .join("");
   await page.setContent(`<style>
     @font-face{font-family:${V0_FAMILY};src:url('${fontUrl}') format('truetype');font-display:block}
     ${paletteRules(V0_FAMILY)}
@@ -202,42 +215,49 @@ async function setDynamicV0Content(page: Page, fontUrl: string, order: DynamicV0
     #animation-oklab-30,#animation-oklab-50{font-palette:--base3}
     #document-adopted-rule{font-palette:--adopted}
   </style><main id="stage">${nodes}</main>`);
-  await page.evaluate(({ family }) => {
-    const namedWindow = window as unknown as { __name?: (fn: unknown) => unknown };
-    if (namedWindow.__name == null) {
-      namedWindow.__name = (fn: unknown) => fn;
-    }
-    const adopted = new CSSStyleSheet();
-    adopted.replaceSync(`@font-palette-values --adopted{font-family:${family};base-palette:3}`);
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];
-    const makeShadow = (id: string, palette: string) => {
-      const host = document.querySelector(`#host-${id}`)!;
-      const root = host.attachShadow({ mode: "open" });
-      root.innerHTML = `<style>
+  await page.evaluate(
+    ({ family }) => {
+      const namedWindow = window as unknown as { __name?: (fn: unknown) => unknown };
+      if (namedWindow.__name == null) {
+        namedWindow.__name = (fn: unknown) => fn;
+      }
+      const adopted = new CSSStyleSheet();
+      adopted.replaceSync(`@font-palette-values --adopted{font-family:${family};base-palette:3}`);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];
+      const makeShadow = (id: string, palette: string) => {
+        const host = document.querySelector(`#host-${id}`)!;
+        const root = host.attachShadow({ mode: "open" });
+        root.innerHTML = `<style>
         @font-palette-values --scope{font-family:${family};base-palette:7}
         @font-palette-values --shadow-only{font-family:${family};base-palette:7}
       </style><span id="${id}" style="display:inline-block;width:100px;height:100px;font:100px/1 ${family};font-palette:${palette}">A</span>`;
-    };
-    makeShadow("shadow-document-rule", "--scope");
-    makeShadow("shadow-local-rule-ignored", "--shadow-only");
-    const animate = (id: string, time: number) => {
-      const element = document.querySelector(`#${id}`)!;
-      const animation = element.animate([{ fontPalette: "--base3" }, { fontPalette: "--base7" }], { duration: 1000, fill: "both" });
-      animation.pause();
-      animation.currentTime = time;
-    };
-    animate("animation-oklab-30", 300);
-    animate("animation-oklab-50", 500);
-  }, { family: V0_FAMILY });
-  await page.evaluate(async ({ family }) => {
-    await document.fonts.ready;
-    await document.fonts.load(`100px ${family}`, "A");
-  }, { family: V0_FAMILY });
+      };
+      makeShadow("shadow-document-rule", "--scope");
+      makeShadow("shadow-local-rule-ignored", "--shadow-only");
+      const animate = (id: string, time: number) => {
+        const element = document.querySelector(`#${id}`)!;
+        const animation = element.animate([{ fontPalette: "--base3" }, { fontPalette: "--base7" }], {
+          duration: 1000,
+          fill: "both",
+        });
+        animation.pause();
+        animation.currentTime = time;
+      };
+      animate("animation-oklab-30", 300);
+      animate("animation-oklab-50", 500);
+    },
+    { family: V0_FAMILY },
+  );
+  await page.evaluate(
+    async ({ family }) => {
+      await document.fonts.ready;
+      await document.fonts.load(`100px ${family}`, "A");
+    },
+    { family: V0_FAMILY },
+  );
   const locators = new Map<DynamicV0CaseId, ReturnType<Page["locator"]>>();
   for (const id of order) {
-    locators.set(id, id.startsWith("shadow-")
-      ? page.locator(`#host-${id}`).locator(`#${id}`)
-      : page.locator(`#${id}`));
+    locators.set(id, id.startsWith("shadow-") ? page.locator(`#host-${id}`).locator(`#${id}`) : page.locator(`#${id}`));
   }
   return locators;
 }
@@ -260,15 +280,17 @@ async function nativeV0Rows(
       const locator = locators.get(spec.id)!;
       const png = await locator.screenshot({ omitBackground: true, type: "png" });
       const computedPalette = await locator.evaluate((element) => getComputedStyle(element).fontPalette);
-      rows.push(adjudicateDynamicV0Row({
-        id: spec.id,
-        dpr,
-        computedPalette,
-        expectedComputedPalette: spec.computedPalette,
-        expectedOpaqueColors: spec.expectedColors,
-        observedOpaqueColors: await opaqueColors(png),
-        pngSha256: sha256(png),
-      }));
+      rows.push(
+        adjudicateDynamicV0Row({
+          id: spec.id,
+          dpr,
+          computedPalette,
+          expectedComputedPalette: spec.computedPalette,
+          expectedOpaqueColors: spec.expectedColors,
+          observedOpaqueColors: await opaqueColors(png),
+          pngSha256: sha256(png),
+        }),
+      );
       if (artifactDir != null) writeFileSync(resolve(artifactDir, `dynamic-v0-${spec.id}-dpr${dpr}.png`), png);
     }
     return rows;
@@ -296,26 +318,32 @@ async function nativeV1Rows(
       @font-palette-values --base1{font-family:${V1_FAMILY};base-palette:1}
       html,body{margin:0;background:transparent}#sample{font:120px/1 ${V1_FAMILY};display:inline-block;width:130px;height:120px}
     </style><span id="sample">${V1_GLYPH}</span>`);
-    await page.evaluate(async ({ family, glyph }) => {
-      await document.fonts.ready;
-      await document.fonts.load(`120px ${family}`, glyph);
-    }, { family: V1_FAMILY, glyph: V1_GLYPH });
-    const specs: Array<{ id: DynamicV1Row["id"]; value: string; computed: string; endpoints: [RgbaTuple, RgbaTuple] }> = [
-      { id: "normal", value: "normal", computed: "normal", endpoints: facts.paletteEndpoints[0] },
-      { id: "base1", value: "--base1", computed: "--base1", endpoints: facts.paletteEndpoints[1] },
-      {
-        id: "mix-srgb-50",
-        value: "palette-mix(in srgb,normal,--base1)",
-        computed: "palette-mix(in srgb, normal, --base1)",
-        endpoints: [
-          mixSrgb(facts.paletteEndpoints[0][0], facts.paletteEndpoints[1][0], 0.5),
-          mixSrgb(facts.paletteEndpoints[0][1], facts.paletteEndpoints[1][1], 0.5),
-        ],
+    await page.evaluate(
+      async ({ family, glyph }) => {
+        await document.fonts.ready;
+        await document.fonts.load(`120px ${family}`, glyph);
       },
-    ];
+      { family: V1_FAMILY, glyph: V1_GLYPH },
+    );
+    const specs: Array<{ id: DynamicV1Row["id"]; value: string; computed: string; endpoints: [RgbaTuple, RgbaTuple] }> =
+      [
+        { id: "normal", value: "normal", computed: "normal", endpoints: facts.paletteEndpoints[0] },
+        { id: "base1", value: "--base1", computed: "--base1", endpoints: facts.paletteEndpoints[1] },
+        {
+          id: "mix-srgb-50",
+          value: "palette-mix(in srgb,normal,--base1)",
+          computed: "palette-mix(in srgb, normal, --base1)",
+          endpoints: [
+            mixSrgb(facts.paletteEndpoints[0][0], facts.paletteEndpoints[1][0], 0.5),
+            mixSrgb(facts.paletteEndpoints[0][1], facts.paletteEndpoints[1][1], 0.5),
+          ],
+        },
+      ];
     const rows: DynamicV1Row[] = [];
     for (const spec of specs) {
-      await page.locator("#sample").evaluate((element, value) => { (element as HTMLElement).style.fontPalette = value; }, spec.value);
+      await page.locator("#sample").evaluate((element, value) => {
+        (element as HTMLElement).style.fontPalette = value;
+      }, spec.value);
       const png = await page.locator("#sample").screenshot({ omitBackground: true, type: "png" });
       const { data } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const min: [number, number, number] = [255, 255, 255];
@@ -329,18 +357,22 @@ async function nativeV1Rows(
           max[channel] = Math.max(max[channel], data[offset + channel]);
         }
       }
-      const computedPalette = await page.locator("#sample").evaluate((element) => getComputedStyle(element).fontPalette);
-      rows.push(adjudicateDynamicV1Row({
-        id: spec.id,
-        dpr,
-        computedPalette,
-        expectedComputedPalette: spec.computed,
-        expectedEndpoints: spec.endpoints,
-        opaquePixelCount: opaque,
-        channelMin: min,
-        channelMax: max,
-        pngSha256: sha256(png),
-      }));
+      const computedPalette = await page
+        .locator("#sample")
+        .evaluate((element) => getComputedStyle(element).fontPalette);
+      rows.push(
+        adjudicateDynamicV1Row({
+          id: spec.id,
+          dpr,
+          computedPalette,
+          expectedComputedPalette: spec.computed,
+          expectedEndpoints: spec.endpoints,
+          opaquePixelCount: opaque,
+          channelMin: min,
+          channelMax: max,
+          pngSha256: sha256(png),
+        }),
+      );
       if (artifactDir != null) writeFileSync(resolve(artifactDir, `dynamic-v1-${spec.id}-dpr${dpr}.png`), png);
     }
     const hashes = new Set(rows.map((row) => row.pngSha256));
@@ -359,7 +391,12 @@ async function nativeV1Rows(
 function collectDataUris(value: unknown, out: string[] = []): string[] {
   if (value == null || typeof value !== "object") return out;
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    if ((key === "dataUri" || key === "rasterDataUri") && typeof entry === "string" && entry.startsWith("data:image/png;base64,")) out.push(entry);
+    if (
+      (key === "dataUri" || key === "rasterDataUri") &&
+      typeof entry === "string" &&
+      entry.startsWith("data:image/png;base64,")
+    )
+      out.push(entry);
     else collectDataUris(entry, out);
   }
   return out;
@@ -393,7 +430,7 @@ interface PaletteRecord {
 function paletteRecord(value: unknown): PaletteRecord | null {
   if (value == null || typeof value !== "object") return null;
   const palette = (value as Record<string, unknown>).palette;
-  return palette != null && typeof palette === "object" ? palette as PaletteRecord : null;
+  return palette != null && typeof palette === "object" ? (palette as PaletteRecord) : null;
 }
 
 function shadowPaletteRecords(value: unknown): PaletteRecord[] {
@@ -410,8 +447,10 @@ export function adjudicateDynamicProductionOrder(
 ): DynamicProductionOrderEvidence {
   const blockers: string[] = [];
   if (row.sourcePngSha256.length !== row.order.length) blockers.push("source-count");
-  if (row.capturedPngCount !== row.order.length || row.capturedPngSha256.length !== row.order.length) blockers.push("capture-count");
-  if (row.capturedPngSha256.some((hash, index) => hash !== row.sourcePngSha256[index])) blockers.push("capture-content");
+  if (row.capturedPngCount !== row.order.length || row.capturedPngSha256.length !== row.order.length)
+    blockers.push("capture-count");
+  if (row.capturedPngSha256.some((hash, index) => hash !== row.sourcePngSha256[index]))
+    blockers.push("capture-content");
   if (row.svgImageCount !== row.order.length) blockers.push("svg-image-count");
   if (row.selectedRepresentation !== "colr") blockers.push("representation");
   if (row.capturedPaletteRecords.length !== row.order.length) blockers.push("identity-count");
@@ -432,10 +471,12 @@ async function productionOrder(
   const tracker = attachWebfontTracker(page);
   try {
     const locators = await setDynamicV0Content(page, fontUrl, order);
-    const sourcePngs = await Promise.all(order.map((id) => {
-      const locator = id.startsWith("shadow-") ? page.locator(`#host-${id}`) : locators.get(id)!;
-      return locator.screenshot({ omitBackground: true, type: "png" });
-    }));
+    const sourcePngs = await Promise.all(
+      order.map((id) => {
+        const locator = id.startsWith("shadow-") ? page.locator(`#host-${id}`) : locators.get(id)!;
+        return locator.screenshot({ omitBackground: true, type: "png" });
+      }),
+    );
     clearWebfonts();
     clearGlyphDefs();
     const registration = await discoverAndRegisterWebfonts(page, tracker.urls);
@@ -458,11 +499,16 @@ async function productionOrder(
       ...glyphRecords.map(paletteRecord).filter((record): record is PaletteRecord => record != null),
       ...valuesForKey(capture.tree, "shadowFontPaletteIdentities").flatMap(shadowPaletteRecords),
     ];
-    const paletteFor = (token: string): PaletteRecord | null => palettes.find((record) => record.token === token) ?? null;
+    const paletteFor = (token: string): PaletteRecord | null =>
+      palettes.find((record) => record.token === token) ?? null;
     const byId = new Map<DynamicV0CaseId, PaletteRecord | null>([
       ["mix-srgb-30", paletteFor("palette-mix(in srgb, --base3 70%, --base7)")],
       ["animation-oklab-30", paletteFor("palette-mix(in oklab, --base3 70%, --base7)")],
-      ["animation-oklab-50", paletteFor("palette-mix(in oklab, --base3 50%, --base7)") ?? paletteFor("palette-mix(in oklab, --base3, --base7)")],
+      [
+        "animation-oklab-50",
+        paletteFor("palette-mix(in oklab, --base3 50%, --base7)") ??
+          paletteFor("palette-mix(in oklab, --base3, --base7)"),
+      ],
       ["shadow-document-rule", paletteFor("--scope")],
       ["shadow-local-rule-ignored", paletteFor("--shadow-only")],
       ["document-adopted-rule", paletteFor("--adopted")],
@@ -470,29 +516,42 @@ async function productionOrder(
     const identityChecks = {
       mixSpace: byId.get("mix-srgb-30")?.mix?.colorSpace === "srgb",
       mixDefaultHue: byId.get("mix-srgb-30")?.mix?.hueInterpolationMethod === "shorter",
-      mixWeights: byId.get("mix-srgb-30")?.mix?.startPercentage === 70
-        && byId.get("mix-srgb-30")?.mix?.endPercentage === 30
-        && byId.get("mix-srgb-30")?.mix?.normalizedPercentage === 0.3
-        && byId.get("mix-srgb-30")?.mix?.alphaMultiplier === 1,
-      mixEndpoints: byId.get("mix-srgb-30")?.mix?.start?.basePalette === "3"
-        && byId.get("mix-srgb-30")?.mix?.start?.ruleScope === "document"
-        && byId.get("mix-srgb-30")?.mix?.end?.basePalette === "7"
-        && byId.get("mix-srgb-30")?.mix?.end?.ruleScope === "document",
+      mixWeights:
+        byId.get("mix-srgb-30")?.mix?.startPercentage === 70 &&
+        byId.get("mix-srgb-30")?.mix?.endPercentage === 30 &&
+        byId.get("mix-srgb-30")?.mix?.normalizedPercentage === 0.3 &&
+        byId.get("mix-srgb-30")?.mix?.alphaMultiplier === 1,
+      mixEndpoints:
+        byId.get("mix-srgb-30")?.mix?.start?.basePalette === "3" &&
+        byId.get("mix-srgb-30")?.mix?.start?.ruleScope === "document" &&
+        byId.get("mix-srgb-30")?.mix?.end?.basePalette === "7" &&
+        byId.get("mix-srgb-30")?.mix?.end?.ruleScope === "document",
       animationTime30: byId.get("animation-oklab-30")?.mix?.normalizedPercentage === 0.3,
       animationTime50: byId.get("animation-oklab-50")?.mix?.normalizedPercentage === 0.5,
       animationDefaultSpace: byId.get("animation-oklab-30")?.mix?.colorSpace === "oklab",
       animationImplicitHue: byId.get("animation-oklab-30")?.mix?.hueInterpolationMethod === null,
-      animationEndpoints: byId.get("animation-oklab-30")?.mix?.start?.basePalette === "3"
-        && byId.get("animation-oklab-30")?.mix?.end?.basePalette === "7",
-      shadowDocumentRule: byId.get("shadow-document-rule")?.ruleScope === "document" && byId.get("shadow-document-rule")?.basePalette === "3",
-      shadowLocalIgnored: byId.get("shadow-local-rule-ignored")?.ruleScope == null && byId.get("shadow-local-rule-ignored")?.basePalette === "normal",
-      adoptedDocumentRule: byId.get("document-adopted-rule")?.ruleScope === "document" && byId.get("document-adopted-rule")?.basePalette === "3",
+      animationEndpoints:
+        byId.get("animation-oklab-30")?.mix?.start?.basePalette === "3" &&
+        byId.get("animation-oklab-30")?.mix?.end?.basePalette === "7",
+      shadowDocumentRule:
+        byId.get("shadow-document-rule")?.ruleScope === "document" &&
+        byId.get("shadow-document-rule")?.basePalette === "3",
+      shadowLocalIgnored:
+        byId.get("shadow-local-rule-ignored")?.ruleScope == null &&
+        byId.get("shadow-local-rule-ignored")?.basePalette === "normal",
+      adoptedDocumentRule:
+        byId.get("document-adopted-rule")?.ruleScope === "document" &&
+        byId.get("document-adopted-rule")?.basePalette === "3",
     };
     const svg = elementTreeToSvgInner(capture.tree, 620, 120);
     if (artifactDir != null) {
       const label = order[0] === "mix-srgb-30" ? "forward" : "reverse";
-      sourcePngs.forEach((png, index) => writeFileSync(resolve(artifactDir, `dynamic-source-${label}-${index}-dpr${dpr}.png`), png));
-      capturedPngs.forEach((png, index) => writeFileSync(resolve(artifactDir, `dynamic-captured-${label}-${index}-dpr${dpr}.png`), png));
+      sourcePngs.forEach((png, index) =>
+        writeFileSync(resolve(artifactDir, `dynamic-source-${label}-${index}-dpr${dpr}.png`), png),
+      );
+      capturedPngs.forEach((png, index) =>
+        writeFileSync(resolve(artifactDir, `dynamic-captured-${label}-${index}-dpr${dpr}.png`), png),
+      );
       writeFileSync(resolve(artifactDir, `dynamic-captured-${label}-dpr${dpr}.svg`), svg);
     }
     return adjudicateDynamicProductionOrder({
@@ -526,7 +585,8 @@ function fixtureServer(v0: Buffer, v1: Buffer): Promise<{ server: Server; v0Url:
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
-      if (address == null || typeof address === "string") return reject(new Error("dynamic palette server did not bind a TCP port"));
+      if (address == null || typeof address === "string")
+        return reject(new Error("dynamic palette server did not bind a TCP port"));
       const base = `http://127.0.0.1:${address.port}`;
       resolveServer({ server, v0Url: `${base}/v0.ttf`, v1Url: `${base}/v1.ttf` });
     });
@@ -553,12 +613,19 @@ export async function runFontPaletteDynamicGate(options: {
   const artifactDir = options.artifactDir == null ? undefined : resolve(options.artifactDir);
   if (artifactDir != null) mkdirSync(artifactDir, { recursive: true });
   const v0Facts = readPaletteSourceFacts();
-  const hosted = await fixtureServer(readFileSync(resolve(FONT_PALETTE_FIXTURE)), readFileSync(resolve(options.colrv1Fixture)));
+  const hosted = await fixtureServer(
+    readFileSync(resolve(FONT_PALETTE_FIXTURE)),
+    readFileSync(resolve(options.colrv1Fixture)),
+  );
   const browser = await chromium.launch({ headless: true });
   try {
     const dprs = options.dprs ?? [1, 2];
-    const colrv0Rows = (await Promise.all(dprs.map((dpr) => nativeV0Rows(browser, hosted.v0Url, v0Facts, dpr, artifactDir)))).flat();
-    const colrv1Rows = (await Promise.all(dprs.map((dpr) => nativeV1Rows(browser, hosted.v1Url, options.colrv1Source, dpr, artifactDir)))).flat();
+    const colrv0Rows = (
+      await Promise.all(dprs.map((dpr) => nativeV0Rows(browser, hosted.v0Url, v0Facts, dpr, artifactDir)))
+    ).flat();
+    const colrv1Rows = (
+      await Promise.all(dprs.map((dpr) => nativeV1Rows(browser, hosted.v1Url, options.colrv1Source, dpr, artifactDir)))
+    ).flat();
     const order = dynamicV0Cases(v0Facts).map((row) => row.id);
     // Production registries are process-global, so every cache-control arm is
     // serial. Reversing order must change only traversal order.
@@ -570,9 +637,17 @@ export async function runFontPaletteDynamicGate(options: {
     const expectedV0 = dprs.length * dynamicV0Cases(v0Facts).length;
     const expectedV1 = dprs.length * 3;
     const expectedOrders = dprs.length * 2;
-    const complete = colrv0Rows.length === expectedV0 && colrv1Rows.length === expectedV1 && productionOrders.length === expectedOrders;
-    const verdict = complete && colrv0Rows.every((row) => row.pass) && colrv1Rows.every((row) => row.pass)
-      && productionOrders.every((row) => row.pass) ? "source-exact" : "source-drift";
+    const complete =
+      colrv0Rows.length === expectedV0 &&
+      colrv1Rows.length === expectedV1 &&
+      productionOrders.length === expectedOrders;
+    const verdict =
+      complete &&
+      colrv0Rows.every((row) => row.pass) &&
+      colrv1Rows.every((row) => row.pass) &&
+      productionOrders.every((row) => row.pass)
+        ? "source-exact"
+        : "source-drift";
     const cdp = await browser.newBrowserCDPSession();
     const version = await cdp.send("Browser.getVersion");
     await cdp.detach();
@@ -597,7 +672,8 @@ export async function runFontPaletteDynamicGate(options: {
       colrv1Rows,
       productionOrders,
     };
-    if (artifactDir != null) writeFileSync(resolve(artifactDir, "font-palette-dynamic-report.json"), JSON.stringify(report, null, 2));
+    if (artifactDir != null)
+      writeFileSync(resolve(artifactDir, "font-palette-dynamic-report.json"), JSON.stringify(report, null, 2));
     return report;
   } finally {
     await browser.close();

@@ -83,23 +83,27 @@ export function sniffLocalImageKind(bytes: Uint8Array): "bitmap" | "svg" | null 
   if (bytes.length >= 6 && (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a")) return "bitmap";
   if (bytes.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "bitmap";
   if (bytes.length >= 2 && ascii(0, 2) === "BM") return "bitmap";
-  if (bytes.length >= 4 && bytes[0] === 0 && bytes[1] === 0 && (bytes[2] === 1 || bytes[2] === 2) && bytes[3] === 0) return "bitmap";
+  if (bytes.length >= 4 && bytes[0] === 0 && bytes[1] === 0 && (bytes[2] === 1 || bytes[2] === 2) && bytes[3] === 0)
+    return "bitmap";
   if (bytes.length >= 12 && ascii(4, 8) === "ftyp") return "bitmap";
-  const text = Buffer.from(bytes.subarray(0, Math.min(bytes.length, 4096))).toString("utf8")
-    .replace(/^\uFEFF/, "").replace(/^\s*<\?xml[^>]*>\s*/i, "").replace(/^\s*<!--[^]*?-->\s*/i, "");
+  const text = Buffer.from(bytes.subarray(0, Math.min(bytes.length, 4096)))
+    .toString("utf8")
+    .replace(/^\uFEFF/, "")
+    .replace(/^\s*<\?xml[^>]*>\s*/i, "")
+    .replace(/^\s*<!--[^]*?-->\s*/i, "");
   return /^\s*<svg(?:\s|>)/i.test(text) ? "svg" : null;
 }
 
-async function locallyObservedImage(
-  url: string | null,
-): Promise<{ kind: "bitmap" | "svg"; svgText?: string } | null> {
+async function locallyObservedImage(url: string | null): Promise<{ kind: "bitmap" | "svg"; svgText?: string } | null> {
   if (url == null || !url.startsWith("file:")) return null;
   try {
     const bytes = await readFile(fileURLToPath(url));
     const kind = sniffLocalImageKind(bytes);
     if (kind === "svg") return { kind, svgText: bytes.toString("utf8") };
     return kind === "bitmap" ? { kind } : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -109,10 +113,7 @@ async function locallyObservedImage(
  * equivalent so CLI audits and built consumers execute the identical prepass
  * without leaving a helper on the inspected page's global object.
  */
-function evaluateFrameFunction<Result>(
-  frame: Frame,
-  callback: () => Result | Promise<Result>,
-): Promise<Result>;
+function evaluateFrameFunction<Result>(frame: Frame, callback: () => Result | Promise<Result>): Promise<Result>;
 function evaluateFrameFunction<Argument, Result>(
   frame: Frame,
   callback: (argument: Argument) => Result | Promise<Result>,
@@ -150,7 +151,7 @@ export function splitBackgroundLayers(value: string): string[] {
       if (char === quote) quote = "";
       continue;
     }
-    if (char === "\"" || char === "'") {
+    if (char === '"' || char === "'") {
       quote = char;
       continue;
     }
@@ -198,7 +199,7 @@ function topLevelTokens(value: string): string[] {
       if (char === quote) quote = "";
       continue;
     }
-    if (char === "\"" || char === "'") {
+    if (char === '"' || char === "'") {
       current += char;
       quote = char;
       continue;
@@ -231,7 +232,7 @@ function resolutionInDppx(token: string): number | null {
   if (!Number.isFinite(value)) return null;
   const unit = match[2].toLowerCase();
   if (unit === "dpi") return value / 96;
-  if (unit === "dpcm") return value * 2.54 / 96;
+  if (unit === "dpcm") return (value * 2.54) / 96;
   return value;
 }
 
@@ -267,26 +268,29 @@ export function selectBackgroundCandidate(
   const candidates = parseImageSetCandidates(layer);
   if (candidates == null) {
     const url = extractDirectUrl(layer);
-    return url == null ? null : {
-      source: "url",
-      selectedUrl: url,
-      selectedCandidateIndex: null,
-      selectedResolution: 1,
-      selectedType: null,
-    };
+    return url == null
+      ? null
+      : {
+          source: "url",
+          selectedUrl: url,
+          selectedCandidateIndex: null,
+          selectedResolution: 1,
+          selectedType: null,
+        };
   }
 
   const supported = candidates
-    .filter((candidate) => candidate.resolution > 0
-      && (candidate.type == null || isBlinkSupportedImageMimeType(candidate.type)))
+    .filter(
+      (candidate) =>
+        candidate.resolution > 0 && (candidate.type == null || isBlinkSupportedImageMimeType(candidate.type)),
+    )
     .sort((left, right) => left.resolution - right.resolution || left.index - right.index);
   const unique: ParsedImageSetCandidate[] = [];
   for (const candidate of supported) {
     if (unique.some((prior) => prior.resolution === candidate.resolution)) continue;
     unique.push(candidate);
   }
-  const selected = unique.find((candidate) => candidate.resolution >= deviceScaleFactor)
-    ?? unique.at(-1);
+  const selected = unique.find((candidate) => candidate.resolution >= deviceScaleFactor) ?? unique.at(-1);
   if (selected == null) {
     return {
       source: "image-set",
@@ -319,8 +323,12 @@ async function collectBackgroundTargets(frame: Frame): Promise<CollectedBackgrou
         __domotionBackgroundImageKey?: unknown;
         __domotionBackgroundImages?: unknown;
       };
-      try { delete tagged.__domotionBackgroundImageKey; } catch {}
-      try { delete tagged.__domotionBackgroundImages; } catch {}
+      try {
+        delete tagged.__domotionBackgroundImageKey;
+      } catch {}
+      try {
+        delete tagged.__domotionBackgroundImages;
+      } catch {}
     }
     const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
     const targets: Element[] = [];
@@ -360,250 +368,296 @@ async function hydrateBackgroundTargets(
   targets: PreparedBackgroundTarget[],
   timeoutMs: number,
 ): Promise<void> {
-  await evaluateFrameFunction(frame, async ({ prepared, timeout }) => {
-    type RawSizing = {
-      loadState: "loaded" | "loading" | "failed";
-      naturalSizingState: "resolved" | "unavailable";
-      kind: "bitmap" | "svg" | "unknown";
-      width: number | null;
-      height: number | null;
-      hasWidth: boolean | null;
-      hasHeight: boolean | null;
-      ratio: { width: number; height: number } | null;
-      warning?: string;
-    };
-    const host = globalThis as unknown as {
-      __domotionBackgroundImageTargets?: Element[];
-    };
-
-    const absoluteSvgLength = (raw: string | null): number | null => {
-      if (raw == null || raw.trim() === "" || raw.trim() === "auto" || raw.trim().endsWith("%")) return null;
-      const match = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(px|in|cm|mm|q|pt|pc)?\s*$/.exec(raw);
-      if (match == null) return null;
-      const value = Number(match[1]);
-      if (!Number.isFinite(value) || value < 0) return null;
-      const scales: Record<string, number> = {
-        px: 1, in: 96, cm: 96 / 2.54, mm: 96 / 25.4,
-        q: 96 / 101.6, pt: 96 / 72, pc: 16,
+  await evaluateFrameFunction(
+    frame,
+    async ({ prepared, timeout }) => {
+      type RawSizing = {
+        loadState: "loaded" | "loading" | "failed";
+        naturalSizingState: "resolved" | "unavailable";
+        kind: "bitmap" | "svg" | "unknown";
+        width: number | null;
+        height: number | null;
+        hasWidth: boolean | null;
+        hasHeight: boolean | null;
+        ratio: { width: number; height: number } | null;
+        warning?: string;
       };
-      return value * (scales[(match[2] ?? "px").toLowerCase()] ?? 1);
-    };
-    const svgSizing = (text: string): Omit<RawSizing, "loadState"> | null => {
-      const document = new DOMParser().parseFromString(text, "image/svg+xml");
-      if (document.querySelector("parsererror") != null) return null;
-      const root = document.documentElement;
-      if (root.localName.toLowerCase() !== "svg") return null;
-      const width = absoluteSvgLength(root.getAttribute("width"));
-      const height = absoluteSvgLength(root.getAttribute("height"));
-      let ratio: { width: number; height: number } | null = null;
-      if (width != null && height != null && width > 0 && height > 0) {
-        ratio = { width, height };
-      } else {
-        const viewBox = root.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
-        if (viewBox?.length === 4 && viewBox.every(Number.isFinite)
-            && viewBox[2] > 0 && viewBox[3] > 0) {
-          ratio = { width: viewBox[2], height: viewBox[3] };
-        }
-      }
-      return {
-        naturalSizingState: "resolved",
-        kind: "svg",
-        width,
-        height,
-        hasWidth: width != null,
-        hasHeight: height != null,
-        ratio,
+      const host = globalThis as unknown as {
+        __domotionBackgroundImageTargets?: Element[];
       };
-    };
-    const dataSvgText = (url: string): string | null => {
-      const match = /^data:image\/svg\+xml([^,]*),(.*)$/is.exec(url);
-      if (match == null) return null;
-      try {
-        if (/;base64/i.test(match[1])) return atob(match[2]);
-        return decodeURIComponent(match[2]);
-      } catch {
-        return null;
-      }
-    };
-    const fetchSvg = async (url: string): Promise<{ kind: "bitmap" | "svg" | "unknown"; text: string | null }> => {
-      const embedded = dataSvgText(url);
-      if (embedded != null) return { kind: "svg", text: embedded };
-      if (/^data:image\//i.test(url)) return { kind: "bitmap", text: null };
-      try {
-        const response = await fetch(url);
-        const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
-        if (contentType === "image/svg+xml") {
-          return { kind: "svg", text: await response.text() };
-        }
-        if (contentType.startsWith("image/")) return { kind: "bitmap", text: null };
-      } catch {}
-      // A URL suffix or image-set type() descriptor is only a hint. Blink asks
-      // the decoded Image whether it is bitmap/SVG; when CORS hides the actual
-      // response kind, guessing would apply density to SVG or invent fixed
-      // bitmap dimensions. Preserve explicit unknown state instead.
-      return { kind: "unknown", text: null };
-    };
-    const cache = new Map<string, Promise<RawSizing>>();
-    const load = (
-      url: string,
-      orientation: "from-image" | "none",
-      localKind?: "bitmap" | "svg",
-      localSvgText?: string,
-    ): Promise<RawSizing> => {
-      const cacheKey = `${orientation}\n${localKind ?? ""}\n${url}`;
-      const hit = cache.get(cacheKey);
-      if (hit != null) return hit;
-      const pending = (async (): Promise<RawSizing> => {
-        const image = new Image();
-        // Author `img` rules (including !important rules) must not turn this
-        // sizing probe into page-style evidence. Inline important declarations
-        // keep the replaced element at its own oriented intrinsic size.
-        image.style.cssText = "all:initial!important;position:fixed!important;left:-100000px!important;top:0!important;display:block!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;visibility:hidden!important;pointer-events:none!important";
-        image.style.setProperty("image-orientation", orientation, "important");
-        let eventState: "load" | "error" | "timeout";
-        const event = new Promise<"load" | "error">((resolve) => {
-          image.addEventListener("load", () => resolve("load"), { once: true });
-          image.addEventListener("error", () => resolve("error"), { once: true });
-        });
-        image.src = url;
-        if (image.complete) eventState = image.naturalWidth > 0 && image.naturalHeight > 0 ? "load" : "error";
-        else {
-          eventState = await Promise.race([
-            event,
-            new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeout)),
-          ]);
-        }
-        if (eventState === "timeout") {
-          return {
-            loadState: "loading", naturalSizingState: "unavailable", kind: "unknown",
-            width: null, height: null, hasWidth: null, hasHeight: null, ratio: null,
-            warning: `selected background image did not decode within ${timeout}ms`,
-          };
-        }
-        if (eventState === "error" || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
-          return {
-            loadState: "failed", naturalSizingState: "unavailable", kind: "unknown",
-            width: null, height: null, hasWidth: null, hasHeight: null, ratio: null,
-            warning: "selected background image failed to load or decode",
-          };
-        }
 
-        const source = localKind == null
-          ? await fetchSvg(url)
-          : { kind: localKind, text: localSvgText ?? null };
-        if (source.kind === "svg") {
-          let svgText = source.text;
-          if (svgText == null && url.startsWith("file:")) {
-            try { svgText = await (await fetch(url)).text(); } catch {}
+      const absoluteSvgLength = (raw: string | null): number | null => {
+        if (raw == null || raw.trim() === "" || raw.trim() === "auto" || raw.trim().endsWith("%")) return null;
+        const match = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(px|in|cm|mm|q|pt|pc)?\s*$/.exec(raw);
+        if (match == null) return null;
+        const value = Number(match[1]);
+        if (!Number.isFinite(value) || value < 0) return null;
+        const scales: Record<string, number> = {
+          px: 1,
+          in: 96,
+          cm: 96 / 2.54,
+          mm: 96 / 25.4,
+          q: 96 / 101.6,
+          pt: 96 / 72,
+          pc: 16,
+        };
+        return value * (scales[(match[2] ?? "px").toLowerCase()] ?? 1);
+      };
+      const svgSizing = (text: string): Omit<RawSizing, "loadState"> | null => {
+        const document = new DOMParser().parseFromString(text, "image/svg+xml");
+        if (document.querySelector("parsererror") != null) return null;
+        const root = document.documentElement;
+        if (root.localName.toLowerCase() !== "svg") return null;
+        const width = absoluteSvgLength(root.getAttribute("width"));
+        const height = absoluteSvgLength(root.getAttribute("height"));
+        let ratio: { width: number; height: number } | null = null;
+        if (width != null && height != null && width > 0 && height > 0) {
+          ratio = { width, height };
+        } else {
+          const viewBox = root
+            .getAttribute("viewBox")
+            ?.trim()
+            .split(/[\s,]+/)
+            .map(Number);
+          if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
+            ratio = { width: viewBox[2], height: viewBox[3] };
           }
-          const sizing = svgText == null ? null : svgSizing(svgText);
-          if (sizing == null) {
+        }
+        return {
+          naturalSizingState: "resolved",
+          kind: "svg",
+          width,
+          height,
+          hasWidth: width != null,
+          hasHeight: height != null,
+          ratio,
+        };
+      };
+      const dataSvgText = (url: string): string | null => {
+        const match = /^data:image\/svg\+xml([^,]*),(.*)$/is.exec(url);
+        if (match == null) return null;
+        try {
+          if (/;base64/i.test(match[1])) return atob(match[2]);
+          return decodeURIComponent(match[2]);
+        } catch {
+          return null;
+        }
+      };
+      const fetchSvg = async (url: string): Promise<{ kind: "bitmap" | "svg" | "unknown"; text: string | null }> => {
+        const embedded = dataSvgText(url);
+        if (embedded != null) return { kind: "svg", text: embedded };
+        if (/^data:image\//i.test(url)) return { kind: "bitmap", text: null };
+        try {
+          const response = await fetch(url);
+          const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
+          if (contentType === "image/svg+xml") {
+            return { kind: "svg", text: await response.text() };
+          }
+          if (contentType.startsWith("image/")) return { kind: "bitmap", text: null };
+        } catch {}
+        // A URL suffix or image-set type() descriptor is only a hint. Blink asks
+        // the decoded Image whether it is bitmap/SVG; when CORS hides the actual
+        // response kind, guessing would apply density to SVG or invent fixed
+        // bitmap dimensions. Preserve explicit unknown state instead.
+        return { kind: "unknown", text: null };
+      };
+      const cache = new Map<string, Promise<RawSizing>>();
+      const load = (
+        url: string,
+        orientation: "from-image" | "none",
+        localKind?: "bitmap" | "svg",
+        localSvgText?: string,
+      ): Promise<RawSizing> => {
+        const cacheKey = `${orientation}\n${localKind ?? ""}\n${url}`;
+        const hit = cache.get(cacheKey);
+        if (hit != null) return hit;
+        const pending = (async (): Promise<RawSizing> => {
+          const image = new Image();
+          // Author `img` rules (including !important rules) must not turn this
+          // sizing probe into page-style evidence. Inline important declarations
+          // keep the replaced element at its own oriented intrinsic size.
+          image.style.cssText =
+            "all:initial!important;position:fixed!important;left:-100000px!important;top:0!important;display:block!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;visibility:hidden!important;pointer-events:none!important";
+          image.style.setProperty("image-orientation", orientation, "important");
+          let eventState: "load" | "error" | "timeout";
+          const event = new Promise<"load" | "error">((resolve) => {
+            image.addEventListener("load", () => resolve("load"), { once: true });
+            image.addEventListener("error", () => resolve("error"), { once: true });
+          });
+          image.src = url;
+          if (image.complete) eventState = image.naturalWidth > 0 && image.naturalHeight > 0 ? "load" : "error";
+          else {
+            eventState = await Promise.race([
+              event,
+              new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeout)),
+            ]);
+          }
+          if (eventState === "timeout") {
             return {
-              loadState: "loaded", naturalSizingState: "unavailable", kind: "svg",
-              width: null, height: null, hasWidth: null, hasHeight: null, ratio: null,
-              warning: "loaded SVG background natural dimensions were not readable at capture time",
+              loadState: "loading",
+              naturalSizingState: "unavailable",
+              kind: "unknown",
+              width: null,
+              height: null,
+              hasWidth: null,
+              hasHeight: null,
+              ratio: null,
+              warning: `selected background image did not decode within ${timeout}ms`,
             };
           }
-          return { loadState: "loaded", ...sizing };
-        }
-        if (source.kind === "unknown") {
-          return {
-            loadState: "loaded", naturalSizingState: "unavailable", kind: "unknown",
-            width: null, height: null, hasWidth: null, hasHeight: null, ratio: null,
-            warning: "loaded background image type was not observable; natural dimension presence is unknown",
-          };
-        }
+          if (eventState === "error" || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+            return {
+              loadState: "failed",
+              naturalSizingState: "unavailable",
+              kind: "unknown",
+              width: null,
+              height: null,
+              hasWidth: null,
+              hasHeight: null,
+              ratio: null,
+              warning: "selected background image failed to load or decode",
+            };
+          }
 
-        (document.body || document.documentElement).appendChild(image);
-        // offsetWidth/offsetHeight retain image-orientation's used intrinsic
-        // axes while excluding ancestor zoom/transforms. A client rect would
-        // already contain the document's zoom and then be scaled a second time
-        // by target.effectiveZoom below.
-        const orientedWidth = image.offsetWidth;
-        const orientedHeight = image.offsetHeight;
-        image.remove();
-        const width = orientedWidth > 0 && Number.isFinite(orientedWidth) ? orientedWidth : image.naturalWidth;
-        const height = orientedHeight > 0 && Number.isFinite(orientedHeight) ? orientedHeight : image.naturalHeight;
-        return {
-          loadState: "loaded", naturalSizingState: "resolved", kind: "bitmap",
-          width, height, hasWidth: true, hasHeight: true,
-          ratio: width > 0 && height > 0 ? { width, height } : null,
-        };
-      })();
-      cache.set(cacheKey, pending);
-      return pending;
-    };
+          const source = localKind == null ? await fetchSvg(url) : { kind: localKind, text: localSvgText ?? null };
+          if (source.kind === "svg") {
+            let svgText = source.text;
+            if (svgText == null && url.startsWith("file:")) {
+              try {
+                svgText = await (await fetch(url)).text();
+              } catch {}
+            }
+            const sizing = svgText == null ? null : svgSizing(svgText);
+            if (sizing == null) {
+              return {
+                loadState: "loaded",
+                naturalSizingState: "unavailable",
+                kind: "svg",
+                width: null,
+                height: null,
+                hasWidth: null,
+                hasHeight: null,
+                ratio: null,
+                warning: "loaded SVG background natural dimensions were not readable at capture time",
+              };
+            }
+            return { loadState: "loaded", ...sizing };
+          }
+          if (source.kind === "unknown") {
+            return {
+              loadState: "loaded",
+              naturalSizingState: "unavailable",
+              kind: "unknown",
+              width: null,
+              height: null,
+              hasWidth: null,
+              hasHeight: null,
+              ratio: null,
+              warning: "loaded background image type was not observable; natural dimension presence is unknown",
+            };
+          }
 
-    const elements = host.__domotionBackgroundImageTargets ?? [];
-    await Promise.all(prepared.map(async (target) => {
-      const element = elements.find((candidate) =>
-        (candidate as Element & { __domotionBackgroundImageKey?: number }).__domotionBackgroundImageKey === target.key);
-      if (element == null) return;
-      // Start every unique resource together. A page with several stalled
-      // layers pays one timeout window, not one timeout per layer/element.
-      const records = await Promise.all(target.selections.map(async (
-        selection,
-        layerIndex,
-      ): Promise<CapturedBackgroundImage | null> => {
-        if (selection == null) return null;
-        const {
-          locallyObservedKind: _locallyObservedKind,
-          locallyObservedSvgText: _locallyObservedSvgText,
-          ...capturedSelection
-        } = selection;
-        if (selection.selectedUrl == null) {
+          (document.body || document.documentElement).appendChild(image);
+          // offsetWidth/offsetHeight retain image-orientation's used intrinsic
+          // axes while excluding ancestor zoom/transforms. A client rect would
+          // already contain the document's zoom and then be scaled a second time
+          // by target.effectiveZoom below.
+          const orientedWidth = image.offsetWidth;
+          const orientedHeight = image.offsetHeight;
+          image.remove();
+          const width = orientedWidth > 0 && Number.isFinite(orientedWidth) ? orientedWidth : image.naturalWidth;
+          const height = orientedHeight > 0 && Number.isFinite(orientedHeight) ? orientedHeight : image.naturalHeight;
           return {
-            layerIndex,
-            ...capturedSelection,
-            decodedImageKind: "unknown",
-            decodedNaturalWidth: null,
-            decodedNaturalHeight: null,
-            naturalWidth: null,
-            naturalHeight: null,
-            hasNaturalWidth: null,
-            hasNaturalHeight: null,
-            naturalAspectRatio: null,
-            imageOrientation: target.imageOrientation,
-            effectiveZoom: target.effectiveZoom,
-            loadState: "unsupported",
-            naturalSizingState: "unavailable",
+            loadState: "loaded",
+            naturalSizingState: "resolved",
+            kind: "bitmap",
+            width,
+            height,
+            hasWidth: true,
+            hasHeight: true,
+            ratio: width > 0 && height > 0 ? { width, height } : null,
           };
-        }
-        const raw = await load(
-          selection.selectedUrl,
-          target.imageOrientation,
-          selection.locallyObservedKind,
-          selection.locallyObservedSvgText,
-        );
-        // StyleFetchedImage applies image-set resolution only to bitmap
-        // candidates. SVG candidate resolution affects selection, not its
-        // NaturalSizingInfo multiplier.
-        const density = raw.kind === "bitmap" ? selection.selectedResolution : 1;
-        const scale = target.effectiveZoom / Math.max(Number.EPSILON, density);
-        return {
-          layerIndex,
-          ...capturedSelection,
-          decodedImageKind: raw.kind,
-          decodedNaturalWidth: raw.hasWidth === true ? raw.width : null,
-          decodedNaturalHeight: raw.hasHeight === true ? raw.height : null,
-          naturalWidth: raw.hasWidth === true && raw.width != null ? raw.width * scale : null,
-          naturalHeight: raw.hasHeight === true && raw.height != null ? raw.height * scale : null,
-          hasNaturalWidth: raw.hasWidth,
-          hasNaturalHeight: raw.hasHeight,
-          naturalAspectRatio: raw.ratio,
-          imageOrientation: target.imageOrientation,
-          effectiveZoom: target.effectiveZoom,
-          loadState: raw.loadState,
-          naturalSizingState: raw.naturalSizingState,
-          warning: selection.warning ?? raw.warning,
-        };
-      }));
-      Object.defineProperty(element, "__domotionBackgroundImages", {
-        configurable: true,
-        value: records,
-      });
-    }));
-  }, { prepared: targets, timeout: timeoutMs });
+        })();
+        cache.set(cacheKey, pending);
+        return pending;
+      };
+
+      const elements = host.__domotionBackgroundImageTargets ?? [];
+      await Promise.all(
+        prepared.map(async (target) => {
+          const element = elements.find(
+            (candidate) =>
+              (candidate as Element & { __domotionBackgroundImageKey?: number }).__domotionBackgroundImageKey ===
+              target.key,
+          );
+          if (element == null) return;
+          // Start every unique resource together. A page with several stalled
+          // layers pays one timeout window, not one timeout per layer/element.
+          const records = await Promise.all(
+            target.selections.map(async (selection, layerIndex): Promise<CapturedBackgroundImage | null> => {
+              if (selection == null) return null;
+              const {
+                locallyObservedKind: _locallyObservedKind,
+                locallyObservedSvgText: _locallyObservedSvgText,
+                ...capturedSelection
+              } = selection;
+              if (selection.selectedUrl == null) {
+                return {
+                  layerIndex,
+                  ...capturedSelection,
+                  decodedImageKind: "unknown",
+                  decodedNaturalWidth: null,
+                  decodedNaturalHeight: null,
+                  naturalWidth: null,
+                  naturalHeight: null,
+                  hasNaturalWidth: null,
+                  hasNaturalHeight: null,
+                  naturalAspectRatio: null,
+                  imageOrientation: target.imageOrientation,
+                  effectiveZoom: target.effectiveZoom,
+                  loadState: "unsupported",
+                  naturalSizingState: "unavailable",
+                };
+              }
+              const raw = await load(
+                selection.selectedUrl,
+                target.imageOrientation,
+                selection.locallyObservedKind,
+                selection.locallyObservedSvgText,
+              );
+              // StyleFetchedImage applies image-set resolution only to bitmap
+              // candidates. SVG candidate resolution affects selection, not its
+              // NaturalSizingInfo multiplier.
+              const density = raw.kind === "bitmap" ? selection.selectedResolution : 1;
+              const scale = target.effectiveZoom / Math.max(Number.EPSILON, density);
+              return {
+                layerIndex,
+                ...capturedSelection,
+                decodedImageKind: raw.kind,
+                decodedNaturalWidth: raw.hasWidth === true ? raw.width : null,
+                decodedNaturalHeight: raw.hasHeight === true ? raw.height : null,
+                naturalWidth: raw.hasWidth === true && raw.width != null ? raw.width * scale : null,
+                naturalHeight: raw.hasHeight === true && raw.height != null ? raw.height * scale : null,
+                hasNaturalWidth: raw.hasWidth,
+                hasNaturalHeight: raw.hasHeight,
+                naturalAspectRatio: raw.ratio,
+                imageOrientation: target.imageOrientation,
+                effectiveZoom: target.effectiveZoom,
+                loadState: raw.loadState,
+                naturalSizingState: raw.naturalSizingState,
+                warning: selection.warning ?? raw.warning,
+              };
+            }),
+          );
+          Object.defineProperty(element, "__domotionBackgroundImages", {
+            configurable: true,
+            value: records,
+          });
+        }),
+      );
+    },
+    { prepared: targets, timeout: timeoutMs },
+  );
 }
 
 /**
@@ -616,50 +670,63 @@ export async function primeBackgroundImageSizing(
 ): Promise<{ dispose(): Promise<void> }> {
   const frames = page.frames();
   const timeoutMs = options.timeoutMs ?? 3_000;
-  await Promise.all(frames.map(async (frame) => {
-    try {
-      const collected = await collectBackgroundTargets(frame);
-      const prepared: PreparedBackgroundTarget[] = await Promise.all(collected.map(async (target) => ({
-        ...target,
-        selections: await Promise.all(splitBackgroundLayers(target.backgroundImage)
-          .map(async (layer) => {
-            const selected = selectBackgroundCandidate(layer, target.dpr);
-            if (selected?.selectedUrl == null) return selected;
-            const local = await locallyObservedImage(selected.selectedUrl);
-            return local == null ? selected : {
-              ...selected,
-              locallyObservedKind: local.kind,
-              ...(local.svgText == null ? {} : { locallyObservedSvgText: local.svgText }),
-            };
+  await Promise.all(
+    frames.map(async (frame) => {
+      try {
+        const collected = await collectBackgroundTargets(frame);
+        const prepared: PreparedBackgroundTarget[] = await Promise.all(
+          collected.map(async (target) => ({
+            ...target,
+            selections: await Promise.all(
+              splitBackgroundLayers(target.backgroundImage).map(async (layer) => {
+                const selected = selectBackgroundCandidate(layer, target.dpr);
+                if (selected?.selectedUrl == null) return selected;
+                const local = await locallyObservedImage(selected.selectedUrl);
+                return local == null
+                  ? selected
+                  : {
+                      ...selected,
+                      locallyObservedKind: local.kind,
+                      ...(local.svgText == null ? {} : { locallyObservedSvgText: local.svgText }),
+                    };
+              }),
+            ),
           })),
-      })));
-      await hydrateBackgroundTargets(frame, prepared, timeoutMs);
-    } catch {
-      // Detached and cross-origin frames remain owned by their existing raster
-      // boundary. The top document and same-origin recursive frames continue.
-    }
-  }));
+        );
+        await hydrateBackgroundTargets(frame, prepared, timeoutMs);
+      } catch {
+        // Detached and cross-origin frames remain owned by their existing raster
+        // boundary. The top document and same-origin recursive frames continue.
+      }
+    }),
+  );
 
   return {
     async dispose(): Promise<void> {
-      await Promise.all(frames.map(async (frame) => {
-        try {
-          await evaluateFrameFunction(frame, () => {
-            const host = globalThis as unknown as {
-              __domotionBackgroundImageTargets?: Element[];
-            };
-            for (const target of host.__domotionBackgroundImageTargets ?? []) {
-              const tagged = target as Element & {
-                __domotionBackgroundImageKey?: unknown;
-                __domotionBackgroundImages?: unknown;
+      await Promise.all(
+        frames.map(async (frame) => {
+          try {
+            await evaluateFrameFunction(frame, () => {
+              const host = globalThis as unknown as {
+                __domotionBackgroundImageTargets?: Element[];
               };
-              try { delete tagged.__domotionBackgroundImageKey; } catch {}
-              try { delete tagged.__domotionBackgroundImages; } catch {}
-            }
-            delete host.__domotionBackgroundImageTargets;
-          });
-        } catch {}
-      }));
+              for (const target of host.__domotionBackgroundImageTargets ?? []) {
+                const tagged = target as Element & {
+                  __domotionBackgroundImageKey?: unknown;
+                  __domotionBackgroundImages?: unknown;
+                };
+                try {
+                  delete tagged.__domotionBackgroundImageKey;
+                } catch {}
+                try {
+                  delete tagged.__domotionBackgroundImages;
+                } catch {}
+              }
+              delete host.__domotionBackgroundImageTargets;
+            });
+          } catch {}
+        }),
+      );
     },
   };
 }

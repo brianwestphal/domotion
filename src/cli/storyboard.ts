@@ -148,7 +148,10 @@ export const storyboardSceneSchema = z
   .superRefine((s, ctx) => {
     const sources = [s.template, s.capture, s.cast, s.svg].filter((x) => x != null);
     if (sources.length !== 1) {
-      ctx.addIssue({ code: "custom", message: "each scene must have exactly one source: `template`, `capture`, `cast`, or `svg`" });
+      ctx.addIssue({
+        code: "custom",
+        message: "each scene must have exactly one source: `template`, `capture`, `cast`, or `svg`",
+      });
     }
     if (s.params != null && s.template == null) {
       ctx.addIssue({ code: "custom", message: "`params` requires a `template` scene" });
@@ -182,7 +185,8 @@ export const storyboardCursorSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["events", i, "selector"],
-          message: "a storyboard cursor event uses absolute `to` coordinates — a `selector` can't resolve (a scene retains no live DOM)",
+          message:
+            "a storyboard cursor event uses absolute `to` coordinates — a `selector` can't resolve (a scene retains no live DOM)",
         });
       }
     });
@@ -264,7 +268,10 @@ async function captureSceneToSvg(
     // Self-contained capture: a storyboard scene renders straight into the
     // published SVG, so an un-inlined remote `<img>` would be a dead href there.
     const tree = await captureElementTreeSelfContained(page, cap.selector ?? "body", {
-      x: 0, y: 0, width: canvasW, height: canvasH,
+      x: 0,
+      y: 0,
+      width: canvasW,
+      height: canvasH,
     });
     cullElementsOutsideViewBox(tree, canvasW, canvasH, undefined, 0, 1);
     clearEmbeddedFonts();
@@ -302,10 +309,14 @@ async function renderScene(
     const base: Record<string, unknown> = {};
     if (shape != null && Object.prototype.hasOwnProperty.call(shape, "width")) base.width = canvasW;
     if (shape != null && Object.prototype.hasOwnProperty.call(shape, "height")) base.height = canvasH;
-    const out = await renderTemplateToSvg(template, { ...base, ...(scene.params ?? {}) }, {
-      browser,
-      log: (m) => log(`  ${m}`),
-    });
+    const out = await renderTemplateToSvg(
+      template,
+      { ...base, ...(scene.params ?? {}) },
+      {
+        browser,
+        log: (m) => log(`  ${m}`),
+      },
+    );
     return { svg: out.svg, w: out.width, h: out.height, periodMs: out.durationMs ?? undefined };
   }
   if (scene.cast != null) {
@@ -409,7 +420,9 @@ export async function composeStoryboardConfig(
     const trimStart = scene.trimStart ?? 0;
     const trimEnd = scene.trimEnd ?? r.periodMs;
     if (hasTrim && r.periodMs == null) {
-      throw new Error(`storyboard: scenes[${i}].trimStart: trimming requires an animated source with an intrinsic or declared period`);
+      throw new Error(
+        `storyboard: scenes[${i}].trimStart: trimming requires an animated source with an intrinsic or declared period`,
+      );
     }
     if (r.periodMs != null && trimEnd != null && trimEnd > r.periodMs) {
       throw new Error(`storyboard: scenes[${i}].trimEnd: ${trimEnd}ms exceeds the source period ${r.periodMs}ms`);
@@ -418,15 +431,21 @@ export async function composeStoryboardConfig(
     let duration = scene.duration ?? trimDuration ?? 0;
     if (duration <= 0) {
       if (r.periodMs == null) {
-        throw new Error(`storyboard: scenes[${i}].duration: this scene has no intrinsic play time (it's static) — set an explicit "duration"`);
+        throw new Error(
+          `storyboard: scenes[${i}].duration: this scene has no intrinsic play time (it's static) — set an explicit "duration"`,
+        );
       }
       duration = r.periodMs;
       log(`  duration defaulted to the scene's play time: ${duration}ms`);
     } else if (r.periodMs != null && duration < r.periodMs) {
-      log(`  note: scene duration ${duration}ms < scene play time ${r.periodMs}ms — the scene will be cut off; size duration to ≈ ${r.periodMs}ms`);
+      log(
+        `  note: scene duration ${duration}ms < scene play time ${r.periodMs}ms — the scene will be cut off; size duration to ≈ ${r.periodMs}ms`,
+      );
     }
     if (trimDuration != null && duration > trimDuration) {
-      throw new Error(`storyboard: scenes[${i}].duration: ${duration}ms exceeds the trimmed play window ${trimDuration}ms`);
+      throw new Error(
+        `storyboard: scenes[${i}].duration: ${duration}ms exceeds the trimmed play window ${trimDuration}ms`,
+      );
     }
 
     // Namespace the scene's document-global names (ids, font families, frame
@@ -444,13 +463,7 @@ export async function composeStoryboardConfig(
     // scene retains no live DOM, so a selector `anchor` can't resolve here — it
     // warns and falls back to `x`/`y`, exactly like `animate`'s cast/template
     // frames (`resolveEmbeddedFrameOverlays`).
-    const overlays = resolveEmbeddedFrameOverlays(
-      scene.overlays,
-      configDir,
-      i,
-      `storyboard ${sceneKind(scene)}`,
-      log,
-    );
+    const overlays = resolveEmbeddedFrameOverlays(scene.overlays, configDir, i, `storyboard ${sceneKind(scene)}`, log);
 
     frames.push({
       svgContent: content,

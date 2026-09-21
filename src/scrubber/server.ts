@@ -27,7 +27,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
-import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize, resolveDurationMs, findFfmpeg, resolveFormat, buildFfmpegArgs, fitContain, type AnimTiming } from "../cli/svg-to-video-core.js";
+import {
+  htmlWrapper,
+  seekTo,
+  screenshot,
+  parseSvgIntrinsicSize,
+  resolveDurationMs,
+  findFfmpeg,
+  resolveFormat,
+  buildFfmpegArgs,
+  fitContain,
+  type AnimTiming,
+} from "../cli/svg-to-video-core.js";
 import { trimAnimatedSvg } from "./trim.js";
 import { clampCrop, cropSvgViewBox, type CropRect } from "./crop.js";
 import { SCRUBBER_CLIENT_JS } from "./client.bundle.generated.js";
@@ -56,7 +67,12 @@ const dim = finite.refine((n) => n > 0 && n <= MAX_DIM, `must be in (0, ${MAX_DI
 // PNG / MP4 exports crop the raster output to it; the SVG export rewrites the
 // root viewBox (vector crop). Clamped to the frame server-side via `clampCrop`.
 const CROP = z
-  .object({ x: finite.refine((n) => n >= 0, "must be ≥ 0"), y: finite.refine((n) => n >= 0, "must be ≥ 0"), w: dim, h: dim })
+  .object({
+    x: finite.refine((n) => n >= 0, "must be ≥ 0"),
+    y: finite.refine((n) => n >= 0, "must be ≥ 0"),
+    w: dim,
+    h: dim,
+  })
   .optional();
 const TIMING_BODY = z.object({ svg: svgField });
 const TRIM_BODY = z.object({
@@ -67,7 +83,14 @@ const TRIM_BODY = z.object({
   crop: CROP,
 });
 const FRAME_BODY = z.object({ svg: svgField, timeMs, width: dim, height: dim, crop: CROP });
-const RANGE_VIDEO_BODY = z.object({ svg: svgField, startMs: timeMs, endMs: timeMs, width: dim, height: dim, crop: CROP });
+const RANGE_VIDEO_BODY = z.object({
+  svg: svgField,
+  startMs: timeMs,
+  endMs: timeMs,
+  width: dim,
+  height: dim,
+  crop: CROP,
+});
 // DM-1445/DM-1449: a review-mode issue report. Each region is in the SVG's
 // user-space units (same as the crop rect). All timing in ms.
 const REGION = z.object({
@@ -97,15 +120,23 @@ const TICKET_BODY = z.object({
 
 /** A request-level error carrying the HTTP status to return (e.g. a 400). */
 class HttpError extends Error {
-  constructor(public readonly status: number, message: string) { super(message); }
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 /** Read + JSON-parse + zod-validate a request body, or throw an `HttpError(400)`. */
 async function parseBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
   const raw = await readBody(req);
   let parsed: unknown;
-  try { parsed = JSON.parse(raw); }
-  catch { throw new HttpError(400, "invalid JSON body"); }
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new HttpError(400, "invalid JSON body");
+  }
   const result = schema.safeParse(parsed);
   if (!result.success) {
     const msg = result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; ");
@@ -122,7 +153,15 @@ async function parseBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise
  * guidance) when ffmpeg is missing. Runs on the caller's serialized Chromium
  * page.
  */
-async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number, width: number, height: number, crop?: CropRect): Promise<Buffer> {
+async function renderRangeVideo(
+  page: Page,
+  svg: string,
+  t0: number,
+  t1: number,
+  width: number,
+  height: number,
+  crop?: CropRect,
+): Promise<Buffer> {
   const ffmpeg = findFfmpeg(process.env.FFMPEG_PATH || "ffmpeg"); // throws if absent
   const fmt = resolveFormat("h264"); // → mp4 / yuv420p (needs even W/H)
   const { width: outW, height: outH } = fitContain(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
@@ -135,7 +174,8 @@ async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number,
   // the clip to integer px inside the viewport and the dims down to even values
   // (yuv420p). The encoder frame size becomes the cropped size.
   let clip: { x: number; y: number; width: number; height: number } | undefined;
-  let frameW = outW, frameH = outH;
+  let frameW = outW,
+    frameH = outH;
   if (crop != null) {
     const c = clampCrop(crop, outW, outH);
     if (c != null) {
@@ -144,28 +184,42 @@ async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number,
       const cw = evenFloor(Math.min(c.w, outW - cx));
       const ch = evenFloor(Math.min(c.h, outH - cy));
       clip = { x: cx, y: cy, width: cw, height: ch };
-      frameW = cw; frameH = ch;
+      frameW = cw;
+      frameH = ch;
     }
   }
 
   const dir = mkdtempSync(join(tmpdir(), "scrubber-mp4-"));
   const outPath = join(dir, "range.mp4");
-  const args = buildFfmpegArgs({ fps: EXPORT_FPS, frameWidth: frameW, frameHeight: frameH, outWidth: frameW, outHeight: frameH, fmt, output: outPath, burnCaptions: false });
+  const args = buildFfmpegArgs({
+    fps: EXPORT_FPS,
+    frameWidth: frameW,
+    frameHeight: frameH,
+    outWidth: frameW,
+    outHeight: frameH,
+    fmt,
+    output: outPath,
+    burnCaptions: false,
+  });
   const ff = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
   let ffErr = "";
-  ff.stderr?.on("data", (d: Buffer) => { ffErr += d.toString(); if (ffErr.length > 8192) ffErr = ffErr.slice(-8192); });
+  ff.stderr?.on("data", (d: Buffer) => {
+    ffErr += d.toString();
+    if (ffErr.length > 8192) ffErr = ffErr.slice(-8192);
+  });
   const ffDone = new Promise<void>((resolve, reject) => {
     ff.on("error", reject);
-    ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${ffErr.slice(-400)}`))));
+    ff.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${ffErr.slice(-400)}`)),
+    );
   });
   const writeFrame = (buf: Buffer): Promise<void> =>
     new Promise((res, rej) => ff.stdin!.write(buf, (err) => (err ? rej(err) : res())));
   try {
     for (let i = 0; i < frameCount; i++) {
       await seekTo(page, t0 + (i * 1000) / EXPORT_FPS);
-      const shot = clip != null
-        ? await page.screenshot({ type: "png", scale: "device", clip })
-        : await screenshot(page);
+      const shot =
+        clip != null ? await page.screenshot({ type: "png", scale: "device", clip }) : await screenshot(page);
       await writeFrame(shot);
     }
     ff.stdin!.end();
@@ -197,7 +251,12 @@ export interface ScrubberServerInputs {
 /** DM-1445: the structured `.ticket` payload an importer (e.g. Hot Sheet) reads.
  *  `title` / `category` / `details` map straight onto `hotsheet_create_ticket`;
  *  the structured fields below let a tool reconstruct the exact frame/region. */
-export interface ScrubberRegion { x: number; y: number; w: number; h: number }
+export interface ScrubberRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export interface ScrubberTicket {
   tool: "svg-scrubber";
   version: 1;
@@ -223,12 +282,17 @@ export interface ScrubberTicket {
 
 /** Sanitize an SVG name into a filesystem-safe slug for the `.ticket` filename. */
 export function ticketSlug(name: string): string {
-  const s = name.replace(/\.svg$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  const s = name
+    .replace(/\.svg$/i, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
   return s || "issue";
 }
 
 const fmtMs = (ms: number): string => `${(ms / 1000).toFixed(2)}s (${Math.round(ms)}ms)`;
-const fmtRegion = (r: ScrubberRegion): string => `x=${Math.round(r.x)} y=${Math.round(r.y)} w=${Math.round(r.w)} h=${Math.round(r.h)}`;
+const fmtRegion = (r: ScrubberRegion): string =>
+  `x=${Math.round(r.x)} y=${Math.round(r.y)} w=${Math.round(r.w)} h=${Math.round(r.h)}`;
 
 /** Build the `.ticket` filename + JSON content from a validated request. Pure
  *  (timestamp + slug + optional framePng path injected) so it's unit-testable. */
@@ -239,9 +303,8 @@ export function buildTicketFile(
   const range = { startMs: input.rangeStartMs, endMs: input.rangeEndMs };
   // DM-1449: prefer the `regions` array; fold a legacy single `region` in.
   // Tolerate a missing `regions` (hand-built inputs that skip zod's default).
-  const regions: ScrubberRegion[] = (input.regions ?? []).length > 0
-    ? input.regions
-    : (input.region != null ? [input.region] : []);
+  const regions: ScrubberRegion[] =
+    (input.regions ?? []).length > 0 ? input.regions : input.region != null ? [input.region] : [];
   const framePng = opts.framePng ?? null;
   const lines: string[] = [];
   lines.push(input.note.trim() ? input.note.trim() : "_(no description)_");
@@ -303,7 +366,11 @@ async function readBody(req: IncomingMessage, maxBytes = 64 * 1024 * 1024): Prom
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => {
       size += c.length;
-      if (size > maxBytes) { reject(new Error("request body too large")); req.destroy(); return; }
+      if (size > maxBytes) {
+        reject(new Error("request body too large"));
+        req.destroy();
+        return;
+      }
       chunks.push(c);
     });
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
@@ -319,7 +386,10 @@ function sendJson(res: ServerResponse, status: number, obj: unknown): void {
 
 /** Read the SVG's WAAPI timings in a Chromium page, then resolve a single-loop
  *  duration with the same logic the video exporter uses. */
-async function deriveTiming(page: Page, svg: string): Promise<{ durationMs: number | null; width: number; height: number }> {
+async function deriveTiming(
+  page: Page,
+  svg: string,
+): Promise<{ durationMs: number | null; width: number; height: number }> {
   await page.setContent(htmlWrapper(svg, "#fff"), { waitUntil: "load" });
   const anims: AnimTiming[] = await page.evaluate(() => {
     const out: { duration: number; iterations: number; endTime: number }[] = [];
@@ -330,12 +400,18 @@ async function deriveTiming(page: Page, svg: string): Promise<{ durationMs: numb
       try {
         const ct = eff.getComputedTiming();
         out.push({ duration: Number(ct.duration), iterations: Number(ct.iterations), endTime: Number(ct.endTime) });
-      } catch { /* skip unreadable */ }
+      } catch {
+        /* skip unreadable */
+      }
     }
     return out;
   });
   let durationMs: number | null = null;
-  try { durationMs = resolveDurationMs(anims); } catch { durationMs = null; }
+  try {
+    durationMs = resolveDurationMs(anims);
+  } catch {
+    durationMs = null;
+  }
   const size = parseSvgIntrinsicSize(svg) ?? { w: 800, h: 600 };
   return { durationMs, width: size.w, height: size.h };
 }
@@ -415,13 +491,20 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
           const c = size != null ? clampCrop(crop, size.w, size.h) : null;
           if (c != null) outSvg = cropSvgViewBox(outSvg, c);
         }
-        sendJson(res, 200, { svg: outSvg, slicedCss: r.slicedCss, slicedSmil: r.slicedSmil, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
+        sendJson(res, 200, {
+          svg: outSvg,
+          slicedCss: r.slicedCss,
+          slicedSmil: r.slicedSmil,
+          shiftedCss: r.shiftedCss,
+          shiftedSmil: r.shiftedSmil,
+        });
         return;
       }
       if (req.method === "POST" && url === "/export-frame") {
         const { svg, timeMs, width, height, crop } = await parseBody(req, FRAME_BODY);
         const png = await withChromium(async (page) => {
-          const vw = Math.max(1, Math.round(width)), vh = Math.max(1, Math.round(height));
+          const vw = Math.max(1, Math.round(width)),
+            vh = Math.max(1, Math.round(height));
           await page.setViewportSize({ width: vw, height: vh });
           await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
           await seekTo(page, timeMs);
@@ -440,7 +523,10 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         const { svg, startMs, endMs, width, height, crop } = await parseBody(req, RANGE_VIDEO_BODY);
         const t0 = Math.max(0, Math.min(startMs, endMs));
         const t1 = Math.max(startMs, endMs);
-        if (!(t1 - t0 >= 1)) { sendJson(res, 400, { error: "empty range — set an in/out window first" }); return; }
+        if (!(t1 - t0 >= 1)) {
+          sendJson(res, 400, { error: "empty range — set an in/out window first" });
+          return;
+        }
         const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height, crop));
         res.writeHead(200, { "content-type": "video/mp4", "content-length": mp4.length });
         res.end(mp4);
@@ -507,7 +593,10 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
     port: local.port,
     close: async () => {
       await local.close();
-      if (browser != null) { await browser.close().catch(() => {}); browser = null; }
+      if (browser != null) {
+        await browser.close().catch(() => {});
+        browser = null;
+      }
     },
   };
 }

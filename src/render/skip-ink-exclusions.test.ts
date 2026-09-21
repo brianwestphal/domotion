@@ -127,7 +127,7 @@ describe("canTextDecorationSkipInk — what still skips", () => {
   });
 
   it("permits Thai and Hangul-adjacent-but-not-Hangul codepoints", () => {
-    expect(canTextDecorationSkipInk(0x0e01)).toBe(true);   // ก THAI KO KAI
-    expect(canTextDecorationSkipInk(0x10fff)).toBe(true);  // just past Linear B Ideograms
+    expect(canTextDecorationSkipInk(0x0e01)).toBe(true); // ก THAI KO KAI
+    expect(canTextDecorationSkipInk(0x10fff)).toBe(true); // just past Linear B Ideograms
   });
 });

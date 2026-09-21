@@ -36,7 +36,7 @@ Run `domotion term --help` for the full list.
 
 ## Timing
 
-The *rendered* play length differs from the recording's wall time (the timing
+The _rendered_ play length differs from the recording's wall time (the timing
 knobs — `--settle-ms`, `--min-frame-ms`, `--max-frame-ms`, `--tail-ms` — re-time
 it). `term` prints the rendered length on stderr (e.g.
 `… 13.60s play length …`) — use that number when sizing an `animate` cast

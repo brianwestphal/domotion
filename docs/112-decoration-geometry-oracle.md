@@ -3,11 +3,17 @@ id: "requirements/decoration-geometry-oracle"
 title: "Text-Decoration Geometry Oracle"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","layout","platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2501","DM-2514"]
-code: ["tests/decoration-coordinate-ownership.e2e.test.ts","tests/decoration-oracle.test.ts","tools/decoration-oracle.ts","tools/font-conformance.ts"]
-aliases: ["docs/112-decoration-geometry-oracle.md","doc-112"]
+owners: ["text-fonts", "layout", "platform-release"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2501", "DM-2514"]
+code:
+  [
+    "tests/decoration-coordinate-ownership.e2e.test.ts",
+    "tests/decoration-oracle.test.ts",
+    "tools/decoration-oracle.ts",
+    "tools/font-conformance.ts",
+  ]
+aliases: ["docs/112-decoration-geometry-oracle.md", "doc-112"]
 ---
 
 # Text-Decoration Geometry Oracle
@@ -28,11 +34,11 @@ geometry, not on aggregate pixel difference.
 
 ## The three answers per case
 
-| Leg | Source | How it is obtained |
-| --- | --- | --- |
-| **C** Chrome-measured | Chromium's painted output | `deviceScaleFactor: 4` screenshot; decoration forced to pure red (`text-decoration-color: #ff0000`) so its pixels are separable from black glyph ink by channel arithmetic; geometry recovered by coverage-weighted row/column profiles (~±0.06 CSS px) |
-| **R** Rule-predicted | Blink source, transcribed | The formulas below, fed with inputs measured from the same page (fragment top from layout; `FloatAscent` from canvas `measureText().fontBoundingBoxAscent`, which is exactly `FontMetrics::FloatAscent` at the alphabetic baseline — `core/html/canvas/text_metrics.cc:133-138`) |
-| **S** SVG-emitted | Domotion's output markup | Captured at the same device scale as C, then parsed analytically — `<line>` y / stroke-width / x-extent under accumulated `translate` transforms. Never rasterized: rasterization belongs to the consumer |
+| Leg                   | Source                    | How it is obtained                                                                                                                                                                                                                                                               |
+| --------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C** Chrome-measured | Chromium's painted output | `deviceScaleFactor: 4` screenshot; decoration forced to pure red (`text-decoration-color: #ff0000`) so its pixels are separable from black glyph ink by channel arithmetic; geometry recovered by coverage-weighted row/column profiles (~±0.06 CSS px)                          |
+| **R** Rule-predicted  | Blink source, transcribed | The formulas below, fed with inputs measured from the same page (fragment top from layout; `FloatAscent` from canvas `measureText().fontBoundingBoxAscent`, which is exactly `FontMetrics::FloatAscent` at the alphabetic baseline — `core/html/canvas/text_metrics.cc:133-138`) |
+| **S** SVG-emitted     | Domotion's output markup  | Captured at the same device scale as C, then parsed analytically — `<line>` y / stroke-width / x-extent under accumulated `translate` transforms. Never rasterized: rasterization belongs to the consumer                                                                        |
 
 ## The three checks and their gates
 
@@ -172,10 +178,10 @@ The oracle was validated by feeding it the known-wrong dilation constant
 (`pad = max(0.5, thickness*0.5)` — the fitted value the skip-ink code used to
 carry) against the correct `min(thickness, 13)`:
 
-| Constant | Skip-ink verdict | Worst edge error |
-| --- | --- | --- |
-| `min(t, 13)` (Blink's rule) | 4/7 pass; failures ≤1.45px, all attributed to the separate empirical-band defect | 1.45px |
-| `max(0.5, t*0.5)` (fitted) | 1/7 pass; every auto-thickness case flips to FAIL (1.1–1.8px edges); explicit-thickness discriminators reach 3.95px and a 5-vs-1 segment-count mismatch | 3.95px |
+| Constant                    | Skip-ink verdict                                                                                                                                        | Worst edge error |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `min(t, 13)` (Blink's rule) | 4/7 pass; failures ≤1.45px, all attributed to the separate empirical-band defect                                                                        | 1.45px           |
+| `max(0.5, t*0.5)` (fitted)  | 1/7 pass; every auto-thickness case flips to FAIL (1.1–1.8px edges); explicit-thickness discriminators reach 3.95px and a 5-vs-1 segment-count mismatch | 3.95px           |
 
 The correct constant scores strictly better on every case — the ordering that
 whole-fixture pixel-diff inverted.

@@ -9,11 +9,7 @@
  * axis scales remain intact.
  */
 
-import type {
-  CapturedElement,
-  CapturedTextPaintAffine,
-  CapturedTextPaintGeometry,
-} from "../capture/types.js";
+import type { CapturedElement, CapturedTextPaintAffine, CapturedTextPaintGeometry } from "../capture/types.js";
 import { capturedTextLineOriginErrors } from "../capture/text-line-origin.js";
 
 export const TEXT_PAINT_MATRIX_EPSILON = 1e-7;
@@ -61,11 +57,18 @@ export function textAffineEquals(
 
 function parseComputedAffine(transform: string | undefined): CapturedTextPaintAffine | null {
   if (transform == null || transform === "" || transform === "none") return IDENTITY_TEXT_AFFINE;
-  const match = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(transform);
+  const match =
+    /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(
+      transform,
+    );
   if (match == null) return null;
   const matrix: CapturedTextPaintAffine = [
-    Number(match[1]), Number(match[2]), Number(match[3]),
-    Number(match[4]), Number(match[5]), Number(match[6]),
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6]),
   ];
   return matrix.every(Number.isFinite) ? matrix : null;
 }
@@ -80,9 +83,13 @@ export function emittedElementTextAffine(el: CapturedElement): CapturedTextPaint
     // those first six normalized coefficients as an SVG matrix, so text must
     // include the same matrix in its already-emitted CTM.
     const w = projective[8];
-    if (!Number.isFinite(w) || Math.abs(w) <= TEXT_PAINT_MATRIX_EPSILON
-      || Math.abs(projective[6]) > TEXT_PAINT_MATRIX_EPSILON
-      || Math.abs(projective[7]) > TEXT_PAINT_MATRIX_EPSILON) return null;
+    if (
+      !Number.isFinite(w) ||
+      Math.abs(w) <= TEXT_PAINT_MATRIX_EPSILON ||
+      Math.abs(projective[6]) > TEXT_PAINT_MATRIX_EPSILON ||
+      Math.abs(projective[7]) > TEXT_PAINT_MATRIX_EPSILON
+    )
+      return null;
     const affine: CapturedTextPaintAffine = [
       projective[0] / w,
       projective[3] / w,
@@ -101,10 +108,7 @@ export function emittedElementTextAffine(el: CapturedElement): CapturedTextPaint
   const parsedY = Number.parseFloat(origin[1] ?? "");
   const ox = el.x + (Number.isFinite(parsedX) ? parsedX : el.width / 2);
   const oy = el.y + (Number.isFinite(parsedY) ? parsedY : el.height / 2);
-  return multiplyTextAffine(
-    [1, 0, 0, 1, ox, oy],
-    multiplyTextAffine(matrix, [1, 0, 0, 1, -ox, -oy]),
-  );
+  return multiplyTextAffine([1, 0, 0, 1, ox, oy], multiplyTextAffine(matrix, [1, 0, 0, 1, -ox, -oy]));
 }
 
 /**
@@ -129,9 +133,7 @@ export function buildEmittedTextCtmMap(
 function onePaintMatrix(geometry: CapturedTextPaintGeometry): CapturedTextPaintAffine | null {
   const first = geometry.fragments[0]?.paintMatrix;
   if (first == null) return null;
-  return geometry.fragments.every((fragment) => textAffineEquals(fragment.paintMatrix, first))
-    ? first
-    : null;
+  return geometry.fragments.every((fragment) => textAffineEquals(fragment.paintMatrix, first)) ? first : null;
 }
 
 function sameSpan(left: readonly number[] | undefined, right: readonly number[]): boolean {
@@ -145,17 +147,25 @@ function sourceFragmentErrors(geometry: CapturedTextPaintGeometry): string[] {
   const ordinaryUse = new Map<number, number>();
   for (const [index, source] of sources.entries()) {
     if (source.source !== "blink-range-fragment-utf16-v1") errors.push(`source fragment ${index} schema changed`);
-    if (!Number.isInteger(source.domUtf16Span?.[0]) || !Number.isInteger(source.domUtf16Span?.[1])
-      || source.domUtf16Span[0] < 0 || source.domUtf16Span[1] <= source.domUtf16Span[0]) {
+    if (
+      !Number.isInteger(source.domUtf16Span?.[0]) ||
+      !Number.isInteger(source.domUtf16Span?.[1]) ||
+      source.domUtf16Span[0] < 0 ||
+      source.domUtf16Span[1] <= source.domUtf16Span[0]
+    ) {
       errors.push(`source fragment ${index} UTF-16 span is invalid`);
     }
-    if (source.provenance?.chromiumRevision !== "7d859f271cbda744098ac69f44978d4edfa62be3"
-      || source.provenance?.rangeQuads !== "core/layout/layout_text.cc:556-637"
-      || source.provenance?.fragmentOffsets !== "core/layout/inline/fragment_item.h:448-451") {
+    if (
+      source.provenance?.chromiumRevision !== "7d859f271cbda744098ac69f44978d4edfa62be3" ||
+      source.provenance?.rangeQuads !== "core/layout/layout_text.cc:556-637" ||
+      source.provenance?.fragmentOffsets !== "core/layout/inline/fragment_item.h:448-451"
+    ) {
       errors.push(`source fragment ${index} provenance changed`);
     }
-    if (source.role === "ordinary" && source.cdpQuadIndex == null) errors.push(`ordinary source fragment ${index} lost its protocol quad`);
-    if (source.role === "first-letter" && source.cdpQuadIndex != null) errors.push(`first-letter source fragment ${index} unexpectedly owns a text-node protocol quad`);
+    if (source.role === "ordinary" && source.cdpQuadIndex == null)
+      errors.push(`ordinary source fragment ${index} lost its protocol quad`);
+    if (source.role === "first-letter" && source.cdpQuadIndex != null)
+      errors.push(`first-letter source fragment ${index} unexpectedly owns a text-node protocol quad`);
   }
   for (const [fragmentIndex, fragment] of geometry.fragments.entries()) {
     const source = sources[fragment.sourceFragmentIndex];
@@ -164,18 +174,22 @@ function sourceFragmentErrors(geometry: CapturedTextPaintGeometry): string[] {
       continue;
     }
     ordinaryUse.set(fragment.sourceFragmentIndex, (ordinaryUse.get(fragment.sourceFragmentIndex) ?? 0) + 1);
-    if (source.role !== "ordinary"
-      || source.sourceTextNodeIndex !== fragment.sourceTextNodeIndex
-      || source.physicalFragmentIndex !== fragment.physicalFragmentIndex
-      || !sameSpan(fragment.domUtf16Span, source.domUtf16Span)) {
+    if (
+      source.role !== "ordinary" ||
+      source.sourceTextNodeIndex !== fragment.sourceTextNodeIndex ||
+      source.physicalFragmentIndex !== fragment.physicalFragmentIndex ||
+      !sameSpan(fragment.domUtf16Span, source.domUtf16Span)
+    ) {
       errors.push(`paint fragment ${fragmentIndex} disagrees with its UTF-16 source owner`);
     }
     const xs = [fragment.neutralQuad[0], fragment.neutralQuad[2], fragment.neutralQuad[4], fragment.neutralQuad[6]];
     const ys = [fragment.neutralQuad[1], fragment.neutralQuad[3], fragment.neutralQuad[5], fragment.neutralQuad[7]];
-    if (source.neutralRangeRect.x !== Math.min(...xs)
-      || source.neutralRangeRect.y !== Math.min(...ys)
-      || source.neutralRangeRect.width !== Math.max(...xs) - Math.min(...xs)
-      || source.neutralRangeRect.height !== Math.max(...ys) - Math.min(...ys)) {
+    if (
+      source.neutralRangeRect.x !== Math.min(...xs) ||
+      source.neutralRangeRect.y !== Math.min(...ys) ||
+      source.neutralRangeRect.width !== Math.max(...xs) - Math.min(...xs) ||
+      source.neutralRangeRect.height !== Math.max(...ys) - Math.min(...ys)
+    ) {
       errors.push(`paint fragment ${fragmentIndex} Range rectangle changed`);
     }
   }
@@ -187,9 +201,14 @@ function sourceFragmentErrors(geometry: CapturedTextPaintGeometry): string[] {
   for (const [segmentIndex, segment] of (geometry.neutral?.textSegments ?? []).entries()) {
     const mapping = segment.sourceMapping;
     if (mapping == null) continue;
-    const matches = sources.filter((source) => source.sourceTextNodeIndex === mapping.sourceTextNodeIndex
-      && source.role === mapping.role && sameSpan(source.domUtf16Span, mapping.domUtf16Span));
-    if (matches.length !== 1) errors.push(`neutral text segment ${segmentIndex} has no unique FragmentItem UTF-16 owner`);
+    const matches = sources.filter(
+      (source) =>
+        source.sourceTextNodeIndex === mapping.sourceTextNodeIndex &&
+        source.role === mapping.role &&
+        sameSpan(source.domUtf16Span, mapping.domUtf16Span),
+    );
+    if (matches.length !== 1)
+      errors.push(`neutral text segment ${segmentIndex} has no unique FragmentItem UTF-16 owner`);
   }
   return errors;
 }
@@ -253,9 +272,7 @@ export function prepareAffineTextPaint(
       return {
         ...segment,
         y: fragmentTop,
-        baseline: vertical
-          ? lineOrigin.physicalBaselinePoint.x
-          : lineOrigin.physicalBaselinePoint.y,
+        baseline: vertical ? lineOrigin.physicalBaselinePoint.x : lineOrigin.physicalBaselinePoint.y,
         inlineOffset: fragment.inlineOffset,
         fontAscent: lineOrigin.primaryFontIntegerAscent,
         xOffsets: vertical ? segment.xOffsets : [...fragment.shapedOrigins],
@@ -276,14 +293,11 @@ export function prepareAffineTextPaint(
 }
 
 export function serializeTextPaintMatrix(matrix: CapturedTextPaintAffine): string {
-  const clean = matrix.map((value) => Math.abs(value) < 1e-12 ? 0 : Number(value.toFixed(9)));
+  const clean = matrix.map((value) => (Math.abs(value) < 1e-12 ? 0 : Number(value.toFixed(9))));
   return `matrix(${clean.join(" ")})`;
 }
 
-export function wrapAffineTextPaint(
-  matrix: CapturedTextPaintAffine | undefined,
-  markup: string,
-): string {
+export function wrapAffineTextPaint(matrix: CapturedTextPaintAffine | undefined, markup: string): string {
   if (matrix == null || textAffineEquals(matrix, IDENTITY_TEXT_AFFINE)) return markup;
   return `<g transform="${serializeTextPaintMatrix(matrix)}">${markup}</g>`;
 }

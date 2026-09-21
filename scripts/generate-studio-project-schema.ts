@@ -17,7 +17,9 @@ if (process.argv.includes("--check")) {
     current = null;
   }
   if (current !== text) {
-    console.error(`[generate-studio-project-schema] ${output} is out of date.\nRun \`npm run build:studio-project-schema\` and commit the result.`);
+    console.error(
+      `[generate-studio-project-schema] ${output} is out of date.\nRun \`npm run build:studio-project-schema\` and commit the result.`,
+    );
     process.exit(1);
   }
   console.log(`[generate-studio-project-schema] ${output} is up to date.`);

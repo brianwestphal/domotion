@@ -180,7 +180,7 @@ export function parseLegacyWebkitGradient(text: string | undefined | null): Line
   }
   const dx = legacyPointScalar(p2.x) - legacyPointScalar(p1.x);
   const dy = legacyPointScalar(p2.y) - legacyPointScalar(p1.y);
-  const angleDeg = ((Math.atan2(dx, -dy) * 180 / Math.PI) % 360 + 360) % 360;
+  const angleDeg = ((((Math.atan2(dx, -dy) * 180) / Math.PI) % 360) + 360) % 360;
   return { kind: "linear", angleDeg, stops, legacyEndpoints: { p1, p2 } };
 }
 
@@ -203,7 +203,8 @@ function parseLegacyPoint(text: string): { x: PosValue; y: PosValue } | null {
     if (!Number.isFinite(value)) return null;
     return match[2] === "%" ? { kind: "frac", value: value / 100 } : { kind: "px", value };
   };
-  const parsedX = parse(words[0], true); const parsedY = parse(words[1], false);
+  const parsedX = parse(words[0], true);
+  const parsedY = parse(words[1], false);
   return parsedX != null && parsedY != null ? { x: parsedX, y: parsedY } : null;
 }
 
@@ -223,7 +224,9 @@ function parseLegacyStopOffset(text: string): number {
   return match[2] === "%" ? value / 100 : value;
 }
 
-function legacyPointScalar(value: PosValue): number { return value.value; }
+function legacyPointScalar(value: PosValue): number {
+  return value.value;
+}
 
 /**
  * Normalize legacy `-webkit-gradient(linear, ...)` syntax (still emitted by
@@ -247,7 +250,9 @@ export function convertLegacyWebkitGradient(text: string | undefined | null): st
   const trimmed = text.trim();
   const m = /^-webkit-gradient\s*\(\s*linear\s*,\s*([\s\S]+)\)\s*$/i.exec(trimmed);
   if (m == null) return null;
-  const parts = splitTopLevelCommas(m[1]).map((t) => t.trim()).filter((t) => t !== "");
+  const parts = splitTopLevelCommas(m[1])
+    .map((t) => t.trim())
+    .filter((t) => t !== "");
   if (parts.length < 4) return null;
   const p1 = parsePointToFracPair(parts[0]);
   const p2 = parsePointToFracPair(parts[1]);
@@ -295,11 +300,14 @@ function parsePointToFracPair(tok: string): { x: number; y: number } | null {
   const words = lower.split(/\s+/);
   if (words.length > 0 && words.every((w) => w in KW)) {
     // Determine which keyword maps to x vs y. "top/bottom" → y, "left/right" → x.
-    let x = 0.5, y = 0.5;
+    let x = 0.5,
+      y = 0.5;
     for (const w of words) {
       if (w === "left" || w === "right") x = KW[w];
       else if (w === "top" || w === "bottom") y = KW[w];
-      else if (w === "center") { /* leave default */ }
+      else if (w === "center") {
+        /* leave default */
+      }
     }
     return { x, y };
   }
@@ -322,7 +330,9 @@ export function parseLinearGradient(text: string | undefined | null): LinearGrad
   if (m == null) return null;
   const repeating = m[1] != null;
   const inner = m[2].trim();
-  const tokens = splitTopLevelCommas(inner).map((t) => t.trim()).filter((t) => t !== "");
+  const tokens = splitTopLevelCommas(inner)
+    .map((t) => t.trim())
+    .filter((t) => t !== "");
   if (tokens.length < 2) return null;
 
   let angleDeg = 180; // CSS default: to bottom
@@ -366,9 +376,10 @@ export function buildLinearGradientDef(
   id: string,
   rect: { x: number; y: number; w: number; h: number },
 ): string {
-  let { x1, y1, x2, y2 } = gradient.legacyEndpoints != null
-    ? computeLegacyUserSpaceLine(gradient.legacyEndpoints, rect)
-    : computeUserSpaceLine(gradient.angleDeg, rect);
+  let { x1, y1, x2, y2 } =
+    gradient.legacyEndpoints != null
+      ? computeLegacyUserSpaceLine(gradient.legacyEndpoints, rect)
+      : computeUserSpaceLine(gradient.angleDeg, rect);
   // Resolve stop positions against this rect. Clone first so two callers
   // sharing the same parsed gradient don't mutate each other's offsets
   // (different rects produce different L → different fractions for px stops).
@@ -382,7 +393,8 @@ export function buildLinearGradientDef(
     const last = resolved[resolved.length - 1].offset ?? 1;
     const period = last - first;
     if (period > Number.EPSILON) {
-      const originalX1 = x1, originalY1 = y1;
+      const originalX1 = x1,
+        originalY1 = y1;
       x1 = originalX1 + first * (x2 - originalX1);
       y1 = originalY1 + first * (y2 - originalY1);
       x2 = originalX1 + last * (x2 - originalX1);
@@ -390,7 +402,10 @@ export function buildLinearGradientDef(
       emitStops = resolved.map((stop) => ({ ...stop, offset: ((stop.offset ?? first) - first) / period }));
     } else {
       const final = resolved[resolved.length - 1];
-      emitStops = [{ ...final, offset: 0 }, { ...final, offset: 1 }];
+      emitStops = [
+        { ...final, offset: 0 },
+        { ...final, offset: 1 },
+      ];
       repeat = false;
     }
   }
@@ -398,9 +413,18 @@ export function buildLinearGradientDef(
   return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}"${repeat ? ' spreadMethod="repeat"' : ""}>${stops}</linearGradient>`;
 }
 
-export function computeLegacyUserSpaceLine(endpoints: NonNullable<LinearGradient["legacyEndpoints"]>, rect: { x: number; y: number; w: number; h: number }) {
-  const axis = (value: PosValue, origin: number, size: number) => origin + (value.kind === "frac" ? value.value * size : value.value);
-  return { x1: axis(endpoints.p1.x, rect.x, rect.w), y1: axis(endpoints.p1.y, rect.y, rect.h), x2: axis(endpoints.p2.x, rect.x, rect.w), y2: axis(endpoints.p2.y, rect.y, rect.h) };
+export function computeLegacyUserSpaceLine(
+  endpoints: NonNullable<LinearGradient["legacyEndpoints"]>,
+  rect: { x: number; y: number; w: number; h: number },
+) {
+  const axis = (value: PosValue, origin: number, size: number) =>
+    origin + (value.kind === "frac" ? value.value * size : value.value);
+  return {
+    x1: axis(endpoints.p1.x, rect.x, rect.w),
+    y1: axis(endpoints.p1.y, rect.y, rect.h),
+    x2: axis(endpoints.p2.x, rect.x, rect.w),
+    y2: axis(endpoints.p2.y, rect.y, rect.h),
+  };
 }
 
 /**
@@ -429,14 +453,16 @@ export function computeUserSpaceLine(
 
 /** Stable key for dedup. Same gradient + same rect = same def = same id. */
 export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w: number; h: number }): string {
-  const stopsKey = g.stops.map((s) => {
-    let pos: string;
-    if (s.offset != null) pos = num(s.offset);
-    else if ("pxOffset" in s && s.pxOffset != null) pos = `${num(s.pxOffset)}px`;
-    else if ("calcOffset" in s && s.calcOffset != null) pos = `c${num(s.calcOffset.pct)}/${num(s.calcOffset.px)}`;
-    else pos = "?";
-    return `${s.color}@${pos}`;
-  }).join(",");
+  const stopsKey = g.stops
+    .map((s) => {
+      let pos: string;
+      if (s.offset != null) pos = num(s.offset);
+      else if ("pxOffset" in s && s.pxOffset != null) pos = `${num(s.pxOffset)}px`;
+      else if ("calcOffset" in s && s.calcOffset != null) pos = `c${num(s.calcOffset.pct)}/${num(s.calcOffset.px)}`;
+      else pos = "?";
+      return `${s.color}@${pos}`;
+    })
+    .join(",");
   const rectKey = `${num(rect.x)},${num(rect.y)},${num(rect.w)},${num(rect.h)}`;
   const rep = g.repeating === true ? "r" : "n";
   if (g.kind === "linear") {
@@ -448,11 +474,12 @@ export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w
     return `C|${rep}|${num(g.fromAngleDeg)}|${posKey}|${rectKey}|${stopsKey}`;
   }
   // Radial
-  const sizeKey = g.size.kind === "extent"
-    ? `e:${g.size.value}`
-    : g.size.kind === "px"
-      ? `p:${num(g.size.r1)}`
-      : `a:${posKey1(g.size.x)}/${posKey1(g.size.y)}`;
+  const sizeKey =
+    g.size.kind === "extent"
+      ? `e:${g.size.value}`
+      : g.size.kind === "px"
+        ? `p:${num(g.size.r1)}`
+        : `a:${posKey1(g.size.x)}/${posKey1(g.size.y)}`;
   const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
   const legacy = g.legacyCircles == null ? "" : `|legacy:${JSON.stringify(g.legacyCircles)}`;
   return `R|${rep}|${g.shape}|${sizeKey}|${posKey}${legacy}|${rectKey}|${stopsKey}`;
@@ -479,7 +506,9 @@ export function parseRadialGradient(text: string | undefined | null): RadialGrad
   const m = /^(repeating-)?radial-gradient\s*\(([\s\S]*)\)\s*$/.exec(trimmed);
   if (m == null) return null;
   const repeating = m[1] != null;
-  const tokens = splitTopLevelCommas(m[2]).map((t) => t.trim()).filter((t) => t !== "");
+  const tokens = splitTopLevelCommas(m[2])
+    .map((t) => t.trim())
+    .filter((t) => t !== "");
   if (tokens.length < 2) return null;
 
   // Decide whether the first token is a shape/size/position prefix or a stop.
@@ -534,7 +563,9 @@ export function parseConicGradient(text: string | undefined | null): ConicGradie
   const m = /^(repeating-)?conic-gradient\s*\(([\s\S]*)\)\s*$/.exec(trimmed);
   if (m == null) return null;
   const repeating = m[1] != null;
-  const tokens = splitTopLevelCommas(m[2]).map((t) => t.trim()).filter((t) => t !== "");
+  const tokens = splitTopLevelCommas(m[2])
+    .map((t) => t.trim())
+    .filter((t) => t !== "");
   if (tokens.length < 2) return null;
 
   let fromAngleDeg = 0;
@@ -547,7 +578,7 @@ export function parseConicGradient(text: string | undefined | null): ConicGradie
   // The first token may carry an optional "from <angle>" clause and/or an
   // optional "at <position>" clause. Detect via leading keywords.
   const first = tokens[0].toLowerCase();
-  if (first.startsWith("from ") || first.startsWith("at ") || /\bat\b/.test(first) && first.startsWith("from")) {
+  if (first.startsWith("from ") || first.startsWith("at ") || (/\bat\b/.test(first) && first.startsWith("from"))) {
     const parsed = parseConicPrefix(tokens[0]);
     if (parsed == null) return null;
     fromAngleDeg = parsed.fromAngleDeg;
@@ -691,9 +722,13 @@ export function buildRadialGradientDef(
     // accepts either radius ordering. Reversing both circles and the stop
     // parameter preserves the exact shader while satisfying SVG's grammar.
     const shrinking = geometry.r1 > geometry.r2;
-    const stops = (shrinking
-      ? [...gradient.stops].reverse().map((stop) => ({ ...stop, offset: 1 - (stop.offset ?? 0) }))
-      : gradient.stops).map((stop) => stopMarkup(stop)).join("");
+    const stops = (
+      shrinking
+        ? [...gradient.stops].reverse().map((stop) => ({ ...stop, offset: 1 - (stop.offset ?? 0) }))
+        : gradient.stops
+    )
+      .map((stop) => stopMarkup(stop))
+      .join("");
     const inner = shrinking
       ? { x: geometry.x2, y: geometry.y2, r: geometry.r2 }
       : { x: geometry.x1, y: geometry.y1, r: geometry.r1 };
@@ -715,9 +750,10 @@ export function buildRadialGradientDef(
   // SVG <radialGradient> takes one r. For ellipse, use rx and apply a
   // gradientTransform to scale the y axis to ry.
   const r = rx;
-  const transform = ry !== rx
-    ? ` gradientTransform="translate(${num(cx)} ${num(cy)}) scale(1 ${num(ry / rx)}) translate(${num(-cx)} ${num(-cy)})"`
-    : "";
+  const transform =
+    ry !== rx
+      ? ` gradientTransform="translate(${num(cx)} ${num(cy)}) scale(1 ${num(ry / rx)}) translate(${num(-cx)} ${num(-cy)})"`
+      : "";
   return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}"${transform}>${stopMarkup_}</radialGradient>`;
 }
 
@@ -749,7 +785,10 @@ function parseAngleToken(tok: string): number | null {
   const t = tok.trim().toLowerCase();
   // Side keywords: "to <side>" or "to <side> <side>".
   if (t.startsWith("to ")) {
-    const sides = t.slice(3).split(/\s+/).filter((s) => s !== "");
+    const sides = t
+      .slice(3)
+      .split(/\s+/)
+      .filter((s) => s !== "");
     return sidesToAngle(sides);
   }
   // Numeric angle: <number><unit>
@@ -964,7 +1003,11 @@ function absoluteLengthPxFactor(unit: string): number | null {
  * Mutates `stops` in place. Caller may want to clone first if the same
  * parsed gradient is being emitted against multiple rects (different L).
  */
-function resolveStops(stops: LinearStop[], gradientLineLength: number, opts?: { skipFirstLastDefaults?: boolean }): void {
+function resolveStops(
+  stops: LinearStop[],
+  gradientLineLength: number,
+  opts?: { skipFirstLastDefaults?: boolean },
+): void {
   if (stops.length === 0) return;
   // Resolve pending px / calc positions to fractions.
   if (gradientLineLength > 0) {
@@ -1031,8 +1074,9 @@ function resolveStops(stops: LinearStop[], gradientLineLength: number, opts?: { 
  * linear gradients instead move their SVG vector and use spreadMethod. */
 function tileRepeatingStops(stops: LinearStop[]): LinearStop[] {
   if (stops.length < 2) return stops;
-  const sorted = stops.filter((s): s is LinearStop & { offset: number } =>
-    typeof s.offset === "number" && Number.isFinite(s.offset));
+  const sorted = stops.filter(
+    (s): s is LinearStop & { offset: number } => typeof s.offset === "number" && Number.isFinite(s.offset),
+  );
   if (sorted.length < 2) return stops;
   const tileStart = sorted[0].offset;
   const period = sorted[sorted.length - 1].offset - tileStart;
@@ -1062,7 +1106,9 @@ function looksLikeRadialPrefix(tok: string): boolean {
   return /^(?:(?:-?\d+(?:\.\d+)?|-?\.\d+)(?:px|pt|pc|in|cm|mm|q)\s*){1,2}$/i.test(lower.trim());
 }
 
-function parseRadialPrefix(tok: string): { shape: "circle" | "ellipse"; size: RadialSize; position: { x: PosValue; y: PosValue } } | null {
+function parseRadialPrefix(
+  tok: string,
+): { shape: "circle" | "ellipse"; size: RadialSize; position: { x: PosValue; y: PosValue } } | null {
   // Split on " at " (case-insensitive) into [shape-and-size, position].
   const atSplit = tok.split(/\s+at\s+/i);
   const shapeSizeText = atSplit[0].trim();
@@ -1070,10 +1116,13 @@ function parseRadialPrefix(tok: string): { shape: "circle" | "ellipse"; size: Ra
 
   const shapeSize = parseShapeAndSize(shapeSizeText);
   if (shapeSize == null) return null;
-  const position = positionText !== "" ? parsePositionPair(positionText) : {
-    x: { kind: "frac" as const, value: 0.5 },
-    y: { kind: "frac" as const, value: 0.5 },
-  };
+  const position =
+    positionText !== ""
+      ? parsePositionPair(positionText)
+      : {
+          x: { kind: "frac" as const, value: 0.5 },
+          y: { kind: "frac" as const, value: 0.5 },
+        };
   if (position == null) return null;
   return { shape: shapeSize.shape, size: shapeSize.size, position };
 }
@@ -1086,9 +1135,13 @@ function parseShapeAndSize(text: string): { shape: "circle" | "ellipse"; size: R
   const sizes: PosValue[] = [];
   let extent: RadialSize | null = null;
   for (const p of parts) {
-    if (p === "circle") { shape = "circle"; explicitShape = true; }
-    else if (p === "ellipse") { shape = "ellipse"; explicitShape = true; }
-    else if (p === "closest-side" || p === "closest-corner" || p === "farthest-side" || p === "farthest-corner") {
+    if (p === "circle") {
+      shape = "circle";
+      explicitShape = true;
+    } else if (p === "ellipse") {
+      shape = "ellipse";
+      explicitShape = true;
+    } else if (p === "closest-side" || p === "closest-corner" || p === "farthest-side" || p === "farthest-corner") {
       extent = { kind: "extent", value: p };
     } else {
       const parsed = parsePosition(p);
@@ -1105,8 +1158,7 @@ function parseShapeAndSize(text: string): { shape: "circle" | "ellipse"; size: R
     if (sizes[0].kind !== "px" || (explicitShape && shape === "ellipse")) return null;
     size = { kind: "px", r1: sizes[0].value };
     shape = "circle";
-  }
-  else if (sizes.length === 2) {
+  } else if (sizes.length === 2) {
     if (explicitShape && shape === "circle") return null;
     size = { kind: "axes", x: sizes[0], y: sizes[1] };
     shape = "ellipse"; // two sizes implies ellipse
@@ -1174,7 +1226,12 @@ function resolvePos(p: PosValue, rectStart: number, rectExtent: number): number 
  * and the painted rect. CSS extent keywords measure distance from the
  * center to the named feature (side or corner) of the rect.
  */
-function resolveRadii(g: RadialGradient, cx: number, cy: number, rect: { x: number; y: number; w: number; h: number }): { rx: number; ry: number } {
+function resolveRadii(
+  g: RadialGradient,
+  cx: number,
+  cy: number,
+  rect: { x: number; y: number; w: number; h: number },
+): { rx: number; ry: number } {
   if (g.size.kind === "px") {
     return { rx: g.size.r1, ry: g.size.r1 };
   }

@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import * as nativePath from "node:path";
 import {
   STUDIO_PROJECT_FORMAT,
@@ -14,11 +7,7 @@ import {
   STUDIO_PROJECT_VERSION,
   type StudioProject,
 } from "./project-schema.js";
-import {
-  parseStudioProjectJson,
-  serializeStudioProject,
-  validateStudioProject,
-} from "./project.js";
+import { parseStudioProjectJson, serializeStudioProject, validateStudioProject } from "./project.js";
 
 export interface StudioPathApi {
   resolve(...paths: string[]): string;
@@ -64,7 +53,8 @@ export function resolveStudioWorkspaceSvgPath(
   if (relative === ".." || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative)) {
     throw new Error(`artifact path must stay inside the Studio workspace: ${root}`);
   }
-  if (pathApi.extname(resolved).toLowerCase() !== ".svg") throw new Error("Studio preview artifacts must use a .svg extension");
+  if (pathApi.extname(resolved).toLowerCase() !== ".svg")
+    throw new Error("Studio preview artifacts must use a .svg extension");
   return resolved;
 }
 
@@ -123,24 +113,28 @@ export function createStudioProjectDocument(options: CreateStudioProjectOptions)
       tone: "Confident, concise, and polished",
       beats: [{ id: beatId, title: "Opening", sceneIds: [sceneId] }],
     },
-    scenes: [{
-      id: sceneId,
-      title: "Opening",
-      narrativeBeatIds: [beatId],
-      render: {
-        kind: "storyboard",
-        recipe: { template: "title-card", params: { title }, duration: 1600 },
+    scenes: [
+      {
+        id: sceneId,
+        title: "Opening",
+        narrativeBeatIds: [beatId],
+        render: {
+          kind: "storyboard",
+          recipe: { template: "title-card", params: { title }, duration: 1600 },
+        },
       },
-    }],
+    ],
     review: {
       headRevisionId: revisionId,
-      revisions: [{
-        id: revisionId,
-        createdAt,
-        author: { kind: "human" },
-        kind: "content",
-        summary: "Created the Studio project.",
-      }],
+      revisions: [
+        {
+          id: revisionId,
+          createdAt,
+          author: { kind: "human" },
+          kind: "content",
+          summary: "Created the Studio project.",
+        },
+      ],
       annotations: [],
     },
     artifacts: [],
@@ -160,7 +154,10 @@ export function openStudioProjectFile(workspaceRoot: string, requestedPath: stri
 }
 
 function writeProjectAtomically(path: string, project: StudioProject): void {
-  const temporary = nativePath.resolve(nativePath.dirname(path), `.${nativePath.basename(path)}.${process.pid}.${randomUUID()}.tmp`);
+  const temporary = nativePath.resolve(
+    nativePath.dirname(path),
+    `.${nativePath.basename(path)}.${process.pid}.${randomUUID()}.tmp`,
+  );
   try {
     writeFileSync(temporary, serializeStudioProject(project), { encoding: "utf8", flag: "wx" });
     renameSync(temporary, path);

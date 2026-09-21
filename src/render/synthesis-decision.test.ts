@@ -12,7 +12,10 @@
 import { describe, expect, it } from "vitest";
 import { withHostPlatform } from "./host-platform.js";
 import {
-  faceNeedsSyntheticBold, faceNeedsSyntheticOblique, synthesisAllowed, type SynthesisFace,
+  faceNeedsSyntheticBold,
+  faceNeedsSyntheticOblique,
+  synthesisAllowed,
+  type SynthesisFace,
 } from "./synthesis-decision.js";
 import { renderTextAsPath, setRenderTextMode, getRenderTextMode } from "./text-to-path.js";
 import { clearGlyphDefs, resolveFont } from "./font-resolution.js";
@@ -134,7 +137,8 @@ describe("faceNeedsSyntheticBold — three platform rules, not one", () => {
     // though the file itself is unremarkable, and the rule is platform-
     // independent — the decision is made in the CSS layer.
     const webfont: SynthesisFace = {
-      naturalWeight: 400, faceIsBoldTrait: false,
+      naturalWeight: 400,
+      faceIsBoldTrait: false,
       webfontFace: { declaredWeightCaps: [400, 400], wghtAxisMax: null, baseIsBold: false },
     };
     for (const p of ["darwin", "win32", "linux"] as const) {
@@ -196,8 +200,9 @@ describe("faceNeedsSyntheticBold — three platform rules, not one", () => {
 
     it("still obeys `font-synthesis-weight: none`", () => {
       const nonBoldFallback: SynthesisFace = { naturalWeight: 500, linuxFallbackIsBold: false };
-      expect(withHostPlatform("linux",
-        () => faceNeedsSyntheticBold(nonBoldFallback, 700, { weight: false }))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticBold(nonBoldFallback, 700, { weight: false }))).toBe(
+        false,
+      );
     });
   });
 });
@@ -229,20 +234,31 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
       // leans: the trait wins, mirroring `faceIsBoldTrait`'s
       // "asks the face's own BOLD flag ... not weight" test.
       const trueItalicTrait: SynthesisFace = { resolvedItalicAngle: 0, faceIsItalicTrait: true };
-      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(trueItalicTrait, ITALIC, undefined))).toBe(false);
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(trueItalicTrait, ITALIC, undefined))).toBe(
+        false,
+      );
       // Inverse: the heuristic would say "already leans" (angle -12°) but the
       // trait explicitly says NOT italic — the trait overrides that too.
       const falseItalicTrait: SynthesisFace = { resolvedItalicAngle: -12, faceIsItalicTrait: false };
-      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(falseItalicTrait, ITALIC, undefined))).toBe(true);
+      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique(falseItalicTrait, ITALIC, undefined))).toBe(
+        true,
+      );
     });
 
     it("falls back to the outline heuristic only when the trait is absent", () => {
-      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, ITALIC, undefined))).toBe(false);
+      expect(
+        withHostPlatform("darwin", () => faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, ITALIC, undefined)),
+      ).toBe(false);
       // The routing flag exists because some `.ttc` members report an angle of
       // 0 despite a visibly slanted outline; shearing those doubled their lean.
-      expect(withHostPlatform("darwin",
-        () => faceNeedsSyntheticOblique({ resolvedItalicAngle: 0, isRoutedItalicCut: true }, ITALIC, undefined))).toBe(false);
-      expect(withHostPlatform("darwin", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined))).toBe(false);
+      expect(
+        withHostPlatform("darwin", () =>
+          faceNeedsSyntheticOblique({ resolvedItalicAngle: 0, isRoutedItalicCut: true }, ITALIC, undefined),
+        ),
+      ).toBe(false);
+      expect(
+        withHostPlatform("darwin", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined)),
+      ).toBe(false);
     });
   });
 
@@ -269,8 +285,12 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
     });
 
     it("leaves a face that already leans alone — the outline heuristic, no trait signal here yet", () => {
-      expect(withHostPlatform("win32", () => faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, ITALIC, undefined))).toBe(false);
-      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined))).toBe(false);
+      expect(
+        withHostPlatform("win32", () => faceNeedsSyntheticOblique({ resolvedItalicAngle: -12 }, ITALIC, undefined)),
+      ).toBe(false);
+      expect(
+        withHostPlatform("linux", () => faceNeedsSyntheticOblique({ hasSlantAxis: true }, ITALIC, undefined)),
+      ).toBe(false);
     });
 
     it("prefers a native italic trait over the outline heuristic when reported", () => {
@@ -295,8 +315,12 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
     // in the CSS layer, so it must not consult the per-platform tests above.
     const webfont: SynthesisFace = {
       webfontFace: {
-        declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
-        declaredStyleCaps: [0, 0], slntAxisMin: null, baseIsItalic: false,
+        declaredWeightCaps: null,
+        wghtAxisMax: null,
+        baseIsBold: false,
+        declaredStyleCaps: [0, 0],
+        slntAxisMin: null,
+        baseIsItalic: false,
       },
     };
     for (const p of ["darwin", "win32", "linux"] as const) {
@@ -315,8 +339,12 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
     // never sets in the first place — and that must win.
     const alreadyItalicWebfont: SynthesisFace = {
       webfontFace: {
-        declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
-        declaredStyleCaps: [14, 14], slntAxisMin: null, baseIsItalic: false,
+        declaredWeightCaps: null,
+        wghtAxisMax: null,
+        baseIsBold: false,
+        declaredStyleCaps: [14, 14],
+        slntAxisMin: null,
+        baseIsItalic: false,
       },
     };
     for (const p of ["darwin", "win32", "linux"] as const) {
@@ -353,7 +381,9 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
       // reports as upright, which Blink's `Style() == kItalicSlopeValue`
       // equality test does not.
       const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
-      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, OBLIQUE_30, undefined))).toBe(false);
+      expect(withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, OBLIQUE_30, undefined))).toBe(
+        false,
+      );
     });
 
     it("is Linux-only — darwin and win32 ignore the field entirely", () => {
@@ -368,8 +398,9 @@ describe("faceNeedsSyntheticOblique — platform-dispatched, not one predicate (
 
     it("still obeys `font-synthesis-style: none`", () => {
       const uprightFallback: SynthesisFace = { resolvedItalicAngle: -12, linuxFallbackIsItalic: false };
-      expect(withHostPlatform("linux",
-        () => faceNeedsSyntheticOblique(uprightFallback, ITALIC, { style: false }))).toBe(false);
+      expect(
+        withHostPlatform("linux", () => faceNeedsSyntheticOblique(uprightFallback, ITALIC, { style: false })),
+      ).toBe(false);
     });
   });
 });
@@ -386,8 +417,13 @@ describe("faceNeedsSyntheticOblique — geometry: the shear transform itself (pa
     setRenderTextMode("paths");
     clearGlyphDefs();
     const m = renderTextAsPath("Hag", 0, 100, {
-      fontSize: 100, fontFamily: family, fontWeight: "400", fontStyle, fill: "#000",
-      ascentOverride: 0, fontSynthesis,
+      fontSize: 100,
+      fontFamily: family,
+      fontWeight: "400",
+      fontStyle,
+      fill: "#000",
+      ascentOverride: 0,
+      fontSynthesis,
     });
     setRenderTextMode(prev);
     return m;
@@ -438,7 +474,11 @@ describe("paths mode puts the frame on the per-run group, not the outer one", ()
     setRenderTextMode("paths");
     clearGlyphDefs();
     const m = renderTextAsPath("Hag", 0, 100, {
-      fontSize: 100, fontFamily: family, fontWeight: String(weight), fill: "#000", ascentOverride: 0,
+      fontSize: 100,
+      fontFamily: family,
+      fontWeight: String(weight),
+      fill: "#000",
+      ascentOverride: 0,
     });
     setRenderTextMode(prev);
     return m;

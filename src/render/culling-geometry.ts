@@ -14,11 +14,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
-import {
-  invertSvgAffine,
-  multiplySvgAffine,
-  type SvgAffineMatrix,
-} from "../capture/svg-affine-freeze.js";
+import { invertSvgAffine, multiplySvgAffine, type SvgAffineMatrix } from "../capture/svg-affine-freeze.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { parseCornerRadii } from "./borders.js";
 import { parseColor } from "./colors.js";
@@ -39,14 +35,10 @@ export interface RendererCullBox {
 }
 
 export type RendererVisualBounds =
-  | { kind: "bounded"; box: RendererCullBox }
-  | { kind: "empty" }
-  | { kind: "unknown"; reason: string };
+  { kind: "bounded"; box: RendererCullBox } | { kind: "empty" } | { kind: "unknown"; reason: string };
 
 export type RendererReferenceBox =
-  | { kind: "exact"; box: RendererCullBox }
-  | { kind: "empty" }
-  | { kind: "unknown"; reason: string };
+  { kind: "exact"; box: RendererCullBox } | { kind: "empty" } | { kind: "unknown"; reason: string };
 
 export interface RendererOwnedCullGeometry {
   /** Visual surface in the generated root SVG's user coordinate system. */
@@ -88,9 +80,14 @@ type AxisClip = {
 const IDENTITY: SvgAffineMatrix = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
 
 function finiteBox(box: RendererCullBox): boolean {
-  return Number.isFinite(box.x) && Number.isFinite(box.y)
-    && Number.isFinite(box.w) && Number.isFinite(box.h)
-    && box.w >= 0 && box.h >= 0;
+  return (
+    Number.isFinite(box.x) &&
+    Number.isFinite(box.y) &&
+    Number.isFinite(box.w) &&
+    Number.isFinite(box.h) &&
+    box.w >= 0 &&
+    box.h >= 0
+  );
 }
 
 function box(x: number, y: number, w: number, h: number): RendererCullBox | null {
@@ -146,18 +143,14 @@ function mapVisual(value: RendererVisualBounds, matrix: SvgAffineMatrix | "ident
   if (matrix == null) return { kind: "unknown", reason: "static-transform-unavailable-or-singular" };
   if (matrix === "identity" || value.kind !== "bounded") return value;
   const mapped = mapBox(value.box, matrix);
-  return mapped == null
-    ? { kind: "unknown", reason: "static-transform-non-finite" }
-    : { kind: "bounded", box: mapped };
+  return mapped == null ? { kind: "unknown", reason: "static-transform-non-finite" } : { kind: "bounded", box: mapped };
 }
 
 function mapReference(value: RendererReferenceBox, matrix: SvgAffineMatrix | "identity" | null): RendererReferenceBox {
   if (matrix == null) return { kind: "unknown", reason: "static-transform-unavailable-or-singular" };
   if (matrix === "identity" || value.kind !== "exact") return value;
   const mapped = mapBox(value.box, matrix);
-  return mapped == null
-    ? { kind: "unknown", reason: "static-transform-non-finite" }
-    : { kind: "exact", box: mapped };
+  return mapped == null ? { kind: "unknown", reason: "static-transform-non-finite" } : { kind: "exact", box: mapped };
 }
 
 function intersectBoxWithClip(value: RendererCullBox, clip: AxisClip): RendererCullBox | null {
@@ -213,18 +206,23 @@ function mapClip(value: AxisClip, matrix: SvgAffineMatrix): AxisClip | null {
       maxY: y0 == null || y1 == null ? undefined : Math.max(y0, y1),
     };
   }
-  const mapped = mapBox({
-    x: value.minX,
-    y: value.minY,
-    w: value.maxX - value.minX,
-    h: value.maxY - value.minY,
-  }, matrix);
-  return mapped == null ? null : {
-    minX: mapped.x,
-    maxX: mapped.x + mapped.w,
-    minY: mapped.y,
-    maxY: mapped.y + mapped.h,
-  };
+  const mapped = mapBox(
+    {
+      x: value.minX,
+      y: value.minY,
+      w: value.maxX - value.minX,
+      h: value.maxY - value.minY,
+    },
+    matrix,
+  );
+  return mapped == null
+    ? null
+    : {
+        minX: mapped.x,
+        maxX: mapped.x + mapped.w,
+        minY: mapped.y,
+        maxY: mapped.y + mapped.h,
+      };
 }
 
 function parseFinitePx(value: string | undefined): number | null {
@@ -243,7 +241,14 @@ function elementStaticMatrix(el: CapturedElement): SvgAffineMatrix | "identity" 
   if (projective != null) {
     if (projective.length !== 9 || projective.some((value) => !Number.isFinite(value))) return null;
     if (projective[6] !== 0 || projective[7] !== 0 || projective[8] !== 1) return null;
-    const matrix = { a: projective[0], b: projective[3], c: projective[1], d: projective[4], e: projective[2], f: projective[5] };
+    const matrix = {
+      a: projective[0],
+      b: projective[3],
+      c: projective[1],
+      d: projective[4],
+      e: projective[2],
+      f: projective[5],
+    };
     return invertSvgAffine(matrix) == null ? null : matrix;
   }
   const transform = el.styles.transform;
@@ -254,13 +259,19 @@ function elementStaticMatrix(el: CapturedElement): SvgAffineMatrix | "identity" 
     // SVG can own only the planar subset. Capture normally promotes a truly
     // projective/3D owner to `transformSubtreeRaster`; if serialized input is
     // missing that surface, retaining is the only sound culling decision.
-    const isPlanar = values.length === 16
-      && values.every(Number.isFinite)
-      && values[2] === 0 && values[3] === 0
-      && values[6] === 0 && values[7] === 0
-      && values[8] === 0 && values[9] === 0
-      && values[10] === 1 && values[11] === 0
-      && values[14] === 0 && values[15] === 1;
+    const isPlanar =
+      values.length === 16 &&
+      values.every(Number.isFinite) &&
+      values[2] === 0 &&
+      values[3] === 0 &&
+      values[6] === 0 &&
+      values[7] === 0 &&
+      values[8] === 0 &&
+      values[9] === 0 &&
+      values[10] === 1 &&
+      values[11] === 0 &&
+      values[14] === 0 &&
+      values[15] === 1;
     if (!isPlanar) return null;
   }
   const origin = (el.styles.transformOrigin ?? "").trim().split(/\s+/);
@@ -274,16 +285,20 @@ function elementStaticMatrix(el: CapturedElement): SvgAffineMatrix | "identity" 
     // returns an empty string for unsupported syntax, so recognize identity
     // from the computed matrix grammar rather than treating every empty
     // serialization as safe.
-    const matrix2d = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(transform);
-    const values = matrix2d != null
-      ? matrix2d.slice(1).map(Number)
-      : matrix3d != null
-        ? matrix3d[1].split(",").map((value) => Number.parseFloat(value.trim()))
-        : [];
-    const identity = values.length === 6
-      ? values[0] === 1 && values[1] === 0 && values[2] === 0 && values[3] === 1 && values[4] === 0 && values[5] === 0
-      : values.length === 16
-        && values.every((value, index) => value === ([0, 5, 10, 15].includes(index) ? 1 : 0));
+    const matrix2d =
+      /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(
+        transform,
+      );
+    const values =
+      matrix2d != null
+        ? matrix2d.slice(1).map(Number)
+        : matrix3d != null
+          ? matrix3d[1].split(",").map((value) => Number.parseFloat(value.trim()))
+          : [];
+    const identity =
+      values.length === 6
+        ? values[0] === 1 && values[1] === 0 && values[2] === 0 && values[3] === 1 && values[4] === 0 && values[5] === 0
+        : values.length === 16 && values.every((value, index) => value === ([0, 5, 10, 15].includes(index) ? 1 : 0));
     return identity ? "identity" : null;
   }
 
@@ -295,7 +310,10 @@ function elementStaticMatrix(el: CapturedElement): SvgAffineMatrix | "identity" 
     return Number.isFinite(x) && Number.isFinite(y) ? { a: 1, b: 0, c: 0, d: 1, e: x, f: y } : null;
   };
   const matrix = (source: string): SvgAffineMatrix | null => {
-    const match = /^matrix\(\s*([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)\s*\)$/.exec(source);
+    const match =
+      /^matrix\(\s*([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)[ ,]+([-\d.eE+]+)\s*\)$/.exec(
+        source,
+      );
     if (match == null) return null;
     const values = match.slice(1).map(Number);
     if (values.some((value) => !Number.isFinite(value))) return null;
@@ -337,18 +355,27 @@ function ownGeometry(el: CapturedElement): {
   atomic: boolean;
   suppressesDescendants: boolean;
 } {
-  if (el.projectiveHidden === true || (Number.parseFloat(el.styles.opacity) === 0 && !(el.animatedProperties ?? []).includes("opacity"))) {
+  if (
+    el.projectiveHidden === true ||
+    (Number.parseFloat(el.styles.opacity) === 0 && !(el.animatedProperties ?? []).includes("opacity"))
+  ) {
     return {
-      fill: { kind: "empty" }, stroke: { kind: "empty" }, visual: { kind: "empty" },
-      atomic: true, suppressesDescendants: true,
+      fill: { kind: "empty" },
+      stroke: { kind: "empty" },
+      visual: { kind: "empty" },
+      atomic: true,
+      suppressesDescendants: true,
     };
   }
   const atomicRaster = el.urlFilterRaster ?? el.transformSubtreeRaster ?? el.nativeControlRaster;
   if (atomicRaster != null) {
     if ("empty" in atomicRaster && atomicRaster.empty === true) {
       return {
-        fill: { kind: "empty" }, stroke: { kind: "empty" }, visual: { kind: "empty" },
-        atomic: true, suppressesDescendants: true,
+        fill: { kind: "empty" },
+        stroke: { kind: "empty" },
+        visual: { kind: "empty" },
+        atomic: true,
+        suppressesDescendants: true,
       };
     }
     if (atomicRaster.dataUri == null) {
@@ -361,9 +388,11 @@ function ownGeometry(el: CapturedElement): {
     // and the two copies do not currently share one animation/reference-box
     // owner. Retain instead of accidentally culling a reflection that enters
     // the viewport while its source stays outside.
-    if (el.styles.webkitBoxReflect != null
-        && el.styles.webkitBoxReflect !== ""
-        && el.styles.webkitBoxReflect !== "none") {
+    if (
+      el.styles.webkitBoxReflect != null &&
+      el.styles.webkitBoxReflect !== "" &&
+      el.styles.webkitBoxReflect !== "none"
+    ) {
       const unknown = { kind: "unknown" as const, reason: "atomic-raster-reflection-owner" };
       return { fill: unknown, stroke: unknown, visual: unknown, atomic: true, suppressesDescendants: true };
     }
@@ -397,10 +426,11 @@ function ownGeometry(el: CapturedElement): {
     visual = { kind: "bounded", box: borderBox };
   }
 
-  const hasBorderPaint = hasVisibleBorder(el)
-    || (el.styles.borderImageSource != null
-      && el.styles.borderImageSource !== ""
-      && el.styles.borderImageSource !== "none");
+  const hasBorderPaint =
+    hasVisibleBorder(el) ||
+    (el.styles.borderImageSource != null &&
+      el.styles.borderImageSource !== "" &&
+      el.styles.borderImageSource !== "none");
   if (hasBorderPaint) {
     visual = unionVisual(visual, { kind: "bounded", box: borderBox });
     if (!paintsBorderBox) {
@@ -412,18 +442,17 @@ function ownGeometry(el: CapturedElement): {
     }
   }
 
-  const hasBackgroundLayer = el.styles.backgroundImage != null
-    && el.styles.backgroundImage !== ""
-    && el.styles.backgroundImage !== "none"
-    && !/\btext\b/i.test(el.styles.backgroundClip ?? "");
+  const hasBackgroundLayer =
+    el.styles.backgroundImage != null &&
+    el.styles.backgroundImage !== "" &&
+    el.styles.backgroundImage !== "none" &&
+    !/\btext\b/i.test(el.styles.backgroundClip ?? "");
   const hasControlChrome = ["input", "textarea", "select", "button", "progress", "meter"].includes(el.tag);
-  const hasScrollableChrome = (
-    (el.styles.scrollWidth ?? 0) > (el.styles.clientWidth ?? 0)
-      && !["visible", "clip"].includes(el.styles.overflowX ?? "visible")
-  ) || (
-    (el.styles.scrollHeight ?? 0) > (el.styles.clientHeight ?? 0)
-      && !["visible", "clip"].includes(el.styles.overflowY ?? "visible")
-  );
+  const hasScrollableChrome =
+    ((el.styles.scrollWidth ?? 0) > (el.styles.clientWidth ?? 0) &&
+      !["visible", "clip"].includes(el.styles.overflowX ?? "visible")) ||
+    ((el.styles.scrollHeight ?? 0) > (el.styles.clientHeight ?? 0) &&
+      !["visible", "clip"].includes(el.styles.overflowY ?? "visible"));
   if (hasBackgroundLayer || el.imageSrc != null || hasControlChrome || hasScrollableChrome) {
     // These generated shapes are bounded by the captured border box, but
     // their object geometry can be a content/padding clip, object-fit rect,
@@ -442,8 +471,9 @@ function ownGeometry(el: CapturedElement): {
   // clipped root control need not be bounded by this element's captured border
   // box. Union the actual emitted images; retain a partial reservation when a
   // required platform crop is missing instead of culling on a guessed host box.
-  const scrollbarSets = [el.scrollbars, el.rootScrollbars]
-    .filter((set, index, sets) => set != null && sets.indexOf(set) === index);
+  const scrollbarSets = [el.scrollbars, el.rootScrollbars].filter(
+    (set, index, sets) => set != null && sets.indexOf(set) === index,
+  );
   for (const set of scrollbarSets) {
     if (set == null || set.status === "absent") continue;
     const rasters = [
@@ -451,8 +481,7 @@ function ownGeometry(el: CapturedElement): {
       set.vertical?.route === "native-raster" ? set.vertical.nativeRaster : undefined,
       set.nativeCornerRaster,
     ];
-    const expectedNative = set.horizontal?.route === "native-raster"
-      || set.vertical?.route === "native-raster";
+    const expectedNative = set.horizontal?.route === "native-raster" || set.vertical?.route === "native-raster";
     if (set.status === "partial" && expectedNative && rasters.every((raster) => raster == null)) {
       visual = { kind: "unknown", reason: "native-scrollbar-raster-unavailable" };
       continue;
@@ -515,12 +544,12 @@ function ownGeometry(el: CapturedElement): {
     fill = unionReference(fill, { kind: "exact", box: source });
     stroke = unionReference(stroke, { kind: "exact", box: source });
     // The renderer's generated filter is x/y=-50%, width/height=200%.
-    const painted = shadow.blur > 0
-      ? box(source.x - source.w / 2, source.y - source.h / 2, source.w * 2, source.h * 2)
-      : source;
-    visual = painted == null
-      ? { kind: "unknown", reason: "box-shadow-filter-region-non-finite" }
-      : unionVisual(visual, { kind: "bounded", box: painted });
+    const painted =
+      shadow.blur > 0 ? box(source.x - source.w / 2, source.y - source.h / 2, source.w * 2, source.h * 2) : source;
+    visual =
+      painted == null
+        ? { kind: "unknown", reason: "box-shadow-filter-region-non-finite" }
+        : unionVisual(visual, { kind: "bounded", box: painted });
   }
 
   const outlineWidth = parseFinitePx(el.styles.outlineWidth);
@@ -529,10 +558,14 @@ function ownGeometry(el: CapturedElement): {
   const outlineColor = parseOptionalColor(el.styles.outlineColor ?? el.styles.color);
   if (outlineWidth == null || outlineOffset == null) {
     visual = { kind: "unknown", reason: "outline-geometry-unavailable" };
-  } else if (outlineWidth > 0 && outlineStyle !== "none" && outlineStyle !== "hidden" && (outlineColor == null || outlineColor.a > 0.01)) {
+  } else if (
+    outlineWidth > 0 &&
+    outlineStyle !== "none" &&
+    outlineStyle !== "hidden" &&
+    (outlineColor == null || outlineColor.a > 0.01)
+  ) {
     const corners = parseCornerRadii(el.styles, el.width, el.height);
-    const rounded = [corners.tl, corners.tr, corners.br, corners.bl]
-      .some((corner) => corner.h !== 0 || corner.v !== 0);
+    const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h !== 0 || corner.v !== 0);
     let center: RendererCullBox;
     let outer: RendererCullBox;
     if (!rounded) {
@@ -547,7 +580,12 @@ function ownGeometry(el: CapturedElement): {
     } else {
       const inflate = outlineOffset + outlineWidth / 2;
       center = { x: el.x - inflate, y: el.y - inflate, w: el.width + inflate * 2, h: el.height + inflate * 2 };
-      outer = { x: center.x - outlineWidth / 2, y: center.y - outlineWidth / 2, w: center.w + outlineWidth, h: center.h + outlineWidth };
+      outer = {
+        x: center.x - outlineWidth / 2,
+        y: center.y - outlineWidth / 2,
+        w: center.w + outlineWidth,
+        h: center.h + outlineWidth,
+      };
     }
     if (!finiteBox(center) || !finiteBox(outer)) {
       const unknown = { kind: "unknown" as const, reason: "outline-geometry-non-finite" };
@@ -631,8 +669,8 @@ function ownGeometry(el: CapturedElement): {
   // These channels produce geometry whose exact emitted object/ink bounds are
   // not available at this preflight boundary.  A finite carrier proxy would
   // reintroduce the bug this module exists to remove.
-  const exactTextRaster = el.elementRaster?.dataUri != null
-    && el.styles.writingMode != null && el.styles.writingMode !== "horizontal-tb";
+  const exactTextRaster =
+    el.elementRaster?.dataUri != null && el.styles.writingMode != null && el.styles.writingMode !== "horizontal-tb";
   if (exactTextRaster) {
     const raster = el.elementRaster!;
     const rasterBox = box(raster.x, raster.y, raster.width, raster.height);
@@ -645,19 +683,24 @@ function ownGeometry(el: CapturedElement): {
     }
   }
   const hasText = !exactTextRaster && (el.text !== "" || (el.textSegments?.length ?? 0) > 0 || el.textImageUri != null);
-  const hasGeneratedPaint = (el.pseudoBoxes?.length ?? 0) > 0
-    || (el.pseudoImages?.length ?? 0) > 0
-    || (el.columnRules?.length ?? 0) > 0
-    || el.listItemIndex != null
-    || el.markerContent != null
-    || el.listMarkerIntrinsic != null
-    || (el.tag === "summary" && el.styles.summaryMarkerSuppressed !== true)
-    || el.styles.detailsContentBox != null
-    || el.lineClampTextFragments === true;
-  const hasUnknownExpansion = (el.styles.filter != null && el.styles.filter !== "" && el.styles.filter !== "none")
-    || (el.styles.textShadow != null && el.styles.textShadow !== "" && el.styles.textShadow !== "none")
-    || (el.styles.webkitBoxReflect != null && el.styles.webkitBoxReflect !== "" && el.styles.webkitBoxReflect !== "none")
-    || (el.styles.borderImageOutset != null && !/^(?:0(?:px)?)(?:\s+0(?:px)?){0,3}$/.test(el.styles.borderImageOutset.trim()));
+  const hasGeneratedPaint =
+    (el.pseudoBoxes?.length ?? 0) > 0 ||
+    (el.pseudoImages?.length ?? 0) > 0 ||
+    (el.columnRules?.length ?? 0) > 0 ||
+    el.listItemIndex != null ||
+    el.markerContent != null ||
+    el.listMarkerIntrinsic != null ||
+    (el.tag === "summary" && el.styles.summaryMarkerSuppressed !== true) ||
+    el.styles.detailsContentBox != null ||
+    el.lineClampTextFragments === true;
+  const hasUnknownExpansion =
+    (el.styles.filter != null && el.styles.filter !== "" && el.styles.filter !== "none") ||
+    (el.styles.textShadow != null && el.styles.textShadow !== "" && el.styles.textShadow !== "none") ||
+    (el.styles.webkitBoxReflect != null &&
+      el.styles.webkitBoxReflect !== "" &&
+      el.styles.webkitBoxReflect !== "none") ||
+    (el.styles.borderImageOutset != null &&
+      !/^(?:0(?:px)?)(?:\s+0(?:px)?){0,3}$/.test(el.styles.borderImageOutset.trim()));
   if (hasText || hasGeneratedPaint || hasUnknownExpansion) {
     const reason = hasUnknownExpansion ? "emitted-effect-bounds-unavailable" : "emitted-ink-bounds-unavailable";
     fill = { kind: "unknown", reason };
@@ -696,7 +739,8 @@ function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
   const paddingRight = parseFinitePx(el.styles.paddingRight);
   const paddingBottom = parseFinitePx(el.styles.paddingBottom);
   const paddingLeft = parseFinitePx(el.styles.paddingLeft);
-  if ([top, right, bottom, left, paddingTop, paddingRight, paddingBottom, paddingLeft].some((value) => value == null)) return "unknown";
+  if ([top, right, bottom, left, paddingTop, paddingRight, paddingBottom, paddingLeft].some((value) => value == null))
+    return "unknown";
 
   let x = el.x + left!;
   let y = el.y + top!;
@@ -710,12 +754,7 @@ function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
     isReplaced,
     respectsCssOverflow: isReplaced
       ? isOverflowRespectingReplacedElement(el.tag)
-      : capturedBoxRespectsCssOverflow(
-        el.tag,
-        el.styles.display,
-        el.styles.rootOverflowX,
-        el.styles.rootOverflowY,
-      ),
+      : capturedBoxRespectsCssOverflow(el.tag, el.styles.display, el.styles.rootOverflowX, el.styles.rootOverflowY),
   });
   if (usedMargin != null) {
     const geometry = overflowClipMarginGeometry(
@@ -732,13 +771,22 @@ function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
   }
   if (el.fieldsetLegendNotch != null) {
     const protrude = y - el.fieldsetLegendNotch.y;
-    if (protrude > 0) { y -= protrude; height += protrude; }
+    if (protrude > 0) {
+      y -= protrude;
+      height += protrude;
+    }
   }
   const clip: AxisClip = {};
   const xVisible = !containClips && overflowX === "visible" && overflowY === "clip";
   const yVisible = !containClips && overflowY === "visible" && overflowX === "clip";
-  if (!xVisible) { clip.minX = x; clip.maxX = x + width; }
-  if (!yVisible) { clip.minY = y; clip.maxY = y + height; }
+  if (!xVisible) {
+    clip.minX = x;
+    clip.maxX = x + width;
+  }
+  if (!yVisible) {
+    clip.minY = y;
+    clip.maxY = y + height;
+  }
   return clip;
 }
 
@@ -769,7 +817,7 @@ export function buildRendererCullGeometry(
     if (!own.suppressesDescendants) {
       for (const child of el.children) {
         const childLocal = buildLocal(child);
-        hasAnimatedDescendant ||= child.animId != null && child.animId !== "" || childLocal.hasAnimatedDescendant;
+        hasAnimatedDescendant ||= (child.animId != null && child.animId !== "") || childLocal.hasAnimatedDescendant;
         fill = unionReference(fill, mapReference(childLocal.fill, childLocal.staticMatrix));
         stroke = unionReference(stroke, mapReference(childLocal.stroke, childLocal.staticMatrix));
         let childVisual = mapVisual(childLocal.visual, childLocal.staticMatrix);
@@ -798,11 +846,12 @@ export function buildRendererCullGeometry(
     inheritedStatic: boolean,
   ): void => {
     const node = local.get(el)!;
-    const matrix = node.staticMatrix === "identity"
-      ? ancestorMatrix
-      : node.staticMatrix == null
-        ? null
-        : multiplySvgAffine(ancestorMatrix, node.staticMatrix);
+    const matrix =
+      node.staticMatrix === "identity"
+        ? ancestorMatrix
+        : node.staticMatrix == null
+          ? null
+          : multiplySvgAffine(ancestorMatrix, node.staticMatrix);
     const hasStatic = inheritedStatic || node.staticMatrix !== "identity";
     let visual: RendererVisualBounds;
     if (matrix == null) visual = { kind: "unknown", reason: "static-transform-unavailable-or-singular" };
@@ -812,11 +861,12 @@ export function buildRendererCullGeometry(
       referenceBoxes: {
         fillBox: node.fill,
         strokeBox: node.stroke,
-        viewBox: viewBox == null
-          ? { kind: "unknown", reason: "svg-viewport-non-finite" }
-          : viewportW <= 0 || viewportH <= 0
-            ? { kind: "empty" }
-            : { kind: "exact", box: viewBox },
+        viewBox:
+          viewBox == null
+            ? { kind: "unknown", reason: "svg-viewport-non-finite" }
+            : viewportW <= 0 || viewportH <= 0
+              ? { kind: "empty" }
+              : { kind: "exact", box: viewBox },
       },
       hasStaticTransformPath: hasStatic,
       referenceBoxMayAnimate: node.hasAnimatedDescendant,

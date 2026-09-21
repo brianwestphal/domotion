@@ -27,13 +27,20 @@ for (const root of roots) {
     // (text length 1-4 + has color or fontSize override or pseudoBox).
     if (styled.text.length <= 4 && (styled.color || styled.fontSize || styled.pseudoBox)) {
       console.log(`<p>${JSON.stringify(e.text.slice(0, 30))}`);
-      console.log(`  styled seg: text=${JSON.stringify(styled.text)} x=${styled.x?.toFixed(1)} y=${styled.y?.toFixed(1)} w=${styled.width?.toFixed(1)} h=${styled.height?.toFixed(1)} fs=${styled.fontSize} fw=${styled.fontWeight} color=${styled.color}`);
-      console.log(`    xOffsets=${JSON.stringify(styled.xOffsets?.map(v => v.toFixed(1)))}`);
-      if (styled.pseudoBox) console.log(`    pseudoBox: ${JSON.stringify({ x: styled.pseudoBox.x.toFixed(1), y: styled.pseudoBox.y.toFixed(1), w: styled.pseudoBox.width.toFixed(1), h: styled.pseudoBox.height.toFixed(1), bg: styled.pseudoBox.backgroundColor, bgImg: styled.pseudoBox.backgroundImage?.slice(0, 40), br: styled.pseudoBox.borderRadius })}`);
+      console.log(
+        `  styled seg: text=${JSON.stringify(styled.text)} x=${styled.x?.toFixed(1)} y=${styled.y?.toFixed(1)} w=${styled.width?.toFixed(1)} h=${styled.height?.toFixed(1)} fs=${styled.fontSize} fw=${styled.fontWeight} color=${styled.color}`,
+      );
+      console.log(`    xOffsets=${JSON.stringify(styled.xOffsets?.map((v) => v.toFixed(1)))}`);
+      if (styled.pseudoBox)
+        console.log(
+          `    pseudoBox: ${JSON.stringify({ x: styled.pseudoBox.x.toFixed(1), y: styled.pseudoBox.y.toFixed(1), w: styled.pseudoBox.width.toFixed(1), h: styled.pseudoBox.height.toFixed(1), bg: styled.pseudoBox.backgroundColor, bgImg: styled.pseudoBox.backgroundImage?.slice(0, 40), br: styled.pseudoBox.borderRadius })}`,
+        );
       console.log(`  all segs: count=${segs.length}`);
       segs.forEach((s, i) => {
         const sup = s.rasterGlyphs?.filter((g) => g.suppressGlyph) || [];
-        console.log(`    seg[${i}]: text=${JSON.stringify((s.text || "").slice(0, 36))} sup=${sup.length}/${s.rasterGlyphs?.length || 0} fs=${s.fontSize} color=${s.color}`);
+        console.log(
+          `    seg[${i}]: text=${JSON.stringify((s.text || "").slice(0, 36))} sup=${sup.length}/${s.rasterGlyphs?.length || 0} fs=${s.fontSize} color=${s.color}`,
+        );
       });
     }
   });

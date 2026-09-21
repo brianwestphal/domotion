@@ -17,7 +17,7 @@ fetched at view time.
 
 In practice that means the artifact is:
 
-- **Safe to host** — SVG is a known XSS vector *when it carries scripts*; Domotion
+- **Safe to host** — SVG is a known XSS vector _when it carries scripts_; Domotion
   output carries none, so it can be served as a static asset.
 - **CSP-friendly** — no `script-src`, no remote `img-src`/`font-src`, nothing to
   allowlist for the demo to render.

@@ -127,131 +127,160 @@ async function scan(
 ): Promise<{ minX: number; maxX: number; minY: number; maxY: number; count: number }> {
   const { viewer } = env!;
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return viewer.evaluate(async (args: { dataUri: string; mode: string; rect: { x: number; y: number; w: number; h: number } }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const r0 = args.rect;
-    const d = ctx.getImageData(r0.x, r0.y, r0.w, r0.h).data;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, count = 0;
-    for (let y = 0; y < r0.h; y++) {
-      for (let x = 0; x < r0.w; x++) {
-        const i = (y * r0.w + x) * 4;
-        const r = d[i], g = d[i + 1], b = d[i + 2];
-        let hit = false;
-        // The editor background is #1e293b (30,41,59); any pixel meaningfully
-        // brighter than it is glyph ink of SOME token color.
-        if (args.mode === "ink") hit = r + g + b > 200;
-        else if (args.mode === "light") hit = r > 170 && g > 170 && b > 170;
-        // amber #fbbf24 — red+green high, blue low.
-        else if (args.mode === "amber") hit = r > 200 && g > 150 && g < 220 && b < 100;
-        // #3b82f6 at ~2/3 alpha over the dark editor — strongly blue-dominant,
-        // and tighter than the page's cyan `.attr` (125,211,252) / blue `.kw`
-        // (147,197,253) token colors, which must NOT count as selection.
-        else hit = b > 150 && b - g > 70 && b - r > 100;
-        if (hit) {
-          const ax = r0.x + x, ay = r0.y + y;
-          if (ax < minX) minX = ax;
-          if (ax > maxX) maxX = ax;
-          if (ay < minY) minY = ay;
-          if (ay > maxY) maxY = ay;
-          count++;
+  return viewer.evaluate(
+    async (args: { dataUri: string; mode: string; rect: { x: number; y: number; w: number; h: number } }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const r0 = args.rect;
+      const d = ctx.getImageData(r0.x, r0.y, r0.w, r0.h).data;
+      let minX = Infinity,
+        maxX = -Infinity,
+        minY = Infinity,
+        maxY = -Infinity,
+        count = 0;
+      for (let y = 0; y < r0.h; y++) {
+        for (let x = 0; x < r0.w; x++) {
+          const i = (y * r0.w + x) * 4;
+          const r = d[i],
+            g = d[i + 1],
+            b = d[i + 2];
+          let hit = false;
+          // The editor background is #1e293b (30,41,59); any pixel meaningfully
+          // brighter than it is glyph ink of SOME token color.
+          if (args.mode === "ink") hit = r + g + b > 200;
+          else if (args.mode === "light") hit = r > 170 && g > 170 && b > 170;
+          // amber #fbbf24 — red+green high, blue low.
+          else if (args.mode === "amber") hit = r > 200 && g > 150 && g < 220 && b < 100;
+          // #3b82f6 at ~2/3 alpha over the dark editor — strongly blue-dominant,
+          // and tighter than the page's cyan `.attr` (125,211,252) / blue `.kw`
+          // (147,197,253) token colors, which must NOT count as selection.
+          else hit = b > 150 && b - g > 70 && b - r > 100;
+          if (hit) {
+            const ax = r0.x + x,
+              ay = r0.y + y;
+            if (ax < minX) minX = ax;
+            if (ax > maxX) maxX = ax;
+            if (ay < minY) minY = ay;
+            if (ay > maxY) maxY = ay;
+            count++;
+          }
         }
       }
-    }
-    return { minX, maxX, minY, maxY, count };
-  }, { dataUri, mode, rect });
+      return { minX, maxX, minY, maxY, count };
+    },
+    { dataUri, mode, rect },
+  );
 }
 
 /** Extract a rect's raw RGBA bytes (for byte-stability comparisons). */
 async function rectBytes(png: Buffer, rect: { x: number; y: number; w: number; h: number }): Promise<string> {
   const { viewer } = env!;
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return viewer.evaluate(async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const d = ctx.getImageData(args.rect.x, args.rect.y, args.rect.w, args.rect.h).data;
-    let out = "";
-    for (let i = 0; i < d.length; i += 4) out += String.fromCharCode(d[i] >> 3, d[i + 1] >> 3, d[i + 2] >> 3);
-    return out;
-  }, { dataUri, rect });
+  return viewer.evaluate(
+    async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number } }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(args.rect.x, args.rect.y, args.rect.w, args.rect.h).data;
+      let out = "";
+      for (let i = 0; i < d.length; i += 4) out += String.fromCharCode(d[i] >> 3, d[i + 1] >> 3, d[i + 2] >> 3);
+      return out;
+    },
+    { dataUri, rect },
+  );
 }
 
 /** Count pixels in a rect whose max channel delta between two shots exceeds `threshold`. */
-async function diffCount(pngA: Buffer, pngB: Buffer, rect: { x: number; y: number; w: number; h: number }, threshold: number): Promise<number> {
+async function diffCount(
+  pngA: Buffer,
+  pngB: Buffer,
+  rect: { x: number; y: number; w: number; h: number },
+  threshold: number,
+): Promise<number> {
   const { viewer } = env!;
   const uris = [pngA, pngB].map((p) => `data:image/png;base64,${p.toString("base64")}`);
-  return viewer.evaluate(async (args: { uris: string[]; rect: { x: number; y: number; w: number; h: number }; threshold: number }) => {
-    const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
-      const img = new Image();
-      img.onload = () => res(img);
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = src;
-    });
-    const [a, b] = await Promise.all(args.uris.map(load));
-    const canvas = document.createElement("canvas");
-    canvas.width = a.width;
-    canvas.height = a.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(a, 0, 0);
-    const da = ctx.getImageData(args.rect.x, args.rect.y, args.rect.w, args.rect.h).data;
-    ctx.drawImage(b, 0, 0);
-    const db = ctx.getImageData(args.rect.x, args.rect.y, args.rect.w, args.rect.h).data;
-    let n = 0;
-    for (let i = 0; i < da.length; i += 4) {
-      const d = Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]), Math.abs(da[i + 2] - db[i + 2]));
-      if (d > args.threshold) n++;
-    }
-    return n;
-  }, { uris, rect, threshold });
+  return viewer.evaluate(
+    async (args: { uris: string[]; rect: { x: number; y: number; w: number; h: number }; threshold: number }) => {
+      const load = (src: string) =>
+        new Promise<HTMLImageElement>((res, rej) => {
+          const img = new Image();
+          img.onload = () => res(img);
+          img.onerror = () => rej(new Error("png decode failed"));
+          img.src = src;
+        });
+      const [a, b] = await Promise.all(args.uris.map(load));
+      const canvas = document.createElement("canvas");
+      canvas.width = a.width;
+      canvas.height = a.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(a, 0, 0);
+      const da = ctx.getImageData(args.rect.x, args.rect.y, args.rect.w, args.rect.h).data;
+      ctx.drawImage(b, 0, 0);
+      const db = ctx.getImageData(args.rect.x, args.rect.y, args.rect.w, args.rect.h).data;
+      let n = 0;
+      for (let i = 0; i < da.length; i += 4) {
+        const d = Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]), Math.abs(da[i + 2] - db[i + 2]));
+        if (d > args.threshold) n++;
+      }
+      return n;
+    },
+    { uris, rect, threshold },
+  );
 }
 
 /** Columns (absolute x) in a rect holding >= minRun light-caret pixels. */
-async function caretColumns(png: Buffer, rect: { x: number; y: number; w: number; h: number }, minRun = 12): Promise<number[]> {
+async function caretColumns(
+  png: Buffer,
+  rect: { x: number; y: number; w: number; h: number },
+  minRun = 12,
+): Promise<number[]> {
   const { viewer } = env!;
   const dataUri = `data:image/png;base64,${png.toString("base64")}`;
-  return viewer.evaluate(async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number }; minRun: number }) => {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error("png decode failed"));
-      img.src = args.dataUri;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    const r0 = args.rect;
-    const d = ctx.getImageData(r0.x, r0.y, r0.w, r0.h).data;
-    const cols: number[] = [];
-    for (let x = 0; x < r0.w; x++) {
-      let n = 0;
-      for (let y = 0; y < r0.h; y++) {
-        const i = (y * r0.w + x) * 4;
-        if (d[i] > 170 && d[i + 1] > 170 && d[i + 2] > 170) n++;
+  return viewer.evaluate(
+    async (args: { dataUri: string; rect: { x: number; y: number; w: number; h: number }; minRun: number }) => {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("png decode failed"));
+        img.src = args.dataUri;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const r0 = args.rect;
+      const d = ctx.getImageData(r0.x, r0.y, r0.w, r0.h).data;
+      const cols: number[] = [];
+      for (let x = 0; x < r0.w; x++) {
+        let n = 0;
+        for (let y = 0; y < r0.h; y++) {
+          const i = (y * r0.w + x) * 4;
+          if (d[i] > 170 && d[i + 1] > 170 && d[i + 2] > 170) n++;
+        }
+        if (n >= args.minRun) cols.push(r0.x + x);
       }
-      if (n >= args.minRun) cols.push(r0.x + x);
-    }
-    return cols;
-  }, { dataUri, rect, minRun });
+      return cols;
+    },
+    { dataUri, rect, minRun },
+  );
 }
 
 describeBrowser("editor-session flagship rasterized verification (docs/100 stage 5)", () => {
@@ -334,7 +363,7 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     expect(Math.abs(b.maxX - a.maxX)).toBeLessThanOrEqual(1);
   }, 60_000);
 
-  it("sweeps the declarative selection over \"btn\" and clears it at the cut", async () => {
+  it('sweeps the declarative selection over "btn" and clears it at the cut', async () => {
     // F8 12050: select at +950 sweeps 400 ms (13000–13400).
     const mid = await scan(await shot(13200), "selection", rowStrip(6));
     const full = await scan(await shot(13600), "selection", rowStrip(6));
@@ -356,8 +385,10 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const cols = await caretColumns(await shot(12900), rowStrip(6, 150, 200));
     expect(cols.length, "no caret bar found in row 6").toBeGreaterThan(0);
     for (const c of cols) {
-      expect(Math.abs(c - col(16)), `caret at ${c}, expected the col-16 glyph edge ${col(16).toFixed(1)}`)
-        .toBeLessThanOrEqual(COL_TOL);
+      expect(
+        Math.abs(c - col(16)),
+        `caret at ${c}, expected the col-16 glyph edge ${col(16).toFixed(1)}`,
+      ).toBeLessThanOrEqual(COL_TOL);
     }
   }, 60_000);
 
@@ -367,8 +398,10 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const typing = await caretColumns(await shot(8940), rowStrip(1, 170, 120));
     expect(typing.length, "no auto-caret bar during s10").toBeGreaterThan(0);
     for (const c of typing) {
-      expect(Math.abs(c - col(26)), `caret at ${c}, expected the col-26 edge ${col(26).toFixed(1)}`)
-        .toBeLessThanOrEqual(COL_TOL);
+      expect(
+        Math.abs(c - col(26)),
+        `caret at ${c}, expected the col-26 edge ${col(26).toFixed(1)}`,
+      ).toBeLessThanOrEqual(COL_TOL);
     }
     // The colorize state re-tokenizes the line (recolors + whitespace churn)
     // — a tokenizer catching up must NOT move the caret, so it holds at the
@@ -388,8 +421,10 @@ describeBrowser("editor-session flagship rasterized verification (docs/100 stage
     const cols = await caretColumns(await shot(14940), rowStrip(6, 150, 200));
     expect(cols.length, "no auto-caret bar found in row 6").toBeGreaterThan(0);
     for (const c of cols) {
-      expect(Math.abs(c - col(19)), `caret at ${c}, expected the col-19 edge ${col(19).toFixed(1)}`)
-        .toBeLessThanOrEqual(COL_TOL);
+      expect(
+        Math.abs(c - col(19)),
+        `caret at ${c}, expected the col-19 edge ${col(19).toFixed(1)}`,
+      ).toBeLessThanOrEqual(COL_TOL);
     }
   }, 60_000);
 

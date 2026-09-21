@@ -151,7 +151,13 @@ export function caretShapeRect(inp: CaretRectInput): CaretShapeRect {
     case "block":
       return { x: leftOf(cellW), y: boxTop, width: cellW, height: boxHeight, opacity: BLOCK_CARET_ALPHA };
     case "underscore":
-      return { x: leftOf(cellW), y: inp.baselineY, width: cellW, height: underscoreCaretThicknessPx(inp.fontSize), opacity: 1 };
+      return {
+        x: leftOf(cellW),
+        y: inp.baselineY,
+        width: cellW,
+        height: underscoreCaretThicknessPx(inp.fontSize),
+        opacity: 1,
+      };
     case "bar":
     default: {
       const barW = inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX;
@@ -238,9 +244,7 @@ export function firstLineBaseline(m: LineBoxMeasurement): { baselineY: number; a
   const descentPx = fontBox > 0 ? Math.round(m.fontDescentPx) : m.fontSize * 0.25;
   const textBoxHeight = ascentPx + descentPx;
   const lineH = m.lineHeightPx || fontBox || m.fontSize * 1.2;
-  const lineTop = m.centerInContentBox
-    ? m.contentTop + Math.max(0, (m.contentHeight - lineH) / 2)
-    : m.contentTop;
+  const lineTop = m.centerInContentBox ? m.contentTop + Math.max(0, (m.contentHeight - lineH) / 2) : m.contentTop;
   const boxTop = lineTop + Math.floor((lineH - textBoxHeight) / 2);
   return { baselineY: boxTop + ascentPx, ascentPx, descentPx };
 }

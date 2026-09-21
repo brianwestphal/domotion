@@ -5,9 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1278","DM-1302","DM-1303"]
-code: ["examples/output/templates/","examples/templates-demo.ts","src/templates/builtin/chat.ts","src/templates/builtin/subscribe.ts","src/templates/registry.ts"]
-aliases: ["docs/76-social-templates.md","doc-76"]
+tickets: ["DM-1278", "DM-1302", "DM-1303"]
+code:
+  [
+    "examples/output/templates/",
+    "examples/templates-demo.ts",
+    "src/templates/builtin/chat.ts",
+    "src/templates/builtin/subscribe.ts",
+    "src/templates/registry.ts",
+  ]
+aliases: ["docs/76-social-templates.md", "doc-76"]
 ---
 
 # 76 — The `chat` and `subscribe` built-in templates
@@ -30,21 +37,21 @@ me: Yep — just shipped it
 them: Amazing 🙌" -o thread.svg
 ```
 
-| Param | Type | Default | Meaning |
-|---|---|---|---|
-| `messages` | `{from,text}[]` **or** lines | a sample thread | The thread. JSON array, or lines `me: …` / `them: …`. |
-| `title` | string | — | Contact name (shown in the header; omit for no header). |
-| `accent` | string | `#3b82f6` | `me` bubble color. |
-| `themBubble` / `themText` | string | `#e9e9eb` / `#111111` | `them` bubble + text color. |
-| `background` | string | `#ffffff` | Thread background. |
-| `typing` | boolean | `true` | Show a "…" typing indicator before each `them` message. |
-| `typingMs` | int | `900` | How long the indicator shows before the message. |
-| `width` / `height` | int | `560` / `760` | Output size. |
-| `fontFamily` | string | system sans | CSS font-family. |
-| `popMs` / `staggerMs` / `holdMs` | int | `360` / `650` / `2000` | Pop duration / gap between messages / hold. |
+| Param                            | Type                         | Default                | Meaning                                                 |
+| -------------------------------- | ---------------------------- | ---------------------- | ------------------------------------------------------- |
+| `messages`                       | `{from,text}[]` **or** lines | a sample thread        | The thread. JSON array, or lines `me: …` / `them: …`.   |
+| `title`                          | string                       | —                      | Contact name (shown in the header; omit for no header). |
+| `accent`                         | string                       | `#3b82f6`              | `me` bubble color.                                      |
+| `themBubble` / `themText`        | string                       | `#e9e9eb` / `#111111`  | `them` bubble + text color.                             |
+| `background`                     | string                       | `#ffffff`              | Thread background.                                      |
+| `typing`                         | boolean                      | `true`                 | Show a "…" typing indicator before each `them` message. |
+| `typingMs`                       | int                          | `900`                  | How long the indicator shows before the message.        |
+| `width` / `height`               | int                          | `560` / `760`          | Output size.                                            |
+| `fontFamily`                     | string                       | system sans            | CSS font-family.                                        |
+| `popMs` / `staggerMs` / `holdMs` | int                          | `360` / `650` / `2000` | Pop duration / gap between messages / hold.             |
 
 **Motion.** Each message is a transform-wrapper (`.ct-pop`) around an opacity
-inner (`.ct-bubble`) — two elements so the *pop* and the *fade* don't clobber each
+inner (`.ct-bubble`) — two elements so the _pop_ and the _fade_ don't clobber each
 other (constraint 1). The wrapper scales from `0.6 → 1` about the bubble's
 **anchored corner** (`transformOrigin: "bottom right"` for `me`, `"bottom left"`
 for `them`) so it grows out of its tail. All messages stay in the flex layout
@@ -52,8 +59,8 @@ for `them`) so it grows out of its tail. All messages stay in the flex layout
 
 **Typing indicator (DM-1302).** With `typing` on (the default), each `them`
 message is preceded by a "…" bubble (three bouncing dots) for `typingMs`, then the
-message pops in over it — so the thread plays sequentially: *type, send, type,
-send*. `chatTimeline()` is the shared source of truth for when each message pops
+message pops in over it — so the thread plays sequentially: _type, send, type,
+send_. `chatTimeline()` is the shared source of truth for when each message pops
 and when each indicator appears (both `buildChatAnimations` and `chatDurationMs`
 read it). The indicator bubble overlays the bottom-left of the row (where the
 bubble lands) and comes **before** the message in the DOM so the message paints on
@@ -73,20 +80,20 @@ domotion template subscribe --name "Ada Lovelace" --subtitle "@ada · 89.4K foll
   --action Follow --accent "#1d9bf0" --theme dark -o follow.svg
 ```
 
-| Param | Type | Default | Meaning |
-|---|---|---|---|
-| `name` / `subtitle` | string | `Domotion` / `1.2M subscribers` | Channel name + sub-line. |
-| `action` | string | `Subscribe` | CTA button label. |
-| `accent` | string | `#ff0000` | Button color. |
-| `avatarColor` / `avatarText` | string | `#6366f1` / name's initial | Avatar circle + initial. |
-| `theme` | `light` \| `dark` | `light` | Card theme. |
-| `background` | string | a navy gradient | Frame background. |
-| `showBell` | boolean | `true` | Show the bell button beside the CTA. |
-| `clickAfterMs` | int | `1700` | Simulate a click after this delay (CTA flips, bell fills). `0` disables it. |
-| `subscribedLabel` | string | `Subscribed` | Label after the simulated click. |
-| `width` / `height` | int | `760` / `360` | Output size. |
-| `fontFamily` | string | system sans | CSS font-family. |
-| `popMs` / `holdMs` | int | `520` / `2600` | Pop duration / hold. |
+| Param                        | Type              | Default                         | Meaning                                                                     |
+| ---------------------------- | ----------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| `name` / `subtitle`          | string            | `Domotion` / `1.2M subscribers` | Channel name + sub-line.                                                    |
+| `action`                     | string            | `Subscribe`                     | CTA button label.                                                           |
+| `accent`                     | string            | `#ff0000`                       | Button color.                                                               |
+| `avatarColor` / `avatarText` | string            | `#6366f1` / name's initial      | Avatar circle + initial.                                                    |
+| `theme`                      | `light` \| `dark` | `light`                         | Card theme.                                                                 |
+| `background`                 | string            | a navy gradient                 | Frame background.                                                           |
+| `showBell`                   | boolean           | `true`                          | Show the bell button beside the CTA.                                        |
+| `clickAfterMs`               | int               | `1700`                          | Simulate a click after this delay (CTA flips, bell fills). `0` disables it. |
+| `subscribedLabel`            | string            | `Subscribed`                    | Label after the simulated click.                                            |
+| `width` / `height`           | int               | `760` / `360`                   | Output size.                                                                |
+| `fontFamily`                 | string            | system sans                     | CSS font-family.                                                            |
+| `popMs` / `holdMs`           | int               | `520` / `2600`                  | Pop duration / hold.                                                        |
 
 **Motion.** A one-shot pop (`.sub-pop` scales `0.82 → 1` about center, `.sub-inner`
 fades) settles the card, then the CTA (`.sub-cta`) keeps a gentle looping pulse
@@ -96,7 +103,7 @@ click — distinct elements, one animation each.
 **Click-through (DM-1303).** When `clickAfterMs > 0` (the default), the template
 simulates the click: the **Subscribe** and **Subscribed** states are grid-stacked
 in one slot (so it sizes to the wider label) and cross-fade at `clickAfterMs` —
-the accent button fades out as a muted "✓ Subscribed" button fades in and *pops*
+the accent button fades out as a muted "✓ Subscribed" button fades in and _pops_
 (a `scale` tap), and the outline bell cross-fades to a filled accent bell. Set
 `clickAfterMs: 0` to keep just the pulsing pop-up. The "done" states start hidden
 via their animation's `from: "0"` rather than a CSS `opacity: 0` — an

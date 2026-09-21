@@ -4,10 +4,20 @@ title: "17 — Replaced-element static snapshots (<canvas> / <video> / <iframe> 
 kind: "contract"
 status: "current"
 owners: ["images-media"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2380","DM-457","DM-2642"]
-code: ["src/capture/replaced-element-raster.ts","src/capture/replaced-element-raster.test.ts","src/capture/replaced-media-frame.test.ts","src/capture/replaced-media-frame.ts","src/render/element-tree-to-svg.ts","tests/features.ts","tests/replaced-media-frame.e2e.test.ts","tests/replaced-snapshot-transform.e2e.test.ts"]
-aliases: ["docs/17-replaced-element-snapshots.md","doc-17"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2380", "DM-457", "DM-2642"]
+code:
+  [
+    "src/capture/replaced-element-raster.ts",
+    "src/capture/replaced-element-raster.test.ts",
+    "src/capture/replaced-media-frame.test.ts",
+    "src/capture/replaced-media-frame.ts",
+    "src/render/element-tree-to-svg.ts",
+    "tests/features.ts",
+    "tests/replaced-media-frame.e2e.test.ts",
+    "tests/replaced-snapshot-transform.e2e.test.ts",
+  ]
+aliases: ["docs/17-replaced-element-snapshots.md", "doc-17"]
 ---
 
 # 17 — Replaced-element static snapshots (`<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>`)
@@ -38,11 +48,23 @@ The screenshot must show **only** the element's painted pixels — not whatever 
 Approach: temporary stylesheet that hides everything except the target element and its descendants:
 
 ```css
-*, *::before, *::after { visibility: hidden !important; }
-[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,
-[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,
-[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }
-html, body { background: transparent !important; }
+*,
+*::before,
+*::after {
+  visibility: hidden !important;
+}
+[data-domotion-snapshot-target],
+[data-domotion-snapshot-target] *,
+[data-domotion-snapshot-target] *::before,
+[data-domotion-snapshot-target] *::after,
+[data-domotion-snapshot-target]::before,
+[data-domotion-snapshot-target]::after {
+  visibility: visible !important;
+}
+html,
+body {
+  background: transparent !important;
+}
 ```
 
 - `visibility: hidden` preserves layout, so the target's bounding rect doesn't shift while the snapshot is taken.

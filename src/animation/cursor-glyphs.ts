@@ -48,8 +48,8 @@ const L = {
   handGrab: `<path d="M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4"/><path d="M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5"/><path d="M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/>`,
   moveH: `<path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/>`,
   moveV: `<path d="M12 2v20"/><path d="m8 18 4 4 4-4"/><path d="m8 6 4-4 4 4"/>`,
-  diag: `<path d="M5 5 19 19"/><path d="M5 10 5 5 10 5"/><path d="M19 14 19 19 14 19"/>`,   // ↖↘ (nwse): TL–BR line, arrowheads pointing NW + SE
-  diag2: `<path d="M19 5 5 19"/><path d="M14 5 19 5 19 10"/><path d="M10 19 5 19 5 14"/>`,   // ↗↙ (nesw): TR–BL line, arrowheads pointing NE + SW
+  diag: `<path d="M5 5 19 19"/><path d="M5 10 5 5 10 5"/><path d="M19 14 19 19 14 19"/>`, // ↖↘ (nwse): TL–BR line, arrowheads pointing NW + SE
+  diag2: `<path d="M19 5 5 19"/><path d="M14 5 19 5 19 10"/><path d="M10 19 5 19 5 14"/>`, // ↗↙ (nesw): TR–BL line, arrowheads pointing NE + SW
   zoomIn: `<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/>`,
   zoomOut: `<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/>`,
   crosshair: `<line x1="22" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="22" y2="2"/>`,
@@ -130,7 +130,26 @@ export const CURSOR_CATEGORIES: { title: string; values: string[] }[] = [
   { title: "Links & status", values: ["context-menu", "help", "pointer", "progress", "wait"] },
   { title: "Selection", values: ["cell", "crosshair", "text", "vertical-text"] },
   { title: "Drag & drop", values: ["alias", "copy", "move", "no-drop", "not-allowed", "grab", "grabbing"] },
-  { title: "Resizing & scrolling", values: ["all-scroll", "col-resize", "row-resize", "n-resize", "e-resize", "s-resize", "w-resize", "ew-resize", "ns-resize", "ne-resize", "nw-resize", "se-resize", "sw-resize", "nesw-resize", "nwse-resize"] },
+  {
+    title: "Resizing & scrolling",
+    values: [
+      "all-scroll",
+      "col-resize",
+      "row-resize",
+      "n-resize",
+      "e-resize",
+      "s-resize",
+      "w-resize",
+      "ew-resize",
+      "ns-resize",
+      "ne-resize",
+      "nw-resize",
+      "se-resize",
+      "sw-resize",
+      "nesw-resize",
+      "nwse-resize",
+    ],
+  },
   { title: "Zooming", values: ["zoom-in", "zoom-out"] },
 ];
 
@@ -148,9 +167,9 @@ export function cursorGlyphSvg(value: string, x: number, y: number, size = 22, c
   const ty = y - g.hotspot[1] * s;
   const rot = g.rotate ? ` rotate(${g.rotate} 12 12)` : "";
   const inner = g.fill
-    // Filled silhouette: white fill + dark outline (classic arrow look).
-    ? `<g fill="#fff" stroke="${color}" stroke-width="1.4" stroke-linejoin="round">${g.body}</g>`
-    // Line-art: white halo stroke under the dark stroke.
-    : `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="3.4">${g.body}</g><g stroke="${color}" stroke-width="1.7">${g.body}</g></g>`;
+    ? // Filled silhouette: white fill + dark outline (classic arrow look).
+      `<g fill="#fff" stroke="${color}" stroke-width="1.4" stroke-linejoin="round">${g.body}</g>`
+    : // Line-art: white halo stroke under the dark stroke.
+      `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="3.4">${g.body}</g><g stroke="${color}" stroke-width="1.7">${g.body}</g></g>`;
   return `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})"><g transform="${rot.trim() || "translate(0 0)"}">${inner}</g></g>`;
 }

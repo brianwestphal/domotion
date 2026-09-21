@@ -4,10 +4,10 @@ title: "Degraded font-resolution contract"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
 code: ["tools/helper-availability-contract.ts"]
-aliases: ["docs/119-degraded-font-resolution.md","doc-119"]
+aliases: ["docs/119-degraded-font-resolution.md", "doc-119"]
 ---
 
 # Degraded font-resolution contract

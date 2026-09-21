@@ -4,10 +4,10 @@ title: "161 — Parity blind-spot corpus"
 kind: "evidence"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: []
 code: ["tools/html-test-parity-corpus.json"]
-aliases: ["docs/161-parity-blind-spot-corpus.md","doc-161"]
+aliases: ["docs/161-parity-blind-spot-corpus.md", "doc-161"]
 ---
 
 # 161 — Parity blind-spot corpus

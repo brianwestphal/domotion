@@ -50,7 +50,11 @@ const describeBrowser = env ? describe : describe.skip;
 const E = "\x1b";
 const evLine = (t: number, d: string): string => JSON.stringify([t, "o", d]);
 const castOf = (lines: string[]): string =>
-  [JSON.stringify({ version: 2, width: 40, height: 6, title: "c" }), ...lines.map((l, i) => evLine(0.5 + i, `${l}\r\n`)), evLine(5, "")].join("\n");
+  [
+    JSON.stringify({ version: 2, width: 40, height: 6, title: "c" }),
+    ...lines.map((l, i) => evLine(0.5 + i, `${l}\r\n`)),
+    evLine(5, ""),
+  ].join("\n");
 const CAST_A = castOf([`${E}[32malpha bravo${E}[0m`, `${E}[33mcharlie${E}[0m`]);
 const CAST_B = castOf([`${E}[36mdelta echo${E}[0m`, `${E}[1mfoxtrot golf${E}[0m`]);
 const countFontFaces = (svg: string): number => (svg.match(/@font-face/g) ?? []).length;
@@ -59,24 +63,34 @@ describeBrowser("storyboard transition boundary (DM-EC0FSE)", () => {
   it("keeps the outgoing embedded scene painted when its crossfade starts", async () => {
     const { browser } = env!;
     const dir = mkdtempSync(join(tmpdir(), "dm-storyboard-boundary-"));
-    writeFileSync(join(dir, "outgoing.svg"), `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    writeFileSync(
+      join(dir, "outgoing.svg"),
+      `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
       <style>:root{--scene-dur:1s}.f-0{animation:fv-0 1s step-end infinite,fd-0 1s step-end infinite}
       @keyframes fv-0{0%,99.999%{opacity:1}100%{opacity:0}}
       @keyframes fd-0{0%,99.999%{visibility:visible}100%{visibility:hidden}}</style>
       <rect class="f-0" width="40" height="40" fill="#ff0000"/>
-    </svg>`);
-    writeFileSync(join(dir, "incoming.svg"), `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    </svg>`,
+    );
+    writeFileSync(
+      join(dir, "incoming.svg"),
+      `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
       <rect width="40" height="40" fill="#0000ff"/>
-    </svg>`);
-    const svg = await composeStoryboardConfig(browser, {
-      width: 40,
-      height: 40,
-      background: "#000000",
-      scenes: [
-        { svg: "outgoing.svg", duration: 1000, transition: { type: "crossfade", duration: 400 } },
-        { svg: "incoming.svg", duration: 1000, transition: { type: "cut", duration: 0 } },
-      ],
-    }, dir);
+    </svg>`,
+    );
+    const svg = await composeStoryboardConfig(
+      browser,
+      {
+        width: 40,
+        height: 40,
+        background: "#000000",
+        scenes: [
+          { svg: "outgoing.svg", duration: 1000, transition: { type: "crossfade", duration: 400 } },
+          { svg: "incoming.svg", duration: 1000, transition: { type: "cut", duration: 0 } },
+        ],
+      },
+      dir,
+    );
 
     const page = await browser.newPage({ viewport: { width: 40, height: 40 } });
     try {
@@ -102,9 +116,15 @@ describeBrowser("storyboard cross-scene font dedup (DM-1553)", () => {
     const svg = await composeStoryboardConfig(
       browser,
       {
-        width: 400, height: 300,
+        width: 400,
+        height: 300,
         scenes: [
-          { cast: "a.cast", term: { mode: "incremental", theme: "dark" }, duration: 3000, transition: { type: "crossfade", duration: 200 } },
+          {
+            cast: "a.cast",
+            term: { mode: "incremental", theme: "dark" },
+            duration: 3000,
+            transition: { type: "crossfade", duration: 200 },
+          },
           { cast: "b.cast", term: { mode: "incremental", theme: "dark" }, duration: 3000 },
         ],
       },
@@ -136,7 +156,8 @@ describeBrowser("storyboard overlays + cursor on a capture scene (DM-1554)", () 
     const svg = await composeStoryboardConfig(
       browser,
       {
-        width: 480, height: 270,
+        width: 480,
+        height: 270,
         cursor: { events: [{ frame: 0, at: 200, type: "moveClick", to: { x: 240, y: 135 } }] },
         scenes: [
           {
@@ -173,7 +194,12 @@ describeBrowser("storyboard end-to-end (DM-1527)", () => {
         height: 270,
         background: "#05070d",
         scenes: [
-          { template: "title-card", params: { title: "Storyboard" }, duration: 1200, transition: { type: "crossfade", duration: 250 } },
+          {
+            template: "title-card",
+            params: { title: "Storyboard" },
+            duration: 1200,
+            transition: { type: "crossfade", duration: 250 },
+          },
           { capture: { file: "demo.html" }, duration: 1000, transition: { type: "push-left", duration: 250 } },
           { svg: "prebaked.svg", duration: 1200, transition: { type: "cut", duration: 0 } },
         ],

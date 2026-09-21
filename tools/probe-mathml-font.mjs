@@ -11,7 +11,7 @@ await page.waitForTimeout(300);
 
 const result = await page.evaluate(() => {
   const out = [];
-  const mos = document.querySelectorAll('mo');
+  const mos = document.querySelectorAll("mo");
   for (let i = 0; i < Math.min(mos.length, 4); i++) {
     const mo = mos[i];
     const cs = getComputedStyle(mo);

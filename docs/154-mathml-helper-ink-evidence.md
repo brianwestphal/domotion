@@ -4,10 +4,10 @@ title: "MathML native-helper ink evidence"
 kind: "evidence"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","windows"]
+platforms: ["macos", "windows"]
 tickets: []
 code: ["src/render/glyph-helper.ts"]
-aliases: ["docs/154-mathml-helper-ink-evidence.md","doc-154"]
+aliases: ["docs/154-mathml-helper-ink-evidence.md", "doc-154"]
 ---
 
 # MathML native-helper ink evidence

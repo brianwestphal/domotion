@@ -15,8 +15,14 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "domotion-pseudo-image-"));
     try {
       await Promise.all([
-        writeFile(path.join(dir, "asset.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="orange"/></svg>'),
-        writeFile(path.join(dir, "fixture.html"), '<style>body{margin:0}#host{font:16px/24px Arial}#host::before{content:url("asset.svg");display:inline-block;width:24px;height:24px;vertical-align:middle}</style><p id="host">text</p>'),
+        writeFile(
+          path.join(dir, "asset.svg"),
+          '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="orange"/></svg>',
+        ),
+        writeFile(
+          path.join(dir, "fixture.html"),
+          '<style>body{margin:0}#host{font:16px/24px Arial}#host::before{content:url("asset.svg");display:inline-block;width:24px;height:24px;vertical-align:middle}</style><p id="host">text</p>',
+        ),
       ]);
       await page.goto(pathToFileURL(path.join(dir, "fixture.html")).href);
       const probe = await preparePseudoFragmentGeometry(page, "body", { x: 0, y: 0, width: 360, height: 240 });
@@ -25,8 +31,9 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
           const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as {
             factsByElement: Record<string, CapturedPseudoFragmentSet[]>;
           };
-          return Object.values(registry.factsByElement).flat().find((entry) =>
-            entry.pseudo === "::before");
+          return Object.values(registry.factsByElement)
+            .flat()
+            .find((entry) => entry.pseudo === "::before");
         }, probe.key);
         expect(record).toMatchObject({
           status: "terminal-raster",
@@ -62,7 +69,10 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
         <div class="probe" id="mixed"></div><div class="probe" id="vertical"></div>
         <div class="probe" id="fragmented"></div><div class="probe" id="transformed"></div>
       </main>`);
-      await page.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); });
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
       const probe = await preparePseudoFragmentGeometry(page, "#root", { x: 0, y: 0, width: 760, height: 640 });
       try {
         const records = await page.evaluate((key) => {
@@ -74,24 +84,49 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
         expect(records).toHaveLength(6);
         expect(records.every((record) => record.source === "blink-pseudo-fragment-v1")).toBe(true);
         expect(records.map((record) => `${record.pseudo}:${record.status}:${record.reason ?? ""}`)).toEqual([
-          "::before:exact:", "::after:exact:", "::before:exact:",
-          "::before:exact:", "::after:exact:", "::before:exact:",
+          "::before:exact:",
+          "::after:exact:",
+          "::before:exact:",
+          "::before:exact:",
+          "::after:exact:",
+          "::before:exact:",
         ]);
-        expect(records.find((record) => record.contentItems.some((item) => item.kind === "image"))?.contentItems.map((item) => item.kind)).toEqual(["text", "image", "text"]);
-        expect(records.flatMap((record) => record.fragments).some((fragment) => fragment.kind === "text" && fragment.text.includes("😀"))).toBe(true);
-        const astral = records.find((record) => record.fragments.some((fragment) =>
-          fragment.kind === "text" && fragment.text.includes("😀")));
+        expect(
+          records
+            .find((record) => record.contentItems.some((item) => item.kind === "image"))
+            ?.contentItems.map((item) => item.kind),
+        ).toEqual(["text", "image", "text"]);
+        expect(
+          records
+            .flatMap((record) => record.fragments)
+            .some((fragment) => fragment.kind === "text" && fragment.text.includes("😀")),
+        ).toBe(true);
+        const astral = records.find((record) =>
+          record.fragments.some((fragment) => fragment.kind === "text" && fragment.text.includes("😀")),
+        );
         expect(astral?.bitmapTextRaster).toMatchObject({
           source: "chromium-selected-bitmap-pseudo-text",
           isolated: true,
         });
         expect(astral?.bitmapTextRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
         expect(astral?.bitmapTextRaster?.representations.length).toBeGreaterThan(0);
-        expect(records.filter((record) => record.fragments.some((fragment) => fragment.kind === "text"))
-          .every((record) => record.typography.resolvedFonts.length > 0)).toBe(true);
-        expect(records.find((record) => record.writingMode === "vertical-rl")?.fragments.some((fragment) => fragment.kind === "text" && fragment.baseline.origin.x === fragment.baseline.end.x)).toBe(true);
-        expect(records.flatMap((record) => record.boxFragments).some((fragment) =>
-          Math.abs(fragment.physicalQuad[0].y - fragment.physicalQuad[1].y) > 0.1)).toBe(true);
+        expect(
+          records
+            .filter((record) => record.fragments.some((fragment) => fragment.kind === "text"))
+            .every((record) => record.typography.resolvedFonts.length > 0),
+        ).toBe(true);
+        expect(
+          records
+            .find((record) => record.writingMode === "vertical-rl")
+            ?.fragments.some(
+              (fragment) => fragment.kind === "text" && fragment.baseline.origin.x === fragment.baseline.end.x,
+            ),
+        ).toBe(true);
+        expect(
+          records
+            .flatMap((record) => record.boxFragments)
+            .some((fragment) => Math.abs(fragment.physicalQuad[0].y - fragment.physicalQuad[1].y) > 0.1),
+        ).toBe(true);
         expect(await page.locator("[data-domotion-pseudo-target],[data-domotion-pseudo-ancestor]").count()).toBe(0);
         expect(probe.warnings).toEqual([]);
       } finally {
@@ -112,7 +147,9 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
       </style><main id="root"><div id="ambiguous"></div></main>`);
       const context = page.context();
       const newSession = context.newCDPSession.bind(context);
-      context.newCDPSession = async () => { throw new Error("forced protocol unavailability"); };
+      context.newCDPSession = async () => {
+        throw new Error("forced protocol unavailability");
+      };
       const probe = await preparePseudoFragmentGeometry(page, "#root", { x: 0, y: 0, width: 360, height: 180 });
       context.newCDPSession = newSession;
       try {
@@ -122,7 +159,11 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
           };
           return Object.values(registry.factsByElement).flat()[0];
         }, probe.key);
-        expect(record).toMatchObject({ source: "blink-pseudo-fragment-v1", pseudo: "::after", status: "terminal-raster" });
+        expect(record).toMatchObject({
+          source: "blink-pseudo-fragment-v1",
+          pseudo: "::after",
+          status: "terminal-raster",
+        });
         expect(record.terminalRaster?.isolated).toBe(true);
         expect(record.terminalRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
         expect(record.terminalRaster?.rect.width).toBeGreaterThan(0);

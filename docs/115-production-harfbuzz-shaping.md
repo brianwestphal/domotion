@@ -3,11 +3,11 @@ id: "requirements/production-harfbuzz-shaping"
 title: "Production HarfBuzz shaping"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","product-tooling"]
-platforms: ["macos","linux","windows"]
+owners: ["text-fonts", "product-tooling"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2619"]
-code: ["src/render/text-to-path.ts","tests/multilingual-message-shaping.e2e.test.ts"]
-aliases: ["docs/115-production-harfbuzz-shaping.md","doc-115"]
+code: ["src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"]
+aliases: ["docs/115-production-harfbuzz-shaping.md", "doc-115"]
 ---
 
 # Production HarfBuzz shaping

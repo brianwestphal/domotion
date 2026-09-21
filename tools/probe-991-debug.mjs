@@ -17,7 +17,10 @@ const info = await page.evaluate(() => {
     cssWidth: cs.width,
     cssHeight: cs.height,
     padding: `${cs.paddingTop} ${cs.paddingRight} ${cs.paddingBottom} ${cs.paddingLeft}`,
-    rect: (() => { const r = ta.getBoundingClientRect(); return { w: r.width, h: r.height }; })(),
+    rect: (() => {
+      const r = ta.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    })(),
   };
 });
 console.log(JSON.stringify(info, null, 2));

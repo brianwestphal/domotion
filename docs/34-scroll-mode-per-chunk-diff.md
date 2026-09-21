@@ -7,7 +7,7 @@ owners: ["layout"]
 platforms: []
 tickets: []
 code: ["tests/real-world.tsx"]
-aliases: ["docs/34-scroll-mode-per-chunk-diff.md","doc-34"]
+aliases: ["docs/34-scroll-mode-per-chunk-diff.md", "doc-34"]
 ---
 
 # 34. Scroll-mode per-chunk diff
@@ -39,13 +39,13 @@ The canonical triplet always exists (no behavior change for downstream tools tha
 {
   "name": "apple-mobile-scroll",
   "mode": "scroll",
-  "diffPct": 2.43,           // canonical t=0 diff (chunk 0)
+  "diffPct": 2.43, // canonical t=0 diff (chunk 0)
   // ...other canonical metrics...
   "chunks": [
-    { "index": 0, "scrollY": 0,    "segmentEndMs": 0,     "diffPct": 2.43, /* ...*/ },
-    { "index": 1, "scrollY": 844,  "segmentEndMs": 1000,  "diffPct": 1.87, /* ...*/ },
-    { "index": 2, "scrollY": 1688, "segmentEndMs": 2000,  "diffPct": 4.12, /* ...*/ }
-  ]
+    { "index": 0, "scrollY": 0, "segmentEndMs": 0, "diffPct": 2.43 /* ...*/ },
+    { "index": 1, "scrollY": 844, "segmentEndMs": 1000, "diffPct": 1.87 /* ...*/ },
+    { "index": 2, "scrollY": 1688, "segmentEndMs": 2000, "diffPct": 4.12 /* ...*/ },
+  ],
 }
 ```
 
@@ -55,7 +55,7 @@ Chunk 0's metrics mirror the canonical metrics for the same triplet.
 
 - **Source page**: scrolling back to each `segments[i].scrollY` re-runs intersection observers, which can start new animations the original freeze pass didn't catch. The harness runs a follow-up `getAnimations().pause()` after each scroll to suppress those before screenshotting.
 - **Render page**: the composed SVG's animation runs over `segments[N-1].segmentEndMs`. Seeking to `segments[i].segmentEndMs` lands exactly on a composer keyframe anchor (not interpolated), so the rendered frame matches what the SVG paints when the consumer actually scrolls to that point.
-- **`animations: "disabled"`** is passed to the *expected* (source-page) screenshots so Playwright freezes the moment of capture independently of any animations Chromium might still be running. The one deliberate exception is the per-chunk *actual* (composed-SVG) screenshot, which OMITS the flag (`tests/real-world.tsx`): the SVG's transition is an infinite CSS animation seeked via `currentTime`, and `animations: "disabled"` would cancel it and undo the seek — so the actual frame is screenshotted with animations live at the seeked time.
+- **`animations: "disabled"`** is passed to the _expected_ (source-page) screenshots so Playwright freezes the moment of capture independently of any animations Chromium might still be running. The one deliberate exception is the per-chunk _actual_ (composed-SVG) screenshot, which OMITS the flag (`tests/real-world.tsx`): the SVG's transition is an infinite CSS animation seeked via `currentTime`, and `animations: "disabled"` would cancel it and undo the seek — so the actual frame is screenshotted with animations live at the seeked time.
 
 ## Pass criterion
 

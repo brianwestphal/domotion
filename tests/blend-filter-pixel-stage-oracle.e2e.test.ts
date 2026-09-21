@@ -25,10 +25,14 @@ describe("DM-2360 live blend/filter pixel stages", () => {
     ]);
     expect(report.structuralErrors).toEqual([]);
     expect(report.unexpectedFailures).toEqual([]);
-    expect(report.rows.every((row) => row.sourceModelMaxChannelError == null || row.sourceModelMaxChannelError <= 4)).toBe(true);
-    expect(report.rows.every((row) => row.mutationExpectation === "moved"
-      ? row.mutationMaxChannelDistance >= 8
-      : row.mutationMaxChannelDistance <= 4)).toBe(true);
+    expect(
+      report.rows.every((row) => row.sourceModelMaxChannelError == null || row.sourceModelMaxChannelError <= 4),
+    ).toBe(true);
+    expect(
+      report.rows.every((row) =>
+        row.mutationExpectation === "moved" ? row.mutationMaxChannelDistance >= 8 : row.mutationMaxChannelDistance <= 4,
+      ),
+    ).toBe(true);
     expect(report.rows.find((row) => row.id === "filter.color-chain")?.pass).toBe(true);
     expect(report.rows.find((row) => row.id === "filter.blur-edge")?.pass).toBe(true);
     expect(report.rows.find((row) => row.id === "surface.background-stack")?.pass).toBe(true);

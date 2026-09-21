@@ -31,9 +31,18 @@ import { captureElementTreeWithWarnings } from "../capture/index.js";
 import { embedRemoteImages } from "../capture/embed.js";
 import { capturedScrollOwnerBindingSha256 } from "../capture/frame-scroll-state.js";
 import type {
-  ScrollPattern, ScrollPatternSegment, FlatSegment, BracketedSegment,
-  ScrollPatternAction, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
-  UntilClause, PositionUntil, Easing,
+  ScrollPattern,
+  ScrollPatternSegment,
+  FlatSegment,
+  BracketedSegment,
+  ScrollPatternAction,
+  ScrollAction,
+  ScrollTarget,
+  AbsoluteTarget,
+  Anchor,
+  UntilClause,
+  PositionUntil,
+  Easing,
 } from "./pattern.js";
 import { diffTrees, type TreeDiff } from "../tree-ops/tree-diff.js";
 
@@ -112,9 +121,9 @@ export interface ScrollSegmentCapture {
 }
 
 const DEFAULT_SPEED_PX_PER_SEC = 1500;
-const DEFAULT_MAX_TIMEOUT_MS   = 60_000;
+const DEFAULT_MAX_TIMEOUT_MS = 60_000;
 const PRESCROLL_BOTTOM_WAIT_MS = 400;
-const PRESCROLL_TOP_WAIT_MS    = 800;
+const PRESCROLL_TOP_WAIT_MS = 800;
 // DM-1213 / DM-684: cap how long a capture sits at each scroll anchor before
 // grabbing the tree, INDEPENDENT of the chunk's visual duration. The scroll
 // itself is an instant `window.scrollTo`, so this wait is purely a layout
@@ -216,9 +225,7 @@ export function scrollCaptureChunkSize(
   const outputSize = axis === "x" ? viewport.viewportW : viewport.viewportH;
   if (!elementOwned) return outputSize;
   const ownerSize = axis === "x" ? snapshot.clientWidth : snapshot.clientHeight;
-  return typeof ownerSize === "number" && Number.isFinite(ownerSize) && ownerSize > 0
-    ? ownerSize
-    : outputSize;
+  return typeof ownerSize === "number" && Number.isFinite(ownerSize) && ownerSize > 0 ? ownerSize : outputSize;
 }
 
 /**
@@ -340,7 +347,10 @@ type ResolvedOp = ResolvedScrollOp | ResolvedPauseOp;
 // ── Errors ──────────────────────────────────────────────────────────────────
 
 export class ScrollExecutionError extends Error {
-  constructor(message: string) { super(message); this.name = "ScrollExecutionError"; }
+  constructor(message: string) {
+    super(message);
+    this.name = "ScrollExecutionError";
+  }
 }
 
 // ── Executor entrypoint ────────────────────────────────────────────────────
@@ -374,10 +384,17 @@ export async function executeScrollPattern(
   const maxTimeoutMs = opts.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS;
   const selector = opts.selector ?? null;
   const pageQuery = realPageQuery(page, selector);
-  const log = opts.log ?? ((_msg: string): void => { /* silent */ });
+  const log =
+    opts.log ??
+    ((_msg: string): void => {
+      /* silent */
+    });
   const captureSelector = opts.captureSelector ?? "body";
   const captureViewport = opts.captureViewport ?? {
-    x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
+    x: 0,
+    y: 0,
+    width: opts.viewportW,
+    height: opts.viewportH,
   };
   const captureCurrentTree = async (): Promise<{
     tree: CapturedElement[];
@@ -452,7 +469,8 @@ export async function executeScrollPattern(
       const anyChange = diff.entries.some((e) => e.kind !== "static");
       if (anyChange) {
         captures.push({
-          scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,
+          scrollX: nextCapture.scrollX,
+          scrollY: nextCapture.scrollY,
           segmentStartMs: sceneTime - op.durationMs,
           segmentEndMs: sceneTime,
           tree: nextTree,
@@ -471,7 +489,8 @@ export async function executeScrollPattern(
         log(`  captured frame ${captures.length} (DOM changed during pause)`);
       } else {
         captures.push({
-          scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,
+          scrollX: nextCapture.scrollX,
+          scrollY: nextCapture.scrollY,
           segmentStartMs: sceneTime - op.durationMs,
           segmentEndMs: sceneTime,
           tree: nextTree,
@@ -523,14 +542,10 @@ export async function executeScrollPattern(
       // chunk by less than one slice, but it only affects the last frame and
       // never the much-more-common mid-scroll frames.
       const isLast = ci === numChunks;
-      const chunkDestX = op.axis === "x"
-        ? (isLast ? op.destX : snap0.scrollX + dir * ci * viewportSize)
-        : op.destX;
-      const chunkDestY = op.axis === "y"
-        ? (isLast ? op.destY : snap0.scrollY + dir * ci * viewportSize)
-        : op.destY;
+      const chunkDestX = op.axis === "x" ? (isLast ? op.destX : snap0.scrollX + dir * ci * viewportSize) : op.destX;
+      const chunkDestY = op.axis === "y" ? (isLast ? op.destY : snap0.scrollY + dir * ci * viewportSize) : op.destY;
       const chunkDur = isLast
-        ? op.durationMs - Math.round(op.durationMs * (ci - 1) / numChunks)
+        ? op.durationMs - Math.round((op.durationMs * (ci - 1)) / numChunks)
         : Math.round(op.durationMs / numChunks);
       const segStart = sceneTime;
       await scrollTo(page, selector, chunkDestX, chunkDestY, chunkDur);
@@ -539,7 +554,8 @@ export async function executeScrollPattern(
       const nextTree = nextCapture.tree;
       const diff = diffTrees(prevTree, nextTree);
       captures.push({
-        scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,
+        scrollX: nextCapture.scrollX,
+        scrollY: nextCapture.scrollY,
         segmentStartMs: segStart,
         segmentEndMs: sceneTime,
         tree: nextTree,
@@ -556,7 +572,9 @@ export async function executeScrollPattern(
         ),
       });
       prevTree = nextTree;
-      log(`  captured frame ${captures.length} at scrollY=${Math.round(nextCapture.scrollY)} (chunk ${ci}/${numChunks})`);
+      log(
+        `  captured frame ${captures.length} at scrollY=${Math.round(nextCapture.scrollY)} (chunk ${ci}/${numChunks})`,
+      );
     }
   };
 
@@ -593,17 +611,33 @@ async function walkSegment(
   log: (msg: string) => void,
 ): Promise<void> {
   if (seg.kind === "bracketed") {
-    await runWithMaybeUntil(seg.until, async (bodyRunOp) => {
-      await walkPattern(seg.pattern, pageQuery, defaultSpeed, bodyRunOp, checkTimeout, log);
-    }, pageQuery, defaultSpeed, runOp, checkTimeout, log);
+    await runWithMaybeUntil(
+      seg.until,
+      async (bodyRunOp) => {
+        await walkPattern(seg.pattern, pageQuery, defaultSpeed, bodyRunOp, checkTimeout, log);
+      },
+      pageQuery,
+      defaultSpeed,
+      runOp,
+      checkTimeout,
+      log,
+    );
     return;
   }
   // Flat segment.
-  await runWithMaybeUntil(seg.until, async (bodyRunOp) => {
-    for (const a of (seg as FlatSegment).actions) {
-      await runAction(a, pageQuery, defaultSpeed, bodyRunOp);
-    }
-  }, pageQuery, defaultSpeed, runOp, checkTimeout, log);
+  await runWithMaybeUntil(
+    seg.until,
+    async (bodyRunOp) => {
+      for (const a of (seg as FlatSegment).actions) {
+        await runAction(a, pageQuery, defaultSpeed, bodyRunOp);
+      }
+    },
+    pageQuery,
+    defaultSpeed,
+    runOp,
+    checkTimeout,
+    log,
+  );
 }
 
 async function runWithMaybeUntil(
@@ -633,7 +667,7 @@ async function runWithMaybeUntil(
   // stops precisely 1000px from the bottom instead of one action-magnitude past
   // the target. (The resolver's page-bounds clamp still applies underneath.)
   let prevSnap: PageStateSnapshot | null = null;
-  const MAX_ITER = 1000;   // hard upper bound on `until <position>` loops
+  const MAX_ITER = 1000; // hard upper bound on `until <position>` loops
   for (let i = 0; i < MAX_ITER; i++) {
     checkTimeout();
     const snap = await pageQuery.snapshot();
@@ -643,7 +677,9 @@ async function runWithMaybeUntil(
       // the timeout path (which throws), an `until` that can't make progress is
       // often benign (already at the edge), so we just stop — but log it (DM-1073)
       // so a genuinely-impossible condition producing a short capture isn't silent.
-      log(`  until loop: no scroll progress at (${snap.scrollX}, ${snap.scrollY}) after ${i} iteration(s) — stopping (condition may be unsatisfiable)`);
+      log(
+        `  until loop: no scroll progress at (${snap.scrollX}, ${snap.scrollY}) after ${i} iteration(s) — stopping (condition may be unsatisfiable)`,
+      );
       break;
     }
     prevSnap = snap;
@@ -695,7 +731,7 @@ async function isUntilConditionMet(
   snap: PageStateSnapshot,
   pageQuery: PageQuery,
 ): Promise<boolean> {
-  if (until.kind === "count") return false;   // handled separately
+  if (until.kind === "count") return false; // handled separately
   const axis = untilAxis(until);
   const target = await resolveAbsoluteTarget(until.target, axis, pageQuery, snap);
   const cur = axis === "x" ? snap.scrollX : snap.scrollY;
@@ -718,7 +754,14 @@ async function runAction(
   }
   const snap = await pageQuery.snapshot();
   const resolved = await resolveScrollAction(a, pageQuery, snap, defaultSpeed);
-  await runOp({ kind: "scroll", axis: resolved.axis, destX: resolved.destX, destY: resolved.destY, durationMs: resolved.scrollDurationMs, easing: resolved.easing });
+  await runOp({
+    kind: "scroll",
+    axis: resolved.axis,
+    destX: resolved.destX,
+    destY: resolved.destY,
+    durationMs: resolved.scrollDurationMs,
+    easing: resolved.easing,
+  });
 }
 
 // ── Playwright I/O ─────────────────────────────────────────────────────────
@@ -755,7 +798,9 @@ async function resolveScrollOwner(
   }, selector);
   const owner = top.scrollOwners.find((candidate) => candidate.elementIndex === elementIndex);
   if (owner == null) {
-    throw new ScrollExecutionError(`selector(${JSON.stringify(selector)}) is not an authenticated Chromium scroll owner`);
+    throw new ScrollExecutionError(
+      `selector(${JSON.stringify(selector)}) is not an authenticated Chromium scroll owner`,
+    );
   }
   return owner;
 }
@@ -765,7 +810,7 @@ function realPageQuery(page: Page, selector: string | null): PageQuery {
     async snapshot(): Promise<PageStateSnapshot> {
       if (selector == null) {
         return page.evaluate(() => ({
-          maxScrollX: Math.max(0, document.documentElement.scrollWidth  - document.documentElement.clientWidth),
+          maxScrollX: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
           maxScrollY: Math.max(0, document.documentElement.scrollHeight - document.documentElement.clientHeight),
           clientWidth: document.documentElement.clientWidth,
           clientHeight: document.documentElement.clientHeight,
@@ -779,7 +824,7 @@ function realPageQuery(page: Page, selector: string | null): PageQuery {
           return { maxScrollX: 0, maxScrollY: 0, clientWidth: 0, clientHeight: 0, scrollX: 0, scrollY: 0 };
         }
         return {
-          maxScrollX: Math.max(0, el.scrollWidth  - el.clientWidth),
+          maxScrollX: Math.max(0, el.scrollWidth - el.clientWidth),
           maxScrollY: Math.max(0, el.scrollHeight - el.clientHeight),
           clientWidth: el.clientWidth,
           clientHeight: el.clientHeight,
@@ -799,14 +844,26 @@ function realPageQuery(page: Page, selector: string | null): PageQuery {
   };
 }
 
-async function scrollTo(page: Page, selector: string | null, destX: number, destY: number, durationMs: number): Promise<void> {
+async function scrollTo(
+  page: Page,
+  selector: string | null,
+  destX: number,
+  destY: number,
+  durationMs: number,
+): Promise<void> {
   if (selector == null) {
     await page.evaluate(({ x, y }) => window.scrollTo(x, y), { x: destX, y: destY });
   } else {
-    await page.evaluate(({ sel, x, y }) => {
-      const el = document.querySelector(sel);
-      if (el instanceof HTMLElement) { el.scrollLeft = x; el.scrollTop = y; }
-    }, { sel: selector, x: destX, y: destY });
+    await page.evaluate(
+      ({ sel, x, y }) => {
+        const el = document.querySelector(sel);
+        if (el instanceof HTMLElement) {
+          el.scrollLeft = x;
+          el.scrollTop = y;
+        }
+      },
+      { sel: selector, x: destX, y: destY },
+    );
   }
   // DM-1213: settle layout, but cap the wait so it can't scale with the
   // chunk's visual duration (the scroll is instant; only a short settle is

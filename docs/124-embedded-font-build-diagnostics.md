@@ -4,10 +4,10 @@ title: "124 — Embedded-font build diagnostics"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux"]
+platforms: ["macos", "linux"]
 tickets: [2625]
-code: ["src/review/linux-unicode-evidence.ts","src/review/stage-evidence.ts","tests/review-server.tsx"]
-aliases: ["docs/124-embedded-font-build-diagnostics.md","doc-124"]
+code: ["src/review/linux-unicode-evidence.ts", "src/review/stage-evidence.ts", "tests/review-server.tsx"]
+aliases: ["docs/124-embedded-font-build-diagnostics.md", "doc-124"]
 ---
 
 # 124 — Embedded-font build diagnostics

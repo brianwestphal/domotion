@@ -5,17 +5,41 @@
  * animated SVG with CSS keyframe transitions.
  */
 
-import { type CursorAtResolver, type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
+import {
+  type CursorAtResolver,
+  type CursorOverlay,
+  type SelectorResolver,
+  cursorOverlayMarkup,
+  resolveCursorScript,
+} from "./cursor-overlay.js";
 import type { MagicMove } from "./magic-move.js";
 // DM-1131: overlay / intra-frame-animation shapes are defined ONCE as zod
 // schemas in `overlay-schema.ts`; the renderer-facing TS types are derived from
 // them via `z.infer`, and the declarative-config layer extends the same base
 // schemas. Re-exported below so the public `domotion-svg` surface is unchanged.
-import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, IntraFrameAnimation } from "./overlay-schema.js";
+import type {
+  AnimationOverlay,
+  TypingOverlay,
+  TapOverlay,
+  SvgOverlay,
+  BlinkOverlay,
+  ShineOverlay,
+  InteractOverlay,
+  IntraFrameAnimation,
+} from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
-import { getFontInstance, resolveFontKey, withRenderTextMode, glyphDefCount, getGlyphDefsSince, truncateGlyphDefs, beginCharacterFallbackDocument, endCharacterFallbackDocument } from "../render/font-resolution.js";
+import {
+  getFontInstance,
+  resolveFontKey,
+  withRenderTextMode,
+  glyphDefCount,
+  getGlyphDefsSince,
+  truncateGlyphDefs,
+  beginCharacterFallbackDocument,
+  endCharacterFallbackDocument,
+} from "../render/font-resolution.js";
 import { renderTextAsPath } from "../render/text-to-path.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, planFrameTimeline, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
@@ -85,7 +109,16 @@ export interface AnimationFrame {
 // the single zod source of truth in `./overlay-schema.ts` and re-exported here
 // so the public `domotion-svg` type surface is unchanged. The renderer-facing
 // (resolved) shape lives there; the declarative config extends the same base.
-export type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, AnimationOverlay, IntraFrameAnimation };
+export type {
+  TypingOverlay,
+  TapOverlay,
+  SvgOverlay,
+  BlinkOverlay,
+  ShineOverlay,
+  InteractOverlay,
+  AnimationOverlay,
+  IntraFrameAnimation,
+};
 
 export interface AnimationConfig {
   width: number;
@@ -259,9 +292,12 @@ function emitMagicMoveFrame(
   // NEXT state instead of animating, so the transition degrades to a
   // cut-like reveal for motion-sensitive viewers.
   const reduceRules: string[] = [];
-  if (mm.slides.length > 0) reduceRules.push(`${mm.slides.map((s) => `.${s.cls}`).join(", ")} { animation: none; transform: none; }`);
-  if (mm.fadeIn.length > 0) reduceRules.push(`${mm.fadeIn.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 1; }`);
-  if (mm.fadeOut.length > 0) reduceRules.push(`${mm.fadeOut.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 0; }`);
+  if (mm.slides.length > 0)
+    reduceRules.push(`${mm.slides.map((s) => `.${s.cls}`).join(", ")} { animation: none; transform: none; }`);
+  if (mm.fadeIn.length > 0)
+    reduceRules.push(`${mm.fadeIn.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 1; }`);
+  if (mm.fadeOut.length > 0)
+    reduceRules.push(`${mm.fadeOut.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 0; }`);
   if (reduceRules.length > 0) {
     keyframes.push(`
     @media (prefers-reduced-motion: reduce) {
@@ -306,7 +342,14 @@ function emitCrossfadeOrCutFrame(
   holdToEnd: boolean,
   /** DM-1524: a `zoom-*` predecessor gives THIS incoming frame a scale dolly over
    *  its entrance window, resting at scale(1). Null → plain crossfade/cut. */
-  entranceScale: { fromScale: number; enterStartPct: string; startPct: string; width: number; height: number; easing?: string } | null = null,
+  entranceScale: {
+    fromScale: number;
+    enterStartPct: string;
+    startPct: string;
+    width: number;
+    height: number;
+    easing?: string;
+  } | null = null,
 ): { groups: string[]; keyframes: string[] } {
   const { startPct, holdEndPct, transEndPct, fadeInStartPct, wrapFadeInStartPct } = win;
   const groups: string[] = [];
@@ -354,9 +397,7 @@ function emitCrossfadeOrCutFrame(
     }${buildDisplayKeyframes(`fd-${i}`, startPct, transEndPct, totalSec)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite, fd-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
   } else {
-    const prevEnd = i > 0
-      ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
-      : "";
+    const prevEnd = i > 0 ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,` : "";
     if (wrapFadeInStartPct != null && i === 0) {
       // A loop cross-dissolve spans the end/start boundary. Frame 0 therefore
       // has two visible windows in one CSS cycle: its ordinary window at 0%,
@@ -438,10 +479,7 @@ export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
  * `axis` (the predecessor was a push/scroll); `fade` fades in (the predecessor
  * was a crossfade); `cut` appears at its own start (cut / magic-move / loop top).
  */
-type SlideEnter =
-  | { mode: "slide"; axis: "X" | "Y"; enterOffset: number }
-  | { mode: "fade" }
-  | { mode: "cut" };
+type SlideEnter = { mode: "slide"; axis: "X" | "Y"; enterOffset: number } | { mode: "fade" } | { mode: "cut" };
 
 /**
  * DM-1524: the directional-push family, mapping each transition type to its exit
@@ -464,18 +502,28 @@ const WIPE_POLYGON_VERTICES = 8;
 /** A rectangular half-plane reveal sampled to a fixed vertex count so angled
  * wipe polygons remain CSS-interpolable on every supported engine. */
 export function linearWipeClip(f: number, width: number, height: number, angleDeg: number): string {
-  const rad = angleDeg * Math.PI / 180;
-  const dx = Math.cos(rad), dy = Math.sin(rad);
-  const rect = [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: height }, { x: 0, y: height }];
+  const rad = (angleDeg * Math.PI) / 180;
+  const dx = Math.cos(rad),
+    dy = Math.sin(rad);
+  const rect = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ];
   const projection = (p: { x: number; y: number }) => p.x * dx + p.y * dy;
   const values = rect.map(projection);
-  const lo = Math.min(...values), hi = Math.max(...values);
+  const lo = Math.min(...values),
+    hi = Math.max(...values);
   const threshold = lo + Math.max(0, Math.min(1, f)) * (hi - lo);
   const clipped: typeof rect = [];
   for (let i = 0; i < rect.length; i++) {
-    const a = rect[i], b = rect[(i + 1) % rect.length];
-    const pa = projection(a), pb = projection(b);
-    const aIn = pa <= threshold + 1e-7, bIn = pb <= threshold + 1e-7;
+    const a = rect[i],
+      b = rect[(i + 1) % rect.length];
+    const pa = projection(a),
+      pb = projection(b);
+    const aIn = pa <= threshold + 1e-7,
+      bIn = pb <= threshold + 1e-7;
     if (aIn) clipped.push(a);
     if (aIn !== bIn) {
       const t = (threshold - pa) / (pb - pa);
@@ -483,14 +531,17 @@ export function linearWipeClip(f: number, width: number, height: number, angleDe
     }
   }
   const source = clipped.length > 0 ? clipped : [rect[values.indexOf(lo)]];
-  const lengths = source.map((p, i) => Math.hypot(source[(i + 1) % source.length].x - p.x, source[(i + 1) % source.length].y - p.y));
+  const lengths = source.map((p, i) =>
+    Math.hypot(source[(i + 1) % source.length].x - p.x, source[(i + 1) % source.length].y - p.y),
+  );
   const perimeter = lengths.reduce((sum, n) => sum + n, 0);
   const points = Array.from({ length: WIPE_POLYGON_VERTICES }, (_, i) => {
     if (perimeter < 1e-7) return source[0];
-    let distance = perimeter * i / WIPE_POLYGON_VERTICES;
+    let distance = (perimeter * i) / WIPE_POLYGON_VERTICES;
     let edge = 0;
     while (edge < lengths.length - 1 && distance > lengths[edge]) distance -= lengths[edge++];
-    const a = source[edge], b = source[(edge + 1) % source.length];
+    const a = source[edge],
+      b = source[(edge + 1) % source.length];
     const t = lengths[edge] < 1e-7 ? 0 : distance / lengths[edge];
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
   });
@@ -498,7 +549,14 @@ export function linearWipeClip(f: number, width: number, height: number, angleDe
   return `polygon(${points.map((p) => `${n(p.x)}px ${n(p.y)}px`).join(", ")})`;
 }
 
-function linearWipeStops(width: number, height: number, enterPct: number, endPct: number, angle: number, ease?: (u: number) => number): string {
+function linearWipeStops(
+  width: number,
+  height: number,
+  enterPct: number,
+  endPct: number,
+  angle: number,
+  ease?: (u: number) => number,
+): string {
   return Array.from({ length: 15 }, (_, i) => {
     const u = (i + 1) / 16;
     const f = Math.max(0, Math.min(1, ease?.(u) ?? u));
@@ -526,7 +584,11 @@ function linearWipeStops(width: number, height: number, enterPct: number, endPct
  */
 function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -1 = 1, cx = w / 2, cy = h / 2): string {
   const theta = 2 * Math.PI * f;
-  const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
+  const norm = (a: number): number => {
+    let x = a % (2 * Math.PI);
+    if (x < 0) x += 2 * Math.PI;
+    return x;
+  };
   // DM-1585: the sweep starts at `startDeg` (clockwise from 12 o'clock) and turns
   // in direction `dir` (+1 = clockwise, −1 = counterclockwise). `phase(a)` is how
   // far into the sweep the absolute angle `a` is reached; a corner snaps once the
@@ -550,8 +612,8 @@ function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -
     if (!isFinite(best)) best = 0;
     return [cx + dx * best, cy + dy * best];
   };
-  const startEdge = edgePoint(s);              // fixed sweep-start edge point
-  const lead = edgePoint(s + dir * theta);     // current leading edge
+  const startEdge = edgePoint(s); // fixed sweep-start edge point
+  const lead = edgePoint(s + dir * theta); // current leading edge
   // Corners in the order the sweep reaches them (fixed for the whole sweep, so the
   // 7-vertex polygon interpolates smoothly). Each rides `lead` until passed.
   const corners: Array<{ ph: number; pt: [number, number] }> = [
@@ -561,10 +623,10 @@ function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -
     { ph: phase(aTL), pt: [0, 0] as [number, number] },
   ].sort((p, q) => p.ph - q.ph);
   const verts: [number, number][] = [
-    [cx, cy],          // center
-    startEdge,         // fixed sweep-start point
+    [cx, cy], // center
+    startEdge, // fixed sweep-start point
     ...corners.map((c) => (theta >= c.ph ? c.pt : lead)),
-    lead,              // current leading edge
+    lead, // current leading edge
   ];
   // DM-1996: explicitly bind the basic shape to the nearest SVG viewport.
   // Leaving the geometry box implicit lets WebKit resolve the px coordinates
@@ -592,8 +654,10 @@ function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -
 function cubicBezierSampler(easingCss: string): ((u: number) => number) | null {
   const t = easingCss.trim();
   const KW: Record<string, string> = {
-    ease: "0.25,0.1,0.25,1", "ease-in": "0.42,0,1,1",
-    "ease-out": "0,0,0.58,1", "ease-in-out": "0.42,0,0.58,1",
+    ease: "0.25,0.1,0.25,1",
+    "ease-in": "0.42,0,1,1",
+    "ease-out": "0,0,0.58,1",
+    "ease-in-out": "0.42,0,0.58,1",
   };
   let nums: number[] | null = null;
   if (t in KW) nums = KW[t].split(",").map(Number);
@@ -606,8 +670,12 @@ function cubicBezierSampler(easingCss: string): ((u: number) => number) | null {
   return (u: number): number => {
     if (u <= 0) return 0;
     if (u >= 1) return 1;
-    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
-    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const cx = 3 * x1,
+      bx = 3 * (x2 - x1) - cx,
+      ax = 1 - cx - bx;
+    const cy = 3 * y1,
+      by = 3 * (y2 - y1) - cy,
+      ay = 1 - cy - by;
     const sampleX = (s: number): number => ((ax * s + bx) * s + cx) * s;
     const sampleY = (s: number): number => ((ay * s + by) * s + cy) * s;
     const dX = (s: number): number => (3 * ax * s + 2 * bx) * s + cx;
@@ -625,7 +693,17 @@ function cubicBezierSampler(easingCss: string): ((u: number) => number) | null {
   };
 }
 
-function clockWipeStops(w: number, h: number, enterNum: number, startNum: number, startDeg = 0, dir: 1 | -1 = 1, ease?: (u: number) => number, cx = w / 2, cy = h / 2): string {
+function clockWipeStops(
+  w: number,
+  h: number,
+  enterNum: number,
+  startNum: number,
+  startDeg = 0,
+  dir: 1 | -1 = 1,
+  ease?: (u: number) => number,
+  cx = w / 2,
+  cy = h / 2,
+): string {
   // DM-1583: with an easing, remap the sweep by placing stops at even TIME steps
   // whose GEOMETRY is the eased progress (clamped to [0,1] so a `back-*`
   // overshoot settles at full rather than over-rotating). Without an easing, keep
@@ -641,7 +719,11 @@ function clockWipeStops(w: number, h: number, enterNum: number, startNum: number
     }
     return out.join("\n");
   }
-  const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
+  const norm = (a: number): number => {
+    let x = a % (2 * Math.PI);
+    if (x < 0) x += 2 * Math.PI;
+    return x;
+  };
   const s = (startDeg * Math.PI) / 180;
   // Corner fractions = each corner's phase into the sweep (respects start + dir),
   // so a stop lands exactly where the polygon threads each corner (DM-1585).
@@ -685,13 +767,31 @@ interface SlideWindow {
 }
 
 function emitSlideFrame(
-  i: number, svgContent: string, exitAxis: "X" | "Y", exitDelta: number, enter: SlideEnter,
+  i: number,
+  svgContent: string,
+  exitAxis: "X" | "Y",
+  exitDelta: number,
+  enter: SlideEnter,
   dims: { width: number; height: number },
   win: SlideWindow,
-  totalSec: number, holdLastFrame: boolean,
+  totalSec: number,
+  holdLastFrame: boolean,
 ): { group: string; keyframe: string } {
   const group = `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${dims.width}" height="${dims.height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${svgContent}\n  </g></g>`;
-  const keyframe = slideKeyframes(i, exitAxis, exitDelta, enter, win.enterStartPct, win.startPct, win.holdEndPct, win.transEndPct, win.enterStartPct, win.transEndPct, totalSec, holdLastFrame);
+  const keyframe = slideKeyframes(
+    i,
+    exitAxis,
+    exitDelta,
+    enter,
+    win.enterStartPct,
+    win.startPct,
+    win.holdEndPct,
+    win.transEndPct,
+    win.enterStartPct,
+    win.transEndPct,
+    totalSec,
+    holdLastFrame,
+  );
   return { group, keyframe };
 }
 
@@ -780,7 +880,7 @@ function emitRevealFrame(
       const hidden = clockWipeClip(0, dims.width, dims.height, clockStartDeg, clockDir);
       const shown = clockWipeClip(1, dims.width, dims.height, clockStartDeg, clockDir);
       // DM-1583: a cubic-bezier easing time-remaps the sweep; springs/linear stay linear.
-      const clockEase = revealEasing != null ? cubicBezierSampler(revealEasing) ?? undefined : undefined;
+      const clockEase = revealEasing != null ? (cubicBezierSampler(revealEasing) ?? undefined) : undefined;
       const midStops = clockWipeStops(dims.width, dims.height, enterNum, startNum, clockStartDeg, clockDir, clockEase);
       revealKf = `
     @keyframes fr-${i} {
@@ -794,8 +894,15 @@ ${midStops}
     } else if (entranceReveal === "wipe" && ((wipeAngle % 360) + 360) % 360 !== 0) {
       const hidden = linearWipeClip(0, dims.width, dims.height, wipeAngle);
       const shown = linearWipeClip(1, dims.width, dims.height, wipeAngle);
-      const wipeEase = revealEasing != null ? cubicBezierSampler(revealEasing) ?? undefined : undefined;
-      const midStops = linearWipeStops(dims.width, dims.height, parseFloat(revealEnterStartPct), parseFloat(startPct), wipeAngle, wipeEase);
+      const wipeEase = revealEasing != null ? (cubicBezierSampler(revealEasing) ?? undefined) : undefined;
+      const midStops = linearWipeStops(
+        dims.width,
+        dims.height,
+        parseFloat(revealEnterStartPct),
+        parseFloat(startPct),
+        wipeAngle,
+        wipeEase,
+      );
       revealKf = `
     @keyframes fr-${i} {
       0%, ${beforeEnter}% { clip-path: ${hidden}; }
@@ -806,9 +913,10 @@ ${midStops}
     }
     .fr-${i} { animation: fr-${i} ${totalSec.toFixed(2)}s linear infinite; }`;
     } else {
-      const [hidden, shown] = entranceReveal === "wipe"
-        ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
-        : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
+      const [hidden, shown] =
+        entranceReveal === "wipe"
+          ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
+          : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
       revealKf = `
     @keyframes fr-${i} {
       0%, ${beforeEnter}% { clip-path: ${hidden}; }
@@ -877,7 +985,10 @@ interface ComposedEntrance {
 
 /** DM-1585: resolve a transition's `wipe-clock` start angle + sweep direction
  *  into the `(startDeg, dir)` the clock geometry takes. Defaults: 0° / clockwise. */
-function resolveClockParams(startAngle: number | undefined, ccw: boolean | undefined): { startDeg: number; dir: 1 | -1 } {
+function resolveClockParams(
+  startAngle: number | undefined,
+  ccw: boolean | undefined,
+): { startDeg: number; dir: 1 | -1 } {
   return { startDeg: startAngle ?? 0, dir: ccw === true ? -1 : 1 };
 }
 interface ComposedExit {
@@ -907,18 +1018,38 @@ function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicB
       opacityFrom: plan.incoming.opacityFrom,
       fromScale: plan.incoming.scale?.from,
       origin: plan.incoming.scale?.origin ?? clip?.origin,
-      reveal: clip?.shape, wipeAngle: clip?.angle, radius: clip?.radius,
-      clockStartDeg: clock.startDeg, clockDir: clock.dir, easing: resolveEasingPreset(plan.easing),
+      reveal: clip?.shape,
+      wipeAngle: clip?.angle,
+      radius: clip?.radius,
+      clockStartDeg: clock.startDeg,
+      clockDir: clock.dir,
+      easing: resolveEasingPreset(plan.easing),
     };
   }
   const dir = plan.incoming.translate;
-  if (dir != null) return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
+  if (dir != null)
+    return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
   const clip = plan.incoming.clip;
   if (clip != null) {
     const clock = resolveClockParams(clip.startAngle, clip.counterclockwise);
-    return { kind: "reveal", reveal: clip.shape, easing: resolveEasingPreset(plan.easing), clockStartDeg: clock.startDeg, clockDir: clock.dir, wipeAngle: clip.angle, origin: clip.origin, radius: clip.radius };
+    return {
+      kind: "reveal",
+      reveal: clip.shape,
+      easing: resolveEasingPreset(plan.easing),
+      clockStartDeg: clock.startDeg,
+      clockDir: clock.dir,
+      wipeAngle: clip.angle,
+      origin: clip.origin,
+      radius: clip.radius,
+    };
   }
-  if (plan.incoming.scale != null) return { kind: "dolly", fromScale: plan.incoming.scale.from, easing: resolveEasingPreset(plan.easing), origin: plan.incoming.scale.origin };
+  if (plan.incoming.scale != null)
+    return {
+      kind: "dolly",
+      fromScale: plan.incoming.scale.from,
+      easing: resolveEasingPreset(plan.easing),
+      origin: plan.incoming.scale.origin,
+    };
   if (plan.incoming.opacity === "fade") return { kind: "fade" };
   // magic-move WITH a built bridge: appears at its own start (the bridge covered
   // the window). WITHOUT a bridge it degraded to crossfade → fade.
@@ -933,11 +1064,17 @@ function classifyEntrance(plan: NormalizedTransitionPlan | undefined, prevMagicB
 function classifyExit(plan: NormalizedTransitionPlan): ComposedExit {
   if (plan.custom != null) {
     const translate = plan.outgoing.translate;
-    return { kind: translate != null ? "slide" : plan.outgoing.opacityTo != null ? "fade" : "hold", vector: translate != null && "x" in translate ? translate : undefined,
-      opacityTo: plan.outgoing.opacityTo, toScale: plan.outgoing.scale?.to, origin: plan.outgoing.scale?.origin };
+    return {
+      kind: translate != null ? "slide" : plan.outgoing.opacityTo != null ? "fade" : "hold",
+      vector: translate != null && "x" in translate ? translate : undefined,
+      opacityTo: plan.outgoing.opacityTo,
+      toScale: plan.outgoing.scale?.to,
+      origin: plan.outgoing.scale?.origin,
+    };
   }
   const dir = plan.outgoing.translate;
-  if (dir != null) return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
+  if (dir != null)
+    return "axis" in dir ? { kind: "slide", axis: dir.axis, sign: dir.sign } : { kind: "slide", vector: dir };
   if (plan.incoming.clip != null) return { kind: "hold" };
   if (plan.overlay === "magic-move") return { kind: "magic" };
   if (plan.outgoing.opacity === "cut") return { kind: "cut" };
@@ -1002,7 +1139,8 @@ function emitComposedFrame(
   const transNum = parseFloat(win.transEndPct);
   const dur = `${totalSec.toFixed(2)}s`;
 
-  const needSlide = entrance.kind === "slide" || exit.kind === "slide" || entrance.vector != null || exit.vector != null;
+  const needSlide =
+    entrance.kind === "slide" || exit.kind === "slide" || entrance.vector != null || exit.vector != null;
   const needScale = entrance.fromScale != null;
   const needExitScale = exit.toScale != null;
   const needReveal = entrance.reveal != null;
@@ -1012,10 +1150,7 @@ function emitComposedFrame(
 
   // ── Opacity track (fv) ───────────────────────────────────────────────────
   const preEnter = padBefore(enterNum, KEYFRAME_EPSILON.cull, 3);
-  const opacityStops: string[] = [
-    `0% { opacity: 0; }`,
-    `${preEnter}% { opacity: 0; }`,
-  ];
+  const opacityStops: string[] = [`0% { opacity: 0; }`, `${preEnter}% { opacity: 0; }`];
   if (leadRamp) {
     opacityStops.push(`${enterNum.toFixed(3)}% { opacity: ${entrance.opacityFrom ?? 0}; }`);
     opacityStops.push(`${startNum.toFixed(3)}% { opacity: 1; }`);
@@ -1054,7 +1189,7 @@ function emitComposedFrame(
       const hidden = clockWipeClip(0, width, height, cStart, cDir, cx, cy);
       const shown = clockWipeClip(1, width, height, cStart, cDir, cx, cy);
       // DM-1583: cubic-bezier easing time-remaps the sweep (springs stay linear).
-      const cEase = entrance.easing != null ? cubicBezierSampler(entrance.easing) ?? undefined : undefined;
+      const cEase = entrance.easing != null ? (cubicBezierSampler(entrance.easing) ?? undefined) : undefined;
       const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir, cEase, cx, cy);
       keyframe += `
     @keyframes fr-${i} {
@@ -1069,7 +1204,7 @@ ${mid}
       const angle = entrance.wipeAngle ?? 0;
       const hidden = linearWipeClip(0, width, height, angle);
       const shown = linearWipeClip(1, width, height, angle);
-      const wipeEase = entrance.easing != null ? cubicBezierSampler(entrance.easing) ?? undefined : undefined;
+      const wipeEase = entrance.easing != null ? (cubicBezierSampler(entrance.easing) ?? undefined) : undefined;
       const mid = linearWipeStops(width, height, enterNum, startNum, angle, wipeEase);
       keyframe += `
     @keyframes fr-${i} {
@@ -1081,11 +1216,17 @@ ${mid}
     }
     .fr-${i} { animation: fr-${i} ${dur} linear infinite; }`;
     } else {
-      const farRadius = Math.max(Math.hypot(cx, cy), Math.hypot(width - cx, cy), Math.hypot(cx, height - cy), Math.hypot(width - cx, height - cy));
+      const farRadius = Math.max(
+        Math.hypot(cx, cy),
+        Math.hypot(width - cx, cy),
+        Math.hypot(cx, height - cy),
+        Math.hypot(width - cx, height - cy),
+      );
       const r = Math.ceil(farRadius * (entrance.radius ?? 1));
-      const [hidden, shown] = shape === "wipe"
-        ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
-        : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
+      const [hidden, shown] =
+        shape === "wipe"
+          ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
+          : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
       keyframe += `
     @keyframes fr-${i} {
       0%, ${rBefore}% { clip-path: ${hidden}; }
@@ -1132,18 +1273,21 @@ ${mid}
   // ── Slide transform track (fp) — entrance and/or exit; clipped ─────────────
   let clipDef = "";
   if (needSlide) {
-    const off = (axis: "X" | "Y", d: number): string => `translate(${axis === "X" ? d : 0}px, ${axis === "Y" ? d : 0}px)`;
+    const off = (axis: "X" | "Y", d: number): string =>
+      `translate(${axis === "X" ? d : 0}px, ${axis === "Y" ? d : 0}px)`;
     const vector = (v: { x: number; y: number }): string => `translate(${v.x * width}px, ${v.y * height}px)`;
-    const enterT = entrance.kind === "slide" && entrance.vector != null
-      ? vector({ x: -entrance.vector.x, y: -entrance.vector.y })
-      : entrance.kind === "slide" && entrance.axis != null && entrance.sign != null
-      ? off(entrance.axis, -entrance.sign * (entrance.axis === "X" ? width : height))
-      : "translate(0px, 0px)";
-    const exitT = exit.kind === "slide" && exit.vector != null
-      ? vector(exit.vector)
-      : exit.kind === "slide" && exit.axis != null && exit.sign != null
-      ? off(exit.axis, exit.sign * (exit.axis === "X" ? width : height))
-      : "translate(0px, 0px)";
+    const enterT =
+      entrance.kind === "slide" && entrance.vector != null
+        ? vector({ x: -entrance.vector.x, y: -entrance.vector.y })
+        : entrance.kind === "slide" && entrance.axis != null && entrance.sign != null
+          ? off(entrance.axis, -entrance.sign * (entrance.axis === "X" ? width : height))
+          : "translate(0px, 0px)";
+    const exitT =
+      exit.kind === "slide" && exit.vector != null
+        ? vector(exit.vector)
+        : exit.kind === "slide" && exit.axis != null && exit.sign != null
+          ? off(exit.axis, exit.sign * (exit.axis === "X" ? width : height))
+          : "translate(0px, 0px)";
     const enterBound = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
     if (holdToEnd) {
       keyframe += `
@@ -1168,7 +1312,14 @@ ${mid}
     inner = `<g clip-path="url(#fc-${i})" class="fp-${i}">\n${inner}\n  </g>`;
   }
 
-  const motionClasses = [needSlide ? `.fp-${i}` : "", needScale ? `.fz-${i}` : "", needExitScale ? `.fzo-${i}` : "", needReveal ? `.fr-${i}` : ""].filter(Boolean).join(", ");
+  const motionClasses = [
+    needSlide ? `.fp-${i}` : "",
+    needScale ? `.fz-${i}` : "",
+    needExitScale ? `.fzo-${i}` : "",
+    needReveal ? `.fr-${i}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   if (motionClasses !== "") {
     keyframe += `
     @media (prefers-reduced-motion: reduce) {
@@ -1200,10 +1351,7 @@ ${reducedMotion === "cut" ? `      .f-${i} { animation-timing-function: step-end
  *    fade before the wrap reads better than a hard cut, and there is no handoff
  *    to protect. This is the historical behavior, kept for exactly this case.
  */
-type OverlayExit =
-  | { kind: "cut" }
-  | { kind: "dissolve"; ms: number }
-  | { kind: "loop-out" };
+type OverlayExit = { kind: "cut" } | { kind: "dissolve"; ms: number } | { kind: "loop-out" };
 
 /**
  * DM-1767 (docs/104): resolve an overlay's WINDOW END, in ms from frame start.
@@ -1241,7 +1389,14 @@ function emitOneFrameOverlay(
     case "typing":
       return renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + windowMs, exit, totalDuration, totalSec);
     case "tap":
-      return renderTapOverlay(overlay, idBase, timeOffset, overlay.endAt != null ? timeOffset + windowMs : null, totalDuration, totalSec);
+      return renderTapOverlay(
+        overlay,
+        idBase,
+        timeOffset,
+        overlay.endAt != null ? timeOffset + windowMs : null,
+        totalDuration,
+        totalSec,
+      );
     case "svg":
       return renderSvgOverlay(overlay, idBase, timeOffset, windowMs, totalDuration, totalSec);
     case "blink":
@@ -1263,7 +1418,12 @@ function emitOneFrameOverlay(
  * than the frame's duration — the per-overlay window (docs/104).
  */
 function emitFrameOverlays(
-  frame: AnimationFrame, i: number, isLastFrame: boolean, timeOffset: number, totalDuration: number, totalSec: number,
+  frame: AnimationFrame,
+  i: number,
+  isLastFrame: boolean,
+  timeOffset: number,
+  totalDuration: number,
+  totalSec: number,
 ): { groups: string[]; keyframes: string[] } {
   const groups: string[] = [];
   const keyframes: string[] = [];
@@ -1288,13 +1448,21 @@ function emitFrameOverlays(
       // that instant to ride. Otherwise the overlay leaves the way its frame
       // does, except on the scene's last frame, where nothing takes over.
       const transDur = transitionDurationMs(frame);
-      const exit: OverlayExit = winMs < frame.duration
-        ? { kind: "cut" }
-        : isLastFrame
-        ? { kind: "loop-out" }
-        : transDur > 0 ? { kind: "dissolve", ms: transDur } : { kind: "cut" };
+      const exit: OverlayExit =
+        winMs < frame.duration
+          ? { kind: "cut" }
+          : isLastFrame
+            ? { kind: "loop-out" }
+            : transDur > 0
+              ? { kind: "dissolve", ms: transDur }
+              : { kind: "cut" };
       const { svgMarkup, css } = emitOneFrameOverlay(overlay, {
-        idBase, timeOffset, windowMs: winMs, totalDuration, totalSec, exit,
+        idBase,
+        timeOffset,
+        windowMs: winMs,
+        totalDuration,
+        totalSec,
+        exit,
       });
       groups.push(svgMarkup);
       keyframes.push(css);
@@ -1350,8 +1518,14 @@ export function consolidateKeyframeOffsets(svg: string): string {
       const declarations = splitCssDeclarations(rule[2]);
       for (const rawSelector of rule[1].split(",")) {
         const selector = rawSelector.trim();
-        const offset = selector === "from" ? 0 : selector === "to" ? 100
-          : /^[-+]?(?:\d+\.?\d*|\.\d+)%$/.test(selector) ? Number.parseFloat(selector) : null;
+        const offset =
+          selector === "from"
+            ? 0
+            : selector === "to"
+              ? 100
+              : /^[-+]?(?:\d+\.?\d*|\.\d+)%$/.test(selector)
+                ? Number.parseFloat(selector)
+                : null;
         if (offset == null || !Number.isFinite(offset)) return whole;
         if (stops.has(offset)) duplicate = true;
         const merged = stops.get(offset) ?? new Map<string, string>();
@@ -1381,7 +1555,7 @@ function splitCssDeclarations(body: string): string[] {
   const out: string[] = [];
   let start = 0;
   let depth = 0;
-  let quote: "\"" | "'" | null = null;
+  let quote: '"' | "'" | null = null;
   let escaped = false;
   for (let i = 0; i < body.length; i++) {
     const char = body[i];
@@ -1391,7 +1565,7 @@ function splitCssDeclarations(body: string): string[] {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === "\"" || char === "'") quote = char;
+    if (char === '"' || char === "'") quote = char;
     else if (char === "(") depth++;
     else if (char === ")") depth = Math.max(0, depth - 1);
     else if (char === ";" && depth === 0) {
@@ -1459,27 +1633,41 @@ function prepareAnimatedSvgBody(config: AnimationConfig): AnimatedSvgBodyPlan {
   const frameTiming = { startPct: timeline.frames.map((window) => window.startPct) };
   const lastFrame = frames.at(-1);
   const lastWindow = timeline.frames.at(-1);
-  const lastPlan = lastFrame == null
-    ? null
-    : normalizeTransition(lastFrame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
-  const wrapsViaCrossfade = frames.length > 1
-    && lastFrame != null
-    && lastWindow != null
-    && transitionDurationMs(lastFrame) > 0
-    && lastPlan?.outgoing.opacity === "fade"
-    && (config.loopFade === true || lastPlan.custom?.loop === "crossfade-to-first");
+  const lastPlan =
+    lastFrame == null
+      ? null
+      : normalizeTransition(lastFrame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
+  const wrapsViaCrossfade =
+    frames.length > 1 &&
+    lastFrame != null &&
+    lastWindow != null &&
+    transitionDurationMs(lastFrame) > 0 &&
+    lastPlan?.outgoing.opacity === "fade" &&
+    (config.loopFade === true || lastPlan.custom?.loop === "crossfade-to-first");
   return {
-    width, height, glyphDefsStart, frames, timeline, totalDuration, totalSec, frameTiming,
-    wrapFadeInStartPct: wrapsViaCrossfade && lastWindow != null
-      ? pct(lastWindow.holdEndMs, totalDuration)
-      : undefined,
+    width,
+    height,
+    glyphDefsStart,
+    frames,
+    timeline,
+    totalDuration,
+    totalSec,
+    frameTiming,
+    wrapFadeInStartPct: wrapsViaCrossfade && lastWindow != null ? pct(lastWindow.holdEndMs, totalDuration) : undefined,
   };
 }
 
 function generateAnimatedSvgBody(config: AnimationConfig): string {
   const {
-    width, height, glyphDefsStart, frames: plannedFrames, timeline,
-    totalDuration, totalSec, frameTiming, wrapFadeInStartPct,
+    width,
+    height,
+    glyphDefsStart,
+    frames: plannedFrames,
+    timeline,
+    totalDuration,
+    totalSec,
+    frameTiming,
+    wrapFadeInStartPct,
   } = prepareAnimatedSvgBody(config);
   // DM-1557: snapshot the glyph-defs registry so we can emit ONLY the glyphs the
   // typing overlays (rendered below as glyph paths) add — without re-emitting
@@ -1526,7 +1714,9 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     const timeOffset = timeline.frames[i].startMs;
     const transDur = transitionDurationMs(frame);
     const transType = frame.transition?.type ?? "crossfade";
-    const transitionPlan = normalizeTransition(frame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
+    const transitionPlan = normalizeTransition(
+      frame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS },
+    );
 
     const startPct = pct(timeOffset, totalDuration);
     const holdEndPct = pct(timeOffset + frame.duration, totalDuration);
@@ -1534,7 +1724,10 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
 
     const prevFrame = i > 0 ? frames[i - 1] : null;
     const prevType = prevFrame?.transition?.type;
-    const prevPlan = prevFrame == null ? undefined : normalizeTransition(prevFrame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
+    const prevPlan =
+      prevFrame == null
+        ? undefined
+        : normalizeTransition(prevFrame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
     // DM-1414: a frame's ENTRANCE is driven by the PREVIOUS frame's transition
     // type (how it hands off TO this frame), independently of this frame's OWN
     // type (how it exits TO the next). So a push/scroll frame entered from a
@@ -1551,9 +1744,9 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     const slideEnter: SlideEnter =
       prevDir != null
         ? { mode: "slide", axis: prevDir.axis, enterOffset: -prevDir.sign * (prevDir.axis === "X" ? width : height) }
-      : prevPlan?.incoming.opacity === "fade"
-        ? { mode: "fade" }
-      : { mode: "cut" }; // cut / magic-move / wipe / iris / first frame — appears at its own start
+        : prevPlan?.incoming.opacity === "fade"
+          ? { mode: "fade" }
+          : { mode: "cut" }; // cut / magic-move / wipe / iris / first frame — appears at its own start
     // DM-898: a frame entered from a magic-move transition appears at its own
     // start (= the predecessor's transition end), NOT overlap-faded — the
     // magic-move bridge layer already covered the window, so a crossfade
@@ -1564,15 +1757,14 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // out, so its show window opens at `timeOffset - prevTransDur`.
     const entersViaOverlap = slideEnter.mode === "slide" || slideEnter.mode === "fade";
     const prevTransDur = prevFrame != null ? transitionDurationMs(prevFrame) : DEFAULT_TRANSITION_MS;
-    const enterStartPct = entersViaOverlap
-      ? pct(timeOffset - prevTransDur, totalDuration)
-      : startPct;
+    const enterStartPct = entersViaOverlap ? pct(timeOffset - prevTransDur, totalDuration) : startPct;
 
     // DM-1207: the last frame holds solid to 100% (no loop cross-dissolve)
     // unless `loopFade` is set — same rule the crossfade/cut path applies via
     // DM-1148 (see emitCrossfadeOrCutFrame). For the slide paths (push-left /
     // scroll) this means: slide in, then hold (no slide-out / fade-out).
-    const holdLastFrame = i === frames.length - 1 && config.loopFade !== true && transitionPlan.custom?.loop !== "crossfade-to-first";
+    const holdLastFrame =
+      i === frames.length - 1 && config.loopFade !== true && transitionPlan.custom?.loop !== "crossfade-to-first";
 
     const ownTranslate = transitionPlan.outgoing.translate;
     const ownDir = ownTranslate != null && "axis" in ownTranslate ? ownTranslate : undefined;
@@ -1587,7 +1779,10 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     // branches, so their output is byte-identical (see `composedBoundaryNeeded`).
     const composedEntrance = classifyEntrance(prevPlan, entersViaMagicMove);
     const composedExit = classifyExit(transitionPlan);
-    const useComposed = transitionPlan.parameterized || prevPlan?.parameterized === true || composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
+    const useComposed =
+      transitionPlan.parameterized ||
+      prevPlan?.parameterized === true ||
+      composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
 
     if (useComposed) {
       // Mixed-family boundary: compose the entrance (from prevType) and the exit
@@ -1595,8 +1790,14 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // predecessor's transition window, opening at `timeOffset - prevTransDur`.
       const composedEnterStartPct = pct(Math.max(0, timeOffset - prevTransDur), totalDuration);
       const r = emitComposedFrame(
-        i, frame.svgContent, composedEntrance, composedExit, { width, height },
-        { enterStartPct: composedEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame,
+        i,
+        frame.svgContent,
+        composedEntrance,
+        composedExit,
+        { width, height },
+        { enterStartPct: composedEnterStartPct, startPct, holdEndPct, transEndPct },
+        totalSec,
+        holdLastFrame,
         transitionPlan.custom?.reducedMotion ?? prevPlan?.custom?.reducedMotion ?? "crossfade",
       );
       frameGroups.push(r.group);
@@ -1605,12 +1806,23 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // on top of the composed dissolve (same helper as the crossfade branch).
       if (transitionPlan.overlay === "shine") {
         const shine = transitionPlan.shine;
-        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec,
-          color: shine?.color, opacity: shine?.opacity, bandWidth: shine == null ? undefined : shine.bandWidth * width, skewDeg: shine?.angle });
+        const sweep = buildShineSweep({
+          id: `tr${i}`,
+          x: 0,
+          y: 0,
+          width,
+          height,
+          startPct: holdEndPct,
+          endPct: transEndPct,
+          totalSec,
+          color: shine?.color,
+          opacity: shine?.opacity,
+          bandWidth: shine == null ? undefined : shine.bandWidth * width,
+          skewDeg: shine?.angle,
+        });
         shineTransitionGroups.push(sweep.markup);
         keyframes.push(sweep.css);
       }
-
     } else if (ownDir != null) {
       // DM-609 / DM-1524: directional push/scroll — exit slides out by the signed
       // `exitDelta` on `ownDir.axis` (push-left/right over width, scroll/push-up/
@@ -1619,10 +1831,19 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // frame while it's fully off-screen between cycles (DM-599).
       const size = ownDir.axis === "X" ? width : height;
       const exitDelta = ownDir.sign * size;
-      const r = emitSlideFrame(i, frame.svgContent, ownDir.axis, exitDelta, slideEnter, { width, height }, { enterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
+      const r = emitSlideFrame(
+        i,
+        frame.svgContent,
+        ownDir.axis,
+        exitDelta,
+        slideEnter,
+        { width, height },
+        { enterStartPct, startPct, holdEndPct, transEndPct },
+        totalSec,
+        holdLastFrame,
+      );
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
-
     } else if (ownReveal || prevReveal) {
       // DM-1524 / DM-1547: wipe / iris / wipe-radial / wipe-clock reveal-on-top.
       // This frame HOLDS beneath (opacity 1 through its window) and hard-cuts out;
@@ -1631,8 +1852,9 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // from the PREVIOUS normalized plan (`wipe-radial` shares the iris circle;
       // `wipe-clock` uses the polygon sweep); the hold-then-cut exit serves
       // whatever reveals on top NEXT.
-      const entranceReveal = prevReveal ? prevPlan?.incoming.clip?.shape ?? null : null;
-      const revealEnterStartPct = entranceReveal != null ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
+      const entranceReveal = prevReveal ? (prevPlan?.incoming.clip?.shape ?? null) : null;
+      const revealEnterStartPct =
+        entranceReveal != null ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
       // DM-1550: the reveal's easing is authored on the PREVIOUS frame's
       // transition (the one that unveils THIS frame). Resolve any named preset
       // (incl. the sampled springs) to a CSS easing string.
@@ -1641,10 +1863,21 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // frame's transition (the one that unveils THIS frame), like the easing.
       const clip = prevPlan?.incoming.clip;
       const clock = resolveClockParams(clip?.startAngle, clip?.counterclockwise);
-      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing, clock.startDeg, clock.dir, clip?.angle);
+      const r = emitRevealFrame(
+        i,
+        frame.svgContent,
+        entranceReveal,
+        { width, height },
+        { revealEnterStartPct, startPct, holdEndPct, transEndPct },
+        totalSec,
+        holdLastFrame,
+        revealEasing,
+        clock.startDeg,
+        clock.dir,
+        clip?.angle,
+      );
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
-
     } else if (transType === "magic-move" && frame.magicMove != null) {
       // DM-898: magic-move. Frame i holds [start..holdEnd] then HARD-CUTS out;
       // a bridge composite covers the transition window [holdEnd..transEnd],
@@ -1657,15 +1890,13 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       const r = emitMagicMoveFrame(i, frame, frame.magicMove, startPct, holdEndPct, transEndPct, totalSec);
       frameGroups.push(...r.groups);
       keyframes.push(...r.keyframes);
-
     } else {
       // Crossfade or cut: opacity in/out (see emitCrossfadeOrCutFrame). The
       // crossfade fade-in OVERLAPS the previous frame's fade-out, so its visible
       // window starts at fadeInStartPct — which depends on the loop's overlap
       // state (entersViaMagicMove / prevTransDur), so it's computed here.
-      const fadeInStartPct = (i > 0 && !entersViaMagicMove)
-        ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
-        : startPct;
+      const fadeInStartPct =
+        i > 0 && !entersViaMagicMove ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
       // DM-1148: the last frame holds solid to 100% (no loop cross-dissolve)
       // unless `loopFade` is set. Only the crossfade path fades — cut already
       // holds-then-cuts — so this is a no-op for cut frames.
@@ -1677,19 +1908,35 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // entrance window (`zoom-in` grows 0.9→1, `zoom-out` settles 1.1→1); the
       // element rests at scale(1). Passing the crossfade type through keeps
       // `isCut` false so the frame cross-dissolves.
-      const entranceScale = prevPlan?.incoming.scale != null
-        ? { fromScale: prevPlan.incoming.scale.from, enterStartPct, startPct, width, height,
-            // DM-1550: the dolly easing is authored on the zoom transition that
-            // drives THIS frame's entrance (the previous frame's transition).
-            easing: resolveEasingPreset(prevPlan.easing) }
-        : null;
-      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, {
-        startPct,
-        holdEndPct,
-        transEndPct,
-        fadeInStartPct,
-        wrapFadeInStartPct: i === 0 ? wrapFadeInStartPct : undefined,
-      }, totalSec, holdToEnd, entranceScale);
+      const entranceScale =
+        prevPlan?.incoming.scale != null
+          ? {
+              fromScale: prevPlan.incoming.scale.from,
+              enterStartPct,
+              startPct,
+              width,
+              height,
+              // DM-1550: the dolly easing is authored on the zoom transition that
+              // drives THIS frame's entrance (the previous frame's transition).
+              easing: resolveEasingPreset(prevPlan.easing),
+            }
+          : null;
+      const r = emitCrossfadeOrCutFrame(
+        i,
+        frame,
+        transType,
+        transDur,
+        {
+          startPct,
+          holdEndPct,
+          transEndPct,
+          fadeInStartPct,
+          wrapFadeInStartPct: i === 0 ? wrapFadeInStartPct : undefined,
+        },
+        totalSec,
+        holdToEnd,
+        entranceScale,
+      );
       frameGroups.push(...r.groups);
       keyframes.push(...r.keyframes);
 
@@ -1698,8 +1945,20 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       // cross-dissolve (the shared helper, also behind the `shine` overlay preset).
       if (transitionPlan.overlay === "shine") {
         const shine = transitionPlan.shine;
-        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec,
-          color: shine?.color, opacity: shine?.opacity, bandWidth: shine == null ? undefined : shine.bandWidth * width, skewDeg: shine?.angle });
+        const sweep = buildShineSweep({
+          id: `tr${i}`,
+          x: 0,
+          y: 0,
+          width,
+          height,
+          startPct: holdEndPct,
+          endPct: transEndPct,
+          totalSec,
+          color: shine?.color,
+          opacity: shine?.opacity,
+          bandWidth: shine == null ? undefined : shine.bandWidth * width,
+          skewDeg: shine?.angle,
+        });
         shineTransitionGroups.push(sweep.markup);
         keyframes.push(sweep.css);
       }
@@ -1709,7 +1968,6 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     const ov = emitFrameOverlays(frame, i, i === frames.length - 1, timeOffset, totalDuration, totalSec);
     frameGroups.push(...ov.groups);
     keyframes.push(...ov.keyframes);
-
   }
 
   // Compose final SVG with XML declaration for proper UTF-8
@@ -1732,24 +1990,23 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       config.resolveSelector ?? null,
       config.resolveCursorAt ?? null,
     );
-    overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration, resolved.cursorTimeline);
+    overlayMarkup =
+      "\n" +
+      cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration, resolved.cursorTimeline);
   }
   // Caret + selection tracks (docs/101): above every frame group, below the
   // cursor overlay (a demo's pointer stays the topmost paint).
   let textTrackMarkupStr = "";
   if (config.textTracks != null && config.textTracks.length > 0) {
-    const rendered = config.textTracks
-      .map((t, i) => textTrackMarkup(t, totalDuration, i))
-      .filter((s) => s !== "");
+    const rendered = config.textTracks.map((t, i) => textTrackMarkup(t, totalDuration, i)).filter((s) => s !== "");
     if (rendered.length > 0) textTrackMarkupStr = "\n" + rendered.join("\n");
   }
   // Canvas background rect — only when a non-transparent background is given.
   // Default (none / transparent) emits nothing so the SVG composites over the
   // host page, matching the single-frame `transparentRootBgRect` path (DM-554).
   const bg = config.background;
-  const canvasBgRect = (bg != null && !isTransparentBackground(bg))
-    ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n`
-    : "";
+  const canvasBgRect =
+    bg != null && !isTransparentBackground(bg) ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n` : "";
   const a11y = rootSvgA11y(config.title, config.desc);
   // DM-1557: glyph-path defs the typing overlays registered while rendering
   // above (only the ones added since our snapshot), for their `<use href="#gN">`.
@@ -1789,18 +2046,32 @@ ${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n
  * `maxWidthPx === Infinity` → no wrap (one line per explicit-newline paragraph).
  */
 function wrapTypingTextPx(text: string, maxWidthPx: number, advOf: (ch: string) => number): string[] {
-  const wordPx = (w: string): number => { let s = 0; for (const ch of w) s += advOf(ch); return s; };
+  const wordPx = (w: string): number => {
+    let s = 0;
+    for (const ch of w) s += advOf(ch);
+    return s;
+  };
   const spacePx = advOf(" ");
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
-    if (maxWidthPx === Infinity) { lines.push(paragraph); continue; }
-    if (paragraph === "") { lines.push(""); continue; }
+    if (maxWidthPx === Infinity) {
+      lines.push(paragraph);
+      continue;
+    }
+    if (paragraph === "") {
+      lines.push("");
+      continue;
+    }
     let cur = "";
     let curPx = 0;
     for (let word of paragraph.split(" ")) {
       // A single word wider than the line char-breaks across lines.
       while (wordPx(word) > maxWidthPx) {
-        if (cur !== "") { lines.push(cur); cur = ""; curPx = 0; }
+        if (cur !== "") {
+          lines.push(cur);
+          cur = "";
+          curPx = 0;
+        }
         const cps = [...word];
         let take = "";
         let takePx = 0;
@@ -1816,9 +2087,17 @@ function wrapTypingTextPx(text: string, maxWidthPx: number, advOf: (ch: string) 
       }
       if (word === "") continue;
       const wpx = wordPx(word);
-      if (cur === "") { cur = word; curPx = wpx; }
-      else if (curPx + spacePx + wpx <= maxWidthPx) { cur += " " + word; curPx += spacePx + wpx; }
-      else { lines.push(cur); cur = word; curPx = wpx; }
+      if (cur === "") {
+        cur = word;
+        curPx = wpx;
+      } else if (curPx + spacePx + wpx <= maxWidthPx) {
+        cur += " " + word;
+        curPx += spacePx + wpx;
+      } else {
+        lines.push(cur);
+        cur = word;
+        curPx = wpx;
+      }
     }
     lines.push(cur);
   }
@@ -1878,7 +2157,8 @@ export const OVERLAY_DEFAULT_DELAY_MS: Record<AnimationOverlay["kind"], number> 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -1888,7 +2168,10 @@ function mulberry32(seed: number): () => number {
 /** Stable 32-bit hash of a string, used to seed the jitter PRNG off the text. */
 function hashString(s: string): number {
   let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
   return h >>> 0;
 }
 
@@ -1903,8 +2186,15 @@ function hashString(s: string): number {
  * routes an author `fontFamily` here.
  */
 function overlayAdvances(
-  fontFamily: string, fontSize: number,
-): { advOf: (ch: string) => number; measured: boolean; ascentPx?: number; descentPx?: number; shapedCum?: (line: string) => number[] | null } {
+  fontFamily: string,
+  fontSize: number,
+): {
+  advOf: (ch: string) => number;
+  measured: boolean;
+  ascentPx?: number;
+  descentPx?: number;
+  shapedCum?: (line: string) => number[] | null;
+} {
   const estimate = fontSize * MONO_CHAR_WIDTH_RATIO;
   let font: ReturnType<typeof getFontInstance> = null;
   try {
@@ -1938,7 +2228,11 @@ function overlayAdvances(
     const cps = [...line];
     if (cps.length === 0) return [0];
     let laid: ReturnType<typeof font.layout>;
-    try { laid = font.layout(line); } catch { return null; }
+    try {
+      laid = font.layout(line);
+    } catch {
+      return null;
+    }
     if (laid.positions == null || laid.positions.length !== cps.length) return null;
     const c = [0];
     for (let i = 0; i < laid.positions.length; i++) {
@@ -1964,25 +2258,62 @@ function cumFromChars(chars: string[][], advOf: (ch: string) => number): number[
 }
 
 /** One revealed glyph's placement + reveal time, precomputed once (DM-1518). */
-interface TypedGlyph { li: number; edge: number; appearMs: number }
+interface TypedGlyph {
+  li: number;
+  edge: number;
+  appearMs: number;
+}
 
 /** A caret waypoint — the caret steps to `edge` (on line `li`) at `appearMs`.
  *  Distinct from `TypedGlyph` because a mistake makes the caret RETREAT
  *  (backspace) and re-advance, so its path has more waypoints than the text has
  *  glyphs (DM-1555). */
-interface CaretStep { li: number; edge: number; appearMs: number }
+interface CaretStep {
+  li: number;
+  edge: number;
+  appearMs: number;
+}
 
 /** A temporarily-painted wrong glyph (DM-1555): shown at `[showMs, hideMs)` at
  *  `leftEdge` on line `li`, then backspaced away. `ch` is the mistyped char. */
-interface MistakeGlyph { li: number; leftEdge: number; ch: string; showMs: number; hideMs: number }
+interface MistakeGlyph {
+  li: number;
+  leftEdge: number;
+  ch: string;
+  showMs: number;
+  hideMs: number;
+}
 
 /** QWERTY neighbor of each lowercase letter — the plausible "fat-finger" slip a
  *  typist makes. Used for the default wrong character when `mistakes` doesn't
  *  spell one out (DM-1555). */
 const QWERTY_NEIGHBORS: Record<string, string> = {
-  a: "s", b: "v", c: "x", d: "f", e: "r", f: "g", g: "h", h: "j", i: "o",
-  j: "k", k: "l", l: "k", m: "n", n: "m", o: "i", p: "o", q: "w", r: "e",
-  s: "d", t: "y", u: "i", v: "b", w: "e", x: "z", y: "u", z: "x",
+  a: "s",
+  b: "v",
+  c: "x",
+  d: "f",
+  e: "r",
+  f: "g",
+  g: "h",
+  h: "j",
+  i: "o",
+  j: "k",
+  k: "l",
+  l: "k",
+  m: "n",
+  n: "m",
+  o: "i",
+  p: "o",
+  q: "w",
+  r: "e",
+  s: "d",
+  t: "y",
+  u: "i",
+  v: "b",
+  w: "e",
+  x: "z",
+  y: "u",
+  z: "x",
 };
 
 /** Deterministically choose a wrong glyph to mistype for `correct`: a QWERTY
@@ -2054,9 +2385,15 @@ function mistakeOverheadMs(mistakes: Map<number, string>, speed: number, thinkMs
  * off the text as `planMistakes`, so the whole thing stays byte-stable.
  */
 function buildTypingPlan(
-  chars: string[][], cum: number[][], overlay: TypingOverlay,
-  speed: number, typeStartMs: number, effTypeDur: number,
-  advOf: (ch: string) => number, mistakes: Map<number, string>, thinkMs: number,
+  chars: string[][],
+  cum: number[][],
+  overlay: TypingOverlay,
+  speed: number,
+  typeStartMs: number,
+  effTypeDur: number,
+  advOf: (ch: string) => number,
+  mistakes: Map<number, string>,
+  thinkMs: number,
 ): { glyphs: TypedGlyph[]; mistakeGlyphs: MistakeGlyph[]; caretSteps: CaretStep[] } {
   const glyphs: TypedGlyph[] = [];
   const mistakeGlyphs: MistakeGlyph[] = [];
@@ -2068,7 +2405,10 @@ function buildTypingPlan(
 
   // First pass: build the timed event stream with RAW (jittered) delays. Each
   // event carries a callback that stamps the finalized `appearMs` in pass two.
-  interface Ev { rawDelay: number; apply: (t: number) => void }
+  interface Ev {
+    rawDelay: number;
+    apply: (t: number) => void;
+  }
   const evs: Ev[] = [];
   let gi = 0;
   chars.forEach((line, li) => {
@@ -2080,13 +2420,31 @@ function buildTypingPlan(
         const mis: MistakeGlyph = { li, leftEdge, ch: wrong, showMs: 0, hideMs: 0 };
         mistakeGlyphs.push(mis);
         // Type the wrong glyph — caret jumps past it.
-        evs.push({ rawDelay: nextDelay(), apply: (t) => { mis.showMs = t; caretSteps.push({ li, edge: wrongEdge, appearMs: t }); } });
+        evs.push({
+          rawDelay: nextDelay(),
+          apply: (t) => {
+            mis.showMs = t;
+            caretSteps.push({ li, edge: wrongEdge, appearMs: t });
+          },
+        });
         // Notice it (think pause), then backspace — caret RETREATS to the prefix.
-        evs.push({ rawDelay: thinkMs + nextDelay(), apply: (t) => { mis.hideMs = t; caretSteps.push({ li, edge: leftEdge, appearMs: t }); } });
+        evs.push({
+          rawDelay: thinkMs + nextDelay(),
+          apply: (t) => {
+            mis.hideMs = t;
+            caretSteps.push({ li, edge: leftEdge, appearMs: t });
+          },
+        });
       }
       // Type the correct glyph — caret advances to its measured right edge.
       const edge = cum[li][k + 1];
-      evs.push({ rawDelay: nextDelay(), apply: (t) => { glyphs.push({ li, edge, appearMs: t }); caretSteps.push({ li, edge, appearMs: t }); } });
+      evs.push({
+        rawDelay: nextDelay(),
+        apply: (t) => {
+          glyphs.push({ li, edge, appearMs: t });
+          caretSteps.push({ li, edge, appearMs: t });
+        },
+      });
       gi++;
     }
   });
@@ -2132,12 +2490,25 @@ function monotoneStops(): { push: (pn: number, decl: string) => void; stops: str
  * markup.
  */
 function typedGlyphMarkup(
-  text: string, x: number, baselineY: number, fontSize: number, fontFamily: string, color: string, xOffsets?: number[],
+  text: string,
+  x: number,
+  baselineY: number,
+  fontSize: number,
+  fontFamily: string,
+  color: string,
+  xOffsets?: number[],
 ): string {
   if (text === "") return "";
   return withRenderTextMode("paths", () =>
-    renderTextAsPath(text, x, baselineY,
-      { fontSize, fontFamily, fontWeight: "400", fill: color, xOffsets, ascentOverride: 0 }));
+    renderTextAsPath(text, x, baselineY, {
+      fontSize,
+      fontFamily,
+      fontWeight: "400",
+      fill: color,
+      xOffsets,
+      ascentOverride: 0,
+    }),
+  );
 }
 
 /**
@@ -2152,10 +2523,22 @@ function typedGlyphMarkup(
  * for bounded CSS.
  */
 function buildTypingLines(
-  chars: string[][], overlay: TypingOverlay, id: string,
-  cum: number[][], glyphs: TypedGlyph[], discrete: boolean,
-  lineHeight: number, fontSize: number, textHeight: number, hiddenW: string, color: string, fontFamily: string,
-  totalDuration: number, holdEndPct: string, disappearPct: string, totalSec: number,
+  chars: string[][],
+  overlay: TypingOverlay,
+  id: string,
+  cum: number[][],
+  glyphs: TypedGlyph[],
+  discrete: boolean,
+  lineHeight: number,
+  fontSize: number,
+  textHeight: number,
+  hiddenW: string,
+  color: string,
+  fontFamily: string,
+  totalDuration: number,
+  holdEndPct: string,
+  disappearPct: string,
+  totalSec: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -2168,7 +2551,9 @@ function buildTypingLines(
     const fullWidth = cum[li][line.length] + 1;
     const lineGlyphs = glyphs.filter((g) => g.li === li);
 
-    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
+    parts.push(
+      `  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`,
+    );
     // DM-1557: paint the line as glyph paths (advances match on every viewer),
     // pinning each glyph at its measured left edge so the reveal clip + caret
     // stay locked. Source-outline failures remain labeled non-painting groups.
@@ -2224,11 +2609,23 @@ function buildTypingLines(
  * requested.
  */
 function buildTypingCaret(
-  overlay: TypingOverlay, id: string, color: string,
-  caretSteps: CaretStep[], lineHeight: number, fontSize: number,
-  typeStartPct: string, typeStartMs: number, textEndMs: number, holdEndMs: number, holdEndPct: string, disappearPct: string,
-  totalDuration: number, totalSec: number,
-  ascentPx?: number, descentPx?: number, cellWidthPx?: number,
+  overlay: TypingOverlay,
+  id: string,
+  color: string,
+  caretSteps: CaretStep[],
+  lineHeight: number,
+  fontSize: number,
+  typeStartPct: string,
+  typeStartMs: number,
+  textEndMs: number,
+  holdEndMs: number,
+  holdEndPct: string,
+  disappearPct: string,
+  totalDuration: number,
+  totalSec: number,
+  ascentPx?: number,
+  descentPx?: number,
+  cellWidthPx?: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -2248,7 +2645,11 @@ function buildTypingCaret(
     const b = monotoneStops();
     b.push(0, `transform: translate(0px, 0px);`);
     b.push(Math.max(0.01, pctNum(typeStartMs, totalDuration)), `transform: translate(0px, 0px);`);
-    for (const g of caretSteps) b.push(pctNum(g.appearMs, totalDuration), `transform: translate(${g.edge.toFixed(2)}px, ${(g.li * lineHeight).toFixed(2)}px);`);
+    for (const g of caretSteps)
+      b.push(
+        pctNum(g.appearMs, totalDuration),
+        `transform: translate(${g.edge.toFixed(2)}px, ${(g.li * lineHeight).toFixed(2)}px);`,
+      );
     const posStops = [
       ...b.stops,
       `${holdEndPct}, 100% { transform: translate(${endX.toFixed(2)}px, ${endY.toFixed(2)}px); }`,
@@ -2285,8 +2686,14 @@ function buildTypingCaret(
     const descEff = hasCaretMetrics ? descentPx : 2;
     const cellW = cellWidthPx != null && cellWidthPx > 0 ? cellWidthPx : fontSize * MONO_CHAR_WIDTH_RATIO;
     const cRect = caretShapeRect({
-      shape: caretShape, x: overlay.x, baselineY: overlay.y,
-      ascentPx: ascEff, descentPx: descEff, cellWidthPx: cellW, fontSize, barWidthPx: caretW,
+      shape: caretShape,
+      x: overlay.x,
+      baselineY: overlay.y,
+      ascentPx: ascEff,
+      descentPx: descEff,
+      cellWidthPx: cellW,
+      fontSize,
+      barWidthPx: caretW,
     });
     const caretOpacity = cRect.opacity < 1 ? ` fill-opacity="${cRect.opacity}"` : "";
     // Strip trailing zeros so a default bar stays `width="2"` (byte-identical to
@@ -2314,9 +2721,15 @@ function buildTypingCaret(
  * empty arrays when there are no mistakes.
  */
 function buildTypingMistakes(
-  overlay: TypingOverlay, id: string, color: string, fontFamily: string,
-  fontSize: number, lineHeight: number, mistakeGlyphs: MistakeGlyph[],
-  totalDuration: number, totalSec: number,
+  overlay: TypingOverlay,
+  id: string,
+  color: string,
+  fontFamily: string,
+  fontSize: number,
+  lineHeight: number,
+  mistakeGlyphs: MistakeGlyph[],
+  totalDuration: number,
+  totalSec: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -2393,10 +2806,14 @@ function renderTypingOverlay(
   // like "AV" tighten); the glyphs, caret, and reveal all use this ONE `cum`, so
   // the caret stays flush. Falls back per-line to the per-glyph advances when a
   // line can't be mapped 1:1 (ligatures) — never breaks the caret lock.
-  const cum = overlay.kern === true && shapedCum != null
-    ? chars.map((charArr, li) => shapedCum(lines[li]) ?? cumFromChars([charArr], advOf)[0])
-    : cumFromChars(chars, advOf);
-  const visibleChars = Math.max(1, chars.reduce((n, l) => n + l.length, 0));
+  const cum =
+    overlay.kern === true && shapedCum != null
+      ? chars.map((charArr, li) => shapedCum(lines[li]) ?? cumFromChars([charArr], advOf)[0])
+      : cumFromChars(chars, advOf);
+  const visibleChars = Math.max(
+    1,
+    chars.reduce((n, l) => n + l.length, 0),
+  );
   const longestLineWidth = cum.reduce((m, c) => Math.max(m, c[c.length - 1]), 0);
   const discrete = overlay.mode !== "paste" && visibleChars <= MAX_DISCRETE_TYPING_CHARS;
   // DM-1555: mistakes are per-keystroke detours — only meaningful in the
@@ -2436,7 +2853,9 @@ function renderTypingOverlay(
   const holdEndMs = Math.max(textEndMs, frameEnd - disappearGap);
   const disappearMs = loopOut
     ? Math.min(frameEnd, holdEndMs + 100)
-    : exit.kind === "dissolve" ? Math.min(totalDuration, holdEndMs + exit.ms) : holdEndMs;
+    : exit.kind === "dissolve"
+      ? Math.min(totalDuration, holdEndMs + exit.ms)
+      : holdEndMs;
   const textHeight = fontSize + 4;
   const holdEndPct = pct(holdEndMs, totalDuration);
   // DM-1749: with the hard cut, the full-opacity stop sits AT the window
@@ -2474,18 +2893,53 @@ function renderTypingOverlay(
   // clips), the temporary mistake glyphs, and the caret waypoints (including
   // backspace retreats). All three ride one plan, so they can't desync.
   const { glyphs, mistakeGlyphs, caretSteps } = buildTypingPlan(
-    chars, cum, overlay, speed, typeStartMs, effTypeDur, advOf, mistakes, thinkMs,
+    chars,
+    cum,
+    overlay,
+    speed,
+    typeStartMs,
+    effTypeDur,
+    advOf,
+    mistakes,
+    thinkMs,
   );
 
   // Typewriter reveal — one source-owned glyph group per wrapped line, unveiled by a width-
   // growing clip stepping to each glyph's measured edge as it is typed.
-  const ln = buildTypingLines(chars, overlay, id, cum, glyphs, discrete, lineHeight, fontSize, textHeight, hiddenW, color, fontFamily, totalDuration, holdEndPct, disappearPct, totalSec);
+  const ln = buildTypingLines(
+    chars,
+    overlay,
+    id,
+    cum,
+    glyphs,
+    discrete,
+    lineHeight,
+    fontSize,
+    textHeight,
+    hiddenW,
+    color,
+    fontFamily,
+    totalDuration,
+    holdEndPct,
+    disappearPct,
+    totalSec,
+  );
   parts.push(...ln.parts);
   cssRules.push(...ln.cssRules);
 
   // DM-1555: the mistyped glyphs — painted just long enough to be seen, then
   // backspaced away (opacity 1 over [showMs, hideMs), 0 otherwise).
-  const mis = buildTypingMistakes(overlay, id, color, fontFamily, fontSize, lineHeight, mistakeGlyphs, totalDuration, totalSec);
+  const mis = buildTypingMistakes(
+    overlay,
+    id,
+    color,
+    fontFamily,
+    fontSize,
+    lineHeight,
+    mistakeGlyphs,
+    totalDuration,
+    totalSec,
+  );
   parts.push(...mis.parts);
   cssRules.push(...mis.cssRules);
 
@@ -2501,7 +2955,25 @@ function renderTypingOverlay(
   // DM-1591: the insertion cell width for a block/underscore caret — the space
   // advance in the overlay font (the caret sits at end-of-text, an empty cell).
   const caretCellWidth = advOf(" ");
-  const cr = buildTypingCaret(overlay, id, color, caretRide, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec, ascentPx, descentPx, caretCellWidth);
+  const cr = buildTypingCaret(
+    overlay,
+    id,
+    color,
+    caretRide,
+    lineHeight,
+    fontSize,
+    typeStartPct,
+    typeStartMs,
+    textEndMs,
+    holdEndMs,
+    holdEndPct,
+    disappearPct,
+    totalDuration,
+    totalSec,
+    ascentPx,
+    descentPx,
+    caretCellWidth,
+  );
   parts.push(...cr.parts);
   cssRules.push(...cr.cssRules);
 
@@ -2576,7 +3048,10 @@ function renderShineOverlay(
   const sweepStartMs = frameStart + delay;
   const sweep = buildShineSweep({
     id: `sh${idBase}`,
-    x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height,
+    x: overlay.x,
+    y: overlay.y,
+    width: overlay.width,
+    height: overlay.height,
     startPct: pct(sweepStartMs, totalDuration),
     endPct: pct(Math.min(frameStart + frameHoldMs, sweepStartMs + duration), totalDuration),
     totalSec,
@@ -2619,7 +3094,8 @@ function renderBlinkOverlay(
   }
   stops.push(`${pct(frameEnd, totalDuration)}, 100% { opacity: 0; }`);
 
-  const opacityAttr = overlay.fillOpacity != null && overlay.fillOpacity < 1 ? ` fill-opacity="${overlay.fillOpacity}"` : "";
+  const opacityAttr =
+    overlay.fillOpacity != null && overlay.fillOpacity < 1 ? ` fill-opacity="${overlay.fillOpacity}"` : "";
   const svgMarkup = `  <rect class="${id}" x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${radiusAttr} fill="${color}"${opacityAttr} />`;
   const css = `
     @keyframes ${id} { ${stops.join(" ")} }
@@ -2628,9 +3104,12 @@ function renderBlinkOverlay(
 }
 
 /** DM-1565: per-treatment defaults for the synthetic interaction overlay. */
-const INTERACT_DEFAULTS: Record<"hover" | "focus" | "press", { fill: string; fillOpacity: number; ring: string | null; scale: number }> = {
+const INTERACT_DEFAULTS: Record<
+  "hover" | "focus" | "press",
+  { fill: string; fillOpacity: number; ring: string | null; scale: number }
+> = {
   hover: { fill: "#ffffff", fillOpacity: 0.18, ring: null, scale: 1.03 },
-  focus: { fill: "#4c9ffe", fillOpacity: 0.10, ring: "#4c9ffe", scale: 1.0 },
+  focus: { fill: "#4c9ffe", fillOpacity: 0.1, ring: "#4c9ffe", scale: 1.0 },
   press: { fill: "#000000", fillOpacity: 0.18, ring: null, scale: 0.96 },
 };
 
@@ -2684,12 +3163,16 @@ function renderInteractOverlay(
 
   const layers: string[] = [];
   if (fill !== "none") {
-    layers.push(`    <rect x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${rAttr} fill="${fill}" fill-opacity="${fillOpacity}" />`);
+    layers.push(
+      `    <rect x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${rAttr} fill="${fill}" fill-opacity="${fillOpacity}" />`,
+    );
   }
   if (ring != null && ring !== "none") {
     // Inset by half the stroke so the ring stays inside the region's bounds.
     const hw = ringWidth / 2;
-    layers.push(`    <rect x="${overlay.x + hw}" y="${overlay.y + hw}" width="${Math.max(0, overlay.width - ringWidth)}" height="${Math.max(0, overlay.height - ringWidth)}"${rAttr} fill="none" stroke="${ring}" stroke-width="${ringWidth}" />`);
+    layers.push(
+      `    <rect x="${overlay.x + hw}" y="${overlay.y + hw}" width="${Math.max(0, overlay.width - ringWidth)}" height="${Math.max(0, overlay.height - ringWidth)}"${rAttr} fill="none" stroke="${ring}" stroke-width="${ringWidth}" />`,
+    );
   }
   const svgMarkup = `  <g class="${id}">\n${layers.join("\n")}\n  </g>`;
 
@@ -2761,7 +3244,12 @@ function pctNum(ms: number, total: number): number {
  * outside its true window — but removes any instant where both neighbors are
  * `visibility:hidden`. `totalSec` is the scene length used to size the margin.
  */
-function buildDisplayKeyframes(name: string, visibleStartPct: string | number, visibleEndPct: string | number, totalSec: number): string {
+function buildDisplayKeyframes(
+  name: string,
+  visibleStartPct: string | number,
+  visibleEndPct: string | number,
+  totalSec: number,
+): string {
   // DM-641: kept the function name for callers but the toggle is now on
   // `visibility`, not `display`, for the same reason as `fv-${i}` above —
   // animating `display` away from an element starting `display: none` never
@@ -2994,9 +3482,9 @@ function renderSvgOverlay(
  * construction, not by this function), so it takes only the direction + size.
  */
 function offsetForDirection(dir: "top" | "bottom" | "left" | "right", w: number, h: number): string {
-  if (dir === "top")    return `translate(0, -${h}px)`;
+  if (dir === "top") return `translate(0, -${h}px)`;
   if (dir === "bottom") return `translate(0, ${h}px)`;
-  if (dir === "left")   return `translate(-${w}px, 0)`;
+  if (dir === "left") return `translate(-${w}px, 0)`;
   return `translate(${w}px, 0)`; // right
 }
 
@@ -3064,9 +3552,10 @@ function buildIntraFrameAnimationCss(
       // scale/rotate/translate resolve inside the selected SVG reference box
       // instead of the default SVG origin. DM-2460 adds stroke/view selection;
       // fill-box remains the backwards-compatible generated-group default.
-      const originDecl = a.transformOrigin != null && a.transformOrigin !== ""
-        ? ` transform-box: ${a.transformBox ?? "fill-box"}; transform-origin: ${a.transformOrigin};`
-        : "";
+      const originDecl =
+        a.transformOrigin != null && a.transformOrigin !== ""
+          ? ` transform-box: ${a.transformBox ?? "fill-box"}; transform-origin: ${a.transformOrigin};`
+          : "";
       const animName = `f${i}-${a.animId}-${ai}`;
       // DM-1517: when a fused track carries its OWN duration/delay/easing, the
       // tracks no longer share one `animation-timing-function`, so we can't emit
@@ -3075,14 +3564,16 @@ function buildIntraFrameAnimationCss(
       // in) — still ONE animation / one timeline. Only for one-shot reveals
       // (`repeat` loops keep the shared-timing cycle form).
       const sampledTracks = a.fuse ?? [];
-      const needsSampling = a.repeat == null
-        && sampledTracks.some((t) => t.duration != null || t.delay != null || t.easing != null);
+      const needsSampling =
+        a.repeat == null && sampledTracks.some((t) => t.duration != null || t.delay != null || t.easing != null);
       if (needsSampling) {
         const win = tracks.map((t) => {
           const tStart = frameStartMs + (t.delay ?? delay);
           const tEnd = tStart + (t.duration ?? a.duration);
           return {
-            property: t.property, from: t.from, to: t.to,
+            property: t.property,
+            from: t.from,
+            to: t.to,
             startPct: (tStart / totalMs) * 100,
             endPct: (tEnd / totalMs) * 100,
             ease: resolveEasing(t.easing ?? a.easing),
@@ -3093,22 +3584,28 @@ function buildIntraFrameAnimationCss(
         // Stops: 0/100 + every track boundary + a fine grid across the active
         // span so each track's eased curve is well approximated.
         const stopSet = new Set<number>([0, 100]);
-        for (const w of win) { stopSet.add(w.startPct); stopSet.add(w.endPct); }
+        for (const w of win) {
+          stopSet.add(w.startPct);
+          stopSet.add(w.endPct);
+        }
         const STEP = 2;
         for (let p = minStart; p < maxEnd; p += STEP) stopSet.add(p);
         const stops = [...stopSet].filter((p) => p >= 0 && p <= 100).sort((x, y) => x - y);
         const seen = new Set<string>();
-        const body = stops.map((p) => {
-          const pctStr = p.toFixed(3);
-          if (seen.has(pctStr)) return "";
-          seen.add(pctStr);
-          const parts = win.map((w) => {
-            const span = w.endPct - w.startPct;
-            const localT = span > 0 ? Math.min(1, Math.max(0, (p - w.startPct) / span)) : (p >= w.endPct ? 1 : 0);
-            return { property: w.property, val: interpolateCssValue(w.from, w.to, w.ease(localT)) };
-          });
-          return `      ${pctStr}% { ${composeAnimStop(parts)} }`;
-        }).filter((s) => s !== "").join("\n");
+        const body = stops
+          .map((p) => {
+            const pctStr = p.toFixed(3);
+            if (seen.has(pctStr)) return "";
+            seen.add(pctStr);
+            const parts = win.map((w) => {
+              const span = w.endPct - w.startPct;
+              const localT = span > 0 ? Math.min(1, Math.max(0, (p - w.startPct) / span)) : p >= w.endPct ? 1 : 0;
+              return { property: w.property, val: interpolateCssValue(w.from, w.to, w.ease(localT)) };
+            });
+            return `      ${pctStr}% { ${composeAnimStop(parts)} }`;
+          })
+          .filter((s) => s !== "")
+          .join("\n");
         out.push(`    @keyframes ${animName} {
 ${body}
     }

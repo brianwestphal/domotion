@@ -12,8 +12,8 @@ const info = await page.evaluate(() => {
     pPad: { t: cs.paddingTop, l: cs.paddingLeft, r: cs.paddingRight, b: cs.paddingBottom },
     pBorder: { t: cs.borderTopWidth, l: cs.borderLeftWidth },
     pMargin: { t: cs.marginTop, l: cs.marginLeft },
-    flFloat: getComputedStyle(p, '::first-letter').float,
-    flCssFloat: getComputedStyle(p, '::first-letter').cssFloat,
+    flFloat: getComputedStyle(p, "::first-letter").float,
+    flCssFloat: getComputedStyle(p, "::first-letter").cssFloat,
   };
 });
 console.log(JSON.stringify(info, null, 2));

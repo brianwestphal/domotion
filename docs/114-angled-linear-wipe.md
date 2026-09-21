@@ -6,8 +6,14 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-2041"]
-code: ["schemas/animate-config.schema.json","src/animation/animator.ts","src/animation/animator.test.ts","tests/compose-animate-frames.e2e.test.ts"]
-aliases: ["docs/114-angled-linear-wipe.md","doc-114"]
+code:
+  [
+    "schemas/animate-config.schema.json",
+    "src/animation/animator.ts",
+    "src/animation/animator.test.ts",
+    "tests/compose-animate-frames.e2e.test.ts",
+  ]
+aliases: ["docs/114-angled-linear-wipe.md", "doc-114"]
 ---
 
 # 114 — Angled linear wipe

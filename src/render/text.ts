@@ -5,7 +5,15 @@
  */
 
 import bidiFactory from "bidi-js";
-import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureEmphasisMarkMetrics, measureInkMetrics, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
+import {
+  computeSkipInkGaps,
+  getDecorationMetrics,
+  isStretchyFenceChar,
+  measureEmphasisMarkMetrics,
+  measureInkMetrics,
+  renderStretchyFenceGlyph,
+  renderTextAsPath,
+} from "./text-to-path.js";
 import { getRenderTextMode, type FontVariantEmojiOverride } from "./font-resolution.js";
 import type { FontSynthesisAllowance } from "./text-to-path.js";
 import { r, esc } from "./format.js";
@@ -55,19 +63,27 @@ function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>
   const y2 = pb.y + pb.height;
   if (pb.borT != null && pb.borT > 0 && pb.borderTopColor != null) {
     const cy = pb.y + pb.borT / 2;
-    lines.push(`<line x1="${r(pb.x)}" y1="${r(cy)}" x2="${r(x2)}" y2="${r(cy)}" stroke="${esc(pb.borderTopColor)}" stroke-width="${r(pb.borT)}"/>`);
+    lines.push(
+      `<line x1="${r(pb.x)}" y1="${r(cy)}" x2="${r(x2)}" y2="${r(cy)}" stroke="${esc(pb.borderTopColor)}" stroke-width="${r(pb.borT)}"/>`,
+    );
   }
   if (pb.borR != null && pb.borR > 0 && pb.borderRightColor != null) {
     const cx = x2 - pb.borR / 2;
-    lines.push(`<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderRightColor)}" stroke-width="${r(pb.borR)}"/>`);
+    lines.push(
+      `<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderRightColor)}" stroke-width="${r(pb.borR)}"/>`,
+    );
   }
   if (pb.borB != null && pb.borB > 0 && pb.borderBottomColor != null) {
     const cy = y2 - pb.borB / 2;
-    lines.push(`<line x1="${r(pb.x)}" y1="${r(cy)}" x2="${r(x2)}" y2="${r(cy)}" stroke="${esc(pb.borderBottomColor)}" stroke-width="${r(pb.borB)}"/>`);
+    lines.push(
+      `<line x1="${r(pb.x)}" y1="${r(cy)}" x2="${r(x2)}" y2="${r(cy)}" stroke="${esc(pb.borderBottomColor)}" stroke-width="${r(pb.borB)}"/>`,
+    );
   }
   if (pb.borL != null && pb.borL > 0 && pb.borderLeftColor != null) {
     const cx = pb.x + pb.borL / 2;
-    lines.push(`<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderLeftColor)}" stroke-width="${r(pb.borL)}"/>`);
+    lines.push(
+      `<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderLeftColor)}" stroke-width="${r(pb.borL)}"/>`,
+    );
   }
   return lines.join("");
 }
@@ -84,7 +100,11 @@ function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>
 // element styles into the trio of args `renderTextAsPath` expects. Returns
 // `{ width: 0 }` when no stroke is set so the renderer keeps the unstroked
 // fast path.
-function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextStrokeColor?: string; paintOrder?: string }): { width: number; color: string; paintOrder: string } {
+function textStrokeParams(styles: {
+  webkitTextStrokeWidth?: string;
+  webkitTextStrokeColor?: string;
+  paintOrder?: string;
+}): { width: number; color: string; paintOrder: string } {
   const widthCss = styles.webkitTextStrokeWidth;
   if (widthCss == null || widthCss === "" || widthCss === "0px" || widthCss === "0") {
     return { width: 0, color: "", paintOrder: "" };
@@ -140,10 +160,7 @@ function canReceiveTextEmphasis(grapheme: string): boolean {
 
 // Blink `TextPainter::SetEmphasisMark` + `FillTextEmphasisGlyphsNG`:
 // metric-derived line offset and one centered mark per grapheme.
-export function renderTextEmphasisMarks(
-  el: CapturedElement,
-  fillColorFallback: string,
-): string {
+export function renderTextEmphasisMarks(el: CapturedElement, fillColorFallback: string): string {
   const styleCss = el.styles.textEmphasisStyle;
   const mark = parseTextEmphasisMark(styleCss);
   if (mark == null) return "";
@@ -151,11 +168,12 @@ export function renderTextEmphasisMarks(
   const out: string[] = [];
   const position = el.styles.textEmphasisPosition ?? "over right";
   const isUnder = /\bunder\b/.test(position);
-  const color = (el.styles.textEmphasisColor != null
-    && el.styles.textEmphasisColor !== ""
-    && el.styles.textEmphasisColor !== "currentcolor")
-    ? el.styles.textEmphasisColor
-    : (el.styles.color ?? fillColorFallback);
+  const color =
+    el.styles.textEmphasisColor != null &&
+    el.styles.textEmphasisColor !== "" &&
+    el.styles.textEmphasisColor !== "currentcolor"
+      ? el.styles.textEmphasisColor
+      : (el.styles.color ?? fillColorFallback);
   for (const seg of el.textSegments) {
     if (seg.xOffsets == null || seg.text == null || seg.xOffsets.length === 0) continue;
     const segFs = seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14);
@@ -166,26 +184,30 @@ export function renderTextEmphasisMarks(
     const segFontWeight = seg.fontWeight ?? el.styles.fontWeight;
     const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
     const metrics = measureEmphasisMarkMetrics(mark, {
-      fontSize: segFs, fontFamily: segFontFamily, fontWeight: segFontWeight,
-      fontStyle: segFontStyle, fontStretch: el.styles.fontStretch, lang: el.styles.lang,
+      fontSize: segFs,
+      fontFamily: segFontFamily,
+      fontWeight: segFontWeight,
+      fontStyle: segFontStyle,
+      fontStretch: el.styles.fontStretch,
+      lang: el.styles.lang,
     });
     if (metrics == null) continue;
-    const offset = isUnder
-      ? Math.ceil(segDescent + metrics.ascent)
-      : Math.floor(-segAscent - metrics.descent);
+    const offset = isUnder ? Math.ceil(segDescent + metrics.ascent) : Math.floor(-segAscent - metrics.descent);
     const markBaselineY = baselineY + offset;
     const spans = emphasisGraphemeSpans(seg.text);
     for (let n = 0; n < spans.length; n++) {
       const span = spans[n];
       if (!canReceiveTextEmphasis(span.text) || span.start >= seg.xOffsets.length) continue;
       const xStart = seg.xOffsets[span.start];
-      const xEnd = (n + 1 < spans.length && spans[n + 1].start < seg.xOffsets.length)
-        ? seg.xOffsets[spans[n + 1].start]
-        : seg.x + seg.width;
+      const xEnd =
+        n + 1 < spans.length && spans[n + 1].start < seg.xOffsets.length
+          ? seg.xOffsets[spans[n + 1].start]
+          : seg.x + seg.width;
       const xCenter = (xStart + xEnd) / 2;
-      const styleAttr = segFontStyle != null && segFontStyle !== "normal"
-        ? ` font-style="${esc(segFontStyle)}"` : "";
-      out.push(`<text${visualTextOnlyHiddenAttr()} x="${r(xCenter - metrics.inkCenterX)}" y="${r(markBaselineY)}" font-family="${esc(segFontFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segFontWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`);
+      const styleAttr = segFontStyle != null && segFontStyle !== "normal" ? ` font-style="${esc(segFontStyle)}"` : "";
+      out.push(
+        `<text${visualTextOnlyHiddenAttr()} x="${r(xCenter - metrics.inkCenterX)}" y="${r(markBaselineY)}" font-family="${esc(segFontFamily)}" font-size="${r(metrics.fontSize)}" font-weight="${esc(String(segFontWeight))}"${styleAttr} fill="${esc(color)}">${esc(mark)}</text>`,
+      );
     }
   }
   return out.join("");
@@ -200,15 +222,15 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined): string 
   // line is the visible hyphen — substitute with U+002D. Every other SHY
   // gets U+200B (zero-width space) so it preserves UTF-16 indexing for
   // xOffsets/rasterGlyphs but produces no glyph and no advance.
-  const SHY = String.fromCharCode(0x00AD);
-  const ZWSP = String.fromCharCode(0x200B);
+  const SHY = String.fromCharCode(0x00ad);
+  const ZWSP = String.fromCharCode(0x200b);
   let normalized = text;
   if (text.indexOf(SHY) >= 0) {
     const lastNonWs = normalized.replace(/\s+$/, "").length - 1;
     let out = "";
     for (let i = 0; i < normalized.length; i++) {
       const ch = normalized[i];
-      if (ch === SHY) out += (i === lastNonWs ? "-" : ZWSP);
+      if (ch === SHY) out += i === lastNonWs ? "-" : ZWSP;
       else out += ch;
     }
     normalized = out;
@@ -226,11 +248,12 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined): string 
   // Zero-area entries are different: they are structural suppression markers
   // for a separately captured ::first-letter segment and own no paint/advance
   // in this body run. Those keep the historical U+200B replacement.
-  const suppress = seg.rasterGlyphs.filter((g) =>
-    g.suppressGlyph === true && g.rect.width === 0 && g.rect.height === 0);
+  const suppress = seg.rasterGlyphs.filter(
+    (g) => g.suppressGlyph === true && g.rect.width === 0 && g.rect.height === 0,
+  );
   const suppressedAt = new Set<number>();
   for (const glyph of suppress) {
-    const fallbackLength = normalized.codePointAt(glyph.charIndex)! > 0xFFFF ? 2 : 1;
+    const fallbackLength = normalized.codePointAt(glyph.charIndex)! > 0xffff ? 2 : 1;
     const length = glyph.charLength ?? fallbackLength;
     for (let j = 0; j < length; j++) suppressedAt.add(glyph.charIndex + j);
   }
@@ -299,7 +322,9 @@ export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, 
     // (emoji in the middle of text) the parent clip is still desirable.
     const skipClip = g.suppressGlyph === true;
     const clipAttr = skipClip ? "" : ` clip-path="url(#${clipId})"`;
-    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="none"${clipAttr}/>`);
+    out.push(
+      `<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="none"${clipAttr}/>`,
+    );
   }
   return out.join("");
 }
@@ -470,8 +495,11 @@ export interface DecorationLineCtx {
  * ink from them. Exported for unit testing (not in the package barrel).
  */
 export function emitDecorationLine(
-  yTop: number, t: number, line: "underline" | "overline" | "line-through",
-  skipsInk: boolean, ctx: DecorationLineCtx,
+  yTop: number,
+  t: number,
+  line: "underline" | "overline" | "line-through",
+  skipsInk: boolean,
+  ctx: DecorationLineCtx,
 ): string {
   const { style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments, clipIdBase } = ctx;
   const clipId = `${clipIdBase ?? "deco"}-${line === "underline" ? "u" : line === "overline" ? "o" : "t"}`;
@@ -563,10 +591,13 @@ export function emitDecorationLine(
       const gx = segX + k * wavelength;
       d += ` C ${wr(gx + wavelength / 2)} ${wr(yWave + cpDist)} ${wr(gx + wavelength / 2)} ${wr(yWave - cpDist)} ${wr(gx + wavelength)} ${wr(yWave)}`;
     }
-    const rects = subs.map(({ x0, x1 }) =>
-      `<rect x="${wr(x0)}" y="${wr(bandTop)}" width="${wr(x1 - x0)}" height="${wr(bandH)}"/>`).join("");
-    return `<clipPath id="${clipId}">${rects}</clipPath>`
-      + `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${wr(t)}" clip-path="url(#${clipId})"/>`;
+    const rects = subs
+      .map(({ x0, x1 }) => `<rect x="${wr(x0)}" y="${wr(bandTop)}" width="${wr(x1 - x0)}" height="${wr(bandH)}"/>`)
+      .join("");
+    return (
+      `<clipPath id="${clipId}">${rects}</clipPath>` +
+      `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${wr(t)}" clip-path="url(#${clipId})"/>`
+    );
   }
   if (style === "double") {
     // Double: two parallel bars. The second bar sits `doubleOffset` from the
@@ -583,16 +614,17 @@ export function emitDecorationLine(
     // the 0.5px inset (`text_painter.cc:589-590`).
     const bandTop = Math.min(yTop, yTop + doubleOffset);
     const bandThickness = t + Math.abs(doubleOffset);
-    const dblGaps = skipsInk
-      ? computeGapsAt(bandTop + bandThickness / 2 - runBaselineY, bandThickness, pad)
-      : [];
+    const dblGaps = skipsInk ? computeGapsAt(bandTop + bandThickness / 2 - runBaselineY, bandThickness, pad) : [];
     const subs = subSegments(dblGaps);
     const yA = top1 + hSnap / 2;
     const yB = top2 + hSnap / 2;
-    return subs.map(({ x0, x1 }) =>
-      `<line x1="${r(x0)}" y1="${r(yA)}" x2="${r(x1)}" y2="${r(yA)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
-      + `<line x1="${r(x0)}" y1="${r(yB)}" x2="${r(x1)}" y2="${r(yB)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
-    ).join("");
+    return subs
+      .map(
+        ({ x0, x1 }) =>
+          `<line x1="${r(x0)}" y1="${r(yA)}" x2="${r(x1)}" y2="${r(yA)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>` +
+          `<line x1="${r(x0)}" y1="${r(yB)}" x2="${r(x1)}" y2="${r(yB)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`,
+      )
+      .join("");
   }
   if (style === "dashed" || style === "dotted") {
     // Dashed / dotted use Chromium's real dash geometry (see
@@ -649,10 +681,10 @@ export function emitDecorationLine(
     // shifts a thin stroke half a pixel past the band edge, which is below
     // AA resolution) — so keeping ONLY inside these rects equals Blink's
     // clip-OUT of the gap rects.
-    const clipRects = subs.map(({ x0, x1 }) =>
-      `<rect x="${r(x0)}" y="${r(yMid - t / 2 - 1)}" width="${r(x1 - x0)}" height="${r(t + 2)}"/>`).join("");
-    return `<clipPath id="${clipId}">${clipRects}</clipPath>`
-      + `<g clip-path="url(#${clipId})">${lineMarkup}</g>`;
+    const clipRects = subs
+      .map(({ x0, x1 }) => `<rect x="${r(x0)}" y="${r(yMid - t / 2 - 1)}" width="${r(x1 - x0)}" height="${r(t + 2)}"/>`)
+      .join("");
+    return `<clipPath id="${clipId}">${clipRects}</clipPath>` + `<g clip-path="url(#${clipId})">${lineMarkup}</g>`;
   }
   // Solid: the split-into-sub-segments emit below is EXACTLY Blink's
   // clip-mechanism result for a solid line — the clip-out rects cut a
@@ -668,9 +700,12 @@ export function emitDecorationLine(
   // one (`decoration_line_painter.cc:40-45,104-124`).
   const yTopSnapped = Math.floor(yTop + 0.5);
   const yLine = yTopSnapped + hSnap / 2;
-  return subs.map(({ x0, x1 }) =>
-    `<line x1="${r(x0)}" y1="${r(yLine)}" x2="${r(x1)}" y2="${r(yLine)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`
-  ).join("");
+  return subs
+    .map(
+      ({ x0, x1 }) =>
+        `<line x1="${r(x0)}" y1="${r(yLine)}" x2="${r(x1)}" y2="${r(yLine)}" stroke="${decorationColor}" stroke-width="${r(hSnap)}"/>`,
+    )
+    .join("");
 }
 
 /**
@@ -702,8 +737,12 @@ export function emitDecorationLine(
  * Returns SVG attrs to append to the `<line>` plus the per-end `inset`.
  * Exported for unit testing (not in the package barrel).
  */
-export function decorationDashPattern(style: "dashed" | "dotted", thickness: number, length: number): { attrs: string; inset: number } {
-  const ti = Math.round(thickness) || thickness;   // dash geometry basis
+export function decorationDashPattern(
+  style: "dashed" | "dotted",
+  thickness: number,
+  length: number,
+): { attrs: string; inset: number } {
+  const ti = Math.round(thickness) || thickness; // dash geometry basis
   // `SelectBestDashGap` (open path): pick the dash count whose fitted gap is
   // closest to the ideal gap; a two-dash minimum keeps `minNumGaps ≥ 1`.
   const selectBestDashGap = (strokeLength: number, dashLength: number, gapLength: number): number => {
@@ -712,7 +751,7 @@ export function decorationDashPattern(style: "dashed" | "dotted", thickness: num
     const maxNumDashes = minNumDashes + 1;
     const minGap = (strokeLength - minNumDashes * dashLength) / (minNumDashes - 1);
     const maxGap = (strokeLength - maxNumDashes * dashLength) / (maxNumDashes - 1);
-    return (maxGap <= 0) || (Math.abs(minGap - gapLength) < Math.abs(maxGap - gapLength)) ? minGap : maxGap;
+    return maxGap <= 0 || Math.abs(minGap - gapLength) < Math.abs(maxGap - gapLength) ? minGap : maxGap;
   };
   const dashed = style === "dashed";
   if (dashed || ti <= 3) {
@@ -723,7 +762,7 @@ export function decorationDashPattern(style: "dashed" | "dotted", thickness: num
       dashLen *= ti >= 3 ? 2 : 3;
       gapLen *= ti >= 3 ? 1 : 2;
     }
-    if (length <= dashLen * 2) return { attrs: "", inset: 0 };   // no space for dashes → solid
+    if (length <= dashLen * 2) return { attrs: "", inset: 0 }; // no space for dashes → solid
     const twoDashesWithGap = 2 * dashLen + gapLen;
     if (length <= twoDashesWithGap) {
       const m = length / twoDashesWithGap;
@@ -745,16 +784,34 @@ export function decorationDashPattern(style: "dashed" | "dotted", thickness: num
  * baseline line-over resolution. Exported for the vertical logical oracle. */
 export function resolvedTextDecorationLine(textDecorationLine: string, flip: boolean): string {
   return flip
-    ? textDecorationLine.split(/\s+/).map((line) => line === "underline" ? "overline"
-      : line === "overline" ? "underline" : line).join(" ")
+    ? textDecorationLine
+        .split(/\s+/)
+        .map((line) => (line === "underline" ? "overline" : line === "overline" ? "underline" : line))
+        .join(" ")
     : textDecorationLine;
 }
 
 export function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
-    textDecorationLine, decorationColor, style, segX, fragTop, runBaselineY, segWidth,
-    fontSize, fontFamily, fontWeight, fontStyle, fontStretch, thicknessOverride,
-    underlineOffset, underlinePosition, runText, skipInk, features, runXOffsets,
+    textDecorationLine,
+    decorationColor,
+    style,
+    segX,
+    fragTop,
+    runBaselineY,
+    segWidth,
+    fontSize,
+    fontFamily,
+    fontWeight,
+    fontStyle,
+    fontStretch,
+    thicknessOverride,
+    underlineOffset,
+    underlinePosition,
+    runText,
+    skipInk,
+    features,
+    runXOffsets,
   } = opts;
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
   // DM-1723: decoration metrics (position, auto thickness) come from the
@@ -766,14 +823,30 @@ export function renderTextDecoration(opts: TextDecorationOptions): string {
   const mFontWeight = opts.metricsFontWeight ?? fontWeight;
   const mFontStyle = opts.metricsFontStyle ?? fontStyle;
   const m = getDecorationMetrics(
-    { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle,
-      fontStretch, lang: opts.lang, variationSettings: opts.variationSettings },
-    { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition,
-      fontAscent: opts.fontAscent, fontDescent: opts.fontDescent, lengthScale: opts.lengthScale,
-      baselineType: opts.baselineType, flipUnderlineAndOverline: opts.flipUnderlineAndOverline });
+    {
+      fontFamily: mFontFamily,
+      fontSize: mFontSize,
+      fontWeight: mFontWeight,
+      fontStyle: mFontStyle,
+      fontStretch,
+      lang: opts.lang,
+      variationSettings: opts.variationSettings,
+    },
+    {
+      thicknessOverride,
+      underlineOffsetCss: underlineOffset,
+      underlinePositionCss: underlinePosition,
+      fontAscent: opts.fontAscent,
+      fontDescent: opts.fontDescent,
+      lengthScale: opts.lengthScale,
+      baselineType: opts.baselineType,
+      flipUnderlineAndOverline: opts.flipUnderlineAndOverline,
+    },
+  );
   const lines: string[] = [];
   const effectiveDecorationLine = resolvedTextDecorationLine(
-    textDecorationLine, opts.flipUnderlineAndOverline === true,
+    textDecorationLine,
+    opts.flipUnderlineAndOverline === true,
   );
   const has = (k: string) => effectiveDecorationLine.includes(k);
   // Skip-ink is style-AGNOSTIC in Blink. `TextDecorationPainter` calls
@@ -787,17 +860,34 @@ export function renderTextDecoration(opts: TextDecorationOptions): string {
   // `decoration_line_painter.cc::Paint`, which contains no skip-ink logic at
   // all; the gating and the citation were both wrong.
   const skipInkMode = skipInk === "all" ? "all" : "auto";
-  const skipInkActive = (skipInk == null || skipInk === "auto" || skipInk === "all")
-    && runText != null && runText !== "";
+  const skipInkActive =
+    (skipInk == null || skipInk === "auto" || skipInk === "all") && runText != null && runText !== "";
   // Compute X-range gaps where the underline rect crosses glyph ink. Returned
   // gaps are run-relative (0 = segX); subSegments() splits the underline span
   // around them.
   function computeGapsAt(yRel: number, thick: number, pad: number): Array<[number, number]> {
     if (!skipInkActive || runText == null) return [];
-    return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, fontStretch,
-      lang: opts.lang, variationSettings: opts.variationSettings, features },
-      { decorationCenterYRel: yRel, decorationThickness: thick, interceptPad: pad,
-        targetWidth: segWidth, charXOffsets: runXOffsets, skipInkMode });
+    return computeSkipInkGaps(
+      runText,
+      {
+        fontSize,
+        fontFamily,
+        fontWeight,
+        fontStyle,
+        fontStretch,
+        lang: opts.lang,
+        variationSettings: opts.variationSettings,
+        features,
+      },
+      {
+        decorationCenterYRel: yRel,
+        decorationThickness: thick,
+        interceptPad: pad,
+        targetWidth: segWidth,
+        charXOffsets: runXOffsets,
+        skipInkMode,
+      },
+    );
   }
   // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
   // (run-relative; gap[0]+segX is absolute screen X).
@@ -822,7 +912,12 @@ export function renderTextDecoration(opts: TextDecorationOptions): string {
   // is the UNSNAPPED rect top in viewport px; `emitDecorationLine` applies
   // the per-style paint snap (see its doc).
   const decorationLineCtx: DecorationLineCtx = {
-    style, runBaselineY, segX, decorationColor, computeGapsAt, subSegments,
+    style,
+    runBaselineY,
+    segX,
+    decorationColor,
+    computeGapsAt,
+    subSegments,
     clipIdBase: opts.idBase,
   };
   if (has("underline")) {
@@ -892,7 +987,11 @@ interface AppliedDecorationRunCtx {
  * baseline, byte-identical to before. Exported for unit testing (not in the
  * package barrel).
  */
-export function pickPropagatedBaseline(baselines: number[] | undefined, runBaselineY: number, decoFontSize: number): number {
+export function pickPropagatedBaseline(
+  baselines: number[] | undefined,
+  runBaselineY: number,
+  decoFontSize: number,
+): number {
   if (baselines == null || baselines.length === 0) return runBaselineY;
   let best = baselines[0];
   for (const b of baselines) {
@@ -908,8 +1007,7 @@ export function pickPropagatedBaseline(baselines: number[] | undefined, runBasel
 export function decorationLengthScale(styles: CapturedElement["styles"]): number {
   const logical = parseFloat(styles.fontLogicalSize ?? styles.fontSize);
   const effective = parseFloat(styles.fontSize);
-  return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective)
-    ? effective / logical : 1;
+  return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective) ? effective / logical : 1;
 }
 
 function renderAppliedTextDecorations(
@@ -945,46 +1043,77 @@ function renderAppliedTextDecorations(
     // Exact fragment ownership supersedes the legacy rounded-baseline list.
     // Older captures (and decorating wrappers with no direct text fragment)
     // retain the compatible fallback.
-    const pdBaseline = ownedFragment?.baseline
-      ?? pickPropagatedBaseline(pd.baselines, runBaselineY, pd.fontSize);
-    parts.push(renderTextDecoration({
-      textDecorationLine: pd.line, decorationColor: pd.color ?? fallbackColor, style: pd.style,
-      segX: run.segX, fragTop: pdBaseline - pdAscent, runBaselineY, segWidth: run.segWidth,
-      fontAscent: pdAscent, fontDescent: pd.fontDescent,
-      fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
-      // `font-stretch` inherits, and `PropagatedDecoration` captures no stretch
-      // of its own, so the decorated element's computed value is the decorating
-      // box's too in every case capture can currently represent.
-      fontStretch: el.styles.fontStretch,
-      thicknessOverride: pd.thickness, underlineOffset: pd.underlineOffset,
-      lengthScale: pd.lengthScale,
-      // `PropagatedDecoration` carries no position of its own, so the
-      // decorated element's value applies.
-      underlinePosition: el.styles.textUnderlinePosition,
-      runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
-      runXOffsets: run.runXOffsets,
-      metricsFontFamily: pd.fontFamily, metricsFontSize: pd.fontSize,
-      metricsFontWeight: pd.fontWeight, metricsFontStyle: pd.fontStyle,
-      idBase: run.idBase != null ? `${run.idBase}-${decoIdx++}` : undefined,
-    }));
+    const pdBaseline = ownedFragment?.baseline ?? pickPropagatedBaseline(pd.baselines, runBaselineY, pd.fontSize);
+    parts.push(
+      renderTextDecoration({
+        textDecorationLine: pd.line,
+        decorationColor: pd.color ?? fallbackColor,
+        style: pd.style,
+        segX: run.segX,
+        fragTop: pdBaseline - pdAscent,
+        runBaselineY,
+        segWidth: run.segWidth,
+        fontAscent: pdAscent,
+        fontDescent: pd.fontDescent,
+        fontSize: run.fontSize,
+        fontFamily: run.fontFamily,
+        fontWeight: run.fontWeight,
+        fontStyle: el.styles.fontStyle,
+        // `font-stretch` inherits, and `PropagatedDecoration` captures no stretch
+        // of its own, so the decorated element's computed value is the decorating
+        // box's too in every case capture can currently represent.
+        fontStretch: el.styles.fontStretch,
+        thicknessOverride: pd.thickness,
+        underlineOffset: pd.underlineOffset,
+        lengthScale: pd.lengthScale,
+        // `PropagatedDecoration` carries no position of its own, so the
+        // decorated element's value applies.
+        underlinePosition: el.styles.textUnderlinePosition,
+        runText: run.runText,
+        skipInk: el.styles.textDecorationSkipInk,
+        features: run.features,
+        runXOffsets: run.runXOffsets,
+        metricsFontFamily: pd.fontFamily,
+        metricsFontSize: pd.fontSize,
+        metricsFontWeight: pd.fontWeight,
+        metricsFontStyle: pd.fontStyle,
+        idBase: run.idBase != null ? `${run.idBase}-${decoIdx++}` : undefined,
+      }),
+    );
   }
   const ownLine = el.styles.textDecorationLine;
   if (ownLine != null && ownLine !== "" && ownLine !== "none") {
-    const ownColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-      ? el.styles.textDecorationColor : fallbackColor;
-    parts.push(renderTextDecoration({
-      textDecorationLine: ownLine, decorationColor: ownColor, style: el.styles.textDecorationStyle,
-      segX: run.segX, fragTop: run.fragTop, runBaselineY, segWidth: run.segWidth,
-      fontAscent: run.fontAscent, fontDescent: run.fontDescent,
-      fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
-      fontStretch: el.styles.fontStretch,
-      thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
-      lengthScale: decorationLengthScale(el.styles),
-      underlinePosition: el.styles.textUnderlinePosition,
-      runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
-      runXOffsets: run.runXOffsets,
-      idBase: run.idBase != null ? `${run.idBase}-${decoIdx++}` : undefined,
-    }));
+    const ownColor =
+      el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor"
+        ? el.styles.textDecorationColor
+        : fallbackColor;
+    parts.push(
+      renderTextDecoration({
+        textDecorationLine: ownLine,
+        decorationColor: ownColor,
+        style: el.styles.textDecorationStyle,
+        segX: run.segX,
+        fragTop: run.fragTop,
+        runBaselineY,
+        segWidth: run.segWidth,
+        fontAscent: run.fontAscent,
+        fontDescent: run.fontDescent,
+        fontSize: run.fontSize,
+        fontFamily: run.fontFamily,
+        fontWeight: run.fontWeight,
+        fontStyle: el.styles.fontStyle,
+        fontStretch: el.styles.fontStretch,
+        thicknessOverride: el.styles.textDecorationThickness,
+        underlineOffset: el.styles.textUnderlineOffset,
+        lengthScale: decorationLengthScale(el.styles),
+        underlinePosition: el.styles.textUnderlinePosition,
+        runText: run.runText,
+        skipInk: el.styles.textDecorationSkipInk,
+        features: run.features,
+        runXOffsets: run.runXOffsets,
+        idBase: run.idBase != null ? `${run.idBase}-${decoIdx++}` : undefined,
+      }),
+    );
   }
   return parts.join("");
 }
@@ -1000,8 +1129,10 @@ const _RTL_RE = /[֐-ࣿיִ-ﻼ]/;
  * automatic base level; override values additionally replace character types.
  * This cannot be reconstructed from the source characters alone.
  */
-function bidiContextFor(el: { styles: { direction?: string; unicodeBidi?: string } }):
-  { direction: "ltr" | "rtl"; unicodeBidi: string } {
+function bidiContextFor(el: { styles: { direction?: string; unicodeBidi?: string } }): {
+  direction: "ltr" | "rtl";
+  unicodeBidi: string;
+} {
   return {
     direction: el.styles.direction === "rtl" ? "rtl" : "ltr",
     unicodeBidi: el.styles.unicodeBidi ?? "normal",
@@ -1023,7 +1154,11 @@ function bidiContextFor(el: { styles: { direction?: string; unicodeBidi?: string
  * Returns the input text with mirror substitutions applied; xOffsets pass
  * through unchanged.
  */
-function applyBidi(text: string, xOffsets: number[] | undefined, bidiContext: BidiParagraphContext): { text: string; xOffsets?: number[] } {
+function applyBidi(
+  text: string,
+  xOffsets: number[] | undefined,
+  bidiContext: BidiParagraphContext,
+): { text: string; xOffsets?: number[] } {
   // DM-2716: `system-font` mode emits authored `<text>` and lets the viewing
   // browser run the full UBA (reorder AND mirror). Our mirroring here assumes a
   // logical-order emit with per-char xOffsets doing the visual placement, which
@@ -1051,7 +1186,11 @@ function applyBidi(text: string, xOffsets: number[] | undefined, bidiContext: Bi
     const level = levels[i];
     if (level % 2 === 1) {
       const m = _bidi.getMirroredCharacter(text[i]);
-      if (m != null) { outText += m; anyMirror = true; continue; }
+      if (m != null) {
+        outText += m;
+        anyMirror = true;
+        continue;
+      }
     }
     outText += text[i];
   }
@@ -1070,7 +1209,12 @@ function applyBidi(text: string, xOffsets: number[] | undefined, bidiContext: Bi
  * `fullText`. `suppressGlyphChars` preserves length, so the line's bracket
  * positions align 1:1 with `levels[base + i]`. xOffsets pass through unchanged.
  */
-function applyBidiAt(text: string, xOffsets: number[] | undefined, levels: ArrayLike<number>, base: number): { text: string; xOffsets?: number[] } {
+function applyBidiAt(
+  text: string,
+  xOffsets: number[] | undefined,
+  levels: ArrayLike<number>,
+  base: number,
+): { text: string; xOffsets?: number[] } {
   // DM-2716: see applyBidi — `system-font` mode leaves reordering + mirroring to
   // the viewing browser, so this pre-mirroring is skipped there.
   if (getRenderTextMode() === "system-font") return { text, xOffsets };
@@ -1080,7 +1224,11 @@ function applyBidiAt(text: string, xOffsets: number[] | undefined, levels: Array
     const level = levels[base + i];
     if (level != null && level % 2 === 1) {
       const m = _bidi.getMirroredCharacter(text[i]);
-      if (m != null) { out += m; any = true; continue; }
+      if (m != null) {
+        out += m;
+        any = true;
+        continue;
+      }
     }
     out += text[i];
   }
@@ -1123,7 +1271,14 @@ interface RenderTextOpts {
    *  gradient paints under the text. Caller (main render loop) owns
    *  `defsParts` / `clipIdx` and provides this closure; standalone callers
    *  (unit tests) pass undefined and the gradient layers are skipped. */
-  emitPseudoBoxBgLayers?: (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }) => string;
+  emitPseudoBoxBgLayers?: (pb: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    backgroundImage: string;
+    borderRadius?: number;
+  }) => string;
 }
 
 // Resolve OpenType features from font-variant-caps (DM-361, DM-444).
@@ -1155,7 +1310,9 @@ function fontVariantEmojiOf(styles: { fontVariantEmoji?: string }): FontVariantE
  * it was before this existed and no downstream decision changes. DM-1971.
  */
 function fontSynthesisOf(styles: {
-  fontSynthesisWeight?: string; fontSynthesisStyle?: string; fontSynthesisSmallCaps?: string;
+  fontSynthesisWeight?: string;
+  fontSynthesisStyle?: string;
+  fontSynthesisSmallCaps?: string;
 }): FontSynthesisAllowance | undefined {
   const weight = styles.fontSynthesisWeight !== "none";
   const style = styles.fontSynthesisStyle !== "none";
@@ -1182,15 +1339,25 @@ function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | un
 // simplified/JP default glyph (国) instead of the traditional form (國), and
 // numeric variants render lining proportional figures regardless.
 const EAST_ASIAN_FEATURE: Record<string, string> = {
-  "jis78": "jp78", "jis83": "jp83", "jis90": "jp90", "jis04": "jp04",
-  "simplified": "smpl", "traditional": "trad",
-  "full-width": "fwid", "proportional-width": "pwid", "ruby": "ruby",
+  jis78: "jp78",
+  jis83: "jp83",
+  jis90: "jp90",
+  jis04: "jp04",
+  simplified: "smpl",
+  traditional: "trad",
+  "full-width": "fwid",
+  "proportional-width": "pwid",
+  ruby: "ruby",
 };
 const NUMERIC_FEATURE: Record<string, string> = {
-  "lining-nums": "lnum", "oldstyle-nums": "onum",
-  "proportional-nums": "pnum", "tabular-nums": "tnum",
-  "diagonal-fractions": "frac", "stacked-fractions": "afrc",
-  "ordinal": "ordn", "slashed-zero": "zero",
+  "lining-nums": "lnum",
+  "oldstyle-nums": "onum",
+  "proportional-nums": "pnum",
+  "tabular-nums": "tnum",
+  "diagonal-fractions": "frac",
+  "stacked-fractions": "afrc",
+  ordinal: "ordn",
+  "slashed-zero": "zero",
 };
 export function resolveFontVariantFeatures(
   eastAsian: string | undefined,
@@ -1389,8 +1556,7 @@ export function resolveFontVariantAlternates(
   tables: CapturedElement["styles"]["fontFeatureValues"],
 ): string[] | undefined {
   if (css == null || css === "" || css === "normal") return undefined;
-  const families = parseCssFontFamilyEntries(fontFamily)
-    .map((entry) => entry.name.toLowerCase());
+  const families = parseCssFontFamilyEntries(fontFamily).map((entry) => entry.name.toLowerCase());
   // Blink resolves once per family while walking the CSS stack. Choose the
   // first family that owns an alias table; aliases declared for another family
   // must never leak into this request.
@@ -1408,7 +1574,8 @@ export function resolveFontVariantAlternates(
   emitSingle("stylistic", "stylistic", ["salt"]);
   for (const m of css.matchAll(/styleset\(\s*([^)]*)\)/gi)) {
     for (const alias of m[1].trim().split(/\s+/)) {
-      for (const value of table?.styleset?.[alias] ?? []) if (value <= 99) out.push(`ss${String(value).padStart(2, "0")}`);
+      for (const value of table?.styleset?.[alias] ?? [])
+        if (value <= 99) out.push(`ss${String(value).padStart(2, "0")}`);
     }
   }
   for (const m of css.matchAll(/character-variant\(\s*([^)]*)\)/gi)) {
@@ -1424,15 +1591,16 @@ export function resolveFontVariantAlternates(
 }
 
 function elementFontFeatures(el: CapturedElement, fontFamily = capturedElementFontFamily(el)): string[] | undefined {
-  const alternates = resolveFontVariantAlternates(el.styles.fontVariantAlternates, fontFamily, el.styles.fontFeatureValues);
+  const alternates = resolveFontVariantAlternates(
+    el.styles.fontVariantAlternates,
+    fontFamily,
+    el.styles.fontFeatureValues,
+  );
   return mergeFeatureLists(alternates, parseFontFeatureSettings(el.styles.fontFeatureSettings));
 }
 
 /** Shared selected-face input for the post-capture color-glyph classifier. */
-export function capturedTextSegmentFontFeatures(
-  el: CapturedElement,
-  seg: TextSegment,
-): string[] | undefined {
+export function capturedTextSegmentFontFeatures(el: CapturedElement, seg: TextSegment): string[] | undefined {
   const family = capturedSegmentFontFamily(el, seg);
   const ffs = elementFontFeatures(el, family);
   return mergeFeatureLists(
@@ -1440,9 +1608,12 @@ export function capturedTextSegmentFontFeatures(
       mergeFeatureLists(
         resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
         resolveFontVariantFeatures(
-          el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
-          el.styles.fontVariantLigatures, el.styles.letterSpacing,
-          el.styles.textRendering, el.styles.fontKerning,
+          el.styles.fontVariantEastAsian,
+          el.styles.fontVariantNumeric,
+          el.styles.fontVariantLigatures,
+          el.styles.letterSpacing,
+          el.styles.textRendering,
+          el.styles.fontKerning,
           el.styles.fontVariantPosition,
         ),
       ),
@@ -1486,13 +1657,18 @@ function opticalVariationSettings(el: Pick<CapturedElement, "styles">): Record<s
   const axes = parseFontVariationSettings(el.styles.fontVariationSettings);
   const logical = parseFloat(el.styles.fontLogicalSize ?? el.styles.fontSize);
   const computed = parseFloat(el.styles.fontComputedSize ?? el.styles.fontSize);
-  const needsSizeSpaces = Number.isFinite(logical) && Number.isFinite(computed)
-    && (logical !== parseFloat(el.styles.fontSize) || computed !== parseFloat(el.styles.fontSize));
+  const needsSizeSpaces =
+    Number.isFinite(logical) &&
+    Number.isFinite(computed) &&
+    (logical !== parseFloat(el.styles.fontSize) || computed !== parseFloat(el.styles.fontSize));
   if (el.styles.fontOpticalSizing !== "none" && !needsSizeSpaces) return axes;
   const marked = axes ?? {};
-  if (el.styles.fontOpticalSizing === "none") Object.defineProperty(marked, "__dmOpticalSizingNone", { value: true, enumerable: false });
-  if (Number.isFinite(logical)) Object.defineProperty(marked, "__dmLogicalFontSize", { value: logical, enumerable: false });
-  if (Number.isFinite(computed)) Object.defineProperty(marked, "__dmComputedFontSize", { value: computed, enumerable: false });
+  if (el.styles.fontOpticalSizing === "none")
+    Object.defineProperty(marked, "__dmOpticalSizingNone", { value: true, enumerable: false });
+  if (Number.isFinite(logical))
+    Object.defineProperty(marked, "__dmLogicalFontSize", { value: logical, enumerable: false });
+  if (Number.isFinite(computed))
+    Object.defineProperty(marked, "__dmComputedFontSize", { value: computed, enumerable: false });
   return marked;
 }
 
@@ -1505,8 +1681,18 @@ export function mergeFeatureLists(a: string[] | undefined, b: string[] | undefin
   if (b == null) return a;
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const t of a) { if (!seen.has(t)) { seen.add(t); out.push(t); } }
-  for (const t of b) { if (!seen.has(t)) { seen.add(t); out.push(t); } }
+  for (const t of a) {
+    if (!seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  for (const t of b) {
+    if (!seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+    }
+  }
   return out;
 }
 
@@ -1525,7 +1711,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // bearing so the visible glyph drifts left of where Chrome paints
   // it (DM-596). Use the screenshot instead — pixel-faithful and
   // anchored at the position Chromium painted from.
-  const ssSeg = (el.textSegments != null && el.textSegments.length === 1) ? el.textSegments[0] : undefined;
+  const ssSeg = el.textSegments != null && el.textSegments.length === 1 ? el.textSegments[0] : undefined;
   if (ssSeg != null && ssSeg.rasterDataUri != null && ssSeg.rasterRect != null) {
     recordTextEmitterTransition({
       kind: "capture-raster",
@@ -1551,7 +1737,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // several px too low. Fit the glyph to the captured element box instead.
   if (el.tag === "mo" && isStretchyFenceChar(el.text) && el.height > 0) {
     const fence = renderStretchyFenceGlyph(
-      el.text.trim(), tl, el.y, el.height,
+      el.text.trim(),
+      tl,
+      el.y,
+      el.height,
       { fontSize, fontFamily, fontWeight, fontStyle: el.styles.fontStyle, fontStretch: el.styles.fontStretch },
       fillColor,
     );
@@ -1563,7 +1752,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // per-character xOffsets for this single-line segment, pass them through so
   // each glyph is anchored at the exact x Chrome painted (closes per-char
   // drift). Falls back to Chrome's measured width for uniform scaling.
-  const singleSeg = (el.textSegments != null && el.textSegments.length === 1) ? el.textSegments[0] : undefined;
+  const singleSeg = el.textSegments != null && el.textSegments.length === 1 ? el.textSegments[0] : undefined;
   const pathTextRawSrc = singleSeg != null ? singleSeg.text : el.text;
   const pathTextRaw = suppressGlyphChars(pathTextRawSrc, singleSeg);
   const xOffsetsRelRaw = singleSeg?.xOffsets != null ? singleSeg.xOffsets.map((v) => v - tl) : undefined;
@@ -1573,16 +1762,23 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // DM-2470: shaped origins stay in Blink's pre-transform plane. The caller
   // applies the complete signed affine paint matrix to the whole text bundle.
   const xOffsetsRel = reordered.xOffsets;
-  const ffsFeatures = elementFontFeatures(el, singleSeg == null
-    ? fontFamily
-    : capturedSegmentFontFamily(el, singleSeg));
+  const ffsFeatures = elementFontFeatures(
+    el,
+    singleSeg == null ? fontFamily : capturedSegmentFontFamily(el, singleSeg),
+  );
   const features = mergeFeatureLists(
     mergeFeatureLists(
       mergeFeatureLists(
         resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
-        resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
-          el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering,
-          el.styles.fontKerning, el.styles.fontVariantPosition),
+        resolveFontVariantFeatures(
+          el.styles.fontVariantEastAsian,
+          el.styles.fontVariantNumeric,
+          el.styles.fontVariantLigatures,
+          el.styles.letterSpacing,
+          el.styles.textRendering,
+          el.styles.fontKerning,
+          el.styles.fontVariantPosition,
+        ),
       ),
       ffsFeatures,
     ),
@@ -1612,9 +1808,8 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // (background-color / border-radius / border), emit a <rect> behind the
   // glyphs. Same as the multi-segment path; without this the badge / pill
   // bg never paints when the pseudo is the only text on the host.
-  const singleSegBoxMarkup = (singleSeg?.pseudoBox != null)
-    ? renderSingleSegPseudoBox(singleSeg.pseudoBox, opts.emitPseudoBoxBgLayers)
-    : "";
+  const singleSegBoxMarkup =
+    singleSeg?.pseudoBox != null ? renderSingleSegPseudoBox(singleSeg.pseudoBox, opts.emitPseudoBoxBgLayers) : "";
   // DM-832: MathML token elements (`<mi>` / `<mo>` / `<mn>` / `<mtext>`, the
   // non-stretchy cases — stretchy fences returned above) are positioned by
   // Chromium's math layout so the element border box is tight to the glyph
@@ -1639,9 +1834,14 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   let renderAscent = segAscent;
   if (MATH_TOKEN_TAGS.has(el.tag ?? "") && el.height > 0) {
     const ink = measureInkMetrics(pathText, {
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
-      fontStyle: segFontStyle, fontStretch: el.styles.fontStretch,
-      lang: el.styles.lang, variationSettings, features,
+      fontSize: segFontSize,
+      fontFamily: segFontFamily,
+      fontWeight: segFontWeight,
+      fontStyle: segFontStyle,
+      fontStretch: el.styles.fontStretch,
+      lang: el.styles.lang,
+      variationSettings,
+      features,
     });
     if (ink != null) {
       const inkTotal = ink.inkAscent + ink.inkDescent;
@@ -1652,49 +1852,67 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     }
   }
   const result = renderTextAsPath(pathText, tl, renderY, {
-    fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
-    targetWidth: el.textWidth, xOffsets: xOffsetsRel, fontStyle: segFontStyle,
-    ascentOverride: renderAscent, features, lang: el.styles.lang, variationSettings,
-    textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-    dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiContextFor(el),
-    fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),
-    fontSynthesis: fontSynthesisOf(el.styles), textRendering: el.styles.textRendering,
+    fontSize: segFontSize,
+    fontFamily: segFontFamily,
+    fontWeight: segFontWeight,
+    fill: segColor,
+    targetWidth: el.textWidth,
+    xOffsets: xOffsetsRel,
+    fontStyle: segFontStyle,
+    ascentOverride: renderAscent,
+    features,
+    lang: el.styles.lang,
+    variationSettings,
+    textStrokeWidth: _ts.width,
+    textStrokeColor: _ts.color,
+    paintOrder: _ts.paintOrder,
+    dottedCircleMarks: singleSeg?.dottedCircleMarks,
+    bidiOverride: bidiContextFor(el),
+    fontStretch: el.styles.fontStretch,
+    fontVariantEmoji: fontVariantEmojiOf(el.styles),
+    fontSynthesis: fontSynthesisOf(el.styles),
+    textRendering: el.styles.textRendering,
   });
   // Decorations anchor on the text fragment TOP (`tt`) + the captured
-    // FloatAscent — the same pair Blink's decoration offsets are expressed
-    // against (`local_origin_.line_over` + `FontMetrics` in
-    // `core/paint/text_decoration_info.cc`). No pre-rounding here: the
-    // paint-time snap is applied per line style inside `emitDecorationLine`.
-    // DM-1723/DM-1725: the element's own decoration plus every ancestor
-    // decorating box's propagated entry paint independently (Blink's
-    // AppliedTextDecorations accumulation).
-    const decoMarkup = renderAppliedTextDecorations(el, segColor, {
-      segX: tl, fragTop: tt, fontAscent: segAscent, fontDescent: el.fontDescent,
-      segWidth: el.textWidth ?? 0,
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
-      runText: pathText, features, runXOffsets: xOffsetsRel ?? undefined,
-      idBase: `${clipId}-dec`,
-      writingMode: el.styles.writingMode,
-    });
-    // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
-    // the middle of plain-text runs get stamped on top of the path output.
-    const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
-    // Wrap the path-mode output in the element's clip-path only when the
-    // element actually overflow-clips (DM-305). Default `overflow: visible`
-    // lets text extend past the box edge, so the unconditional clip from
-    // an earlier draft over-cut text on `word-wrap: break-word` paragraphs
-    // whose last char measured a fraction of a px past `el.x + el.width`.
-    //
-    // DM-783: when the pseudo carries a CSS `transform`, wrap box + glyphs +
-    // decoration + raster overlay together so the rotation/scale pivots
-    // around the captured `transform-origin` and the text rotates WITH the
-    // box (e.g. a `::after { transform: rotate(-15deg) }` rotated pill keeps
-    // its label aligned to the pill, not the host's baseline).
-    const emphasisMarks = renderTextEmphasisMarks(el, segColor);
-    const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}${emphasisMarks}`;
-    const transformed = singleSeg?.pseudoBox != null
-      ? wrapPseudoPaintEffects(singleSeg.pseudoBox, inner)
-      : inner;
+  // FloatAscent — the same pair Blink's decoration offsets are expressed
+  // against (`local_origin_.line_over` + `FontMetrics` in
+  // `core/paint/text_decoration_info.cc`). No pre-rounding here: the
+  // paint-time snap is applied per line style inside `emitDecorationLine`.
+  // DM-1723/DM-1725: the element's own decoration plus every ancestor
+  // decorating box's propagated entry paint independently (Blink's
+  // AppliedTextDecorations accumulation).
+  const decoMarkup = renderAppliedTextDecorations(el, segColor, {
+    segX: tl,
+    fragTop: tt,
+    fontAscent: segAscent,
+    fontDescent: el.fontDescent,
+    segWidth: el.textWidth ?? 0,
+    fontSize: segFontSize,
+    fontFamily: segFontFamily,
+    fontWeight: segFontWeight,
+    runText: pathText,
+    features,
+    runXOffsets: xOffsetsRel ?? undefined,
+    idBase: `${clipId}-dec`,
+    writingMode: el.styles.writingMode,
+  });
+  // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
+  // the middle of plain-text runs get stamped on top of the path output.
+  const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
+  // Wrap the path-mode output in the element's clip-path only when the
+  // element actually overflow-clips (DM-305). Default `overflow: visible`
+  // lets text extend past the box edge, so the unconditional clip from
+  // an earlier draft over-cut text on `word-wrap: break-word` paragraphs
+  // whose last char measured a fraction of a px past `el.x + el.width`.
+  //
+  // DM-783: when the pseudo carries a CSS `transform`, wrap box + glyphs +
+  // decoration + raster overlay together so the rotation/scale pivots
+  // around the captured `transform-origin` and the text rotates WITH the
+  // box (e.g. a `::after { transform: rotate(-15deg) }` rotated pill keeps
+  // its label aligned to the pill, not the host's baseline).
+  const emphasisMarks = renderTextEmphasisMarks(el, segColor);
+  const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}${emphasisMarks}`;
+  const transformed = singleSeg?.pseudoBox != null ? wrapPseudoPaintEffects(singleSeg.pseudoBox, inner) : inner;
   if (opts.overflowClip) {
     return `<g clip-path="url(#${clipId})">${transformed}</g>`;
   }
@@ -1715,18 +1933,31 @@ function renderSingleSegPseudoBox(
   // — flat top/bottom + fully-rounded ends — instead of an ellipse with
   // rx and ry capped independently. Mirrors the inset() clip-path fix
   // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
-  const clampedBR = pb.borderRadius != null && pb.borderRadius > 0
-    ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
+  const clampedBR =
+    pb.borderRadius != null && pb.borderRadius > 0 ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
   const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
-  const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
-    ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
+  const strokeAttr =
+    pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
+      ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"`
+      : "";
   // DM-782: gradient/url() background-image layers paint BETWEEN the flat
   // bg-color (bottom) and the text glyphs (top). Caller threads defsParts
   // + clipIdx through `emitPseudoBoxBgLayers`; when that closure is absent
   // (standalone callers / unit tests) we just skip the gradient layers.
-  const bgImageMarkup = (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "" && emitPseudoBoxBgLayers != null)
-    ? emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
-    : "";
+  const bgImageMarkup =
+    pb.backgroundImage != null &&
+    pb.backgroundImage !== "none" &&
+    pb.backgroundImage !== "" &&
+    emitPseudoBoxBgLayers != null
+      ? emitPseudoBoxBgLayers({
+          x: pb.x,
+          y: pb.y,
+          width: pb.width,
+          height: pb.height,
+          backgroundImage: pb.backgroundImage,
+          borderRadius: clampedBR > 0 ? clampedBR : undefined,
+        })
+      : "";
   return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`;
 }
 
@@ -1772,7 +2003,9 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       // pseudo doesn't clip overflow, so Chrome paints the emoji past the line
       // box and clipping it back re-cuts the glyph's top/bottom.
       const rasterClip = seg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
-      parts.push(`<image href="${seg.rasterDataUri}" x="${r(seg.rasterRect.x)}" y="${r(seg.rasterRect.y)}" width="${r(seg.rasterRect.width)}" height="${r(seg.rasterRect.height)}" preserveAspectRatio="none"${rasterClip}/>`);
+      parts.push(
+        `<image href="${seg.rasterDataUri}" x="${r(seg.rasterRect.x)}" y="${r(seg.rasterRect.y)}" width="${r(seg.rasterRect.width)}" height="${r(seg.rasterRect.height)}" preserveAspectRatio="none"${rasterClip}/>`,
+      );
       continue;
     }
     // DM-497: pseudo-element paint box. ::before / ::after with their own
@@ -1790,22 +2023,37 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const pb = seg.pseudoBox;
       const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
       // Clamp the pseudo's border-radius to half the SHORTER side so a pill
-    // (e.g. `border-radius: 100px` on a 90×40 button) renders as a capsule
-    // — flat top/bottom + fully-rounded ends — instead of an ellipse with
-    // rx and ry capped independently. Mirrors the inset() clip-path fix
-    // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
-    const clampedBR = pb.borderRadius != null && pb.borderRadius > 0
-      ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
-    const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
-      const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
-        ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
+      // (e.g. `border-radius: 100px` on a 90×40 button) renders as a capsule
+      // — flat top/bottom + fully-rounded ends — instead of an ellipse with
+      // rx and ry capped independently. Mirrors the inset() clip-path fix
+      // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
+      const clampedBR =
+        pb.borderRadius != null && pb.borderRadius > 0 ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
+      const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
+      const strokeAttr =
+        pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
+          ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"`
+          : "";
       // DM-782: gradient/url() background-image layers paint between flat
       // bg-color (bottom) and text glyphs (top). See `RenderTextOpts.
       // emitPseudoBoxBgLayers` for the closure-injection rationale.
-      const bgImageMarkup = (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "" && opts.emitPseudoBoxBgLayers != null)
-        ? opts.emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
-        : "";
-      segParts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`);
+      const bgImageMarkup =
+        pb.backgroundImage != null &&
+        pb.backgroundImage !== "none" &&
+        pb.backgroundImage !== "" &&
+        opts.emitPseudoBoxBgLayers != null
+          ? opts.emitPseudoBoxBgLayers({
+              x: pb.x,
+              y: pb.y,
+              width: pb.width,
+              height: pb.height,
+              backgroundImage: pb.backgroundImage,
+              borderRadius: clampedBR > 0 ? clampedBR : undefined,
+            })
+          : "";
+      segParts.push(
+        `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`,
+      );
     }
     // Per-segment overrides from ::before / ::after pseudos (color, fontSize,
     // fontWeight). Fall back to the element's styles when the segment has no
@@ -1830,9 +2078,15 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       mergeFeatureLists(
         mergeFeatureLists(
           resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
-          resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric,
-          el.styles.fontVariantLigatures, el.styles.letterSpacing, el.styles.textRendering,
-          el.styles.fontKerning, el.styles.fontVariantPosition),
+          resolveFontVariantFeatures(
+            el.styles.fontVariantEastAsian,
+            el.styles.fontVariantNumeric,
+            el.styles.fontVariantLigatures,
+            el.styles.letterSpacing,
+            el.styles.textRendering,
+            el.styles.fontKerning,
+            el.styles.fontVariantPosition,
+          ),
         ),
         segFfsFeatures,
       ),
@@ -1858,13 +2112,24 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segXOffsets = reordered.xOffsets;
     const segAscent = seg.fontAscent ?? el.fontAscent;
     const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
-      xOffsets: segXOffsets, fontStyle: segFontStyle, ascentOverride: segAscent,
-      features: segFeatures, lang: el.styles.lang, variationSettings: elVariationSettings,
-      textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+      fontSize: segFontSize,
+      fontFamily: segFontFamily,
+      fontWeight: segFontWeight,
+      fill: segColor,
+      xOffsets: segXOffsets,
+      fontStyle: segFontStyle,
+      ascentOverride: segAscent,
+      features: segFeatures,
+      lang: el.styles.lang,
+      variationSettings: elVariationSettings,
+      textStrokeWidth: _ts.width,
+      textStrokeColor: _ts.color,
+      paintOrder: _ts.paintOrder,
       dottedCircleMarks: seg.dottedCircleMarks,
-      bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
-      fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+      bidiOverride: bidiContextFor(el),
+      fontStretch: el.styles.fontStretch,
+      fontVariantEmoji: fontVariantEmojiOf(el.styles),
+      fontSynthesis: fontSynthesisOf(el.styles),
       textRendering: el.styles.textRendering,
     });
     segParts.push(result);
@@ -1874,10 +2139,17 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // segment's fragment top + captured FloatAscent, unrounded — the paint
     // snap happens per line inside `emitDecorationLine`.
     const decoMarkup = renderAppliedTextDecorations(el, fillColor, {
-      segX: seg.x, fragTop: seg.y, fontAscent: segAscent, fontDescent: el.fontDescent,
+      segX: seg.x,
+      fragTop: seg.y,
+      fontAscent: segAscent,
+      fontDescent: el.fontDescent,
       segWidth: seg.width,
-      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
-      runText: reordered.text, features: segFeatures, runXOffsets: segXOffsets ?? undefined,
+      fontSize: segFontSize,
+      fontFamily: segFontFamily,
+      fontWeight: segFontWeight,
+      runText: reordered.text,
+      features: segFeatures,
+      runXOffsets: segXOffsets ?? undefined,
       idBase: `${clipId}-dec${_decoSegIdx++}`,
       writingMode: el.styles.writingMode,
     });
@@ -1916,7 +2188,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   const fontWeight = el.styles.fontWeight;
   const lhStr = el.styles.lineHeight;
   const lhParsed = parseFloat(lhStr);
-  const lineHeight = (lhStr !== "normal" && !isNaN(lhParsed) && lhParsed > 0) ? lhParsed : fontSize * 1.2;
+  const lineHeight = lhStr !== "normal" && !isNaN(lhParsed) && lhParsed > 0 ? lhParsed : fontSize * 1.2;
   const startX = el.textLeft ?? el.x + 4;
   const startY = el.textTop ?? el.y + 4;
   const parts: string[] = [];
@@ -1945,13 +2217,24 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontFamily = capturedSegmentFontFamily(el, seg);
       const segFeatures = elementFontFeatures(el, segFontFamily);
       const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
-        fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
-        xOffsets: segXOffsets, fontStyle: el.styles.fontStyle, ascentOverride: segAscent,
-        features: segFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
-        textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
+        fontSize: segFontSize,
+        fontFamily: segFontFamily,
+        fontWeight: segFontWeight,
+        fill: segColor,
+        xOffsets: segXOffsets,
+        fontStyle: el.styles.fontStyle,
+        ascentOverride: segAscent,
+        features: segFeatures,
+        lang: el.styles.lang,
+        variationSettings: fvsAxes,
+        textStrokeWidth: _ts.width,
+        textStrokeColor: _ts.color,
+        paintOrder: _ts.paintOrder,
         dottedCircleMarks: seg.dottedCircleMarks,
-        bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+        bidiOverride: bidiContextFor(el),
+        fontStretch: el.styles.fontStretch,
+        fontVariantEmoji: fontVariantEmojiOf(el.styles),
+        fontSynthesis: fontSynthesisOf(el.styles),
         textRendering: el.styles.textRendering,
       });
       parts.push(`  ${result}`);
@@ -1963,12 +2246,22 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
       const result = renderTextAsPath(line, startX, lineY, {
-        fontSize, fontFamily, fontWeight, fill: fillColor,
-        fontStyle: el.styles.fontStyle, ascentOverride: el.fontAscent,
-        features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
-        textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-        bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+        fontSize,
+        fontFamily,
+        fontWeight,
+        fill: fillColor,
+        fontStyle: el.styles.fontStyle,
+        ascentOverride: el.fontAscent,
+        features: ffsFeatures,
+        lang: el.styles.lang,
+        variationSettings: fvsAxes,
+        textStrokeWidth: _ts.width,
+        textStrokeColor: _ts.color,
+        paintOrder: _ts.paintOrder,
+        bidiOverride: bidiContextFor(el),
+        fontStretch: el.styles.fontStretch,
+        fontVariantEmoji: fontVariantEmojiOf(el.styles),
+        fontSynthesis: fontSynthesisOf(el.styles),
         textRendering: el.styles.textRendering,
       });
       parts.push(`  ${result}`);
@@ -1998,9 +2291,10 @@ export function renderInputText(opts: RenderTextOpts): string {
     return `<image href="${er.dataUri}" x="${Math.round(er.x)}" y="${Math.round(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
   }
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.isPlaceholderText && el.placeholderFontFamily != null
-    ? capturedFontFamilyCss(el.placeholderFontFamily, el.placeholderFontFamilyStack)
-    : capturedElementFontFamily(el);
+  const fontFamily =
+    el.isPlaceholderText && el.placeholderFontFamily != null
+      ? capturedFontFamilyCss(el.placeholderFontFamily, el.placeholderFontFamilyStack)
+      : capturedElementFontFamily(el);
   const fontWeight = el.styles.fontWeight;
   const textX = el.textLeft ?? el.x + 4;
   const tt = el.textTop ?? el.y;
@@ -2011,13 +2305,14 @@ export function renderInputText(opts: RenderTextOpts): string {
   // lets ::placeholder also override font-style / font-weight independently
   // (purple italic placeholder, etc.). See SK-1097 / SK-1100 / SK-1099.
   const textColor = el.isPlaceholderText && el.placeholderColor != null ? el.placeholderColor : fillColor;
-  const textFontStyle = el.isPlaceholderText && el.placeholderFontStyle != null ? el.placeholderFontStyle : el.styles.fontStyle;
-  const textFontWeight = el.isPlaceholderText && el.placeholderFontWeight != null ? el.placeholderFontWeight : fontWeight;
+  const textFontStyle =
+    el.isPlaceholderText && el.placeholderFontStyle != null ? el.placeholderFontStyle : el.styles.fontStyle;
+  const textFontWeight =
+    el.isPlaceholderText && el.placeholderFontWeight != null ? el.placeholderFontWeight : fontWeight;
   // Per-char xOffsets captured via DOM probe (SK-1234) — anchors each glyph
   // at the position Chromium's HarfBuzz shaping would paint. Falls back to
   // fontkit native advances when the probe wasn't run.
-  const xOffsetsRel = el.inputXOffsets != null
-    ? el.inputXOffsets.map((v) => v - textX) : undefined;
+  const xOffsetsRel = el.inputXOffsets != null ? el.inputXOffsets.map((v) => v - textX) : undefined;
   const inputFeatures = elementFontFeatures(el, fontFamily);
   const inputAxes = opticalVariationSettings(el);
   // DM-991: textareas carry per-LINE textSegments captured via the wrap
@@ -2030,12 +2325,23 @@ export function renderInputText(opts: RenderTextOpts): string {
     for (const seg of el.textSegments) {
       const segXOffsetsRel = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
       const segResult = renderTextAsPath(seg.text, seg.x, seg.y, {
-        fontSize, fontFamily, fontWeight: textFontWeight, fill: textColor,
-        xOffsets: segXOffsetsRel, fontStyle: textFontStyle, ascentOverride: el.fontAscent,
-        features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
-        textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-        bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+        fontSize,
+        fontFamily,
+        fontWeight: textFontWeight,
+        fill: textColor,
+        xOffsets: segXOffsetsRel,
+        fontStyle: textFontStyle,
+        ascentOverride: el.fontAscent,
+        features: inputFeatures,
+        lang: el.styles.lang,
+        variationSettings: inputAxes,
+        textStrokeWidth: _ts.width,
+        textStrokeColor: _ts.color,
+        paintOrder: _ts.paintOrder,
+        bidiOverride: bidiContextFor(el),
+        fontStretch: el.styles.fontStretch,
+        fontVariantEmoji: fontVariantEmojiOf(el.styles),
+        fontSynthesis: fontSynthesisOf(el.styles),
         textRendering: el.styles.textRendering,
       });
       segParts.push(segResult);
@@ -2043,12 +2349,23 @@ export function renderInputText(opts: RenderTextOpts): string {
     if (segParts.length > 0) return `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`;
   }
   const result = renderTextAsPath(el.text, textX, tt, {
-    fontSize, fontFamily, fontWeight: textFontWeight, fill: textColor,
-    xOffsets: xOffsetsRel, fontStyle: textFontStyle, ascentOverride: el.fontAscent,
-    features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
-    textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-    bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
-    fontVariantEmoji: fontVariantEmojiOf(el.styles), textRendering: el.styles.textRendering,
+    fontSize,
+    fontFamily,
+    fontWeight: textFontWeight,
+    fill: textColor,
+    xOffsets: xOffsetsRel,
+    fontStyle: textFontStyle,
+    ascentOverride: el.fontAscent,
+    features: inputFeatures,
+    lang: el.styles.lang,
+    variationSettings: inputAxes,
+    textStrokeWidth: _ts.width,
+    textStrokeColor: _ts.color,
+    paintOrder: _ts.paintOrder,
+    bidiOverride: bidiContextFor(el),
+    fontStretch: el.styles.fontStretch,
+    fontVariantEmoji: fontVariantEmojiOf(el.styles),
+    textRendering: el.styles.textRendering,
   });
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or

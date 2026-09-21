@@ -4,10 +4,10 @@ title: "Generated-pseudo backdrop source ownership"
 kind: "contract"
 status: "current"
 owners: ["paint-effects"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2357","DM-2487","DM-2488"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2357", "DM-2487", "DM-2488"]
 code: ["tools/pseudo-backdrop-source-oracle.ts"]
-aliases: ["docs/193-generated-pseudo-backdrop-source-ownership.md","doc-193"]
+aliases: ["docs/193-generated-pseudo-backdrop-source-ownership.md", "doc-193"]
 ---
 
 # Generated-pseudo backdrop source ownership

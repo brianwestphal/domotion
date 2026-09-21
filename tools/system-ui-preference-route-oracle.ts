@@ -21,10 +21,7 @@ import {
   type LaunchOptions,
   type Page,
 } from "@playwright/test";
-import {
-  resolveSystemUiFontFace,
-  type SystemUiFontFace,
-} from "../src/render/glyph-helper.js";
+import { resolveSystemUiFontFace, type SystemUiFontFace } from "../src/render/glyph-helper.js";
 import { invalidateFontEnvironmentCaches } from "../src/render/font-resolution.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -122,8 +119,18 @@ export interface SystemUiPreferenceRouteReport {
 const MODES: LaunchMode[] = [
   { id: "pinned-headless", engine: "playwright-pinned-chromium", headless: true, options: { headless: true } },
   { id: "pinned-headed", engine: "playwright-pinned-chromium", headless: false, options: { headless: false } },
-  { id: "full-chrome-headless", engine: "full-chrome-channel", headless: true, options: { channel: "chrome", headless: true } },
-  { id: "full-chrome-headed", engine: "full-chrome-channel", headless: false, options: { channel: "chrome", headless: false } },
+  {
+    id: "full-chrome-headless",
+    engine: "full-chrome-channel",
+    headless: true,
+    options: { channel: "chrome", headless: true },
+  },
+  {
+    id: "full-chrome-headed",
+    engine: "full-chrome-channel",
+    headless: false,
+    options: { channel: "chrome", headless: false },
+  },
 ];
 
 const CASES: SystemUiProbeCase[] = [
@@ -155,11 +162,15 @@ export function logicalIdentity(
   browser: Pick<BrowserSystemUiFace, "postScriptName" | "familyName">,
   domotion: Pick<SystemUiFontFace, "postscriptName" | "familyName"> | null,
 ): { kind: "postscript" | "family"; browser: string; domotion: string; exact: boolean } {
-  const kind = browser.postScriptName != null && browser.postScriptName !== ""
-    && domotion?.postscriptName != null && domotion.postscriptName !== ""
-    ? "postscript" : "family";
+  const kind =
+    browser.postScriptName != null &&
+    browser.postScriptName !== "" &&
+    domotion?.postscriptName != null &&
+    domotion.postscriptName !== ""
+      ? "postscript"
+      : "family";
   const browserName = kind === "postscript" ? browser.postScriptName! : browser.familyName;
-  const domotionName = kind === "postscript" ? domotion?.postscriptName ?? "" : domotion?.familyName ?? "";
+  const domotionName = kind === "postscript" ? (domotion?.postscriptName ?? "") : (domotion?.familyName ?? "");
   return {
     kind,
     browser: browserName,
@@ -169,14 +180,15 @@ export function logicalIdentity(
 }
 
 function normalizeFace(value: string): string {
-  return value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function faceId(face: BrowserSystemUiFace | SystemUiFontFace | null): string {
   if (face == null) return "";
-  return "postScriptName" in face
-    ? face.postScriptName ?? face.familyName
-    : face.postscriptName || face.familyName;
+  return "postScriptName" in face ? (face.postScriptName ?? face.familyName) : face.postscriptName || face.familyName;
 }
 
 async function prepareCdp(context: BrowserContext, page: Page): Promise<CDPSession> {
@@ -189,7 +201,7 @@ async function prepareCdp(context: BrowserContext, page: Page): Promise<CDPSessi
 async function platformFace(cdp: CDPSession, nodeId: number): Promise<BrowserSystemUiFace> {
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
   const primary = fonts.reduce(
-    (best, candidate) => best == null || candidate.glyphCount > best.glyphCount ? candidate : best,
+    (best, candidate) => (best == null || candidate.glyphCount > best.glyphCount ? candidate : best),
     null as (typeof fonts)[number] | null,
   );
   if (primary == null || primary.familyName === "") throw new Error("browser reported no platform face");
@@ -204,28 +216,34 @@ async function platformFace(cdp: CDPSession, nodeId: number): Promise<BrowserSys
 async function browserRows(
   page: Page,
   cdp: CDPSession,
-): Promise<{ rows: Array<{ target: SystemUiProbeCase; face: BrowserSystemUiFace }>; candidates: BrowserSystemUiFace[] }> {
+): Promise<{
+  rows: Array<{ target: SystemUiProbeCase; face: BrowserSystemUiFace }>;
+  candidates: BrowserSystemUiFace[];
+}> {
   const id = `__domotion_dm2504_${++probeSequence}`;
-  await page.evaluate(({ containerId, cases, controls }) => {
-    const root = document.createElement("div");
-    root.id = containerId;
-    root.style.cssText = "all:initial;position:fixed;left:-100000px;top:0;width:4000px;height:4000px;contain:strict";
-    for (const row of cases) {
-      const span = document.createElement("span");
-      span.id = `${containerId}_${row.id}`;
-      span.style.cssText = `all:initial;display:block;font-family:system-ui;font-size:${row.size}px;font-weight:${row.weight};font-style:${row.italic ? "italic" : "normal"};font-stretch:${row.stretch}%`;
-      span.textContent = row.text;
-      root.appendChild(span);
-    }
-    for (const family of controls) {
-      const span = document.createElement("span");
-      span.id = `${containerId}_control_${family}`;
-      span.style.cssText = `all:initial;display:block;font-family:${family};font-size:16px`;
-      span.textContent = "Installed candidate 0123";
-      root.appendChild(span);
-    }
-    document.documentElement.appendChild(root);
-  }, { containerId: id, cases: CASES, controls: CONTROL_FAMILIES });
+  await page.evaluate(
+    ({ containerId, cases, controls }) => {
+      const root = document.createElement("div");
+      root.id = containerId;
+      root.style.cssText = "all:initial;position:fixed;left:-100000px;top:0;width:4000px;height:4000px;contain:strict";
+      for (const row of cases) {
+        const span = document.createElement("span");
+        span.id = `${containerId}_${row.id}`;
+        span.style.cssText = `all:initial;display:block;font-family:system-ui;font-size:${row.size}px;font-weight:${row.weight};font-style:${row.italic ? "italic" : "normal"};font-stretch:${row.stretch}%`;
+        span.textContent = row.text;
+        root.appendChild(span);
+      }
+      for (const family of controls) {
+        const span = document.createElement("span");
+        span.id = `${containerId}_control_${family}`;
+        span.style.cssText = `all:initial;display:block;font-family:${family};font-size:16px`;
+        span.textContent = "Installed candidate 0123";
+        root.appendChild(span);
+      }
+      document.documentElement.appendChild(root);
+    },
+    { containerId: id, cases: CASES, controls: CONTROL_FAMILIES },
+  );
 
   try {
     await page.evaluate(() => document.fonts.ready);
@@ -251,10 +269,15 @@ function browserRowsStable(
   first: Array<{ target: SystemUiProbeCase; face: BrowserSystemUiFace }>,
   second: Array<{ target: SystemUiProbeCase; face: BrowserSystemUiFace }>,
 ): boolean {
-  return first.length === second.length && first.every((row, index) =>
-    row.target.id === second[index].target.id
-      && normalizeFace(faceId(row.face)) === normalizeFace(faceId(second[index].face))
-      && row.face.glyphCount === second[index].face.glyphCount);
+  return (
+    first.length === second.length &&
+    first.every(
+      (row, index) =>
+        row.target.id === second[index].target.id &&
+        normalizeFace(faceId(row.face)) === normalizeFace(faceId(second[index].face)) &&
+        row.face.glyphCount === second[index].face.glyphCount,
+    )
+  );
 }
 
 async function collectState(
@@ -277,9 +300,10 @@ async function collectState(
     const first = await browserRows(page, cdp);
     const second = await browserRows(page, cdp);
 
-    const candidate = second.candidates.find((item) =>
-      normalizeFace(item.familyName) !== normalizeFace(second.rows[0].face.familyName))
-      ?? second.candidates[0];
+    const candidate =
+      second.candidates.find(
+        (item) => normalizeFace(item.familyName) !== normalizeFace(second.rows[0].face.familyName),
+      ) ?? second.candidates[0];
     if (candidate == null) throw new Error("no installed family for generic-map negative control");
 
     const negativePage = await context.newPage();
@@ -294,13 +318,16 @@ async function collectState(
 
     const genericMapNegativeControlStable = browserRowsStable(second.rows, negative.rows);
     const rows: AgreementRow[] = second.rows.map(({ target, face }) => {
-      const domotion = resolveSystemUiFontFace({
-        size: target.size,
-        weight: target.weight,
-        italic: target.italic,
-        slant: target.italic ? 1 : 0,
-        stretch: target.stretch,
-      }, rendererSystemFamily ?? undefined);
+      const domotion = resolveSystemUiFontFace(
+        {
+          size: target.size,
+          weight: target.weight,
+          italic: target.italic,
+          slant: target.italic ? 1 : 0,
+          stretch: target.stretch,
+        },
+        rendererSystemFamily ?? undefined,
+      );
       const identity = logicalIdentity(face, domotion);
       return { ...target, browser: face, domotion, identityKind: identity.kind, exact: identity.exact };
     });
@@ -353,23 +380,38 @@ async function runDarwinMode(mode: LaunchMode): Promise<ModeReport> {
   };
 }
 
-interface FontconfigMatch { query: string; family: string; postscriptName: string; path: string }
+interface FontconfigMatch {
+  query: string;
+  family: string;
+  postscriptName: string;
+  path: string;
+}
 
 function fontconfigMatch(query: string): FontconfigMatch {
   const raw = execFileSync("fc-match", ["--format", "%{family[0]}\n%{postscriptname}\n%{file}\n", query], {
     cwd: ROOT,
     encoding: "utf8",
-  }).trimEnd().split("\n");
+  })
+    .trimEnd()
+    .split("\n");
   if (!raw[0] || !raw[2]) throw new Error(`fontconfig could not resolve ${query}`);
   return { query, family: raw[0], postscriptName: raw[1] ?? "", path: raw[2] };
 }
 
-export function chooseLinuxSystemFamilies(matches: FontconfigMatch[]): { baseline: FontconfigMatch; mutation: FontconfigMatch } {
+export function chooseLinuxSystemFamilies(matches: FontconfigMatch[]): {
+  baseline: FontconfigMatch;
+  mutation: FontconfigMatch;
+} {
   const baseline = matches[0];
   if (baseline == null) throw new Error("missing baseline fontconfig match");
-  const mutation = matches.slice(1).find((candidate) =>
-    normalizeFace(candidate.family) !== normalizeFace(baseline.family)
-      && normalizeFace(candidate.postscriptName || candidate.path) !== normalizeFace(baseline.postscriptName || baseline.path));
+  const mutation = matches
+    .slice(1)
+    .find(
+      (candidate) =>
+        normalizeFace(candidate.family) !== normalizeFace(baseline.family) &&
+        normalizeFace(candidate.postscriptName || candidate.path) !==
+          normalizeFace(baseline.postscriptName || baseline.path),
+    );
   if (mutation == null) throw new Error("no distinct installed Linux system-family mutation");
   return { baseline, mutation };
 }
@@ -408,24 +450,40 @@ async function runLinuxMode(mode: LaunchMode): Promise<ModeReport> {
   };
 }
 
-interface WindowsMenuMetric { menuFamily: string; messageFamily: string; menuHeight: number }
+interface WindowsMenuMetric {
+  menuFamily: string;
+  messageFamily: string;
+  menuHeight: number;
+}
 
 function windowsMenuMetric(mode: "get" | "set", family?: string): WindowsMenuMetric {
-  const args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-File", resolve(ROOT, "tools/windows-menu-font-preference.ps1"), "-Mode", mode];
+  const args = [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    resolve(ROOT, "tools/windows-menu-font-preference.ps1"),
+    "-Mode",
+    mode,
+  ];
   if (family != null) args.push("-Family", family);
   const raw = execFileSync("pwsh", args, { cwd: ROOT, encoding: "utf8" }).trim();
   return JSON.parse(raw) as WindowsMenuMetric;
 }
 
 function chooseWindowsMutationFamily(state: StateReport, current: string): string {
-  const candidate = state.candidateFamilies.find((family) =>
-    normalizeFace(family) !== normalizeFace(current) && family.length < 32);
+  const candidate = state.candidateFamilies.find(
+    (family) => normalizeFace(family) !== normalizeFace(current) && family.length < 32,
+  );
   if (candidate == null) throw new Error("no distinct installed Windows menu-font mutation");
   return candidate;
 }
 
 async function runWindowsMode(mode: LaunchMode, allowMutation: boolean): Promise<ModeReport> {
-  if (!allowMutation) throw new Error("Windows requires --allow-system-preference-mutation (the tool restores the original metric in finally)");
+  if (!allowMutation)
+    throw new Error(
+      "Windows requires --allow-system-preference-mutation (the tool restores the original metric in finally)",
+    );
   const original = windowsMenuMetric("get");
   let mutated = false;
   try {
@@ -436,7 +494,9 @@ async function runWindowsMode(mode: LaunchMode, allowMutation: boolean): Promise
     const observedMutation = windowsMenuMetric("set", alternative);
     mutated = true;
     if (normalizeFace(observedMutation.menuFamily) !== normalizeFace(alternative)) {
-      throw new Error(`Windows menu-font mutation was inert: requested ${alternative}, observed ${observedMutation.menuFamily}`);
+      throw new Error(
+        `Windows menu-font mutation was inert: requested ${alternative}, observed ${observedMutation.menuFamily}`,
+      );
     }
     const stale = resolveSystemUiFontFace({ size: 20, weight: 400 });
     invalidateFontEnvironmentCaches();
@@ -444,9 +504,9 @@ async function runWindowsMode(mode: LaunchMode, allowMutation: boolean): Promise
     const before = normalFace(baseline.state);
     const after = normalFace(mutation.state);
     const active = normalizeFace(before) !== normalizeFace(after);
-    const staleCacheRetainedOldPreference = normalizeFace(stale?.systemFamily ?? "")
-      === normalizeFace(warmBefore?.systemFamily ?? "")
-      && normalizeFace(stale?.systemFamily ?? "") !== normalizeFace(observedMutation.menuFamily);
+    const staleCacheRetainedOldPreference =
+      normalizeFace(stale?.systemFamily ?? "") === normalizeFace(warmBefore?.systemFamily ?? "") &&
+      normalizeFace(stale?.systemFamily ?? "") !== normalizeFace(observedMutation.menuFamily);
     return {
       id: mode.id,
       engine: mode.engine,
@@ -478,7 +538,9 @@ async function runMode(mode: LaunchMode, args: string[]): Promise<ModeReport> {
 
 function revision(repo: string, ref = "HEAD"): string {
   try {
-    return execFileSync("git", ["-C", resolve(ROOT, repo), "rev-parse", "--short=12", ref], { encoding: "utf8" }).trim();
+    return execFileSync("git", ["-C", resolve(ROOT, repo), "rev-parse", "--short=12", ref], {
+      encoding: "utf8",
+    }).trim();
   } catch {
     return "unavailable";
   }
@@ -490,7 +552,9 @@ function fontInventory(): SystemUiPreferenceRouteReport["environment"]["fontInve
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  const parsed = JSON.parse(raw) as SystemUiPreferenceRouteReport["environment"]["fontInventory"] & { entries?: string[] };
+  const parsed = JSON.parse(raw) as SystemUiPreferenceRouteReport["environment"]["fontInventory"] & {
+    entries?: string[];
+  };
   return {
     platform: parsed.platform,
     arch: parsed.arch,
@@ -510,9 +574,7 @@ function selectedModes(args: string[]): LaunchMode[] {
   if (unknown.length > 0) throw new Error(`unknown modes: ${unknown.join(", ")}`);
   const headed = selected.filter((mode) => !mode.headless);
   if (headed.length > 0 && !allowHeaded) {
-    throw new Error(
-      `headed browser modes require --allow-headed-browser: ${headed.map((mode) => mode.id).join(", ")}`,
-    );
+    throw new Error(`headed browser modes require --allow-headed-browser: ${headed.map((mode) => mode.id).join(", ")}`);
   }
   return selected;
 }
@@ -532,13 +594,20 @@ export async function runSystemUiPreferenceRouteOracle(
   }
   const available = reports.filter((report): report is ModeReport => !("unavailable" in report));
   const unavailable = reports.filter((report): report is UnavailableMode => "unavailable" in report);
-  const exactRows = available.reduce((sum, mode) =>
-    sum + mode.states.reduce((stateSum, state) => stateSum + state.exactRows, 0), 0);
-  const totalRows = available.reduce((sum, mode) =>
-    sum + mode.states.reduce((stateSum, state) => stateSum + state.rows.length, 0), 0);
-  const verdict = unavailable.length > 0 || available.length === 0
-    ? "unavailable"
-    : available.every((mode) => mode.pass) ? "source-exact" : "source-drift";
+  const exactRows = available.reduce(
+    (sum, mode) => sum + mode.states.reduce((stateSum, state) => stateSum + state.exactRows, 0),
+    0,
+  );
+  const totalRows = available.reduce(
+    (sum, mode) => sum + mode.states.reduce((stateSum, state) => stateSum + state.rows.length, 0),
+    0,
+  );
+  const verdict =
+    unavailable.length > 0 || available.length === 0
+      ? "unavailable"
+      : available.every((mode) => mode.pass)
+        ? "source-exact"
+        : "source-drift";
   return {
     schemaVersion: 1,
     ticket: "DM-2504",

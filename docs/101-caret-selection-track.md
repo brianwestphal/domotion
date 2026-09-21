@@ -6,16 +6,36 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos"]
 tickets: ["DM-1756"]
-code: ["examples/animate/compressed-run/","src/animation/animator.ts","src/animation/caret-metrics.ts","src/animation/caret-track.test.ts","src/animation/caret-track.ts","src/animation/embed-timeline.ts","src/animation/text-address.test.ts","src/animation/text-address.ts","src/capture/script/walker/text-segments.ts","src/cli/animate.test.ts","src/cli/animate.ts","src/render/paint-order.ts","src/render/text.ts","tests/caret-bidi.e2e.test.ts","tests/caret-track.e2e.test.ts","tests/caret-vertical.e2e.test.ts","tests/compressed-run-config.e2e.test.ts"]
-aliases: ["docs/101-caret-selection-track.md","doc-101"]
+code:
+  [
+    "examples/animate/compressed-run/",
+    "src/animation/animator.ts",
+    "src/animation/caret-metrics.ts",
+    "src/animation/caret-track.test.ts",
+    "src/animation/caret-track.ts",
+    "src/animation/embed-timeline.ts",
+    "src/animation/text-address.test.ts",
+    "src/animation/text-address.ts",
+    "src/capture/script/walker/text-segments.ts",
+    "src/cli/animate.test.ts",
+    "src/cli/animate.ts",
+    "src/render/paint-order.ts",
+    "src/render/text.ts",
+    "tests/caret-bidi.e2e.test.ts",
+    "tests/caret-track.e2e.test.ts",
+    "tests/caret-vertical.e2e.test.ts",
+    "tests/compressed-run-config.e2e.test.ts",
+  ]
+aliases: ["docs/101-caret-selection-track.md", "doc-101"]
 ---
 
 # 101 — Caret + selection track (declarative, anchored to captured text)
 
 Status: **Shipped** (engine + programmatic wiring + declarative config surface
-+ tests). Designed in `docs/100-rich-text-editing.md` ("Primitive 2");
-standalone, deliberately NOT gated on the frame-sequence compressor (doc 100,
-Primitive 1).
+
+- tests). Designed in `docs/100-rich-text-editing.md` ("Primitive 2");
+  standalone, deliberately NOT gated on the frame-sequence compressor (doc 100,
+  Primitive 1).
 
 ## What it is
 
@@ -193,12 +213,12 @@ element trees, consumed by the animator as concrete geometry):
    - `select` `{ t, charStart, charEnd, sweepMs?, color?, target? }` — sweep a
      selection over the range, growing over `sweepMs` (0 = appears at `t`);
    - `clearSelection` `{ t }` — clear the most recent selection.
-   Track-level options: `shape` (`bar` default / `block` / `underscore`),
-   `color` (default `#111111`), `barWidthPx` (2), `blinkMs` (1060),
-   `selectionColor` (default `#3b82f6aa`, a translucent blue), `invert`
-   (block-caret glyph inversion, off by default — see below) + `invertTextColor`
-   (the inverted-glyph ink, default `#ffffff`). Unresolvable events are skipped
-   with a console warning (the cursor-overlay convention).
+     Track-level options: `shape` (`bar` default / `block` / `underscore`),
+     `color` (default `#111111`), `barWidthPx` (2), `blinkMs` (1060),
+     `selectionColor` (default `#3b82f6aa`, a translucent blue), `invert`
+     (block-caret glyph inversion, off by default — see below) + `invertTextColor`
+     (the inverted-glyph ink, default `#ffffff`). Unresolvable events are skipped
+     with a console warning (the cursor-overlay convention).
 2. **`textTrackMarkup(track, totalDurationMs, index)`** — pure emission: a
    self-contained `<g class="text-track">` with a local `<style>`, keyframe
    names namespaced by a content hash (composited SVGs can't collide).

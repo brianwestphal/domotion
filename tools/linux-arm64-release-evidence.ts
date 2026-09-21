@@ -8,14 +8,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { arch as osArch, platform as osPlatform, release as osRelease } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -37,12 +30,15 @@ const REPO = "brianwestphal/domotion";
 // These are release facts, not tolerances.  A clobbered asset must make the
 // gate red even when the replacement sidecar and GitHub API agree with each
 // other.  A later Domotion release deliberately has to ratify new bytes here.
-const PINNED_ARM64_RELEASES: Record<string, {
-  glyph: string;
-  glyphProtocol: string;
-  icuExecutable: string;
-  icuData: string;
-}> = {
+const PINNED_ARM64_RELEASES: Record<
+  string,
+  {
+    glyph: string;
+    glyphProtocol: string;
+    icuExecutable: string;
+    icuData: string;
+  }
+> = {
   "0.24.0": {
     glyph: "68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250",
     glyphProtocol: "domotion-glyph-paths (linux/freetype) 0.3.0",
@@ -178,7 +174,10 @@ export function stableJson(value: unknown): string {
   if (value == null || typeof value !== "object") return JSON.stringify(value) ?? "null";
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   const object = value as Record<string, unknown>;
-  return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${stableJson(object[key])}`).join(",")}}`;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(object[key])}`)
+    .join(",")}}`;
 }
 
 export function stableFingerprint(value: unknown): string {
@@ -276,7 +275,7 @@ async function releaseAssets(tag: string): Promise<ReleaseAsset[]> {
     headers: githubHeaders(),
   });
   if (!response.ok) throw new Error(`GitHub release API ${tag} returned ${response.status}`);
-  const body = await response.json() as { assets?: ReleaseAsset[] };
+  const body = (await response.json()) as { assets?: ReleaseAsset[] };
   if (!Array.isArray(body.assets)) throw new Error(`GitHub release ${tag} omitted assets`);
   return body.assets;
 }
@@ -300,11 +299,12 @@ async function assetEvidence(
   const sidecarSha256 = parseSidecar(await sidecarResponse.text());
   const githubDigestSha256 = asset.digest?.replace(/^sha256:/, "").toLowerCase() ?? "";
   const modeExecutable = !executable || (statSync(localPath).mode & 0o111) !== 0;
-  const allAuthoritiesAgree = localSha256 === sidecarSha256
-    && localSha256 === githubDigestSha256
-    && localSha256 === pinnedSha256
-    && asset.size === localBytes.byteLength
-    && modeExecutable;
+  const allAuthoritiesAgree =
+    localSha256 === sidecarSha256 &&
+    localSha256 === githubDigestSha256 &&
+    localSha256 === pinnedSha256 &&
+    asset.size === localBytes.byteLength &&
+    modeExecutable;
   const evidence: AssetEvidence = {
     tag,
     name: assetName,
@@ -340,8 +340,10 @@ function helperSmoke(helperPath: string, expectedVersion: string): Record<string
       { type: "fcfallback", lang: "en", cps: [0x41, 0x4e00] },
     ],
   }) as { results?: Array<Record<string, unknown>> };
-  const family = routing.results?.[0] as { found?: boolean; path?: string; postscriptName?: string; index?: number } | undefined;
-  const fallback = routing.results?.[1] as { fonts?: Array<{ cp?: number; found?: boolean; path?: string }> } | undefined;
+  const family = routing.results?.[0] as
+    { found?: boolean; path?: string; postscriptName?: string; index?: number } | undefined;
+  const fallback = routing.results?.[1] as
+    { fonts?: Array<{ cp?: number; found?: boolean; path?: string }> } | undefined;
   if (family?.found !== true || family.path == null || !existsSync(family.path)) {
     throw new Error(`familyMatch did not resolve a readable Arial@550 face: ${JSON.stringify(family)}`);
   }
@@ -393,7 +395,15 @@ function icuSmoke(helperPath: string): Record<string, unknown> {
 function fontInventory(): { source: string; count: number; digest: string; entries: string[] } {
   const output = execText("fc-list", [":", "family"]);
   if (output == null) throw new Error("fc-list is unavailable on the arm64 runner");
-  const entries = [...new Set(output.split("\n").flatMap((line) => line.split(",")).map((entry) => entry.trim()).filter(Boolean))].sort();
+  const entries = [
+    ...new Set(
+      output
+        .split("\n")
+        .flatMap((line) => line.split(","))
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  ].sort();
   if (entries.length === 0) throw new Error("fontconfig reported an empty font inventory");
   return { source: "fc-list : family", count: entries.length, digest: sha256(entries.join("\n")), entries };
 }
@@ -430,18 +440,21 @@ async function captureEnvironment(assets: AcquisitionReport["assets"]): Promise<
     source: {
       checkoutSha: process.env.GITHUB_SHA ?? execText("git", ["rev-parse", "HEAD"]),
       packageVersion: PKG.version,
-      chromiumRevision: process.env.DOMOTION_CHROMIUM_REVISION
-        ?? execText("git", ["-C", "external/chromium", "rev-parse", "HEAD"]),
-      harfbuzzRevision: process.env.DOMOTION_HARFBUZZ_REVISION
-        ?? execText("git", ["-C", "external/harfbuzz", "rev-parse", "HEAD"]),
-      skiaRevision: process.env.DOMOTION_SKIA_REVISION
-        ?? execText("git", ["-C", "external/skia", "rev-parse", "HEAD"]),
+      chromiumRevision:
+        process.env.DOMOTION_CHROMIUM_REVISION ?? execText("git", ["-C", "external/chromium", "rev-parse", "HEAD"]),
+      harfbuzzRevision:
+        process.env.DOMOTION_HARFBUZZ_REVISION ?? execText("git", ["-C", "external/harfbuzz", "rev-parse", "HEAD"]),
+      skiaRevision: process.env.DOMOTION_SKIA_REVISION ?? execText("git", ["-C", "external/skia", "rev-parse", "HEAD"]),
       icuSourceRevision: process.env.DOMOTION_ICU_SOURCE_REVISION ?? null,
     },
     fonts: fontInventory(),
     releaseAssets: {
       glyph: { tag: assets.glyph.tag, name: assets.glyph.name, sha256: assets.glyph.sha256 },
-      icuExecutable: { tag: assets.icuExecutable.tag, name: assets.icuExecutable.name, sha256: assets.icuExecutable.sha256 },
+      icuExecutable: {
+        tag: assets.icuExecutable.tag,
+        name: assets.icuExecutable.name,
+        sha256: assets.icuExecutable.sha256,
+      },
       icuData: { tag: assets.icuData.tag, name: assets.icuData.name, sha256: assets.icuData.sha256 },
     },
   };
@@ -457,18 +470,17 @@ const REQUIRED_SOURCE_REVISIONS = [
 
 /** A digest is only source evidence when every governing checkout is identified. */
 export function sourceFingerprintErrors(environment: unknown): string[] {
-  const source = environment != null && typeof environment === "object"
-    ? (environment as { source?: unknown }).source
-    : null;
+  const source =
+    environment != null && typeof environment === "object" ? (environment as { source?: unknown }).source : null;
   if (source == null || typeof source !== "object") {
     return ["source fingerprint is missing"];
   }
   const record = source as Record<string, unknown>;
-  return REQUIRED_SOURCE_REVISIONS.flatMap((name) => (
+  return REQUIRED_SOURCE_REVISIONS.flatMap((name) =>
     typeof record[name] === "string" && /^[0-9a-f]{40}$/.test(record[name])
       ? []
-      : [`source fingerprint ${name} is missing or is not a full revision`]
-  ));
+      : [`source fingerprint ${name} is missing or is not a full revision`],
+  );
 }
 
 function ensureCleanCacheRoot(cacheRoot: string): void {
@@ -534,11 +546,18 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
   const errors: string[] = [];
   for (const [name, asset] of Object.entries(assets)) {
     if (!asset.allAuthoritiesAgree) errors.push(`${name}: release digest authorities disagree`);
-    if (asset.elf != null && (!asset.elf.valid || asset.elf.class !== "ELF64" || asset.elf.endian !== "little" || asset.elf.architecture !== "arm64")) {
+    if (
+      asset.elf != null &&
+      (!asset.elf.valid ||
+        asset.elf.class !== "ELF64" ||
+        asset.elf.endian !== "little" ||
+        asset.elf.architecture !== "arm64")
+    ) {
       errors.push(`${name}: expected little-endian ELF64 AArch64, got ${JSON.stringify(asset.elf)}`);
     }
   }
-  if (Object.values(cacheReuse).some((value) => !value)) errors.push("second acquisition did not reuse byte-identical cache entries");
+  if (Object.values(cacheReuse).some((value) => !value))
+    errors.push("second acquisition did not reuse byte-identical cache entries");
   const smoke = { glyph: helperSmoke(glyphPath, pinned.glyphProtocol), icu: icuSmoke(icuPath) };
   const environment = await captureEnvironment(assets);
   errors.push(...sourceFingerprintErrors(environment));
@@ -556,7 +575,8 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
     smoke,
     trust: {
       signing: "not-applicable-linux-elf",
-      signingReason: "Linux release helpers are unsigned ELF binaries; pinned SHA-256, release sidecars, and GitHub asset digests are the trust boundary.",
+      signingReason:
+        "Linux release helpers are unsigned ELF binaries; pinned SHA-256, release sidecars, and GitHub asset digests are the trust boundary.",
       checksums: "pinned-sidecar-github-digest-exact",
     },
     environment,
@@ -568,11 +588,13 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
 }
 
 function parseOutcomes(raw: string): Record<string, string> {
-  return Object.fromEntries(raw.split(",").map((part) => {
-    const index = part.indexOf("=");
-    if (index < 1) throw new Error(`invalid outcome: ${part}`);
-    return [part.slice(0, index).trim(), part.slice(index + 1).trim()];
-  }));
+  return Object.fromEntries(
+    raw.split(",").map((part) => {
+      const index = part.indexOf("=");
+      if (index < 1) throw new Error(`invalid outcome: ${part}`);
+      return [part.slice(0, index).trim(), part.slice(index + 1).trim()];
+    }),
+  );
 }
 
 function walkFiles(root: string, directory = root): string[] {
@@ -584,10 +606,12 @@ function walkFiles(root: string, directory = root): string[] {
 }
 
 function digestArtifacts(root: string): ArtifactDigest[] {
-  return walkFiles(root).sort().map((relative) => {
-    const bytes = readFileSync(path.join(root, relative));
-    return { path: relative, size: bytes.byteLength, sha256: sha256(bytes) };
-  });
+  return walkFiles(root)
+    .sort()
+    .map((relative) => {
+      const bytes = readFileSync(path.join(root, relative));
+      return { path: relative, size: bytes.byteLength, sha256: sha256(bytes) };
+    });
 }
 
 function readJson(relative: string, root: string): unknown {
@@ -614,17 +638,21 @@ export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): 
   if (decoration.platform !== "linux" || decoration.architecture !== "arm64") {
     errors.push("decoration report is not native linux/arm64 evidence");
   }
-  if (ownership?.source !== "blink-physical-text-fragment-same-dpr-v1"
-    || ownership.chromePaintDeviceScaleFactor !== 4
-    || ownership.domotionCaptureDeviceScaleFactor !== 4) {
+  if (
+    ownership?.source !== "blink-physical-text-fragment-same-dpr-v1" ||
+    ownership.chromePaintDeviceScaleFactor !== 4 ||
+    ownership.domotionCaptureDeviceScaleFactor !== 4
+  ) {
     errors.push("decoration report does not bind Chrome paint and Domotion capture to the required DPR 4 Blink state");
   }
   if (decoration.tolerances?.svgGeometry !== 0.3) {
     errors.push("decoration SVG geometry tolerance is not the source-owned 0.3 CSS px envelope");
   }
-  if (decoration.gates?.transcription !== true
-    || decoration.gates.skipInk !== true
-    || decoration.gates.svgGeometry !== true) {
+  if (
+    decoration.gates?.transcription !== true ||
+    decoration.gates.skipInk !== true ||
+    decoration.gates.svgGeometry !== true
+  ) {
     errors.push("decoration report does not arm every logical gate");
   }
   if (!Array.isArray(decoration.results) || decoration.results.length !== 109) {
@@ -632,9 +660,14 @@ export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): 
   } else {
     const skipInkRows = decoration.results.filter((row) => row.skipInk != null);
     if (skipInkRows.length !== 30) errors.push("decoration report is not the complete 30-row skip-ink/pattern matrix");
-    if (decoration.results.some((row) => row.transcription?.ok !== true
-      || row.svgGeometry?.ok !== true
-      || (row.skipInk != null && row.skipInk.ok !== true))) {
+    if (
+      decoration.results.some(
+        (row) =>
+          row.transcription?.ok !== true ||
+          row.svgGeometry?.ok !== true ||
+          (row.skipInk != null && row.skipInk.ok !== true),
+      )
+    ) {
       errors.push("decoration report contains a gated mismatch");
     }
   }
@@ -643,19 +676,46 @@ export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): 
 
 function semanticArtifactErrors(root: string): string[] {
   const errors: string[] = [];
-  const font = readJson("font-selection/report.json", root) as { summary?: { verdict?: string; mismatchTotal?: number } };
-  if (font.summary?.verdict !== "exact-logical-agreement" || font.summary.mismatchTotal !== 0) errors.push("font selection report is not exact logical agreement");
+  const font = readJson("font-selection/report.json", root) as {
+    summary?: { verdict?: string; mismatchTotal?: number };
+  };
+  if (font.summary?.verdict !== "exact-logical-agreement" || font.summary.mismatchTotal !== 0)
+    errors.push("font selection report is not exact logical agreement");
   const shaping = readJson("shaping.json", root) as { verdict?: string; movementProven?: boolean; pairs?: number };
-  if (shaping.verdict !== "exact-logical-agreement" || shaping.movementProven !== true || !(Number(shaping.pairs) > 0)) errors.push("shaping report is not exact and sensitivity-proven");
+  if (shaping.verdict !== "exact-logical-agreement" || shaping.movementProven !== true || !(Number(shaping.pairs) > 0))
+    errors.push("shaping report is not exact and sensitivity-proven");
   const decoration = readJson("decoration.json", root) as DecorationEvidenceReport;
   errors.push(...decorationEvidenceErrors(decoration));
-  const paint = readJson("paint-geometry.json", root) as { verdict?: string; movementProven?: boolean; rows?: unknown[] };
-  if (paint.verdict !== "exact-logical-agreement" || paint.movementProven !== true || !Array.isArray(paint.rows) || paint.rows.length < 100) errors.push("paint source geometry report is not the full exact corpus");
-  const paintBrowser = readJson("paint-browser.json", root) as { verdict?: string; architecture?: string; platform?: string; probes?: unknown[] };
-  if (paintBrowser.verdict !== "browser-validates-source-rules" || paintBrowser.platform !== "linux" || paintBrowser.architecture !== "arm64" || !Array.isArray(paintBrowser.probes) || paintBrowser.probes.length === 0) errors.push("paint browser report is not native arm64 source agreement");
+  const paint = readJson("paint-geometry.json", root) as {
+    verdict?: string;
+    movementProven?: boolean;
+    rows?: unknown[];
+  };
+  if (
+    paint.verdict !== "exact-logical-agreement" ||
+    paint.movementProven !== true ||
+    !Array.isArray(paint.rows) ||
+    paint.rows.length < 100
+  )
+    errors.push("paint source geometry report is not the full exact corpus");
+  const paintBrowser = readJson("paint-browser.json", root) as {
+    verdict?: string;
+    architecture?: string;
+    platform?: string;
+    probes?: unknown[];
+  };
+  if (
+    paintBrowser.verdict !== "browser-validates-source-rules" ||
+    paintBrowser.platform !== "linux" ||
+    paintBrowser.architecture !== "arm64" ||
+    !Array.isArray(paintBrowser.probes) ||
+    paintBrowser.probes.length === 0
+  )
+    errors.push("paint browser report is not native arm64 source agreement");
   for (const suite of ["html", "unicode"] as const) {
     const rows = readJson(`${suite}/results.json`, root) as Array<{ pass?: boolean; skipped?: boolean }>;
-    if (!Array.isArray(rows) || rows.length === 0 || rows.some((row) => row.pass !== true || row.skipped === true)) errors.push(`${suite} visual corpus is empty, skipped, or non-passing`);
+    if (!Array.isArray(rows) || rows.length === 0 || rows.some((row) => row.pass !== true || row.skipped === true))
+      errors.push(`${suite} visual corpus is empty, skipped, or non-passing`);
   }
   return errors;
 }
@@ -667,21 +727,32 @@ export function buildFinalReport(
   extraErrors: string[] = [],
 ): FinalEvidenceReport {
   const errors = [...extraErrors];
-  if (acquisition.target?.platform !== "linux" || acquisition.target?.architecture !== "arm64") errors.push("acquisition target is not linux/arm64");
+  if (acquisition.target?.platform !== "linux" || acquisition.target?.architecture !== "arm64")
+    errors.push("acquisition target is not linux/arm64");
   if (acquisition.verdict !== "acquisition-exact") errors.push("acquisition verdict is not exact");
-  if (typeof acquisition.environmentFingerprint !== "string" || !/^[0-9a-f]{64}$/.test(acquisition.environmentFingerprint)) errors.push("acquisition environment fingerprint is missing");
+  if (
+    typeof acquisition.environmentFingerprint !== "string" ||
+    !/^[0-9a-f]{64}$/.test(acquisition.environmentFingerprint)
+  )
+    errors.push("acquisition environment fingerprint is missing");
   errors.push(...sourceFingerprintErrors(acquisition.environment));
   for (const name of REQUIRED_OUTCOMES) {
     if (outcomes[name] !== "success") errors.push(`${name} outcome is ${outcomes[name] ?? "missing"}`);
   }
   const artifactPaths = new Set(artifacts.map((artifact) => artifact.path));
-  for (const required of REQUIRED_ARTIFACTS) if (!artifactPaths.has(required)) errors.push(`required artifact missing: ${required}`);
-  const artifactSetSha256 = stableFingerprint(artifacts.map(({ path: file, size, sha256: digest }) => ({ path: file, size, sha256: digest })));
+  for (const required of REQUIRED_ARTIFACTS)
+    if (!artifactPaths.has(required)) errors.push(`required artifact missing: ${required}`);
+  const artifactSetSha256 = stableFingerprint(
+    artifacts.map(({ path: file, size, sha256: digest }) => ({ path: file, size, sha256: digest })),
+  );
   return {
     schemaVersion: 1,
     ticket: "DM-2353",
     generatedAt: new Date().toISOString(),
-    target: { platform: acquisition.target?.platform ?? "unknown", architecture: acquisition.target?.architecture ?? "unknown" },
+    target: {
+      platform: acquisition.target?.platform ?? "unknown",
+      architecture: acquisition.target?.architecture ?? "unknown",
+    },
     acquisitionFingerprint: acquisition.environmentFingerprint ?? null,
     outcomes,
     artifacts,
@@ -702,7 +773,11 @@ async function acquireCommand(args: string[]): Promise<number> {
     writeJson(runEnvOutput, { ...report.environment, fingerprint: report.environmentFingerprint });
     const githubEnv = argValue(args, "--github-env");
     if (githubEnv != null) {
-      const icuTarget = resolveIcuCompanionTarget({ platform: "linux", arch: "arm64", cacheDir: path.join(cacheRoot, "icu") });
+      const icuTarget = resolveIcuCompanionTarget({
+        platform: "linux",
+        arch: "arm64",
+        cacheDir: path.join(cacheRoot, "icu"),
+      });
       if (icuTarget == null) throw new Error("could not resolve acquired ICU target");
       const lines = [
         `DOMOTION_HELPER_PATH=${report.assets.glyph.path}`,
@@ -712,7 +787,9 @@ async function acquireCommand(args: string[]): Promise<number> {
       ];
       writeFileSync(githubEnv, `${lines.join("\n")}\n`, { flag: "a" });
     }
-    process.stdout.write(`${JSON.stringify({ verdict: report.verdict, environmentFingerprint: report.environmentFingerprint })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ verdict: report.verdict, environmentFingerprint: report.environmentFingerprint })}\n`,
+    );
     return report.verdict === "acquisition-exact" ? 0 : 1;
   } catch (error) {
     const failure = {
@@ -736,16 +813,22 @@ function finalizeCommand(args: string[]): number {
     const acquisition = JSON.parse(readFileSync(requiredArg(args, "--acquisition"), "utf8")) as AcquisitionReport;
     const artifactsRoot = path.resolve(requiredArg(args, "--artifacts-root"));
     const outcomes = parseOutcomes(requiredArg(args, "--outcomes"));
-    const artifacts = digestArtifacts(artifactsRoot).filter((artifact) => artifact.path !== path.relative(artifactsRoot, output).split(path.sep).join("/"));
+    const artifacts = digestArtifacts(artifactsRoot).filter(
+      (artifact) => artifact.path !== path.relative(artifactsRoot, output).split(path.sep).join("/"),
+    );
     let semanticErrors: string[] = [];
     try {
       semanticErrors = semanticArtifactErrors(artifactsRoot);
     } catch (error) {
-      semanticErrors = [`could not validate artifact semantics: ${String(error instanceof Error ? error.message : error)}`];
+      semanticErrors = [
+        `could not validate artifact semantics: ${String(error instanceof Error ? error.message : error)}`,
+      ];
     }
     const report = buildFinalReport(acquisition, outcomes, artifacts, semanticErrors);
     writeJson(output, report);
-    process.stdout.write(`${JSON.stringify({ verdict: report.verdict, artifactSetSha256: report.artifactSetSha256 })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ verdict: report.verdict, artifactSetSha256: report.artifactSetSha256 })}\n`,
+    );
     return report.verdict === "exact-arm64-release-parity" ? 0 : 1;
   } catch (error) {
     const report: FinalEvidenceReport = {

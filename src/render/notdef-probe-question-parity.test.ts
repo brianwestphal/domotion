@@ -63,6 +63,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FONT_RESOLUTION_SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
 const TEXT_TO_PATH_SRC = readFileSync(path.join(HERE, "text-to-path.ts"), "utf-8");
 
+/** Normalize formatting-only choices made by Prettier while preserving tokens. */
+function normalizedSource(src: string): string {
+  return src
+    .replace(/\s+/g, " ")
+    .replace(/\(\s+/g, "(")
+    .replace(/,\s*\)/g, ")")
+    .trim();
+}
+
 /** The body of a top-level function, from its `function <name>(` to the next
  *  closing brace in column 0. */
 function functionBody(src: string, name: string): string {
@@ -96,7 +105,14 @@ function systemFallbackCallArgs(src: string): string[] {
     }
     // Askers may spell the primary-key parameter differently; everything else
     // must match literally.
-    out.push(src.slice(i + marker.length, j - 1).replace(/\s+/g, " ").trim().replace(/primaryFontKey/g, "primaryKey"));
+    out.push(
+      src
+        .slice(i + marker.length, j - 1)
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/,$/, "")
+        .replace(/primaryFontKey/g, "primaryKey"),
+    );
   }
   return out;
 }
@@ -118,8 +134,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // historical drifts were each a single argument or stage present in one
     // copy and not the other, and comparing shapes (rather than naming the
     // expectation) is satisfied by a shared omission.
-    const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"))
-      .replace(/\s+/g, " ");
+    const body = normalizedSource(bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef")));
     expect(body).toContain(
       "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation, semanticContext).covered;",
     );
@@ -148,7 +163,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // a mark covered by a later-declared family got a spurious circle), and
     // `stackPrimaryIsSystemUi(fontFamily, lang)` / `stretch` are the two that were
     // each dropped once before.
-    const call = TEXT_TO_PATH_SRC.replace(/\s+/g, " ");
+    const call = normalizedSource(TEXT_TO_PATH_SRC);
     expect(call).toContain(
       "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation, fontFamily, semanticContext)",
     );
@@ -183,7 +198,10 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // (the primary-vs-declared-name divergence this ticket closed).
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
-      expect(args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation"), `${name}: ${args}`).toBe(true);
+      expect(
+        args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation"),
+        `${name}: ${args}`,
+      ).toBe(true);
     }
   });
 
@@ -193,7 +211,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // call site must read the stack. (The argument used to sit last in these
     // calls; the run's `stretch` now follows it, so the pin matches the call
     // shape rather than a trailing position.)
-    expect(TEXT_TO_PATH_SRC).toContain("stackPrimaryIsSystemUi(fontFamily, lang), stretch,");
+    expect(normalizedSource(TEXT_TO_PATH_SRC)).toContain("stackPrimaryIsSystemUi(fontFamily, lang), stretch,");
     expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).toBe(true);
     expect(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif')).toBe(false);
     // The key-collapse itself exists only where the named SF Pro family
@@ -253,8 +271,10 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
           for (const cand of fallbackFontChain(MARK, key, undefined, { weight: 400, slant: 0, fontSize: 32 })) {
             if (cand === "last-resort") continue;
             const cf = getFontInstance(cand, 400, 32, 0);
-            expect(cf == null || glyphIdForCp(cf, MARK) === 0,
-              `static chain candidate ${cand} covers U+3099 — pick a new discriminating mark`).toBe(true);
+            expect(
+              cf == null || glyphIdForCp(cf, MARK) === 0,
+              `static chain candidate ${cand} covers U+3099 — pick a new discriminating mark`,
+            ).toBe(true);
           }
           // The pinned behavior: the later-declared family covers the mark, so
           // the probe must NOT report `.notdef` (no synthetic dotted circle).

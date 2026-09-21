@@ -26,7 +26,8 @@
 
 export const dottedCircleInkMatches = (bare, comb) => {
   const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;
-  let union = 0, xor = 0;
+  let union = 0,
+    xor = 0;
   for (let i = 0; i < bare.mask.length; i++) {
     if (bare.mask[i] || comb.mask[i]) union++;
     if (bare.mask[i] !== comb.mask[i]) xor++;
@@ -47,18 +48,20 @@ export const createDottedCircleDetect = () => {
   // fixed size keeps the pixel-count / width thresholds stable.
   const inkStats = (s, font) => {
     if (_ctx == null) {
-      _cv = document.createElement('canvas');
+      _cv = document.createElement("canvas");
       _cv.width = 96;
       _cv.height = 64;
-      _ctx = _cv.getContext('2d', { willReadFrequently: true });
+      _ctx = _cv.getContext("2d", { willReadFrequently: true });
     }
     _ctx.clearRect(0, 0, 96, 64);
-    _ctx.fillStyle = '#000';
-    _ctx.textBaseline = 'middle';
-    _ctx.font = '32px ' + font;
+    _ctx.fillStyle = "#000";
+    _ctx.textBaseline = "middle";
+    _ctx.font = "32px " + font;
     _ctx.fillText(s, 40, 32);
     const data = _ctx.getImageData(0, 0, 96, 64).data;
-    let cnt = 0, minx = 1e9, maxx = -1;
+    let cnt = 0,
+      minx = 1e9,
+      maxx = -1;
     const mask = new Uint8Array(96 * 64);
     for (let y = 0; y < 64; y++) {
       for (let x = 0; x < 96; x++) {
@@ -70,7 +73,7 @@ export const createDottedCircleDetect = () => {
         }
       }
     }
-    return { cnt, w: cnt > 0 ? (maxx - minx + 1) : 0, mask };
+    return { cnt, w: cnt > 0 ? maxx - minx + 1 : 0, mask };
   };
 
   // Does Chrome auto-insert a U+25CC before this lone mark/cluster-letter in
@@ -82,15 +85,15 @@ export const createDottedCircleDetect = () => {
   // circle, so bare ≠ comb → false), so including Lo / Lm only widens what's
   // probed, never forces a false positive.
   const markGetsDottedCircle = (cp, ch, font) => {
-    if (font == null || font === '') return false;
+    if (font == null || font === "") return false;
     if (!isDottedCircleProbeCandidate(ch)) return false;
-    const key = cp + '|' + font;
+    const key = cp + "|" + font;
     const hit = _cache.get(key);
     if (hit !== undefined) return hit;
     let res = false;
     try {
       const bare = inkStats(ch, font);
-      const comb = inkStats('◌' + ch, font);
+      const comb = inkStats("◌" + ch, font);
       // Auto-inserted ⟺ the bare-mark render ALREADY contains the circle, so
       // bare ≈ comb in count, width, AND pixel location. The overlap check is
       // what rejects enclosing marks whose similar-sized outlines fooled the

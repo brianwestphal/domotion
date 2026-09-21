@@ -21,16 +21,22 @@ import { runReplacedOwnershipGate } from "./replaced-ownership-transition-oracle
 
 async function main(): Promise<void> {
   const dprIndex = process.argv.indexOf("--dpr");
-  const dprs = dprIndex >= 0 && process.argv[dprIndex + 1] != null
-    ? process.argv[dprIndex + 1].split(",").map(Number).filter((value) => Number.isFinite(value) && value > 0)
-    : [1];
+  const dprs =
+    dprIndex >= 0 && process.argv[dprIndex + 1] != null
+      ? process.argv[dprIndex + 1]
+          .split(",")
+          .map(Number)
+          .filter((value) => Number.isFinite(value) && value > 0)
+      : [1];
   const report = await runReplacedOwnershipGate(dprs);
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
     writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);
   }
   for (const run of report.runs) {
-    console.log(`replaced ownership oracle DPR${run.fingerprint.deviceScaleFactor}: ${run.adjudication.passedRows}/${run.adjudication.totalRows}`);
+    console.log(
+      `replaced ownership oracle DPR${run.fingerprint.deviceScaleFactor}: ${run.adjudication.passedRows}/${run.adjudication.totalRows}`,
+    );
     for (const error of run.adjudication.errors) console.log(`FAIL DPR${run.fingerprint.deviceScaleFactor} ${error}`);
   }
   if (report.verdict !== "source-exact") process.exitCode = 1;

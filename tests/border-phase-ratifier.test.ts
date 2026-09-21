@@ -80,14 +80,19 @@ function fixture(): { report: BorderPhaseReport; baseline: BorderPhaseEnvelope }
           workflowRuns: [1, 2],
           repeatedArtifactSetSha256: ["stable", "stable"],
         },
-        scenarios: Object.fromEntries(scenarios.map(({ id }) => [id, {
-          edgeCeilingCssPx: 0.2,
-          profileRmseCeiling: 0.2,
-          observedWorstEdge: 0.1,
-          observedWorstRmse: 0.1,
-          repeatedMaxEdgeDelta: 0,
-          repeatedMaxRmseDelta: 0,
-        }])),
+        scenarios: Object.fromEntries(
+          scenarios.map(({ id }) => [
+            id,
+            {
+              edgeCeilingCssPx: 0.2,
+              profileRmseCeiling: 0.2,
+              observedWorstEdge: 0.1,
+              observedWorstRmse: 0.1,
+              repeatedMaxEdgeDelta: 0,
+              repeatedMaxRmseDelta: 0,
+            },
+          ]),
+        ),
       },
     },
   } satisfies BorderPhaseEnvelope;

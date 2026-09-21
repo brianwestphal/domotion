@@ -4,10 +4,18 @@ title: "Domotion: cursor / click overlay"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos","windows"]
-tickets: ["DM-1106","DM-1133","DM-1139","DM-1507","DM-1742","DM-1995","DM-272","DM-277"]
-code: ["src/animation/cursor-glyphs.ts","src/animation/cursor-overlay.ts","src/capture/script/utils.ts","src/cli/animate.ts","src/render/paint-order.ts","tools/cursor-catalog.mts"]
-aliases: ["docs/13-cursor-overlay.md","doc-13"]
+platforms: ["macos", "windows"]
+tickets: ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277"]
+code:
+  [
+    "src/animation/cursor-glyphs.ts",
+    "src/animation/cursor-overlay.ts",
+    "src/capture/script/utils.ts",
+    "src/cli/animate.ts",
+    "src/render/paint-order.ts",
+    "tools/cursor-catalog.mts",
+  ]
+aliases: ["docs/13-cursor-overlay.md", "doc-13"]
 ---
 
 # Domotion: cursor / click overlay
@@ -33,7 +41,7 @@ How it works:
 
 ## Use case
 
-Demos record an interaction and want to show *what the user did* — a macOS-style mouse cursor moving across the page, with QuickTime-style click ring pulses at each click. This is the same effect as macOS QuickTime's `record clicks`.
+Demos record an interaction and want to show _what the user did_ — a macOS-style mouse cursor moving across the page, with QuickTime-style click ring pulses at each click. This is the same effect as macOS QuickTime's `record clicks`.
 
 The static `30-cursor` html-test fixture is **not** the target of this overlay. It tests CSS `cursor: <value>` rendering and is unrelated.
 
@@ -53,16 +61,19 @@ The overlay is driven by a sequence of timed events. Times are milliseconds from
 
 ```ts
 type CursorEvent =
-  | { type: "show";  t: number; x: number; y: number; cursor?: string }
-  | { type: "move";  t: number; duration?: number;
+  | { type: "show"; t: number; x: number; y: number; cursor?: string }
+  | {
+      type: "move";
+      t: number;
+      duration?: number;
       to?: { x: number; y: number };
       by?: { dx: number; dy: number };
       selector?: string;
       offset?: { dx: number; dy: number };
-      cursor?: string;   // DM-1106: force a glyph for this move (skip the auto hit-test)
+      cursor?: string; // DM-1106: force a glyph for this move (skip the auto hit-test)
     }
   | { type: "click"; t: number; button?: "primary" | "secondary" | "middle"; style?: Partial<CursorStyle> }
-  | { type: "hide";  t: number };
+  | { type: "hide"; t: number };
 
 interface CursorStyle {
   pointer: "mouse" | "touch";
@@ -118,7 +129,7 @@ A new module `src/animation/cursor-overlay.ts`:
    - `[ {t, x, y} ]` — cursor position over time, with linear interpolation between adjacent entries when both have the same segment.
    - `[ {t, x, y, button, style} ]` — click pulses.
 2. Emits a `<g class="cursor-overlay" pointer-events="none">` appended to the top of the animated SVG (after the frame layers), containing:
-   - A `<style>` with the overlay's `@keyframes`, and the elements below animated via inline `animation:` referencing them. **The overlay is pure CSS, not SMIL (DM-1507)** — SMIL (`<animateTransform>`/`<animate>`) runs on the SVG's *own* timeline while the frames run on the CSS/document timeline; Safari pauses/throttles those two clocks independently when the SVG is offscreen (tab-switch, scrolled away), so a SMIL cursor drifted out of sync with the CSS frames on return. CSS keeps everything on **one timeline** — they pause and resume together, so they can't desync. (The `@keyframes` are namespaced with a short content hash so composited SVGs with several overlays don't collide.)
+   - A `<style>` with the overlay's `@keyframes`, and the elements below animated via inline `animation:` referencing them. **The overlay is pure CSS, not SMIL (DM-1507)** — SMIL (`<animateTransform>`/`<animate>`) runs on the SVG's _own_ timeline while the frames run on the CSS/document timeline; Safari pauses/throttles those two clocks independently when the SVG is offscreen (tab-switch, scrolled away), so a SMIL cursor drifted out of sync with the CSS frames on return. CSS keeps everything on **one timeline** — they pause and resume together, so they can't desync. (The `@keyframes` are namespaced with a short content hash so composited SVGs with several overlays don't collide.)
    - The cursor arrow `<path>` (or, in auto-cursor mode, one glyph per keyword) walked along the position keyframes by a `co-pos-…` `@keyframes` (linear `transform: translate(…)`), with a discrete `step-end` opacity track for visibility / glyph switching.
    - One `<circle>` per click at the click's `(x, y)`, its ring expanded by a `co-pulse-…` `@keyframes` using `transform: scale(…)` with `vector-effect: non-scaling-stroke` (so the stroke stays constant while the radius grows, matching the old `r` animation) plus an opacity fade. It runs once at the click time (`animation-delay: <t>s; animation-fill-mode: forwards`).
    - For secondary clicks, an additional `<path>` (right half-disc) inside the ring.

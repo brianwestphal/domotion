@@ -44,7 +44,10 @@
 // no-counterpart-in-Blink claim is a macOS/Linux one.
 import { readFileSync } from "node:fs";
 import {
-  fallbackFontChain, resolveFont, resolveFontKey, resolveFontKeyChain,
+  fallbackFontChain,
+  resolveFont,
+  resolveFontKey,
+  resolveFontKeyChain,
   resolveFontForCodepoint,
 } from "../src/render/font-resolution.js";
 import { buildUniverse } from "./font-conformance.js";
@@ -56,24 +59,36 @@ const famArgIdx = process.argv.indexOf("--family");
 const familyOverride = famArgIdx > 0 ? process.argv[famArgIdx + 1] : null;
 const reportPath = familyOverride == null ? process.argv[2] : null;
 if (reportPath == null && familyOverride == null) {
-  console.error("usage: stage-attribution.mts <report.json> [shard] | --family \"<stack>\" [shard]");
+  console.error('usage: stage-attribution.mts <report.json> [shard] | --family "<stack>" [shard]');
   process.exit(2);
 }
-const report = reportPath == null ? { meta: {}, mismatches: [] } : JSON.parse(readFileSync(reportPath, "utf-8")) as {
-  meta: { slice?: { codepoints?: number }; stackPrimaries?: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string }> };
-  mismatches: Array<{ cp: number; ourKey: string; stack: string }>;
-};
+const report =
+  reportPath == null
+    ? { meta: {}, mismatches: [] }
+    : (JSON.parse(readFileSync(reportPath, "utf-8")) as {
+        meta: {
+          slice?: { codepoints?: number };
+          stackPrimaries?: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string }>;
+        };
+        mismatches: Array<{ cp: number; ourKey: string; stack: string }>;
+      });
 
 const spec = report.meta.stackPrimaries?.[0];
 const fontFamily = familyOverride ?? spec?.fontFamily;
 const fontSize = spec?.fontSize ?? 16;
 const fontWeight = spec?.fontWeight ?? 400;
-if (fontFamily == null) { console.error("no stack: pass --family or a report with stackPrimaries"); process.exit(2); }
+if (fontFamily == null) {
+  console.error("no stack: pass --family or a report with stackPrimaries");
+  process.exit(2);
+}
 
 const primaryKey = resolveFontKey(fontFamily);
 const chain = resolveFontKeyChain(fontFamily);
 const primary = resolveFont(fontFamily, fontWeight, fontSize, 0);
-if (primary == null) { console.error(`primary did not resolve for ${fontFamily}`); process.exit(2); }
+if (primary == null) {
+  console.error(`primary did not resolve for ${fontFamily}`);
+  process.exit(2);
+}
 const declared = new Set(chain);
 
 function stageOf(cp: number, key: string | null, covered: boolean): string {
@@ -91,8 +106,7 @@ function stageOf(cp: number, key: string | null, covered: boolean): string {
 // cross-tabulation into nonsense.
 const shard = process.argv.find((a) => /^\d+\/\d+$/.test(a)) ?? "1/10";
 const [si, sn] = shard.split("/").map((x) => parseInt(x, 10));
-const cps = buildUniverse({ includePua: true, ranges: null })
-  .filter((_, i) => i % sn === si - 1);
+const cps = buildUniverse({ includePua: true, ranges: null }).filter((_, i) => i % sn === si - 1);
 
 const overall = new Map<string, number>();
 for (const cp of cps) {
@@ -107,15 +121,16 @@ for (const row of report.mismatches) {
   mismatchByStage.set(s, (mismatchByStage.get(s) ?? 0) + 1);
 }
 
-const pct = (n: number, d: number): string => d === 0 ? "—" : `${((n / d) * 100).toFixed(2)}%`;
+const pct = (n: number, d: number): string => (d === 0 ? "—" : `${((n / d) * 100).toFixed(2)}%`);
 console.log(`stack: ${fontFamily} @${fontSize}px/${fontWeight}   primary=${primaryKey}   chain=[${chain.join(", ")}]`);
 console.log(`swept ${cps.length} codepoints; report carries ${report.mismatches.length} mismatch rows\n`);
 console.log("stage      resolved        share    mismatch rows   share of mismatches");
 for (const s of ["declared", "sysfb", "static", "other", "tofu"]) {
-  const o = overall.get(s) ?? 0, m = mismatchByStage.get(s) ?? 0;
+  const o = overall.get(s) ?? 0,
+    m = mismatchByStage.get(s) ?? 0;
   if (o === 0 && m === 0) continue;
   console.log(
-    `${s.padEnd(10)} ${String(o).padStart(8)}  ${pct(o, cps.length).padStart(8)}`
-    + `   ${String(m).padStart(8)}       ${pct(m, report.mismatches.length).padStart(8)}`,
+    `${s.padEnd(10)} ${String(o).padStart(8)}  ${pct(o, cps.length).padStart(8)}` +
+      `   ${String(m).padStart(8)}       ${pct(m, report.mismatches.length).padStart(8)}`,
   );
 }

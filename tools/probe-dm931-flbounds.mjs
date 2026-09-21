@@ -16,7 +16,7 @@ const info = await page.evaluate(() => {
   range.setStart(text, 0);
   range.setEnd(text, 1);
   const r = range.getBoundingClientRect();
-  const rects = [...range.getClientRects()].map(rr => ({x:rr.x,y:rr.y,w:rr.width,h:rr.height}));
+  const rects = [...range.getClientRects()].map((rr) => ({ x: rr.x, y: rr.y, w: rr.width, h: rr.height }));
   // Computed pseudo styles
   const ps = window.getComputedStyle(p, "::first-letter");
   return {

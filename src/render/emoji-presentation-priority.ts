@@ -69,8 +69,12 @@ export function sourcePriorityItems(text: string): SourcePriorityItem[] {
     .map((span) => ({
       ...span,
       priority: span.hasVs
-        ? (span.presentation === "emoji" ? "emoji-vs" : "text-vs")
-        : (span.presentation === "emoji" ? "emoji" : "text"),
+        ? span.presentation === "emoji"
+          ? "emoji-vs"
+          : "text-vs"
+        : span.presentation === "emoji"
+          ? "emoji"
+          : "text",
     }))
     .sort((a, b) => a.start - b.start);
   const raw: Array<{ start: number; end: number; priority: SourceFallbackPriority }> = [];

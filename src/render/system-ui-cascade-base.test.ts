@@ -56,15 +56,18 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
   // derived from the key, but the mechanism must serve the platform where it
   // cannot, which is what this pins.
   it.runIf(resolveFontKey("SF Pro Text") === "sf-pro")(
-    "keeps the distinction the font key provably cannot carry", () => {
+    "keeps the distinction the font key provably cannot carry",
+    () => {
       // If this ever stops holding, the signal could be derived from the key and
       // this whole mechanism simplifies. Until then, it cannot.
       const viaGeneric = resolveFontKey("system-ui, sans-serif");
       const viaNamedFamily = resolveFontKey('"SF Pro Text", sans-serif');
       expect(viaGeneric).toBe(viaNamedFamily);
-      expect(stackPrimaryIsSystemUi("system-ui, sans-serif"))
-        .not.toBe(stackPrimaryIsSystemUi('"SF Pro Text", sans-serif'));
-    });
+      expect(stackPrimaryIsSystemUi("system-ui, sans-serif")).not.toBe(
+        stackPrimaryIsSystemUi('"SF Pro Text", sans-serif'),
+      );
+    },
+  );
 
   it("excludes bare -apple-system, matching how the key table already treats it", () => {
     // Chrome resolves `-apple-system` to the UA standard font rather than to the
@@ -99,13 +102,21 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
   });
 
   it.runIf(process.platform === "darwin")(
-    "moves an unresolved-prefix Arabic fallback onto the system UI cascade", () => {
+    "moves an unresolved-prefix Arabic fallback onto the system UI cascade",
+    () => {
       const family = "ui-sans-serif, system-ui, sans-serif";
       const primaryKey = resolveFontKey(family);
       const primary = resolveFont(family, 400, 16);
       expect(primary).not.toBeNull();
       const args = [
-        0x0645, primary!, primaryKey, 400, 16, 0, undefined, undefined,
+        0x0645,
+        primary!,
+        primaryKey,
+        400,
+        16,
+        0,
+        undefined,
+        undefined,
         resolveFontKeyChain(family),
       ] as const;
       const namedBase = resolveFontForCodepoint(...args, false, 100, undefined, family);

@@ -4,10 +4,95 @@ title: "Domotion: rendering fidelity and warnings"
 kind: "contract"
 status: "partial"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-2615","DM-262","DM-2623","DM-2626","DM-2627","DM-2628","DM-2632","DM-2634","DM-2640","DM-2652","DM-2662","DM-300","DM-457","DM-462","DM-984","DM-987","DM-MYC908","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
-code: ["src/animation/animator.ts","src/capture/input-value-geometry.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/capture/warnings.test.ts","src/capture/warnings.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tests/capture-warnings-lifecycle.e2e.test.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/linux-target-strike-small-caps.e2e.test.ts","tests/textarea-line-baseline.e2e.test.ts","tools/linux-terminal-mask-oracle.ts"]
-aliases: ["docs/01-fidelity.md","doc-01"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  [
+    "DM-1022",
+    "DM-1028",
+    "DM-2161",
+    "DM-2192",
+    "DM-227",
+    "DM-228",
+    "DM-229",
+    "DM-2355",
+    "DM-2365",
+    "DM-2366",
+    "DM-2367",
+    "DM-2368",
+    "DM-237",
+    "DM-2380",
+    "DM-2419",
+    "DM-2453",
+    "DM-2455",
+    "DM-2465",
+    "DM-2477",
+    "DM-2478",
+    "DM-2479",
+    "DM-2480",
+    "DM-2488",
+    "DM-2491",
+    "DM-2520",
+    "DM-258",
+    "DM-259",
+    "DM-260",
+    "DM-2615",
+    "DM-262",
+    "DM-2623",
+    "DM-2626",
+    "DM-2627",
+    "DM-2628",
+    "DM-2632",
+    "DM-2634",
+    "DM-2640",
+    "DM-2652",
+    "DM-2662",
+    "DM-300",
+    "DM-457",
+    "DM-462",
+    "DM-984",
+    "DM-987",
+    "DM-MYC908",
+    "SK-1093",
+    "SK-1097",
+    "SK-1099",
+    "SK-1100",
+    "SK-1101",
+    "SK-1105",
+    "SK-1108",
+    "SK-1111",
+    "SK-1113",
+    "SK-1114",
+    "SK-1115",
+    "SK-466",
+    "SK-468",
+  ]
+code:
+  [
+    "src/animation/animator.ts",
+    "src/capture/input-value-geometry.ts",
+    "src/capture/pseudo-style-cdp.test.ts",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/capture/script/walker/form-controls.ts",
+    "src/capture/script/walker/input-value.ts",
+    "src/capture/warnings.test.ts",
+    "src/capture/warnings.ts",
+    "src/render/clip-path.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/font-resolution-cache-reset.test.ts",
+    "src/render/font-resolution.ts",
+    "src/render/form-controls.test.ts",
+    "src/render/form-controls.ts",
+    "src/render/text-to-path.test.ts",
+    "src/render/text-to-path.ts",
+    "tests/capture-warnings-lifecycle.e2e.test.ts",
+    "tests/composed-parity-fixtures.ts",
+    "tests/features.ts",
+    "tests/html-test-suite.tsx",
+    "tests/linux-target-strike-small-caps.e2e.test.ts",
+    "tests/textarea-line-baseline.e2e.test.ts",
+    "tools/linux-terminal-mask-oracle.ts",
+  ]
+aliases: ["docs/01-fidelity.md", "doc-01"]
 ---
 
 # Domotion: rendering fidelity and warnings
@@ -31,10 +116,10 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [~] position: fixed, sticky — paint order correct, but rendered as static snapshot at t=0 (no scroll-following animation)
 - [x] display: block, inline, inline-block, flex, grid, table
 - [x] multi-column physical flow — text retains Chromium's per-fragment
-  `Range.getClientRects()` coordinates across forced column breaks,
-  `break-inside: avoid`, and column groups split by `column-span: all`; the
-  renderer consumes those captured positions rather than reconstructing
-  LayoutNG fragmentation in Node (DM-2161).
+      `Range.getClientRects()` coordinates across forced column breaks,
+      `break-inside: avoid`, and column groups split by `column-span: all`; the
+      renderer consumes those captured positions rather than reconstructing
+      LayoutNG fragmentation in Node (DM-2161).
 - [x] float + clear (text wraps correctly around floats via per-line capture)
 - [x] box-sizing, margin, padding, width/height, min/max
 - [x] overflow: hidden/scroll/auto/clip (children clipped to padding box); rounded `overflow-clip-margin` follows Blink's pixel-snapped reference-box outsets and coverage-corrected contour (DM-2419)
@@ -46,12 +131,12 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   [doc 165](165-native-scrollbar-layout-paint-ownership-audit.md) (DM-2368;
   legacy tracker SK-468).
 - [x] CSS resize controls — Blink's exact scroll-container/iframe activation,
-  logical-left placement, pixel-snapped corner size, platform dark/light grip,
-  scrollbar-only frame, and author `::-webkit-resizer` background/gradient/
-  border, and multi-layer inset/outset shadow paint are retained and clipped to
-  the fixed CornerRect. Platform corner thickness is measured from the
-  active Chromium `ScrollbarTheme`, so macOS overlay/legacy, Aura, and Windows
-  values are not collapsed to a hard-coded constant; DPR is divided out.
+      logical-left placement, pixel-snapped corner size, platform dark/light grip,
+      scrollbar-only frame, and author `::-webkit-resizer` background/gradient/
+      border, and multi-layer inset/outset shadow paint are retained and clipped to
+      the fixed CornerRect. Platform corner thickness is measured from the
+      active Chromium `ScrollbarTheme`, so macOS overlay/legacy, Aura, and Windows
+      values are not collapsed to a hard-coded constant; DPR is divided out.
 
 ### Visual / paint
 
@@ -75,15 +160,15 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] border (per-side with different width/style/color)
 - [x] box-decoration-break (`slice` default + `clone`) on wrapped inline and multicol block fragments — per-fragment background/border/image paint with axis-aware edge ownership. URL images in slice mode use Blink's captured imaginary stitched box across LTR, RTL, vertical and block axes; independent origin/clip and viewport-fixed ownership are preserved. Clone mode deliberately restarts from each physical fragment. See [doc 163](163-url-background-image-geometry-audit.md).
 - [x] border-style: solid, dashed, dotted. Mixed-side dashed/dotted borders use
-  Blink's full outer-edge side path and miter clip ownership; thick dots inset
-  their round-cap endpoints by half the side width, while widths 1--3 retain
-  Blink's square-dot endpoint enforcement. Rounded mixed sides stroke the full
-  closed border centerline and intersect it with both the border ring and the
-  side's rounded miter wedge, preserving dash continuity through corner arcs.
-  Adjacent widths never shorten the path or alter its dash phase. DM-2355's
-  source-scoped phase gate ratifies solid/dashed/dotted borders and
-  solid/dashed/dotted/double outlines across macOS/Linux/Windows at DSF 1/2/4
-  and zoom 0.8/1/1.25 ([doc 191](191-cross-platform-border-phase-envelopes.md)).
+      Blink's full outer-edge side path and miter clip ownership; thick dots inset
+      their round-cap endpoints by half the side width, while widths 1--3 retain
+      Blink's square-dot endpoint enforcement. Rounded mixed sides stroke the full
+      closed border centerline and intersect it with both the border ring and the
+      side's rounded miter wedge, preserving dash continuity through corner arcs.
+      Adjacent widths never shorten the path or alter its dash phase. DM-2355's
+      source-scoped phase gate ratifies solid/dashed/dotted borders and
+      solid/dashed/dotted/double outlines across macOS/Linux/Windows at DSF 1/2/4
+      and zoom 0.8/1/1.25 ([doc 191](191-cross-platform-border-phase-envelopes.md)).
 - [~] border-style: double — visible in the uniform-border path, but its two
   stripe boxes still start from the unsnapped captured reference box at
   fractional phases; all 16 phase rows remain unratified under DM-2491.
@@ -118,7 +203,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] Weight, size, style (italic via SFNSItalic.ttf — SK-1105), variant, stretch
 - [x] Linux embedded-font target strikes: twelve exact, evidence-owned tuples preserve design-space x/linear advances while taking FreeType's concrete 26.6-grid y, then use `geometricPrecision` to prevent a second custom-webfont hinting pass: `WenQuanYiZenHeiMono` 17/400 and 26/700; `WenQuanYiZenHei` 32/700; `LiberationSans` 16/400 and 32/400; `LiberationSans-Bold` 14/700 and 32/700; `LiberationSerif` 13/400, 18/400, and 44/400; and `FreeSans` / `FreeSerif` 32/400. A synthesized-small-caps run may split into multiple target entries only when every effective rounded size is admitted; otherwise the whole run keeps the ordinary route. Admission is per tuple and fixture, never family-wide; WQY UI 32/400 remains outside the allowlist. The SVG stays self-contained—this is neither native font fallback nor system-font passthrough. See [doc 99](99-hinted-embedded-subset.md#linux-exact-target-strike-exceptions-dm-2623--dm-2626--dm-2627--dm-2652--dm-2662).
 - [x] Vertical baseline placement: CAPTURE_SCRIPT records `canvas.measureText().fontBoundingBoxAscent` for every text-bearing element so the renderer anchors each line's baseline at the exact pixel Chrome paints. fontkit's HHEA-based `font.ascent` is correct for SF Pro / SF Mono (where HHEA = `OS/2.usWinAscent`) but disagrees for Helvetica / Arial / Times / Georgia / Menlo / Courier on macOS, where Chrome reads `winAscent` — at fontSize 32 Helvetica the gap is ~5 px, so larger headings drift up without the captured override (DM-237).
-- [x] Baseline pixel-grid snap (paths mode): every path-rendered run's baseline y is rounded to the integer pixel grid (`floor(y + 0.5)`), mirroring Skia's glyph rasterization — for axis-aligned horizontal text Skia keeps quarter-pixel subpixel sampling in **x** but rounds every glyph's **y** to an integer device pixel (`SkGlyphPositionRoundingSpec`, Skia `src/core/SkGlyph.cpp`; the default-on `kBaselineSnap` flag, `SkFont.cpp`). Layout baselines are routinely fractional (line-height accumulates in 1/64px LayoutUnits: 18px × 1.6 → a 28.796875px line box), so without the snap every line whose baseline phase is far from the grid painted with uniformly lighter strokes — each horizontal stem's ink spread across two pixel rows. The snap is suppressed inside transformed subtrees (an emitted `<g transform>` wrapper, a capture-baked transform recorded in `transformCreatesSc`, or a `transform-style: preserve-3d` context): Skia rounds *before* the transform, in the local / composited-layer space, and the 3D composite resamples the layer raster, so the post-transform baseline is legitimately fractional there. Pinned by the `lineheight-residual` feature fixture. (The `<textarea>` line-top rounding under Form controls below is the same mechanism, snapped at capture.)
+- [x] Baseline pixel-grid snap (paths mode): every path-rendered run's baseline y is rounded to the integer pixel grid (`floor(y + 0.5)`), mirroring Skia's glyph rasterization — for axis-aligned horizontal text Skia keeps quarter-pixel subpixel sampling in **x** but rounds every glyph's **y** to an integer device pixel (`SkGlyphPositionRoundingSpec`, Skia `src/core/SkGlyph.cpp`; the default-on `kBaselineSnap` flag, `SkFont.cpp`). Layout baselines are routinely fractional (line-height accumulates in 1/64px LayoutUnits: 18px × 1.6 → a 28.796875px line box), so without the snap every line whose baseline phase is far from the grid painted with uniformly lighter strokes — each horizontal stem's ink spread across two pixel rows. The snap is suppressed inside transformed subtrees (an emitted `<g transform>` wrapper, a capture-baked transform recorded in `transformCreatesSc`, or a `transform-style: preserve-3d` context): Skia rounds _before_ the transform, in the local / composited-layer space, and the 3D composite resamples the layer raster, so the post-transform baseline is legitimately fractional there. Pinned by the `lineheight-residual` feature fixture. (The `<textarea>` line-top rounding under Form controls below is the same mechanism, snapped at capture.)
 - [x] letter-spacing, word-spacing, line-height
 - [x] text-decoration: underline / overline / line-through × solid / double / dotted / dashed / wavy, with `text-decoration-color`, `text-decoration-thickness`, `text-underline-offset`, and `text-decoration-skip-ink` (gaps computed from actual glyph outlines). Skip-ink follows Blink's dispatch rather than a style whitelist: it applies to **underline and overline, in every line style** including dashed and dotted, and never to line-through — upstream declines that one explicitly, citing the CSSWG issue. Characters excluded from skip-ink are transcribed from `Character::CanTextDecorationSkipInk`: `/`, `\`, `_`, everything in Blink's CJK ideograph-or-symbol tables (which include emoji via `Emoji_Presentation`), and the Hangul and Linear B Ideograms blocks — so underlined CJK and Korean paint an unbroken line, as Chrome does. The exclusion is applied **per character**, so Latin glyphs still open gaps beside CJK ones in mixed text. Each intercept is dilated horizontally by `min(thickness, 13)`. Position and thickness are Blink's rules transcribed (Chromium rev 7d859f27), anchored on the text fragment top via the captured `FloatAscent`: auto thickness is `fontSize/10` (explicit lengths/percentages `roundf`, percent of font size, then `max(1, t)`), the auto underline gap is `max(1, ceil(t/2))` — zeroed by an explicit `text-underline-offset` — line-through sits at `2·FloatAscent/3 − t/2`, overline at `floor(LU(FloatAscent − Ascent)) − floor(t)`, and a double line's second bar offsets by `±(t+1)` (floored for line-through), each bar snapped independently. Effective CSS zoom scales both the used font size and absolute `px` thickness/offset lengths exactly once; percentage and `em` values resolve against the already-zoomed used font size. Only `text-decoration-thickness: from-font` / `text-underline-position: from-font` consult the face's `post` underline metrics, and `text-underline-position: under` reads the OS/2 typo metrics (normalized to the em, Blink's `NormalizedTypoDescent`). Solid/double bars snap at emit exactly as Blink's paint does (`SnapYAxis`: top `floor(y+0.5)`, height `max(floor(t),1)`); dashed/dotted snap to the midline (`floor(top + max(t/2, 0.5))`, +0.5 when the rounded thickness is odd) with the unsnapped stroke width; the wavy centerline sits at the unsnapped rect top + `(t+1)` + 0.5. This geometry is gated by the decoration oracle (`npm run decorations:oracle`, [doc 112](112-decoration-geometry-oracle.md)) — NOT by whole-fixture pixel-diff, which structurally rewards constants fitted against the consumer-owned rasterization gap. Wavy geometry matches Chromium's `decoration_line_painter.cc` (wavelength / control-point formulas, phase anchored per painted fragment); dashed / dotted geometry matches Chromium's `styled_stroke_data.cc` (rounded-thickness dash basis, 3:2 thin / 2:1 thick dash:gap ratios with the gap re-fitted so a whole number of dashes spans the run, proportional two-dash and solid short-run fallbacks, round-cap dots with endpoint insets for thick dotted). Decorations **propagate** to in-flow descendants per CSS Text Decoration 3 §2 — a bold child inside an underlined span paints the ancestor's line, positioned with the decorating box's font metrics — while out-of-flow (`absolute`/`fixed`), floated, and atomic-inline (`inline-block` etc.) descendants are correctly excluded. Applied decorations ACCUMULATE down the ancestor chain like Blink's `AppliedTextDecorations` — a parent underline and grandparent overline both paint, and a child's own `line-through` paints on top of an inherited underline, each line with its own style/color/thickness and its decorating box's font metrics. A `vertical-align`-shifted child (sub/sup) anchors inherited decorations at the DECORATING box's baseline (mirroring Blink's `offset_from_decorating_box`): the propagated entry carries the decorating element's own measured baselines and the renderer snaps to the nearest one when the child's baseline differs by more than 1px — so `<u>H<sub>2</sub>O</u>` paints one continuous underline at the parent's position.
 - [x] Multi-line wrapped paragraphs (per-visual-line capture via Range)
@@ -151,17 +236,17 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] `<input>` with `value` attr — rendered via path
 - [x] `<input>` placeholder — rendered in `::placeholder` color (and font-style, font-weight) — SK-1097 / SK-1100 / SK-1099
 - [x] `<textarea>` content — rendered as one path run **per visual line**. A capture-side soft-wrap probe re-lays the value in an off-screen box matching the textarea's content box and type, so Chrome decides the wrap points; each resulting line becomes a `textSegment` with its own x/y and per-char offsets. Where the element carries a raster snapshot instead, that PNG is stamped at the content rect (SK-1108) — see [reference/raster-image-fallback-cases.md](reference/raster-image-fallback-cases.md).
-  - **Line y is a measured offset, never a computed one.** Each segment's y is the line-box top plus the probe's own character-rect top. That rect already sits at the font-box top, so Chrome's half-leading is *in* it — the segment base must therefore be the content-box top **before** the half-leading that the single-line `<input>` path folds into `textTop`. Adding both counted the leading twice and pushed every line ~half a leading down (a 14px/21px monospace textarea rendered a uniform ~3px low and clipped its last visible line).
-  - **Line y is snapped to a whole pixel.** Chrome positions glyphs subpixel *horizontally* only; the vertical text origin is rounded to an integer device pixel before rasterization. Measured on a box at top `40` / `140.25` / `240.5` / `340.75`: the first ink row lands at `45` / `145` / `246` / `346` — always `round(top)` plus a constant, and always an integer row. This is glyph rasterization, not a scroll-container effect: a `<textarea>` and a plain `<div>` behave identically. A textarea whose border box falls on a fractional y (ordinary page flow readily produces `.4375`) otherwise renders every line up to a pixel off. The renderer already rounds the ascent it adds to reach the baseline, so rounding the line top rounds the baseline.
+  - **Line y is a measured offset, never a computed one.** Each segment's y is the line-box top plus the probe's own character-rect top. That rect already sits at the font-box top, so Chrome's half-leading is _in_ it — the segment base must therefore be the content-box top **before** the half-leading that the single-line `<input>` path folds into `textTop`. Adding both counted the leading twice and pushed every line ~half a leading down (a 14px/21px monospace textarea rendered a uniform ~3px low and clipped its last visible line).
+  - **Line y is snapped to a whole pixel.** Chrome positions glyphs subpixel _horizontally_ only; the vertical text origin is rounded to an integer device pixel before rasterization. Measured on a box at top `40` / `140.25` / `240.5` / `340.75`: the first ink row lands at `45` / `145` / `246` / `346` — always `round(top)` plus a constant, and always an integer row. This is glyph rasterization, not a scroll-container effect: a `<textarea>` and a plain `<div>` behave identically. A textarea whose border box falls on a fractional y (ordinary page flow readily produces `.4375`) otherwise renders every line up to a pixel off. The renderer already rounds the ascent it adds to reach the baseline, so rounding the line top rounds the baseline.
   - Both are pinned by `tests/textarea-line-baseline.e2e.test.ts`, which sits its textarea at a deliberately fractional `40.4375px` and takes its expected offset from a Chrome-laid-out reference block rather than from our own arithmetic — an oracle that cannot re-assert the bug it guards.
 - [x] Native control ownership follows Blink's exact EffectiveAppearance
-  cascade boundary (DM-2453, [doc 170](170-blink-effective-appearance-routing.md)):
-  complete native hosts use same-frame Chromium rasters, while author-owned
-  none/base/base-select and styled host boxes remain structural. Source-owned
-  menulist arrows and closed-shadow temporal/search/spin parts are isolated as
-  narrow Chromium overlays without flattening the host or value text (DM-2455,
-  [doc 171](171-closed-shadow-control-decorations.md)). Author-owned pseudo
-  paint is preserved inside that exact closed-part boundary.
+      cascade boundary (DM-2453, [doc 170](170-blink-effective-appearance-routing.md)):
+      complete native hosts use same-frame Chromium rasters, while author-owned
+      none/base/base-select and styled host boxes remain structural. Source-owned
+      menulist arrows and closed-shadow temporal/search/spin parts are isolated as
+      narrow Chromium overlays without flattening the host or value text (DM-2455,
+      [doc 171](171-closed-shadow-control-decorations.md)). Author-owned pseudo
+      paint is preserved inside that exact closed-part boundary.
   - Single-line inputs prefer the one source-owned closed-UA-shadow FragmentItem
     top over a reconstructed `line-height:normal` estimate, but only when the
     host/text quads are unambiguous and axis-aligned and the live host dimensions
@@ -207,7 +292,7 @@ Every call to `captureElementTree()` collects warnings when it encounters a feat
 import { captureElementTree, getLastCaptureWarnings, logCaptureWarnings } from "domotion-svg";
 
 const tree = await captureElementTree(page, "body", viewport);
-logCaptureWarnings();      // stderr one-line-per-warning
+logCaptureWarnings(); // stderr one-line-per-warning
 // or structured:
 for (const w of getLastCaptureWarnings()) {
   console.log(w.selector, w.feature, w.status, w.detail);
@@ -222,6 +307,7 @@ later embed passes; the module-global snapshot deliberately does not identify
 which overlapping capture finished first.
 
 Each warning has:
+
 - `selector`: a short CSS-selectorish path (up to 5 ancestors) identifying the element.
 - `feature`: the feature name (e.g. `transform`, `backdrop-filter`, `<iframe>`, `scrollbar`, `text-align:justify`).
 - `detail`: one sentence on what's not supported and/or a tracking ticket reference.

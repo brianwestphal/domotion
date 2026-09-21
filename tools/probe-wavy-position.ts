@@ -33,7 +33,9 @@ for (const colX of [110, 130, 150]) {
   const reds: number[] = [];
   for (let y = Math.max(0, Math.floor(meas.spanTop - 5)); y < Math.min(info.height, meas.spanBottom + 30); y++) {
     const idx = (info.width * y + colX) * info.channels;
-    const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+    const r = data[idx],
+      g = data[idx + 1],
+      b = data[idx + 2];
     if (r > 150 && g < 100 && b < 100) reds.push(y);
   }
   console.log(`col=${colX} red rows:`, reds);

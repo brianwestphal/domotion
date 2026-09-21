@@ -21,11 +21,21 @@ export interface BrowserPaintProbe {
 }
 
 function gradientParameter(point: { x: number; y: number }, line: ReturnType<typeof blinkCornerLine>): number {
-  const dx = line.p1.x - line.p0.x, dy = line.p1.y - line.p0.y;
+  const dx = line.p1.x - line.p0.x,
+    dy = line.p1.y - line.p0.y;
   return ((point.x - line.p0.x) * dx + (point.y - line.p0.y) * dy) / (dx * dx + dy * dy);
 }
 
-export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string; chromiumVersion: string; playwrightVersion: string; platform: string; architecture: string; deviceScaleFactor: number; probes: BrowserPaintProbe[]; verdict: string }> {
+export async function runBrowserPaintOracle(): Promise<{
+  sourceRevision: string;
+  chromiumVersion: string;
+  playwrightVersion: string;
+  platform: string;
+  architecture: string;
+  deviceScaleFactor: number;
+  probes: BrowserPaintProbe[];
+  verdict: string;
+}> {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 360, height: 1680 }, deviceScaleFactor: DPR });
@@ -50,41 +60,68 @@ export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string;
     const png = await page.screenshot();
     const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const luminanceAt = (cssX: number, cssY: number): number => {
-      const cx = Math.round(cssX * DPR), cy = Math.round(cssY * DPR);
-      let total = 0, count = 0;
-      for (let y = cy - 2; y <= cy + 2; y++) for (let x = cx - 2; x <= cx + 2; x++) {
-        const i = (y * info.width + x) * info.channels;
-        total += (data[i] + data[i + 1] + data[i + 2]) / 3;
-        count++;
-      }
+      const cx = Math.round(cssX * DPR),
+        cy = Math.round(cssY * DPR);
+      let total = 0,
+        count = 0;
+      for (let y = cy - 2; y <= cy + 2; y++)
+        for (let x = cx - 2; x <= cx + 2; x++) {
+          const i = (y * info.width + x) * info.channels;
+          total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+          count++;
+        }
       return total / count;
     };
 
     const line = blinkCornerLine("top-right", 0, 0, 300, 100);
     const oldDirect = { p0: { x: 0, y: 100 }, p1: { x: 300, y: 0 } };
     const candidates: Array<{ x: number; y: number; expected: "black" | "white" }> = [];
-    for (let y = 8; y < 92; y += 7) for (let x = 8; x < 292; x += 9) {
-      const sourceT = gradientParameter({ x, y }, line);
-      const oldT = gradientParameter({ x, y }, oldDirect);
-      if ((sourceT < 0.45 && oldT > 0.55) || (sourceT > 0.55 && oldT < 0.45)) candidates.push({ x, y, expected: sourceT < 0.5 ? "black" : "white" });
-    }
-    const discriminators = [...candidates.filter((point) => point.expected === "black").slice(0, 4), ...candidates.filter((point) => point.expected === "white").slice(0, 4)];
-    const gradientActual = discriminators.map((point) => ({ ...point, luminance: luminanceAt(20 + point.x, 20 + point.y) }));
-    const gradientPass = gradientActual.length === 8 && gradientActual.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    for (let y = 8; y < 92; y += 7)
+      for (let x = 8; x < 292; x += 9) {
+        const sourceT = gradientParameter({ x, y }, line);
+        const oldT = gradientParameter({ x, y }, oldDirect);
+        if ((sourceT < 0.45 && oldT > 0.55) || (sourceT > 0.55 && oldT < 0.45))
+          candidates.push({ x, y, expected: sourceT < 0.5 ? "black" : "white" });
+      }
+    const discriminators = [
+      ...candidates.filter((point) => point.expected === "black").slice(0, 4),
+      ...candidates.filter((point) => point.expected === "white").slice(0, 4),
+    ];
+    const gradientActual = discriminators.map((point) => ({
+      ...point,
+      luminance: luminanceAt(20 + point.x, 20 + point.y),
+    }));
+    const gradientPass =
+      gradientActual.length === 8 &&
+      gradientActual.every((point) => (point.expected === "black" ? point.luminance < 40 : point.luminance > 215));
 
     const clipSamples = [
-      { x: 49, y: 220, expected: "white" }, { x: 51, y: 220, expected: "black" },
-      { x: 189, y: 220, expected: "black" }, { x: 191, y: 220, expected: "white" },
-      { x: 100, y: 189, expected: "white" }, { x: 100, y: 191, expected: "black" },
-      { x: 100, y: 249, expected: "black" }, { x: 100, y: 251, expected: "white" },
+      { x: 49, y: 220, expected: "white" },
+      { x: 51, y: 220, expected: "black" },
+      { x: 189, y: 220, expected: "black" },
+      { x: 191, y: 220, expected: "white" },
+      { x: 100, y: 189, expected: "white" },
+      { x: 100, y: 191, expected: "black" },
+      { x: 100, y: 249, expected: "black" },
+      { x: 100, y: 251, expected: "white" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
-    const clipPass = clipSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const clipPass = clipSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const maskSamples = [
-      { x: 25, expected: "white" }, { x: 35, expected: "black" }, { x: 45, expected: "black" }, { x: 55, expected: "white" },
-      { x: 65, expected: "white" }, { x: 75, expected: "black" }, { x: 95, expected: "white" }, { x: 115, expected: "black" },
+      { x: 25, expected: "white" },
+      { x: 35, expected: "black" },
+      { x: 45, expected: "black" },
+      { x: 55, expected: "white" },
+      { x: 65, expected: "white" },
+      { x: 75, expected: "black" },
+      { x: 95, expected: "white" },
+      { x: 115, expected: "black" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, 370) }));
-    const maskPass = maskSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const maskPass = maskSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     // Blink shifts the source [-30,-10] radius interval by two 20px periods
     // to [10,30]. These radii therefore cross black/white/black bands; the
@@ -94,7 +131,9 @@ export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string;
       { radius: 25, expected: "white" },
       { radius: 35, expected: "black" },
     ].map((point) => ({ ...point, luminance: luminanceAt(120 + point.radius, 530) }));
-    const radialPass = radialSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const radialPass = radialSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const conicSamples = [
       { x: 80, y: 790, expected: "black" },
@@ -102,7 +141,9 @@ export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string;
       { x: 40, y: 750, expected: "black" },
       { x: 80, y: 750, expected: "white" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
-    const conicPass = conicSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const conicPass = conicSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const svgBoxSamples = [
       { x: 90, y: 880, expected: "black" },
@@ -110,59 +151,148 @@ export async function runBrowserPaintOracle(): Promise<{ sourceRevision: string;
       { x: 90, y: 1020, expected: "white" },
       { x: 75, y: 1160, expected: "white" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
-    const svgBoxPass = svgBoxSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const svgBoxPass = svgBoxSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const htmlUrlSamples = [
       { x: 25, y: 1300, expected: "black" },
       { x: 55, y: 1300, expected: "white" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
-    const htmlUrlPass = htmlUrlSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const htmlUrlPass = htmlUrlSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const svgUrlSamples = [
       { x: 98, y: 1450, expected: "black" },
       { x: 102, y: 1450, expected: "white" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
-    const svgUrlPass = svgUrlSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const svgUrlPass = svgUrlSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const htmlObjectUrlSamples = [
       { x: 110, y: 1580, expected: "black" },
       { x: 130, y: 1580, expected: "white" },
     ].map((point) => ({ ...point, luminance: luminanceAt(point.x, point.y) }));
-    const htmlObjectUrlPass = htmlObjectUrlSamples.every((point) => point.expected === "black" ? point.luminance < 40 : point.luminance > 215);
+    const htmlObjectUrlPass = htmlObjectUrlSamples.every((point) =>
+      point.expected === "black" ? point.luminance < 40 : point.luminance > 215,
+    );
 
     const urlSyntax = await page.evaluate(() => {
       const boxes = ["content-box", "padding-box", "border-box", "margin-box", "fill-box", "stroke-box", "view-box"];
       const rows: Array<{ owner: string; value: string; supported: boolean; specified: string; computed: string }> = [];
       for (const owner of ["html", "svg"]) {
-        for (const value of ["url(#html-url-clip)", ...boxes.flatMap((box) => [`url(#html-url-clip) ${box}`, `${box} url(#html-url-clip)`])]) {
-          const element = owner === "html"
-            ? document.createElement("div")
-            : document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        for (const value of [
+          "url(#html-url-clip)",
+          ...boxes.flatMap((box) => [`url(#html-url-clip) ${box}`, `${box} url(#html-url-clip)`]),
+        ]) {
+          const element =
+            owner === "html"
+              ? document.createElement("div")
+              : document.createElementNS("http://www.w3.org/2000/svg", "rect");
           element.setAttribute("style", `clip-path:${value}`);
           document.body.appendChild(element);
-          rows.push({ owner, value, supported: CSS.supports("clip-path", value), specified: (element as HTMLElement).style.clipPath, computed: getComputedStyle(element).clipPath });
+          rows.push({
+            owner,
+            value,
+            supported: CSS.supports("clip-path", value),
+            specified: (element as HTMLElement).style.clipPath,
+            computed: getComputedStyle(element).clipPath,
+          });
           element.remove();
         }
       }
       return rows;
     });
-    const urlSyntaxPass = urlSyntax.every((row) => row.value === "url(#html-url-clip)"
-      ? row.supported && row.specified !== "" && /^url\(/.test(row.computed)
-      : !row.supported && row.specified === "" && row.computed === "none");
+    const urlSyntaxPass = urlSyntax.every((row) =>
+      row.value === "url(#html-url-clip)"
+        ? row.supported && row.specified !== "" && /^url\(/.test(row.computed)
+        : !row.supported && row.specified === "" && row.computed === "none",
+    );
 
     const probes: BrowserPaintProbe[] = [
-      { id: "chromium.linear.magic-corner", source: "css_gradient_value.cc:1282-1337,1410-1430", expected: discriminators, actual: gradientActual, pass: gradientPass },
-      { id: "chromium.clip.content-box", source: "geometry_box_utils.cc:13-49 and clip_path_clipper.cc:242-261", expected: clipSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: clipSamples, pass: clipPass },
-      { id: "chromium.mask.repeat-phase", source: "CSSMaskPainter FillLayer tiling geometry", expected: maskSamples.map(({ x, expected }) => ({ x, expected })), actual: maskSamples, pass: maskPass },
-      { id: "chromium.radial.negative-domain-shift", source: "css_gradient_value.cc:593-633,809-824", expected: radialSamples.map(({ radius, expected }) => ({ radius, expected })), actual: radialSamples, pass: radialPass },
-      { id: "chromium.conic.center-angle-domain", source: "css_gradient_value.cc:2241-2270,656-824", expected: conicSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: conicSamples, pass: conicPass },
-      { id: "chromium.clip.svg-reference-boxes", source: "svg_resources.cc:51-91 and clip_path_clipper.cc:367-386", expected: svgBoxSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: svgBoxSamples, pass: svgBoxPass },
-      { id: "chromium.clip.url-html-border-origin", source: "clip_path_clipper.cc:364-400 and MaskToContentTransform", expected: htmlUrlSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: htmlUrlSamples, pass: htmlUrlPass },
-      { id: "chromium.clip.url-svg-forced-fill-box", source: "clip_path_clipper.cc:368-374 and layout_svg_resource_clipper.cc:237-247", expected: svgUrlSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: svgUrlSamples, pass: svgUrlPass },
-      { id: "chromium.clip.url-html-object-bbox", source: "clip_path_clipper.cc:364-400 and layout_svg_resource_clipper.cc:237-247", expected: htmlObjectUrlSamples.map(({ x, y, expected }) => ({ x, y, expected })), actual: htmlObjectUrlSamples, pass: htmlObjectUrlPass },
-      { id: "chromium.clip.url-geometry-box-grammar", source: "longhands_custom.cc:2340-2366 and style_builder_converter.cc:363-398", expected: "bare URL valid; every URL+geometry-box ordering invalid", actual: urlSyntax, pass: urlSyntaxPass },
+      {
+        id: "chromium.linear.magic-corner",
+        source: "css_gradient_value.cc:1282-1337,1410-1430",
+        expected: discriminators,
+        actual: gradientActual,
+        pass: gradientPass,
+      },
+      {
+        id: "chromium.clip.content-box",
+        source: "geometry_box_utils.cc:13-49 and clip_path_clipper.cc:242-261",
+        expected: clipSamples.map(({ x, y, expected }) => ({ x, y, expected })),
+        actual: clipSamples,
+        pass: clipPass,
+      },
+      {
+        id: "chromium.mask.repeat-phase",
+        source: "CSSMaskPainter FillLayer tiling geometry",
+        expected: maskSamples.map(({ x, expected }) => ({ x, expected })),
+        actual: maskSamples,
+        pass: maskPass,
+      },
+      {
+        id: "chromium.radial.negative-domain-shift",
+        source: "css_gradient_value.cc:593-633,809-824",
+        expected: radialSamples.map(({ radius, expected }) => ({ radius, expected })),
+        actual: radialSamples,
+        pass: radialPass,
+      },
+      {
+        id: "chromium.conic.center-angle-domain",
+        source: "css_gradient_value.cc:2241-2270,656-824",
+        expected: conicSamples.map(({ x, y, expected }) => ({ x, y, expected })),
+        actual: conicSamples,
+        pass: conicPass,
+      },
+      {
+        id: "chromium.clip.svg-reference-boxes",
+        source: "svg_resources.cc:51-91 and clip_path_clipper.cc:367-386",
+        expected: svgBoxSamples.map(({ x, y, expected }) => ({ x, y, expected })),
+        actual: svgBoxSamples,
+        pass: svgBoxPass,
+      },
+      {
+        id: "chromium.clip.url-html-border-origin",
+        source: "clip_path_clipper.cc:364-400 and MaskToContentTransform",
+        expected: htmlUrlSamples.map(({ x, y, expected }) => ({ x, y, expected })),
+        actual: htmlUrlSamples,
+        pass: htmlUrlPass,
+      },
+      {
+        id: "chromium.clip.url-svg-forced-fill-box",
+        source: "clip_path_clipper.cc:368-374 and layout_svg_resource_clipper.cc:237-247",
+        expected: svgUrlSamples.map(({ x, y, expected }) => ({ x, y, expected })),
+        actual: svgUrlSamples,
+        pass: svgUrlPass,
+      },
+      {
+        id: "chromium.clip.url-html-object-bbox",
+        source: "clip_path_clipper.cc:364-400 and layout_svg_resource_clipper.cc:237-247",
+        expected: htmlObjectUrlSamples.map(({ x, y, expected }) => ({ x, y, expected })),
+        actual: htmlObjectUrlSamples,
+        pass: htmlObjectUrlPass,
+      },
+      {
+        id: "chromium.clip.url-geometry-box-grammar",
+        source: "longhands_custom.cc:2340-2366 and style_builder_converter.cc:363-398",
+        expected: "bare URL valid; every URL+geometry-box ordering invalid",
+        actual: urlSyntax,
+        pass: urlSyntaxPass,
+      },
     ];
-    return { sourceRevision: SOURCE_REVISION, chromiumVersion: browser.version(), playwrightVersion, platform: process.platform, architecture: process.arch, deviceScaleFactor: DPR, probes, verdict: probes.every((probe) => probe.pass) ? "browser-validates-source-rules" : "browser-source-drift" };
+    return {
+      sourceRevision: SOURCE_REVISION,
+      chromiumVersion: browser.version(),
+      playwrightVersion,
+      platform: process.platform,
+      architecture: process.arch,
+      deviceScaleFactor: DPR,
+      probes,
+      verdict: probes.every((probe) => probe.pass) ? "browser-validates-source-rules" : "browser-source-drift",
+    };
   } finally {
     await browser.close();
   }
@@ -172,8 +302,11 @@ async function main(): Promise<number> {
   const report = await runBrowserPaintOracle();
   const failures = report.probes.filter((probe) => !probe.pass);
   const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
-  console.log(`paint geometry browser oracle: ${report.probes.length - failures.length}/${report.probes.length}; ${report.chromiumVersion}; source ${report.sourceRevision}`);
+  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null)
+    writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
+  console.log(
+    `paint geometry browser oracle: ${report.probes.length - failures.length}/${report.probes.length}; ${report.chromiumVersion}; source ${report.sourceRevision}`,
+  );
   for (const failure of failures) console.log(`FAIL ${failure.id}`);
   return failures.length ? 1 : 0;
 }

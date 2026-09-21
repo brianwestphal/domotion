@@ -30,10 +30,7 @@ import {
   effectiveAppearanceForControl,
   type CdpMatchedStylesLike,
 } from "./effective-appearance.js";
-import {
-  capturedInputValueTextGeometry,
-  type CapturedInputValueTextGeometry,
-} from "./input-value-geometry.js";
+import { capturedInputValueTextGeometry, type CapturedInputValueTextGeometry } from "./input-value-geometry.js";
 import type { CapturedScrollbarPseudoStyle } from "./types.js";
 
 export const CONTROL_PSEUDO_KINDS = [
@@ -62,7 +59,7 @@ export const CONTROL_PSEUDO_KINDS = [
   "scrollbar-corner",
 ] as const;
 
-export type ControlPseudoKind = typeof CONTROL_PSEUDO_KINDS[number];
+export type ControlPseudoKind = (typeof CONTROL_PSEUDO_KINDS)[number];
 
 export interface ResolvedControlPseudoStyle extends CapturedScrollbarPseudoStyle {}
 
@@ -125,7 +122,8 @@ const SCROLLBAR_KIND_TO_SELECTOR: Readonly<Partial<Record<ControlPseudoKind, str
   "scrollbar-corner": "::-webkit-scrollbar-corner",
 };
 
-const DYNAMIC_SCROLLBAR_STATE = /:(?:horizontal|vertical|decrement|increment|start|end|double-button|single-button|no-button|corner-present|window-inactive|hover|active|enabled|disabled)\b/i;
+const DYNAMIC_SCROLLBAR_STATE =
+  /:(?:horizontal|vertical|decrement|increment|start|end|double-button|single-button|no-button|corner-present|window-inactive|hover|active|enabled|disabled)\b/i;
 
 /**
  * Identify scrollbar pseudo kinds whose final style depends on an anonymous
@@ -133,9 +131,7 @@ const DYNAMIC_SCROLLBAR_STATE = /:(?:horizontal|vertical|decrement|increment|sta
  * capture path never tries to replay the author cascade. A matching part is
  * retained as a same-frame owner-only crop instead.
  */
-export function dynamicScrollbarPseudoKindsFromCss(
-  styleSheetTexts: readonly string[],
-): Set<ControlPseudoKind> {
+export function dynamicScrollbarPseudoKindsFromCss(styleSheetTexts: readonly string[]): Set<ControlPseudoKind> {
   const result = new Set<ControlPseudoKind>();
   const pseudo = /::-webkit-scrollbar(?:-track-piece|-button|-thumb|-track|-corner)?/gi;
   for (const rawText of styleSheetTexts) {
@@ -146,11 +142,16 @@ export function dynamicScrollbarPseudoKindsFromCss(
         const suffix = selectorText.slice((match.index ?? 0) + match[0].length);
         if (!DYNAMIC_SCROLLBAR_STATE.test(suffix)) continue;
         const normalized = match[0].toLowerCase();
-        const kind = normalized.endsWith("-track-piece") ? "scrollbar-track-piece"
-          : normalized.endsWith("-button") ? "scrollbar-button"
-            : normalized.endsWith("-thumb") ? "scrollbar-thumb"
-              : normalized.endsWith("-track") ? "scrollbar-track"
-                : normalized.endsWith("-corner") ? "scrollbar-corner"
+        const kind = normalized.endsWith("-track-piece")
+          ? "scrollbar-track-piece"
+          : normalized.endsWith("-button")
+            ? "scrollbar-button"
+            : normalized.endsWith("-thumb")
+              ? "scrollbar-thumb"
+              : normalized.endsWith("-track")
+                ? "scrollbar-track"
+                : normalized.endsWith("-corner")
+                  ? "scrollbar-corner"
                   : "scrollbar";
         result.add(kind);
       }
@@ -185,9 +186,9 @@ export function controlPseudoKindForNode(
   // `pseudo=-webkit-slider-runnable-track` attribute. This id is
   // shadow_element_names::kIdSliderThumb in Blink's form-control sources.
   if (
-    attributes.id === "thumb"
-    && hostNodeName === "INPUT"
-    && (hostAttributes.type ?? "text").toLowerCase() === "range"
+    attributes.id === "thumb" &&
+    hostNodeName === "INPUT" &&
+    (hostAttributes.type ?? "text").toLowerCase() === "range"
   ) {
     return "thumb";
   }
@@ -195,10 +196,10 @@ export function controlPseudoKindForNode(
   // after the pseudo-addressable upload button. It has no pseudo id, so the
   // pierced node name plus the source host type is its stable ownership key.
   if (
-    nodeName === "SPAN"
-    && hostNodeName === "INPUT"
-    && (hostAttributes.type ?? "text").toLowerCase() === "file"
-    && attributes["aria-hidden"] === "true"
+    nodeName === "SPAN" &&
+    hostNodeName === "INPUT" &&
+    (hostAttributes.type ?? "text").toLowerCase() === "file" &&
+    attributes["aria-hidden"] === "true"
   ) {
     return "file-selector-status";
   }
@@ -235,8 +236,10 @@ function resolvedBorder(properties: ReadonlyMap<string, string>): string {
   }));
   const first = triples[0];
   if (
-    first.width === "" || first.width === "0px" || first.style === "none"
-    || triples.some((side) => side.width !== first.width || side.style !== first.style || side.color !== first.color)
+    first.width === "" ||
+    first.width === "0px" ||
+    first.style === "none" ||
+    triples.some((side) => side.width !== first.width || side.style !== first.style || side.color !== first.color)
   ) {
     return "";
   }
@@ -259,18 +262,18 @@ function resolvedNonUniformBorderSides(
   };
   const sides = [result.top, result.right, result.bottom, result.left];
   const first = result.top;
-  const uniform = sides.every((candidate) => (
-    candidate.width === first.width
-    && candidate.style === first.style
-    && candidate.color === first.color
-  ));
-  const hasPaint = sides.some((candidate) => (
-    candidate.width !== ""
-    && candidate.width !== "0px"
-    && candidate.style !== ""
-    && candidate.style !== "none"
-    && candidate.style !== "hidden"
-  ));
+  const uniform = sides.every(
+    (candidate) =>
+      candidate.width === first.width && candidate.style === first.style && candidate.color === first.color,
+  );
+  const hasPaint = sides.some(
+    (candidate) =>
+      candidate.width !== "" &&
+      candidate.width !== "0px" &&
+      candidate.style !== "" &&
+      candidate.style !== "none" &&
+      candidate.style !== "hidden",
+  );
   return !uniform && hasPaint ? result : undefined;
 }
 
@@ -282,7 +285,12 @@ function resolvedBorderRadius(properties: ReadonlyMap<string, string>): string {
     propertyValue(properties, "border-bottom-left-radius"),
   ] as const;
   if (rawCorners.every((corner) => corner === "")) return "";
-  const horizontal = rawCorners.map((corner) => corner.trim().split(/\s+/)[0] || "0px") as unknown as [string, string, string, string];
+  const horizontal = rawCorners.map((corner) => corner.trim().split(/\s+/)[0] || "0px") as unknown as [
+    string,
+    string,
+    string,
+    string,
+  ];
   const vertical = rawCorners.map((corner) => {
     const parts = corner.trim().split(/\s+/);
     return parts[1] || parts[0] || "0px";
@@ -293,9 +301,7 @@ function resolvedBorderRadius(properties: ReadonlyMap<string, string>): string {
 }
 
 /** Serialize Blink's final longhands into the capture schema's compact fields. */
-export function resolvedControlPseudoStyle(
-  properties: readonly ComputedProperty[],
-): ResolvedControlPseudoStyle {
+export function resolvedControlPseudoStyle(properties: readonly ComputedProperty[]): ResolvedControlPseudoStyle {
   const computed = computedMap(properties);
   const backgroundImage = propertyValue(computed, "background-image");
   const boxShadow = propertyValue(computed, "box-shadow");
@@ -341,12 +347,15 @@ function directMatchedOrigins(matched: unknown): string[] {
 
 function resizerMatchedOrigins(matched: unknown): string[] {
   if (matched == null || typeof matched !== "object" || !("pseudoElements" in matched)) return [];
-  const pseudos = (matched as {
-    pseudoElements?: Array<{
-      pseudoType?: string;
-      matches?: Array<{ rule?: { origin?: string } }>;
-    }>;
-  }).pseudoElements ?? [];
+  const pseudos =
+    (
+      matched as {
+        pseudoElements?: Array<{
+          pseudoType?: string;
+          matches?: Array<{ rule?: { origin?: string } }>;
+        }>;
+      }
+    ).pseudoElements ?? [];
   return pseudos
     .filter(({ pseudoType }) => pseudoType === "resizer")
     .flatMap(({ matches }) => (matches ?? []).map(({ rule }) => rule?.origin))
@@ -355,12 +364,15 @@ function resizerMatchedOrigins(matched: unknown): string[] {
 
 function scrollbarPseudoEntries(matched: unknown): Array<{ kind: ControlPseudoKind; origins: string[] }> {
   if (matched == null || typeof matched !== "object" || !("pseudoElements" in matched)) return [];
-  const pseudos = (matched as {
-    pseudoElements?: Array<{
-      pseudoType?: string;
-      matches?: Array<{ rule?: { origin?: string } }>;
-    }>;
-  }).pseudoElements ?? [];
+  const pseudos =
+    (
+      matched as {
+        pseudoElements?: Array<{
+          pseudoType?: string;
+          matches?: Array<{ rule?: { origin?: string } }>;
+        }>;
+      }
+    ).pseudoElements ?? [];
   return pseudos.flatMap(({ pseudoType, matches }) => {
     const kind = pseudoType == null ? undefined : SCROLLBAR_PSEUDO_TYPE_TO_KIND[pseudoType];
     if (kind == null) return [];
@@ -484,11 +496,13 @@ async function computedScrollbarProperties(
     returnByValue: true,
   });
   return Array.isArray(response.result.value)
-    ? response.result.value.filter((entry): entry is ComputedProperty => (
-        entry != null && typeof entry === "object"
-        && typeof (entry as { name?: unknown }).name === "string"
-        && typeof (entry as { value?: unknown }).value === "string"
-      ))
+    ? response.result.value.filter(
+        (entry): entry is ComputedProperty =>
+          entry != null &&
+          typeof entry === "object" &&
+          typeof (entry as { name?: unknown }).name === "string" &&
+          typeof (entry as { value?: unknown }).value === "string",
+      )
     : [];
 }
 
@@ -513,11 +527,13 @@ async function computedResizerProperties(session: CDPSession, objectId: string):
     returnByValue: true,
   });
   return Array.isArray(response.result.value)
-    ? response.result.value.filter((entry): entry is ComputedProperty => (
-        entry != null && typeof entry === "object"
-        && typeof (entry as { name?: unknown }).name === "string"
-        && typeof (entry as { value?: unknown }).value === "string"
-      ))
+    ? response.result.value.filter(
+        (entry): entry is ComputedProperty =>
+          entry != null &&
+          typeof entry === "object" &&
+          typeof (entry as { name?: unknown }).name === "string" &&
+          typeof (entry as { value?: unknown }).value === "string",
+      )
     : [];
 }
 
@@ -604,12 +620,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
         }
         parts.push({ kind, node, ownership });
       }`,
-      arguments: [
-        { value: decorationPropertyKey },
-        { value: kind },
-        { objectId: partObjectId },
-        { value: ownership },
-      ],
+      arguments: [{ value: decorationPropertyKey }, { value: kind }, { objectId: partObjectId }, { value: ownership }],
     });
   };
 
@@ -658,9 +669,11 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
         // which cannot be recovered from a 1.2em `line-height: normal`
         // estimate without half-pixel drift.
         if (uaHost.nodeName === "INPUT" && node.nodeName === "#text" && node.nodeValue !== "") {
-          const measured = await session.send("DOM.getContentQuads", {
-            backendNodeId: node.backendNodeId,
-          }).catch(() => null);
+          const measured = await session
+            .send("DOM.getContentQuads", {
+              backendNodeId: node.backendNodeId,
+            })
+            .catch(() => null);
           if (measured?.quads != null) {
             const candidates = inputValueTextQuads.get(uaHost.nodeId) ?? [];
             candidates.push(measured.quads);
@@ -668,9 +681,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
             inputValueHosts.set(uaHost.nodeId, uaHost);
           }
         }
-        const kind = controlPseudoKindForNode(
-          attributesOf(node), uaHost.nodeName, attributesOf(uaHost), node.nodeName,
-        );
+        const kind = controlPseudoKindForNode(attributesOf(node), uaHost.nodeName, attributesOf(uaHost), node.nodeName);
         if (kind != null) {
           let matched: CdpMatchedStylesLike | undefined;
           let computed: { computedStyle: ComputedProperty[] } | undefined;
@@ -689,14 +700,17 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
                 transitionsStyle?: CdpMatchedStylesLike["transitionsStyle"];
               };
               const properties = computedMap(computed.computedStyle);
-              const facts = authorControlStyleFactsFromMatchedStyles({
-                ...matched,
-                animationStyles: animated.animationStyles,
-                transitionsStyle: animated.transitionsStyle,
-              }, {
-                direction: properties.get("direction"),
-                writingMode: properties.get("writing-mode"),
-              });
+              const facts = authorControlStyleFactsFromMatchedStyles(
+                {
+                  ...matched,
+                  animationStyles: animated.animationStyles,
+                  transitionsStyle: animated.transitionsStyle,
+                },
+                {
+                  direction: properties.get("direction"),
+                  writingMode: properties.get("writing-mode"),
+                },
+              );
               fileOwnership = {
                 effectiveAppearance: effectiveAppearanceForControl(
                   properties.get("appearance") ?? properties.get("-webkit-appearance"),
@@ -713,9 +727,14 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
               };
             }
           }
-          if (kind === "inner-spin-button" || kind === "search-cancel-button"
-              || kind === "calendar-picker-indicator" || kind === "select-inner"
-              || kind === "file-selector-button" || kind === "file-selector-status") {
+          if (
+            kind === "inner-spin-button" ||
+            kind === "search-cancel-button" ||
+            kind === "calendar-picker-indicator" ||
+            kind === "select-inner" ||
+            kind === "file-selector-button" ||
+            kind === "file-selector-status"
+          ) {
             // Retain the actual closed-shadow Element, not just its computed
             // style. The later isolation pass needs Chromium's used rect and
             // paint owner; recreating either from pseudo CSS would be a second
@@ -727,9 +746,13 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
           // capture script; querying matched pseudo rules here only adds an
           // avoidable protocol failure surface.
           if (kind === "file-selector-status") return;
-          matched ??= await session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId }) as CdpMatchedStylesLike;
+          matched ??= (await session.send("CSS.getMatchedStylesForNode", {
+            nodeId: node.nodeId,
+          })) as CdpMatchedStylesLike;
           if (hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
-            computed ??= await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId }) as { computedStyle: ComputedProperty[] };
+            computed ??= (await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId })) as {
+              computedStyle: ComputedProperty[];
+            };
             await store(uaHost.nodeId, kind, computed.computedStyle);
           }
         }
@@ -751,9 +774,11 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       if (candidates.length !== 1) continue;
       const host = inputValueHosts.get(hostNodeId);
       if (host == null) continue;
-      const hostMeasured = await session.send("DOM.getContentQuads", {
-        backendNodeId: host.backendNodeId,
-      }).catch(() => null);
+      const hostMeasured = await session
+        .send("DOM.getContentQuads", {
+          backendNodeId: host.backendNodeId,
+        })
+        .catch(() => null);
       if (hostMeasured?.quads == null) continue;
       const geometry = capturedInputValueTextGeometry(hostMeasured.quads, candidates[0]);
       if (geometry != null) await storeInputValueGeometry(hostNodeId, geometry);
@@ -770,12 +795,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       if (requested.nodeId === 0) continue;
       const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: requested.nodeId });
       if (!hasAuthorPseudoOrigin(resizerMatchedOrigins(matched))) continue;
-      await store(
-        requested.nodeId,
-        "resizer",
-        await computedResizerProperties(session, objectId),
-        objectId,
-      );
+      await store(requested.nodeId, "resizer", await computedResizerProperties(session, objectId), objectId);
     }
 
     // Scrollbar parts are anonymous Blink layout objects rather than UA-shadow
@@ -793,12 +813,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
         const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: requested.nodeId });
         for (const { kind, origins } of scrollbarPseudoEntries(matched)) {
           if (!hasAuthorPseudoOrigin(origins)) continue;
-          await store(
-            requested.nodeId,
-            kind,
-            await computedScrollbarProperties(session, objectId, kind),
-            objectId,
-          );
+          await store(requested.nodeId, kind, await computedScrollbarProperties(session, objectId, kind), objectId);
         }
       } catch {
         continue;
@@ -810,13 +825,15 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     throw error;
   }
 
-  const authorStyleSheetTexts = await Promise.all([...authorStyleSheetIds].map(async (styleSheetId) => {
-    try {
-      return (await session.send("CSS.getStyleSheetText", { styleSheetId })).text;
-    } catch {
-      return "";
-    }
-  }));
+  const authorStyleSheetTexts = await Promise.all(
+    [...authorStyleSheetIds].map(async (styleSheetId) => {
+      try {
+        return (await session.send("CSS.getStyleSheetText", { styleSheetId })).text;
+      } catch {
+        return "";
+      }
+    }),
+  );
   const dynamicScrollbarKinds = dynamicScrollbarPseudoKindsFromCss(authorStyleSheetTexts);
 
   return {
@@ -826,13 +843,18 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     stylesByHost,
     dynamicScrollbarKinds,
     async dispose(): Promise<void> {
-      await Promise.all([...hostObjectIds].map(async (objectId) => {
-        await session.send("Runtime.callFunctionOn", {
-          objectId,
-          functionDeclaration: "function(styleKey, decorationKey, inputValueKey) { delete this[styleKey]; delete this[decorationKey]; delete this[inputValueKey]; }",
-          arguments: [{ value: propertyKey }, { value: decorationPropertyKey }, { value: inputValuePropertyKey }],
-        }).catch(() => undefined);
-      }));
+      await Promise.all(
+        [...hostObjectIds].map(async (objectId) => {
+          await session
+            .send("Runtime.callFunctionOn", {
+              objectId,
+              functionDeclaration:
+                "function(styleKey, decorationKey, inputValueKey) { delete this[styleKey]; delete this[decorationKey]; delete this[inputValueKey]; }",
+              arguments: [{ value: propertyKey }, { value: decorationPropertyKey }, { value: inputValuePropertyKey }],
+            })
+            .catch(() => undefined);
+        }),
+      );
       await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => undefined);
       await session.detach().catch(() => undefined);
     },

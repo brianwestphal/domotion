@@ -15,15 +15,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-} from "../src/render/element-tree-to-svg.js";
-import {
-  clearEmbeddedFonts,
-  getEmbeddedFontFaceCss,
-  wrapInDeviceChrome,
-} from "../src/render/index.js";
+import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
+import { clearEmbeddedFonts, getEmbeddedFontFaceCss, wrapInDeviceChrome } from "../src/render/index.js";
 import { optimizeSvg } from "./shared.js";
 
 // Inner "screen" of the window (the chrome bar is added on top by the bezel).
@@ -77,7 +70,12 @@ const SESSION: Line[] = [
   [sp("   a1b2c3d..d4e5f6a  ", C.dim), sp("main", C.branch), sp(" -> origin/main", C.dim)],
   out("Updating a1b2c3d..d4e5f6a"),
   out("Fast-forward"),
-  [sp(" src/routes/billing.ts                     | ", C.text), sp("184 ", C.num), sp("+++++++++++++", C.ok), sp("---", C.bad)],
+  [
+    sp(" src/routes/billing.ts                     | ", C.text),
+    sp("184 ", C.num),
+    sp("+++++++++++++", C.ok),
+    sp("---", C.bad),
+  ],
   [sp(" src/db/migrations/0042_add_invoices.sql   | ", C.text), sp(" 26 ", C.num), sp("++++++++++", C.ok)],
   [sp(" 12 files changed, ", C.text), sp("348 insertions(+)", C.ok), sp(", ", C.text), sp("102 deletions(-)", C.bad)],
   blank(),

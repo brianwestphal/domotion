@@ -25,8 +25,13 @@ for (const root of roots) {
     const styled = segs[0];
     if (styled.text.length <= 4 && (styled.fontSize !== undefined || styled.color || styled.pseudoBox)) {
       console.log(`<p>${JSON.stringify(e.text.slice(0, 20))}`);
-      console.log(`  styled: text=${JSON.stringify(styled.text)} x=${styled.x?.toFixed(1)} y=${styled.y?.toFixed(1)} fs=${styled.fontSize?.toFixed(1)} asc=${styled.fontAscent?.toFixed(1)}`);
-      if (styled.pseudoBox) console.log(`  pBox: x=${styled.pseudoBox.x.toFixed(1)} y=${styled.pseudoBox.y.toFixed(1)} w=${styled.pseudoBox.width.toFixed(1)} h=${styled.pseudoBox.height.toFixed(1)}`);
+      console.log(
+        `  styled: text=${JSON.stringify(styled.text)} x=${styled.x?.toFixed(1)} y=${styled.y?.toFixed(1)} fs=${styled.fontSize?.toFixed(1)} asc=${styled.fontAscent?.toFixed(1)}`,
+      );
+      if (styled.pseudoBox)
+        console.log(
+          `  pBox: x=${styled.pseudoBox.x.toFixed(1)} y=${styled.pseudoBox.y.toFixed(1)} w=${styled.pseudoBox.width.toFixed(1)} h=${styled.pseudoBox.height.toFixed(1)}`,
+        );
     }
   });
 }

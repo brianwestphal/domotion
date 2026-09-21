@@ -26,15 +26,24 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import {
-  webfontSyntheticItalic, parseFontStyleDescriptor, registerWebfont, clearWebfonts, resolveFont,
+  webfontSyntheticItalic,
+  parseFontStyleDescriptor,
+  registerWebfont,
+  clearWebfonts,
+  resolveFont,
   type WebfontSynthesisFace,
 } from "./font-resolution.js";
 import { renderTextAsPath, setRenderTextMode } from "./text-to-path.js";
 import { clearEmbeddedFontBuilder } from "./embedded-font-builder.js";
 
 const face = (o: Partial<WebfontSynthesisFace>): WebfontSynthesisFace => ({
-  declaredWeightCaps: null, wghtAxisMax: null, baseIsBold: false,
-  declaredStyleCaps: null, slntAxisMin: null, baseIsItalic: false, ...o,
+  declaredWeightCaps: null,
+  wghtAxisMax: null,
+  baseIsBold: false,
+  declaredStyleCaps: null,
+  slntAxisMin: null,
+  baseIsItalic: false,
+  ...o,
 });
 
 describe("parseFontStyleDescriptor", () => {
@@ -147,7 +156,7 @@ function withFsSelectionItalic(buf: Buffer, italic: boolean): Buffer {
       const tableStart = out.readUInt32BE(rec + 8);
       const fsSelectionOffset = tableStart + 62;
       const current = out.readUInt16BE(fsSelectionOffset);
-      out.writeUInt16BE(italic ? (current | 0x01) : (current & ~0x01), fsSelectionOffset);
+      out.writeUInt16BE(italic ? current | 0x01 : current & ~0x01, fsSelectionOffset);
       return out;
     }
   }
@@ -179,7 +188,16 @@ describeWithSerif("registered webfont variants carry their synthesis facts", () 
   });
 
   it("a declared explicit oblique-angle descriptor travels onto the instance", () => {
-    registerWebfont("DeclaredOblique", 400, "oblique 20deg", serifBuf!, undefined, undefined, undefined, "oblique 20deg");
+    registerWebfont(
+      "DeclaredOblique",
+      400,
+      "oblique 20deg",
+      serifBuf!,
+      undefined,
+      undefined,
+      undefined,
+      "oblique 20deg",
+    );
     expect(resolveFont("DeclaredOblique", 400, 24, -1)?.webfontFace?.declaredStyleCaps).toEqual([20, 20]);
   });
 
@@ -221,12 +239,19 @@ describeWithSerif("registered webfont variants carry their synthesis facts", () 
 // `faceNeedsSyntheticOblique` had no `webfontFace` branch at all).
 
 describeWithSerif("the emitted run carries the synthetic italic shear (DM-2016 item 4)", () => {
-  beforeEach(() => { clearWebfonts(); clearEmbeddedFontBuilder(); });
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFontBuilder();
+  });
 
   function shearFor(family: string, fontStyle: string): string | null {
     setRenderTextMode("paths");
     const markup = renderTextAsPath("Hag", 0, 100, {
-      fontSize: 100, fontFamily: `"${family}"`, fontWeight: 400, fontStyle, fill: "#000",
+      fontSize: 100,
+      fontFamily: `"${family}"`,
+      fontWeight: 400,
+      fontStyle,
+      fill: "#000",
     });
     const m = /matrix\(1,0,(-?[\d.]+),1,0,0\)/.exec(markup ?? "");
     return m == null ? null : m[1];
@@ -247,7 +272,16 @@ describeWithSerif("the emitted run carries the synthetic italic shear (DM-2016 i
     // The declared range's maximum (20) is NOT below kItalicSlopeValue (14),
     // so `italic` is false before the platform data is built — the face is
     // treated as covering the request by its own descriptor.
-    registerWebfont("SeamRangeCovers", 400, "oblique 0deg 20deg", serifBuf!, undefined, undefined, undefined, "oblique 0deg 20deg");
+    registerWebfont(
+      "SeamRangeCovers",
+      400,
+      "oblique 0deg 20deg",
+      serifBuf!,
+      undefined,
+      undefined,
+      undefined,
+      "oblique 0deg 20deg",
+    );
     expect(shearFor("SeamRangeCovers", "oblique 10deg")).toBeNull();
   });
 });

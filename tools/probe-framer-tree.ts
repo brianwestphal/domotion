@@ -12,8 +12,16 @@ import { captureElementTree } from "../src/capture/index.js";
 const TESTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../tests");
 const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 
-function intersects(rect: { x: number; y: number; w: number; h: number }, region: { x: number; y: number; w: number; h: number }): boolean {
-  return !(rect.x + rect.w < region.x || rect.x > region.x + region.w || rect.y + rect.h < region.y || rect.y > region.y + region.h);
+function intersects(
+  rect: { x: number; y: number; w: number; h: number },
+  region: { x: number; y: number; w: number; h: number },
+): boolean {
+  return !(
+    rect.x + rect.w < region.x ||
+    rect.x > region.x + region.w ||
+    rect.y + rect.h < region.y ||
+    rect.y > region.y + region.h
+  );
 }
 
 function walk(node: any, region: any, depth: number, out: any[]) {
@@ -27,8 +35,9 @@ function walk(node: any, region: any, depth: number, out: any[]) {
         tag: node.tag,
         rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) },
         background: s.backgroundColor,
-        bgImage: s.backgroundImage != null && s.backgroundImage !== 'none' ? (s.backgroundImage || '').slice(0, 100) : null,
-        maskImage: s.maskImage != null && s.maskImage !== 'none' ? (s.maskImage || '').slice(0, 100) : null,
+        bgImage:
+          s.backgroundImage != null && s.backgroundImage !== "none" ? (s.backgroundImage || "").slice(0, 100) : null,
+        maskImage: s.maskImage != null && s.maskImage !== "none" ? (s.maskImage || "").slice(0, 100) : null,
         transform: s.transform,
         opacity: s.opacity,
         children: node.children?.length ?? 0,
@@ -44,10 +53,18 @@ function walk(node: any, region: any, depth: number, out: any[]) {
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "framer-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "framer-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(90_000);
   await page.goto("https://www.framer.com/", { waitUntil: "domcontentloaded" });
@@ -66,7 +83,9 @@ async function main() {
     try {
       if (typeof document.getAnimations === "function") {
         for (const a of document.getAnimations()) {
-          try { a.pause(); } catch {}
+          try {
+            a.pause();
+          } catch {}
         }
       }
     } catch {}
@@ -74,8 +93,12 @@ async function main() {
       const probe = window.setTimeout(() => {}, 0) as unknown as number;
       window.clearTimeout(probe);
       for (let i = 1; i <= probe; i++) {
-        try { window.clearTimeout(i); } catch {}
-        try { window.clearInterval(i); } catch {}
+        try {
+          window.clearTimeout(i);
+        } catch {}
+        try {
+          window.clearInterval(i);
+        } catch {}
       }
     } catch {}
     try {
@@ -83,8 +106,12 @@ async function main() {
       window.setTimeout = noop;
       window.setInterval = noop;
     } catch {}
-    try { window.fetch = (() => new Promise(() => {})) as typeof window.fetch; } catch {}
-    try { XMLHttpRequest.prototype.send = function() {}; } catch {}
+    try {
+      window.fetch = (() => new Promise(() => {})) as typeof window.fetch;
+    } catch {}
+    try {
+      XMLHttpRequest.prototype.send = function () {};
+    } catch {}
   });
 
   // Replicate the test's screenshot-before-capture step.
@@ -99,13 +126,13 @@ async function main() {
     walk(root, REGION, 0, out);
   }
   // Filter to li tags so the output stays small.
-  const lis = out.filter((d) => d.tag === 'li');
-  console.log('LIs found:', lis.length);
+  const lis = out.filter((d) => d.tag === "li");
+  console.log("LIs found:", lis.length);
   for (const li of lis) {
     console.log(JSON.stringify(li));
   }
   // Also dump every element with a bgImage at any y between 1000-1100.
-  console.log('\\nElements with bgImage in y range:');
+  console.log("\\nElements with bgImage in y range:");
   for (const d of out) {
     if (d.bgImage && d.rect.y >= 1000 && d.rect.y <= 1100) {
       console.log(JSON.stringify(d).slice(0, 200));
@@ -113,4 +140,7 @@ async function main() {
   }
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

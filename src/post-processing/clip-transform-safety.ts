@@ -67,7 +67,7 @@ export function assertNoFillBoxInClipOrMask(svg: string, context = "svg"): void 
   if (v.length > 0) {
     throw new Error(
       `${context}: transform-box:fill-box inside <clipPath>/<mask> is ignored by Firefox (DM-1529). ` +
-      `Use an explicit userspace transform-origin instead. Violations: ${v.join("; ")}`,
+        `Use an explicit userspace transform-origin instead. Violations: ${v.join("; ")}`,
     );
   }
 }

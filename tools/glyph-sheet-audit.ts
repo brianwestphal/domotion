@@ -37,12 +37,38 @@ import {
   type GlyphCompareResult,
 } from "../src/review/glyph-compare.js";
 
-interface Cell { cp: string; char: string; cls: string; x: number; y: number; w: number; h: number; }
-interface RawImg { data: Buffer; width: number; height: number; channels: number; }
-interface CellVerdict extends Cell { verdict: "match" | "mismatch" | "error"; hard: string[]; soft: string[]; ncc?: number; note?: string; }
+interface Cell {
+  cp: string;
+  char: string;
+  cls: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+interface RawImg {
+  data: Buffer;
+  width: number;
+  height: number;
+  channels: number;
+}
+interface CellVerdict extends Cell {
+  verdict: "match" | "mismatch" | "error";
+  hard: string[];
+  soft: string[];
+  ncc?: number;
+  note?: string;
+}
 interface SheetResult {
-  sheet: string; cells: number; incorrect: number; errors: number;
-  layoutDrift: boolean; alignCorr: number; alignDy: number; incorrectCps: string[]; verdicts: CellVerdict[];
+  sheet: string;
+  cells: number;
+  incorrect: number;
+  errors: number;
+  layoutDrift: boolean;
+  alignCorr: number;
+  alignDy: number;
+  incorrectCps: string[];
+  verdicts: CellVerdict[];
 }
 
 function arg(name: string, fallback = ""): string {
@@ -51,9 +77,16 @@ function arg(name: string, fallback = ""): string {
 }
 
 /** Slice an (x,y,w,h) sub-rect out of a decoded RGBA/RGB buffer. */
-function cropRaw(img: RawImg, x: number, y: number, w: number, h: number): { buf: Buffer; w: number; h: number; ch: number } {
+function cropRaw(
+  img: RawImg,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): { buf: Buffer; w: number; h: number; ch: number } {
   const ch = img.channels;
-  const cw = Math.min(w, img.width - x), chh = Math.min(h, img.height - y);
+  const cw = Math.min(w, img.width - x),
+    chh = Math.min(h, img.height - y);
   const out = Buffer.alloc(cw * chh * ch);
   for (let row = 0; row < chh; row++) {
     const src = ((y + row) * img.width + x) * ch;
@@ -63,21 +96,32 @@ function cropRaw(img: RawImg, x: number, y: number, w: number, h: number): { buf
 }
 
 async function loadRaw(path: string): Promise<RawImg> {
-  const { data, info } = await sharp(path).flatten({ background: "#ffffff" }).raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(path)
+    .flatten({ background: "#ffffff" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   return { data, width: info.width, height: info.height, channels: info.channels };
 }
 
 // The unicode grid fixtures always lay out at 1024 CSS px wide (harness WIDTH).
 const CSS_WIDTH = 1024;
 
-async function auditSheet(browser: Browser, name: string, fixture: string, expPath: string, actPath: string): Promise<SheetResult | null> {
+async function auditSheet(
+  browser: Browser,
+  name: string,
+  fixture: string,
+  expPath: string,
+  actPath: string,
+): Promise<SheetResult | null> {
   const expMeta = await sharp(expPath).metadata();
-  const W = expMeta.width ?? 1024, H = expMeta.height ?? 768;
+  const W = expMeta.width ?? 1024,
+    H = expMeta.height ?? 768;
   // The capture DPR is baked into the PNG width (1024×DPR). Render the layout at
   // CSS 1024 × DPR so the screenshot geometry matches the stored PNG and glyph
   // ink lands at the comparator's calibrated ≥32px scale on a 2× diagnostic run.
   const dpr = Math.max(1, Math.round(W / CSS_WIDTH));
-  const cssW = Math.round(W / dpr), cssH = Math.round(H / dpr);
+  const cssW = Math.round(W / dpr),
+    cssH = Math.round(H / dpr);
 
   // Cells + a fresh screenshot at the stored capture geometry.
   const ctx = await browser.newContext({ viewport: { width: cssW, height: cssH }, deviceScaleFactor: dpr });
@@ -85,17 +129,25 @@ async function auditSheet(browser: Browser, name: string, fixture: string, expPa
   await page.goto(`file://${resolve(fixture)}`);
   await page.waitForLoadState("networkidle");
   const shot = await page.screenshot({ clip: { x: 0, y: 0, width: cssW, height: cssH } });
-  const cells: Cell[] = await page.evaluate(() => {
+  const cells: Cell[] = (await page.evaluate(() => {
     const out: Array<Record<string, unknown>> = [];
     for (const x of Array.from(document.querySelectorAll("x"))) {
-      const g = x.querySelector("g"), n = x.querySelector("n");
+      const g = x.querySelector("g"),
+        n = x.querySelector("n");
       if (!g || !n) continue;
       const r = g.getBoundingClientRect();
-      out.push({ cp: (n.textContent ?? "").trim(), char: g.textContent ?? "", cls: (x as HTMLElement).className || "",
-        x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) });
+      out.push({
+        cp: (n.textContent ?? "").trim(),
+        char: g.textContent ?? "",
+        cls: (x as HTMLElement).className || "",
+        x: Math.round(r.x),
+        y: Math.round(r.y),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      });
     }
     return out;
-  }) as unknown as Cell[];
+  })) as unknown as Cell[];
   await ctx.close();
   if (cells.length === 0) return null; // not a glyph-grid fixture
 
@@ -109,11 +161,17 @@ async function auditSheet(browser: Browser, name: string, fixture: string, expPa
   // a weak peak correlation ⇒ genuine structural mismatch (`layout-drift`).
   const exp = await loadRaw(expPath);
   const shotRaw0 = await sharp(shot).flatten({ background: "#ffffff" }).raw().toBuffer({ resolveWithObject: true });
-  const shotRaw: RawImg = { data: shotRaw0.data, width: shotRaw0.info.width, height: shotRaw0.info.height, channels: shotRaw0.info.channels };
+  const shotRaw: RawImg = {
+    data: shotRaw0.data,
+    width: shotRaw0.info.width,
+    height: shotRaw0.info.height,
+    channels: shotRaw0.info.channels,
+  };
   const rowInk = (img: RawImg): Float64Array => {
     const p = new Float64Array(img.height);
     for (let yy = 0; yy < img.height; yy++) {
-      let s = 0; const base = yy * img.width * img.channels;
+      let s = 0;
+      const base = yy * img.width * img.channels;
       for (let xx = 0; xx < img.width; xx++) {
         const o = base + xx * img.channels;
         s += 255 - (img.data[o] * 0.299 + img.data[o + 1] * 0.587 + img.data[o + 2] * 0.114);
@@ -122,18 +180,36 @@ async function auditSheet(browser: Browser, name: string, fixture: string, expPa
     }
     return p;
   };
-  const pe = rowInk(exp), ps = rowInk(shotRaw);
-  const norm = (v: Float64Array): Float64Array => { let m = 0; for (const x of v) m += x; m /= v.length; const o = new Float64Array(v.length); for (let i = 0; i < v.length; i++) o[i] = v[i] - m; return o; };
-  const ne = norm(pe), ns = norm(ps);
-  let bestDy = 0, bestCorr = -Infinity;
+  const pe = rowInk(exp),
+    ps = rowInk(shotRaw);
+  const norm = (v: Float64Array): Float64Array => {
+    let m = 0;
+    for (const x of v) m += x;
+    m /= v.length;
+    const o = new Float64Array(v.length);
+    for (let i = 0; i < v.length; i++) o[i] = v[i] - m;
+    return o;
+  };
+  const ne = norm(pe),
+    ns = norm(ps);
+  let bestDy = 0,
+    bestCorr = -Infinity;
   for (let dy = -12; dy <= 12; dy++) {
-    let num = 0, da = 0, db = 0;
+    let num = 0,
+      da = 0,
+      db = 0;
     for (let i = 0; i < ne.length; i++) {
-      const j = i + dy; if (j < 0 || j >= ns.length) continue;
-      num += ne[i] * ns[j]; da += ne[i] * ne[i]; db += ns[j] * ns[j];
+      const j = i + dy;
+      if (j < 0 || j >= ns.length) continue;
+      num += ne[i] * ns[j];
+      da += ne[i] * ne[i];
+      db += ns[j] * ns[j];
     }
     const corr = da > 0 && db > 0 ? num / Math.sqrt(da * db) : 0;
-    if (corr > bestCorr) { bestCorr = corr; bestDy = dy; }
+    if (corr > bestCorr) {
+      bestCorr = corr;
+      bestDy = dy;
+    }
   }
   // dy>0 means the expected's rows sit LOWER than my render's ⇒ add dy to cell y.
   // Content differences (CI vs local glyph paint) legitimately drop the peak
@@ -149,24 +225,48 @@ async function auditSheet(browser: Browser, name: string, fixture: string, expPa
   for (const c of cells) {
     // Cell rects are CSS px; scale to PNG px (×dpr) and add the row-projection
     // vertical correction (already in PNG px).
-    const x = Math.max(0, Math.round(c.x * dpr)), y = Math.max(0, Math.round(c.y * dpr) + bestDy);
-    const cw = Math.round(c.w * dpr), chh = Math.round(c.h * dpr);
+    const x = Math.max(0, Math.round(c.x * dpr)),
+      y = Math.max(0, Math.round(c.y * dpr) + bestDy);
+    const cw = Math.round(c.w * dpr),
+      chh = Math.round(c.h * dpr);
     const ca = cropRaw(exp, x, y, cw, chh);
     const cb = cropRaw(act, x, y, cw, chh);
     let va: CoverageMap, vb: CoverageMap;
-    try { va = extractCoverage(ca.buf, ca.w, ca.h, ca.ch); vb = extractCoverage(cb.buf, cb.w, cb.h, cb.ch); }
-    catch { verdicts.push({ ...c, verdict: "error", hard: [], soft: [], note: "decode" }); continue; }
+    try {
+      va = extractCoverage(ca.buf, ca.w, ca.h, ca.ch);
+      vb = extractCoverage(cb.buf, cb.w, cb.h, cb.ch);
+    } catch {
+      verdicts.push({ ...c, verdict: "error", hard: [], soft: [], note: "decode" });
+      continue;
+    }
     let res: GlyphCompareResult;
-    try { res = compareGlyphCoverage(va, vb); }
-    catch (e) { verdicts.push({ ...c, verdict: "error", hard: [], soft: [], note: (e as Error).message.slice(0, 40) }); continue; }
-    verdicts.push({ ...c, verdict: res.verdict === "match" ? "match" : "mismatch",
-      hard: res.hardSignals, soft: res.softSignals, ncc: +res.metrics.ncc.toFixed(3) });
+    try {
+      res = compareGlyphCoverage(va, vb);
+    } catch (e) {
+      verdicts.push({ ...c, verdict: "error", hard: [], soft: [], note: (e as Error).message.slice(0, 40) });
+      continue;
+    }
+    verdicts.push({
+      ...c,
+      verdict: res.verdict === "match" ? "match" : "mismatch",
+      hard: res.hardSignals,
+      soft: res.softSignals,
+      ncc: +res.metrics.ncc.toFixed(3),
+    });
   }
   const incorrect = verdicts.filter((v) => v.verdict === "mismatch");
   const errors = verdicts.filter((v) => v.verdict === "error");
-  return { sheet: name, cells: cells.length, incorrect: incorrect.length, errors: errors.length,
-    layoutDrift, alignCorr, alignDy: bestDy,
-    incorrectCps: incorrect.map((v) => v.cp), verdicts };
+  return {
+    sheet: name,
+    cells: cells.length,
+    incorrect: incorrect.length,
+    errors: errors.length,
+    layoutDrift,
+    alignCorr,
+    alignDy: bestDy,
+    incorrectCps: incorrect.map((v) => v.cp),
+    verdicts,
+  };
 }
 
 async function main(): Promise<void> {
@@ -176,7 +276,9 @@ async function main(): Promise<void> {
   const sheet = arg("--sheet");
   const outPath = arg("--out", "tools/scratch/sheet-audit.json");
   if (!resultsDir || !fixturesDir) {
-    console.error("usage: glyph-sheet-audit.ts --results-dir <dir> --fixtures-dir <dir> [--only <substr>] [--sheet <name>] [--out <json>]");
+    console.error(
+      "usage: glyph-sheet-audit.ts --results-dir <dir> --fixtures-dir <dir> [--only <substr>] [--sheet <name>] [--out <json>]",
+    );
     process.exit(2);
   }
 
@@ -203,7 +305,9 @@ async function main(): Promise<void> {
       if (r) {
         results.push(r);
         const flag = r.layoutDrift ? " ⚠LAYOUT-DRIFT" : "";
-        process.stderr.write(`[${++done}/${sheets.length}] ${name}: ${r.incorrect}/${r.cells} incorrect${r.errors ? `, ${r.errors} err` : ""}${flag}\n`);
+        process.stderr.write(
+          `[${++done}/${sheets.length}] ${name}: ${r.incorrect}/${r.cells} incorrect${r.errors ? `, ${r.errors} err` : ""}${flag}\n`,
+        );
       }
     } catch (e) {
       process.stderr.write(`[skip] ${name}: ${(e as Error).message}\n`);
@@ -214,12 +318,18 @@ async function main(): Promise<void> {
   writeFileSync(outPath, JSON.stringify(results, null, 1));
 
   // Summary table, sorted by incorrect-count desc then name.
-  const withDefects = results.filter((r) => r.incorrect > 0).sort((a, b) => b.incorrect - a.incorrect || a.sheet.localeCompare(b.sheet));
+  const withDefects = results
+    .filter((r) => r.incorrect > 0)
+    .sort((a, b) => b.incorrect - a.incorrect || a.sheet.localeCompare(b.sheet));
   const clean = results.filter((r) => r.incorrect === 0);
-  console.log(`\n=== ${results.length} grid sheets audited · ${withDefects.length} with real font defects · ${clean.length} clean (AA-only) ===\n`);
+  console.log(
+    `\n=== ${results.length} grid sheets audited · ${withDefects.length} with real font defects · ${clean.length} clean (AA-only) ===\n`,
+  );
   console.log(`${"sheet".padEnd(52)} incorrect/cells  drift`);
   for (const r of withDefects) {
-    console.log(`${r.sheet.padEnd(52)} ${String(r.incorrect).padStart(4)}/${String(r.cells).padEnd(4)}     ${r.layoutDrift ? "⚠" : ""}`);
+    console.log(
+      `${r.sheet.padEnd(52)} ${String(r.incorrect).padStart(4)}/${String(r.cells).padEnd(4)}     ${r.layoutDrift ? "⚠" : ""}`,
+    );
   }
   const totalIncorrect = results.reduce((s, r) => s + r.incorrect, 0);
   console.log(`\ntotal incorrect glyphs: ${totalIncorrect}  ·  full per-codepoint JSON: ${outPath}`);

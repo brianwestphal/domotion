@@ -3,11 +3,17 @@ id: "requirements/studio-semantic-interactions"
 title: "Domotion Studio semantic interaction compilation"
 kind: "contract"
 status: "current"
-owners: ["studio","animation"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2683","DM-2698","DM-S31XF3"]
-code: ["src/studio/interactions.ts","src/studio/interactions.test.ts","src/studio/interactions.e2e.test.ts","src/studio/project-schema.ts"]
-aliases: ["docs/241-studio-semantic-interactions.md","doc-241"]
+owners: ["studio", "animation"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2683", "DM-2698", "DM-S31XF3"]
+code:
+  [
+    "src/studio/interactions.ts",
+    "src/studio/interactions.test.ts",
+    "src/studio/interactions.e2e.test.ts",
+    "src/studio/project-schema.ts",
+  ]
+aliases: ["docs/241-studio-semantic-interactions.md", "doc-241"]
 ---
 
 # Domotion Studio semantic interaction compilation

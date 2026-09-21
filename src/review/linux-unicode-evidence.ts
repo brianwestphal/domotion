@@ -30,7 +30,7 @@ export const LINUX_UNICODE_RASTER_FLOOR_FIXTURES = [
   "FB50-FDFF-arabic-presentation-forms-a.2",
 ] as const;
 
-export type LinuxUnicodeRasterFloorFixture = typeof LINUX_UNICODE_RASTER_FLOOR_FIXTURES[number];
+export type LinuxUnicodeRasterFloorFixture = (typeof LINUX_UNICODE_RASTER_FLOOR_FIXTURES)[number];
 const FIXTURES = new Set<string>(LINUX_UNICODE_RASTER_FLOOR_FIXTURES);
 
 /** The structural Vedic row is adjudicated separately from the 24 accepted
@@ -50,20 +50,146 @@ interface LinuxVedicDottedCircleRecord {
  * oracle expectations only: neither the codepoints nor font names participate
  * in renderer routing. */
 export const LINUX_VEDIC_DOTTED_CIRCLE_RECORDS: readonly LinuxVedicDottedCircleRecord[] = [
-  { codepoint: 0x1CD1, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3402, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CD4, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2766, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CDB, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2771, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CDE, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2774, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CDF, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2775, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE1, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Beng", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3418, cluster: 0, xAdvance: 488, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE2, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2776, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE3, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3420, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE4, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3421, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE5, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3422, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE6, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3423, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE7, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3424, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CE8, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3425, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
-  { codepoint: 0x1CF7, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Beng", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3440, cluster: 0, xAdvance: 373, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  {
+    codepoint: 0x1cd1,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3402, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1cd4,
+    postscriptName: "FreeSans",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 2766, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1cdb,
+    postscriptName: "FreeSans",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 2771, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1cde,
+    postscriptName: "FreeSans",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 2774, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1cdf,
+    postscriptName: "FreeSans",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 2775, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce1,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Beng",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3418, cluster: 0, xAdvance: 488, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce2,
+    postscriptName: "FreeSans",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 2776, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce3,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3420, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce4,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3421, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce5,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3422, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce6,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3423, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce7,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3424, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1ce8,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Deva",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3425, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
+  {
+    codepoint: 0x1cf7,
+    postscriptName: "FreeSerif",
+    sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    script: "Beng",
+    glyphs: [
+      { id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      { id: 3440, cluster: 0, xAdvance: 373, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ],
+  },
 ] as const;
 
 export const LINUX_UNICODE_THIN_OUTLINE_CONTROLS = [0x0964, 0x0965] as const;
@@ -77,65 +203,96 @@ export function shouldCollectLinuxUnicodeTextEvidence(fixture: string): boolean 
 }
 
 function compactGlyphs(run: FixtureTextRunProvenance["runs"][number]): LinuxVedicDottedCircleRecord["glyphs"] {
-  return run.glyphs.map(({ id, cluster, xAdvance, yAdvance, xOffset, yOffset }) =>
-    ({ id, cluster, xAdvance, yAdvance, xOffset, yOffset })) as LinuxVedicDottedCircleRecord["glyphs"];
+  return run.glyphs.map(({ id, cluster, xAdvance, yAdvance, xOffset, yOffset }) => ({
+    id,
+    cluster,
+    xAdvance,
+    yAdvance,
+    xOffset,
+    yOffset,
+  })) as LinuxVedicDottedCircleRecord["glyphs"];
 }
 
 /** Validate the exact selected-face HarfBuzz stream persisted by the targeted
  * Linux visual fixture, including the unaffected-cell negative set. */
-export function validateLinuxVedicDottedCircleEvidence(evidence: FixtureTextRunProvenance, chromeFaces: string[]): string[] {
+export function validateLinuxVedicDottedCircleEvidence(
+  evidence: FixtureTextRunProvenance,
+  chromeFaces: string[],
+): string[] {
   const errors: string[] = [];
   if (evidence.fixture !== LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE) errors.push(`fixture mismatch: ${evidence.fixture}`);
   for (const census of ["FreeSans:20", "FreeSerif:37"]) {
     if (!chromeFaces.includes(census)) errors.push(`Chromium face census lacks ${census}`);
   }
   const expectedCps = new Set(LINUX_VEDIC_DOTTED_CIRCLE_RECORDS.map((record) => record.codepoint));
-  const vedicRuns = evidence.runs.filter((run) => [...run.sourceText].length === 1
-    && (run.sourceText.codePointAt(0) ?? 0) >= 0x1CD0 && (run.sourceText.codePointAt(0) ?? 0) <= 0x1CFF);
+  const vedicRuns = evidence.runs.filter(
+    (run) =>
+      [...run.sourceText].length === 1 &&
+      (run.sourceText.codePointAt(0) ?? 0) >= 0x1cd0 &&
+      (run.sourceText.codePointAt(0) ?? 0) <= 0x1cff,
+  );
   for (const expected of LINUX_VEDIC_DOTTED_CIRCLE_RECORDS) {
     const run = vedicRuns.find((candidate) => candidate.sourceText.codePointAt(0) === expected.codepoint);
     const label = `U+${expected.codepoint.toString(16).toUpperCase()}`;
-    if (run == null) { errors.push(`${label} has no production row`); continue; }
+    if (run == null) {
+      errors.push(`${label} has no production row`);
+      continue;
+    }
     if (run.mechanism !== "system-resolver") errors.push(`${label} mechanism is ${run.mechanism ?? "missing"}`);
     if (run.request.script !== expected.script) errors.push(`${label} script is ${run.request.script ?? "missing"}`);
-    if (run.selected.postscriptName !== expected.postscriptName || run.selected.sourcePath !== expected.sourcePath || run.selected.faceIndex !== 0) {
+    if (
+      run.selected.postscriptName !== expected.postscriptName ||
+      run.selected.sourcePath !== expected.sourcePath ||
+      run.selected.faceIndex !== 0
+    ) {
       errors.push(`${label} selected face differs`);
     }
-    if (JSON.stringify(compactGlyphs(run)) !== JSON.stringify(expected.glyphs)) errors.push(`${label} glyph stream differs`);
+    if (JSON.stringify(compactGlyphs(run)) !== JSON.stringify(expected.glyphs))
+      errors.push(`${label} glyph stream differs`);
   }
   for (const run of vedicRuns) {
     const cp = run.sourceText.codePointAt(0)!;
     if (expectedCps.has(cp)) continue;
-    const circleGid = run.selected.postscriptName === "FreeSans" ? 4573 : run.selected.postscriptName === "FreeSerif" ? 5567 : -1;
-    if (run.glyphs.some((glyph) => glyph.id === circleGid)) errors.push(`unrelated U+${cp.toString(16).toUpperCase()} contains U+25CC gid`);
+    const circleGid =
+      run.selected.postscriptName === "FreeSans" ? 4573 : run.selected.postscriptName === "FreeSerif" ? 5567 : -1;
+    if (run.glyphs.some((glyph) => glyph.id === circleGid))
+      errors.push(`unrelated U+${cp.toString(16).toUpperCase()} contains U+25CC gid`);
   }
   return errors;
 }
 
 function selectedFaceSignature(run: FixtureTextRunProvenance["runs"][number]): string {
-  return JSON.stringify([run.selected.fontKey, run.selected.postscriptName, run.selected.instantiatedPostscriptName,
-    run.selected.sourcePath, run.selected.faceIndex, run.selected.variationAxes]);
+  return JSON.stringify([
+    run.selected.fontKey,
+    run.selected.postscriptName,
+    run.selected.instantiatedPostscriptName,
+    run.selected.sourcePath,
+    run.selected.faceIndex,
+    run.selected.variationAxes,
+  ]);
 }
 
 export function logicalTextEvidenceSignature(evidence: FixtureTextRunProvenance): string {
-  return JSON.stringify(evidence.runs.map((run) => ({
-    fixture: run.fixture,
-    row: run.row,
-    sourceSpan: run.sourceSpan,
-    sourceCodepointSpan: run.sourceCodepointSpan,
-    selected: run.selected,
-    glyphs: run.glyphs.map((glyph) => ({
-      id: glyph.id,
-      cluster: glyph.cluster,
-      sourceSpan: glyph.sourceSpan,
-      sourceCodepointSpan: glyph.sourceCodepointSpan,
-      xAdvance: glyph.xAdvance,
-      yAdvance: glyph.yAdvance,
-      xOffset: glyph.xOffset,
-      yOffset: glyph.yOffset,
-      sourceOutline: glyph.sourceOutline,
+  return JSON.stringify(
+    evidence.runs.map((run) => ({
+      fixture: run.fixture,
+      row: run.row,
+      sourceSpan: run.sourceSpan,
+      sourceCodepointSpan: run.sourceCodepointSpan,
+      selected: run.selected,
+      glyphs: run.glyphs.map((glyph) => ({
+        id: glyph.id,
+        cluster: glyph.cluster,
+        sourceSpan: glyph.sourceSpan,
+        sourceCodepointSpan: glyph.sourceCodepointSpan,
+        xAdvance: glyph.xAdvance,
+        yAdvance: glyph.yAdvance,
+        xOffset: glyph.xOffset,
+        yOffset: glyph.yOffset,
+        sourceOutline: glyph.sourceOutline,
+      })),
     })),
-  })));
+  );
 }
 
 export interface LinuxUnicodeMutationVerdict {
@@ -158,40 +315,58 @@ export function compareLinuxUnicodeMutations(
   baselineRasterSha256: string,
   hintedSubsetOffRasterSha256: string,
 ): LinuxUnicodeMutationVerdict {
-  const selectedFaceRowsMoved = baseline.runs.reduce((count, run, index) =>
-    count + (fontconfigHelperOff.runs[index] == null || selectedFaceSignature(run) !== selectedFaceSignature(fontconfigHelperOff.runs[index]) ? 1 : 0), 0);
-  const hintedLogicalRowsExact = logicalTextEvidenceSignature(baseline) === logicalTextEvidenceSignature(hintedSubsetOff);
+  const selectedFaceRowsMoved = baseline.runs.reduce(
+    (count, run, index) =>
+      count +
+      (fontconfigHelperOff.runs[index] == null ||
+      selectedFaceSignature(run) !== selectedFaceSignature(fontconfigHelperOff.runs[index])
+        ? 1
+        : 0),
+    0,
+  );
+  const hintedLogicalRowsExact =
+    logicalTextEvidenceSignature(baseline) === logicalTextEvidenceSignature(hintedSubsetOff);
   const hintedByKey = new Map(hintedSubsetOffBuilds.map((build) => [build.instanceKey, build]));
   let hintedBuilderRowsMoved = 0;
   let retainedHintTablesRemoved = true;
   for (const build of baselineBuilds.filter((candidate) => candidate.selectedBuilder === "hb-subset")) {
     const mutation = hintedByKey.get(build.instanceKey);
     if (mutation?.selectedBuilder !== build.selectedBuilder) hintedBuilderRowsMoved++;
-    if (build.retainedHintTableTags.length > 0 && (mutation == null || mutation.retainedHintTableTags.length !== 0)) retainedHintTablesRemoved = false;
+    if (build.retainedHintTableTags.length > 0 && (mutation == null || mutation.retainedHintTableTags.length !== 0))
+      retainedHintTablesRemoved = false;
   }
   const hintedRasterMoved = baselineRasterSha256 !== hintedSubsetOffRasterSha256;
-  const mutationActive = selectedFaceRowsMoved > 0 && hintedBuilderRowsMoved > 0 && retainedHintTablesRemoved && hintedRasterMoved;
+  const mutationActive =
+    selectedFaceRowsMoved > 0 && hintedBuilderRowsMoved > 0 && retainedHintTablesRemoved && hintedRasterMoved;
   return {
     selectedFaceRowsMoved,
     hintedLogicalRowsExact,
     hintedBuilderRowsMoved,
     retainedHintTablesRemoved,
     hintedRasterMoved,
-    verdict: !hintedLogicalRowsExact ? "logical-mismatch" : mutationActive ? "raster-floor-candidate" : "mutation-inert",
+    verdict: !hintedLogicalRowsExact
+      ? "logical-mismatch"
+      : mutationActive
+        ? "raster-floor-candidate"
+        : "mutation-inert",
   };
 }
 
 export function validateFixtureTextEvidence(fixture: string, evidence: FixtureTextRunProvenance): string[] {
   const errors: string[] = [];
-  if (!isLinuxUnicodeRasterFloorFixture(fixture)) errors.push(`fixture is outside the 24-row acceptance corpus: ${fixture}`);
+  if (!isLinuxUnicodeRasterFloorFixture(fixture))
+    errors.push(`fixture is outside the 24-row acceptance corpus: ${fixture}`);
   if (evidence.fixture !== fixture) errors.push(`top-level fixture mismatch: ${evidence.fixture}`);
   if (evidence.runs.length === 0) errors.push("no production text-run rows");
   for (const run of evidence.runs) {
     if (run.fixture !== fixture) errors.push(`row ${run.row} fixture mismatch`);
-    if (run.sourceSpan.length !== 2 || run.sourceCodepointSpan.length !== 2) errors.push(`row ${run.row} lacks source spans`);
+    if (run.sourceSpan.length !== 2 || run.sourceCodepointSpan.length !== 2)
+      errors.push(`row ${run.row} lacks source spans`);
     for (const glyph of run.glyphs) {
-      if (!Number.isFinite(glyph.id) || !Number.isFinite(glyph.cluster)) errors.push(`row ${run.row} has invalid glyph identity`);
-      if (![glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite)) errors.push(`row ${run.row} has invalid glyph metrics`);
+      if (!Number.isFinite(glyph.id) || !Number.isFinite(glyph.cluster))
+        errors.push(`row ${run.row} has invalid glyph identity`);
+      if (![glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite))
+        errors.push(`row ${run.row} has invalid glyph metrics`);
     }
   }
   return [...new Set(errors)];
@@ -217,30 +392,44 @@ export function classifyLinuxUnicodeFixtureEvidence(args: {
 }): FixtureScopedStageEvidence | undefined {
   if (args.platform !== "linux" || args.suite !== "html-test-unicode") return undefined;
   if (!isLinuxUnicodeRasterFloorFixture(args.fixture) || args.diffPct > 1) return undefined;
-  if (args.textRunEvidence == null || validateFixtureTextEvidence(args.fixture, args.textRunEvidence).length > 0) return undefined;
+  if (args.textRunEvidence == null || validateFixtureTextEvidence(args.fixture, args.textRunEvidence).length > 0)
+    return undefined;
   const builds = args.embeddedFontBuilds ?? [];
-  const hintedBuilds = builds.filter((build) =>
-    build.selectedBuilder === "hb-subset" && build.retainedHintTableTags.length > 0);
+  const hintedBuilds = builds.filter(
+    (build) => build.selectedBuilder === "hb-subset" && build.retainedHintTableTags.length > 0,
+  );
   if (hintedBuilds.length === 0) return undefined;
 
   if (args.fixture === CJK_30_FIXTURE) {
     const monoRuns = args.textRunEvidence.runs.filter((run) => run.selected.fontKey === CJK_30_MONO_FONT_KEY);
-    if (monoRuns.length === 0 || monoRuns.some((run) =>
-      run.selected.postscriptName !== "WenQuanYiZenHeiMono"
-      || run.selected.sourcePath !== "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
-      || run.selected.faceIndex !== 1)) return undefined;
-    if (!hintedBuilds.some((build) =>
-      build.sourcePath === "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc" && build.faceIndex === 1)) return undefined;
+    if (
+      monoRuns.length === 0 ||
+      monoRuns.some(
+        (run) =>
+          run.selected.postscriptName !== "WenQuanYiZenHeiMono" ||
+          run.selected.sourcePath !== "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc" ||
+          run.selected.faceIndex !== 1,
+      )
+    )
+      return undefined;
+    if (
+      !hintedBuilds.some(
+        (build) => build.sourcePath === "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc" && build.faceIndex === 1,
+      )
+    )
+      return undefined;
   }
 
   return {
-    reports: [{
-      area: "text.fixture-logical",
-      oracle: "linux-unicode-fixture-provenance+mutation-matrix",
-      status: "passed",
-      passedRows: args.textRunEvidence.runs.length,
-      totalRows: args.textRunEvidence.runs.length,
-      note: `Exact face/glyph/cluster/span/metric/outline provenance; prior helper-off and hint-off mutations active; hinted subset retained; ${args.diffPct.toFixed(3)}% Linux raster floor.`,
-    }],
+    reports: [
+      {
+        area: "text.fixture-logical",
+        oracle: "linux-unicode-fixture-provenance+mutation-matrix",
+        status: "passed",
+        passedRows: args.textRunEvidence.runs.length,
+        totalRows: args.textRunEvidence.runs.length,
+        note: `Exact face/glyph/cluster/span/metric/outline provenance; prior helper-off and hint-off mutations active; hinted subset retained; ${args.diffPct.toFixed(3)}% Linux raster floor.`,
+      },
+    ],
   };
 }

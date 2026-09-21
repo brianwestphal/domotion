@@ -3,11 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser } from "@playwright/test";
 import { describe, expect, it } from "vitest";
-import {
-  composeStoryboardConfig,
-  storyboardConfigSchema,
-  validateStoryboardConfig,
-} from "./storyboard.js";
+import { composeStoryboardConfig, storyboardConfigSchema, validateStoryboardConfig } from "./storyboard.js";
 
 /** A minimal self-contained animated SVG carrying a `--scene-dur` (so its play
  *  length is auto-detected) and one uniquely-named id + keyframe. */
@@ -60,7 +56,9 @@ describe("storyboard config validation", () => {
   });
 
   it("rejects a scene with no source", () => {
-    expect(() => validateStoryboardConfig({ width: 200, height: 100, scenes: [{ duration: 500 }] })).toThrow(/exactly one source/);
+    expect(() => validateStoryboardConfig({ width: 200, height: 100, scenes: [{ duration: 500 }] })).toThrow(
+      /exactly one source/,
+    );
   });
 
   it("rejects a scene with two sources", () => {
@@ -71,13 +69,21 @@ describe("storyboard config validation", () => {
 
   it("rejects `params` without a `template`", () => {
     expect(() =>
-      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", params: { x: 1 }, duration: 500 }] }),
+      validateStoryboardConfig({
+        width: 200,
+        height: 100,
+        scenes: [{ svg: "a.svg", params: { x: 1 }, duration: 500 }],
+      }),
     ).toThrow(/params/);
   });
 
   it("rejects `term` without a `cast`", () => {
     expect(() =>
-      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", term: { theme: "dark" }, duration: 500 }] }),
+      validateStoryboardConfig({
+        width: 200,
+        height: 100,
+        scenes: [{ svg: "a.svg", term: { theme: "dark" }, duration: 500 }],
+      }),
     ).toThrow(/term/);
   });
 
@@ -88,10 +94,13 @@ describe("storyboard config validation", () => {
   });
 
   it("validates an ordered source trim window", () => {
-    expect(validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", trimStart: 200, trimEnd: 1200 }] }).scenes[0])
-      .toMatchObject({ trimStart: 200, trimEnd: 1200 });
-    expect(() => validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", trimStart: 1200, trimEnd: 200 }] }))
-      .toThrow(/trimEnd/);
+    expect(
+      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", trimStart: 200, trimEnd: 1200 }] })
+        .scenes[0],
+    ).toMatchObject({ trimStart: 200, trimEnd: 1200 });
+    expect(() =>
+      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", trimStart: 1200, trimEnd: 200 }] }),
+    ).toThrow(/trimEnd/);
   });
 
   it("rejects a `capture` scene without url or file", () => {
@@ -102,14 +111,19 @@ describe("storyboard config validation", () => {
 
   it("rejects a `capture` scene with both url and file", () => {
     expect(() =>
-      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ capture: { url: "http://x", file: "y.html" }, duration: 500 }] }),
+      validateStoryboardConfig({
+        width: 200,
+        height: 100,
+        scenes: [{ capture: { url: "http://x", file: "y.html" }, duration: 500 }],
+      }),
     ).toThrow(/exactly one of `url` or `file`/);
   });
 
   it("exposes the full cross-engine-safe transition set incl. the DM-1524 reveals (no magic-move)", () => {
     // magic-move needs an element-tree bridge; distinct opaque scenes can't share one.
     const parsed = storyboardConfigSchema.safeParse({
-      width: 10, height: 10,
+      width: 10,
+      height: 10,
       scenes: [{ svg: "a.svg", duration: 1, transition: { type: "magic-move", duration: 0 } }],
     });
     expect(parsed.success).toBe(false);
@@ -117,12 +131,22 @@ describe("storyboard config validation", () => {
     // clip-path reveals, scale dollies, shine) all validate — plumbed straight
     // through to the animator's frame-transition enum.
     for (const type of [
-      "crossfade", "cut", "push-left", "scroll",
-      "push-right", "push-up", "push-down",
-      "wipe", "iris", "zoom-in", "zoom-out", "shine",
+      "crossfade",
+      "cut",
+      "push-left",
+      "scroll",
+      "push-right",
+      "push-up",
+      "push-down",
+      "wipe",
+      "iris",
+      "zoom-in",
+      "zoom-out",
+      "shine",
     ]) {
       const ok = storyboardConfigSchema.safeParse({
-        width: 10, height: 10,
+        width: 10,
+        height: 10,
         scenes: [{ svg: "a.svg", duration: 1, transition: { type, duration: 0 } }],
       });
       expect(ok.success, `transition ${type} should validate`).toBe(true);
@@ -131,7 +155,8 @@ describe("storyboard config validation", () => {
 
   it("accepts per-scene overlays and a storyboard-level cursor track (DM-1554)", () => {
     const cfg = validateStoryboardConfig({
-      width: 200, height: 100,
+      width: 200,
+      height: 100,
       cursor: { events: [{ frame: 0, at: 100, type: "moveClick", to: { x: 40, y: 40 } }] },
       scenes: [{ svg: "a.svg", duration: 1000, overlays: [{ kind: "typing", text: "hi", x: 10, y: 20 }] }],
     });
@@ -142,7 +167,8 @@ describe("storyboard config validation", () => {
   it("rejects a cursor event that uses a `selector` (a scene retains no live DOM) (DM-1554)", () => {
     expect(() =>
       validateStoryboardConfig({
-        width: 200, height: 100,
+        width: 200,
+        height: 100,
         cursor: { events: [{ frame: 0, type: "move", selector: ".btn" }] },
         scenes: [{ svg: "a.svg", duration: 1000 }],
       }),
@@ -197,7 +223,9 @@ describe("storyboard composition (svg scenes, no browser)", () => {
       NO_BROWSER,
       validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg" }] }),
       dir,
-      (m) => { logged += m + "\n"; },
+      (m) => {
+        logged += m + "\n";
+      },
     );
     expect(svg).toContain("sb0_cc-rect");
     expect(logged).toMatch(/defaulted to the scene's play time: 2000ms/);
@@ -208,7 +236,11 @@ describe("storyboard composition (svg scenes, no browser)", () => {
     writeFileSync(join(dir, "trim.svg"), animatedSceneSvg("#0f0", "trim"));
     const svg = await composeStoryboardConfig(
       NO_BROWSER,
-      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "trim.svg", trimStart: 500, trimEnd: 1500 }] }),
+      validateStoryboardConfig({
+        width: 200,
+        height: 100,
+        scenes: [{ svg: "trim.svg", trimStart: 500, trimEnd: 1500 }],
+      }),
       dir,
     );
     expect(svg).toContain("animation-delay:-0.5s");
@@ -237,7 +269,9 @@ describe("storyboard composition (svg scenes, no browser)", () => {
       NO_BROWSER,
       validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "s.svg", period: 1234 }] }),
       dir,
-      (m) => { logged += m + "\n"; },
+      (m) => {
+        logged += m + "\n";
+      },
     );
     expect(logged).toMatch(/defaulted to the scene's play time: 1234ms/);
   });
@@ -249,7 +283,8 @@ describe("storyboard composition (svg scenes, no browser)", () => {
     const svg = await composeStoryboardConfig(
       NO_BROWSER,
       validateStoryboardConfig({
-        width: 200, height: 100,
+        width: 200,
+        height: 100,
         scenes: [
           { svg: "a.svg", duration: 1000, transition: { type: "crossfade", duration: 200 } },
           { svg: "b.svg", duration: 1000 },
@@ -282,8 +317,11 @@ describe("storyboard composition (svg scenes, no browser)", () => {
     const svg = await composeStoryboardConfig(
       NO_BROWSER,
       validateStoryboardConfig({
-        width: 200, height: 100,
-        scenes: [{ svg: "a.svg", duration: 2000, overlays: [{ kind: "typing", text: "hello", x: 12, y: 40, caret: true }] }],
+        width: 200,
+        height: 100,
+        scenes: [
+          { svg: "a.svg", duration: 2000, overlays: [{ kind: "typing", text: "hello", x: 12, y: 40, caret: true }] },
+        ],
       }),
       dir,
     );
@@ -301,7 +339,8 @@ describe("storyboard composition (svg scenes, no browser)", () => {
     const svg = await composeStoryboardConfig(
       NO_BROWSER,
       validateStoryboardConfig({
-        width: 200, height: 100,
+        width: 200,
+        height: 100,
         cursor: {
           style: { scale: 1.2 },
           events: [
@@ -330,7 +369,8 @@ describe("storyboard composition (svg scenes, no browser)", () => {
       composeStoryboardConfig(
         NO_BROWSER,
         validateStoryboardConfig({
-          width: 200, height: 100,
+          width: 200,
+          height: 100,
           cursor: { events: [{ frame: 3, at: 0, type: "moveClick", to: { x: 10, y: 10 } }] },
           scenes: [{ svg: "a.svg", duration: 1000 }],
         }),

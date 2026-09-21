@@ -3,10 +3,40 @@ import { browserControlMovement, joinShapingEvidence, type ExactRecord } from ".
 
 const record: ExactRecord = {
   environment: { platform: "test" },
-  face: { key: "face", path: "/font.ttf", member: 0, postscriptName: "Face-Regular", localPostscriptName: "Face-Regular", namedInstance: null, axes: { wght: 400 } },
-  input: { text: "fi", utf16Span: [0, 2], direction: "ltr", fontSizePx: 16, script: "Latn", language: "en", features: ["liga"], bufferFlags: 3, clusterLevel: 1 },
+  face: {
+    key: "face",
+    path: "/font.ttf",
+    member: 0,
+    postscriptName: "Face-Regular",
+    localPostscriptName: "Face-Regular",
+    namedInstance: null,
+    axes: { wght: 400 },
+  },
+  input: {
+    text: "fi",
+    utf16Span: [0, 2],
+    direction: "ltr",
+    fontSizePx: 16,
+    script: "Latn",
+    language: "en",
+    features: ["liga"],
+    bufferFlags: 3,
+    clusterLevel: 1,
+  },
   fallbackRuns: [{ utf16Span: [0, 2], face: "/font.ttf#0" }],
-  glyphs: [{ id: 12, cluster: 0, sourceSpan: [0, 2], xAdvance: 10, yAdvance: 0, xOffset: 1, yOffset: 2, flags: 0, unsafeToBreak: false }],
+  glyphs: [
+    {
+      id: 12,
+      cluster: 0,
+      sourceSpan: [0, 2],
+      xAdvance: 10,
+      yAdvance: 0,
+      xOffset: 1,
+      yOffset: 2,
+      flags: 0,
+      unsafeToBreak: false,
+    },
+  ],
 };
 
 describe("unified shaping evidence", () => {
@@ -18,7 +48,11 @@ describe("unified shaping evidence", () => {
     );
     expect(joined).toMatchObject({
       input: { direction: "ltr", features: ["liga"] },
-      chrome: { paintedFaces: [{ postScriptName: "Face-Regular" }], paintedOrigins: [{ left: 4 }], glyphIds: { status: "not-exposed-by-cdp" } },
+      chrome: {
+        paintedFaces: [{ postScriptName: "Face-Regular" }],
+        paintedOrigins: [{ left: 4 }],
+        glyphIds: { status: "not-exposed-by-cdp" },
+      },
       helper: { path: "/font.ttf", member: 0, axes: { wght: 400 }, fallbackRuns: [{ utf16Span: [0, 2] }] },
       glyphs: [{ id: 12, cluster: 0, xAdvance: 10, xOffset: 1, yOffset: 2 }],
       comparison: { faceAgreement: true, glyphIds: "source-equivalent-same-face" },
@@ -43,7 +77,13 @@ describe("unified shaping evidence", () => {
 
   it("requires each browser instrument's discriminator to move independently", () => {
     const base = [{ left: 0, top: 0, right: 10, bottom: 10 }];
-    expect(browserControlMovement({ base, face: [{ ...base[0], right: 11 }], direction: base, paintedOrigins: [{ ...base[0], left: 20 }] }))
-      .toEqual({ face: true, direction: false, paintedOrigins: true });
+    expect(
+      browserControlMovement({
+        base,
+        face: [{ ...base[0], right: 11 }],
+        direction: base,
+        paintedOrigins: [{ ...base[0], left: 20 }],
+      }),
+    ).toEqual({ face: true, direction: false, paintedOrigins: true });
   });
 });

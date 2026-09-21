@@ -87,11 +87,13 @@ const EXAMPLES: Example[] = [
       // coordinated pair); `after` is the last frame and holds solid via the
       // DM-1207 last-frame hold.
       if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups");
-      if (!/@keyframes fp-0/.test(svg) || !/@keyframes fp-1/.test(svg)) f.push("both frames should carry push (fp-) keyframes");
+      if (!/@keyframes fp-0/.test(svg) || !/@keyframes fp-1/.test(svg))
+        f.push("both frames should carry push (fp-) keyframes");
       if (!/translateX/.test(svg)) f.push("push-left should use translateX");
       // The last (after) frame must HOLD solid — transform translateX(0) at
       // 100%, not slide out to -720px (DM-1207 regression guard).
-      if (!/@keyframes fp-1 \{[^@]*100%\s*\{\s*transform:\s*translateX\(0\)/.test(svg)) f.push("after frame should hold at translateX(0) to 100% (DM-1207)");
+      if (!/@keyframes fp-1 \{[^@]*100%\s*\{\s*transform:\s*translateX\(0\)/.test(svg))
+        f.push("after frame should hold at translateX(0) to 100% (DM-1207)");
       return f;
     },
   },
@@ -173,7 +175,8 @@ const EXAMPLES: Example[] = [
         return svg.slice(at, at + 320).match(/y="([\d.]+)"/)?.[1] ?? null;
       });
       if (ys.some((y) => y == null)) f.push(`missing per-state interact overlays (got ${JSON.stringify(ys)})`);
-      else if (new Set(ys).size !== 4) f.push(`per-state anchors collapsed to the same y — expected 4 distinct, got ${JSON.stringify(ys)}`);
+      else if (new Set(ys).size !== 4)
+        f.push(`per-state anchors collapsed to the same y — expected 4 distinct, got ${JSON.stringify(ys)}`);
       return f;
     },
   },
@@ -210,9 +213,11 @@ const EXAMPLES: Example[] = [
       const carets = [...svg.matchAll(/<rect class="t[\d_]+-caret"[^>]*\/>/g)].map((m) => m[0]);
       if (carets.length !== 3) f.push(`expected 3 caret rects, got ${carets.length}`);
       // A block caret is a translucent (fill-opacity 0.5), cell-wide box.
-      if (!carets.some((c) => /fill-opacity="0\.5"/.test(c) && /width="1[0-9.]+"/.test(c))) f.push("missing translucent block caret");
+      if (!carets.some((c) => /fill-opacity="0\.5"/.test(c) && /width="1[0-9.]+"/.test(c)))
+        f.push("missing translucent block caret");
       // An underscore caret is a thin (small height) cell-wide bar.
-      if (!carets.some((c) => /height="[12]"/.test(c) && /width="1[0-9.]+"/.test(c))) f.push("missing thin underscore caret");
+      if (!carets.some((c) => /height="[12]"/.test(c) && /width="1[0-9.]+"/.test(c)))
+        f.push("missing thin underscore caret");
       // A bar caret is width 2, opaque.
       if (!carets.some((c) => /width="2"/.test(c) && !/fill-opacity/.test(c))) f.push("missing bar caret");
       return f;
@@ -282,7 +287,8 @@ const EXAMPLES: Example[] = [
       // DM-1580: a class-flip that only TRANSFORMS the card TWEENS in place — a
       // single rest state with an intra-frame transform animation, NOT a rest→after
       // crossfade (no second `jr0_fv-1` state, no `s1-` after capture).
-      if (/jr0_fv-1\b/.test(svg)) f.push("should NOT crossfade (found a second state jr0_fv-1) — a motion mutation must tween");
+      if (/jr0_fv-1\b/.test(svg))
+        f.push("should NOT crossfade (found a second state jr0_fv-1) — a motion mutation must tween");
       if (!/anim-jr0/.test(svg)) f.push("missing the tweened element (anim-jr0)");
       if (!/@keyframes[^{]*\{[^}]*transform/.test(svg)) f.push("missing the intra-frame transform tween");
       return f;
@@ -319,9 +325,12 @@ const EXAMPLES: Example[] = [
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 720 480"`)) f.push("missing viewBox 720x480");
       if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected intro + inner-scroll frame groups");
-      if (!svg.includes(`data-scroll-static-context="true"`)) f.push("missing static page context around element owner");
-      if (!/owner-clip-0"><rect x="205" y="174" width="302" height="285" rx="13"/.test(svg)) f.push("missing rounded ancestor mask around inner scroll");
-      if (!/sf1_scrl-[\w-]+ 7(?:\.000)?s linear infinite/.test(svg)) f.push("inner scroll is not re-anchored to the 7 s master loop");
+      if (!svg.includes(`data-scroll-static-context="true"`))
+        f.push("missing static page context around element owner");
+      if (!/owner-clip-0"><rect x="205" y="174" width="302" height="285" rx="13"/.test(svg))
+        f.push("missing rounded ancestor mask around inner scroll");
+      if (!/sf1_scrl-[\w-]+ 7(?:\.000)?s linear infinite/.test(svg))
+        f.push("inner scroll is not re-anchored to the 7 s master loop");
       if (!svg.includes("PAUSE · SCROLL · HOLD")) f.push("missing static timing legend");
       if (!svg.includes("Demo ready to share")) f.push("missing final inner-scroll row");
       return f;
@@ -333,10 +342,14 @@ const EXAMPLES: Example[] = [
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 720 480"`)) f.push("missing viewBox 720x480");
       if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected intro + inner-scroll frame groups");
-      if (!svg.includes(`data-scroll-static-context="true"`)) f.push("missing static page context around element owner");
-      if (!svg.includes(`data-scroll-static-foreground="true"`)) f.push("missing static foreground above element owner");
-      if (!/owner-clip-0"><rect x="205" y="174" width="302" height="285" rx="13"/.test(svg)) f.push("missing rounded ancestor mask around inner scroll");
-      if (!/sf1_scrl-[\w-]+ 7(?:\.000)?s linear infinite/.test(svg)) f.push("inner scroll is not re-anchored to the 7 s master loop");
+      if (!svg.includes(`data-scroll-static-context="true"`))
+        f.push("missing static page context around element owner");
+      if (!svg.includes(`data-scroll-static-foreground="true"`))
+        f.push("missing static foreground above element owner");
+      if (!/owner-clip-0"><rect x="205" y="174" width="302" height="285" rx="13"/.test(svg))
+        f.push("missing rounded ancestor mask around inner scroll");
+      if (!/sf1_scrl-[\w-]+ 7(?:\.000)?s linear infinite/.test(svg))
+        f.push("inner scroll is not re-anchored to the 7 s master loop");
       if (!svg.includes("STATIC FOREGROUND")) f.push("missing static foreground card");
       if (!svg.includes("SCROLLS BELOW")) f.push("missing layer-order legend");
       if (!svg.includes("Demo ready to share")) f.push("missing final inner-scroll row");
@@ -402,8 +415,10 @@ const EXAMPLES: Example[] = [
       if (!svg.includes(`viewBox="0 0 600 360"`)) f.push("missing viewBox 600x360");
       // The shared "Overview" card (data-magic-key="hero") must SLIDE — a
       // magic-move slide keyframe — and, since it also grows, carry a scale.
-      if (!/@keyframes mms-/.test(svg)) f.push("missing magic-move slide keyframes (mms-) — card should slide, not cross-fade");
-      if (!/transform: translate\([^)]*\) scale\(/.test(svg)) f.push("missing translate·scale affine — card relocates AND resizes");
+      if (!/@keyframes mms-/.test(svg))
+        f.push("missing magic-move slide keyframes (mms-) — card should slide, not cross-fade");
+      if (!/transform: translate\([^)]*\) scale\(/.test(svg))
+        f.push("missing translate·scale affine — card relocates AND resizes");
       // The bridge composite carries the moving card during the window.
       if (count(svg, /class="f mm-\d+"/g) < 1) f.push("missing magic-move bridge composite group");
       // The Draft→Published chip swap is an add/remove → cross-fade (mmf-).
@@ -429,9 +444,13 @@ const EXAMPLES: Example[] = [
       const hover = frames.find((c) => /class="f f-1"/.test(c)) ?? "";
       // Frame 0 = rest: the button is the base green, not the hover green.
       if (!rest.includes("rgb(35,134,54)")) f.push("frame 0 (rest) missing the base button color rgb(35,134,54)");
-      if (rest.includes("rgb(46,160,67)")) f.push("frame 0 (rest) unexpectedly shows the :hover color — forceState leaked into the rest frame");
+      if (rest.includes("rgb(46,160,67)"))
+        f.push("frame 0 (rest) unexpectedly shows the :hover color — forceState leaked into the rest frame");
       // Frame 1 = forced :hover: the page's OWN hover color is captured.
-      if (!hover.includes("rgb(46,160,67)")) f.push("frame 1 (forced :hover) missing the captured hover color rgb(46,160,67) — forceState did not reach the capture (session detached too early?)");
+      if (!hover.includes("rgb(46,160,67)"))
+        f.push(
+          "frame 1 (forced :hover) missing the captured hover color rgb(46,160,67) — forceState did not reach the capture (session detached too early?)",
+        );
       return f;
     },
   },
@@ -449,14 +468,19 @@ const EXAMPLES: Example[] = [
       // frame's banner inlined as a native, resolution-independent <svg> — its
       // own viewBox="0 0 100 100" — rather than a rasterized-on-zoom
       // <image data:image/svg+xml> (DM-1588).
-      if (!/viewBox="0 0 100 100"/.test(svg)) f.push("missing the brand logo native <svg> (viewBox 0 0 100 100) — brand.logo did not reach the template frame's mark, or was not inlined natively");
+      if (!/viewBox="0 0 100 100"/.test(svg))
+        f.push(
+          "missing the brand logo native <svg> (viewBox 0 0 100 100) — brand.logo did not reach the template frame's mark, or was not inlined natively",
+        );
       // The brand's orange accent (#f97316 → rgb(249,115,22)) appears — the
       // lower-third accent bar (template brand default) and the page's injected
       // --brand-accent eyebrow.
-      if (!/rgb\(249, ?115, ?22\)/.test(svg)) f.push("missing the brand accent rgb(249,115,22) — brand did not theme the frames");
+      if (!/rgb\(249, ?115, ?22\)/.test(svg))
+        f.push("missing the brand accent rgb(249,115,22) — brand did not theme the frames");
       // The purple primary (#7c3aed → rgb(124,58,237)) rides the captured page's
       // CTA (an injected var), proving CSS-var injection reached the captured frame.
-      if (!/rgb\(124, ?58, ?237\)/.test(svg)) f.push("missing the brand primary rgb(124,58,237) — CSS-var injection did not reach the captured frame");
+      if (!/rgb\(124, ?58, ?237\)/.test(svg))
+        f.push("missing the brand primary rgb(124,58,237) — CSS-var injection did not reach the captured frame");
       return f;
     },
   },
@@ -475,8 +499,10 @@ const EXAMPLES: Example[] = [
       const rest = frames.find((c) => /class="f f-0"/.test(c)) ?? "";
       const hover = frames.find((c) => /class="f f-1"/.test(c)) ?? "";
       if (!rest.includes("rgb(35,134,54)")) f.push("frame 0 (rest) missing the base button color rgb(35,134,54)");
-      if (rest.includes("rgb(46,160,67)")) f.push("frame 0 (rest) unexpectedly shows the :hover color — hoverReveal leaked into the rest frame");
-      if (!hover.includes("rgb(46,160,67)")) f.push("frame 1 (reveal) missing the captured :hover color rgb(46,160,67)");
+      if (rest.includes("rgb(46,160,67)"))
+        f.push("frame 0 (rest) unexpectedly shows the :hover color — hoverReveal leaked into the rest frame");
+      if (!hover.includes("rgb(46,160,67)"))
+        f.push("frame 1 (reveal) missing the captured :hover color rgb(46,160,67)");
       // Crossfade compositing between the two frames (opacity groups, not a merge).
       if (!/@keyframes fv-0/.test(svg)) f.push("missing fv-0 crossfade keyframes between rest and reveal");
       return f;
@@ -493,12 +519,15 @@ const EXAMPLES: Example[] = [
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 420 240"`)) f.push("missing viewBox 420x240");
       // Motion mode → a single composited frame (no rest/hover pair).
-      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 frame group (motion-only hover → intra-frame tween, not a crossfade pair)");
+      if (count(svg, /class="f f-\d+"/g) !== 1)
+        f.push("expected 1 frame group (motion-only hover → intra-frame tween, not a crossfade pair)");
       // The button's own color survives (the paint wasn't touched).
       if (!svg.includes("rgb(110,64,201)")) f.push("missing the button color rgb(110,64,201)");
       // Intra-frame animation keyframes on frame 0, tweening the detected scale.
-      if (!/@keyframes f0-/.test(svg)) f.push("missing intra-frame animation keyframes on frame 0 (the synthesized scale tween)");
-      if (!/matrix\(1\.08/.test(svg)) f.push("missing the detected hover transform matrix(1.08, …) in the tween keyframes");
+      if (!/@keyframes f0-/.test(svg))
+        f.push("missing intra-frame animation keyframes on frame 0 (the synthesized scale tween)");
+      if (!/matrix\(1\.08/.test(svg))
+        f.push("missing the detected hover transform matrix(1.08, …) in the tween keyframes");
       return f;
     },
   },
@@ -515,7 +544,8 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 640 360"`)) f.push("missing viewBox 640x360");
-      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups (the states run + the textTracks frame)");
+      if (count(svg, /class="f f-\d+"/g) !== 2)
+        f.push("expected 2 frame groups (the states run + the textTracks frame)");
       // The compressed run nests as its own animated <svg> (cast/typeResample
       // pattern), namespaced with the per-frame `cr0_` token.
       if (count(svg, /<svg/g) < 2) f.push("missing the nested compressed-run animated <svg>");
@@ -658,10 +688,12 @@ async function main(): Promise<void> {
         problems.push(`golden missing (${goldenPath}) — run with --update`);
       } else if (isDarwin) {
         const golden = readFileSync(goldenPath, "utf8");
-        if (!await animateGoldensEquivalent(golden, svg)) {
+        if (!(await animateGoldensEquivalent(golden, svg))) {
           const outPath = resolve(OUT_DIR, `animate-${ex.name}-actual.svg`);
           writeFileSync(outPath, svg);
-          problems.push(`output drifted from committed golden (wrote actual → ${outPath}; regenerate with --update if intended)`);
+          problems.push(
+            `output drifted from committed golden (wrote actual → ${outPath}; regenerate with --update if intended)`,
+          );
         }
       }
 

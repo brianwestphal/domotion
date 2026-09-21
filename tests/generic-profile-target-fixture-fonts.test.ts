@@ -6,9 +6,8 @@ import { describe, expect, it } from "vitest";
 import { WINDOWS_PROFILE_FIXTURE_FAMILIES } from "../tools/generic-profile-target-oracle.js";
 
 const fontkit = (fkNs as { default?: typeof fkNs }).default ?? fkNs;
-const fixture = (name: "One" | "Two"): Buffer => readFileSync(
-  `assets/fonts/fixture/DomotionProfileDevanagari${name}-Regular.ttf`,
-);
+const fixture = (name: "One" | "Two"): Buffer =>
+  readFileSync(`assets/fonts/fixture/DomotionProfileDevanagari${name}-Regular.ttf`);
 
 describe("Windows generic profile/target system-font fixtures", () => {
   it("provide two distinct named faces that cover the oracle's Devanagari scalar", () => {

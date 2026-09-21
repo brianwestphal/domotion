@@ -22,7 +22,8 @@ const out = await page.evaluate(() => {
     const r = el.getBoundingClientRect();
     return {
       y: r.y + window.scrollY,
-      w: r.width, h: r.height,
+      w: r.width,
+      h: r.height,
       mask: { maskImage: cs.maskImage, webkitMaskImage: cs.webkitMaskImage },
       before: {
         content: before.content,

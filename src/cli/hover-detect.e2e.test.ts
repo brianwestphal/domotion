@@ -41,7 +41,11 @@ const MOTION_PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
 </style></head><body><button class="cta">Add</button></body></html>`;
 
 async function canLaunch(): Promise<Browser | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await canLaunch();
 
@@ -60,7 +64,8 @@ const describeBrowser = browser ? describe : describe.skip;
 describeBrowser("hoverReveal / hoverDetect synthesis → rendered SVG (DM-1562 / DM-1563)", () => {
   it("hoverReveal expands one field into a rest→forced-hover crossfade pair", async () => {
     const cfg = validateAnimateConfig({
-      width: 460, height: 320,
+      width: 460,
+      height: 320,
       frames: [{ input: paintPath, duration: 800, hoverReveal: { selector: ".cta" } }],
     });
     const svg = await composeAnimateConfig(browser!, cfg, dir);
@@ -75,7 +80,8 @@ describeBrowser("hoverReveal / hoverDetect synthesis → rendered SVG (DM-1562 /
 
   it("hoverDetect on a motion-only hover synthesizes a single-frame scale tween (no crossfade)", async () => {
     const cfg = validateAnimateConfig({
-      width: 420, height: 240,
+      width: 420,
+      height: 240,
       frames: [{ input: motionPath, duration: 1200, hoverDetect: { selector: ".cta" } }],
     });
     const svg = await composeAnimateConfig(browser!, cfg, dir);
@@ -88,7 +94,8 @@ describeBrowser("hoverReveal / hoverDetect synthesis → rendered SVG (DM-1562 /
 
   it("hoverDetect on a paint hover synthesizes a rest→hover crossfade carrying the hover color", async () => {
     const cfg = validateAnimateConfig({
-      width: 460, height: 320,
+      width: 460,
+      height: 320,
       frames: [{ input: paintPath, duration: 800, hoverDetect: { selector: ".cta" } }],
     });
     const svg = await composeAnimateConfig(browser!, cfg, dir);
@@ -104,9 +111,13 @@ describeBrowser("hoverReveal / hoverDetect synthesis → rendered SVG (DM-1562 /
 
   it("hoverDetect on a page with no hover change keeps a single rest frame", async () => {
     const flat = join(dir, "flat.html");
-    writeFileSync(flat, `<!doctype html><html><head><meta charset="utf-8"><style>body{background:#0d1117;height:200px}.cta{padding:10px;background:#333;color:#fff}</style></head><body><button class="cta">No hover</button></body></html>`);
+    writeFileSync(
+      flat,
+      `<!doctype html><html><head><meta charset="utf-8"><style>body{background:#0d1117;height:200px}.cta{padding:10px;background:#333;color:#fff}</style></head><body><button class="cta">No hover</button></body></html>`,
+    );
     const cfg = validateAnimateConfig({
-      width: 300, height: 200,
+      width: 300,
+      height: 200,
       frames: [{ input: flat, duration: 800, hoverDetect: { selector: ".cta" } }],
     });
     const svg = await composeAnimateConfig(browser!, cfg, dir);

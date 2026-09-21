@@ -44,16 +44,21 @@ export function buildDecorationFragmentRecords(
     inlineStart: vertical ? segment.y : segment.x,
     inlineEnd: vertical ? segment.y + segment.height : segment.x + segment.width,
     lineOver: vertical ? segment.x : segment.y,
-    baseline: segment.baseline ?? (vertical
-      ? segment.x + (segment.fontAscent ?? fallbackAscent)
-      : segment.y + (segment.fontAscent ?? fallbackAscent)),
+    baseline:
+      segment.baseline ??
+      (vertical
+        ? segment.x + (segment.fontAscent ?? fallbackAscent)
+        : segment.y + (segment.fontAscent ?? fallbackAscent)),
     // DecoratingBox stores its own UsedFont, not the target text run's.
     usedFontAscent: fallbackAscent,
     usedFontDescent: fallbackDescent,
     continuationPhase: 0 as const,
   }));
-  return records.every((record) => Object.values(record).every((value) =>
-    value == null || typeof value !== "number" || Number.isFinite(value))) ? records : undefined;
+  return records.every((record) =>
+    Object.values(record).every((value) => value == null || typeof value !== "number" || Number.isFinite(value)),
+  )
+    ? records
+    : undefined;
 }
 
 export interface DecorationTargetFragment {
@@ -76,25 +81,32 @@ export function selectDecorationFragment(
   lineLimit: number,
 ): DecorationFragmentRecord | undefined {
   if (records == null || records.length === 0) return undefined;
-  const candidates = records.map((record) => {
-    if (record.writingMode !== target.writingMode) return undefined;
-    const lineDistance = Math.abs(record.lineOver - target.lineOver);
-    if (lineDistance > lineLimit) return undefined;
-    const overlap = Math.max(0,
-      Math.min(record.inlineEnd, target.inlineEnd) - Math.max(record.inlineStart, target.inlineStart));
-    const inlineDistance = overlap > 0 ? 0 : Math.min(
-      Math.abs(record.inlineEnd - target.inlineStart),
-      Math.abs(target.inlineEnd - record.inlineStart),
-    );
-    return { record, lineDistance, overlap, inlineDistance };
-  }).filter((value): value is NonNullable<typeof value> => value != null)
-    .sort((a, b) => a.lineDistance - b.lineDistance
-      || b.overlap - a.overlap || a.inlineDistance - b.inlineDistance);
+  const candidates = records
+    .map((record) => {
+      if (record.writingMode !== target.writingMode) return undefined;
+      const lineDistance = Math.abs(record.lineOver - target.lineOver);
+      if (lineDistance > lineLimit) return undefined;
+      const overlap = Math.max(
+        0,
+        Math.min(record.inlineEnd, target.inlineEnd) - Math.max(record.inlineStart, target.inlineStart),
+      );
+      const inlineDistance =
+        overlap > 0
+          ? 0
+          : Math.min(Math.abs(record.inlineEnd - target.inlineStart), Math.abs(target.inlineEnd - record.inlineStart));
+      return { record, lineDistance, overlap, inlineDistance };
+    })
+    .filter((value): value is NonNullable<typeof value> => value != null)
+    .sort((a, b) => a.lineDistance - b.lineDistance || b.overlap - a.overlap || a.inlineDistance - b.inlineDistance);
   const best = candidates[0];
   if (best == null) return undefined;
   const second = candidates[1];
-  if (second != null && second.lineDistance === best.lineDistance
-      && second.overlap === best.overlap && second.inlineDistance === best.inlineDistance) {
+  if (
+    second != null &&
+    second.lineDistance === best.lineDistance &&
+    second.overlap === best.overlap &&
+    second.inlineDistance === best.inlineDistance
+  ) {
     return undefined;
   }
   return best.record;

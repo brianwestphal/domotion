@@ -98,7 +98,17 @@ async function main(): Promise<void> {
           // DM-1554: per-scene overlays layered on top of the live capture — a
           // typed caption (with a blinking caret) and a tap ripple on the card.
           overlays: [
-            { kind: "typing", text: "Overlays on a live capture", x: 300, y: 430, fontSize: 20, color: "#e6edf3", delay: 500, speed: 55, caret: true },
+            {
+              kind: "typing",
+              text: "Overlays on a live capture",
+              x: 300,
+              y: 430,
+              fontSize: 20,
+              color: "#e6edf3",
+              delay: 500,
+              speed: 55,
+              caret: true,
+            },
             { kind: "tap", x: W / 2, y: H / 2, delay: 1400 },
           ],
         },

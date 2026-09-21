@@ -21,8 +21,8 @@ describe("generated Blink CJK ideograph-or-symbol property", () => {
     let rangeIndex = 0;
     let members = 0;
     for (let cp = 0; cp <= 0x10ffff; cp++) {
-      while (rangeIndex < CJK_IDEOGRAPH_OR_SYMBOL_RANGES.length
-          && cp > CJK_IDEOGRAPH_OR_SYMBOL_RANGES[rangeIndex][1]) rangeIndex++;
+      while (rangeIndex < CJK_IDEOGRAPH_OR_SYMBOL_RANGES.length && cp > CJK_IDEOGRAPH_OR_SYMBOL_RANGES[rangeIndex][1])
+        rangeIndex++;
       const range = CJK_IDEOGRAPH_OR_SYMBOL_RANGES[rangeIndex];
       const expected = range != null && cp >= range[0] && cp <= range[1];
       if (expected) members++;
@@ -43,7 +43,8 @@ describe("generated Blink CJK ideograph-or-symbol property", () => {
 
   it("detects a one-endpoint mutation and preserves a nearby skip-ink control", () => {
     const mutated = CJK_IDEOGRAPH_OR_SYMBOL_RANGES.map((range, index) =>
-      index === 0 ? [range[0], range[1] + 1] as const : range);
+      index === 0 ? ([range[0], range[1] + 1] as const) : range,
+    );
     expect(digest(mutated)).not.toBe(CJK_IDEOGRAPH_OR_SYMBOL_SHA256);
     expect(isCjkIdeographOrSymbol(0x02c6)).toBe(false);
     expect(canTextDecorationSkipInk(0x02c6)).toBe(true);

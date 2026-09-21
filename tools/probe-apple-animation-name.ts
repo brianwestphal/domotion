@@ -8,10 +8,18 @@ const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   await page.goto("https://www.apple.com/", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800);
@@ -31,19 +39,26 @@ async function main() {
     // Get the FULL CSS text from all stylesheets - search for 'mday-icon'
     for (const sheet of Array.from(document.styleSheets)) {
       try {
-        const dump = (rules: CSSRuleList, prefix = '') => {
+        const dump = (rules: CSSRuleList, prefix = "") => {
           for (const rule of Array.from(rules)) {
             const text = rule.cssText;
-            if (text.includes('mday-icon') || text.includes('mothers-day') || text.includes('flower') || text.includes('--flower')) {
+            if (
+              text.includes("mday-icon") ||
+              text.includes("mothers-day") ||
+              text.includes("flower") ||
+              text.includes("--flower")
+            ) {
               results.push({ prefix, type: rule.constructor.name, text: text.slice(0, 400) });
             }
-            if (rule instanceof CSSMediaRule) dump(rule.cssRules, prefix + ' @media ' + rule.conditionText.slice(0, 30) + ' >');
-            else if (rule instanceof CSSSupportsRule) dump(rule.cssRules, prefix + ' @supports ' + rule.conditionText.slice(0, 30) + ' >');
+            if (rule instanceof CSSMediaRule)
+              dump(rule.cssRules, prefix + " @media " + rule.conditionText.slice(0, 30) + " >");
+            else if (rule instanceof CSSSupportsRule)
+              dump(rule.cssRules, prefix + " @supports " + rule.conditionText.slice(0, 30) + " >");
           }
         };
         dump(sheet.cssRules);
       } catch (e) {
-        results.push({ error: 'sheet inaccessible (cross-origin?)', href: sheet.href });
+        results.push({ error: "sheet inaccessible (cross-origin?)", href: sheet.href });
       }
     }
     return results;
@@ -53,4 +68,7 @@ async function main() {
   console.log("Total:", out.length);
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

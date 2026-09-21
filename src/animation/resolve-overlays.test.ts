@@ -14,15 +14,50 @@ import { resolveOverlays, resolveAnchoredOverlaysInTree } from "./resolve-overla
 // A stub Page whose `evaluate` returns a fixed anchor box (border box 50,60
 // 200×100, content width 176, border-radius 12), standing in for the
 // page.evaluate measurement.
-const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily?: string; fontSize?: number; lineBox?: { lineHeightPx: number; fontAscentPx: number; fontDescentPx: number; contentTop: number; contentHeight: number; centerInContentBox: boolean } } | null): Page =>
-  ({ evaluate: async () => box }) as unknown as Page;
+const stubPage = (
+  box: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    contentWidth: number;
+    borderRadius: number;
+    fontFamily?: string;
+    fontSize?: number;
+    lineBox?: {
+      lineHeightPx: number;
+      fontAscentPx: number;
+      fontDescentPx: number;
+      contentTop: number;
+      contentHeight: number;
+      centerInContentBox: boolean;
+    };
+  } | null,
+): Page => ({ evaluate: async () => box }) as unknown as Page;
 
-const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176, borderRadius: 12, fontFamily: "Georgia, serif", fontSize: 22 };
+const BOX = {
+  x: 50,
+  y: 60,
+  width: 200,
+  height: 100,
+  contentWidth: 176,
+  borderRadius: 12,
+  fontFamily: "Georgia, serif",
+  fontSize: 22,
+};
 
 describe("resolveOverlays (DM-1132)", () => {
   it("resolves a typing overlay's anchor + maxWidth:'anchor' and strips the authoring keys", async () => {
     const [ov] = await resolveOverlays(stubPage(BOX), [
-      { kind: "typing", text: "hi", x: 0, y: 0, caret: true, anchor: { selector: "#t", at: "top-left", dx: 2, dy: 2 }, maxWidth: "anchor" },
+      {
+        kind: "typing",
+        text: "hi",
+        x: 0,
+        y: 0,
+        caret: true,
+        anchor: { selector: "#t", at: "top-left", dx: 2, dy: 2 },
+        maxWidth: "anchor",
+      },
     ]);
     // DM-1134: maxWidth controls wrapping, so it resolves into `wrapWidth`.
     expect(ov).toMatchObject({ kind: "typing", text: "hi", x: 52, y: 62, wrapWidth: 176, caret: true });
@@ -31,9 +66,7 @@ describe("resolveOverlays (DM-1132)", () => {
   });
 
   it("resolves a numeric maxWidth without requiring an anchor box", async () => {
-    const [ov] = await resolveOverlays(stubPage(null), [
-      { kind: "typing", text: "x", x: 10, y: 20, maxWidth: 320 },
-    ]);
+    const [ov] = await resolveOverlays(stubPage(null), [{ kind: "typing", text: "x", x: 10, y: 20, maxWidth: 320 }]);
     expect(ov).toMatchObject({ kind: "typing", x: 10, y: 20, wrapWidth: 320 });
   });
 
@@ -111,12 +144,25 @@ describe("resolveOverlays (DM-1132)", () => {
     // baseline = 62 + 15 = 77 (a block element: lines lay from the top).
     const BASELINE_BOX = {
       ...BOX,
-      lineBox: { lineHeightPx: 20, fontAscentPx: 15, fontDescentPx: 5, contentTop: 62, contentHeight: 40, centerInContentBox: false },
+      lineBox: {
+        lineHeightPx: 20,
+        fontAscentPx: 15,
+        fontDescentPx: 5,
+        contentTop: 62,
+        contentHeight: 40,
+        centerInContentBox: false,
+      },
     };
 
     it("sets y to the measured first-line baseline; x keeps the anchor's horizontal + dx", async () => {
       const [ov] = await resolveOverlays(stubPage(BASELINE_BOX), [
-        { kind: "typing", text: "hi", x: 0, y: 0, anchor: { selector: "#code", at: "top-left", dx: 4, baseline: true } },
+        {
+          kind: "typing",
+          text: "hi",
+          x: 0,
+          y: 0,
+          anchor: { selector: "#code", at: "top-left", dx: 4, baseline: true },
+        },
       ]);
       expect(ov).toMatchObject({ kind: "typing", x: 54, y: 77 });
       expect("anchor" in ov).toBe(false);
@@ -130,7 +176,10 @@ describe("resolveOverlays (DM-1132)", () => {
     });
 
     it("centers the line box in the content box for a single-line input", async () => {
-      const box = { ...BASELINE_BOX, lineBox: { ...BASELINE_BOX.lineBox, contentHeight: 30, centerInContentBox: true } };
+      const box = {
+        ...BASELINE_BOX,
+        lineBox: { ...BASELINE_BOX.lineBox, contentHeight: 30, centerInContentBox: true },
+      };
       // lineTop = 62 + (30 − 20)/2 = 67 → baseline = 67 + 15 = 82.
       const [ov] = await resolveOverlays(stubPage(box), [
         { kind: "typing", text: "hi", x: 0, y: 0, anchor: { selector: "#field", baseline: true } },
@@ -140,7 +189,14 @@ describe("resolveOverlays (DM-1132)", () => {
 
     it("composes with fontFamily:'anchor' (font + baseline from the same measurement)", async () => {
       const [ov] = await resolveOverlays(stubPage(BASELINE_BOX), [
-        { kind: "typing", text: "hi", x: 0, y: 0, fontFamily: "anchor", anchor: { selector: "#code", baseline: true } } as never,
+        {
+          kind: "typing",
+          text: "hi",
+          x: 0,
+          y: 0,
+          fontFamily: "anchor",
+          anchor: { selector: "#code", baseline: true },
+        } as never,
       ]);
       expect(ov).toMatchObject({ fontFamily: "Georgia, serif", fontSize: 22, y: 77 });
     });
@@ -198,16 +254,31 @@ describe("resolveOverlays (DM-1132)", () => {
 // stands in a state's assembled configuration — see docs/61.
 describe("resolveAnchoredOverlaysInTree (DM-1799)", () => {
   /** A captured element with just the fields the anchor box reads. */
-  const el = (over: Partial<CapturedElement> & { styles?: Partial<CapturedElement["styles"]> } = {}): CapturedElement => ({
-    tag: "div", x: 100, y: 200, width: 80, height: 40, children: [],
-    ...over,
-    styles: {
-      paddingLeft: "5px", paddingRight: "5px", paddingTop: "4px", paddingBottom: "4px",
-      borderLeftWidth: "1px", borderRightWidth: "1px", borderTopWidth: "1px", borderBottomWidth: "1px",
-      borderTopLeftRadius: "6px", fontFamily: "Georgia, serif", fontSize: "22px", lineHeight: "30px",
-      ...(over.styles ?? {}),
-    } as CapturedElement["styles"],
-  } as CapturedElement);
+  const el = (over: Partial<CapturedElement> & { styles?: Partial<CapturedElement["styles"]> } = {}): CapturedElement =>
+    ({
+      tag: "div",
+      x: 100,
+      y: 200,
+      width: 80,
+      height: 40,
+      children: [],
+      ...over,
+      styles: {
+        paddingLeft: "5px",
+        paddingRight: "5px",
+        paddingTop: "4px",
+        paddingBottom: "4px",
+        borderLeftWidth: "1px",
+        borderRightWidth: "1px",
+        borderTopWidth: "1px",
+        borderBottomWidth: "1px",
+        borderTopLeftRadius: "6px",
+        fontFamily: "Georgia, serif",
+        fontSize: "22px",
+        lineHeight: "30px",
+        ...(over.styles ?? {}),
+      } as CapturedElement["styles"],
+    }) as CapturedElement;
 
   const idOf = (sel: string): string | undefined => (sel === "#t" ? "A1" : undefined);
   const tree = (target: CapturedElement): CapturedElement[] => [
@@ -227,20 +298,20 @@ describe("resolveAnchoredOverlaysInTree (DM-1799)", () => {
 
   it("finds the target at any depth, by its stamped animId", () => {
     const deep = el({ tag: "section", children: [el({ tag: "span", children: [el({ animId: "A1", x: 7, y: 9 })] })] });
-    const [ov] = resolveAnchoredOverlaysInTree(
-      tree(deep), [{ kind: "blink", anchor: { selector: "#t" } }], idOf,
-    )!;
+    const [ov] = resolveAnchoredOverlaysInTree(tree(deep), [{ kind: "blink", anchor: { selector: "#t" } }], idOf)!;
     expect(ov).toMatchObject({ x: 7, y: 9 });
   });
 
   it("auto-sizes + auto-rounds a shine/interact overlay from the captured box", () => {
     const [ov] = resolveAnchoredOverlaysInTree(
-      tree(el({ animId: "A1" })), [{ kind: "interact", anchor: { selector: "#t" } }], idOf,
+      tree(el({ animId: "A1" })),
+      [{ kind: "interact", anchor: { selector: "#t" } }],
+      idOf,
     )!;
     expect(ov).toMatchObject({ width: 80, height: 40, radius: 6 });
   });
 
-  it("maxWidth:\"anchor\" uses the CONTENT width (border + padding subtracted)", () => {
+  it('maxWidth:"anchor" uses the CONTENT width (border + padding subtracted)', () => {
     // 80 wide − 2×1px border − 2×5px padding = 68.
     const [ov] = resolveAnchoredOverlaysInTree(
       tree(el({ animId: "A1" })),
@@ -251,12 +322,22 @@ describe("resolveAnchoredOverlaysInTree (DM-1799)", () => {
     expect("maxWidth" in ov).toBe(false);
   });
 
-  it("fontFamily:\"anchor\" adopts the captured font, size included unless pinned", () => {
+  it('fontFamily:"anchor" adopts the captured font, size included unless pinned', () => {
     const t = tree(el({ animId: "A1" }));
-    expect(resolveAnchoredOverlaysInTree(t, [{ kind: "typing", fontFamily: "anchor", anchor: { selector: "#t" } }], idOf)![0])
-      .toMatchObject({ fontFamily: "Georgia, serif", fontSize: 22 });
-    expect(resolveAnchoredOverlaysInTree(t, [{ kind: "typing", fontFamily: "anchor", fontSize: 11, anchor: { selector: "#t" } }], idOf)![0])
-      .toMatchObject({ fontFamily: "Georgia, serif", fontSize: 11 });
+    expect(
+      resolveAnchoredOverlaysInTree(
+        t,
+        [{ kind: "typing", fontFamily: "anchor", anchor: { selector: "#t" } }],
+        idOf,
+      )![0],
+    ).toMatchObject({ fontFamily: "Georgia, serif", fontSize: 22 });
+    expect(
+      resolveAnchoredOverlaysInTree(
+        t,
+        [{ kind: "typing", fontFamily: "anchor", fontSize: 11, anchor: { selector: "#t" } }],
+        idOf,
+      )![0],
+    ).toMatchObject({ fontFamily: "Georgia, serif", fontSize: 11 });
   });
 
   it("baseline anchoring uses the CAPTURED fontAscent — the same canvas measurement the page probe makes", () => {
@@ -275,24 +356,40 @@ describe("resolveAnchoredOverlaysInTree (DM-1799)", () => {
   it("errors on a baseline anchor to a non-text element rather than placing at 0", () => {
     // `fontAscent` is only populated for text-bearing elements; a silent 0 would
     // put the overlay at the top of the document.
-    expect(() => resolveAnchoredOverlaysInTree(
-      tree(el({ animId: "A1" })), [{ kind: "typing", anchor: { selector: "#t", baseline: true } }], idOf,
-    )).toThrow(/baseline/i);
+    expect(() =>
+      resolveAnchoredOverlaysInTree(
+        tree(el({ animId: "A1" })),
+        [{ kind: "typing", anchor: { selector: "#t", baseline: true } }],
+        idOf,
+      ),
+    ).toThrow(/baseline/i);
   });
 
   it("errors on a baseline anchor on a non-typing kind (its y is a box corner)", () => {
-    expect(() => resolveAnchoredOverlaysInTree(
-      tree(el({ animId: "A1", fontAscent: 18 })), [{ kind: "blink", anchor: { selector: "#t", baseline: true } }], idOf,
-    )).toThrow(/only supported on typing/);
+    expect(() =>
+      resolveAnchoredOverlaysInTree(
+        tree(el({ animId: "A1", fontAscent: 18 })),
+        [{ kind: "blink", anchor: { selector: "#t", baseline: true } }],
+        idOf,
+      ),
+    ).toThrow(/only supported on typing/);
   });
 
   it("errors when the selector was never stamped, or its element isn't in the tree", () => {
-    expect(() => resolveAnchoredOverlaysInTree(
-      tree(el({ animId: "A1" })), [{ kind: "blink", anchor: { selector: "#nope" } }], idOf,
-    )).toThrow(/matched no captured element/);
-    expect(() => resolveAnchoredOverlaysInTree(
-      tree(el({ animId: "OTHER" })), [{ kind: "blink", anchor: { selector: "#t" } }], idOf,
-    )).toThrow(/matched no captured element/);
+    expect(() =>
+      resolveAnchoredOverlaysInTree(
+        tree(el({ animId: "A1" })),
+        [{ kind: "blink", anchor: { selector: "#nope" } }],
+        idOf,
+      ),
+    ).toThrow(/matched no captured element/);
+    expect(() =>
+      resolveAnchoredOverlaysInTree(
+        tree(el({ animId: "OTHER" })),
+        [{ kind: "blink", anchor: { selector: "#t" } }],
+        idOf,
+      ),
+    ).toThrow(/matched no captured element/);
   });
 
   it("passes un-anchored overlays through untouched", () => {

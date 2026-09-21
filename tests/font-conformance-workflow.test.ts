@@ -163,6 +163,6 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     // `cp_shards: 1` must keep the shard script from passing `--shard` at all —
     // the merge keys its codepoint accounting off `meta.shard` being null, and a
     // gratuitous `--shard 1/1` would make a 1-D run look 2-D.
-    expect(yaml).toMatch(/cp_shards:[\s\S]{0,400}?default: '1'/);
+    expect(yaml).toMatch(/cp_shards:\n\s+description:.*\n\s+default: ["']1["']/);
   });
 });

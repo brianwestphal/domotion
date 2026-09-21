@@ -11,10 +11,12 @@ function artifactFile(root: string, rowId: string, role: "nativeArtifact" | "pat
   if (isAbsolute(path)) throw new Error(`${rowId}: ${role}.path must be relative to the observation bundle`);
   const requested = resolve(root, path);
   const requestedRel = relative(root, requested);
-  if (requestedRel === "" || requestedRel.startsWith("..") || isAbsolute(requestedRel)) throw new Error(`${rowId}: ${role}.path escapes the observation bundle`);
+  if (requestedRel === "" || requestedRel.startsWith("..") || isAbsolute(requestedRel))
+    throw new Error(`${rowId}: ${role}.path escapes the observation bundle`);
   const file = realpathSync(requested);
   const rel = relative(root, file);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) throw new Error(`${rowId}: ${role}.path escapes the observation bundle`);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel))
+    throw new Error(`${rowId}: ${role}.path escapes the observation bundle`);
   return file;
 }
 
@@ -38,10 +40,13 @@ export async function producePathsRasterRows(
       if (artifactPaths.has(file)) throw new Error(`${id}: ${role} reuses another evidence artifact`);
       artifactPaths.add(file);
       const image = readFileSync(file);
-      if (image.length < 24 || image.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") throw new Error(`${id}: ${role} is not a PNG`);
+      if (image.length < 24 || image.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a")
+        throw new Error(`${id}: ${role} is not a PNG`);
       const decoded = await decodePathsRasterPng(image);
       if (artifact.width !== decoded.width || artifact.height !== decoded.height) {
-        throw new Error(`${id}: ${role} dimensions ${artifact.width}x${artifact.height} do not match PNG ${decoded.width}x${decoded.height}`);
+        throw new Error(
+          `${id}: ${role} dimensions ${artifact.width}x${artifact.height} do not match PNG ${decoded.width}x${decoded.height}`,
+        );
       }
       artifact.sha256 = createHash("sha256").update(image).digest("hex");
       bytes[role] = image;

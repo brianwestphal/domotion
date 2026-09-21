@@ -26,9 +26,11 @@ const nodeIsolationProfile = `${assets}/node-isolation.sb`;
 const sha = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" }).trim();
 
-if (git(root, "rev-parse", "HEAD") !== CHROMIUM_REVISION
-    || git(`${root}/third_party/skia`, "rev-parse", "HEAD") !== SKIA_REVISION
-    || git(depotTools, "rev-parse", "HEAD") !== DEPOT_TOOLS_REVISION) {
+if (
+  git(root, "rev-parse", "HEAD") !== CHROMIUM_REVISION ||
+  git(`${root}/third_party/skia`, "rev-parse", "HEAD") !== SKIA_REVISION ||
+  git(depotTools, "rev-parse", "HEAD") !== DEPOT_TOOLS_REVISION
+) {
   throw new Error("refusing to build outside the authenticated Chromium/Skia/depot_tools pins");
 }
 
@@ -48,15 +50,25 @@ function applyExactPatch(cwd, patchPath, probePath, probeText) {
   execFileSync("git", ["-C", cwd, "apply", patchPath], { stdio: "inherit" });
 }
 
-applyExactPatch(root, `${assets}/chromium-build.patch`, "skia/BUILD.gn",
-  "sk_domotion_sfns_validation_hook");
-applyExactPatch(`${root}/third_party/skia`, `${assets}/skia-hook.patch`,
-  "src/core/SkScalerContext.cpp", "SkDomotionSfnsValidation.h");
-applyExactPatch(root, `${assets}/blink-v2-hook.patch`,
+applyExactPatch(root, `${assets}/chromium-build.patch`, "skia/BUILD.gn", "sk_domotion_sfns_validation_hook");
+applyExactPatch(
+  `${root}/third_party/skia`,
+  `${assets}/skia-hook.patch`,
+  "src/core/SkScalerContext.cpp",
+  "SkDomotionSfnsValidation.h",
+);
+applyExactPatch(
+  root,
+  `${assets}/blink-v2-hook.patch`,
   "third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc",
-  "BLINK_DOMOTION_SFNS_VALIDATION_HOOK");
-applyExactPatch(`${root}/third_party/skia`, `${assets}/skia-v2-hook.patch`,
-  "src/core/SkScalerContext.cpp", "write_domotion_sfns_gamma");
+  "BLINK_DOMOTION_SFNS_VALIDATION_HOOK",
+);
+applyExactPatch(
+  `${root}/third_party/skia`,
+  `${assets}/skia-v2-hook.patch`,
+  "src/core/SkScalerContext.cpp",
+  "write_domotion_sfns_gamma",
+);
 
 const headerSource = `${assets}/SkDomotionSfnsValidation.h`;
 const headerTarget = `${root}/third_party/skia/src/core/SkDomotionSfnsValidation.h`;
@@ -66,38 +78,52 @@ if (sha(headerTarget) !== sha(headerSource)) throw new Error("hook header copy d
 const outputDirectory = resolve(root, out);
 mkdirSync(outputDirectory, { recursive: true });
 const argsPath = `${outputDirectory}/args.gn`;
-writeFileSync(argsPath, [
-  "is_debug = false",
-  "is_component_build = false",
-  "symbol_level = 0",
-  "blink_symbol_level = 0",
-  "v8_symbol_level = 0",
-  "use_remoteexec = false",
-  "use_siso = false",
-  "treat_warnings_as_errors = false",
-  "sk_domotion_sfns_validation_hook = true",
-  "blink_domotion_sfns_validation_hook = true",
-  "",
-].join("\n"));
+writeFileSync(
+  argsPath,
+  [
+    "is_debug = false",
+    "is_component_build = false",
+    "symbol_level = 0",
+    "blink_symbol_level = 0",
+    "v8_symbol_level = 0",
+    "use_remoteexec = false",
+    "use_siso = false",
+    "treat_warnings_as_errors = false",
+    "sk_domotion_sfns_validation_hook = true",
+    "blink_domotion_sfns_validation_hook = true",
+    "",
+  ].join("\n"),
+);
 
 execFileSync(`${root}/buildtools/mac/gn`, ["gen", out], { cwd: root, stdio: "inherit" });
-execFileSync("/usr/bin/sandbox-exec", [
-  "-D", `DOMOTION_NODE_MODULES=${resolve(projectRoot, "node_modules")}`,
-  "-f", nodeIsolationProfile,
-  `${depotTools}/autoninja`, "-C", out, "headless_shell",
-], {
-  cwd: root,
-  stdio: "inherit",
-  env: { ...process.env, TOOLCHAINS: METAL_TOOLCHAIN },
-});
+execFileSync(
+  "/usr/bin/sandbox-exec",
+  [
+    "-D",
+    `DOMOTION_NODE_MODULES=${resolve(projectRoot, "node_modules")}`,
+    "-f",
+    nodeIsolationProfile,
+    `${depotTools}/autoninja`,
+    "-C",
+    out,
+    "headless_shell",
+  ],
+  {
+    cwd: root,
+    stdio: "inherit",
+    env: { ...process.env, TOOLCHAINS: METAL_TOOLCHAIN },
+  },
+);
 const binary = `${outputDirectory}/headless_shell`;
 if (!existsSync(binary)) throw new Error(`headless_shell build did not produce ${binary}`);
-console.log(JSON.stringify({
-  chromiumRevision: CHROMIUM_REVISION,
-  skiaRevision: SKIA_REVISION,
-  depotToolsRevision: DEPOT_TOOLS_REVISION,
-  metalToolchain: METAL_TOOLCHAIN,
-  binary,
-  binarySha256: sha(binary),
-  hookHeaderSha256: sha(headerTarget),
-}));
+console.log(
+  JSON.stringify({
+    chromiumRevision: CHROMIUM_REVISION,
+    skiaRevision: SKIA_REVISION,
+    depotToolsRevision: DEPOT_TOOLS_REVISION,
+    metalToolchain: METAL_TOOLCHAIN,
+    binary,
+    binarySha256: sha(binary),
+    hookHeaderSha256: sha(headerTarget),
+  }),
+);

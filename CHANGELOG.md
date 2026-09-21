@@ -10,7 +10,6 @@ All notable changes to **Domotion** are documented in this file.
 
 ## [0.29.0] - 2026-09-17
 
-
 **🚀 Features**
 
 - **Authenticated paged capture** (`domotion capture --paged`): render a multi-page, login-gated document to one self-contained SVG per page, written as an atomic `.domotion-pages.json` bundle (manifest last). The print step runs through a pinned, cryptographically authenticated Chromium helper (helper manifest + SHA-256), and each page SVG passes through only after a live logical-consistency audit.
@@ -24,13 +23,11 @@ All notable changes to **Domotion** are documented in this file.
 
 ## [0.28.2] - 2026-09-07
 
-
 **🐛 Fixes**
 
 - Element-owned scroll captures now keep positioned, higher-`z-index` siblings pinned above the moving content. Previously all static page context was drawn beneath the scrolling element, reversing CSS stacking wherever a foreground card overlapped it; static siblings that paint after the scroller are now emitted as separate foreground layers, each clipped only by the overflow clips it actually shares with the scroller (never by the scroller's own scrollport).
 
 ## [0.28.1] - 2026-09-07
-
 
 **🐛 Fixes**
 
@@ -38,7 +35,6 @@ All notable changes to **Domotion** are documented in this file.
 - Page state snapshots now report the live scroll owner's client width and height; custom `PageQuery` implementations that omit them keep the previous viewport-sized stepping.
 
 ## [0.28.0] - 2026-09-07
-
 
 **🚀 Features**
 
@@ -54,7 +50,6 @@ All notable changes to **Domotion** are documented in this file.
 - The strict no-motion parity check (`passesStrict` in the PNG comparison module) no longer fails on sparse glyph-edge components that host rasterization moves across the default gate's severity threshold. It now bounds the severity-inclusive region aggregates only, with the total-area cap raised to 3072 px while the 256 px single-component cap still rejects genuine paint-order or position changes. Passing `null` caps still falls back to the default gate.
 
 ## [0.27.2] - 2026-09-07
-
 
 **🚀 Features**
 
@@ -80,11 +75,9 @@ All notable changes to **Domotion** are documented in this file.
 
 ## [0.27.1] - 2026-09-05
 
-
 No user-facing changes in this range. Everything between v0.27.0 and HEAD is test-lane configuration, CI workflow tooling, fixture fonts for the Windows conformance gate, and documentation; the published package's capture, render, animation, and CLI behavior is unchanged.
 
 ## [0.27.0] - 2026-09-04
-
 
 **🚀 Features**
 
@@ -101,23 +94,19 @@ No user-facing changes in this range. Everything between v0.27.0 and HEAD is tes
 
 ## [0.26.3] - 2026-09-03
 
-
 <!-- No user-facing changes in this release. -->
 
 There are no user-facing changes in `v0.26.2..HEAD` — the single commit only adjusts an internal font-path integrity test and adds a non-behavioral `optionalInstall` marker to font-table entries to support it. Nothing in the diff alters capture, rendering, animation, CLI flags, or output, so every template section is omitted.
 
 ## [0.26.2] - 2026-09-03
 
-
 <!-- No user-facing changes in this range: both commits are CI/test/tooling only (a GitHub Actions workflow context linter and an internal color-space oracle test tweak), which the template excludes. -->
 
 ## [0.26.1] - 2026-09-03
 
-
 <!-- No user-facing capture, render, animation, CLI, or fidelity changes in this range; all changes are release/CI infrastructure, tests, and docs, which the directives exclude. -->
 
 ## [0.26.0] - 2026-09-03
-
 
 **🐛 Fixes**
 
@@ -130,7 +119,6 @@ There are no user-facing changes in `v0.26.2..HEAD` — the single commit only a
 - **Linux — sharper embedded text:** expanded the exact hinted target-strike coverage (Liberation Sans/Serif across more sizes and weights) for pixel-faithful body and heading text; mixed full/small-cap runs are now split into per-size strikes so synthesized small caps match Chrome's independently measured ink heights.
 
 ## [0.25.0] - 2026-09-02
-
 
 **🚀 Features**
 
@@ -158,7 +146,6 @@ There are no user-facing changes in `v0.26.2..HEAD` — the single commit only a
 
 ## [0.24.0] - 2026-08-16
 
-
 **🚀 Features**
 
 - **`background-blend-mode` now supported** — each background image layer blends against the layers below it, including the element's own background color, inside an isolated group.
@@ -178,7 +165,6 @@ There are no user-facing changes in `v0.26.2..HEAD` — the single commit only a
 - **File-input button labels render as glyph paths**, matching the rest of the text pipeline for consistent typography.
 
 ## [0.24.0] - 2026-08-16
-
 
 **🚀 Features**
 
@@ -200,7 +186,6 @@ There are no user-facing changes in `v0.26.2..HEAD` — the single commit only a
 
 ## [0.24.0] - 2026-08-15
 
-
 **🚀 Features**
 
 - **`backdrop-filter` now renders faithfully.** Elements with a `backdrop-filter` preserve Chromium's true composited result — the page pixels sampled behind the element, the filter chain, translucent background, descendants, and border clipping — via an isolated raster snapshot, replacing the old solid frosted-glass fallback.
@@ -217,7 +202,6 @@ There are no user-facing changes in `v0.26.2..HEAD` — the single commit only a
 - **Orphan combining marks get their dotted circle.** Lone marks that Chromium circles (e.g. standalone Vedic marks) now have the dotted circle inferred from shaping, even when it can't be observed at capture time.
 
 ## [0.23.0] - 2026-08-14
-
 
 **⚠️ Breaking Changes**
 
@@ -240,19 +224,16 @@ There are no user-facing changes in `v0.26.2..HEAD` — the single commit only a
 
 ## [0.22.2] - 2026-08-13
 
-
 <!-- No user-facing changes in this range: both commits only stabilize test assertions across CI font inventories. Template requires omitting empty sections, leaving no output. -->
 
 There are no user-facing changes in `v0.22.1..HEAD` — both commits only stabilize font-fallback test assertions across CI runner font inventories (test-only changes, which the template excludes). Every section would be empty, so the release notes are intentionally blank.
 
 ## [0.22.1] - 2026-08-13
 
-
 _(No user-facing changes in this release — all changes are test-only environment fixes.)_
 
 ## [0.22.0] - 2026-08-13
 
-
 **🚀 Features**
 
 - **Frame-sequence compression for editing animations** — a run of consecutive editing states now composes into one self-contained animated SVG where shared content is emitted once and only per-keystroke deltas animate. Available declaratively via a `states` block (with auto-carets) and as `composeCompressedRun`. Automatic detection is now on by default; opt out with `"autoCompress": false` or `--no-auto-compress`, or opt in per-run with a `compress: true` marker. A size-regression guard guarantees compression never grows the output.
@@ -278,7 +259,6 @@ _(No user-facing changes in this release — all changes are test-only environme
 
 ## [0.22.0] - 2026-08-13
 
-
 **🚀 Features**
 
 - **Frame-sequence compression for editing animations** — a run of consecutive editing states now composes into one self-contained animated SVG where shared content is emitted once and only per-keystroke deltas animate. Available declaratively via a `states` block (with auto-carets) and as `composeCompressedRun`. Automatic detection is now on by default; opt out with `"autoCompress": false` or `--no-auto-compress`, or opt in per-run with a `compress: true` marker. A size-regression guard guarantees compression never grows the output.
@@ -303,7 +283,6 @@ _(No user-facing changes in this release — all changes are test-only environme
 - **Robustness** — per-element fontkit exceptions and null glyph lookups are isolated so one bad glyph can no longer abort a whole render.
 
 ## [0.22.0] - 2026-08-13
-
 
 **🚀 Features**
 
@@ -330,13 +309,11 @@ _(No user-facing changes in this release — all changes are test-only environme
 
 ## [0.21.1] - 2026-07-04
 
-
 All three commits in this range are test-only (`test(animator)`) or doc-only (`docs(CLAUDE)`) changes, which the template's frontmatter explicitly excludes ("test-only changes, doc-only changes"). None of them add features, alter behavior a consumer would see, add CLI flags, or break anything.
 
 So there are no user-facing release notes to generate for this range — every section would be empty and is therefore omitted, leaving no output.
 
 ## [0.21.0] - 2026-07-04
-
 
 ** Features**
 
@@ -364,7 +341,6 @@ So there are no user-facing release notes to generate for this range — every s
 
 ## [0.20.0] - 2026-07-02
 
-
 ** Features**
 
 - Paired-motion animations (a move + a fade on the same element, as used by the kinetic-text and lower-third templates) now emit as a **single** CSS animation instead of two, keeping the transform and opacity in perfect lockstep.
@@ -377,13 +353,11 @@ So there are no user-facing release notes to generate for this range — every s
 
 ## [0.19.1] - 2026-07-01
 
-
 ** Fixes**
 
 - Cursor overlay click pulses now replay on every loop of an animated SVG instead of firing once and freezing after the first pass — the click rings reappear each time the pointer repeats its motion.
 
 ## [0.19.0] - 2026-07-01
-
 
 ** Features**
 
@@ -397,7 +371,6 @@ So there are no user-facing release notes to generate for this range — every s
 
 ## [0.18.0] - 2026-07-01
 
-
 ** Features**
 
 - Same-origin `<iframe>` content now recurses into native SVG — crisp, scalable, and selectable — instead of being flattened to a raster `<image>`. Inner content is clipped to the iframe's content box, with counters, transforms/zoom, and inner `mask`/`clip-path`/`filter` references all resolved correctly.
@@ -410,7 +383,6 @@ So there are no user-facing release notes to generate for this range — every s
 - Transparent canvas/root backgrounds stay transparent in animated, scrolled, and composited output. Previously backgrounds given as `none`, a zero-alpha hex (`#0000`), or `rgba(0,0,0,0)` were painted as an opaque backdrop.
 
 ## [0.17.0] - 2026-06-30
-
 
 **🚀 Features**
 
@@ -431,7 +403,6 @@ So there are no user-facing release notes to generate for this range — every s
 - A flex `::after` under `justify-content: space-between` (and flex-/end) now anchors to the content-right edge instead of overshooting past it.
 
 ## [0.16.0] - 2026-06-26
-
 
 **⚠️ Breaking Changes**
 
@@ -460,7 +431,6 @@ So there are no user-facing release notes to generate for this range — every s
 
 ## [0.15.0] - 2026-06-24
 
-
 ** Features**
 
 - **New template system.** Built-in parameterized generators that produce self-contained SVGs through the existing capture/compose pipeline — drive them with the new `domotion template` verb or the `renderTemplateToSvg` API. Ships seven built-ins: lower-third, device-mockup, chart, chat, subscribe, background-loop, and kinetic-text.
@@ -482,7 +452,6 @@ So there are no user-facing release notes to generate for this range — every s
 - Fixed `domotion term` live capture failing with `posix_spawnp failed.` by self-healing node-pty's non-executable spawn helper.
 
 ## [0.14.0] - 2026-06-23
-
 
 ** Features**
 
@@ -506,13 +475,11 @@ So there are no user-facing release notes to generate for this range — every s
 
 ## [0.13.3] - 2026-06-17
 
-
 Based on the single commit:
 
 - Fix multi-line typing animations revealing all lines at once in Safari
 
 ## [0.13.2] - 2026-06-17
-
 
 Based on the single commit:
 
@@ -520,11 +487,9 @@ Based on the single commit:
 
 ## [0.13.1] - 2026-06-17
 
-
 - Fix typing-overlay caret lagging behind revealed text during type-on animation
 
 ## [0.13.0] - 2026-06-17
-
 
 - New `svg-to-video` export with alpha/transparent output and frame-center sampling to fix boundary ghosting
 - Animations now hold the last frame at 100% by default instead of fading it out on loop
@@ -539,14 +504,12 @@ Based on the single commit:
 
 ## [0.12.0] - 2026-06-07
 
-
 - Fixed list marker rendering for `<ul>`/`<ol>` items
 - Corrected East-Asian font feature shaping
 - Fixed vertical punctuation positioning in vertical text
 - Fixed disclosure triangle arrows on `<details>`/`<summary>`
 
 ## [0.11.0] - 2026-06-06
-
 
 - Auto-detect and render the correct mouse cursor for each element, matching CSS cursor keywords
 - Render color emoji in more Unicode blocks: Enclosed Ideographic Supplement, Dingbats, and Enclosed Alphanumerics
@@ -558,11 +521,9 @@ Based on the single commit:
 
 ## [0.10.1] - 2026-06-05
 
-
 - Fix font-rendering crash on Linux when generating SVGs with mixed scripts
 
 ## [0.10.0] - 2026-06-05
-
 
 - Render vertical writing-mode text, drop caps, and `<textarea>` content as native SVG instead of screenshot overlays
 - Vertical writing-mode gains text-emphasis marks, decoration painting, tate-chu-yoko, and baseline/rotation fixes
@@ -577,7 +538,6 @@ Based on the single commit:
 
 ## [0.9.0] - 2026-06-01
 
-
 - Vertical writing-mode text now renders as native SVG, with underline/overline/line-through and correct sideways-lr orientation
 - `::first-letter` drop caps now render as native SVG, including text-shadow and pixel-accurate cap-top positioning
 - `<textarea>` content and text-flavored `<input>` now render as native SVG instead of a raster screenshot
@@ -590,7 +550,6 @@ Based on the single commit:
 
 ## [0.8.0] - 2026-05-30
 
-
 Looking at the commits, here are the user-facing release notes:
 
 ```markdown
@@ -602,7 +561,6 @@ Looking at the commits, here are the user-facing release notes:
 - Improve svg-review diff interactions
 
 ## [0.7.0] - 2026-05-30
-
 
 - Render CSS `text-emphasis` marks
 - Capture CSS Transforms 2 standalone `rotate`/`scale`/`translate` properties
@@ -617,7 +575,6 @@ Looking at the commits, here are the user-facing release notes:
 
 ## [0.6.0] - 2026-05-29
 
-
 - `elementTreeToSvg` now returns a complete `<svg>` document (the old renderer is `elementTreeToSvgInner`)
 - New magic-move transition slides shared elements between frames, morphing size and cross-fading paint changes (honors reduced-motion)
 - New CLIs: `svg-review` for consumer fidelity bug reports and `svg-to-video` for GIF/APNG/video export
@@ -630,7 +587,6 @@ Looking at the commits, here are the user-facing release notes:
 
 ## [0.5.0] - 2026-05-25
 
-
 - New declarative animate config — compose multi-frame animations from a config file
 - Added overlay primitives: config-level cursor, selector-anchored overlays, and a standalone blink
 - Typing overlay now renders a blinking insertion caret
@@ -642,16 +598,13 @@ Looking at the commits, here are the user-facing release notes:
 
 ## [0.4.2] - 2026-05-25
 
-
 - Typing-overlay text now wraps to the box width like a real textarea
 
 ## [0.4.1] - 2026-05-25
 
-
 - Fix an emoji glyph leaking into rendered text output
 
 ## [0.4.0] - 2026-05-25
-
 
 - Text now renders with embedded fonts by default across all outputs.
 - Embedded-font output positions glyphs via a single `<text>` x-list for smaller, cleaner SVG.
@@ -659,21 +612,17 @@ Looking at the commits, here are the user-facing release notes:
 
 ## [0.3.3] - 2026-05-25
 
-
 This commit is a CI/release-workflow fix (asset upload made repo-aware), which the rules exclude. There are no user-facing changes in the provided commits, so there are no release-note bullets to emit.
 
 ## [0.3.2] - 2026-05-25
-
 
 - macOS glyph-extractor binary is now code-signed and notarized in releases
 
 ## [0.3.1] - 2026-05-25
 
-
 Linux CI test fix
 
 ## [0.3.0] - 2026-05-25
-
 
 - MathML now renders fraction bars, square-root/root radicals, and italic Latin/Greek identifiers
 - Wavy underlines recalibrated to match Chrome and now break around descenders
@@ -688,7 +637,6 @@ Linux CI test fix
 
 ## [0.3.0] - 2026-05-24
 
-
 - MathML now paints fraction bars, radical signs, and italic Latin/Greek identifiers
 - Floated `::first-letter` drop caps no longer clip; wavy underlines break around descenders
 - Custom `@counter-style` rules and `counter()`/`counters()` now resolve for markers and content
@@ -702,7 +650,6 @@ Linux CI test fix
 
 ## [0.2.2] - 2026-05-18
 
-
 - Fix framer chevron icons rendering via data:URI mask support
 - Fix brand logos disappearing due to off-screen transformed ancestor culling
 - Fix rotated/skewed element AABB calculation for correct bounding boxes
@@ -711,7 +658,6 @@ Linux CI test fix
 - Fix paint order for floated elements
 
 ## [0.2.1] - 2026-05-18
-
 
 - Fix rotated/skewed bounding boxes, px gradient stops, outline clipping, and float paint order
 - Scale font metrics by ancestor transforms and capture descendants past transformed ancestors
@@ -726,15 +672,13 @@ Linux CI test fix
 
 ## [0.1.1] - 2026-05-11
 
-
 - Renamed npm package from `domotion` to `domotion-svg`
 
 ## [0.1.0] - 2026-05-11
 
-
 - Initial release
 
 ## [0.1.0] - 2026-05-11
 
-
 - Initial release
+```

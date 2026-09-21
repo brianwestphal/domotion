@@ -63,8 +63,13 @@ function axisAlignedRect(
   if (values.length !== 8 || !values.every(Number.isFinite)) return null;
   const [x0, y0, x1, y1, x2, y2, x3, y3] = values;
   const epsilon = 1 / 64;
-  if (Math.abs(y0 - y1) > epsilon || Math.abs(x1 - x2) > epsilon
-      || Math.abs(y2 - y3) > epsilon || Math.abs(x3 - x0) > epsilon) return null;
+  if (
+    Math.abs(y0 - y1) > epsilon ||
+    Math.abs(x1 - x2) > epsilon ||
+    Math.abs(y2 - y3) > epsilon ||
+    Math.abs(x3 - x0) > epsilon
+  )
+    return null;
   const left = Math.min(x0, x1, x2, x3);
   const top = Math.min(y0, y1, y2, y3);
   const right = Math.max(x0, x1, x2, x3);
@@ -103,54 +108,60 @@ function markerPaintFragmentRect(
 }
 
 async function markerStyle(page: Page, key: string, index: number): Promise<MarkerStyleFact | null> {
-  return await page.evaluate(({ key, index }) => {
-    const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[key] as Element[] | undefined;
-    const summary = nodes?.[index];
-    if (summary == null) return null;
-    const style = getComputedStyle(summary);
-    const marker = getComputedStyle(summary, "::marker");
-    let effectiveZoom = 1;
-    let transformed = false;
-    for (let owner: Element | null = summary; owner != null; owner = owner.parentElement) {
-      const ownerStyle = getComputedStyle(owner);
-      const zoom = Number.parseFloat(ownerStyle.zoom);
-      if (Number.isFinite(zoom) && zoom > 0) effectiveZoom *= zoom;
-      transformed ||= (ownerStyle.transform !== "none" && ownerStyle.transform !== "")
-        || (ownerStyle.translate !== "none" && ownerStyle.translate !== "")
-        || (ownerStyle.rotate !== "none" && ownerStyle.rotate !== "")
-        || (ownerStyle.scale !== "none" && ownerStyle.scale !== "")
-        || (ownerStyle.perspective !== "none" && ownerStyle.perspective !== "");
-    }
-    const fontSize = Number.parseFloat(marker.fontSize);
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    if (context == null || !Number.isFinite(fontSize) || fontSize <= 0) return null;
-    context.font = `${marker.fontStyle} ${marker.fontWeight} ${fontSize * effectiveZoom}px ${marker.fontFamily}`;
-    const drawing = context as unknown as {
-      fontStretch?: string;
-      fontKerning?: string;
-      fontVariantCaps?: string;
-    };
-    if ("fontStretch" in drawing) drawing.fontStretch = marker.fontStretch;
-    if ("fontKerning" in drawing) drawing.fontKerning = marker.fontKerning;
-    if ("fontVariantCaps" in drawing) drawing.fontVariantCaps = marker.fontVariantCaps;
-    const measured = context.measureText("Hg");
-    const color = marker.color;
-    const transparent = color === "transparent"
-      || /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*0(?:\.0+)?\s*\)$/.test(color);
-    return {
-      suppressed: style.listStyleType === "none" || marker.content === "none" || transparent,
-      listStyleType: style.listStyleType,
-      listStylePosition: style.listStylePosition,
-      color,
-      fontSize,
-      effectiveZoom,
-      fontAscent: measured.fontBoundingBoxAscent,
-      writingMode: marker.writingMode,
-      direction: marker.direction,
-      transformed,
-    };
-  }, { key, index }).catch(() => null);
+  return await page
+    .evaluate(
+      ({ key, index }) => {
+        const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[key] as Element[] | undefined;
+        const summary = nodes?.[index];
+        if (summary == null) return null;
+        const style = getComputedStyle(summary);
+        const marker = getComputedStyle(summary, "::marker");
+        let effectiveZoom = 1;
+        let transformed = false;
+        for (let owner: Element | null = summary; owner != null; owner = owner.parentElement) {
+          const ownerStyle = getComputedStyle(owner);
+          const zoom = Number.parseFloat(ownerStyle.zoom);
+          if (Number.isFinite(zoom) && zoom > 0) effectiveZoom *= zoom;
+          transformed ||=
+            (ownerStyle.transform !== "none" && ownerStyle.transform !== "") ||
+            (ownerStyle.translate !== "none" && ownerStyle.translate !== "") ||
+            (ownerStyle.rotate !== "none" && ownerStyle.rotate !== "") ||
+            (ownerStyle.scale !== "none" && ownerStyle.scale !== "") ||
+            (ownerStyle.perspective !== "none" && ownerStyle.perspective !== "");
+        }
+        const fontSize = Number.parseFloat(marker.fontSize);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (context == null || !Number.isFinite(fontSize) || fontSize <= 0) return null;
+        context.font = `${marker.fontStyle} ${marker.fontWeight} ${fontSize * effectiveZoom}px ${marker.fontFamily}`;
+        const drawing = context as unknown as {
+          fontStretch?: string;
+          fontKerning?: string;
+          fontVariantCaps?: string;
+        };
+        if ("fontStretch" in drawing) drawing.fontStretch = marker.fontStretch;
+        if ("fontKerning" in drawing) drawing.fontKerning = marker.fontKerning;
+        if ("fontVariantCaps" in drawing) drawing.fontVariantCaps = marker.fontVariantCaps;
+        const measured = context.measureText("Hg");
+        const color = marker.color;
+        const transparent =
+          color === "transparent" || /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*0(?:\.0+)?\s*\)$/.test(color);
+        return {
+          suppressed: style.listStyleType === "none" || marker.content === "none" || transparent,
+          listStyleType: style.listStyleType,
+          listStylePosition: style.listStylePosition,
+          color,
+          fontSize,
+          effectiveZoom,
+          fontAscent: measured.fontBoundingBoxAscent,
+          writingMode: marker.writingMode,
+          direction: marker.direction,
+          transformed,
+        };
+      },
+      { key, index },
+    )
+    .catch(() => null);
 }
 
 async function resolveMarkerNode(
@@ -183,7 +194,11 @@ export async function captureSummaryMarkerGeometry(
   if (sourceNodeKey == null || sourceNodeKey === "") {
     for (const candidate of candidates) {
       delete candidate._summaryMarkerSourceNodeIndex;
-      warnings.push({ selector: "summary", feature: FEATURE, detail: "live Chromium source-node registry unavailable; disclosure paint omitted" });
+      warnings.push({
+        selector: "summary",
+        feature: FEATURE,
+        detail: "live Chromium source-node registry unavailable; disclosure paint omitted",
+      });
     }
     return;
   }
@@ -193,22 +208,31 @@ export async function captureSummaryMarkerGeometry(
     session = await page.context().newCDPSession(page);
     await Promise.all([session.send("DOM.enable"), session.send("Runtime.enable")]);
     await session.send("DOM.getDocument", { depth: -1, pierce: true });
-    const snapshot = await session.send("DOMSnapshot.captureSnapshot", {
+    const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
       computedStyles: [],
       includeDOMRects: true,
       includePaintOrder: true,
-    }) as unknown as SnapshotResult;
+    })) as unknown as SnapshotResult;
     for (const candidate of candidates) {
       const index = candidate._summaryMarkerSourceNodeIndex!;
       delete candidate._summaryMarkerSourceNodeIndex;
       const style = await markerStyle(page, sourceNodeKey, index);
       if (style == null) {
-        warnings.push({ selector: "summary", feature: FEATURE, detail: "computed ::marker style/font facts unavailable; disclosure paint omitted" });
+        warnings.push({
+          selector: "summary",
+          feature: FEATURE,
+          detail: "computed ::marker style/font facts unavailable; disclosure paint omitted",
+        });
         continue;
       }
       if (style.suppressed) continue;
       if (style.transformed) {
-        warnings.push({ selector: "summary", feature: FEATURE, detail: "marker has a transformed ancestor; untransformed source quad unavailable and disclosure paint omitted" });
+        warnings.push({
+          selector: "summary",
+          feature: FEATURE,
+          detail:
+            "marker has a transformed ancestor; untransformed source quad unavailable and disclosure paint omitted",
+        });
         continue;
       }
       let objectId: string | undefined;

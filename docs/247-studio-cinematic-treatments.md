@@ -3,11 +3,22 @@ id: "requirements/studio-cinematic-treatments"
 title: "Domotion Studio cinematic treatment library"
 kind: "contract"
 status: "current"
-owners: ["studio","animation","templates"]
-platforms: ["macos","linux","windows"]
+owners: ["studio", "animation", "templates"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2691"]
-code: ["src/studio/treatment-schema.ts","src/studio/treatments.ts","src/studio/treatments.test.ts","src/studio/treatments.e2e.test.ts","src/studio/treatments.visual.e2e.test.ts","src/studio/compile.ts","src/studio/project-schema.ts","tests/fixtures/studio/treatments-showcase.project.json","tests/fixtures/studio/treatment-source.svg"]
-aliases: ["docs/247-studio-cinematic-treatments.md","doc-247"]
+code:
+  [
+    "src/studio/treatment-schema.ts",
+    "src/studio/treatments.ts",
+    "src/studio/treatments.test.ts",
+    "src/studio/treatments.e2e.test.ts",
+    "src/studio/treatments.visual.e2e.test.ts",
+    "src/studio/compile.ts",
+    "src/studio/project-schema.ts",
+    "tests/fixtures/studio/treatments-showcase.project.json",
+    "tests/fixtures/studio/treatment-source.svg",
+  ]
+aliases: ["docs/247-studio-cinematic-treatments.md", "doc-247"]
 ---
 
 # Domotion Studio cinematic treatment library

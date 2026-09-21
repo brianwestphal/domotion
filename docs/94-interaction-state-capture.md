@@ -5,9 +5,23 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1516","DM-1562","DM-1563","DM-1564","DM-1565","DM-1566","DM-1580","DM-1582","DM-1585"]
-code: ["examples/animate/hover-detect/","examples/animate/hover-reveal/","examples/animate/hover-state/","examples/animate/js-reveal/","src/cli/animate.ts","src/cli/force-state.e2e.test.ts","src/cli/force-state.test.ts","src/cli/hover-detect.ts","src/cli/mutation-detect.e2e.test.ts","src/cli/mutation-detect.test.ts","src/cli/mutation-detect.ts","tests/animate-examples.tsx"]
-aliases: ["docs/94-interaction-state-capture.md","doc-94"]
+tickets: ["DM-1516", "DM-1562", "DM-1563", "DM-1564", "DM-1565", "DM-1566", "DM-1580", "DM-1582", "DM-1585"]
+code:
+  [
+    "examples/animate/hover-detect/",
+    "examples/animate/hover-reveal/",
+    "examples/animate/hover-state/",
+    "examples/animate/js-reveal/",
+    "src/cli/animate.ts",
+    "src/cli/force-state.e2e.test.ts",
+    "src/cli/force-state.test.ts",
+    "src/cli/hover-detect.ts",
+    "src/cli/mutation-detect.e2e.test.ts",
+    "src/cli/mutation-detect.test.ts",
+    "src/cli/mutation-detect.ts",
+    "tests/animate-examples.tsx",
+  ]
+aliases: ["docs/94-interaction-state-capture.md", "doc-94"]
 ---
 
 # 94 — Interaction-state capture (`:hover` / `:active` / `:focus`)
@@ -24,19 +38,19 @@ no-DOM/PDF **`interact` overlay** fake (DM-1565).
 ## The problem
 
 Domotion's only pointer feedback so far is a synthetic ring/cursor overlay drawn
-*on top of* the captured paint. But real sites change their own appearance on
+_on top of_ the captured paint. But real sites change their own appearance on
 interaction — a button darkens on `:hover`, a field gets a focus ring on
 `:focus`, a card lifts via `.card:has(.cta:hover)`, JS toggles a class on
 `mouseover`. That native feedback is what makes an interaction demo read as
-*real*. We want to capture it, not fake it.
+_real_. We want to capture it, not fake it.
 
 Two halves, mirroring the ticket:
 
 - **(b) Explicit manual simulation — BUILT.** The author tells a frame to enter a
-  state ("hover this button") and Domotion captures the page's *real* styling for
+  state ("hover this button") and Domotion captures the page's _real_ styling for
   that state. This also sets up the future no-DOM (PDF) input path, where the
   "state" is authored rather than detected.
-- **(a) Auto-detection — DESIGNED, not built.** Detect what a page *itself*
+- **(a) Auto-detection — DESIGNED, not built.** Detect what a page _itself_
   changes around a pointer event and synthesize the transition automatically. The
   options are enumerated below with tradeoffs.
 
@@ -49,17 +63,18 @@ A per-frame `forceState` array on the `animate` config
 
 ```jsonc
 {
-  "width": 460, "height": 320,
-  "cursor": { "events": [
-    { "frame": 0, "at": 200, "type": "move", "to": { "x": 230, "y": 120 } },
-    { "frame": 1, "at": 0, "type": "move", "selector": ".cta" }
-  ] },
+  "width": 460,
+  "height": 320,
+  "cursor": {
+    "events": [
+      { "frame": 0, "at": 200, "type": "move", "to": { "x": 230, "y": 120 } },
+      { "frame": 1, "at": 0, "type": "move", "selector": ".cta" },
+    ],
+  },
   "frames": [
-    { "input": "./pricing-card.html", "duration": 1400,
-      "transition": { "type": "crossfade", "duration": 400 } },
-    { "continue": true, "duration": 1800,
-      "forceState": [ { "selector": ".cta", "states": ["hover"] } ] }
-  ]
+    { "input": "./pricing-card.html", "duration": 1400, "transition": { "type": "crossfade", "duration": 400 } },
+    { "continue": true, "duration": 1800, "forceState": [{ "selector": ".cta", "states": ["hover"] }] },
+  ],
 }
 ```
 
@@ -87,8 +102,8 @@ against Chromium:
    (never detaching it) and reuses it for every frame.
 2. **One document root.** Node ids are only stable within a single
    `DOM.getDocument` id space — calling `getDocument` again re-issues ids in a
-   fresh space, and clearing a *fresh-space* id does **not** clear an override set
-   on the *old-space* id, even for the same element. So the cached session fetches
+   fresh space, and clearing a _fresh-space_ id does **not** clear an override set
+   on the _old-space_ id, even for the same element. So the cached session fetches
    the document root **once** and reuses it for all `querySelectorAll` calls; a
    later re-query then returns the id the force was set on, and the clear lands.
    The root is invalidated on main-frame navigation (a reload frame gets a new
@@ -103,7 +118,7 @@ moves onto the button so the pointer sits where the hover is happening.
 `forceState` is a **capture-time state modifier**, not a sequential DOM mutation.
 It doesn't fit the `runActions` model (which drives Playwright DOM operations in
 order); it operates one level down, at the CDP layer, and its whole point is to
-be in effect *at the moment of capture*. A declarative per-frame field expresses
+be in effect _at the moment of capture_. A declarative per-frame field expresses
 that precisely, and combines naturally with the existing cursor/ring so the
 pointer sits on the hovered element. (An `action` variant that forces-then-marks
 a frame was considered and rejected for v1 — it would duplicate the field's job
@@ -111,7 +126,7 @@ with worse ergonomics.)
 
 ### Mechanism — CDP `CSS.forcePseudoState`
 
-The clean way to make a page enter `:hover` *without* moving a real mouse (which
+The clean way to make a page enter `:hover` _without_ moving a real mouse (which
 is fragile — any later pointer move or layout shift drops it, and it can't hold
 `:active`/`:focus` cleanly) is the Chrome DevTools Protocol. Via a Playwright CDP
 session:
@@ -143,7 +158,7 @@ primitive" pattern).
 
 A `CSS.forcePseudoState` override lives for the **lifetime of the CDP session
 that set it**. Detaching the session (or disabling the CSS domain) clears the
-override *immediately*. So the session must stay attached until **after** the
+override _immediately_. So the session must stay attached until **after** the
 capture that's supposed to record the forced paint — otherwise the hover vanishes
 between the CDP call and the capture, and the frame silently paints the rest
 state. `applyForcedPseudoStates` therefore leaves its session attached (reclaimed
@@ -158,7 +173,7 @@ was adopted. If it hadn't been, the fallback is a `page.evaluate` class/attribut
 application — add an author-provided `is-hover` class (or set an attribute) whose
 CSS the page (or the author) defines — surfaced as an `applyState` action. That's
 strictly worse (it needs the page to author a matching class, so it can't trigger
-the page's *own* `:hover` rules with zero setup), which is why forced pseudo-state
+the page's _own_ `:hover` rules with zero setup), which is why forced pseudo-state
 is preferred. It remains the documented degradation path.
 
 ### Verification
@@ -180,7 +195,7 @@ the hover frame. Guarded by:
 
 ## (a) Auto-detection options
 
-The v1 above is *explicit*: the author names the element and the state. The
+The v1 above is _explicit_: the author names the element and the state. The
 richer ask is to **auto-detect** what a page changes around a pointer event and
 synthesize the transition. Four directions, with tradeoffs — Options 1 and 2 are
 now **BUILT**; Options 3 and 4 remain designed. The binding
@@ -198,9 +213,11 @@ same selector — with a crossfade between them and a cursor move onto the eleme
 It's the `hover-state` example, from one line instead of two hand-wired frames.
 
 ```jsonc
-{ "width": 460, "height": 320, "frames": [
-  { "input": "./card.html", "duration": 1400, "hoverReveal": { "selector": ".cta" } }
-] }
+{
+  "width": 460,
+  "height": 320,
+  "frames": [{ "input": "./card.html", "duration": 1400, "hoverReveal": { "selector": ".cta" } }],
+}
 ```
 
 Options: `states` (default `["hover"]` — e.g. `["focus","focus-visible"]` for a
@@ -211,7 +228,7 @@ own `transition` (if any) carries OUT of the reveal pair. Runnable example:
 
 - **Pros:** trivial; entirely built on shipped primitives; cross-engine by
   construction (crossfade is opacity-only).
-- **Cons:** no *detection* — the author still names the element. A dissolve, not a
+- **Cons:** no _detection_ — the author still names the element. A dissolve, not a
   physical transition. → that's what Option 2 adds.
 
 ### Option 2 — `hoverDetect` computed-style-diff detection (BUILT — DM-1563)
@@ -228,21 +245,23 @@ after, and picks a synthesis from an allow-list of properties (color / backgroun
   faithfully (box-shadow included). Same shape as `hoverReveal`, but auto-chosen.
 - **`motion`-only change** (ONLY `transform` / `opacity` on the target, from a
   clean rest baseline — identity transform / opacity 1) → ONE frame with an
-  intra-frame keyframe **tween** so the element animates *in place* (a real
+  intra-frame keyframe **tween** so the element animates _in place_ (a real
   scale/lift, not a dissolve). Reuses the shipped intra-frame `animations` emitter.
 - **no change detected** → the frame is kept rest-only, with a log line so the
   author can fix the selector or confirm the page has a `:hover` rule.
 
 ```jsonc
-{ "width": 420, "height": 240, "frames": [
-  { "input": "./button.html", "duration": 1600, "hoverDetect": { "selector": ".cta" } }
-] }
+{
+  "width": 420,
+  "height": 240,
+  "frames": [{ "input": "./button.html", "duration": 1600, "hoverDetect": { "selector": ".cta" } }],
+}
 ```
 
 Runnable example: `examples/animate/hover-detect/` (a pure-scale hover → motion
 tween).
 
-- **Pros:** real *detection* — no manual `forceState`; a property-accurate motion
+- **Pros:** real _detection_ — no manual `forceState`; a property-accurate motion
   tween when the change is pure transform/opacity, a faithful crossfade otherwise.
 - **Cons / scope:** color / background / border can't cross-engine-keyframe (the
   intra-frame emitter animates only transform/opacity/clip/geometry, and animated
@@ -266,7 +285,7 @@ rather than tween, since they can't map to a cross-engine keyframe.
 
 For **JS-driven** feedback (a framework toggling a class / injecting a tooltip /
 swapping text on `mouseover`/`mousedown`), install a `MutationObserver` (+ a
-style-diff sweep) around a *dispatched* pointer event sequence, capture the
+style-diff sweep) around a _dispatched_ pointer event sequence, capture the
 before and after DOM/paint, and synthesize the transition from the recorded
 mutations.
 
@@ -294,15 +313,15 @@ capped by an overall timeout), and synthesizes the reveal:
 {
   "input": "./menu.html",
   "duration": 2000,
-  "cursor": { "events": [ { "frame": 0, "at": 200, "type": "move", "selector": "#account" } ] },
+  "cursor": { "events": [{ "frame": 0, "at": 200, "type": "move", "selector": "#account" }] },
   "jsReveal": {
-    "selector": "#account",   // dispatch the event here
-    "event": "mouseover",     // mouse*/pointer*/click; default mouseover
-    "settleMs": 600,          // max wait for the JS to settle
-    "debounceMs": 120,        // quiet window that counts as "settled"
-    "holdMs": 700,            // rest hold + after hold
-    "crossfadeMs": 300        // the rest→after crossfade
-  }
+    "selector": "#account", // dispatch the event here
+    "event": "mouseover", // mouse*/pointer*/click; default mouseover
+    "settleMs": 600, // max wait for the JS to settle
+    "debounceMs": 120, // quiet window that counts as "settled"
+    "holdMs": 700, // rest hold + after hold
+    "crossfadeMs": 300, // the rest→after crossfade
+  },
 }
 ```
 
@@ -328,7 +347,7 @@ transform/opacity) now routes through Option 2's **property-accurate computed-
 style-diff tween** — `jsReveal` snapshots the target's rest vs settled styles,
 classifies a `motion` delta, and emits an intra-frame transform/opacity tween in
 place of the crossfade (`synthMutationTween` → the shared `synthesizeMotionTween`).
-Still deferred: **paint-only** attribute deltas (a class flip that only *recolors*
+Still deferred: **paint-only** attribute deltas (a class flip that only _recolors_
 a surviving node, an aria change with no motion) — those keep the rest→after
 crossfade, because paint properties can't map to a cross-engine keyframe. The
 `MutationSummary.structural` flag plus the motion/paint classification are the
@@ -346,7 +365,7 @@ non-structural `paint` → crossfade.
 ### Option 4 — Overlay-only fake for no-DOM / PDF inputs (BUILT — DM-1565)
 
 When there is **no DOM** (a PDF or image input — the future direction the ticket
-flags), auto-detection is impossible; the author *declares* the feedback as a
+flags), auto-detection is impossible; the author _declares_ the feedback as a
 synthetic overlay (a translucent hover fill / focus ring / press-darken rect over
 a named region). This is the manual-simulation path generalized to inputs that
 can't be forced. Built as the **`interact` overlay** (`kind: "interact"`) — it has
@@ -356,17 +375,24 @@ duty as a plain synthetic hover/focus/press treatment on a captured demo.
 ```jsonc
 {
   "kind": "interact",
-  "treatment": "hover",   // "hover" | "focus" | "press"
-  "x": 60, "y": 50, "width": 140, "height": 40,  // the region the treatment covers
-  "radius": 8,            // corner radius of the fill + ring
-  "delay": 200,           // ms from frame start to the appear (default 200)
-  "duration": 260,        // fade / pop-in time in ms (default 240)
+  "treatment": "hover", // "hover" | "focus" | "press"
+  "x": 60,
+  "y": 50,
+  "width": 140,
+  "height": 40, // the region the treatment covers
+  "radius": 8, // corner radius of the fill + ring
+  "delay": 200, // ms from frame start to the appear (default 200)
+  "duration": 260, // fade / pop-in time in ms (default 240)
   // optional overrides — all defaulted per treatment:
-  "fill": "#ffffff", "fillOpacity": 0.18,  // "none" omits the fill
-  "ring": "#4c9ffe", "ringWidth": 2,       // a focus ring; default on for "focus"
-  "scale": 1.03,          // scale-pop target about the box center (1 = no pop)
-  "holdMs": 900, "releaseMs": 180,
-  "repeat": "infinite", "repeatPeriodMs": 1600  // DM-1585: ambient pulse (see below)
+  "fill": "#ffffff",
+  "fillOpacity": 0.18, // "none" omits the fill
+  "ring": "#4c9ffe",
+  "ringWidth": 2, // a focus ring; default on for "focus"
+  "scale": 1.03, // scale-pop target about the box center (1 = no pop)
+  "holdMs": 900,
+  "releaseMs": 180,
+  "repeat": "infinite",
+  "repeatPeriodMs": 1600, // DM-1585: ambient pulse (see below)
   // "anchor": { "selector": ".cta" }  // CLI: auto-sizes x/y/width/height/radius from the box
 }
 ```
@@ -406,7 +432,7 @@ desync across engines — docs/84).
 ### How they relate
 
 v1 (forced pseudo-state) is the foundation Options 1–2 build on (both need a way
-to *enter* the state to capture it) — and both reuse `applyForcedPseudoStates`.
+to _enter_ the state to capture it) — and both reuse `applyForcedPseudoStates`.
 Option 2 (`hoverDetect`) is the CSS-feedback detector; Option 3 (`jsReveal`)
 extends detection to JS feedback via a MutationObserver; Option 4 (the `interact`
 overlay) is the no-DOM degenerate case for a different input pipeline entirely —
@@ -429,8 +455,8 @@ the output beyond the existing cross-engine `@keyframes` vocabulary.
 - `src/cli/hover-detect.ts` — the pure diff (`diffHoverSnapshots`) + classify
   (`classifyHoverTransition`) helpers, PLUS the shared motion-tween synthesizer
   `synthesizeMotionTween` (DM-1582). `hoverDetect` and `jsReveal` are two distinct
-  *detection* mechanisms (a forced CSS `:hover` diff vs a real JS event +
-  MutationObserver), but they now share the whole *synthesis* path — the same
+  _detection_ mechanisms (a forced CSS `:hover` diff vs a real JS event +
+  MutationObserver), but they now share the whole _synthesis_ path — the same
   diff/classify and the same transform/opacity tween — each adding only its own
   target key (`selector` for the config form, `animId` for jsReveal's tween).
 - `src/cli/mutation-detect.ts` — the `jsReveal` MutationObserver harness

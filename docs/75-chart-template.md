@@ -5,9 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1279","DM-1297","DM-1300","DM-1301","DM-1537","DM-1560"]
-code: ["examples/output/templates/","examples/output/templates/format-square-chart.svg","examples/templates-demo.ts","src/templates/builtin/chart.ts","src/templates/registry.ts"]
-aliases: ["docs/75-chart-template.md","doc-75"]
+tickets: ["DM-1279", "DM-1297", "DM-1300", "DM-1301", "DM-1537", "DM-1560"]
+code:
+  [
+    "examples/output/templates/",
+    "examples/output/templates/format-square-chart.svg",
+    "examples/templates-demo.ts",
+    "src/templates/builtin/chart.ts",
+    "src/templates/registry.ts",
+  ]
+aliases: ["docs/75-chart-template.md", "doc-75"]
 ---
 
 # 75 — The `chart` built-in template
@@ -31,24 +38,24 @@ domotion template chart --type line --data "12,18,15,28,24,38,44" -o dau.svg
 
 ## Parameters
 
-| Param | Type | Default | Meaning |
-|---|---|---|---|
-| `type` | `column` \| `bar` \| `line` \| `pie` \| `donut` | `column` | Bars (vertical/horizontal), a line, or a pie / donut. |
-| `data` | number[] / number[][] / string | — | One or more series (**required**). See below. |
-| `labels` | string[] **or** CSV string | — | Category labels (cycled if shorter than the data). |
-| `seriesNames` | string[] **or** CSV string | — | Legend names, one per series (multi-series only). |
-| `layout` | `grouped` \| `stacked` | `grouped` | Multi-series bars: side-by-side or stacked. |
-| `title` | string | — | Title shown above the plot. |
-| `colors` | string[] **or** CSV string | indigo/cyan/pink/amber/green/violet | Per-**series** when multi-series, else per-bar. |
-| `max` | number | nice round value ≥ largest datum | Axis maximum. |
-| `yTicks` | int | `4` | Value-axis gridline / tick divisions (`0` disables the scale). |
-| `showValues` | boolean | `true` | Print each value at the bar end / point (single series only). |
-| `width` / `height` | int | `1000` / `600` | Output size in px. |
-| `background` / `color` | string | `#0b1020` / `#e6edf3` | Frame background / text color. |
-| `fontFamily` | string | `-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif` | Font for the title / labels / values. |
-| `growMs` | int | `750` | Grow / draw duration per element. |
-| `staggerMs` | int | `110` | Delay between categories. |
-| `holdMs` | int | `1800` | Hold after the chart finishes. |
+| Param                  | Type                                            | Default                                                    | Meaning                                                        |
+| ---------------------- | ----------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| `type`                 | `column` \| `bar` \| `line` \| `pie` \| `donut` | `column`                                                   | Bars (vertical/horizontal), a line, or a pie / donut.          |
+| `data`                 | number[] / number[][] / string                  | —                                                          | One or more series (**required**). See below.                  |
+| `labels`               | string[] **or** CSV string                      | —                                                          | Category labels (cycled if shorter than the data).             |
+| `seriesNames`          | string[] **or** CSV string                      | —                                                          | Legend names, one per series (multi-series only).              |
+| `layout`               | `grouped` \| `stacked`                          | `grouped`                                                  | Multi-series bars: side-by-side or stacked.                    |
+| `title`                | string                                          | —                                                          | Title shown above the plot.                                    |
+| `colors`               | string[] **or** CSV string                      | indigo/cyan/pink/amber/green/violet                        | Per-**series** when multi-series, else per-bar.                |
+| `max`                  | number                                          | nice round value ≥ largest datum                           | Axis maximum.                                                  |
+| `yTicks`               | int                                             | `4`                                                        | Value-axis gridline / tick divisions (`0` disables the scale). |
+| `showValues`           | boolean                                         | `true`                                                     | Print each value at the bar end / point (single series only).  |
+| `width` / `height`     | int                                             | `1000` / `600`                                             | Output size in px.                                             |
+| `background` / `color` | string                                          | `#0b1020` / `#e6edf3`                                      | Frame background / text color.                                 |
+| `fontFamily`           | string                                          | `-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif` | Font for the title / labels / values.                          |
+| `growMs`               | int                                             | `750`                                                      | Grow / draw duration per element.                              |
+| `staggerMs`            | int                                             | `110`                                                      | Delay between categories.                                      |
+| `holdMs`               | int                                             | `1800`                                                     | Hold after the chart finishes.                                 |
 
 **`data` shapes (DM-1301).** A single series is a `number[]` (or CSV `"1,2,3"`).
 **Multiple series** are a `number[][]` (or a string with `;` between series:
@@ -84,7 +91,7 @@ A key detail (DM-1279): the grow uses **`scaleX`/`scaleY` + `transformOrigin`**,
 the `width`/`height` intra-frame properties. An intra-frame animation lands on a
 `<g>` wrapper in the SVG output, where CSS `width`/`height` have no effect — but a
 `transform` does, and the origin (`bottom` / `left`) pins it to the axis so the bar
-grows *away* from the axis rather than from the SVG origin. This relies on the
+grows _away_ from the axis rather than from the SVG origin. This relies on the
 `transformOrigin` support added in DM-1297 (doc 08).
 
 ## Code

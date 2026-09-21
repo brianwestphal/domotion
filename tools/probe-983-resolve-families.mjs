@@ -15,12 +15,19 @@ for (const fams of Object.values(data.blockToFamilies)) for (const f of fams) fa
 
 const map = {};
 for (const fam of families) {
-  if (fam === "Noto Color Emoji") { map[fam] = null; continue; } // raster path
+  if (fam === "Noto Color Emoji") {
+    map[fam] = null;
+    continue;
+  } // raster path
   try {
-    const out = execFileSync("fc-match", ["-f", "%{file}\t%{postscriptname}\t%{family}", fam], { encoding: "utf-8" }).trim();
+    const out = execFileSync("fc-match", ["-f", "%{file}\t%{postscriptname}\t%{family}", fam], {
+      encoding: "utf-8",
+    }).trim();
     const [file, psn, gotFamily] = out.split("\t");
     map[fam] = { file, postscriptName: psn || undefined, resolvedFamily: gotFamily };
-  } catch { map[fam] = null; }
+  } catch {
+    map[fam] = null;
+  }
 }
 writeFileSync(OUT, JSON.stringify(map, null, 2));
 console.error(`resolved ${Object.keys(map).length} families -> paths`);

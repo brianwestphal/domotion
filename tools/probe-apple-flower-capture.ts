@@ -9,10 +9,18 @@ const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
   });
-  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), { url: "**/*", update: false, notFound: "fallback" });
+  await context.routeFromHAR(resolve(CACHE_DIR, "apple-mobile.har"), {
+    url: "**/*",
+    update: false,
+    notFound: "fallback",
+  });
   const page = await context.newPage();
   await page.goto("https://www.apple.com/", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(800);
@@ -25,16 +33,25 @@ async function main() {
     window.scrollTo(0, 0);
   });
   await page.waitForTimeout(1800);
-  await page.evaluate(() => { try { for (const a of document.getAnimations()) { try { a.pause(); } catch {} } } catch {} });
+  await page.evaluate(() => {
+    try {
+      for (const a of document.getAnimations()) {
+        try {
+          a.pause();
+        } catch {}
+      }
+    } catch {}
+  });
 
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 390, height: 844 });
   const flowers: any[] = [];
   const walk = (el: any) => {
-    if (el.tag === 'picture' || el.tag === 'img') {
+    if (el.tag === "picture" || el.tag === "img") {
       if (el.x >= 0 && el.x < 390 && el.y >= 100 && el.y < 700 && el.width > 5 && el.width < 50) {
         flowers.push({
-          tag: el.tag, rect: { x: el.x, y: el.y, w: el.width, h: el.height },
-          imageSrc: el.imageSrc ? el.imageSrc.split('/').pop()?.slice(0, 40) : null,
+          tag: el.tag,
+          rect: { x: el.x, y: el.y, w: el.width, h: el.height },
+          imageSrc: el.imageSrc ? el.imageSrc.split("/").pop()?.slice(0, 40) : null,
           opacity: el.styles?.opacity,
           visibility: el.styles?.visibility,
           display: el.styles?.display,
@@ -47,4 +64,7 @@ async function main() {
   for (const f of flowers.slice(0, 15)) console.log(JSON.stringify(f));
   await browser.close();
 }
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

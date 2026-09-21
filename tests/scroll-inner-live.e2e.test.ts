@@ -10,10 +10,16 @@ import * as fontkit from "fontkit";
 import sharp from "sharp";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function allText(nodes: CapturedElement[]): string {
@@ -21,9 +27,12 @@ function allText(nodes: CapturedElement[]): string {
 }
 
 function expectEveryEmbeddedTextGlyphCovered(svg: string): void {
-  const faces = new Map([...svg.matchAll(
-    /@font-face\s*\{[^}]*font-family:\s*"([^"]+)"[^}]*?base64,([A-Za-z0-9+/=]+)/g,
-  )].map((match) => [match[1], fontkit.create(Buffer.from(match[2], "base64"))]));
+  const faces = new Map(
+    [...svg.matchAll(/@font-face\s*\{[^}]*font-family:\s*"([^"]+)"[^}]*?base64,([A-Za-z0-9+/=]+)/g)].map((match) => [
+      match[1],
+      fontkit.create(Buffer.from(match[2], "base64")),
+    ]),
+  );
   for (const match of svg.matchAll(/<text[^>]*font-family="([^"]+)"[^>]*>([^<]*)<\/text>/g)) {
     const face = faces.get(match[1]);
     expect(face, `missing embedded face ${match[1]}`).toBeDefined();
@@ -81,14 +90,16 @@ describeBrowser("inner live-scroll capture", () => {
 
       // Inspect the live layout that governs each captured slice. The owner is
       // shorter than the outer capture frame, which is the seam-producing case.
-      expect(await page.locator("#list").evaluate((element) => {
-        const style = getComputedStyle(element);
-        return {
-          clientHeight: element.clientHeight,
-          scrollHeight: element.scrollHeight,
-          overflowY: style.overflowY,
-        };
-      })).toEqual({ clientHeight: 120, scrollHeight: 480, overflowY: "auto" });
+      expect(
+        await page.locator("#list").evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            clientHeight: element.clientHeight,
+            scrollHeight: element.scrollHeight,
+            overflowY: style.overflowY,
+          };
+        }),
+      ).toEqual({ clientHeight: 120, scrollHeight: 480, overflowY: "auto" });
 
       const segments = await executeScrollPattern(page, parseScrollPattern("down:bottom/400ms"), {
         selector: "#list",
@@ -121,24 +132,28 @@ describeBrowser("inner live-scroll capture", () => {
 
       // Pin the real ownership distinction which exposed DM-2703: this is an
       // element viewport at a stable page position inside a larger body capture.
-      expect(await page.locator("#list").evaluate((element) => {
-        const style = getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        return {
-          rect: [rect.x, rect.y, rect.width, rect.height],
-          overflow: [style.overflowX, style.overflowY],
-        };
-      })).toEqual({ rect: [24, 114, 260, 120], overflow: ["auto", "auto"] });
-      expect(await page.locator(".foreground").evaluate((element) => {
-        const style = getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        return {
-          rect: [rect.x, rect.y, rect.width, rect.height],
-          position: style.position,
-          zIndex: style.zIndex,
-          topAtCenter: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === element,
-        };
-      })).toEqual({ rect: [124, 158, 120, 52], position: "absolute", zIndex: "20", topAtCenter: true });
+      expect(
+        await page.locator("#list").evaluate((element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return {
+            rect: [rect.x, rect.y, rect.width, rect.height],
+            overflow: [style.overflowX, style.overflowY],
+          };
+        }),
+      ).toEqual({ rect: [24, 114, 260, 120], overflow: ["auto", "auto"] });
+      expect(
+        await page.locator(".foreground").evaluate((element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return {
+            rect: [rect.x, rect.y, rect.width, rect.height],
+            position: style.position,
+            zIndex: style.zIndex,
+            topAtCenter: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === element,
+          };
+        }),
+      ).toEqual({ rect: [124, 158, 120, 52], position: "absolute", zIndex: "20", topAtCenter: true });
 
       const segments = await executeScrollPattern(page, parseScrollPattern("down:80px/400ms"), {
         selector: "#list",
@@ -159,7 +174,9 @@ describeBrowser("inner live-scroll capture", () => {
       expectEveryEmbeddedTextGlyphCovered(svg);
 
       await renderPage.setContent(`<style>html,body{margin:0}</style>${svg.replace(/^<\?xml[^>]*>\s*/, "")}`);
-      await renderPage.evaluate(async () => { await document.fonts.ready; });
+      await renderPage.evaluate(async () => {
+        await document.fonts.ready;
+      });
       const at = async (time: number, clip?: { x: number; y: number; width: number; height: number }) => {
         await renderPage.evaluate((currentTime) => {
           for (const animation of document.getAnimations()) {
@@ -174,15 +191,21 @@ describeBrowser("inner live-scroll capture", () => {
       expect(start.equals(middle)).toBe(false);
       // Sample the header's solid plate away from glyph antialiasing; it must
       // remain byte-identical while the inner owner's contents animate.
-      expect((await at(0, { x: 200, y: 10, width: 20, height: 20 })).equals(
-        await at(399, { x: 200, y: 10, width: 20, height: 20 }),
-      )).toBe(true);
+      expect(
+        (await at(0, { x: 200, y: 10, width: 20, height: 20 })).equals(
+          await at(399, { x: 200, y: 10, width: 20, height: 20 }),
+        ),
+      ).toBe(true);
       const roundedCorner = await sharp(await at(399, { x: 27, y: 231, width: 1, height: 1 }))
-        .removeAlpha().raw().toBuffer();
+        .removeAlpha()
+        .raw()
+        .toBuffer();
       expect([...roundedCorner]).toEqual([229, 72, 77]);
       for (const time of [0, 200, 399]) {
         const foregroundPixel = await sharp(await at(time, { x: 180, y: 180, width: 1, height: 1 }))
-          .removeAlpha().raw().toBuffer();
+          .removeAlpha()
+          .raw()
+          .toBuffer();
         expect([...foregroundPixel]).toEqual([17, 34, 51]);
       }
     } finally {
@@ -197,25 +220,23 @@ describeBrowser("inner live-scroll capture", () => {
       await page.setContent(`<!doctype html><style>
         body{margin:0}#list{width:200px;height:100px;overflow:auto}.row{height:40px}
       </style><div id="list">${Array.from({ length: 10 }, (_, i) => `<div class="row">ROW ${i}</div>`).join("")}</div>`);
-      const segments = await executeScrollPattern(
-        page,
-        parseScrollPattern("pause:200ms,down:80px/400ms"),
-        {
-          selector: "#list",
-          captureSelector: "#list",
-          captureViewport: { x: 0, y: 0, width: 200, height: 100 },
-          viewportW: 200,
-          viewportH: 100,
-          prescroll: false,
-        },
-      );
+      const segments = await executeScrollPattern(page, parseScrollPattern("pause:200ms,down:80px/400ms"), {
+        selector: "#list",
+        captureSelector: "#list",
+        captureViewport: { x: 0, y: 0, width: 200, height: 100 },
+        viewportW: 200,
+        viewportH: 100,
+        prescroll: false,
+      });
 
-      expect(segments.map((segment) => ({
-        scrollY: segment.scrollY,
-        start: segment.segmentStartMs,
-        end: segment.segmentEndMs,
-        timelineOnly: segment.timelineOnly === true,
-      }))).toEqual([
+      expect(
+        segments.map((segment) => ({
+          scrollY: segment.scrollY,
+          start: segment.segmentStartMs,
+          end: segment.segmentEndMs,
+          timelineOnly: segment.timelineOnly === true,
+        })),
+      ).toEqual([
         { scrollY: 0, start: 0, end: 0, timelineOnly: false },
         { scrollY: 0, start: 0, end: 200, timelineOnly: true },
         { scrollY: 80, start: 200, end: 600, timelineOnly: false },
@@ -239,11 +260,14 @@ describeBrowser("inner live-scroll capture", () => {
       await page.setContent(`<!doctype html><style>
         body{margin:0}#list{width:280px;height:120px;overflow:auto;font:16px/1.4 Arial}
         .row{height:24px}
-      </style><div id="list">${Array.from({length:20},(_,i)=>`<div class="row">ScrollRow${i}</div>`).join("")}</div>`);
+      </style><div id="list">${Array.from({ length: 20 }, (_, i) => `<div class="row">ScrollRow${i}</div>`).join("")}</div>`);
       const segments = await executeScrollPattern(page, parseScrollPattern("down:60px until 2 times"), {
-        selector: "#list", captureSelector: "#list",
+        selector: "#list",
+        captureSelector: "#list",
         captureViewport: { x: 0, y: 0, width: 280, height: 120 },
-        viewportW: 280, viewportH: 120, prescroll: false,
+        viewportW: 280,
+        viewportH: 120,
+        prescroll: false,
       });
       setRenderTextMode("system-font");
       const svg = composeScrollSvg(segments, { viewportW: 280, viewportH: 120, renderText: getRenderTextMode() });
@@ -257,5 +281,4 @@ describeBrowser("inner live-scroll capture", () => {
       await page.close();
     }
   }, 60_000);
-
 });

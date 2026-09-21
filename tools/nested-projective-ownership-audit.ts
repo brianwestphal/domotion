@@ -98,16 +98,20 @@ const active = (value: string | undefined, initial: string): boolean =>
   value != null && value !== "" && value !== initial;
 
 const willChangeTokens = (value: string): Set<string> =>
-  new Set(value.split(",").map((token) => token.trim().toLowerCase()).filter(Boolean));
+  new Set(
+    value
+      .split(",")
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean),
+  );
 
 /** Mirrors ComputedStyle::HasGroupingPropertyForUsedTransformStyle3D. */
 export function projectiveGroupingReasons(facts: ProjectiveGroupingFacts): ProjectiveGroupingReason[] {
   const reasons: ProjectiveGroupingReason[] = [];
   const willChange = willChangeTokens(facts.willChange);
   const opacity = Number(facts.opacity);
-  if ((Number.isFinite(opacity) && opacity < 1)
-      || facts.hasCurrentOpacityAnimation
-      || willChange.has("opacity")) reasons.push("opacity");
+  if ((Number.isFinite(opacity) && opacity < 1) || facts.hasCurrentOpacityAnimation || willChange.has("opacity"))
+    reasons.push("opacity");
   if (active(facts.filter, "none") || willChange.has("filter")) reasons.push("filter");
   if (facts.hasBoxReflection) reasons.push("box-reflection");
   if (active(facts.clipPath, "none")) reasons.push("clip-path");
@@ -120,8 +124,8 @@ export function projectiveGroupingReasons(facts: ProjectiveGroupingFacts): Proje
   if (active(facts.viewTransitionName, "none") || facts.isViewTransitionParticipant) {
     reasons.push("view-transition");
   }
-  if ((facts.position === "absolute" || facts.position === "fixed")
-      && active(facts.cssClip, "auto")) reasons.push("css-clip");
+  if ((facts.position === "absolute" || facts.position === "fixed") && active(facts.cssClip, "auto"))
+    reasons.push("css-clip");
   if (facts.overflowX !== "visible" || facts.overflowY !== "visible") reasons.push("overflow");
   return reasons;
 }
@@ -167,9 +171,7 @@ function ancestorOf(byId: ReadonlyMap<string, ProjectiveContextFact>, ancestor: 
  * preserve-3d style. Perspective extends a direct child's transform chain but
  * never creates a rendering-context id.
  */
-export function resolveProjectiveOwnership(
-  facts: readonly ProjectiveContextFact[],
-): ProjectiveOwnershipResolution {
+export function resolveProjectiveOwnership(facts: readonly ProjectiveContextFact[]): ProjectiveOwnershipResolution {
   const byId = new Map(facts.map((fact) => [fact.id, fact]));
   const propagatedToChildren = new Map<string, string | null>();
   const contextRoot = new Map<string, string | null>();
@@ -177,12 +179,8 @@ export function resolveProjectiveOwnership(
 
   for (const fact of facts) {
     const reasons = projectiveGroupingReasons(fact.grouping);
-    const usedPreserve3d = fact.preserve3dApplicable
-      && fact.computedPreserve3d
-      && reasons.length === 0;
-    const inherited = fact.parentId == null
-      ? null
-      : (propagatedToChildren.get(fact.parentId) ?? null);
+    const usedPreserve3d = fact.preserve3dApplicable && fact.computedPreserve3d && reasons.length === 0;
+    const inherited = fact.parentId == null ? null : (propagatedToChildren.get(fact.parentId) ?? null);
     const root = inherited ?? (usedPreserve3d ? fact.id : null);
     contextRoot.set(fact.id, root);
     propagatedToChildren.set(fact.id, usedPreserve3d ? root : null);
@@ -204,9 +202,9 @@ export function resolveProjectiveOwnership(
     candidates.add(owner);
   }
 
-  const ownerIds = [...candidates].filter((candidate) => ![...candidates].some(
-    (other) => other !== candidate && ancestorOf(byId, other, candidate),
-  ));
+  const ownerIds = [...candidates].filter(
+    (candidate) => ![...candidates].some((other) => other !== candidate && ancestorOf(byId, other, candidate)),
+  );
   return { contexts, ownerIds };
 }
 
@@ -274,7 +272,8 @@ const plane = (ids: CaseIds, color: string, style: string, role: "plane" | "plan
 const sentinel = (ids: CaseIds, color: string): string =>
   `<div ${attrs(ids.sentinel, "sentinel")} style="background:${color}"></div>`;
 
-const separateContextMarkup = (groupingCss: string) =>
+const separateContextMarkup =
+  (groupingCss: string) =>
   (ids: CaseIds, planeColor: string, sentinelColor: string): string =>
     `<div ${attrs(ids.outer, "host")} style="transform-style:preserve-3d;${groupingCss}">
       <div ${attrs(ids.inner, "inner")} style="perspective:280px;transform-style:preserve-3d">
@@ -347,28 +346,78 @@ export const NESTED_PROJECTIVE_CASES: readonly AuditCase[] = [
     expectedOwnerRoles: ["inner"],
     markup: separateContextMarkup("opacity:.82"),
   },
-  { id: "opacity-animation", family: "opacity-animation-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("animation:np-opacity 10s paused") },
-  { id: "opacity-will", family: "opacity-will-change-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("will-change:opacity") },
+  {
+    id: "opacity-animation",
+    family: "opacity-animation-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("animation:np-opacity 10s paused"),
+  },
+  {
+    id: "opacity-will",
+    family: "opacity-will-change-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("will-change:opacity"),
+  },
   {
     id: "overflow-x",
     family: "overflow-x-grouping",
     expectedOwnerRoles: ["inner"],
     markup: separateContextMarkup("overflow-x:hidden;overflow-y:visible;border-radius:7px"),
   },
-  { id: "overflow-y", family: "overflow-y-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("overflow-x:visible;overflow-y:clip") },
+  {
+    id: "overflow-y",
+    family: "overflow-y-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("overflow-x:visible;overflow-y:clip"),
+  },
   {
     id: "isolation",
     family: "isolation-grouping",
     expectedOwnerRoles: ["inner"],
     markup: separateContextMarkup("isolation:isolate"),
   },
-  { id: "filter-will", family: "filter-will-change-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("will-change:filter") },
-  { id: "reflection", family: "reflection-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("-webkit-box-reflect:below 1px") },
-  { id: "blend", family: "blend-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("mix-blend-mode:multiply") },
-  { id: "backdrop", family: "backdrop-filter-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("backdrop-filter:blur(1px)") },
-  { id: "backdrop-will", family: "backdrop-will-change-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("will-change:backdrop-filter") },
-  { id: "css-clip", family: "css-clip-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("position:absolute;clip:rect(0,190px,125px,0)") },
-  { id: "view-transition", family: "view-transition-grouping", expectedOwnerRoles: ["inner"], markup: separateContextMarkup("view-transition-name:np-projective") },
+  {
+    id: "filter-will",
+    family: "filter-will-change-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("will-change:filter"),
+  },
+  {
+    id: "reflection",
+    family: "reflection-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("-webkit-box-reflect:below 1px"),
+  },
+  {
+    id: "blend",
+    family: "blend-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("mix-blend-mode:multiply"),
+  },
+  {
+    id: "backdrop",
+    family: "backdrop-filter-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("backdrop-filter:blur(1px)"),
+  },
+  {
+    id: "backdrop-will",
+    family: "backdrop-will-change-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("will-change:backdrop-filter"),
+  },
+  {
+    id: "css-clip",
+    family: "css-clip-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("position:absolute;clip:rect(0,190px,125px,0)"),
+  },
+  {
+    id: "view-transition",
+    family: "view-transition-grouping",
+    expectedOwnerRoles: ["inner"],
+    markup: separateContextMarkup("view-transition-name:np-projective"),
+  },
   {
     id: "clip",
     family: "clip-path-grouping",
@@ -379,19 +428,23 @@ export const NESTED_PROJECTIVE_CASES: readonly AuditCase[] = [
     id: "matrix3d-affine",
     family: "matrix3d-affine-negative",
     expectedOwnerRoles: [],
-    markup: (ids, planeColor, sentinelColor) => `<div ${attrs(ids.outer, "host")}>${plane(ids, planeColor, "transform:matrix3d(1,0,0,0,0,1,0,0,0,0,1,0,17,9,0,1)")}${sentinel(ids, sentinelColor)}</div>`,
+    markup: (ids, planeColor, sentinelColor) =>
+      `<div ${attrs(ids.outer, "host")}>${plane(ids, planeColor, "transform:matrix3d(1,0,0,0,0,1,0,0,0,0,1,0,17,9,0,1)")}${sentinel(ids, sentinelColor)}</div>`,
   },
   {
     id: "inline-svg",
     family: "inline-svg-foreign-object-promotion",
     expectedOwnerRoles: ["outer"],
-    markup: (ids, planeColor, sentinelColor) => `<svg ${attrs(ids.outer, "host")} width="206" height="136"><foreignObject ${attrs(ids.bridge, "bridge")} x="0" y="0" width="180" height="120"><div xmlns="http://www.w3.org/1999/xhtml" ${attrs(ids.inner, "inner")} style="perspective:280px;transform-style:preserve-3d">${plane(ids, planeColor, "transform:rotateY(54deg) translateZ(28px)")}</div></foreignObject></svg>${sentinel(ids, sentinelColor)}`,
+    markup: (ids, planeColor, sentinelColor) =>
+      `<svg ${attrs(ids.outer, "host")} width="206" height="136"><foreignObject ${attrs(ids.bridge, "bridge")} x="0" y="0" width="180" height="120"><div xmlns="http://www.w3.org/1999/xhtml" ${attrs(ids.inner, "inner")} style="perspective:280px;transform-style:preserve-3d">${plane(ids, planeColor, "transform:rotateY(54deg) translateZ(28px)")}</div></foreignObject></svg>${sentinel(ids, sentinelColor)}`,
   },
   {
     id: "mask",
     family: "mask-grouping",
     expectedOwnerRoles: ["inner"],
-    markup: separateContextMarkup("-webkit-mask-image:linear-gradient(#000,#000);mask-image:linear-gradient(#000,#000)"),
+    markup: separateContextMarkup(
+      "-webkit-mask-image:linear-gradient(#000,#000);mask-image:linear-gradient(#000,#000)",
+    ),
   },
   {
     id: "filter",
@@ -423,16 +476,16 @@ export const NESTED_PROJECTIVE_CASES: readonly AuditCase[] = [
 ] as const;
 
 const sentinelColorFor = (index: number): string => {
-  const r = 18 + (index * 37) % 96;
-  const g = 176 + (index * 11) % 68;
-  const b = 48 + (index * 29) % 102;
+  const r = 18 + ((index * 37) % 96);
+  const g = 176 + ((index * 11) % 68);
+  const b = 48 + ((index * 29) % 102);
   return `rgb(${r},${g},${b})`;
 };
 
 const planeColorFor = (index: number): string => {
-  const r = 188 + (index * 13) % 58;
-  const g = 34 + (index * 17) % 72;
-  const b = 72 + (index * 23) % 118;
+  const r = 188 + ((index * 13) % 58);
+  const g = 34 + ((index * 17) % 72);
+  const b = 72 + ((index * 23) % 118);
   return `rgb(${r},${g},${b})`;
 };
 
@@ -449,17 +502,18 @@ export const NESTED_PROJECTIVE_VIEWPORT = {
 export function nestedProjectiveAuditFixtureHtml(profile = "horizontal-ltr-static"): string {
   const cases = NESTED_PROJECTIVE_CASES.map((spec, index) => {
     const ids = idsFor(spec.id);
-    const left = index % 4 * 250;
+    const left = (index % 4) * 250;
     const top = Math.floor(index / 4) * 178;
     return `<section ${attrs(ids.case, `case case-${spec.id}`)} data-audit-case="${spec.id}" style="left:${left}px;top:${top}px">
       ${spec.markup(ids, planeColorFor(index), sentinelColorFor(index))}
     </section>`;
   }).join("");
-  const profileCss = profile === "vertical-rtl-fractional-zoom-scroll"
-    ? "direction:rtl;writing-mode:vertical-rl;zoom:1.25;transform:translate(.25px,.5px);transform-origin:0 0"
-    : profile === "same-origin-frame-svg-effects"
-      ? "clip-path:inset(0);filter:opacity(.999)"
-      : "";
+  const profileCss =
+    profile === "vertical-rtl-fractional-zoom-scroll"
+      ? "direction:rtl;writing-mode:vertical-rl;zoom:1.25;transform:translate(.25px,.5px);transform-origin:0 0"
+      : profile === "same-origin-frame-svg-effects"
+        ? "clip-path:inset(0);filter:opacity(.999)"
+        : "";
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     @keyframes np-opacity{from{opacity:1}to{opacity:.8}}
     *{box-sizing:border-box}html,body{margin:0;background:#f5f7fb}body{overflow:hidden}
@@ -502,51 +556,57 @@ const emptyGrouping = (): ProjectiveGroupingFacts => ({
 });
 
 async function gatherBrowserFacts(page: Page): Promise<{ facts: BrowserNodeFact[]; blockers: string[] }> {
-  const raw = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => {
-    const style = getComputedStyle(element);
-    const parent = element.parentElement?.closest<HTMLElement>("[data-projective-node]") ?? null;
-    const nearestSvg = element.closest<SVGSVGElement>("svg[data-projective-node]");
-    const opacityAnimated = element.getAnimations().some((animation) => {
-      const effect = animation.effect as KeyframeEffect | null;
-      return effect?.target === element && effect.getKeyframes().some((frame) => frame.opacity != null);
-    });
-    const hasTransform = [style.transform, style.translate, style.rotate, style.scale]
-      .some((value) => value != null && value !== "" && value !== "none")
-      || style.backfaceVisibility === "hidden";
-    const maskBorderSource = style.getPropertyValue("mask-border-source")
-      || style.getPropertyValue("-webkit-mask-box-image-source")
-      || "none";
-    return {
-      id: element.dataset.projectiveNode!,
-      caseId: element.closest<HTMLElement>("[data-audit-case]")?.dataset.auditCase ?? "",
-      parentId: parent?.dataset.projectiveNode ?? null,
-      preserve3dApplicable: element.namespaceURI === "http://www.w3.org/1999/xhtml"
-        && style.display !== "inline" && style.display !== "contents",
-      computedPreserve3d: style.transformStyle === "preserve-3d",
-      grouping: {
-        opacity: style.opacity,
-        hasCurrentOpacityAnimation: opacityAnimated,
-        filter: style.filter || "none",
-        backdropFilter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter") || "none",
-        hasBoxReflection: (style.webkitBoxReflect ?? "none") !== "none",
-        clipPath: style.clipPath || "none",
-        isolation: style.isolation || "auto",
-        maskImage: style.maskImage || style.getPropertyValue("-webkit-mask-image") || "none",
-        maskBorderSource,
-        mixBlendMode: style.mixBlendMode || "normal",
-        viewTransitionName: style.getPropertyValue("view-transition-name") || "none",
-        // No active view transition is started by this deterministic fixture.
-        isViewTransitionParticipant: false,
-        position: style.position,
-        cssClip: style.clip || "auto",
-        overflowX: style.overflowX,
-        overflowY: style.overflowY,
-        willChange: style.willChange || "auto",
-      },
-      activationPlane: hasTransform,
-      inlineSvgRootId: nearestSvg?.dataset.projectiveNode ?? null,
-    };
-  }));
+  const raw = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => {
+      const style = getComputedStyle(element);
+      const parent = element.parentElement?.closest<HTMLElement>("[data-projective-node]") ?? null;
+      const nearestSvg = element.closest<SVGSVGElement>("svg[data-projective-node]");
+      const opacityAnimated = element.getAnimations().some((animation) => {
+        const effect = animation.effect as KeyframeEffect | null;
+        return effect?.target === element && effect.getKeyframes().some((frame) => frame.opacity != null);
+      });
+      const hasTransform =
+        [style.transform, style.translate, style.rotate, style.scale].some(
+          (value) => value != null && value !== "" && value !== "none",
+        ) || style.backfaceVisibility === "hidden";
+      const maskBorderSource =
+        style.getPropertyValue("mask-border-source") ||
+        style.getPropertyValue("-webkit-mask-box-image-source") ||
+        "none";
+      return {
+        id: element.dataset.projectiveNode!,
+        caseId: element.closest<HTMLElement>("[data-audit-case]")?.dataset.auditCase ?? "",
+        parentId: parent?.dataset.projectiveNode ?? null,
+        preserve3dApplicable:
+          element.namespaceURI === "http://www.w3.org/1999/xhtml" &&
+          style.display !== "inline" &&
+          style.display !== "contents",
+        computedPreserve3d: style.transformStyle === "preserve-3d",
+        grouping: {
+          opacity: style.opacity,
+          hasCurrentOpacityAnimation: opacityAnimated,
+          filter: style.filter || "none",
+          backdropFilter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter") || "none",
+          hasBoxReflection: (style.webkitBoxReflect ?? "none") !== "none",
+          clipPath: style.clipPath || "none",
+          isolation: style.isolation || "auto",
+          maskImage: style.maskImage || style.getPropertyValue("-webkit-mask-image") || "none",
+          maskBorderSource,
+          mixBlendMode: style.mixBlendMode || "normal",
+          viewTransitionName: style.getPropertyValue("view-transition-name") || "none",
+          // No active view transition is started by this deterministic fixture.
+          isViewTransitionParticipant: false,
+          position: style.position,
+          cssClip: style.clip || "auto",
+          overflowX: style.overflowX,
+          overflowY: style.overflowY,
+          willChange: style.willChange || "auto",
+        },
+        activationPlane: hasTransform,
+        inlineSvgRootId: nearestSvg?.dataset.projectiveNode ?? null,
+      };
+    }),
+  );
 
   const cdp = await page.context().newCDPSession(page);
   const quadById = new Map<string, ProjectivePaintQuad | null>();
@@ -612,9 +672,12 @@ async function rasterContainsColor(dataUri: string | undefined, cssColor: string
   const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   for (let offset = 0; offset < decoded.data.length; offset += decoded.info.channels) {
     if (decoded.data[offset + 3] < 16) continue;
-    if (Math.abs(decoded.data[offset] - channels[0]) <= 12
-        && Math.abs(decoded.data[offset + 1] - channels[1]) <= 12
-        && Math.abs(decoded.data[offset + 2] - channels[2]) <= 12) return true;
+    if (
+      Math.abs(decoded.data[offset] - channels[0]) <= 12 &&
+      Math.abs(decoded.data[offset + 1] - channels[1]) <= 12 &&
+      Math.abs(decoded.data[offset + 2] - channels[2]) <= 12
+    )
+      return true;
   }
   return false;
 }
@@ -658,7 +721,16 @@ export interface NestedProjectiveAuditRow {
 }
 
 export interface NestedProjectiveMutationResult {
-  id: "owner-one-level-high" | "owner-one-level-low" | "dropped-owner" | "duplicate-raster" | "baked-vector-sibling" | "double-transform" | "stale-animated-owner" | "grouping-fact-collapsed" | "platform-dpr-fingerprint-swap";
+  id:
+    | "owner-one-level-high"
+    | "owner-one-level-low"
+    | "dropped-owner"
+    | "duplicate-raster"
+    | "baked-vector-sibling"
+    | "double-transform"
+    | "stale-animated-owner"
+    | "grouping-fact-collapsed"
+    | "platform-dpr-fingerprint-swap";
   killed: boolean;
 }
 
@@ -692,7 +764,10 @@ function mutationControls(): NestedProjectiveMutationResult[] {
   return [
     { id: "owner-one-level-high", killed: killed({ ...passing, actualOwnerIds: ["outer"] }) },
     { id: "owner-one-level-low", killed: killed({ ...passing, actualOwnerIds: ["plane"] }) },
-    { id: "dropped-owner", killed: killed({ ...passing, actualOwnerIds: [], rasterOccurrences: 0, staticTransformApplications: 0 }) },
+    {
+      id: "dropped-owner",
+      killed: killed({ ...passing, actualOwnerIds: [], rasterOccurrences: 0, staticTransformApplications: 0 }),
+    },
     { id: "duplicate-raster", killed: killed({ ...passing, rasterOccurrences: 2 }) },
     { id: "baked-vector-sibling", killed: killed({ ...passing, vectorSentinelRetained: false }) },
     { id: "double-transform", killed: killed({ ...passing, staticTransformApplications: 2 }) },
@@ -702,11 +777,13 @@ function mutationControls(): NestedProjectiveMutationResult[] {
   ];
 }
 
-export async function runNestedProjectiveOwnershipAudit(options: {
-  dprs?: number[];
-  artifactDir?: string;
-  profile?: string;
-} = {}): Promise<NestedProjectiveAuditReport> {
+export async function runNestedProjectiveOwnershipAudit(
+  options: {
+    dprs?: number[];
+    artifactDir?: string;
+    profile?: string;
+  } = {},
+): Promise<NestedProjectiveAuditReport> {
   const dprs = options.dprs ?? [1, 2];
   const browser = await launchChromium();
   const rows: NestedProjectiveAuditRow[] = [];
@@ -722,38 +799,90 @@ export async function runNestedProjectiveOwnershipAudit(options: {
       const rendered = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
       try {
         await page.setContent(nestedProjectiveAuditFixtureHtml(options.profile), { waitUntil: "load" });
-        const sourceDom = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]"))
-          .map((element) => [element.dataset.projectiveNode, ["visibility", "background", "opacity", "filter", "mask", "-webkit-mask", "mix-blend-mode", "transform", "translate", "rotate", "scale"]
-            .map((property) => [property, element.style.getPropertyValue(property), element.style.getPropertyPriority(property)])]));
+        const sourceDom = await page.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => [
+            element.dataset.projectiveNode,
+            [
+              "visibility",
+              "background",
+              "opacity",
+              "filter",
+              "mask",
+              "-webkit-mask",
+              "mix-blend-mode",
+              "transform",
+              "translate",
+              "rotate",
+              "scale",
+            ].map((property) => [
+              property,
+              element.style.getPropertyValue(property),
+              element.style.getPropertyPriority(property),
+            ]),
+          ]),
+        );
         const sourcePng = await page.screenshot();
         const independent = await gatherBrowserFacts(page);
         blockers.push(...independent.blockers.map((blocker) => `dpr${dpr}:${blocker}`));
-        const captured = await captureElementTreeWithWarnings(
-          page,
-          "#stage",
-          { x: 0, y: 0, ...NESTED_PROJECTIVE_VIEWPORT },
+        const captured = await captureElementTreeWithWarnings(page, "#stage", {
+          x: 0,
+          y: 0,
+          ...NESTED_PROJECTIVE_VIEWPORT,
+        });
+        warnings.push(
+          ...captured.warnings
+            .filter((warning) => warning.status != null)
+            .map((warning) => `dpr${dpr}:${warning.feature}:${warning.detail}`),
         );
-        warnings.push(...captured.warnings.filter((warning) => warning.status != null)
-          .map((warning) => `dpr${dpr}:${warning.feature}:${warning.detail}`));
-        const restoredDom = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]"))
-          .map((element) => [element.dataset.projectiveNode, ["visibility", "background", "opacity", "filter", "mask", "-webkit-mask", "mix-blend-mode", "transform", "translate", "rotate", "scale"]
-            .map((property) => [property, element.style.getPropertyValue(property), element.style.getPropertyPriority(property)])]));
+        const restoredDom = await page.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => [
+            element.dataset.projectiveNode,
+            [
+              "visibility",
+              "background",
+              "opacity",
+              "filter",
+              "mask",
+              "-webkit-mask",
+              "mix-blend-mode",
+              "transform",
+              "translate",
+              "rotate",
+              "scale",
+            ].map((property) => [
+              property,
+              element.style.getPropertyValue(property),
+              element.style.getPropertyPriority(property),
+            ]),
+          ]),
+        );
         const before = new Map(sourceDom);
         const after = new Map(restoredDom);
         const changed = [...new Set([...before.keys(), ...after.keys()])]
-          .filter((id) => JSON.stringify(before.get(id)) !== JSON.stringify(after.get(id))).slice(0, 5);
+          .filter((id) => JSON.stringify(before.get(id)) !== JSON.stringify(after.get(id)))
+          .slice(0, 5);
         if (changed.length > 0) {
           restorationExact = false;
           const first = changed[0];
-          blockers.push(`dpr${dpr}: source DOM declarations changed after projective isolation/restoration (${changed.join(",")}; ${first}:${JSON.stringify(before.get(first))}->${JSON.stringify(after.get(first))})`);
+          blockers.push(
+            `dpr${dpr}: source DOM declarations changed after projective isolation/restoration (${changed.join(",")}; ${first}:${JSON.stringify(before.get(first))}->${JSON.stringify(after.get(first))})`,
+          );
         }
         const elements = flatten(captured.tree);
-        const byAnimId = new Map(elements.filter((element) => element.animId != null)
-          .map((element) => [element.animId!, element]));
-        const svg = elementTreeToSvg(captured.tree, NESTED_PROJECTIVE_VIEWPORT.width, NESTED_PROJECTIVE_VIEWPORT.height, {
-          idPrefix: `dm2356-${dpr}-`,
-        });
-        await rendered.setContent(`<style>html,body{margin:0;background:#f5f7fb}img{display:block;width:${NESTED_PROJECTIVE_VIEWPORT.width}px;height:${NESTED_PROJECTIVE_VIEWPORT.height}px}</style><img alt="audit" src="data:image/svg+xml,${encodeURIComponent(svg)}">`);
+        const byAnimId = new Map(
+          elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]),
+        );
+        const svg = elementTreeToSvg(
+          captured.tree,
+          NESTED_PROJECTIVE_VIEWPORT.width,
+          NESTED_PROJECTIVE_VIEWPORT.height,
+          {
+            idPrefix: `dm2356-${dpr}-`,
+          },
+        );
+        await rendered.setContent(
+          `<style>html,body{margin:0;background:#f5f7fb}img{display:block;width:${NESTED_PROJECTIVE_VIEWPORT.width}px;height:${NESTED_PROJECTIVE_VIEWPORT.height}px}</style><img alt="audit" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+        );
         await rendered.locator("img").evaluate((image: HTMLImageElement) => image.decode());
         const renderedPng = await rendered.screenshot();
         sourceVsSvgChangedFraction[`dpr${dpr}`] = await changedFraction(sourcePng, renderedPng);
@@ -791,8 +920,8 @@ export async function runNestedProjectiveOwnershipAudit(options: {
               if (await rasterContainsColor(raster.dataUri, sentinelColor)) sentinelBakedIntoRaster = true;
             }
           }
-          const sourceModelMatchesDesign = JSON.stringify([...resolved.ownerIds].sort())
-            === JSON.stringify([...expectedOwnerIds].sort());
+          const sourceModelMatchesDesign =
+            JSON.stringify([...resolved.ownerIds].sort()) === JSON.stringify([...expectedOwnerIds].sort());
           const adjudicated = adjudicateProjectiveOwnership(expectedOwnerIds, {
             actualOwnerIds,
             rasterOccurrences: atomicRasterOccurrences,
@@ -800,9 +929,10 @@ export async function runNestedProjectiveOwnershipAudit(options: {
             staticTransformApplications,
           });
           const ownerMinimal = adjudicated.checks.ownerIdentity;
-          const atomicOneApplication = adjudicated.checks.rasterCount
-            && adjudicated.checks.oneTransformApplication;
-          const groupingReasons = Object.fromEntries(resolved.contexts.map((context) => [context.id, context.groupingReasons]));
+          const atomicOneApplication = adjudicated.checks.rasterCount && adjudicated.checks.oneTransformApplication;
+          const groupingReasons = Object.fromEntries(
+            resolved.contexts.map((context) => [context.id, context.groupingReasons]),
+          );
           const residuals = Object.fromEntries(facts.map((fact) => [fact.id, fact.residual]));
           rows.push({
             id: `${spec.id}@dpr${dpr}`,
@@ -819,22 +949,31 @@ export async function runNestedProjectiveOwnershipAudit(options: {
             atomicOneApplication,
             groupingReasons,
             residuals,
-            fingerprint: createHash("sha256").update(JSON.stringify({
-              dpr,
-              spec: spec.id,
-              expectedOwnerIds,
-              actualOwnerIds,
-              groupingReasons,
-              residuals,
-            })).digest("hex").slice(0, 16),
+            fingerprint: createHash("sha256")
+              .update(
+                JSON.stringify({
+                  dpr,
+                  spec: spec.id,
+                  expectedOwnerIds,
+                  actualOwnerIds,
+                  groupingReasons,
+                  residuals,
+                }),
+              )
+              .digest("hex")
+              .slice(0, 16),
           });
           if (!sourceModelMatchesDesign) productionGaps.push(`${spec.id}: fixture/source-model disagreement`);
-          if (!ownerMinimal) productionGaps.push(`${spec.id}: owner ${actualOwnerIds.join(",") || "none"} != ${expectedOwnerIds.join(",") || "none"}`);
+          if (!ownerMinimal)
+            productionGaps.push(
+              `${spec.id}: owner ${actualOwnerIds.join(",") || "none"} != ${expectedOwnerIds.join(",") || "none"}`,
+            );
           if (!vectorSentinelRetained) productionGaps.push(`${spec.id}: vector sentinel absorbed by raster owner`);
           if (sentinelBakedIntoRaster && !expectedOwnerIds.includes(idsFor(spec.id).outer)) {
             productionGaps.push(`${spec.id}: non-owner vector sentinel present in Chromium crop`);
           }
-          if (!atomicOneApplication && actualOwners.length > 0) productionGaps.push(`${spec.id}: atomic raster application count drift`);
+          if (!atomicOneApplication && actualOwners.length > 0)
+            productionGaps.push(`${spec.id}: atomic raster application count drift`);
         }
       } finally {
         await page.close();
@@ -847,11 +986,12 @@ export async function runNestedProjectiveOwnershipAudit(options: {
 
   const mutations = mutationControls();
   const expectedRows = dprs.length * NESTED_PROJECTIVE_CASES.length;
-  const complete = blockers.length === 0
-    && rows.length === expectedRows
-    && rows.every((row) => row.sourceModelMatchesDesign)
-    && mutations.length === 9
-    && mutations.every((mutation) => mutation.killed);
+  const complete =
+    blockers.length === 0 &&
+    rows.length === expectedRows &&
+    rows.every((row) => row.sourceModelMatchesDesign) &&
+    mutations.length === 9 &&
+    mutations.every((mutation) => mutation.killed);
   return {
     schemaVersion: 1,
     sourcePins: NESTED_PROJECTIVE_SOURCE_PINS,
@@ -872,7 +1012,10 @@ export async function runNestedProjectiveOwnershipAudit(options: {
 
 function parseDprs(value: string | undefined): number[] {
   if (value == null || value === "") return [1, 2];
-  const dprs = value.split(",").map(Number).filter((entry) => Number.isFinite(entry) && entry > 0);
+  const dprs = value
+    .split(",")
+    .map(Number)
+    .filter((entry) => Number.isFinite(entry) && entry > 0);
   if (dprs.length === 0) throw new Error("--dpr requires one or more positive comma-separated numbers");
   return dprs;
 }

@@ -3,11 +3,11 @@ id: "requirements/macos-terminal-raster-evidence"
 title: "149 — macOS terminal-raster evidence"
 kind: "evidence"
 status: "current"
-owners: ["images-media","platform-release","product-tooling"]
+owners: ["images-media", "platform-release", "product-tooling"]
 platforms: ["macos"]
 tickets: ["DM-2440"]
-code: ["tests/macos-terminal-raster-oracle.test.ts","tools/macos-terminal-raster-oracle.ts"]
-aliases: ["docs/149-macos-terminal-raster-evidence.md","doc-149"]
+code: ["tests/macos-terminal-raster-oracle.test.ts", "tools/macos-terminal-raster-oracle.ts"]
+aliases: ["docs/149-macos-terminal-raster-evidence.md", "doc-149"]
 ---
 
 # 149 — macOS terminal-raster evidence

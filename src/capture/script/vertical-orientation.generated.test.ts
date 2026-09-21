@@ -52,7 +52,6 @@ describe("Chromium-pinned ICU mixed vertical orientation", () => {
 
   it("pins Unicode and source-image identity so a roll cannot be silent", () => {
     expect(VERTICAL_ORIENTATION_UNICODE_VERSION).toBe("17.0.0");
-    expect(VERTICAL_ORIENTATION_SOURCE_SHA256)
-      .toBe("bccc5a5ca1baea3de767e8266d59ffa13ff99595bea37ca82415851386f57dbd");
+    expect(VERTICAL_ORIENTATION_SOURCE_SHA256).toBe("bccc5a5ca1baea3de767e8266d59ffa13ff99595bea37ca82415851386f57dbd");
   });
 });

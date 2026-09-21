@@ -67,9 +67,14 @@ const SOURCE_PROVENANCE: CapturedTextFragmentSourceSpan["provenance"] = {
 };
 
 function finiteRect(rect: CapturedTextRangeRect): boolean {
-  return Number.isFinite(rect.x) && Number.isFinite(rect.y)
-    && Number.isFinite(rect.width) && Number.isFinite(rect.height)
-    && rect.width > 0 && rect.height > 0;
+  return (
+    Number.isFinite(rect.x) &&
+    Number.isFinite(rect.y) &&
+    Number.isFinite(rect.width) &&
+    Number.isFinite(rect.height) &&
+    rect.width > 0 &&
+    rect.height > 0
+  );
 }
 
 function quadEdges(quad: CapturedTextPaintQuad): RectEdges {
@@ -92,17 +97,14 @@ function rectEdges(rect: CapturedTextRangeRect): RectEdges {
   };
 }
 
-function exactTranslatedMatch(
-  range: CapturedTextRangeRect,
-  quad: RectEdges,
-  dx: number,
-  dy: number,
-): boolean {
+function exactTranslatedMatch(range: CapturedTextRangeRect, quad: RectEdges, dx: number, dy: number): boolean {
   const source = rectEdges(range);
-  return source.left + dx === quad.left
-    && source.top + dy === quad.top
-    && source.right + dx === quad.right
-    && source.bottom + dy === quad.bottom;
+  return (
+    source.left + dx === quad.left &&
+    source.top + dy === quad.top &&
+    source.right + dx === quad.right &&
+    source.bottom + dy === quad.bottom
+  );
 }
 
 function mappingCount(
@@ -144,7 +146,10 @@ export function joinBlinkRangeFragmentsToContentQuads(
     return { fragments: null, failureReason: "text source node index is invalid" };
   }
   if (neutralQuads.length === 0 || rangeFragments.length < neutralQuads.length) {
-    return { fragments: null, failureReason: "Range FragmentItem/cardinality is smaller than protocol quad cardinality" };
+    return {
+      fragments: null,
+      failureReason: "Range FragmentItem/cardinality is smaller than protocol quad cardinality",
+    };
   }
   for (let index = 0; index < rangeFragments.length; index++) {
     const fragment = rangeFragments[index];
@@ -165,8 +170,8 @@ export function joinBlinkRangeFragmentsToContentQuads(
   for (const quad of quadRects) {
     for (const fragment of rangeFragments) {
       const range = rectEdges(fragment.neutralRangeRect);
-      if (range.right - range.left !== quad.right - quad.left
-        || range.bottom - range.top !== quad.bottom - quad.top) continue;
+      if (range.right - range.left !== quad.right - quad.left || range.bottom - range.top !== quad.bottom - quad.top)
+        continue;
       const dx = quad.left - range.left;
       const dy = quad.top - range.top;
       translations.set(`${dx}|${dy}`, { dx, dy });
@@ -176,8 +181,11 @@ export function joinBlinkRangeFragmentsToContentQuads(
   const accepted = new Map<string, { dx: number; dy: number; path: number[] }>();
   let ambiguousMapping = false;
   for (const translation of translations.values()) {
-    const matches = quadRects.map((quad) => rangeFragments.map((fragment) =>
-      exactTranslatedMatch(fragment.neutralRangeRect, quad, translation.dx, translation.dy)));
+    const matches = quadRects.map((quad) =>
+      rangeFragments.map((fragment) =>
+        exactTranslatedMatch(fragment.neutralRangeRect, quad, translation.dx, translation.dy),
+      ),
+    );
     const mapped = mappingCount(matches, 0, 0, new Map());
     if (mapped.count > 1) ambiguousMapping = true;
     if (mapped.count !== 1 || mapped.path == null) continue;
@@ -190,9 +198,10 @@ export function joinBlinkRangeFragmentsToContentQuads(
   if (accepted.size !== 1) {
     return {
       fragments: null,
-      failureReason: accepted.size === 0 && !ambiguousMapping
-        ? "ordered Range FragmentItems do not exactly join protocol quads"
-        : "ordered Range FragmentItem/protocol quad join is ambiguous",
+      failureReason:
+        accepted.size === 0 && !ambiguousMapping
+          ? "ordered Range FragmentItems do not exactly join protocol quads"
+          : "ordered Range FragmentItem/protocol quad join is ambiguous",
     };
   }
 
@@ -242,9 +251,14 @@ function sliceSegment(
 ): { segment: TextSegment | null; failureReason?: string } {
   const mapping = segment.sourceMapping!;
   const partial = renderedStart !== 0 || renderedEnd !== segment.text.length;
-  if (partial && (segment.rasterRect != null || segment.rasterDataUri != null
-    || segment.colorGlyphIdentities != null)) {
-    return { segment: null, failureReason: "segment-level raster/color-glyph ownership crosses a FragmentItem boundary" };
+  if (
+    partial &&
+    (segment.rasterRect != null || segment.rasterDataUri != null || segment.colorGlyphIdentities != null)
+  ) {
+    return {
+      segment: null,
+      failureReason: "segment-level raster/color-glyph ownership crosses a FragmentItem boundary",
+    };
   }
   const indexedKeys = [
     "xOffsets",
@@ -256,18 +270,29 @@ function sliceSegment(
   ] as const;
   const indexed: Partial<TextSegment> = {};
   for (const key of indexedKeys) {
-    const sliced = sliceIndexedArray(segment[key] as readonly unknown[] | undefined,
-      segment.text.length, renderedStart, renderedEnd);
+    const sliced = sliceIndexedArray(
+      segment[key] as readonly unknown[] | undefined,
+      segment.text.length,
+      renderedStart,
+      renderedEnd,
+    );
     if (sliced === null) {
       return { segment: null, failureReason: `${key} is not UTF-16 aligned at the FragmentItem boundary` };
     }
     (indexed as Record<string, unknown>)[key] = sliced;
   }
 
-  let combineOffsets = sliceIndexedArray(segment.verticalCombineXOffsets,
-    segment.text.length, renderedStart, renderedEnd);
+  let combineOffsets = sliceIndexedArray(
+    segment.verticalCombineXOffsets,
+    segment.text.length,
+    renderedStart,
+    renderedEnd,
+  );
   if (combineOffsets === null) {
-    return { segment: null, failureReason: "vertical combine offsets are not UTF-16 aligned at the FragmentItem boundary" };
+    return {
+      segment: null,
+      failureReason: "vertical combine offsets are not UTF-16 aligned at the FragmentItem boundary",
+    };
   }
   if (combineOffsets != null && role === "ordinary") {
     const delta = segment.x - fragment.neutralRangeRect.x;
@@ -277,7 +302,7 @@ function sliceSegment(
   const rasterGlyphs: NonNullable<TextSegment["rasterGlyphs"]> = [];
   for (const glyph of segment.rasterGlyphs ?? []) {
     const glyphStart = glyph.charIndex;
-    const glyphEnd = glyphStart + (glyph.charLength ?? ((segment.text.codePointAt(glyphStart) ?? 0) > 0xFFFF ? 2 : 1));
+    const glyphEnd = glyphStart + (glyph.charLength ?? ((segment.text.codePointAt(glyphStart) ?? 0) > 0xffff ? 2 : 1));
     if (glyphEnd <= renderedStart || glyphStart >= renderedEnd) continue;
     if (glyphStart < renderedStart || glyphEnd > renderedEnd) {
       return { segment: null, failureReason: "raster glyph cluster crosses a FragmentItem boundary" };
@@ -290,8 +315,7 @@ function sliceSegment(
   }
 
   const selectedChunks = mapping.renderedChunks
-    .filter((chunk) => chunk.renderedUtf16Span[0] >= renderedStart
-      && chunk.renderedUtf16Span[1] <= renderedEnd)
+    .filter((chunk) => chunk.renderedUtf16Span[0] >= renderedStart && chunk.renderedUtf16Span[1] <= renderedEnd)
     .map((chunk) => ({
       renderedUtf16Span: [
         chunk.renderedUtf16Span[0] - renderedStart,
@@ -326,33 +350,45 @@ function sliceSegment(
     next.inlineOffset = undefined;
   }
   if (next.xAdvances != null) next.shapedWidth = next.xAdvances.reduce((sum, value) => sum + value, 0);
-  else if (next.verticalAdvances != null) next.shapedWidth = next.verticalAdvances.reduce((sum, value) => sum + value, 0);
+  else if (next.verticalAdvances != null)
+    next.shapedWidth = next.verticalAdvances.reduce((sum, value) => sum + value, 0);
   return { segment: next };
 }
 
 function validateMapping(segment: TextSegment): string | undefined {
   const mapping = segment.sourceMapping;
   if (mapping == null) return undefined;
-  if (mapping.source !== "dom-text-utf16-v1"
-    || !Number.isInteger(mapping.sourceTextNodeIndex) || mapping.sourceTextNodeIndex < 0
-    || mapping.renderedChunks.length === 0) return "text segment source mapping is invalid";
+  if (
+    mapping.source !== "dom-text-utf16-v1" ||
+    !Number.isInteger(mapping.sourceTextNodeIndex) ||
+    mapping.sourceTextNodeIndex < 0 ||
+    mapping.renderedChunks.length === 0
+  )
+    return "text segment source mapping is invalid";
   let renderedOffset = 0;
   let minimumSource = Infinity;
   let maximumSource = -Infinity;
   for (const chunk of mapping.renderedChunks) {
     const [renderedStart, renderedEnd] = chunk.renderedUtf16Span;
     const [sourceStart, sourceEnd] = chunk.domUtf16Span;
-    if (renderedStart !== renderedOffset || renderedEnd <= renderedStart
-      || sourceStart < 0 || sourceEnd <= sourceStart || sourceEnd > mapping.domText.length) {
+    if (
+      renderedStart !== renderedOffset ||
+      renderedEnd <= renderedStart ||
+      sourceStart < 0 ||
+      sourceEnd <= sourceStart ||
+      sourceEnd > mapping.domText.length
+    ) {
       return "text segment source chunks are not exact contiguous rendered UTF-16 ranges";
     }
     renderedOffset = renderedEnd;
     minimumSource = Math.min(minimumSource, sourceStart);
     maximumSource = Math.max(maximumSource, sourceEnd);
   }
-  if (renderedOffset !== segment.text.length
-    || mapping.domUtf16Span[0] !== minimumSource
-    || mapping.domUtf16Span[1] !== maximumSource) {
+  if (
+    renderedOffset !== segment.text.length ||
+    mapping.domUtf16Span[0] !== minimumSource ||
+    mapping.domUtf16Span[1] !== maximumSource
+  ) {
     return "text segment source mapping does not cover its rendered/source envelope";
   }
   return undefined;
@@ -379,7 +415,12 @@ export function splitTextSegmentsOnFragmentSpans(
   for (const segment of segments) {
     const mappingFailure = validateMapping(segment);
     if (mappingFailure != null) {
-      return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment, failureReason: mappingFailure };
+      return {
+        segments: null,
+        sourceFragments: finalSources,
+        textSegmentIndexBySourceFragment,
+        failureReason: mappingFailure,
+      };
     }
     const mapping = segment.sourceMapping;
     if (mapping == null) {
@@ -390,8 +431,12 @@ export function splitTextSegmentsOnFragmentSpans(
       .map((fragment, sourceFragmentIndex) => ({ fragment, sourceFragmentIndex }))
       .filter(({ fragment }) => fragment.sourceTextNodeIndex === mapping.sourceTextNodeIndex);
     if (candidates.length === 0) {
-      return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-        failureReason: "text segment source node has no Range FragmentItems" };
+      return {
+        segments: null,
+        sourceFragments: finalSources,
+        textSegmentIndexBySourceFragment,
+        failureReason: "text segment source node has no Range FragmentItems",
+      };
     }
 
     const normalizedChunks: typeof mapping.renderedChunks = [];
@@ -401,7 +446,9 @@ export function splitTextSegmentsOnFragmentSpans(
     }> = [];
     for (const chunk of mapping.renderedChunks) {
       const containing = candidates.filter(({ fragment }) => spanContains(fragment.domUtf16Span, chunk.domUtf16Span));
-      const intersecting = candidates.filter(({ fragment }) => spansIntersect(fragment.domUtf16Span, chunk.domUtf16Span));
+      const intersecting = candidates.filter(({ fragment }) =>
+        spansIntersect(fragment.domUtf16Span, chunk.domUtf16Span),
+      );
       if (containing.length === 1 && intersecting.length === 1) {
         normalizedChunks.push(chunk);
         ownedChunks.push({ chunk, owner: containing[0] });
@@ -417,8 +464,9 @@ export function splitTextSegmentsOnFragmentSpans(
       // and continue to fail closed.
       const renderedLength = chunk.renderedUtf16Span[1] - chunk.renderedUtf16Span[0];
       const domLength = chunk.domUtf16Span[1] - chunk.domUtf16Span[0];
-      const ordered = [...intersecting].sort((left, right) =>
-        left.fragment.domUtf16Span[0] - right.fragment.domUtf16Span[0]);
+      const ordered = [...intersecting].sort(
+        (left, right) => left.fragment.domUtf16Span[0] - right.fragment.domUtf16Span[0],
+      );
       let cursor = chunk.domUtf16Span[0];
       const pieces: typeof ownedChunks = [];
       if (renderedLength === domLength) {
@@ -450,8 +498,12 @@ export function splitTextSegmentsOnFragmentSpans(
             role: fragment.role,
           })),
         });
-        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-          failureReason: `a rendered source chunk crosses or ambiguously belongs to FragmentItem spans (${evidence})` };
+        return {
+          segments: null,
+          sourceFragments: finalSources,
+          textSegmentIndexBySourceFragment,
+          failureReason: `a rendered source chunk crosses or ambiguously belongs to FragmentItem spans (${evidence})`,
+        };
       }
       for (const piece of pieces) {
         normalizedChunks.push(piece.chunk);
@@ -459,42 +511,67 @@ export function splitTextSegmentsOnFragmentSpans(
       }
     }
 
-    const normalizedSegment: TextSegment = normalizedChunks.length === mapping.renderedChunks.length
-      ? segment
-      : { ...segment, sourceMapping: { ...mapping, renderedChunks: normalizedChunks } };
+    const normalizedSegment: TextSegment =
+      normalizedChunks.length === mapping.renderedChunks.length
+        ? segment
+        : { ...segment, sourceMapping: { ...mapping, renderedChunks: normalizedChunks } };
     const chunksByFragment = new Map<number, typeof mapping.renderedChunks>();
     for (const { chunk, owner } of ownedChunks) {
       if (owner.fragment.role !== mapping.role) {
         // The ordinary body duplicate under a styled ::first-letter is
         // intentionally discarded; the dedicated first-letter segment owns it.
         if (mapping.role === "ordinary" && owner.fragment.role === "first-letter") continue;
-        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-          failureReason: "styled first-letter/source FragmentItem ownership disagrees" };
+        return {
+          segments: null,
+          sourceFragments: finalSources,
+          textSegmentIndexBySourceFragment,
+          failureReason: "styled first-letter/source FragmentItem ownership disagrees",
+        };
       }
       const list = chunksByFragment.get(owner.sourceFragmentIndex) ?? [];
       list.push(chunk);
       chunksByFragment.set(owner.sourceFragmentIndex, list);
     }
 
-    for (const [sourceFragmentIndex, chunks] of [...chunksByFragment].sort((left, right) =>
-      left[1][0].renderedUtf16Span[0] - right[1][0].renderedUtf16Span[0])) {
+    for (const [sourceFragmentIndex, chunks] of [...chunksByFragment].sort(
+      (left, right) => left[1][0].renderedUtf16Span[0] - right[1][0].renderedUtf16Span[0],
+    )) {
       const renderedStart = chunks[0].renderedUtf16Span[0];
       const renderedEnd = chunks[chunks.length - 1].renderedUtf16Span[1];
-      const selected = normalizedChunks.filter((chunk) =>
-        chunk.renderedUtf16Span[0] >= renderedStart && chunk.renderedUtf16Span[1] <= renderedEnd);
+      const selected = normalizedChunks.filter(
+        (chunk) => chunk.renderedUtf16Span[0] >= renderedStart && chunk.renderedUtf16Span[1] <= renderedEnd,
+      );
       if (selected.length !== chunks.length) {
-        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-          failureReason: "one FragmentItem maps to non-contiguous rendered text" };
+        return {
+          segments: null,
+          sourceFragments: finalSources,
+          textSegmentIndexBySourceFragment,
+          failureReason: "one FragmentItem maps to non-contiguous rendered text",
+        };
       }
       const source = finalSources[sourceFragmentIndex];
-      const sliced = sliceSegment(normalizedSegment, renderedStart, renderedEnd, source, finalSources[sourceFragmentIndex].role);
+      const sliced = sliceSegment(
+        normalizedSegment,
+        renderedStart,
+        renderedEnd,
+        source,
+        finalSources[sourceFragmentIndex].role,
+      );
       if (sliced.segment == null) {
-        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-          failureReason: sliced.failureReason ?? "text segment could not be split on FragmentItem span" };
+        return {
+          segments: null,
+          sourceFragments: finalSources,
+          textSegmentIndexBySourceFragment,
+          failureReason: sliced.failureReason ?? "text segment could not be split on FragmentItem span",
+        };
       }
       if (textSegmentIndexBySourceFragment[sourceFragmentIndex] != null) {
-        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-          failureReason: "one FragmentItem maps to more than one text segment" };
+        return {
+          segments: null,
+          sourceFragments: finalSources,
+          textSegmentIndexBySourceFragment,
+          failureReason: "one FragmentItem maps to more than one text segment",
+        };
       }
       textSegmentIndexBySourceFragment[sourceFragmentIndex] = output.length;
       output.push(sliced.segment);
@@ -502,8 +579,12 @@ export function splitTextSegmentsOnFragmentSpans(
   }
 
   if (textSegmentIndexBySourceFragment.some((index) => index == null)) {
-    return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-      failureReason: "a Range FragmentItem has no exact text segment owner" };
+    return {
+      segments: null,
+      sourceFragments: finalSources,
+      textSegmentIndexBySourceFragment,
+      failureReason: "a Range FragmentItem has no exact text segment owner",
+    };
   }
   return { segments: output, sourceFragments: finalSources, textSegmentIndexBySourceFragment };
 }

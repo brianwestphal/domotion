@@ -15,7 +15,13 @@
 import { parseArgs } from "node:util";
 import { launchChromium } from "../index.js";
 import { runBin, makeLogger, parseNonNegativeFloat, parsePositiveInt } from "./common.js";
-import { resolveImageFormat, runSvgToImage, SUPPORTED_IMAGE_EXTS, type ImageFormat, type SvgToImageOptions } from "./svg-to-image-core.js";
+import {
+  resolveImageFormat,
+  runSvgToImage,
+  SUPPORTED_IMAGE_EXTS,
+  type ImageFormat,
+  type SvgToImageOptions,
+} from "./svg-to-image-core.js";
 
 // DM-1370: delegate the `--format` keyword parsing to `resolveImageFormat`'s
 // override branch (the format-keyword list + aliases + error message live there)

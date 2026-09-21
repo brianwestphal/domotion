@@ -14,12 +14,12 @@ The generator (`examples/templates-demo.ts`) uses only the public template API
 so the phone capture lays out at the real mobile width). Outputs are written to
 `examples/output/templates/`:
 
-| Concept | Example(s) | Shows |
-|---|---|---|
-| `lower-third` | `lower-third-dark`, `lower-third-light` | banner in both themes + two corners |
-| `device-mockup` | `device-mockup-phone`, `-browser`, `-window` | each of the three device bezels |
-| `background-loop` | `background-loop-aurora`, `-orbs` | both looping-background variants |
-| `kinetic-text` | `kinetic-text-rise`, `-slide-char`, `-fade` | the three reveal styles (slide per-character) |
+| Concept           | Example(s)                                   | Shows                                         |
+| ----------------- | -------------------------------------------- | --------------------------------------------- |
+| `lower-third`     | `lower-third-dark`, `lower-third-light`      | banner in both themes + two corners           |
+| `device-mockup`   | `device-mockup-phone`, `-browser`, `-window` | each of the three device bezels               |
+| `background-loop` | `background-loop-aurora`, `-orbs`            | both looping-background variants              |
+| `kinetic-text`    | `kinetic-text-rise`, `-slide-char`, `-fade`  | the three reveal styles (slide per-character) |
 
 The `background-loop` and `kinetic-text` outputs are animated — open them in a
 browser to see the loop / reveal. The `kinetic-text` ones play once and hold the

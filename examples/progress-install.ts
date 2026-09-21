@@ -59,7 +59,10 @@ function buildInstallCast(): string {
   // Type the command one key at a time — each keystroke is its own line-state
   // the incremental composer reveals on its timeline (real typed-input feel).
   let t = 1.0;
-  for (const ch of CMD) { ev.push([t, "o", ch]); t += 0.055; }
+  for (const ch of CMD) {
+    ev.push([t, "o", ch]);
+    t += 0.055;
+  }
   ev.push([t + 0.2, "o", "\r\n"]);
   // The reify spinner: overwrite the same row via a carriage return each tick.
   // Trailing spaces pad the shrinking target text so no remnant is left behind.
@@ -74,8 +77,12 @@ function buildInstallCast(): string {
   ev.push([st + 0.5, "o", `${ESC}[32m✓${ESC}[0m domotion-svg ready to render\r\n`]);
   ev.push([st + 1.0, "o", `\r\n${prompt}`]);
   ev.push([st + 2.2, "o", ""]); // tail hold on the returned prompt
-  return JSON.stringify({ version: 2, width: 58, height: 8, title: "npm" }) + "\n" +
-    ev.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  return (
+    JSON.stringify({ version: 2, width: 58, height: 8, title: "npm" }) +
+    "\n" +
+    ev.map((e) => JSON.stringify(e)).join("\n") +
+    "\n"
+  );
 }
 
 /** macOS window chrome (traffic lights + title bar) sized to the terminal box. */
@@ -124,12 +131,21 @@ async function main(): Promise<void> {
     const layers: CompositeLayer[] = [
       { svg: backdrop(W, H, MARGIN, MARGIN, winW, winH), x: 0, y: 0, width: W, height: H },
       { svg: windowChrome(term.width, term.height), x: MARGIN, y: MARGIN, width: winW, height: winH },
-      { svg: term.svg, periodMs: term.totalDurationMs, x: MARGIN, y: MARGIN + BAR, width: term.width, height: term.height },
+      {
+        svg: term.svg,
+        periodMs: term.totalDurationMs,
+        x: MARGIN,
+        y: MARGIN + BAR,
+        width: term.width,
+        height: term.height,
+      },
     ];
 
     const result = composeAnimatedLayers(layers, { width: W, height: H, durationMs: term.totalDurationMs });
     writeFileSync(OUTPUT, result.svg);
-    console.log(`Generated: ${OUTPUT} (${result.width}×${result.height}px, ${(result.svg.length / 1024).toFixed(1)} KB, ${term.frameCount} frames)`);
+    console.log(
+      `Generated: ${OUTPUT} (${result.width}×${result.height}px, ${(result.svg.length / 1024).toFixed(1)} KB, ${term.frameCount} frames)`,
+    );
   } finally {
     await browser.close();
   }

@@ -71,8 +71,9 @@ function sameFace(chrome: string, ourKey: string, ourFile: string): boolean {
 // Defaults mirror the html-test unicode fixtures' own stack and a spread of the
 // codepoints whose blocks fail on CI (Cyrillic, phonetic extensions, currency,
 // enclosed alphanumerics, Latin extended additional / B).
-const STACK = process.argv[2]
-  ?? `"SF Pro Text","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
+const STACK =
+  process.argv[2] ??
+  `"SF Pro Text","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
 const CPS = (process.argv[3] ?? "04FA,04FB,04FC,1D00,1D80,20A0,2460,1E00,0180,A720,FE00")
   .split(",")
   .map((h) => parseInt(h.trim(), 16))
@@ -88,10 +89,10 @@ try {
   await cdp.send("DOM.enable");
   await cdp.send("CSS.enable");
 
-  const spans = CPS
-    .map((cp, i) =>
-      `<span id="c${i}" style="font-family:${STACK.replace(/"/g, "'")};font-size:${FONT_PX}px">&#x${cp.toString(16)};</span>`)
-    .join("");
+  const spans = CPS.map(
+    (cp, i) =>
+      `<span id="c${i}" style="font-family:${STACK.replace(/"/g, "'")};font-size:${FONT_PX}px">&#x${cp.toString(16)};</span>`,
+  ).join("");
   await page.setContent(`<!doctype html><body style="margin:0">${spans}</body>`);
   await page.evaluate(() => document.fonts.ready);
 
@@ -119,13 +120,24 @@ try {
     let ourFile = "";
     if (primary != null && primaryKey != null) {
       const r = resolveFontForCodepoint(
-        cp, primary, primaryKey, 400, FONT_PX, 0, undefined, undefined, chain,
-        stackPrimaryIsSystemUi(STACK), 100, undefined, STACK,
+        cp,
+        primary,
+        primaryKey,
+        400,
+        FONT_PX,
+        0,
+        undefined,
+        undefined,
+        chain,
+        stackPrimaryIsSystemUi(STACK),
+        100,
+        undefined,
+        STACK,
       );
       if (r != null) {
         ours = r.key;
         const spec = resolveFontSpec(r.key);
-        ourFile = spec?.path != null ? spec.path.split("/").pop() ?? "" : "";
+        ourFile = spec?.path != null ? (spec.path.split("/").pop() ?? "") : "";
       }
     }
 

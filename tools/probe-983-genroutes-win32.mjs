@@ -38,51 +38,51 @@ const FAMILY_TO_FILE = {
   // Core Latin / serif / mono / CJK already covered by the hand-coded
   // win32FallbackChain rules, but included so the generated table self-resolves
   // for any block whose hand-coded route happens not to match.
-  "Arial":                 { file: "arial.ttf" },
-  "Times New Roman":       { file: "times.ttf" },
-  "Calibri":               { file: "calibri.ttf" },
-  "Tahoma":                { file: "tahoma.ttf" },
-  "Segoe UI":              { file: "segoeui.ttf" },
-  "Microsoft Sans Serif":  { file: "micross.ttf" },
-  "Lucida Sans Unicode":   { file: "l_10646.ttf" },
+  Arial: { file: "arial.ttf" },
+  "Times New Roman": { file: "times.ttf" },
+  Calibri: { file: "calibri.ttf" },
+  Tahoma: { file: "tahoma.ttf" },
+  "Segoe UI": { file: "segoeui.ttf" },
+  "Microsoft Sans Serif": { file: "micross.ttf" },
+  "Lucida Sans Unicode": { file: "l_10646.ttf" },
   // Windows 11's broad variable "last resort" sans — carries the bulk of the
   // symbol / pictograph / less-common-script coverage Chrome falls through to.
   "Sans Serif Collection": { file: "SansSerifCollection.ttf" },
   // CJK collections (the right TTC member matters).
-  "Microsoft YaHei":       { file: "msyh.ttc", postscriptName: "MicrosoftYaHei" },
-  "SimSun":                { file: "simsun.ttc", postscriptName: "SimSun" },
+  "Microsoft YaHei": { file: "msyh.ttc", postscriptName: "MicrosoftYaHei" },
+  SimSun: { file: "simsun.ttc", postscriptName: "SimSun" },
   // SimSun-ExtB / -ExtG are SEPARATE single-face files (CJK Ext B/C/D/… and
   // the Ext G plane) — the bulk of the rare-ideograph coverage above U+20000.
-  "SimSun-ExtB":           { file: "simsunb.ttf" },
-  "SimSun-ExtG":           { file: "SimsunExtG.ttf" },
-  "Yu Gothic":             { file: "YuGothR.ttc", postscriptName: "YuGothic-Regular" },
-  "Yu Gothic UI":          { file: "YuGothR.ttc", postscriptName: "YuGothicUI-Semilight" },
-  "MS PGothic":            { file: "msgothic.ttc", postscriptName: "MS-PGothic" },
+  "SimSun-ExtB": { file: "simsunb.ttf" },
+  "SimSun-ExtG": { file: "SimsunExtG.ttf" },
+  "Yu Gothic": { file: "YuGothR.ttc", postscriptName: "YuGothic-Regular" },
+  "Yu Gothic UI": { file: "YuGothR.ttc", postscriptName: "YuGothicUI-Semilight" },
+  "MS PGothic": { file: "msgothic.ttc", postscriptName: "MS-PGothic" },
   "Microsoft JhengHei UI": { file: "msjh.ttc", postscriptName: "MicrosoftJhengHeiUIRegular" },
-  "Malgun Gothic":         { file: "malgun.ttf", postscriptName: "MalgunGothic" },
+  "Malgun Gothic": { file: "malgun.ttf", postscriptName: "MalgunGothic" },
   // Script-specific UI / fallback faces (all single-face .ttf).
-  "Nirmala UI":            { file: "Nirmala.ttc", postscriptName: "NirmalaUI" },
-  "Leelawadee UI":         { file: "leelawui.ttf" },
-  "Segoe UI Symbol":       { file: "seguisym.ttf" },
+  "Nirmala UI": { file: "Nirmala.ttc", postscriptName: "NirmalaUI" },
+  "Leelawadee UI": { file: "leelawui.ttf" },
+  "Segoe UI Symbol": { file: "seguisym.ttf" },
   // Segoe UI Historic carries the ancient / historic scripts (Old Italic,
   // Gothic, Cuneiform, Egyptian Hieroglyphs, Phoenician, Cypriot, …).
-  "Segoe UI Historic":     { file: "seguihis.ttf" },
-  "Ebrima":                { file: "ebrima.ttf" },      // Ethiopic, N'Ko, Vai, Osmanya, Tifinagh
-  "Gadugi":                { file: "gadugi.ttf" },      // Cherokee, Canadian Aboriginal, Osage
-  "Microsoft Yi Baiti":    { file: "msyi.ttf" },        // Yi
-  "Myanmar Text":          { file: "mmrtext.ttf" },     // Myanmar
-  "Javanese Text":         { file: "javatext.ttf" },    // Javanese
-  "Microsoft Himalaya":    { file: "himalaya.ttf" },    // Tibetan
-  "Mongolian Baiti":       { file: "monbaiti.ttf" },    // Mongolian
-  "Microsoft Tai Le":      { file: "taile.ttf" },        // Tai Le
-  "Microsoft New Tai Lue": { file: "ntailu.ttf" },       // New Tai Lue
-  "Microsoft PhagsPa":     { file: "phagspa.ttf" },      // Phags-pa
-  "MV Boli":               { file: "mvboli.ttf" },       // Thaana
-  "Sylfaen":               { file: "sylfaen.ttf" },      // Georgian, Armenian
-  "Cambria Math":          { file: "cambria.ttc", postscriptName: "CambriaMath" }, // Math Alphanumeric
+  "Segoe UI Historic": { file: "seguihis.ttf" },
+  Ebrima: { file: "ebrima.ttf" }, // Ethiopic, N'Ko, Vai, Osmanya, Tifinagh
+  Gadugi: { file: "gadugi.ttf" }, // Cherokee, Canadian Aboriginal, Osage
+  "Microsoft Yi Baiti": { file: "msyi.ttf" }, // Yi
+  "Myanmar Text": { file: "mmrtext.ttf" }, // Myanmar
+  "Javanese Text": { file: "javatext.ttf" }, // Javanese
+  "Microsoft Himalaya": { file: "himalaya.ttf" }, // Tibetan
+  "Mongolian Baiti": { file: "monbaiti.ttf" }, // Mongolian
+  "Microsoft Tai Le": { file: "taile.ttf" }, // Tai Le
+  "Microsoft New Tai Lue": { file: "ntailu.ttf" }, // New Tai Lue
+  "Microsoft PhagsPa": { file: "phagspa.ttf" }, // Phags-pa
+  "MV Boli": { file: "mvboli.ttf" }, // Thaana
+  Sylfaen: { file: "sylfaen.ttf" }, // Georgian, Armenian
+  "Cambria Math": { file: "cambria.ttc", postscriptName: "CambriaMath" }, // Math Alphanumeric
   // Color emoji is handled via the raster <image> path (doc 15), not a
   // glyph-path key — skip routing so we don't emit a monochrome face for it.
-  "Segoe UI Emoji":        null,
+  "Segoe UI Emoji": null,
 };
 
 // Some blocks report a family under a non-ASCII or alternate name. Normalize
@@ -90,7 +90,7 @@ const FAMILY_TO_FILE = {
 // e.g. Chrome reports Microsoft JhengHei by its Chinese name 微軟正黑體 for a
 // few blocks; it's the same `msjh.ttc` collection.
 const FAMILY_ALIAS = {
-  "微軟正黑體": "Microsoft JhengHei UI",
+  微軟正黑體: "Microsoft JhengHei UI",
 };
 
 const data = JSON.parse(readFileSync("tests/output/unicode-fonts.win32.json", "utf-8"));
@@ -105,7 +105,12 @@ function makeKey(family) {
   if (familyToKey.has(family)) return familyToKey.get(family);
   // Lowercase, dash-separated, prefixed "u-" so it can't clash with a
   // hand-coded key in WIN32_FONT_PATHS.
-  const slug = "u-" + family.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const slug =
+    "u-" +
+    family
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   familyToKey.set(family, slug);
   return slug;
 }
@@ -120,7 +125,10 @@ for (const [blockName, families] of Object.entries(blockToFamilies)) {
   let primary = families[0];
   if (primary == null) continue;
   primary = FAMILY_ALIAS[primary] ?? primary;
-  if (!(primary in FAMILY_TO_FILE)) { unresolved.add(primary); continue; }
+  if (!(primary in FAMILY_TO_FILE)) {
+    unresolved.add(primary);
+    continue;
+  }
   const resolved = FAMILY_TO_FILE[primary];
   if (resolved == null) continue; // intentionally skipped (e.g. color emoji)
   seenRange.add(rangeId);

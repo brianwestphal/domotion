@@ -3,11 +3,24 @@ id: "requirements/closed-shadow-control-decorations"
 title: "171 — Source-owned closed-shadow control decorations"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","paint-effects"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2455","DM-2615","DM-2624","DM-2628","DM-2634"]
-code: ["src/capture/input-value-geometry.ts","src/capture/native-control-decoration.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/index.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/native-control-decoration.e2e.test.ts","tests/select-display-geometry.e2e.test.ts"]
-aliases: ["docs/171-closed-shadow-control-decorations.md","doc-171"]
+owners: ["text-fonts", "paint-effects"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634"]
+code:
+  [
+    "src/capture/input-value-geometry.ts",
+    "src/capture/native-control-decoration.ts",
+    "src/capture/pseudo-style-cdp.test.ts",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/capture/script/index.ts",
+    "src/capture/script/walker/form-controls.ts",
+    "src/capture/script/walker/input-value.ts",
+    "src/render/form-controls.test.ts",
+    "src/render/form-controls.ts",
+    "tests/native-control-decoration.e2e.test.ts",
+    "tests/select-display-geometry.e2e.test.ts",
+  ]
+aliases: ["docs/171-closed-shadow-control-decorations.md", "doc-171"]
 ---
 
 # 171 — Source-owned closed-shadow control decorations
@@ -56,14 +69,14 @@ Pinned Chromium revision:
 
 ## Routing
 
-| Effective owner | Result |
-| --- | --- |
-| default `select` / complete native appearance | existing exact whole-host `nativeControlRaster` |
-| styled `select` with `menulist-button` | vector host/text plus Chromium arrow overlay |
-| `date`, `time`, `datetime-local`, `month`, `week` structural host | vector host/value plus retained calendar/time indicator overlay |
-| structural `search` / `number` host | vector host/value plus retained cancel/spin overlay when its used state paints |
-| `appearance:none`, `base`, `base-select`, listbox | structural route; no sampled native decoration is reopened; a captured base-select picker icon may paint as vector |
-| disabled/readonly/rest state whose retained part is hidden/zero-opacity/zero-size | explicit `empty` decoration reservation |
+| Effective owner                                                                   | Result                                                                                                             |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| default `select` / complete native appearance                                     | existing exact whole-host `nativeControlRaster`                                                                    |
+| styled `select` with `menulist-button`                                            | vector host/text plus Chromium arrow overlay                                                                       |
+| `date`, `time`, `datetime-local`, `month`, `week` structural host                 | vector host/value plus retained calendar/time indicator overlay                                                    |
+| structural `search` / `number` host                                               | vector host/value plus retained cancel/spin overlay when its used state paints                                     |
+| `appearance:none`, `base`, `base-select`, listbox                                 | structural route; no sampled native decoration is reopened; a captured base-select picker icon may paint as vector |
+| disabled/readonly/rest state whose retained part is hidden/zero-opacity/zero-size | explicit `empty` decoration reservation                                                                            |
 
 The classifier in `src/capture/native-control-decoration.ts` contains no
 platform dimensions, colors, or glyph paths. A reservation remains fail-closed:

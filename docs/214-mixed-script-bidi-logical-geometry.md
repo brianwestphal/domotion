@@ -3,11 +3,18 @@ id: "requirements/mixed-script-bidi-logical-geometry"
 title: "Mixed-script bidi logical geometry"
 kind: "contract"
 status: "current"
-owners: ["text-fonts","layout"]
-platforms: ["macos","windows"]
-tickets: ["DM-2524","DM-2619"]
-code: [".github/workflows/mixed-bidi-logical-conformance.yml","src/render/mixed-bidi-logical.test.ts","src/render/script-segmentation.ts","src/render/text-to-path.ts","tests/multilingual-message-shaping.e2e.test.ts"]
-aliases: ["docs/214-mixed-script-bidi-logical-geometry.md","doc-214"]
+owners: ["text-fonts", "layout"]
+platforms: ["macos", "windows"]
+tickets: ["DM-2524", "DM-2619"]
+code:
+  [
+    ".github/workflows/mixed-bidi-logical-conformance.yml",
+    "src/render/mixed-bidi-logical.test.ts",
+    "src/render/script-segmentation.ts",
+    "src/render/text-to-path.ts",
+    "tests/multilingual-message-shaping.e2e.test.ts",
+  ]
+aliases: ["docs/214-mixed-script-bidi-logical-geometry.md", "doc-214"]
 ---
 
 # Mixed-script bidi logical geometry

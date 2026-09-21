@@ -8,12 +8,7 @@
  * atomic cloned inline SVG to that SVG root.
  */
 
-export type ProjectivePaintQuad = readonly [
-  number, number,
-  number, number,
-  number, number,
-  number, number,
-];
+export type ProjectivePaintQuad = readonly [number, number, number, number, number, number, number, number];
 
 export interface ProjectiveOwnershipNode {
   /** Parent node index, or null at the selected capture root. */
@@ -78,18 +73,11 @@ export function projectiveQuadResidual(quad: ProjectivePaintQuad): number {
   return Math.hypot(dx, dy);
 }
 
-export function isNonAffineProjectiveQuad(
-  quad: ProjectivePaintQuad,
-  epsilon = PROJECTIVE_QUAD_EPSILON,
-): boolean {
+export function isNonAffineProjectiveQuad(quad: ProjectivePaintQuad, epsilon = PROJECTIVE_QUAD_EPSILON): boolean {
   return projectiveQuadResidual(quad) > epsilon;
 }
 
-function isAncestor(
-  nodes: readonly ProjectiveOwnershipNode[],
-  ancestor: number,
-  descendant: number,
-): boolean {
+function isAncestor(nodes: readonly ProjectiveOwnershipNode[], ancestor: number, descendant: number): boolean {
   let cursor: number | null = descendant;
   while (cursor != null) {
     if (cursor === ancestor) return true;
@@ -108,9 +96,7 @@ function isAncestor(
  *   to the SVG root because paintInlineSvg never visits captured descendants.
  * - If another selected owner contains it, only the outer owner survives.
  */
-export function selectProjectiveRasterOwnerIndexes(
-  nodes: readonly ProjectiveOwnershipNode[],
-): number[] {
+export function selectProjectiveRasterOwnerIndexes(nodes: readonly ProjectiveOwnershipNode[]): number[] {
   const contextRoot = new Map<number, number | null>();
   const propagated = new Map<number, number | null>();
   for (let index = 0; index < nodes.length; index++) {
@@ -153,8 +139,6 @@ export function selectProjectiveRasterOwnerIndexes(
   }
 
   return [...candidates]
-    .filter((candidate) => ![...candidates].some(
-      (other) => other !== candidate && isAncestor(nodes, other, candidate),
-    ))
+    .filter((candidate) => ![...candidates].some((other) => other !== candidate && isAncestor(nodes, other, candidate)))
     .sort((a, b) => a - b);
 }

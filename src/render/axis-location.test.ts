@@ -43,12 +43,14 @@ describe("resolveAxisLocationForFile: CSS-derived pins (DM-1716)", () => {
 
   it("font-optical-sizing:none suppresses automatic opsz but not explicit opsz", () => {
     expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, opticalNone())).toEqual({ wght: 400 });
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, opticalNone({ opsz: 30 }))).toEqual({ wght: 400, opsz: 30 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, opticalNone({ opsz: 30 }))).toEqual({
+      wght: 400,
+      opsz: 30,
+    });
   });
 
   it("uses logical size for opsz when computed matching size differs", () => {
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 26, 0, sizeSpaces(13, 26)))
-      .toEqual({ wght: 400, opsz: 13 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 26, 0, sizeSpaces(13, 26))).toEqual({ wght: 400, opsz: 13 });
   });
 });
 
@@ -57,8 +59,10 @@ describe("resolveAxisLocationForFile: DirectWrite resolved axes (DM-1721)", () =
     // "Segoe UI Variable Text" is pinned at opsz 10.5 regardless of font size.
     const resolved = { wght: 400, opsz: 10.5 };
     for (const size of [8, 13, 16, 24, 32]) {
-      expect(resolveAxisLocationForFile(SEGOE_AXES, 400, size, 0, undefined, resolved))
-        .toEqual({ wght: 400, opsz: 10.5 });
+      expect(resolveAxisLocationForFile(SEGOE_AXES, 400, size, 0, undefined, resolved)).toEqual({
+        wght: 400,
+        opsz: 10.5,
+      });
     }
   });
 
@@ -66,42 +70,48 @@ describe("resolveAxisLocationForFile: DirectWrite resolved axes (DM-1721)", () =
     // Bare "Segoe UI Variable" resolves through DirectWrite's own instance
     // mapping (e.g. wght 325); trust it for the 400 request it was mapped for.
     const resolved = { wght: 325, opsz: 36 };
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, resolved))
-      .toEqual({ wght: 325, opsz: 36 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, resolved)).toEqual({ wght: 325, opsz: 36 });
   });
 
   it("CSS weight wins over resolved wght for non-400 runs", () => {
     // The fallback query maps at weight 400 only; a bold run re-derives wght
     // from CSS (DirectWrite re-matches weight per run).
     const resolved = { wght: 400, opsz: 10.5 };
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 700, 16, 0, undefined, resolved))
-      .toEqual({ wght: 700, opsz: 10.5 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 700, 16, 0, undefined, resolved)).toEqual({ wght: 700, opsz: 10.5 });
   });
 
   it("resolved slnt is ignored (CSS italic drives slant per run)", () => {
     const axes = { ...SEGOE_AXES, slnt: { min: -12, default: 0, max: 0 } };
-    expect(resolveAxisLocationForFile(axes, 400, 16, -12, undefined, { slnt: 0, opsz: 10.5 }))
-      .toEqual({ wght: 400, opsz: 10.5, slnt: -12 });
+    expect(resolveAxisLocationForFile(axes, 400, 16, -12, undefined, { slnt: 0, opsz: 10.5 })).toEqual({
+      wght: 400,
+      opsz: 10.5,
+      slnt: -12,
+    });
   });
 
   it("resolved tags absent from the file's fvar are dropped", () => {
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, { wdth: 100, opsz: 10.5 }))
-      .toEqual({ wght: 400, opsz: 10.5 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, { wdth: 100, opsz: 10.5 })).toEqual({
+      wght: 400,
+      opsz: 10.5,
+    });
   });
 
   it("resolved values are still clamped to the fvar range", () => {
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, { opsz: 72 }))
-      .toEqual({ wght: 400, opsz: 36 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, { opsz: 72 })).toEqual({
+      wght: 400,
+      opsz: 36,
+    });
   });
 
   it("author font-variation-settings override resolved axes (CSS cascade order)", () => {
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, { opsz: 20 }, { opsz: 10.5 }))
-      .toEqual({ wght: 400, opsz: 20 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, { opsz: 20 }, { opsz: 10.5 })).toEqual({
+      wght: 400,
+      opsz: 20,
+    });
   });
 
   it("no resolved axes → unchanged CSS-derived behavior (macOS/Linux path)", () => {
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, undefined))
-      .toEqual({ wght: 400, opsz: 16 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 16, 0, undefined, undefined)).toEqual({ wght: 400, opsz: 16 });
   });
 });
 
@@ -116,46 +126,51 @@ describe("resolveAxisLocationForFile: fvar named-instance coordinates", () => {
 
   it("takes the instance's wght over the CSS-derived one", () => {
     // The cut is Bold (wght 700) even when the CSS weight that selected it is 600.
-    expect(resolveAxisLocationForFile(THONBURI_AXES, 600, 16, 0, undefined, undefined, { wght: 700 }))
-      .toEqual({ wght: 700 });
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 600, 16, 0, undefined, undefined, { wght: 700 })).toEqual({
+      wght: 700,
+    });
   });
 
   it("keeps the CSS-derived opsz pin, which the instance must not freeze", () => {
     // CoreText applies automatic optical sizing on top of a named instance, and
     // the opsz=fontSize pin is what the macOS sweeps validate pixel-exact. An
     // instance's frozen opsz would override it at every size.
-    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, undefined, undefined, { wght: 700, opsz: 8 }))
-      .toEqual({ wght: 700, opsz: 24 });
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, undefined, undefined, { wght: 700, opsz: 8 })).toEqual({
+      wght: 700,
+      opsz: 24,
+    });
   });
 
   it("carries instance axes the CSS derivation knows nothing about", () => {
     // PingFang instances pin WDTH and HGHT as well as wght; nothing in CSS
     // derives those, so without the instance they were simply absent.
     const axes = { wght: { min: 100, max: 900 }, WDTH: { min: 1, max: 1000 }, HGHT: { min: 1, max: 1000 } };
-    expect(resolveAxisLocationForFile(axes, 400, 16, 0, undefined, undefined, { WDTH: 500, wght: 400, HGHT: 500 }))
-      .toEqual({ wght: 400, WDTH: 500, HGHT: 500 });
+    expect(
+      resolveAxisLocationForFile(axes, 400, 16, 0, undefined, undefined, { WDTH: 500, wght: 400, HGHT: 500 }),
+    ).toEqual({ wght: 400, WDTH: 500, HGHT: 500 });
   });
 
   it("drops instance tags the file's fvar does not expose", () => {
-    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, undefined, undefined, { wght: 700, wdth: 50 }))
-      .toEqual({ wght: 700 });
+    expect(
+      resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, undefined, undefined, { wght: 700, wdth: 50 }),
+    ).toEqual({ wght: 700 });
   });
 
   it("author font-variation-settings still override the instance (CSS cascade order)", () => {
-    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, { wght: 500 }, undefined, { wght: 700 }))
-      .toEqual({ wght: 500 });
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, { wght: 500 }, undefined, { wght: 700 })).toEqual({
+      wght: 500,
+    });
   });
 
   it("clamps an instance coordinate to the fvar range", () => {
-    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, undefined, undefined, { wght: 900 }))
-      .toEqual({ wght: 700 });
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 400, 16, 0, undefined, undefined, { wght: 900 })).toEqual({
+      wght: 700,
+    });
   });
 
   it("null / absent instance axes leave the CSS-derived behavior untouched", () => {
-    expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0, undefined, undefined, null))
-      .toEqual({ wght: 500 });
-    expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0))
-      .toEqual({ wght: 500 });
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0, undefined, undefined, null)).toEqual({ wght: 500 });
+    expect(resolveAxisLocationForFile(THONBURI_AXES, 500, 16, 0)).toEqual({ wght: 500 });
   });
 });
 
@@ -284,24 +299,27 @@ describe("darwinCloneInstanceName (DM-1885)", () => {
     // 0x110000 / 65536 = 17.0 — the 13px run clamped up to the axis minimum.
     // `_wght` is bare: the axis sits at its default but is still named, because
     // Skia's variation dictionary always carries every axis.
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 13))
-      .toBe(".SFDevanagari-Regular_opsz110000_wght");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 13)).toBe(
+      ".SFDevanagari-Regular_opsz110000_wght",
+    );
     // 0x140000 = 20.0, 0x2BC0000 = 700.0 — the bold 20px stack's route name
     // (the Bold named-instance handle: current wght 700).
     const bold = [
       { tag: "opsz", min: 17, def: 28, max: 28, value: 28 },
       { tag: "wght", min: 1, def: 400, max: 1000, value: 700 },
     ];
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", bold, 20))
-      .toBe(".SFDevanagari-Regular_opsz140000_wght2BC0000");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", bold, 20)).toBe(
+      ".SFDevanagari-Regular_opsz140000_wght2BC0000",
+    );
   });
 
   it("suffix order follows the face's OWN axis order, not a canonical one", () => {
     // Chrome's reported route: `.CJKSymbolsFallbackSC-Regular_wght_opsz130000`
     // (0x130000 = 19.0, a sub-19px run clamped up to the axis minimum; wght
     // bare at its 542 default). wght leads because it leads this face's fvar.
-    expect(darwinCloneInstanceName(".CJKSymbolsFallbackSC-Regular", CJK_FALLBACK, 13))
-      .toBe(".CJKSymbolsFallbackSC-Regular_wght_opsz130000");
+    expect(darwinCloneInstanceName(".CJKSymbolsFallbackSC-Regular", CJK_FALLBACK, 13)).toBe(
+      ".CJKSymbolsFallbackSC-Regular_wght_opsz130000",
+    );
   });
 
   it("no clone when the clamped size equals the handle's CURRENT position — even off-default", () => {
@@ -321,18 +339,19 @@ describe("darwinCloneInstanceName (DM-1885)", () => {
     // Measured on the SF Arabic handle (current opsz 17, default 28):
     // {opsz:20, wght:400} → `_wght_opsz140000` — wght bare (== default),
     // opsz hexed at the absolute 20.
-    expect(darwinCloneInstanceName(".SFArabic-Regular", SF_ARABIC_13, 20))
-      .toBe(".SFArabic-Regular_wght_opsz140000");
+    expect(darwinCloneInstanceName(".SFArabic-Regular", SF_ARABIC_13, 20)).toBe(".SFArabic-Regular_wght_opsz140000");
     // {opsz:17(current), wght:700} → `_wght2BC0000_opsz110000` — opsz is hexed
     // even though 17 == current, because the name compares against the DEFAULT.
-    expect(darwinCloneInstanceName(".SFArabic-Regular", SF_ARABIC_13, 13, { wght: 700 }))
-      .toBe(".SFArabic-Regular_wght2BC0000_opsz110000");
+    expect(darwinCloneInstanceName(".SFArabic-Regular", SF_ARABIC_13, 13, { wght: 700 })).toBe(
+      ".SFArabic-Regular_wght2BC0000_opsz110000",
+    );
   });
 
   it("font-variation-settings gate and override, per Blink's loop order", () => {
     // fvs overrides the opsz just set (same axis)…
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 13, { opsz: 24 }))
-      .toBe(".SFDevanagari-Regular_opsz180000_wght");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 13, { opsz: 24 })).toBe(
+      ".SFDevanagari-Regular_opsz180000_wght",
+    );
     // …and an fvs clamping back to the current position does not fire the gate.
     expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 28, { opsz: 99 })).toBeNull();
   });
@@ -343,21 +362,24 @@ describe("darwinCloneInstanceName (DM-1885)", () => {
       { postscriptName: ".SFDevanagari-Regular", coords: { opsz: 28, wght: 400 } },
       { postscriptName: ".SFDevanagari-Bold", coords: { opsz: 28, wght: 700 } },
     ];
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 28, { wght: 700 }, instances))
-      .toBe(".SFDevanagari-Bold");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 28, { wght: 700 }, instances)).toBe(
+      ".SFDevanagari-Bold",
+    );
     // …but only an EXACT full-location match: off-default opsz misses the
     // instance and composes suffixes (measured: {opsz:20, wght:700} did not
     // become Bold).
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 20, { wght: 700 }, instances))
-      .toBe(".SFDevanagari-Regular_opsz140000_wght2BC0000");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 20, { wght: 700 }, instances)).toBe(
+      ".SFDevanagari-Regular_opsz140000_wght2BC0000",
+    );
   });
 
   it("matches named-instance coordinates after 16.16 quantization", () => {
     // SFIndia's real fvar instances carry float coords like 30.925003051757812;
     // an applied value that quantizes identically must match.
     const instances = [{ postscriptName: ".SFDevanagari-UltraLight", coords: { opsz: 28, wght: 30.925003051757812 } }];
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 28, { wght: 30.925 }, instances))
-      .toBe(".SFDevanagari-UltraLight");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 28, { wght: 30.925 }, instances)).toBe(
+      ".SFDevanagari-UltraLight",
+    );
   });
 
   it("refuses to guess: no axes or a negative coordinate → null", () => {
@@ -371,7 +393,8 @@ describe("darwinCloneInstanceName (DM-1885)", () => {
 
   it("encodes fractional coordinates in the same fixed point", () => {
     // Measured: opsz 17.5 → 0x118000.
-    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 17.5))
-      .toBe(".SFDevanagari-Regular_opsz118000_wght");
+    expect(darwinCloneInstanceName(".SFDevanagari-Regular", SF_INDIC, 17.5)).toBe(
+      ".SFDevanagari-Regular_opsz118000_wght",
+    );
   });
 });

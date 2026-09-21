@@ -33,21 +33,25 @@ interface CaptureBrokenImageIconOptions {
 }
 
 async function restoreLightDom(page: Page, restoreKey: string): Promise<void> {
-  await page.evaluate((key) => {
-    const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
-    const entries = pageGlobal[key] as Array<{
-      element: Element & { style: CSSStyleDeclaration };
-      property: string;
-      value: string;
-      priority: string;
-    }> | undefined;
-    for (let index = (entries?.length ?? 0) - 1; index >= 0; index--) {
-      const entry = entries![index];
-      if (entry.value === "" && entry.priority === "") entry.element.style.removeProperty(entry.property);
-      else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
-    }
-    delete pageGlobal[key];
-  }, restoreKey).catch(() => undefined);
+  await page
+    .evaluate((key) => {
+      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
+      const entries = pageGlobal[key] as
+        | Array<{
+            element: Element & { style: CSSStyleDeclaration };
+            property: string;
+            value: string;
+            priority: string;
+          }>
+        | undefined;
+      for (let index = (entries?.length ?? 0) - 1; index >= 0; index--) {
+        const entry = entries![index];
+        if (entry.value === "" && entry.priority === "") entry.element.style.removeProperty(entry.property);
+        else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
+      }
+      delete pageGlobal[key];
+    }, restoreKey)
+    .catch(() => undefined);
 }
 
 /** Capture one exact, alpha-bearing icon crop without host/text paint. */
@@ -63,75 +67,78 @@ export async function captureBrokenImageIconRaster(
   let iconObjectId: string | undefined;
   let uaRestore: unknown;
   try {
-    const prepared = await page.evaluate(({ sourceNodeKey, sourceNodeIndex, restoreKey }) => {
-      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
-      const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;
-      const host = sourceNodes?.[sourceNodeIndex];
-      if (!(host instanceof HTMLElement) || !host.isConnected) return false;
-      const entries: Array<{
-        element: Element & { style: CSSStyleDeclaration };
-        property: string;
-        value: string;
-        priority: string;
-      }> = [];
-      pageGlobal[restoreKey] = entries;
+    const prepared = await page.evaluate(
+      ({ sourceNodeKey, sourceNodeIndex, restoreKey }) => {
+        const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
+        const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;
+        const host = sourceNodes?.[sourceNodeIndex];
+        if (!(host instanceof HTMLElement) || !host.isConnected) return false;
+        const entries: Array<{
+          element: Element & { style: CSSStyleDeclaration };
+          property: string;
+          value: string;
+          priority: string;
+        }> = [];
+        pageGlobal[restoreKey] = entries;
 
-      for (const element of Array.from(document.querySelectorAll("*"))) {
-        const styled = element as Element & { style: CSSStyleDeclaration };
-        entries.push({
-          element: styled,
-          property: "visibility",
-          value: styled.style.getPropertyValue("visibility"),
-          priority: styled.style.getPropertyPriority("visibility"),
-        });
-        styled.style.setProperty("visibility", "hidden", "important");
-      }
-      for (const canvas of [document.documentElement, document.body]) {
-        if (canvas == null) continue;
-        for (const property of ["background-color", "background-image"]) {
+        for (const element of Array.from(document.querySelectorAll("*"))) {
+          const styled = element as Element & { style: CSSStyleDeclaration };
           entries.push({
-            element: canvas,
-            property,
-            value: canvas.style.getPropertyValue(property),
-            priority: canvas.style.getPropertyPriority(property),
+            element: styled,
+            property: "visibility",
+            value: styled.style.getPropertyValue("visibility"),
+            priority: styled.style.getPropertyPriority("visibility"),
           });
-          canvas.style.setProperty(property, property === "background-color" ? "transparent" : "none", "important");
+          styled.style.setProperty("visibility", "hidden", "important");
         }
-      }
-      const hostStyle = host.style;
-      const hostValues: Array<[string, string]> = [
-        ["visibility", "visible"],
-        ["opacity", "1"],
-        ["filter", "none"],
-        ["backdrop-filter", "none"],
-        ["mix-blend-mode", "normal"],
-        ["background-color", "transparent"],
-        ["background-image", "none"],
-        ["border-top-color", "transparent"],
-        ["border-right-color", "transparent"],
-        ["border-bottom-color", "transparent"],
-        ["border-left-color", "transparent"],
-        ["border-image-source", "none"],
-        ["box-shadow", "none"],
-        ["outline", "none"],
-        ["clip-path", "none"],
-        ["mask-image", "none"],
-      ];
-      for (const [property, value] of hostValues) {
-        entries.push({
-          element: host,
-          property,
-          value: hostStyle.getPropertyValue(property),
-          priority: hostStyle.getPropertyPriority(property),
-        });
-        hostStyle.setProperty(property, value, "important");
-      }
-      return true;
-    }, {
-      sourceNodeKey: options.sourceNodeKey,
-      sourceNodeIndex: options.sourceNodeIndex,
-      restoreKey,
-    });
+        for (const canvas of [document.documentElement, document.body]) {
+          if (canvas == null) continue;
+          for (const property of ["background-color", "background-image"]) {
+            entries.push({
+              element: canvas,
+              property,
+              value: canvas.style.getPropertyValue(property),
+              priority: canvas.style.getPropertyPriority(property),
+            });
+            canvas.style.setProperty(property, property === "background-color" ? "transparent" : "none", "important");
+          }
+        }
+        const hostStyle = host.style;
+        const hostValues: Array<[string, string]> = [
+          ["visibility", "visible"],
+          ["opacity", "1"],
+          ["filter", "none"],
+          ["backdrop-filter", "none"],
+          ["mix-blend-mode", "normal"],
+          ["background-color", "transparent"],
+          ["background-image", "none"],
+          ["border-top-color", "transparent"],
+          ["border-right-color", "transparent"],
+          ["border-bottom-color", "transparent"],
+          ["border-left-color", "transparent"],
+          ["border-image-source", "none"],
+          ["box-shadow", "none"],
+          ["outline", "none"],
+          ["clip-path", "none"],
+          ["mask-image", "none"],
+        ];
+        for (const [property, value] of hostValues) {
+          entries.push({
+            element: host,
+            property,
+            value: hostStyle.getPropertyValue(property),
+            priority: hostStyle.getPropertyPriority(property),
+          });
+          hostStyle.setProperty(property, value, "important");
+        }
+        return true;
+      },
+      {
+        sourceNodeKey: options.sourceNodeKey,
+        sourceNodeIndex: options.sourceNodeIndex,
+        restoreKey,
+      },
+    );
     if (!prepared) throw new Error("broken-image host lost live-node correlation during icon isolation");
 
     const resolved = await session.send("DOM.resolveNode", { backendNodeId: options.iconBackendNodeId });
@@ -175,19 +182,24 @@ export async function captureBrokenImageIconRaster(
 
     // Force style/paint invalidation before CopyFromSurface.
     await page.evaluate(() => document.documentElement.getBoundingClientRect().width);
-    const png = Buffer.from(await page.screenshot({
-      clip: plan.pageClip,
-      omitBackground: true,
-      type: "png",
-      animations: "allow",
-    }));
+    const png = Buffer.from(
+      await page.screenshot({
+        clip: plan.pageClip,
+        omitBackground: true,
+        type: "png",
+        animations: "allow",
+      }),
+    );
     const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     if (decoded.info.channels !== 4 || decoded.info.width <= 0 || decoded.info.height <= 0) {
       throw new Error("isolated broken-image icon crop did not decode as RGBA");
     }
     let painted = false;
     for (let offset = 3; offset < decoded.data.length; offset += 4) {
-      if (decoded.data[offset] !== 0) { painted = true; break; }
+      if (decoded.data[offset] !== 0) {
+        painted = true;
+        break;
+      }
     }
     if (!painted) throw new Error("isolated broken-image icon crop contained no pixels");
     return {
@@ -201,10 +213,11 @@ export async function captureBrokenImageIconRaster(
     };
   } finally {
     if (iconObjectId != null && uaRestore != null) {
-      await session.send("Runtime.callFunctionOn", {
-        objectId: iconObjectId,
-        arguments: [{ value: uaRestore }],
-        functionDeclaration: `function(entries) {
+      await session
+        .send("Runtime.callFunctionOn", {
+          objectId: iconObjectId,
+          arguments: [{ value: uaRestore }],
+          functionDeclaration: `function(entries) {
           const root = this.getRootNode();
           for (let index = entries.length - 1; index >= 0; index--) {
             const entry = entries[index];
@@ -215,7 +228,8 @@ export async function captureBrokenImageIconRaster(
             else element.style.setProperty(entry.property, entry.value, entry.priority);
           }
         }`,
-      }).catch(() => undefined);
+        })
+        .catch(() => undefined);
     }
     if (iconObjectId != null) {
       await session.send("Runtime.releaseObject", { objectId: iconObjectId }).catch(() => undefined);

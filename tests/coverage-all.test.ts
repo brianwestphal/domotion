@@ -2,10 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  coverageCommandExitStatus,
-  normalizeCoverageExitStatus,
-} from "../tools/coverage-exit-status.mjs";
+import { coverageCommandExitStatus, normalizeCoverageExitStatus } from "../tools/coverage-exit-status.mjs";
 import {
   missingBrowserClientSources,
   requiredBrowserClientSources,
@@ -54,10 +51,9 @@ describe("browser client coverage requirements", () => {
   });
 
   it("reports every client entry point absent from the converted browser map", () => {
-    expect(missingBrowserClientSources([
-      "/repo/src/review/client.tsx",
-      "/repo/src/studio/client.tsx",
-    ], root)).toEqual(["/repo/src/scrubber/client.tsx"]);
+    expect(missingBrowserClientSources(["/repo/src/review/client.tsx", "/repo/src/studio/client.tsx"], root)).toEqual([
+      "/repo/src/scrubber/client.tsx",
+    ]);
   });
 
   it("passes when all three browser client entry points are present", () => {

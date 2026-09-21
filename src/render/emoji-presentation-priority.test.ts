@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  applyFontVariantEmojiToPriority,
-  sourcePriorityItems,
-} from "./emoji-presentation-priority.js";
+import { applyFontVariantEmojiToPriority, sourcePriorityItems } from "./emoji-presentation-priority.js";
 import { bidiLevelsFor, needsSegmentation, segmentForShaping } from "./script-segmentation.js";
 
 const FIXTURE = "Status: done ✓ and flagged ✗ with emphasis ❗ nearby.";
@@ -41,16 +38,12 @@ describe("Blink SymbolsIterator shaping-item ownership", () => {
   });
 
   it("coalesces adjacent equal source states and preserves all four priorities", () => {
-    expect(sourcePriorityItems("⌚⌛")).toEqual([
-      { start: 0, end: 2, text: "⌚⌛", priority: "emoji" },
-    ]);
+    expect(sourcePriorityItems("⌚⌛")).toEqual([{ start: 0, end: 2, text: "⌚⌛", priority: "emoji" }]);
     expect(sourcePriorityItems("☃︎☔️")).toEqual([
       { start: 0, end: 2, text: "☃︎", priority: "text-vs" },
       { start: 2, end: 4, text: "☔️", priority: "emoji-vs" },
     ]);
-    expect(sourcePriorityItems("A\ufe0f")).toEqual([
-      { start: 0, end: 2, text: "A\ufe0f", priority: "text" },
-    ]);
+    expect(sourcePriorityItems("A\ufe0f")).toEqual([{ start: 0, end: 2, text: "A\ufe0f", priority: "text" }]);
   });
 
   it("applies CSS after source segmentation and never overrides selector states", () => {

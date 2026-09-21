@@ -49,21 +49,14 @@ export type {
   StableProgressTimelineState,
 } from "./capture/animation-frame.js";
 export { reverifyCaptureRafClock, sampleCaptureRafClock } from "./capture/raf-clock.js";
-export type {
-  CaptureRafClockHandle,
-  CaptureRafTargetState,
-  StableCaptureRafState,
-} from "./capture/raf-clock.js";
+export type { CaptureRafClockHandle, CaptureRafTargetState, StableCaptureRafState } from "./capture/raf-clock.js";
 export type {
   ReplacedMediaDimensions,
   ReplacedMediaFrameOwner,
   ReplacedMediaKind,
   StableReplacedMediaFrameState,
 } from "./capture/replaced-media-frame.js";
-export {
-  getLastCaptureWarnings,
-  logCaptureWarnings,
-} from "./capture/warnings.js";
+export { getLastCaptureWarnings, logCaptureWarnings } from "./capture/warnings.js";
 export { embedRemoteImages } from "./capture/embed.js";
 export type {
   CapturedElement,
@@ -76,10 +69,7 @@ export type {
   CapturedTreeInput,
   CaptureWarning,
 } from "./capture/types.js";
-export {
-  createCapturedTreeEnvelope,
-  promoteCapturedSubtree,
-} from "./capture/tree-envelope.js";
+export { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./capture/tree-envelope.js";
 // DM-1133: the padding-inset content box of a selector on a live page — where
 // text actually starts inside a padded field, for imperative typing-overlay
 // callers (and the building block for DM-1132's overlay resolver).
@@ -191,8 +181,20 @@ export {
 } from "./terminal/index.js";
 export { parseCast, type ParsedCast, type CastHeader, type CastOutputEvent } from "./terminal/cast.js";
 export { TerminalEmulator, gridSignature, type TermCell, type TermGrid } from "./terminal/emulator.js";
-export { buildFrames, gridToHtml, type FrameBuildOptions, type TermFrame, type HtmlRenderOptions } from "./terminal/render.js";
-export { THEMES, xterm256ToHex, resolveThemeSpec, type TerminalTheme, type TerminalThemeSpec } from "./terminal/theme.js";
+export {
+  buildFrames,
+  gridToHtml,
+  type FrameBuildOptions,
+  type TermFrame,
+  type HtmlRenderOptions,
+} from "./terminal/render.js";
+export {
+  THEMES,
+  xterm256ToHex,
+  resolveThemeSpec,
+  type TerminalTheme,
+  type TerminalThemeSpec,
+} from "./terminal/theme.js";
 
 // ── Templates (DM-1276, doc 70) ──────────────────────────────────────────────
 // Parameterized generators that produce a self-contained SVG by driving the

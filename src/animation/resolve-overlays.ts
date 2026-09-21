@@ -23,7 +23,15 @@ import type { Page } from "@playwright/test";
 import type { CapturedElement } from "../capture/types.js";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
 import { firstLineBaseline } from "./caret-metrics.js";
-import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, AnimationOverlay } from "./overlay-schema.js";
+import type {
+  TypingOverlay,
+  TapOverlay,
+  SvgOverlay,
+  BlinkOverlay,
+  ShineOverlay,
+  InteractOverlay,
+  AnimationOverlay,
+} from "./overlay-schema.js";
 
 /** Anchor an overlay to an element's box — same vocabulary as the declarative config's `anchor`. */
 export interface OverlayAnchor {
@@ -73,8 +81,22 @@ export type AnchoredOverlay =
  * node-side (the same math as the `typeResample` caret).
  */
 interface AnchorBox {
-  x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily: string; fontSize: number;
-  lineBox?: { lineHeightPx: number; fontAscentPx: number; fontDescentPx: number; contentTop: number; contentHeight: number; centerInContentBox: boolean };
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  contentWidth: number;
+  borderRadius: number;
+  fontFamily: string;
+  fontSize: number;
+  lineBox?: {
+    lineHeightPx: number;
+    fontAscentPx: number;
+    fontDescentPx: number;
+    contentTop: number;
+    contentHeight: number;
+    centerInContentBox: boolean;
+  };
 }
 
 /**
@@ -134,65 +156,92 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
     // baseline anchor on them is an authoring error, not a silent no-op.
     const wantBaseline = anchor?.baseline === true;
     if (wantBaseline && ov.kind !== "typing") {
-      throw new Error(`${label(ov.kind)} anchor.baseline is only supported on typing overlays (a typing overlay's y is its text baseline; a ${ov.kind} overlay's y is a box corner)`);
+      throw new Error(
+        `${label(ov.kind)} anchor.baseline is only supported on typing overlays (a typing overlay's y is its text baseline; a ${ov.kind} overlay's y is a box corner)`,
+      );
     }
 
     let box: AnchorBox | null = null;
     if (anchor != null) {
-      box = await page.evaluate(({ sel, wantBaseline }: { sel: string; wantBaseline: boolean }): AnchorBox | null => {
-        // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
-        // stack traces; that helper isn't in page.evaluate's serialized scope, so
-        // polyfill it before the first named const below constructs (the same
-        // footgun the webfont-discovery evaluate documents in capture/index.ts).
-        if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
-          (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
-        }
-        const el = document.querySelector(sel);
-        if (el == null) return null;
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        const num = (v: string): number => {
-          const n = parseFloat(v);
-          return Number.isFinite(n) ? n : 0;
-        };
-        const padL = num(cs.paddingLeft);
-        const padR = num(cs.paddingRight);
-        const box: {
-          x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily: string; fontSize: number;
-          lineBox?: { lineHeightPx: number; fontAscentPx: number; fontDescentPx: number; contentTop: number; contentHeight: number; centerInContentBox: boolean };
-        } = {
-          x: r.x, y: r.y, width: r.width, height: r.height,
-          contentWidth: Math.max(0, el.clientWidth - padL - padR),
-          // The computed top-left border-radius (px), to auto-round a `shine`
-          // overlay's clip (DM-1549/DM-1551) or `interact` fill/ring (DM-1565).
-          borderRadius: num(cs.borderTopLeftRadius),
-          // The field's own font (DM-1579) — a typing overlay's `fontFamily:
-          // "anchor"` adopts it so the typed text matches the real field.
-          fontFamily: cs.fontFamily,
-          fontSize: num(cs.fontSize) || 16,
-        };
-        if (wantBaseline) {
-          // DM-1750: raw first-line metrics for the baseline anchor — the
-          // element's computed font measured on a canvas (Chromium's own font
-          // metrics) + the content-box placement inputs. The placement math
-          // itself runs node-side (`firstLineBaseline`), shared with the
-          // `typeResample` caret so the two surfaces cannot disagree.
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          const fm = ctx != null ? ((ctx.font = cs.font), ctx.measureText("Hg")) : null;
-          box.lineBox = {
-            lineHeightPx: num(cs.lineHeight),
-            fontAscentPx: fm?.fontBoundingBoxAscent ?? 0,
-            fontDescentPx: fm?.fontBoundingBoxDescent ?? 0,
-            contentTop: r.top + num(cs.borderTopWidth) + num(cs.paddingTop),
-            contentHeight: r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom),
-            // A single-line <input> centers its one line box in the content
-            // box; <textarea> / block content lays line boxes from the top.
-            centerInContentBox: el instanceof HTMLInputElement,
+      box = await page.evaluate(
+        ({ sel, wantBaseline }: { sel: string; wantBaseline: boolean }): AnchorBox | null => {
+          // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+          // stack traces; that helper isn't in page.evaluate's serialized scope, so
+          // polyfill it before the first named const below constructs (the same
+          // footgun the webfont-discovery evaluate documents in capture/index.ts).
+          if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
+            (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+          }
+          const el = document.querySelector(sel);
+          if (el == null) return null;
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          const num = (v: string): number => {
+            const n = parseFloat(v);
+            return Number.isFinite(n) ? n : 0;
           };
-        }
-        return box;
-      }, { sel: anchor.selector, wantBaseline });
+          const padL = num(cs.paddingLeft);
+          const padR = num(cs.paddingRight);
+          const box: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            contentWidth: number;
+            borderRadius: number;
+            fontFamily: string;
+            fontSize: number;
+            lineBox?: {
+              lineHeightPx: number;
+              fontAscentPx: number;
+              fontDescentPx: number;
+              contentTop: number;
+              contentHeight: number;
+              centerInContentBox: boolean;
+            };
+          } = {
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+            contentWidth: Math.max(0, el.clientWidth - padL - padR),
+            // The computed top-left border-radius (px), to auto-round a `shine`
+            // overlay's clip (DM-1549/DM-1551) or `interact` fill/ring (DM-1565).
+            borderRadius: num(cs.borderTopLeftRadius),
+            // The field's own font (DM-1579) — a typing overlay's `fontFamily:
+            // "anchor"` adopts it so the typed text matches the real field.
+            fontFamily: cs.fontFamily,
+            fontSize: num(cs.fontSize) || 16,
+          };
+          if (wantBaseline) {
+            // DM-1750: raw first-line metrics for the baseline anchor — the
+            // element's computed font measured on a canvas (Chromium's own font
+            // metrics) + the content-box placement inputs. The placement math
+            // itself runs node-side (`firstLineBaseline`), shared with the
+            // `typeResample` caret so the two surfaces cannot disagree.
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const fm = ctx != null ? ((ctx.font = cs.font), ctx.measureText("Hg")) : null;
+            box.lineBox = {
+              lineHeightPx: num(cs.lineHeight),
+              fontAscentPx: fm?.fontBoundingBoxAscent ?? 0,
+              fontDescentPx: fm?.fontBoundingBoxDescent ?? 0,
+              contentTop: r.top + num(cs.borderTopWidth) + num(cs.paddingTop),
+              contentHeight:
+                r.height -
+                num(cs.borderTopWidth) -
+                num(cs.borderBottomWidth) -
+                num(cs.paddingTop) -
+                num(cs.paddingBottom),
+              // A single-line <input> centers its one line box in the content
+              // box; <textarea> / block content lays line boxes from the top.
+              centerInContentBox: el instanceof HTMLInputElement,
+            };
+          }
+          return box;
+        },
+        { sel: anchor.selector, wantBaseline },
+      );
       if (box == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no element`);
     }
 
@@ -207,17 +256,15 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
  * page-specific ends at producing the `AnchorBox`. Strips the authoring-only
  * `anchor` / `maxWidth` keys and writes the concrete coordinates.
  */
-function applyAnchorBox<T extends AnchorableOverlay>(
-  ov: T,
-  box: AnchorBox | null,
-  label: (kind: string) => string,
-): T {
+function applyAnchorBox<T extends AnchorableOverlay>(ov: T, box: AnchorBox | null, label: (kind: string) => string): T {
   const anchor = ov.anchor;
   const maxWidth = ov.kind === "typing" ? ov.maxWidth : undefined;
   const fontFromAnchor = ov.kind === "typing" && ov.fontFamily === "anchor";
   const wantBaseline = anchor?.baseline === true;
   if (wantBaseline && ov.kind !== "typing") {
-    throw new Error(`${label(ov.kind)} anchor.baseline is only supported on typing overlays (a typing overlay's y is its text baseline; a ${ov.kind} overlay's y is a box corner)`);
+    throw new Error(
+      `${label(ov.kind)} anchor.baseline is only supported on typing overlays (a typing overlay's y is its text baseline; a ${ov.kind} overlay's y is a box corner)`,
+    );
   }
   {
     // Strip the authoring-only keys; set the resolved coordinates below.
@@ -236,7 +283,10 @@ function applyAnchorBox<T extends AnchorableOverlay>(
         // `at` horizontal component (+ dx) resolved above; `dy` nudges from the
         // baseline (default 0). The math is `firstLineBaseline` (shared with
         // the `typeResample` caret) over the raw page-side line-box metrics.
-        if (box.lineBox == null) throw new Error(`${label(ov.kind)} anchor.baseline measurement failed for selector "${anchor.selector}" (no canvas 2d context in the page)`);
+        if (box.lineBox == null)
+          throw new Error(
+            `${label(ov.kind)} anchor.baseline measurement failed for selector "${anchor.selector}" (no canvas 2d context in the page)`,
+          );
         resolved.y = firstLineBaseline({ fontSize: box.fontSize, ...box.lineBox }).baselineY + (anchor.dy ?? 0);
       }
       // A `shine` (DM-1549/1551) or `interact` (DM-1565) overlay auto-SIZES to the
@@ -360,7 +410,10 @@ function anchorBoxFromCaptured(el: CapturedElement): AnchorBox {
   const bT = numPx(st.borderTopWidth);
   const bB = numPx(st.borderBottomWidth);
   const box: AnchorBox = {
-    x: el.x, y: el.y, width: el.width, height: el.height,
+    x: el.x,
+    y: el.y,
+    width: el.width,
+    height: el.height,
     contentWidth: Math.max(0, el.width - bL - bR - padL - padR),
     borderRadius: numPx(st.borderTopLeftRadius),
     fontFamily: st.fontFamily,
@@ -401,14 +454,14 @@ export function resolveAnchoredOverlaysInTree<T extends AnchorableOverlay>(
   if (overlays == null) return undefined;
   return overlays.map((ov) => {
     const anchor = ov.anchor;
-    const needsBox = anchor != null
-      || (ov.kind === "typing" && (ov.maxWidth != null || ov.fontFamily === "anchor"));
+    const needsBox = anchor != null || (ov.kind === "typing" && (ov.maxWidth != null || ov.fontFamily === "anchor"));
     if (!needsBox) return ov;
     let box: AnchorBox | null = null;
     if (anchor != null) {
       const animId = animIdForSelector(anchor.selector);
       const el = animId != null ? findByAnimId(tree, animId) : null;
-      if (el == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no captured element`);
+      if (el == null)
+        throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no captured element`);
       box = anchorBoxFromCaptured(el);
     }
     return applyAnchorBox(ov, box, label);

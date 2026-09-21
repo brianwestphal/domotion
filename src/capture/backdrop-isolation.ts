@@ -17,16 +17,19 @@ export interface IsolationPlan {
 export type BackdropRasterOutcome =
   | { status: "exact" }
   | {
-    status: "partial";
-    reason: "planner-miss" | "snapshot-unavailable" | "node-resolution-partial" | "effect-space-unavailable";
-    fallback: "unisolated Chromium page crop" | "partially isolated Chromium crop" | "isolated final-effect-space Chromium crop";
-    unresolvedNodeCount?: number;
-  }
+      status: "partial";
+      reason: "planner-miss" | "snapshot-unavailable" | "node-resolution-partial" | "effect-space-unavailable";
+      fallback:
+        | "unisolated Chromium page crop"
+        | "partially isolated Chromium crop"
+        | "isolated final-effect-space Chromium crop";
+      unresolvedNodeCount?: number;
+    }
   | {
-    status: "unavailable";
-    reason: "missing-token" | "screenshot-failure";
-    fallback: string;
-  };
+      status: "unavailable";
+      reason: "missing-token" | "screenshot-failure";
+      fallback: string;
+    };
 
 /**
  * Convert the Node-owned materialization outcome into the public warning
@@ -36,10 +39,7 @@ export type BackdropRasterOutcome =
  * Chromium 7d859f27 paint_property_tree_builder.cc / paint_layer.cc and its
  * pinned Skia 62efacd3 src/core/SkCanvas.cpp.
  */
-export function backdropRasterWarning(
-  selector: string,
-  outcome: BackdropRasterOutcome,
-): CaptureWarning | null {
+export function backdropRasterWarning(selector: string, outcome: BackdropRasterOutcome): CaptureWarning | null {
   if (outcome.status === "exact") return null;
   let reason: string;
   if (outcome.reason === "planner-miss") {
@@ -70,8 +70,7 @@ export function appendBackdropRasterWarning(
   outcome: BackdropRasterOutcome,
 ): void {
   const warning = backdropRasterWarning(selector, outcome);
-  const matches = (entry: CaptureWarning) => entry.feature === "backdrop-filter"
-    && entry.selector === selector;
+  const matches = (entry: CaptureWarning) => entry.feature === "backdrop-filter" && entry.selector === selector;
   // The Node post-pass is authoritative even for a tree produced by an older
   // bundled walk: exact materialization removes the retired eager warning.
   for (let index = warnings.length - 1; index >= 0; index--) {
@@ -81,8 +80,7 @@ export function appendBackdropRasterWarning(
 }
 
 function overlaps(a: [number, number, number, number], b: [number, number, number, number]): boolean {
-  return a[0] < b[0] + b[2] && a[0] + a[2] > b[0]
-    && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
+  return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
 }
 
 function hasToken(node: SnapshotNode, token: string): boolean {
@@ -121,18 +119,23 @@ export function planBackdropIsolation(
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
     if (i === target || node.bounds == null || node.paintOrder == null) continue;
-    const paintsLater = node.paintOrder > targetNode.paintOrder
-      || (node.paintOrder === targetNode.paintOrder
-        && node.layoutOrder != null && targetNode.layoutOrder != null
-        && node.layoutOrder > targetNode.layoutOrder);
+    const paintsLater =
+      node.paintOrder > targetNode.paintOrder ||
+      (node.paintOrder === targetNode.paintOrder &&
+        node.layoutOrder != null &&
+        targetNode.layoutOrder != null &&
+        node.layoutOrder > targetNode.layoutOrder);
     if (!paintsLater || !overlaps(node.bounds, targetNode.bounds)) continue;
     if (isAncestor(nodes, i, target) || isAncestor(nodes, target, i)) continue;
     // If an already-selected later ancestor hides this node, do not resolve and
     // mutate the descendant too. Snapshot order is parent-before-child.
-    if (hide.some((id) => {
-      const ancestor = nodes.findIndex((n) => n.backendNodeId === id);
-      return ancestor >= 0 && isAncestor(nodes, ancestor, i);
-    })) continue;
+    if (
+      hide.some((id) => {
+        const ancestor = nodes.findIndex((n) => n.backendNodeId === id);
+        return ancestor >= 0 && isAncestor(nodes, ancestor, i);
+      })
+    )
+      continue;
     hide.push(node.backendNodeId);
   }
   return { targetBackendNodeId: targetNode.backendNodeId, hideBackendNodeIds: hide };

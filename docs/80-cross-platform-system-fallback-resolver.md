@@ -4,10 +4,39 @@ title: "80 — Cross-platform live system-fallback resolver"
 kind: "contract"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1018","DM-1158","DM-1403","DM-1404","DM-1416","DM-1419","DM-1424","DM-1721","DM-1868","DM-1889","DM-2507","DM-987"]
-code: ["scripts/test-linux-docker.sh","src/render","src/render/font-resolution.ts","src/render/glyph-helper.ts","src/render/win-font-fallback.ts","src/render/win32-fallback-envelope.test.ts","tests/baselines/font-conformance-windows.json","tools/probe-1416-linux-fcmatch-vs-chromium.mjs","tools/probe-1424-refine.mts","tools/probe-1424-win32-mapchars-vs-chromium.mjs","tools/win32-glyph-extractor","tools/win32-glyph-extractor/build.ps1","tools/win32-glyph-extractor/src/main.cpp"]
-aliases: ["docs/80-cross-platform-system-fallback-resolver.md","doc-80"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  [
+    "DM-1018",
+    "DM-1158",
+    "DM-1403",
+    "DM-1404",
+    "DM-1416",
+    "DM-1419",
+    "DM-1424",
+    "DM-1721",
+    "DM-1868",
+    "DM-1889",
+    "DM-2507",
+    "DM-987",
+  ]
+code:
+  [
+    "scripts/test-linux-docker.sh",
+    "src/render",
+    "src/render/font-resolution.ts",
+    "src/render/glyph-helper.ts",
+    "src/render/win-font-fallback.ts",
+    "src/render/win32-fallback-envelope.test.ts",
+    "tests/baselines/font-conformance-windows.json",
+    "tools/probe-1416-linux-fcmatch-vs-chromium.mjs",
+    "tools/probe-1424-refine.mts",
+    "tools/probe-1424-win32-mapchars-vs-chromium.mjs",
+    "tools/win32-glyph-extractor",
+    "tools/win32-glyph-extractor/build.ps1",
+    "tools/win32-glyph-extractor/src/main.cpp",
+  ]
+aliases: ["docs/80-cross-platform-system-fallback-resolver.md", "doc-80"]
 ---
 
 # 80 — Cross-platform live system-fallback resolver
@@ -16,7 +45,7 @@ Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (
 
 > ### Correction (DM-1889): the Windows resolver was inert from its flip until DM-1889
 >
-> Everything this document says about the Windows resolver's *design* held. What
+> Everything this document says about the Windows resolver's _design_ held. What
 > did not hold is that it ran. Between the default-on flip and DM-1889, the
 > Windows path returned "no fallback font" for every codepoint, and the platform's
 > measured numbers were scoring the **static** `win32FallbackChain` alone.
@@ -25,11 +54,11 @@ Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (
 >
 > 1. The request envelope declared a base font (`postscriptName: "Helvetica"`, no
 >    `fontPath`). On macOS that is essential — `CTFontCreateForString` resolves
->    *from* a base face. On Windows it is meaningless: the helper's
+>    _from_ a base face. On Windows it is meaningless: the helper's
 >    `runFallbackQuery(query, factory)` is not handed the envelope's font map at
 >    all, because `MapCharacters` takes no base font.
 > 2. It was not merely ignored. The helper cannot open a font by family name, and
->    **one-shot mode treats an unopenable *declared* font as fatal** — it calls
+>    **one-shot mode treats an unopenable _declared_ font as fatal** — it calls
 >    `die()` before running a single query. The persistent channel was disabled on
 >    Windows (a spawned pipe has no OS fd there), so one-shot was the only
 >    transport. Every call therefore came back as an error envelope with no
@@ -41,8 +70,8 @@ Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (
 > plausible, reproducible number every run — including through the conformance
 > oracle, which is the instrument specifically built to catch wrong-font bugs. The
 > oracle was not at fault: it faithfully compared what the renderer does. The gap
-> is that neither it nor any fixture asserts that *a mechanism is in the loop at
-> all*. That is what CLAUDE.md's standing advice — disable the resolver and require
+> is that neither it nor any fixture asserts that _a mechanism is in the loop at
+> all_. That is what CLAUDE.md's standing advice — disable the resolver and require
 > the answer to move — is for, and it was not run on Windows after the flip.
 >
 > Fixed in DM-1889 by declaring no base font on Windows, and separately by giving
@@ -82,7 +111,7 @@ weight-dependent" section of
 and its Chromium citations.
 
 **Windows is style-dependent too, but through one step rather than two.**
-DirectWrite selects the cut *inside* `MapCharacters`, so there is nothing to
+DirectWrite selects the cut _inside_ `MapCharacters`, so there is nothing to
 re-select afterwards — the style has to be in the call. The win32 helper takes the
 run's `cssWeight` / `italic` (optionally `cssSlant` / `cssStretch`) and converts
 them with `dwriteWeightFromCss` / `dwriteSlantFromCss` / `dwriteStretchFromCss`,
@@ -111,7 +140,7 @@ still returned a plausible font, so nothing looked broken.
   since it has no literal name). Note the calibration note further down measured
   the **null-base** behavior, so its numbers predate this.
 - **`locale`** — the fallback locale, and this one has teeth. Blink resolves it
-  *per codepoint*:
+  _per codepoint_:
 
   ```cpp
   const LayoutLocale* fallback_locale = FallbackLocaleForCharacter(
@@ -143,17 +172,17 @@ still returned a plausible font, so nothing looked broken.
   rather than reasoned from the Linux equivalent.** Same host, same codepoint
   U+6F22, only the tag varying (Win11 VM, stock font set):
 
-  | tag | family DirectWrite maps to |
-  | --- | --- |
-  | *(none — the old hardcoded `en-us`)* | Yu Gothic UI |
-  | `ja` / `ja-JP` | Yu Gothic UI |
-  | `ko` / `ko-KR` | Malgun Gothic |
-  | `zh-Hans` / `zh-CN` | Microsoft YaHei UI |
-  | `zh-Hant` / `zh-TW` / `zh-HK` | Microsoft JhengHei UI |
-  | **`zh`** | **Yu Gothic UI** |
+  | tag                                  | family DirectWrite maps to |
+  | ------------------------------------ | -------------------------- |
+  | _(none — the old hardcoded `en-us`)_ | Yu Gothic UI               |
+  | `ja` / `ja-JP`                       | Yu Gothic UI               |
+  | `ko` / `ko-KR`                       | Malgun Gothic              |
+  | `zh-Hans` / `zh-CN`                  | Microsoft YaHei UI         |
+  | `zh-Hant` / `zh-TW` / `zh-HK`        | Microsoft JhengHei UI      |
+  | **`zh`**                             | **Yu Gothic UI**           |
 
   The last row is the one to internalise. Truncating a tag to its primary subtag
-  destroys the entire signal and lands on a *Japanese* face — which is what Skia's
+  destroys the entire signal and lands on a _Japanese_ face — which is what Skia's
   own comment at the call site warns about (`SkFontMgr_win_dw.cpp:641-643`:
   "DirectWrite supports 'zh-CN' or 'zh-Hans', but 'zh' misses completely and may
   produce a Japanese font"), and it would be indistinguishable from never having
@@ -187,11 +216,11 @@ still returned a plausible font, so nothing looked broken.
   `baseFamilyName` before it. A/B on the Win11 VM, one binary with the
   substitution and one without, comparing the full response for every codepoint:
 
-  | sweep | codepoints | answers moved |
-  | --- | --- | --- |
-  | every Unicode `Nd` digit × 10 locale tags (`en-us`, `ja`, `zh-Hans`, `zh-Hant`, `ko`, `und-Zsye`, `und-Zsym`, `th`, `ar`, `hi`) | 7,700 | 0 |
-  | full BMP at weight 400 and at weight 700 italic | 126,976 | 0 |
-  | SMP at the emoji locale, astral plane at stride 16 | ~127,000 | 0 |
+  | sweep                                                                                                                           | codepoints | answers moved |
+  | ------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------- |
+  | every Unicode `Nd` digit × 10 locale tags (`en-us`, `ja`, `zh-Hans`, `zh-Hant`, `ko`, `und-Zsye`, `und-Zsym`, `th`, `ar`, `hi`) | 7,700      | 0             |
+  | full BMP at weight 400 and at weight 700 italic                                                                                 | 126,976    | 0             |
+  | SMP at the emoji locale, astral plane at stride 16                                                                              | ~127,000   | 0             |
 
   So the substitution changes no answer on that host — but it is now the same
   call Chrome makes, rather than an omission defended by an argument.
@@ -225,7 +254,7 @@ per-script table first and only falls through to
 `GetDWriteFallbackFamily`/`MapCharacters` on a miss
 (`win/font_cache_skia_win.cc:286-296`). That first stage is transcribed in
 `src/render/win-font-fallback.ts` and reached through `win32FallbackChain`, i.e.
-the static chain the walker runs *ahead* of this resolver — which puts the two
+the static chain the walker runs _ahead_ of this resolver — which puts the two
 stages in Blink's order. See
 [the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
 
@@ -248,9 +277,9 @@ stages in Blink's order. See
 > Windows is unchanged: its chain is Blink's mechanism and stays
 > unconditional.
 >
-> This invalidates a phrase repeated in the validation records below: *"the
+> This invalidates a phrase repeated in the validation records below: _"the
 > resolver only fires on otherwise-tofu codepoints, so covered text is
-> byte-identical."* That was true of the DM-1416 / DM-1424 flips as measured, and
+> byte-identical."_ That was true of the DM-1416 / DM-1424 flips as measured, and
 > it remains the right description of **Windows**. It is no longer true of macOS
 > or Linux, where the resolver now answers first for every codepoint it can
 > resolve. Read those records as history of what each platform flip measured at
@@ -266,17 +295,17 @@ out-of-table codepoint always tofu'd, regardless of what the system could paint.
 point. It memoizes per codepoint **and CSS description** (the macOS answer is
 weight- and style-dependent), then dispatches by platform:
 
-| Platform | Backend | Status |
-|---|---|---|
-| macOS | CoreText `CTFontCreateForString` + in-family cut re-selection (native helper) | shipped, always on |
-| Linux | fontconfig `fc-match :charset=<hex>` | shipped, **default-on** (DM-1416) |
-| Windows | DirectWrite `IDWriteFontFallback::MapCharacters` | shipped, **default-on** (DM-1424) |
+| Platform | Backend                                                                       | Status                            |
+| -------- | ----------------------------------------------------------------------------- | --------------------------------- |
+| macOS    | CoreText `CTFontCreateForString` + in-family cut re-selection (native helper) | shipped, always on                |
+| Linux    | fontconfig `fc-match :charset=<hex>`                                          | shipped, **default-on** (DM-1416) |
+| Windows  | DirectWrite `IDWriteFontFallback::MapCharacters`                              | shipped, **default-on** (DM-1424) |
 
 Each backend resolves `cp` → an on-disk font, registers it as a `sysfb:<name>`
 key, and returns the key. The chain walker is unchanged: it tries the key and
 keeps it only if the opened font actually has a glyph for `cp`
 (`glyphForCodePoint(cp).id !== 0`) — so a backend that returns a non-covering
-face is harmless (it falls through to tofu exactly as before, never a *wrong*
+face is harmless (it falls through to tofu exactly as before, never a _wrong_
 glyph).
 
 ### Linux (shipped, default-on) — `resolveLinuxSystemFallbackKeyForCp`
@@ -313,9 +342,9 @@ calibration below proved the flip is fidelity-safe on the noble image.
 > renders: the caller checks the process-global `_systemFallbackResolutionEnabled`
 > first, which was initialized `process.platform === "darwin"` only — so on Linux
 > the resolver never fired in a real render (only via the `__resolveSystemFallback
-> KeyForCpForTest` hook, which bypasses that gate). DM-1416 fixed the init to
+KeyForCpForTest` hook, which bypasses that gate). DM-1416 fixed the init to
 > include Linux (`|| (process.platform === "linux" && DOMOTION_SYSTEM_FALLBACK !==
-> "0")`) so the default-on actually takes effect.
+"0")`) so the default-on actually takes effect.
 
 ### Windows (shipped, default-on) — DirectWrite `MapCharacters`
 
@@ -359,16 +388,16 @@ Verified on the Parallels desktop Windows 11 VM (`prlctl exec`): the helper
 compiles with MSVC (`cl /std:c++17 /O2 /EHsc /MT`, dwrite.lib) and resolves real
 covering faces in both one-shot and `--serve` modes — U+4E00→Yu Gothic UI,
 U+0905→Nirmala UI, U+0E01→Leelawadee UI, U+1000→Myanmar Text, U+1F600→Segoe UI
-Emoji (the *desktop* Windows 11 fonts, vs the narrower Server set CI exposes).
+Emoji (the _desktop_ Windows 11 fonts, vs the narrower Server set CI exposes).
 
 > **This verification is the one that let DM-1889's inertness through, and how it
-> did is worth keeping.** Every claim in it is true. It exercises the *helper
-> binary*, driven by a hand-written envelope that declares no unopenable font — so
+> did is worth keeping.** Every claim in it is true. It exercises the _helper
+> binary_, driven by a hand-written envelope that declares no unopenable font — so
 > the binary answers correctly, as shown. What it never exercised is the envelope
 > the **Node side actually sends**, which declared a base font the binary could not
 > open and which one-shot mode treats as fatal. A component test of the far side of
 > an interface cannot see a defect that lives in what the near side puts on the
-> wire. The lesson generalises past this bug: verify the helper *through the caller*,
+> wire. The lesson generalises past this bug: verify the helper _through the caller_,
 > or at minimum assert on the exact bytes the caller emits — which is now pinned by
 > `src/render/win32-fallback-envelope.test.ts`.
 
@@ -390,11 +419,11 @@ actually contain the cp).
 
 **Result** (4,899 codepoints sampled, 2,090 fc-match-vs-Chromium divergences):
 
-| Bucket | Count | Why it's safe |
-| --- | --- | --- |
-| fc-match returns a **non-covering default** | 1,899 (91%) | `fc-list :charset` is empty (or excludes the pick) → the coverage guard rejects it → tofu, **which matches Chromium** (Chromium also tofus these: Tangut, cuneiform, hieroglyphs, CJK ext-B…) |
-| Chromium painted a **covering** face (covers=true) | ~178 | The static chain already covers these (Chromium itself used Liberation Sans, which the chain's primary/generated route also uses) → the resolver **never fires** there |
-| Chromium tofus but fc finds a covering face (covers=false) | 13 | **All orphaned variation selectors** (U+FE00–FE05, U+E0100–E0105) + the non-breaking hyphen U+2011. The variation selectors are stripped upstream by `stripOrphanedDefaultIgnorables` (DM-1158) **before** the resolver runs, so no last-resort box is painted |
+| Bucket                                                     | Count       | Why it's safe                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| fc-match returns a **non-covering default**                | 1,899 (91%) | `fc-list :charset` is empty (or excludes the pick) → the coverage guard rejects it → tofu, **which matches Chromium** (Chromium also tofus these: Tangut, cuneiform, hieroglyphs, CJK ext-B…)                                                                  |
+| Chromium painted a **covering** face (covers=true)         | ~178        | The static chain already covers these (Chromium itself used Liberation Sans, which the chain's primary/generated route also uses) → the resolver **never fires** there                                                                                         |
+| Chromium tofus but fc finds a covering face (covers=false) | 13          | **All orphaned variation selectors** (U+FE00–FE05, U+E0100–E0105) + the non-breaking hyphen U+2011. The variation selectors are stripped upstream by `stripOrphanedDefaultIgnorables` (DM-1158) **before** the resolver runs, so no last-resort box is painted |
 
 So every divergence is harmless: a non-covering pick the guard rejects, a covered
 codepoint the static chain already owns, or an invisible format char stripped
@@ -406,7 +435,7 @@ what the CI visual suite diffs against); a Noto desktop-Linux profile is DM-1404
 
 ## Calibration (DM-1424) — why the Windows flip is fidelity-safe
 
-The win32 resolver is the *strongest* of the three by construction:
+The win32 resolver is the _strongest_ of the three by construction:
 `IDWriteFontFallback::MapCharacters` is the **exact** API Chromium-on-Windows uses
 (`FontFallback::MapCharacters` in `font_fallback_win.cc`), so on the same host the
 resolver asks the identical question Chromium's own fallback asks. The calibration
@@ -426,17 +455,17 @@ from Chromium's painted family on 2,200 cps, plus 549 where MapCharacters tofus
 (coverage guard) but Chromium painted Arial — **but every single one is a cp the
 static win32 chain already owns**:
 
-| Bucket | Count | Why it's safe |
-| --- | --- | --- |
-| Divergence on a **static-owned** cp | 2,200 | The static chain (block routes + the DM-987 generated per-block table) wins first, so the resolver **never fires** there — e.g. CJK Ext-B `SimSun-ExtB` (static) vs `MingLiU-ExtB` (null-base MapCharacters); CJK BMP `Microsoft YaHei` (static) vs `Yu Gothic UI`. The difference is purely null-base-family-vs-CSS-base-family and is moot. |
-| MapCharacters-tofu on a **static-owned** cp | 549 | All Latin/symbol cps Chromium paints with Arial; the static chain routes them to `helvetica` (Arial) and paints exactly what Chromium does. (Pure system fallback with a null base family doesn't resolve a basic-Latin cp to Arial — a base family, not a fallback target — but the static chain already handles these, so the resolver never runs.) |
-| Divergence/tofu on a cp the static chain **misses** (resolver fires) | **0** | None in the sample. |
+| Bucket                                                               | Count | Why it's safe                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Divergence on a **static-owned** cp                                  | 2,200 | The static chain (block routes + the DM-987 generated per-block table) wins first, so the resolver **never fires** there — e.g. CJK Ext-B `SimSun-ExtB` (static) vs `MingLiU-ExtB` (null-base MapCharacters); CJK BMP `Microsoft YaHei` (static) vs `Yu Gothic UI`. The difference is purely null-base-family-vs-CSS-base-family and is moot.         |
+| MapCharacters-tofu on a **static-owned** cp                          | 549   | All Latin/symbol cps Chromium paints with Arial; the static chain routes them to `helvetica` (Arial) and paints exactly what Chromium does. (Pure system fallback with a null base family doesn't resolve a basic-Latin cp to Arial — a base family, not a fallback target — but the static chain already handles these, so the resolver never runs.) |
+| Divergence/tofu on a cp the static chain **misses** (resolver fires) | **0** | None in the sample.                                                                                                                                                                                                                                                                                                                                   |
 
 > **This sweep's conclusion has been partly invalidated by design, on purpose.**
-> Its "safe" column rests on the static chain *owning* those codepoints — i.e. on
+> Its "safe" column rests on the static chain _owning_ those codepoints — i.e. on
 > the DM-987 per-block table answering first and the resolver never firing. That
 > table is no longer the static chain: `win32FallbackChain` now transcribes Blink's
-> hardcoded stage instead, and the generated table has moved *behind* the live
+> hardcoded stage instead, and the generated table has moved _behind_ the live
 > resolver. So the shadowing this sweep relied on is gone, and the resolver now
 > fires on many of those 2,200 codepoints.
 >
@@ -454,7 +483,7 @@ static win32 chain already owns**:
 So **0 of 4,899 sampled codepoints move under the flip** — even cleaner than Linux,
 because the win32 static table (derived from a full Chromium CDP sweep in DM-987) is
 comprehensive enough to own every drawable codepoint in the fixtures. When the
-resolver *does* fire — a cp the static table genuinely misses, outside the sampled
+resolver _does_ fire — a cp the static table genuinely misses, outside the sampled
 coverage — it calls Chromium's own DirectWrite fallback API with the helper's
 `HasCharacter` coverage guard, so it can only register the covering face Chromium
 itself would paint, or report `found:false` and correctly tofu (matching Chromium).
@@ -564,22 +593,22 @@ Blink does not ask the platform about an emoji-presentation run the way it asks 
 
 **Linux** keeps the fontconfig query but substitutes **both of its arguments** (`linux/font_cache_linux.cc:71-77` and `:89-93`):
 
-| argument | ordinary run | emoji-presentation run |
-| --- | --- | --- |
-| character | the run's codepoint | **U+1F46A FAMILY** (`uchar::kFamily`) |
-| locale | `font_description.LocaleOrDefault()` | **`und-Zsye`** (`kColorEmojiLocale`, `fonts/font_cache.cc:82`) |
+| argument  | ordinary run                         | emoji-presentation run                                         |
+| --------- | ------------------------------------ | -------------------------------------------------------------- |
+| character | the run's codepoint                  | **U+1F46A FAMILY** (`uchar::kFamily`)                          |
+| locale    | `font_description.LocaleOrDefault()` | **`und-Zsye`** (`kColorEmojiLocale`, `fonts/font_cache.cc:82`) |
 
-Both matter, for different reasons. Asking about FAMILY is deliberate over-asking — Chromium's own comment says it is "in the hope to find a suitable emoji font", because a font covering FAMILY is a real emoji font where a font covering some *individual* emoji may be an ordinary text face that happens to carry a few. `und-Zsye` is what steers fontconfig toward a color font instead of toward the page's language.
+Both matter, for different reasons. Asking about FAMILY is deliberate over-asking — Chromium's own comment says it is "in the hope to find a suitable emoji font", because a font covering FAMILY is a real emoji font where a font covering some _individual_ emoji may be an ordinary text face that happens to carry a few. `und-Zsye` is what steers fontconfig toward a color font instead of toward the page's language.
 
 Measured in the Playwright `noble` image, with and without the substitution:
 
-| codepoint | without | with |
-| --- | --- | --- |
-| 😀 U+1F600 | Unifont Upper (monochrome bitmap) | **Noto Color Emoji** |
-| 👪 U+1F46A | Unifont Upper | **Noto Color Emoji** |
-| ⌚ U+231A | FreeSerif | **Noto Color Emoji** |
-| ☀ U+2600 (text presentation) | IPAGothic / IPAPGothic per locale | unchanged |
-| 漢 U+6F22 | WenQuanYi Zen Hei | unchanged |
+| codepoint                    | without                           | with                 |
+| ---------------------------- | --------------------------------- | -------------------- |
+| 😀 U+1F600                   | Unifont Upper (monochrome bitmap) | **Noto Color Emoji** |
+| 👪 U+1F46A                   | Unifont Upper                     | **Noto Color Emoji** |
+| ⌚ U+231A                    | FreeSerif                         | **Noto Color Emoji** |
+| ☀ U+2600 (text presentation) | IPAGothic / IPAPGothic per locale | unchanged            |
+| 漢 U+6F22                    | WenQuanYi Zen Hei                 | unchanged            |
 
 `⌚ → FreeSerif` is exactly the failure the FIXME describes. The two bottom rows are the control: non-emoji queries are untouched, and U+2600 still varies with the locale, so the locale substitution is scoped to emoji rather than applied globally.
 

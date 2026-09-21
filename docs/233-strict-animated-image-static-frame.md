@@ -3,11 +3,16 @@ id: "requirements/strict-animated-image-static-frame"
 title: "Strict animated-image static-frame capture"
 kind: "contract"
 status: "current"
-owners: ["images-media","animation"]
+owners: ["images-media", "animation"]
 platforms: []
-tickets: ["DM-2579","DM-2580","DM-2581"]
-code: ["src/capture/animated-image-static-frame.ts","tests/animated-image-static-frame.e2e.test.ts","tests/animated-image-static-frame.test.ts"]
-aliases: ["docs/233-strict-animated-image-static-frame.md","doc-233"]
+tickets: ["DM-2579", "DM-2580", "DM-2581"]
+code:
+  [
+    "src/capture/animated-image-static-frame.ts",
+    "tests/animated-image-static-frame.e2e.test.ts",
+    "tests/animated-image-static-frame.test.ts",
+  ]
+aliases: ["docs/233-strict-animated-image-static-frame.md", "doc-233"]
 ---
 
 # Strict animated-image static-frame capture

@@ -7,7 +7,7 @@ owners: ["platform-release"]
 platforms: ["macos"]
 tickets: ["DM-2550"]
 code: ["src/render/generic-script-families.test.ts"]
-aliases: ["docs/224-hidden-macos-hebrew-generic-face.md","doc-224"]
+aliases: ["docs/224-hidden-macos-hebrew-generic-face.md", "doc-224"]
 ---
 
 # Hidden macOS Hebrew generic face ownership

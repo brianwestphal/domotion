@@ -12,7 +12,15 @@ import { captureElementTreeWithWarnings } from "../src/render/element-tree-to-sv
 const TESTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "tests");
 const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 
-interface Probe { site: string; har: string; url: string; viewport: { w: number; h: number; isMobile: boolean }; ua: string; region: { x: number; y: number; w: number; h: number }; scrollTo?: number }
+interface Probe {
+  site: string;
+  har: string;
+  url: string;
+  viewport: { w: number; h: number; isMobile: boolean };
+  ua: string;
+  region: { x: number; y: number; w: number; h: number };
+  scrollTo?: number;
+}
 
 const PROBES: Probe[] = [
   {
@@ -27,7 +35,7 @@ const PROBES: Probe[] = [
     site: "framer-mobile-deep",
     har: "framer-mobile.har",
     url: "https://www.framer.com/",
-    viewport: { w: 390, h: 6000, isMobile: true },  // entire-page mode resizes
+    viewport: { w: 390, h: 6000, isMobile: true }, // entire-page mode resizes
     ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
     region: { x: 32, y: 5448, w: 57, h: 63 },
   },
@@ -60,11 +68,21 @@ async function main() {
       for (const el of Array.from(document.querySelectorAll("img, picture, *"))) {
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) continue;
-        const ix = Math.max(rect.left, reg.x), iy = Math.max(rect.top, reg.y);
-        const ax = Math.min(rect.right, reg.x + reg.w), ay = Math.min(rect.bottom, reg.y + reg.h);
+        const ix = Math.max(rect.left, reg.x),
+          iy = Math.max(rect.top, reg.y);
+        const ax = Math.min(rect.right, reg.x + reg.w),
+          ay = Math.min(rect.bottom, reg.y + reg.h);
         if (ix >= ax || iy >= ay) continue;
         const cs = getComputedStyle(el);
-        if (el.tagName !== "IMG" && el.tagName !== "PICTURE" && cs.backgroundImage === "none" && cs.borderRadius === "0px" && cs.maskImage === "none" && cs.clipPath === "none") continue;
+        if (
+          el.tagName !== "IMG" &&
+          el.tagName !== "PICTURE" &&
+          cs.backgroundImage === "none" &&
+          cs.borderRadius === "0px" &&
+          cs.maskImage === "none" &&
+          cs.clipPath === "none"
+        )
+          continue;
         out.push({
           tag: el.tagName,
           id: (el as HTMLElement).id,
@@ -78,7 +96,8 @@ async function main() {
           clipPath: cs.clipPath?.slice(0, 80),
           backgroundImage: cs.backgroundImage?.slice(0, 80),
           backgroundSize: cs.backgroundSize,
-          width: cs.width, height: cs.height,
+          width: cs.width,
+          height: cs.height,
           overflow: cs.overflow,
           src: (el as HTMLImageElement).src?.slice?.(0, 100),
         });
@@ -97,7 +116,9 @@ async function main() {
         e.backgroundImage && e.backgroundImage !== "none" ? `bgImg=${e.backgroundImage.slice(0, 50)}` : "",
         e.overflow && e.overflow !== "visible" ? `overflow=${e.overflow}` : "",
         e.src ? `src=${e.src.slice(0, 70)}` : "",
-      ].filter(Boolean).join(" ");
+      ]
+        .filter(Boolean)
+        .join(" ");
       console.log("  " + parts);
     }
     await context.close();

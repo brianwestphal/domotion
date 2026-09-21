@@ -31,7 +31,8 @@ afterAll(async () => {
 
 let n = 0;
 async function renderGlyph(
-  family: string, char: string,
+  family: string,
+  char: string,
   opts: { weight?: number; style?: string; size?: number; offset?: number } = {},
 ): Promise<string> {
   const { weight = 400, style = "normal", size = 32, offset = 0 } = opts;
@@ -106,10 +107,13 @@ describe("glyph-compare on real Chromium renders", () => {
     expect(r.confidence).toBe("high");
   });
 
-  it.skipIf(process.platform !== "darwin")("matches a truly identical lookalike glyph (Helvetica vs Arial 'l') — shape equality IS correctness", async () => {
-    const a = await renderGlyph("Helvetica", "l");
-    const b = await renderGlyph("Arial", "l");
-    const r = await compareGlyphPngs(a, b);
-    expect(r.verdict).toBe("match");
-  });
+  it.skipIf(process.platform !== "darwin")(
+    "matches a truly identical lookalike glyph (Helvetica vs Arial 'l') — shape equality IS correctness",
+    async () => {
+      const a = await renderGlyph("Helvetica", "l");
+      const b = await renderGlyph("Arial", "l");
+      const r = await compareGlyphPngs(a, b);
+      expect(r.verdict).toBe("match");
+    },
+  );
 });

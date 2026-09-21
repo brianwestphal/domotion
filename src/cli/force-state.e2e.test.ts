@@ -41,7 +41,11 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
 </body></html>`;
 
 async function canLaunch(): Promise<Browser | null> {
-  try { return await launchChromium(); } catch { return null; }
+  try {
+    return await launchChromium();
+  } catch {
+    return null;
+  }
 }
 const browser = await canLaunch();
 
@@ -149,7 +153,12 @@ describeBrowser("applyForcedPseudoStates → capture round-trip (DM-1516)", () =
       height: 320,
       frames: [
         { input: htmlPath, duration: 600, transition: { type: "crossfade", duration: 150 } },
-        { continue: true, duration: 600, forceState: [{ selector: ".cta", states: ["hover"] }], transition: { type: "crossfade", duration: 150 } },
+        {
+          continue: true,
+          duration: 600,
+          forceState: [{ selector: ".cta", states: ["hover"] }],
+          transition: { type: "crossfade", duration: 150 },
+        },
         { continue: true, duration: 600, forceState: [{ selector: ".cta", reset: true }] },
       ],
     });

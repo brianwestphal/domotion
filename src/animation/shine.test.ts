@@ -42,7 +42,15 @@ describe("buildShineSweep (DM-1542 / DM-1524)", () => {
   });
 
   it("honors color / opacity / bandWidth / skew overrides", () => {
-    const { markup } = buildShineSweep({ ...base, startPct: 0, endPct: 100, color: "#ffcc00", opacity: 0.8, bandWidth: 50, skewDeg: 30 });
+    const { markup } = buildShineSweep({
+      ...base,
+      startPct: 0,
+      endPct: 100,
+      color: "#ffcc00",
+      opacity: 0.8,
+      bandWidth: 50,
+      skewDeg: 30,
+    });
     expect(markup).toContain(`stop-color="#ffcc00"`);
     expect(markup).toContain(`stop-opacity="0.8"`);
     expect(markup).toContain(`width="50"`);

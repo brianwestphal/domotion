@@ -1,17 +1,9 @@
 import { parseCssFontFamilyEntries } from "./font-family-stack.js";
 
 export type FontFeatureValueCategory =
-  | "annotation"
-  | "ornaments"
-  | "stylistic"
-  | "swash"
-  | "characterVariant"
-  | "styleset";
+  "annotation" | "ornaments" | "stylistic" | "swash" | "characterVariant" | "styleset";
 
-export type FontFeatureValueTable = Partial<Record<
-  FontFeatureValueCategory,
-  Record<string, number[]>
->>;
+export type FontFeatureValueTable = Partial<Record<FontFeatureValueCategory, Record<string, number[]>>>;
 
 /** Family names are normalized like Blink's case-folded storage keys. */
 export type FontFeatureValueTables = Record<string, FontFeatureValueTable>;
@@ -44,17 +36,11 @@ interface PrioritizedAlias {
  * layer. Equality is intentional because Blink visits rules in source order,
  * so the later declaration in one layer wins.
  */
-export function fuseFontFeatureValueRules(
-  records: readonly FontFeatureValueRuleRecord[],
-): FontFeatureValueTables {
-  const prioritized: Record<string, Partial<Record<
-    FontFeatureValueCategory,
-    Record<string, PrioritizedAlias>
-  >>> = {};
+export function fuseFontFeatureValueRules(records: readonly FontFeatureValueRuleRecord[]): FontFeatureValueTables {
+  const prioritized: Record<string, Partial<Record<FontFeatureValueCategory, Record<string, PrioritizedAlias>>>> = {};
 
   for (const record of records) {
-    const families = parseCssFontFamilyEntries(record.fontFamily)
-      .map((entry) => entry.name.toLowerCase());
+    const families = parseCssFontFamilyEntries(record.fontFamily).map((entry) => entry.name.toLowerCase());
     for (const family of families) {
       const familyTable = prioritized[family] ?? (prioritized[family] = {});
       for (const category of Object.keys(record.table) as FontFeatureValueCategory[]) {

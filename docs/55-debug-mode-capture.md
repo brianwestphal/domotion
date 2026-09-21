@@ -6,8 +6,17 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-946", "DM-2635", "DM-2636"]
-code: ["src/capture/debug-bundle.ts","src/capture/index.ts","src/cli/capture.ts","src/cli/debug-bundle.test.ts","src/cli/debug-bundle.ts","src/cli/review.ts","tests/capture-debug-api.e2e.test.ts"]
-aliases: ["docs/55-debug-mode-capture.md","doc-55"]
+code:
+  [
+    "src/capture/debug-bundle.ts",
+    "src/capture/index.ts",
+    "src/cli/capture.ts",
+    "src/cli/debug-bundle.test.ts",
+    "src/cli/debug-bundle.ts",
+    "src/cli/review.ts",
+    "tests/capture-debug-api.e2e.test.ts",
+  ]
+aliases: ["docs/55-debug-mode-capture.md", "doc-55"]
 ---
 
 # Debug-mode capture
@@ -25,12 +34,12 @@ When `--debug` (or `--debug-dir <path>`) is passed, the CLI creates a
 sibling folder next to the output (default `<output-name>.debug/`) and
 populates it with four artifacts:
 
-| File | Source | Used by |
-|---|---|---|
-| `capture.har` | Playwright `recordHar: { mode: "minimal" }` | offline replay via `domotion capture <foo.har>` |
-| `expected.png` | `page.screenshot()` of the clip rect | `svg-review` as the expected image |
-| `actual.svg` | copy of the produced SVG | `svg-review` as the actual SVG |
-| `captured-tree.json` | the intermediate element tree (pre-render) | maintainer inspection of capture decisions |
+| File                 | Source                                      | Used by                                         |
+| -------------------- | ------------------------------------------- | ----------------------------------------------- |
+| `capture.har`        | Playwright `recordHar: { mode: "minimal" }` | offline replay via `domotion capture <foo.har>` |
+| `expected.png`       | `page.screenshot()` of the clip rect        | `svg-review` as the expected image              |
+| `actual.svg`         | copy of the produced SVG                    | `svg-review` as the actual SVG                  |
+| `captured-tree.json` | the intermediate element tree (pre-render)  | maintainer inspection of capture decisions      |
 
 The final log line of a `--debug` run tells the user exactly which
 `svg-review` invocation will open the bundle:

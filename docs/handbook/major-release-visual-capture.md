@@ -4,9 +4,17 @@ title: "Major-release visual capture checklist"
 kind: "contract"
 status: "current"
 owners: ["platform-release"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2630","DM-2648"]
-code: ["README.md","examples/","site/demo-assets/apps/","site/demo-assets/fidelity/","site/scripts/build-demos.mjs","site/src/content/docs/showcase.mdx"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2630", "DM-2648"]
+code:
+  [
+    "README.md",
+    "examples/",
+    "site/demo-assets/apps/",
+    "site/demo-assets/fidelity/",
+    "site/scripts/build-demos.mjs",
+    "site/src/content/docs/showcase.mdx",
+  ]
 aliases: ["docs/handbook/major-release-visual-capture.md"]
 ---
 
@@ -39,15 +47,15 @@ Capture or inspect these assets at their intrinsic size and at 2×. For every
 animation, inspect time zero, a representative motion midpoint, the payoff, and
 the final frame immediately before the loop. Then watch one complete loop.
 
-| Done | Surface | Canonical asset | Approval focus |
-| --- | --- | --- | --- |
-| - [ ] | README wordmark | `examples/output/domotion-word-demo.svg` | All typographic variants fit the fixed canvas; no clipped ascenders/descenders; loop has no flash. |
-| - [ ] | README and site hero | `examples/output/hero-product-demo.svg` | KPI entrance, chart growth, typed search, click feedback, hierarchy, and final hold all remain legible. |
-| - [ ] | Fidelity proof | `site/demo-assets/fidelity/wikipedia-fidelity.png` | Labels remain honest at native size and 4×; do not imply cross-platform byte/pixel identity beyond the captured environment. |
-| - [ ] | Capability showcase | `examples/output/showcase-rendering.svg`, `transition-tour.svg`, `transition-mixed.svg`, `storyboard-demo.svg` | Font/layout fidelity, every transition family, four-scene narrative, and clean loop/cut boundaries. |
-| - [ ] | Video export proof | `examples/output/transition-tour.svg` → `transition-tour.mp4` | Run `DOMOTION_NO_OPEN=1 npx tsx examples/svg-to-video-demo.ts`; verify the full loop, dimensions, and final hold. |
-| - [ ] | Terminal showcase | `examples/output/terminal-onboarding.svg`, `terminal-window-scroll.svg` | Command readability, window chrome, scroll timing, and no cropped final line. |
-| - [ ] | Template gallery | `examples/output/templates/*.svg` | Representative chart, kinetic text, device mockup, quote, CTA, counter, and background loop at desktop plus one vertical format. |
+| Done  | Surface              | Canonical asset                                                                                                | Approval focus                                                                                                                   |
+| ----- | -------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| - [ ] | README wordmark      | `examples/output/domotion-word-demo.svg`                                                                       | All typographic variants fit the fixed canvas; no clipped ascenders/descenders; loop has no flash.                               |
+| - [ ] | README and site hero | `examples/output/hero-product-demo.svg`                                                                        | KPI entrance, chart growth, typed search, click feedback, hierarchy, and final hold all remain legible.                          |
+| - [ ] | Fidelity proof       | `site/demo-assets/fidelity/wikipedia-fidelity.png`                                                             | Labels remain honest at native size and 4×; do not imply cross-platform byte/pixel identity beyond the captured environment.     |
+| - [ ] | Capability showcase  | `examples/output/showcase-rendering.svg`, `transition-tour.svg`, `transition-mixed.svg`, `storyboard-demo.svg` | Font/layout fidelity, every transition family, four-scene narrative, and clean loop/cut boundaries.                              |
+| - [ ] | Video export proof   | `examples/output/transition-tour.svg` → `transition-tour.mp4`                                                  | Run `DOMOTION_NO_OPEN=1 npx tsx examples/svg-to-video-demo.ts`; verify the full loop, dimensions, and final hold.                |
+| - [ ] | Terminal showcase    | `examples/output/terminal-onboarding.svg`, `terminal-window-scroll.svg`                                        | Command readability, window chrome, scroll timing, and no cropped final line.                                                    |
+| - [ ] | Template gallery     | `examples/output/templates/*.svg`                                                                              | Representative chart, kinetic text, device mockup, quote, CTA, counter, and background loop at desktop plus one vertical format. |
 
 Use deterministic headless derivatives for close inspection:
 

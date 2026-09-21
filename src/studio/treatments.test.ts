@@ -9,13 +9,26 @@ describe("Studio cinematic treatment library", () => {
     ["device-frame", { kind: "device-frame", device: "phone" }],
     ["browser-chrome", { kind: "browser-chrome", label: "example.test" }],
     ["terminal-chrome", { kind: "terminal-chrome", title: "Build" }],
-    ["zoom-pan", { kind: "zoom-pan", transform: { from: { x: 0, y: 0, scale: 1 }, to: { x: -20, y: -10, scale: 1.2 } } }],
+    [
+      "zoom-pan",
+      { kind: "zoom-pan", transform: { from: { x: 0, y: 0, scale: 1 }, to: { x: -20, y: -10, scale: 1.2 } } },
+    ],
     ["spotlight", { kind: "spotlight", mask: { region: { x: 40, y: 30, width: 120, height: 60 } } }],
-    ["callout", { kind: "callout", text: "Choose this", anchor: { x: 80, y: 60 }, box: { x: 170, y: 25, width: 120, height: 44 } }],
+    [
+      "callout",
+      {
+        kind: "callout",
+        text: "Choose this",
+        anchor: { x: 80, y: 60 },
+        box: { x: 170, y: 25, width: 120, height: 44 },
+      },
+    ],
     ["title-card", { kind: "title-card", title: "Ship faster", subtitle: "With confidence" }],
     ["logo-reveal", { kind: "logo-reveal", logo: LOGO }],
   ])("renders the %s preset as a self-contained SVG example", (_name, treatment) => {
-    const result = applyStudioTreatments(BASE, [treatment], { brand: { palette: { primary: "#f59e0b", text: "#fff", background: "#111827" }, radius: 14 } });
+    const result = applyStudioTreatments(BASE, [treatment], {
+      brand: { palette: { primary: "#f59e0b", text: "#fff", background: "#111827" }, radius: 14 },
+    });
     expect(result.svg).toMatch(/^<svg/);
     expect(result.svg).toMatch(/<\/svg>$/);
     expect(result.svg).not.toMatch(/(?:href|src)="https?:\/\//);
@@ -47,12 +60,17 @@ describe("Studio cinematic treatment library", () => {
       { kind: "browser-chrome", label: "studio.local" },
       { kind: "zoom-pan", transform: { from: { x: 0, y: 0 }, to: { x: -8, y: -4, scale: 1.08 } } },
       { kind: "spotlight", mask: { region: { x: 60, y: 40, width: 100, height: 50 } } },
-      { kind: "callout", text: "Primary action", anchor: { x: 110, y: 70 }, box: { x: 180, y: 100, width: 120, height: 44 } },
+      {
+        kind: "callout",
+        text: "Primary action",
+        anchor: { x: 110, y: 70 },
+        box: { x: 180, y: 100, width: 120, height: 44 },
+      },
       { kind: "logo-reveal", logo: LOGO, position: { x: 16, y: 16 }, width: 60 },
     ]);
     const ids = [...result.svg.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(result.svg).not.toContain('url(#clip)');
+    expect(result.svg).not.toContain("url(#clip)");
     expect(result.svg).toContain("st4_st3_st2_st1_st0_clip");
     expect(result.svg).toContain("data:image/svg+xml;base64,");
   });
@@ -63,16 +81,33 @@ describe("Studio cinematic treatment library", () => {
     });
     expect(branded.svg).toContain("#0ea5e9");
     expect(branded.svg).toContain("<linearGradient");
-    expect(() => applyStudioTreatments(BASE, [{ kind: "logo-reveal", logo: "https://example.test/logo.svg" }])).toThrow(StudioTreatmentError);
-    expect(() => applyStudioTreatments(BASE, [{ kind: "logo-reveal", logo: '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.test/pixel.png"/></svg>' }])).toThrow(/remote resource/);
+    expect(() => applyStudioTreatments(BASE, [{ kind: "logo-reveal", logo: "https://example.test/logo.svg" }])).toThrow(
+      StudioTreatmentError,
+    );
+    expect(() =>
+      applyStudioTreatments(BASE, [
+        {
+          kind: "logo-reveal",
+          logo: '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.test/pixel.png"/></svg>',
+        },
+      ]),
+    ).toThrow(/remote resource/);
   });
 
   it("rejects malformed treatment timing and geometry", () => {
-    expect(() => resolveStudioTreatmentPlan([{ kind: "spotlight", mask: { region: { x: 0, y: 0, width: 0, height: 10 } } }])).toThrow(/too small/i);
-    expect(() => resolveStudioTreatmentPlan([{ kind: "zoom-pan", transform: { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } }, timing: { durationMs: -1 } }])).toThrow(/durationMs/);
-    expect(() => resolveStudioTreatmentPlan([
-      { kind: "scene-transition", transition: { type: "cut", duration: 0 } },
-      { kind: "scene-transition", transition: { type: "crossfade", duration: 100 } },
-    ])).toThrow(/only one scene-transition/);
+    expect(() =>
+      resolveStudioTreatmentPlan([{ kind: "spotlight", mask: { region: { x: 0, y: 0, width: 0, height: 10 } } }]),
+    ).toThrow(/too small/i);
+    expect(() =>
+      resolveStudioTreatmentPlan([
+        { kind: "zoom-pan", transform: { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } }, timing: { durationMs: -1 } },
+      ]),
+    ).toThrow(/durationMs/);
+    expect(() =>
+      resolveStudioTreatmentPlan([
+        { kind: "scene-transition", transition: { type: "cut", duration: 0 } },
+        { kind: "scene-transition", transition: { type: "crossfade", duration: 100 } },
+      ]),
+    ).toThrow(/only one scene-transition/);
   });
 });

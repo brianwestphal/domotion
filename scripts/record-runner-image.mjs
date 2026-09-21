@@ -27,7 +27,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  */
 export function computeRunnerImage(inputs = {}) {
   const { imageOS, runnerArch, osRelease, playwrightVersion, platform } = inputs;
-  const arch = (String(runnerArch ?? "").trim() || "unknown");
+  const arch = String(runnerArch ?? "").trim() || "unknown";
   // Host runners (macOS / Windows): the runner exposes ImageOS directly.
   if (imageOS != null && String(imageOS).trim() !== "") {
     return `${String(imageOS).trim()}-${arch}`.toLowerCase();
@@ -44,14 +44,11 @@ export function computeRunnerImage(inputs = {}) {
   // Container (Linux): no host ImageOS. Identify by the Ubuntu codename
   // (/etc/os-release) + the Playwright version, so a noble or Playwright bump
   // shows up as a meta.image mismatch instead of a silent `unknown-x64`.
-  const codename = (
-    osRelease?.VERSION_CODENAME ||
-    osRelease?.VERSION_ID ||
-    "linux"
-  ).toString().trim() || "linux";
-  const pw = playwrightVersion != null && String(playwrightVersion).trim() !== ""
-    ? `playwright-v${String(playwrightVersion).trim()}-`
-    : "";
+  const codename = (osRelease?.VERSION_CODENAME || osRelease?.VERSION_ID || "linux").toString().trim() || "linux";
+  const pw =
+    playwrightVersion != null && String(playwrightVersion).trim() !== ""
+      ? `playwright-v${String(playwrightVersion).trim()}-`
+      : "";
   return `${pw}${codename}-${arch}`.toLowerCase();
 }
 
@@ -71,11 +68,17 @@ function main() {
   let playwrightVersion = null;
   // Only the container path needs the extra lookups; the host path uses ImageOS.
   if (process.env.ImageOS == null || process.env.ImageOS.trim() === "") {
-    try { osRelease = parseOsRelease(readFileSync("/etc/os-release", "utf8")); } catch { /* not linux */ }
+    try {
+      osRelease = parseOsRelease(readFileSync("/etc/os-release", "utf8"));
+    } catch {
+      /* not linux */
+    }
     try {
       const require = createRequire(import.meta.url);
       playwrightVersion = require("@playwright/test/package.json").version;
-    } catch { /* playwright not resolvable */ }
+    } catch {
+      /* playwright not resolvable */
+    }
   }
   const id = computeRunnerImage({
     imageOS: process.env.ImageOS,

@@ -58,13 +58,16 @@
 import { hasCssValue, sideWidths } from "../utils.js";
 
 export const pseudoCanvasFont = (pcs) =>
-  (pcs.fontStyle || 'normal') + ' ' + (pcs.fontWeight || 'normal') + ' '
-  + (pcs.fontSize || '16px') + ' ' + (pcs.fontFamily || 'sans-serif');
+  (pcs.fontStyle || "normal") +
+  " " +
+  (pcs.fontWeight || "normal") +
+  " " +
+  (pcs.fontSize || "16px") +
+  " " +
+  (pcs.fontFamily || "sans-serif");
 
 export const physicalPseudoFilter = (el, value, effectiveZoomFor, physicalComputedCssPixelTerms) =>
-  value && value !== 'none'
-    ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el))
-    : undefined;
+  value && value !== "none" ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el)) : undefined;
 
 export const physicalPseudoNumber = (el, value, effectiveZoomFor) => {
   const number = parseFloat(value);
@@ -73,24 +76,24 @@ export const physicalPseudoNumber = (el, value, effectiveZoomFor) => {
 
 export const physicalPseudoTransform = (el, value, effectiveZoomFor) => {
   const zoom = effectiveZoomFor(el);
-  if (!value || value === 'none' || zoom === 1) return value;
+  if (!value || value === "none" || zoom === 1) return value;
   const m2 = /^matrix\(([^)]+)\)$/.exec(value);
   if (m2 != null) {
-    const parts = m2[1].split(',').map((part) => parseFloat(part));
+    const parts = m2[1].split(",").map((part) => parseFloat(part));
     if (parts.length === 6 && parts.every(Number.isFinite)) {
       parts[4] *= zoom;
       parts[5] *= zoom;
-      return `matrix(${parts.join(', ')})`;
+      return `matrix(${parts.join(", ")})`;
     }
   }
   const m3 = /^matrix3d\(([^)]+)\)$/.exec(value);
   if (m3 != null) {
-    const parts = m3[1].split(',').map((part) => parseFloat(part));
+    const parts = m3[1].split(",").map((part) => parseFloat(part));
     if (parts.length === 16 && parts.every(Number.isFinite)) {
       parts[12] *= zoom;
       parts[13] *= zoom;
       parts[14] *= zoom;
-      return `matrix3d(${parts.join(', ')})`;
+      return `matrix3d(${parts.join(", ")})`;
     }
   }
   return value;
@@ -100,12 +103,15 @@ export const pickPseudoQuoteChar = (forEl, isOpen) => {
   let depth = 0;
   let parent = forEl.parentElement;
   while (parent != null) {
-    if (parent.tagName === 'Q') depth++;
+    if (parent.tagName === "Q") depth++;
     parent = parent.parentElement;
   }
   const quotes = window.getComputedStyle(forEl).quotes;
-  if (quotes == null || quotes === '' || quotes === 'none' || quotes === 'auto') {
-    const pairs = [['“', '”'], ['‘', '’']];
+  if (quotes == null || quotes === "" || quotes === "none" || quotes === "auto") {
+    const pairs = [
+      ["“", "”"],
+      ["‘", "’"],
+    ];
     const pair = pairs[Math.min(depth, pairs.length - 1)];
     return isOpen ? pair[0] : pair[1];
   }
@@ -117,9 +123,9 @@ export const pickPseudoQuoteChar = (forEl, isOpen) => {
       continue;
     }
     let end = index + 1;
-    let token = '';
+    let token = "";
     while (end < quotes.length && quotes[end] !== '"') {
-      if (quotes[end] === '\\') {
+      if (quotes[end] === "\\") {
         token += quotes[end + 1];
         end += 2;
       } else {
@@ -130,14 +136,21 @@ export const pickPseudoQuoteChar = (forEl, isOpen) => {
     tokens.push(token);
     index = end + 1;
   }
-  if (tokens.length < 2) return isOpen ? '“' : '”';
+  if (tokens.length < 2) return isOpen ? "“" : "”";
   const pairIndex = Math.min(depth, Math.floor((tokens.length - 1) / 2));
   return isOpen ? tokens[pairIndex * 2] : tokens[pairIndex * 2 + 1];
 };
 
-export const parsePseudoContentValue = ({ content, el, counterSnapshot, pseudo, resolveCounterValue, pickQuoteChar = pickPseudoQuoteChar }) => {
-  let text = '';
-  let imageUrl = '';
+export const parsePseudoContentValue = ({
+  content,
+  el,
+  counterSnapshot,
+  pseudo,
+  resolveCounterValue,
+  pickQuoteChar = pickPseudoQuoteChar,
+}) => {
+  let text = "";
+  let imageUrl = "";
   let index = 0;
   while (index < content.length) {
     const token = content[index];
@@ -146,49 +159,57 @@ export const parsePseudoContentValue = ({ content, el, counterSnapshot, pseudo, 
       if (end < 0) break;
       text += content.slice(index + 1, end);
       index = end + 1;
-    } else if (content.startsWith('attr(', index)) {
-      const end = content.indexOf(')', index);
+    } else if (content.startsWith("attr(", index)) {
+      const end = content.indexOf(")", index);
       if (end < 0) break;
-      text += el.getAttribute(content.slice(index + 5, end).trim()) || '';
+      text += el.getAttribute(content.slice(index + 5, end).trim()) || "";
       index = end + 1;
-    } else if (content.startsWith('url(', index)) {
-      const end = content.indexOf(')', index);
+    } else if (content.startsWith("url(", index)) {
+      const end = content.indexOf(")", index);
       if (end < 0) break;
       let url = content.slice(index + 4, end).trim();
-      if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) url = url.slice(1, -1);
+      if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'")))
+        url = url.slice(1, -1);
       imageUrl = url;
       index = end + 1;
-    } else if (content.startsWith('counter(', index) || content.startsWith('counters(', index)) {
-      const plural = content.startsWith('counters(', index);
-      const open = index + (plural ? 'counters('.length : 'counter('.length);
-      const close = content.indexOf(')', open);
-      if (close < 0) { index++; continue; }
-      const args = content.slice(open, close).split(',').map((value) => {
-        const trimmed = value.trim();
-        return ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
-          ? trimmed.slice(1, -1)
-          : trimmed;
-      });
+    } else if (content.startsWith("counter(", index) || content.startsWith("counters(", index)) {
+      const plural = content.startsWith("counters(", index);
+      const open = index + (plural ? "counters(".length : "counter(".length);
+      const close = content.indexOf(")", open);
+      if (close < 0) {
+        index++;
+        continue;
+      }
+      const args = content
+        .slice(open, close)
+        .split(",")
+        .map((value) => {
+          const trimmed = value.trim();
+          return (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))
+            ? trimmed.slice(1, -1)
+            : trimmed;
+        });
       const style = plural ? args[2] : args[1];
       const format = (value) => {
-        if (style == null || style === '' || resolveCounterValue == null) return String(value);
+        if (style == null || style === "" || resolveCounterValue == null) return String(value);
         return resolveCounterValue(style, value) ?? String(value);
       };
       const captured = counterSnapshot.get(el);
       const snapshot = captured?.[pseudo] ?? captured?.element ?? captured ?? [];
       const matches = snapshot.filter((entry) => entry.name === args[0]).map((entry) => format(entry.value));
-      text += plural ? (matches.length > 0 ? matches.join(args[1] ?? '') : format(0)) : (matches.at(-1) ?? format(0));
+      text += plural ? (matches.length > 0 ? matches.join(args[1] ?? "") : format(0)) : (matches.at(-1) ?? format(0));
       index = close + 1;
-    } else if (content.startsWith('open-quote', index)) {
+    } else if (content.startsWith("open-quote", index)) {
       text += pickQuoteChar(el, true);
-      index += 'open-quote'.length;
-    } else if (content.startsWith('close-quote', index)) {
+      index += "open-quote".length;
+    } else if (content.startsWith("close-quote", index)) {
       text += pickQuoteChar(el, false);
-      index += 'close-quote'.length;
-    } else if (content.startsWith('no-open-quote', index)) {
-      index += 'no-open-quote'.length;
-    } else if (content.startsWith('no-close-quote', index)) {
-      index += 'no-close-quote'.length;
+      index += "close-quote".length;
+    } else if (content.startsWith("no-open-quote", index)) {
+      index += "no-open-quote".length;
+    } else if (content.startsWith("no-close-quote", index)) {
+      index += "no-close-quote".length;
     } else {
       index++;
     }
@@ -197,220 +218,244 @@ export const parsePseudoContentValue = ({ content, el, counterSnapshot, pseudo, 
 };
 
 /** Capture one visible empty-content pseudo through explicit geometry/paint services. */
-export const captureEmptyPseudoBox = ({
-  effectiveZoomFor,
-  physicalNumber,
-  probePseudoStaticBoxRect,
-  probePseudoAbsoluteBoxRect,
-  vp,
-  normColor,
-  physicalTransform,
-  composeEffectiveTransform,
-  physicalFilter,
-  physicalComputedGradientImage,
-}, el, cs, pseudo, pcs, rect) => {
-        const bgRaw = pcs.backgroundColor;
-        const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
-        // DM-767: capture background-image (linear-gradient / radial-gradient /
-        // url) on empty-content pseudos too. The `.corner::after` accent stripe
-        // pattern in `24-deep-pseudo-shapes` is an absolutely-positioned 4 px
-        // strip with a `linear-gradient` background and no color / border —
-        // without this check the pseudoBox emit was skipped entirely.
-        const bgImgRaw = pcs.backgroundImage;
-        const hasBgImg = hasCssValue(bgImgRaw);
-        const rawBorderWidths = sideWidths(pcs, 'border', 'Width');
-        const bwT = rawBorderWidths.top * effectiveZoomFor(el);
-        const bwR = rawBorderWidths.right * effectiveZoomFor(el);
-        const bwB = rawBorderWidths.bottom * effectiveZoomFor(el);
-        const bwL = rawBorderWidths.left * effectiveZoomFor(el);
-        const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
-        const isBlockLike = pcs.display === 'block' || pcs.display === 'inline-block' || pcs.display === 'flex';
-        // DM-1073: the `opacity: 0` skip that used to repeat here is dead — the
-        // loop-top guard (above) already `continue`d on opacity 0 before any
-        // box-rect work, so by here opacity is non-zero.
-        if (isBlockLike && (hasBg || hasBgImg || hasBorder)) {
-          const zoom = effectiveZoomFor(el);
-          const hostPadL = physicalNumber(el, cs.paddingLeft);
-          const hostPadT = physicalNumber(el, cs.paddingTop);
-          const hostBorL = physicalNumber(el, cs.borderLeftWidth);
-          const hostBorT = physicalNumber(el, cs.borderTopWidth);
-          const hostBorR = physicalNumber(el, cs.borderRightWidth);
-          const pMarL = physicalNumber(el, pcs.marginLeft);
-          const rawPadding = sideWidths(pcs, 'padding', '');
-          const pPadL = rawPadding.left * zoom;
-          const pPadR = rawPadding.right * zoom;
-          const pPadT = rawPadding.top * zoom;
-          const pPadB = rawPadding.bottom * zoom;
-          // Pseudo width / height come from computed style. `width: 350px`
-          // resolves directly; `auto` falls back to host content width
-          // (minus host padding).
-          const hostContentW = rect.width - hostBorL - hostBorR - hostPadL - physicalNumber(el, cs.paddingRight);
-          const pcsW = parseFloat(pcs.width);
-          const pcsH = parseFloat(pcs.height);
-          const contentW = !isNaN(pcsW) ? pcsW * zoom : hostContentW - pMarL - physicalNumber(el, pcs.marginRight);
-          const contentH = !isNaN(pcsH) ? pcsH * zoom : 0;
-          const borderBoxW = contentW + pPadL + pPadR + bwL + bwR;
-          const borderBoxH = contentH + pPadT + pPadB + bwT + bwB;
+export const captureEmptyPseudoBox = (
+  {
+    effectiveZoomFor,
+    physicalNumber,
+    probePseudoStaticBoxRect,
+    probePseudoAbsoluteBoxRect,
+    vp,
+    normColor,
+    physicalTransform,
+    composeEffectiveTransform,
+    physicalFilter,
+    physicalComputedGradientImage,
+  },
+  el,
+  cs,
+  pseudo,
+  pcs,
+  rect,
+) => {
+  const bgRaw = pcs.backgroundColor;
+  const hasBg = bgRaw && bgRaw !== "" && bgRaw !== "rgba(0, 0, 0, 0)" && bgRaw !== "transparent";
+  // DM-767: capture background-image (linear-gradient / radial-gradient /
+  // url) on empty-content pseudos too. The `.corner::after` accent stripe
+  // pattern in `24-deep-pseudo-shapes` is an absolutely-positioned 4 px
+  // strip with a `linear-gradient` background and no color / border —
+  // without this check the pseudoBox emit was skipped entirely.
+  const bgImgRaw = pcs.backgroundImage;
+  const hasBgImg = hasCssValue(bgImgRaw);
+  const rawBorderWidths = sideWidths(pcs, "border", "Width");
+  const bwT = rawBorderWidths.top * effectiveZoomFor(el);
+  const bwR = rawBorderWidths.right * effectiveZoomFor(el);
+  const bwB = rawBorderWidths.bottom * effectiveZoomFor(el);
+  const bwL = rawBorderWidths.left * effectiveZoomFor(el);
+  const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
+  const isBlockLike = pcs.display === "block" || pcs.display === "inline-block" || pcs.display === "flex";
+  // DM-1073: the `opacity: 0` skip that used to repeat here is dead — the
+  // loop-top guard (above) already `continue`d on opacity 0 before any
+  // box-rect work, so by here opacity is non-zero.
+  if (isBlockLike && (hasBg || hasBgImg || hasBorder)) {
+    const zoom = effectiveZoomFor(el);
+    const hostPadL = physicalNumber(el, cs.paddingLeft);
+    const hostPadT = physicalNumber(el, cs.paddingTop);
+    const hostBorL = physicalNumber(el, cs.borderLeftWidth);
+    const hostBorT = physicalNumber(el, cs.borderTopWidth);
+    const hostBorR = physicalNumber(el, cs.borderRightWidth);
+    const pMarL = physicalNumber(el, pcs.marginLeft);
+    const rawPadding = sideWidths(pcs, "padding", "");
+    const pPadL = rawPadding.left * zoom;
+    const pPadR = rawPadding.right * zoom;
+    const pPadT = rawPadding.top * zoom;
+    const pPadB = rawPadding.bottom * zoom;
+    // Pseudo width / height come from computed style. `width: 350px`
+    // resolves directly; `auto` falls back to host content width
+    // (minus host padding).
+    const hostContentW = rect.width - hostBorL - hostBorR - hostPadL - physicalNumber(el, cs.paddingRight);
+    const pcsW = parseFloat(pcs.width);
+    const pcsH = parseFloat(pcs.height);
+    const contentW = !isNaN(pcsW) ? pcsW * zoom : hostContentW - pMarL - physicalNumber(el, pcs.marginRight);
+    const contentH = !isNaN(pcsH) ? pcsH * zoom : 0;
+    const borderBoxW = contentW + pPadL + pPadR + bwL + bwR;
+    const borderBoxH = contentH + pPadT + pPadB + bwT + bwB;
 
-          // Position: absolute pseudos use pcs.left / pcs.top relative to
-          // the host's padding box (DM-594: speech-bubble tails). Static
-          // pseudos flow at the host's content-box top-left.
-          let borderBoxX;
-          let borderBoxY;
-          if (pcs.position === 'absolute' || pcs.position === 'fixed') {
-            // Use a real positioned sentinel to find the pseudo's true painted
-            // rect. Chrome's containing-block lookup walks up from the host
-            // looking for a positioned ancestor (or a transformed / filtered
-            // / contained ancestor); the same lookup applies to a real child
-            // of the host. Probing avoids re-implementing that walk + all the
-            // containing-block-establishing properties. NYT mobile's nav fade-
-            // out `.css-sdhjrl::after` (`position: absolute; right: 0`) on a
-            // `position: static` NAV is the trigger case — the pseudo's
-            // resolved `top` / `left` are relative to a far-up positioned
-            // ancestor, not the NAV, so the prior additive math placed the
-            // gradient thousands of pixels off the NAV.
-            const pr = probePseudoAbsoluteBoxRect(el, pseudo, pcs);
-            borderBoxX = pr.left - vp.x;
-            borderBoxY = pr.top - vp.y;
-          } else {
-            const pMarT = physicalNumber(el, pcs.marginTop);
-            borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
-            borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
-            // An empty decorative pseudo is still a real flex item. When an
-            // `::after` is the last item and main-axis distribution pushes the
-            // ends apart, its margin box is flush with the content-right edge.
-            // Text pseudos already take this path below; box-only pseudos must
-            // use the same flex geometry instead of the static content-start.
-            const hostFlex = cs.display === 'flex' || cs.display === 'inline-flex';
-            const justify = cs.justifyContent || '';
-            const pushesEnd = justify.indexOf('space-between') >= 0 || justify.indexOf('flex-end') >= 0
-              || justify === 'end' || justify === 'right';
-            if (pseudo === '::after' && hostFlex && pushesEnd) {
-              const hostPadR = physicalNumber(el, cs.paddingRight);
-              const pMarR = physicalNumber(el, pcs.marginRight);
-              borderBoxX = rect.right - vp.x - hostBorR - hostPadR - pMarR - borderBoxW;
-              if (cs.alignItems === 'center') {
-                const hostBorB = physicalNumber(el, cs.borderBottomWidth);
-                const hostPadB = physicalNumber(el, cs.paddingBottom);
-                const contentH = rect.height - hostBorT - hostBorB - hostPadT - hostPadB;
-                borderBoxY = rect.top - vp.y + hostBorT + hostPadT + (contentH - borderBoxH) / 2 + pMarT;
-              }
-            }
-            // DM-768: static `display: inline-block` (and inline-flex / inline-grid /
-            // inline-table) pseudos participate in Chrome's inline vertical-align
-            // math — the formula above ignores `vertical-align` and pins the box to
-            // the host's content-area top, which is 6-7 px too high for a typical
-            // `vertical-align: middle` down-caret. Probe with a real sentinel that
-            // mirrors the pseudo's box properties.
-            //
-            // CSS render order on the line is: ::before → real children → ::after.
-            // The sentinel is a real child:
-            //   - For ::before, the sentinel renders AFTER the pseudo. The
-            //     pseudo's own position is unchanged; the sentinel just shifts
-            //     subsequent content. So the pseudo's border-box left =
-            //     probe.left − pMarR − borderBoxW − pMarL (back out the sentinel
-            //     gap), and the pseudo's top equals probe.top (both lay out
-            //     on the same line with matching `vertical-align`).
-            //   - For ::after, the sentinel renders BEFORE the pseudo. Without
-            //     the sentinel, the pseudo would take the slot the sentinel
-            //     now occupies, so the pseudo's border-box left = probe.left
-            //     and top = probe.top.
-            const dispIsInline = pcs.display === 'inline-block' || pcs.display === 'inline-flex' || pcs.display === 'inline-grid' || pcs.display === 'inline-table';
-            if (dispIsInline) {
-              const pr = probePseudoStaticBoxRect(el, pseudo, pcs);
-              borderBoxY = pr.top - vp.y;
-              if (pseudo === '::after') {
-                borderBoxX = pr.left - vp.x;
-              } else {
-                const pMarR = physicalNumber(el, pcs.marginRight);
-                borderBoxX = pr.left - vp.x - pMarR - borderBoxW - pMarL;
-              }
-            }
-          }
-          // DM-710: if the host has a CSS transform whose 2D submatrix is
-          // singular (zero determinant), the host's painted area collapses
-          // to a point / line and the pseudo paints nothing visible —
-          // Apple's `.globalnav-bag-badge` carries `transform: matrix(0, 0,
-          // 0, 0, 0, 0)` as the "no items in cart" state, and the empty
-          // ::before with `width: 13px; background: black; border-radius:
-          // 13px` would otherwise emit as a visible dot. Skip the pseudoBox
-          // in that case; the live-rect model already drops the host itself.
-          let degenerateHostTransform = false;
-          if (cs.transform && cs.transform !== 'none') {
-            const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(cs.transform);
-            if (m2) {
-              const a = parseFloat(m2[1]);
-              const b = parseFloat(m2[2]);
-              const c = parseFloat(m2[3]);
-              const d = parseFloat(m2[4]);
-              if (Math.abs(a * d - b * c) < 1e-9) degenerateHostTransform = true;
-            }
-          }
-          if (borderBoxW > 0 && borderBoxH > 0 && !degenerateHostTransform) {
-            // DM-783: the pseudo's own `transform` (rotate/scale/translate/
-            // matrix) wraps the pseudoBox at render time. getComputedStyle
-            // returns the resolved matrix() form, and transformOrigin returns
-            // resolved px values relative to the pseudo's box top-left — both
-            // can be pasted directly into an SVG `<g>` wrapper. Captured only
-            // when non-`none` to keep the captured tree compact.
-            // DM-1268: compose the standalone `scale` / `rotate` / `translate`
-            // properties WITH `transform` (CSS Transforms 2). Apple's
-            // `media-gallery-dotnav-link::before` carousel dots are empty-content
-            // background boxes that shrink toward the edges via the `scale` property
-            // (scale: 0.75 / 0.5), a separate computed entry from `transform`.
-            const pcsComposedRaw = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
-            const pcsComposed = physicalTransform(el, pcsComposedRaw);
-            const pcsTransform = pcsComposed && pcsComposed !== 'none' ? pcsComposed : undefined;
-            const pcsTransformOrigin = pcsTransform != null
-              ? physicalComputedCssPixelTerms(pcs.transformOrigin || '', zoom) || undefined
-              : undefined;
-            // DM-1051: a negative z-index pseudo (Resend's `.rainbow-border::after`
-            // glow, `z-index: -10`) paints BEHIND the host content, and its
-            // `filter: blur(20px)` softens the gradient into a halo. Capture both
-            // so the renderer can paint-behind + blur instead of overlaying a
-            // sharp gradient rect on top of the dark pill interior.
-            const pcsZ = parseInt(pcs.zIndex, 10);
-            const pcsZIndex = Number.isFinite(pcsZ) ? pcsZ : undefined;
-            const pcsFilter = physicalFilter(el, pcs.filter);
-            return {
-              // DM-1001: track which pseudo emitted this box so the renderer
-              // can paint ::after pseudo-elements AFTER the host's text (the
-              // CSS render order). The earlier "emit all pseudoBoxes ahead of
-              // text" gate (line 2370) is right for ::before but wrong for
-              // ::after — NYT's right-edge fade-out overlays the headline
-              // text via `::after { background: linear-gradient(transparent,
-              // white) }`, so painting it under the text leaves the headline
-              // sharp instead of fading.
-              pseudo: pseudo,
-              x: borderBoxX,
-              y: borderBoxY,
-              width: borderBoxW,
-              height: borderBoxH,
-              backgroundColor: hasBg ? normColor(bgRaw) : undefined,
-              backgroundImage: hasBgImg ? physicalComputedGradientImage(bgImgRaw, zoom) : undefined,
-              // DM-1121: a gradient pseudo's background-position / -size and its
-              // own opacity steer where the gradient core lands and how strong it
-              // paints (Stripe's keynote glow is an off-center, 45%-opacity pink
-              // radial). Capture position/size only alongside a background-image,
-              // and opacity only when it actually dims the box (< 1).
-              backgroundPosition: hasBgImg ? physicalComputedCssPixelTerms(pcs.backgroundPosition, zoom) : undefined,
-              backgroundSize: hasBgImg ? physicalComputedCssPixelTerms(pcs.backgroundSize, zoom) : undefined,
-              opacity: (function () { var o = parseFloat(pcs.opacity); return (isFinite(o) && o < 1) ? o : undefined; })(),
-              borderTopWidth: bwT, borderTopColor: bwT > 0 ? normColor(pcs.borderTopColor) : undefined, borderTopStyle: pcs.borderTopStyle,
-              borderRightWidth: bwR, borderRightColor: bwR > 0 ? normColor(pcs.borderRightColor) : undefined, borderRightStyle: pcs.borderRightStyle,
-              borderBottomWidth: bwB, borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined, borderBottomStyle: pcs.borderBottomStyle,
-              borderLeftWidth: bwL, borderLeftColor: bwL > 0 ? normColor(pcs.borderLeftColor) : undefined, borderLeftStyle: pcs.borderLeftStyle,
-              borderRadius: physicalNumber(el, pcs.borderRadius),
-              transform: pcsTransform,
-              transformOrigin: pcsTransformOrigin,
-              zIndex: pcsZIndex,
-              filter: pcsFilter,
-            };
-          }
+    // Position: absolute pseudos use pcs.left / pcs.top relative to
+    // the host's padding box (DM-594: speech-bubble tails). Static
+    // pseudos flow at the host's content-box top-left.
+    let borderBoxX;
+    let borderBoxY;
+    if (pcs.position === "absolute" || pcs.position === "fixed") {
+      // Use a real positioned sentinel to find the pseudo's true painted
+      // rect. Chrome's containing-block lookup walks up from the host
+      // looking for a positioned ancestor (or a transformed / filtered
+      // / contained ancestor); the same lookup applies to a real child
+      // of the host. Probing avoids re-implementing that walk + all the
+      // containing-block-establishing properties. NYT mobile's nav fade-
+      // out `.css-sdhjrl::after` (`position: absolute; right: 0`) on a
+      // `position: static` NAV is the trigger case — the pseudo's
+      // resolved `top` / `left` are relative to a far-up positioned
+      // ancestor, not the NAV, so the prior additive math placed the
+      // gradient thousands of pixels off the NAV.
+      const pr = probePseudoAbsoluteBoxRect(el, pseudo, pcs);
+      borderBoxX = pr.left - vp.x;
+      borderBoxY = pr.top - vp.y;
+    } else {
+      const pMarT = physicalNumber(el, pcs.marginTop);
+      borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
+      borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
+      // An empty decorative pseudo is still a real flex item. When an
+      // `::after` is the last item and main-axis distribution pushes the
+      // ends apart, its margin box is flush with the content-right edge.
+      // Text pseudos already take this path below; box-only pseudos must
+      // use the same flex geometry instead of the static content-start.
+      const hostFlex = cs.display === "flex" || cs.display === "inline-flex";
+      const justify = cs.justifyContent || "";
+      const pushesEnd =
+        justify.indexOf("space-between") >= 0 ||
+        justify.indexOf("flex-end") >= 0 ||
+        justify === "end" ||
+        justify === "right";
+      if (pseudo === "::after" && hostFlex && pushesEnd) {
+        const hostPadR = physicalNumber(el, cs.paddingRight);
+        const pMarR = physicalNumber(el, pcs.marginRight);
+        borderBoxX = rect.right - vp.x - hostBorR - hostPadR - pMarR - borderBoxW;
+        if (cs.alignItems === "center") {
+          const hostBorB = physicalNumber(el, cs.borderBottomWidth);
+          const hostPadB = physicalNumber(el, cs.paddingBottom);
+          const contentH = rect.height - hostBorT - hostBorB - hostPadT - hostPadB;
+          borderBoxY = rect.top - vp.y + hostBorT + hostPadT + (contentH - borderBoxH) / 2 + pMarT;
         }
-    return null;
-  };
-
+      }
+      // DM-768: static `display: inline-block` (and inline-flex / inline-grid /
+      // inline-table) pseudos participate in Chrome's inline vertical-align
+      // math — the formula above ignores `vertical-align` and pins the box to
+      // the host's content-area top, which is 6-7 px too high for a typical
+      // `vertical-align: middle` down-caret. Probe with a real sentinel that
+      // mirrors the pseudo's box properties.
+      //
+      // CSS render order on the line is: ::before → real children → ::after.
+      // The sentinel is a real child:
+      //   - For ::before, the sentinel renders AFTER the pseudo. The
+      //     pseudo's own position is unchanged; the sentinel just shifts
+      //     subsequent content. So the pseudo's border-box left =
+      //     probe.left − pMarR − borderBoxW − pMarL (back out the sentinel
+      //     gap), and the pseudo's top equals probe.top (both lay out
+      //     on the same line with matching `vertical-align`).
+      //   - For ::after, the sentinel renders BEFORE the pseudo. Without
+      //     the sentinel, the pseudo would take the slot the sentinel
+      //     now occupies, so the pseudo's border-box left = probe.left
+      //     and top = probe.top.
+      const dispIsInline =
+        pcs.display === "inline-block" ||
+        pcs.display === "inline-flex" ||
+        pcs.display === "inline-grid" ||
+        pcs.display === "inline-table";
+      if (dispIsInline) {
+        const pr = probePseudoStaticBoxRect(el, pseudo, pcs);
+        borderBoxY = pr.top - vp.y;
+        if (pseudo === "::after") {
+          borderBoxX = pr.left - vp.x;
+        } else {
+          const pMarR = physicalNumber(el, pcs.marginRight);
+          borderBoxX = pr.left - vp.x - pMarR - borderBoxW - pMarL;
+        }
+      }
+    }
+    // DM-710: if the host has a CSS transform whose 2D submatrix is
+    // singular (zero determinant), the host's painted area collapses
+    // to a point / line and the pseudo paints nothing visible —
+    // Apple's `.globalnav-bag-badge` carries `transform: matrix(0, 0,
+    // 0, 0, 0, 0)` as the "no items in cart" state, and the empty
+    // ::before with `width: 13px; background: black; border-radius:
+    // 13px` would otherwise emit as a visible dot. Skip the pseudoBox
+    // in that case; the live-rect model already drops the host itself.
+    let degenerateHostTransform = false;
+    if (cs.transform && cs.transform !== "none") {
+      const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(cs.transform);
+      if (m2) {
+        const a = parseFloat(m2[1]);
+        const b = parseFloat(m2[2]);
+        const c = parseFloat(m2[3]);
+        const d = parseFloat(m2[4]);
+        if (Math.abs(a * d - b * c) < 1e-9) degenerateHostTransform = true;
+      }
+    }
+    if (borderBoxW > 0 && borderBoxH > 0 && !degenerateHostTransform) {
+      // DM-783: the pseudo's own `transform` (rotate/scale/translate/
+      // matrix) wraps the pseudoBox at render time. getComputedStyle
+      // returns the resolved matrix() form, and transformOrigin returns
+      // resolved px values relative to the pseudo's box top-left — both
+      // can be pasted directly into an SVG `<g>` wrapper. Captured only
+      // when non-`none` to keep the captured tree compact.
+      // DM-1268: compose the standalone `scale` / `rotate` / `translate`
+      // properties WITH `transform` (CSS Transforms 2). Apple's
+      // `media-gallery-dotnav-link::before` carousel dots are empty-content
+      // background boxes that shrink toward the edges via the `scale` property
+      // (scale: 0.75 / 0.5), a separate computed entry from `transform`.
+      const pcsComposedRaw =
+        composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : pcs.transform || "none";
+      const pcsComposed = physicalTransform(el, pcsComposedRaw);
+      const pcsTransform = pcsComposed && pcsComposed !== "none" ? pcsComposed : undefined;
+      const pcsTransformOrigin =
+        pcsTransform != null ? physicalComputedCssPixelTerms(pcs.transformOrigin || "", zoom) || undefined : undefined;
+      // DM-1051: a negative z-index pseudo (Resend's `.rainbow-border::after`
+      // glow, `z-index: -10`) paints BEHIND the host content, and its
+      // `filter: blur(20px)` softens the gradient into a halo. Capture both
+      // so the renderer can paint-behind + blur instead of overlaying a
+      // sharp gradient rect on top of the dark pill interior.
+      const pcsZ = parseInt(pcs.zIndex, 10);
+      const pcsZIndex = Number.isFinite(pcsZ) ? pcsZ : undefined;
+      const pcsFilter = physicalFilter(el, pcs.filter);
+      return {
+        // DM-1001: track which pseudo emitted this box so the renderer
+        // can paint ::after pseudo-elements AFTER the host's text (the
+        // CSS render order). The earlier "emit all pseudoBoxes ahead of
+        // text" gate (line 2370) is right for ::before but wrong for
+        // ::after — NYT's right-edge fade-out overlays the headline
+        // text via `::after { background: linear-gradient(transparent,
+        // white) }`, so painting it under the text leaves the headline
+        // sharp instead of fading.
+        pseudo: pseudo,
+        x: borderBoxX,
+        y: borderBoxY,
+        width: borderBoxW,
+        height: borderBoxH,
+        backgroundColor: hasBg ? normColor(bgRaw) : undefined,
+        backgroundImage: hasBgImg ? physicalComputedGradientImage(bgImgRaw, zoom) : undefined,
+        // DM-1121: a gradient pseudo's background-position / -size and its
+        // own opacity steer where the gradient core lands and how strong it
+        // paints (Stripe's keynote glow is an off-center, 45%-opacity pink
+        // radial). Capture position/size only alongside a background-image,
+        // and opacity only when it actually dims the box (< 1).
+        backgroundPosition: hasBgImg ? physicalComputedCssPixelTerms(pcs.backgroundPosition, zoom) : undefined,
+        backgroundSize: hasBgImg ? physicalComputedCssPixelTerms(pcs.backgroundSize, zoom) : undefined,
+        opacity: (function () {
+          var o = parseFloat(pcs.opacity);
+          return isFinite(o) && o < 1 ? o : undefined;
+        })(),
+        borderTopWidth: bwT,
+        borderTopColor: bwT > 0 ? normColor(pcs.borderTopColor) : undefined,
+        borderTopStyle: pcs.borderTopStyle,
+        borderRightWidth: bwR,
+        borderRightColor: bwR > 0 ? normColor(pcs.borderRightColor) : undefined,
+        borderRightStyle: pcs.borderRightStyle,
+        borderBottomWidth: bwB,
+        borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined,
+        borderBottomStyle: pcs.borderBottomStyle,
+        borderLeftWidth: bwL,
+        borderLeftColor: bwL > 0 ? normColor(pcs.borderLeftColor) : undefined,
+        borderLeftStyle: pcs.borderLeftStyle,
+        borderRadius: physicalNumber(el, pcs.borderRadius),
+        transform: pcsTransform,
+        transformOrigin: pcsTransformOrigin,
+        zIndex: pcsZIndex,
+        filter: pcsFilter,
+      };
+    }
+  }
+  return null;
+};
 
 const buildPseudoContentHandler = ({
   vp,
@@ -428,7 +473,8 @@ const buildPseudoContentHandler = ({
   // CSSOM serializes filter lengths before effective zoom, while every box
   // captured below is already in physical viewport coordinates. Scale only
   // computed px terms once so blur/drop-shadow use the same coordinate space.
-  const physicalFilter = (el, value) => physicalPseudoFilter(el, value, effectiveZoomFor, physicalComputedCssPixelTerms);
+  const physicalFilter = (el, value) =>
+    physicalPseudoFilter(el, value, effectiveZoomFor, physicalComputedCssPixelTerms);
   const physicalNumber = (el, value) => physicalPseudoNumber(el, value, effectiveZoomFor);
   const physicalTransform = (el, value) => physicalPseudoTransform(el, value, effectiveZoomFor);
   // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
@@ -440,8 +486,8 @@ const buildPseudoContentHandler = ({
   let _emojiAdvCtx = null;
   const measureGlyphAdvance = (s, pcs) => {
     if (_emojiAdvCtx == null) {
-      _emojiAdvCv = document.createElement('canvas');
-      _emojiAdvCtx = _emojiAdvCv.getContext('2d');
+      _emojiAdvCv = document.createElement("canvas");
+      _emojiAdvCtx = _emojiAdvCv.getContext("2d");
     }
     _emojiAdvCtx.font = pseudoCanvasFont(pcs);
     return _emojiAdvCtx.measureText(s).width;
@@ -452,24 +498,24 @@ const buildPseudoContentHandler = ({
   // a hand-picked font/box subset) preserves the resolved cascade, variables,
   // calc(), writing mode, font features, intrinsic sizing, and logical props.
   const probeGeneratedPseudoLayout = (el, pseudo, text, pcs) => {
-    const span = document.createElement('span');
+    const span = document.createElement("span");
     for (let i = 0; i < pcs.length; i++) {
       const name = pcs.item(i);
       span.style.setProperty(name, pcs.getPropertyValue(name));
     }
     // Generated `content` has no effect on a real element; materialize it as a
     // text node. Visibility keeps the probe non-painting while retaining layout.
-    span.style.setProperty('content', 'normal');
-    span.style.setProperty('visibility', 'hidden');
-    span.style.setProperty('pointer-events', 'none');
+    span.style.setProperty("content", "normal");
+    span.style.setProperty("visibility", "hidden");
+    span.style.setProperty("pointer-events", "none");
     // Transforms affect only paint and turn getBoundingClientRect into an AABB;
     // renderer applies them later around the untransformed layout box.
-    span.style.setProperty('transform', 'none');
-    span.style.setProperty('translate', 'none');
-    span.style.setProperty('rotate', 'none');
-    span.style.setProperty('scale', 'none');
+    span.style.setProperty("transform", "none");
+    span.style.setProperty("translate", "none");
+    span.style.setProperty("rotate", "none");
+    span.style.setProperty("scale", "none");
     span.textContent = text;
-    if (pseudo === '::before') el.insertBefore(span, el.firstChild);
+    if (pseudo === "::before") el.insertBefore(span, el.firstChild);
     else el.appendChild(span);
     const borderRect = span.getBoundingClientRect();
     const range = document.createRange();
@@ -498,8 +544,8 @@ const buildPseudoContentHandler = ({
   // pseudo would have gone, so we get the correct x/y without re-deriving
   // font metrics + vertical-align semantics ourselves.
   const probePseudoStaticBoxRect = (el, pseudo, pcs) => {
-    const probe = document.createElement('span');
-    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box';
+    const probe = document.createElement("span");
+    probe.style.cssText = "pointer-events:none;visibility:hidden;box-sizing:content-box";
     probe.style.display = pcs.display;
     probe.style.width = pcs.width;
     probe.style.height = pcs.height;
@@ -511,15 +557,15 @@ const buildPseudoContentHandler = ({
     probe.style.borderRightWidth = pcs.borderRightWidth;
     probe.style.borderBottomWidth = pcs.borderBottomWidth;
     probe.style.borderLeftWidth = pcs.borderLeftWidth;
-    probe.style.borderStyle = 'solid';
-    probe.style.borderColor = 'transparent';
+    probe.style.borderStyle = "solid";
+    probe.style.borderColor = "transparent";
     probe.style.marginTop = pcs.marginTop;
     probe.style.marginRight = pcs.marginRight;
     probe.style.marginBottom = pcs.marginBottom;
     probe.style.marginLeft = pcs.marginLeft;
     probe.style.verticalAlign = pcs.verticalAlign;
-    probe.style.font = ''; // inherit so line-box metrics match the pseudo's parent
-    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
+    probe.style.font = ""; // inherit so line-box metrics match the pseudo's parent
+    if (pseudo === "::before") el.insertBefore(probe, el.firstChild);
     else el.appendChild(probe);
     const r = probe.getBoundingClientRect();
     probe.remove();
@@ -538,8 +584,8 @@ const buildPseudoContentHandler = ({
   // block the pseudo would have, and Chrome lays it out at the exact rect the
   // pseudo paints to. Read its `getBoundingClientRect` directly.
   const probePseudoAbsoluteBoxRect = (el, pseudo, pcs) => {
-    const probe = document.createElement('div');
-    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0';
+    const probe = document.createElement("div");
+    probe.style.cssText = "pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0";
     probe.style.position = pcs.position;
     probe.style.top = pcs.top;
     probe.style.right = pcs.right;
@@ -555,8 +601,8 @@ const buildPseudoContentHandler = ({
     probe.style.borderRightWidth = pcs.borderRightWidth;
     probe.style.borderBottomWidth = pcs.borderBottomWidth;
     probe.style.borderLeftWidth = pcs.borderLeftWidth;
-    probe.style.borderStyle = 'solid';
-    probe.style.borderColor = 'transparent';
+    probe.style.borderStyle = "solid";
+    probe.style.borderColor = "transparent";
     probe.style.marginTop = pcs.marginTop;
     probe.style.marginRight = pcs.marginRight;
     probe.style.marginBottom = pcs.marginBottom;
@@ -572,11 +618,11 @@ const buildPseudoContentHandler = ({
     // checkmarks drift ~4 px left / 1 px up). Strip the transform here
     // and let the unrotated probe report the actual border-box rect; the
     // transform is re-applied at render time inside `flushPbTransformWrap`.
-    probe.style.transform = '';
-    probe.style.transformOrigin = '';
+    probe.style.transform = "";
+    probe.style.transformOrigin = "";
     // Pseudo lives logically inside the host; an absolute child of the host
     // inherits the same containing-block lookup.
-    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
+    if (pseudo === "::before") el.insertBefore(probe, el.firstChild);
     else el.appendChild(probe);
     const r = probe.getBoundingClientRect();
     probe.remove();
@@ -584,9 +630,15 @@ const buildPseudoContentHandler = ({
   };
 
   const pickQuoteChar = pickPseudoQuoteChar;
-  const parsePseudoContent = (content, el, counterSnapshot, pseudo) => parsePseudoContentValue({
-    content, el, counterSnapshot, pseudo, resolveCounterValue, pickQuoteChar,
-  });
+  const parsePseudoContent = (content, el, counterSnapshot, pseudo) =>
+    parsePseudoContentValue({
+      content,
+      el,
+      counterSnapshot,
+      pseudo,
+      resolveCounterValue,
+      pickQuoteChar,
+    });
 
   // Capture an empty-content pseudo (no text, no image) that's being used as a
   // decorative box — a block-like `::before`/`::after` with a visible
@@ -595,19 +647,34 @@ const buildPseudoContentHandler = ({
   // + per-side border + background + the pseudo's own transform), or null when
   // it paints nothing visible. Closes over the handler's probe helpers + vp +
   // normColor. Extracted from capturePseudoContent (DM-1088).
-  const captureEmptyContentBox = (el, cs, pseudo, pcs, rect) => captureEmptyPseudoBox({
-    effectiveZoomFor, physicalNumber, probePseudoStaticBoxRect, probePseudoAbsoluteBoxRect,
-    vp, normColor, physicalTransform, composeEffectiveTransform, physicalFilter,
-    physicalComputedGradientImage,
-  }, el, cs, pseudo, pcs, rect);
+  const captureEmptyContentBox = (el, cs, pseudo, pcs, rect) =>
+    captureEmptyPseudoBox(
+      {
+        effectiveZoomFor,
+        physicalNumber,
+        probePseudoStaticBoxRect,
+        probePseudoAbsoluteBoxRect,
+        vp,
+        normColor,
+        physicalTransform,
+        composeEffectiveTransform,
+        physicalFilter,
+        physicalComputedGradientImage,
+      },
+      el,
+      cs,
+      pseudo,
+      pcs,
+      rect,
+    );
 
   const capturePseudoContent = (el, cs, rect, counterSnapshot) => {
     const pseudoSegments = [];
     const pseudoBoxes = [];
-    for (const pseudo of ['::before', '::after']) {
+    for (const pseudo of ["::before", "::after"]) {
       const pcs = window.getComputedStyle(el, pseudo);
       const content = pcs.content;
-      if (content == null || content === 'none' || content === 'normal' || content === '') continue;
+      if (content == null || content === "none" || content === "normal" || content === "") continue;
       // DM-665 / DM-677: pseudos with computed `opacity: 0` paint nothing in
       // Chrome (Material-style ripple / hover overlays use this — Google's
       // `a.gb_C::before` is the empty-content variant we already skipped;
@@ -620,7 +687,7 @@ const buildPseudoContentHandler = ({
       if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
 
       const { text, imageUrl } = parsePseudoContent(content, el, counterSnapshot, pseudo);
-      if (text === '' && imageUrl === '') {
+      if (text === "" && imageUrl === "") {
         const box = captureEmptyContentBox(el, cs, pseudo, pcs, rect);
         if (box != null) pseudoBoxes.push(box);
         continue;
@@ -633,15 +700,16 @@ const buildPseudoContentHandler = ({
       // down/right when the box is smaller than intrinsic. We track both:
       // seg.width/height carry the LAYOUT box; renderWidth/renderHeight
       // carry the paint size for the <image> element. SK-1057.
-      if (imageUrl !== '' && text === '') {
+      if (imageUrl !== "" && text === "") {
         const probeImg = new Image();
         probeImg.src = imageUrl;
         // Playwright waits for load before capture, so naturalWidth /
         // Height resolve synchronously from cache.
         const imageZoom = effectiveZoomFor(el);
-        const primed = typeof pseudoImageSizingKey === 'string' && pseudoImageSizingKey !== ''
-          ? el[pseudoImageSizingKey]?.[pseudo]
-          : undefined;
+        const primed =
+          typeof pseudoImageSizingKey === "string" && pseudoImageSizingKey !== ""
+            ? el[pseudoImageSizingKey]?.[pseudo]
+            : undefined;
         const primedMatches = primed != null && primed.url === imageUrl;
         const intrinsicW = ((primedMatches ? primed.width : probeImg.naturalWidth) || 0) * imageZoom;
         const intrinsicH = ((primedMatches ? primed.height : probeImg.naturalHeight) || 0) * imageZoom;
@@ -658,9 +726,10 @@ const buildPseudoContentHandler = ({
         // Vertically center the LAYOUT box in the line; the image paints
         // from this anchor at render dims (may overflow downward).
         const yPosImg = elTop + (lineHImg - layoutH) / 2;
-        const imageComposedRaw = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+        const imageComposedRaw =
+          composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : pcs.transform || "none";
         const imageComposed = physicalTransform(el, imageComposedRaw);
-        const imageTransform = imageComposed && imageComposed !== 'none' ? imageComposed : undefined;
+        const imageTransform = imageComposed && imageComposed !== "none" ? imageComposed : undefined;
         const imageOpacity = parseFloat(pcs.opacity);
         // Capture the inline-block's outer-box horizontal contributions:
         // following text is shifted by (marginL + borderL + paddingL +
@@ -670,9 +739,9 @@ const buildPseudoContentHandler = ({
         // — DM-453 (.img-before with margin-right:6px rendered 6px right
         // of Chrome).
         pseudoSegments.push({
-          isBefore: pseudo === '::before',
+          isBefore: pseudo === "::before",
           imageUrl,
-          seg: { text: '', x: elLeft, y: yPosImg, width: layoutW, height: layoutH },
+          seg: { text: "", x: elLeft, y: yPosImg, width: layoutW, height: layoutH },
           renderWidth: renderW,
           renderHeight: renderH,
           color: pcs.color,
@@ -685,13 +754,14 @@ const buildPseudoContentHandler = ({
           filter: physicalFilter(el, pcs.filter),
           opacity: Number.isFinite(imageOpacity) && imageOpacity < 1 ? imageOpacity : undefined,
           transform: imageTransform,
-          transformOrigin: imageTransform != null
-            ? physicalComputedCssPixelTerms(pcs.transformOrigin || '', imageZoom) || undefined
-            : undefined,
+          transformOrigin:
+            imageTransform != null
+              ? physicalComputedCssPixelTerms(pcs.transformOrigin || "", imageZoom) || undefined
+              : undefined,
         });
         continue;
       }
-      if (text === '') continue;
+      if (text === "") continue;
 
       const pseudoLayout = probeGeneratedPseudoLayout(el, pseudo, text, pcs);
       // TextSegment dimensions are physical viewport dimensions. Range geometry
@@ -702,13 +772,17 @@ const buildPseudoContentHandler = ({
       const pPadRMeasured = parseFloat(pcs.paddingRight) || 0;
       const pBorLMeasured = parseFloat(pcs.borderLeftWidth) || 0;
       const pBorRMeasured = parseFloat(pcs.borderRightWidth) || 0;
-      const measuredContentWidth = Math.max(0, pseudoLayout.borderRect.width
-        - pPadLMeasured - pPadRMeasured - pBorLMeasured - pBorRMeasured);
-      const hasUsedBoxWidth = pcs.width !== '' && pcs.width !== 'auto'
-        && (pcs.position === 'absolute' || pcs.position === 'fixed');
+      const measuredContentWidth = Math.max(
+        0,
+        pseudoLayout.borderRect.width - pPadLMeasured - pPadRMeasured - pBorLMeasured - pBorRMeasured,
+      );
+      const hasUsedBoxWidth =
+        pcs.width !== "" && pcs.width !== "auto" && (pcs.position === "absolute" || pcs.position === "fixed");
       const pseudoWidth = hasUsedBoxWidth
         ? measuredContentWidth
-        : (pseudoLayout.textRect.width > 0 ? pseudoLayout.textRect.width : measuredContentWidth);
+        : pseudoLayout.textRect.width > 0
+          ? pseudoLayout.textRect.width
+          : measuredContentWidth;
 
       // Position: ::before sits at the START of the host's text/content.
       // ::after sits at the END. We fall back to (elLeft, elTop) here
@@ -728,7 +802,7 @@ const buildPseudoContentHandler = ({
       let xPos;
       let yPos;
       let pseudoIsPositioned = false;
-      if (pcs.position === 'absolute' || pcs.position === 'fixed') {
+      if (pcs.position === "absolute" || pcs.position === "fixed") {
         // Containing block for absolute is the nearest positioned
         // ancestor's padding box; for the pseudo, that ancestor is el
         // when el is positioned, otherwise the chain Chromium resolved.
@@ -786,11 +860,14 @@ const buildPseudoContentHandler = ({
         const pcsMarginL = parseFloat(pcs.marginLeft) || 0;
         const pcsBorderL = parseFloat(pcs.borderLeftWidth) || 0;
         const pcsPaddingL = parseFloat(pcs.paddingLeft) || 0;
-        const justify = cs.justifyContent || '';
-        const hostFlex = cs.display === 'flex' || cs.display === 'inline-flex';
-        const pushesEnd = justify.indexOf('space-between') >= 0 || justify.indexOf('flex-end') >= 0
-          || justify === 'end' || justify === 'right';
-        if (pseudo === '::before') {
+        const justify = cs.justifyContent || "";
+        const hostFlex = cs.display === "flex" || cs.display === "inline-flex";
+        const pushesEnd =
+          justify.indexOf("space-between") >= 0 ||
+          justify.indexOf("flex-end") >= 0 ||
+          justify === "end" ||
+          justify === "right";
+        if (pseudo === "::before") {
           xPos = elLeft + pcsMarginL + pcsBorderL + pcsPaddingL;
         } else if (hostFlex && pushesEnd) {
           // DM-1256: ::after is the LAST flex item; `justify-content:
@@ -800,7 +877,8 @@ const buildPseudoContentHandler = ({
           // `elLeft + rect.width - 2·padR` heuristic, which double-counts
           // padding-left and overshoots ~border+padding px past the content edge
           // (the accordion `summary::after` "+" rendered ~8px too far right).
-          const contentRight = rect.right - vp.x - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
+          const contentRight =
+            rect.right - vp.x - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
           xPos = contentRight - pseudoWidth;
         } else {
           xPos = elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0);
@@ -832,8 +910,10 @@ const buildPseudoContentHandler = ({
       // the parent's real text boundaries — at capture-time xPos isn't
       // final.
       const pseudoBgRaw = pcs.backgroundColor;
-      const pseudoBgColor = pseudoBgRaw && pseudoBgRaw !== '' && pseudoBgRaw !== 'rgba(0, 0, 0, 0)' && pseudoBgRaw !== 'transparent'
-        ? normColor(pseudoBgRaw) : '';
+      const pseudoBgColor =
+        pseudoBgRaw && pseudoBgRaw !== "" && pseudoBgRaw !== "rgba(0, 0, 0, 0)" && pseudoBgRaw !== "transparent"
+          ? normColor(pseudoBgRaw)
+          : "";
       const pseudoBR = parseFloat(pcs.borderRadius) || 0;
       // Capture a uniform border when all four sides match (renders as
       // `<rect stroke=…>`). When a single side carries a border (e.g.
@@ -845,18 +925,19 @@ const buildPseudoContentHandler = ({
       const bwBottom = parseFloat(pcs.borderBottomWidth) || 0;
       const bwLeft = parseFloat(pcs.borderLeftWidth) || 0;
       const bwUniform = bwTop > 0 && bwRight === bwTop && bwBottom === bwTop && bwLeft === bwTop;
-      const pseudoBC = bwUniform ? normColor(pcs.borderTopColor) : '';
-      const colorIsPaintable = (raw: string): boolean => raw !== '' && raw !== 'rgba(0, 0, 0, 0)' && raw !== 'transparent';
-      const sideBorderTopColor = bwTop > 0 ? normColor(pcs.borderTopColor) : '';
-      const sideBorderRightColor = bwRight > 0 ? normColor(pcs.borderRightColor) : '';
-      const sideBorderBottomColor = bwBottom > 0 ? normColor(pcs.borderBottomColor) : '';
-      const sideBorderLeftColor = bwLeft > 0 ? normColor(pcs.borderLeftColor) : '';
-      const hasPerSideBorder = !bwUniform && (
-        (bwTop > 0 && colorIsPaintable(sideBorderTopColor))
-        || (bwRight > 0 && colorIsPaintable(sideBorderRightColor))
-        || (bwBottom > 0 && colorIsPaintable(sideBorderBottomColor))
-        || (bwLeft > 0 && colorIsPaintable(sideBorderLeftColor))
-      );
+      const pseudoBC = bwUniform ? normColor(pcs.borderTopColor) : "";
+      const colorIsPaintable = (raw: string): boolean =>
+        raw !== "" && raw !== "rgba(0, 0, 0, 0)" && raw !== "transparent";
+      const sideBorderTopColor = bwTop > 0 ? normColor(pcs.borderTopColor) : "";
+      const sideBorderRightColor = bwRight > 0 ? normColor(pcs.borderRightColor) : "";
+      const sideBorderBottomColor = bwBottom > 0 ? normColor(pcs.borderBottomColor) : "";
+      const sideBorderLeftColor = bwLeft > 0 ? normColor(pcs.borderLeftColor) : "";
+      const hasPerSideBorder =
+        !bwUniform &&
+        ((bwTop > 0 && colorIsPaintable(sideBorderTopColor)) ||
+          (bwRight > 0 && colorIsPaintable(sideBorderRightColor)) ||
+          (bwBottom > 0 && colorIsPaintable(sideBorderBottomColor)) ||
+          (bwLeft > 0 && colorIsPaintable(sideBorderLeftColor)));
       // DM-782: background-image (linear-gradient / radial-gradient / url())
       // on text-content pseudos. The empty-content path already plumbs this
       // (DM-767); the text-content path was dropping it, so "gradient badge"
@@ -874,18 +955,29 @@ const buildPseudoContentHandler = ({
       // from `transform`. `composeEffectiveTransform` folds all four into one
       // matrix() (spec order translate → rotate → scale → transform), the same way
       // regular elements are captured (DM-943).
-      const pseudoComposedRaw = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+      const pseudoComposedRaw =
+        composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : pcs.transform || "none";
       const pseudoComposed = physicalTransform(el, pseudoComposedRaw);
-      const pseudoTransform = pseudoComposed && pseudoComposed !== 'none' ? pseudoComposed : undefined;
-      const pseudoTransformOrigin = pseudoTransform != null
-        ? physicalComputedCssPixelTerms(pcs.transformOrigin || '', effectiveZoomFor(el)) || undefined
-        : undefined;
+      const pseudoTransform = pseudoComposed && pseudoComposed !== "none" ? pseudoComposed : undefined;
+      const pseudoTransformOrigin =
+        pseudoTransform != null
+          ? physicalComputedCssPixelTerms(pcs.transformOrigin || "", effectiveZoomFor(el)) || undefined
+          : undefined;
       const pseudoFilter = physicalFilter(el, pcs.filter);
       const pseudoOpacityValue = parseFloat(pcs.opacity);
-      const pseudoOpacity = Number.isFinite(pseudoOpacityValue) && pseudoOpacityValue < 1
-        ? pseudoOpacityValue : undefined;
+      const pseudoOpacity =
+        Number.isFinite(pseudoOpacityValue) && pseudoOpacityValue < 1 ? pseudoOpacityValue : undefined;
       let pseudoBoxStyles = null;
-      if (pseudoBgColor !== '' || hasPseudoBgImg || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder || pseudoTransform != null || pseudoFilter != null || pseudoOpacity != null) {
+      if (
+        pseudoBgColor !== "" ||
+        hasPseudoBgImg ||
+        pseudoBR > 0 ||
+        (bwUniform && pseudoBC !== "" && pseudoBC !== "rgba(0, 0, 0, 0)") ||
+        hasPerSideBorder ||
+        pseudoTransform != null ||
+        pseudoFilter != null ||
+        pseudoOpacity != null
+      ) {
         pseudoBoxStyles = {
           padL: parseFloat(pcs.paddingLeft) || 0,
           padR: parseFloat(pcs.paddingRight) || 0,
@@ -904,11 +996,13 @@ const buildPseudoContentHandler = ({
           fontSize: elFontSize,
           measuredWidth: pseudoLayout.borderRect.width,
           measuredHeight: pseudoLayout.borderRect.height,
-          backgroundColor: pseudoBgColor !== '' ? pseudoBgColor : undefined,
-          backgroundImage: hasPseudoBgImg ? physicalComputedGradientImage(pseudoBgImgRaw, effectiveZoomFor(el)) : undefined,
+          backgroundColor: pseudoBgColor !== "" ? pseudoBgColor : undefined,
+          backgroundImage: hasPseudoBgImg
+            ? physicalComputedGradientImage(pseudoBgImgRaw, effectiveZoomFor(el))
+            : undefined,
           borderRadius: pseudoBR > 0 ? pseudoBR : undefined,
           borderWidth: bwUniform ? bwTop : undefined,
-          borderColor: bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)' ? pseudoBC : undefined,
+          borderColor: bwUniform && pseudoBC !== "" && pseudoBC !== "rgba(0, 0, 0, 0)" ? pseudoBC : undefined,
           transform: pseudoTransform,
           transformOrigin: pseudoTransformOrigin,
           filter: pseudoFilter,
@@ -917,10 +1011,18 @@ const buildPseudoContentHandler = ({
           // is set and emits a `<line>` for each side whose width > 0 and
           // color is paintable. Undefined when the side has no visible
           // border, keeping the captured tree compact in the common case.
-          borderTopColor: hasPerSideBorder && bwTop > 0 && colorIsPaintable(sideBorderTopColor) ? sideBorderTopColor : undefined,
-          borderRightColor: hasPerSideBorder && bwRight > 0 && colorIsPaintable(sideBorderRightColor) ? sideBorderRightColor : undefined,
-          borderBottomColor: hasPerSideBorder && bwBottom > 0 && colorIsPaintable(sideBorderBottomColor) ? sideBorderBottomColor : undefined,
-          borderLeftColor: hasPerSideBorder && bwLeft > 0 && colorIsPaintable(sideBorderLeftColor) ? sideBorderLeftColor : undefined,
+          borderTopColor:
+            hasPerSideBorder && bwTop > 0 && colorIsPaintable(sideBorderTopColor) ? sideBorderTopColor : undefined,
+          borderRightColor:
+            hasPerSideBorder && bwRight > 0 && colorIsPaintable(sideBorderRightColor)
+              ? sideBorderRightColor
+              : undefined,
+          borderBottomColor:
+            hasPerSideBorder && bwBottom > 0 && colorIsPaintable(sideBorderBottomColor)
+              ? sideBorderBottomColor
+              : undefined,
+          borderLeftColor:
+            hasPerSideBorder && bwLeft > 0 && colorIsPaintable(sideBorderLeftColor) ? sideBorderLeftColor : undefined,
         };
       }
       // If the pseudo contains any codepoint Chrome paints via a color-
@@ -946,11 +1048,13 @@ const buildPseudoContentHandler = ({
       let allPua = text.length > 0;
       for (let _ci = 0; _ci < text.length;) {
         const cp = text.codePointAt(_ci);
-        const inPua = (cp >= 0xE000 && cp <= 0xF8FF)
-          || (cp >= 0xF0000 && cp <= 0xFFFFD)
-          || (cp >= 0x100000 && cp <= 0x10FFFD);
-        if (!inPua) { allPua = false; break; }
-        _ci += cp > 0xFFFF ? 2 : 1;
+        const inPua =
+          (cp >= 0xe000 && cp <= 0xf8ff) || (cp >= 0xf0000 && cp <= 0xffffd) || (cp >= 0x100000 && cp <= 0x10fffd);
+        if (!inPua) {
+          allPua = false;
+          break;
+        }
+        _ci += cp > 0xffff ? 2 : 1;
       }
       if (textNeedsRaster(text) || allPua) {
         // Viewport-relative rect — matches the SVG coordinate system so
@@ -996,7 +1100,7 @@ const buildPseudoContentHandler = ({
           // injection re-anchor grows rasterRect to this square against the REAL
           // line box (`seg.height`); a glyph that fits the line box gets no field,
           // leaving dingbats and ordinary glyphs untouched.
-          const emojiInner = text.replace(/^["']|["']$/g, '').replace(/^\s+|\s+$/g, '');
+          const emojiInner = text.replace(/^["']|["']$/g, "").replace(/^\s+|\s+$/g, "");
           if (emojiInner.length > 0) {
             // Clamp to a single emoji's height (~1.4× font-size) so multi-glyph
             // pseudo content can't inflate the square vertically beyond one row.
@@ -1006,7 +1110,7 @@ const buildPseudoContentHandler = ({
         }
       }
       pseudoSegments.push({
-        isBefore: pseudo === '::before',
+        isBefore: pseudo === "::before",
         seg: pseudoSeg,
         color: pcs.color,
         isPositioned: pseudoIsPositioned,
@@ -1020,5 +1124,4 @@ const buildPseudoContentHandler = ({
 };
 
 /** Construct pseudo-content capture with its browser-only dependencies explicit. */
-export const createPseudoContentHandler = (dependencies) =>
-  buildPseudoContentHandler(dependencies);
+export const createPseudoContentHandler = (dependencies) => buildPseudoContentHandler(dependencies);

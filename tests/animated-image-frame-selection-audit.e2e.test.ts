@@ -14,8 +14,9 @@ describe("animated-image decoder frame ownership", () => {
       expect(format.track.animated).toBe(true);
       expect(format.track.frameCount).toBeGreaterThanOrEqual(2);
       expect(format.arms.map((arm) => arm.role)).toEqual(["proposal", "validation"]);
-      expect(new Set(format.arms.flatMap((arm) => arm.observations.map((row) => row.rgbaSha256))).size)
-        .toBeGreaterThanOrEqual(2);
+      expect(
+        new Set(format.arms.flatMap((arm) => arm.observations.map((row) => row.rgbaSha256))).size,
+      ).toBeGreaterThanOrEqual(2);
       expect(format.outOfRange.name).toBe("RangeError");
     }
   }, 120_000);

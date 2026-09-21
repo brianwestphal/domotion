@@ -10,12 +10,7 @@ import {
 
 describe("DM-2504 system-ui preference route oracle contract", () => {
   it("crosses the four required browser launches with route-relevant UI styles", () => {
-    expect(launchModeIds()).toEqual([
-      "pinned-headless",
-      "pinned-headed",
-      "full-chrome-headless",
-      "full-chrome-headed",
-    ]);
+    expect(launchModeIds()).toEqual(["pinned-headless", "pinned-headed", "full-chrome-headless", "full-chrome-headed"]);
     const cases = systemUiProbeCases();
     expect(new Set(cases.map((row) => row.id)).size).toBe(cases.length);
     expect(cases.map((row) => row.size)).toContain(13);
@@ -26,32 +21,35 @@ describe("DM-2504 system-ui preference route oracle contract", () => {
   });
 
   it("defaults local automation to headless modes and requires explicit headed opt-in", () => {
-    expect(selectedLaunchModeIds([])).toEqual([
-      "pinned-headless",
-      "full-chrome-headless",
-    ]);
+    expect(selectedLaunchModeIds([])).toEqual(["pinned-headless", "full-chrome-headless"]);
     expect(selectedLaunchModeIds(["--allow-headed-browser"])).toEqual(launchModeIds());
-    expect(() => selectedLaunchModeIds(["--modes=full-chrome-headed"]))
-      .toThrow("headed browser modes require --allow-headed-browser");
-    expect(selectedLaunchModeIds([
-      "--allow-headed-browser",
-      "--modes=full-chrome-headed",
-    ])).toEqual(["full-chrome-headed"]);
+    expect(() => selectedLaunchModeIds(["--modes=full-chrome-headed"])).toThrow(
+      "headed browser modes require --allow-headed-browser",
+    );
+    expect(selectedLaunchModeIds(["--allow-headed-browser", "--modes=full-chrome-headed"])).toEqual([
+      "full-chrome-headed",
+    ]);
   });
 
   it("joins PostScript identity when available and family identity only as the explicit fallback", () => {
-    expect(logicalIdentity(
-      { familyName: "Live Family", postScriptName: "Live-Face" },
-      { familyName: "Live Family", postscriptName: "LiveFace" },
-    )).toEqual({ kind: "postscript", browser: "Live-Face", domotion: "LiveFace", exact: true });
-    expect(logicalIdentity(
-      { familyName: "Live Family", postScriptName: null },
-      { familyName: "Live Family", postscriptName: "DifferentFace" },
-    )).toEqual({ kind: "family", browser: "Live Family", domotion: "Live Family", exact: true });
-    expect(logicalIdentity(
-      { familyName: "Live Family", postScriptName: "FaceA" },
-      { familyName: "Live Family", postscriptName: "FaceB" },
-    ).exact).toBe(false);
+    expect(
+      logicalIdentity(
+        { familyName: "Live Family", postScriptName: "Live-Face" },
+        { familyName: "Live Family", postscriptName: "LiveFace" },
+      ),
+    ).toEqual({ kind: "postscript", browser: "Live-Face", domotion: "LiveFace", exact: true });
+    expect(
+      logicalIdentity(
+        { familyName: "Live Family", postScriptName: null },
+        { familyName: "Live Family", postscriptName: "DifferentFace" },
+      ),
+    ).toEqual({ kind: "family", browser: "Live Family", domotion: "Live Family", exact: true });
+    expect(
+      logicalIdentity(
+        { familyName: "Live Family", postScriptName: "FaceA" },
+        { familyName: "Live Family", postscriptName: "FaceB" },
+      ).exact,
+    ).toBe(false);
   });
 
   it("derives the Linux preference mutation from live matches and rejects an inert candidate", () => {

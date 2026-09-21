@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  STUDIO_PROJECT_SCHEMA_ID,
-  studioProjectSchema,
-} from "./project-schema.js";
+import { STUDIO_PROJECT_SCHEMA_ID, studioProjectSchema } from "./project-schema.js";
 
 /** Project the runtime source of truth to the shipped draft-2020-12 schema. */
 export function buildStudioProjectJsonSchema(): Record<string, unknown> {

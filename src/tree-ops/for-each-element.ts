@@ -10,10 +10,7 @@ import type { CapturedElement } from "../capture/types.js";
  * Visits nodes only — for a walk that must thread a derived per-node context
  * (e.g. a CSS-selector path) down to children, keep a bespoke recursion.
  */
-export function forEachElement(
-  forest: CapturedElement[],
-  visit: (el: CapturedElement) => void,
-): void {
+export function forEachElement(forest: CapturedElement[], visit: (el: CapturedElement) => void): void {
   for (const el of forest) {
     visit(el);
     if (el.children.length > 0) forEachElement(el.children, visit);

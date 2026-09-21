@@ -6,8 +6,8 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-1454"]
-code: ["tests/features.ts","tests/real-world.tsx","tests/showcase.tsx"]
-aliases: ["docs/32-svg-optimization.md","doc-32"]
+code: ["tests/features.ts", "tests/real-world.tsx", "tests/showcase.tsx"]
+aliases: ["docs/32-svg-optimization.md", "doc-32"]
 ---
 
 # SVG optimization (svgo + svgz)
@@ -18,13 +18,13 @@ Domotion provides two opt-in size-reduction passes for the rendered SVG. They co
 
 SVGO post-pass tuned for the kind of output Domotion produces (path-mode text dominates the byte budget). Plugin set:
 
-| Plugin | What it does for Domotion |
-|---|---|
-| `convertPathData` (`floatPrecision: 1`, `transformPrecision: 3`, `makeArcs: false`) | Trims glyph path coordinates and converts to relative commands. The biggest single win on text-heavy captures. `makeArcs: false` keeps fontkit-extracted cubics intact — converting them to arcs is lossy and visually shifts curves. |
-| `convertTransform` | Collapses redundant transform chains into a single matrix where possible. |
-| `minifyStyles` | Minifies inline `<style>` blocks via csso — strips whitespace/comments AND restructures/reorders CSS declarations (can factor a common longhand out across rules, DM-1454). Because it reorders, emitted animation CSS must keep timing functions *inside* the `animation:` shorthand (never a trailing `animation-timing-function`), or csso can reorder them and silently turn a hard cut into a full-duration fade. |
-| `removeComments` | Strips `<!-- ... -->` author comments left over from the source DOM. |
-| `removeEmptyAttrs` | Drops attributes that ended up empty after other passes. |
+| Plugin                                                                              | What it does for Domotion                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `convertPathData` (`floatPrecision: 1`, `transformPrecision: 3`, `makeArcs: false`) | Trims glyph path coordinates and converts to relative commands. The biggest single win on text-heavy captures. `makeArcs: false` keeps fontkit-extracted cubics intact — converting them to arcs is lossy and visually shifts curves.                                                                                                                                                                                  |
+| `convertTransform`                                                                  | Collapses redundant transform chains into a single matrix where possible.                                                                                                                                                                                                                                                                                                                                              |
+| `minifyStyles`                                                                      | Minifies inline `<style>` blocks via csso — strips whitespace/comments AND restructures/reorders CSS declarations (can factor a common longhand out across rules, DM-1454). Because it reorders, emitted animation CSS must keep timing functions _inside_ the `animation:` shorthand (never a trailing `animation-timing-function`), or csso can reorder them and silently turn a hard cut into a full-duration fade. |
+| `removeComments`                                                                    | Strips `<!-- ... -->` author comments left over from the source DOM.                                                                                                                                                                                                                                                                                                                                                   |
+| `removeEmptyAttrs`                                                                  | Drops attributes that ended up empty after other passes.                                                                                                                                                                                                                                                                                                                                                               |
 
 Multipass is on (`multipass: true`), so the plugin chain is re-run until no further reductions land.
 
@@ -44,12 +44,12 @@ Naming convention: write the bytes to a file with the `.svgz` extension. All mod
 
 Typical size ratio on a Domotion capture, in bytes:
 
-| Form | Relative size |
-|---|---|
-| Raw SVG | 1.0× |
-| `optimizeSvg(svg)` | ~0.3–0.6× |
-| `gzipSvg(svg)` | ~0.15–0.25× |
-| `gzipSvg(optimizeSvg(svg))` | ~0.07–0.12× |
+| Form                        | Relative size |
+| --------------------------- | ------------- |
+| Raw SVG                     | 1.0×          |
+| `optimizeSvg(svg)`          | ~0.3–0.6×     |
+| `gzipSvg(svg)`              | ~0.15–0.25×   |
+| `gzipSvg(optimizeSvg(svg))` | ~0.07–0.12×   |
 
 svgz on an un-svgo'd SVG gzips reasonably (it's text), but running svgo first gives a meaningfully smaller payload because svgo collapses path data into a tighter representation that gzip compresses further.
 
@@ -79,8 +79,8 @@ The `animate` subcommand follows the same rules. The JSON config's `"optimize": 
 import { optimizeSvg, gzipSvg } from "domotion-svg";
 
 const svg = elementTreeToSvg(tree, w, h);
-const small = optimizeSvg(svg);                  // string → string
-const bytes = gzipSvg(small);                    // string → Buffer
+const small = optimizeSvg(svg); // string → string
+const bytes = gzipSvg(small); // string → Buffer
 fs.writeFileSync("out.svgz", bytes);
 ```
 

@@ -6,8 +6,8 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos"]
 tickets: []
-code: [".github/workflows/pingfang-live-descriptor.yml","tools/pingfang-live-descriptor-schema.mjs"]
-aliases: ["docs/153-pingfang-live-descriptor-oracle.md","doc-153"]
+code: [".github/workflows/pingfang-live-descriptor.yml", "tools/pingfang-live-descriptor-schema.mjs"]
+aliases: ["docs/153-pingfang-live-descriptor-oracle.md", "doc-153"]
 ---
 
 # PingFang live CoreText descriptor oracle

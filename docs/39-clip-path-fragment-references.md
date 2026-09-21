@@ -1,13 +1,24 @@
 ---
 id: "requirements/clip-path-fragment-references"
-title: "39 — clip-path: url(\"#fragment\") reference ownership"
+title: '39 — clip-path: url("#fragment") reference ownership'
 kind: "reference"
 status: "current"
-owners: ["paint-effects","layout","product-tooling"]
+owners: ["paint-effects", "layout", "product-tooling"]
 platforms: []
-tickets: ["DM-2338","DM-2362","DM-493","DM-826","DM-828","DM-829"]
-code: ["src/capture/index.ts","src/render/clip-path.test.ts","src/render/svg-inline.test.ts","tests/clip-path-url-reference-box.e2e.test.ts","tests/external-svg-refs.e2e.test.ts","tests/features.ts","tests/iframe-inner-defs.e2e.test.ts","tools/paint-geometry-browser-oracle.ts","tools/paint-geometry-oracle.ts"]
-aliases: ["docs/39-clip-path-fragment-references.md","doc-39"]
+tickets: ["DM-2338", "DM-2362", "DM-493", "DM-826", "DM-828", "DM-829"]
+code:
+  [
+    "src/capture/index.ts",
+    "src/render/clip-path.test.ts",
+    "src/render/svg-inline.test.ts",
+    "tests/clip-path-url-reference-box.e2e.test.ts",
+    "tests/external-svg-refs.e2e.test.ts",
+    "tests/features.ts",
+    "tests/iframe-inner-defs.e2e.test.ts",
+    "tools/paint-geometry-browser-oracle.ts",
+    "tools/paint-geometry-oracle.ts",
+  ]
+aliases: ["docs/39-clip-path-fragment-references.md", "doc-39"]
 ---
 
 # 39 — `clip-path: url("#fragment")` reference ownership
@@ -18,15 +29,15 @@ CSS allows authors to point `clip-path` at a `<clipPath>` element defined inline
 
 ```css
 .element {
-  clip-path: url("#hex");                   /* same-document inline clipPath */
-  clip-path: url("./shapes.svg#hex");       /* external SVG file fragment */
+  clip-path: url("#hex"); /* same-document inline clipPath */
+  clip-path: url("./shapes.svg#hex"); /* external SVG file fragment */
 }
 ```
 
 ```html
 <svg width="0" height="0" style="position: absolute;">
   <clipPath id="hex" clipPathUnits="objectBoundingBox">
-    <polygon points="0.25 0, 0.75 0, 1 0.5, 0.75 1, 0.25 1, 0 0.5"/>
+    <polygon points="0.25 0, 0.75 0, 1 0.5, 0.75 1, 0.25 1, 0 0.5" />
   </clipPath>
 </svg>
 <div style="clip-path: url(#hex);">hex-clipped content</div>
@@ -151,7 +162,7 @@ Caveats: this only works over **http(s)** — Chrome doesn't resolve external cl
 ```html
 <svg width="0" height="0" style="position: absolute;">
   <clipPath id="hex" clipPathUnits="objectBoundingBox">
-    <polygon points="0.25 0, 0.75 0, 1 0.5, 0.75 1, 0.25 1, 0 0.5"/>
+    <polygon points="0.25 0, 0.75 0, 1 0.5, 0.75 1, 0.25 1, 0 0.5" />
   </clipPath>
 </svg>
 <div class="img" style="clip-path: url(#hex);">hex via SVG</div>

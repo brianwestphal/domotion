@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1519","DM-1520","DM-1521","DM-1522","DM-1523","DM-1534","DM-1537","DM-1538","DM-1541","DM-1560"]
-code: ["examples/templates-demo.ts","src/templates/formats.ts"]
-aliases: ["docs/87-format-presets.md","doc-87"]
+tickets: ["DM-1519", "DM-1520", "DM-1521", "DM-1522", "DM-1523", "DM-1534", "DM-1537", "DM-1538", "DM-1541", "DM-1560"]
+code: ["examples/templates-demo.ts", "src/templates/formats.ts"]
+aliases: ["docs/87-format-presets.md", "doc-87"]
 ---
 
 # 87 — Format presets (social aspect ratios)
@@ -36,13 +36,13 @@ drops straight into the target surface without manual sizing.
 
 ## Presets
 
-| Name | Size (px) | Ratio | Use |
-|---|---|---|---|
-| `reel` / `story` | 1080 × 1920 | 9:16 | vertical (IG/TikTok/Shorts/Stories) |
-| `square` | 1080 × 1080 | 1:1 | feed square |
-| `portrait` | 1080 × 1350 | 4:5 | feed portrait |
-| `landscape` | 1920 × 1080 | 16:9 | YouTube / web hero |
-| `WxH` | explicit | — | e.g. `--format 1600x900` |
+| Name             | Size (px)   | Ratio | Use                                 |
+| ---------------- | ----------- | ----- | ----------------------------------- |
+| `reel` / `story` | 1080 × 1920 | 9:16  | vertical (IG/TikTok/Shorts/Stories) |
+| `square`         | 1080 × 1080 | 1:1   | feed square                         |
+| `portrait`       | 1080 × 1350 | 4:5   | feed portrait                       |
+| `landscape`      | 1920 × 1080 | 16:9  | YouTube / web hero                  |
+| `WxH`            | explicit    | —     | e.g. `--format 1600x900`            |
 
 `--format` accepts a preset name **or** a raw `WIDTHxHEIGHT`. Sizes are the 1×
 authoring canvas; the SVG scales to any display size (and `--scale` / the video
@@ -80,8 +80,8 @@ around. (Tunable; not a platform-exact spec.)
   kinetic-text, subscribe, chat) via `safeAreaPadding` (per-side max of the
   template's own padding and the inset), and `chart` by planning against the inner
   dimensions inside a positioned safe-rect wrapper. Without a format the layout is
-  byte-identical (the inset path is opt-in). Deeper *responsive font scaling /
-  stacking / line-count* per ratio is still a further refinement.
+  byte-identical (the inset path is opt-in). Deeper _responsive font scaling /
+  stacking / line-count_ per ratio is still a further refinement.
 
 ## Composition
 

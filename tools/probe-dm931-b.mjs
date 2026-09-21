@@ -14,7 +14,8 @@ const out = await page.evaluate(() => {
   const node = tw.nextNode();
   if (!node) return { error: "no text" };
   const rng = document.createRange();
-  rng.setStart(node, 0); rng.setEnd(node, 1);
+  rng.setStart(node, 0);
+  rng.setEnd(node, 1);
   const cr = rng.getBoundingClientRect();
   return {
     pRect: { x: r.x, y: r.y, w: r.width, h: r.height },

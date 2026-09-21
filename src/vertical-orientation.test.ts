@@ -8,14 +8,14 @@ import {
 } from "./vertical-orientation.js";
 
 const oldHandwrittenUpright = (cp: number): boolean =>
-  (cp >= 0x1100 && cp <= 0x11ff)
-  || (cp >= 0x2e80 && cp <= 0xa4cf)
-  || (cp >= 0xac00 && cp <= 0xd7af)
-  || (cp >= 0xf900 && cp <= 0xfaff)
-  || (cp >= 0xfe10 && cp <= 0xfe6f)
-  || (cp >= 0xff01 && cp <= 0xff60)
-  || (cp >= 0x1f200 && cp <= 0x1f2ff)
-  || cp >= 0x20000;
+  (cp >= 0x1100 && cp <= 0x11ff) ||
+  (cp >= 0x2e80 && cp <= 0xa4cf) ||
+  (cp >= 0xac00 && cp <= 0xd7af) ||
+  (cp >= 0xf900 && cp <= 0xfaff) ||
+  (cp >= 0xfe10 && cp <= 0xfe6f) ||
+  (cp >= 0xff01 && cp <= 0xff60) ||
+  (cp >= 0x1f200 && cp <= 0x1f2ff) ||
+  cp >= 0x20000;
 
 function perScalarMutation(text: string): Array<"upright" | "rotated"> {
   const result: Array<"upright" | "rotated"> = [];
@@ -32,9 +32,7 @@ describe("Blink vertical orientation ownership (DM-2525)", () => {
       { start: 0, end: 1, orientation: "rotated" },
       { start: 1, end: 4, orientation: "upright" },
     ]);
-    expect(blinkVerticalOrientationRuns("A\u20dd", "mixed")).toEqual([
-      { start: 0, end: 2, orientation: "rotated" },
-    ]);
+    expect(blinkVerticalOrientationRuns("A\u20dd", "mixed")).toEqual([{ start: 0, end: 2, orientation: "rotated" }]);
     expect(blinkVerticalOrientationRuns("漢\u{e0101}", "mixed")).toEqual([
       { start: 0, end: 3, orientation: "upright" },
     ]);
@@ -50,8 +48,7 @@ describe("Blink vertical orientation ownership (DM-2525)", () => {
     expect(resolveVerticalOrientations("A\u20dd", "mixed")).toEqual(["rotated", "rotated"]);
     // Supplementary IVS U+E0101 is source-rotated but inherits its Han base.
     expect(isMixedVerticalUpright(0xe0101)).toBe(false);
-    expect(resolveVerticalOrientations("漢\u{e0101}", "mixed"))
-      .toEqual(["upright", "upright", "upright"]);
+    expect(resolveVerticalOrientations("漢\u{e0101}", "mixed")).toEqual(["upright", "upright", "upright"]);
     // A leading extender establishes its own orientation, exactly as Blink's
     // iterator does before any base exists.
     expect(resolveVerticalOrientations("\u20ddA", "mixed")).toEqual(["upright", "rotated"]);
@@ -76,9 +73,14 @@ describe("Blink vertical orientation ownership (DM-2525)", () => {
   });
 
   it("ports LayoutTextCombine::IsSupportedMode across every writing mode", () => {
-    expect(Object.fromEntries([
-      "horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr",
-    ].map((writingMode) => [writingMode, blinkUsesTextCombine(writingMode, "all")]))).toEqual({
+    expect(
+      Object.fromEntries(
+        ["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"].map((writingMode) => [
+          writingMode,
+          blinkUsesTextCombine(writingMode, "all"),
+        ]),
+      ),
+    ).toEqual({
       "horizontal-tb": false,
       "vertical-rl": true,
       "vertical-lr": true,
@@ -96,8 +98,7 @@ describe("Blink vertical orientation ownership (DM-2525)", () => {
     }
     // Per-scalar classification breaks both directions of extend ownership.
     expect(perScalarMutation("A\u20dd")).not.toEqual(resolveVerticalOrientations("A\u20dd", "mixed"));
-    expect(perScalarMutation("漢\u{e0101}"))
-      .not.toEqual(resolveVerticalOrientations("漢\u{e0101}", "mixed"));
+    expect(perScalarMutation("漢\u{e0101}")).not.toEqual(resolveVerticalOrientations("漢\u{e0101}", "mixed"));
     // Treating sideways as vertical typographic wrongly activates combine.
     expect(true).not.toBe(blinkUsesTextCombine("sideways-rl", "all"));
   });

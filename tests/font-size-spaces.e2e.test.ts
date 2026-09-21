@@ -5,9 +5,15 @@ import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/text-to-path.js";
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 })();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function findText(nodes: CapturedElement[], text: string): CapturedElement | null {
@@ -23,7 +29,8 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
   it("keeps zoom and transform in their correct size spaces", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 500, height: 300 }, deviceScaleFactor: 1 });
     try {
-      await page.setContent(`<style>
+      await page.setContent(
+        `<style>
         .sample { font: 400 13px Arial, sans-serif; position:absolute; left:20px }
         #zoom { top:20px; zoom:2 }
         #transform { top:100px; transform:scale(2); transform-origin:0 0 }
@@ -36,7 +43,9 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
       </style><div id="zoom" class="sample">zoom</div><div id="transform" class="sample">transform</div><div id="cancel" class="sample">cancel</div>
       <div id="nestedZoomOuter"><div id="nestedZoom" class="sample">nested-zoom</div></div>
       <div id="nestedTransformOuter"><div id="nestedTransform" class="sample">nested-transform</div></div>
-      <div id="mixed" class="sample">mixed</div><div id="opticalNone" class="sample">optical-none</div><div id="explicitOpsz" class="sample">explicit-opsz</div>`, { waitUntil: "load" });
+      <div id="mixed" class="sample">mixed</div><div id="opticalNone" class="sample">optical-none</div><div id="explicitOpsz" class="sample">explicit-opsz</div>`,
+        { waitUntil: "load" },
+      );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 500, height: 300 });
       const zoom = findText(tree, "zoom")!;
       const transform = findText(tree, "transform")!;
@@ -47,12 +56,36 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
       const opticalNone = findText(tree, "optical-none")!;
       const explicitOpsz = findText(tree, "explicit-opsz")!;
 
-      expect([zoom.styles.fontLogicalSize, zoom.styles.fontComputedSize, zoom.styles.fontSize]).toEqual(["13px", "26.0000px", "26.0000px"]);
-      expect([transform.styles.fontLogicalSize, transform.styles.fontComputedSize, transform.styles.fontSize]).toEqual(["13px", "13.0000px", "13.0000px"]);
-      expect([cancel.styles.fontLogicalSize, cancel.styles.fontComputedSize, cancel.styles.fontSize]).toEqual(["13px", "26.0000px", "26.0000px"]);
-      expect([nestedZoom.styles.fontLogicalSize, nestedZoom.styles.fontComputedSize, nestedZoom.styles.fontSize]).toEqual(["13px", "26.0000px", "26.0000px"]);
-      expect([nestedTransform.styles.fontLogicalSize, nestedTransform.styles.fontComputedSize, nestedTransform.styles.fontSize]).toEqual(["13px", "13.0000px", "13.0000px"]);
-      expect([mixed.styles.fontLogicalSize, mixed.styles.fontComputedSize, mixed.styles.fontSize]).toEqual(["13px", "19.5000px", "19.5000px"]);
+      expect([zoom.styles.fontLogicalSize, zoom.styles.fontComputedSize, zoom.styles.fontSize]).toEqual([
+        "13px",
+        "26.0000px",
+        "26.0000px",
+      ]);
+      expect([transform.styles.fontLogicalSize, transform.styles.fontComputedSize, transform.styles.fontSize]).toEqual([
+        "13px",
+        "13.0000px",
+        "13.0000px",
+      ]);
+      expect([cancel.styles.fontLogicalSize, cancel.styles.fontComputedSize, cancel.styles.fontSize]).toEqual([
+        "13px",
+        "26.0000px",
+        "26.0000px",
+      ]);
+      expect([
+        nestedZoom.styles.fontLogicalSize,
+        nestedZoom.styles.fontComputedSize,
+        nestedZoom.styles.fontSize,
+      ]).toEqual(["13px", "26.0000px", "26.0000px"]);
+      expect([
+        nestedTransform.styles.fontLogicalSize,
+        nestedTransform.styles.fontComputedSize,
+        nestedTransform.styles.fontSize,
+      ]).toEqual(["13px", "13.0000px", "13.0000px"]);
+      expect([mixed.styles.fontLogicalSize, mixed.styles.fontComputedSize, mixed.styles.fontSize]).toEqual([
+        "13px",
+        "19.5000px",
+        "19.5000px",
+      ]);
       expect(opticalNone.styles.fontOpticalSizing).toBe("none");
       expect(explicitOpsz.styles.fontVariationSettings).toMatch(/"opsz" 13/);
 
@@ -65,17 +98,21 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
         };
         return { logical: at(13), mixed: at(19.5), computed: at(26) };
       });
-      const ranges = await page.evaluate(() => Object.fromEntries([
-        "zoom", "transform", "cancel", "nestedZoom", "nestedTransform", "mixed",
-      ].map((id) => {
-        const el = document.getElementById(id)!;
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        const rect = range.getBoundingClientRect();
-        return [id, { left: rect.left, top: rect.top }];
-      })) as Record<string, { left: number; top: number }>);
+      const ranges = await page.evaluate(
+        () =>
+          Object.fromEntries(
+            ["zoom", "transform", "cancel", "nestedZoom", "nestedTransform", "mixed"].map((id) => {
+              const el = document.getElementById(id)!;
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const rect = range.getBoundingClientRect();
+              return [id, { left: rect.left, top: rect.top }];
+            }),
+          ) as Record<string, { left: number; top: number }>,
+      );
       const cdp = await page.context().newCDPSession(page);
-      await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
+      await cdp.send("DOM.enable");
+      await cdp.send("CSS.enable");
       const { root } = await cdp.send("DOM.getDocument");
       const paintedFaces: Record<string, string> = {};
       for (const id of ["zoom", "opticalNone", "explicitOpsz"]) {

@@ -4,10 +4,10 @@ title: "Exact generic-family semantic ownership gate"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-2515","DM-2516","DM-2517","DM-2518"]
-code: ["src/render/skia-last-resort-routing.test.ts","tools/generic-family-semantics-audit.ts"]
-aliases: ["docs/206-generic-family-semantic-ownership.md","doc-206"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2515", "DM-2516", "DM-2517", "DM-2518"]
+code: ["src/render/skia-last-resort-routing.test.ts", "tools/generic-family-semantics-audit.ts"]
+aliases: ["docs/206-generic-family-semantic-ownership.md", "doc-206"]
 ---
 
 # Exact generic-family semantic ownership gate
@@ -73,21 +73,21 @@ library.
 `tools/generic-family-semantics-audit.ts` crosses Arabic and Hebrew with 13
 stacks:
 
-| CSS family stack | Blink generic | Windows hardcoded branch |
-|---|---|---|
-| `Courier` | none (`kNoFamily`) | non-monospace |
-| `monospace` | monospace | monospace |
-| `Courier, monospace` | monospace | monospace |
-| `Arial, monospace` | monospace | monospace |
-| `Courier, serif` | serif | non-monospace |
-| `monospace, serif` | serif | non-monospace |
-| `serif, monospace` | monospace | monospace |
-| `system-ui` | none (`kNoFamily`) | non-monospace |
-| `math` | none (`kNoFamily`) | non-monospace |
-| `Courier, system-ui` | none (`kNoFamily`) | non-monospace |
-| `monospace, math` | monospace | monospace |
-| `monospace, system-ui, math` | monospace | monospace |
-| `"monospace", Courier` | none (`kNoFamily`) | non-monospace |
+| CSS family stack             | Blink generic      | Windows hardcoded branch |
+| ---------------------------- | ------------------ | ------------------------ |
+| `Courier`                    | none (`kNoFamily`) | non-monospace            |
+| `monospace`                  | monospace          | monospace                |
+| `Courier, monospace`         | monospace          | monospace                |
+| `Arial, monospace`           | monospace          | monospace                |
+| `Courier, serif`             | serif              | non-monospace            |
+| `monospace, serif`           | serif              | non-monospace            |
+| `serif, monospace`           | monospace          | monospace                |
+| `system-ui`                  | none (`kNoFamily`) | non-monospace            |
+| `math`                       | none (`kNoFamily`) | non-monospace            |
+| `Courier, system-ui`         | none (`kNoFamily`) | non-monospace            |
+| `monospace, math`            | monospace          | monospace                |
+| `monospace, system-ui, math` | monospace          | monospace                |
+| `"monospace", Courier`       | none (`kNoFamily`) | non-monospace            |
 
 For each row it records the computed stack; independent source and production
 generic/fallback-mode decisions; exact platform candidate order; raw terminal

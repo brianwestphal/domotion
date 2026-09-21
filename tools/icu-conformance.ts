@@ -13,7 +13,12 @@ interface Digest {
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const local = path.join(ROOT, "tools", "icu-helper", process.platform === "win32" ? "domotion-icu.exe" : "domotion-icu");
+const local = path.join(
+  ROOT,
+  "tools",
+  "icu-helper",
+  process.platform === "win32" ? "domotion-icu.exe" : "domotion-icu",
+);
 const helper = process.env.DOMOTION_ICU_HELPER_PATH ?? (existsSync(local) ? local : acquireIcuCompanionSync());
 if (helper == null) {
   process.stderr.write("ICU companion unavailable\n");

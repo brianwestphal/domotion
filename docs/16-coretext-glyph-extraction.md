@@ -4,10 +4,46 @@ title: "Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrit
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos","linux","windows"]
-tickets: ["DM-1026","DM-1028","DM-1109","DM-1111","DM-1804","DM-364","DM-369","DM-382","DM-384","DM-385","DM-387","DM-388","DM-389","DM-390","DM-391","DM-392","DM-393","DM-394","DM-881","DM-886","DM-888","DM-891"]
-code: ["scripts/probe-coretext-glyphs.mjs","src/render/","src/render/font-resolution.ts","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","src/render/text-to-path.ts","src/render/unicode-classification.ts","tools/macos-glyph-extractor/","tools/macos-glyph-extractor/build.sh"]
-aliases: ["docs/16-coretext-glyph-extraction.md","doc-16"]
+platforms: ["macos", "linux", "windows"]
+tickets:
+  [
+    "DM-1026",
+    "DM-1028",
+    "DM-1109",
+    "DM-1111",
+    "DM-1804",
+    "DM-364",
+    "DM-369",
+    "DM-382",
+    "DM-384",
+    "DM-385",
+    "DM-387",
+    "DM-388",
+    "DM-389",
+    "DM-390",
+    "DM-391",
+    "DM-392",
+    "DM-393",
+    "DM-394",
+    "DM-881",
+    "DM-886",
+    "DM-888",
+    "DM-891",
+  ]
+code:
+  [
+    "scripts/probe-coretext-glyphs.mjs",
+    "src/render/",
+    "src/render/font-resolution.ts",
+    "src/render/glyph-helper.test.ts",
+    "src/render/glyph-helper.ts",
+    "src/render/helper-acquire.ts",
+    "src/render/text-to-path.ts",
+    "src/render/unicode-classification.ts",
+    "tools/macos-glyph-extractor/",
+    "tools/macos-glyph-extractor/build.sh",
+  ]
+aliases: ["docs/16-coretext-glyph-extraction.md", "doc-16"]
 ---
 
 # Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrite)
@@ -80,13 +116,17 @@ The helper accepts a single request as JSON, either inline on stdin or via `--in
 ```json
 {
   "fonts": [
-    { "ref": "f1", "postscriptName": "PingFangSC-Medium", "fontPath": "/System/Library/Fonts/PingFang.ttc",
-      "size": 22, "variations": { "wght": 500, "opsz": 22, "slnt": 0 } }
+    {
+      "ref": "f1",
+      "postscriptName": "PingFangSC-Medium",
+      "fontPath": "/System/Library/Fonts/PingFang.ttc",
+      "size": 22,
+      "variations": { "wght": 500, "opsz": 22, "slnt": 0 }
+    }
   ],
   "queries": [
     { "type": "meta", "fontRef": "f1" },
-    { "type": "glyphs", "fontRef": "f1",
-      "glyphs": [ { "cp": 27721 }, { "cp": 28450 }, { "id": 1234 } ] }
+    { "type": "glyphs", "fontRef": "f1", "glyphs": [{ "cp": 27721 }, { "cp": 28450 }, { "id": 1234 }] }
   ]
 }
 ```
@@ -154,9 +194,12 @@ The helper accepts a single request as JSON, either inline on stdin or via `--in
     {
       "type": "glyphs",
       "glyphs": [
-        { "id": 1234, "advance": 22.0,
+        {
+          "id": 1234,
+          "advance": 22.0,
           "bbox": { "x": 0.5, "y": -3.2, "w": 21.0, "h": 24.5 },
-          "d": "M 0.5 -3.2 L 21.5 -3.2 Z" }
+          "d": "M 0.5 -3.2 L 21.5 -3.2 Z"
+        }
       ]
     }
   ]
@@ -201,7 +244,7 @@ Tracking is not wrong here, it is misplaced. It belongs at the **run's** point s
 
 So the `glyphs` and `notdef` queries read advances from the CTFont's **CGFont** instead. A CGFont is a glyph-space object with no point size and therefore no tracking, and it carries the variation coordinates through, so the `opsz` instance the caller asked for is still the one measured. Verified against fontkit across the affected faces: the CGFont advance equals fontkit's `hmtx` + `HVAR` advance rounded to the nearest design unit at every sample. That residual rounding is not a loss — a variable font's advances are integers in every consumer that matters (`hmtx` stores integers, HarfBuzz rounds the `HVAR` delta back to one in `hb-ot-hmtx-table.hh:369-375`, and CoreGraphics' glyph-space advance is an `int32`); only fontkit keeps the unrounded interpolation.
 
-Confirmed against Chrome's own paint. Rendering `क` in `system-ui` at 13 / 16 / 20 / 32 / 64 px, Chrome reports the face as `.SFDevanagari-Regular` at the expected `opsz` instances and paints advances matching *design + tracking-at-the-run-size*, applied once, at every size — the "no tracking" and "tracking twice" models are off by 0.4–0.65 px. Chrome's design-unit input is therefore the file's value, i.e. fontkit's, not the helper's pre-fix number.
+Confirmed against Chrome's own paint. Rendering `क` in `system-ui` at 13 / 16 / 20 / 32 / 64 px, Chrome reports the face as `.SFDevanagari-Regular` at the expected `opsz` instances and paints advances matching _design + tracking-at-the-run-size_, applied once, at every size — the "no tracking" and "tracking twice" models are off by 0.4–0.65 px. Chrome's design-unit input is therefore the file's value, i.e. fontkit's, not the helper's pre-fix number.
 
 The **`shape` query is deliberately excluded** from this: a run advance from `CTRunGetAdvances` is a typeset advance carrying kerning and GPOS as well as tracking, and no design-unit API reproduces those. That query keeps CoreText's tracking-at-the-open-size, which is exactly why `trak` + `STAT` faces have their shaping routed through HarfBuzz rather than through it.
 
@@ -249,7 +292,7 @@ The fontkit `Font` API the renderer consumes (`glyphForCodePoint`, `layout`, `ge
 - Reads `unitsPerEm`, decoration metrics (`post` / `OS/2`), advance widths, and shaping (`layout`, via the CoreText `shape` query) straight from the native helper.
 - Supplies every glyph outline (`glyphForCodePoint`, `getGlyph`) from the helper, batched per render session.
 
-A separate, finer tier (DM-891) keeps a *fontkit* instance — for a font fontkit DID open with outlines — and patches in just the glyphs whose fontkit outline comes back empty, fetched by glyph id from the same file. See docs/51.
+A separate, finer tier (DM-891) keeps a _fontkit_ instance — for a font fontkit DID open with outlines — and patches in just the glyphs whose fontkit outline comes back empty, fetched by glyph id from the same file. See docs/51.
 
 ### Bulk-request batching
 
@@ -282,11 +325,11 @@ If any guard fails, the renderer treats every fontkit-empty path as **missing** 
 
 The same shape applies on Linux and Windows, swapping in the platform's native font engine. These land as separate tickets following DM-385.
 
-| Platform | Engine | API entry | Release asset name |
-|---|---|---|---|
-| macOS | CoreText | `CTFontCreatePathForGlyph` | `domotion-glyph-paths-darwin-universal` |
-| Linux | Pango/Cairo | `cairo_glyph_path` | `domotion-glyph-paths-linux-x64` (and `-arm64`) |
-| Windows | DirectWrite | `IDWriteFontFace::GetGlyphRunOutline` | `domotion-glyph-paths-win32-x64.exe` (and `-arm64`) |
+| Platform | Engine      | API entry                             | Release asset name                                  |
+| -------- | ----------- | ------------------------------------- | --------------------------------------------------- |
+| macOS    | CoreText    | `CTFontCreatePathForGlyph`            | `domotion-glyph-paths-darwin-universal`             |
+| Linux    | Pango/Cairo | `cairo_glyph_path`                    | `domotion-glyph-paths-linux-x64` (and `-arm64`)     |
+| Windows  | DirectWrite | `IDWriteFontFace::GetGlyphRunOutline` | `domotion-glyph-paths-win32-x64.exe` (and `-arm64`) |
 
 The IPC protocol is identical across platforms so `text-to-path.ts` only needs one dispatch layer. The acquisition logic (cache path, download URL pattern, integrity verification) is shared too — only the asset filename differs by platform/arch.
 

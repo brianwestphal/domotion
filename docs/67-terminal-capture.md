@@ -5,9 +5,17 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: ["macos"]
-tickets: ["DM-1225","DM-1226","DM-1246","DM-1249","DM-1319","DM-1321","DM-1325"]
-code: ["examples/progress-install.ts","examples/terminal-demo.ts","src/animation/embed-timeline.ts","src/cli/index.ts","src/terminal/","src/terminal/font-dedup.e2e.test.ts"]
-aliases: ["docs/67-terminal-capture.md","doc-67"]
+tickets: ["DM-1225", "DM-1226", "DM-1246", "DM-1249", "DM-1319", "DM-1321", "DM-1325"]
+code:
+  [
+    "examples/progress-install.ts",
+    "examples/terminal-demo.ts",
+    "src/animation/embed-timeline.ts",
+    "src/cli/index.ts",
+    "src/terminal/",
+    "src/terminal/font-dedup.e2e.test.ts",
+  ]
+aliases: ["docs/67-terminal-capture.md", "doc-67"]
 ---
 
 # Terminal capture → animated SVG (`domotion term`, DM-1225)
@@ -18,7 +26,7 @@ hand-authored terminal demos with automatic capture from a real program.
 `examples/terminal-demo.ts` itself drives this pipeline (`castToAnimatedSvg`),
 then hand-rolls macOS window chrome (traffic lights + title bar, as a plain SVG
 string) and composites it over the terminal via `composeAnimatedLayers` — it does
-*not* use the doc-65 `--chrome window` bezel. It's the canonical runnable demo of
+_not_ use the doc-65 `--chrome window` bezel. It's the canonical runnable demo of
 the verb. `examples/progress-install.ts` drives the same pipeline for a realistic
 `npm install domotion-svg` session — the command types a key at a time, npm's
 braille reify spinner cycles in place (carriage-return overwrites), then the
@@ -43,24 +51,24 @@ feed the same backend (see "Architecture").
 
 ### Options
 
-| flag | default | meaning |
-|------|---------|---------|
-| `--cast <file>` | — | asciinema v2 `.cast` to convert (`-` = stdin). Required. |
-| `-o, --output <path>` | `<cast>.svg` / stdout | output SVG path |
-| `--mode <m>` | `incremental` | `incremental` (render each line once, reveal on its timeline) \| `full` (a complete screen frame per settle-point) |
-| `--cursor <s>` | `block` | caret shape: `block` \| `bar` \| `underline` \| `none` (incremental mode) |
-| `--cursor-color <c>` | theme fg | caret color |
-| `--theme <name>` | `catppuccin` | base theme: `catppuccin` \| `dark` \| `github-light` |
-| `--theme-file <path>` | — | JSON overriding `bg` / `fg` / `ansi[16]` on top of `--theme` |
-| `--bg <color>` | — | override the terminal background color |
-| `--fg <color>` | — | override the default text color |
-| `--font-size <n>` | `14` | monospace font size (px) |
-| `--font-family <stack>` | `'SF Mono', Menlo, …` | monospace font stack |
-| `--cols <n>` / `--rows <n>` | from cast header | override the recorded grid size |
-| `--settle-ms <n>` | `90` | output-pause (ms) that marks a frame boundary |
-| `--min-frame-ms <n>` | `400` | minimum per-frame hold |
-| `--max-frame-ms <n>` | `4000` | maximum per-frame hold (caps idle gaps) |
-| `--tail-ms <n>` | `1500` | hold on the final screen |
+| flag                        | default               | meaning                                                                                                            |
+| --------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `--cast <file>`             | —                     | asciinema v2 `.cast` to convert (`-` = stdin). Required.                                                           |
+| `-o, --output <path>`       | `<cast>.svg` / stdout | output SVG path                                                                                                    |
+| `--mode <m>`                | `incremental`         | `incremental` (render each line once, reveal on its timeline) \| `full` (a complete screen frame per settle-point) |
+| `--cursor <s>`              | `block`               | caret shape: `block` \| `bar` \| `underline` \| `none` (incremental mode)                                          |
+| `--cursor-color <c>`        | theme fg              | caret color                                                                                                        |
+| `--theme <name>`            | `catppuccin`          | base theme: `catppuccin` \| `dark` \| `github-light`                                                               |
+| `--theme-file <path>`       | —                     | JSON overriding `bg` / `fg` / `ansi[16]` on top of `--theme`                                                       |
+| `--bg <color>`              | —                     | override the terminal background color                                                                             |
+| `--fg <color>`              | —                     | override the default text color                                                                                    |
+| `--font-size <n>`           | `14`                  | monospace font size (px)                                                                                           |
+| `--font-family <stack>`     | `'SF Mono', Menlo, …` | monospace font stack                                                                                               |
+| `--cols <n>` / `--rows <n>` | from cast header      | override the recorded grid size                                                                                    |
+| `--settle-ms <n>`           | `90`                  | output-pause (ms) that marks a frame boundary                                                                      |
+| `--min-frame-ms <n>`        | `400`                 | minimum per-frame hold                                                                                             |
+| `--max-frame-ms <n>`        | `4000`                | maximum per-frame hold (caps idle gaps)                                                                            |
+| `--tail-ms <n>`             | `1500`                | hold on the final screen                                                                                           |
 
 ## Theming
 
@@ -84,10 +92,15 @@ domotion term --cast x.cast --theme-file ./ayu.json --font-family "'JetBrains Mo
 In an `animate` config, `term.theme` accepts a name OR an inline override object:
 
 ```json
-{ "cast": "./x.cast",
-  "term": { "theme": { "extends": "dark", "bg": "#0a0e14", "fg": "#b3b1ad" },
-            "fontFamily": "'JetBrains Mono', monospace", "fontSize": 15 },
-  "duration": 11000 }
+{
+  "cast": "./x.cast",
+  "term": {
+    "theme": { "extends": "dark", "bg": "#0a0e14", "fg": "#b3b1ad" },
+    "fontFamily": "'JetBrains Mono', monospace",
+    "fontSize": 15
+  },
+  "duration": 11000
+}
 ```
 
 Programmatically, `theme` takes a name, a `TerminalThemeSpec` (partial override),
@@ -114,10 +127,10 @@ behaviors trip up authors sizing a terminal demo:
    number, not the recording's length. (Programmatically it's
    `castToAnimatedSvg(...).totalDurationMs`.)
 
-2. **A *leading* idle is collapsed.** A blank period before the first output
+2. **A _leading_ idle is collapsed.** A blank period before the first output
    produces no frame — a "pause, then start typing" lead-in renders as zero time.
    To hold an opening beat, emit something first (e.g. the prompt) and idle
-   *after* it, or add an intro frame in an `animate` config.
+   _after_ it, or add an intro frame in an `animate` config.
 
 3. **`duration` in an `animate` cast frame is the frame's visible window, and the
    cast plays at its own rendered rate inside it** (it is NOT stretched to fit
@@ -221,13 +234,16 @@ cast — it embeds as a self-contained animated terminal SVG, nested like a
 
 ```json
 {
-  "width": 656, "height": 346,
+  "width": 656,
+  "height": 346,
   "frames": [
     { "input": "./intro.html", "duration": 1500, "transition": { "type": "crossfade", "duration": 400 } },
-    { "cast": "./build.cast",
+    {
+      "cast": "./build.cast",
       "term": { "theme": "dark", "maxFrameMs": 700, "fontSize": 13 },
       "duration": 12000,
-      "transition": { "type": "crossfade", "duration": 400 } },
+      "transition": { "type": "crossfade", "duration": 400 }
+    },
     { "input": "./done.html", "duration": 2500 }
   ]
 }
@@ -249,7 +265,10 @@ from the package root):
 import { castToTermFrames, generateAnimatedSvg, launchChromium } from "domotion-svg";
 
 const browser = await launchChromium();
-const { frames, width, height, fontFaceCss } = await castToTermFrames(castText, browser, { theme: "dark", maxFrameMs: 800 });
+const { frames, width, height, fontFaceCss } = await castToTermFrames(castText, browser, {
+  theme: "dark",
+  maxFrameMs: 800,
+});
 // frames: AnimationFrame[] (svgContent + duration + `cut` transitions) — mutate freely:
 //   • frames[i].duration = …            // retime a beat
 //   • frames[i].transition = { type: "push-left", duration: 250 }
@@ -267,7 +286,7 @@ share that builder and defer their font to the host's single top-level block.
 
 ### Embedded-font dedup
 
-The default render mode bakes glyphs into one *accumulating* custom TTF, so
+The default render mode bakes glyphs into one _accumulating_ custom TTF, so
 rendering each frame with its own `@font-face` would re-embed a growing base64
 copy per frame (a 16-frame cast → 50+ `@font-face` blocks). Both
 `castToAnimatedSvg` and a correctly-composed `castToTermFrames` emit the font

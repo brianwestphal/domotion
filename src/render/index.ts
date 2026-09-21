@@ -1,21 +1,10 @@
 // Render-side public surface. Pure functions that take a captured element
 // tree (or fragments of one) and emit SVG markup.
 
-export {
-  createCapturedTreeEnvelope,
-  promoteCapturedSubtree,
-} from "../capture/tree-envelope.js";
-export type {
-  CapturedSessionGenericFamilies,
-  CapturedTreeEnvelope,
-  CapturedTreeInput,
-} from "../capture/types.js";
+export { createCapturedTreeEnvelope, promoteCapturedSubtree } from "../capture/tree-envelope.js";
+export type { CapturedSessionGenericFamilies, CapturedTreeEnvelope, CapturedTreeInput } from "../capture/types.js";
 
-export {
-  elementTreeToSvg,
-  elementTreeToSvgInner,
-  wrapSvg,
-} from "./element-tree-to-svg.js";
+export { elementTreeToSvg, elementTreeToSvgInner, wrapSvg } from "./element-tree-to-svg.js";
 
 export {
   getGlyphDefs,

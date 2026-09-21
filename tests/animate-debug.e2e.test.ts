@@ -29,17 +29,23 @@ describeBrowser("animate debug reproduction bundle (DM-2636)", () => {
     const html = join(dir, "page.html");
     const config = join(dir, "demo.json");
     const output = join(dir, "demo.svgz");
-    writeFileSync(html, `<!doctype html><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%}body{background:#fff;font:24px sans-serif}.value{padding:20px;color:#123456}</style><div class="value">zero</div>`);
-    writeFileSync(config, JSON.stringify({
-      width: 180,
-      height: 90,
-      autoCompress: false,
-      frames: [
-        { input: html, duration: 200 },
-        { continue: true, duration: 200, actions: [{ type: "setText", selector: ".value", value: "one" }] },
-        { template: "lower-third", params: { title: "Embedded" }, duration: 300 },
-      ],
-    }));
+    writeFileSync(
+      html,
+      `<!doctype html><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%}body{background:#fff;font:24px sans-serif}.value{padding:20px;color:#123456}</style><div class="value">zero</div>`,
+    );
+    writeFileSync(
+      config,
+      JSON.stringify({
+        width: 180,
+        height: 90,
+        autoCompress: false,
+        frames: [
+          { input: html, duration: 200 },
+          { continue: true, duration: 200, actions: [{ type: "setText", selector: ".value", value: "one" }] },
+          { template: "lower-third", params: { title: "Embedded" }, duration: 300 },
+        ],
+      }),
+    );
 
     await runAnimate([config, "--quiet", "--debug", "--optimize", "-o", output], "");
 
@@ -55,7 +61,8 @@ describeBrowser("animate debug reproduction bundle (DM-2636)", () => {
     const tree1 = join(debugDir, "frames", "001", "captured-tree.json");
     const expected2 = join(debugDir, "frames", "002", "expected.png");
     const tree2 = join(debugDir, "frames", "002", "captured-tree.json");
-    for (const path of [expected0, expected1, expected2, tree0, tree1, tree2]) expect(existsSync(path), path).toBe(true);
+    for (const path of [expected0, expected1, expected2, tree0, tree1, tree2])
+      expect(existsSync(path), path).toBe(true);
 
     expect(await sharp(expected0).metadata()).toMatchObject({ width: 180, height: 90 });
     expect(await sharp(expected1).metadata()).toMatchObject({ width: 180, height: 90 });
@@ -72,11 +79,14 @@ describeBrowser("animate debug reproduction bundle (DM-2636)", () => {
 
   it("rejects plain --debug before launch when no output is available for naming", async () => {
     const config = join(dir, "no-output.json");
-    writeFileSync(config, JSON.stringify({
-      width: 100,
-      height: 60,
-      frames: [{ input: join(dir, "page.html"), duration: 100 }],
-    }));
+    writeFileSync(
+      config,
+      JSON.stringify({
+        width: 100,
+        height: 60,
+        frames: [{ input: join(dir, "page.html"), duration: 100 }],
+      }),
+    );
     await expect(runAnimate([config, "--debug", "--quiet"], "")).rejects.toThrow(
       "animate: --debug requires either --output",
     );

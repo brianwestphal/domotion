@@ -25,10 +25,16 @@ const SFNS = "/System/Library/Fonts/SFNS.ttf";
 const isDarwin = process.platform === "darwin" && existsSync(SFNS);
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 const env = await setup();
-afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
+afterAll(async () => {
+  await closeBrowserSafely(env?.browser);
+}, 15_000);
 const describeMac = env && isDarwin ? describe : describe.skip;
 
 // Render `ẘ` at 32px in `family` through the full capture→embed pipeline and
@@ -42,14 +48,20 @@ async function embeddedRingMaxY(browser: NonNullable<typeof env>["browser"], fam
     );
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 320, height: 160 });
     const svg = elementTreeToSvg(tree, 320, 160);
-    const t = [...svg.matchAll(/<text\b([^>]*)>(.*?)<\/text>/gs)].find((m) => /font-size="32"/.test(m[1]) && m[2].trim() !== "");
+    const t = [...svg.matchAll(/<text\b([^>]*)>(.*?)<\/text>/gs)].find(
+      (m) => /font-size="32"/.test(m[1]) && m[2].trim() !== "",
+    );
     if (t == null) throw new Error("no size-32 glyph <text> emitted");
     const fam = /font-family="([^"]+)"/.exec(t[1])?.[1];
     const cp = t[2].codePointAt(0)!;
     const b64 = new RegExp(`font-family:\\s*"${fam}"[^}]*?base64,([A-Za-z0-9+/=]+)`, "s").exec(svg)?.[1];
     if (b64 == null) throw new Error("embedded font not found for " + fam);
-    let f = (fontkit as { create: (b: Buffer) => unknown }).create(Buffer.from(b64, "base64")) as { fonts?: unknown[]; glyphForCodePoint: (c: number) => { bbox: { maxY: number } }; unitsPerEm: number };
-    if ((f as { fonts?: unknown[] }).fonts) f = (f as { fonts: typeof f[] }).fonts[0];
+    let f = (fontkit as { create: (b: Buffer) => unknown }).create(Buffer.from(b64, "base64")) as {
+      fonts?: unknown[];
+      glyphForCodePoint: (c: number) => { bbox: { maxY: number } };
+      unitsPerEm: number;
+    };
+    if ((f as { fonts?: unknown[] }).fonts) f = (f as { fonts: (typeof f)[] }).fonts[0];
     const g = f.glyphForCodePoint(cp);
     return Math.round((g.bbox.maxY / f.unitsPerEm) * 2048);
   } finally {

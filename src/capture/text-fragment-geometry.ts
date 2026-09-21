@@ -13,10 +13,7 @@ import type {
   CapturedTextPaintQuad,
   TextSegment,
 } from "./types.js";
-import {
-  asCapturedTextWritingMode,
-  buildCapturedTextLineOrigin,
-} from "./text-line-origin.js";
+import { asCapturedTextWritingMode, buildCapturedTextLineOrigin } from "./text-line-origin.js";
 import {
   joinBlinkRangeFragmentsToContentQuads,
   splitTextSegmentsOnFragmentSpans,
@@ -104,11 +101,7 @@ export function textPaintAffineResidual(
     for (let corner = 0; corner < 4; corner++) {
       const expected = point(paintQuads[fragment], corner);
       const actual = mapTextPaintPoint(matrix, point(neutralQuads[fragment], corner));
-      residual = Math.max(
-        residual,
-        Math.abs(actual.x - expected.x),
-        Math.abs(actual.y - expected.y),
-      );
+      residual = Math.max(residual, Math.abs(actual.x - expected.x), Math.abs(actual.y - expected.y));
     }
   }
   return residual;
@@ -120,11 +113,15 @@ function exactCodeUnitGeometry(segment: TextSegment): { origins: number[]; advan
   // These arrays come from the Range/shape probe and are UTF-16 indexed.
   // Repeating a final coordinate or inferring an advance from the fragment
   // AABB would silently turn missing browser facts into synthetic geometry.
-  if (origins == null || explicit == null
-    || origins.length !== segment.text.length
-    || explicit.length !== segment.text.length
-    || !origins.every(Number.isFinite)
-    || !explicit.every(Number.isFinite)) return null;
+  if (
+    origins == null ||
+    explicit == null ||
+    origins.length !== segment.text.length ||
+    explicit.length !== segment.text.length ||
+    !origins.every(Number.isFinite) ||
+    !explicit.every(Number.isFinite)
+  )
+    return null;
   return { origins: [...origins], advances: [...explicit] };
 }
 
@@ -173,7 +170,8 @@ export function buildCapturedTextPaintGeometry(
       return { geometry: null, failureReason: "text fragment count changed between neutral and paint spaces" };
     }
     const matrix = solveTextPaintAffine(node.neutralQuads[0], node.paintQuads[0]);
-    if (matrix == null) return { geometry: null, failureReason: "text fragment affine matrix is singular or unavailable" };
+    if (matrix == null)
+      return { geometry: null, failureReason: "text fragment affine matrix is singular or unavailable" };
     const residual = textPaintAffineResidual(matrix, node.neutralQuads, node.paintQuads);
     if (!Number.isFinite(residual) || residual > TEXT_AFFINE_RESIDUAL_EPSILON) {
       return { geometry: null, failureReason: `text paint plane is non-affine (corner residual ${residual})` };
@@ -197,7 +195,8 @@ export function buildCapturedTextPaintGeometry(
     }
   }
 
-  if (measured.length === 0) return { geometry: null, failureReason: "Chromium exposed no physical text fragment quads" };
+  if (measured.length === 0)
+    return { geometry: null, failureReason: "Chromium exposed no physical text fragment quads" };
   const fragments: CapturedTextPaintGeometry["fragments"] = [];
   for (const item of measured) {
     const textSegmentIndex = split.textSegmentIndexBySourceFragment[item.sourceFragmentIndex];
@@ -227,9 +226,9 @@ export function buildCapturedTextPaintGeometry(
     if (lineOrigin == null) {
       return { geometry: null, failureReason: "Blink line-relative text origin is unavailable" };
     }
-    const inlineOffset = segment.inlineOffset ?? (vertical
-      ? segment.y
-      : item.node.direction === "rtl" ? segment.x + segment.width : segment.x);
+    const inlineOffset =
+      segment.inlineOffset ??
+      (vertical ? segment.y : item.node.direction === "rtl" ? segment.x + segment.width : segment.x);
     fragments.push({
       source: "blink-text-fragment-affine-v2",
       space: "pre-css-transform-viewport",

@@ -14,13 +14,13 @@ baselines** instead of pretending one number is authoritative:
 - **Local Mac** — the implicit baseline the `demos:test` / `demos:test:unicode`
   suites already enforce: every fixture is diffed against the host's live
   Chromium screenshot. This is the calibration target; nothing extra is stored.
-- **CI image** — a *committed* snapshot of the per-fixture pass/fail + diff
+- **CI image** — a _committed_ snapshot of the per-fixture pass/fail + diff
   metrics produced on the CI runner, stored here as `<suite>-<os>.json`
   (e.g. `unicode-macos.json`, `html-macos.json`).
 
 A CI run is then judged **relative to its own committed baseline** — "did this
 change regress anything vs the last known-good run on the same image?" — not
-against the local count. That comparison *does* transfer.
+against the local count. That comparison _does_ transfer.
 
 ## Feature suite — baseline-relative CI gate (DM-1405)
 
@@ -111,8 +111,8 @@ node scripts/diff-font-conformance-baseline.mjs --results merged.json \
 ### `font-conformance-synthetic-<os>[-byte-XX].json` — same instrument, different corpus
 
 The same shape, from `.github/workflows/font-conformance-synthetic.yml`, sweeping
-the **rule-derived** stack corpus instead of the harvested one (doc 107, *"The
-synthetic stack corpus"*). Separate files rather than a shared one because the
+the **rule-derived** stack corpus instead of the harvested one (doc 107, _"The
+synthetic stack corpus"_). Separate files rather than a shared one because the
 two slices ask different questions — 2,106 CSS-generic stacks spanning the whole
 weight ladder and every stretch keyword, against 434 harvested stacks that are
 74% weight-400 — and a mismatch count means nothing without its slice. The

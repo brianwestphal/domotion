@@ -30,28 +30,25 @@ afterEach(() => {
 
 describe("synchronous renderer-state scope contract (DM-2637)", () => {
   it("rejects native Promises and custom thenables at runtime", () => {
-    expect(() => invokeSynchronousCallback(
-      "testScope",
-      (() => Promise.resolve(1)) as unknown as () => number,
-    )).toThrow(/testScope callback must be synchronous; Promise-like results/);
+    expect(() => invokeSynchronousCallback("testScope", (() => Promise.resolve(1)) as unknown as () => number)).toThrow(
+      /testScope callback must be synchronous; Promise-like results/,
+    );
 
-    expect(() => invokeSynchronousCallback(
-      "testScope",
-      (() => ({ then() {} })) as unknown as () => number,
-    )).toThrow(/testScope callback must be synchronous; Promise-like results/);
+    expect(() => invokeSynchronousCallback("testScope", (() => ({ then() {} })) as unknown as () => number)).toThrow(
+      /testScope callback must be synchronous; Promise-like results/,
+    );
   });
 
   it("rejects async render-text-mode work and restores before its continuation", async () => {
     setRenderTextMode("embedded-font");
     let seenAfterAwait: string | null = null;
-    expect(() => withRenderTextMode(
-      "paths",
-      (async () => {
+    expect(() =>
+      withRenderTextMode("paths", (async () => {
         expect(getRenderTextMode()).toBe("paths");
         await Promise.resolve();
         seenAfterAwait = getRenderTextMode();
-      }) as unknown as () => void,
-    )).toThrow(/withRenderTextMode callback must be synchronous/);
+      }) as unknown as () => void),
+    ).toThrow(/withRenderTextMode callback must be synchronous/);
     expect(getRenderTextMode()).toBe("embedded-font");
     await Promise.resolve();
     expect(seenAfterAwait).toBe("embedded-font");
@@ -60,14 +57,13 @@ describe("synchronous renderer-state scope contract (DM-2637)", () => {
   it("rejects async fallback-resolution work and restores before its continuation", async () => {
     setSystemFallbackResolution(false);
     let seenAfterAwait: boolean | null = null;
-    expect(() => withSystemFallbackResolution(
-      true,
-      (async () => {
+    expect(() =>
+      withSystemFallbackResolution(true, (async () => {
         expect(getSystemFallbackResolution()).toBe(true);
         await Promise.resolve();
         seenAfterAwait = getSystemFallbackResolution();
-      }) as unknown as () => void,
-    )).toThrow(/withSystemFallbackResolution callback must be synchronous/);
+      }) as unknown as () => void),
+    ).toThrow(/withSystemFallbackResolution callback must be synchronous/);
     expect(getSystemFallbackResolution()).toBe(false);
     await Promise.resolve();
     expect(seenAfterAwait).toBe(false);
@@ -80,14 +76,13 @@ describe("synchronous renderer-state scope contract (DM-2637)", () => {
     };
     setSessionGenericFamilyOverrides(prior);
     let seenAfterAwait: SessionGenericFamilyOverrides | null | undefined;
-    expect(() => withSessionGenericFamilyOverrides(
-      EMPTY_OVERRIDES,
-      (async () => {
+    expect(() =>
+      withSessionGenericFamilyOverrides(EMPTY_OVERRIDES, (async () => {
         expect(getSessionGenericFamilyOverrides()).toBe(EMPTY_OVERRIDES);
         await Promise.resolve();
         seenAfterAwait = getSessionGenericFamilyOverrides();
-      }) as unknown as () => void,
-    )).toThrow(/withSessionGenericFamilyOverrides callback must be synchronous/);
+      }) as unknown as () => void),
+    ).toThrow(/withSessionGenericFamilyOverrides callback must be synchronous/);
     expect(getSessionGenericFamilyOverrides()).toBe(prior);
     await Promise.resolve();
     expect(seenAfterAwait).toBe(prior);
@@ -97,14 +92,13 @@ describe("synchronous renderer-state scope contract (DM-2637)", () => {
     const prior = hostPlatform();
     const temporary = prior === "linux" ? "darwin" : "linux";
     let seenAfterAwait: NodeJS.Platform | null = null;
-    expect(() => withHostPlatform(
-      temporary,
-      (async () => {
+    expect(() =>
+      withHostPlatform(temporary, (async () => {
         expect(hostPlatform()).toBe(temporary);
         await Promise.resolve();
         seenAfterAwait = hostPlatform();
-      }) as unknown as () => void,
-    )).toThrow(/withHostPlatform callback must be synchronous/);
+      }) as unknown as () => void),
+    ).toThrow(/withHostPlatform callback must be synchronous/);
     expect(hostPlatform()).toBe(prior);
     await Promise.resolve();
     expect(seenAfterAwait).toBe(prior);

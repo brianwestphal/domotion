@@ -5,9 +5,31 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1775","DM-2715","DM-6SQXGF"]
-code: ["src/cli/capture.ts","src/cli/animate-command.ts","src/cli/animate-orchestrator.ts","src/cli/animate-frame-capture.ts","src/cli/mutation-detect.ts","src/scroll/composer.ts","src/animation/compressed-run.ts","src/terminal/index.ts","src/terminal/incremental.ts","src/render/element-tree-to-svg.ts","src/render/real-text-layer.ts","src/render/text-to-path.ts","src/render/text.ts","src/render/pseudo-fragments.ts","src/render/real-text-layer.test.ts","src/terminal/font-dedup.e2e.test.ts","src/cli/mutation-detect.e2e.test.ts","tests/compose-animate-frames.e2e.test.ts","tests/real-text-layer.e2e.test.ts","tests/animate-real-text.e2e.test.ts"]
-aliases: ["docs/260-inline-svg-real-text-layer.md","doc-260"]
+tickets: ["DM-1775", "DM-2715", "DM-6SQXGF"]
+code:
+  [
+    "src/cli/capture.ts",
+    "src/cli/animate-command.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate-frame-capture.ts",
+    "src/cli/mutation-detect.ts",
+    "src/scroll/composer.ts",
+    "src/animation/compressed-run.ts",
+    "src/terminal/index.ts",
+    "src/terminal/incremental.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/real-text-layer.ts",
+    "src/render/text-to-path.ts",
+    "src/render/text.ts",
+    "src/render/pseudo-fragments.ts",
+    "src/render/real-text-layer.test.ts",
+    "src/terminal/font-dedup.e2e.test.ts",
+    "src/cli/mutation-detect.e2e.test.ts",
+    "tests/compose-animate-frames.e2e.test.ts",
+    "tests/real-text-layer.e2e.test.ts",
+    "tests/animate-real-text.e2e.test.ts",
+  ]
+aliases: ["docs/260-inline-svg-real-text-layer.md", "doc-260"]
 ---
 
 # 260 — Opt-in real-text layer for inline SVG
@@ -25,7 +47,7 @@ explicit `false` preserve the previous output byte-for-byte.
 
 - Every real-text layer is a root-level
   `<g data-domotion-real-text-layer="true" fill="none" stroke="none"
-  xml:space="preserve">`. Both paint properties are explicit. Consumer font
+xml:space="preserve">`. Both paint properties are explicit. Consumer font
   fallback therefore cannot paint even if a viewer changes its defaults.
 - Each captured run becomes one ordinary `<text>` child. It uses the captured
   font size, baseline, width, writing mode, direction, and Chromium-owned

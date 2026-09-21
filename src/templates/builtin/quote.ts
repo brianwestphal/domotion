@@ -13,7 +13,15 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
+import {
+  CARD_FONT_STACK,
+  cardHeadCss,
+  cardScaleFactor,
+  fs,
+  resolveCardTheme,
+  staggeredReveal,
+  revealEndMs,
+} from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const THEMES = ["dark", "light"] as const;
@@ -23,7 +31,10 @@ export const quoteParamsSchema = z.object({
   quote: z.string().min(1).describe("The pull-quote text (required)."),
   author: z.string().optional().describe("Attribution name."),
   role: z.string().optional().describe("Author's role / handle (second attribution line)."),
-  avatarInitial: z.string().optional().describe("A single initial shown in the avatar circle (defaults to the author's first letter)."),
+  avatarInitial: z
+    .string()
+    .optional()
+    .describe("A single initial shown in the avatar circle (defaults to the author's first letter)."),
   avatarColor: z.string().optional().describe("Avatar circle fill (defaults to the accent)."),
   accent: z.string().default("#3b82f6").describe("Accent color for the quote mark + rule + avatar."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),

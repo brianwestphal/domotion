@@ -23,10 +23,12 @@ describe("computeRunnerImage", () => {
     // no /etc/os-release. Falling through to the container branch stamped a
     // macOS baseline `playwright-v1.59.1-linux-unknown`, which would let a
     // macOS run and a Linux run compare as though they shared an environment.
-    expect(computeRunnerImage({ runnerArch: "arm64", osRelease: null, playwrightVersion: "1.59.1", platform: "darwin" }))
-      .toBe("darwin-local-arm64");
-    expect(computeRunnerImage({ runnerArch: "x64", osRelease: null, playwrightVersion: "1.59.1", platform: "win32" }))
-      .toBe("win32-local-x64");
+    expect(
+      computeRunnerImage({ runnerArch: "arm64", osRelease: null, playwrightVersion: "1.59.1", platform: "darwin" }),
+    ).toBe("darwin-local-arm64");
+    expect(
+      computeRunnerImage({ runnerArch: "x64", osRelease: null, playwrightVersion: "1.59.1", platform: "win32" }),
+    ).toBe("win32-local-x64");
   });
 
   it("derives a Playwright-versioned id inside the Linux container (the DM-1426 fix)", () => {
@@ -50,8 +52,7 @@ describe("computeRunnerImage", () => {
   });
 
   it("falls back to the codename when the Playwright version can't be resolved", () => {
-    expect(computeRunnerImage({ runnerArch: "X64", osRelease: { VERSION_CODENAME: "noble" } }))
-      .toBe("noble-x64");
+    expect(computeRunnerImage({ runnerArch: "X64", osRelease: { VERSION_CODENAME: "noble" } })).toBe("noble-x64");
   });
 
   it("falls back to VERSION_ID, then 'linux', when no codename", () => {
@@ -74,7 +75,7 @@ describe("parseOsRelease", () => {
   it("parses KEY=VALUE lines and strips quotes", () => {
     const text = [
       'NAME="Ubuntu"',
-      "VERSION_ID=\"24.04\"",
+      'VERSION_ID="24.04"',
       "VERSION_CODENAME=noble",
       "# a comment",
       "",

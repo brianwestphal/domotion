@@ -70,7 +70,14 @@ describe("buildTicketFile (DM-1445)", () => {
 
   it("DM-1449: records multiple regions and lists them in details", () => {
     const { ticket } = buildTicketFile(
-      { ...base, region: null, regions: [{ x: 1, y: 2, w: 3, h: 4 }, { x: 5, y: 6, w: 7, h: 8 }] },
+      {
+        ...base,
+        region: null,
+        regions: [
+          { x: 1, y: 2, w: 3, h: 4 },
+          { x: 5, y: 6, w: 7, h: 8 },
+        ],
+      },
       { createdAt: "x", stamp: 3 },
     );
     expect(ticket.regions).toHaveLength(2);
@@ -90,7 +97,10 @@ describe("buildTicketFile (DM-1445)", () => {
 
   it("DM-1449: records the frame PNG path + uses the injected slug", () => {
     const { filename, ticket } = buildTicketFile(base, {
-      createdAt: "x", stamp: 5, slug: "demo", framePng: "/tmp/demo-5.png",
+      createdAt: "x",
+      stamp: 5,
+      slug: "demo",
+      framePng: "/tmp/demo-5.png",
     });
     expect(filename).toBe("demo-5.ticket");
     expect(ticket.framePng).toBe("/tmp/demo-5.png");
@@ -102,7 +112,9 @@ describe("POST /ticket endpoint (DM-1445)", () => {
   let srv: ScrubberServerHandle | null = null;
   let reviewOff: ScrubberServerHandle | null = null;
   const dir = mkdtempSync(join(tmpdir(), "scrubber-tickets-"));
-  const noLaunch = async (): Promise<never> => { throw new Error("Chromium must not launch for /ticket"); };
+  const noLaunch = async (): Promise<never> => {
+    throw new Error("Chromium must not launch for /ticket");
+  };
 
   afterAll(async () => {
     if (srv) await srv.close();
@@ -112,7 +124,9 @@ describe("POST /ticket endpoint (DM-1445)", () => {
 
   const post = (handle: ScrubberServerHandle, body: unknown) =>
     fetch(handle.url.replace(/\/$/, "") + "/ticket", {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
     });
 
   it("writes a .ticket file to ticketDir and returns its path", async () => {
@@ -129,7 +143,7 @@ describe("POST /ticket endpoint (DM-1445)", () => {
       region: { x: 1, y: 2, w: 3, h: 4 },
     });
     expect(res.status).toBe(200);
-    const { path } = await res.json() as { path: string };
+    const { path } = (await res.json()) as { path: string };
     expect(path.startsWith(dir)).toBe(true);
     expect(path.endsWith(".ticket")).toBe(true);
 
@@ -148,11 +162,18 @@ describe("POST /ticket endpoint (DM-1445)", () => {
 
   it("DM-1449: records multiple regions", async () => {
     const res = await post(srv!, {
-      title: "Two spots", svgName: "anim", frameTimeMs: 0, rangeStartMs: 0, rangeEndMs: 100,
-      regions: [{ x: 1, y: 1, w: 10, h: 10 }, { x: 50, y: 50, w: 20, h: 20 }],
+      title: "Two spots",
+      svgName: "anim",
+      frameTimeMs: 0,
+      rangeStartMs: 0,
+      rangeEndMs: 100,
+      regions: [
+        { x: 1, y: 1, w: 10, h: 10 },
+        { x: 50, y: 50, w: 20, h: 20 },
+      ],
     });
     expect(res.status).toBe(200);
-    const { path } = await res.json() as { path: string };
+    const { path } = (await res.json()) as { path: string };
     const parsed = JSON.parse(readFileSync(path, "utf-8"));
     expect(parsed.regions).toHaveLength(2);
     expect(parsed.framePng).toBeNull();
@@ -162,14 +183,19 @@ describe("POST /ticket endpoint (DM-1445)", () => {
     // The stub browser throws, so the frame render fails gracefully — the
     // ticket is still written, just without a frame PNG.
     const res = await post(srv!, {
-      title: "No frame", svgName: "anim", frameTimeMs: 0, rangeStartMs: 0, rangeEndMs: 100,
-      attachFrame: true, svg: "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'></svg>",
+      title: "No frame",
+      svgName: "anim",
+      frameTimeMs: 0,
+      rangeStartMs: 0,
+      rangeEndMs: 100,
+      attachFrame: true,
+      svg: "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'></svg>",
     });
     expect(res.status).toBe(200);
-    const { path, framePng } = await res.json() as { path: string; framePng: string | null };
+    const { path, framePng } = (await res.json()) as { path: string; framePng: string | null };
     expect(framePng).toBeNull();
     expect(readdirSync(dir).some((f) => f.endsWith(".png"))).toBe(false);
-    expect(readFileSync(path, "utf-8")).toContain("\"framePng\": null");
+    expect(readFileSync(path, "utf-8")).toContain('"framePng": null');
   });
 
   it("404s when review mode is not enabled", async () => {

@@ -57,8 +57,12 @@ const RUNS = [
     label: "unit (vitest, forks)",
     cmd: "npx",
     args: [
-      "vitest", "run", "--pool=forks", "--coverage",
-      "--coverage.reporter=json", "--coverage.reportOnFailure",
+      "vitest",
+      "run",
+      "--pool=forks",
+      "--coverage",
+      "--coverage.reporter=json",
+      "--coverage.reportOnFailure",
       `--coverage.reportsDirectory=${UNIT_REPORTS}`,
     ],
     vitestCoverage: true,
@@ -67,13 +71,19 @@ const RUNS = [
     label: "browser E2E (vitest, forks, headless)",
     cmd: "npx",
     args: [
-      "vitest", "run", "--config", "vitest.e2e.config.ts",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.e2e.config.ts",
       // This dedicated preference/profile oracle intentionally launches the
       // installed Chrome channel both headed and headless. Its own workflow and
       // npm script remain authoritative; a coverage run must not open a user's
       // real browser.
-      "--exclude", "tests/generic-profile-target-oracle.e2e.test.ts",
-      "--coverage", "--coverage.reporter=json", "--coverage.reportOnFailure",
+      "--exclude",
+      "tests/generic-profile-target-oracle.e2e.test.ts",
+      "--coverage",
+      "--coverage.reporter=json",
+      "--coverage.reportOnFailure",
       `--coverage.reportsDirectory=${E2E_REPORTS}`,
     ],
     env: {
@@ -94,19 +104,35 @@ const RUNS = [
 // `needs` is a path (ROOT-relative or absolute) that must exist to run; when it
 // doesn't we skip with a warning rather than fail.
 const SLOW_RUNS = [
-  { label: "visual: html-test (~277 fixtures)", cmd: "npx", args: ["tsx", "tests/html-test-suite.tsx"], needs: "external/html-test" },
   {
-    label: "visual: unicode (331 per-block fixtures)", cmd: "npx", args: ["tsx", "tests/html-test-suite.tsx"],
-    needs: process.env.HTML_TEST_DIR ?? "../html-test/unicode",
-    env: { HTML_TEST_DIR: process.env.HTML_TEST_DIR ?? "../html-test/unicode", HTML_TEST_OUTPUT_DIR: "tests/output/html-test-unicode" },
+    label: "visual: html-test (~277 fixtures)",
+    cmd: "npx",
+    args: ["tsx", "tests/html-test-suite.tsx"],
+    needs: "external/html-test",
   },
-  { label: "visual: real-world (HAR replays)", cmd: "npx", args: ["tsx", "tests/real-world.tsx"], needs: "tests/cache/real-world" },
+  {
+    label: "visual: unicode (331 per-block fixtures)",
+    cmd: "npx",
+    args: ["tsx", "tests/html-test-suite.tsx"],
+    needs: process.env.HTML_TEST_DIR ?? "../html-test/unicode",
+    env: {
+      HTML_TEST_DIR: process.env.HTML_TEST_DIR ?? "../html-test/unicode",
+      HTML_TEST_OUTPUT_DIR: "tests/output/html-test-unicode",
+    },
+  },
+  {
+    label: "visual: real-world (HAR replays)",
+    cmd: "npx",
+    args: ["tsx", "tests/real-world.tsx"],
+    needs: "tests/cache/real-world",
+  },
 ];
 
 // Mirror the vitest.config.ts coverage include/exclude so the merged number is
 // comparable to `npm run test:coverage`.
 const REPORT_ARGS = [
-  "c8", "report",
+  "c8",
+  "report",
   `--temp-directory=${TMP}`,
   `--reports-dir=${DIRECT_REPORTS}`,
   "--src=src",
@@ -126,7 +152,10 @@ function run(label, cmd, args, env) {
   const r = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", env, shell: process.platform === "win32" });
   const status = normalizeCoverageExitStatus(r.status);
   if (status !== 0) {
-    const reason = r.status == null ? (r.error?.message ?? `terminated by ${r.signal ?? "an unknown signal"}`) : `exited ${r.status}`;
+    const reason =
+      r.status == null
+        ? (r.error?.message ?? `terminated by ${r.signal ?? "an unknown signal"}`)
+        : `exited ${r.status}`;
     process.stdout.write(`  (${label} ${reason} — coverage still collected, final command will fail)\n`);
   }
   return status;
@@ -154,25 +183,28 @@ const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP, DOMOTION_NO_OPEN: "1" }
 
 const browserBuildResults = ["review", "scrubber", "studio"].map((client) => ({
   label: `browser coverage bundle: ${client}`,
-  status: run(
-    `browser coverage bundle: ${client}`,
-    "node",
-    [`scripts/build-${client}-client.mjs`],
-    { ...process.env, DOMOTION_BROWSER_COVERAGE: "1" },
-  ),
+  status: run(`browser coverage bundle: ${client}`, "node", [`scripts/build-${client}-client.mjs`], {
+    ...process.env,
+    DOMOTION_BROWSER_COVERAGE: "1",
+  }),
 }));
 
-const suiteResults = [...browserBuildResults, ...runs.map((r) => ({
-  label: r.label,
-  status: run(
-    r.label,
-    r.cmd,
-    r.args,
-    r.vitestCoverage
-      ? { ...process.env, ...r.env, DOMOTION_NO_OPEN: "1" }
-      : (r.env != null ? { ...baseEnv, ...r.env } : baseEnv),
-  ),
-}))];
+const suiteResults = [
+  ...browserBuildResults,
+  ...runs.map((r) => ({
+    label: r.label,
+    status: run(
+      r.label,
+      r.cmd,
+      r.args,
+      r.vitestCoverage
+        ? { ...process.env, ...r.env, DOMOTION_NO_OPEN: "1" }
+        : r.env != null
+          ? { ...baseEnv, ...r.env }
+          : baseEnv,
+    ),
+  })),
+];
 
 const browserConvertStatus = run(
   "browser V8 coverage → Istanbul",
@@ -186,7 +218,12 @@ const browserConvertStatus = run(
   process.env,
 );
 for (const client of ["review", "scrubber", "studio"]) {
-  const status = run(`restore production bundle: ${client}`, "node", [`scripts/build-${client}-client.mjs`], process.env);
+  const status = run(
+    `restore production bundle: ${client}`,
+    "node",
+    [`scripts/build-${client}-client.mjs`],
+    process.env,
+  );
   suiteResults.push({ label: `restore production bundle: ${client}`, status });
 }
 
@@ -218,9 +255,13 @@ if (mergeStatus === 0 && existsSync(coverageJson)) {
 process.stdout.write(`\nHTML report: ${REPORTS}/index.html\n`);
 const failedSuites = suiteResults.filter((result) => result.status !== 0);
 if (failedSuites.length > 0) {
-  process.stdout.write(`\nRequired coverage suites failed:\n${failedSuites.map((result) => `  - ${result.label} (exit ${result.status})`).join("\n")}\n`);
+  process.stdout.write(
+    `\nRequired coverage suites failed:\n${failedSuites.map((result) => `  - ${result.label} (exit ${result.status})`).join("\n")}\n`,
+  );
 }
-process.exit(coverageCommandExitStatus(
-  suiteResults.map((result) => result.status),
-  c8Status !== 0 ? c8Status : browserConvertStatus !== 0 ? browserConvertStatus : mergeStatus,
-));
+process.exit(
+  coverageCommandExitStatus(
+    suiteResults.map((result) => result.status),
+    c8Status !== 0 ? c8Status : browserConvertStatus !== 0 ? browserConvertStatus : mergeStatus,
+  ),
+);

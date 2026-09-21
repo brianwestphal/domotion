@@ -44,12 +44,12 @@ await browser.close();
 live page in, a standalone SVG file out.
 
 ```ts
-function launchChromium(opts?: LaunchOptions): Promise<Browser>
+function launchChromium(opts?: LaunchOptions): Promise<Browser>;
 function captureElementTree(
   page: Page,
-  selector?: string,                                       // default "body"
+  selector?: string, // default "body"
   viewport: { x: number; y: number; width: number; height: number },
-): Promise<CapturedElement[]>
+): Promise<CapturedElement[]>;
 function elementTreeToSvg(
   elements: CapturedElement[],
   width: number,
@@ -57,10 +57,10 @@ function elementTreeToSvg(
   opts?: {
     idPrefix?: string;
     includeGlyphDefs?: boolean;
-    hiDPIFactor?: number;            // default 2
+    hiDPIFactor?: number; // default 2
     includeEmbeddedFontCss?: boolean;
   },
-): string
+): string;
 ```
 
 `launchChromium` launches Chromium via Playwright, auto-installing the browser
@@ -92,17 +92,9 @@ Library callers can collect the same source screenshot and raw-tree evidence as
 lifecycle:
 
 ```ts
-import {
-  assembleCaptureDebugBundle,
-  captureElementTreeWithDebug,
-  elementTreeToSvg,
-} from "domotion-svg";
+import { assembleCaptureDebugBundle, captureElementTreeWithDebug, elementTreeToSvg } from "domotion-svg";
 
-const result = await captureElementTreeWithDebug(
-  page,
-  "body",
-  { x: 0, y: 0, width: 800, height: 200 },
-);
+const result = await captureElementTreeWithDebug(page, "body", { x: 0, y: 0, width: 800, height: 200 });
 const actualSvg = elementTreeToSvg(result.tree, 800, 200);
 const bundle = assembleCaptureDebugBundle(result.debug, actualSvg);
 ```
@@ -122,7 +114,7 @@ JSON-config path (`validateAnimateConfig` + `composeAnimateConfig`) that powers
 `domotion animate`.
 
 ```ts
-function generateAnimatedSvg(config: AnimationConfig): string
+function generateAnimatedSvg(config: AnimationConfig): string;
 ```
 
 `generateAnimatedSvg` composes per-frame element trees plus transition / overlay
@@ -150,13 +142,13 @@ For the declarative path, run the same pipeline `domotion animate` uses
 in-process instead of shelling out to the CLI:
 
 ```ts
-function validateAnimateConfig(raw: unknown): AnimateConfig
+function validateAnimateConfig(raw: unknown): AnimateConfig;
 function composeAnimateConfig(
   browser: Browser,
   cfg: AnimateConfig,
   configDirOrOpts?: string | ComposeAnimateOptions,
   log?: (msg: string) => void,
-): Promise<string>
+): Promise<string>;
 ```
 
 `validateAnimateConfig` parses untrusted JSON into a typed, validated
@@ -192,9 +184,9 @@ contract.
 function renderTemplateToSvg<P>(
   template: Template<P>,
   rawParams: unknown,
-  opts?: RenderTemplateOptions,                            // { browser?, log? }
-): Promise<TemplateOutput>                                 // { svg, width, height }
-function listBuiltinTemplates(): string[]
+  opts?: RenderTemplateOptions, // { browser?, log? }
+): Promise<TemplateOutput>; // { svg, width, height }
+function listBuiltinTemplates(): string[];
 ```
 
 `renderTemplateToSvg` validates `rawParams` against the template's schema, then
@@ -205,13 +197,13 @@ Each built-in is a `Template<P>` value (plus its params type) you can pass
 directly to `renderTemplateToSvg`:
 
 ```ts
-const lowerThirdTemplate: Template<LowerThirdParams>
-const deviceMockupTemplate: Template<DeviceMockupParams>
-const backgroundLoopTemplate: Template<BackgroundLoopParams>
-const kineticTextTemplate: Template<KineticTextParams>
-const chartTemplate: Template<ChartParams>
-const chatTemplate: Template<ChatParams>
-const subscribeTemplate: Template<SubscribeParams>
+const lowerThirdTemplate: Template<LowerThirdParams>;
+const deviceMockupTemplate: Template<DeviceMockupParams>;
+const backgroundLoopTemplate: Template<BackgroundLoopParams>;
+const kineticTextTemplate: Template<KineticTextParams>;
+const chartTemplate: Template<ChartParams>;
+const chatTemplate: Template<ChatParams>;
+const subscribeTemplate: Template<SubscribeParams>;
 ```
 
 ```ts
@@ -232,11 +224,7 @@ Turn a recorded terminal session (asciinema v2 `.cast`) into an animated SVG in
 one call.
 
 ```ts
-function castToAnimatedSvg(
-  castText: string,
-  browser: Browser,
-  opts?: TermToSvgOptions,
-): Promise<TermToSvgResult>                                // { svg, width, height, frameCount, totalDurationMs }
+function castToAnimatedSvg(castText: string, browser: Browser, opts?: TermToSvgOptions): Promise<TermToSvgResult>; // { svg, width, height, frameCount, totalDurationMs }
 ```
 
 Parses the cast, emulates it, renders each settle point, and composes to an
@@ -261,7 +249,7 @@ The lower-level cast parser, emulator, and frame builders are in
 Stack already-rendered SVGs (static or animated) into one composite.
 
 ```ts
-function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLayersOptions): CompositeResult
+function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLayersOptions): CompositeResult;
 ```
 
 Each layer is placed at its own `{ x, y, width, height }` and runs on its own
@@ -281,11 +269,11 @@ Wrap a finished capture SVG in a hand-drawn device bezel.
 ```ts
 function wrapInDeviceChrome(
   captureSvg: string,
-  device: DeviceChrome,                                    // "phone" | "browser" | "window"
+  device: DeviceChrome, // "phone" | "browser" | "window"
   screenW: number,
   screenH: number,
-  opts?: DeviceChromeOptions,                              // { label?, theme? }
-): FramedSvg                                               // { svg, width, height }
+  opts?: DeviceChromeOptions, // { label?, theme? }
+): FramedSvg; // { svg, width, height }
 ```
 
 Wraps a capture SVG in a phone body, browser window, or plain app window, and
@@ -306,8 +294,8 @@ The enum constants and type guards behind the `--chrome` flags are in
 Optional post-processing passes that run after rendering.
 
 ```ts
-function optimizeSvg(svg: string): string
-function gzipSvg(svg: string): Buffer
+function optimizeSvg(svg: string): string;
+function gzipSvg(svg: string): Buffer;
 ```
 
 `optimizeSvg` runs an svgo pass to shrink the markup (string in, string out);
@@ -332,8 +320,8 @@ function elementTreeToSvgInner(
   includeGlyphDefs?: boolean,
   hiDPIFactor?: number,
   includeEmbeddedFontCss?: boolean,
-): string
-function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[] }): string
+): string;
+function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[] }): string;
 ```
 
 `elementTreeToSvgInner` renders only the **body markup** (no outer `<svg>`
@@ -347,11 +335,11 @@ root-background rect. (`elementTreeToSvg` is `wrapSvg` ∘ `elementTreeToSvgInne
 ### Text-render mode and fonts {#font-helpers}
 
 ```ts
-type RenderTextMode = "paths" | "embedded-font"
-function setRenderTextMode(mode: RenderTextMode): void
-function getRenderTextMode(): RenderTextMode
-function clearEmbeddedFonts(): void
-function getEmbeddedFontFaceCss(): string
+type RenderTextMode = "paths" | "embedded-font";
+function setRenderTextMode(mode: RenderTextMode): void;
+function getRenderTextMode(): RenderTextMode;
+function clearEmbeddedFonts(): void;
+function getEmbeddedFontFaceCss(): string;
 ```
 
 Domotion defaults to `embedded-font` mode: glyphs are drawn with a subset font
@@ -362,8 +350,14 @@ render each frame with `includeEmbeddedFontCss: false`, then pass the accumulate
 `getEmbeddedFontFaceCss()` into the composer so the font bytes appear once.
 
 ```ts
-function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>): void
-function clearWebfonts(): void
+function registerWebfont(
+  family: string,
+  weight: number,
+  style: string,
+  buffer: Buffer,
+  unicodeRange?: Array<[number, number]>,
+): void;
+function clearWebfonts(): void;
 ```
 
 Register font bytes (a `.ttf`/`.otf`/`.woff` buffer) under a CSS family so the
@@ -371,9 +365,9 @@ renderer draws with the page's actual webfont glyphs instead of a system-font
 substitute. Call `clearWebfonts()` between captures that use different fonts.
 
 ```ts
-function getGlyphDefs(): string
-function clearGlyphDefs(): void
-function acquireGlyphHelper(opts?: AcquireOptions): Promise<string | null>
+function getGlyphDefs(): string;
+function clearGlyphDefs(): void;
+function acquireGlyphHelper(opts?: AcquireOptions): Promise<string | null>;
 ```
 
 `getGlyphDefs()` / `clearGlyphDefs()` manage the shared glyph-path registry used
@@ -390,7 +384,7 @@ function captureElementTreeWithWarnings(
   selector?: string,
   viewport: { x: number; y: number; width: number; height: number },
   opts?: { rasterizeFromImagePath?: string },
-): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }>
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }>;
 ```
 
 The same capture as `captureElementTree`, but returns the warnings inline rather
@@ -400,8 +394,8 @@ concurrently so they don't race on the shared warning buffer.
 ```ts
 function embedRemoteImages(
   tree: CapturedElement[],
-  options?: EmbedRemoteImagesOptions,                      // { warnings?, timeoutMs?, retries?, retryBackoffMs? }
-): Promise<void>
+  options?: EmbedRemoteImagesOptions, // { warnings?, timeoutMs?, retries?, retryBackoffMs? }
+): Promise<void>;
 ```
 
 Fetch every `http(s)` image URL referenced by the captured tree and inline it as
@@ -411,8 +405,8 @@ local files. Mutates the tree in place. Per-URL fetch failures leave the URL as
 is and surface a `remote-image` `CaptureWarning`.
 
 ```ts
-function getLastCaptureWarnings(): CaptureWarning[]
-function logCaptureWarnings(label?: string): void
+function getLastCaptureWarnings(): CaptureWarning[];
+function logCaptureWarnings(label?: string): void;
 ```
 
 `getLastCaptureWarnings()` returns the warnings recorded by the most recent
@@ -420,10 +414,10 @@ capture on this process; `logCaptureWarnings()` prints them to the console under
 an optional label.
 
 ```ts
-function contentBox(page: Page, selector: string, opts?: ContentBoxOptions): Promise<ContentBox>
-function borderBox(page: Page, selector: string, opts?: BorderBoxOptions): Promise<BorderBox>
-function resolveCursorTarget(page: Page, selector: string): Promise<[number, number]>
-function boxAnchorPoint(box: Rect, at?: BoxAnchor, dx?: number, dy?: number): [number, number]
+function contentBox(page: Page, selector: string, opts?: ContentBoxOptions): Promise<ContentBox>;
+function borderBox(page: Page, selector: string, opts?: BorderBoxOptions): Promise<BorderBox>;
+function resolveCursorTarget(page: Page, selector: string): Promise<[number, number]>;
+function boxAnchorPoint(box: Rect, at?: BoxAnchor, dx?: number, dy?: number): [number, number];
 ```
 
 Measure where things actually sit on a live page so imperative overlays land
@@ -435,14 +429,14 @@ anchor (`"top-left"`, `"center"`, …) on a rect, with optional pixel offsets.
 
 ```ts
 class DemoRecorder {
-  constructor(baseUrl: string, opts: CaptureOptions)
-  init(opts: CaptureOptions): Promise<void>
-  captureUrl(path: string, waitMs?: number, idPrefix?: string): Promise<string>
-  captureCurrent(idPrefix?: string): Promise<string>
-  captureFullPage(idPrefix?: string): Promise<{ svgContent: string; pageHeight: number }>
-  getPage(): Page
-  getBoundingBox(selector: string): Promise<{ x: number; y: number; width: number; height: number } | null>
-  close(): Promise<void>
+  constructor(baseUrl: string, opts: CaptureOptions);
+  init(opts: CaptureOptions): Promise<void>;
+  captureUrl(path: string, waitMs?: number, idPrefix?: string): Promise<string>;
+  captureCurrent(idPrefix?: string): Promise<string>;
+  captureFullPage(idPrefix?: string): Promise<{ svgContent: string; pageHeight: number }>;
+  getPage(): Page;
+  getBoundingBox(selector: string): Promise<{ x: number; y: number; width: number; height: number } | null>;
+  close(): Promise<void>;
 }
 ```
 
@@ -479,7 +473,7 @@ function buildMagicMove(
   nextTree: CapturedElement | CapturedElement[],
   render: (roots: CapturedElement[], idPrefix: string) => string,
   idPrefix: string,
-): MagicMove | null
+): MagicMove | null;
 ```
 
 Build the magic-move bridge layer between two captured trees: matched elements
@@ -490,8 +484,8 @@ field and set its `transition.type` to `"magic-move"`. `render` is a thin
 `elementTreeToSvg`-style wrapper, injected to keep the module renderer-agnostic.
 
 ```ts
-function namespaceEmbeddedAnimatedSvg(svg: string, token: string, opts?: NamespaceEmbedOptions): string
-function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimelineOptions): string
+function namespaceEmbeddedAnimatedSvg(svg: string, token: string, opts?: NamespaceEmbedOptions): string;
+function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimelineOptions): string;
 ```
 
 The lower-level nesting primitives `composeAnimatedLayers` is built on, exposed
@@ -517,7 +511,10 @@ an individual cursor glyph (`cursorGlyphSvg`, plus the `CURSOR_GLYPHS` /
 `AnimationConfig.cursorOverlay`.
 
 ```ts
-function resolveOverlays(page: Page, overlays: AnchoredOverlay[]): Promise<(TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay)[]>
+function resolveOverlays(
+  page: Page,
+  overlays: AnchoredOverlay[],
+): Promise<(TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay)[]>;
 ```
 
 Lower selector-anchored overlays into concrete-coordinate overlays against a
@@ -532,7 +529,7 @@ and the [Animate config reference](/domotion/developer/reference/animate-config-
 for the schema.
 
 ```ts
-function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig
+function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig;
 ```
 
 Resolve `${vars}` placeholders across every string field of a config and return
@@ -544,7 +541,7 @@ function composeAnimateFrames(
   cfg: AnimateConfig,
   configDirOrOpts?: string | ComposeAnimateOptions,
   log?: (msg: string) => void,
-): Promise<AnimationConfig>
+): Promise<AnimationConfig>;
 ```
 
 Capture and compose every frame (anchors, actions, cursor `auto`, vars) into the
@@ -555,7 +552,7 @@ accepts either a `configDir` string or a `ComposeAnimateOptions` object
 `input` / SVG-overlay `src` paths and defaults to `process.cwd()`.
 
 ```ts
-function runActions(page: Page, actions: AnimateAction[], log?: (msg: string) => void): Promise<void>
+function runActions(page: Page, actions: AnimateAction[], log?: (msg: string) => void): Promise<void>;
 ```
 
 Apply the declarative action vocabulary (`click` / `fill` / `setText` /
@@ -570,9 +567,13 @@ Capture a tall page and animate it scrolling through a fixed viewport, driven by
 a small pattern language.
 
 ```ts
-function parseScrollPattern(source: string): ScrollPattern
-function executeScrollPattern(page: Page, pattern: ScrollPattern, opts: ScrollExecutorOptions): Promise<ScrollSegmentCapture[]>
-function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollComposerOptions): string
+function parseScrollPattern(source: string): ScrollPattern;
+function executeScrollPattern(
+  page: Page,
+  pattern: ScrollPattern,
+  opts: ScrollExecutorOptions,
+): Promise<ScrollSegmentCapture[]>;
+function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollComposerOptions): string;
 class ScrollPatternError extends Error {}
 class ScrollExecutionError extends Error {}
 ```
@@ -591,11 +592,7 @@ const svg = composeScrollSvg(segments, { viewportW: 1024, viewportH: 768, axis: 
 ### Terminal internals {#terminal-internals}
 
 ```ts
-function castToTermFrames(
-  castText: string,
-  browser: Browser,
-  opts?: TermToSvgOptions,
-): Promise<TermFramesResult>                               // { frames, width, height, totalDurationMs, fontFaceCss }
+function castToTermFrames(castText: string, browser: Browser, opts?: TermToSvgOptions): Promise<TermFramesResult>; // { frames, width, height, totalDurationMs, fontFaceCss }
 ```
 
 The **frames-out** half of `castToAnimatedSvg` — returns the individual
@@ -603,14 +600,16 @@ The **frames-out** half of `castToAnimatedSvg` — returns the individual
 with other frames before calling `generateAnimatedSvg` yourself.
 
 ```ts
-function parseCast(castText: string): ParsedCast
-class TerminalEmulator { constructor(cols: number, rows: number, theme: TerminalTheme); /* ... */ }
-function buildFrames(emu: TerminalEmulator, events, opts, resizes): Promise<TermFrame[]>
-function gridToHtml(grid: TermGrid, opts?: HtmlRenderOptions): string
-function gridSignature(grid: TermGrid): string
-const THEMES: Record<string, TerminalTheme>
-function resolveThemeSpec(spec?: string | TerminalThemeSpec): TerminalTheme
-function xterm256ToHex(index: number): string
+function parseCast(castText: string): ParsedCast;
+class TerminalEmulator {
+  constructor(cols: number, rows: number, theme: TerminalTheme); /* ... */
+}
+function buildFrames(emu: TerminalEmulator, events, opts, resizes): Promise<TermFrame[]>;
+function gridToHtml(grid: TermGrid, opts?: HtmlRenderOptions): string;
+function gridSignature(grid: TermGrid): string;
+const THEMES: Record<string, TerminalTheme>;
+function resolveThemeSpec(spec?: string | TerminalThemeSpec): TerminalTheme;
+function xterm256ToHex(index: number): string;
 ```
 
 `parseCast` reads the asciinema header + output events; `TerminalEmulator` +
@@ -622,10 +621,10 @@ themes and 256-color → hex conversion.
 ### Device-chrome internals {#device-chrome-internals}
 
 ```ts
-const DEVICE_CHROMES: readonly ["phone", "browser", "window"]
-const CHROME_THEMES: readonly ["dark", "light"]
-function isDeviceChrome(value: string): value is DeviceChrome
-function isChromeTheme(value: string): value is ChromeTheme
+const DEVICE_CHROMES: readonly ["phone", "browser", "window"];
+const CHROME_THEMES: readonly ["dark", "light"];
+function isDeviceChrome(value: string): value is DeviceChrome;
+function isChromeTheme(value: string): value is ChromeTheme;
 ```
 
 The enumerations the CLI's `--chrome` / `--chrome-theme` flags validate against,
@@ -634,11 +633,11 @@ with their runtime type guards.
 ### Template helpers {#template-helpers}
 
 ```ts
-function loadTemplate(name: string): Promise<Template<unknown>>
-function getBuiltinTemplate(name: string): Template<unknown> | undefined
-function templatePackageName(name: string): string
-function isTemplate(value: unknown): value is Template<unknown>
-function validateTemplateParams<P>(template: Template<P>, raw: unknown): P
+function loadTemplate(name: string): Promise<Template<unknown>>;
+function getBuiltinTemplate(name: string): Template<unknown> | undefined;
+function templatePackageName(name: string): string;
+function isTemplate(value: unknown): value is Template<unknown>;
+function validateTemplateParams<P>(template: Template<P>, raw: unknown): P;
 ```
 
 `loadTemplate` resolves a built-in by name or a published
@@ -649,8 +648,8 @@ template's schema (with defaults) to raw params. (`listBuiltinTemplates`, which
 enumerates the built-ins, is in [Common tasks](#generate-from-a-template).)
 
 ```ts
-function templateParamsJsonSchema(template: Template<unknown>): object
-function describeTemplateParams(template: Template<unknown>): ParamInfo[]
+function templateParamsJsonSchema(template: Template<unknown>): object;
+function describeTemplateParams(template: Template<unknown>): ParamInfo[];
 ```
 
 Surface a template's parameters as a JSON Schema, or as a flat `ParamInfo[]`

@@ -3,11 +3,11 @@ id: "requirements/mathml-italic-token-oracle"
 title: "MathML italic-token logical oracle"
 kind: "evidence"
 status: "current"
-owners: ["text-fonts","platform-release"]
+owners: ["text-fonts", "platform-release"]
 platforms: ["linux"]
-tickets: ["DM-2441","DM-2511","DM-2512"]
-code: ["src/capture/script/walker/text-segments.ts","src/capture/types.ts","tests/mathml-italic-token.e2e.test.ts"]
-aliases: ["docs/152-mathml-italic-token-oracle.md","doc-152"]
+tickets: ["DM-2441", "DM-2511", "DM-2512"]
+code: ["src/capture/script/walker/text-segments.ts", "src/capture/types.ts", "tests/mathml-italic-token.e2e.test.ts"]
+aliases: ["docs/152-mathml-italic-token-oracle.md", "doc-152"]
 ---
 
 # MathML italic-token logical oracle

@@ -416,7 +416,9 @@ function htmlFor(test: AuditCase, cssZoom = 1): string {
 }
 
 async function settle(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
 }
 
 async function mutate(page: Page, mutation: AuditCase["mutation"]): Promise<void> {
@@ -474,11 +476,41 @@ async function browserFacts(page: Page): Promise<BrowserFacts> {
       layoutGutter: { vertical, horizontal },
       platformMode: vertical > 0 || horizontal > 0 ? "classic-layout" : "overlay-or-suppressed",
       pseudos: {
-        scrollbar: { display: scrollbar.display, width: scrollbar.width, height: scrollbar.height, backgroundColor: scrollbar.backgroundColor, border: scrollbar.border },
-        track: { display: track.display, width: track.width, height: track.height, backgroundColor: track.backgroundColor, border: track.border },
-        thumb: { display: thumb.display, width: thumb.width, height: thumb.height, backgroundColor: thumb.backgroundColor, border: thumb.border },
-        corner: { display: corner.display, width: corner.width, height: corner.height, backgroundColor: corner.backgroundColor, border: corner.border },
-        button: { display: button.display, width: button.width, height: button.height, backgroundColor: button.backgroundColor, border: button.border },
+        scrollbar: {
+          display: scrollbar.display,
+          width: scrollbar.width,
+          height: scrollbar.height,
+          backgroundColor: scrollbar.backgroundColor,
+          border: scrollbar.border,
+        },
+        track: {
+          display: track.display,
+          width: track.width,
+          height: track.height,
+          backgroundColor: track.backgroundColor,
+          border: track.border,
+        },
+        thumb: {
+          display: thumb.display,
+          width: thumb.width,
+          height: thumb.height,
+          backgroundColor: thumb.backgroundColor,
+          border: thumb.border,
+        },
+        corner: {
+          display: corner.display,
+          width: corner.width,
+          height: corner.height,
+          backgroundColor: corner.backgroundColor,
+          border: corner.border,
+        },
+        button: {
+          display: button.display,
+          width: button.width,
+          height: button.height,
+          backgroundColor: button.backgroundColor,
+          border: button.border,
+        },
       },
     };
   });
@@ -490,10 +522,14 @@ function findCapturedScroller(elements: CapturedElement[]): CapturedElement | nu
     // The fixture target is the only bordered descendant.  Selecting by
     // overflow would accidentally choose the ancestor clip in the clip row and
     // would make the overflow:visible negative disappear from capture facts.
-    if (element.width <= TARGET_SIZE.width * MAX_AUDIT_ZOOM
-        && element.height <= TARGET_SIZE.height * MAX_AUDIT_ZOOM
-        && [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth]
-          .some((width) => (parseFloat(width ?? "0") || 0) > 0)) return element;
+    if (
+      element.width <= TARGET_SIZE.width * MAX_AUDIT_ZOOM &&
+      element.height <= TARGET_SIZE.height * MAX_AUDIT_ZOOM &&
+      [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].some(
+        (width) => (parseFloat(width ?? "0") || 0) > 0,
+      )
+    )
+      return element;
     const child = findCapturedScroller(element.children ?? []);
     if (child != null) return child;
   }
@@ -545,16 +581,22 @@ function capturedFacts(element: CapturedElement | null): CapturedFacts | null {
     nativeCornerRaster: capturedNativeRasterFacts(scrollbars?.nativeCornerRaster),
     corner: scrollbars?.corner?.rect ?? null,
     outputTransform: scrollbars?.outputTransform.matrix ?? null,
-    resizeHandle: element.resizeHandle == null ? null : {
-      x: element.resizeHandle.x,
-      y: element.resizeHandle.y,
-      width: element.resizeHandle.width,
-      height: element.resizeHandle.height,
-    },
-    resizerOverlap: scrollbars?.resizerOverlap == null ? null : {
-      rect: scrollbars.resizerOverlap.rect,
-      paintOrder: scrollbars.resizerOverlap.paintOrder,
-    },
+    resizeHandle:
+      element.resizeHandle == null
+        ? null
+        : {
+            x: element.resizeHandle.x,
+            y: element.resizeHandle.y,
+            width: element.resizeHandle.width,
+            height: element.resizeHandle.height,
+          },
+    resizerOverlap:
+      scrollbars?.resizerOverlap == null
+        ? null
+        : {
+            rect: scrollbars.resizerOverlap.rect,
+            paintOrder: scrollbars.resizerOverlap.paintOrder,
+          },
     missingFacts: scrollbars?.missingFacts ?? [],
   };
 }
@@ -669,10 +711,7 @@ function countGenericThumbs(svg: string): number {
   return [...svg.matchAll(/<rect\b[^>]*\bfill="rgba\(0,0,0,0\.40\)"[^>]*>/g)].length;
 }
 
-function markerBoundsMatchWithinOneDevicePixel(
-  source: PixelFacts,
-  generated: PixelFacts,
-): boolean {
+function markerBoundsMatchWithinOneDevicePixel(source: PixelFacts, generated: PixelFacts): boolean {
   return MARKERS.every(({ name }) => {
     const expected = source.markers[name];
     const actual = generated.markers[name];
@@ -682,14 +721,16 @@ function markerBoundsMatchWithinOneDevicePixel(
 }
 
 function rasterFactsAreAuthenticated(facts: NativeRasterFacts | null, dpr: number): boolean {
-  return facts != null
-    && facts.empty === false
-    && facts.captureDpr === dpr
-    && facts.pixelWidth === Math.round(facts.width * dpr)
-    && facts.pixelHeight === Math.round(facts.height * dpr)
-    && /^[a-f0-9]{64}$/.test(facts.sourceFrameSha256)
-    && facts.cropSha256 != null
-    && /^[a-f0-9]{64}$/.test(facts.cropSha256);
+  return (
+    facts != null &&
+    facts.empty === false &&
+    facts.captureDpr === dpr &&
+    facts.pixelWidth === Math.round(facts.width * dpr) &&
+    facts.pixelHeight === Math.round(facts.height * dpr) &&
+    /^[a-f0-9]{64}$/.test(facts.sourceFrameSha256) &&
+    facts.cropSha256 != null &&
+    /^[a-f0-9]{64}$/.test(facts.cropSha256)
+  );
 }
 
 async function nativeOwnedPixelsMatchExactly(
@@ -699,11 +740,9 @@ async function nativeOwnedPixelsMatchExactly(
   dpr: number,
 ): Promise<boolean> {
   if (captured == null) return false;
-  const rasters = [
-    captured.horizontalNativeRaster,
-    captured.verticalNativeRaster,
-    captured.nativeCornerRaster,
-  ].filter((raster): raster is NativeRasterFacts => raster != null && raster.empty === false);
+  const rasters = [captured.horizontalNativeRaster, captured.verticalNativeRaster, captured.nativeCornerRaster].filter(
+    (raster): raster is NativeRasterFacts => raster != null && raster.empty === false,
+  );
   if (rasters.length === 0) return false;
   for (const raster of rasters) {
     const region = {
@@ -723,49 +762,54 @@ async function nativeOwnedPixelsMatchExactly(
 
 function rowPass(row: Omit<AuditRow, "pass">): boolean {
   if (row.expectedRoute === "marker-free-control") {
-    return row.sourcePixels.markerPixels === 0
-      && row.generatedPixels.markerPixels === 0
-      && row.generatedGenericThumbs === 0;
+    return (
+      row.sourcePixels.markerPixels === 0 && row.generatedPixels.markerPixels === 0 && row.generatedGenericThumbs === 0
+    );
   }
   if (row.expectedRoute === "custom-vector") {
-    return row.sourcePixels.markerPixels >= 120
-      && row.generatedPixels.markerPixels >= 120
-      && row.sourcePixels.markers.track != null
+    return (
+      row.sourcePixels.markerPixels >= 120 &&
+      row.generatedPixels.markerPixels >= 120 &&
+      row.sourcePixels.markers.track != null &&
       // overflow:scroll creates disabled track chrome even when there is no
       // scroll range; Blink correctly has no thumb in that activation row.
-      && (row.id === "custom-scroll-no-overflow" || row.sourcePixels.markers.thumb != null)
-      && markerBoundsMatchWithinOneDevicePixel(row.sourcePixels, row.generatedPixels)
-      && row.generatedGenericThumbs === 0
-      && row.warnings.length === 0
-      && row.captured?.scrollbarStatus === "captured"
-      && row.captured.missingFacts.length === 0
-      && [row.captured.horizontalRoute, row.captured.verticalRoute].includes("author-custom")
-      && (row.id !== "custom-resizer-overlap" || (
-        row.sourcePixels.markers.resizer != null
-        && row.generatedPixels.markers.resizer != null
-        && row.captured.resizeHandle != null
-        && row.captured.resizerOverlap?.paintOrder === "corner-before-resizer"
-      ));
+      (row.id === "custom-scroll-no-overflow" || row.sourcePixels.markers.thumb != null) &&
+      markerBoundsMatchWithinOneDevicePixel(row.sourcePixels, row.generatedPixels) &&
+      row.generatedGenericThumbs === 0 &&
+      row.warnings.length === 0 &&
+      row.captured?.scrollbarStatus === "captured" &&
+      row.captured.missingFacts.length === 0 &&
+      [row.captured.horizontalRoute, row.captured.verticalRoute].includes("author-custom") &&
+      (row.id !== "custom-resizer-overlap" ||
+        (row.sourcePixels.markers.resizer != null &&
+          row.generatedPixels.markers.resizer != null &&
+          row.captured.resizeHandle != null &&
+          row.captured.resizerOverlap?.paintOrder === "corner-before-resizer"))
+    );
   }
   if (row.expectedRoute === "suppressed-captured-absence") {
-    return row.sourcePixels.markerPixels === 0
-      && row.generatedPixels.markerPixels === 0
-      && row.generatedGenericThumbs === 0
-      && row.warnings.length === 0
-      && row.captured?.scrollbarStatus === "absent"
-      && row.captured.missingFacts.length === 0;
+    return (
+      row.sourcePixels.markerPixels === 0 &&
+      row.generatedPixels.markerPixels === 0 &&
+      row.generatedGenericThumbs === 0 &&
+      row.warnings.length === 0 &&
+      row.captured?.scrollbarStatus === "absent" &&
+      row.captured.missingFacts.length === 0
+    );
   }
   if (row.expectedRoute === "native-raster") {
-    return row.nativeOwnedPixelsExact === true
-      && row.generatedGenericThumbs === 0
-      && row.warnings.length === 0
-      && row.captured?.scrollbarStatus === "captured"
-      && row.captured.missingFacts.length === 0
-      && row.captured.horizontalRoute === "native-raster"
-      && row.captured.verticalRoute === "native-raster"
-      && rasterFactsAreAuthenticated(row.captured.horizontalNativeRaster, row.deviceScaleFactor)
-      && rasterFactsAreAuthenticated(row.captured.verticalNativeRaster, row.deviceScaleFactor)
-      && JSON.stringify(row.captured.outputTransform) === "[1,0,0,1,0,0]";
+    return (
+      row.nativeOwnedPixelsExact === true &&
+      row.generatedGenericThumbs === 0 &&
+      row.warnings.length === 0 &&
+      row.captured?.scrollbarStatus === "captured" &&
+      row.captured.missingFacts.length === 0 &&
+      row.captured.horizontalRoute === "native-raster" &&
+      row.captured.verticalRoute === "native-raster" &&
+      rasterFactsAreAuthenticated(row.captured.horizontalNativeRaster, row.deviceScaleFactor) &&
+      rasterFactsAreAuthenticated(row.captured.verticalNativeRaster, row.deviceScaleFactor) &&
+      JSON.stringify(row.captured.outputTransform) === "[1,0,0,1,0,0]"
+    );
   }
   // This route is deliberately observation-only and can never turn the
   // producer green. Dynamic platform fade evidence remains separate from the
@@ -786,20 +830,19 @@ function cssBounds(bounds: Bounds | null, dpr: number): Bounds | null {
 
 function boundDelta(a: Bounds | null, b: Bounds | null): number | null {
   if (a == null || b == null) return null;
-  return Math.max(
-    Math.abs(a.x - b.x), Math.abs(a.y - b.y),
-    Math.abs(a.width - b.width), Math.abs(a.height - b.height),
-  );
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.width - b.width), Math.abs(a.height - b.height));
 }
 
 function ownershipControls(rows: readonly AuditRow[]): Record<string, boolean> {
-  const row = (id: string, dpr = 1, cssZoom?: number) => rows.find((candidate) => (
-    candidate.id === id && candidate.deviceScaleFactor === dpr
-    && (cssZoom == null || candidate.cssZoom === cssZoom)
-  ));
-  const thumb = (arm: "sourcePixels" | "generatedPixels", id: string, dpr = 1) => (
-    row(id, dpr)?.[arm].markers.thumb ?? null
-  );
+  const row = (id: string, dpr = 1, cssZoom?: number) =>
+    rows.find(
+      (candidate) =>
+        candidate.id === id &&
+        candidate.deviceScaleFactor === dpr &&
+        (cssZoom == null || candidate.cssZoom === cssZoom),
+    );
+  const thumb = (arm: "sourcePixels" | "generatedPixels", id: string, dpr = 1) =>
+    row(id, dpr)?.[arm].markers.thumb ?? null;
   const sourceTop = thumb("sourcePixels", "custom-y-top");
   const sourceMid = thumb("sourcePixels", "custom-y-mid");
   const sourceMax = thumb("sourcePixels", "custom-y-max");
@@ -832,60 +875,80 @@ function ownershipControls(rows: readonly AuditRow[]): Record<string, boolean> {
     everyCustomRouteIsDiscriminated: rows
       .filter((candidate) => candidate.expectedRoute === "custom-vector")
       .every((candidate) => rowPass(candidate)),
-    everyNativeRasterIsSourceExact: nativeRows.length > 0
-      && nativeRows.every((candidate) => rowPass(candidate)),
+    everyNativeRasterIsSourceExact: nativeRows.length > 0 && nativeRows.every((candidate) => rowPass(candidate)),
     hiddenWidthCapturesExplicitAbsence: rows
       .filter((candidate) => candidate.id === "width-none-scrolled")
       .every((candidate) => rowPass(candidate)),
     sourceAndGeneratedThumbMoveTopMidMax:
-      sourceTop != null && sourceMid != null && sourceMax != null
-      && generatedTop != null && generatedMid != null && generatedMax != null
-      && capturedTop != null && capturedMid != null && capturedMax != null
-      && sourceTop.y < sourceMid.y && sourceMid.y < sourceMax.y
-      && generatedTop.y < generatedMid.y && generatedMid.y < generatedMax.y
-      && capturedTop < capturedMid && capturedMid < capturedMax,
+      sourceTop != null &&
+      sourceMid != null &&
+      sourceMax != null &&
+      generatedTop != null &&
+      generatedMid != null &&
+      generatedMax != null &&
+      capturedTop != null &&
+      capturedMid != null &&
+      capturedMax != null &&
+      sourceTop.y < sourceMid.y &&
+      sourceMid.y < sourceMax.y &&
+      generatedTop.y < generatedMid.y &&
+      generatedMid.y < generatedMax.y &&
+      capturedTop < capturedMid &&
+      capturedMid < capturedMax,
     horizontalAndVerticalAxesDiffer:
-      sourceHorizontal != null && sourceMid != null
-      && generatedHorizontal != null && generatedMid != null
-      && sourceHorizontal.width > sourceHorizontal.height && sourceMid.height > sourceMid.width
-      && generatedHorizontal.width > generatedHorizontal.height && generatedMid.height > generatedMid.width
-      && capturedHorizontal?.horizontalPosition != null
-      && capturedHorizontal.verticalPosition == null
-      && capturedVertical?.horizontalPosition == null
-      && capturedVertical?.verticalPosition != null,
+      sourceHorizontal != null &&
+      sourceMid != null &&
+      generatedHorizontal != null &&
+      generatedMid != null &&
+      sourceHorizontal.width > sourceHorizontal.height &&
+      sourceMid.height > sourceMid.width &&
+      generatedHorizontal.width > generatedHorizontal.height &&
+      generatedMid.height > generatedMid.width &&
+      capturedHorizontal?.horizontalPosition != null &&
+      capturedHorizontal.verticalPosition == null &&
+      capturedVertical?.horizontalPosition == null &&
+      capturedVertical?.verticalPosition != null,
     rtlMovesVerticalChromeToLogicalLeft:
-      sourceMid != null && sourceRtl != null && generatedMid != null && generatedRtl != null
-      && sourceRtl.x + 40 < sourceMid.x && generatedRtl.x + 40 < generatedMid.x
-      && row("custom-rtl-logical-left")?.captured?.verticalLogicalSide === "left",
+      sourceMid != null &&
+      sourceRtl != null &&
+      generatedMid != null &&
+      generatedRtl != null &&
+      sourceRtl.x + 40 < sourceMid.x &&
+      generatedRtl.x + 40 < generatedMid.x &&
+      row("custom-rtl-logical-left")?.captured?.verticalLogicalSide === "left",
     bothAxesOwnCorner:
-      (both?.sourcePixels.markers.corner?.pixels ?? 0) > 20
-      && (both?.generatedPixels.markers.corner?.pixels ?? 0) > 20
-      && both?.captured?.horizontalRoute === "author-custom"
-      && both.captured.verticalRoute === "author-custom"
-      && both.captured.corner != null,
+      (both?.sourcePixels.markers.corner?.pixels ?? 0) > 20 &&
+      (both?.generatedPixels.markers.corner?.pixels ?? 0) > 20 &&
+      both?.captured?.horizontalRoute === "author-custom" &&
+      both.captured.verticalRoute === "author-custom" &&
+      both.captured.corner != null,
     resizerPaintsAfterOwnedCorner:
-      resizer?.sourcePixels.markers.resizer != null
-      && resizer.generatedPixels.markers.resizer != null
-      && resizer.captured?.resizeHandle != null
-      && resizer.captured.corner != null
-      && resizer.captured.resizerOverlap?.paintOrder === "corner-before-resizer",
+      resizer?.sourcePixels.markers.resizer != null &&
+      resizer.generatedPixels.markers.resizer != null &&
+      resizer.captured?.resizeHandle != null &&
+      resizer.captured.corner != null &&
+      resizer.captured.resizerOverlap?.paintOrder === "corner-before-resizer",
     verticalWritingRecorded: row("custom-vertical-writing")?.source.writingMode === "vertical-rl",
-    borderClipContainsChrome: clippedTrack != null && clipRect != null
-      && clippedTrack.x >= Math.floor(clipRect.x)
-      && clippedTrack.y >= Math.floor(clipRect.y)
-      && clippedTrack.x + clippedTrack.width <= Math.ceil(clipRect.x + clipRect.width)
-      && clippedTrack.y + clippedTrack.height <= Math.ceil(clipRect.y + clipRect.height),
+    borderClipContainsChrome:
+      clippedTrack != null &&
+      clipRect != null &&
+      clippedTrack.x >= Math.floor(clipRect.x) &&
+      clippedTrack.y >= Math.floor(clipRect.y) &&
+      clippedTrack.x + clippedTrack.width <= Math.ceil(clipRect.x + clipRect.width) &&
+      clippedTrack.y + clippedTrack.height <= Math.ceil(clipRect.y + clipRect.height),
     zoomChangesPhysicalBox: (row("custom-zoom-125", 1, 1.25)?.source.rect.width ?? 0) > 190,
     dprGeometryStableWithinOneCssPixel: (boundDelta(dpr1, dpr2) ?? Number.POSITIVE_INFINITY) <= 1,
-    lightDarkSchemesRecorded: row("native-auto-light")?.source.colorScheme === "light"
-      && row("native-auto-dark")?.source.colorScheme === "dark",
+    lightDarkSchemesRecorded:
+      row("native-auto-light")?.source.colorScheme === "light" &&
+      row("native-auto-dark")?.source.colorScheme === "dark",
     darkSurfaceChangesNativeInk:
-      row("native-auto-light")?.sourcePixels.edges.right.topColors[0]?.rgb != null
-      && row("native-auto-dark")?.sourcePixels.edges.right.topColors[0]?.rgb != null
-      && row("native-auto-light")!.sourcePixels.edges.right.topColors[0].rgb
-        !== row("native-auto-dark")!.sourcePixels.edges.right.topColors[0].rgb,
-    standardWidthAndColorRecorded: row("native-thin-colors")?.source.scrollbarWidth === "thin"
-      && row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)"),
+      row("native-auto-light")?.sourcePixels.edges.right.topColors[0]?.rgb != null &&
+      row("native-auto-dark")?.sourcePixels.edges.right.topColors[0]?.rgb != null &&
+      row("native-auto-light")!.sourcePixels.edges.right.topColors[0].rgb !==
+        row("native-auto-dark")!.sourcePixels.edges.right.topColors[0].rgb,
+    standardWidthAndColorRecorded:
+      row("native-thin-colors")?.source.scrollbarWidth === "thin" &&
+      row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)"),
     captureContractCarriesOwnershipFacts: rows.every((candidate) => {
       if (candidate.captured == null) return false;
       if (candidate.expectedRoute === "marker-free-control") return true;
@@ -901,9 +964,7 @@ function activeMutationControls(rows: readonly AuditRow[]): Record<string, boole
     if (target != null) callback(target);
     return copy;
   };
-  const controlsAfter = (id: string, callback: (row: AuditRow) => void) => (
-    ownershipControls(mutate(id, callback))
-  );
+  const controlsAfter = (id: string, callback: (row: AuditRow) => void) => ownershipControls(mutate(id, callback));
   return {
     frozenTopMidMaxRejected: !controlsAfter("custom-y-max", (target) => {
       const mid = rows.find((candidate) => candidate.id === "custom-y-mid" && candidate.deviceScaleFactor === 1);
@@ -1003,66 +1064,72 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
     for (const test of CASES) {
       for (const deviceScaleFactor of options.deviceScaleFactors ?? test.dprs ?? [1]) {
         for (const cssZoom of options.cssZooms ?? [test.id === "custom-zoom-125" ? 1.25 : 1]) {
-        const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
-        const generatedContext = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
-        const page = await context.newPage();
-        const generatedPage = await generatedContext.newPage();
-        try {
-          await page.setContent(htmlFor(test, cssZoom), { waitUntil: "load" });
-          await mutate(page, test.mutation);
-          const source = await browserFacts(page);
-          const sourcePng = await page.screenshot({ type: "png" });
-          const { tree, warnings } = await captureElementTreeWithWarnings(
-            page, "#scene", { x: 0, y: 0, ...VIEWPORT },
-          );
-          const captured = capturedFacts(findCapturedScroller(tree));
-          const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
-          await generatedPage.setContent(
-            `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
-            { waitUntil: "load" },
-          );
-          await settle(generatedPage);
-          const generatedPng = await generatedPage.screenshot({ type: "png" });
-          const nativeOwnedPixelsExact = test.expectedRoute === "native-raster"
-            ? await nativeOwnedPixelsMatchExactly(sourcePng, generatedPng, captured, deviceScaleFactor)
-            : null;
-          const artifacts: AuditRow["artifacts"] = [];
-          if (options.artifactDir != null) {
-            mkdirSync(options.artifactDir, { recursive: true });
-            for (const [role, bytes] of [["source", sourcePng], ["generated", generatedPng]] as const) {
-              const filename = `${test.id}-dpr${deviceScaleFactor}-zoom${cssZoom}-${role}.png`;
-              const path = join(options.artifactDir, filename);
-              writeFileSync(path, bytes);
-              const metadata = await sharp(bytes).metadata();
-              artifacts.push({
-                role,
-                path: options.reportDir == null ? filename : relative(options.reportDir, path),
-                sha256: sha256(bytes),
-                pngWidth: metadata.width!,
-                pngHeight: metadata.height!,
-              });
+          const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
+          const generatedContext = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
+          const page = await context.newPage();
+          const generatedPage = await generatedContext.newPage();
+          try {
+            await page.setContent(htmlFor(test, cssZoom), { waitUntil: "load" });
+            await mutate(page, test.mutation);
+            const source = await browserFacts(page);
+            const sourcePng = await page.screenshot({ type: "png" });
+            const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", {
+              x: 0,
+              y: 0,
+              ...VIEWPORT,
+            });
+            const captured = capturedFacts(findCapturedScroller(tree));
+            const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
+            await generatedPage.setContent(
+              `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
+              { waitUntil: "load" },
+            );
+            await settle(generatedPage);
+            const generatedPng = await generatedPage.screenshot({ type: "png" });
+            const nativeOwnedPixelsExact =
+              test.expectedRoute === "native-raster"
+                ? await nativeOwnedPixelsMatchExactly(sourcePng, generatedPng, captured, deviceScaleFactor)
+                : null;
+            const artifacts: AuditRow["artifacts"] = [];
+            if (options.artifactDir != null) {
+              mkdirSync(options.artifactDir, { recursive: true });
+              for (const [role, bytes] of [
+                ["source", sourcePng],
+                ["generated", generatedPng],
+              ] as const) {
+                const filename = `${test.id}-dpr${deviceScaleFactor}-zoom${cssZoom}-${role}.png`;
+                const path = join(options.artifactDir, filename);
+                writeFileSync(path, bytes);
+                const metadata = await sharp(bytes).metadata();
+                artifacts.push({
+                  role,
+                  path: options.reportDir == null ? filename : relative(options.reportDir, path),
+                  sha256: sha256(bytes),
+                  pngWidth: metadata.width!,
+                  pngHeight: metadata.height!,
+                });
+              }
             }
+            const base = {
+              id: test.id,
+              axis: test.axis,
+              expectedRoute: test.expectedRoute,
+              deviceScaleFactor,
+              cssZoom,
+              source,
+              captured,
+              sourcePixels: await pixelFacts(sourcePng, source, deviceScaleFactor),
+              generatedPixels: await pixelFacts(generatedPng, source, deviceScaleFactor),
+              nativeOwnedPixelsExact,
+              generatedGenericThumbs: countGenericThumbs(svg),
+              artifacts,
+              warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
+            };
+            rows.push({ ...base, pass: rowPass(base) });
+          } finally {
+            await context.close();
+            await generatedContext.close();
           }
-          const base = {
-            id: test.id,
-            axis: test.axis,
-            expectedRoute: test.expectedRoute,
-            deviceScaleFactor,
-            cssZoom,
-            source,
-            captured,
-            sourcePixels: await pixelFacts(sourcePng, source, deviceScaleFactor),
-            generatedPixels: await pixelFacts(generatedPng, source, deviceScaleFactor),
-            nativeOwnedPixelsExact,
-            generatedGenericThumbs: countGenericThumbs(svg),
-            artifacts,
-            warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
-          };
-          rows.push({ ...base, pass: rowPass(base) });
-        } finally {
-          await context.close();
-          await generatedContext.close();
-        }
         }
       }
     }
@@ -1094,10 +1161,12 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
     cssZoom: row.cssZoom,
     captured: row.captured,
   }));
-  const artifactManifest = rows.flatMap((row) => row.artifacts.map((artifact) => ({
-    row: `${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}`,
-    ...artifact,
-  })));
+  const artifactManifest = rows.flatMap((row) =>
+    row.artifacts.map((artifact) => ({
+      row: `${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}`,
+      ...artifact,
+    })),
+  );
   return {
     schemaVersion: 2,
     evidenceRole: options.evidenceRole ?? "local",
@@ -1136,16 +1205,20 @@ async function main(): Promise<number> {
   const artifactDir = value("--artifacts");
   const bootIdPath = value("--boot-id");
   const runnerImagePath = value("--runner-image");
-  const provenance = role == null ? undefined : {
-    githubRunId: process.env.GITHUB_RUN_ID ?? "local",
-    githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "local",
-    githubJob: process.env.GITHUB_JOB ?? `${role}-local`,
-    runnerName: process.env.RUNNER_NAME ?? `${platform()}-${role}-local`,
-    runnerImage: process.env.ImageOS ?? process.env.RUNNER_OS ?? platform(),
-    runnerImageVersion: process.env.ImageVersion ?? (runnerImagePath == null ? "local" : sha256(readFileSync(runnerImagePath))),
-    workflowRef: process.env.GITHUB_WORKFLOW_REF ?? "local",
-    bootId: bootIdPath == null ? `local-${randomUUID()}` : readFileSync(bootIdPath, "utf8").trim(),
-  };
+  const provenance =
+    role == null
+      ? undefined
+      : {
+          githubRunId: process.env.GITHUB_RUN_ID ?? "local",
+          githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "local",
+          githubJob: process.env.GITHUB_JOB ?? `${role}-local`,
+          runnerName: process.env.RUNNER_NAME ?? `${platform()}-${role}-local`,
+          runnerImage: process.env.ImageOS ?? process.env.RUNNER_OS ?? platform(),
+          runnerImageVersion:
+            process.env.ImageVersion ?? (runnerImagePath == null ? "local" : sha256(readFileSync(runnerImagePath))),
+          workflowRef: process.env.GITHUB_WORKFLOW_REF ?? "local",
+          bootId: bootIdPath == null ? `local-${randomUUID()}` : readFileSync(bootIdPath, "utf8").trim(),
+        };
   const report = await runNativeScrollbarOwnershipAudit({
     deviceScaleFactors: numbers("--dpr"),
     cssZooms: numbers("--zoom"),
@@ -1158,7 +1231,9 @@ async function main(): Promise<number> {
     mkdirSync(resolve(jsonPath, ".."), { recursive: true });
     writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
   }
-  console.log(`native scrollbar ownership audit: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`);
+  console.log(
+    `native scrollbar ownership audit: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`,
+  );
   for (const row of report.rows) {
     console.log(
       `${row.pass ? "PASS" : "FAIL"} ${row.id}@${row.deviceScaleFactor}x: route=${row.expectedRoute}, source-markers=${row.sourcePixels.markerPixels}, generated-markers=${row.generatedPixels.markerPixels}, generic-thumbs=${row.generatedGenericThumbs}, mode=${row.source.platformMode}`,

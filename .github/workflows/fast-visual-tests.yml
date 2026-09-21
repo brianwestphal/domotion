@@ -16,7 +16,7 @@ on:
         default: false
 
 env:
-  NODE_VERSION: '22.21.0'
+  NODE_VERSION: "22.21.0"
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
 
 concurrency:
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
       - name: Build the CoreText helper
@@ -52,7 +52,7 @@ jobs:
           # GitHub's 4-core runners otherwise resolve to the interactive-safe
           # default of one worker. Two contexts fit the hosted runner and keep
           # the 42-job real-world tail inside this workflow's CI budget.
-          DOMOTION_TEST_WORKERS: '2'
+          DOMOTION_TEST_WORKERS: "2"
         run: npm run demos:test:ci-fast
       - name: Compare platform baselines and optionally write candidates
         if: always()
@@ -96,7 +96,7 @@ jobs:
           # GitHub's 4-core runners otherwise resolve to the interactive-safe
           # default of one worker. Two contexts fit the hosted runner and keep
           # the 42-job real-world tail inside this workflow's CI budget.
-          DOMOTION_TEST_WORKERS: '2'
+          DOMOTION_TEST_WORKERS: "2"
         run: npm run demos:test:ci-fast
       - name: Compare platform baselines and optionally write candidates
         if: always()
@@ -118,7 +118,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
       - name: Build the DirectWrite helper
@@ -137,7 +137,7 @@ jobs:
           # Match the hosted macOS/Linux sweeps: GitHub's 4-core runner would
           # otherwise select one capture worker and serialize the real-world
           # tail unnecessarily.
-          DOMOTION_TEST_WORKERS: '2'
+          DOMOTION_TEST_WORKERS: "2"
         run: npm run demos:test:ci-fast
       - name: Compare platform baselines and optionally write candidates
         if: always()

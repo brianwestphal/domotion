@@ -53,9 +53,15 @@ export interface ViewportPlacement {
 /** The 10 `preserveAspectRatio` alignment keywords. */
 export type PreserveAspectRatioAlign =
   | "none"
-  | "xMinYMin" | "xMidYMin" | "xMaxYMin"
-  | "xMinYMid" | "xMidYMid" | "xMaxYMid"
-  | "xMinYMax" | "xMidYMax" | "xMaxYMax";
+  | "xMinYMin"
+  | "xMidYMin"
+  | "xMaxYMin"
+  | "xMinYMid"
+  | "xMidYMid"
+  | "xMaxYMid"
+  | "xMinYMax"
+  | "xMidYMax"
+  | "xMaxYMax";
 
 export interface PreserveAspectRatio {
   align: PreserveAspectRatioAlign;
@@ -64,9 +70,15 @@ export interface PreserveAspectRatio {
 
 const ALIGN_VALUES = new Set<string>([
   "none",
-  "xMinYMin", "xMidYMin", "xMaxYMin",
-  "xMinYMid", "xMidYMid", "xMaxYMid",
-  "xMinYMax", "xMidYMax", "xMaxYMax",
+  "xMinYMin",
+  "xMidYMin",
+  "xMaxYMin",
+  "xMinYMid",
+  "xMidYMid",
+  "xMaxYMid",
+  "xMinYMax",
+  "xMidYMax",
+  "xMaxYMax",
 ]);
 
 /** The SVG default when `preserveAspectRatio` is absent or unparseable. */
@@ -80,13 +92,15 @@ export const DEFAULT_PRESERVE_ASPECT_RATIO: PreserveAspectRatio = { align: "xMid
  */
 export function parsePreserveAspectRatio(value: string | null | undefined): PreserveAspectRatio {
   if (value == null) return { ...DEFAULT_PRESERVE_ASPECT_RATIO };
-  const tokens = value.trim().split(/\s+/).filter((t) => t !== "");
+  const tokens = value
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t !== "");
   let i = 0;
   if (tokens[i] === "defer") i++;
   const alignTok = tokens[i];
-  const align: PreserveAspectRatioAlign = alignTok != null && ALIGN_VALUES.has(alignTok)
-    ? (alignTok as PreserveAspectRatioAlign)
-    : "xMidYMid";
+  const align: PreserveAspectRatioAlign =
+    alignTok != null && ALIGN_VALUES.has(alignTok) ? (alignTok as PreserveAspectRatioAlign) : "xMidYMid";
   i++;
   const msTok = tokens[i];
   const meetOrSlice: "meet" | "slice" = msTok === "slice" ? "slice" : "meet";

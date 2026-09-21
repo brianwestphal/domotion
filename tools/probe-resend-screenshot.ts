@@ -30,14 +30,17 @@ async function main() {
   const page = await context.newPage();
   page.on("crash", () => console.log("PAGE CRASH"));
   page.on("pageerror", (e) => console.log("PAGE ERROR:", e.message));
-  page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") console.log(`[${m.type()}]`, m.text()); });
+  page.on("console", (m) => {
+    if (m.type() === "error" || m.type() === "warning") console.log(`[${m.type()}]`, m.text());
+  });
 
   if (!existsSync(WRAPPER)) {
-    const wrapper = `<!doctype html><html><head>`
-      + `<meta charset="utf-8">`
-      + `<meta name="viewport" content="width=390, initial-scale=1, maximum-scale=1, user-scalable=no">`
-      + `<style>html,body{margin:0;padding:0;background:#000;}svg{display:block;}</style>`
-      + `</head><body>${svg.replace(/^<\?xml[^?]*\?>/, "")}</body></html>`;
+    const wrapper =
+      `<!doctype html><html><head>` +
+      `<meta charset="utf-8">` +
+      `<meta name="viewport" content="width=390, initial-scale=1, maximum-scale=1, user-scalable=no">` +
+      `<style>html,body{margin:0;padding:0;background:#000;}svg{display:block;}</style>` +
+      `</head><body>${svg.replace(/^<\?xml[^?]*\?>/, "")}</body></html>`;
     writeFileSync(WRAPPER, wrapper);
   }
   console.log(`Wrapper: ${WRAPPER}`);
@@ -54,7 +57,12 @@ async function main() {
 
   const t1 = Date.now();
   try {
-    await page.screenshot({ path: "/tmp/claude/resend-screenshot-attempt.png", clip: { x: 0, y: 0, width: 390, height: 844 }, timeout: 60_000, animations: "disabled" });
+    await page.screenshot({
+      path: "/tmp/claude/resend-screenshot-attempt.png",
+      clip: { x: 0, y: 0, width: 390, height: 844 },
+      timeout: 60_000,
+      animations: "disabled",
+    });
     console.log(`screenshot OK (${Date.now() - t1}ms)`);
   } catch (e) {
     console.log(`screenshot FAILED (${Date.now() - t1}ms):`, e instanceof Error ? e.message.split("\n")[0] : String(e));
@@ -78,4 +86,7 @@ async function main() {
   await browser.close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

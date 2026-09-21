@@ -175,13 +175,15 @@ export function importStoryboardConfig(raw: unknown, options: ImportStoryboardOp
     ...(storyboard.cursor != null ? { playback: { cursor: storyboard.cursor } } : {}),
     review: {
       headRevisionId: revisionId,
-      revisions: [{
-        id: revisionId,
-        createdAt,
-        author: { kind: "system", name: "Domotion storyboard importer" },
-        kind: "content",
-        summary: "Imported the legacy storyboard recipe into Studio project version 1.",
-      }],
+      revisions: [
+        {
+          id: revisionId,
+          createdAt,
+          author: { kind: "system", name: "Domotion storyboard importer" },
+          kind: "content",
+          summary: "Imported the legacy storyboard recipe into Studio project version 1.",
+        },
+      ],
       annotations: [],
     },
     artifacts: [],
@@ -195,10 +197,14 @@ export function studioProjectToStoryboardConfig(raw: unknown): StoryboardConfig 
   const project = validateStudioProject(raw);
   const scenes = project.scenes.map((scene, index) => {
     if (scene.render.kind !== "storyboard") {
-      throw new Error(`studio project: $.scenes[${index}].render is a composition and must be materialized before storyboard projection`);
+      throw new Error(
+        `studio project: $.scenes[${index}].render is a composition and must be materialized before storyboard projection`,
+      );
     }
     if ((scene.treatments?.length ?? 0) > 0) {
-      throw new Error(`studio project: $.scenes[${index}].treatments must be materialized by the Studio compiler before storyboard projection`);
+      throw new Error(
+        `studio project: $.scenes[${index}].treatments must be materialized by the Studio compiler before storyboard projection`,
+      );
     }
     return scene.render.recipe;
   });

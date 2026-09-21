@@ -23,12 +23,11 @@
 // are actually taken from — so agreement is by construction rather than by two
 // derivations happening to coincide.
 import { describe, expect, it } from "vitest";
-import {
-  resolveFont, resolveFontKey, fontFeatureValueShapingOverride, getFontSourceInfo,
-} from "./font-resolution.js";
+import { resolveFont, resolveFontKey, fontFeatureValueShapingOverride, getFontSourceInfo } from "./font-resolution.js";
 
 const TEXT = "italic outline";
-const SIZE = 72, WEIGHT = 800;
+const SIZE = 72,
+  WEIGHT = 800;
 const DISABLES = ["-liga", "-clig", "-calt"];
 
 /** Shaped glyph ids + total advance for a run, through whichever instance. */
@@ -60,9 +59,7 @@ describe("HarfBuzz feature-reroute keeps the shaping face (DM-1982)", () => {
         const base = resolveFont(family, WEIGHT, SIZE, slant, undefined, 100);
         if (base == null) return;
         const direct = shaped(base);
-        const proxy = shaped(
-          fontFeatureValueShapingOverride(base, key, WEIGHT, SIZE, slant, undefined, DISABLES),
-        );
+        const proxy = shaped(fontFeatureValueShapingOverride(base, key, WEIGHT, SIZE, slant, undefined, DISABLES));
         if (direct == null || proxy == null) return;
         // The claim, stated on the ids rather than on a pixel measure: the
         // rerouted run must resolve the SAME characters. An advance check alone
@@ -94,7 +91,12 @@ describe("HarfBuzz feature-reroute keeps the shaping face (DM-1982)", () => {
     // files on macOS and to ONE on Linux, where the slant is synthesized.
     const routes = ["Arial", "system-ui", "Georgia", "Times", "Helvetica"].filter((family) => {
       const seen = new Set<string>();
-      for (const [w, sl] of [[400, 0], [400, 1], [800, 0], [800, 1]] as const) {
+      for (const [w, sl] of [
+        [400, 0],
+        [400, 1],
+        [800, 0],
+        [800, 1],
+      ] as const) {
         const src = getFontSourceInfo(resolveFont(family, w, SIZE, sl, undefined, 100));
         if (src != null) seen.add(`${src.path}#${src.faceIndex}`);
       }

@@ -33,8 +33,12 @@ const settledMarker = (): boolean =>
 
 describe("seekTo settles the document before enumerating animations (DM-1781)", () => {
   let browser: Browser;
-  beforeAll(async () => { browser = await chromium.launch(); });
-  afterAll(async () => { await browser?.close(); });
+  beforeAll(async () => {
+    browser = await chromium.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
 
   it("pauses and seeks every animation even when seeked immediately after setContent", async () => {
     const page = await browser.newPage();
@@ -44,7 +48,8 @@ describe("seekTo settles the document before enumerating animations (DM-1781)", 
     await seekTo(page, 500);
 
     const states = await page.evaluate(() =>
-      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })));
+      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })),
+    );
 
     expect(states.length).toBe(2);
     for (const s of states) {
@@ -70,7 +75,8 @@ describe("seekTo settles the document before enumerating animations (DM-1781)", 
 
     await seekTo(page, 250);
     const states = await page.evaluate(() =>
-      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })));
+      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })),
+    );
     expect(states.length).toBe(2);
     for (const s of states) {
       expect(s.playState).toBe("paused");
@@ -94,8 +100,12 @@ describe("seekTo settles the document before enumerating animations (DM-1781)", 
  */
 describe("loadSeekableSvg pins animations paused so they never free-run (DM-1779)", () => {
   let browser: Browser;
-  beforeAll(async () => { browser = await chromium.launch(); });
-  afterAll(async () => { await browser?.close(); });
+  beforeAll(async () => {
+    browser = await chromium.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
 
   const ANIM = `<style>
     @keyframes slide { from { transform: translateX(0px); } to { transform: translateX(400px); } }
@@ -106,18 +116,18 @@ describe("loadSeekableSvg pins animations paused so they never free-run (DM-1779
     const pinned = await browser.newPage();
     await loadSeekableSvg(pinned, ANIM);
     await pinned.waitForTimeout(300); // a free-running animation would reach ~300ms here
-    const pinnedCts = await pinned.evaluate(() =>
-      document.getAnimations().map((a) => Number(a.currentTime)));
+    const pinnedCts = await pinned.evaluate(() => document.getAnimations().map((a) => Number(a.currentTime)));
     expect(pinnedCts.length).toBe(1);
     expect(pinnedCts[0]).toBeLessThan(50); // pinned at ~0, did NOT advance
 
     // Contrast: the exact same markup loaded WITHOUT the pin free-runs forward —
     // this is the condition that, followed by a backward seek, tore the frame.
     const plain = await browser.newPage();
-    await plain.setContent(`<!doctype html><html><body style="margin:0">${ANIM}</body></html>`, { waitUntil: "domcontentloaded" });
+    await plain.setContent(`<!doctype html><html><body style="margin:0">${ANIM}</body></html>`, {
+      waitUntil: "domcontentloaded",
+    });
     await plain.waitForTimeout(300);
-    const plainCts = await plain.evaluate(() =>
-      document.getAnimations().map((a) => Number(a.currentTime)));
+    const plainCts = await plain.evaluate(() => document.getAnimations().map((a) => Number(a.currentTime)));
     expect(plainCts[0]).toBeGreaterThan(100); // free-ran forward
 
     await pinned.close();
@@ -129,7 +139,8 @@ describe("loadSeekableSvg pins animations paused so they never free-run (DM-1779
     await loadSeekableSvg(page, ANIM);
     await seekTo(page, 500);
     const states = await page.evaluate(() =>
-      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })));
+      document.getAnimations().map((a) => ({ playState: a.playState, currentTime: Number(a.currentTime) })),
+    );
     expect(states.length).toBe(1);
     expect(states[0].playState).toBe("paused");
     expect(states[0].currentTime).toBe(500);

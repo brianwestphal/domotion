@@ -3,11 +3,11 @@ id: "requirements/cross-platform-border-phase-envelopes"
 title: "Cross-platform border phase envelopes"
 kind: "contract"
 status: "current"
-owners: ["paint-effects","platform-release"]
-platforms: ["macos","linux","windows"]
+owners: ["paint-effects", "platform-release"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2355"]
-code: [".github/workflows/border-phase-oracle.yml","tools/border-phase-oracle.ts","tools/border-phase-ratifier.ts"]
-aliases: ["docs/191-cross-platform-border-phase-envelopes.md","doc-191"]
+code: [".github/workflows/border-phase-oracle.yml", "tools/border-phase-oracle.ts", "tools/border-phase-ratifier.ts"]
+aliases: ["docs/191-cross-platform-border-phase-envelopes.md", "doc-191"]
 ---
 
 # Cross-platform border phase envelopes
@@ -66,11 +66,11 @@ unrelated ink, and matching style/phase ordering. The visible residual at DSF 1
 is confined to the expected thin dotted-outline coverage profile; it is not a
 box displacement.
 
-| Runner | Fingerprint reviewed | Repeat evidence |
-| --- | --- | --- |
-| macOS | `macos26-arm64` / `20260728.0273.1`; Darwin `25.5.0`; arm64 | Runs `32604023290` and `32604759338` were byte-identical. |
-| Linux | `ubuntu24-x64` / `20260816.277.1`; Linux `6.17.0-1022-azure`; x64 | Runs `32604023290` and `32604759338` completed all nine scenarios byte-identically. Separate attempts exposed Chromium's intermittent oversized full-surface screenshot rejection; the ratified workflow uses lossless bounded vertical tiles to remove that protocol-only instability. |
-| Windows | `win25-vs2026-x64` / `20260818.207.1`; Windows `10.0.26100`; x64 | Runs `32604023290` and `32604759338` were byte-identical. |
+| Runner  | Fingerprint reviewed                                              | Repeat evidence                                                                                                                                                                                                                                                                         |
+| ------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS   | `macos26-arm64` / `20260728.0273.1`; Darwin `25.5.0`; arm64       | Runs `32604023290` and `32604759338` were byte-identical.                                                                                                                                                                                                                               |
+| Linux   | `ubuntu24-x64` / `20260816.277.1`; Linux `6.17.0-1022-azure`; x64 | Runs `32604023290` and `32604759338` completed all nine scenarios byte-identically. Separate attempts exposed Chromium's intermittent oversized full-surface screenshot rejection; the ratified workflow uses lossless bounded vertical tiles to remove that protocol-only instability. |
+| Windows | `win25-vs2026-x64` / `20260818.207.1`; Windows `10.0.26100`; x64  | Runs `32604023290` and `32604759338` were byte-identical.                                                                                                                                                                                                                               |
 
 All runners used Node `v22.21.0` and Chromium `147.0.7727.15`. The report also
 records platform, architecture, OS release, source pins, corpus SHA-256, and
@@ -102,16 +102,16 @@ bucket and add only one further quantization step; they are not inherited from t
 0.56/0.48 diagnostic limits.
 
 | DSF / zoom | observed edge (CSS px) | edge ceiling | observed profile RMSE | RMSE ceiling |
-| --- | ---: | ---: | ---: | ---: |
-| 1 / 0.8 | 0.501961 | 0.505883 | 0.189723 | 0.196079 |
-| 1 / 1 | 0.501961 | 0.505883 | 0.183794 | 0.188236 |
-| 1 / 1.25 | 0.501961 | 0.505883 | 0.177470 | 0.184315 |
-| 2 / 0.8 | 0.015686 | 0.019609 | 0.009682 | 0.015687 |
-| 2 / 1 | 0.029412 | 0.035295 | 0.012266 | 0.019609 |
-| 2 / 1.25 | 0.007843 | 0.011765 | 0.004437 | 0.011765 |
-| 4 / 0.8 | 0.008824 | 0.015687 | 0.007892 | 0.015687 |
-| 4 / 1 | 0.016667 | 0.023530 | 0.011372 | 0.015687 |
-| 4 / 1.25 | 0 | 0.003922 | 0 | 0.003922 |
+| ---------- | ---------------------: | -----------: | --------------------: | -----------: |
+| 1 / 0.8    |               0.501961 |     0.505883 |              0.189723 |     0.196079 |
+| 1 / 1      |               0.501961 |     0.505883 |              0.183794 |     0.188236 |
+| 1 / 1.25   |               0.501961 |     0.505883 |              0.177470 |     0.184315 |
+| 2 / 0.8    |               0.015686 |     0.019609 |              0.009682 |     0.015687 |
+| 2 / 1      |               0.029412 |     0.035295 |              0.012266 |     0.019609 |
+| 2 / 1.25   |               0.007843 |     0.011765 |              0.004437 |     0.011765 |
+| 4 / 0.8    |               0.008824 |     0.015687 |              0.007892 |     0.015687 |
+| 4 / 1      |               0.016667 |     0.023530 |              0.011372 |     0.015687 |
+| 4 / 1.25   |                      0 |     0.003922 |                     0 |     0.003922 |
 
 At DSF 1 the maximum edge residual remains the half-covered outer pixel of
 one-pixel dotted outlines. At DSF 2/4, the source-exact maxima are at most

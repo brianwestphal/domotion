@@ -88,20 +88,26 @@ try {
   }
 
   const baseline = Math.floor(segment.y + (segment.fontAscent ?? node.fontAscent ?? 0) + 0.5);
-  process.stdout.write(`${JSON.stringify({
-    schemaVersion: 1,
-    platform: process.platform,
-    sourceAuthority: provenance.sourceAuthority,
-    record: {
-      sourceText: SOURCE,
-      selectedFace: run.selected,
-      fontSizePx: run.request.fontSizePx,
-      unitsPerEm: upem,
-      snappedBaseline: baseline,
-      rows,
-      mutation: { kind: "collapse-captured-cluster-anchors-to-native-advances", lastGlyphDeltaPx: mutationDelta },
-    },
-  }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        platform: process.platform,
+        sourceAuthority: provenance.sourceAuthority,
+        record: {
+          sourceText: SOURCE,
+          selectedFace: run.selected,
+          fontSizePx: run.request.fontSizePx,
+          unitsPerEm: upem,
+          snappedBaseline: baseline,
+          rows,
+          mutation: { kind: "collapse-captured-cluster-anchors-to-native-advances", lastGlyphDeltaPx: mutationDelta },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
 } finally {
   setTextRunProvenanceEnabled(false);
   setRenderTextMode("embedded-font");

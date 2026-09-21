@@ -12,27 +12,23 @@ type SynchronousResultConstraint<T> = [T] extends [never]
     ? unknown
     : never;
 
-export type SynchronousCallback<F extends () => unknown> =
-  F & SynchronousResultConstraint<ReturnType<F>>;
+export type SynchronousCallback<F extends () => unknown> = F & SynchronousResultConstraint<ReturnType<F>>;
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
-  return value !== null
-    && (typeof value === "object" || typeof value === "function")
-    && typeof (value as { then?: unknown }).then === "function";
+  return (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
 }
 
 /** Invoke a callback and reject any value whose callable `then` would let work
  * escape the surrounding synchronous state scope. The owning guard's
  * `try/finally` performs restoration for callback throws and for this error. */
-export function invokeSynchronousCallback<F extends () => unknown>(
-  scopeName: string,
-  callback: F,
-): ReturnType<F> {
+export function invokeSynchronousCallback<F extends () => unknown>(scopeName: string, callback: F): ReturnType<F> {
   const result = callback();
   if (isPromiseLike(result)) {
-    throw new TypeError(
-      `${scopeName} callback must be synchronous; Promise-like results are not supported`,
-    );
+    throw new TypeError(`${scopeName} callback must be synchronous; Promise-like results are not supported`);
   }
   return result as ReturnType<F>;
 }

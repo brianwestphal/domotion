@@ -7,7 +7,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // ownership boundary: Blink supplies the exact ::after fragment and Domotion
 // must render it directly without reviving the clipped legacy raster segment.
 
-const W = 360, H = 120;
+const W = 360,
+  H = 120;
 const HTML =
   `<!doctype html><html><head><meta charset="utf-8"><style>` +
   `body{margin:0}` +

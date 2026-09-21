@@ -4,8 +4,12 @@ import { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "../src/capture
 
 describe("stable multi-document CSS/SMIL frame seeking (DM-2359)", () => {
   let browser: Browser;
-  beforeAll(async () => { browser = await chromium.launch(); });
-  afterAll(async () => { await browser?.close(); });
+  beforeAll(async () => {
+    browser = await chromium.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
 
   it("pauses the top document and a same-origin frame at one exact time", async () => {
     const page = await browser.newPage();
@@ -31,10 +35,14 @@ describe("stable multi-document CSS/SMIL frame seeking (DM-2359)", () => {
     expect(top.cssTime).toBe(375);
     expect(top.cssState).toBe("paused");
     expect(top.smilTime).toBeCloseTo(0.375, 3);
-    const child = await page.locator("iframe").contentFrame().locator("i").evaluate(() => ({
-      time: Number(document.getAnimations()[0]?.currentTime),
-      state: document.getAnimations()[0]?.playState,
-    }));
+    const child = await page
+      .locator("iframe")
+      .contentFrame()
+      .locator("i")
+      .evaluate(() => ({
+        time: Number(document.getAnimations()[0]?.currentTime),
+        state: document.getAnimations()[0]?.playState,
+      }));
     expect(child).toEqual({ time: 375, state: "paused" });
     await page.close();
   });
@@ -56,20 +64,27 @@ describe("stable multi-document CSS/SMIL frame seeking (DM-2359)", () => {
       const scroller = document.querySelector<HTMLElement>("#scroller")!;
       const target = document.querySelector<HTMLElement>("#target")!;
       scroller.scrollTop = 137;
-      target.animate([{ opacity: .2 }, { opacity: .8 }], {
+      target.animate([{ opacity: 0.2 }, { opacity: 0.8 }], {
         duration: 1,
         fill: "both",
         timeline: new ScrollTimeline({ source: scroller, axis: "block" }),
       });
-      document.querySelector<HTMLElement>("#view")!.animate([{ opacity: .2 }, { opacity: .8 }], {
-        duration: 1, fill: "both", timeline: new ViewTimeline({ subject: document.querySelector<HTMLElement>("#view")!, axis: "block" }),
+      document.querySelector<HTMLElement>("#view")!.animate([{ opacity: 0.2 }, { opacity: 0.8 }], {
+        duration: 1,
+        fill: "both",
+        timeline: new ViewTimeline({ subject: document.querySelector<HTMLElement>("#view")!, axis: "block" }),
       });
-      document.querySelector<SVGGraphicsElement>("#svg-view")!.animate([{ opacity: .2 }, { opacity: .8 }], {
-        duration: 1, fill: "both", timeline: new ViewTimeline({ subject: document.querySelector<SVGGraphicsElement>("#svg-view")!, axis: "block" }),
+      document.querySelector<SVGGraphicsElement>("#svg-view")!.animate([{ opacity: 0.2 }, { opacity: 0.8 }], {
+        duration: 1,
+        fill: "both",
+        timeline: new ViewTimeline({
+          subject: document.querySelector<SVGGraphicsElement>("#svg-view")!,
+          axis: "block",
+        }),
       });
       const shadow = document.querySelector("#host")!.attachShadow({ mode: "open" });
       shadow.innerHTML = `<i>shadow</i>`;
-      shadow.querySelector("i")!.animate([{ opacity: .1 }, { opacity: .9 }], {
+      shadow.querySelector("i")!.animate([{ opacity: 0.1 }, { opacity: 0.9 }], {
         duration: 1,
         fill: "both",
         timeline: new ScrollTimeline({ source: scroller, axis: "block" }),
@@ -107,7 +122,8 @@ describe("stable multi-document CSS/SMIL frame seeking (DM-2359)", () => {
     }
     const subjectBranches = state.documents[0].progressTimelines
       .map((timeline) => JSON.parse(timeline.sourceSnapshot).subject?.branch)
-      .filter(Boolean).sort();
+      .filter(Boolean)
+      .sort();
     expect(subjectBranches).toEqual(["html-stitched-size", "svg-mapped-bounds"]);
     const after = await page.evaluate(() => {
       const shadow = document.querySelector("#host")!.shadowRoot! as unknown as { getAnimations(): Animation[] };
@@ -118,14 +134,18 @@ describe("stable multi-document CSS/SMIL frame seeking (DM-2359)", () => {
     });
     expect(after.map((entry) => entry.time)).toEqual(before);
     expect(after.every((entry) => entry.state === "paused" || entry.state === "finished")).toBe(true);
-    await page.evaluate(() => { document.querySelector<HTMLElement>("#scroller")!.scrollTop += 11; });
+    await page.evaluate(() => {
+      document.querySelector<HTMLElement>("#scroller")!.scrollTop += 11;
+    });
     await expect(reverifyAnimationsAtFrame(page, state)).rejects.toThrow(/changed between capture prepasses/);
     await page.close();
   });
 
   it("fails before mutation when a closed TreeScope cannot be enumerated", async () => {
     const page = await browser.newPage();
-    await page.setContent(`<style>@keyframes fade{from{opacity:.2}to{opacity:.8}}#box{animation:fade 10s linear infinite}</style><div id="box"></div><div id="host"></div>`);
+    await page.setContent(
+      `<style>@keyframes fade{from{opacity:.2}to{opacity:.8}}#box{animation:fade 10s linear infinite}</style><div id="box"></div><div id="host"></div>`,
+    );
     await page.evaluate(() => {
       const shadow = document.querySelector("#host")!.attachShadow({ mode: "closed" });
       shadow.innerHTML = `<i>closed</i>`;

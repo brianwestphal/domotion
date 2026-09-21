@@ -24,9 +24,7 @@ const evidenceByName = Map.groupBy(faceAudit, (row) => row.name);
 
 const rows = map.rows.map((row) => {
   const platformEvidence = evidenceByName.get(row.name) ?? [];
-  const currentRows = platformEvidence.filter((entry) =>
-    row.currentFail.includes(entry.platform),
-  );
+  const currentRows = platformEvidence.filter((entry) => row.currentFail.includes(entry.platform));
   const facesAuthenticated = currentRows.every((entry) => entry.facesMatch);
   const maxCoveragePct = Math.max(0, ...currentRows.map((entry) => entry.coveragePct));
 
@@ -66,9 +64,7 @@ const output = {
       "The manifest inventories differ because Chromium reports additional fallback/native faces not emitted as used subsets; direct expected/actual review shows coincident geometry with only strict raster pixels remaining.",
   },
   counts: Object.fromEntries(
-    [...Map.groupBy(rows, (row) => row.disposition).entries()].map(
-      ([key, values]) => [key, values.length],
-    ),
+    [...Map.groupBy(rows, (row) => row.disposition).entries()].map(([key, values]) => [key, values.length]),
   ),
   rows,
 };

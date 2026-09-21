@@ -33,8 +33,11 @@ results.sort((a, b) => (b.aCov ?? 0) - (a.aCov ?? 0));
 console.log("Per-fixture comparison (sorted by NEW coverage% desc):");
 console.log("name".padEnd(50) + " | baseline → new      | regions  | verdict");
 console.log("-".repeat(105));
-let improvedCount = 0, worseCount = 0, sameCount = 0;
-let baseTotal = 0, newTotal = 0;
+let improvedCount = 0,
+  worseCount = 0,
+  sameCount = 0;
+let baseTotal = 0,
+  newTotal = 0;
 for (const r of results) {
   const bStr = r.bCov != null ? `${r.bCov.toFixed(2)}%` : "—";
   const aStr = r.aCov != null ? `${r.aCov.toFixed(2)}%` : "—";
@@ -47,8 +50,12 @@ for (const r of results) {
   else sameCount++;
   if (r.bCov != null) baseTotal += r.bCov;
   if (r.aCov != null) newTotal += r.aCov;
-  console.log(`${marker} ${r.name.padEnd(48)} | ${bStr.padStart(7)} → ${aStr.padStart(7)} | ${regStr.padEnd(8)} | ${vStr}`);
+  console.log(
+    `${marker} ${r.name.padEnd(48)} | ${bStr.padStart(7)} → ${aStr.padStart(7)} | ${regStr.padEnd(8)} | ${vStr}`,
+  );
 }
 console.log();
 console.log(`Summary: ${improvedCount} improved, ${worseCount} worse (>0.05pp), ${sameCount} same`);
-console.log(`Total coverage% sum: baseline=${baseTotal.toFixed(2)} → new=${newTotal.toFixed(2)}  (delta ${(newTotal - baseTotal).toFixed(2)})`);
+console.log(
+  `Total coverage% sum: baseline=${baseTotal.toFixed(2)} → new=${newTotal.toFixed(2)}  (delta ${(newTotal - baseTotal).toFixed(2)})`,
+);

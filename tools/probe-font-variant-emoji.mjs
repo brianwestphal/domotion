@@ -31,7 +31,11 @@
 //     shipped "default-on" and answered nothing for weeks.
 import { chromium } from "@playwright/test";
 import {
-  resolveFont, resolveFontKey, resolveFontKeyChain, resolveFontForCodepoint, resolveFontSpec,
+  resolveFont,
+  resolveFontKey,
+  resolveFontKeyChain,
+  resolveFontForCodepoint,
+  resolveFontSpec,
 } from "../src/render/font-resolution.ts";
 import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.ts";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.ts";
@@ -65,14 +69,19 @@ const cdp = await page.context().newCDPSession(page);
 await cdp.send("DOM.enable");
 await cdp.send("CSS.enable");
 
-const rows = CPS.map(([cp, name]) => ({ cp, name }))
-  .flatMap((r) => MODES.map((m) => ({ ...r, mode: m })));
+const rows = CPS.map(([cp, name]) => ({ cp, name })).flatMap((r) => MODES.map((m) => ({ ...r, mode: m })));
 
-const html = `<!doctype html><meta charset="utf-8"><style>
+const html =
+  `<!doctype html><meta charset="utf-8"><style>
   span { font-family: ${STACK}; font-size: ${SIZE}px; }
-</style>` + rows.map((r, i) =>
-  `<div><span id="c${i}"${r.mode === "normal" ? "" : ` style="font-variant-emoji:${r.mode}"`}>`
-  + `${String.fromCodePoint(r.cp)}</span></div>`).join("");
+</style>` +
+  rows
+    .map(
+      (r, i) =>
+        `<div><span id="c${i}"${r.mode === "normal" ? "" : ` style="font-variant-emoji:${r.mode}"`}>` +
+        `${String.fromCodePoint(r.cp)}</span></div>`,
+    )
+    .join("");
 await page.setContent(html, { waitUntil: "load" });
 
 const { root } = await cdp.send("DOM.getDocument");
@@ -86,7 +95,8 @@ const primaryKey = resolveFontKey(STACK);
 const primary = resolveFont(STACK, 400, SIZE, 0);
 const chain = resolveFontKeyChain(STACK);
 
-let agree = 0, disagree = 0;
+let agree = 0,
+  disagree = 0;
 const out = [];
 for (let i = 0; i < rows.length; i++) {
   const r = rows[i];
@@ -96,7 +106,20 @@ for (let i = 0; i < rows.length; i++) {
   // `font-variant-emoji: emoji` forcing lives one layer above that
   // (`forcesEmojiPresentation`), so asking the sub-step measures a different
   // question and reports a disagreement the renderer does not have.
-  const res = resolveFontForCodepoint(r.cp, primary, primaryKey, 400, SIZE, 0, undefined, undefined, chain, false, 100, fve);
+  const res = resolveFontForCodepoint(
+    r.cp,
+    primary,
+    primaryKey,
+    400,
+    SIZE,
+    0,
+    undefined,
+    undefined,
+    chain,
+    false,
+    100,
+    fve,
+  );
   const key = res.key;
   const spec = key != null ? resolveFontSpec(key) : null;
   // Compare on the resolved FILE, not on our key. A key is our own name for a
@@ -106,23 +129,43 @@ for (let i = 0; i < rows.length; i++) {
   // where the two picked the same file, and 15 of this probe's first Linux run
   // were exactly that.
   const file = spec?.path != null ? spec.path.split("/").pop() : null;
-  const ours = key == null ? "(none)"
-    : `${key}${file != null ? ` <${file}>` : spec?.postscriptName != null ? ` [${spec.postscriptName}]` : ""}`;
+  const ours =
+    key == null
+      ? "(none)"
+      : `${key}${file != null ? ` <${file}>` : spec?.postscriptName != null ? ` [${spec.postscriptName}]` : ""}`;
   const norm = (s) => s.toLowerCase().replace(/[^a-z]/g, "");
   const hay = norm(`${key ?? ""} ${file ?? ""} ${spec?.postscriptName ?? ""}`);
   const ok = key != null && (hay.includes(norm(chrome)) || norm(chrome).includes(norm(key)));
   const source = String.fromCodePoint(r.cp);
   const productionRuns = splitTextIntoFontRunsShaped(
-    source, primary, primaryKey, 400, SIZE, 0, undefined, undefined, chain,
-    false, 100, fve, STACK, { mode: "paths" },
+    source,
+    primary,
+    primaryKey,
+    400,
+    SIZE,
+    0,
+    undefined,
+    undefined,
+    chain,
+    false,
+    100,
+    fve,
+    STACK,
+    { mode: "paths" },
   );
   const productionKey = productionRuns?.[0]?.fontKey ?? "(declined)";
-  const raster = selectedGlyphRasterSpans(source, [{ start: 0, end: source.length }], {
-    fontSize: SIZE, fontFamily: STACK, fontWeight: 400, fontVariantEmoji: fve,
-  }).length > 0;
+  const raster =
+    selectedGlyphRasterSpans(source, [{ start: 0, end: source.length }], {
+      fontSize: SIZE,
+      fontFamily: STACK,
+      fontWeight: 400,
+      fontVariantEmoji: fve,
+    }).length > 0;
   ok ? agree++ : disagree++;
-  out.push(`U+${r.cp.toString(16).toUpperCase().padStart(4, "0")} ${r.mode.padEnd(6)} `
-    + `chrome=${chrome.padEnd(24)} resolver=${ours.padEnd(46)} production=${productionKey.padEnd(28)} raster=${String(raster).padEnd(5)} ${ok ? "" : "  <-- RESOLVER DISAGREE"}  (${r.name})`);
+  out.push(
+    `U+${r.cp.toString(16).toUpperCase().padStart(4, "0")} ${r.mode.padEnd(6)} ` +
+      `chrome=${chrome.padEnd(24)} resolver=${ours.padEnd(46)} production=${productionKey.padEnd(28)} raster=${String(raster).padEnd(5)} ${ok ? "" : "  <-- RESOLVER DISAGREE"}  (${r.name})`,
+  );
 }
 console.log(`platform=${process.platform}  stack=${STACK}  primary=${primaryKey}  primaryResolved=${primary != null}`);
 console.log(out.join("\n"));

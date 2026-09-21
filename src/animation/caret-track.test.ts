@@ -1,12 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
-import { CARET_BLINK_MS, DEFAULT_SELECTION_COLOR, resolveTextTrack, textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
+import {
+  CARET_BLINK_MS,
+  DEFAULT_SELECTION_COLOR,
+  resolveTextTrack,
+  textTrackMarkup,
+  type ResolvedTextTrack,
+} from "./caret-track.js";
 import { generateAnimatedSvg } from "./animator.js";
 
 function el(opts: Partial<CapturedElement> & { tag: string }): CapturedElement {
   return {
     text: "",
-    x: 0, y: 0, width: 100, height: 20,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 20,
     children: [],
     styles: { fontSize: "16px", fontFamily: "Helvetica, sans-serif", fontWeight: "400" } as CapturedElement["styles"],
     ...opts,
@@ -19,10 +28,15 @@ function seg(opts: Partial<TextSegment> & { text: string; x: number; y: number }
 
 // "abcd" on one line: chars at x = 10, 20, 30, 40; right edge 50.
 function tree(): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "line", fontAscent: 12, fontDescent: 4,
-    textSegments: [seg({ text: "abcd", x: 10, y: 100, width: 40, xOffsets: [10, 20, 30, 40] })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "line",
+      fontAscent: 12,
+      fontDescent: 4,
+      textSegments: [seg({ text: "abcd", x: 10, y: 100, width: 40, xOffsets: [10, 20, 30, 40] })],
+    }),
+  ];
 }
 
 describe("resolveTextTrack", () => {
@@ -70,7 +84,13 @@ describe("resolveTextTrack", () => {
   it("honors a per-event target override", () => {
     const roots = [
       ...tree(),
-      el({ tag: "b", animId: "other", fontAscent: 10, fontDescent: 2, textSegments: [seg({ text: "x", x: 200, y: 50, width: 8, xOffsets: [200] })] }),
+      el({
+        tag: "b",
+        animId: "other",
+        fontAscent: 10,
+        fontDescent: 2,
+        textSegments: [seg({ text: "x", x: 200, y: 50, width: 8, xOffsets: [200] })],
+      }),
     ];
     const track = resolveTextTrack(roots, {
       target: { animId: "line" },
@@ -102,13 +122,17 @@ describe("textTrackMarkup — caret emission", () => {
     const m = textTrackMarkup(barTrack(), TOTAL);
     // Position track: park at 25% (500/2000) at x=10, move at 50% to the
     // end-of-text edge x=50; y = baseline 112 − ascent 12 = 100.
-    expect(m).toMatch(/@keyframes tt-pos-\w+\{0%\{transform:translate\(10px,100px\)\}25%\{transform:translate\(10px,100px\)\}50%\{transform:translate\(50px,100px\)\}100%\{transform:translate\(50px,100px\)\}\}/);
+    expect(m).toMatch(
+      /@keyframes tt-pos-\w+\{0%\{transform:translate\(10px,100px\)\}25%\{transform:translate\(10px,100px\)\}50%\{transform:translate\(50px,100px\)\}100%\{transform:translate\(50px,100px\)\}\}/,
+    );
     expect(m).toMatch(/tt-pos-\w+ 2\.00s step-end infinite/);
   });
 
   it("emits the visibility windows (hidden before first park, off at hide)", () => {
     const m = textTrackMarkup(barTrack(), TOTAL);
-    expect(m).toMatch(/@keyframes tt-vis-\w+\{0%\{opacity:0\}25%\{opacity:1\}50%\{opacity:1\}80%\{opacity:0\}100%\{opacity:0\}\}/);
+    expect(m).toMatch(
+      /@keyframes tt-vis-\w+\{0%\{opacity:0\}25%\{opacity:1\}50%\{opacity:1\}80%\{opacity:0\}100%\{opacity:0\}\}/,
+    );
   });
 
   it("emits the standard ~1.06s blink cycle on a nested group", () => {
@@ -150,7 +174,14 @@ describe("textTrackMarkup — caret emission", () => {
   it("scales the caret rect when a waypoint's metrics differ", () => {
     const roots = [
       ...tree(),
-      el({ tag: "h1", animId: "big", fontAscent: 24, fontDescent: 8, styles: { fontSize: "32px", fontFamily: "Helvetica", fontWeight: "700" } as CapturedElement["styles"], textSegments: [seg({ text: "T", x: 300, y: 10, width: 20, xOffsets: [300] })] }),
+      el({
+        tag: "h1",
+        animId: "big",
+        fontAscent: 24,
+        fontDescent: 8,
+        styles: { fontSize: "32px", fontFamily: "Helvetica", fontWeight: "700" } as CapturedElement["styles"],
+        textSegments: [seg({ text: "T", x: 300, y: 10, width: 20, xOffsets: [300] })],
+      }),
     ];
     const track = resolveTextTrack(roots, {
       target: { animId: "line" },
@@ -204,8 +235,14 @@ describe("textTrackMarkup — caret emission", () => {
 
   it("block-invert is opt-in: default block caret stays byte-identical", () => {
     const events = [{ type: "park" as const, t: 0, charOffset: 1 }];
-    const plain = textTrackMarkup(resolveTextTrack(tree(), { target: { animId: "line" }, shape: "block", events }), TOTAL);
-    const withInvertFalse = textTrackMarkup(resolveTextTrack(tree(), { target: { animId: "line" }, shape: "block", invert: false, events }), TOTAL);
+    const plain = textTrackMarkup(
+      resolveTextTrack(tree(), { target: { animId: "line" }, shape: "block", events }),
+      TOTAL,
+    );
+    const withInvertFalse = textTrackMarkup(
+      resolveTextTrack(tree(), { target: { animId: "line" }, shape: "block", invert: false, events }),
+      TOTAL,
+    );
     expect(withInvertFalse).toBe(plain);
     // Default block caret is still the translucent 0.5-alpha cell.
     expect(plain).toContain('fill-opacity="0.5"');
@@ -251,7 +288,9 @@ describe("textTrackMarkup — selection emission", () => {
     expect(m).toContain(`fill="${DEFAULT_SELECTION_COLOR}"`);
     // Hidden until 20% (400ms), then per-char steps: 'b' swept at 25%
     // (width 10 = edge 30 − x 20), 'c' at 30% (width 20), held to 100%.
-    expect(m).toMatch(/@keyframes tt-sel-\w+-0-0\{0%\{width:0\.01px\}20%\{width:0\.01px\}25%\{width:10px\}30%\{width:20px\}100%\{width:20px\}\}/);
+    expect(m).toMatch(
+      /@keyframes tt-sel-\w+-0-0\{0%\{width:0\.01px\}20%\{width:0\.01px\}25%\{width:10px\}30%\{width:20px\}100%\{width:20px\}\}/,
+    );
     expect(m).toMatch(/tt-sel-\w+-0-0 2\.00s step-end infinite/);
   });
 
@@ -265,17 +304,24 @@ describe("textTrackMarkup — selection emission", () => {
     });
     const m = textTrackMarkup(track, TOTAL);
     // Appears fully at 10%, clears at 50%, stays hidden to 100%.
-    expect(m).toMatch(/\{0%\{width:0\.01px\}10%\{width:0\.01px\}10%\{width:20px\}50%\{width:0\.01px\}100%\{width:0\.01px\}\}/);
+    expect(m).toMatch(
+      /\{0%\{width:0\.01px\}10%\{width:0\.01px\}10%\{width:20px\}50%\{width:0\.01px\}100%\{width:0\.01px\}\}/,
+    );
   });
 
   it("a range across wrapped lines sweeps one rect per segment, sequentially", () => {
-    const roots = [el({
-      tag: "p", animId: "wrap", fontAscent: 12, fontDescent: 4,
-      textSegments: [
-        seg({ text: "ab", x: 10, y: 100, width: 20, xOffsets: [10, 20] }),
-        seg({ text: "cd", x: 10, y: 124, width: 22, xOffsets: [10, 21] }),
-      ],
-    })];
+    const roots = [
+      el({
+        tag: "p",
+        animId: "wrap",
+        fontAscent: 12,
+        fontDescent: 4,
+        textSegments: [
+          seg({ text: "ab", x: 10, y: 100, width: 20, xOffsets: [10, 20] }),
+          seg({ text: "cd", x: 10, y: 124, width: 22, xOffsets: [10, 21] }),
+        ],
+      }),
+    ];
     const track = resolveTextTrack(roots, {
       target: { animId: "wrap" },
       events: [{ type: "select", t: 0, charStart: 1, charEnd: 4, sweepMs: 300 }],
@@ -287,7 +333,9 @@ describe("textTrackMarkup — selection emission", () => {
     expect(rects).toHaveLength(2);
     expect(m).toContain('y="100"');
     expect(m).toContain('y="124"');
-    expect(m).toMatch(/tt-sel-\w+-0-1\{0%\{width:0\.01px\}5%\{width:0\.01px\}10%\{width:11px\}15%\{width:22px\}100%\{width:22px\}\}/);
+    expect(m).toMatch(
+      /tt-sel-\w+-0-1\{0%\{width:0\.01px\}5%\{width:0\.01px\}10%\{width:11px\}15%\{width:22px\}100%\{width:22px\}\}/,
+    );
   });
 
   it("uses a custom selection color when given", () => {
@@ -310,7 +358,8 @@ describe("generateAnimatedSvg wiring", () => {
       ],
     });
     const base = {
-      width: 200, height: 120,
+      width: 200,
+      height: 120,
       frames: [{ svgContent: "<rect width='200' height='120' fill='#fff'/>", duration: 1000 }],
       cursorOverlay: { events: [{ type: "show" as const, t: 0, x: 5, y: 5 }] },
     };
@@ -336,11 +385,21 @@ describe("generateAnimatedSvg wiring", () => {
 // that could tear. "שלום" in an RTL paragraph: painted lefts run right-to-left
 // (the capture convention — logical order, visual x), run right edge 100.
 function rtlTree(): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "he", fontAscent: 12, fontDescent: 4,
-    styles: { fontSize: "16px", fontFamily: "Helvetica", fontWeight: "400", direction: "rtl" } as CapturedElement["styles"],
-    textSegments: [seg({ text: "שלום", x: 60, y: 100, width: 40, xOffsets: [90, 80, 70, 60] })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "he",
+      fontAscent: 12,
+      fontDescent: 4,
+      styles: {
+        fontSize: "16px",
+        fontFamily: "Helvetica",
+        fontWeight: "400",
+        direction: "rtl",
+      } as CapturedElement["styles"],
+      textSegments: [seg({ text: "שלום", x: 60, y: 100, width: 40, xOffsets: [90, 80, 70, 60] })],
+    }),
+  ];
 }
 
 describe("bidi selection sweep + caret emission (DM-1754)", () => {
@@ -388,14 +447,32 @@ describe("bidi selection sweep + caret emission (DM-1754)", () => {
 // `height` sweeps DOWN the column. "あいう" stacked in a 20px-wide column at
 // x 100, cells at y 50 / 70 / 90, column bottom 110.
 function verticalTree(): CapturedElement[] {
-  return [el({
-    tag: "div", animId: "col", fontAscent: 17, fontDescent: 3,
-    styles: { fontSize: "20px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: "vertical-rl" } as CapturedElement["styles"],
-    textSegments: [seg({
-      text: "あいう", x: 100, y: 50, width: 20, height: 60,
-      verticalWritingMode: "vertical-rl", yOffsets: [50, 70, 90], verticalAdvances: [20, 20, 20],
-    })],
-  })];
+  return [
+    el({
+      tag: "div",
+      animId: "col",
+      fontAscent: 17,
+      fontDescent: 3,
+      styles: {
+        fontSize: "20px",
+        fontFamily: "Hiragino Sans",
+        fontWeight: "400",
+        writingMode: "vertical-rl",
+      } as CapturedElement["styles"],
+      textSegments: [
+        seg({
+          text: "あいう",
+          x: 100,
+          y: 50,
+          width: 20,
+          height: 60,
+          verticalWritingMode: "vertical-rl",
+          yOffsets: [50, 70, 90],
+          verticalAdvances: [20, 20, 20],
+        }),
+      ],
+    }),
+  ];
 }
 
 describe("vertical-writing caret + selection emission (DM-1753)", () => {

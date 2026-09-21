@@ -4,10 +4,38 @@ title: "93 — Realistic simulated typing"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos","linux"]
-tickets: ["DM-1204","DM-1518","DM-1555","DM-1556","DM-1557","DM-1558","DM-1579","DM-1581","DM-1587","DM-1590","DM-1591","DM-1750","DM-1796"]
-code: ["examples/animate/type-resample/","src/animation/animator.ts","src/animation/caret-metrics.ts","src/animation/overlay-schema.ts","src/cli/animate.ts","src/cli/type-resample.e2e.test.ts","src/cli/type-resample.test.ts","src/cli/type-resample.ts","src/render/font-resolution.ts","tests/animate-examples.tsx","tests/typing-baseline-anchor.e2e.test.ts"]
-aliases: ["docs/93-realistic-typing.md","doc-93"]
+platforms: ["macos", "linux"]
+tickets:
+  [
+    "DM-1204",
+    "DM-1518",
+    "DM-1555",
+    "DM-1556",
+    "DM-1557",
+    "DM-1558",
+    "DM-1579",
+    "DM-1581",
+    "DM-1587",
+    "DM-1590",
+    "DM-1591",
+    "DM-1750",
+    "DM-1796",
+  ]
+code:
+  [
+    "examples/animate/type-resample/",
+    "src/animation/animator.ts",
+    "src/animation/caret-metrics.ts",
+    "src/animation/overlay-schema.ts",
+    "src/cli/animate.ts",
+    "src/cli/type-resample.e2e.test.ts",
+    "src/cli/type-resample.test.ts",
+    "src/cli/type-resample.ts",
+    "src/render/font-resolution.ts",
+    "tests/animate-examples.tsx",
+    "tests/typing-baseline-anchor.e2e.test.ts",
+  ]
+aliases: ["docs/93-realistic-typing.md", "doc-93"]
 ---
 
 # 93 — Realistic simulated typing
@@ -120,16 +148,16 @@ ceiling is rarely reached.)
 
 All optional; existing configs are unchanged.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `speed` | number (ms/char) | `60` | Per-keystroke delay. |
-| `mode` | `"type"` \| `"paste"` | `"type"` | `type` steps glyph-by-glyph; `paste` drops the whole string at once (caret jumps to the end). `speed`/`jitter` are ignored in `paste`. |
-| `jitter` | number `0–1` | `0` | Humanize the cadence: each delay becomes `speed × (1 ± jitter)` (min `0.25×speed`) drawn from a **deterministic** PRNG seeded off the text — so the SVG stays byte-stable across runs while the typing loses its robotic fixed interval. |
-| `caret` | boolean \| `{ color, width, blinkMs }` | off | The blinking insertion bar; now `step-end` on both its position (per-keystroke jumps) and blink tracks. |
-| `mistakes` | number `0–1` \| `[{ at, wrong? }]` | off | Humanizing typos (DM-1555). See below. |
-| `mistakeThinkMs` | number (ms) | `400` | Pause between typing a wrong glyph and backspacing it. |
-| `delay` | number (ms) | `300` | Delay from frame start before typing begins. |
-| `holdToFrameEnd` | boolean | (now the default where it matters) | **DM-1796 made hold-and-cut the default**, so this is usually a no-op. A typing overlay holds at full opacity through its window's end and then leaves the way its frame does: a hard `step-end` cut at a `cut` boundary or a compressed-run state snap (the seamless handoff to the next frame's real page text), a dissolve across the frame's own transition window otherwise, and the historical 150 ms-early fade only on the scene's LAST frame, where nothing takes over before the loop wraps. Setting `true` still forces the hard cut in those last two cases. Before DM-1796 the pre-fade applied everywhere, so on a handoff the value was visible on neither side for ~120 ms — the field blanked and the value reappeared. |
+| Field            | Type                                   | Default                            | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------- | -------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `speed`          | number (ms/char)                       | `60`                               | Per-keystroke delay.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `mode`           | `"type"` \| `"paste"`                  | `"type"`                           | `type` steps glyph-by-glyph; `paste` drops the whole string at once (caret jumps to the end). `speed`/`jitter` are ignored in `paste`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `jitter`         | number `0–1`                           | `0`                                | Humanize the cadence: each delay becomes `speed × (1 ± jitter)` (min `0.25×speed`) drawn from a **deterministic** PRNG seeded off the text — so the SVG stays byte-stable across runs while the typing loses its robotic fixed interval.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `caret`          | boolean \| `{ color, width, blinkMs }` | off                                | The blinking insertion bar; now `step-end` on both its position (per-keystroke jumps) and blink tracks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `mistakes`       | number `0–1` \| `[{ at, wrong? }]`     | off                                | Humanizing typos (DM-1555). See below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `mistakeThinkMs` | number (ms)                            | `400`                              | Pause between typing a wrong glyph and backspacing it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `delay`          | number (ms)                            | `300`                              | Delay from frame start before typing begins.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `holdToFrameEnd` | boolean                                | (now the default where it matters) | **DM-1796 made hold-and-cut the default**, so this is usually a no-op. A typing overlay holds at full opacity through its window's end and then leaves the way its frame does: a hard `step-end` cut at a `cut` boundary or a compressed-run state snap (the seamless handoff to the next frame's real page text), a dissolve across the frame's own transition window otherwise, and the historical 150 ms-early fade only on the scene's LAST frame, where nothing takes over before the loop wraps. Setting `true` still forces the hard cut in those last two cases. Before DM-1796 the pre-fade applied everywhere, so on a handoff the value was visible on neither side for ~120 ms — the field blanked and the value reappeared. |
 
 ### Mistake → backspace → correct (DM-1555)
 
@@ -287,7 +315,7 @@ border-box anchor without `baseline` stays unchanged, landing an ascent higher.
 
 The `typing` overlay above SYNTHESIZES the field's text: it paints a monospace
 `<text>` reveal on top of ONE captured frame. That's cheap and gives an exact
-caret, but it renders *our* font and *our* characters — it cannot show what the
+caret, but it renders _our_ font and _our_ characters — it cannot show what the
 **page itself** does to the input. If the field applies an input mask
 (`4155550142` → `(415) 555-0142`), auto-formats, validates (a green border once
 complete), composes via an IME, or paints in its own font, the synthetic overlay
@@ -306,16 +334,16 @@ same frame that would otherwise carry `input` / `continue` + `actions`):
   "actions": [{ "type": "focus", "selector": "#phone" }],
   "duration": 2500,
   "typeResample": {
-    "selector": "#phone",          // the input / textarea to type into
-    "text": "4155550142",          // raw keystrokes — one re-captured state each
-    "speed": 130,                  // per-keystroke hold (ms); default 60
-    "delay": 300,                  // hold before the first key (ms); default 0
-    "tailMs": 900,                 // hold on the fully-typed state (ms); default 700
-    "clear": true,                 // clear the field first; default true
-    "caret": true,                 // draw the field's REAL caret; default true
-    "caretShape": "auto",          // DM-1591: "auto" honors the field's computed CSS caret-shape; bar/block/underscore force one
-    "regionOnly": false            // DM-1581: capture only the field per keystroke; default false
-  }
+    "selector": "#phone", // the input / textarea to type into
+    "text": "4155550142", // raw keystrokes — one re-captured state each
+    "speed": 130, // per-keystroke hold (ms); default 60
+    "delay": 300, // hold before the first key (ms); default 0
+    "tailMs": 900, // hold on the fully-typed state (ms); default 700
+    "clear": true, // clear the field first; default true
+    "caret": true, // draw the field's REAL caret; default true
+    "caretShape": "auto", // DM-1591: "auto" honors the field's computed CSS caret-shape; bar/block/underscore force one
+    "regionOnly": false, // DM-1581: capture only the field per keystroke; default false
+  },
 }
 ```
 
@@ -354,7 +382,7 @@ shared embedded-font block (collected once), exactly like a `cast` frame's
 
 The caret comes from the field's **real** caret rect: after each keystroke the
 renderer measures `selectionEnd` against the field's computed font (so it tracks
-the edge of the *masked* value, not the raw keys) and draws a blinking bar there
+the edge of the _masked_ value, not the raw keys) and draws a blinking bar there
 (a `blink` overlay per state, using the field's `caret-color`). Set `caret:false`
 to omit it.
 

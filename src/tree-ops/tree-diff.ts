@@ -28,11 +28,11 @@
 import type { CapturedElement } from "../capture/types.js";
 
 export type DiffEntryKind =
-  | "static"      // matched, bbox identical (within tolerance)
-  | "translated"  // matched, bbox shifted by (dx, dy)
-  | "modified"    // matched by path + tag, content/styles differ
-  | "added"       // only in `next`
-  | "removed";    // only in `prev`
+  | "static" // matched, bbox identical (within tolerance)
+  | "translated" // matched, bbox shifted by (dx, dy)
+  | "modified" // matched by path + tag, content/styles differ
+  | "added" // only in `next`
+  | "removed"; // only in `prev`
 
 export interface DiffEntry {
   kind: DiffEntryKind;
@@ -115,9 +115,7 @@ export function diffTrees(
     const dx = ne.el.x - chosen.el.x;
     const dy = ne.el.y - chosen.el.y;
     const kind: DiffEntryKind =
-      Math.abs(dx) <= BBOX_TOLERANCE && Math.abs(dy) <= BBOX_TOLERANCE
-        ? "static"
-        : "translated";
+      Math.abs(dx) <= BBOX_TOLERANCE && Math.abs(dy) <= BBOX_TOLERANCE ? "static" : "translated";
     entries.push({ kind, prevPath: chosen.path, nextPath: ne.path, prev: chosen.el, next: ne.el, dx, dy });
   }
 
@@ -216,8 +214,9 @@ export function entriesOfKind(diff: TreeDiff, ...kinds: DiffEntryKind[]): DiffEn
  * per-element keyframes.
  */
 export function dominantTranslate(diff: TreeDiff): { dx: number; dy: number; fraction: number } | null {
-  const movers = diff.entries.filter((e): e is DiffEntry & { dx: number; dy: number } =>
-    e.kind === "translated" && typeof e.dx === "number" && typeof e.dy === "number",
+  const movers = diff.entries.filter(
+    (e): e is DiffEntry & { dx: number; dy: number } =>
+      e.kind === "translated" && typeof e.dx === "number" && typeof e.dy === "number",
   );
   if (movers.length === 0) return null;
   // Bucket by rounded (dx, dy) and pick the largest bucket.

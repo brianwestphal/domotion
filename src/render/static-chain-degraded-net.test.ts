@@ -40,7 +40,7 @@ const SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
 /** U+0E01 THAI KO KAI — a fallback-only codepoint for a Helvetica /
  *  Liberation Sans primary on every calibrated platform, with a static-chain
  *  route (`thai`) on both darwin and linux. */
-const THAI_KO_KAI = 0x0E01;
+const THAI_KO_KAI = 0x0e01;
 
 describe("static chain is a degraded-mode net — no such stage in FontFallbackIterator::Next (font_fallback_iterator.cc:120-157, rev 7d859f27)", () => {
   it("gates staticChain on helper absence / resolver-off, win32 excluded", () => {
@@ -51,24 +51,24 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
     expect(norm).toContain(
       'const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !_systemFallbackResolutionEnabled;',
     );
-    expect(norm).toContain(
-      "const staticChain = (): FontResolution | null => { if (!staticChainArmed) return null;",
-    );
+    expect(norm).toContain("const staticChain = (): FontResolution | null => { if (!staticChainArmed) return null;");
   });
 
   const thaiFace = getFontInstance("thai", 400, 16, 0);
-  it.skipIf(thaiFace == null || glyphIdForCp(thaiFace, THAI_KO_KAI) === 0)("still answers from the static chain when the live resolver is out of the loop (the degraded net)", () => {
-    // `withSystemFallbackResolution(false)` is the in-process analogue of
-    // DOMOTION_SYSTEM_FALLBACK=0 / a helper-less host: the live resolver
-    // declines everything, and the chain must catch what would otherwise drop
-    // straight to tofu. Helvetica (darwin) / Liberation Sans (linux) lack
-    // Thai; the calibrated chains route it.
-    const off = withSystemFallbackResolution(false, () =>
-      __resolveFontForCodepointForTest(THAI_KO_KAI, "Helvetica"));
-    if (off == null) return; // host without the family; the source pin above still holds
-    expect(off.covered).toBe(true);
-    expect(off.key).toBe("thai");
-  });
+  it.skipIf(thaiFace == null || glyphIdForCp(thaiFace, THAI_KO_KAI) === 0)(
+    "still answers from the static chain when the live resolver is out of the loop (the degraded net)",
+    () => {
+      // `withSystemFallbackResolution(false)` is the in-process analogue of
+      // DOMOTION_SYSTEM_FALLBACK=0 / a helper-less host: the live resolver
+      // declines everything, and the chain must catch what would otherwise drop
+      // straight to tofu. Helvetica (darwin) / Liberation Sans (linux) lack
+      // Thai; the calibrated chains route it.
+      const off = withSystemFallbackResolution(false, () => __resolveFontForCodepointForTest(THAI_KO_KAI, "Helvetica"));
+      if (off == null) return; // host without the family; the source pin above still holds
+      expect(off.covered).toBe(true);
+      expect(off.key).toBe("thai");
+    },
+  );
 
   it.runIf(isGlyphHelperAvailable() && getSystemFallbackResolution())(
     "the live resolver answers when it is in the loop, and the answer MOVES when it is disabled",
@@ -77,8 +77,7 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
       // everything would leave the two arms identical, exactly like a resolver
       // that was never in the loop. The arms must both answer and disagree.
       const on = __resolveFontForCodepointForTest(THAI_KO_KAI, "Helvetica");
-      const off = withSystemFallbackResolution(false, () =>
-        __resolveFontForCodepointForTest(THAI_KO_KAI, "Helvetica"));
+      const off = withSystemFallbackResolution(false, () => __resolveFontForCodepointForTest(THAI_KO_KAI, "Helvetica"));
       if (on == null || off == null) return; // host without the family
       expect(on.covered).toBe(true);
       expect(on.key.startsWith("sysfb:"), `live arm answered ${on.key}, not a live sysfb: face`).toBe(true);
@@ -94,7 +93,7 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
     // table's sampled `u-noto-sans` route for the block supplied the static
     // chain's only six system-stage answers on the darwin conformance corpus
     // — every one a divergence.
-    for (const cp of [0xFE00, 0xFE05, 0xFE0E, 0xFE0F]) {
+    for (const cp of [0xfe00, 0xfe05, 0xfe0e, 0xfe0f]) {
       expect(darwinFallbackChain(cp), `U+${cp.toString(16).toUpperCase()}`).toEqual([]);
     }
   });
@@ -105,8 +104,8 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
     // advance candidates, the batch glyph-warm) and must keep receiving a
     // chain whatever the resolver's state — only the resolver's staticChain
     // STAGE is gated, never the chain function.
-    const withResolver = fallbackFontChain(0x05D0);
-    const withoutResolver = withSystemFallbackResolution(false, () => fallbackFontChain(0x05D0));
+    const withResolver = fallbackFontChain(0x05d0);
+    const withoutResolver = withSystemFallbackResolution(false, () => fallbackFontChain(0x05d0));
     expect(withResolver.length).toBeGreaterThan(0);
     expect(withResolver).toEqual(withoutResolver);
   });

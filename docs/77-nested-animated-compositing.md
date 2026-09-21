@@ -5,9 +5,21 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["macos"]
-tickets: ["DM-1287","DM-1292","DM-1296","DM-1319","DM-1322","DM-1323","DM-1329","DM-1331"]
-code: ["examples/composite-desktop.ts","examples/composite/desktop-terminal.json","src/animation/composite.ts","src/animation/embed-namespace.ts","src/animation/embed-timeline.ts","src/cli/animate.ts","src/cli/composite-font-dedup.e2e.test.ts","src/cli/composite.ts","src/render/device-chrome.ts","src/templates/builtin/device-mockup.ts"]
-aliases: ["docs/77-nested-animated-compositing.md","doc-77"]
+tickets: ["DM-1287", "DM-1292", "DM-1296", "DM-1319", "DM-1322", "DM-1323", "DM-1329", "DM-1331"]
+code:
+  [
+    "examples/composite-desktop.ts",
+    "examples/composite/desktop-terminal.json",
+    "src/animation/composite.ts",
+    "src/animation/embed-namespace.ts",
+    "src/animation/embed-timeline.ts",
+    "src/cli/animate.ts",
+    "src/cli/composite-font-dedup.e2e.test.ts",
+    "src/cli/composite.ts",
+    "src/render/device-chrome.ts",
+    "src/templates/builtin/device-mockup.ts",
+  ]
+aliases: ["docs/77-nested-animated-compositing.md", "doc-77"]
 ---
 
 # 77 — Nested animated compositing (DM-1323)
@@ -16,8 +28,8 @@ Status: **Shipped (core).** General animated-SVG compositing is implemented: a
 programmatic primitive (`composeAnimatedLayers`), a declarative `domotion
 composite` config/verb, per-layer independent timelines (`hold` / `stretch` /
 `loop`), layer-level animations (move / scale / fade, plus `clipScaleX` /
-`clipScaleY` to resize a layer's *box* without scaling its contents), and
-`device-mockup` nesting *animated* screen content. The E2E proof — a macOS-like
+`clipScaleY` to resize a layer's _box_ without scaling its contents), and
+`device-mockup` nesting _animated_ screen content. The E2E proof — a macOS-like
 desktop with a terminal **window that the cursor resizes mid-run, reflowing the
 terminal (80 → 50 cols) while the title-bar buttons keep their size** — ships as
 `examples/composite-desktop.ts` (and a simpler declarative
@@ -35,10 +47,10 @@ the same composite nested twice) embed the heavy payload once.
 **Resizing a window correctly (not scaling it).** A real window resize changes the
 content's size and reflows it; it does not scale the chrome. So the demo (a) emits
 the terminal at the new column count via a cast `resize` event — reflow happens at
-the *terminal* layer, pre-composite — and (b) shrinks the window's box with
+the _terminal_ layer, pre-composite — and (b) shrinks the window's box with
 `clipScaleX` (a `clip-path` whose clip-rect is `transform: scaleX`-animated), which
 trims the window from the right with the traffic-light buttons untouched. The
-reflow's *rendered* time + before/after column counts come from `buildFrames`
+reflow's _rendered_ time + before/after column counts come from `buildFrames`
 (each settle-point carries its grid + `durationMs`), so the chrome resize lines up
 with the terminal reflow. Animating `clip-path: inset()` directly was tried first
 but fails to clip over nested-SVG content; the `scaleX`-clip-rect approach is
@@ -54,7 +66,7 @@ robust and uses only transforms (cross-browser-safe).
   itself a complete animated SVG, composites **nest recursively**.
 - **Per-layer timeline** (`offsetEmbeddedAnimatedSvgTimeline`,
   `src/animation/embed-timeline.ts`) generalized to `mode: "hold" | "stretch" |
-  "loop"` + independent `start` / `duration` — a layer's animation starts and
+"loop"` + independent `start` / `duration` — a layer's animation starts and
   runs independently of its container (the user's core requirement).
 - **`domotion composite <config.json>`** (`src/cli/composite.ts`) — the
   declarative surface: layers whose source is a `cast`, a `template`, or a
@@ -74,11 +86,11 @@ The rest of this doc is the original design + feasibility evaluation; the
 Domotion can produce animated content several ways — a `cast` (terminal), a
 `capture --scroll` (a scrolling page), a `template` (lower-third, kinetic-text,
 device-mockup, …), and a full `animate` composition — but there is **no way to
-nest one *animated* composition inside another while preserving its animation.**
+nest one _animated_ composition inside another while preserving its animation.**
 Composition today is either:
 
 - **Sequential frames** in an `animate` config (doc 43 / 73): template / cast /
-  input frames play one after another; they don't *layer* or *nest*. (Each is a
+  input frames play one after another; they don't _layer_ or _nest_. (Each is a
   nested animated SVG, but they're shown one-at-a-time, not composited.)
 - **Decorator templates that re-capture to a STATIC SVG** (`device-mockup` /
   `wrapInDeviceChrome`, doc 65 / 70): the wrapped content is flattened to one
@@ -139,7 +151,7 @@ correctly.
 
 ### 1. A compositing primitive whose layer content can be already-animated SVG
 
-Today every content source is a *fresh capture* of a live page. Add a content
+Today every content source is a _fresh capture_ of a live page. Add a content
 source that is **already-rendered animated SVG** — the output of a `cast`, a
 `scroll` capture, a `template`, or another `animate` run — placed into a parent
 at a position, with an optional transform and clip. Mechanically each layer is:
@@ -194,7 +206,7 @@ pairs threaded down the tree.
   `clipPath` — all in the cross-engine-safe set (per `llms.txt` gotchas;
   contrast the rejected animated-`filter` approach, DM-1296). No engine-specific
   feature is required.
-- **Master-loop commensurability.** DM-1319 re-anchors a layer onto the *master*
+- **Master-loop commensurability.** DM-1319 re-anchors a layer onto the _master_
   period so it stays in sync across loops. With multiple independently-looping
   layers of different natural lengths, the composite's true loop is the LCM of
   the layer periods; the primitive should either (a) hold each layer after it
@@ -214,7 +226,7 @@ pairs threaded down the tree.
   spec), plus `transform` / `clip`. And/or `device-mockup`'s screen param accepts
   an animated SVG. Lowest barrier; fits the existing config contract (doc 43).
 - **(B) Programmatic primitive.** A `composeLayers([...])` / `nestAnimatedSvg(
-  inner, { transform, clip, start, period })` export, mirroring the doc-62/63
+inner, { transform, clip, start, period })` export, mirroring the doc-62/63
   "expose the seam" pattern, for callers who assemble composites in code.
 - **(C) Both** — the declarative path built on the primitive (as templates are
   front-ends onto `composeAnimateConfig`). Most consistent with the codebase, but
@@ -242,7 +254,7 @@ pairs threaded down the tree.
      `cast` layers are rendered through ONE embedded-font builder
      (`manageFonts:false` → `getEmbeddedFontFaceCss()`), so several terminals in
      the same monospace but with **different text (different glyph subsets)** embed
-     the font's *union* subset **once**. The layers carry `deferFonts:true` (their
+     the font's _union_ subset **once**. The layers carry `deferFonts:true` (their
      `dmfN` families are kept un-prefixed during namespacing) and the single
      `@font-face` block is emitted once via `ComposeLayersOptions.fontFaceCss`.
      Scoped to cast layers in the config path — `svg` layers are pre-rendered and

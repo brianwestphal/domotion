@@ -71,74 +71,95 @@ async function main() {
     try {
       if (typeof document.getAnimations === "function") {
         for (const a of document.getAnimations()) {
-          try { a.pause(); } catch { /* */ }
+          try {
+            a.pause();
+          } catch {
+            /* */
+          }
         }
       }
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     try {
       const probe = window.setTimeout(() => {}, 0) as unknown as number;
       window.clearTimeout(probe);
       for (let i = 1; i <= probe; i++) {
-        try { window.clearTimeout(i); } catch { /* */ }
-        try { window.clearInterval(i); } catch { /* */ }
+        try {
+          window.clearTimeout(i);
+        } catch {
+          /* */
+        }
+        try {
+          window.clearInterval(i);
+        } catch {
+          /* */
+        }
       }
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     try {
       const noop = (() => 0) as any;
       window.setTimeout = noop;
       window.setInterval = noop;
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
   });
 
   console.log(`canvasH=${canvasH} target=(${TARGET_X},${TARGET_Y},${TARGET_W},${TARGET_H})`);
 
   // Live-DOM probe FIRST (before captureElementTree, so DOM is unmodified).
   // All helpers are inline arrow funcs to avoid esbuild injecting __name.
-  const liveProbe = await page.evaluate((rect) => {
-    const all = document.querySelectorAll("*");
-    const hits: any[] = [];
-    for (const el of all) {
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) continue;
-      const intersects = !(
-        r.right < rect.x ||
-        r.left > rect.x + rect.w ||
-        r.bottom < rect.y ||
-        r.top > rect.y + rect.h
-      );
-      if (!intersects) continue;
-      // Build path inline.
-      const parts: string[] = [];
-      let cur: Element | null = el;
-      while (cur && cur.nodeName !== "BODY" && cur.nodeName !== "HTML") {
-        let seg = cur.nodeName.toLowerCase();
-        const cls = (cur as HTMLElement).className;
-        if (typeof cls === "string" && cls.length > 0) {
-          seg += "." + cls.split(/\s+/).slice(0, 2).join(".");
+  const liveProbe = await page.evaluate(
+    (rect) => {
+      const all = document.querySelectorAll("*");
+      const hits: any[] = [];
+      for (const el of all) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        const intersects = !(
+          r.right < rect.x ||
+          r.left > rect.x + rect.w ||
+          r.bottom < rect.y ||
+          r.top > rect.y + rect.h
+        );
+        if (!intersects) continue;
+        // Build path inline.
+        const parts: string[] = [];
+        let cur: Element | null = el;
+        while (cur && cur.nodeName !== "BODY" && cur.nodeName !== "HTML") {
+          let seg = cur.nodeName.toLowerCase();
+          const cls = (cur as HTMLElement).className;
+          if (typeof cls === "string" && cls.length > 0) {
+            seg += "." + cls.split(/\s+/).slice(0, 2).join(".");
+          }
+          const id = (cur as HTMLElement).id;
+          if (id) seg += "#" + id;
+          parts.unshift(seg);
+          cur = cur.parentElement;
         }
-        const id = (cur as HTMLElement).id;
-        if (id) seg += "#" + id;
-        parts.unshift(seg);
-        cur = cur.parentElement;
+        const cs = getComputedStyle(el);
+        hits.push({
+          path: parts.join(" > ").slice(-200),
+          tag: el.nodeName.toLowerCase(),
+          rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
+          text: (el.textContent ?? "").trim().slice(0, 60),
+          position: cs.position,
+          display: cs.display,
+          transform: cs.transform === "none" ? null : cs.transform,
+          transformOrigin: cs.transform === "none" ? null : cs.transformOrigin,
+          zIndex: cs.zIndex,
+          overflow: cs.overflow,
+          flexDirection: cs.display.includes("flex") ? cs.flexDirection : null,
+          order: cs.display.includes("flex") || cs.display.includes("grid") ? cs.order : null,
+        });
       }
-      const cs = getComputedStyle(el);
-      hits.push({
-        path: parts.join(" > ").slice(-200),
-        tag: el.nodeName.toLowerCase(),
-        rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
-        text: (el.textContent ?? "").trim().slice(0, 60),
-        position: cs.position,
-        display: cs.display,
-        transform: cs.transform === "none" ? null : cs.transform,
-        transformOrigin: cs.transform === "none" ? null : cs.transformOrigin,
-        zIndex: cs.zIndex,
-        overflow: cs.overflow,
-        flexDirection: cs.display.includes("flex") ? cs.flexDirection : null,
-        order: cs.display.includes("flex") || cs.display.includes("grid") ? cs.order : null,
-      });
-    }
-    return hits.slice(0, 60);
-  }, { x: TARGET_X, y: TARGET_Y, w: TARGET_W, h: TARGET_H });
+      return hits.slice(0, 60);
+    },
+    { x: TARGET_X, y: TARGET_Y, w: TARGET_W, h: TARGET_H },
+  );
 
   console.log(`\n=== LIVE DOM (${liveProbe.length} elements intersecting region) ===`);
   for (const h of liveProbe) {
@@ -147,7 +168,10 @@ async function main() {
 
   // Now run captureElementTree on the same region.
   const tree = await captureElementTree(page, "body", {
-    x: 0, y: 0, width: 390, height: canvasH,
+    x: 0,
+    y: 0,
+    width: 390,
+    height: canvasH,
   });
 
   function intersects(el: any): boolean {
@@ -171,18 +195,28 @@ async function main() {
         rect: { x: el.x, y: el.y, w: el.width, h: el.height },
         text: el.text ? el.text.slice(0, 40) : undefined,
         textSegmentCount: Array.isArray(el.textSegments) ? el.textSegments.length : 0,
-        textSegmentsPreview: Array.isArray(el.textSegments) ? el.textSegments.slice(0, 3).map((s: any) => ({
-          text: typeof s.text === "string" ? s.text.slice(0, 30) : "",
-          x: s.x, y: s.y, w: s.width, h: s.height,
-        })) : undefined,
+        textSegmentsPreview: Array.isArray(el.textSegments)
+          ? el.textSegments.slice(0, 3).map((s: any) => ({
+              text: typeof s.text === "string" ? s.text.slice(0, 30) : "",
+              x: s.x,
+              y: s.y,
+              w: s.width,
+              h: s.height,
+            }))
+          : undefined,
         bg: el.styles?.backgroundColor,
         position: el.styles?.position,
         display: el.styles?.display,
         transform: el.styles?.transform === "none" ? null : el.styles?.transform,
         zIndex: el.styles?.zIndex,
-        elementRaster: el.elementRaster ? {
-          x: el.elementRaster.x, y: el.elementRaster.y, w: el.elementRaster.width, h: el.elementRaster.height,
-        } : null,
+        elementRaster: el.elementRaster
+          ? {
+              x: el.elementRaster.x,
+              y: el.elementRaster.y,
+              w: el.elementRaster.width,
+              h: el.elementRaster.height,
+            }
+          : null,
         replacedSnapshot: el.replacedSnapshot ? "yes" : null,
         childCount: Array.isArray(el.children) ? el.children.length : 0,
       });
@@ -206,11 +240,18 @@ async function main() {
   // Persist the full captured tree at the region for offline inspection.
   writeFileSync(
     resolve(OUT_DIR, "probe-stripe-checkout.json"),
-    JSON.stringify({ canvasH, target: { x: TARGET_X, y: TARGET_Y, w: TARGET_W, h: TARGET_H }, liveProbe, captured: hits }, null, 2),
+    JSON.stringify(
+      { canvasH, target: { x: TARGET_X, y: TARGET_Y, w: TARGET_W, h: TARGET_H }, liveProbe, captured: hits },
+      null,
+      2,
+    ),
   );
   console.log(`\nFull dump → tests/output/probe-stripe-checkout.json`);
 
   await browser.close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

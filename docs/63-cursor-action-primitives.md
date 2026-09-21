@@ -5,9 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1132","DM-1133","DM-1135","DM-1136"]
-code: ["src/cli/animate.ts","src/index.ts"]
-aliases: ["docs/63-cursor-action-primitives.md","doc-63"]
+tickets: ["DM-1132", "DM-1133", "DM-1135", "DM-1136"]
+code: ["src/cli/animate.ts", "src/index.ts"]
+aliases: ["docs/63-cursor-action-primitives.md", "doc-63"]
 ---
 
 # 63 — Cursor-target + action-runner public primitives
@@ -40,9 +40,9 @@ scoped OUT two sibling resolution steps that still live private inside
    private. An imperative caller re-drives Playwright by hand and loses the
    declarative DOM-mutation actions that aren't raw-Playwright one-liners.
 
-This is the *other* half of the JSON ↔ programmatic gap from DM-1136 (doc 62):
-that ticket opens up the *whole pipeline*; this one exposes the *per-feature
-primitives* so an imperative caller can mix them into its own loop.
+This is the _other_ half of the JSON ↔ programmatic gap from DM-1136 (doc 62):
+that ticket opens up the _whole pipeline_; this one exposes the _per-feature
+primitives_ so an imperative caller can mix them into its own loop.
 
 ## The border-box vs content-box discrepancy
 
@@ -99,7 +99,7 @@ const actions: AnimateAction[] = [
   { type: "replaceText", selector: ".price", pattern: "\\$0", replacement: "$49" },
   { type: "click", selector: "#submit" },
 ];
-await runActions(page, actions);   // applied against the live page, in order
+await runActions(page, actions); // applied against the live page, in order
 ```
 
 - **Public type**: `AnimateAction` (today `z.infer<typeof actionSchema>`, private)
@@ -108,7 +108,7 @@ await runActions(page, actions);   // applied against the live page, in order
   imperative callers, so the click/fill/hover/press wrappers are low-value on
   their own — the payoff is the **DOM-mutation actions**
   (setText / addClass / insert / replaceText / setStyle / dispatch / …) that are
-  *not* one-line Playwright calls and that already encode the
+  _not_ one-line Playwright calls and that already encode the
   "apply across every matched element, throw if the selector matches nothing"
   semantics (doc 43 → Selectors).
 - **`log` is optional.** The CLI passes a logger for the `evaluate`-too-long

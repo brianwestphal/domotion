@@ -1,15 +1,15 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-  launchChromium,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvgInner, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try {
+    return { browser: await launchChromium() };
+  } catch {
+    return null;
+  }
 }
 
 const env = await setup();
@@ -45,9 +45,12 @@ async function colorBounds(
   for (let y = 0; y < info.height; y++) {
     for (let x = 0; x < info.width; x++) {
       const offset = (y * info.width + x) * info.channels;
-      if (Math.abs(data[offset] - rgb[0]) > 20
-          || Math.abs(data[offset + 1] - rgb[1]) > 20
-          || Math.abs(data[offset + 2] - rgb[2]) > 20) continue;
+      if (
+        Math.abs(data[offset] - rgb[0]) > 20 ||
+        Math.abs(data[offset + 1] - rgb[1]) > 20 ||
+        Math.abs(data[offset + 2] - rgb[2]) > 20
+      )
+        continue;
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
       maxX = Math.max(maxX, x);
@@ -161,7 +164,9 @@ describeBrowser("projective inline SVG raster ownership", () => {
     });
     try {
       for (const row of cases) {
-        await page.setContent(`<style>html,body{margin:0;background:white}#host{position:absolute;left:55px;top:42px}</style><div id="host">${row.markup}</div>`);
+        await page.setContent(
+          `<style>html,body{margin:0;background:white}#host{position:absolute;left:55px;top:42px}</style><div id="host">${row.markup}</div>`,
+        );
         await page.evaluate(`(() => {
           globalThis.__dmProjectiveSvgHtmlInsertions = [];
           globalThis.__dmProjectiveSvgObserver = new MutationObserver(records => {
@@ -178,7 +183,10 @@ describeBrowser("projective inline SVG raster ownership", () => {
         if (row.expectedOwnerTag == null) {
           expect(owners, row.id).toEqual([]);
         } else {
-          expect(owners.map((owner) => owner.tag), row.id).toEqual([row.expectedOwnerTag]);
+          expect(
+            owners.map((owner) => owner.tag),
+            row.id,
+          ).toEqual([row.expectedOwnerTag]);
           expect(owners[0].transformSubtreeRaster?.sourceNodeIndex, row.id).toBeUndefined();
           if (row.expectedEmpty === true) {
             expect(owners[0].transformSubtreeRaster, row.id).toMatchObject({ empty: true });
@@ -188,13 +196,19 @@ describeBrowser("projective inline SVG raster ownership", () => {
         if (row.inlineOwns != null) {
           expect(inlineSvg(tree)?.transformSubtreeRaster != null, row.id).toBe(row.inlineOwns);
         }
-        expect(await page.evaluate(() => Object.keys(globalThis).some(
-          (key) => key.startsWith("__domotionProjectivePaintNodes_"),
-        )), row.id).toBe(false);
-        expect(await page.evaluate(`(() => {
+        expect(
+          await page.evaluate(() =>
+            Object.keys(globalThis).some((key) => key.startsWith("__domotionProjectivePaintNodes_")),
+          ),
+          row.id,
+        ).toBe(false);
+        expect(
+          await page.evaluate(`(() => {
           globalThis.__dmProjectiveSvgObserver?.disconnect();
           return globalThis.__dmProjectiveSvgHtmlInsertions;
-        })()`), row.id).toEqual([]);
+        })()`),
+          row.id,
+        ).toEqual([]);
       }
     } finally {
       await page.close();
@@ -241,7 +255,9 @@ describeBrowser("projective inline SVG raster ownership", () => {
       expect(body.split(raster.dataUri!).length - 1).toBe(1);
       expect(body).toContain('fill="rgb(0,181,87)"');
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="white"/>${body}</svg>`;
-      await rendered.setContent(`<style>html,body{margin:0}img{display:block;width:${width}px;height:${height}px}</style><img alt="rendered" src="data:image/svg+xml,${encodeURIComponent(svg)}">`);
+      await rendered.setContent(
+        `<style>html,body{margin:0}img{display:block;width:${width}px;height:${height}px}</style><img alt="rendered" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+      );
       await rendered.locator("img").evaluate((image: HTMLImageElement) => image.decode());
       const actual = await rendered.screenshot();
 
@@ -255,23 +271,27 @@ describeBrowser("projective inline SVG raster ownership", () => {
       ] as const) {
         const expectedBounds = await colorBounds(expected, color);
         const actualBounds = await colorBounds(actual, color);
-        expect(maxBoundsDelta(expectedBounds, actualBounds), color.join(","))
-          .toBeLessThanOrEqual(4);
+        expect(maxBoundsDelta(expectedBounds, actualBounds), color.join(",")).toBeLessThanOrEqual(4);
       }
-      expect(await page.evaluate(() => ({
-        scrollY,
-        ownerProbePresent: Object.keys(globalThis).some(
-          (key) => key.startsWith("__domotionProjectivePaintNodes_"),
-        ),
-        sourceVisibility: ["art", "fohost", "plane", "sibling"].map((id) => {
-          const style = document.getElementById(id)!.style;
-          return [style.getPropertyValue("visibility"), style.getPropertyPriority("visibility")];
-        }),
-        frameTransform: getComputedStyle(document.getElementById("frame")!).transform,
-      }))).toEqual({
+      expect(
+        await page.evaluate(() => ({
+          scrollY,
+          ownerProbePresent: Object.keys(globalThis).some((key) => key.startsWith("__domotionProjectivePaintNodes_")),
+          sourceVisibility: ["art", "fohost", "plane", "sibling"].map((id) => {
+            const style = document.getElementById(id)!.style;
+            return [style.getPropertyValue("visibility"), style.getPropertyPriority("visibility")];
+          }),
+          frameTransform: getComputedStyle(document.getElementById("frame")!).transform,
+        })),
+      ).toEqual({
         scrollY: 300,
         ownerProbePresent: false,
-        sourceVisibility: [["", ""], ["", ""], ["", ""], ["", ""]],
+        sourceVisibility: [
+          ["", ""],
+          ["", ""],
+          ["", ""],
+          ["", ""],
+        ],
         frameTransform: expect.stringMatching(/^matrix\(/),
       });
     } finally {

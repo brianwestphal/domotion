@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  embedRemoteImages,
-  elementTreeToSvgInner,
-  getLastCaptureWarnings,
-} from "./render/element-tree-to-svg.js";
+import { embedRemoteImages, elementTreeToSvgInner, getLastCaptureWarnings } from "./render/element-tree-to-svg.js";
 import type { CapturedElement, CaptureWarning } from "./capture/types.js";
 
 /**
@@ -25,7 +21,10 @@ function makeElement(overrides: Partial<CapturedElement> = {}): CapturedElement 
   return {
     tag: "div",
     text: "",
-    x: 0, y: 0, width: 100, height: 100,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
     children: [],
     ...overrides,
     styles: {
@@ -135,13 +134,15 @@ describe("embedRemoteImages — DM-512", () => {
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
-    fetchMock = vi.fn(async () => ({
-      ok: true,
-      arrayBuffer: async () => ONE_PX_PNG.buffer.slice(
-        ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength,
-      ),
-      headers: { get: (name: string) => name.toLowerCase() === "content-type" ? "image/png" : null },
-    } as unknown as Response));
+    fetchMock = vi.fn(
+      async () =>
+        ({
+          ok: true,
+          arrayBuffer: async () =>
+            ONE_PX_PNG.buffer.slice(ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength),
+          headers: { get: (name: string) => (name.toLowerCase() === "content-type" ? "image/png" : null) },
+        }) as unknown as Response,
+    );
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   });
   afterEach(() => {
@@ -150,11 +151,16 @@ describe("embedRemoteImages — DM-512", () => {
 
   it("inlines an <img>'s http(s) src as a data: URI in the rendered SVG", async () => {
     const url = "https://example.com/dm-512-img-test.png";
-    const tree = [makeElement({
-      tag: "img",
-      x: 0, y: 0, width: 50, height: 50,
-      imageSrc: url,
-    })];
+    const tree = [
+      makeElement({
+        tag: "img",
+        x: 0,
+        y: 0,
+        width: 50,
+        height: 50,
+        imageSrc: url,
+      }),
+    ];
     await embedRemoteImages(tree);
     const svg = elementTreeToSvgInner(tree, 100, 100);
     expect(svg).toContain(ONE_PX_PNG_DATA_URI);
@@ -163,10 +169,19 @@ describe("embedRemoteImages — DM-512", () => {
 
   it("inlines a CSS background-image url(http://…) source", async () => {
     const url = "https://example.com/dm-512-bg-test.png";
-    const tree = [makeElement({
-      x: 0, y: 0, width: 100, height: 100,
-      styles: { ...makeElement().styles, backgroundImage: `url("${url}")`, backgroundIntrinsic: [{ w: 50, h: 50 }] } as CapturedElement["styles"],
-    })];
+    const tree = [
+      makeElement({
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        styles: {
+          ...makeElement().styles,
+          backgroundImage: `url("${url}")`,
+          backgroundIntrinsic: [{ w: 50, h: 50 }],
+        } as CapturedElement["styles"],
+      }),
+    ];
     await embedRemoteImages(tree);
     const svg = elementTreeToSvgInner(tree, 100, 100);
     expect(svg).toContain(ONE_PX_PNG_DATA_URI);
@@ -175,10 +190,7 @@ describe("embedRemoteImages — DM-512", () => {
 
   it("dedupes by URL — multiple consumers share one fetch", async () => {
     const url = "https://example.com/dm-512-shared.png";
-    const tree = [
-      makeElement({ tag: "img", imageSrc: url }),
-      makeElement({ tag: "img", imageSrc: url }),
-    ];
+    const tree = [makeElement({ tag: "img", imageSrc: url }), makeElement({ tag: "img", imageSrc: url })];
     await embedRemoteImages(tree);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // DM-528: fetch now receives an init bag with an AbortSignal alongside the URL.
@@ -250,7 +262,9 @@ describe("embedRemoteImages — DM-512", () => {
 
     it("includes a selector path identifying the originating element", async () => {
       fetchMock.mockResolvedValueOnce({
-        ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 404,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       const url = "https://example.com/dm-527-selector.png";
@@ -276,7 +290,9 @@ describe("embedRemoteImages — DM-512", () => {
       // same array, so all earlier warnings remain in front.
       const before = getLastCaptureWarnings().length;
       fetchMock.mockResolvedValue({
-        ok: false, status: 500, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 500,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       const url = "https://example.com/dm-527-global.png";
@@ -359,13 +375,14 @@ describe("embedRemoteImages — DM-512", () => {
       const okResponse = {
         ok: true,
         status: 200,
-        arrayBuffer: async () => ONE_PX_PNG.buffer.slice(
-          ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength,
-        ),
-        headers: { get: (n: string) => n.toLowerCase() === "content-type" ? "image/png" : null },
+        arrayBuffer: async () =>
+          ONE_PX_PNG.buffer.slice(ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength),
+        headers: { get: (n: string) => (n.toLowerCase() === "content-type" ? "image/png" : null) },
       } as unknown as Response;
       fetchMock.mockResolvedValueOnce({
-        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 503,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       fetchMock.mockResolvedValueOnce(okResponse);
@@ -384,10 +401,9 @@ describe("embedRemoteImages — DM-512", () => {
       const okResponse = {
         ok: true,
         status: 200,
-        arrayBuffer: async () => ONE_PX_PNG.buffer.slice(
-          ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength,
-        ),
-        headers: { get: (n: string) => n.toLowerCase() === "content-type" ? "image/png" : null },
+        arrayBuffer: async () =>
+          ONE_PX_PNG.buffer.slice(ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength),
+        headers: { get: (n: string) => (n.toLowerCase() === "content-type" ? "image/png" : null) },
       } as unknown as Response;
       fetchMock.mockRejectedValueOnce(new TypeError("ECONNRESET"));
       fetchMock.mockResolvedValueOnce(okResponse);
@@ -401,11 +417,15 @@ describe("embedRemoteImages — DM-512", () => {
 
     it("emits a warning describing the FINAL failure when the retry also fails", async () => {
       fetchMock.mockResolvedValueOnce({
-        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 503,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       fetchMock.mockResolvedValueOnce({
-        ok: false, status: 502, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 502,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       const url = "https://example.com/dm-529-double-fail.png";
@@ -420,7 +440,9 @@ describe("embedRemoteImages — DM-512", () => {
 
     it("does NOT retry on 4xx (deterministic client errors)", async () => {
       fetchMock.mockResolvedValueOnce({
-        ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 404,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       const url = "https://example.com/dm-529-404.png";
@@ -433,7 +455,9 @@ describe("embedRemoteImages — DM-512", () => {
 
     it("respects retries: 0 (no retry attempts)", async () => {
       fetchMock.mockResolvedValueOnce({
-        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 503,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       const url = "https://example.com/dm-529-no-retry.png";
@@ -446,7 +470,9 @@ describe("embedRemoteImages — DM-512", () => {
 
     it("respects retries > 1 (e.g. retries: 2 → up to 3 attempts)", async () => {
       fetchMock.mockResolvedValue({
-        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        ok: false,
+        status: 503,
+        arrayBuffer: async () => new ArrayBuffer(0),
         headers: { get: () => null },
       } as unknown as Response);
       const url = "https://example.com/dm-529-three-attempts.png";

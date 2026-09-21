@@ -17,14 +17,18 @@ function staticProject(): StudioProject {
     createdAt: "2026-09-06T00:00:00.000Z",
     canvas: { width: 480, height: 270 },
     narrative: { title: "Pre-rendered", beats: [{ id: "beat", title: "Finish", sceneIds: ["scene"] }] },
-    scenes: [{
-      id: "scene",
-      narrativeBeatIds: ["beat"],
-      render: { kind: "storyboard", recipe: { svg: "interactive-followup.svg", duration: 700 } },
-    }],
+    scenes: [
+      {
+        id: "scene",
+        narrativeBeatIds: ["beat"],
+        render: { kind: "storyboard", recipe: { svg: "interactive-followup.svg", duration: 700 } },
+      },
+    ],
     review: {
       headRevisionId: "revision",
-      revisions: [{ id: "revision", createdAt: "2026-09-06T00:00:00.000Z", author: { kind: "system" }, summary: "Created." }],
+      revisions: [
+        { id: "revision", createdAt: "2026-09-06T00:00:00.000Z", author: { kind: "system" }, summary: "Created." },
+      ],
       annotations: [],
     },
     artifacts: [],
@@ -43,13 +47,16 @@ describe("Studio interactive compiler boundaries", () => {
       expect(readdirSync(artifactDir)).toEqual([]);
 
       const activeSvg = structuredClone(project);
-      activeSvg.scenes[0].tracks = [{
-        id: "track",
-        kind: "semantic-interactions",
-        events: [{ id: "click", atMs: 0, kind: "click", target: { text: "All done" } }],
-      }];
-      await expect(compileStudioInteractiveProject(noBrowser, activeSvg, { projectDir: fixtureDir, artifactDir }))
-        .rejects.toThrow(/must use a live URL\/file capture source/);
+      activeSvg.scenes[0].tracks = [
+        {
+          id: "track",
+          kind: "semantic-interactions",
+          events: [{ id: "click", atMs: 0, kind: "click", target: { text: "All done" } }],
+        },
+      ];
+      await expect(
+        compileStudioInteractiveProject(noBrowser, activeSvg, { projectDir: fixtureDir, artifactDir }),
+      ).rejects.toThrow(/must use a live URL\/file capture source/);
       expect(readdirSync(artifactDir)).toEqual([]);
     } finally {
       rmSync(artifactDir, { recursive: true, force: true });

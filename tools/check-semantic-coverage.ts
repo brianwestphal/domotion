@@ -1,10 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  loadSemanticCoverage,
-  semanticCoverageReport,
-  validateSemanticCoverage,
-} from "./semantic-coverage.js";
+import { loadSemanticCoverage, semanticCoverageReport, validateSemanticCoverage } from "./semantic-coverage.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const inventory = await loadSemanticCoverage(resolve(root, "tools/semantic-coverage.json"));

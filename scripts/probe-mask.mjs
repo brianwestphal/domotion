@@ -32,8 +32,16 @@ const data = await page.evaluate(() => {
   return out;
 });
 
-for (const e of data) console.log(e.caption, JSON.stringify({
-  size: e.maskSize, pos: e.maskPosition, mode: e.maskMode, comp: e.maskComposite, repeat: e.maskRepeat,
-}));
+for (const e of data)
+  console.log(
+    e.caption,
+    JSON.stringify({
+      size: e.maskSize,
+      pos: e.maskPosition,
+      mode: e.maskMode,
+      comp: e.maskComposite,
+      repeat: e.maskRepeat,
+    }),
+  );
 
 await browser.close();

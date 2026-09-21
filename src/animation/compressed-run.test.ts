@@ -14,31 +14,110 @@ const ADV = 7.5;
 // `elementTreeToSvgInner` (the renderer reads most of these unconditionally) —
 // same shape as `src/render/anim-opacity-channel.test.ts`.
 const BASE_STYLES = {
-  backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", backgroundSize: "auto",
-  backgroundPosition: "0% 0%", backgroundRepeat: "repeat", backgroundClip: "border-box",
-  backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
-  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
-  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
-  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
-  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
-  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
-  color: "rgb(226, 232, 240)", fontSize: "12.5px", fontFamily: "Menlo, monospace", fontWeight: "400", fontStyle: "normal",
-  lineHeight: "19px", letterSpacing: "normal", textAlign: "left", textTransform: "none",
-  textDecoration: "none", textDecorationLine: "none", textDecorationStyle: "solid", textDecorationColor: "rgb(0,0,0)",
-  textDecorationThickness: "auto", textUnderlineOffset: "auto", whiteSpace: "pre", wordSpacing: "0",
-  verticalAlign: "baseline", direction: "ltr", writingMode: "horizontal-tb", textOverflow: "clip",
-  cursor: "auto", caretColor: "auto", outlineColor: "rgb(0,0,0)", outlineWidth: "0", outlineStyle: "none", outlineOffset: "0",
-  boxShadow: "none", opacity: "1", transform: "none", transformOrigin: "50% 50%", visibility: "visible",
-  borderCollapse: "separate", overflowX: "visible", overflowY: "visible", scrollbarGutter: "auto",
-  scrollWidth: 60, scrollHeight: 60, clientWidth: 60, clientHeight: 60, scrollTop: 0, scrollLeft: 0,
-  objectFit: "fill", objectPosition: "50% 50%", filter: "none", backdropFilter: "none", mixBlendMode: "normal",
-  clipPath: "none", mask: "none", maskImage: "none", maskMode: "match-source", maskSize: "auto",
-  maskPosition: "0% 0%", maskRepeat: "repeat", maskComposite: "add",
-  listStyleType: "none", listStyleImage: "none", display: "block", listStylePosition: "outside",
-  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0",
-  borderImageSource: "none", borderImageSlice: "100%", borderImageWidth: "1", borderImageOutset: "0", borderImageRepeat: "stretch",
-  zIndex: "auto", position: "static", float: "none", order: "0", flexDirection: "row",
-  fontKerning: "auto", fontStretch: "100%", fontVariationSettings: "normal", fontFeatureSettings: "normal",
+  backgroundColor: "rgba(0, 0, 0, 0)",
+  backgroundImage: "none",
+  backgroundSize: "auto",
+  backgroundPosition: "0% 0%",
+  backgroundRepeat: "repeat",
+  backgroundClip: "border-box",
+  backgroundOrigin: "padding-box",
+  backgroundAttachment: "scroll",
+  borderColor: "rgb(0,0,0)",
+  borderWidth: "0",
+  borderRadius: "0",
+  borderTopLeftRadius: "0",
+  borderTopRightRadius: "0",
+  borderBottomRightRadius: "0",
+  borderBottomLeftRadius: "0",
+  borderTopWidth: "0",
+  borderRightWidth: "0",
+  borderBottomWidth: "0",
+  borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)",
+  borderRightColor: "rgb(0,0,0)",
+  borderBottomColor: "rgb(0,0,0)",
+  borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none",
+  borderRightStyle: "none",
+  borderBottomStyle: "none",
+  borderLeftStyle: "none",
+  color: "rgb(226, 232, 240)",
+  fontSize: "12.5px",
+  fontFamily: "Menlo, monospace",
+  fontWeight: "400",
+  fontStyle: "normal",
+  lineHeight: "19px",
+  letterSpacing: "normal",
+  textAlign: "left",
+  textTransform: "none",
+  textDecoration: "none",
+  textDecorationLine: "none",
+  textDecorationStyle: "solid",
+  textDecorationColor: "rgb(0,0,0)",
+  textDecorationThickness: "auto",
+  textUnderlineOffset: "auto",
+  whiteSpace: "pre",
+  wordSpacing: "0",
+  verticalAlign: "baseline",
+  direction: "ltr",
+  writingMode: "horizontal-tb",
+  textOverflow: "clip",
+  cursor: "auto",
+  caretColor: "auto",
+  outlineColor: "rgb(0,0,0)",
+  outlineWidth: "0",
+  outlineStyle: "none",
+  outlineOffset: "0",
+  boxShadow: "none",
+  opacity: "1",
+  transform: "none",
+  transformOrigin: "50% 50%",
+  visibility: "visible",
+  borderCollapse: "separate",
+  overflowX: "visible",
+  overflowY: "visible",
+  scrollbarGutter: "auto",
+  scrollWidth: 60,
+  scrollHeight: 60,
+  clientWidth: 60,
+  clientHeight: 60,
+  scrollTop: 0,
+  scrollLeft: 0,
+  objectFit: "fill",
+  objectPosition: "50% 50%",
+  filter: "none",
+  backdropFilter: "none",
+  mixBlendMode: "normal",
+  clipPath: "none",
+  mask: "none",
+  maskImage: "none",
+  maskMode: "match-source",
+  maskSize: "auto",
+  maskPosition: "0% 0%",
+  maskRepeat: "repeat",
+  maskComposite: "add",
+  listStyleType: "none",
+  listStyleImage: "none",
+  display: "block",
+  listStylePosition: "outside",
+  paddingTop: "0",
+  paddingRight: "0",
+  paddingBottom: "0",
+  paddingLeft: "0",
+  borderImageSource: "none",
+  borderImageSlice: "100%",
+  borderImageWidth: "1",
+  borderImageOutset: "0",
+  borderImageRepeat: "stretch",
+  zIndex: "auto",
+  position: "static",
+  float: "none",
+  order: "0",
+  flexDirection: "row",
+  fontKerning: "auto",
+  fontStretch: "100%",
+  fontVariationSettings: "normal",
+  fontFeatureSettings: "normal",
 } as unknown as CapturedStyles;
 
 function styles(over: Partial<CapturedStyles> = {}): CapturedStyles {
@@ -52,9 +131,15 @@ interface SegSpec {
 
 /** A text element whose segments lay out consecutively on a uniform advance
  *  grid starting at `x` (per-char captured xOffsets included). */
-function lineEl(segs: SegSpec[] | string, opts: {
-  x?: number; y?: number; styles?: Partial<CapturedStyles>; height?: number;
-} = {}): CapturedElement {
+function lineEl(
+  segs: SegSpec[] | string,
+  opts: {
+    x?: number;
+    y?: number;
+    styles?: Partial<CapturedStyles>;
+    height?: number;
+  } = {},
+): CapturedElement {
   const specs: SegSpec[] = typeof segs === "string" ? [{ text: segs }] : segs;
   const x0 = opts.x ?? 60;
   const y = opts.y ?? 100;
@@ -188,11 +273,15 @@ describe("buildCompressedRunPlan — identity threading", () => {
     // the same x). The auto-caret must NOT jump to the whitespace churn — a
     // real editor's caret stays put when the tokenizer catches up.
     const s0 = [box([lineEl([{ text: "let" }, { text: " x = 1;" }])])];
-    const s1 = [box([lineEl([
-      { text: "let", color: "rgb(147, 197, 253)" },
-      { text: " ", color: "rgb(251, 191, 36)" }, // recolored space segment…
-      { text: "x = 1;" },
-    ])])];
+    const s1 = [
+      box([
+        lineEl([
+          { text: "let", color: "rgb(147, 197, 253)" },
+          { text: " ", color: "rgb(251, 191, 36)" }, // recolored space segment…
+          { text: "x = 1;" },
+        ]),
+      ]),
+    ];
     const plan = buildCompressedRunPlan([state(s0), state(s1)]);
     expect(plan.thread.recolored).toBeGreaterThan(0);
     expect(plan.edits).toEqual([]);
@@ -261,17 +350,20 @@ describe("buildCompressedRunPlan — identity threading", () => {
 
 describe("buildCompressedRunPlan — cross-line identity (vertical line moves)", () => {
   it("insertLine: a new top line births and pushes N lines down, each paired via one uniform delta", () => {
-    const three = (a: string, b: string, c: string, ys: [number, number, number]) =>
-      [box([lineEl(a, { y: ys[0] }), lineEl(b, { y: ys[1] }), lineEl(c, { y: ys[2] })])];
+    const three = (a: string, b: string, c: string, ys: [number, number, number]) => [
+      box([lineEl(a, { y: ys[0] }), lineEl(b, { y: ys[1] }), lineEl(c, { y: ys[2] })]),
+    ];
     const plan = buildCompressedRunPlan([
       state(three("alpha;", "beta;", "gamma;", [100, 119, 138])),
       // A new line inserted at top pushes all three down by +19.
-      state([box([
-        lineEl("NEW();", { y: 100 }),
-        lineEl("alpha;", { y: 119 }),
-        lineEl("beta;", { y: 138 }),
-        lineEl("gamma;", { y: 157 }),
-      ])]),
+      state([
+        box([
+          lineEl("NEW();", { y: 100 }),
+          lineEl("alpha;", { y: 119 }),
+          lineEl("beta;", { y: 138 }),
+          lineEl("gamma;", { y: 157 }),
+        ]),
+      ]),
     ]);
     // The three existing lines pair across the +19 move (no deaths); only the
     // new line's glyphs are born.
@@ -301,12 +393,14 @@ describe("buildCompressedRunPlan — cross-line identity (vertical line moves)",
       // Insert a top line: keep/edit/tail all shift +19, and `edit;`→`edXit;`
       // (a char typed) in the SAME state. keep + tail establish delta +19; the
       // edited line rides it (LCS handles the inserted glyph).
-      state([box([
-        lineEl("TOP();", { y: 100 }),
-        lineEl("keep;", { y: 119 }),
-        lineEl("edXit;", { y: 138 }),
-        lineEl("tail;", { y: 157 }),
-      ])]),
+      state([
+        box([
+          lineEl("TOP();", { y: 100 }),
+          lineEl("keep;", { y: 119 }),
+          lineEl("edXit;", { y: 138 }),
+          lineEl("tail;", { y: 157 }),
+        ]),
+      ]),
     ]);
     // `keep;` and `tail;` pair exactly across +19; `edit;` pairs across +19 with
     // one born glyph ('X'). Only 'X' and the new TOP line are births; no deaths.
@@ -382,8 +476,13 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
     // them apart. They must stay ONE logical line, or every single-pane scene
     // would re-partition.
     const row = (n: string, code: string, y: number) =>
-      box([lineEl(n, { x: 10, y, height: 19 }), lineEl(code, { x: 60, y, height: 19 })],
-        { x: 0, y, width: 600, height: 19, styles: styles({ lineHeight: "19px" }) });
+      box([lineEl(n, { x: 10, y, height: 19 }), lineEl(code, { x: 60, y, height: 19 })], {
+        x: 0,
+        y,
+        width: 600,
+        height: 19,
+        styles: styles({ lineHeight: "19px" }),
+      });
     const plan = buildCompressedRunPlan([
       state([box([row("1", "let x = 1;", 100), row("2", "call(x);", 119)])]),
       state([box([row("1", "let xy = 1;", 100), row("2", "call(x);", 119)])]),
@@ -404,8 +503,16 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
       const lines = [lineEl(`let x = ${typed}1;`, { x: 20, y: 100 }), lineEl("call(x);", { x: 20, y: 119 })];
       return wrap ? [pane(0, lines)] : [box(lines)];
     };
-    const bare = composeCompressedRun([state(mk("", false)), state(mk("y", false))], { width: 900, height: 420, idPrefix: "cr" });
-    const wrapped = composeCompressedRun([state(mk("", true)), state(mk("y", true))], { width: 900, height: 420, idPrefix: "cr" });
+    const bare = composeCompressedRun([state(mk("", false)), state(mk("y", false))], {
+      width: 900,
+      height: 420,
+      idPrefix: "cr",
+    });
+    const wrapped = composeCompressedRun([state(mk("", true)), state(mk("y", true))], {
+      width: 900,
+      height: 420,
+      idPrefix: "cr",
+    });
     expect(wrapped.pairingStats.glyphsPaired).toBe(bare.pairingStats.glyphsPaired);
     expect(wrapped.pairingStats.births).toBe(bare.pairingStats.births);
     expect(wrapped.pairingStats.deaths).toBe(bare.pairingStats.deaths);
@@ -418,7 +525,13 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
       state([pane(0, leftLines("")), pane(450, rightLines(0))]),
       state([
         pane(0, leftLines("")),
-        box(rightLines(0), { x: 450, y: 0, width: 400, height: 420, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) }),
+        box(rightLines(0), {
+          x: 450,
+          y: 0,
+          width: 400,
+          height: 420,
+          styles: styles({ overflowX: "hidden", overflowY: "hidden" }),
+        }),
       ]),
     ]);
     // The left pane is untouched; the resized right pane's glyphs all die and
@@ -439,10 +552,14 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
     // splits them — which is exactly the case the override exists for.
     const cell = (x: number, id: string, lines: CapturedElement[]): CapturedElement =>
       box(lines, { x, y: 100, width: 300, height: 19, animId: id, styles: styles({ lineHeight: "19px" }) });
-    const mk = (l: string, r: string) => [box([
-      cell(0, "rgL", [lineEl(l, { x: 10, y: 100 })]),
-      cell(300, "rgR", [lineEl(r, { x: 310, y: 100 })]),
-    ], { x: 0, y: 100, width: 600, height: 19 })];
+    const mk = (l: string, r: string) => [
+      box([cell(0, "rgL", [lineEl(l, { x: 10, y: 100 })]), cell(300, "rgR", [lineEl(r, { x: 310, y: 100 })])], {
+        x: 0,
+        y: 100,
+        width: 600,
+        height: 19,
+      }),
+    ];
 
     const auto = buildCompressedRunPlan([state(mk("ab", "cd")), state(mk("ab", "cd"))]);
     expect(new Set(auto.thread.all.map((t) => t.rec.lineKey)).size).toBe(1);
@@ -458,12 +575,15 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
     // author, so it stays itself and its lines still pair. Bytes only: every
     // emitted position comes from that state's own capture.
     const paneEl = (w: number, lines: CapturedElement[], id?: string) =>
-      box(lines, { x: 450, y: 0, width: w, height: 420, ...(id != null ? { animId: id } : {}),
-        styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
-    const mk = (w: number, id?: string) => [
-      pane(0, leftLines("")),
-      paneEl(w, rightLines(0), id),
-    ];
+      box(lines, {
+        x: 450,
+        y: 0,
+        width: w,
+        height: 420,
+        ...(id != null ? { animId: id } : {}),
+        styles: styles({ overflowX: "hidden", overflowY: "hidden" }),
+      });
+    const mk = (w: number, id?: string) => [pane(0, leftLines("")), paneEl(w, rightLines(0), id)];
     const right = "alpha rowbeta rowgamma row".length;
 
     const auto = buildCompressedRunPlan([state(mk(450)), state(mk(400))]);
@@ -481,8 +601,13 @@ describe("buildCompressedRunPlan — region discrimination (independent panes)",
     const inner = (x: number, lines: CapturedElement[]) =>
       box(lines, { x, y: 0, width: 220, height: 420, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
     const tree = [
-      box([inner(0, [lineEl("aa", { x: 10, y: 100 })]), inner(220, [lineEl("bb", { x: 230, y: 100 })])],
-        { x: 0, y: 0, width: 450, height: 420, animId: "rgL" }),
+      box([inner(0, [lineEl("aa", { x: 10, y: 100 })]), inner(220, [lineEl("bb", { x: 230, y: 100 })])], {
+        x: 0,
+        y: 0,
+        width: 450,
+        height: 420,
+        animId: "rgL",
+      }),
       pane(450, [lineEl("cc", { x: 460, y: 100 })]),
     ];
     const plan = buildCompressedRunPlan([state(tree), state(tree)], "cr", ["rgL"]);
@@ -531,7 +656,10 @@ describe("buildCompressedRunPlan — chrome union", () => {
     const variants = root.children;
     expect(variants.length).toBe(2); // plain [0,1)+[2,3), highlighted [1,2)
     expect(variants.map((v) => v.windows)).toEqual([
-      [{ start: 0, end: 1 }, { start: 2, end: 3 }],
+      [
+        { start: 0, end: 1 },
+        { start: 2, end: 3 },
+      ],
       [{ start: 1, end: 2 }],
     ]);
   });
@@ -539,17 +667,25 @@ describe("buildCompressedRunPlan — chrome union", () => {
   it("chrome-variant reopen carries the whole subtree's window bookkeeping", () => {
     // A→B→A where the reappearing variant has DESCENDANTS: every node in the
     // reopened subtree must gain the new window, not just its root.
-    const withKid = (bg?: string) => [box([
-      box([lineEl("abc", { y: 100 })], { x: 40, y: 90, styles: styles(bg != null ? { backgroundColor: bg } : {}) }),
-    ])];
+    const withKid = (bg?: string) => [
+      box([
+        box([lineEl("abc", { y: 100 })], { x: 40, y: 90, styles: styles(bg != null ? { backgroundColor: bg } : {}) }),
+      ]),
+    ];
     const plan = buildCompressedRunPlan([state(withKid()), state(withKid("rgb(59, 130, 246)")), state(withKid())]);
     const variants = plan.chromeRoots[0].children;
     expect(variants.length).toBe(2);
     const plain = variants[0];
-    expect(plain.windows).toEqual([{ start: 0, end: 1 }, { start: 2, end: 3 }]);
+    expect(plain.windows).toEqual([
+      { start: 0, end: 1 },
+      { start: 2, end: 3 },
+    ]);
     // ...and its descendant reopened in lockstep.
     expect(plain.children).toHaveLength(1);
-    expect(plain.children[0].windows).toEqual([{ start: 0, end: 1 }, { start: 2, end: 3 }]);
+    expect(plain.children[0].windows).toEqual([
+      { start: 0, end: 1 },
+      { start: 2, end: 3 },
+    ]);
   });
 
   it("a reopen never reorders paint: a variant that reappears out of position re-emits instead", () => {
@@ -584,16 +720,21 @@ describe("buildCompressedRunPlan — chrome union", () => {
     // order restricted to the nodes visible then equals that state's document
     // order. This is the direct "no observable reorder" proof — strictly
     // stronger than asserting the windows merely don't overlap.
-    const geom = (el: { x: number; y: number; width: number; height: number }) => `${el.x},${el.y},${el.width},${el.height}`;
+    const geom = (el: { x: number; y: number; width: number; height: number }) =>
+      `${el.x},${el.y},${el.width},${el.height}`;
     const docOrder = [
       [[60, 100]],
       [[60, 120]],
-      [[60, 120], [60, 100]],
+      [
+        [60, 120],
+        [60, 100],
+      ],
     ];
     for (let s = 0; s < 3; s++) {
       const visible = variants.filter((v) => v.windows.some((w) => s >= w.start && s < w.end)).map((v) => geom(v.el));
-      expect(visible, `state ${s}: union paint order must match document order`)
-        .toEqual(docOrder[s].map(([x, y]) => `${x},${y},${3 * 7.5},19`));
+      expect(visible, `state ${s}: union paint order must match document order`).toEqual(
+        docOrder[s].map(([x, y]) => `${x},${y},${3 * 7.5},19`),
+      );
     }
     // ...and the windows still partition the states (nothing visible twice).
     for (const v of variants) {
@@ -621,10 +762,10 @@ describe("buildCompressedRunPlan — chrome union", () => {
     // is stripped into the glyph layer, so variants are identified by the
     // captured box geometry rather than by text.)
     expect(plan.chromeRoots[0].children.map((v) => [v.el.y, v.el.width, v.windows])).toEqual([
-      [100, 5 * 7.5, [{ start: 0, end: 3 }]],   // alpha, held throughout
-      [120, 4 * 7.5, [{ start: 0, end: 1 }]],   // beta's original emission, closed for good
-      [120, 3 * 7.5, [{ start: 2, end: 3 }]],   // the inserted 'new' row
-      [140, 4 * 7.5, [{ start: 2, end: 3 }]],   // beta re-emitted at its NEW position
+      [100, 5 * 7.5, [{ start: 0, end: 3 }]], // alpha, held throughout
+      [120, 4 * 7.5, [{ start: 0, end: 1 }]], // beta's original emission, closed for good
+      [120, 3 * 7.5, [{ start: 2, end: 3 }]], // the inserted 'new' row
+      [140, 4 * 7.5, [{ start: 2, end: 3 }]], // beta re-emitted at its NEW position
     ]);
   });
 
@@ -665,9 +806,7 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
 
   it("ignores unmaterialized raster probe candidates that do not affect paint", () => {
     const el = lineEl("abc");
-    el.textSegments![0].rasterGlyphs = [
-      { charIndex: 0, rect: { x: 60, y: 100, width: ADV, height: 19 } },
-    ];
+    el.textSegments![0].rasterGlyphs = [{ charIndex: 0, rect: { x: 60, y: 100, width: ADV, height: 19 } }];
     const plan = buildCompressedRunPlan([state([box([el])])]);
     expect(glyphCount(plan)).toBe(3);
   });
@@ -696,13 +835,25 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
 
   it("text occluded by a later box-painting element stays in the chrome layer", () => {
     const text = lineEl("abc", { x: 60, y: 100 });
-    const overlay = box([], { x: 55, y: 95, width: 100, height: 30, styles: styles({ backgroundColor: "rgb(0, 0, 0)" }) });
+    const overlay = box([], {
+      x: 55,
+      y: 95,
+      width: 100,
+      height: 30,
+      styles: styles({ backgroundColor: "rgb(0, 0, 0)" }),
+    });
     const plan = buildCompressedRunPlan([state([box([text, overlay])])]);
     expect(glyphCount(plan)).toBe(0);
   });
 
   it("a box painted BEFORE the text (an ancestor or underlay) does not demote it", () => {
-    const underlay = box([], { x: 55, y: 95, width: 100, height: 30, styles: styles({ backgroundColor: "rgb(0, 0, 0)" }) });
+    const underlay = box([], {
+      x: 55,
+      y: 95,
+      width: 100,
+      height: 30,
+      styles: styles({ backgroundColor: "rgb(0, 0, 0)" }),
+    });
     const text = lineEl("abc", { x: 60, y: 100 });
     const plan = buildCompressedRunPlan([state([box([underlay, text])])]);
     expect(glyphCount(plan)).toBe(3);
@@ -715,7 +866,10 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
     // The real stacking/paint-order walk puts it before the text.
     const text = lineEl("abc", { x: 60, y: 100 });
     const under = box([], {
-      x: 55, y: 95, width: 100, height: 30,
+      x: 55,
+      y: 95,
+      width: 100,
+      height: 30,
       styles: styles({ backgroundColor: "rgb(0, 0, 0)", position: "relative", zIndex: "-1" }),
     });
     const plan = buildCompressedRunPlan([state([box([text, under])])]);
@@ -724,7 +878,10 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
 
   it("an EARLIER positive-z-index box still paints above the text and demotes it", () => {
     const over = box([], {
-      x: 55, y: 95, width: 100, height: 30,
+      x: 55,
+      y: 95,
+      width: 100,
+      height: 30,
       styles: styles({ backgroundColor: "rgb(0, 0, 0)", position: "relative", zIndex: "5" }),
     });
     const text = lineEl("abc", { x: 60, y: 100 });
@@ -736,16 +893,20 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
     // The overlay's box would intersect the text, but its scroller clips it to
     // a region that doesn't — the paint-order walk carries those clips.
     const text = lineEl("abc", { x: 60, y: 300 });
-    const scroller = box([
-      box([], { x: 55, y: 295, width: 100, height: 30, styles: styles({ backgroundColor: "rgb(0, 0, 0)" }) }),
-    ], { x: 40, y: 80, width: 600, height: 100, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
+    const scroller = box(
+      [box([], { x: 55, y: 295, width: 100, height: 30, styles: styles({ backgroundColor: "rgb(0, 0, 0)" }) })],
+      { x: 40, y: 80, width: 600, height: 100, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) },
+    );
     const plan = buildCompressedRunPlan([state([box([text, scroller])])]);
     expect(glyphCount(plan)).toBe(3);
   });
 
   it("text outside an overflow-clipping ancestor stays in the chrome layer", () => {
     const clipped = box([lineEl("abc", { x: 60, y: 300 })], {
-      x: 40, y: 80, width: 600, height: 100,
+      x: 40,
+      y: 80,
+      width: 600,
+      height: 100,
       styles: styles({ overflowX: "hidden", overflowY: "hidden" }),
     });
     const plan = buildCompressedRunPlan([state([clipped])]);
@@ -759,12 +920,17 @@ describe("buildCompressedRunPlan — transition matrix (type → colorize → se
     const HL = "rgb(59, 130, 246)";
     const l2 = (t: string) => lineEl(t, { y: 119 });
     const seq: CompressedRunState[] = [
-      state([box([lineEl("let x = 1;"), l2("done();")])]),                                        // s0
-      state([box([lineEl("let xy = 1;"), l2("done();")])]),                                       // s1 type 'y'
-      state([box([lineEl([{ text: "let", color: KW }, { text: " xy = 1;" }]), l2("done();")])]),  // s2 colorize
-      state([box([lineEl([{ text: "let", color: KW }, { text: " xy = 1;" }], { styles: { backgroundColor: HL } }), l2("done();")])]), // s3 select-ish
-      state([box([lineEl([{ text: "let", color: KW }, { text: " x = 1;" }]), l2("done();")])]),   // s4 backspace 'y'
-      state([box([lineEl([{ text: "let", color: KW }, { text: " x = 1;" }]), l2("done()")])]),    // s5 backspace ';' on line 2
+      state([box([lineEl("let x = 1;"), l2("done();")])]), // s0
+      state([box([lineEl("let xy = 1;"), l2("done();")])]), // s1 type 'y'
+      state([box([lineEl([{ text: "let", color: KW }, { text: " xy = 1;" }]), l2("done();")])]), // s2 colorize
+      state([
+        box([
+          lineEl([{ text: "let", color: KW }, { text: " xy = 1;" }], { styles: { backgroundColor: HL } }),
+          l2("done();"),
+        ]),
+      ]), // s3 select-ish
+      state([box([lineEl([{ text: "let", color: KW }, { text: " x = 1;" }]), l2("done();")])]), // s4 backspace 'y'
+      state([box([lineEl([{ text: "let", color: KW }, { text: " x = 1;" }]), l2("done()")])]), // s5 backspace ';' on line 2
     ];
     const plan = buildCompressedRunPlan(seq);
     const N = 6;
@@ -872,8 +1038,15 @@ describe("composeCompressedRun — composed output", () => {
 
     // Select "let" (chars 0..3) on the import line, appearing at state 0.
     const withSel = composeCompressedRun(seq(), {
-      width: 640, height: 240, idPrefix: "s1",
-      selection: { target: { match: (el) => el.text === "let x = 1;" }, charStart: 0, charEnd: 3, color: "rgb(59, 130, 246)" },
+      width: 640,
+      height: 240,
+      idPrefix: "s1",
+      selection: {
+        target: { match: (el) => el.text === "let x = 1;" },
+        charStart: 0,
+        charEnd: 3,
+        color: "rgb(59, 130, 246)",
+      },
     });
     expect(withSel.svg).toContain('class="text-track"');
     expect(withSel.svg).toContain('class="tt-sel"');
@@ -887,9 +1060,18 @@ describe("composeCompressedRun — composed output", () => {
 
   it("selection: a list of specs each resolve against their appear-state tree; clearState maps to a boundary", () => {
     const res = composeCompressedRun(seq(), {
-      width: 640, height: 240, idPrefix: "s2",
+      width: 640,
+      height: 240,
+      idPrefix: "s2",
       selection: [
-        { target: { match: (el) => el.text === "let x = 1;" }, charStart: 0, charEnd: 3, state: 0, clearState: 1, sweepMs: 60 },
+        {
+          target: { match: (el) => el.text === "let x = 1;" },
+          charStart: 0,
+          charEnd: 3,
+          state: 0,
+          clearState: 1,
+          sweepMs: 60,
+        },
       ],
     });
     // Two selection stops on either side of the clear (grows then snaps to 0).
@@ -901,7 +1083,10 @@ describe("composeCompressedRun — composed output", () => {
   it("selection: an unresolvable target is skipped (logged), not thrown", () => {
     const logs: string[] = [];
     const res = composeCompressedRun(seq(), {
-      width: 640, height: 240, idPrefix: "s3", log: (m) => logs.push(m),
+      width: 640,
+      height: 240,
+      idPrefix: "s3",
+      log: (m) => logs.push(m),
       selection: { target: { match: () => false }, charStart: 0, charEnd: 3 },
     });
     expect(res.svg).not.toContain("tt-sel");
@@ -925,7 +1110,12 @@ describe("composeCompressedRun — composed output", () => {
   });
 
   it("background paints a root rect under the chrome", () => {
-    const res = composeCompressedRun(seq(), { width: 640, height: 240, idPrefix: "t9", background: "rgb(232, 234, 238)" });
+    const res = composeCompressedRun(seq(), {
+      width: 640,
+      height: 240,
+      idPrefix: "t9",
+      background: "rgb(232, 234, 238)",
+    });
     expect(res.svg).toContain('<rect width="640" height="240" fill="rgb(232, 234, 238)"/>');
   });
 });
@@ -952,7 +1142,7 @@ describe("composeCompressedRun — real-text layer (DM-6SQXGF)", () => {
     expect(layers.length).toBe(1);
     const layerStart = res.svg.indexOf("<g data-domotion-real-text-layer");
     const layer = res.svg.slice(layerStart, res.svg.lastIndexOf("</svg>"));
-    expect(layer).toContain("FinalWord");     // final state owns the readable flow
+    expect(layer).toContain("FinalWord"); // final state owns the readable flow
     expect(layer).not.toContain("InterWord"); // intermediate typing prefix not exposed
   });
 

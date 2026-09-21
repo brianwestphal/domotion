@@ -17,10 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import {
-  __resolveFaceInfoForFileForTest as faceInfo,
-  clearFontResolutionCaches,
-} from "./font-resolution.js";
+import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
 import { buildStaticHintedFont, buildVariableHintedFont, wrapInTtc } from "./synth-test-fonts.js";
 
 let dir: string;
@@ -35,20 +32,23 @@ let sfntPath: string;
 beforeEach(() => {
   dir = mkdtempSync(path.join(tmpdir(), "domotion-face-info-"));
   ttcPath = path.join(dir, "collection.ttc");
-  writeFileSync(ttcPath, wrapInTtc([
-    buildStaticHintedFont({ family: "SynthAlpha" }),
-    // SynthBeta declares two fvar named instances that are NOT members — the
-    // shape Apple system faces have (PingFangSC-Regular is instance 0 of member
-    // 20; .ThonburiUI-Bold is instance 2 of member 0).
-    buildVariableHintedFont({
-      family: "SynthBeta",
-      namedInstances: [
-        { postscriptName: "SynthBetaLight", wght: 200, subfamily: "Light" },
-        { postscriptName: "SynthBetaBold", wght: 800, subfamily: "Bold" },
-      ],
-    }),
-    buildStaticHintedFont({ family: "SynthGamma" }),
-  ]));
+  writeFileSync(
+    ttcPath,
+    wrapInTtc([
+      buildStaticHintedFont({ family: "SynthAlpha" }),
+      // SynthBeta declares two fvar named instances that are NOT members — the
+      // shape Apple system faces have (PingFangSC-Regular is instance 0 of member
+      // 20; .ThonburiUI-Bold is instance 2 of member 0).
+      buildVariableHintedFont({
+        family: "SynthBeta",
+        namedInstances: [
+          { postscriptName: "SynthBetaLight", wght: 200, subfamily: "Light" },
+          { postscriptName: "SynthBetaBold", wght: 800, subfamily: "Bold" },
+        ],
+      }),
+      buildStaticHintedFont({ family: "SynthGamma" }),
+    ]),
+  );
   sfntPath = path.join(dir, "solo.ttf");
   writeFileSync(sfntPath, buildStaticHintedFont({ family: "SynthSolo" }));
   clearFontResolutionCaches();
@@ -61,7 +61,13 @@ afterEach(() => {
 
 describe("member-index resolution reports honestly", () => {
   it("names the index and axes of a member it actually found", () => {
-    expect(faceInfo(ttcPath, "SynthAlpha")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthAlpha" });
+    expect(faceInfo(ttcPath, "SynthAlpha")).toEqual({
+      faceIndex: 0,
+      nameMatched: true,
+      fileAxes: null,
+      namedInstances: null,
+      memberPostscriptName: "SynthAlpha",
+    });
     const gamma = faceInfo(ttcPath, "SynthGamma");
     expect(gamma.faceIndex).toBe(2);
     expect(gamma.nameMatched).toBe(true);
@@ -93,7 +99,7 @@ describe("member-index resolution reports honestly", () => {
     // members 20 and 22, and both reported 0 — which read as "SC and HK resolved
     // to the same face".
     const bold = faceInfo(ttcPath, "SynthBetaBold");
-    expect(bold.faceIndex).toBe(1);           // the member that OWNS the instance
+    expect(bold.faceIndex).toBe(1); // the member that OWNS the instance
     expect(bold.nameMatched).toBe(true);
     expect(bold.instanceAxes).toEqual({ wght: 800 });
 
@@ -105,8 +111,9 @@ describe("member-index resolution reports honestly", () => {
   it("distinguishes two named instances of one member", () => {
     // A shared member index is correct here; the axis coordinates are what make
     // the two faces different, so they must not be reported identically.
-    expect(faceInfo(ttcPath, "SynthBetaBold").instanceAxes)
-      .not.toEqual(faceInfo(ttcPath, "SynthBetaLight").instanceAxes);
+    expect(faceInfo(ttcPath, "SynthBetaBold").instanceAxes).not.toEqual(
+      faceInfo(ttcPath, "SynthBetaLight").instanceAxes,
+    );
   });
 
   it("reports no instance coordinates for a DIRECT member match", () => {
@@ -121,7 +128,9 @@ describe("member-index resolution reports honestly", () => {
     // member of PingFangUI.ttc, and every PingFang key reported member zero's
     // index and axes, so SC and HK looked like the same face.
     expect(faceInfo(ttcPath, "SynthNotInHere")).toEqual({
-      faceIndex: null, nameMatched: false, fileAxes: null,
+      faceIndex: null,
+      nameMatched: false,
+      fileAxes: null,
     });
   });
 
@@ -133,15 +142,31 @@ describe("member-index resolution reports honestly", () => {
 
   it("treats member zero as honest when no name was requested", () => {
     // Nothing was asked for, so nothing can mismatch — index 0 IS the request.
-    expect(faceInfo(ttcPath)).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthAlpha" });
+    expect(faceInfo(ttcPath)).toEqual({
+      faceIndex: 0,
+      nameMatched: true,
+      fileAxes: null,
+      namedInstances: null,
+      memberPostscriptName: "SynthAlpha",
+    });
   });
 
   it("reports index 0 for a single-face file, flagging a name that does not match it", () => {
-    expect(faceInfo(sfntPath, "SynthSolo")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthSolo" });
+    expect(faceInfo(sfntPath, "SynthSolo")).toEqual({
+      faceIndex: 0,
+      nameMatched: true,
+      fileAxes: null,
+      namedInstances: null,
+      memberPostscriptName: "SynthSolo",
+    });
     // A relocated/stub file can hold a different face than the table declared.
     // Index 0 is still truthful (it is the only face), but the name is not.
     expect(faceInfo(sfntPath, "SomethingElse")).toEqual({
-      faceIndex: 0, nameMatched: false, fileAxes: null, namedInstances: null, memberPostscriptName: "SynthSolo",
+      faceIndex: 0,
+      nameMatched: false,
+      fileAxes: null,
+      namedInstances: null,
+      memberPostscriptName: "SynthSolo",
     });
   });
 
@@ -170,9 +195,21 @@ describe("the (path, name) cache keeps answers separate", () => {
   });
 
   it("keeps every member distinct across an interleaved, repeated sequence", () => {
-    const order = ["SynthGamma", "SynthAlpha", "SynthNope", "SynthBeta", "SynthAlpha", "SynthGamma", "SynthNope", "SynthBeta"];
+    const order = [
+      "SynthGamma",
+      "SynthAlpha",
+      "SynthNope",
+      "SynthBeta",
+      "SynthAlpha",
+      "SynthGamma",
+      "SynthNope",
+      "SynthBeta",
+    ];
     const expected: Record<string, number | null> = {
-      SynthAlpha: 0, SynthBeta: 1, SynthGamma: 2, SynthNope: null,
+      SynthAlpha: 0,
+      SynthBeta: 1,
+      SynthGamma: 2,
+      SynthNope: null,
     };
     for (const name of order) {
       expect(faceInfo(ttcPath, name).faceIndex, name).toBe(expected[name]);

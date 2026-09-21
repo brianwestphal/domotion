@@ -129,12 +129,7 @@ function tokenizeEntry(entry: string): string[] {
  * add the leading / trailing hold stops. `inner` is the block body (the stops);
  * returns the rewritten body.
  */
-function remapKeyframeBody(
-  inner: string,
-  offsetPct: number,
-  scale: number,
-  freezeBeforeWrap: boolean,
-): string {
+function remapKeyframeBody(inner: string, offsetPct: number, scale: number, freezeBeforeWrap: boolean): string {
   const stopRe = /(from|to|[\d.]+%(?:\s*,\s*[\d.]+%)*)\s*\{([^{}]*)\}/g;
   const rules: { selectors: number[]; decls: string }[] = [];
   let firstDecls: string | null = null;
@@ -177,9 +172,10 @@ function remapKeyframeBody(
   const remapped = rules.flatMap(({ selectors, decls }) => {
     const ordinary = freezeBeforeWrap ? selectors.filter((orig) => orig !== 100) : selectors;
     const wrap = freezeBeforeWrap ? selectors.filter((orig) => orig === 100) : [];
-    const emit = (selected: number[], selectedDecls: string): string[] => selected.length === 0 ? [] : [
-      `${selected.map((orig) => `${fmt(clampPct(offsetPct + orig * scale))}%`).join(", ")} { ${selectedDecls} }`,
-    ];
+    const emit = (selected: number[], selectedDecls: string): string[] =>
+      selected.length === 0
+        ? []
+        : [`${selected.map((orig) => `${fmt(clampPct(offsetPct + orig * scale))}%`).join(", ")} { ${selectedDecls} }`];
     // A source rule commonly groups `0%, 100%`. Split only that reset selector
     // so 0% keeps its authored declarations while the remapped 100% endpoint
     // freezes the last pre-wrap paint.
@@ -258,7 +254,9 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
           const sec = parseTimeSec(tokens[i]);
           if (sec == null) continue;
           if (Math.abs(sec - periodSec) <= tol) {
-            const name = tokens.find((t) => parseTimeSec(t) == null && /^[A-Za-z_-][\w-]*$/.test(t) && !ANIM_KEYWORDS.has(t));
+            const name = tokens.find(
+              (t) => parseTimeSec(t) == null && /^[A-Za-z_-][\w-]*$/.test(t) && !ANIM_KEYWORDS.has(t),
+            );
             if (name != null) {
               retimed.add(name);
               tokens[i] = `${fmt(masterSec)}s`;
@@ -270,9 +268,10 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
         return tokens.join(" ");
       });
       if (!changed) return full;
-      const shiftedDelay = contentOffsetMs > 0
-        ? `;animation-delay:${fmt((startMs - contentOffsetMs) / 1000)}s;animation-fill-mode:both`
-        : "";
+      const shiftedDelay =
+        contentOffsetMs > 0
+          ? `;animation-delay:${fmt((startMs - contentOffsetMs) / 1000)}s;animation-fill-mode:both`
+          : "";
       return `animation:${entries.join(",")}${shiftedDelay}`;
     });
   let out = svg
@@ -296,7 +295,22 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
 
 /** Animation-shorthand keywords that are never the `animation-name`. */
 const ANIM_KEYWORDS = new Set<string>([
-  "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end",
-  "infinite", "normal", "reverse", "alternate", "alternate-reverse",
-  "none", "forwards", "backwards", "both", "running", "paused",
+  "linear",
+  "ease",
+  "ease-in",
+  "ease-out",
+  "ease-in-out",
+  "step-start",
+  "step-end",
+  "infinite",
+  "normal",
+  "reverse",
+  "alternate",
+  "alternate-reverse",
+  "none",
+  "forwards",
+  "backwards",
+  "both",
+  "running",
+  "paused",
 ]);
