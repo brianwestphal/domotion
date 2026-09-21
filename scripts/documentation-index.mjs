@@ -3,7 +3,9 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { format as formatWithPrettier, resolveConfig as resolvePrettierConfig } from "prettier";
 import { documentationCodePathErrors } from "./documentation-code-paths.mjs";
+import { metadataFields, parseDocument } from "./documentation-front-matter.mjs";
 import { lifecycleConsistencyErrors } from "./documentation-lifecycle.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -14,10 +16,9 @@ const generatedArchivePath = resolve(docsRoot, "archive", "index.md");
 const generatedManifestPath = resolve(docsRoot, "ai", "manifest.json");
 const generatedPacketsRoot = resolve(docsRoot, "ai", "packets");
 const write = process.argv.includes("--write");
+const prettierConfig = (await resolvePrettierConfig(resolve(projectRoot, "package.json"))) ?? {};
 
 const numberedDocument = /^([0-9]+)-(.+)\.md$/;
-const metadataFields = ["id", "title", "kind", "status", "owners", "platforms", "tickets", "code", "aliases"];
-
 function files() {
   const discovered = [];
   const walk = (directory, prefix = "") => {
@@ -114,21 +115,6 @@ function serializeFrontMatter(metadata) {
   return `---\n${lines.join("\n")}\n---\n\n`;
 }
 
-function parseDocument(filename, source) {
-  if (!source.startsWith("---\n")) return { metadata: null, body: source };
-  const end = source.indexOf("\n---\n", 4);
-  if (end < 0) throw new Error(`${filename}: unterminated front matter`);
-  const metadata = {};
-  for (const line of source.slice(4, end).split("\n")) {
-    const separator = line.indexOf(":");
-    if (separator < 1) throw new Error(`${filename}: invalid front-matter line ${line}`);
-    const field = line.slice(0, separator);
-    if (!metadataFields.includes(field)) throw new Error(`${filename}: unknown metadata field ${field}`);
-    metadata[field] = JSON.parse(line.slice(separator + 1).trim());
-  }
-  return { metadata, body: source.slice(end + 5).replace(/^\n/, "") };
-}
-
 function validateMetadata(filename, metadata) {
   const errors = [];
   for (const field of metadataFields) if (!(field in metadata)) errors.push(`${filename}: missing ${field}`);
@@ -158,7 +144,7 @@ function internalLinkErrors(filename, body) {
   return errors;
 }
 
-function generatedArtifacts(entries) {
+async function generatedArtifacts(entries) {
   const historicalNumbers = {};
   const defaultEntries = entries.filter(
     (entry) =>
@@ -170,7 +156,10 @@ function generatedArtifacts(entries) {
     if (number == null) continue;
     (historicalNumbers[number] ??= []).push(entry.metadata.id);
   }
-  const json = `${JSON.stringify({ schemaVersion: 1, entries, historicalNumbers }, null, 2)}\n`;
+  const json = await formatWithPrettier(JSON.stringify({ schemaVersion: 1, entries, historicalNumbers }), {
+    ...prettierConfig,
+    parser: "json",
+  });
   const groups = new Map();
   for (const entry of defaultEntries) {
     const owner = entry.metadata.owners[0];
@@ -205,8 +194,8 @@ function generatedArtifacts(entries) {
     ),
     "",
   ].join("\n");
-  const manifest = `${JSON.stringify(
-    {
+  const manifest = await formatWithPrettier(
+    JSON.stringify({
       schemaVersion: 1,
       entries: entries.map(({ file, metadata }) => ({
         id: metadata.id,
@@ -218,10 +207,9 @@ function generatedArtifacts(entries) {
         code: metadata.code,
         file,
       })),
-    },
-    null,
-    2,
-  )}\n`;
+    }),
+    { ...prettierConfig, parser: "json" },
+  );
   const packets = {};
   for (const owner of [...groups.keys()].sort()) {
     const rows = defaultEntries.filter((entry) => entry.metadata.owners.includes(owner));
@@ -264,7 +252,7 @@ for (const filename of files()) {
   entries.push({ file: filename, metadata });
 }
 
-const generated = generatedArtifacts(entries);
+const generated = await generatedArtifacts(entries);
 for (const page of ["README.md", "ai/code-summary.md", "ai/requirements-summary.md"]) {
   const count = readFileSync(resolve(docsRoot, page), "utf8").split("\n").length;
   if (count > 400) errors.push(`${page}: default-context budget exceeded (${count} > 400 lines)`);

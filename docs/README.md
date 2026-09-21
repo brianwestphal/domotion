@@ -29,7 +29,8 @@ ticket provenance; their numbers record authoring history, not reading order.
 
 The stable front-matter `id`, not the filename number, identifies a requirement.
 Every numbered document and handbook declares lifecycle, owners, platforms,
-tickets, code paths, and aliases. Run:
+tickets, code paths, and aliases. The YAML metadata may span multiple lines
+when formatted. Run:
 
 ```bash
 npm run docs:index:check
@@ -39,7 +40,8 @@ The check rejects invalid metadata, duplicate IDs, broken internal links, stale
 generated views, oversized default-context pages/handbooks, and every missing
 code/test path declared by a current or partial record. Historical records may
 retain removed paths as evidence. Regenerate after metadata changes with
-`npm run docs:index:generate`.
+`npm run docs:index:generate`; generated JSON is emitted in repository Prettier
+format so generation and formatting remain a fixed point.
 
 macOS, Linux, and Windows are first-class supported capture platforms. Platform
 evidence must state the exact OS, architecture, browser, font inventory, and
