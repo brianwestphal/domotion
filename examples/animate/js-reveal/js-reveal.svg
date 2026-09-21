@@ -29,8 +29,8 @@
     @keyframes jr0_fd-0 { 0% { visibility: visible; } 0% { visibility: visible; } 50% { visibility: visible; } 50.0009% { visibility: hidden; } 86.9565% { visibility: hidden; } 100% { visibility: hidden; } }
     .jr0_f-0 { animation:jr0_fv-0 2.3s infinite,jr0_fd-0 2.3s infinite step-end; }
 
-    @keyframes jr0_fv-1 { 0% { opacity: 0; } 0%, 30.4261% { opacity: 0; } 43.4783%, 86.9565% { opacity: 1; } 100% { opacity: 1; } }
-    @keyframes jr0_fd-1 { 0% { visibility: hidden; } 0% { visibility: hidden; } 23.9122% { visibility: hidden; } 23.913% { visibility: visible; } 86.9565% { visibility: hidden; } 100% { visibility: hidden; } }
+    @keyframes jr0_fv-1 { 0% { opacity: 0; } 0%, 30.4261% { opacity: 0; } 43.4783% { opacity: 1; } 86.9565% { opacity: 1; } 100% { opacity: 1; } }
+    @keyframes jr0_fd-1 { 0% { visibility: hidden; } 0% { visibility: hidden; } 23.9122% { visibility: hidden; } 23.913% { visibility: visible; } 86.9565% { visibility: visible; } 100% { visibility: visible; } }
     .jr0_f-1 { animation:jr0_fv-1 2.3s infinite,jr0_fd-1 2.3s infinite step-end; }
   </style>
   <g clip-path="url(#jr0_viewport-clip)">
