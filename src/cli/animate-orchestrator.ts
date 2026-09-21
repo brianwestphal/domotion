@@ -89,6 +89,7 @@ import {
   buildCapturedFrame,
   type LiveFrameNavigation,
 } from "./animate-captured-frame-stage.js";
+import { buildStatesRunContent } from "./animate-states-run-stage.js";
 import { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
 export { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
 import { prepareAnimateDebugBundle, writeEmbeddedAnimateDebugFrame, writeLiveAnimateDebugFrame } from "./animate-debug.js";
@@ -1645,7 +1646,7 @@ async function buildLiveCapturedFrame(
     // that becomes this frame's content — the typeResample/cast nesting
     // precedent, so the animator needs zero changes. No single captured tree
     // (magic-move to/from it falls back to crossfade).
-    const res = await buildStatesRunContent(page, fc, i, cfg, log);
+    const res = await buildStatesRunForFrame(page, fc, i, cfg, log);
     svgContent = res.svgContent;
     frameCullCss = "";
     rootBg = res.rootBg;
@@ -1938,17 +1939,9 @@ export function assembleRegionStateTrees(
 }
 
 /**
- * DM-1747 (docs/100 Primitive 1): build a `states` frame's content. Runs each
- * state's actions against the live page, captures the tree, and composes the N
- * captured states via `composeCompressedRun` into one nested animated SVG:
- * content shared across states is emitted once; later states contribute only
- * their changes as `step-end` tracks (glyph births/deaths, uniform tail
- * shifts, recolors), snapping at every state boundary. Fonts are deferred to
- * the outer run's shared embedded-font builder (`manageFonts: false`, the
- * cast/typeResample pattern), and the run's document-global names are
- * namespaced per frame so nested runs can't collide. The compressor's pairing
- * log line (`compress: run of N states, X% glyphs paired, …`) surfaces through
- * the CLI logger.
+ * Browser-owned capture stage for a `states` frame. Runs each state's actions,
+ * captures or assembles its tree, and resolves overlays in the state where
+ * they are visible. Compression and size selection happen in later stages.
  *
  * DM-1770: when the frame declares `regions` AND any state declares
  * `advances`, the capture loop switches to the per-region schedule
@@ -1957,13 +1950,13 @@ export function assembleRegionStateTrees(
  * holding each region's own state. Without `advances` the loop is exactly
  * sequential, one capture per state, as it has always been.
  */
-async function buildStatesRunContent(
+async function captureStatesRun(
   page: Page,
   fc: AnimateFrameCfg,
   i: number,
   cfg: AnimateConfig,
   log: (msg: string) => void,
-): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined; overlays?: OverlayInput[] }> {
+) {
   const stateCfgs = fc.states!;
 
   // DM-1770: stamp each declared region's element with `data-domotion-anim`,
@@ -2143,6 +2136,18 @@ async function buildStatesRunContent(
   }
   const runOverlays = overlayBuckets.flat();
   const rootBg = states[0].tree[0]?.styles?.rootBgComputed;
+  return { states, runOverlays, rootBg, regionIds };
+}
+
+/** Compose the captured states while preserving the shared font generation. */
+function composeStatesRun(
+  captured: Awaited<ReturnType<typeof captureStatesRun>>,
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+) {
+  const { states, runOverlays, rootBg, regionIds } = captured;
   // The size-regression guard (below) can only fall back to the uncompressed
   // form for a run the automatic pass created, and the compressor renders from
   // the trees, so snapshot them first — but ONLY for those runs, so a
@@ -2172,6 +2177,19 @@ async function buildStatesRunContent(
   // winner's addressing reaches the real output (DM-1771 speculative-compose).
   const preRun = snapshotGeneration();
   const run = composeCompressedRun(states, baseOpts);
+  return { states, runOverlays, rootBg, guarded, baseOpts, preRun, run };
+}
+
+/** Select the smallest pixel-equivalent form and namespace the winning SVG. */
+function guardStatesRunSize(
+  _captured: Awaited<ReturnType<typeof captureStatesRun>>,
+  composed: ReturnType<typeof composeStatesRun>,
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+): { svgContent: string; periodMs: number; rootBg: string | undefined; overlays?: OverlayInput[] } {
+  const { states, runOverlays, rootBg, guarded, baseOpts, preRun, run } = composed;
   // DM-1764 size-regression guard (docs/100), now PER REGION (DM-1772).
   // Compression is pixel-identical but NOT unconditionally smaller: a
   // wholesale-change pane (a slideshow, where consecutive states share almost
@@ -2265,6 +2283,21 @@ async function buildStatesRunContent(
     // frame's own overlays and runs the shared `svg`-kind `src` resolution.
     ...(runOverlays.length > 0 ? { overlays: runOverlays } : {}),
   };
+}
+
+/** Bind the frame-specific implementations to the extracted stage coordinator. */
+async function buildStatesRunForFrame(
+  page: Page,
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined; overlays?: OverlayInput[] }> {
+  return buildStatesRunContent({
+    capture: () => captureStatesRun(page, fc, i, cfg, log),
+    compose: (captured) => composeStatesRun(captured, fc, i, cfg, log),
+    sizeGuard: (captured, composed) => guardStatesRunSize(captured, composed, fc, i, cfg, log),
+  });
 }
 
 /**
