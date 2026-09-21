@@ -43,7 +43,6 @@ import {
   roundBorderSideClipPolygon,
   hyperellipseBorderSideClipPolygon,
   contouredRectIntersectionPaths,
-  findOffGridCollapsedCells,
   doubleBorderStripeGeometry,
   pixelSnappedBorderReferenceRect,
   uniformDoubleBorderStripeBoxes,
@@ -95,6 +94,14 @@ import { intersectBackgroundRects, resolveBackgroundAttachment } from "./backgro
 import { paintBackgroundImageLayers, renderInlineFragments } from "./background-inline-paint.js";
 import { paintBorder, paintCollapsedBorderRects } from "./border-paint.js";
 import { buildPseudoBoxBgLayers, paintText } from "./text-paint.js";
+import {
+  collectElementMaskRasters,
+  collectFragmentClipPathDefs,
+  collectFragmentFilterDefs,
+  collectFragmentMaskDefs,
+  collectOffGridCollapsedCells,
+  collectParentElements,
+} from "./render-state-collectors.js";
 import { renderBrokenImageFallback } from "./broken-image-fallback.js";
 import {
   buildEmittedTextCtmMap,
@@ -1567,14 +1574,7 @@ function buildRenderState(
   // reuse the nearest ancestor's already-built text-clipped background stack
   // (including URL candidate/natural sizing facts) without a lossy duplicated
   // capture projection.
-  const parentElements = new Map<CapturedElement, CapturedElement>();
-  const collectParents = (parent: CapturedElement): void => {
-    for (const child of parent.children) {
-      parentElements.set(child, parent);
-      collectParents(child);
-    }
-  };
-  for (const root of elements) collectParents(root);
+  const parentElements = collectParentElements(elements);
 
   // DM-473: tracks descendants that have been hoisted into an ancestor
   // stacking context's flat paint list. Their natural-DFS render path is
@@ -1605,25 +1605,11 @@ function buildRenderState(
   // and content mapping preserve the captured SVG units, source viewport,
   // border-box origin, effective zoom, and effective alpha/luminance channel.
   // Equivalent consumer facts share one output definition.
-  const fragmentDefinitionKey = (id: string, scope?: number): string => scope == null ? id : `${scope}\u0000${id}`;
-  const fragmentMaskDefs = new Map<string, MaskFragmentDef>();
-  for (const root of elements) {
-    if (root.maskDefs == null) continue;
-    for (const def of root.maskDefs) {
-      const key = fragmentDefinitionKey(def.id, def.scope);
-      if (!fragmentMaskDefs.has(key)) fragmentMaskDefs.set(key, def);
-    }
-  }
+  const fragmentMaskDefs = collectFragmentMaskDefs(elements);
   // DM-494: top-level mask raster lookup table for `mask-image: element(#id)`.
   // Keyed by the referenced DOM id; `buildMaskDef` consults this to resolve
   // an `element()` layer to the painted snapshot screenshot.
-  const elementMaskRasters = new Map<string, MaskRasterRef>();
-  for (const root of elements) {
-    if (root.maskRasters == null) continue;
-    for (const mr of root.maskRasters) {
-      if (!elementMaskRasters.has(mr.id)) elementMaskRasters.set(mr.id, mr);
-    }
-  }
+  const elementMaskRasters = collectElementMaskRasters(elements);
   // DM-1342: fragmentMaskCounter / fragmentClipPathCounter live on `state`
   // below (they are mutated by the lifted resolver functions).
   const fragmentMaskOutputId = new Map<string, string>();
@@ -1632,14 +1618,7 @@ function buildRenderState(
   // `(TreeScope,id)`. Every output copy is materialized in root user space:
   // objectBoundingBox coordinates use the captured HTML border box, while
   // userSpaceOnUse coordinates use its border origin and effective zoom.
-  const fragmentClipPathDefs = new Map<string, ClipPathFragmentDef>();
-  for (const root of elements) {
-    if (root.clipPathDefs == null) continue;
-    for (const def of root.clipPathDefs) {
-      const key = fragmentDefinitionKey(def.id, def.scope);
-      if (!fragmentClipPathDefs.has(key)) fragmentClipPathDefs.set(key, def);
-    }
-  }
+  const fragmentClipPathDefs = collectFragmentClipPathDefs(elements);
   // DM-934: collect inline <filter> defs from every root. Filters don't
   // need per-element coordinate rewriting: their default `filterUnits=
   // objectBoundingBox` makes the filter region relative to each consuming
@@ -1649,13 +1628,7 @@ function buildRenderState(
   // CSS `filter: url(#id)` value is passed through as an inline style on
   // the wrapping <g>, so it expects the id to match the captured page).
   // We collect once and emit eagerly into defsParts below.
-  const fragmentFilterDefs = new Map<string, { id: string; outerHTML: string }>();
-  for (const root of elements) {
-    if (root.filterDefs == null) continue;
-    for (const def of root.filterDefs) {
-      if (!fragmentFilterDefs.has(def.id)) fragmentFilterDefs.set(def.id, def);
-    }
-  }
+  const fragmentFilterDefs = collectFragmentFilterDefs(elements);
   // DM-1151: identify `border-collapse: collapse` cells that are laid out
   // OFF the shared table grid. Normally collapsed cells paint their borders
   // CENTERED on the shared grid line so adjacent cells overlap into a single
@@ -1675,31 +1648,7 @@ function buildRenderState(
   // border painting so all its sides inset like a normal box. Grid-aligned
   // cells are untouched, so the calibrated collapsed-border fixtures keep their
   // centered painting.
-  const offGridCollapsedCells = new Set<CapturedElement>();
-  {
-    // DM-1260: scope the off-grid detection PER TABLE. The shifted-consensus
-    // heuristic compares cell edges against each other, so running it over every
-    // collapsed cell in the document lets cells in one table falsely "vote" a cell
-    // in a DIFFERENT table off-grid whenever their unrelated x/y coordinates land
-    // 1-2px apart — which disabled collapsed-border centering on innocent tables
-    // (e.g. the conflict-resolution fixture's tie-test). Group by the owning
-    // <table> first, then detect within each.
-    const groups = new Map<CapturedElement, CapturedElement[]>();
-    const collect = (el: CapturedElement, table: CapturedElement | null) => {
-      const t = el.tag === "table" ? el : table;
-      if (t != null && el.styles?.borderCollapse === "collapse" && (el.tag === "td" || el.tag === "th")) {
-        const arr = groups.get(t); if (arr) arr.push(el); else groups.set(t, [el]);
-      }
-      for (const c of el.children) collect(c, t);
-    };
-    for (const root of elements) collect(root, null);
-    for (const cells of groups.values()) {
-      const offGrid = findOffGridCollapsedCells(cells);
-      for (let i = 0; i < cells.length; i++) {
-        if (offGrid[i]) offGridCollapsedCells.add(cells[i]);
-      }
-    }
-  }
+  const offGridCollapsedCells = collectOffGridCollapsedCells(elements);
 
   const fragmentClipPathOutputId = new Map<string, string>();
 
@@ -3675,12 +3624,94 @@ function paintElementOverlayPhase(
 }
 
 
+/**
+ * Resolve terminal paint ownership before the vector pipeline opens any
+ * wrappers. These capture-owned surfaces replace the whole reconstructed
+ * element, so returning true means the caller must not enter vector phases.
+ */
+function paintAtomicElementPhase(
+  state: RenderState,
+  el: CapturedElement,
+  depth: number,
+  phase: PaintPhase,
+  reflectionFragmentStart: number,
+): boolean {
+  const { svgParts } = state;
+  const indent = "  ".repeat(depth);
+  const opacity = parseFloat(el.styles.opacity);
+
+  // `opacity: 0` elements normally emit nothing (a real size win — an
+  // invisible subtree is dead markup). EXCEPT when an intra-frame animation
+  // owns the opacity channel: a fade-in needs the markup to exist, with the
+  // animation's keyframes (holding `from`, typically the captured 0) keeping
+  // it invisible at rest instead of a baked zero-opacity wrapper pinning it.
+  if (opacity === 0 && !animationOwnsOpacity(el)) return true;
+  if (el.projectiveHidden === true) return true;
+
+  // DM-2415: feConvolveMatrix consumes Blink's raster SourceGraphic in layer
+  // coordinates. The post-capture pass owns the complete filtered HTML
+  // surface, including filter-region crop, edgeMode, divisor/bias, target,
+  // preserveAlpha, clip/mask ordering, zoom, and the element's transform.
+  const urlFilterRaster = el.urlFilterRaster;
+  if (urlFilterRaster?.empty === true) return true;
+  if (urlFilterRaster?.dataUri != null) {
+    const image = `<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`;
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    return true;
+  }
+
+  // DM-2150: CSS preserve-3d/perspective is projective, while an SVG
+  // `transform` attribute is strictly affine. Emit Chromium's composited
+  // snapshot once at the context root.
+  const transformRaster = el.transformSubtreeRaster;
+  if (transformRaster != null && phase === "box") return true;
+  if (transformRaster?.empty === true) return true;
+  if (transformRaster?.dataUri != null) {
+    recordTextEmitterTransition({
+      kind: "capture-raster",
+      sourceText: el.text,
+      reason: "transform-subtree-raster",
+    });
+    const image = `<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`;
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    return true;
+  }
+
+  // DM-2149: native form chrome is owned by Blink's platform LayoutTheme.
+  const nativeControlRaster = el.nativeControlRaster;
+  if (nativeControlRaster != null) {
+    if (nativeControlRaster.dataUri != null) {
+      const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
+      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+      appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    }
+    return true;
+  }
+
+  const terminalBackdropComposite = el.backdropCompositeRaster?.source === "chromium-relative-effect-layer-v1"
+    && el.backdropCompositeRaster.dataUri != null
+    ? el.backdropCompositeRaster
+    : undefined;
+  if (terminalBackdropComposite != null) {
+    if (phase !== "inline") {
+      const image = `<image data-domotion-no-hoist="effect-surface" href="${terminalBackdropComposite.dataUri}" x="${r(terminalBackdropComposite.x)}" y="${r(terminalBackdropComposite.y)}" width="${r(terminalBackdropComposite.width)}" height="${r(terminalBackdropComposite.height)}" preserveAspectRatio="none"/>`;
+      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+      appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    }
+    return true;
+  }
+  return false;
+}
+
 function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string, phase: PaintPhase = "all"): void {
   const {
     svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
     overflowClipPathIds, offGridCollapsedCells,
   } = state;
   const reflectionFragmentStart = svgParts.length;
+  if (paintAtomicElementPhase(state, el, depth, phase, reflectionFragmentStart)) return;
   // CSS 2.1 Appendix E splits an element's paint between two context-wide
   // passes: box decorations at step 3, inline content at step 5, with the
   // stacking context's floats (step 4) in between. See `PaintPhase`.
@@ -3723,82 +3754,6 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
   const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
   const opacity = parseFloat(el.styles.opacity);
-
-  // `opacity: 0` elements normally emit nothing (a real size win — an
-  // invisible subtree is dead markup). EXCEPT when an intra-frame animation
-  // owns the opacity channel: a fade-in needs the markup to exist, with the
-  // animation's keyframes (holding `from`, typically the captured 0) keeping
-  // it invisible at rest instead of a baked zero-opacity wrapper pinning it.
-  if (opacity === 0 && !animationOwnsOpacity(el)) return;
-  if (el.projectiveHidden === true) return;
-  // DM-2415: feConvolveMatrix consumes Blink's raster SourceGraphic in layer
-  // coordinates. The post-capture pass owns the complete filtered HTML
-  // surface, including filter-region crop, edgeMode, divisor/bias, target,
-  // preserveAlpha, clip/mask ordering, zoom, and the element's transform.
-  // Emit it atomically and suppress the reconstructed subtree/filter wrapper.
-  const urlFilterRaster = el.urlFilterRaster;
-  if (urlFilterRaster?.empty === true) return;
-  if (urlFilterRaster?.dataUri != null) {
-    const image = `<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`;
-    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
-    appendBoxReflection(state, el, reflectionFragmentStart, depth);
-    return;
-  }
-  // DM-2150: CSS preserve-3d/perspective is projective, while an SVG
-  // `transform` attribute is strictly affine. The capture pipeline therefore
-  // snapshots a complete 3D rendering context after Chromium composites it.
-  // Emit that bitmap once at the context root and suppress the flattened box,
-  // text, and descendants that would otherwise double-paint beneath it.
-  const transformRaster = el.transformSubtreeRaster;
-  // A promoted inline-SVG root can be an ordinary in-flow block, so Appendix E
-  // visits it once for box decorations and again for inline/replaced content.
-  // The Chromium surface is atomic and belongs at the clone's content paint
-  // position; emitting it in the box pass too duplicates the same bitmap.
-  if (transformRaster != null && phase === "box") return;
-  if (transformRaster?.empty === true) return;
-  if (transformRaster?.dataUri != null) {
-    recordTextEmitterTransition({
-      kind: "capture-raster",
-      sourceText: el.text,
-      reason: "transform-subtree-raster",
-    });
-    const image = `<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`;
-    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
-    appendBoxReflection(state, el, reflectionFragmentStart, depth);
-    return;
-  }
-  // DM-2149: native form chrome comes from Blink's per-platform LayoutTheme,
-  // not from CSS boxes that can be reconstructed portably. Stamp Chromium's
-  // host snapshot for native appearance; `appearance:none` controls never
-  // receive this field and continue through the vector form-control renderer.
-  const nativeControlRaster = el.nativeControlRaster;
-  if (nativeControlRaster != null) {
-    if (nativeControlRaster.dataUri != null) {
-      const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
-      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
-      appendBoxReflection(state, el, reflectionFragmentStart, depth);
-    }
-    // Presence is the Chromium paint-ownership decision. A proven empty
-    // isolation or a warned materialization failure both suppress the legacy
-    // sampled form-controls.ts branch; silently substituting macOS-calibrated
-    // chrome here would turn an observable capture failure into wrong pixels.
-    return;
-  }
-  const terminalBackdropComposite = el.backdropCompositeRaster?.source === "chromium-relative-effect-layer-v1"
-    && el.backdropCompositeRaster.dataUri != null
-    ? el.backdropCompositeRaster
-    : undefined;
-  if (terminalBackdropComposite != null) {
-    // The patch already occupies Blink's final compositor/scroll paint space;
-    // it must not inherit the reconstructed transform, mask, or scroll clip.
-    // Split-phase roots emit the atomic surface once in their box pass.
-    if (phase !== "inline") {
-      const image = `<image data-domotion-no-hoist="effect-surface" href="${terminalBackdropComposite.dataUri}" x="${r(terminalBackdropComposite.x)}" y="${r(terminalBackdropComposite.y)}" width="${r(terminalBackdropComposite.width)}" height="${r(terminalBackdropComposite.height)}" preserveAspectRatio="none"/>`;
-      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
-      appendBoxReflection(state, el, reflectionFragmentStart, depth);
-    }
-    return;
-  }
   // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously
   // painted backdrop surface. SVG has no way to address that prior surface,
   // so stamp Chromium's isolated box snapshot before its vector descendants.
