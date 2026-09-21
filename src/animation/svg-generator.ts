@@ -1419,26 +1419,26 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   }
 }
 
-function generateAnimatedSvgBody(config: AnimationConfig): string {
-  const { width, height } = config;
-  // DM-1557: snapshot the glyph-defs registry so we can emit ONLY the glyphs the
-  // typing overlays (rendered below as glyph paths) add — without re-emitting
-  // (and duplicating the ids of) any glyphs the caller already registered for
-  // the frames it passed in. The registry is append-only until the next clear.
-  const glyphDefsStart = glyphDefCount();
-  // DM-1145: guard against cross-frame id collisions (reused/cached svgContent).
-  let frames = dedupeFrameIds(config.frames);
+interface AnimatedSvgBodyPlan {
+  width: number;
+  height: number;
+  glyphDefsStart: number;
+  frames: AnimationFrame[];
+  timeline: ReturnType<typeof planFrameTimeline>;
+  totalDuration: number;
+  totalSec: number;
+  frameTiming: { startPct: number[] };
+  wrapFadeInStartPct: string | undefined;
+}
 
+/** Normalize frame identity/timelines before ordered SVG paint emission. */
+function prepareAnimatedSvgBody(config: AnimationConfig): AnimatedSvgBodyPlan {
+  const { width, height } = config;
+  const glyphDefsStart = glyphDefCount();
+  let frames = dedupeFrameIds(config.frames);
   const timeline = planFrameTimeline(frames);
   const totalDuration = timeline.totalDurationMs;
   const totalSec = timeline.totalSeconds;
-
-  // DM-1319: re-anchor any embedded-animation frame (a `cast` / `template` frame
-  // whose svgContent is itself an animated SVG) so its internal timeline starts
-  // when the frame becomes visible — at its cumulative master-loop offset — and
-  // holds before/after, instead of running on the shared document origin (which
-  // desyncs the recording to its back half). Done once now that the master
-  // period (`totalDuration`) and per-frame offsets are known.
   if (frames.some((f) => f.embeddedAnimationPeriodMs != null)) {
     let offset = 0;
     frames = frames.map((f) => {
@@ -1456,17 +1456,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
       };
     });
   }
-
-  // Pre-compute each frame's start-of-window percentage — the only field
-  // `buildIntraFrameAnimationCss` reads. (The per-frame loop below recomputes the
-  // hold / transition windows it needs locally via `pct()`, so they aren't
-  // collected here.)
   const frameTiming = { startPct: timeline.frames.map((window) => window.startPct) };
-
-  // A cross-dissolve back to frame 0 wraps across the CSS animation boundary:
-  // the final scene fades out near 100%, while frame 0 must fade in over that
-  // same window. Compute the wrapped entrance once; the frame-0 crossfade path
-  // consumes it below. Cut/slide/reveal exits keep their existing loop behavior.
   const lastFrame = frames.at(-1);
   const lastWindow = timeline.frames.at(-1);
   const lastPlan = lastFrame == null
@@ -1478,10 +1468,39 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
     && transitionDurationMs(lastFrame) > 0
     && lastPlan?.outgoing.opacity === "fade"
     && (config.loopFade === true || lastPlan.custom?.loop === "crossfade-to-first");
-  const wrapFadeInStartPct = wrapsViaCrossfade && lastWindow != null
-    ? pct(lastWindow.holdEndMs, totalDuration)
-    : undefined;
+  return {
+    width, height, glyphDefsStart, frames, timeline, totalDuration, totalSec, frameTiming,
+    wrapFadeInStartPct: wrapsViaCrossfade && lastWindow != null
+      ? pct(lastWindow.holdEndMs, totalDuration)
+      : undefined,
+  };
+}
 
+function generateAnimatedSvgBody(config: AnimationConfig): string {
+  const {
+    width, height, glyphDefsStart, frames: plannedFrames, timeline,
+    totalDuration, totalSec, frameTiming, wrapFadeInStartPct,
+  } = prepareAnimatedSvgBody(config);
+  // DM-1557: snapshot the glyph-defs registry so we can emit ONLY the glyphs the
+  // typing overlays (rendered below as glyph paths) add — without re-emitting
+  // (and duplicating the ids of) any glyphs the caller already registered for
+  // the frames it passed in. The registry is append-only until the next clear.
+  let frames = plannedFrames;
+
+  // DM-1319: re-anchor any embedded-animation frame (a `cast` / `template` frame
+  // whose svgContent is itself an animated SVG) so its internal timeline starts
+  // when the frame becomes visible — at its cumulative master-loop offset — and
+  // holds before/after, instead of running on the shared document origin (which
+  // desyncs the recording to its back half). Done once now that the master
+  // period (`totalDuration`) and per-frame offsets are known.
+  // Pre-compute each frame's start-of-window percentage — the only field
+  // `buildIntraFrameAnimationCss` reads. (The per-frame loop below recomputes the
+  // hold / transition windows it needs locally via `pct()`, so they aren't
+  // collected here.)
+  // A cross-dissolve back to frame 0 wraps across the CSS animation boundary:
+  // the final scene fades out near 100%, while frame 0 must fade in over that
+  // same window. Compute the wrapped entrance once; the frame-0 crossfade path
+  // consumes it below. Cut/slide/reveal exits keep their existing loop behavior.
   // Every sequence composites: each frame is emitted as a complete, internally
   // z-ordered `<g class="f f-N">` sub-SVG and switched/faded by opacity.
   //

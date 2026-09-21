@@ -2519,12 +2519,23 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
  * loop unchanged, which is what makes identity a valid key.
  */
 
-export async function composeAnimateFrames(
+interface PreparedAnimateComposition {
+  cfg: AnimateConfig;
+  configDir: string;
+  log: (msg: string) => void;
+  onFrame: OnFrameHook | undefined;
+  debugDir: string | undefined;
+  runBrand: Brand | undefined;
+  templateRenders: Awaited<ReturnType<typeof renderTemplateFrames>>;
+}
+
+/** Resolve pure/browser prepasses before opening the shared capture session. */
+async function prepareAnimateComposition(
   browser: Browser,
   cfg: AnimateConfig,
   configDirOrOpts?: string | ComposeAnimateOptions,
   logArg?: (msg: string) => void,
-): Promise<AnimationConfig> {
+): Promise<PreparedAnimateComposition> {
   const { configDir, log, onFrame, brand, safeInset, debugDir } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
@@ -2560,6 +2571,18 @@ export async function composeAnimateFrames(
   // is a finished string by the time the outer loop reaches its frame.
   const templateRenders = await renderTemplateFrames(cfg, browser, log, safeInset, runBrand);
   if (debugDir != null) prepareAnimateDebugBundle(debugDir);
+  return { cfg, configDir, log, onFrame, debugDir, runBrand, templateRenders };
+}
+
+export async function composeAnimateFrames(
+  browser: Browser,
+  cfg: AnimateConfig,
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  logArg?: (msg: string) => void,
+): Promise<AnimationConfig> {
+  const prepared = await prepareAnimateComposition(browser, cfg, configDirOrOpts, logArg);
+  ({ cfg } = prepared);
+  const { configDir, log, onFrame, debugDir, runBrand, templateRenders } = prepared;
   const session = await openAnimateCaptureSession(browser, {
     width: cfg.width,
     height: cfg.height,
