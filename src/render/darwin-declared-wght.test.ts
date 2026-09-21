@@ -52,6 +52,19 @@ describe("resolveDarwinAxisLocation with the face's own coordinates", () => {
 });
 
 const SKIA = "/System/Library/Fonts/Supplemental/Skia.ttf";
+// OpenType variation coordinates use signed 16.16 fixed-point numbers. A
+// decimal boundary such as Skia's 0.48 minimum can therefore round down to
+// 0.4799957275390625 when read back from the font.
+const FVAR_FIXED_16_16_STEP = 1 / 65536;
+function expectSkiaWeightAxisInRange(axis: number): void {
+  expect(axis).toBeGreaterThanOrEqual(0.48 - FVAR_FIXED_16_16_STEP);
+  expect(axis).toBeLessThanOrEqual(3.2 + FVAR_FIXED_16_16_STEP);
+}
+
+it("accepts Skia's CI-observed fixed-point representation of the 0.48 minimum", () => {
+  expectSkiaWeightAxisInRange(0.4799957275390625);
+});
+
 const describeSkia =
   process.platform === "darwin" && existsSync(SKIA) && isGlyphHelperAvailable() ? describe : describe.skip;
 
@@ -67,8 +80,7 @@ describeSkia("declared `Skia` resolves the face Chrome paints, not the Black mas
       expect(source?.path).toBe(SKIA);
       const axis = source?.variationAxes?.wght;
       if (axis != null) {
-        expect(axis).toBeGreaterThanOrEqual(0.48);
-        expect(axis).toBeLessThanOrEqual(3.2);
+        expectSkiaWeightAxisInRange(axis);
         expect(axis).not.toBe(weight);
       }
     }
