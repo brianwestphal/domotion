@@ -8,6 +8,87 @@ All notable changes to **Domotion** are documented in this file.
 
 - Removed the authenticated paged-capture API and CLI mode, including its separately built Chromium helper and release workflow. Ordinary viewport and animated-scroll SVG capture are unchanged.
 
+## [0.30.0] - 2026-09-21
+
+
+**Features**
+
+- **render:** vertical writing-mode support in system-font text mode (DM-ZDDJAG) (`b55feac`)
+- **render:** opt-in flatten of captured DOM inline <svg> (DM-7AN9AH) (`4bf1019`)
+- **render:** opt-in flatten of inlined <img src=*.svg> nested <svg> (DM-K0S6ZS) (`2fb7943`)
+- **render:** viewport→viewBox affine matrix helper for nested-SVG flattening (DM-DQXZ6K) (`88fe341`)
+- extend the real-text layer to multi-frame compositions (DM-6SQXGF) (`0a600e9`)
+- **cli:** expose --text-mode on the animate CLI (DM-FJZQ34) (`62ad8aa`)
+
+**Bug Fixes**
+
+- **package:** reject stale publish artifacts (DM-2CV587) (`dc2df92`)
+- isolate capture warning snapshots (DM-MYC908) (`412a7d5`)
+- exempt spelling checker fixtures (DM-EWNGBZ) (`db4b57b`)
+- **scroll:** honor --text-mode in --scroll composition (DM-N8QM80) (`466b23d`)
+- **render:** anchor rtl runs correctly in system-font text mode (DM-CAGCSM) (`bde6b5c`)
+
+**Refactoring**
+
+- **animation:** decompose compose coordinators (DM-BQ56Q5) (`33c9b11`)
+- **animate:** extract compressed run stages (DM-JGFVKQ) (`910b823`)
+- **animate:** extract captured frame stage (DM-84TS9P) (`9e8de7e`)
+- **render:** extract SVG orchestration phases (DM-M0VQRV) (`0a7c201`)
+- **DM-6V14D0:** extract SVG border paint owner (`cb2578d`)
+- **DM-4GNE29:** extract SVG text paint owner (`9628b3a`)
+- **DM-WKDRTJ:** extract background fragment paint (`a43e9d1`)
+- **DM-HXSBE7:** decompose inline SVG decisions (`562bbba`)
+- **DM-CJ1B9J:** decompose mask clip decisions (`ddb74b4`)
+
+**Documentation**
+
+- map current records to code owners (DM-4XG98E) (`e01a0a0`)
+- synchronize AI summaries (DM-5RTP88) (`3d5f586`)
+- prep major release surfaces (DM-SJJCPG) (`2f386d8`)
+- **svg-flatten:** design-tool import test corpus (DM-X6GGXV) (`3acd981`)
+- **examples:** add system-font text-mode examples + local visual check (`6422bf5`)
+
+**Tests**
+
+- **DM-VQ7K9E:** refresh embedded-frame animation goldens (`a2d6f5c`)
+- **cli:** lock Studio help routing (DM-6G21VG) (`abf88d1`)
+- **studio:** cover interaction observer boundaries (DM-H613C1) (`c500d3c`)
+- stabilize browser E2E resources (DM-0MAZSK) (`aa09353`)
+
+**Build System**
+
+- **DM-6KS6V6:** upgrade Vitest to 5.0.1 (`fe42cac`)
+
+**Chores**
+
+- migrate Hot Sheet AI configuration (`f9b4321`)
+- **site:** remediate non-breaking audit findings (DM-BP9M7D) (`1a04438`)
+- enforce American-English prose (DM-98PJFX) (`1de4c53`)
+
+**Other Changes**
+
+- DM-CZ20DD upgrade site security dependencies (`0e23471`)
+- DM-831XJY apply repository Prettier formatting (`a9a1660`)
+- DM-FM5DRJ document required Chromium preflight (`ca2056e`)
+- DM-7M521J document merged coverage pipeline (`8b3a67c`)
+- DM-FDMFB7 collect browser client coverage (`9ee562d`)
+- DM-KW8DEY patch root dependency vulnerabilities (`b65f18f`)
+- DM-EC0FSE preserve embedded scene at crossfade boundary (`0aca0c7`)
+- DM-HXN6Q1 require Chromium for browser E2E (`ecb556d`)
+- DM-E5Q6R2 refresh animate goldens (`ce238c7`)
+- DM-MBF285 merge Vitest coverage maps (`95eb770`)
+- DM-NBA2W8 fail merged coverage on suite failures (`186470d`)
+- DM-P2P7MH migrate Astro Markdown integration (`c677240`)
+- DM-03JJVJ refresh major release visuals (`5292a2b`)
+- DM-FZ5734 scope HiDPI render factor (`291d7e9`)
+- DM-S9HCAT extract animation stage helpers (`e29e6b7`)
+- DM-CMKF35 extract SVG outline paint owner (`d80f6fc`)
+- DM-K6YQBK decompose capture walker handlers (`d4ed1a6`)
+- DM-S31XF3 decompose Studio dispatchers (`e6cc075`)
+- DM-8GHWH8 calibrate macOS font inventory drift (`756566e`)
+- DM-48MFKS remove authenticated paged capture (`6f55099`)
+- DM-MNS4AJ add real text to terminal and JS-reveal frames (`e947563`)
+
 ## [0.29.0] - 2026-09-17
 
 **🚀 Features**
