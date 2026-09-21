@@ -43,16 +43,11 @@ const TMP = resolve(PARTS, "direct-v8");
 const DIRECT_REPORTS = resolve(PARTS, "direct");
 const UNIT_REPORTS = resolve(PARTS, "vitest-unit");
 const E2E_REPORTS = resolve(PARTS, "vitest-e2e");
+const BROWSER_V8 = resolve(PARTS, "browser-v8");
+const BROWSER_REPORTS = resolve(PARTS, "browser");
 const REPORTS = resolve(ROOT, "coverage/all");
 const FULL = process.argv.includes("--full");
-const BROWSER_INSTRUMENTATION_OMISSIONS = {
-  // These sources are bundled into generated IIFEs and execute in Chromium,
-  // outside NODE_V8_COVERAGE's Node-isolate boundary. Their E2Es are included,
-  // but browser JS coverage needs a separate CDP-to-Istanbul bridge.
-  "src/review/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
-  "src/scrubber/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
-  "src/studio/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
-};
+const BROWSER_INSTRUMENTATION_OMISSIONS = {};
 
 // Fast suites — always run. Vitest lanes produce their own remapped Istanbul
 // JSON; direct tsx lanes run under NODE_V8_COVERAGE and are converted by c8.
@@ -80,7 +75,12 @@ const RUNS = [
       "--coverage", "--coverage.reporter=json", "--coverage.reportOnFailure",
       `--coverage.reportsDirectory=${E2E_REPORTS}`,
     ],
-    env: { DOMOTION_HELPER_NO_SERVE: "1", REVIEW_NO_OPEN: "1" },
+    env: {
+      DOMOTION_HELPER_NO_SERVE: "1",
+      REVIEW_NO_OPEN: "1",
+      DOMOTION_BROWSER_COVERAGE: "1",
+      DOMOTION_BROWSER_COVERAGE_DIR: BROWSER_V8,
+    },
     vitestCoverage: true,
   },
   { label: "visual: features", cmd: "npx", args: ["tsx", "tests/features.ts"] },
@@ -146,11 +146,22 @@ if (FULL) {
 rmSync(PARTS, { recursive: true, force: true });
 rmSync(REPORTS, { recursive: true, force: true });
 mkdirSync(TMP, { recursive: true });
+mkdirSync(BROWSER_V8, { recursive: true });
 // Coverage includes browser E2Es plus several visual runners. Keep every child
 // process non-interactive even if an individual command forgets `--no-open`.
 const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP, DOMOTION_NO_OPEN: "1" };
 
-const suiteResults = runs.map((r) => ({
+const browserBuildResults = ["review", "scrubber", "studio"].map((client) => ({
+  label: `browser coverage bundle: ${client}`,
+  status: run(
+    `browser coverage bundle: ${client}`,
+    "node",
+    [`scripts/build-${client}-client.mjs`],
+    { ...process.env, DOMOTION_BROWSER_COVERAGE: "1" },
+  ),
+}));
+
+const suiteResults = [...browserBuildResults, ...runs.map((r) => ({
   label: r.label,
   status: run(
     r.label,
@@ -160,14 +171,30 @@ const suiteResults = runs.map((r) => ({
       ? { ...process.env, ...r.env, DOMOTION_NO_OPEN: "1" }
       : (r.env != null ? { ...baseEnv, ...r.env } : baseEnv),
   ),
-}));
+}))];
+
+const browserConvertStatus = run(
+  "browser V8 coverage → Istanbul",
+  "node",
+  [
+    "tools/browser-coverage-to-istanbul.mjs",
+    BROWSER_V8,
+    resolve(BROWSER_REPORTS, "coverage-final.json"),
+    "--require-client-sources",
+  ],
+  process.env,
+);
+for (const client of ["review", "scrubber", "studio"]) {
+  const status = run(`restore production bundle: ${client}`, "node", [`scripts/build-${client}-client.mjs`], process.env);
+  suiteResults.push({ label: `restore production bundle: ${client}`, status });
+}
 
 process.stdout.write(`\n▶ converting direct V8 coverage → ${DIRECT_REPORTS}\n`);
 // Report without NODE_V8_COVERAGE in env (don't instrument the reporter itself).
 const c8Status = run("c8 report", "npx", REPORT_ARGS, process.env);
 let mergeStatus = 1;
 try {
-  const inputs = [UNIT_REPORTS, E2E_REPORTS, DIRECT_REPORTS]
+  const inputs = [UNIT_REPORTS, E2E_REPORTS, DIRECT_REPORTS, BROWSER_REPORTS]
     .map((directory) => resolve(directory, "coverage-final.json"))
     .filter((path) => existsSync(path));
   if (inputs.length === 0) throw new Error("no constituent coverage maps were produced");
@@ -194,5 +221,5 @@ if (failedSuites.length > 0) {
 }
 process.exit(coverageCommandExitStatus(
   suiteResults.map((result) => result.status),
-  c8Status !== 0 ? c8Status : mergeStatus,
+  c8Status !== 0 ? c8Status : browserConvertStatus !== 0 ? browserConvertStatus : mergeStatus,
 ));

@@ -5,6 +5,8 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
+import { startBrowserCoverage, writeBrowserCoverage } from "../src/test-support/browser-coverage.js";
+import { startReviewServer } from "../src/review/server.js";
 
 // DM-1798: browser-side guard for the two UIs that use kerf's RUNTIME rather
 // than just its SSR JSX — `tests/review-client.tsx` (signal / computed /
@@ -101,6 +103,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       writeFileSync(join(fixtureRoot, `${n}-${kind}.png`), PNG_1X1);
     }
   }
+  writeFileSync(join(fixtureRoot, "alpha-fixture.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
   writeFileSync(
     join(fixtureRoot, "features-results.json"),
     JSON.stringify({
@@ -132,6 +135,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     expect(started, "review server failed to start").not.toBeNull();
     servers.push(started!.proc);
     const page = await browser!.newPage();
+    const coverage = await startBrowserCoverage(page);
     const errors = watchErrors(page);
     try {
       await page.goto(started!.url, { waitUntil: "networkidle" });
@@ -212,9 +216,30 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       expect(new Set(restored).size, "duplicate data-keys after filter round-trip").toBe(restored.length);
       expect(errors).toEqual([]);
     } finally {
+      await writeBrowserCoverage(page, "review-harness-client", coverage);
       await page.close();
     }
   }, 180_000);
+
+  it("production review client executes through its source-mapped browser bundle", async () => {
+    const server = await startReviewServer({
+      expectedPng: join(fixtureRoot, "alpha-fixture-expected.png"),
+      actualPng: join(fixtureRoot, "alpha-fixture-actual.png"),
+      diffPng: join(fixtureRoot, "alpha-fixture-diff.png"),
+      actualSvg: join(fixtureRoot, "alpha-fixture.svg"),
+      label: "coverage-fixture",
+    });
+    const page = await browser!.newPage();
+    const coverage = await startBrowserCoverage(page);
+    try {
+      await page.goto(server.url, { waitUntil: "networkidle" });
+      await expect.poll(() => page.locator("#issue-text").inputValue()).toContain("coverage-fixture");
+    } finally {
+      await writeBrowserCoverage(page, "review-client", coverage);
+      await page.close();
+      await server.close();
+    }
+  });
 
   it("scrubber UI: delegate → signal → bound attribute/value round-trips", async () => {
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
@@ -222,6 +247,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     expect(started, "scrubber failed to start").not.toBeNull();
     servers.push(started!.proc);
     const page = await browser!.newPage();
+    const coverage = await startBrowserCoverage(page);
     const errors = watchErrors(page);
     try {
       await page.goto(started!.url, { waitUntil: "networkidle" });
@@ -261,6 +287,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
 
       expect(errors).toEqual([]);
     } finally {
+      await writeBrowserCoverage(page, "scrubber-client", coverage);
       await page.close();
     }
   }, 180_000);

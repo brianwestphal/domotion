@@ -9,6 +9,7 @@ import { createStudioProjectFile, openStudioProjectFile, saveStudioProjectFile }
 import { startStudioServer, type StudioGenerationInput, type StudioGenerationResult, type StudioServerHandle } from "./server.js";
 import { htmlWrapper, seekTo, screenshot } from "../cli/svg-to-video-core.js";
 import { studioContentRevisionId } from "./authoring.js";
+import { startBrowserCoverage, writeBrowserCoverage } from "../test-support/browser-coverage.js";
 
 const PREVIEW_TIME = "2026-09-06T04:00:00.000Z";
 
@@ -27,6 +28,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
   let context: BrowserContext | null = null;
   let page: Page | null = null;
   let server: StudioServerHandle | null = null;
+  let browserCoverage = false;
   const generationInputs: StudioGenerationInput[] = [];
   let generationCount = 0;
 
@@ -69,12 +71,14 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       server = await startStudioServer({ workspaceRoot: root, generate });
       context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
       page = await context.newPage();
+      browserCoverage = await startBrowserCoverage(page);
     } catch {
       available = false;
     }
   }, 60_000);
 
   afterAll(async () => {
+    if (page != null) await writeBrowserCoverage(page, "studio-client", browserCoverage);
     await context?.close().catch(() => {});
     if (server != null && browser != null) await closeSafely(() => server!.close(), browser, 6_000);
     else {

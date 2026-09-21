@@ -26,6 +26,8 @@ const result = await build({
   legalComments: "none",
   minify: false,
   treeShaking: true,
+  sourcemap: process.env.DOMOTION_BROWSER_COVERAGE === "1" ? "inline" : false,
+  sourcesContent: true,
 });
 
 const code = result.outputFiles[0].text;

@@ -6,6 +6,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
+import { startBrowserCoverage, writeBrowserCoverage } from "../test-support/browser-coverage.js";
 
 /**
  * DM-948: end-to-end test for the `svg-review` CLI. Spawns the built bin
@@ -75,6 +76,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      const coverage = await startBrowserCoverage(page);
       await page.goto(url, { waitUntil: "networkidle" });
 
       // The shell HTML loads three figures + the issue panel. Wait for
@@ -124,6 +126,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       expect(fileHref).toContain("github.com/brianwestphal/domotion/issues/new");
       expect(fileHref).toContain("bg-conic-checkerboard.svg");
 
+      await writeBrowserCoverage(page, "review-client-production", coverage);
       await closeBrowserSafely(browser);
     } catch (e) {
       await closeBrowserSafely(browser);
