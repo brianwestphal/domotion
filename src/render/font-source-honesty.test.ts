@@ -123,6 +123,22 @@ describe("member-index resolution reports honestly", () => {
     expect(faceInfo(ttcPath, "SynthAlpha").instanceAxes ?? null).toBeNull();
   });
 
+  it("does not cache an unreadable file as a fabricated member-zero match", () => {
+    const latePath = path.join(dir, "late.ttf");
+    expect(faceInfo(latePath, "LateFont")).toEqual({
+      faceIndex: null,
+      nameMatched: false,
+      fileAxes: null,
+    });
+
+    writeFileSync(latePath, buildStaticHintedFont({ family: "LateFont" }));
+    expect(faceInfo(latePath, "LateFont")).toMatchObject({
+      faceIndex: 0,
+      nameMatched: true,
+      memberPostscriptName: "LateFont",
+    });
+  });
+
   it("answers null — not member zero — when the name is absent from the collection", () => {
     // The defect this contract exists for: PingFangSC-Regular is not a physical
     // member of PingFangUI.ttc, and every PingFang key reported member zero's
@@ -170,10 +186,10 @@ describe("member-index resolution reports honestly", () => {
     });
   });
 
-  it("falls back to a single static face for an unreadable file", () => {
+  it("reports unknown identity for an unreadable file", () => {
     const bogus = path.join(dir, "not-a-font.ttf");
     writeFileSync(bogus, Buffer.from("definitely not an sfnt"));
-    expect(faceInfo(bogus, "Whatever")).toEqual({ faceIndex: 0, nameMatched: true, fileAxes: null });
+    expect(faceInfo(bogus, "Whatever")).toEqual({ faceIndex: null, nameMatched: false, fileAxes: null });
   });
 });
 

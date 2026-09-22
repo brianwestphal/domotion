@@ -581,9 +581,23 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
   const cached = trakStatCache.get(key);
   if (cached != null) return cached;
   let result = false;
+  let cacheable = true;
   let fd = -1;
   try {
-    fd = openSync(fontPath, "r");
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        fd = openSync(fontPath, "r");
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException)?.code;
+        if ((code !== "EMFILE" && code !== "ENFILE" && code !== "EAGAIN") || attempt === 5) throw error;
+        try {
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * 2 ** attempt);
+        } catch {
+          // Retry immediately when synchronous waiting is unavailable.
+        }
+      }
+    }
     const head = readAt(fd, 0, 12);
     if (head == null) throw new Error("truncated header");
     let faceOffset = 0;
@@ -613,6 +627,7 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
     result = trak && stat;
   } catch {
     result = false; // unreadable → treat as untracked, i.e. leave the caller's shaping alone
+    cacheable = false; // unreadable is not a durable statement about the file's tables
   } finally {
     if (fd >= 0) {
       try {
@@ -622,7 +637,7 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
       }
     }
   }
-  trakStatCache.set(key, result);
+  if (cacheable) trakStatCache.set(key, result);
   return result;
 }
 

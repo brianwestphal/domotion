@@ -10,6 +10,7 @@
  */
 
 import { hostPlatform } from "./host-platform.js";
+import { existsSync } from "node:fs";
 import type { MetaResponse } from "./glyph-helper-outline.js";
 import type { FamilyResponse, HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
 import {
@@ -537,6 +538,22 @@ export interface InstalledFont {
 }
 
 const _installedFontCache = new Map<string, InstalledFont | null>();
+const DARWIN_RESERVED_PINGFANG =
+  "/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc";
+
+function preferredInstalledPath(postscriptName: string, reportedPath: string): string {
+  // Current macOS exposes the same public PingFang PostScript names from both
+  // the OS-reserved UI collection and an optional MobileAsset collection.
+  // CoreText's by-name preference changes after the latter is opened in a
+  // process (and can even leak through fontd across helper processes), while a
+  // cold Chrome process selects the reserved named instance. Pin that
+  // system-owned source when present; older macOS releases without it retain
+  // the path CoreText reported.
+  if (hostPlatform() === "darwin" && postscriptName.startsWith("PingFang") && existsSync(DARWIN_RESERVED_PINGFANG)) {
+    return DARWIN_RESERVED_PINGFANG;
+  }
+  return reportedPath;
+}
 
 /** Resolve a CSS font-family NAME to a real installed font, the way Blink's
  *  FontFallbackList picks `first_candidate_` — the first family in the stack
@@ -687,39 +704,47 @@ export function resolveInstalledFont(name: string, style?: InstalledFontStyle): 
   if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
   let resolved: InstalledFont | null = null;
   if (isGlyphHelperAvailable()) {
-    try {
-      const resp = callHelper({
-        fonts: [],
-        queries: [
-          {
-            type: "family",
-            name,
-            // Omitted entirely when there is no style, so the request is
-            // byte-identical to the pre-DM-1878 one and an older helper binary
-            // behaves exactly as before.
-            ...(style != null
-              ? {
-                  cssWeight: style.weight ?? 400,
-                  italic: style.italic === true,
-                  cssSlant: style.slant ?? 0,
-                  cssStretch: style.stretch ?? 100,
-                }
-              : {}),
-          },
-        ],
-      });
-      const r = resp.results[0];
-      if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
-        resolved = {
-          postscriptName: r.postscriptName,
-          familyName: r.familyName ?? "",
-          path: r.path,
-          resolvedAxes: r.axes,
-          ctAxes: r.ctAxes,
-        };
+    for (let attempt = 0; attempt < FAMILY_STYLE_MATCH_ATTEMPTS; attempt += 1) {
+      try {
+        const resp = callHelper({
+          fonts: [],
+          queries: [
+            {
+              type: "family",
+              name,
+              // Omitted entirely when there is no style, so the request is
+              // byte-identical to the pre-DM-1878 one and an older helper binary
+              // behaves exactly as before.
+              ...(style != null
+                ? {
+                    cssWeight: style.weight ?? 400,
+                    italic: style.italic === true,
+                    cssSlant: style.slant ?? 0,
+                    cssStretch: style.stretch ?? 100,
+                  }
+                : {}),
+            },
+          ],
+        });
+        const r = resp.results[0];
+        if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
+          resolved = {
+            postscriptName: r.postscriptName,
+            familyName: r.familyName ?? "",
+            path: preferredInstalledPath(r.postscriptName, r.path),
+            resolvedAxes: r.axes,
+            ctAxes: r.ctAxes,
+          };
+        }
+        break;
+      } catch {
+        if (attempt + 1 < FAMILY_STYLE_MATCH_ATTEMPTS) {
+          waitForFamilyStyleMatchRetry(attempt);
+          continue;
+        }
+        // A transport failure is not a stable "family absent" answer.
+        return null;
       }
-    } catch {
-      resolved = null;
     }
   }
   _installedFontCache.set(key, resolved);
@@ -822,6 +847,25 @@ export interface FamilyStyleMatch {
 const CT_TRAIT_ITALIC = 1 << 0;
 
 const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
+const FAMILY_STYLE_MATCH_ATTEMPTS = 6;
+
+function waitForFamilyStyleMatchRetry(attempt: number): void {
+  const delayMs = 25 * 2 ** attempt;
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+  } catch {
+    // Locked-down embedders may not expose SharedArrayBuffer. Retrying without
+    // the backoff is still preferable to turning resource pressure into a
+    // permanent font-selection answer.
+  }
+}
+
+/** Internal status used by higher-level memos to distinguish a stable miss
+ * from a transient helper failure. */
+export interface FamilyStyleMatchResolution {
+  match: FamilyStyleMatch | null;
+  cacheable: boolean;
+}
 
 /**
  * Which CUT of a declared CSS family a run at this style opens — macOS only.
@@ -853,11 +897,11 @@ const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
  * whichever weight asked first to every later caller, which is exactly the
  * defect this call exists to fix.
  */
-export function resolveFamilyStyleMatch(
+export function resolveFamilyStyleMatchWithStatus(
   family: string,
   style?: { weight?: number; italic?: boolean; stretch?: number },
-): FamilyStyleMatch | null {
-  if (hostPlatform() !== "darwin" || family === "") return null;
+): FamilyStyleMatchResolution {
+  if (hostPlatform() !== "darwin" || family === "") return { match: null, cacheable: true };
   const weight = style?.weight ?? 400;
   const italic = style?.italic === true;
   // CSS `font-stretch` as a percentage, 100 = `normal`. It reaches the helper as
@@ -871,31 +915,49 @@ export function resolveFamilyStyleMatch(
   const stretch = style?.stretch ?? 100;
   const key = `${family.toLowerCase()}|${weight}|${italic ? 1 : 0}|${stretch}`;
   const cached = _familyStyleMatchCache.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) return { match: cached, cacheable: true };
   let resolved: FamilyStyleMatch | null = null;
   if (isGlyphHelperAvailable()) {
-    try {
-      const resp = callHelper({
-        fonts: [],
-        queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }],
-      });
-      const r = resp.results[0];
-      if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
-        const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
-        resolved = {
-          postscriptName: r.postscriptName,
-          weight: r.weight ?? weight,
-          italic: ((chosen?.traits ?? 0) & CT_TRAIT_ITALIC) !== 0,
-        };
+    for (let attempt = 0; attempt < FAMILY_STYLE_MATCH_ATTEMPTS; attempt += 1) {
+      try {
+        const resp = callHelper({
+          fonts: [],
+          queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }],
+        });
+        const r = resp.results[0];
+        if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
+          const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
+          resolved = {
+            postscriptName: r.postscriptName,
+            weight: r.weight ?? weight,
+            italic: ((chosen?.traits ?? 0) & CT_TRAIT_ITALIC) !== 0,
+          };
+        }
+        break;
+      } catch {
+        if (attempt + 1 < FAMILY_STYLE_MATCH_ATTEMPTS) {
+          waitForFamilyStyleMatchRetry(attempt);
+          continue;
+        }
+        // A transport/process failure is not a stable "no match" answer.
+        // Degrade only after bounded backoff, and tell higher-level memos not
+        // to retain that fallback: a later request may succeed once transient
+        // spawn/resource pressure has cleared. Older helpers report an
+        // ordinary unknown-query response, so their stable null result still
+        // reaches the cache below.
+        return { match: null, cacheable: false };
       }
-    } catch {
-      // An older helper answers "unknown query type"; keep null so the caller
-      // degrades to its existing selection rather than failing.
-      resolved = null;
     }
   }
   _familyStyleMatchCache.set(key, resolved);
-  return resolved;
+  return { match: resolved, cacheable: true };
+}
+
+export function resolveFamilyStyleMatch(
+  family: string,
+  style?: { weight?: number; italic?: boolean; stretch?: number },
+): FamilyStyleMatch | null {
+  return resolveFamilyStyleMatchWithStatus(family, style).match;
 }
 
 /** The face a declared family resolves to at one style on Linux (fontconfig). */

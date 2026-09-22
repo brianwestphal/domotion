@@ -709,7 +709,26 @@ the helper transcribes the tag, not the checkout.) The algorithm lives in the
 macOS helper's `familyMatch` query (Swift, where AppKit and CoreText are
 reachable) and is reached from Node through `resolveFamilyStyleMatch`; it is
 scored end to end against Chrome by `npm run fonts:family-match` (doc
-[109](109-family-match-conformance.md)).
+[109](109-family-match-conformance.md)). The Node-side memo stores valid
+answers and ordinary helper responses, including a stable no-match result. A
+transport or helper-process exception receives bounded exponential-backoff
+retries; if they all fail, that call degrades to the base selection without
+caching it, so a later run can retry after transient spawn or resource pressure
+clears. Opening the native font adapter applies the same bounded retry to its
+initial metadata probe, preventing a one-off spawn failure from installing and
+caching a fontkit fallback instance for the selected face. Native shaping uses
+the same recovery and never memoizes a transport failure as a stable absence of
+platform shaping. Physical face-index discovery likewise retries transient
+`EMFILE`/`ENFILE`/`EAGAIN` opens and does not cache an unreadable file as the
+fabricated default member zero; a later request can recover the real member or
+named-instance identity. The lightweight `trak` + `STAT` table-directory probe
+uses the same rule, so descriptor pressure cannot permanently disable
+size-correct HarfBuzz tracking for that face.
+PingFang needs source canonicalization on current macOS: the same
+public PostScript names exist in both the OS-reserved `PingFangUI.ttc` and an
+optional MobileAsset `PingFang.ttc`, and fontd can change its preference after
+the asset is opened. When the reserved collection exists, those names are
+pinned to it—the source a cold Chrome process selects.
 
 Three properties are load-bearing:
 

@@ -472,6 +472,8 @@ export const FEATURES: FeatureEntry[] = [
     tests: [
       "src/render/helper-acquire.test.ts",
       "src/render/glyph-helper.test.ts",
+      "src/render/glyph-helper-font-retry.test.ts",
+      "src/render/family-style-match-retry.test.ts",
       "src/render/icu-helper-acquire.test.ts",
       "src/render/icu-helper.test.ts",
       "tests/linux-arm64-release-evidence.test.ts",

@@ -120,6 +120,13 @@ describe("the trak + STAT gate", () => {
     expect(faceHasTrakAndStat(write(Buffer.from(truncated)), 0)).toBe(false);
   });
 
+  it("does not memoize an unreadable file as permanently untracked", () => {
+    const path = join(dir, "late.ttf");
+    expect(faceHasTrakAndStat(path, 0)).toBe(false);
+    writeFileSync(path, sfnt([{ tag: "trak" }, { tag: "STAT" }]));
+    expect(faceHasTrakAndStat(path, 0)).toBe(true);
+  });
+
   it("is memoised per (path, face index)", () => {
     // The verdict decides whether a 58 MB face gets opened by HarfBuzz, so it
     // is asked often and must be answered from memory. Rewriting the file

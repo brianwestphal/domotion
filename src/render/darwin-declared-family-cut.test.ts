@@ -18,14 +18,24 @@
 // are Chrome-on-macOS's, established over CDP with `CSS.getPlatformFontsForNode`
 // (read by `postScriptName`, selecting the entry with the largest `glyphCount` —
 // the reported array is not ordered by coverage).
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { getFontInstance, resolveFont, resolveFontKey, __resolveFontSpecForTest } from "./font-resolution.js";
+import {
+  clearFontResolutionCaches,
+  getFontInstance,
+  getFontSourceInfo,
+  resolveFont,
+  resolveFontKey,
+  __fontShapeRouteForTest,
+  __resolveFontSpecForTest,
+} from "./font-resolution.js";
 import { isGlyphHelperAvailable } from "./glyph-helper.js";
 
 const available =
   process.platform === "darwin" && existsSync("/System/Library/Fonts/Helvetica.ttc") && isGlyphHelperAvailable();
 const describeMac = available ? describe : describe.skip;
+
+beforeEach(() => clearFontResolutionCaches());
 
 const psName = (key: string, weight: number, slant = 0): string | undefined =>
   (getFontInstance(key, weight, 22, slant) as unknown as { postscriptName?: string } | null)?.postscriptName;
@@ -62,7 +72,23 @@ describeMac("declared-family cut selection in the render path", () => {
     // pre-seam render path answered 725 at all three. 500 is the trap — the
     // old answer and the correct one agree there.
     const key = resolveFontKey('"PingFang SC"');
-    expect(advance(key, 400, "H")).toBe(725);
+    const instance = getFontInstance(key, 400, 100, 0);
+    const source = getFontSourceInfo(instance);
+    expect({
+      advance: instance?.layout("H").positions.reduce((a, p) => a + p.xAdvance, 0),
+      key,
+      face: (instance as unknown as { postscriptName?: string } | null)?.postscriptName,
+      route: __fontShapeRouteForTest(instance),
+      sourcePath: source?.path,
+      sourceFaceIndex: source?.faceIndex,
+    }).toEqual({
+      advance: 725,
+      key: "sysfb:PingFangSC-Regular",
+      face: "PingFangSC-Regular",
+      route: "native-harfbuzz:20",
+      sourcePath: "/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc",
+      sourceFaceIndex: 20,
+    });
     expect(advance(key, 500, "H")).toBe(736);
     expect(advance(key, 700, "H")).toBe(749);
   });

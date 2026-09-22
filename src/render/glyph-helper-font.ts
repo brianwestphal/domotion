@@ -19,6 +19,31 @@ import {
 import type { HelperRequest, HelperResponse, ShapeResponseGlyph } from "./glyph-helper-protocol.js";
 import { callGlyphHelper as callHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
 
+const FONT_PROBE_ATTEMPTS = 6;
+
+function waitForFontProbeRetry(attempt: number): void {
+  const delayMs = 25 * 2 ** attempt;
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+  } catch {
+    // A locked-down embedder may not expose SharedArrayBuffer. Keep the retry;
+    // only its backoff is lost.
+  }
+}
+
+function callGlyphHelperRecovering(request: HelperRequest): HelperResponse {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < FONT_PROBE_ATTEMPTS; attempt += 1) {
+    try {
+      return callHelper(request);
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 < FONT_PROBE_ATTEMPTS) waitForFontProbeRetry(attempt);
+    }
+  }
+  throw lastError;
+}
+
 export interface GlyphHelperFontInstance {
   unitsPerEm: number;
   ascent: number;
@@ -193,7 +218,7 @@ export function createGlyphHelperFont(spec: {
   let metaResp: MetaResponse;
   let offsetProbe: GlyphResponse[] = [];
   try {
-    const probe = callHelper(buildGlyphHelperFontProbeEnvelope(spec));
+    const probe = callGlyphHelperRecovering(buildGlyphHelperFontProbeEnvelope(spec));
     const r = probe.results[0];
     if (r.type !== "meta") throw new Error("unexpected response shape");
     metaResp = r;
@@ -380,7 +405,7 @@ export function createGlyphHelperFont(spec: {
     if (cached !== undefined) return cached;
     let shaped: ShapeResponseGlyph[] | null = null;
     try {
-      const resp = callHelper({
+      const resp = callGlyphHelperRecovering({
         fonts: [
           {
             ref: "f",
@@ -395,7 +420,10 @@ export function createGlyphHelperFont(spec: {
       const r = resp.results[0];
       if (r.type === "shape" && Array.isArray(r.glyphs)) shaped = r.glyphs;
     } catch {
-      shaped = null;
+      // Do not memoize transport/process failure as a real absence of shaping.
+      // This call may use the injected fallback, but a later call must be able
+      // to recover the native answer.
+      return null;
     }
     shapeCache.set(text, shaped);
     return shaped;

@@ -41,6 +41,7 @@ import {
   resolveFaceTraitBold,
   resolveFaceTraitItalic,
   resolveFamilyStyleMatch,
+  resolveFamilyStyleMatchWithStatus,
   resolveLinuxFamilyMatch,
   clearGlyphHelperCodepointMemos,
   clearGlyphHelperCache,
@@ -5092,7 +5093,13 @@ function darwinPrimaryCutKey(
   try {
     const family = declaredFamilyOverride ?? declaredFamily ?? darwinCoreTextFamilyForKey(key);
     if (family != null) {
-      const match = resolveFamilyStyleMatch(family, { weight, italic: italicRequested, stretch });
+      const resolution = resolveFamilyStyleMatchWithStatus(family, {
+        weight,
+        italic: italicRequested,
+        stretch,
+      });
+      if (!resolution.cacheable) return null;
+      const match = resolution.match;
       const base = resolveFontSpec(key)?.postscriptName;
       if (match != null && match.postscriptName === base) {
         // The matcher answered the very face the key already resolves to.
@@ -5133,6 +5140,17 @@ function darwinPrimaryCutKey(
   }
   darwinPrimaryCutCache.set(cacheKey, result);
   return result;
+}
+
+/** Test seam for the declared-family memo's transient-failure contract. */
+export function __darwinPrimaryCutKeyForTest(
+  key: string,
+  weight: number,
+  slant: number,
+  stretch: number,
+  declaredFamily: string,
+): { key: string; italic: boolean } | null {
+  return darwinPrimaryCutKey(key, weight, slant, stretch, declaredFamily);
 }
 
 // ── Linux declared-family style match (Skia's fontconfig `matchFamilyName`) ──
@@ -7216,8 +7234,9 @@ function instantiateResolvedFont(
     // re-applied on top; HarfBuzz opens it by face index and gets the file's
     // default instance, so every axis has to be named explicitly or a request
     // for PingFang Regular shapes with the Medium master it is an instance of.
+    const hasTrakAndStat = helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex);
     const hbShapeFace =
-      _trakHbShapingEnabled && helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex)
+      _trakHbShapingEnabled && hasTrakAndStat
         ? makeHarfbuzzShapeFallback(
             spec.path,
             helperFaceInfo.faceIndex,
@@ -7264,6 +7283,12 @@ function instantiateResolvedFont(
     });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
+      fontShapeRouteMap.set(
+        instance as unknown as object,
+        hbShapeFace != null
+          ? `native-harfbuzz:${helperFaceInfo?.faceIndex ?? "null"}`
+          : `native-platform:${_trakHbShapingEnabled ? "enabled" : "disabled"}:${helperFaceInfo?.faceIndex ?? "null"}:${hasTrakAndStat ? "tracked" : "untracked"}`,
+      );
       // Native-helper instances carry no name of their own. Stamp the resolved
       // cut's, so the instance is self-identifying no matter which of the two
       // branches below records a `fontSourceMap` entry (one is flag-gated).
@@ -7803,6 +7828,12 @@ type FontkitGlyph = { id: number; path?: { commands: PathCommand[] }; codePoints
 /** Records which on-disk file each fontkit instance was loaded from (populated
  *  in getFontInstance). Webfonts are absent → no fallback. */
 const fontSourceMap = new WeakMap<object, FontSourceInfo>();
+const fontShapeRouteMap = new WeakMap<object, string>();
+
+/** Test-only diagnostic for native-helper shaping dispatch. */
+export function __fontShapeRouteForTest(font: FontInstance | null): string | null {
+  return font == null ? null : (fontShapeRouteMap.get(font as unknown as object) ?? null);
+}
 
 /** Keep source bookkeeping for the default-on hinted-subset path. The explicit
  *  `0` arm is the svg2ttf control/escape hatch; all unsafe individual entries
@@ -8074,13 +8105,33 @@ function deriveClusters(text: string, glyphs: any[], direction?: string): number
 }
 
 const fileFaceInfoCache = new Map<string, FileFaceInfo>();
+
+function openFontkitFileRecovering(path: string): any {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      return fontkit.openSync(path);
+    } catch (error) {
+      lastError = error;
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if ((code !== "EMFILE" && code !== "ENFILE" && code !== "EAGAIN") || attempt === 5) throw error;
+      try {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * 2 ** attempt);
+      } catch {
+        // Retry immediately when synchronous waiting is unavailable.
+      }
+    }
+  }
+  throw lastError;
+}
+
 function resolveFaceInfoForFile(path: string, postscriptName?: string, preferredFaceIndex?: number): FileFaceInfo {
   const cacheKey = `${path}#${postscriptName ?? ""}#${preferredFaceIndex ?? ""}`;
   const cached = fileFaceInfoCache.get(cacheKey);
   if (cached != null) return cached;
   let result: FileFaceInfo = { faceIndex: 0, nameMatched: true, fileAxes: null };
   try {
-    const opened: any = fontkit.openSync(path);
+    const opened: any = openFontkitFileRecovering(path);
     if (opened?.fonts != null && Array.isArray(opened.fonts)) {
       if (preferredFaceIndex != null && preferredFaceIndex >= 0 && preferredFaceIndex < opened.fonts.length) {
         const member = opened.fonts[preferredFaceIndex];
@@ -8167,7 +8218,11 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string, preferred
       };
     }
   } catch {
-    /* unreadable → leave the single-static-face default */
+    // Unreadable does not mean "member zero". It means no member identity was
+    // established, and it may be transient resource pressure. Do not cache the
+    // failure: a later request must be able to reopen and recover the named
+    // instance rather than inheriting a fabricated face index for the process.
+    return { faceIndex: null, nameMatched: false, fileAxes: null };
   }
   fileFaceInfoCache.set(cacheKey, result);
   return result;
