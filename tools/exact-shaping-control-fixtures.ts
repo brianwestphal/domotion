@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/dist/index.mjs";
+import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import {
   harfbuzzGlyphQuery,
   harfbuzzShapeRun,

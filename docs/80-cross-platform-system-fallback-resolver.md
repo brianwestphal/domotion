@@ -24,17 +24,17 @@ code:
   [
     "scripts/test-linux-docker.sh",
     "src/render",
-    "src/render/font-resolution.ts",
-    "src/render/glyph-helper.ts",
-    "src/render/win-font-fallback.ts",
-    "src/render/win32-fallback-envelope.test.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/win-font-fallback.ts",
+    "packages/text-engine/src/render/win32-fallback-envelope.test.ts",
     "tests/baselines/font-conformance-windows.json",
     "tools/probe-1416-linux-fcmatch-vs-chromium.mjs",
     "tools/probe-1424-refine.mts",
     "tools/probe-1424-win32-mapchars-vs-chromium.mjs",
-    "tools/win32-glyph-extractor",
-    "tools/win32-glyph-extractor/build.ps1",
-    "tools/win32-glyph-extractor/src/main.cpp",
+    "packages/text-engine/tools/win32-glyph-extractor",
+    "packages/text-engine/tools/win32-glyph-extractor/build.ps1",
+    "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp",
   ]
 aliases: ["docs/80-cross-platform-system-fallback-resolver.md", "doc-80"]
 ---
@@ -86,7 +86,7 @@ Related: [42 — cross-platform fallback-chain calibration](42-cross-platform-fa
 
 Domotion routes a codepoint to a fallback font through a **static, generated
 per-block table** (`FONT_PATHS` / `LINUX_FONT_PATHS` / `WIN32_FONT_PATHS` in
-`src/render/font-resolution.ts`). The table is necessarily incomplete: a
+`packages/text-engine/src/render/font-resolution.ts`). The table is necessarily incomplete: a
 codepoint it misses drops to `LastResort` — i.e. renders as **tofu** — even when
 the host actually has a font that covers it and the browser would have painted a
 real glyph.
@@ -159,7 +159,7 @@ still returned a plausible font, so nothing looked broken.
   That is the Han-unification trap on the third platform, and the fix is a
   transcription rather than a pass-through of the CSS `lang`:
   `FallbackLocaleForCharacter` composed with `LocaleForSkFontMgr` lives in
-  `blinkWinFallbackLocale` (`src/render/win-font-fallback.ts`) and is pinned
+  `blinkWinFallbackLocale` (`packages/text-engine/src/render/win-font-fallback.ts`) and is pinned
   against Blink's own `locale_test_data` table
   (`platform/text/layout_locale_test.cc:60-131`) row for row. Three branches:
   emoji priority → `und-Zsye` / `und-Zsym`; `uscript_getScript(cp) == USCRIPT_HAN`
@@ -192,7 +192,7 @@ still returned a plausible font, so nothing looked broken.
   separately — do not carry one platform's conclusion to the other.
 
   The locale joins the per-codepoint memo key (`fallbackCacheKey` in
-  `src/render/glyph-helper.ts`) for the same reason `baseFamilyName` did: the
+  `packages/text-engine/src/render/glyph-helper.ts`) for the same reason `baseFamilyName` did: the
   answer is a function of it, so a blind key would serve whichever language asked
   first to every later run on a multilingual page.
 
@@ -253,7 +253,7 @@ still returned a plausible font, so nothing looked broken.
 per-script table first and only falls through to
 `GetDWriteFallbackFamily`/`MapCharacters` on a miss
 (`win/font_cache_skia_win.cc:286-296`). That first stage is transcribed in
-`src/render/win-font-fallback.ts` and reached through `win32FallbackChain`, i.e.
+`packages/text-engine/src/render/win-font-fallback.ts` and reached through `win32FallbackChain`, i.e.
 the static chain the walker runs _ahead_ of this resolver — which puts the two
 stages in Blink's order. See
 [the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
@@ -351,7 +351,7 @@ KeyForCpForTest` hook, which bypasses that gate). DM-1416 fixed the init to
 `IDWriteFontFallback::MapCharacters(analysisSource, …)` returns the substitute
 font DirectWrite would map a run to — the same API Chrome-on-Windows uses
 (`FontFallback::MapCharacters` in `font_fallback_win.cc`). It's implemented as a
-new `fallback` query in `tools/win32-glyph-extractor` (`runFallbackQuery`):
+new `fallback` query in `packages/text-engine/tools/win32-glyph-extractor` (`runFallbackQuery`):
 `factory->GetSystemFontFallback()` + a minimal `IDWriteTextAnalysisSource` over a
 single codepoint, mapped against the system font collection. The query carries the
 run's style triple, its primary family as `baseFamilyName`, and its fallback
@@ -399,7 +399,7 @@ Emoji (the _desktop_ Windows 11 fonts, vs the narrower Server set CI exposes).
 > an interface cannot see a defect that lives in what the near side puts on the
 > wire. The lesson generalises past this bug: verify the helper _through the caller_,
 > or at minimum assert on the exact bytes the caller emits — which is now pinned by
-> `src/render/win32-fallback-envelope.test.ts`.
+> `packages/text-engine/src/render/win32-fallback-envelope.test.ts`.
 
 ## Calibration (DM-1416) — why the Linux flip is fidelity-safe
 
@@ -444,7 +444,7 @@ confirms this and quantifies it.
 **Method.** `tools/probe-1424-win32-mapchars-vs-chromium.mjs` runs on the desktop
 Win11 VM (`prlctl exec`, as SYSTEM): for a sample of drawable codepoints across
 every per-block unicode fixture it records Chromium's painted family (CDP
-`CSS.getPlatformFontsForNode`) and the family the built `tools/win32-glyph-extractor`'s
+`CSS.getPlatformFontsForNode`) and the family the built `packages/text-engine/tools/win32-glyph-extractor`'s
 `fallback` query (MapCharacters) picks, then `tools/probe-1424-refine.mts` (host,
 tsx) evaluates `win32FallbackChain(cp)` — pure routing logic, no font reads — for
 every divergence to learn whether the **static** win32 chain already owns the cp
@@ -569,20 +569,20 @@ base's own cut, and the cache then propagates that first nomination).
 
 ## Code
 
-- `src/render/font-resolution.ts` — `resolveSystemFallbackKeyForCp` (dispatch:
+- `packages/text-engine/src/render/font-resolution.ts` — `resolveSystemFallbackKeyForCp` (dispatch:
   darwin CoreText / linux fc-match / **win32 helper**),
   `resolveLinuxSystemFallbackKeyForCp` (fontconfig, with the DM-1416 coverage
   guard), `fontFileCoversCodepoint` (the coverage check),
   `registerDynamicSystemFont` (takes the extractor), `fcMatch` (the `fc-match`
   primitive), and the `_systemFallbackResolutionEnabled` init (default-on for
   Linux **and win32** unless `DOMOTION_SYSTEM_FALLBACK=0`; darwin always).
-- `src/render/glyph-helper.ts` — `resolveSystemFallbackFonts` (the
+- `packages/text-engine/src/render/glyph-helper.ts` — `resolveSystemFallbackFonts` (the
   platform-agnostic `fallback`-query caller; drives the macOS Swift helper AND
   the win32 DirectWrite helper).
-- `tools/win32-glyph-extractor/src/main.cpp` (DM-1403) — `runFallbackQuery`
+- `packages/text-engine/tools/win32-glyph-extractor/src/main.cpp` (DM-1403) — `runFallbackQuery`
   (`IDWriteFontFallback::MapCharacters`), `SingleStringAnalysisSource`
   (`IDWriteTextAnalysisSource`), `fontFacePath` / `fontFamilyDisplayName`
-  (substitute-face path + family). Build with `tools/win32-glyph-extractor/build.ps1`
+  (substitute-face path + family). Build with `packages/text-engine/tools/win32-glyph-extractor/build.ps1`
   (CMake + MSVC) or directly with `cl /std:c++17 /O2 /EHsc /MT main.cpp`.
 
 ## Emoji takes a different question on every platform

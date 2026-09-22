@@ -9,7 +9,7 @@ tickets: ["DM-2539", "DM-2550", "DM-2551"]
 code:
   [
     "src/capture/generic-font-probe.ts",
-    "src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
     "tests/generic-profile-target-oracle.e2e.test.ts",
     "tools/generic-profile-target-oracle.ts",
     "tools/system-ui-preference-route-oracle.ts",

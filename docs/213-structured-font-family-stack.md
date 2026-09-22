@@ -6,7 +6,12 @@ status: "current"
 owners: ["text-fonts"]
 platforms: []
 tickets: ["DM-2518"]
-code: ["src/font-family-stack.test.ts", "src/font-family-stack.ts", "tests/font-family-stack-capture.e2e.test.ts"]
+code:
+  [
+    "src/font-family-stack.test.ts",
+    "packages/text-engine/src/font-family-stack.ts",
+    "tests/font-family-stack-capture.e2e.test.ts",
+  ]
 aliases: ["docs/213-structured-font-family-stack.md", "doc-213"]
 ---
 
@@ -45,7 +50,7 @@ and consumed before Domotion resolves or shapes the run.
 
 ## Record and parser
 
-`src/font-family-stack.ts` owns the browser-safe record:
+`packages/text-engine/src/font-family-stack.ts` owns the browser-safe record:
 
 ```ts
 {

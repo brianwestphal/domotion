@@ -26,8 +26,8 @@ import {
   verticalDecorationSkipInkText,
 } from "../src/render/vertical-text.js";
 
-const SERIF_PATH = "assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf";
-const MONO_PATH = "assets/fonts/fixture/DomotionFixtureMono-Regular.ttf";
+const SERIF_PATH = "packages/text-engine/assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf";
+const MONO_PATH = "packages/text-engine/assets/fonts/fixture/DomotionFixtureMono-Regular.ttf";
 const FAMILIES = {
   serif: "DM2514 Fixture Serif",
   mono: "DM2514 Fixture Mono",

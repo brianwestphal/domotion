@@ -19,7 +19,7 @@ code:
     "src/terminal/incremental.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/real-text-layer.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "src/render/text.ts",
     "src/render/pseudo-fragments.ts",
     "src/render/real-text-layer.test.ts",

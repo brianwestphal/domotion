@@ -156,11 +156,11 @@ jobs:
         # doubles the build for nothing.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
         run: |
-          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
-          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             tools/macos-glyph-extractor/domotion-glyph-paths
-          tools/macos-glyph-extractor/domotion-glyph-paths --help >/dev/null 2>&1 || true
-          echo "helper built: $(file tools/macos-glyph-extractor/domotion-glyph-paths)"
+          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
+          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths --help >/dev/null 2>&1 || true
+          echo "helper built: $(file packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths)"
         # Runs AFTER the helper build so it describes the environment the shard
         # actually renders in. Font selection is only correct if it matches what
         # Chrome does ON THIS MACHINE — which fonts happen to be installed is not
@@ -271,7 +271,7 @@ jobs:
         run: apt-get install -y --no-install-recommends fonts-stix
       - run: npm ci
       - name: Build the Linux glyph helper (fontconfig declared-family matcher)
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Inject pinned parity corpora
@@ -354,7 +354,7 @@ jobs:
         # resolver shells out to fontconfig rather than to a built helper.)
       - name: Build the DirectWrite glyph helper (fallback resolver)
         shell: pwsh
-        run: ./tools/win32-glyph-extractor/build.ps1
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Inject pinned parity corpora

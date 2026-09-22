@@ -11,9 +11,9 @@ code:
   [
     "src/capture/emoji.ts",
     "src/capture/script/emoji-detect.test.ts",
-    "src/capture/script/emoji-detect.ts",
-    "src/render/emoji-raster-kind.test.ts",
-    "src/render/text-to-path.test.ts",
+    "packages/text-engine/src/capture/script/emoji-detect.ts",
+    "packages/text-engine/src/render/emoji-raster-kind.test.ts",
+    "packages/text-engine/src/render/text-to-path.test.ts",
     "tests/win32-glyph-extractor.test.ts",
     "tools/font-palette-ownership-audit.ts",
   ]
@@ -42,7 +42,7 @@ icon font can contain color glyphs outside Unicode emoji ranges.
 
 ## Capture pipeline
 
-`src/capture/script/emoji-detect.ts` ports Chromium's pinned emoji-segmenter
+`packages/text-engine/src/capture/script/emoji-detect.ts` ports Chromium's pinned emoji-segmenter
 grammar. It classifies whole regional-indicator, keycap, modifier, tag, and ZWJ
 tokens and records every non-whitespace grapheme as a temporary candidate, so
 non-emoji color fonts are discoverable too. Post-capture,
@@ -206,9 +206,9 @@ vectorize COLR paint.
 ## Test coverage
 
 - `tests/output/html-test/20-font-family.html` `.s12` row exercises the typical case (😀 🚀 ✨ — three single-codepoint emoji from different blocks). Visual regression at 16px shows actual closely matches expected with sharper details than Chrome's 1× paint due to 64-ppem supersampling.
-- `src/render/text-to-path.test.ts` `Selected raster glyphs suppress vector emission` locks output ownership for U+2728 / U+1F600 / U+1F680 / mixed Smile 😀 runs.
+- `packages/text-engine/src/render/text-to-path.test.ts` `Selected raster glyphs suppress vector emission` locks output ownership for U+2728 / U+1F600 / U+1F680 / mixed Smile 😀 runs.
 - `src/capture/script/emoji-detect.test.ts` mutation-covers the pinned sequence
-  grammar; `src/render/emoji-raster-kind.test.ts` covers mixed faces and every
+  grammar; `packages/text-engine/src/render/emoji-raster-kind.test.ts` covers mixed faces and every
   complete/incomplete color-table form plus the per-glyph marker movement
   control; `tests/win32-glyph-extractor.test.ts` proves selected Segoe UI Emoji
   gids carry COLR ownership while an ordinary glyph in the same face does not.

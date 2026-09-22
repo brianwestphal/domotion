@@ -153,7 +153,7 @@ discriminators across 56 named rows:
 The investigation initially found one Domotion representation defect before
 any tolerance decision. A source fill computed as
 `rgba(38, 171, 224, 0.65)` was emitted as `rgba(38,171,224,0.7)` because
-`src/render/colors.ts::colorStr()` reused `src/render/format.ts::r()`, whose
+`src/render/colors.ts::colorStr()` reused `packages/text-engine/src/render/format.ts::r()`, whose
 one-decimal contract is for SVG geometry. The final SVG consequently moved
 8–11 channel codes on alpha-sensitive normal/blend/filter rows while opaque
 controls stayed exact.

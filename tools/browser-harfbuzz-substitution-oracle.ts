@@ -21,7 +21,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
-import { BufferFlag, ClusterLevel, versionString } from "../vendor/harfbuzzjs/dist/index.mjs";
+import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
 import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import {

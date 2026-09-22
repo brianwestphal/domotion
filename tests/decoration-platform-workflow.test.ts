@@ -6,7 +6,7 @@ describe("DM-2345 cross-platform decoration evidence", () => {
     const workflow = readFileSync(".github/workflows/windows-fidelity.yml", "utf8");
     const job = workflow.slice(workflow.indexOf("  decoration-geometry:"), workflow.indexOf("\n  family-match:"));
     expect(job).toContain("runs-on: windows-latest");
-    expect(job).toContain("./tools/win32-glyph-extractor/build.ps1");
+    expect(job).toContain("./packages/text-engine/tools/win32-glyph-extractor/build.ps1");
     expect(job).toMatch(/decoration-oracle\.ts[\s\S]*--device-scale-factor 1[\s\S]*decoration-windows-dpr1\.json/);
     expect(job).toMatch(/decoration-oracle\.ts[\s\S]*--device-scale-factor 4[\s\S]*decoration-windows-dpr4\.json/);
     expect(job).not.toMatch(/--no-gate|--tolerance/);
@@ -17,8 +17,8 @@ describe("DM-2345 cross-platform decoration evidence", () => {
   });
 
   it("carries the selected DirectWrite face's OS/2 typo metrics into decoration geometry", () => {
-    const helper = readFileSync("tools/win32-glyph-extractor/src/main.cpp", "utf8");
-    const adapter = readFileSync("src/render/glyph-helper-font.ts", "utf8");
+    const helper = readFileSync("packages/text-engine/tools/win32-glyph-extractor/src/main.cpp", "utf8");
+    const adapter = readFileSync("packages/text-engine/src/render/glyph-helper-font.ts", "utf8");
     expect(helper).toContain("TryGetFontTable");
     expect(helper).toContain("readI16BE(68)");
     expect(helper).toContain("readI16BE(70)");

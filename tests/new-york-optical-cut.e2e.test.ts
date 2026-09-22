@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveFontKey } from "../src/render/text-to-path.js";
+import { resolveFontKey } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 
 // DM-1108: macOS New York optical-size cuts. Unlike SF Pro (one variable file

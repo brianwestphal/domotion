@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
 tickets: ["DM-1028", "DM-1197", "DM-1215", "DM-983"]
-code: ["src/render/font-resolution.ts"]
+code: ["packages/text-engine/src/render/font-resolution.ts"]
 aliases: ["docs/79-harfbuzz-use-reroute.md", "doc-79"]
 ---
 
@@ -17,11 +17,11 @@ specific complex-script runs through real HarfBuzz (harfbuzzjs, the engine Chrom
 embeds) where macOS shaping diverges from Chrome's paint: (1) USE-shaped precomposed
 letters (DM-1197, below) and (2) orphaned-mark dotted circles (DM-1215, at the end).
 
-The HarfBuzz in question is **vendored**, not the npm build: `vendor/harfbuzzjs/`
+The HarfBuzz in question is **vendored**, not the npm build: `packages/text-engine/vendor/harfbuzzjs/`
 is harfbuzzjs v1.4.0 with the wasm rebuilt using the HarfBuzz configuration
 Chromium ships. The published build is `-DHB_TINY`, which compiles out Apple
 Advanced Typography entirely and so mis-shapes macOS's `morx`-only system faces
-(GeezaPro, Helvetica). See `vendor/harfbuzzjs/README.md` and the "HarfBuzz is
+(GeezaPro, Helvetica). See `packages/text-engine/vendor/harfbuzzjs/README.md` and the "HarfBuzz is
 vendored" section of [font-resolution-diagram.md](font-resolution-diagram.md).
 
 ## USE-shaped precomposed letters (DM-1197)
@@ -58,10 +58,10 @@ Chrome (DM-1197 — the Kaithi `U+110AB` "dot position" diff).
 
 ## The reroute
 
-`resolveFontForCodepoint` (`src/render/font-resolution.ts`) detects these
+`resolveFontForCodepoint` (`packages/text-engine/src/render/font-resolution.ts`) detects these
 codepoints via `complexShaperBaseMarkDecomposition(cp)` and, when the primary
 font covers the decomposed pieces, sets the run's `fontOverride` to a HarfBuzz
-shaping instance (`src/render/harfbuzz-shaper.ts::makeHarfbuzzShapingInstance`).
+shaping instance (`packages/text-engine/src/render/harfbuzz-shaper.ts::makeHarfbuzzShapingInstance`).
 That instance delegates every metric / coverage query to the base instance but
 overrides `layout()` to shape via harfbuzzjs (the same engine Chrome embeds) and
 return the glyphs (outlines from `font.glyphToPath`), GPOS positions, and source

@@ -11,7 +11,7 @@ const sourcePath = resolve(
   root,
   "external/chromium/third_party/blink/renderer/platform/text/character_variation_sequences.cc",
 );
-const outputPath = resolve(root, "src/render/standardized-variation-sequences.generated.ts");
+const outputPath = resolve(root, "packages/text-engine/src/render/standardized-variation-sequences.generated.ts");
 const source = readFileSync(sourcePath, "utf8");
 const start = source.indexOf("kStandardizedVariationSequences");
 const end = source.indexOf("bool Character::IsStandardizedVariationSequence", start);

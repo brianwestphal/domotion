@@ -62,7 +62,7 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     const job = jobs["sweep-macos"];
     const build = job.indexOf("macos-glyph-extractor");
     const run = job.indexOf("ci-font-conformance-shard.sh");
-    expect(build, "sweep-macos must build tools/macos-glyph-extractor").toBeGreaterThanOrEqual(0);
+    expect(build, "sweep-macos must build packages/text-engine/tools/macos-glyph-extractor").toBeGreaterThanOrEqual(0);
     expect(run).toBeGreaterThanOrEqual(0);
     expect(build, "the helper must exist before the sweep asks CoreText anything").toBeLessThan(run);
   });
@@ -71,7 +71,9 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     const job = jobs["sweep-windows"];
     const build = job.indexOf("win32-glyph-extractor");
     const run = job.indexOf("ci-font-conformance-shard.sh");
-    expect(build, "sweep-windows must build tools/win32-glyph-extractor").toBeGreaterThanOrEqual(0);
+    expect(build, "sweep-windows must build packages/text-engine/tools/win32-glyph-extractor").toBeGreaterThanOrEqual(
+      0,
+    );
     expect(run).toBeGreaterThanOrEqual(0);
     expect(build).toBeLessThan(run);
   });
@@ -94,7 +96,7 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     const job = jobs["sweep-linux"];
     const build = job.indexOf("linux-glyph-extractor");
     const run = job.indexOf("ci-font-conformance-shard.sh");
-    expect(build, "sweep-linux must build tools/linux-glyph-extractor").toBeGreaterThanOrEqual(0);
+    expect(build, "sweep-linux must build packages/text-engine/tools/linux-glyph-extractor").toBeGreaterThanOrEqual(0);
     expect(build, "the helper must exist before the sweep asks fontconfig anything").toBeLessThan(run);
     // libfontconfig is what the `fcfallback` query links against; CMake requires
     // it, so a missing dev package fails the build rather than producing a

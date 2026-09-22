@@ -72,10 +72,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: bash tools/macos-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh
 
       - name: Verify the signature
-        working-directory: tools/macos-glyph-extractor
+        working-directory: packages/text-engine/tools/macos-glyph-extractor
         run: |
           set -euo pipefail
           codesign --verify --strict --verbose=2 domotion-glyph-paths
@@ -87,7 +87,7 @@ jobs:
       - name: Stage release asset
         run: |
           set -euo pipefail
-          cp tools/macos-glyph-extractor/domotion-glyph-paths \
+          cp packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths \
              "$RUNNER_TEMP/domotion-glyph-paths-darwin-universal"
           cd "$RUNNER_TEMP"
           shasum -a 256 domotion-glyph-paths-darwin-universal \
@@ -104,7 +104,7 @@ jobs:
           retention-days: 7
 
   linux-glyph-extractor:
-    runs-on: ubuntu-22.04 # glibc 2.35 floor — see tools/linux-glyph-extractor/Dockerfile
+    runs-on: ubuntu-22.04 # glibc 2.35 floor — see packages/text-engine/tools/linux-glyph-extractor/Dockerfile
     steps:
       - uses: actions/checkout@v4
         with: { ref: "${{ inputs.tag }}" }
@@ -120,15 +120,15 @@ jobs:
             build-essential cmake pkg-config libfreetype-dev
 
       - name: Build the helper
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
 
       # Rename to the documented asset name and emit a SHA-256 sidecar so the
       # runtime download can integrity-check before caching.
       - name: Stage release asset
         run: |
           set -euo pipefail
-          strip tools/linux-glyph-extractor/domotion-glyph-paths || true
-          cp tools/linux-glyph-extractor/domotion-glyph-paths \
+          strip packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths || true
+          cp packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths \
              "$RUNNER_TEMP/domotion-glyph-paths-linux-x64"
           cd "$RUNNER_TEMP"
           sha256sum domotion-glyph-paths-linux-x64 \
@@ -159,13 +159,13 @@ jobs:
       # build.sh compiles for the host arch, so on an arm64 runner it produces
       # the arm64 binary — no cross-compilation needed.
       - name: Build the helper
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
 
       - name: Stage release asset
         run: |
           set -euo pipefail
-          strip tools/linux-glyph-extractor/domotion-glyph-paths || true
-          cp tools/linux-glyph-extractor/domotion-glyph-paths \
+          strip packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths || true
+          cp packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths \
              "$RUNNER_TEMP/domotion-glyph-paths-linux-arm64"
           cd "$RUNNER_TEMP"
           sha256sum domotion-glyph-paths-linux-arm64 \
@@ -192,7 +192,7 @@ jobs:
       # .exe runs on a clean Windows with no VC++ redistributable.
       - name: Build the helper
         shell: pwsh
-        run: ./tools/win32-glyph-extractor/build.ps1
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
 
       # Rename to the documented asset name and emit a SHA-256 sidecar so the
       # runtime download can integrity-check before caching. (sha256sum + cp come
@@ -201,7 +201,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp tools/win32-glyph-extractor/domotion-glyph-paths.exe \
+          cp packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe \
              "$RUNNER_TEMP/domotion-glyph-paths-win32-x64.exe"
           cd "$RUNNER_TEMP"
           sha256sum domotion-glyph-paths-win32-x64.exe \
@@ -227,13 +227,13 @@ jobs:
       # an arm64 .exe (CRT statically linked /MT, no VC++ redistributable).
       - name: Build the helper
         shell: pwsh
-        run: ./tools/win32-glyph-extractor/build.ps1
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
 
       - name: Stage release asset
         shell: bash
         run: |
           set -euo pipefail
-          cp tools/win32-glyph-extractor/domotion-glyph-paths.exe \
+          cp packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe \
              "$RUNNER_TEMP/domotion-glyph-paths-win32-arm64.exe"
           cd "$RUNNER_TEMP"
           sha256sum domotion-glyph-paths-win32-arm64.exe \

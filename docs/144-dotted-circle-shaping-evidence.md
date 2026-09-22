@@ -11,7 +11,7 @@ code:
     "src/capture/script/dotted-circle-detect.ts",
     "src/capture/script/dotted-circle-detect.test.ts",
     "src/capture/script/walker/text-segments.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
   ]
 aliases: ["docs/144-dotted-circle-shaping-evidence.md", "doc-144"]
 ---

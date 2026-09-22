@@ -9,14 +9,14 @@ tickets: []
 code:
   [
     ".github/workflows/test-linux.yml",
-    "src/render/font-resolution.ts",
-    "src/render/linux-declared-family-cut.test.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/linux-declared-family-cut.test.ts",
     "tests/baselines/family-match-linux.json",
     "tests/family-match-baseline.test.ts",
     "tools/family-match-baseline.ts",
     "tools/family-match-conformance-linux.ts",
     "tools/font-conformance-stacks.linux.json",
-    "tools/linux-glyph-extractor/src/main.cpp",
+    "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
   ]
 aliases: ["docs/110-family-match-conformance-linux.md", "doc-110"]
 ---
@@ -66,9 +66,9 @@ FIRST valid pattern and judges only that one (`62efacd3:553-590`). The
 transcription follows the DEPS pin, not the checkout.
 
 The transcription lives in the Linux glyph helper (`familyMatch` query,
-`tools/linux-glyph-extractor/src/main.cpp`); the render path reaches it
+`packages/text-engine/tools/linux-glyph-extractor/src/main.cpp`); the render path reaches it
 through `resolveLinuxFamilyMatch` → `linuxPrimaryCutKey`
-(`src/render/font-resolution.ts`), which replaces the old two-slot
+(`packages/text-engine/src/render/font-resolution.ts`), which replaces the old two-slot
 `key` / `key-bold` sibling routing. Both are gated on the helper being
 present and on `DOMOTION_SYSTEM_FALLBACK != 0`, and degrade to the sibling
 table otherwise.
@@ -200,7 +200,7 @@ noble image, through `getFontInstance`:
 
 The answer moves at a discriminating rung, so the matcher is in the render
 loop, and the disable knob restores the two-slot behavior. The seam test
-`src/render/linux-declared-family-cut.test.ts` pins this permanently.
+`packages/text-engine/src/render/linux-declared-family-cut.test.ts` pins this permanently.
 
 ## Baseline discipline
 
@@ -239,7 +239,7 @@ exemption so it is removed once every entry carries the field.
 The `Linux family-match conformance` job in
 `.github/workflows/test-linux.yml` runs on every PR inside the pinned noble
 container: it builds the helper, runs the armed declared-family seam test
-(`src/render/linux-declared-family-cut.test.ts` — the one CI site where the
+(`packages/text-engine/src/render/linux-declared-family-cut.test.ts` — the one CI site where the
 nomination-walk pins execute rather than skip), then runs this oracle
 **regression-relative**, exactly like the feature-suite fidelity gates: a
 regression vs this environment's committed entry fails the job; identical or
@@ -256,7 +256,7 @@ image is expected to take the candidate path.
 - The family-NOMINATION stage above this call — the oracle asks both sides
   about the same family string, so a wrong nomination upstream is out of
   frame. The walk itself (declared name → alias retry → walk past) is now
-  transcribed and pinned by `src/render/linux-declared-family-cut.test.ts`
+  transcribed and pinned by `packages/text-engine/src/render/linux-declared-family-cut.test.ts`
   against CDP-measured paint, but this oracle still does not score it; doc
   107's whole-pipeline oracle covers that end. The generic-family
   preferences and `-webkit-standard` remain browser-side VALUES (measured,

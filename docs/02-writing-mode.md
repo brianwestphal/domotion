@@ -9,7 +9,7 @@ tickets: ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "SK-1090", "SK-1104", "S
 code:
   [
     "src/capture/script/walker/text-segments.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "src/render/vertical-text.test.ts",
     "src/render/vertical-text.ts",
   ]
@@ -52,7 +52,7 @@ To minimize disruption: keep the existing `xOffsets` field name but record the *
 
 ## Render changes
 
-`renderTextAsPath` and friends in `src/render/text-to-path.ts` emit glyphs in a horizontal, line-relative coordinate space. For vertical writing-mode the renderer follows Blink's `TextFragmentPainter` / `LineRelativeRect` handoff:
+`renderTextAsPath` and friends in `packages/text-engine/src/render/text-to-path.ts` emit glyphs in a horizontal, line-relative coordinate space. For vertical writing-mode the renderer follows Blink's `TextFragmentPainter` / `LineRelativeRect` handoff:
 
 - `Range.getBoundingClientRect()` supplies the physical character box. As Blink's `CreateFromLineBox` does, the renderer reuses that box's physical top-left as the line-relative origin and swaps physical height/width into inline/block size.
 - `vertical-rl`, `vertical-lr`, and `sideways-rl` use Blink's clockwise affine matrix; `sideways-lr` uses its counter-clockwise matrix. The translation terms preserve the physical box's top-left after rotation.
@@ -163,7 +163,7 @@ The fix asks the selected face for its actual `halt` (or vertical `vhal`)
 shaping result and borrows the returned GPOS offset only when the same glyph is
 genuinely narrowed. There is no Unicode punctuation/range gate: punctuation,
 ideographs, kana, Latin, and fullwidth forms are all decided by face evidence.
-`cjkTrimShiftFontUnits` (`src/render/text-to-path.ts`) additionally requires the
+`cjkTrimShiftFontUnits` (`packages/text-engine/src/render/text-to-path.ts`) additionally requires the
 captured advance to be about half the untrimmed advance, so ordinary glyphs and
 untrimmed `（ ）` remain untouched. If native helpers are unavailable, the
 already-observed narrowed advance plus selected-glyph ink geometry is the

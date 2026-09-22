@@ -4,7 +4,7 @@
 //   node scripts/probe-coretext-glyphs.mjs                    # default: PingFang 漢 + Helvetica H
 //   node scripts/probe-coretext-glyphs.mjs --font=Helvetica --size=72 --cp=0x48,0x65
 //
-// Spawns `tools/macos-glyph-extractor/domotion-glyph-paths` synchronously and
+// Spawns `packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths` synchronously and
 // pretty-prints the response. Useful for checking what CoreText hands us for a
 // given (font, size, codepoint) tuple before wiring a route in
 // `src/text-to-path.ts`.

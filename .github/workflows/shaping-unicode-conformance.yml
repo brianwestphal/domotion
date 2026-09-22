@@ -35,8 +35,8 @@ jobs:
         shell: bash
         run: >-
           node --import tsx -e 'import fs from "node:fs";
-          import { acquireGlyphHelper } from "./src/render/helper-acquire.ts";
-          import { acquireIcuCompanion } from "./src/render/icu-helper-acquire.ts";
+          import { acquireGlyphHelper } from "./packages/text-engine/src/render/helper-acquire.ts";
+          import { acquireIcuCompanion } from "./packages/text-engine/src/render/icu-helper-acquire.ts";
           const glyph = await acquireGlyphHelper(); const icu = await acquireIcuCompanion();
           if (glyph == null || icu == null) throw new Error("authenticated shaping helpers unavailable");
           fs.appendFileSync(process.env.GITHUB_ENV, `DOMOTION_HELPER_PATH=${glyph}\nDOMOTION_ICU_HELPER_PATH=${icu}\n`);'
@@ -74,8 +74,8 @@ jobs:
         shell: bash
         run: >-
           node --import tsx -e 'import fs from "node:fs";
-          import { acquireGlyphHelper } from "./src/render/helper-acquire.ts";
-          import { acquireIcuCompanion } from "./src/render/icu-helper-acquire.ts";
+          import { acquireGlyphHelper } from "./packages/text-engine/src/render/helper-acquire.ts";
+          import { acquireIcuCompanion } from "./packages/text-engine/src/render/icu-helper-acquire.ts";
           const glyph = await acquireGlyphHelper(); const icu = await acquireIcuCompanion();
           if (glyph == null || icu == null) throw new Error("authenticated shaping helpers unavailable");
           fs.appendFileSync(process.env.GITHUB_ENV, `DOMOTION_HELPER_PATH=${glyph}\nDOMOTION_ICU_HELPER_PATH=${icu}\n`);'

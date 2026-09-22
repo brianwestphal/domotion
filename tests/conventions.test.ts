@@ -16,7 +16,7 @@
  *
  * The public value-export SURFACE itself is pinned separately in
  * `src/index.exports.test.ts` (DM-1058); the state-transition guard for the
- * process-global render mode is `src/render/render-text-mode-guard.test.ts`.
+ * process-global render mode is `packages/text-engine/src/render/render-text-mode-guard.test.ts`.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -56,13 +56,14 @@ describe("project conventions", () => {
     // Intentional allow-list. Adding a runtime dep is a deliberate call — update
     // this list in the same change so the addition is reviewed, not incidental.
     expect(Object.keys(pkg.dependencies ?? {}).sort()).toEqual([
+      "@domotion/text-engine",
       "@playwright/test",
       "@xterm/headless",
       "bidi-js",
       "fontkit",
       // No `harfbuzzjs`: the published build is `-DHB_TINY`, which compiles out
       // Apple Advanced Typography, so macOS's `morx`-only system faces shape
-      // wrong. `vendor/harfbuzzjs/` is v1.4.0 rebuilt with Chromium's HarfBuzz
+      // wrong. `packages/text-engine/vendor/harfbuzzjs/` is v1.4.0 rebuilt with Chromium's HarfBuzz
       // configuration and imported by relative path instead.
       "kerfjs",
       "sharp",
@@ -73,7 +74,8 @@ describe("project conventions", () => {
     ]);
   });
 
-  // DM-1980: the font/text subsystem's contract with the rest of the codebase.
+  // DM-1980 / DM-A1KCSY: the text-engine workspace's compatibility contract
+  // with the rest of the codebase through the root render adapters.
   //
   // Measured: the transitive closure from `{text-to-path, font-resolution,
   // text}` is 21 files / ~22.8k lines whose ONLY coupling outward is a single
@@ -92,7 +94,7 @@ describe("project conventions", () => {
   //
   // Why this is worth a guard rather than a doc: the subsystem is where ~44% of
   // recent commits land, so it is exactly where an accidental new dependency
-  // would appear, and it is the boundary any future extraction would run along.
+  // would appear, and it is the boundary the private workspace now enforces.
   it("keeps the font/text subsystem's outward contract to the allow-listed symbols (DM-1980)", () => {
     const FONT_MODULES = new Set([
       "font-resolution",

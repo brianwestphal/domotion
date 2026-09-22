@@ -32,7 +32,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 1048,
@@ -110,7 +110,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 1110,
@@ -188,7 +188,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 1178,
@@ -253,7 +253,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 819,
@@ -331,7 +331,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 1026,
@@ -409,7 +409,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 957,

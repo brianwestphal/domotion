@@ -224,7 +224,9 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   if (!existsSync(HELPER)) {
-    console.error(`win32 glyph helper not built — see tools/win32-glyph-extractor (looked for ${HELPER}).`);
+    console.error(
+      `win32 glyph helper not built — see packages/text-engine/tools/win32-glyph-extractor (looked for ${HELPER}).`,
+    );
     process.exit(2);
   }
 

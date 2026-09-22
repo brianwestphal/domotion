@@ -13,6 +13,9 @@
     "url": "https://github.com/brianwestphal/domotion/issues"
   },
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -25,7 +28,6 @@
   },
   "files": [
     "dist",
-    "vendor",
     "assets",
     "schemas",
     "FEATURES.md",
@@ -36,7 +38,8 @@
   "scripts": {
     "clean:dist": "node scripts/clean-dist.mjs",
     "check:package-dist": "node scripts/check-package-dist.mjs",
-    "build:capture-script": "node scripts/build-capture-script.mjs",
+    "build:text-engine": "npm run build --workspace @domotion/text-engine",
+    "build:capture-script": "npm run build:text-engine && node scripts/build-capture-script.mjs",
     "build:review-client": "node scripts/build-review-client.mjs",
     "build:scrubber-client": "node scripts/build-scrubber-client.mjs",
     "build:studio-client": "node scripts/build-studio-client.mjs",
@@ -55,14 +58,14 @@
     "unicode:vertical-orientation:oracle": "node --import tsx tools/vertical-orientation-oracle.ts",
     "build": "npm run clean:dist && npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && npm run build:animate-schema && npm run build:composite-schema && npm run build:storyboard-schema && npm run build:studio-project-schema && tsc -p tsconfig.build.json && npm run check:package-dist",
     "prepack": "npm run build",
-    "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && tsc --noEmit",
+    "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && npm run typecheck --workspace @domotion/text-engine && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "npm run format:check && eslint . --max-warnings 0 && npm run check:american-english",
     "check:american-english": "node scripts/check-american-english.mjs",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
-    "test": "npm run build:capture-script && vitest run",
-    "test:text-engine": "vitest run src/render/text-engine.test.ts src/render/text-engine-boundary.test.ts",
+    "test": "npm run test:text-engine && npm run build:capture-script && vitest run",
+    "test:text-engine": "npm test --workspace @domotion/text-engine",
     "sources:materialize": "node scripts/materialize-source-authorities.mjs",
     "test:e2e": "npm run build:capture-script && node scripts/run-e2e-tests.mjs",
     "test:coverage": "npm run build:capture-script && vitest run --coverage",
@@ -76,8 +79,8 @@
     "benchmark:glassbox:quick": "npm run build:capture-script && tsx benchmarks/glassbox/run.ts --simulate-ui-change --no-video --no-publish",
     "typecheck:glassbox-benchmark": "tsc --noEmit -p benchmarks/glassbox/tsconfig.json",
     "test:linux-docker": "bash scripts/test-linux-docker.sh",
-    "test:linux-system-ui-alternate": "FONTCONFIG_FILE=/work/tests/fontconfig/alternate-system-ui.conf CMD='apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core build-essential cmake pkg-config libfreetype-dev libfontconfig-dev && bash tools/linux-glyph-extractor/build.sh && npx tsx tools/assert-linux-system-ui-profile.ts && npm run fonts:conformance -- --stack-filter system-ui --range 0020-007f,0600-06ff,4e00-4e7f --max-rows 2000 --reset-every 1 --out tests/output/font-conformance-system-ui-alternate' bash scripts/test-linux-docker.sh",
-    "test:linux-fallback-diagnostics": "CMD='apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev && bash tools/linux-glyph-extractor/build.sh && npx tsx tools/probe-linux-fallback-diagnostics.ts' bash scripts/test-linux-docker.sh",
+    "test:linux-system-ui-alternate": "FONTCONFIG_FILE=/work/tests/fontconfig/alternate-system-ui.conf CMD='apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core build-essential cmake pkg-config libfreetype-dev libfontconfig-dev && bash packages/text-engine/tools/linux-glyph-extractor/build.sh && npx tsx tools/assert-linux-system-ui-profile.ts && npm run fonts:conformance -- --stack-filter system-ui --range 0020-007f,0600-06ff,4e00-4e7f --max-rows 2000 --reset-every 1 --out tests/output/font-conformance-system-ui-alternate' bash scripts/test-linux-docker.sh",
+    "test:linux-fallback-diagnostics": "CMD='apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev && bash packages/text-engine/tools/linux-glyph-extractor/build.sh && npx tsx tools/probe-linux-fallback-diagnostics.ts' bash scripts/test-linux-docker.sh",
     "demos:test": "npm run build:capture-script && tsx tests/features.ts",
     "demos:test:showcase": "npm run build:capture-script && tsx tests/showcase.tsx",
     "demos:test:html": "npm run build:capture-script && tsx tests/html-test-suite.tsx",
@@ -201,6 +204,7 @@
     "site:preview": "cd site && npm install && npm run preview"
   },
   "dependencies": {
+    "@domotion/text-engine": "0.30.1",
     "@playwright/test": "^1.59.1",
     "@xterm/headless": "^6.0.0",
     "bidi-js": "^1.0.3",
@@ -212,6 +216,9 @@
     "wawoff2": "^2.0.1",
     "zod": "^4.4.3"
   },
+  "bundledDependencies": [
+    "@domotion/text-engine"
+  ],
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@typescript-eslint/parser": "^8.59.4",

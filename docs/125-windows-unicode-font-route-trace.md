@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["windows"]
 tickets: []
-code: ["src/render/win-font-fallback.ts"]
+code: ["packages/text-engine/src/render/win-font-fallback.ts"]
 aliases: ["docs/125-windows-unicode-font-route-trace.md", "doc-125"]
 ---
 
@@ -55,7 +55,7 @@ face is exhausted does `FontFallbackIterator` advance to `kSystemFonts`.
 `GetFallbackFamilyNameFromHardcodedChoices` runs first and only falls through
 to `GetDWriteFallbackFamily` when no candidate both loads and covers the
 character (`font_cache_skia_win.cc`). The hardcoded candidate ordering is the
-source transcription in `src/render/win-font-fallback.ts`. The DirectWrite ask
+source transcription in `packages/text-engine/src/render/win-font-fallback.ts`. The DirectWrite ask
 uses the literal first CSS family as `baseFamilyName`, the run's Skia style, and
 `FallbackLocaleForCharacter(...)->LocaleForSkFontMgr()`; Skia revision
 `ebf5052` forwards those values to `IDWriteFontFallback::MapCharacters`.

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 
 // DM-837: validates the Windows DirectWrite glyph extractor
-// (tools/win32-glyph-extractor). Mirrors the macOS / Linux helper tests.
+// (packages/text-engine/tools/win32-glyph-extractor). Mirrors the macOS / Linux helper tests.
 // Skipped automatically unless we're on Windows with the binary built, so it is
 // inert on macOS/Linux CI and on a clean Windows checkout. Runs in CI on a
 // windows-latest runner (the glyph-extractor-build job in windows-fidelity.yml).
@@ -364,14 +364,14 @@ describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
 // DM-1889: the named-pipe serve transport — the one Windows production actually
 // uses. The `--serve` case above drives ASYNC streams because a spawned pipe has
 // no usable fd on Windows; this case drives SYNCHRONOUS writeSync/readSync
-// exactly as `src/render/glyph-helper.ts` does, which is the whole point. A
+// exactly as `packages/text-engine/src/render/glyph-helper.ts` does, which is the whole point. A
 // named pipe opened by path yields a real fd where spawned stdio does not, and
 // that is what let Windows have a persistent channel at all.
 //
 // Before this, Windows spawned the binary once per helper call — ~42 ms measured
 // against ~0.5 ms over the pipe. It also meant one-shot was the only path, which
 // is how an unopenable declared base font silently disabled the entire live
-// fallback resolver on the platform (see src/render/win32-fallback-envelope.test.ts).
+// fallback resolver on the platform (see packages/text-engine/src/render/win32-fallback-envelope.test.ts).
 describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
   it("answers over a named pipe, byte-identically to one-shot, driven synchronously", () => {
     // No base font declared: DirectWrite's MapCharacters takes none, and

@@ -8,7 +8,7 @@
  * contain a MID-CLUSTER case — a base+mark (or a partial conjunct) where the
  * font that covers the base differs from the font that covers the mark. That is
  * exactly where fallback at shaped-cluster granularity (docs/113,
- * `src/render/cluster-fallback.ts`) diverges from a per-codepoint cmap walk, and
+ * `packages/text-engine/src/render/cluster-fallback.ts`) diverges from a per-codepoint cmap walk, and
  * neither the 819-block unicode fixtures (one codepoint per cell) nor the
  * per-codepoint oracle can grade it. Measured: a flag-on A/B over nine complex-
  * script unicode blocks was identical to five decimals of raw `diffPct` with the

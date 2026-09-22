@@ -9,7 +9,7 @@ The package's main entry is `dist/index.js`. Consumers should import from
 `"domotion-svg/dist/<some-subpath>"`.
 
 Per-feature barrels under `src/{capture,render,animation,scroll,tree-ops,post-processing}/index.ts`
-each define their own curated surface; `src/index.ts` aggregates and is the
+each define their own curated surface; `packages/text-engine/src/index.ts` aggregates and is the
 file you actually consume.
 
 DM-622 (May 2026) rewrote this surface as a breaking change (0.1.1 → 0.2.0).

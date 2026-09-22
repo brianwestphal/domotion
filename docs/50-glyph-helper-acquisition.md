@@ -10,8 +10,8 @@ code:
   [
     ".github/workflows/release-helpers.yml",
     ".github/workflows/release.yml",
-    "src/render/glyph-helper.ts",
-    "src/render/helper-acquire.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/helper-acquire.ts",
     "tests/release-helpers-workflow.test.ts",
   ]
 aliases: ["docs/50-glyph-helper-acquisition.md", "doc-50"]
@@ -25,7 +25,7 @@ per-user cache at runtime, so a **published-npm consumer** has a working helper
 without it being committed to git or bundled in the tarball. Origin: DM-886
 (the missing DM-393 layer, discovered during DM-881 — see `docs/49`).
 
-> **Status: IMPLEMENTED (DM-886).** `src/render/helper-acquire.ts` ships the
+> **Status: IMPLEMENTED (DM-886).** `packages/text-engine/src/render/helper-acquire.ts` ships the
 > acquisition layer, wired into `glyph-helper.ts`'s resolver as the third source.
 > The maintainer's decisions are recorded in [Decisions](#decisions-adopted).
 > This is piece **B** of the DM-881 split; piece A (platform-aware resolution in
@@ -78,7 +78,7 @@ retried without repeating native builds/signing (DM-2664).
 
 ## Proposed design
 
-A self-contained `acquireGlyphHelper()` module (e.g. `src/render/helper-acquire.ts`),
+A self-contained `acquireGlyphHelper()` module (e.g. `packages/text-engine/src/render/helper-acquire.ts`),
 called by `glyph-helper.ts`'s resolution as the source _after_ the in-tree path:
 
 1. **Resolve the target.** Asset name from the table above by `process.platform`
@@ -155,13 +155,13 @@ The maintainer's calls on the open questions (all implemented):
 
 ## Implementation
 
-- **`src/render/helper-acquire.ts`** — `assetNameFor`, `cacheDirFor`,
+- **`packages/text-engine/src/render/helper-acquire.ts`** — `assetNameFor`, `cacheDirFor`,
   `parseSha256Sidecar`, `downloadAndInstall` (fetch asset + sidecar →
   SHA-256-verify → atomic temp-write + `chmod 0o755` + rename), the sync
   `acquireGlyphHelperSync` (child-process download, one attempt per process,
   warn-once latch), the async `acquireGlyphHelper`, and a worker entry guarded
   on `argv[1]` so a normal `import` never triggers a download.
-- **`src/render/glyph-helper.ts`** — `resolveHelperPath` now falls through to
+- **`packages/text-engine/src/render/glyph-helper.ts`** — `resolveHelperPath` now falls through to
   `acquireGlyphHelperSync({ platform })` after the env override + existing
   in-tree binary.
 - **Tested:** unit (asset/cache/sidecar resolvers, unsupported-arch + cache-hit

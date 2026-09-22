@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
 tickets: ["DM-1103", "DM-1108"]
-code: ["src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"]
+code: ["packages/text-engine/src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"]
 aliases: ["docs/58-new-york-optical-cuts.md", "doc-58"]
 ---
 
@@ -41,7 +41,7 @@ Three of the four cut names are unambiguous, so CoreText's family query already 
 
 `New York Medium` is special: `Medium` is **also a weight name**. The variable `NewYork.ttf` exposes a `Medium`-_weight_ named instance (PostScript `NewYork-Medium`), and CoreText's family query for `"New York Medium"` returns **that heavier weight** rather than the lighter `New York Medium` optical _cut_ (`NewYorkMedium-Regular.otf`) that Chrome paints. Result before the fix: an explicit `font-family:"New York Medium"` run rendered visibly too bold.
 
-`matchFamilyNameToKey` (`src/render/font-resolution.ts`) now resolves `"new york medium"` via the cut's unambiguous PostScript name `NewYorkMedium-Regular`, matching Chrome. When that OTF isn't installed, the lookup returns null and the name falls through to the variable font's `Medium` weight — which is also what Chrome paints in that case.
+`matchFamilyNameToKey` (`packages/text-engine/src/render/font-resolution.ts`) now resolves `"new york medium"` via the cut's unambiguous PostScript name `NewYorkMedium-Regular`, matching Chrome. When that OTF isn't installed, the lookup returns null and the name falls through to the variable font's `Medium` weight — which is also what Chrome paints in that case.
 
 ## Bare `New York` and `ui-serif`
 

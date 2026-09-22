@@ -6,7 +6,7 @@ status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2336", "DM-587"]
-code: ["src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"]
+code: ["packages/text-engine/src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"]
 aliases: ["docs/209-transformed-flex-descendant-investigation.md", "doc-209"]
 ---
 
@@ -111,7 +111,7 @@ implementation intentionally bakes the live viewport geometry and suppresses
 that group. That stale explanation should be corrected with the threshold.
 
 The 252 raw macOS pixels are not an unexplained Skia-only difference:
-`src/render/format.ts` applies the documented one-decimal SVG serialization.
+`packages/text-engine/src/render/format.ts` applies the documented one-decimal SVG serialization.
 Chromium reports the translated green row at y=57.9500007629 and height
 27.6000023; SVG emits y=58 and height=27.6, producing the two 126px horizontal
 edge rows. The permanent oracle must assert capture equals live and emitted SVG

@@ -9,12 +9,12 @@ tickets: ["DM-259", "DM-260", "DM-385", "DM-393", "DM-837", "DM-872", "DM-881", 
 code:
   [
     "src/render/",
-    "src/render/glyph-helper.test.ts",
-    "src/render/glyph-helper.ts",
-    "src/render/helper-acquire.ts",
-    "tools/linux-glyph-extractor/",
-    "tools/macos-glyph-extractor/",
-    "tools/win32-glyph-extractor/",
+    "packages/text-engine/src/render/glyph-helper.test.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/helper-acquire.ts",
+    "packages/text-engine/tools/linux-glyph-extractor/",
+    "packages/text-engine/tools/macos-glyph-extractor/",
+    "packages/text-engine/tools/win32-glyph-extractor/",
   ]
 aliases: ["docs/49-glyph-helper-dispatch.md", "doc-49"]
 ---
@@ -67,11 +67,11 @@ Generalize `coretext.ts` (rename concept: "native glyph helper", not
 "coretext") so `isHelperAvailable()` / `HELPER_PATH` dispatch by
 `process.platform`:
 
-| Platform | In-tree binary                                         | Asset name                              |
-| -------- | ------------------------------------------------------ | --------------------------------------- |
-| darwin   | `tools/macos-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-darwin-universal` |
-| linux    | `tools/linux-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-linux-x64`        |
-| win32    | `tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe`    |
+| Platform | In-tree binary                                                              | Asset name                              |
+| -------- | --------------------------------------------------------------------------- | --------------------------------------- |
+| darwin   | `packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-darwin-universal` |
+| linux    | `packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-linux-x64`        |
+| win32    | `packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe`    |
 
 `DOMOTION_HELPER_PATH` overrides on all platforms; `DOMOTION_DISABLE_HELPER`
 disables. The IPC envelope + `parseSvgPath` + the `createGlyphHelperFont` wrapper
@@ -133,7 +133,7 @@ too. Confirm before implementing, since A touches the macOS-working render path.
   design-unit, y-up outlines — so only resolution + the gate changed.
 
 **Naming**: deferred from DM-881 (to keep that diff focused on behavior), then
-**done in DM-888** — the module is now `src/render/glyph-helper.ts` and the
+**done in DM-888** — the module is now `packages/text-engine/src/render/glyph-helper.ts` and the
 symbols are `isGlyphHelperAvailable` / `createGlyphHelperFont` /
 `clearGlyphHelperCache` / `GlyphHelperFontInstance`, and the `FONT_PATHS`
 `extractor` literal is `"native"`. The historical `coretext.ts` / `Coretext*` /
@@ -149,10 +149,10 @@ pre-DM-888 names.
   - invocable but nothing routes through it yet. Filed as a follow-up; pairs
     with the per-platform fallback calibration (DM-259 / DM-260).
 - **On-demand acquisition** for published consumers — piece B, now landed in
-  DM-886 (`src/render/helper-acquire.ts`; lazy first-render download → user
+  DM-886 (`packages/text-engine/src/render/helper-acquire.ts`; lazy first-render download → user
   cache → SHA-verify → reuse). `glyph-helper.ts`'s resolver falls through to it.
 
-**Tests**: `src/render/glyph-helper.test.ts` gained a platform-agnostic
+**Tests**: `packages/text-engine/src/render/glyph-helper.test.ts` gained a platform-agnostic
 "platform-aware helper resolution" block (per-platform binary mapping, the
 two-levels-up regression assertion, and the `DOMOTION_HELPER_PATH` /
 `DOMOTION_DISABLE_HELPER` env behaviors) plus a Linux-gated dispatch test that

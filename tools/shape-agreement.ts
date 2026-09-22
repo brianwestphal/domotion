@@ -16,7 +16,7 @@
  *
  * This tool asks a different question that does not need Chrome to answer it.
  * Domotion runs three shapers where Chrome runs one — fontkit's `layout()`, the
- * macOS CoreText helper's `shape` query, and HarfBuzz. Since `vendor/harfbuzzjs/`
+ * macOS CoreText helper's `shape` query, and HarfBuzz. Since `packages/text-engine/vendor/harfbuzzjs/`
  * is built from Chromium's own HarfBuzz configuration (same 14.2.1 release, same
  * defines), HarfBuzz is not merely the same library Chrome uses but the same
  * build. That makes it a usable local reference, and the question becomes: how

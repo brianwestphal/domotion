@@ -62,14 +62,14 @@ function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: s
   it("harfbuzz-default-ignorable-ranges.generated.ts matches its generator", () => {
     assertGeneratorIsUpToDate(
       "tools/generate-harfbuzz-default-ignorable-ranges.mjs",
-      "src/render/harfbuzz-default-ignorable-ranges.generated.ts",
+      "packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts",
     );
   });
 
   it("use-left-matra-ranges.generated.ts matches its generator", () => {
     assertGeneratorIsUpToDate(
       "tools/generate-use-left-matra-ranges.mjs",
-      "src/render/use-left-matra-ranges.generated.ts",
+      "packages/text-engine/src/render/use-left-matra-ranges.generated.ts",
     );
   });
 });
@@ -78,7 +78,7 @@ function assertGeneratorIsUpToDate(generatorRelPath: string, generatedRelPath: s
   it("cjk-ideograph-or-symbol-ranges.generated.ts matches Chromium and pinned ICU inputs", () => {
     assertGeneratorIsUpToDate(
       "tools/generate-cjk-ideograph-or-symbol-ranges.mjs",
-      "src/render/cjk-ideograph-or-symbol-ranges.generated.ts",
+      "packages/text-engine/src/render/cjk-ideograph-or-symbol-ranges.generated.ts",
     );
   });
   it("vertical-orientation.generated.ts matches Chromium-pinned ICU", () => {

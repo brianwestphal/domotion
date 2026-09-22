@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2399", "DM-2511"]
-code: ["src/render/form-controls.ts", "src/render/text-to-path.test.ts", "src/render/text.ts"]
+code: ["src/render/form-controls.ts", "packages/text-engine/src/render/text-to-path.test.ts", "src/render/text.ts"]
 aliases: ["docs/152-source-owned-text-failure-boundary.md", "doc-152"]
 ---
 
@@ -102,7 +102,7 @@ selection to the consumer.
 
 ## Activation controls
 
-`src/render/text-to-path.test.ts` pins every empty-outline classification row,
+`packages/text-engine/src/render/text-to-path.test.ts` pins every empty-outline classification row,
 source-outline/helper-outline ownership, all-inkless and all-raster terminals,
 mixed emoji/text, a missing authored family, private-use/icon `.notdef`
 semantics, helper-file/glyph failures, and source-span serialization with an

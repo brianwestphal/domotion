@@ -949,7 +949,7 @@
               "id": 0,
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                  "uri": "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
                 },
                 "region": {
                   "startLine": 819

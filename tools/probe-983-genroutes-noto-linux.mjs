@@ -1,4 +1,4 @@
-// Generate src/render/unicode-font-routing.noto-linux.generated.ts — the
+// Generate packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts — the
 // per-Unicode-block fallback routing for the DESKTOP-LINUX **Noto profile**
 // (DM-1404), the analogue of tools/probe-983-genroutes-linux.mjs for the bare
 // Playwright image (DM-984).
@@ -120,7 +120,7 @@ for (const r of finalRanges) {
 }
 out += "];\n";
 
-writeFileSync("src/render/unicode-font-routing.noto-linux.generated.ts", out);
+writeFileSync("packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts", out);
 console.log(`Generated ${finalRanges.length} Noto ranges covering ${pathByKey.size} fonts.`);
 if (unresolved.size > 0) {
   console.log("Skipped (null=emoji raster, or unresolved family):");

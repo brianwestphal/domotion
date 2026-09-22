@@ -8,7 +8,7 @@ describe("mixed-script bidi logical conformance workflow", () => {
   it("runs the exact logical oracle on every native release OS", () => {
     expect(workflow).toContain("[macos-14, ubuntu-24.04, windows-2025]");
     expect(workflow).toContain("npm run fonts:mixed-bidi-logical");
-    expect(workflow).toContain("src/render/mixed-bidi-logical.test.ts");
+    expect(workflow).toContain("packages/text-engine/src/render/mixed-bidi-logical.test.ts");
     expect(workflow).toContain("actions/upload-artifact@v4");
     expect(pkg.scripts["fonts:mixed-bidi-logical"]).toBe("node --import tsx tools/mixed-bidi-logical-oracle.ts");
   });

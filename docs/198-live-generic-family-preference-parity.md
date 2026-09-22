@@ -11,8 +11,8 @@ code:
     ".github/workflows/generic-family-preference-parity.yml",
     "src/capture/generic-font-probe.ts",
     "src/capture/generic-font-probe.test.ts",
-    "src/render/synchronous-scope.ts",
-    "src/render/synchronous-scope.test.ts",
+    "packages/text-engine/src/render/synchronous-scope.ts",
+    "packages/text-engine/src/render/synchronous-scope.test.ts",
   ]
 aliases: ["docs/198-live-generic-family-preference-parity.md", "doc-198"]
 ---

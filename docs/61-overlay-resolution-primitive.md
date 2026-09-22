@@ -6,7 +6,8 @@ status: "current"
 owners: ["animation"]
 platforms: []
 tickets: ["DM-1132", "DM-1133", "DM-1793", "DM-1799", "DM-587"]
-code: ["src/animation/resolve-overlays.ts", "src/index.ts", "tests/cross-region-anchor.e2e.test.ts"]
+code:
+  ["src/animation/resolve-overlays.ts", "packages/text-engine/src/index.ts", "tests/cross-region-anchor.e2e.test.ts"]
 aliases: ["docs/61-overlay-resolution-primitive.md", "doc-61"]
 ---
 
@@ -143,7 +144,7 @@ page-context resolution fails it by exactly that step, which is the DM-1793 bug.
 - **Cursor `selector` → point and the action runner** are resolved separately (a
   cursor target is the element's border-box center; actions drive Playwright).
   These now ship as their own root-exported primitives — `resolveCursorTarget` /
-  `borderBox` / `runActions` (`src/index.ts`; see doc 63) — rather than being
+  `borderBox` / `runActions` (`packages/text-engine/src/index.ts`; see doc 63) — rather than being
   folded into this overlay resolver. Imperative callers needing a cursor point can
   also use `boxAnchorPoint` over a measured rect (or `contentBox(page, sel, { at:
 "center" })` for the content-box center).

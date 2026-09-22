@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-258", "DM-259", "DM-260", "DM-261", "DM-262"]
-code: ["src/render/font-resolution.ts"]
+code: ["packages/text-engine/src/render/font-resolution.ts"]
 aliases: ["docs/40-cross-platform-font-paths.md", "doc-40"]
 ---
 
@@ -18,7 +18,7 @@ cross-platform roadmap — DM-259 / DM-260 / DM-261 / DM-262 all build on it).
 
 ## Problem
 
-`FONT_PATHS` in `src/render/font-resolution.ts` was a flat table of macOS-only
+`FONT_PATHS` in `packages/text-engine/src/render/font-resolution.ts` was a flat table of macOS-only
 paths (`/System/Library/Fonts/...`). On Linux and Windows none of those paths
 exist, so `getFontInstance` returned null for every primary and fallback font
 and the renderer produced `.notdef` tofu (or `<text>` fallback) for everything.
@@ -75,7 +75,7 @@ The logical keys are macOS-centric (they're named after the macOS face Chromium
 paints). Each platform maps them to its nearest equivalent.
 
 The Linux column below is the **shipped, calibrated** default mapping
-(`LINUX_FONT_PATHS` in `src/render/font-resolution.ts`), reverse-engineered from
+(`LINUX_FONT_PATHS` in `packages/text-engine/src/render/font-resolution.ts`), reverse-engineered from
 a Chrome CDP sweep of the Playwright `*-noble` Docker image CI runs against — so
 it's Liberation (sans/serif) + WenQuanYi Zen Hei (mono/CJK) + FreeFont +
 Loma/IPAGothic for the lang-fallback scripts, **not** the DejaVu/Noto set the

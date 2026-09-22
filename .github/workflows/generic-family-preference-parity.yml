@@ -7,9 +7,9 @@ on:
       - "src/capture/generic-font-probe.test.ts"
       - "src/capture/index.ts"
       - "src/capture/types.ts"
-      - "src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
       - "src/render/element-tree-to-svg.ts"
-      - "src/render/session-generic-overrides.test.ts"
+      - "packages/text-engine/src/render/session-generic-overrides.test.ts"
       - "src/render/captured-generic-family-ownership.test.ts"
       - "tests/generic-font-probe.e2e.test.ts"
       - "tests/generic-family-preference-oracle.test.ts"
@@ -25,7 +25,7 @@ on:
       - "src/capture/generic-font-probe.ts"
       - "src/capture/index.ts"
       - "src/capture/types.ts"
-      - "src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
       - "src/render/element-tree-to-svg.ts"
       - "tools/generic-family-preference-oracle.ts"
       - "tools/parity-program.json"
@@ -70,19 +70,19 @@ jobs:
         run: npx playwright install chromium
       - name: Build macOS CoreText helper
         if: runner.os == 'macOS'
-        run: bash tools/macos-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh
       - name: Build Linux fontconfig helper
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
-          bash tools/linux-glyph-extractor/build.sh
+          bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Build Windows DirectWrite helper
         if: runner.os == 'Windows'
         shell: pwsh
-        run: tools/win32-glyph-extractor/build.ps1
+        run: packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Validate logical ownership and workflow contract
-        run: npx vitest run src/capture/generic-font-probe.test.ts src/render/session-generic-overrides.test.ts src/render/captured-generic-family-ownership.test.ts tests/generic-family-preference-oracle.test.ts tests/generic-family-preference-workflow.test.ts
+        run: npx vitest run src/capture/generic-font-probe.test.ts packages/text-engine/src/render/session-generic-overrides.test.ts src/render/captured-generic-family-ownership.test.ts tests/generic-family-preference-oracle.test.ts tests/generic-family-preference-workflow.test.ts
       - name: Run explicit hosted headless/headed/full-Chrome matrix under Xvfb
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run fonts:generic-preferences -- --allow-headed-browser --json generic-family-preference-${{ runner.os }}.json

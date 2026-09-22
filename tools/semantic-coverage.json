@@ -50,18 +50,18 @@
         "src/capture/generic-font-probe.ts",
         "src/capture/index.ts",
         "src/capture/types.ts",
-        "src/font-family-stack.ts",
+        "packages/text-engine/src/font-family-stack.ts",
         "src/capture/script/index.ts",
         "src/capture/script/walker/text-segments.ts",
         "src/render/text.ts",
         "src/render/pseudo-fragments.ts",
         "src/render/form-controls.ts",
         "src/capture/tree-envelope.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "src/render/element-tree-to-svg.ts",
-        "src/render/cluster-fallback.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/text-run-provenance.ts"
+        "packages/text-engine/src/render/cluster-fallback.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/text-run-provenance.ts"
       ],
       "oracles": [
         "tools/font-conformance.ts",
@@ -77,15 +77,15 @@
         "tools/linux-arm64-release-evidence.ts"
       ],
       "metamorphicTests": [
-        "src/render/font-stack-availability.test.ts",
-        "src/render/cluster-fallback-features.test.ts",
-        "src/render/text-run-provenance.test.ts",
+        "packages/text-engine/src/render/font-stack-availability.test.ts",
+        "packages/text-engine/src/render/cluster-fallback-features.test.ts",
+        "packages/text-engine/src/render/text-run-provenance.test.ts",
         "src/capture/generic-font-probe.test.ts",
         "src/capture/tree-envelope.test.ts",
-        "src/render/session-generic-overrides.test.ts",
+        "packages/text-engine/src/render/session-generic-overrides.test.ts",
         "src/render/captured-generic-family-ownership.test.ts",
-        "src/render/skia-last-resort-routing.test.ts",
-        "tests/cassettes/skia-last-resort-linux.json",
+        "packages/text-engine/src/render/skia-last-resort-routing.test.ts",
+        "packages/text-engine/tests/cassettes/skia-last-resort-linux.json",
         "tests/generic-font-probe.e2e.test.ts",
         "tests/generic-family-preference-oracle.test.ts",
         "tests/generic-family-preference-workflow.test.ts",
@@ -234,7 +234,7 @@
       "productionOwners": [
         "src/capture/script/font-feature-values.ts",
         "src/render/text.ts",
-        "src/render/harfbuzz-shaper.ts"
+        "packages/text-engine/src/render/harfbuzz-shaper.ts"
       ],
       "oracles": ["tools/shaping-conformance.ts", "tools/shaping-font-feature-values.ts"],
       "metamorphicTests": [
@@ -287,7 +287,11 @@
         "external/skia/src/ports/SkScalerContext_mac_ct.cpp",
         "external/skia/src/ports/SkScalerContext_win_dw.cpp"
       ],
-      "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
+      "productionOwners": [
+        "src/render/text.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-run-provenance.ts"
+      ],
       "oracles": [
         "tools/paths-native-raster-collector.ts",
         "tools/paths-native-raster-corpus.ts",
@@ -356,7 +360,11 @@
         "external/skia/src/core/SkStrikeSpec.cpp",
         "external/skia/src/ports"
       ],
-      "productionOwners": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts", "src/render/text-to-path.ts"],
+      "productionOwners": [
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/text-to-path.ts"
+      ],
       "oracles": [
         "tools/sfns-mask-baseline-oracle.ts",
         "tools/sfns-mask-baseline.swift",
@@ -378,8 +386,8 @@
         "tools/sfns-terminal-mask-adjudicator.ts"
       ],
       "metamorphicTests": [
-        "src/render/coretext-variable-outline.test.ts",
-        "src/render/glyph-registry.test.ts",
+        "packages/text-engine/src/render/coretext-variable-outline.test.ts",
+        "packages/text-engine/src/render/glyph-registry.test.ts",
         "tests/sfns-mask-baseline-oracle.test.ts",
         "tests/sfns-outline-parity-workflow.test.ts",
         "tests/sfns-terminal-mask-manifest.test.ts",
@@ -430,14 +438,14 @@
         "external/chromium/third_party/blink/renderer/platform/text"
       ],
       "productionOwners": [
-        "src/capture/script/emoji-detect.ts",
-        "src/render/emoji-presentation-priority.ts",
-        "src/render/script-segmentation.ts",
-        "src/render/cluster-fallback.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/capture/script/emoji-detect.ts",
+        "packages/text-engine/src/render/emoji-presentation-priority.ts",
+        "packages/text-engine/src/render/script-segmentation.ts",
+        "packages/text-engine/src/render/cluster-fallback.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "src/capture/emoji.ts",
-        "src/render/text-to-path.ts",
-        "src/render/glyph-helper.ts"
+        "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/glyph-helper.ts"
       ],
       "oracles": [
         "tools/font-conformance.ts",
@@ -446,11 +454,11 @@
         "tools/emoji-presentation-ownership-audit.ts"
       ],
       "metamorphicTests": [
-        "src/render/emoji-presentation-fallback.test.ts",
-        "src/render/emoji-presentation-priority.test.ts",
+        "packages/text-engine/src/render/emoji-presentation-fallback.test.ts",
+        "packages/text-engine/src/render/emoji-presentation-priority.test.ts",
         "src/capture/script/emoji-detect.test.ts",
-        "src/render/cluster-fallback.test.ts",
-        "src/render/emoji-raster-kind.test.ts",
+        "packages/text-engine/src/render/cluster-fallback.test.ts",
+        "packages/text-engine/src/render/emoji-raster-kind.test.ts",
         "src/render/text.test.ts",
         "tests/alchemical-symbols-not-rastered.e2e.test.ts",
         "tests/raster-fallback-content.e2e.test.ts",
@@ -516,7 +524,7 @@
         "src/capture/script/font-palette.ts",
         "src/capture/script/index.ts",
         "src/capture/emoji.ts",
-        "src/render/text-to-path.ts"
+        "packages/text-engine/src/render/text-to-path.ts"
       ],
       "oracles": [
         "tools/font-palette-ownership-audit.ts",
@@ -555,9 +563,16 @@
       "exactStates": ["LTR -> RTL embedding", "RTL -> LTR embedding", "normal -> isolate", "normal -> override"],
       "uncoveredStates": ["single script -> adjacent mixed scripts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/harfbuzz/src"],
-      "productionOwners": ["src/render/script-segmentation.ts", "src/render/text.ts", "src/render/text-to-path.ts"],
+      "productionOwners": [
+        "packages/text-engine/src/render/script-segmentation.ts",
+        "src/render/text.ts",
+        "packages/text-engine/src/render/text-to-path.ts"
+      ],
       "oracles": ["tools/layout-stage-oracle.ts", "tools/unified-shaping-oracle.ts"],
-      "metamorphicTests": ["src/render/cluster-fallback-bidi-override.test.ts", "src/render/rtl-smp-bidi.test.ts"],
+      "metamorphicTests": [
+        "packages/text-engine/src/render/cluster-fallback-bidi-override.test.ts",
+        "packages/text-engine/src/render/rtl-smp-bidi.test.ts"
+      ],
       "visualFixtures": ["tests/features.ts#text-rtl-in-ltr-line"],
       "coverage": "partial",
       "boundary": "Mixed pointed-Hebrew, Arabic, and digit runs retain an unexplained visual residual.",
@@ -698,7 +713,7 @@
       ],
       "productionOwners": [
         "src/render/text.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "src/render/vertical-text.ts",
         "src/render/decoration-fragment-ownership.ts",
         "src/tree-ops/decoration-propagation.ts"
@@ -720,7 +735,7 @@
         "tests/wrapped-decoration-fragment-oracle.test.ts",
         "tests/linux-arm64-release-evidence.test.ts",
         "tests/linux-arm64-release-parity-workflow.test.ts",
-        "src/render/skip-ink-geometry.test.ts",
+        "packages/text-engine/src/render/skip-ink-geometry.test.ts",
         "src/tree-ops/decoration-propagation.test.ts"
       ],
       "visualFixtures": ["tests/features.ts#text-decorations"],
@@ -881,7 +896,7 @@
       ],
       "metamorphicTests": [
         "src/render/color-hint-interpolation.test.ts",
-        "src/render/color-table-lookup.test.ts",
+        "packages/text-engine/src/render/color-table-lookup.test.ts",
         "tests/svg-effect-combination-corpus.test.ts",
         "src/render/gradients.test.ts",
         "src/capture/script/walker/borders-backgrounds.test.ts",

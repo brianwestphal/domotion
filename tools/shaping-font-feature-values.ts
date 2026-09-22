@@ -6,7 +6,7 @@
  * to HarfBuzz.  The broad shaping corpus carries the storage in this compact
  * serializable form so its synthetic probe page can ask the same question.
  */
-import { BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/dist/index.mjs";
+import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import type {
   FontFeatureValueCategory,
   FontFeatureValueTable,

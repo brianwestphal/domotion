@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/dist/index.mjs";
+import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 
 import {
   ARABIC_MARK_SHA256,

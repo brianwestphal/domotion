@@ -8,11 +8,11 @@ platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2310"]
 code:
   [
-    "src/render/harfbuzz-shaper.ts",
-    "src/render/icu-helper.ts",
-    "src/render/unicode-classification.ts",
+    "packages/text-engine/src/render/harfbuzz-shaper.ts",
+    "packages/text-engine/src/render/icu-helper.ts",
+    "packages/text-engine/src/render/unicode-classification.ts",
     "tools/icu-conformance.ts",
-    "tools/icu-helper/src/main.cpp",
+    "packages/text-engine/tools/icu-helper/src/main.cpp",
   ]
 aliases: ["docs/128-chromium-unicode-decision-audit.md", "doc-128"]
 ---
@@ -50,7 +50,7 @@ Unicode ranges.
   ICU 78.2. The complete little-endian data image is
   `common/icudtl.dat` (10,876,560 bytes).
 - HarfBuzz: `external/harfbuzz` revision
-  `4de187d` (the version/configuration mirrored by `vendor/harfbuzzjs`).
+  `4de187d` (the version/configuration mirrored by `packages/text-engine/vendor/harfbuzzjs`).
 
 The ICU revision follows Chromium, not Node. Node 22.14.0 currently exposes
 ICU 76.1 / Unicode 16.0 on the development host and its JavaScript API does not

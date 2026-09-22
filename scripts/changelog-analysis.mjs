@@ -20,7 +20,7 @@
  *
  * Ported from ~/Documents/apple-fm's changelog-analysis.mjs; the git plumbing
  * is identical, only the repo-specific classification + public-surface probes
- * (src/index.ts barrel, src/cli/* flags, package.json bin) are Domotion's.
+ * (packages/text-engine/src/index.ts barrel, src/cli/* flags, package.json bin) are Domotion's.
  */
 import { execFileSync } from "node:child_process";
 
@@ -184,10 +184,10 @@ function main() {
   // New product source files (candidate "genuinely new subsystems").
   const newProduct = added.filter((p) => classify(p).product && /\.(ts|tsx|swift|cpp|mjs|js)$/.test(p));
 
-  // Public API export delta (the src/index.ts barrel — the package's curated surface).
+  // Public API export delta (the packages/text-engine/src/index.ts barrel — the package's curated surface).
   let apiDelta = null;
-  if (gitOk(["cat-file", "-e", `${head}:src/index.ts`]) !== null) {
-    const d = git(["diff", range, "--", "src/index.ts"])
+  if (gitOk(["cat-file", "-e", `${head}:packages/text-engine/src/index.ts`]) !== null) {
+    const d = git(["diff", range, "--", "packages/text-engine/src/index.ts"])
       .split("\n")
       .filter((l) => /^[+-]/.test(l) && !/^[+-]{3}/.test(l))
       .filter((l) => /\bexport\b|\bfrom\b/.test(l));
@@ -301,7 +301,7 @@ function main() {
     for (const p of removed) L.push(`  D  ${p}`);
   }
   L.push("");
-  L.push("## Public API export delta (src/index.ts barrel)");
+  L.push("## Public API export delta (packages/text-engine/src/index.ts barrel)");
   L.push(
     apiDelta
       ? apiDelta

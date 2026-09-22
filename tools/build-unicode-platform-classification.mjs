@@ -45,7 +45,10 @@ const output = {
     "external/chromium/third_party/blink/renderer/platform/fonts",
     "external/harfbuzz/src",
     ...(platform === "windows"
-      ? ["src/render/unicode-font-routing.win32.generated.ts", "tools/win32-glyph-extractor"]
+      ? [
+          "packages/text-engine/src/render/unicode-font-routing.win32.generated.ts",
+          "packages/text-engine/tools/win32-glyph-extractor",
+        ]
       : []),
   ],
   counts: {

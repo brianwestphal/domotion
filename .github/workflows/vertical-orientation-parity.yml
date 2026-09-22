@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: >-
           node --import tsx --input-type=module -e 'import fs from "node:fs";
-          import { acquireIcuCompanion } from "./src/render/icu-helper-acquire.ts";
+          import { acquireIcuCompanion } from "./packages/text-engine/src/render/icu-helper-acquire.ts";
           const helper=await acquireIcuCompanion(); if(helper==null) throw new Error("authenticated ICU companion unavailable");
           fs.appendFileSync(process.env.GITHUB_ENV,`DOMOTION_ICU_HELPER_PATH=${helper}\n`);'
       - name: Verify generated source image and logical contracts

@@ -189,7 +189,9 @@ function ourAnswers(families: string[]): Map<string, Map<number, OurAnswer>> {
   });
   const results = (JSON.parse(out) as { results: Array<OurAnswer & { type?: string; error?: string }> }).results;
   if (results.some((r) => r?.error === "unknown query type")) {
-    console.error("helper binary predates the familyMatch query — rebuild tools/linux-glyph-extractor.");
+    console.error(
+      "helper binary predates the familyMatch query — rebuild packages/text-engine/tools/linux-glyph-extractor.",
+    );
     process.exit(2);
   }
   const map = new Map<string, Map<number, OurAnswer>>();
@@ -215,7 +217,9 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   if (!existsSync(HELPER)) {
-    console.error(`Linux glyph helper not built — run tools/linux-glyph-extractor/build.sh (looked for ${HELPER}).`);
+    console.error(
+      `Linux glyph helper not built — run packages/text-engine/tools/linux-glyph-extractor/build.sh (looked for ${HELPER}).`,
+    );
     process.exit(2);
   }
 

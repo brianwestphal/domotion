@@ -3,12 +3,12 @@ name: System UI preference route parity
 on:
   pull_request:
     paths:
-      - "src/render/glyph-helper.ts"
-      - "src/render/font-resolution.ts"
-      - "src/render/font-resolution-cache-reset.test.ts"
-      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
-      - "tools/linux-glyph-extractor/src/main.cpp"
-      - "tools/win32-glyph-extractor/src/main.cpp"
+      - "packages/text-engine/src/render/glyph-helper.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/font-resolution-cache-reset.test.ts"
+      - "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp"
+      - "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
       - "tools/system-ui-preference-route-oracle.ts"
       - "tools/windows-menu-font-preference.ps1"
       - "tests/system-ui-preference-route-oracle.test.ts"
@@ -18,11 +18,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/render/glyph-helper.ts"
-      - "src/render/font-resolution.ts"
-      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
-      - "tools/linux-glyph-extractor/src/main.cpp"
-      - "tools/win32-glyph-extractor/src/main.cpp"
+      - "packages/text-engine/src/render/glyph-helper.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp"
+      - "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
       - "tools/system-ui-preference-route-oracle.ts"
       - "tools/windows-menu-font-preference.ps1"
       - "package.json"
@@ -67,16 +67,16 @@ jobs:
         run: npx playwright install chromium
       - name: Build macOS CoreText helper
         if: runner.os == 'macOS'
-        run: bash tools/macos-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh
       - name: Build Linux fontconfig helper
         if: runner.os == 'Linux'
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Build Windows DirectWrite helper
         if: runner.os == 'Windows'
         shell: pwsh
-        run: tools/win32-glyph-extractor/build.ps1
+        run: packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Validate exact logical contract and preference invalidation
-        run: npx vitest run src/render/font-resolution-cache-reset.test.ts tests/system-ui-preference-route-oracle.test.ts tests/system-ui-preference-route-workflow.test.ts
+        run: npx vitest run packages/text-engine/src/render/font-resolution-cache-reset.test.ts tests/system-ui-preference-route-oracle.test.ts tests/system-ui-preference-route-workflow.test.ts
       - name: Run explicit hosted pinned/full headed/headless route matrix under Xvfb
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run fonts:system-ui-preferences -- --allow-headed-browser --json system-ui-preference-route-${{ runner.os }}.json

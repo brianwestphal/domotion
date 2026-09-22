@@ -41,7 +41,7 @@ jobs:
           git clone --filter=blob:none https://chromium.googlesource.com/chromium/deps/icu external/chromium/third_party/icu
           git -C external/chromium/third_party/icu checkout d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
       - name: Build statically linked companion
-        run: bash tools/icu-helper/build-unix.sh
+        run: bash packages/text-engine/tools/icu-helper/build-unix.sh
       - name: Codesign and notarize macOS companion
         if: startsWith(matrix.target, 'darwin-')
         env:
@@ -52,26 +52,26 @@ jobs:
         run: |
           set -euo pipefail
           codesign --force --options runtime --timestamp \
-            --sign "$APPLE_DEVELOPER_ID" tools/icu-helper/domotion-icu
-          ditto -c -k --keepParent tools/icu-helper/domotion-icu "$RUNNER_TEMP/domotion-icu.zip"
+            --sign "$APPLE_DEVELOPER_ID" packages/text-engine/tools/icu-helper/domotion-icu
+          ditto -c -k --keepParent packages/text-engine/tools/icu-helper/domotion-icu "$RUNNER_TEMP/domotion-icu.zip"
           xcrun notarytool submit "$RUNNER_TEMP/domotion-icu.zip" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --wait
-          codesign --verify --strict --verbose=2 tools/icu-helper/domotion-icu
+          codesign --verify --strict --verbose=2 packages/text-engine/tools/icu-helper/domotion-icu
       - name: Verify pinned runtime and data
         run: |
-          cp external/chromium/third_party/icu/common/icudtl.dat tools/icu-helper/icudtl.dat
-          test "$(tools/icu-helper/domotion-icu --version)" = "domotion-icu 1 ICU 78.2"
-          printf '{"cps":[65,19968]}' | tools/icu-helper/domotion-icu | grep -q '"icuVersion":"78.2"'
-          test "$(tools/icu-helper/domotion-icu --digest)" = '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}'
+          cp external/chromium/third_party/icu/common/icudtl.dat packages/text-engine/tools/icu-helper/icudtl.dat
+          test "$(packages/text-engine/tools/icu-helper/domotion-icu --version)" = "domotion-icu 1 ICU 78.2"
+          printf '{"cps":[65,19968]}' | packages/text-engine/tools/icu-helper/domotion-icu | grep -q '"icuVersion":"78.2"'
+          test "$(packages/text-engine/tools/icu-helper/domotion-icu --digest)" = '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}'
       - name: Stage and checksum exact Chromium ICU data
         env:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          cp tools/icu-helper/domotion-icu "$RUNNER_TEMP/domotion-icu-$TARGET"
+          cp packages/text-engine/tools/icu-helper/domotion-icu "$RUNNER_TEMP/domotion-icu-$TARGET"
           cp external/chromium/third_party/icu/common/icudtl.dat "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat"
           cd "$RUNNER_TEMP"
           shasum -a 256 "domotion-icu-$TARGET" > "domotion-icu-$TARGET.sha256"
@@ -116,15 +116,15 @@ jobs:
         shell: pwsh
         env:
           CMAKE_GENERATOR_PLATFORM: ${{ matrix.cmake_arch }}
-        run: ./tools/icu-helper/build-windows.ps1
+        run: ./packages/text-engine/tools/icu-helper/build-windows.ps1
       - name: Verify pinned runtime and data
         shell: pwsh
         run: |
-          Copy-Item external/chromium/third_party/icu/common/icudtl.dat tools/icu-helper/icudtl.dat
-          $version = & tools/icu-helper/domotion-icu.exe --version
+          Copy-Item external/chromium/third_party/icu/common/icudtl.dat packages/text-engine/tools/icu-helper/icudtl.dat
+          $version = & packages/text-engine/tools/icu-helper/domotion-icu.exe --version
           if ($version -ne "domotion-icu 1 ICU 78.2") { throw "unexpected version: $version" }
-          '{"cps":[65,19968]}' | tools/icu-helper/domotion-icu.exe | Select-String '"icuVersion":"78.2"'
-          $digest = & tools/icu-helper/domotion-icu.exe --digest
+          '{"cps":[65,19968]}' | packages/text-engine/tools/icu-helper/domotion-icu.exe | Select-String '"icuVersion":"78.2"'
+          $digest = & packages/text-engine/tools/icu-helper/domotion-icu.exe --digest
           if ($digest -ne '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}') { throw "unexpected digest: $digest" }
       - name: Stage assets
         shell: bash
@@ -132,9 +132,9 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          cp tools/icu-helper/domotion-icu.exe "$RUNNER_TEMP/domotion-icu-$TARGET.exe"
-          cp tools/icu-helper/icuuc78.dll "$RUNNER_TEMP/domotion-icu-$TARGET.icuuc78.dll"
-          cp tools/icu-helper/icudt78.dll "$RUNNER_TEMP/domotion-icu-$TARGET.icudt78.dll"
+          cp packages/text-engine/tools/icu-helper/domotion-icu.exe "$RUNNER_TEMP/domotion-icu-$TARGET.exe"
+          cp packages/text-engine/tools/icu-helper/icuuc78.dll "$RUNNER_TEMP/domotion-icu-$TARGET.icuuc78.dll"
+          cp packages/text-engine/tools/icu-helper/icudt78.dll "$RUNNER_TEMP/domotion-icu-$TARGET.icudt78.dll"
           cp external/chromium/third_party/icu/common/icudtl.dat "$RUNNER_TEMP/domotion-icu-$TARGET.icudtl.dat"
           cd "$RUNNER_TEMP"
           sha256sum "domotion-icu-$TARGET.exe" > "domotion-icu-$TARGET.exe.sha256"

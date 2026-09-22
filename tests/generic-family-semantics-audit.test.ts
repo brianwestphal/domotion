@@ -274,9 +274,9 @@ describe("exact generic-family semantic ownership gate", () => {
     expect(Object.values(fingerprints.sourceFiles).every((entry) => entry.match)).toBe(true);
     expect(Object.keys(fingerprints.productionFiles)).toEqual(
       expect.arrayContaining([
-        "src/render/font-resolution.ts",
-        "src/render/cluster-fallback.ts",
-        "src/render/win-font-fallback.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/cluster-fallback.ts",
+        "packages/text-engine/src/render/win-font-fallback.ts",
       ]),
     );
   });

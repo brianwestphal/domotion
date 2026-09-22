@@ -36,9 +36,9 @@ import {
   resolveFontKeyChain,
   resolveFontForCodepoint,
   resolveFontSpec,
-} from "../src/render/font-resolution.ts";
-import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.ts";
-import { selectedGlyphRasterSpans } from "../src/render/text-to-path.ts";
+} from "../packages/text-engine/src/render/font-resolution.ts";
+import { splitTextIntoFontRunsShaped } from "../packages/text-engine/src/render/cluster-fallback.ts";
+import { selectedGlyphRasterSpans } from "../packages/text-engine/src/render/text-to-path.ts";
 
 // Emoji-presentation-by-default (Blink's `IsEmojiPresentationEmoji` true), then
 // text-presentation-by-default ones — the half where `font-variant-emoji: emoji`

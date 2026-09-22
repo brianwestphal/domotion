@@ -229,7 +229,7 @@ export const FEATURES: FeatureEntry[] = [
     exports: [],
     tests: [
       "src/render/text.test.ts",
-      "src/render/text-to-path.test.ts",
+      "packages/text-engine/src/render/text-to-path.test.ts",
       "src/render/vertical-text.test.ts",
       "tests/vertical-font-metrics.e2e.test.ts",
       "tests/generated-pseudo-layout-probe.e2e.test.ts",
@@ -344,20 +344,23 @@ export const FEATURES: FeatureEntry[] = [
       "registerTextEngineWebfont",
       "registerTextEngineLocalFontAlias",
     ],
-    tests: ["src/render/text-engine.test.ts", "src/render/text-engine-boundary.test.ts"],
+    tests: [
+      "packages/text-engine/src/render/text-engine.test.ts",
+      "packages/text-engine/src/render/text-engine-boundary.test.ts",
+    ],
     transition:
       "new isolated session → register fonts → reset document produces owned artifacts → continue document resumes them; exceptional/nested exits restore the outer mode, baseline policy, registrations, and generation.",
     transitionEvidence: [
       {
-        test: "src/render/text-engine.test.ts",
+        test: "packages/text-engine/src/render/text-engine.test.ts",
         title: "isolates generated artifacts between sessions and continues one session explicitly",
       },
       {
-        test: "src/render/text-engine.test.ts",
+        test: "packages/text-engine/src/render/text-engine.test.ts",
         title: "keeps registered font aliases session-owned",
       },
       {
-        test: "src/render/text-engine.test.ts",
+        test: "packages/text-engine/src/render/text-engine.test.ts",
         title: "restores document-owned baseline policy after an exceptional exit",
       },
     ],
@@ -371,23 +374,23 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/ai/code-summary.md",
     exports: ["getRenderTextMode", "setRenderTextMode", "withRenderTextMode", "RENDER_TEXT_MODES", "isRenderTextMode"],
     tests: [
-      "src/render/render-text-mode-guard.test.ts",
-      "src/render/synchronous-scope.test.ts",
+      "packages/text-engine/src/render/render-text-mode-guard.test.ts",
+      "packages/text-engine/src/render/synchronous-scope.test.ts",
       "src/cli/animate.test.ts",
     ],
     transition:
       "default(embedded-font) → set(paths) → withRenderTextMode(embedded-font, cb) restores paths afterward, EVEN WHEN cb throws or returns a rejected Promise-like result.",
     transitionEvidence: [
       {
-        test: "src/render/render-text-mode-guard.test.ts",
+        test: "packages/text-engine/src/render/render-text-mode-guard.test.ts",
         title: "sets the mode for the callback and restores the prior value",
       },
       {
-        test: "src/render/render-text-mode-guard.test.ts",
+        test: "packages/text-engine/src/render/render-text-mode-guard.test.ts",
         title: "restores the prior mode even when the callback throws",
       },
       {
-        test: "src/render/synchronous-scope.test.ts",
+        test: "packages/text-engine/src/render/synchronous-scope.test.ts",
         title: "rejects async render-text-mode work and restores before its continuation",
       },
     ],
@@ -398,16 +401,19 @@ export const FEATURES: FeatureEntry[] = [
       "The shared glyph-defs registry is live in paths mode (visual harness / scroll composer); cleared per generation.",
     doc: "docs/ai/code-summary.md",
     exports: ["getGlyphDefs", "clearGlyphDefs"],
-    tests: ["src/render/glyph-registry.test.ts", "src/render/render-text-mode-guard.test.ts"],
+    tests: [
+      "packages/text-engine/src/render/glyph-registry.test.ts",
+      "packages/text-engine/src/render/render-text-mode-guard.test.ts",
+    ],
     transition:
       "empty → ensureGlyphDef populates (paths mode) → resetGeneration/clearGlyphDefs empties it for the next frame.",
     transitionEvidence: [
       {
-        test: "src/render/glyph-registry.test.ts",
+        test: "packages/text-engine/src/render/glyph-registry.test.ts",
         title: "clearGlyphDefs empties the def map and rewinds the id counter",
       },
       {
-        test: "src/render/glyph-registry.test.ts",
+        test: "packages/text-engine/src/render/glyph-registry.test.ts",
         title: "two back-to-back renders separated by clearGlyphDefs do not accumulate",
       },
     ],
@@ -470,12 +476,12 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/80-cross-platform-system-fallback-resolver.md",
     exports: ["acquireGlyphHelper", "acquireIcuCompanion"],
     tests: [
-      "src/render/helper-acquire.test.ts",
-      "src/render/glyph-helper.test.ts",
-      "src/render/glyph-helper-font-retry.test.ts",
-      "src/render/family-style-match-retry.test.ts",
-      "src/render/icu-helper-acquire.test.ts",
-      "src/render/icu-helper.test.ts",
+      "packages/text-engine/src/render/helper-acquire.test.ts",
+      "packages/text-engine/src/render/glyph-helper.test.ts",
+      "packages/text-engine/src/render/glyph-helper-font-retry.test.ts",
+      "packages/text-engine/src/render/family-style-match-retry.test.ts",
+      "packages/text-engine/src/render/icu-helper-acquire.test.ts",
+      "packages/text-engine/src/render/icu-helper.test.ts",
       "tests/linux-arm64-release-evidence.test.ts",
       "tests/linux-arm64-release-parity-workflow.test.ts",
     ],

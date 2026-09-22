@@ -10,24 +10,24 @@ code:
   [
     ".github/workflows/visual-tests.yml",
     "src/render/embedded-font-builder.test.ts",
-    "src/render/embedded-font-builder.ts",
+    "packages/text-engine/src/render/embedded-font-builder.ts",
     "src/render/embedded-font-snapshot.test.ts",
-    "src/render/font-resolution-cache-reset.test.ts",
-    "src/render/font-resolution.ts",
-    "src/render/glyph-helper-boundaries.test.ts",
-    "src/render/glyph-helper-font.ts",
-    "src/render/glyph-helper-outline.ts",
-    "src/render/glyph-helper-protocol.ts",
-    "src/render/glyph-helper-transport.ts",
-    "src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/glyph-helper-boundaries.test.ts",
+    "packages/text-engine/src/render/glyph-helper-font.ts",
+    "packages/text-engine/src/render/glyph-helper-outline.ts",
+    "packages/text-engine/src/render/glyph-helper-protocol.ts",
+    "packages/text-engine/src/render/glyph-helper-transport.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
     "src/render/hb-subset.test.ts",
-    "src/render/hb-subset.ts",
-    "src/render/linux-target-strike.ts",
+    "packages/text-engine/src/render/hb-subset.ts",
+    "packages/text-engine/src/render/linux-target-strike.ts",
     "src/render/synth-test-fonts.ts",
-    "src/render/text-to-path.test.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/text-to-path.test.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "tests/linux-target-strike-small-caps.e2e.test.ts",
-    "tools/linux-glyph-extractor/src/main.cpp",
+    "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
     "tools/linux-terminal-mask-oracle.ts",
   ]
 aliases: ["docs/99-hinted-embedded-subset.md", "doc-99"]
@@ -64,7 +64,7 @@ no layout error at all, purely unhinted stroke rendering.
 When an embedded entry qualifies (see [Purity rules](#purity-rules)), the
 builder subsets the **original font file** with harfbuzz's `hb-subset` (the
 `harfbuzz-subset.wasm` binary from the vendored harfbuzzjs under `vendor/`;
-`src/render/hb-subset.ts` is a thin WebAssembly binding to its C API):
+`packages/text-engine/src/render/hb-subset.ts` is a thin WebAssembly binding to its C API):
 
 1. **`hbSubsetRetainGids(fontBytes, gids, faceIndex, keepHinting, pinAxes)`**
    subsets to exactly the glyph ids the SVG uses, with `RETAIN_GIDS` (output
@@ -96,7 +96,7 @@ Variable on Windows 11), and a naive subset of the FILE would carry the
 default master — not the instance the run shaped with. So the resolver records
 the **axis location** each font instance resolved to
 (`FontSourceInfo.variationAxes` from `getFontSourceInfo()` in
-`src/render/font-resolution.ts`):
+`packages/text-engine/src/render/font-resolution.ts`):
 
 - fontkit instances: the exact axes `applyVariationAxes` passed to
   `getVariation` (CSS weight → `wght`, font-size → `opsz` for auto optical
@@ -340,7 +340,7 @@ required there, which is out of scope.
 
 The hinted path is **ON by default**. `DOMOTION_HINTED_SUBSET=0` opts out
 (reverts to the svg2ttf-only builder — A/B measurement, escape hatch); the env
-is read per call in `src/render/embedded-font-builder.ts` /
+is read per call in `packages/text-engine/src/render/embedded-font-builder.ts` /
 `font-resolution.ts`. The CI visual suite dispatches the svg2ttf arm with
 `tools/run-ci-visual-tests.mjs --no-hinted-subset` (`hinted_subset` input in
 `.github/workflows/visual-tests.yml`; empty = renderer default).

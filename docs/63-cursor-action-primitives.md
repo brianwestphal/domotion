@@ -6,7 +6,7 @@ status: "current"
 owners: ["animation"]
 platforms: []
 tickets: ["DM-1132", "DM-1133", "DM-1135", "DM-1136"]
-code: ["src/cli/animate.ts", "src/index.ts"]
+code: ["src/cli/animate.ts", "packages/text-engine/src/index.ts"]
 aliases: ["docs/63-cursor-action-primitives.md", "doc-63"]
 ---
 
@@ -14,7 +14,7 @@ aliases: ["docs/63-cursor-action-primitives.md", "doc-63"]
 
 Status: **shipped** (DM-1135). `borderBox` + `resolveCursorTarget` and
 `runActions` + the `AnimateAction` union are exported from the package root
-(`src/index.ts`), so imperative scripting-API callers (`captureElementTree` +
+(`packages/text-engine/src/index.ts`), so imperative scripting-API callers (`captureElementTree` +
 `generateAnimatedSvg`) get the same selector-anchoring and DOM-mutation
 vocabulary the declarative CLI uses. (The action set also includes
 `removeAttribute` / `removeClass`.) The rest of this doc is the original

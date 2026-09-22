@@ -1,4 +1,4 @@
-// Generate src/render/unicode-font-routing.linux.generated.ts from the
+// Generate packages/text-engine/src/render/unicode-font-routing.linux.generated.ts from the
 // /tmp/unicode-fonts.linux.json sweep produced by `tools/probe-983-sweep.mjs`
 // inside the same `mcr.microsoft.com/playwright:v<version>-noble` Docker
 // container CI uses. For each unicode block (filename-derived codepoint
@@ -17,7 +17,7 @@
 //   tools/probe-983-sweep.mjs is run INSIDE the Linux container via
 //   scripts/test-linux-docker.sh; it writes tests/output/unicode-fonts.linux.json
 //   on the mounted repo, which this generator (run on the macOS host)
-//   reads to produce src/render/unicode-font-routing.linux.generated.ts.
+//   reads to produce packages/text-engine/src/render/unicode-font-routing.linux.generated.ts.
 //
 // Per-codepoint crash-detection (fontkit GSUB bugs that crash on macOS
 // Sangam MN / Indic Noto) is NOT run here — Linux fonts in the bare image
@@ -125,7 +125,7 @@ for (const r of ranges) {
 }
 out += "];\n";
 
-writeFileSync("src/render/unicode-font-routing.linux.generated.ts", out);
+writeFileSync("packages/text-engine/src/render/unicode-font-routing.linux.generated.ts", out);
 
 console.log(`Generated ${ranges.length} ranges covering ${seenKeys.size} fonts.`);
 if (unresolved.size > 0) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates src/render/harfbuzz-default-ignorable-ranges.generated.ts: the
+// Generates packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts: the
 // exact codepoint set HarfBuzz's `hb_unicode_funcs_t::is_default_ignorable`
 // flags as default-ignorable (`UPROPS_MASK_IGNORABLE`), which is what
 // `hb_ot_hide_default_ignorables` / `hb_ot_zero_width_default_ignorables`
@@ -92,11 +92,14 @@ const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
 // table correctly excludes it, matching HarfBuzz).
 //
 // Consumed by \`isLegitimatelyInklessCodepoint\` and \`isStrippableOrphanIgnorable\`
-// in \`src/render/unicode-classification.ts\`.
+// in \`packages/text-engine/src/render/unicode-classification.ts\`.
 export const HARFBUZZ_DEFAULT_IGNORABLE_RANGES: ReadonlyArray<readonly [number, number]> = [
 ${lines.join("\n")}
 ];
 `;
 
-writeFileSync(new URL("../src/render/harfbuzz-default-ignorable-ranges.generated.ts", import.meta.url), banner);
-console.error("Wrote src/render/harfbuzz-default-ignorable-ranges.generated.ts");
+writeFileSync(
+  new URL("../packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts", import.meta.url),
+  banner,
+);
+console.error("Wrote packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts");

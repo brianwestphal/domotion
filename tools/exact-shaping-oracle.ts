@@ -8,7 +8,7 @@
  * deliberately wrong controls. See docs/114-exact-shaping-oracle.md.
  */
 import { existsSync, writeFileSync } from "node:fs";
-import { versionString, BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/dist/index.mjs";
+import { versionString, BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import { getFontInstance, platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";

@@ -13,7 +13,7 @@
 // for the flip).
 
 import { readFileSync } from "node:fs";
-import { win32FallbackChain } from "../src/render/font-resolution.ts";
+import { win32FallbackChain } from "../packages/text-engine/src/render/font-resolution.ts";
 
 const IN = process.env.IN ?? "tools/scratch/win32-calib.json";
 const data = JSON.parse(readFileSync(IN, "utf-8"));

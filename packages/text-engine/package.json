@@ -1,0 +1,55 @@
+{
+  "name": "@domotion/text-engine",
+  "version": "0.30.1",
+  "private": true,
+  "description": "Domotion's browser-faithful font resolution, shaping, and SVG text emission engine.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./font-resolution": {
+      "types": "./dist/font-resolution.d.ts",
+      "default": "./dist/font-resolution.js"
+    },
+    "./helpers": {
+      "types": "./dist/helpers.d.ts",
+      "default": "./dist/helpers.js"
+    },
+    "./internal/*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist",
+    "assets",
+    "tools",
+    "vendor",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "tsc -b tsconfig.build.json --clean",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && npm run test:unit && npm run test:transport-performance",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:transport-performance": "vitest run --config vitest.performance.config.ts",
+    "conformance": "npm run build && npm run text-engine:conformance --prefix ../.."
+  },
+  "dependencies": {
+    "bidi-js": "^1.0.3",
+    "fontkit": "^2.0.4",
+    "svg2ttf": "^6.1.0",
+    "unicode-properties": "^1.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^5.8.3",
+    "vitest": "^5.0.1"
+  }
+}

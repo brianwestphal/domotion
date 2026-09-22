@@ -6,7 +6,12 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-259", "DM-260", "DM-385", "DM-881", "DM-886", "DM-887", "DM-889", "DM-891", "DM-892"]
-code: ["src/render/font-resolution.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"]
+code:
+  [
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/text-to-path.test.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
+  ]
 aliases: ["docs/51-probe-then-fallback-dispatch.md", "doc-51"]
 ---
 
@@ -39,7 +44,7 @@ renderer only routes to it via the static `extractor: "native"` flag on
 
 ## Current state (verified)
 
-`textToPathMarkup` (`src/render/text-to-path.ts`) builds font _runs_: for each
+`textToPathMarkup` (`packages/text-engine/src/render/text-to-path.ts`) builds font _runs_: for each
 codepoint it picks a font by **cmap coverage** — `primaryFont.glyphForCodePoint(cp).id === 0`
 → walk `fallbackFontChain`, take the first font whose `.id !== 0`. Each run is
 then shaped with `font.layout(runText)`, and each shaped glyph's
@@ -186,7 +191,7 @@ a Linux/Windows fixture (DM-259/DM-260):
 
 The **whole-font fallback tier** — the part that handles every real case today,
 including PingFang in both macOS configs — shipped in `getFontInstance`
-(`src/render/font-resolution.ts`):
+(`packages/text-engine/src/render/font-resolution.ts`):
 
 - The static `extractor: "native"` flag is retained as a **helper-eligibility
   marker** (so we never over-route inkless glyphs / color-bitmap fonts to the
@@ -206,7 +211,7 @@ including PingFang in both macOS configs — shipped in `getFontInstance`
   file present → opens but `hvgl`-only (no glyf/CFF) → helper. Validated on
   macOS: `text-mixed-script` (CJK via PingFang) stays at 0.00%, full feature
   suite unchanged (the 3 pre-existing border/button/counter diffs are unrelated),
-  and `src/render/text-to-path.test.ts` covers `fontHasOutlineTable` directly.
+  and `packages/text-engine/src/render/text-to-path.test.ts` covers `fontHasOutlineTable` directly.
 
 ### The per-glyph tier (DM-891, implemented)
 

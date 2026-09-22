@@ -29,7 +29,7 @@ const FONT_PATHS = {
 } as const;
 const CELL = 96;
 const PHASES = [0, 0.25, 0.5, 0.75] as const;
-const GLYPH_HELPER = resolve("tools/linux-glyph-extractor/domotion-glyph-paths");
+const GLYPH_HELPER = resolve("packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths");
 
 type LinuxTerminalMaskFaceId = "wqy-ui" | "wqy-mono" | "free-sans" | "unifont";
 

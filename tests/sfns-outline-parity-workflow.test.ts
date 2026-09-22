@@ -13,7 +13,7 @@ describe("SFNS exact outline workflow (DM-2567)", () => {
   });
 
   it("builds and authenticates the CoreText helper before collection", () => {
-    expect(workflow).toContain("bash tools/macos-glyph-extractor/build.sh");
+    expect(workflow).toContain("bash packages/text-engine/tools/macos-glyph-extractor/build.sh");
     expect(collector).toContain("resolvedGlyphHelperPathForEvidence");
     expect(collector).toContain("helperSha256");
     expect(collector).toContain("requires the native glyph helper (fail closed)");

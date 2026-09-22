@@ -49,9 +49,9 @@ jobs:
       - name: Build the macOS glyph helper
         run: |
           SWIFT_ARCH="$(uname -m)"
-          swift build -c release --arch "$SWIFT_ARCH" --package-path tools/macos-glyph-extractor
-          cp "tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
-             tools/macos-glyph-extractor/domotion-glyph-paths
+          swift build -c release --arch "$SWIFT_ARCH" --package-path packages/text-engine/tools/macos-glyph-extractor
+          cp "packages/text-engine/tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
+             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
       - run: npm test
       # DM-1459: behavior/feature coverage — flags a documented behavior with no
       # asserting test, or a new export/verb not yet in tests/feature-coverage.ts,
@@ -148,9 +148,9 @@ jobs:
       # would otherwise also build x86_64 for the universal release binary.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
         run: |
-          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
-          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             tools/macos-glyph-extractor/domotion-glyph-paths
+          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
+          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
       - name: Run feature visual-regression suite
         # Absolute pass/fail is ADVISORY (`|| true`), exactly as on Linux: the
         # gate is the baseline diff below, which fails only on regressions vs

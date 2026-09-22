@@ -6,7 +6,7 @@
 //   (a) the family Chromium-on-Windows actually paints  (CDP getPlatformFontsForNode)
 //   (b) the family DirectWrite IDWriteFontFallback::MapCharacters picks — i.e.
 //       exactly what resolveSystemFallbackKeyForCp's win32 arm uses, via the
-//       built tools/win32-glyph-extractor (the `fallback` query).
+//       built packages/text-engine/tools/win32-glyph-extractor (the `fallback` query).
 // Then it categorizes every (a)!=(b) divergence so the flip-to-default-on can be
 // shown fidelity-safe (the same buckets doc 80 uses for Linux/DM-1416).
 //
@@ -17,7 +17,7 @@
 //   MAX_CELLS      max cells sampled per block fixture (default 6)
 //
 // Setup on the Parallels desktop Win11 VM (reached via `prlctl exec`):
-//   1. Build the extractor from tools/win32-glyph-extractor with MSVC
+//   1. Build the extractor from packages/text-engine/tools/win32-glyph-extractor with MSVC
 //      (`cl /std:c++17 /O2 /EHsc /MT main.cpp dwrite.lib`; on the ARM64 VM the
 //      arm64->amd64 cross via vcvarsarm64_amd64.bat works). Point EXE at the .exe.
 //   2. Ensure Playwright's headless-shell is installed (`node

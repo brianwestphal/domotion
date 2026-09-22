@@ -9,9 +9,9 @@ tickets: ["DM-1058", "DM-1338", "DM-1350", "DM-1459", "DM-2637", "DM-2645"]
 code:
   [
     "src/index.exports.test.ts",
-    "src/render/render-text-mode-guard.test.ts",
-    "src/render/synchronous-scope.test.ts",
-    "src/render/synchronous-scope.ts",
+    "packages/text-engine/src/render/render-text-mode-guard.test.ts",
+    "packages/text-engine/src/render/synchronous-scope.test.ts",
+    "packages/text-engine/src/render/synchronous-scope.ts",
     "tests/conventions.test.ts",
     "tests/feature-coverage.ts",
     "tests/feature-transition-evidence.test.ts",
@@ -48,13 +48,13 @@ that would catch its regression, plus a **report** that flags any gap.
 
 ## The pieces
 
-| Piece            | File                                                         | Role                                                                                                                                                                                   |
-| ---------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Feature index    | `tests/feature-coverage.ts`                                  | One `FeatureEntry` per behavior: `behavior` → `exports`/`verbs` → `tests` (`[]` = known gap). Stateful features carry a `transition` note plus exact `transitionEvidence` test titles. |
-| Report           | `tools/check-feature-coverage.ts` (`npm run check:features`) | Flags gaps, broken test refs, weak transition evidence, and drift; exits non-zero on any.                                                                                              |
-| Gate             | `tests/conventions.test.ts`                                  | Runs the same integrity + drift assertions inside `npm test`, so the axis is enforced without a separate command.                                                                      |
-| Surface guard    | `src/index.exports.test.ts` (DM-1058)                        | Pins the exact public value-export set against `docs/api.md`.                                                                                                                          |
-| Transition guard | `src/render/render-text-mode-guard.test.ts`                  | Example of a state-transition test (the process-global render mode's save/restore, incl. on-throw).                                                                                    |
+| Piece            | File                                                             | Role                                                                                                                                                                                   |
+| ---------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feature index    | `tests/feature-coverage.ts`                                      | One `FeatureEntry` per behavior: `behavior` → `exports`/`verbs` → `tests` (`[]` = known gap). Stateful features carry a `transition` note plus exact `transitionEvidence` test titles. |
+| Report           | `tools/check-feature-coverage.ts` (`npm run check:features`)     | Flags gaps, broken test refs, weak transition evidence, and drift; exits non-zero on any.                                                                                              |
+| Gate             | `tests/conventions.test.ts`                                      | Runs the same integrity + drift assertions inside `npm test`, so the axis is enforced without a separate command.                                                                      |
+| Surface guard    | `src/index.exports.test.ts` (DM-1058)                            | Pins the exact public value-export set against `docs/api.md`.                                                                                                                          |
+| Transition guard | `packages/text-engine/src/render/render-text-mode-guard.test.ts` | Example of a state-transition test (the process-global render mode's save/restore, incl. on-throw).                                                                                    |
 
 ## What the report flags
 

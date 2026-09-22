@@ -8,15 +8,15 @@ platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2716", "DM-CAGCSM", "DM-FJZQ34", "DM-ZDDJAG"]
 code:
   [
-    "src/render/font-resolution.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "src/render/text.ts",
     "src/render/vertical-text.ts",
     "src/render/element-tree-to-svg.ts",
     "src/cli/capture.ts",
     "src/cli/animate-command.ts",
     "src/cli/index.ts",
-    "src/render/system-font-mode.test.ts",
+    "packages/text-engine/src/render/system-font-mode.test.ts",
   ]
 aliases: ["docs/261-system-font-render-text-mode.md", "doc-261"]
 ---

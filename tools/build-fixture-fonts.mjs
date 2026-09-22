@@ -1,4 +1,4 @@
-// Rebuild the deterministic fixture faces under `assets/fonts/fixture/`.
+// Rebuild the deterministic fixture faces under `packages/text-engine/assets/fonts/fixture/`.
 //
 // WHY THESE EXIST
 //   The frame-sequence compressor's e2e fixtures assert pixel parity between a

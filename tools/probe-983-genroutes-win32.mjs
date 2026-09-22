@@ -1,4 +1,4 @@
-// Generate src/render/unicode-font-routing.win32.generated.ts from the
+// Generate packages/text-engine/src/render/unicode-font-routing.win32.generated.ts from the
 // tests/output/unicode-fonts.win32.json sweep produced by
 // `tools/probe-983-sweep.mjs` run on a real Windows host (DirectWrite font
 // fallback). For each Unicode block (filename-derived codepoint range), pick
@@ -16,7 +16,7 @@
 // the filenames are stable.
 //
 // Run from the repo root on any host (the Windows paths are emitted as bare
-// FILENAMES — `src/render/text-to-path.ts` prefixes them with
+// FILENAMES — `packages/text-engine/src/render/text-to-path.ts` prefixes them with
 // `%WINDIR%\Fonts` via its `win()` helper, so they resolve on a real Windows
 // box and stay inert on macOS/Linux):
 //
@@ -144,7 +144,7 @@ out += "// Maps Unicode blocks to the Windows font family Chrome's DirectWrite\n
 out += "// fallback picks via CDP `CSS.getPlatformFontsForNode`. Consulted by\n";
 out += "// `win32FallbackChain` as the final fallback when no hand-coded route\n";
 out += "// matches a codepoint. `file` is a bare name under %WINDIR%\\Fonts —\n";
-out += "// `src/render/text-to-path.ts` prefixes it via its `win()` helper, so\n";
+out += "// `packages/text-engine/src/render/text-to-path.ts` prefixes it via its `win()` helper, so\n";
 out += "// these entries honor a non-default WINDIR and stay inert off-Windows.\n";
 out += "\n";
 out += "export interface Win32UnicodeFontEntry { file: string; postscriptName?: string }\n\n";
@@ -164,7 +164,7 @@ for (const r of ranges) {
 }
 out += "];\n";
 
-writeFileSync("src/render/unicode-font-routing.win32.generated.ts", out);
+writeFileSync("packages/text-engine/src/render/unicode-font-routing.win32.generated.ts", out);
 
 console.log(`Generated ${ranges.length} ranges covering ${seenKeys.size} fonts.`);
 if (unresolved.size > 0) {

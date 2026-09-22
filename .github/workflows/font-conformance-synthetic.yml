@@ -186,9 +186,9 @@ jobs:
         # cannot ask CoreText and silently drops to the static chain.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
         run: |
-          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
-          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             tools/macos-glyph-extractor/domotion-glyph-paths
+          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
+          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
+             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
       # The corpus is gitignored on purpose: it is a pure function of the rule,
       # and a committed copy is a copy someone can hand-edit. Regenerating is
       # deterministic — its identity string is a digest of the rule's output, not
@@ -245,10 +245,10 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y -qq build-essential cmake libfreetype-dev libfontconfig1-dev pkg-config
-          cmake -S tools/linux-glyph-extractor -B /tmp/lgx -DCMAKE_BUILD_TYPE=Release
+          cmake -S packages/text-engine/tools/linux-glyph-extractor -B /tmp/lgx -DCMAKE_BUILD_TYPE=Release
           cmake --build /tmp/lgx -j
-          cp /tmp/lgx/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
-          test "$(tools/linux-glyph-extractor/domotion-glyph-paths --fontconfig-mode)" = '{"fontations":true,"configReady":true}'
+          cp /tmp/lgx/domotion-glyph-paths packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths
+          test "$(packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths --fontconfig-mode)" = '{"fontations":true,"configReady":true}'
       - name: Generate the synthetic stack corpus
         run: npx tsx tools/font-conformance-synthetic-stacks.ts
       - name: Sweep
@@ -297,7 +297,7 @@ jobs:
       - run: npx playwright install chromium
       - name: Build the DirectWrite glyph helper (fallback resolver)
         shell: pwsh
-        run: ./tools/win32-glyph-extractor/build.ps1
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Generate the synthetic stack corpus
         run: npx tsx tools/font-conformance-synthetic-stacks.ts
       - name: Sweep

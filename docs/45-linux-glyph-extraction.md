@@ -31,14 +31,14 @@ tickets:
 code:
   [
     ".github/workflows/release-helpers.yml",
-    "src/render/glyph-helper.test.ts",
-    "src/render/glyph-helper.ts",
-    "src/render/helper-acquire.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/glyph-helper.test.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/helper-acquire.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "tests/linux-glyph-extractor.test.ts",
     "tests/linux-target-strike-small-caps.e2e.test.ts",
-    "tools/linux-glyph-extractor/",
-    "tools/linux-glyph-extractor/CMakeLists.txt",
+    "packages/text-engine/tools/linux-glyph-extractor/",
+    "packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt",
     "tools/linux-terminal-mask-oracle.ts",
   ]
 aliases: ["docs/45-linux-glyph-extraction.md", "doc-45"]
@@ -132,7 +132,7 @@ but the lean FreeType path is the design baseline.
 ### Helper binary
 
 - **Name**: `domotion-glyph-paths` (no extension).
-- **Source location**: `tools/linux-glyph-extractor/` (a small CMake C/C++
+- **Source location**: `packages/text-engine/tools/linux-glyph-extractor/` (a small CMake C/C++
   project). Not committed as a binary.
 - **Language/toolchain**: C++17, `gcc`/`clang`. Link FreeType (`libfreetype`)
   and, when family-name resolution is needed, fontconfig (`libfontconfig`).
@@ -264,10 +264,10 @@ does (the protocol is platform-neutral):
   unchanged). stdout is flushed after every response (it's a pipe, hence fully
   buffered) so the parent's synchronous read never blocks on buffered bytes.
 - Each serve response is **byte-identical** to the one-shot response for the same
-  envelope (asserted by the Linux serve test in `src/render/glyph-helper.test.ts`
+  envelope (asserted by the Linux serve test in `packages/text-engine/src/render/glyph-helper.test.ts`
   and validated end-to-end via `npm run test:linux-docker`).
 
-The renderer's wrapper (`src/render/glyph-helper.ts::callHelper`) starts one
+The renderer's wrapper (`packages/text-engine/src/render/glyph-helper.ts::callHelper`) starts one
 long-lived `domotion-glyph-paths --serve` child and does a synchronous
 request→response round-trip per call, falling back transparently to one-shot
 `spawnSync` if the channel can't be established (e.g. an older downloaded binary
@@ -329,7 +329,7 @@ integers).
 
 ### Build script & portability _(as built — DM-872)_
 
-- `tools/linux-glyph-extractor/CMakeLists.txt` + `build.sh` (CMake + pkg-config
+- `packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt` + `build.sh` (CMake + pkg-config
   for FreeType **and fontconfig** — fontconfig became a REQUIRED build
   dependency when the `fcfallback` query landed, so the dev packages are
   `libfreetype-dev` + `libfontconfig-dev` on Debian/Ubuntu), plus a `Dockerfile`
@@ -412,25 +412,25 @@ test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
 
 ## Status
 
-- ✅ **Helper implemented + built + tested** (DM-872): `tools/linux-glyph-extractor/`
+- ✅ **Helper implemented + built + tested** (DM-872): `packages/text-engine/tools/linux-glyph-extractor/`
   (`src/main.cpp` + `CMakeLists.txt` + `build.sh` + `Dockerfile` + `README.md`),
   parity tests in `tests/linux-glyph-extractor.test.ts`, and the
   `linux-glyph-extractor` release job in `release-helpers.yml`. Built and
   validated in the Playwright Linux container (Liberation `H` + FreeSans 𝑎 parity
   with fontkit, byte-faithful).
-- ✅ **JS-side resolution wired** (DM-881, piece A): `src/render/glyph-helper.ts` is
+- ✅ **JS-side resolution wired** (DM-881, piece A): `packages/text-engine/src/render/glyph-helper.ts` is
   no longer macOS-gated — it resolves the helper binary platform-aware
   (`darwin`/`linux`/`win32` → the in-tree `tools/<platform>-glyph-extractor/`
   binary, two levels up from the module), with `DOMOTION_HELPER_PATH` overriding
   on every platform. The engine-agnostic `createGlyphHelperFont` wrapper spawns the
   Linux FreeType binary and consumes its design-unit, y-up output unchanged. A
-  Linux-gated dispatch test in `src/render/glyph-helper.test.ts` extracts an outline
+  Linux-gated dispatch test in `packages/text-engine/src/render/glyph-helper.test.ts` extracts an outline
   through the wrapper end-to-end (green in the `test:linux-docker` container).
 - ✅ **Persistent `--serve` mode** (DM-1034): the FreeType helper now implements
   the same line-delimited request/response serve loop as the macOS helper, reusing
   opened `FT_Face`s across requests, and `glyph-helper.ts::callHelper`'s persistent
   channel is enabled for `linux` (was darwin-only). Byte-identical to one-shot,
-  guarded by a Linux serve test in `src/render/glyph-helper.test.ts`. See
+  guarded by a Linux serve test in `packages/text-engine/src/render/glyph-helper.test.ts`. See
   "Persistent `--serve` mode" above.
 - ✅ **Scoped target-strike route** (DM-2623 / DM-2626 / DM-2627 / DM-2652 /
   DM-2662): exact evidence-owned Linux tuples can consume the helper's
@@ -445,7 +445,7 @@ test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
   additional fonts should route through it.
 - ✅ **On-demand acquisition** for published consumers (download release asset →
   user cache → SHA-verify → chmod → reuse) — the missing DM-393 layer, landed in
-  DM-886 (`src/render/helper-acquire.ts`; lazy first-render fetch, see docs/50).
+  DM-886 (`packages/text-engine/src/render/helper-acquire.ts`; lazy first-render fetch, see docs/50).
 - ✅ **arm64 asset** — `linux-arm64` (and `win32-arm64`) build+upload jobs added
   to `release-helpers.yml` and resolved by the acquisition layer (DM-886). The
   arm64 jobs run on GitHub arm64 runners. DM-2353/doc 196 adds the missing

@@ -104,7 +104,9 @@ async function main(): Promise<void> {
   }
   const bin = existsSync(SHIPPED) ? SHIPPED : DEBUG;
   if (!existsSync(bin)) {
-    console.error(`glyph helper not built — run tools/macos-glyph-extractor/build.sh (looked for ${SHIPPED}).`);
+    console.error(
+      `glyph helper not built — run packages/text-engine/tools/macos-glyph-extractor/build.sh (looked for ${SHIPPED}).`,
+    );
     process.exit(2);
   }
 

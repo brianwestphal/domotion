@@ -25,8 +25,8 @@ tickets:
   ]
 code:
   [
-    "src/render/darwin-named-family-identity.test.ts",
-    "src/render/font-resolution.ts",
+    "packages/text-engine/src/render/darwin-named-family-identity.test.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
     "tests/darwin-named-family-identity.e2e.test.ts",
     "tests/new-york-optical-cut.e2e.test.ts",
   ]
@@ -35,7 +35,7 @@ aliases: ["docs/03-font-family-chain.md", "doc-03"]
 
 # Domotion: CSS font-family chain resolution
 
-Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `src/render/font-resolution.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.
+Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `packages/text-engine/src/render/font-resolution.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.
 
 > **Cross-platform note (DM-258 / DM-259 / DM-260)**: This doc describes the macOS calibration of the chain resolver and `FONT_PATHS`. The same logic must work on Linux (fontconfig — Noto / DejaVu / Liberation) and Windows (DirectWrite — Arial / Consolas / Times New Roman / Segoe UI Symbol / Cambria Math / Yu Gothic).
 >
@@ -60,7 +60,7 @@ No new fields. CAPTURE_SCRIPT already records `cs.fontFamily` (the computed stri
 
 ## Render changes
 
-In `src/render/font-resolution.ts`:
+In `packages/text-engine/src/render/font-resolution.ts`:
 
 1. Replace `resolveFontKey(fontFamily: string): string` with `resolveFontKey(fontFamily: string): string` that splits on top-level commas, trims quotes, and matches each token in priority order:
    - Quoted family names (`"Helvetica Neue"`, `"Times New Roman"`) match against an explicit table.
@@ -113,7 +113,7 @@ face lacks). For those, the renderer walks the WHOLE declared stack, not just th
 primary. `resolveFontKeyChain(fontFamily)` returns the full ordered list of
 resolvable keys (the same calibration table `resolveFontKey` uses, but keeping
 every match instead of the first), and the per-codepoint resolver
-(`resolveFontForCodepoint` in `src/render/font-resolution.ts`) walks it in Blink's
+(`resolveFontForCodepoint` in `packages/text-engine/src/render/font-resolution.ts`) walks it in Blink's
 `FontFallbackIterator` order:
 
 1. **Primary literal** — the run's primary font covers the codepoint (the common
@@ -151,7 +151,7 @@ actually declared.
     - **Three font-size spaces** (DM-2446): current captures retain logical/CSSOM size (`fontLogicalSize`), Blink's effective-zoomed platform matching size (`fontComputedSize`), and final transform-scaled paint size (`fontSize`). Face selection and font metrics use computed size, automatic `opsz` and HarfBuzz `ptem` use logical size, and only SVG outline/stroke scaling uses paint size. Older captures omit the first two fields and fall back to their existing `fontSize` behavior. The font-instance cache includes logical size and the optical-sizing mode so two equal computed-size requests cannot incorrectly share different optical instances.
     - **WOFF2 caveat**: fontkit's `getVariation()` on a WOFF2 font returns an instance whose internal stream can't read the parent's tables — `unitsPerEm` / `layout()` throw `Cannot read properties of undefined`. We sidestep this by decompressing WOFF2 to plain TTF via `wawoff2` in `capture.ts` (`ensureNonWoff2`) before passing to `fontkit.create`. Variation axes only work because of this pre-conversion.
     - **Range descriptors** (`font-weight: 100 900`): the @font-face weight is parsed as the lower bound (so `pickWebfontVariant`'s scoring picks this variant for any request), and `applyVariationAxes` then drives the `wght` axis to the actual requested weight.
-    - **macOS optical-size cuts** (DM-1103, DM-2422): `system-ui` remains the variable system `SFNS.ttf` route, with its size-derived `opsz`. A literal installed `"SF Pro Text"` or `"SF Pro Display"`, however, is a declared family: Blink's family matcher returns the exact static `SFProText-Regular` / `SFProDisplay-Regular` descriptor, whose design does not vary with CSS size. Domotion now preserves that descriptor as a dynamic `sysfb:<PostScript>` key instead of collapsing it into `sf-pro`; when the optional family is absent the stack walks on. The older SFNS optical-pin code remains only as a degraded/static-table path. Guarded by `tests/darwin-named-family-identity.e2e.test.ts` and `src/render/darwin-named-family-identity.test.ts`.
+    - **macOS optical-size cuts** (DM-1103, DM-2422): `system-ui` remains the variable system `SFNS.ttf` route, with its size-derived `opsz`. A literal installed `"SF Pro Text"` or `"SF Pro Display"`, however, is a declared family: Blink's family matcher returns the exact static `SFProText-Regular` / `SFProDisplay-Regular` descriptor, whose design does not vary with CSS size. Domotion now preserves that descriptor as a dynamic `sysfb:<PostScript>` key instead of collapsing it into `sf-pro`; when the optional family is absent the stack walks on. The older SFNS optical-pin code remains only as a degraded/static-table path. Guarded by `tests/darwin-named-family-identity.e2e.test.ts` and `packages/text-engine/src/render/darwin-named-family-identity.test.ts`.
     - **Exact installed named-family identity precedes system fallback** (DM-2422): after the calibrated name ladder nominates a key on macOS, every non-generic declared family is checked with the same exact family/style matcher used for installed fonts. If its returned PostScript member differs from the nominated key, that member is registered as `sysfb:<PostScript>` and retained through the declared-family walk. This is family-level logic—there are no codepoint or Unicode-range exceptions. It preserves aliases such as `"Hiragino Kaku Gothic ProN"` as `HiraKakuProN-W3` even where `HiraginoSans-W4` happens to share glyph ids and advances, and preserves installed SF optical faces; unavailable names still fall through normally.
     - **macOS New York optical cuts** (DM-1108): the New York serif's optical cuts do **not** fit the `OPTICAL_CUT_OPSZ` map — unlike SF Pro's single variable file, New York ships its cuts as **separate static OTFs** (`New York Small/Medium/Large/Extra Large` → `NewYork{Small,Medium,Large,ExtraLarge}-Regular.otf`, no `opsz` axis), so fontkit loads the right cut directly and no opsz pinning is needed. The only mismatch was a name collision: `"New York Medium"` resolves under CoreText's family query to the **variable** font's `Medium` _weight_ (`NewYork-Medium`, too bold) instead of the lighter optical cut Chrome paints, so `matchFamilyNameToKey` resolves it via the cut's unambiguous PostScript name (`NewYorkMedium-Regular`). `Small` / `Large` / `Extra Large` don't collide with a weight, so the generic CoreText query already returns their cuts; bare `"New York"` stays on the always-present variable `NewYork.ttf`. The cut OTFs ship in `/Library/Fonts/` as part of Apple's optional New York font download — when absent, `"New York Medium"` falls through to the variable weight (also what Chrome paints there). See `docs/58-new-york-optical-cuts.md`; guarded by `tests/new-york-optical-cut.e2e.test.ts`.
   - **Color fonts** (sbix/COLR/CBDT): fontkit reads them but the path renderer emits monochrome only — degrades to silhouette glyphs (same as today's behavior for the system Apple Color Emoji file).

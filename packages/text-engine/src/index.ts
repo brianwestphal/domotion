@@ -1,0 +1,16 @@
+export {
+  createTextEngineSession,
+  withTextEngineDocument,
+  clearTextEngineFonts,
+  registerTextEngineWebfont,
+  registerTextEngineLocalFontAlias,
+  type TextEngineSession,
+  type TextEngineSessionOptions,
+  type TextEngineDocument,
+  type TextEngineDocumentRequest,
+  type TextEngineDocumentResult,
+  type TextEngineDocumentCallback,
+  type TextEngineArtifacts,
+  type TextEngineRunRequest,
+  type TextEngineRunResult,
+} from "./render/text-engine.js";

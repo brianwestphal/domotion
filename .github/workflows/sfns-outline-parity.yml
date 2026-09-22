@@ -3,11 +3,11 @@ name: SFNS exact CoreText outline parity
 on:
   pull_request:
     paths:
-      - "src/render/font-resolution.ts"
-      - "src/render/text-to-path.ts"
-      - "src/render/text-run-provenance.ts"
-      - "src/render/glyph-helper.ts"
-      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/text-to-path.ts"
+      - "packages/text-engine/src/render/text-run-provenance.ts"
+      - "packages/text-engine/src/render/glyph-helper.ts"
+      - "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
       - "tools/sfns-mask-baseline.swift"
       - "tools/sfns-mask-baseline-oracle.ts"
       - "tools/sfns-mask-baseline-schema.ts"
@@ -19,11 +19,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/render/font-resolution.ts"
-      - "src/render/text-to-path.ts"
-      - "src/render/text-run-provenance.ts"
-      - "src/render/glyph-helper.ts"
-      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/text-to-path.ts"
+      - "packages/text-engine/src/render/text-run-provenance.ts"
+      - "packages/text-engine/src/render/glyph-helper.ts"
+      - "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
       - "tools/sfns-mask-baseline.swift"
       - "tools/sfns-mask-baseline-oracle.ts"
       - "tools/sfns-mask-baseline-schema.ts"
@@ -54,7 +54,7 @@ jobs:
       - name: Install pinned Chromium for explicitly headless capture
         run: npx playwright install chromium
       - name: Build CoreText outline helper
-        run: bash tools/macos-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh
       - name: Collect authenticated exact outline evidence (headless)
         run: >-
           npm run fonts:sfns-mask-baseline --

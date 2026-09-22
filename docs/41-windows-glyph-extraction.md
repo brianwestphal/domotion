@@ -8,10 +8,10 @@ platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1035", "DM-1721", "DM-2056", "DM-2403", "DM-260", "DM-389", "DM-390", "DM-391", "DM-837"]
 code:
   [
-    "src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
     "tests/win32-glyph-extractor.test.ts",
-    "tools/win32-glyph-extractor/",
-    "tools/win32-glyph-extractor/build.ps1",
+    "packages/text-engine/tools/win32-glyph-extractor/",
+    "packages/text-engine/tools/win32-glyph-extractor/build.ps1",
   ]
 aliases: ["docs/41-windows-glyph-extraction.md", "doc-41"]
 ---
@@ -72,7 +72,7 @@ outlines, zero bundled-font weight.
 ### Helper binary
 
 - **Name**: `domotion-glyph-paths.exe`.
-- **Source location**: `tools/win32-glyph-extractor/` (a small CMake or MSBuild
+- **Source location**: `packages/text-engine/tools/win32-glyph-extractor/` (a small CMake or MSBuild
   C++ project). Not committed as a binary.
 - **Language/toolchain**: C++17, MSVC (`cl.exe` from the Visual Studio Build
   Tools / Windows SDK) on a `windows-latest` GitHub runner. DirectWrite headers
@@ -213,7 +213,7 @@ The serve refactor — `fontCacheKey` + `handleEnvelope` + the stdin loop — is
 structural mirror of the Linux helper's and **adds no new DirectWrite API calls**
 (the `runGlyphsQuery` / `runMetaQuery` bodies are unchanged), so the byte-identity
 follows from the same logic the Linux serve mode was empirically verified to have.
-The renderer's wrapper (`src/render/glyph-helper.ts::callHelper`) starts one
+The renderer's wrapper (`packages/text-engine/src/render/glyph-helper.ts::callHelper`) starts one
 long-lived `domotion-glyph-paths.exe --serve` child and does a synchronous
 request→response round-trip per call, falling back transparently to one-shot
 `spawnSync` if the channel can't be established (e.g. an older downloaded binary
@@ -221,7 +221,7 @@ that predates `--serve`). DM-1035 lifted the persistent-channel gate for `win32`
 
 ### Build script
 
-- `tools/win32-glyph-extractor/build.ps1` (PowerShell) and/or a `CMakeLists.txt`
+- `packages/text-engine/tools/win32-glyph-extractor/build.ps1` (PowerShell) and/or a `CMakeLists.txt`
   that the release workflow invokes on `windows-latest`. Documents the SDK
   version and the `cl.exe` flags (`/std:c++17 /O2 /MT /EHsc`, link
   `dwrite.lib d2d1.lib`).
@@ -334,7 +334,7 @@ a cert is provisioned.
   do NOT add a typographic-model (`DWRITE_FONT_FAMILY_MODEL_TYPOGRAPHIC`)
   fallback to `runFamilyQuery`: resolving the bare name would _diverge_ from
   Chrome.
-- ✅ **Helper written + CI wired** (DM-837): `tools/win32-glyph-extractor/`
+- ✅ **Helper written + CI wired** (DM-837): `packages/text-engine/tools/win32-glyph-extractor/`
   (`src/main.cpp` + `CMakeLists.txt` + `build.ps1` + `README.md`; the JSON
   parser/serializer is shared verbatim with the Linux helper). The release asset
   job (`windows-glyph-extractor` in `release-helpers.yml`, alongside macOS +
@@ -352,7 +352,7 @@ a cert is provisioned.
   `GetInformationalStrings(POSTSCRIPT_NAME)`, and the DirectWrite-3 variation path.
 - ⏳ **Remaining:** Windows Authenticode signing in CI (pending a cert — open
   question 1); arm64 asset (open question 2). (The JS-side dispatch that
-  _invokes_ the helper is already wired — `src/render/glyph-helper.ts` is fully
+  _invokes_ the helper is already wired — `packages/text-engine/src/render/glyph-helper.ts` is fully
   platform-aware: `HELPER_BINARIES` includes `win32` and `resolveHelperPath` /
   `isGlyphHelperAvailable` / `startPersistent` dispatch by `process.platform`
   with no darwin gate. See the DM-1035 ✅ item below.)

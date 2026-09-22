@@ -76,7 +76,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job, "test-macos job must exist").toBeDefined();
     expect(
       /macos-glyph-extractor/.test(job),
-      "test-macos runs the sweep without building tools/macos-glyph-extractor — the live CoreText " +
+      "test-macos runs the sweep without building packages/text-engine/tools/macos-glyph-extractor — the live CoreText " +
         "fallback resolver will be OFF and font selection will not match the browser",
     ).toBe(true);
   });
@@ -95,7 +95,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job, "test-windows job must exist").toBeDefined();
     expect(
       /win32-glyph-extractor/.test(job),
-      "test-windows runs the sweep without building tools/win32-glyph-extractor — the live " +
+      "test-windows runs the sweep without building packages/text-engine/tools/win32-glyph-extractor — the live " +
         "DirectWrite fallback resolver will be OFF",
     ).toBe(true);
   });
@@ -122,7 +122,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job, "test-linux job must exist").toBeDefined();
     expect(
       /linux-glyph-extractor/.test(job),
-      "test-linux runs the sweep without building tools/linux-glyph-extractor — the transcribed " +
+      "test-linux runs the sweep without building packages/text-engine/tools/linux-glyph-extractor — the transcribed " +
         "declared-family matcher will be inert and cut selection drops to the two-slot table",
     ).toBe(true);
   });
@@ -202,7 +202,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
   });
 
   it("copies the built binary to the path the resolver looks for", () => {
-    // `HELPER_BINARIES.darwin` in src/render/glyph-helper.ts resolves exactly
+    // `HELPER_BINARIES.darwin` in packages/text-engine/src/render/glyph-helper.ts resolves exactly
     // this filename; `swift build` emits `DomotionGlyphPaths`, so a build that
     // forgets the copy leaves the resolver seeing nothing.
     expect(jobs["test-macos"]).toMatch(/domotion-glyph-paths/);

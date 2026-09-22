@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts", "product-tooling"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2619"]
-code: ["src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"]
+code: ["packages/text-engine/src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"]
 aliases: ["docs/115-production-harfbuzz-shaping.md", "doc-115"]
 ---
 

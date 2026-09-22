@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Generates src/render/use-left-matra-ranges.generated.ts: the codepoints
+// Generates packages/text-engine/src/render/use-left-matra-ranges.generated.ts: the codepoints
 // HarfBuzz's Universal Shaping Engine reorders to BEFORE their base — the
 // USE syllabic-category "VPre" (22) and "VMPre" (23) members.
 //
 // This regenerates DM-1109's `LEFT_REORDER_MATRA_RANGES`
-// (`src/render/unicode-classification.ts`) from HarfBuzz's own compiled
+// (`packages/text-engine/src/render/unicode-classification.ts`) from HarfBuzz's own compiled
 // table instead of the hand-curated list it started as: the stated
 // derivation ("intersection of IndicPositionalCategory Left placements with
 // IndicSyllabicCategory=Vowel_Dependent") never named the VMPre category, so
@@ -246,11 +246,14 @@ const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
 // formula verbatim (transcribed, not re-derived). See that script for the
 // self-check gate and the full provenance.
 //
-// Consumed by \`isLeftReorderingMatra\` in \`src/render/unicode-classification.ts\`.
+// Consumed by \`isLeftReorderingMatra\` in \`packages/text-engine/src/render/unicode-classification.ts\`.
 export const USE_LEFT_MATRA_RANGES: ReadonlyArray<readonly [number, number]> = [
 ${lines.join("\n")}
 ];
 `;
 
-writeFileSync(new URL("../src/render/use-left-matra-ranges.generated.ts", import.meta.url), banner);
-console.error("Wrote src/render/use-left-matra-ranges.generated.ts");
+writeFileSync(
+  new URL("../packages/text-engine/src/render/use-left-matra-ranges.generated.ts", import.meta.url),
+  banner,
+);
+console.error("Wrote packages/text-engine/src/render/use-left-matra-ranges.generated.ts");

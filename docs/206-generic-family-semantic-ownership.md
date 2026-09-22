@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2515", "DM-2516", "DM-2517", "DM-2518"]
-code: ["src/render/skia-last-resort-routing.test.ts", "tools/generic-family-semantics-audit.ts"]
+code: ["packages/text-engine/src/render/skia-last-resort-routing.test.ts", "tools/generic-family-semantics-audit.ts"]
 aliases: ["docs/206-generic-family-semantic-ownership.md", "doc-206"]
 ---
 
@@ -125,7 +125,7 @@ npm run fonts:generic-family-semantics -- \
 ```
 
 The common-Skia terminal has an additional exact logical discriminator in
-`src/render/skia-last-resort-routing.test.ts`. Its repository-owned helper
+`packages/text-engine/src/render/skia-last-resort-routing.test.ts`. Its repository-owned helper
 cassette forces the named Courier stand-in to reject, makes unnamed and serif
 terminal questions converge on one fixture face, and makes monospace select a
 different fixture face. Named Courier, monospace, serif, system-ui, math, and

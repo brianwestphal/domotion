@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev fonts-dejavu-core
       - run: npm ci
-      - run: bash tools/linux-glyph-extractor/build.sh
+      - run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Record distinct oracle environment
         run: |
           fc-cache -f

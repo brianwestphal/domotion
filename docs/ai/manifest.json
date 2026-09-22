@@ -19,12 +19,12 @@
         "src/capture/warnings.ts",
         "src/render/clip-path.ts",
         "src/render/element-tree-to-svg.ts",
-        "src/render/font-resolution-cache-reset.test.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "src/render/form-controls.test.ts",
         "src/render/form-controls.ts",
-        "src/render/text-to-path.test.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-to-path.test.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "tests/capture-warnings-lifecycle.e2e.test.ts",
         "tests/composed-parity-fixtures.ts",
         "tests/features.ts",
@@ -44,7 +44,7 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/script/walker/text-segments.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "src/render/vertical-text.test.ts",
         "src/render/vertical-text.ts"
       ],
@@ -58,8 +58,8 @@
       "owners": ["text-fonts"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/darwin-named-family-identity.test.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/darwin-named-family-identity.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "tests/darwin-named-family-identity.e2e.test.ts",
         "tests/new-york-optical-cut.e2e.test.ts"
       ],
@@ -239,9 +239,9 @@
       "code": [
         "src/capture/emoji.ts",
         "src/capture/script/emoji-detect.test.ts",
-        "src/capture/script/emoji-detect.ts",
-        "src/render/emoji-raster-kind.test.ts",
-        "src/render/text-to-path.test.ts",
+        "packages/text-engine/src/capture/script/emoji-detect.ts",
+        "packages/text-engine/src/render/emoji-raster-kind.test.ts",
+        "packages/text-engine/src/render/text-to-path.test.ts",
         "tests/win32-glyph-extractor.test.ts",
         "tools/font-palette-ownership-audit.ts"
       ],
@@ -257,14 +257,14 @@
       "code": [
         "scripts/probe-coretext-glyphs.mjs",
         "src/render/",
-        "src/render/font-resolution.ts",
-        "src/render/glyph-helper.test.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/helper-acquire.ts",
-        "src/render/text-to-path.ts",
-        "src/render/unicode-classification.ts",
-        "tools/macos-glyph-extractor/",
-        "tools/macos-glyph-extractor/build.sh"
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-helper.test.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/helper-acquire.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/unicode-classification.ts",
+        "packages/text-engine/tools/macos-glyph-extractor/",
+        "packages/text-engine/tools/macos-glyph-extractor/build.sh"
       ],
       "file": "16-coretext-glyph-extraction.md"
     },
@@ -457,7 +457,7 @@
       "status": "current",
       "owners": ["text-fonts"],
       "platforms": [],
-      "code": ["src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"],
+      "code": ["packages/text-engine/src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"],
       "file": "30-webfont-unicode-range.md"
     },
     {
@@ -593,7 +593,7 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/font-resolution.ts"],
+      "code": ["packages/text-engine/src/render/font-resolution.ts"],
       "file": "40-cross-platform-font-paths.md"
     },
     {
@@ -604,10 +604,10 @@
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
         "tests/win32-glyph-extractor.test.ts",
-        "tools/win32-glyph-extractor/",
-        "tools/win32-glyph-extractor/build.ps1"
+        "packages/text-engine/tools/win32-glyph-extractor/",
+        "packages/text-engine/tools/win32-glyph-extractor/build.ps1"
       ],
       "file": "41-windows-glyph-extraction.md"
     },
@@ -619,14 +619,14 @@
       "owners": ["platform-release"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/embolden-outline.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/embolden-outline.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "src/render/text.ts",
-        "src/render/unicode-classification.ts",
-        "src/render/unicode-font-routing.noto-linux.generated.ts",
-        "src/render/unicode-font-routing.win32.generated.ts",
-        "src/render/win-font-fallback.test.ts",
-        "src/render/win-font-fallback.ts",
+        "packages/text-engine/src/render/unicode-classification.ts",
+        "packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts",
+        "packages/text-engine/src/render/unicode-font-routing.win32.generated.ts",
+        "packages/text-engine/src/render/win-font-fallback.test.ts",
+        "packages/text-engine/src/render/win-font-fallback.ts",
         "tests/flipbook-parity.ts",
         "tests/html-test-suite.tsx",
         "tests/output/unicode-fonts.win32.json",
@@ -680,14 +680,14 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/release-helpers.yml",
-        "src/render/glyph-helper.test.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/helper-acquire.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/glyph-helper.test.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/helper-acquire.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "tests/linux-glyph-extractor.test.ts",
         "tests/linux-target-strike-small-caps.e2e.test.ts",
-        "tools/linux-glyph-extractor/",
-        "tools/linux-glyph-extractor/CMakeLists.txt",
+        "packages/text-engine/tools/linux-glyph-extractor/",
+        "packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt",
         "tools/linux-terminal-mask-oracle.ts"
       ],
       "file": "45-linux-glyph-extraction.md"
@@ -736,12 +736,12 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/render/",
-        "src/render/glyph-helper.test.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/helper-acquire.ts",
-        "tools/linux-glyph-extractor/",
-        "tools/macos-glyph-extractor/",
-        "tools/win32-glyph-extractor/"
+        "packages/text-engine/src/render/glyph-helper.test.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/helper-acquire.ts",
+        "packages/text-engine/tools/linux-glyph-extractor/",
+        "packages/text-engine/tools/macos-glyph-extractor/",
+        "packages/text-engine/tools/win32-glyph-extractor/"
       ],
       "file": "49-glyph-helper-dispatch.md"
     },
@@ -755,8 +755,8 @@
       "code": [
         ".github/workflows/release-helpers.yml",
         ".github/workflows/release.yml",
-        "src/render/glyph-helper.ts",
-        "src/render/helper-acquire.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/helper-acquire.ts",
         "tests/release-helpers-workflow.test.ts"
       ],
       "file": "50-glyph-helper-acquisition.md"
@@ -768,7 +768,11 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/font-resolution.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"],
+      "code": [
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/text-to-path.test.ts",
+        "packages/text-engine/src/render/text-to-path.ts"
+      ],
       "file": "51-probe-then-fallback-dispatch.md"
     },
     {
@@ -778,7 +782,11 @@
       "status": "current",
       "owners": ["text-fonts"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/embedded-font-builder.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"],
+      "code": [
+        "packages/text-engine/src/render/embedded-font-builder.ts",
+        "packages/text-engine/src/render/text-to-path.test.ts",
+        "packages/text-engine/src/render/text-to-path.ts"
+      ],
       "file": "52-embedded-mode-glyph-fallback.md"
     },
     {
@@ -870,7 +878,7 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos"],
-      "code": ["src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"],
+      "code": ["packages/text-engine/src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"],
       "file": "58-new-york-optical-cuts.md"
     },
     {
@@ -912,7 +920,11 @@
       "status": "current",
       "owners": ["animation"],
       "platforms": [],
-      "code": ["src/animation/resolve-overlays.ts", "src/index.ts", "tests/cross-region-anchor.e2e.test.ts"],
+      "code": [
+        "src/animation/resolve-overlays.ts",
+        "packages/text-engine/src/index.ts",
+        "tests/cross-region-anchor.e2e.test.ts"
+      ],
       "file": "61-overlay-resolution-primitive.md"
     },
     {
@@ -939,7 +951,7 @@
       "status": "current",
       "owners": ["animation"],
       "platforms": [],
-      "code": ["src/cli/animate.ts", "src/index.ts"],
+      "code": ["src/cli/animate.ts", "packages/text-engine/src/index.ts"],
       "file": "63-cursor-action-primitives.md"
     },
     {
@@ -1059,7 +1071,7 @@
         "site/src/content/docs/usage/templates.md",
         "src/cli/animate-config-json-schema.ts",
         "src/cli/template.ts",
-        "src/index.ts",
+        "packages/text-engine/src/index.ts",
         "src/render/device-chrome.ts",
         "src/templates/builtin/",
         "src/templates/json-schema.ts",
@@ -1185,7 +1197,7 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos"],
-      "code": ["src/render/font-resolution.ts"],
+      "code": ["packages/text-engine/src/render/font-resolution.ts"],
       "file": "79-harfbuzz-use-reroute.md"
     },
     {
@@ -1198,17 +1210,17 @@
       "code": [
         "scripts/test-linux-docker.sh",
         "src/render",
-        "src/render/font-resolution.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/win-font-fallback.ts",
-        "src/render/win32-fallback-envelope.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/win-font-fallback.ts",
+        "packages/text-engine/src/render/win32-fallback-envelope.test.ts",
         "tests/baselines/font-conformance-windows.json",
         "tools/probe-1416-linux-fcmatch-vs-chromium.mjs",
         "tools/probe-1424-refine.mts",
         "tools/probe-1424-win32-mapchars-vs-chromium.mjs",
-        "tools/win32-glyph-extractor",
-        "tools/win32-glyph-extractor/build.ps1",
-        "tools/win32-glyph-extractor/src/main.cpp"
+        "packages/text-engine/tools/win32-glyph-extractor",
+        "packages/text-engine/tools/win32-glyph-extractor/build.ps1",
+        "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
       ],
       "file": "80-cross-platform-system-fallback-resolver.md"
     },
@@ -1263,9 +1275,9 @@
       "platforms": [],
       "code": [
         "src/index.exports.test.ts",
-        "src/render/render-text-mode-guard.test.ts",
-        "src/render/synchronous-scope.test.ts",
-        "src/render/synchronous-scope.ts",
+        "packages/text-engine/src/render/render-text-mode-guard.test.ts",
+        "packages/text-engine/src/render/synchronous-scope.test.ts",
+        "packages/text-engine/src/render/synchronous-scope.ts",
         "tests/conventions.test.ts",
         "tests/feature-coverage.ts",
         "tests/feature-transition-evidence.test.ts",
@@ -1413,7 +1425,7 @@
         "src/cli/type-resample.e2e.test.ts",
         "src/cli/type-resample.test.ts",
         "src/cli/type-resample.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "tests/animate-examples.tsx",
         "tests/typing-baseline-anchor.e2e.test.ts"
       ],
@@ -1517,24 +1529,24 @@
       "code": [
         ".github/workflows/visual-tests.yml",
         "src/render/embedded-font-builder.test.ts",
-        "src/render/embedded-font-builder.ts",
+        "packages/text-engine/src/render/embedded-font-builder.ts",
         "src/render/embedded-font-snapshot.test.ts",
-        "src/render/font-resolution-cache-reset.test.ts",
-        "src/render/font-resolution.ts",
-        "src/render/glyph-helper-boundaries.test.ts",
-        "src/render/glyph-helper-font.ts",
-        "src/render/glyph-helper-outline.ts",
-        "src/render/glyph-helper-protocol.ts",
-        "src/render/glyph-helper-transport.ts",
-        "src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-helper-boundaries.test.ts",
+        "packages/text-engine/src/render/glyph-helper-font.ts",
+        "packages/text-engine/src/render/glyph-helper-outline.ts",
+        "packages/text-engine/src/render/glyph-helper-protocol.ts",
+        "packages/text-engine/src/render/glyph-helper-transport.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
         "src/render/hb-subset.test.ts",
-        "src/render/hb-subset.ts",
-        "src/render/linux-target-strike.ts",
+        "packages/text-engine/src/render/hb-subset.ts",
+        "packages/text-engine/src/render/linux-target-strike.ts",
         "src/render/synth-test-fonts.ts",
-        "src/render/text-to-path.test.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-to-path.test.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "tests/linux-target-strike-small-caps.e2e.test.ts",
-        "tools/linux-glyph-extractor/src/main.cpp",
+        "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
         "tools/linux-terminal-mask-oracle.ts"
       ],
       "file": "99-hinted-embedded-subset.md"
@@ -1676,7 +1688,7 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/harfbuzz-shaper.ts", "src/render/text-to-path.ts"],
+      "code": ["packages/text-engine/src/render/harfbuzz-shaper.ts", "packages/text-engine/src/render/text-to-path.ts"],
       "file": "106-blink-font-parity-inventory.md"
     },
     {
@@ -1692,8 +1704,8 @@
         "scripts/ci-font-conformance-shard.sh",
         "scripts/diff-font-conformance-baseline.mjs",
         "scripts/merge-font-conformance-shards.mjs",
-        "src/render/font-resolution-cache-reset.test.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "tests/baselines/README.md",
         "tests/fixtures/variable-axis/variable-axis.html",
         "tests/font-conformance-baseline.test.ts",
@@ -1744,7 +1756,7 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"],
+      "code": ["packages/text-engine/src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"],
       "file": "109-family-match-conformance.md"
     },
     {
@@ -1756,14 +1768,14 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/test-linux.yml",
-        "src/render/font-resolution.ts",
-        "src/render/linux-declared-family-cut.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/linux-declared-family-cut.test.ts",
         "tests/baselines/family-match-linux.json",
         "tests/family-match-baseline.test.ts",
         "tools/family-match-baseline.ts",
         "tools/family-match-conformance-linux.ts",
         "tools/font-conformance-stacks.linux.json",
-        "tools/linux-glyph-extractor/src/main.cpp"
+        "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp"
       ],
       "file": "110-family-match-conformance-linux.md"
     },
@@ -1776,8 +1788,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/windows-fidelity.yml",
-        "src/render/font-resolution.ts",
-        "src/render/win32-family-suffix.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/win32-family-suffix.ts",
         "tests/baselines/family-match-windows.json",
         "tools/family-match-baseline.ts",
         "tools/family-match-conformance-win32.ts"
@@ -1807,13 +1819,13 @@
       "owners": ["text-fonts"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/cluster-fallback-bidi-boundary.test.ts",
-        "src/render/cluster-fallback.test.ts",
-        "src/render/cluster-fallback.ts",
-        "src/render/font-resolution.ts",
-        "src/render/glyph-path-run-split.test.ts",
-        "src/render/skia-last-resort-routing.test.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/cluster-fallback-bidi-boundary.test.ts",
+        "packages/text-engine/src/render/cluster-fallback.test.ts",
+        "packages/text-engine/src/render/cluster-fallback.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-path-run-split.test.ts",
+        "packages/text-engine/src/render/skia-last-resort-routing.test.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "tests/features.ts",
         "tools/cluster-conformance.ts"
       ],
@@ -1841,7 +1853,11 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release", "product-tooling"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/harfbuzz-shaper.ts", "tools/exact-shaping-oracle.ts", "tools/shape-agreement-samples.ts"],
+      "code": [
+        "packages/text-engine/src/render/harfbuzz-shaper.ts",
+        "tools/exact-shaping-oracle.ts",
+        "tools/shape-agreement-samples.ts"
+      ],
       "file": "114-exact-shaping-oracle.md"
     },
     {
@@ -1866,7 +1882,7 @@
       "status": "current",
       "owners": ["text-fonts", "product-tooling"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"],
+      "code": ["packages/text-engine/src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"],
       "file": "115-production-harfbuzz-shaping.md"
     },
     {
@@ -1961,10 +1977,10 @@
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/character-fallback-document-cache.test.ts",
-        "src/render/font-resolution-cache-reset.test.ts",
-        "src/render/font-resolution.ts",
-        "src/render/glyph-helper.ts"
+        "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
+        "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-helper.ts"
       ],
       "file": "121-font-cache-parity.md"
     },
@@ -1975,7 +1991,10 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/font-resolution.ts", "src/render/webfont-declaration-order.test.ts"],
+      "code": [
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/webfont-declaration-order.test.ts"
+      ],
       "file": "122-declared-family-segmented-face-parity.md"
     },
     {
@@ -2005,7 +2024,7 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["windows"],
-      "code": ["src/render/win-font-fallback.ts"],
+      "code": ["packages/text-engine/src/render/win-font-fallback.ts"],
       "file": "125-windows-unicode-font-route-trace.md"
     },
     {
@@ -2046,11 +2065,11 @@
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/harfbuzz-shaper.ts",
-        "src/render/icu-helper.ts",
-        "src/render/unicode-classification.ts",
+        "packages/text-engine/src/render/harfbuzz-shaper.ts",
+        "packages/text-engine/src/render/icu-helper.ts",
+        "packages/text-engine/src/render/unicode-classification.ts",
         "tools/icu-conformance.ts",
-        "tools/icu-helper/src/main.cpp"
+        "packages/text-engine/tools/icu-helper/src/main.cpp"
       ],
       "file": "128-chromium-unicode-decision-audit.md"
     },
@@ -2224,7 +2243,7 @@
       "owners": ["text-fonts", "platform-release"],
       "platforms": [],
       "code": [
-        "src/render/text-run-provenance.ts",
+        "packages/text-engine/src/render/text-run-provenance.ts",
         "tools/renderer-font-route-oracle.ts",
         "tools/parity-program.json",
         "tools/semantic-coverage.json"
@@ -2239,10 +2258,10 @@
       "owners": ["text-fonts"],
       "platforms": ["macos"],
       "code": [
-        "src/render/cluster-fallback.ts",
-        "src/render/text-run-provenance.ts",
-        "src/render/text-run-provenance.test.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/cluster-fallback.ts",
+        "packages/text-engine/src/render/text-run-provenance.ts",
+        "packages/text-engine/src/render/text-run-provenance.test.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "tools/renderer-font-route-oracle.ts"
       ],
       "file": "143-production-text-run-provenance.md"
@@ -2258,7 +2277,7 @@
         "src/capture/script/dotted-circle-detect.ts",
         "src/capture/script/dotted-circle-detect.test.ts",
         "src/capture/script/walker/text-segments.ts",
-        "src/render/text-to-path.ts"
+        "packages/text-engine/src/render/text-to-path.ts"
       ],
       "file": "144-dotted-circle-shaping-evidence.md"
     },
@@ -2280,8 +2299,8 @@
       "owners": ["platform-release"],
       "platforms": ["macos"],
       "code": [
-        "src/render/character-fallback-document-cache.test.ts",
-        "src/render/font-resolution.ts",
+        "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
         "tools/ideograph-fallback-cache-oracle.ts"
       ],
       "file": "146-macos-ideograph-fallback-cache-audit.md"
@@ -2323,7 +2342,7 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos"],
-      "code": ["src/render/axis-location.test.ts", "tests/font-size-spaces.e2e.test.ts"],
+      "code": ["packages/text-engine/src/render/axis-location.test.ts", "tests/font-size-spaces.e2e.test.ts"],
       "file": "150-font-size-space-oracle.md"
     },
     {
@@ -2357,7 +2376,11 @@
       "status": "current",
       "owners": ["text-fonts"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/form-controls.ts", "src/render/text-to-path.test.ts", "src/render/text.ts"],
+      "code": [
+        "src/render/form-controls.ts",
+        "packages/text-engine/src/render/text-to-path.test.ts",
+        "src/render/text.ts"
+      ],
       "file": "152-source-owned-text-failure-boundary.md"
     },
     {
@@ -2377,7 +2400,7 @@
       "status": "current",
       "owners": ["text-fonts"],
       "platforms": ["macos", "windows"],
-      "code": ["src/render/glyph-helper.ts"],
+      "code": ["packages/text-engine/src/render/glyph-helper.ts"],
       "file": "154-mathml-helper-ink-evidence.md"
     },
     {
@@ -3019,8 +3042,8 @@
         ".github/workflows/generic-family-preference-parity.yml",
         "src/capture/generic-font-probe.ts",
         "src/capture/generic-font-probe.test.ts",
-        "src/render/synchronous-scope.ts",
-        "src/render/synchronous-scope.test.ts"
+        "packages/text-engine/src/render/synchronous-scope.ts",
+        "packages/text-engine/src/render/synchronous-scope.test.ts"
       ],
       "file": "198-live-generic-family-preference-parity.md"
     },
@@ -3135,7 +3158,10 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/skia-last-resort-routing.test.ts", "tools/generic-family-semantics-audit.ts"],
+      "code": [
+        "packages/text-engine/src/render/skia-last-resort-routing.test.ts",
+        "tools/generic-family-semantics-audit.ts"
+      ],
       "file": "206-generic-family-semantic-ownership.md"
     },
     {
@@ -3169,7 +3195,7 @@
       "status": "current",
       "owners": ["layout"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"],
+      "code": ["packages/text-engine/src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"],
       "file": "209-transformed-flex-descendant-investigation.md"
     },
     {
@@ -3189,7 +3215,7 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": [".github/workflows/system-ui-preference-route.yml", "src/render/glyph-helper.ts"],
+      "code": [".github/workflows/system-ui-preference-route.yml", "packages/text-engine/src/render/glyph-helper.ts"],
       "file": "211-platform-system-ui-preference-route.md"
     },
     {
@@ -3201,7 +3227,7 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/generic-font-probe.ts",
-        "src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
         "tests/generic-profile-target-oracle.e2e.test.ts",
         "tools/generic-profile-target-oracle.ts",
         "tools/system-ui-preference-route-oracle.ts"
@@ -3217,7 +3243,7 @@
       "platforms": [],
       "code": [
         "src/font-family-stack.test.ts",
-        "src/font-family-stack.ts",
+        "packages/text-engine/src/font-family-stack.ts",
         "tests/font-family-stack-capture.e2e.test.ts"
       ],
       "file": "213-structured-font-family-stack.md"
@@ -3231,9 +3257,9 @@
       "platforms": ["macos", "windows"],
       "code": [
         ".github/workflows/mixed-bidi-logical-conformance.yml",
-        "src/render/mixed-bidi-logical.test.ts",
-        "src/render/script-segmentation.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/mixed-bidi-logical.test.ts",
+        "packages/text-engine/src/render/script-segmentation.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "tests/multilingual-message-shaping.e2e.test.ts"
       ],
       "file": "214-mixed-script-bidi-logical-geometry.md"
@@ -3386,7 +3412,7 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["macos"],
-      "code": ["src/render/generic-script-families.test.ts"],
+      "code": ["packages/text-engine/src/render/generic-script-families.test.ts"],
       "file": "224-hidden-macos-hebrew-generic-face.md"
     },
     {
@@ -3574,7 +3600,7 @@
       "code": [
         "src/capture/debug-bundle.ts",
         "src/capture/index.ts",
-        "src/index.ts",
+        "packages/text-engine/src/index.ts",
         "tests/capture-debug-api.e2e.test.ts"
       ],
       "file": "238-programmatic-debug-capture-bundles.md"
@@ -3874,7 +3900,7 @@
         "src/terminal/incremental.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/real-text-layer.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "src/render/text.ts",
         "src/render/pseudo-fragments.ts",
         "src/render/real-text-layer.test.ts",
@@ -3894,15 +3920,15 @@
       "owners": ["text-fonts", "rendering"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/font-resolution.ts",
-        "src/render/text-to-path.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "src/render/text.ts",
         "src/render/vertical-text.ts",
         "src/render/element-tree-to-svg.ts",
         "src/cli/capture.ts",
         "src/cli/animate-command.ts",
         "src/cli/index.ts",
-        "src/render/system-font-mode.test.ts"
+        "packages/text-engine/src/render/system-font-mode.test.ts"
       ],
       "file": "261-system-font-render-text-mode.md"
     },
@@ -3914,11 +3940,12 @@
       "owners": ["text-fonts", "rendering"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
-        "src/render/text-engine.ts",
-        "src/render/text-engine.test.ts",
+        "packages/text-engine/package.json",
+        "packages/text-engine/src/render/text-engine.ts",
+        "packages/text-engine/src/render/text-engine.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
         "src/render/text-engine-boundary.test.ts",
-        "src/render/font-resolution.ts",
-        "src/render/text-to-path.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "file": "262-text-engine-session-boundary.md"
@@ -4055,16 +4082,16 @@
       "code": [
         "src/capture/script/index.ts",
         "src/capture/script/walker/text-segments.ts",
-        "src/render/font-resolution.ts",
-        "src/render/glyph-helper-font.ts",
-        "src/render/glyph-helper-outline.ts",
-        "src/render/glyph-helper-protocol.ts",
-        "src/render/glyph-helper-transport.ts",
-        "src/render/glyph-helper.ts",
-        "src/render/linux-target-strike.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/glyph-helper-font.ts",
+        "packages/text-engine/src/render/glyph-helper-outline.ts",
+        "packages/text-engine/src/render/glyph-helper-protocol.ts",
+        "packages/text-engine/src/render/glyph-helper-transport.ts",
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/linux-target-strike.ts",
         "src/render/real-text-layer.ts",
-        "src/render/text-to-path.ts",
-        "src/render/text-engine.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/text-engine.ts",
         "src/render/text.ts",
         "tests/feature-coverage.ts"
       ],

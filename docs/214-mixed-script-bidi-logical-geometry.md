@@ -9,9 +9,9 @@ tickets: ["DM-2524", "DM-2619"]
 code:
   [
     ".github/workflows/mixed-bidi-logical-conformance.yml",
-    "src/render/mixed-bidi-logical.test.ts",
-    "src/render/script-segmentation.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/mixed-bidi-logical.test.ts",
+    "packages/text-engine/src/render/script-segmentation.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "tests/multilingual-message-shaping.e2e.test.ts",
   ]
 aliases: ["docs/214-mixed-script-bidi-logical-geometry.md", "doc-214"]
@@ -59,7 +59,7 @@ as the fragment origin. DM-2619 made that rule common to paths and embedded-font
 emission; previously the embedded PUA stream re-anchored every Arabic cluster
 at a per-character `Range` rectangle and visibly broke the joins. The earlier
 DM-2524 stage was wrong:
-`src/render/script-segmentation.ts` always asked `bidi-js` for an LTR paragraph
+`packages/text-engine/src/render/script-segmentation.ts` always asked `bidi-js` for an LTR paragraph
 unless CSS selected an override. That preserved direction parity for many
 strong-script runs but lost exact levels and neutral ownership under an RTL
 block, and it treated `plaintext` as LTR rather than first-strong auto.
@@ -109,7 +109,7 @@ Three hostile mutations are mandatory and fail the command if inert:
 - **wrong origin:** substitute the logical first character's x for the minimum
   physical RTL fragment x, shifting the emitted run.
 
-`src/render/mixed-bidi-logical.test.ts` separately pins the complete expected
+`packages/text-engine/src/render/mixed-bidi-logical.test.ts` separately pins the complete expected
 level arrays and item tuples for all four rows. It also pins the `plaintext`
 first-strong discriminator (`"אב L"`: ordinary LTR levels `1,1,0,0`, plaintext
 levels `1,1,1,2`). This prevents the live oracle from grading a level algorithm

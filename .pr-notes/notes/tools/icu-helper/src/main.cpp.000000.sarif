@@ -32,7 +32,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/icu-helper/src/main.cpp"
+                  "uri": "packages/text-engine/tools/icu-helper/src/main.cpp"
                 },
                 "region": {
                   "startLine": 192,

@@ -8,7 +8,7 @@ const dictionarySource = path.join(
   "external/chromium/third_party/blink/renderer/platform/text/mathml_operator_dictionary.cc",
 );
 const characterSource = path.join(root, "external/chromium/third_party/blink/renderer/platform/text/character.cc");
-const output = path.join(root, "src/generated/mathml-operator-dictionary.ts");
+const output = path.join(root, "packages/text-engine/src/generated/mathml-operator-dictionary.ts");
 
 const dictionary = fs.readFileSync(dictionarySource, "utf8");
 const character = fs.readFileSync(characterSource, "utf8");

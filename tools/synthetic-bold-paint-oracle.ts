@@ -249,9 +249,9 @@ export function runSyntheticBoldPaintOracle(): {
   }
 
   const sourceFiles = [
-    fileURLToPath(new URL("../src/render/embolden-outline.ts", import.meta.url)),
-    fileURLToPath(new URL("../src/render/embedded-font-builder.ts", import.meta.url)),
-    fileURLToPath(new URL("../src/render/text-to-path.ts", import.meta.url)),
+    fileURLToPath(new URL("../packages/text-engine/src/render/embolden-outline.ts", import.meta.url)),
+    fileURLToPath(new URL("../packages/text-engine/src/render/embedded-font-builder.ts", import.meta.url)),
+    fileURLToPath(new URL("../packages/text-engine/src/render/text-to-path.ts", import.meta.url)),
   ];
   const retiredSymbol = /(?:0\.73|emboldenStrengthForFont|emboldenPathCommands|emboldenStrengthFU)/;
   const retiredProductionSymbolsGone = sourceFiles.every((file) => !retiredSymbol.test(readFileSync(file, "utf8")));

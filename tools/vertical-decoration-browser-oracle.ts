@@ -150,7 +150,11 @@ export async function runVerticalDecorationBrowserOracle(): Promise<VerticalDeco
       const page = await context.newPage();
       try {
         await page.setContent(
-          html(readFileSync("assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf").toString("base64")),
+          html(
+            readFileSync("packages/text-engine/assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf").toString(
+              "base64",
+            ),
+          ),
           { waitUntil: "load" },
         );
         await page.evaluate(() => document.fonts.ready);

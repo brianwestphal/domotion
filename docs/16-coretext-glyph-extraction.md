@@ -34,14 +34,14 @@ code:
   [
     "scripts/probe-coretext-glyphs.mjs",
     "src/render/",
-    "src/render/font-resolution.ts",
-    "src/render/glyph-helper.test.ts",
-    "src/render/glyph-helper.ts",
-    "src/render/helper-acquire.ts",
-    "src/render/text-to-path.ts",
-    "src/render/unicode-classification.ts",
-    "tools/macos-glyph-extractor/",
-    "tools/macos-glyph-extractor/build.sh",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/glyph-helper.test.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/helper-acquire.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
+    "packages/text-engine/src/render/unicode-classification.ts",
+    "packages/text-engine/tools/macos-glyph-extractor/",
+    "packages/text-engine/tools/macos-glyph-extractor/build.sh",
   ]
 aliases: ["docs/16-coretext-glyph-extraction.md", "doc-16"]
 ---
@@ -52,7 +52,7 @@ Requirements for extracting vector glyph outlines via the host platform's native
 
 > **Cross-platform note**: This doc describes a per-platform native-extractor strategy that is the preferred answer on every supported platform. macOS lands first (DM-385) because PingFang is the immediate forcing function (DM-382 / DM-364). Linux + Windows analogues are tracked separately. Bundling OFL fonts (DM-384) is a fallback only for platforms that ship before their native extractor lands.
 >
-> **Naming note (post-DM-888)**: this is the origin doc, so it uses the historical "coretext" naming throughout. In the shipped code the module is `src/render/glyph-helper.ts`, the routing flag literal is `extractor: "native"` (not `"coretext"`), and the dispatch is documented in `docs/49-glyph-helper-dispatch.md`. Read the prose here as the original design; treat doc 49 as the current contract.
+> **Naming note (post-DM-888)**: this is the origin doc, so it uses the historical "coretext" naming throughout. In the shipped code the module is `packages/text-engine/src/render/glyph-helper.ts`, the routing flag literal is `extractor: "native"` (not `"coretext"`), and the dispatch is documented in `docs/49-glyph-helper-dispatch.md`. Read the prose here as the original design; treat doc 49 as the current contract.
 
 ## Why now
 
@@ -101,8 +101,8 @@ These are the answers to the open-questions block on DM-385 — locked in, the r
 ### Helper binary
 
 - **Name**: `domotion-glyph-paths`.
-- **Source location**: `tools/macos-glyph-extractor/` (Swift Package). Not committed as a binary.
-- **Build**: `tools/macos-glyph-extractor/build.sh` produces a universal arm64 + x86_64 binary using `swift build -c release` per arch and `lipo -create` to fuse them.
+- **Source location**: `packages/text-engine/tools/macos-glyph-extractor/` (Swift Package). Not committed as a binary.
+- **Build**: `packages/text-engine/tools/macos-glyph-extractor/build.sh` produces a universal arm64 + x86_64 binary using `swift build -c release` per arch and `lipo -create` to fuse them.
 - **Codesigning**: signed (hardened runtime) and notarized in the GitHub Actions release workflow with the project's Apple Developer ID.
 - **Distribution**: published as a GitHub release asset (e.g. `domotion-glyph-paths-darwin-universal-vX.Y.Z`). The Domotion package fetches the binary into the user-cache directory (`~/Library/Caches/domotion/<version>/bin/`) on first need and reuses the cached copy thereafter.
 - **Size**: ~few hundred KB; downloaded once per Domotion version, not per project.
@@ -142,7 +142,7 @@ The helper accepts a single request as JSON, either inline on stdin or via `--in
 
 - **Isolated-mark bearing compensation is neutralized to match HarfBuzz (DM-1111).** `CTLine` shapes a LONE combining mark — one captured alone with no base, as in the per-Unicode-block mark fixtures (Combining Diacritical Marks for Symbols U+20D0–20FF, …-Extended U+1AB0, …-Supplement U+1DC0, Combining Half Marks U+FE20, Vedic Extensions U+1CD0, Tai Tham, …) — by giving the zero-advance mark a positive `dx` (≈ −leftSideBearing) that cancels the glyph's native negative LSB, so the mark paints AT the pen as if it were spacing. Blink's HarfBuzz applies NO such offset for a baseless mark: it paints the outline at its native bearing, so the ink extends LEFT of the pen (verified against Chrome's painted output — the ink lands ~|LSB| px left of where CoreText would place it). The `layout()` wrapper detects a shaped run with NO advancing base glyph (`hasAdvancingBase` — keyed off the shaped glyphs, not the source text, so a CoreText-inserted ◌ counts as a base and the marks attached to it keep their real GPOS `dx`) and zeroes `dx` for its zero-advance marks, reproducing the HarfBuzz/Chrome position. Empirically: U+20D0 0.52 % → 0.07 %, Tai Tham 0.51 % → 0.08 %, with U+1AB0 / U+1DC0 / U+FE20 reaching PASS and the ◌-anchored Brahmic blocks (Javanese, tulu-tigalari) byte-identical.
 
-- **Synthetic dotted circle for UNCOVERED orphaned marks (DM-1026).** The `shape` path above only inserts a dotted circle for marks the font COVERS. For the "no font" Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) the marks are uncovered — they stay on the `.notdef` path — yet Chrome's HarfBuzz STILL inserts a U+25CC before each orphaned mark and paints it from a fallback font, so a vowel-sign cell paints "◌ + .notdef tofu" (~51 px), not a bare tofu. `insertSyntheticDottedCircles` (in `text-to-path.ts`, run once at the `renderTextAsPath` funnel before run-splitting) reproduces this: it prepends a real U+25CC to each combining mark that is (a) Unicode category M, (b) in a complex-shaper block (`usesComplexShaperDottedCircle`, in `src/render/unicode-classification.ts` — a positive list of Brahmic / Indic / SE-Asian ranges that DELIBERATELY EXCLUDES the generic combining-mark blocks 0300–036F / 1AB0 / 1DC0 / 20D0, which the default shaper paints with NO dotted circle), (c) uncovered by the whole font chain, and (d) orphaned (no base in its cluster — a base letter or an already-inserted ◌ satisfies the cluster, so consecutive orphaned marks share one ◌). The ◌ itself is covered, so it routes and renders through the normal pipeline; only the INSERTION is synthetic. Its advance is read from the PRIMARY font when that covers U+25CC (Chrome does the same — Arial Unicode MS gives ◌ a 0.6 em advance, not the fallback chain's full-width 1 em), so the displaced tofu lands where Chrome paints it. Empirically: Soyombo 1.20 % → 0.22 %, Zanabazar 0.80 % → 0 %, Dogra 0.52 % → 0.04 %, with the covered Indic blocks (Devanagari, Tibetan, Khmer, Balinese) and the generic combining-mark blocks byte-identical (gates (b)/(c) keep them untouched).
+- **Synthetic dotted circle for UNCOVERED orphaned marks (DM-1026).** The `shape` path above only inserts a dotted circle for marks the font COVERS. For the "no font" Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) the marks are uncovered — they stay on the `.notdef` path — yet Chrome's HarfBuzz STILL inserts a U+25CC before each orphaned mark and paints it from a fallback font, so a vowel-sign cell paints "◌ + .notdef tofu" (~51 px), not a bare tofu. `insertSyntheticDottedCircles` (in `text-to-path.ts`, run once at the `renderTextAsPath` funnel before run-splitting) reproduces this: it prepends a real U+25CC to each combining mark that is (a) Unicode category M, (b) in a complex-shaper block (`usesComplexShaperDottedCircle`, in `packages/text-engine/src/render/unicode-classification.ts` — a positive list of Brahmic / Indic / SE-Asian ranges that DELIBERATELY EXCLUDES the generic combining-mark blocks 0300–036F / 1AB0 / 1DC0 / 20D0, which the default shaper paints with NO dotted circle), (c) uncovered by the whole font chain, and (d) orphaned (no base in its cluster — a base letter or an already-inserted ◌ satisfies the cluster, so consecutive orphaned marks share one ◌). The ◌ itself is covered, so it routes and renders through the normal pipeline; only the INSERTION is synthetic. Its advance is read from the PRIMARY font when that covers U+25CC (Chrome does the same — Arial Unicode MS gives ◌ a 0.6 em advance, not the fallback chain's full-width 1 em), so the displaced tofu lands where Chrome paints it. Empirically: Soyombo 1.20 % → 0.22 %, Zanabazar 0.80 % → 0 %, Dogra 0.52 % → 0.04 %, with the covered Indic blocks (Devanagari, Tibetan, Khmer, Balinese) and the generic combining-mark blocks byte-identical (gates (b)/(c) keep them untouched).
 
   With default shaped-cluster fallback, uncovered clusters are now left in
   their source form: the production HarfBuzz pass sees the broken syllable and
@@ -172,7 +172,7 @@ The helper accepts a single request as JSON, either inline on stdin or via `--in
   This is sequence-specific: ordinary ZWJ text, based Tamil marks, and
   analogous unconfirmed script pairs retain the existing scalar behavior.
 
-  **Pre-base (left) matra reordering (DM-1109).** The ◌ is prepended for above / below / post-base marks, but a PRE-BASE (left) VOWEL sign reorders ahead of its base under the Universal Shaping Engine, so Chrome paints "mark ◌" (☐○), not "◌ mark". `insertSyntheticDottedCircles` emits the ◌ AFTER such a matra (shifted right by the mark tofu's own `.notdef` advance — ~1 em — since the matra now leads). The qualifying set (`isLeftReorderingMatra`, in `src/render/unicode-classification.ts`) is the INTERSECTION of Unicode `IndicPositionalCategory` Left-placement (Left / Top_And_Left / Bottom_And_Left / Top_And_Bottom_And_Left / Left_And_Right / Top_And_Left_And_Right) with `IndicSyllabicCategory = Vowel_Dependent`. The Vowel_Dependent filter is load-bearing: InPC=Left MEDIAL CONSONANTS (Gurung Khema U+1612A/B medial ya/va, Myanmar U+103C, Ahom U+1171E) sit left but do NOT pre-base-reorder — Chrome paints them post-base — so they keep the leading ◌. Verified against Chrome's painted output (Tulu-Tigalari U+113C5 / C7 / C8 paint tofu-then-circle, U+113C9 circle-then-tofu). Empirically: tulu-tigalari 0.21 % → 0.04 %, dives-akuru 0.20 % → 0.07 %, with sharada / dogra / nandinagari / makasar reaching PASS and the medial-consonant blocks (gurung-khema, ahom) unchanged. Only affects the no-font tofu path — real covered text carries captured xOffsets that already encode Chrome's reordering.
+  **Pre-base (left) matra reordering (DM-1109).** The ◌ is prepended for above / below / post-base marks, but a PRE-BASE (left) VOWEL sign reorders ahead of its base under the Universal Shaping Engine, so Chrome paints "mark ◌" (☐○), not "◌ mark". `insertSyntheticDottedCircles` emits the ◌ AFTER such a matra (shifted right by the mark tofu's own `.notdef` advance — ~1 em — since the matra now leads). The qualifying set (`isLeftReorderingMatra`, in `packages/text-engine/src/render/unicode-classification.ts`) is the INTERSECTION of Unicode `IndicPositionalCategory` Left-placement (Left / Top_And_Left / Bottom_And_Left / Top_And_Bottom_And_Left / Left_And_Right / Top_And_Left_And_Right) with `IndicSyllabicCategory = Vowel_Dependent`. The Vowel_Dependent filter is load-bearing: InPC=Left MEDIAL CONSONANTS (Gurung Khema U+1612A/B medial ya/va, Myanmar U+103C, Ahom U+1171E) sit left but do NOT pre-base-reorder — Chrome paints them post-base — so they keep the leading ◌. Verified against Chrome's painted output (Tulu-Tigalari U+113C5 / C7 / C8 paint tofu-then-circle, U+113C9 circle-then-tofu). Empirically: tulu-tigalari 0.21 % → 0.04 %, dives-akuru 0.20 % → 0.07 %, with sharada / dogra / nandinagari / makasar reaching PASS and the medial-consonant blocks (gurung-khema, ahom) unchanged. Only affects the no-font tofu path — real covered text carries captured xOffsets that already encode Chrome's reordering.
 
   **The inserted ◌ is positioned from the SOURCE text's code units, not the glyph's (DM-1804 and siblings).** Both emitters walk the shaped glyph stream with a cursor into the source string, so that each glyph can be anchored at its cluster's captured `xOffset`. The cursor advances by the cluster's UTF-16 span, and that span must be measured against the SOURCE TEXT — `sourceClusterSpan` in `text-to-path.ts` — never against the glyph's own `codePoints`. fontkit memoizes `Glyph` objects by glyph id, so a glyph reached from more than one source codepoint reports the `codePoints` of whichever codepoint FIRST materialized it. `.notdef` (id 0) is the acute case: every codepoint no font in the chain covers shares that single `Glyph`, so once any BMP codepoint has missed, a later ASTRAL miss still reports the BMP one. A span derived from it counts 1 code unit where the surrogate pair consumed 2; the cursor lands mid-pair and every later glyph in the run reads the wrong captured x. The visible symptom was the synthetic ◌ collapsing exactly on top of an orphaned astral mark's tofu instead of sitting beside it — the whole cell one glyph-width narrow. It is ORDER-DEPENDENT, so it reproduced only in a multi-fixture sweep: rendered on its own, a fixture's first `.notdef` miss IS the astral one, and the stale value happens to be right. That is why the SMP no-font blocks (Sogdian, Garay, Old Uyghur, Tulu-Tigalari, Dives Akuru, Nandinagari, Kawi, Dogra, Makasar) passed a single-fixture run and failed the sweep. The glyph still supplies HOW MANY source codepoints it consumed (1 for a plain glyph, 2+ for a ligature); only their code-unit widths come from the text, which is the part a shared `Glyph` cannot know.
 
@@ -250,14 +250,14 @@ The **`shape` query is deliberately excluded** from this: a run advance from `CT
 
 ### Distribution and acquisition
 
-- The Swift source lives in repo at `tools/macos-glyph-extractor/`.
+- The Swift source lives in repo at `packages/text-engine/tools/macos-glyph-extractor/`.
 - Release workflow (GitHub Actions) builds the universal binary, signs + notarizes it, and uploads it as a release asset under a stable URL pattern (e.g. `https://github.com/<owner>/domotion/releases/download/v<X.Y.Z>/domotion-glyph-paths-darwin-universal`).
 - Domotion locates the helper at `~/Library/Caches/domotion/<package-version>/bin/domotion-glyph-paths`. If absent on first need, it downloads the release asset, verifies its signature (`codesign --verify --strict`), `chmod +x`, and caches it.
 - Download is keyed on Domotion's published `version` from `package.json`, so a `npm install` of a newer Domotion triggers a fresh fetch. Older versions reuse their cache.
 - `DOMOTION_DISABLE_HELPER=1` skips the download and forces the fontkit fallback path — useful for sandboxed CI. (`DOMOTION_HELPER_PATH` overrides the binary location with a local build.)
-- A README section in `tools/macos-glyph-extractor/` documents how to rebuild from source for contributors.
+- A README section in `packages/text-engine/tools/macos-glyph-extractor/` documents how to rebuild from source for contributors.
 
-## Domotion integration (`src/render/text-to-path.ts`)
+## Domotion integration (`packages/text-engine/src/render/text-to-path.ts`)
 
 Render-side only — no capture changes.
 
@@ -287,7 +287,7 @@ For every glyph extraction, the renderer:
 
 ### Glyph wrapper
 
-The fontkit `Font` API the renderer consumes (`glyphForCodePoint`, `layout`, `getGlyph`, `unitsPerEm`, advance widths, decoration metrics) is exposed by the helper-backed `GlyphHelperFontInstance` (in `src/render/glyph-helper.ts`, created by `createGlyphHelperFont`). The whole-font substitution decision is made at the **font-instance** level, not per glyph: `getFontInstance` probes fontkit's loaded font with `fontHasOutlineTable` (in `src/render/font-resolution.ts`), which checks `font.directory.tables` for a `glyf` / `CFF ` / `CFF2` outline table. When a helper-eligible font (`extractor: "native"`) has no such table — PingFang, whose outlines live in the Apple-private `hvgl` — the entire instance is replaced with a `GlyphHelperFontInstance` that:
+The fontkit `Font` API the renderer consumes (`glyphForCodePoint`, `layout`, `getGlyph`, `unitsPerEm`, advance widths, decoration metrics) is exposed by the helper-backed `GlyphHelperFontInstance` (in `packages/text-engine/src/render/glyph-helper.ts`, created by `createGlyphHelperFont`). The whole-font substitution decision is made at the **font-instance** level, not per glyph: `getFontInstance` probes fontkit's loaded font with `fontHasOutlineTable` (in `packages/text-engine/src/render/font-resolution.ts`), which checks `font.directory.tables` for a `glyf` / `CFF ` / `CFF2` outline table. When a helper-eligible font (`extractor: "native"`) has no such table — PingFang, whose outlines live in the Apple-private `hvgl` — the entire instance is replaced with a `GlyphHelperFontInstance` that:
 
 - Reads `unitsPerEm`, decoration metrics (`post` / `OS/2`), advance widths, and shaping (`layout`, via the CoreText `shape` query) straight from the native helper.
 - Supplies every glyph outline (`glyphForCodePoint`, `getGlyph`) from the helper, batched per render session.
@@ -305,7 +305,7 @@ A separate, finer tier (DM-891) keeps a _fontkit_ instance — for a font fontki
 The helper is consulted only when:
 
 - `process.platform` has a helper binary for it — `darwin`, `linux`, or `win32`. Resolution is platform-aware as of DM-881: each platform maps to its in-tree `tools/<platform>-glyph-extractor/` binary, and `DOMOTION_HELPER_PATH` overrides on every platform. (Before DM-881 the gate was hardcoded to `darwin`, and the in-tree path was even mis-resolved after the `src/render/` reorg, so only an explicit `DOMOTION_HELPER_PATH` reached a binary.)
-- A binary exists at the resolved path (an in-tree dev build, the `DOMOTION_HELPER_PATH` target, or — for published consumers — the on-demand download into the user cache, implemented in DM-886 / `src/render/helper-acquire.ts`; see docs/50).
+- A binary exists at the resolved path (an in-tree dev build, the `DOMOTION_HELPER_PATH` target, or — for published consumers — the on-demand download into the user cache, implemented in DM-886 / `packages/text-engine/src/render/helper-acquire.ts`; see docs/50).
 - `DOMOTION_DISABLE_HELPER` is not set.
 
 If any guard fails, the renderer treats every fontkit-empty path as **missing** (renders the .notdef tofu) — no behavior change from today's pre-DM-385 baseline.
@@ -317,7 +317,7 @@ If any guard fails, the renderer treats every fontkit-empty path as **missing** 
 ## Validation
 
 - `02-text-ruby` (DM-364 / DM-382): expected to drop the residual ~0.43 % diff on the unmarked-Han route once `pingfang-sc` is wired through CoreText.
-- Helvetica `H` outline parity check: extract via both fontkit and the helper, compare path commands within a numeric tolerance to confirm the y-flip and curve mapping are correct. This lives in `src/render/glyph-helper.test.ts` (the current helper/extractor tests), not a standalone `coretext-extractor` file.
+- Helvetica `H` outline parity check: extract via both fontkit and the helper, compare path commands within a numeric tolerance to confirm the y-flip and curve mapping are correct. This lives in `packages/text-engine/src/render/glyph-helper.test.ts` (the current helper/extractor tests), not a standalone `coretext-extractor` file.
 - New ad-hoc tool: `scripts/probe-coretext-glyphs.mjs` — invokes the helper with a small input, prints per-glyph summaries for human inspection.
 - Per-platform CI: macOS GitHub runner builds the helper on a clean checkout (validates the build script) and runs `npm run demos:test:html` to exercise the routing.
 
@@ -342,8 +342,8 @@ The IPC protocol is identical across platforms so `text-to-path.ts` only needs o
 
 ## Follow-ups filed
 
-- **DM-387** — implement the Swift helper (`tools/macos-glyph-extractor/`).
-- **DM-388** — wire probe-then-fallback into `src/render/text-to-path.ts`.
+- **DM-387** — implement the Swift helper (`packages/text-engine/tools/macos-glyph-extractor/`).
+- **DM-388** — wire probe-then-fallback into `packages/text-engine/src/render/text-to-path.ts`.
 - **DM-389** — Linux native glyph extractor (Pango/Cairo).
 - **DM-390** — Windows native glyph extractor (DirectWrite).
 - **DM-391** — codesign / notarize the macOS helper binary (rolled into DM-387's release workflow).

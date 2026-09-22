@@ -3,10 +3,10 @@ name: Browser HarfBuzz substitution streams
 on:
   pull_request:
     paths:
-      - "src/render/font-resolution.ts"
-      - "src/render/harfbuzz-shaper.ts"
-      - "src/render/text-run-provenance.ts"
-      - "src/render/text-to-path.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/harfbuzz-shaper.ts"
+      - "packages/text-engine/src/render/text-run-provenance.ts"
+      - "packages/text-engine/src/render/text-to-path.ts"
       - "tools/browser-harfbuzz-substitution-oracle.ts"
       - "tools/exact-shaping-control-fixtures.ts"
       - "tests/browser-harfbuzz-substitution-oracle.test.ts"
@@ -19,10 +19,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/render/font-resolution.ts"
-      - "src/render/harfbuzz-shaper.ts"
-      - "src/render/text-run-provenance.ts"
-      - "src/render/text-to-path.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/harfbuzz-shaper.ts"
+      - "packages/text-engine/src/render/text-run-provenance.ts"
+      - "packages/text-engine/src/render/text-to-path.ts"
       - "tools/browser-harfbuzz-substitution-oracle.ts"
       - "tools/exact-shaping-control-fixtures.ts"
       - "tests/browser-harfbuzz-substitution-oracle.test.ts"

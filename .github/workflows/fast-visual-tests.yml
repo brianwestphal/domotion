@@ -38,8 +38,8 @@ jobs:
       - run: npx playwright install chromium
       - name: Build the CoreText helper
         run: |
-          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
-          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths tools/macos-glyph-extractor/domotion-glyph-paths
+          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
+          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
       - name: Record environment before rendering
         run: |
           mkdir -p tests/output
@@ -83,7 +83,7 @@ jobs:
           apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
       - name: Build the fontconfig helper
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Record environment before rendering
         run: |
           mkdir -p tests/output
@@ -123,7 +123,7 @@ jobs:
       - run: npx playwright install chromium
       - name: Build the DirectWrite helper
         shell: pwsh
-        run: ./tools/win32-glyph-extractor/build.ps1
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Record environment before rendering
         shell: bash
         run: |

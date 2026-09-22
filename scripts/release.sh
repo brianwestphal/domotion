@@ -335,15 +335,17 @@ step_update_version() {
   local version
   version=$(get_state "version")
   info "Updating version to ${BOLD}v${version}${RESET}..."
-  npm version "$version" --no-git-tag-version --allow-same-version
-  success "package.json updated"
+  npm version "$version" --no-git-tag-version --allow-same-version --workspaces --include-workspace-root
+  npm pkg set "dependencies.@domotion/text-engine=$version"
+  npm install --package-lock-only --ignore-scripts
+  success "root and private-workspace package versions updated"
 }
 
 step_git_commit() {
   local version
   version=$(get_state "version")
   info "Creating git commit..."
-  git add package.json package-lock.json CHANGELOG.md
+  git add package.json packages/text-engine/package.json package-lock.json CHANGELOG.md
   git commit -m "release: v${version}"
   success "Created release commit"
 }

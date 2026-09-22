@@ -3,13 +3,13 @@ name: Emoji presentation source-priority gate
 on:
   pull_request:
     paths:
-      - "src/render/cluster-fallback.ts"
-      - "src/render/script-segmentation.ts"
-      - "src/render/emoji-presentation-priority.ts"
-      - "src/render/emoji-presentation-priority.test.ts"
-      - "src/render/font-resolution.ts"
-      - "src/render/text-to-path.ts"
-      - "src/capture/script/emoji-detect.ts"
+      - "packages/text-engine/src/render/cluster-fallback.ts"
+      - "packages/text-engine/src/render/script-segmentation.ts"
+      - "packages/text-engine/src/render/emoji-presentation-priority.ts"
+      - "packages/text-engine/src/render/emoji-presentation-priority.test.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/text-to-path.ts"
+      - "packages/text-engine/src/capture/script/emoji-detect.ts"
       - "tools/emoji-presentation-ownership-audit.ts"
       - "tests/emoji-presentation-ownership-audit.test.ts"
       - "tests/emoji-presentation-ownership-workflow.test.ts"
@@ -20,13 +20,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/render/cluster-fallback.ts"
-      - "src/render/script-segmentation.ts"
-      - "src/render/emoji-presentation-priority.ts"
-      - "src/render/emoji-presentation-priority.test.ts"
-      - "src/render/font-resolution.ts"
-      - "src/render/text-to-path.ts"
-      - "src/capture/script/emoji-detect.ts"
+      - "packages/text-engine/src/render/cluster-fallback.ts"
+      - "packages/text-engine/src/render/script-segmentation.ts"
+      - "packages/text-engine/src/render/emoji-presentation-priority.ts"
+      - "packages/text-engine/src/render/emoji-presentation-priority.test.ts"
+      - "packages/text-engine/src/render/font-resolution.ts"
+      - "packages/text-engine/src/render/text-to-path.ts"
+      - "packages/text-engine/src/capture/script/emoji-detect.ts"
       - "tools/emoji-presentation-ownership-audit.ts"
       - "tests/emoji-presentation-ownership-audit.test.ts"
       - "tests/emoji-presentation-ownership-workflow.test.ts"

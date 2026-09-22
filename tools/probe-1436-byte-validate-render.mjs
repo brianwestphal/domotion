@@ -14,7 +14,7 @@ import { readFileSync, readdirSync, writeFileSync, statSync, existsSync } from "
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.ts";
-import { resetGeneration } from "../src/render/text-to-path.ts";
+import { resetGeneration } from "../packages/text-engine/src/render/text-to-path.ts";
 
 const OUT = process.argv[2] ?? "tools/scratch/render-manifest.json";
 const ROOT = "tests/output";

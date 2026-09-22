@@ -155,7 +155,7 @@ describe("AAT faces shape, rather than being declined", () => {
   // GeezaPro and Helvetica with `morx` and no `GSUB`, and that build returned
   // unjoined isolated forms for them — well-formed, and a different word.
   //
-  // `vendor/harfbuzzjs/` is rebuilt with the configuration Chromium ships,
+  // `packages/text-engine/vendor/harfbuzzjs/` is rebuilt with the configuration Chromium ships,
   // which has AAT enabled (its `README.chromium` for HarfBuzz: Chrome no longer
   // builds `hb-coretext` "as we rely on HarfBuzz' built-in AAT shaping"). So the
   // face must now be TAKEN.

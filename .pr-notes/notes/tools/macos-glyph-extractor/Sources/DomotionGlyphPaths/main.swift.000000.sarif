@@ -32,7 +32,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                  "uri": "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
                 },
                 "region": {
                   "startLine": 1342,
@@ -97,7 +97,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                  "uri": "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
                 },
                 "region": {
                   "startLine": 1010,
@@ -169,7 +169,7 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                  "uri": "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
                 },
                 "region": {
                   "startLine": 300,

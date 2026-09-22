@@ -38,14 +38,14 @@ tickets:
   ]
 code:
   [
-    "src/render/embolden-outline.ts",
-    "src/render/font-resolution.ts",
+    "packages/text-engine/src/render/embolden-outline.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
     "src/render/text.ts",
-    "src/render/unicode-classification.ts",
-    "src/render/unicode-font-routing.noto-linux.generated.ts",
-    "src/render/unicode-font-routing.win32.generated.ts",
-    "src/render/win-font-fallback.test.ts",
-    "src/render/win-font-fallback.ts",
+    "packages/text-engine/src/render/unicode-classification.ts",
+    "packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts",
+    "packages/text-engine/src/render/unicode-font-routing.win32.generated.ts",
+    "packages/text-engine/src/render/win-font-fallback.test.ts",
+    "packages/text-engine/src/render/win-font-fallback.ts",
     "tests/flipbook-parity.ts",
     "tests/html-test-suite.tsx",
     "tests/output/unicode-fonts.win32.json",
@@ -75,7 +75,7 @@ together here and cross-referenced from each ticket.
 ## The problem this solves
 
 `fallbackFontChain(codepoint, primaryKey, lang?)` in
-`src/render/font-resolution.ts` decides, for a codepoint the primary font lacks,
+`packages/text-engine/src/render/font-resolution.ts` decides, for a codepoint the primary font lacks,
 which fallback face to shape it with. Today every branch is reverse-engineered
 from **Chromium-on-macOS's CoreText cascade** (Hiragino Sans GB for CJK, Apple
 Symbols for math operators, Zapf Dingbats for ✂✈, STIX Two Math for 𝐀𝒜,
@@ -194,7 +194,7 @@ actually paints (baseline = bare image, **option A**):
 | Math-script 𝒜 / double-struck 𝕊 | FreeSerif                     | `free-sans`, `free-serif`                                                                     |
 | Emoji 😀🚀                      | Noto Color Emoji              | raster overlay (doc 15)                                                                       |
 
-Implemented as `linuxFallbackChain` in `src/render/font-resolution.ts` (the macOS
+Implemented as `linuxFallbackChain` in `packages/text-engine/src/render/font-resolution.ts` (the macOS
 body is preserved verbatim as the darwin path). `LINUX_FONT_PATHS` was corrected
 from the original DejaVu/Noto assumptions to these real faces.
 
@@ -221,7 +221,7 @@ on Linux as a result.
 > the letters directly from FreeSans; no synthesis is needed on this image.
 
 DM-838 also added a **Math-Alphanumeric → base-letter decomposition**
-(`mathAlphaToBase` in `src/render/unicode-classification.ts`): when a U+1D400–1D7FF (or
+(`mathAlphaToBase` in `packages/text-engine/src/render/unicode-classification.ts`): when a U+1D400–1D7FF (or
 U+210E ℎ) codepoint resolves to `.notdef` across the _whole_ fallback chain, it
 maps the codepoint to its base char + the implied bold/italic style and renders
 that base glyph in a FreeFont sibling. On the noble image FreeSans covers the
@@ -268,7 +268,7 @@ tracked separately. See [doc 203](203-linux-mathml-greek-italic-investigation.md
 > "Windows (DirectWrite) — DM-260" through the DM-987 sweep describes a per-block
 > routing table built by _probing Chromium-on-Windows and curve-fitting the
 > answers_. That table has been **replaced** by a transcription of the stage
-> Blink actually runs on Windows: `src/render/win-font-fallback.ts`, wired in
+> Blink actually runs on Windows: `packages/text-engine/src/render/win-font-fallback.ts`, wired in
 > through `win32FallbackChain`, documented in
 > [the font-resolution diagram §7c](font-resolution-diagram.md#7c-win32fallbackchain--blinks-hardcoded-windows-stage-transcribed).
 >
@@ -318,7 +318,7 @@ the legacy Indic faces the Nirmala UI rows supersede (Mangal, Latha, Gautami,
 Tunga, Shruti, Raavi, Vrinda, Kartika, Iskoola Pota, Kalinga), `code2000`,
 `code2001`, `arial unicode ms`, `gulim`, `pmingliu`, `Plantagenet`, `Euphemia`,
 Meiryo, and Chromium's truncated `pmingli`. The measured set is pinned in
-`src/render/win-font-fallback.test.ts` so the transcription's assertions are
+`packages/text-engine/src/render/win-font-fallback.test.ts` so the transcription's assertions are
 grounded in a real machine rather than a guess, and the same file carries the
 Hebrew-pack variant that makes the David divergence explicit.
 
@@ -390,7 +390,7 @@ First `windows-latest` painted-width probe (run 26430174100, Chromium 147). Two 
    codepoints in Arial itself** (the `sans-serif` painted width equals Arial's
    exactly for `∑ ∏ ≠ ∫ ■ ● ◆ ★ ─ ┼`), not in a dedicated symbol face.
 
-`win32FallbackChain` (`src/render/font-resolution.ts`) is populated accordingly:
+`win32FallbackChain` (`packages/text-engine/src/render/font-resolution.ts`) is populated accordingly:
 
 | Block                                         | Chain                                                                             | Basis                                                                |
 | --------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -433,7 +433,7 @@ The sweep ran under Node + Playwright Chromium on a **desktop Windows 11** host
 `tests/output/unicode-fonts.win32.json` (committed, ~70 KB).
 `tools/probe-983-genroutes-win32.mjs` maps each block's first-choice DirectWrite
 family to a `C:\Windows\Fonts` filename (+ the TTC member's PostScript name for
-collections), emitting `src/render/unicode-font-routing.win32.generated.ts` (34
+collections), emitting `packages/text-engine/src/render/unicode-font-routing.win32.generated.ts` (34
 fonts, 326 block ranges). `win32FallbackChain` consults it via
 `lookupWin32UnicodeFontRange` **as a last resort**, after every hand-coded rule —
 so the DM-836 routes still win where they match.
@@ -557,7 +557,7 @@ against, so the calibration and the baselines must agree on the same font set.
 Option **(B)** is now implemented **alongside** (A), not instead of it: domotion
 carries a second, Noto-calibrated routing profile and **selects between them at
 runtime** by the host's actual fontconfig CJK pick (`linuxFontProfile()` in
-`src/render/font-resolution.ts`):
+`packages/text-engine/src/render/font-resolution.ts`):
 
 - **`bare`** (Playwright image / any host without Noto CJK) — the original
   Liberation / WenQuanYi / FreeFont routing. Unchanged; CI baselines still agree.
@@ -565,7 +565,7 @@ runtime** by the host's actual fontconfig CJK pick (`linuxFontProfile()` in
   WenQuanYi) — primaries resolve to **Noto Sans / Noto Serif / Noto Mono**, CJK
   to **NotoSansCJK**, and every other block to the Noto face Chromium-on-a-Noto-
   desktop actually paints, via the generated table
-  `src/render/unicode-font-routing.noto-linux.generated.ts`
+  `packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts`
   (`UNICODE_FONT_PATHS_NOTO_LINUX` / `UNICODE_FONT_RANGES_NOTO_LINUX`,
   `un-...` keys). `DOMOTION_LINUX_FONT_PROFILE=noto|bare` forces the choice.
 
@@ -708,7 +708,7 @@ real mechanism is that Chromium's pinned Skia implements synthetic bold as
   stroke at 72px paints as a ~3.25px band (measured in the container:
   weight 400 → band = cssWidth exactly; weight 800 → band = cssWidth + 2.25).
 - Both renderer modes reproduce this through `resolveFakeBoldTextPaint` /
-  `skiaFakeBoldStrokeExtraPx` (`src/render/embolden-outline.ts`), with no
+  `skiaFakeBoldStrokeExtraPx` (`packages/text-engine/src/render/embolden-outline.ts`), with no
   platform gate and no outline mutation. Default paint order and outline-only
   text coalesce to a `w + extra` frame on the natural outline. Opaque
   `paint-order: stroke fill` remains two passes: author-color stroke at

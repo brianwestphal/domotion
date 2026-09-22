@@ -14,7 +14,7 @@ code:
     "site/src/content/docs/usage/templates.md",
     "src/cli/animate-config-json-schema.ts",
     "src/cli/template.ts",
-    "src/index.ts",
+    "packages/text-engine/src/index.ts",
     "src/render/device-chrome.ts",
     "src/templates/builtin/",
     "src/templates/json-schema.ts",
@@ -189,7 +189,7 @@ template gallery on the site (`site/src/content/docs/usage/templates.md`).
   HTML/plan builders (e.g. `buildLowerThirdHtml`) are unit-tested without a browser.
 - **`src/cli/template.ts`** — the `domotion template` verb.
 - Public API: the contract, registry, render, and all built-ins are re-exported
-  from the package root (`src/index.ts`).
+  from the package root (`packages/text-engine/src/index.ts`).
 
 ## Examples
 

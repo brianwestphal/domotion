@@ -19,7 +19,7 @@ jobs:
           apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
       - name: Build the Linux glyph helper
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Clone Unicode fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
       - name: Resolve the closed 24-row corpus
@@ -40,14 +40,14 @@ jobs:
           DOMOTION_NO_NICE: "1"
           DOMOTION_TEST_WORKERS: "1"
         run: |
-          mv tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths
+          mv packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths
           export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
           bash scripts/ci-run-shard.sh unicode
-          mv /tmp/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
+          mv /tmp/domotion-glyph-paths packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths
       - name: Ensure helper is restored
         if: always()
         run: |
-          if test -f /tmp/domotion-glyph-paths; then mv /tmp/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths; fi
+          if test -f /tmp/domotion-glyph-paths; then mv /tmp/domotion-glyph-paths packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths; fi
       - name: Hinted-subset-off arm
         continue-on-error: true
         env:

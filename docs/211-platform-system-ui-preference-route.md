@@ -6,7 +6,7 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2351", "DM-2504"]
-code: [".github/workflows/system-ui-preference-route.yml", "src/render/glyph-helper.ts"]
+code: [".github/workflows/system-ui-preference-route.yml", "packages/text-engine/src/render/glyph-helper.ts"]
 aliases: ["docs/211-platform-system-ui-preference-route.md", "doc-211"]
 ---
 
@@ -70,7 +70,7 @@ The local Chromium checkout is pinned at `7d859f27`.
 
 ## Production seam and cache lifetime
 
-`resolveSystemUiFontFace()` in `src/render/glyph-helper.ts` is the shared exact
+`resolveSystemUiFontFace()` in `packages/text-engine/src/render/glyph-helper.ts` is the shared exact
 logical question:
 
 - CoreText UI-font handle on macOS;

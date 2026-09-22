@@ -7,7 +7,7 @@ on:
       - "src/capture/index.ts"
       - "tools/generic-profile-target-oracle.ts"
       - "scripts/install-windows-profile-fixture-fonts.ps1"
-      - "assets/fonts/fixture/DomotionProfileDevanagari*.ttf"
+      - "packages/text-engine/assets/fonts/fixture/DomotionProfileDevanagari*.ttf"
       - "tests/generic-profile-target-*.test.ts"
       - "docs/219-authenticated-profile-oopif-generic-preferences.md"
       - ".github/workflows/generic-profile-target-parity.yml"

@@ -38,7 +38,7 @@ import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 describe("helperImplementationDigest", () => {
   it("is stable across rebuilt Windows executable bytes", () => {
     const root = mkdtempSync(join(tmpdir(), "domotion-helper-digest-"));
-    const helper = join(root, "tools", "win32-glyph-extractor");
+    const helper = join(root, "packages", "text-engine", "tools", "win32-glyph-extractor");
     mkdirSync(join(helper, "src"), { recursive: true });
     writeFileSync(join(helper, "build-msvc-direct.bat"), "cl src\\main.cpp\n");
     writeFileSync(join(helper, "src", "main.cpp"), "int main() { return 0; }\n");

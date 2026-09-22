@@ -31,7 +31,7 @@ code:
     "src/cli/type-resample.e2e.test.ts",
     "src/cli/type-resample.test.ts",
     "src/cli/type-resample.ts",
-    "src/render/font-resolution.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
     "tests/animate-examples.tsx",
     "tests/typing-baseline-anchor.e2e.test.ts",
   ]
@@ -74,7 +74,7 @@ on longer lines. That trailing-caret drift is what read as unprofessional.
 ### Measured advances → exact caret
 
 `measureTypingLines()` resolves the overlay's monospace font via the renderer's
-own `resolveFontKey` + `getFontInstance` (`src/render/font-resolution.ts`) and
+own `resolveFontKey` + `getFontInstance` (`packages/text-engine/src/render/font-resolution.ts`) and
 builds a **cumulative per-glyph advance array** `cum[line][k]` = the caret x
 after `k` glyphs of that line, from fontkit's real advances. Both the reveal
 clip and the caret ride this one array, so the caret sits at the exact glyph

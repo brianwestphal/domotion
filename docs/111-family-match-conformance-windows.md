@@ -9,8 +9,8 @@ tickets: []
 code:
   [
     ".github/workflows/windows-fidelity.yml",
-    "src/render/font-resolution.ts",
-    "src/render/win32-family-suffix.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/win32-family-suffix.ts",
     "tests/baselines/family-match-windows.json",
     "tools/family-match-baseline.ts",
     "tools/family-match-conformance-win32.ts",
@@ -61,9 +61,9 @@ cut inside that call:
 Our side is the win32 glyph helper's `family` query
 (`FindFamilyName` + `GetFirstMatchingFont` — the identical DirectWrite calls),
 composed with the suffix layer's shipped transcription
-(`src/render/win32-family-suffix.ts`), which the render path uses in
+(`packages/text-engine/src/render/win32-family-suffix.ts`), which the render path uses in
 `win32FamilyKey` / `win32PrimaryCutKey` and in `matchFamilyNameToKey`'s
-author-declared branch (`src/render/font-resolution.ts`).
+author-declared branch (`packages/text-engine/src/render/font-resolution.ts`).
 
 ## Method
 

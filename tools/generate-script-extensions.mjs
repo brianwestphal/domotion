@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates src/render/script-extensions.generated.ts: the codepoint ranges
+// Generates packages/text-engine/src/render/script-extensions.generated.ts: the codepoint ranges
 // where the Unicode Script_Extensions (scx) property differs meaningfully
 // from the Script (sc) property Domotion already reads via `getScript`
 // (`unicode-properties`).
@@ -16,7 +16,7 @@
 // Mirrors what Blink's ScriptRunIterator consults via `uscript_getScriptExtensions`
 // (`third_party/blink/renderer/platform/fonts/script_run_iterator.cc`,
 // `ICUScriptData::GetScripts`, lines 118-215, checked out at
-// `external/chromium`, rev 7d859f27) -- see `src/render/script-segmentation.ts`
+// `external/chromium`, rev 7d859f27) -- see `packages/text-engine/src/render/script-segmentation.ts`
 // for the consuming merge-set algorithm.
 import { writeFileSync } from "node:fs";
 import { getScript } from "unicode-properties";
@@ -133,7 +133,7 @@ const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
 // \`primary\` is the codepoint's Script property (always "Common" or
 // "Inherited" here); \`scripts\` is its Script_Extensions member set, in the
 // order Node's ICU/Unicode data reports Script_Extensions membership.
-// Consumed by \`src/render/script-segmentation.ts\` to mirror Blink's
+// Consumed by \`packages/text-engine/src/render/script-segmentation.ts\` to mirror Blink's
 // \`ScriptRunIterator\` set-intersection walk (platform/fonts/script_run_iterator.cc,
 // \`ICUScriptData::GetScripts\` + \`ScriptRunIterator::MergeSets\`, rev 7d859f27)
 // instead of treating every Common/Inherited character as unconditionally
@@ -150,5 +150,5 @@ ${lines.join("\n")}
 ];
 `;
 
-writeFileSync(new URL("../src/render/script-extensions.generated.ts", import.meta.url), banner);
-console.error("Wrote src/render/script-extensions.generated.ts");
+writeFileSync(new URL("../packages/text-engine/src/render/script-extensions.generated.ts", import.meta.url), banner);
+console.error("Wrote packages/text-engine/src/render/script-extensions.generated.ts");

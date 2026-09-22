@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # DM-1423 — (re)calibrate the desktop-Windows-11 per-Unicode-block font routing
-# (src/render/unicode-font-routing.win32.generated.ts) on a REAL desktop Win11
+# (packages/text-engine/src/render/unicode-font-routing.win32.generated.ts) on a REAL desktop Win11
 # host, NOT from the Server-based `windows-latest` CI runner.
 #
 # WHY DESKTOP, NOT CI
@@ -65,13 +65,13 @@ STEP 2 (in the VM) — run the canonical sweep against the desktop font set:
 
 STEP 3 (host) — regenerate + review. Re-run this script with --regen:
   node tools/probe-983-genroutes-win32.mjs reads tests/output/unicode-fonts.win32.json
-  and rewrites src/render/unicode-font-routing.win32.generated.ts.
+  and rewrites packages/text-engine/src/render/unicode-font-routing.win32.generated.ts.
 EOF
 
 if [ "${1:-}" = "--regen" ]; then
   [ -s "$FRESH" ] || { echo ">>> $FRESH not found — run STEP 2 first."; exit 1; }
   cp "$FRESH" tests/output/unicode-fonts.win32.json
   node tools/probe-983-genroutes-win32.mjs
-  echo ">>> Review: git diff src/render/unicode-font-routing.win32.generated.ts"
+  echo ">>> Review: git diff packages/text-engine/src/render/unicode-font-routing.win32.generated.ts"
   echo ">>> Commit only if the diff reflects a real desktop font-set change, NOT a Chromium-version nuance (confirm the sweep used the pinned chromium rev)."
 fi

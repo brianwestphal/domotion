@@ -19,8 +19,8 @@ external/
 dist/
 # ...except the vendored harfbuzzjs, which is a committed third-party artifact
 # rather than a build output. Its wasm is rebuilt with Chromium's HarfBuzz
-# configuration; `vendor/harfbuzzjs/README.md` has the reproduction recipe.
-!vendor/harfbuzzjs/dist/
+# configuration; `packages/text-engine/vendor/harfbuzzjs/README.md` has the reproduction recipe.
+!packages/text-engine/vendor/harfbuzzjs/dist/
 .release-state.json
 *.map
 .DS_Store
@@ -34,11 +34,24 @@ data/
 .tmp/
 .chromium-build/
 tools/unicode-fixtures/
+packages/text-engine/tools/icu-helper/domotion-icu
+packages/text-engine/tools/icu-helper/domotion-icu.exe
+packages/text-engine/tools/icu-helper/icudtl.dat
+packages/text-engine/tools/icu-helper/icuuc78.dll
+packages/text-engine/tools/icu-helper/icudt78.dll
+
+# Pre-workspace helper build artifacts may remain in an existing checkout after
+# the tracked helper sources move into packages/text-engine/.
 tools/icu-helper/domotion-icu
 tools/icu-helper/domotion-icu.exe
 tools/icu-helper/icudtl.dat
 tools/icu-helper/icuuc78.dll
 tools/icu-helper/icudt78.dll
+tools/linux-glyph-extractor/build/
+tools/linux-glyph-extractor/domotion-glyph-paths
+tools/macos-glyph-extractor/.build/
+tools/macos-glyph-extractor/domotion-glyph-paths
+tools/win32-glyph-extractor/domotion-glyph-paths.exe
 
 # Reusable-but-uncommitted scratch probes/tools (DM-1216 cleanup).
 # The underscore-prefixed one-off debug scripts live here so they persist

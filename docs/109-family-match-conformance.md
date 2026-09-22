@@ -6,7 +6,7 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"]
+code: ["packages/text-engine/src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"]
 aliases: ["docs/109-family-match-conformance.md", "doc-109"]
 ---
 
@@ -137,7 +137,7 @@ directional checkout port it replaced. The former drift table on `Helvetica`
 (`305-399` and `501-599` painting Light/Bold where Chrome paints plain
 Helvetica) now reads identically on both sides.
 
-The rungs are pinned as tests (`src/render/text-to-path.test.ts`, "matches the
+The rungs are pinned as tests (`packages/text-engine/src/render/text-to-path.test.ts`, "matches the
 shipping Chrome at the intermediate weights"). **When the pinned Playwright
 Chromium moves to a build containing the upstream directional rewrite, that
 test and the helper's `betterChoiceCT` must be re-transcribed together** — the

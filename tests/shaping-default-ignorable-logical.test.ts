@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BufferFlag } from "../vendor/harfbuzzjs/dist/index.mjs";
+import { BufferFlag } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { harfbuzzShapeRun } from "../src/render/harfbuzz-shaper.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import {

@@ -113,7 +113,7 @@ export const CJK_IDEOGRAPH_OR_SYMBOL_RANGES: ReadonlyArray<readonly [number, num
 ${lines.join("\n")}
 ];
 `;
-const target = new URL("src/render/cjk-ideograph-or-symbol-ranges.generated.ts", root);
+const target = new URL("packages/text-engine/src/render/cjk-ideograph-or-symbol-ranges.generated.ts", root);
 if (process.argv.includes("--check")) {
   if (readFileSync(target, "utf8") !== output) {
     throw new Error("cjk-ideograph-or-symbol-ranges.generated.ts is stale; regenerate it");

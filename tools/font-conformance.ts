@@ -97,13 +97,19 @@ export function helperImplementationDigest(platform: NodeJS.Platform = process.p
   const relative =
     platform === "darwin"
       ? [
-          "tools/macos-glyph-extractor/Package.swift",
-          "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift",
+          "packages/text-engine/tools/macos-glyph-extractor/Package.swift",
+          "packages/text-engine/tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift",
         ]
       : platform === "linux"
-        ? ["tools/linux-glyph-extractor/CMakeLists.txt", "tools/linux-glyph-extractor/src/main.cpp"]
+        ? [
+            "packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt",
+            "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
+          ]
         : platform === "win32"
-          ? ["tools/win32-glyph-extractor/build-msvc-direct.bat", "tools/win32-glyph-extractor/src/main.cpp"]
+          ? [
+              "packages/text-engine/tools/win32-glyph-extractor/build-msvc-direct.bat",
+              "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp",
+            ]
           : [];
   if (relative.length === 0) return null;
   try {
@@ -675,7 +681,7 @@ export function verdictForCodepoint(
 // Our side
 // ---------------------------------------------------------------------------
 
-/** Mirrors `slantForStyle` in src/render/text-to-path.ts (not exported there). */
+/** Mirrors `slantForStyle` in packages/text-engine/src/render/text-to-path.ts (not exported there). */
 export function slantForStyle(style: string): number {
   const s = style.toLowerCase();
   return s === "italic" || s.startsWith("oblique") ? ITALIC_SLNT : 0;
@@ -704,7 +710,7 @@ export interface ResolvedStack {
 
 /**
  * Reproduce exactly what `renderTextAsPath` does before it starts resolving
- * codepoints (src/render/text-to-path.ts): primary instance via `resolveFont`,
+ * codepoints (packages/text-engine/src/render/text-to-path.ts): primary instance via `resolveFont`,
  * primary KEY via `resolveFontKey` — which falls back to `times` when nothing
  * in the stack is recognized, where `resolveFontKeyChain` returns an empty
  * list — and the full declared chain via `resolveFontKeyChain`. Taking the
@@ -785,7 +791,7 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
  *
  * So the instance is materialized exactly the way the renderer materializes it
  * (`res.fontOverride ?? (key === primaryKey ? primaryFont : getFontInstance(…))`
- * — src/render/text-to-path.ts) and its identity read back off the instance:
+ * — packages/text-engine/src/render/text-to-path.ts) and its identity read back off the instance:
  * the CoreText-style instantiated name first when the darwin helper path
  * cloned the face at a non-default axis location (Chrome names such clones
  * with the coordinates baked in — `.SFDevanagari-Regular_opsz110000_wght`,

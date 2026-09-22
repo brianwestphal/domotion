@@ -214,7 +214,7 @@ function win32IdentityHelperPath(): string {
   return resolve(
     process.env.DOMOTION_WIN32_GLYPH_HELPER?.trim() ||
       process.env.DOMOTION_HELPER_PATH?.trim() ||
-      "tools/win32-glyph-extractor/domotion-glyph-paths.exe",
+      "packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe",
   );
 }
 

@@ -81,12 +81,12 @@
           "src/capture/warnings.ts",
           "src/render/clip-path.ts",
           "src/render/element-tree-to-svg.ts",
-          "src/render/font-resolution-cache-reset.test.ts",
-          "src/render/font-resolution.ts",
+          "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
           "src/render/form-controls.test.ts",
           "src/render/form-controls.ts",
-          "src/render/text-to-path.test.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/text-to-path.test.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "tests/capture-warnings-lifecycle.e2e.test.ts",
           "tests/composed-parity-fixtures.ts",
           "tests/features.ts",
@@ -110,7 +110,7 @@
         "tickets": ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "SK-1090", "SK-1104", "SK-1123"],
         "code": [
           "src/capture/script/walker/text-segments.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "src/render/vertical-text.test.ts",
           "src/render/vertical-text.ts"
         ],
@@ -144,8 +144,8 @@
           "SK-1124"
         ],
         "code": [
-          "src/render/darwin-named-family-identity.test.ts",
-          "src/render/font-resolution.ts",
+          "packages/text-engine/src/render/darwin-named-family-identity.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
           "tests/darwin-named-family-identity.e2e.test.ts",
           "tests/new-york-optical-cut.e2e.test.ts"
         ],
@@ -453,9 +453,9 @@
         "code": [
           "src/capture/emoji.ts",
           "src/capture/script/emoji-detect.test.ts",
-          "src/capture/script/emoji-detect.ts",
-          "src/render/emoji-raster-kind.test.ts",
-          "src/render/text-to-path.test.ts",
+          "packages/text-engine/src/capture/script/emoji-detect.ts",
+          "packages/text-engine/src/render/emoji-raster-kind.test.ts",
+          "packages/text-engine/src/render/text-to-path.test.ts",
           "tests/win32-glyph-extractor.test.ts",
           "tools/font-palette-ownership-audit.ts"
         ],
@@ -498,14 +498,14 @@
         "code": [
           "scripts/probe-coretext-glyphs.mjs",
           "src/render/",
-          "src/render/font-resolution.ts",
-          "src/render/glyph-helper.test.ts",
-          "src/render/glyph-helper.ts",
-          "src/render/helper-acquire.ts",
-          "src/render/text-to-path.ts",
-          "src/render/unicode-classification.ts",
-          "tools/macos-glyph-extractor/",
-          "tools/macos-glyph-extractor/build.sh"
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/glyph-helper.test.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/helper-acquire.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
+          "packages/text-engine/src/render/unicode-classification.ts",
+          "packages/text-engine/tools/macos-glyph-extractor/",
+          "packages/text-engine/tools/macos-glyph-extractor/build.sh"
         ],
         "aliases": ["docs/16-coretext-glyph-extraction.md", "doc-16"]
       }
@@ -767,7 +767,7 @@
         "owners": ["text-fonts"],
         "platforms": [],
         "tickets": ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557"],
-        "code": ["src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"],
+        "code": ["packages/text-engine/src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"],
         "aliases": ["docs/30-webfont-unicode-range.md", "doc-30"]
       }
     },
@@ -943,7 +943,7 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-258", "DM-259", "DM-260", "DM-261", "DM-262"],
-        "code": ["src/render/font-resolution.ts"],
+        "code": ["packages/text-engine/src/render/font-resolution.ts"],
         "aliases": ["docs/40-cross-platform-font-paths.md", "doc-40"]
       }
     },
@@ -958,10 +958,10 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1035", "DM-1721", "DM-2056", "DM-2403", "DM-260", "DM-389", "DM-390", "DM-391", "DM-837"],
         "code": [
-          "src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
           "tests/win32-glyph-extractor.test.ts",
-          "tools/win32-glyph-extractor/",
-          "tools/win32-glyph-extractor/build.ps1"
+          "packages/text-engine/tools/win32-glyph-extractor/",
+          "packages/text-engine/tools/win32-glyph-extractor/build.ps1"
         ],
         "aliases": ["docs/41-windows-glyph-extraction.md", "doc-41"]
       }
@@ -1006,14 +1006,14 @@
           "DM-987"
         ],
         "code": [
-          "src/render/embolden-outline.ts",
-          "src/render/font-resolution.ts",
+          "packages/text-engine/src/render/embolden-outline.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
           "src/render/text.ts",
-          "src/render/unicode-classification.ts",
-          "src/render/unicode-font-routing.noto-linux.generated.ts",
-          "src/render/unicode-font-routing.win32.generated.ts",
-          "src/render/win-font-fallback.test.ts",
-          "src/render/win-font-fallback.ts",
+          "packages/text-engine/src/render/unicode-classification.ts",
+          "packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts",
+          "packages/text-engine/src/render/unicode-font-routing.win32.generated.ts",
+          "packages/text-engine/src/render/win-font-fallback.test.ts",
+          "packages/text-engine/src/render/win-font-fallback.ts",
           "tests/flipbook-parity.ts",
           "tests/html-test-suite.tsx",
           "tests/output/unicode-fonts.win32.json",
@@ -1135,14 +1135,14 @@
         ],
         "code": [
           ".github/workflows/release-helpers.yml",
-          "src/render/glyph-helper.test.ts",
-          "src/render/glyph-helper.ts",
-          "src/render/helper-acquire.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/glyph-helper.test.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/helper-acquire.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "tests/linux-glyph-extractor.test.ts",
           "tests/linux-target-strike-small-caps.e2e.test.ts",
-          "tools/linux-glyph-extractor/",
-          "tools/linux-glyph-extractor/CMakeLists.txt",
+          "packages/text-engine/tools/linux-glyph-extractor/",
+          "packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt",
           "tools/linux-terminal-mask-oracle.ts"
         ],
         "aliases": ["docs/45-linux-glyph-extraction.md", "doc-45"]
@@ -1207,12 +1207,12 @@
         "tickets": ["DM-259", "DM-260", "DM-385", "DM-393", "DM-837", "DM-872", "DM-881", "DM-886", "DM-888"],
         "code": [
           "src/render/",
-          "src/render/glyph-helper.test.ts",
-          "src/render/glyph-helper.ts",
-          "src/render/helper-acquire.ts",
-          "tools/linux-glyph-extractor/",
-          "tools/macos-glyph-extractor/",
-          "tools/win32-glyph-extractor/"
+          "packages/text-engine/src/render/glyph-helper.test.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/helper-acquire.ts",
+          "packages/text-engine/tools/linux-glyph-extractor/",
+          "packages/text-engine/tools/macos-glyph-extractor/",
+          "packages/text-engine/tools/win32-glyph-extractor/"
         ],
         "aliases": ["docs/49-glyph-helper-dispatch.md", "doc-49"]
       }
@@ -1230,8 +1230,8 @@
         "code": [
           ".github/workflows/release-helpers.yml",
           ".github/workflows/release.yml",
-          "src/render/glyph-helper.ts",
-          "src/render/helper-acquire.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/helper-acquire.ts",
           "tests/release-helpers-workflow.test.ts"
         ],
         "aliases": ["docs/50-glyph-helper-acquisition.md", "doc-50"]
@@ -1247,7 +1247,11 @@
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-259", "DM-260", "DM-385", "DM-881", "DM-886", "DM-887", "DM-889", "DM-891", "DM-892"],
-        "code": ["src/render/font-resolution.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"],
+        "code": [
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/text-to-path.test.ts",
+          "packages/text-engine/src/render/text-to-path.ts"
+        ],
         "aliases": ["docs/51-probe-then-fallback-dispatch.md", "doc-51"]
       }
     },
@@ -1262,9 +1266,9 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1666", "DM-259", "DM-260", "DM-891", "DM-892"],
         "code": [
-          "src/render/embedded-font-builder.ts",
-          "src/render/text-to-path.test.ts",
-          "src/render/text-to-path.ts"
+          "packages/text-engine/src/render/embedded-font-builder.ts",
+          "packages/text-engine/src/render/text-to-path.test.ts",
+          "packages/text-engine/src/render/text-to-path.ts"
         ],
         "aliases": ["docs/52-embedded-mode-glyph-fallback.md", "doc-52"]
       }
@@ -1381,7 +1385,7 @@
         "owners": ["rendering"],
         "platforms": ["macos"],
         "tickets": ["DM-1103", "DM-1108"],
-        "code": ["src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"],
+        "code": ["packages/text-engine/src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"],
         "aliases": ["docs/58-new-york-optical-cuts.md", "doc-58"]
       }
     },
@@ -1435,7 +1439,11 @@
         "owners": ["animation"],
         "platforms": [],
         "tickets": ["DM-1132", "DM-1133", "DM-1793", "DM-1799", "DM-587"],
-        "code": ["src/animation/resolve-overlays.ts", "src/index.ts", "tests/cross-region-anchor.e2e.test.ts"],
+        "code": [
+          "src/animation/resolve-overlays.ts",
+          "packages/text-engine/src/index.ts",
+          "tests/cross-region-anchor.e2e.test.ts"
+        ],
         "aliases": ["docs/61-overlay-resolution-primitive.md", "doc-61"]
       }
     },
@@ -1470,7 +1478,7 @@
         "owners": ["animation"],
         "platforms": [],
         "tickets": ["DM-1132", "DM-1133", "DM-1135", "DM-1136"],
-        "code": ["src/cli/animate.ts", "src/index.ts"],
+        "code": ["src/cli/animate.ts", "packages/text-engine/src/index.ts"],
         "aliases": ["docs/63-cursor-action-primitives.md", "doc-63"]
       }
     },
@@ -1618,7 +1626,7 @@
           "site/src/content/docs/usage/templates.md",
           "src/cli/animate-config-json-schema.ts",
           "src/cli/template.ts",
-          "src/index.ts",
+          "packages/text-engine/src/index.ts",
           "src/render/device-chrome.ts",
           "src/templates/builtin/",
           "src/templates/json-schema.ts",
@@ -1780,7 +1788,7 @@
         "owners": ["rendering"],
         "platforms": ["macos"],
         "tickets": ["DM-1028", "DM-1197", "DM-1215", "DM-983"],
-        "code": ["src/render/font-resolution.ts"],
+        "code": ["packages/text-engine/src/render/font-resolution.ts"],
         "aliases": ["docs/79-harfbuzz-use-reroute.md", "doc-79"]
       }
     },
@@ -1810,17 +1818,17 @@
         "code": [
           "scripts/test-linux-docker.sh",
           "src/render",
-          "src/render/font-resolution.ts",
-          "src/render/glyph-helper.ts",
-          "src/render/win-font-fallback.ts",
-          "src/render/win32-fallback-envelope.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/win-font-fallback.ts",
+          "packages/text-engine/src/render/win32-fallback-envelope.test.ts",
           "tests/baselines/font-conformance-windows.json",
           "tools/probe-1416-linux-fcmatch-vs-chromium.mjs",
           "tools/probe-1424-refine.mts",
           "tools/probe-1424-win32-mapchars-vs-chromium.mjs",
-          "tools/win32-glyph-extractor",
-          "tools/win32-glyph-extractor/build.ps1",
-          "tools/win32-glyph-extractor/src/main.cpp"
+          "packages/text-engine/tools/win32-glyph-extractor",
+          "packages/text-engine/tools/win32-glyph-extractor/build.ps1",
+          "packages/text-engine/tools/win32-glyph-extractor/src/main.cpp"
         ],
         "aliases": ["docs/80-cross-platform-system-fallback-resolver.md", "doc-80"]
       }
@@ -1887,9 +1895,9 @@
         "tickets": ["DM-1058", "DM-1338", "DM-1350", "DM-1459", "DM-2637", "DM-2645"],
         "code": [
           "src/index.exports.test.ts",
-          "src/render/render-text-mode-guard.test.ts",
-          "src/render/synchronous-scope.test.ts",
-          "src/render/synchronous-scope.ts",
+          "packages/text-engine/src/render/render-text-mode-guard.test.ts",
+          "packages/text-engine/src/render/synchronous-scope.test.ts",
+          "packages/text-engine/src/render/synchronous-scope.ts",
           "tests/conventions.test.ts",
           "tests/feature-coverage.ts",
           "tests/feature-transition-evidence.test.ts",
@@ -2141,7 +2149,7 @@
           "src/cli/type-resample.e2e.test.ts",
           "src/cli/type-resample.test.ts",
           "src/cli/type-resample.ts",
-          "src/render/font-resolution.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
           "tests/animate-examples.tsx",
           "tests/typing-baseline-anchor.e2e.test.ts"
         ],
@@ -2269,24 +2277,24 @@
         "code": [
           ".github/workflows/visual-tests.yml",
           "src/render/embedded-font-builder.test.ts",
-          "src/render/embedded-font-builder.ts",
+          "packages/text-engine/src/render/embedded-font-builder.ts",
           "src/render/embedded-font-snapshot.test.ts",
-          "src/render/font-resolution-cache-reset.test.ts",
-          "src/render/font-resolution.ts",
-          "src/render/glyph-helper-boundaries.test.ts",
-          "src/render/glyph-helper-font.ts",
-          "src/render/glyph-helper-outline.ts",
-          "src/render/glyph-helper-protocol.ts",
-          "src/render/glyph-helper-transport.ts",
-          "src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/glyph-helper-boundaries.test.ts",
+          "packages/text-engine/src/render/glyph-helper-font.ts",
+          "packages/text-engine/src/render/glyph-helper-outline.ts",
+          "packages/text-engine/src/render/glyph-helper-protocol.ts",
+          "packages/text-engine/src/render/glyph-helper-transport.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
           "src/render/hb-subset.test.ts",
-          "src/render/hb-subset.ts",
-          "src/render/linux-target-strike.ts",
+          "packages/text-engine/src/render/hb-subset.ts",
+          "packages/text-engine/src/render/linux-target-strike.ts",
           "src/render/synth-test-fonts.ts",
-          "src/render/text-to-path.test.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/text-to-path.test.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "tests/linux-target-strike-small-caps.e2e.test.ts",
-          "tools/linux-glyph-extractor/src/main.cpp",
+          "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
           "tools/linux-terminal-mask-oracle.ts"
         ],
         "aliases": ["docs/99-hinted-embedded-subset.md", "doc-99"]
@@ -2467,7 +2475,10 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1811", "DM-1844", "DM-1852", "DM-1854", "DM-1859", "DM-1868"],
-        "code": ["src/render/harfbuzz-shaper.ts", "src/render/text-to-path.ts"],
+        "code": [
+          "packages/text-engine/src/render/harfbuzz-shaper.ts",
+          "packages/text-engine/src/render/text-to-path.ts"
+        ],
         "aliases": ["docs/106-blink-font-parity-inventory.md", "doc-106"]
       }
     },
@@ -2487,8 +2498,8 @@
           "scripts/ci-font-conformance-shard.sh",
           "scripts/diff-font-conformance-baseline.mjs",
           "scripts/merge-font-conformance-shards.mjs",
-          "src/render/font-resolution-cache-reset.test.ts",
-          "src/render/font-resolution.ts",
+          "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
           "tests/baselines/README.md",
           "tests/fixtures/variable-axis/variable-axis.html",
           "tests/font-conformance-baseline.test.ts",
@@ -2547,7 +2558,7 @@
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [],
-        "code": ["src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"],
+        "code": ["packages/text-engine/src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"],
         "aliases": ["docs/109-family-match-conformance.md", "doc-109"]
       }
     },
@@ -2563,14 +2574,14 @@
         "tickets": [],
         "code": [
           ".github/workflows/test-linux.yml",
-          "src/render/font-resolution.ts",
-          "src/render/linux-declared-family-cut.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/linux-declared-family-cut.test.ts",
           "tests/baselines/family-match-linux.json",
           "tests/family-match-baseline.test.ts",
           "tools/family-match-baseline.ts",
           "tools/family-match-conformance-linux.ts",
           "tools/font-conformance-stacks.linux.json",
-          "tools/linux-glyph-extractor/src/main.cpp"
+          "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp"
         ],
         "aliases": ["docs/110-family-match-conformance-linux.md", "doc-110"]
       }
@@ -2587,8 +2598,8 @@
         "tickets": [],
         "code": [
           ".github/workflows/windows-fidelity.yml",
-          "src/render/font-resolution.ts",
-          "src/render/win32-family-suffix.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/win32-family-suffix.ts",
           "tests/baselines/family-match-windows.json",
           "tools/family-match-baseline.ts",
           "tools/family-match-conformance-win32.ts"
@@ -2626,13 +2637,13 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2387", "DM-2444", "DM-2507"],
         "code": [
-          "src/render/cluster-fallback-bidi-boundary.test.ts",
-          "src/render/cluster-fallback.test.ts",
-          "src/render/cluster-fallback.ts",
-          "src/render/font-resolution.ts",
-          "src/render/glyph-path-run-split.test.ts",
-          "src/render/skia-last-resort-routing.test.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/cluster-fallback-bidi-boundary.test.ts",
+          "packages/text-engine/src/render/cluster-fallback.test.ts",
+          "packages/text-engine/src/render/cluster-fallback.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/glyph-path-run-split.test.ts",
+          "packages/text-engine/src/render/skia-last-resort-routing.test.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "tests/features.ts",
           "tools/cluster-conformance.ts"
         ],
@@ -2668,7 +2679,11 @@
         "owners": ["text-fonts", "platform-release", "product-tooling"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [],
-        "code": ["src/render/harfbuzz-shaper.ts", "tools/exact-shaping-oracle.ts", "tools/shape-agreement-samples.ts"],
+        "code": [
+          "packages/text-engine/src/render/harfbuzz-shaper.ts",
+          "tools/exact-shaping-oracle.ts",
+          "tools/shape-agreement-samples.ts"
+        ],
         "aliases": ["docs/114-exact-shaping-oracle.md", "doc-114"]
       }
     },
@@ -2701,7 +2716,7 @@
         "owners": ["text-fonts", "product-tooling"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2619"],
-        "code": ["src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"],
+        "code": ["packages/text-engine/src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"],
         "aliases": ["docs/115-production-harfbuzz-shaping.md", "doc-115"]
       }
     },
@@ -2824,10 +2839,10 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": [],
         "code": [
-          "src/render/character-fallback-document-cache.test.ts",
-          "src/render/font-resolution-cache-reset.test.ts",
-          "src/render/font-resolution.ts",
-          "src/render/glyph-helper.ts"
+          "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
+          "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/glyph-helper.ts"
         ],
         "aliases": ["docs/121-font-cache-parity.md", "doc-121"]
       }
@@ -2842,7 +2857,10 @@
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2090"],
-        "code": ["src/render/font-resolution.ts", "src/render/webfont-declaration-order.test.ts"],
+        "code": [
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/webfont-declaration-order.test.ts"
+        ],
         "aliases": ["docs/122-declared-family-segmented-face-parity.md", "doc-122"]
       }
     },
@@ -2884,7 +2902,7 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["windows"],
         "tickets": [],
-        "code": ["src/render/win-font-fallback.ts"],
+        "code": ["packages/text-engine/src/render/win-font-fallback.ts"],
         "aliases": ["docs/125-windows-unicode-font-route-trace.md", "doc-125"]
       }
     },
@@ -2937,11 +2955,11 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2310"],
         "code": [
-          "src/render/harfbuzz-shaper.ts",
-          "src/render/icu-helper.ts",
-          "src/render/unicode-classification.ts",
+          "packages/text-engine/src/render/harfbuzz-shaper.ts",
+          "packages/text-engine/src/render/icu-helper.ts",
+          "packages/text-engine/src/render/unicode-classification.ts",
           "tools/icu-conformance.ts",
-          "tools/icu-helper/src/main.cpp"
+          "packages/text-engine/tools/icu-helper/src/main.cpp"
         ],
         "aliases": ["docs/128-chromium-unicode-decision-audit.md", "doc-128"]
       }
@@ -3171,7 +3189,7 @@
         "platforms": [],
         "tickets": ["DM-2330", "DM-2341", "DM-2348", "DM-2387", "DM-2392", "DM-2393", "DM-2398", "DM-2399"],
         "code": [
-          "src/render/text-run-provenance.ts",
+          "packages/text-engine/src/render/text-run-provenance.ts",
           "tools/renderer-font-route-oracle.ts",
           "tools/parity-program.json",
           "tools/semantic-coverage.json"
@@ -3190,10 +3208,10 @@
         "platforms": ["macos"],
         "tickets": ["DM-2387", "DM-2398", "DM-2399", "DM-2410", "DM-2423", "DM-2428", "DM-2567"],
         "code": [
-          "src/render/cluster-fallback.ts",
-          "src/render/text-run-provenance.ts",
-          "src/render/text-run-provenance.test.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/cluster-fallback.ts",
+          "packages/text-engine/src/render/text-run-provenance.ts",
+          "packages/text-engine/src/render/text-run-provenance.test.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "tools/renderer-font-route-oracle.ts"
         ],
         "aliases": ["docs/143-production-text-run-provenance.md", "doc-143"]
@@ -3213,7 +3231,7 @@
           "src/capture/script/dotted-circle-detect.ts",
           "src/capture/script/dotted-circle-detect.test.ts",
           "src/capture/script/walker/text-segments.ts",
-          "src/render/text-to-path.ts"
+          "packages/text-engine/src/render/text-to-path.ts"
         ],
         "aliases": ["docs/144-dotted-circle-shaping-evidence.md", "doc-144"]
       }
@@ -3243,8 +3261,8 @@
         "platforms": ["macos"],
         "tickets": ["DM-1949", "DM-2342", "DM-2401"],
         "code": [
-          "src/render/character-fallback-document-cache.test.ts",
-          "src/render/font-resolution.ts",
+          "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
           "tools/ideograph-fallback-cache-oracle.ts"
         ],
         "aliases": ["docs/146-macos-ideograph-fallback-cache-audit.md", "doc-146"]
@@ -3302,7 +3320,7 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos"],
         "tickets": ["DM-2446", "DM-2448"],
-        "code": ["src/render/axis-location.test.ts", "tests/font-size-spaces.e2e.test.ts"],
+        "code": ["packages/text-engine/src/render/axis-location.test.ts", "tests/font-size-spaces.e2e.test.ts"],
         "aliases": ["docs/150-font-size-space-oracle.md", "doc-150"]
       }
     },
@@ -3348,7 +3366,11 @@
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2399", "DM-2511"],
-        "code": ["src/render/form-controls.ts", "src/render/text-to-path.test.ts", "src/render/text.ts"],
+        "code": [
+          "src/render/form-controls.ts",
+          "packages/text-engine/src/render/text-to-path.test.ts",
+          "src/render/text.ts"
+        ],
         "aliases": ["docs/152-source-owned-text-failure-boundary.md", "doc-152"]
       }
     },
@@ -3376,7 +3398,7 @@
         "owners": ["text-fonts"],
         "platforms": ["macos", "windows"],
         "tickets": [],
-        "code": ["src/render/glyph-helper.ts"],
+        "code": ["packages/text-engine/src/render/glyph-helper.ts"],
         "aliases": ["docs/154-mathml-helper-ink-evidence.md", "doc-154"]
       }
     },
@@ -4190,8 +4212,8 @@
           ".github/workflows/generic-family-preference-parity.yml",
           "src/capture/generic-font-probe.ts",
           "src/capture/generic-font-probe.test.ts",
-          "src/render/synchronous-scope.ts",
-          "src/render/synchronous-scope.test.ts"
+          "packages/text-engine/src/render/synchronous-scope.ts",
+          "packages/text-engine/src/render/synchronous-scope.test.ts"
         ],
         "aliases": ["docs/198-live-generic-family-preference-parity.md", "doc-198"]
       }
@@ -4338,7 +4360,10 @@
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2515", "DM-2516", "DM-2517", "DM-2518"],
-        "code": ["src/render/skia-last-resort-routing.test.ts", "tools/generic-family-semantics-audit.ts"],
+        "code": [
+          "packages/text-engine/src/render/skia-last-resort-routing.test.ts",
+          "tools/generic-family-semantics-audit.ts"
+        ],
         "aliases": ["docs/206-generic-family-semantic-ownership.md", "doc-206"]
       }
     },
@@ -4384,7 +4409,7 @@
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2336", "DM-587"],
-        "code": ["src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"],
+        "code": ["packages/text-engine/src/render/format.ts", "tests/transformed-flex-geometry.e2e.test.ts"],
         "aliases": ["docs/209-transformed-flex-descendant-investigation.md", "doc-209"]
       }
     },
@@ -4412,7 +4437,7 @@
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2351", "DM-2504"],
-        "code": [".github/workflows/system-ui-preference-route.yml", "src/render/glyph-helper.ts"],
+        "code": [".github/workflows/system-ui-preference-route.yml", "packages/text-engine/src/render/glyph-helper.ts"],
         "aliases": ["docs/211-platform-system-ui-preference-route.md", "doc-211"]
       }
     },
@@ -4428,7 +4453,7 @@
         "tickets": ["DM-2539", "DM-2550", "DM-2551"],
         "code": [
           "src/capture/generic-font-probe.ts",
-          "src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
           "tests/generic-profile-target-oracle.e2e.test.ts",
           "tools/generic-profile-target-oracle.ts",
           "tools/system-ui-preference-route-oracle.ts"
@@ -4448,7 +4473,7 @@
         "tickets": ["DM-2518"],
         "code": [
           "src/font-family-stack.test.ts",
-          "src/font-family-stack.ts",
+          "packages/text-engine/src/font-family-stack.ts",
           "tests/font-family-stack-capture.e2e.test.ts"
         ],
         "aliases": ["docs/213-structured-font-family-stack.md", "doc-213"]
@@ -4466,9 +4491,9 @@
         "tickets": ["DM-2524", "DM-2619"],
         "code": [
           ".github/workflows/mixed-bidi-logical-conformance.yml",
-          "src/render/mixed-bidi-logical.test.ts",
-          "src/render/script-segmentation.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/mixed-bidi-logical.test.ts",
+          "packages/text-engine/src/render/script-segmentation.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "tests/multilingual-message-shaping.e2e.test.ts"
         ],
         "aliases": ["docs/214-mixed-script-bidi-logical-geometry.md", "doc-214"]
@@ -4661,7 +4686,7 @@
         "owners": ["platform-release"],
         "platforms": ["macos"],
         "tickets": ["DM-2550"],
-        "code": ["src/render/generic-script-families.test.ts"],
+        "code": ["packages/text-engine/src/render/generic-script-families.test.ts"],
         "aliases": ["docs/224-hidden-macos-hebrew-generic-face.md", "doc-224"]
       }
     },
@@ -4905,7 +4930,7 @@
         "code": [
           "src/capture/debug-bundle.ts",
           "src/capture/index.ts",
-          "src/index.ts",
+          "packages/text-engine/src/index.ts",
           "tests/capture-debug-api.e2e.test.ts"
         ],
         "aliases": ["docs/238-programmatic-debug-capture-bundles.md", "doc-238"]
@@ -5273,7 +5298,7 @@
           "src/terminal/incremental.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/real-text-layer.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "src/render/text.ts",
           "src/render/pseudo-fragments.ts",
           "src/render/real-text-layer.test.ts",
@@ -5297,15 +5322,15 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2716", "DM-CAGCSM", "DM-FJZQ34", "DM-ZDDJAG"],
         "code": [
-          "src/render/font-resolution.ts",
-          "src/render/text-to-path.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "src/render/text.ts",
           "src/render/vertical-text.ts",
           "src/render/element-tree-to-svg.ts",
           "src/cli/capture.ts",
           "src/cli/animate-command.ts",
           "src/cli/index.ts",
-          "src/render/system-font-mode.test.ts"
+          "packages/text-engine/src/render/system-font-mode.test.ts"
         ],
         "aliases": ["docs/261-system-font-render-text-mode.md", "doc-261"]
       }
@@ -5319,13 +5344,14 @@
         "status": "current",
         "owners": ["text-fonts", "rendering"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-4CN6YM"],
+        "tickets": ["DM-4CN6YM", "DM-A1KCSY"],
         "code": [
-          "src/render/text-engine.ts",
-          "src/render/text-engine.test.ts",
+          "packages/text-engine/package.json",
+          "packages/text-engine/src/render/text-engine.ts",
+          "packages/text-engine/src/render/text-engine.test.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
           "src/render/text-engine-boundary.test.ts",
-          "src/render/font-resolution.ts",
-          "src/render/text-to-path.ts",
           "src/render/element-tree-to-svg.ts"
         ],
         "aliases": ["docs/262-text-engine-session-boundary.md", "doc-262"]
@@ -5490,16 +5516,16 @@
         "code": [
           "src/capture/script/index.ts",
           "src/capture/script/walker/text-segments.ts",
-          "src/render/font-resolution.ts",
-          "src/render/glyph-helper-font.ts",
-          "src/render/glyph-helper-outline.ts",
-          "src/render/glyph-helper-protocol.ts",
-          "src/render/glyph-helper-transport.ts",
-          "src/render/glyph-helper.ts",
-          "src/render/linux-target-strike.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/glyph-helper-font.ts",
+          "packages/text-engine/src/render/glyph-helper-outline.ts",
+          "packages/text-engine/src/render/glyph-helper-protocol.ts",
+          "packages/text-engine/src/render/glyph-helper-transport.ts",
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/linux-target-strike.ts",
           "src/render/real-text-layer.ts",
-          "src/render/text-to-path.ts",
-          "src/render/text-engine.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
+          "packages/text-engine/src/render/text-engine.ts",
           "src/render/text.ts",
           "tests/feature-coverage.ts"
         ],

@@ -6,7 +6,7 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos"]
 tickets: ["DM-2550"]
-code: ["src/render/generic-script-families.test.ts"]
+code: ["packages/text-engine/src/render/generic-script-families.test.ts"]
 aliases: ["docs/224-hidden-macos-hebrew-generic-face.md", "doc-224"]
 ---
 
@@ -45,7 +45,7 @@ existing exact-face route.
 
 ## Exact gate
 
-`src/render/generic-script-families.test.ts` carries both sides of the stage
+`packages/text-engine/src/render/generic-script-families.test.ts` carries both sides of the stage
 boundary:
 
 - a captured Hebrew `.ArialHebrewDeskInterface` answer cannot become the

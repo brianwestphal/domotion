@@ -6,7 +6,13 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2635"]
-code: ["src/capture/debug-bundle.ts", "src/capture/index.ts", "src/index.ts", "tests/capture-debug-api.e2e.test.ts"]
+code:
+  [
+    "src/capture/debug-bundle.ts",
+    "src/capture/index.ts",
+    "packages/text-engine/src/index.ts",
+    "tests/capture-debug-api.e2e.test.ts",
+  ]
 aliases: ["docs/238-programmatic-debug-capture-bundles.md", "doc-238"]
 ---
 

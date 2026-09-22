@@ -21,7 +21,7 @@
 #
 #   Then, ON THE HOST, run the generator to emit the committed routing table:
 #     node tools/probe-983-genroutes-noto-linux.mjs
-#       -> src/render/unicode-font-routing.noto-linux.generated.ts
+#       -> packages/text-engine/src/render/unicode-font-routing.noto-linux.generated.ts
 #
 # REQUIREMENTS: Docker. The unicode block fixtures (../html-test/unicode).
 # USAGE: bash tools/calibrate-linux-noto-profile.sh

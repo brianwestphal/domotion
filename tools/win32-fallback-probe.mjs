@@ -7,7 +7,7 @@ if (process.platform !== "win32") {
   process.exit(2);
 }
 
-const helper = "tools/win32-glyph-extractor/domotion-glyph-paths.exe";
+const helper = "packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe";
 const queries = [
   {
     label: "hardcoded-terminal",

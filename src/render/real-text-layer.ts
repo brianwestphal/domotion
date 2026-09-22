@@ -3,41 +3,26 @@
 import type { CapturedElement, CapturedTextPaintAffine, TextSegment } from "../capture/types.js";
 import { esc, r } from "./format.js";
 import {
+  visualTextOnlyHiddenAttr,
+  visualTextSemantics,
+  withTextEngineVisualSemanticsSuppressed,
+} from "./text-semantics.js";
+import {
   IDENTITY_TEXT_AFFINE,
   prepareAffineTextPaint,
   serializeTextPaintMatrix,
   textAffineEquals,
 } from "./text-affine.js";
 
-let realTextLayerSemanticsDepth = 0;
-
 /** Preserve Blink's 1/64px layout positions without carrying float noise. */
 const position = (value: number): string => Number(value.toFixed(3)).toString();
 
 /** Suppress duplicate run-level labels while a real-text layer owns semantics. */
 export function withRealTextLayerVisualSemantics<T>(render: () => T): T {
-  realTextLayerSemanticsDepth++;
-  try {
-    return render();
-  } finally {
-    realTextLayerSemanticsDepth--;
-  }
+  return withTextEngineVisualSemanticsSuppressed(render);
 }
 
-/** Accessibility attributes for visual-only glyph geometry. */
-export function visualTextSemantics(text: string, includeTitle = true): { attrs: string; title: string } {
-  if (realTextLayerSemanticsDepth > 0) return { attrs: ` aria-hidden="true"`, title: "" };
-  return {
-    attrs: ` role="img" aria-label="${esc(text)}"`,
-    title: includeTitle ? `<title>${esc(text)}</title>` : "",
-  };
-}
-
-/** Hide decorative/native text paint only while the real-text layer owns the
- * corresponding readable source string. */
-export function visualTextOnlyHiddenAttr(): string {
-  return realTextLayerSemanticsDepth > 0 ? ` aria-hidden="true"` : "";
-}
+export { visualTextOnlyHiddenAttr, visualTextSemantics };
 
 interface RealTextRun {
   element: CapturedElement;

@@ -48,10 +48,18 @@ import { registerWebfont } from "../src/render/index.js";
  * side, reintroducing the platform spread the caps can't absorb.
  *
  * The files are subsetted from JetBrains Mono and IBM Plex Serif, both under
- * the SIL Open Font License 1.1 — see `assets/fonts/fixture/` for the license
+ * the SIL Open Font License 1.1 — see `packages/text-engine/assets/fonts/fixture/` for the license
  * text and `tools/build-fixture-fonts.mjs` to regenerate them.
  */
-const DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "fonts", "fixture");
+const DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "packages",
+  "text-engine",
+  "assets",
+  "fonts",
+  "fixture",
+);
 const MONO_BYTES = readFileSync(join(DIR, "DomotionFixtureMono-Regular.ttf"));
 const SERIF_BYTES = readFileSync(join(DIR, "DomotionFixtureSerif-Regular.ttf"));
 

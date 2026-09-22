@@ -57,10 +57,10 @@ export const GENERIC_FAMILY_SEMANTICS_SOURCE_FILES = {
 } as const;
 
 const PRODUCTION_FINGERPRINT_FILES = [
-  "src/font-family-stack.ts",
-  "src/render/font-resolution.ts",
-  "src/render/cluster-fallback.ts",
-  "src/render/win-font-fallback.ts",
+  "packages/text-engine/src/font-family-stack.ts",
+  "packages/text-engine/src/render/font-resolution.ts",
+  "packages/text-engine/src/render/cluster-fallback.ts",
+  "packages/text-engine/src/render/win-font-fallback.ts",
 ] as const;
 
 export type BlinkGenericFamily =

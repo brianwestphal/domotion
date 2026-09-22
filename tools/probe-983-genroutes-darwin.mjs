@@ -1,4 +1,4 @@
-// Generate src/render/unicode-font-routing.darwin.generated.ts from the
+// Generate packages/text-engine/src/render/unicode-font-routing.darwin.generated.ts from the
 // /tmp/unicode-fonts.darwin.json sweep. For each unicode block (filename-derived
 // codepoint range), pick the font family Chrome chose first, then resolve
 // that family to an on-disk file path.
@@ -322,7 +322,7 @@ for (const r of ranges) {
 }
 out += "];\n";
 
-writeFileSync("src/render/unicode-font-routing.darwin.generated.ts", out);
+writeFileSync("packages/text-engine/src/render/unicode-font-routing.darwin.generated.ts", out);
 
 console.log(`Generated ${ranges.length} ranges covering ${seenKeys.size} fonts.`);
 console.log(`Unresolved font families (no on-disk path mapped — blocks skipped):`);

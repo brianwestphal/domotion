@@ -121,7 +121,7 @@ jobs:
       - name: Build the Linux glyph helper
         # The terminal-mask gate now includes a target-size outline arm, so the
         # helper is required before that gate as well as by the routing probe.
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Gate embedded-font terminal masks against native Linux text (DM-2623)
         # Native text is reference-only. Every scored candidate is a data-URL
         # font. The gate requires the measured WQY surfaces to improve while
@@ -208,7 +208,7 @@ jobs:
   # it, commit it, and the gate arms on the next run) while the job stays
   # green. A regression vs this environment's committed entry (exit 1), or a
   # setup failure (exit 2), fails the job. Also runs the armed seam test
-  # (src/render/linux-declared-family-cut.test.ts): this is the one CI site
+  # (packages/text-engine/src/render/linux-declared-family-cut.test.ts): this is the one CI site
   # with the calibrated container fonts AND a built helper, so the
   # nomination-walk pins actually execute here rather than skipping.
   family-match:
@@ -226,9 +226,9 @@ jobs:
           apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
       - name: Build the fontconfig/FreeType helper
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Run the armed declared-family seam test
-        run: npx vitest run src/render/linux-declared-family-cut.test.ts
+        run: npx vitest run packages/text-engine/src/render/linux-declared-family-cut.test.ts
       - name: Family-match conformance vs Chrome (regression-relative)
         shell: bash
         run: |
@@ -276,11 +276,11 @@ jobs:
           apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
       - name: Build the FreeType helper
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Smoke-test the helper (Liberation Sans H)
         run: |
           F=$(ls /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf 2>/dev/null || echo /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf)
           printf '{"fonts":[{"ref":"f","fontPath":"%s","size":2048}],"queries":[{"type":"meta","fontRef":"f"},{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}' "$F" \
-            | tools/linux-glyph-extractor/domotion-glyph-paths
+            | packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths
       - name: Run the fontkit-parity test
         run: npx vitest run tests/linux-glyph-extractor.test.ts

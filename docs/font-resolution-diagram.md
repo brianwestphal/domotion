@@ -11,15 +11,15 @@ route, and explicitly degraded per-codepoint route.
 > fallback chains, the family→key map, the per-codepoint resolver, the live
 > system-fallback backends, or the render-text-mode branch **must update the
 > matching diagram + prose here in the same commit**. The authoritative source is
-> `src/render/font-resolution.ts` (routing tables + resolvers),
-> `src/render/win-font-fallback.ts` (Blink's hardcoded Windows stage, transcribed),
-> `src/render/glyph-helper.ts` (fallback/cache facade),
-> `src/render/glyph-helper-transport.ts` (binary discovery and carrier),
-> `src/render/glyph-helper-protocol.ts` (typed JSON envelope),
-> `src/render/glyph-helper-outline.ts` (path/metric conversion),
-> `src/render/glyph-helper-font.ts` (font adapter), and
-> `src/render/linux-target-strike.ts` (exact Linux strikes), `src/render/text-to-path.ts`
-> (the shaping / run-splitting callers), `src/render/embedded-font-builder.ts`
+> `packages/text-engine/src/render/font-resolution.ts` (routing tables + resolvers),
+> `packages/text-engine/src/render/win-font-fallback.ts` (Blink's hardcoded Windows stage, transcribed),
+> `packages/text-engine/src/render/glyph-helper.ts` (fallback/cache facade),
+> `packages/text-engine/src/render/glyph-helper-transport.ts` (binary discovery and carrier),
+> `packages/text-engine/src/render/glyph-helper-protocol.ts` (typed JSON envelope),
+> `packages/text-engine/src/render/glyph-helper-outline.ts` (path/metric conversion),
+> `packages/text-engine/src/render/glyph-helper-font.ts` (font adapter), and
+> `packages/text-engine/src/render/linux-target-strike.ts` (exact Linux strikes), `packages/text-engine/src/render/text-to-path.ts`
+> (the shaping / run-splitting callers), `packages/text-engine/src/render/embedded-font-builder.ts`
 > (embedded-mode subset builder), and `src/capture/index.ts`
 > (`discoverAndRegisterWebfonts`). When code and diagram disagree, the code wins —
 > fix the diagram. The `check-requirements-against-code` skill verifies this doc
@@ -36,6 +36,18 @@ source of truth for its slice):
 - [52 — embedded-mode glyph fallback](52-embedded-mode-glyph-fallback.md)
 - [80 — cross-platform live system-fallback resolver](80-cross-platform-system-fallback-resolver.md)
 
+## Package boundary
+
+The browser-faithful implementation is the private `@domotion/text-engine`
+workspace under `packages/text-engine/`. It owns resolution, fallback, shaping,
+glyph extraction, outline and embedded-font emission, native/ICU helper
+acquisition, routing data, HarfBuzz, and font fixtures. Resolution and shaping
+remain one package because shaped-cluster fallback repeatedly crosses between
+them. Domotion's `src/render/*` re-export files preserve source compatibility
+while application rendering migrates to the narrow session/document/run facade;
+they must never grow a second implementation. See docs 262 for the API and
+lifetime contract.
+
 ---
 
 ## Legend
@@ -45,7 +57,7 @@ source of truth for its slice):
   layer maps a key → an actual font file. `webfont:<family>`, `localalias:<family>`,
   `sysfb:<postscriptName>`, `u-…` (darwin generated), and `un-…` (Linux Noto
   generated) are namespaced key families.
-- **FontInstance** — the uniform interface (`src/render/font-resolution.ts`) both
+- **FontInstance** — the uniform interface (`packages/text-engine/src/render/font-resolution.ts`) both
   backing engines expose: fontkit `Font` OR a native glyph-helper instance. Carries
   `layout()`, `glyphForCodePoint()`, metrics.
 - **Primary** — the font the run's own `font-family` resolves to (first matched
@@ -91,11 +103,11 @@ flowchart TD
 **Source of truth:** `discoverAndRegisterWebfonts` + `resetGeneration` in
 `src/capture/index.ts`; `renderTextAsPath` / `textToPathMarkup` /
 `splitTextIntoFontRuns` / `splitTextIntoGlyphPathRuns` in
-`src/render/text-to-path.ts` (incl. `renderTextAsSystemFont` for the
+`packages/text-engine/src/render/text-to-path.ts` (incl. `renderTextAsSystemFont` for the
 `system-font` branch); the shared shaped splitter
-(`splitTextIntoFontRunsShaped`) in `src/render/cluster-fallback.ts`; the mode
+(`splitTextIntoFontRunsShaped`) in `packages/text-engine/src/render/cluster-fallback.ts`; the mode
 switch (`currentRenderTextMode` / `withRenderTextMode`) in
-`src/render/font-resolution.ts`; the `system-font` bidi opt-out in
+`packages/text-engine/src/render/font-resolution.ts`; the `system-font` bidi opt-out in
 `applyBidi` / `applyBidiAt` (`src/render/text.ts`).
 
 ### Render-text mode (embedded-font vs paths vs system-font)
@@ -113,14 +125,14 @@ does not consult `resolveFontForCodepoint` or the fallback chains at all.
 
 Both consult the SAME resolver (`resolveFontForCodepoint`) at the SAME
 granularity: per FAILING SHAPED CLUSTER (the Blink shape-then-requeue
-mechanism, `src/render/cluster-fallback.ts`, docs/113 — default-on,
+mechanism, `packages/text-engine/src/render/cluster-fallback.ts`, docs/113 — default-on,
 `DOMOTION_CLUSTER_FALLBACK=0` restores the per-codepoint legacy walk in both
 modes). Both live run splitters pass the run's complete OpenType feature list
 into that verdict-shaping call, so disables and explicit feature values can
 change `.notdef` coverage before a fallback face is assigned, just as they do
 in Blink's `ShapeRange(buffer, font_features, ...)`. That same feature list is
 passed to every later candidate after a miss. The paths entry
-(`splitTextIntoGlyphPathRuns`, `src/render/text-to-path.ts`) invokes the shared
+(`splitTextIntoGlyphPathRuns`, `packages/text-engine/src/render/text-to-path.ts`) invokes the shared
 splitter with `mode: "paths"`, but assignment and source-text ownership are
 identical: dotted-circle insertion and canonical decomposition happen inside
 the selected candidate's HarfBuzz shape. An unopenable local face is a
@@ -194,7 +206,7 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > (`FamilyNameFromSettings`, `platform/fonts/font_selector.cc:72-91`, rev
 > 7d859f27), the script being `LocaleToScriptCodeForFontSelection(lang)`
 > (`platform/text/locale_to_script_mapping.cc:164-470`, transcribed in full in
-> `src/render/generic-script-families.ts`). Capture enumerates language inputs
+> `packages/text-engine/src/render/generic-script-families.ts`). Capture enumerates language inputs
 > from the flattened `DOMSnapshot` tree (including closed shadow roots) and its
 > exact `Document::ContentLanguage()` response-header value, matching
 > `Element::ComputeInheritedLanguage()`'s element/shadow-host/document fallback
@@ -326,7 +338,7 @@ font_family.cc:63-74`, rev 7d859f27; the computed style delivers the
 >     DirectWrite family, so the probe misses; Blink resolves it by stripping a
 >     known weight/stretch suffix and PINNING that axis
 >     (`win/font_cache_skia_win.cc:409-480`, rev 7d859f27). Mirrored via
->     `win32FamilySuffixAdjustment` (`src/render/win32-family-suffix.ts`): the
+>     `win32FamilySuffixAdjustment` (`packages/text-engine/src/render/win32-family-suffix.ts`): the
 >     adjusted face registers as `winfam:<psName>` and
 >     `win32SuffixDeclaredForKey` records the pin so §3's `win32PrimaryCutKey`
 >     re-resolves the slope per run at the pinned weight/stretch.
@@ -484,7 +496,7 @@ flowchart TD
 | `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system`                                              | `null`                     | **skipped** (not in Blink's keyword table — `css_value_keywords.json5:173-181`; Chrome walks the stack, ultimately to `times`)   |
 
 **Source of truth:** `matchFamilyNameToKey` / `resolveFontKey` /
-`resolveFontKeyChain` / `splitFontFamilyNames` in `src/render/font-resolution.ts`.
+`resolveFontKeyChain` / `splitFontFamilyNames` in `packages/text-engine/src/render/font-resolution.ts`.
 Doc [03](03-font-family-chain.md).
 
 ---
@@ -632,7 +644,7 @@ flowchart TD
 
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**
 fontkit is primary; the **native glyph helper** (macOS CoreText / Linux FreeType /
-Windows DirectWrite, dispatched by `process.platform` in `src/render/glyph-helper-transport.ts`)
+Windows DirectWrite, dispatched by `process.platform` in `packages/text-engine/src/render/glyph-helper-transport.ts`)
 is the fallback for a _helper-eligible_ font (`extractor: "native"`) that fontkit
 can't open OR opens with no outline table (PingFang's outlines live in Apple's
 private `hvgl` table). A finer **per-glyph** tier (`commandsFor` → `helperGlyphOutline`,
@@ -653,8 +665,8 @@ command SHA, so warm axis mutations cannot alias.
 **Outline offset — where CoreText says the glyph goes vs where it draws it.**
 `createGlyphHelperFont` measures one per-face vertical correction on macOS and
 applies it to every outline it returns (`measureOutlineOffsetY` in
-`src/render/glyph-helper-outline.ts` → `glyphCommands` in
-`src/render/glyph-helper-font.ts`). CoreText exposes two answers for
+`packages/text-engine/src/render/glyph-helper-outline.ts` → `glyphCommands` in
+`packages/text-engine/src/render/glyph-helper-font.ts`). CoreText exposes two answers for
 the same glyph: `CTFontCreatePathForGlyph` (the outline) and
 `CTFontGetBoundingRectsForGlyphs` (the box it occupies). Chrome paints at the
 bounding rect, so where the two disagree the raw outline lands in the wrong
@@ -813,7 +825,7 @@ revision the local Chromium checkout's DEPS:330 pins at rev `7d859f27`, which
 differs materially from the current Skia tree (single `FcFontSort(trim=0)`,
 first-valid-then-accept-or-reject; no direct `FcFontMatch` stage, no
 `isAcceptableMatch` function). The transcription lives in the Linux glyph
-helper's `familyMatch` query (`tools/linux-glyph-extractor/src/main.cpp`),
+helper's `familyMatch` query (`packages/text-engine/tools/linux-glyph-extractor/src/main.cpp`),
 reached through `resolveLinuxFamilyMatch`. The nominated family is the
 ACCEPTED spelling the §2 nomination walk recorded (`declaredFamilyForKey`,
 re-matched here with the same alias retry Blink's lookup carries) and, for
@@ -835,7 +847,7 @@ controls and therefore preserve a preceding legacy generic or leave no family.
 The terminal-result memo keys that source-selected initial family; a successful
 by-name result and the final face/style cache remain generic-agnostic. The exact
 forward/reverse family-exhaustion discriminator is
-`src/render/skia-last-resort-routing.test.ts` and uses repository fixture faces,
+`packages/text-engine/src/render/skia-last-resort-routing.test.ts` and uses repository fixture faces,
 including a shaped U+E000 `.notdef`/covering-terminal activation—not host
 answers or pixels. Gated on
 `DOMOTION_SYSTEM_FALLBACK != 0`; scored end to end by
@@ -852,7 +864,7 @@ re-selection — but Blink adds a Windows-only family-NAME layer:
 "Segoe UI Light" is not a DirectWrite family, and
 `FontCache::CreateFontPlatformData` resolves it by stripping the weight/
 stretch suffix and pinning that axis (`win/font_cache_skia_win.cc:335-480`).
-`win32FamilySuffixAdjustment` (`src/render/win32-family-suffix.ts`) carries
+`win32FamilySuffixAdjustment` (`packages/text-engine/src/render/win32-family-suffix.ts`) carries
 the transcription; `win32FamilyKey` retries through it, and author-declared
 suffix families re-resolve the slope per run through
 `win32SuffixDeclaredForKey`. Scored end to end by
@@ -917,11 +929,11 @@ the angle.
 `darwinSystemUiWdth` / `resolveFontSpec` / `applyVariationAxes` /
 `subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
 `linuxPrimaryCutKey` / `fontHasOutlineTable` / `commandsFor` in
-`src/render/font-resolution.ts`; `win32FamilySuffixAdjustment` in
-`src/render/win32-family-suffix.ts`; `resolveFamilyStyleMatch` /
+`packages/text-engine/src/render/font-resolution.ts`; `win32FamilySuffixAdjustment` in
+`packages/text-engine/src/render/win32-family-suffix.ts`; `resolveFamilyStyleMatch` /
 `resolveLinuxFamilyMatch` / `resolveInstalledFont` in the
-`src/render/glyph-helper.ts` facade; native adapter construction in
-`src/render/glyph-helper-font.ts`.
+`packages/text-engine/src/render/glyph-helper.ts` facade; native adapter construction in
+`packages/text-engine/src/render/glyph-helper-font.ts`.
 
 ---
 
@@ -972,7 +984,7 @@ flowchart TD
 **Source of truth:** `registerWebfont` / `pickWebfontVariant` /
 `pickWebfontVariantForCodepoint` / `webfontVariantsInDeclarationOrder` /
 `unicodeRangeCovers` / `registerLocalFontAlias` /
-`pickLocalFontAliasVariant` in `src/render/font-resolution.ts`.
+`pickLocalFontAliasVariant` in `packages/text-engine/src/render/font-resolution.ts`.
 
 ---
 
@@ -1004,7 +1016,7 @@ gives you", and on a collection that is member 0, i.e. the vendor's ordering
 rather than anything a routing table meant. `NotoSansMyanmar.ttc` has 18 members
 and member 0 is **Black**, so every Myanmar run painted at weight 900 whatever
 the CSS asked for, while Chrome (asked over CDP) answers
-`NotoSansMyanmar-Regular` at weight 400 — U+1000 advance 1124 against Black's 1121. `src/render/font-path-postscript-names.test.ts` sweeps the table and fails
+`NotoSansMyanmar-Regular` at weight 400 — U+1000 advance 1124 against Black's 1121. `packages/text-engine/src/render/font-path-postscript-names.test.ts` sweeps the table and fails
 on any key that resolves to a multi-member collection without a name.
 
 Entries under the `u-` namespace come from the generated per-block table, which
@@ -1065,7 +1077,7 @@ The generator also marks author-installed paths and paths absent on the generati
 
 When a route is rejected, the **live resolver** supplies the replacement and is placed at the chain HEAD. Merely dropping the route would be worse than the original bug: the static tail ends in `last-resort`, whose LastResort.otf has a block-frame glyph for _every_ codepoint, so it would win and paint tofu — and `u-noto-sans` sitting in that tail is itself a non-stock download that gets skipped when absent. If the OS has no answer either, the generated route is kept: a face Chrome might not pick still beats guaranteed tofu.
 
-Measured with `tools/chrome-font-agreement.ts` (FONTAGREE), which asks Chrome via CDP `CSS.getPlatformFontsForNode` and our resolver the same per-codepoint question on the same machine. On the GitHub macOS runner this went **6/10 → 10/10**: U+04FA–U+04FC now resolve to `sysfb:.NewYork-Regular`, matching the `.New York` Chrome paints there, and U+1D00 to Lucida Grande, instead of the route's SFNS. On a developer Mac — which _has_ the sampled fonts — nothing changes and it stays 10/10. `src/render/generated-route-family.test.ts` pins the family provenance the gate depends on.
+Measured with `tools/chrome-font-agreement.ts` (FONTAGREE), which asks Chrome via CDP `CSS.getPlatformFontsForNode` and our resolver the same per-codepoint question on the same machine. On the GitHub macOS runner this went **6/10 → 10/10**: U+04FA–U+04FC now resolve to `sysfb:.NewYork-Regular`, matching the `.New York` Chrome paints there, and U+1D00 to Lucida Grande, instead of the route's SFNS. On a developer Mac — which _has_ the sampled fonts — nothing changes and it stays 10/10. `packages/text-engine/src/render/generated-route-family.test.ts` pins the family provenance the gate depends on.
 
 Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same comparison is **`tools/font-conformance.ts`** (`npm run fonts:conformance`, [doc 107](./107-font-conformance-oracle.md)): every assigned Unicode codepoint × every font stack the fixture corpus uses, asked of both Chrome and this diagram's resolver, with a JSON report and a non-zero exit on any disagreement. Anything in this diagram that is a sampled approximation rather than a transcription of Blink's own logic shows up there as a mismatch count.
 
@@ -1096,7 +1108,7 @@ CI-image chain. Overridable via `DOMOTION_LINUX_FONT_PROFILE=noto|bare`.
 
 **Source of truth:** `resolveFontSpec` / `resolveLinuxSpec` / `resolveWin32Spec` /
 `fcMatch` / `linuxFontProfile` / `FONT_PATHS` / `LINUX_FONT_PATHS` /
-`WIN32_FONT_PATHS` in `src/render/font-resolution.ts`; the four
+`WIN32_FONT_PATHS` in `packages/text-engine/src/render/font-resolution.ts`; the four
 `unicode-font-routing.*.generated.ts` tables.
 
 ---
@@ -1108,7 +1120,7 @@ This is the heart of the system: for one codepoint `cp` in a run whose primary i
 the exact font + glyph to paint. The order mirrors Blink's `FontFallbackIterator`.
 
 Unicode properties used by the supported helper-backed path come from the
-separately versioned `domotion-icu` companion (`src/render/icu-helper.ts`). Its
+separately versioned `domotion-icu` companion (`packages/text-engine/src/render/icu-helper.ts`). Its
 ICU 78.2 source revision and complete `icudtl.dat` are pinned to Chromium; the
 platform executable and data are downloaded from the matching GitHub Release,
 checksum-verified, and cached independently of the npm package. In particular,
@@ -1193,7 +1205,7 @@ Notes:
   detected via `FontInstance.shapesWithHarfbuzz` and never wrapped twice — a
   proxy-over-proxy has no `getGlyph` and would silently move the outlines to
   HarfBuzz's own `glyphToPath`. Pinned by
-  `src/render/harfbuzz-run-routing.test.ts`.
+  `packages/text-engine/src/render/harfbuzz-run-routing.test.ts`.
 
 - **Uncovered orphan clusters get exactly one dotted circle.** When the default
   shaped-cluster splitter is active, `insertSyntheticDottedCircles` leaves an
@@ -1577,11 +1589,11 @@ run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   means private-use / noncharacter codepoints skip system fallback here too
   (`FontCache::FallbackFontForCharacter`, `platform/fonts/font_cache.cc:229-244`,
   Chromium rev 7d859f27), and the platform memo rows are populated by one asker
-  in one order. `src/render/notdef-probe-question-parity.test.ts` pins the
+  in one order. `packages/text-engine/src/render/notdef-probe-question-parity.test.ts` pins the
   delegation at the source level plus the later-declared-family behavior.
 
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
-`sfProCoverageOtfKey` / `decomposeMathAlphaRun` in `src/render/font-resolution.ts`.
+`sfProCoverageOtfKey` / `decomposeMathAlphaRun` in `packages/text-engine/src/render/font-resolution.ts`.
 Doc [80](80-cross-platform-system-fallback-resolver.md).
 
 ---
@@ -1689,7 +1701,7 @@ nothing usable (`platform/fonts/win/font_cache_skia_win.cc:286-296`, Chromium re
 and on a machine with a complete font set Chrome never asks it — whole scripts can
 diverge with no font-set explanation available.
 
-`src/render/win-font-fallback.ts` carries the transcription, with a per-symbol
+`packages/text-engine/src/render/win-font-fallback.ts` carries the transcription, with a per-symbol
 citation for every piece; `win32FallbackChain` is a thin adapter over it. The
 stage order that produces, matching Blink's:
 
@@ -1845,8 +1857,8 @@ separately under 17 controls.
 **Source of truth:** `fallbackFontChain` / `darwinFallbackChain` /
 `linuxFallbackChain` / `linuxNotoFallbackChain` / `win32FallbackChain` /
 `win32FamilyKey` / `win32DeferOrStatic` / `pingfangKeyForLang` / the `is*Block`
-predicates / `binarySearchRange` in `src/render/font-resolution.ts`, and the whole
-of `src/render/win-font-fallback.ts`. Doc
+predicates / `binarySearchRange` in `packages/text-engine/src/render/font-resolution.ts`, and the whole
+of `packages/text-engine/src/render/win-font-fallback.ts`. Doc
 [42](42-cross-platform-fallback-calibration.md).
 
 ---
@@ -1925,8 +1937,8 @@ mixed bitmap/vector font inventory — the roadmapped Noto desktop calibration.
 
 Every branch above is a round-trip to a native helper binary. Binary discovery,
 serve/one-shot selection, synchronous I/O, and reset lifecycle are owned by
-`src/render/glyph-helper-transport.ts`; typed request/response shapes are owned
-by `src/render/glyph-helper-protocol.ts`. The _carrier_
+`packages/text-engine/src/render/glyph-helper-transport.ts`; typed request/response shapes are owned
+by `packages/text-engine/src/render/glyph-helper-protocol.ts`. The _carrier_
 differs per platform in a way that has twice turned out to be load-bearing rather
 than incidental.
 
@@ -1961,7 +1973,7 @@ resolves _from_ a base face, so dropping it changes every macOS answer; DirectWr
 takes no base at all, and declaring an unopenable one is fatal in one-shot mode —
 which is precisely how the Windows resolver came to answer "no fallback font" for
 every codepoint while appearing healthy. Pinned by
-`src/render/win32-fallback-envelope.test.ts`; the full account is in doc 80's
+`packages/text-engine/src/render/win32-fallback-envelope.test.ts`; the full account is in doc 80's
 DM-1889 correction.
 
 ### 8a. macOS: the fallback answer is weight-dependent
@@ -2256,7 +2268,7 @@ constants:
   face under `ja` than under `zh-Hans` and the wrong one reads as a
   font-inventory problem.
 
-  `blinkWinFallbackLocale` (`src/render/win-font-fallback.ts`) transcribes
+  `blinkWinFallbackLocale` (`packages/text-engine/src/render/win-font-fallback.ts`) transcribes
   `FallbackLocaleForCharacter` + `LocaleForSkFontMgr` and is pinned against
   Blink's own `locale_test_data` table (`platform/text/layout_locale_test.cc:60-131`)
   row for row. It is **not** the raw CSS `lang`: the reduction keeps the script
@@ -2282,7 +2294,7 @@ Gated by `_systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
 default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with
 `withSystemFallbackResolution(on, fn)` (save/restore) rather than a bare
 `setSystemFallbackResolution`. The Windows/macOS backends share the same native
-"fallback" protocol (`resolveSystemFallbackFonts` in `src/render/glyph-helper.ts`)
+"fallback" protocol (`resolveSystemFallbackFonts` in `packages/text-engine/src/render/glyph-helper.ts`)
 and register with the **native** extractor; the Linux backend registers with the
 **fontkit** extractor. All three verify the picked face actually covers `cp` (the
 native helpers via a `HasCharacter` guard reporting `found:false`; Linux via
@@ -2291,10 +2303,10 @@ native helpers via a `HasCharacter` guard reporting `found:false`; Linux via
 **Source of truth:** `resolveSystemFallbackKeyForCp` /
 `resolveLinuxSystemFallbackKeyForCp` / `fontFileCoversCodepoint` /
 `registerDynamicSystemFont` / `withSystemFallbackResolution` in
-`src/render/font-resolution.ts`; `resolveSystemFallbackFonts` /
-`resolveInstalledFont` in the `src/render/glyph-helper.ts` facade,
-`createGlyphHelperFont` in `src/render/glyph-helper-font.ts`, and
-`isGlyphHelperAvailable` in `src/render/glyph-helper-transport.ts`. Doc
+`packages/text-engine/src/render/font-resolution.ts`; `resolveSystemFallbackFonts` /
+`resolveInstalledFont` in the `packages/text-engine/src/render/glyph-helper.ts` facade,
+`createGlyphHelperFont` in `packages/text-engine/src/render/glyph-helper-font.ts`, and
+`isGlyphHelperAvailable` in `packages/text-engine/src/render/glyph-helper-transport.ts`. Doc
 [80](80-cross-platform-system-fallback-resolver.md).
 
 ### 8b. macOS: the ideograph document cache (order-dependent, by design)
@@ -2339,9 +2351,9 @@ the weight-matched cut IS the base entry, so nothing changes there.
 
 **Source of truth:** `beginCharacterFallbackDocument` /
 `endCharacterFallbackDocument` / `characterFallbackDocKey` / `fallbackBaseFor`
-in `src/render/font-resolution.ts`; `isIdeographicCp` in
-`src/render/unicode-classification.ts`; pinned by
-`src/render/character-fallback-document-cache.test.ts`.
+in `packages/text-engine/src/render/font-resolution.ts`; `isIdeographicCp` in
+`packages/text-engine/src/render/unicode-classification.ts`; pinned by
+`packages/text-engine/src/render/character-fallback-document-cache.test.ts`.
 
 ---
 
@@ -2373,10 +2385,10 @@ flowchart TD
 
 **Source of truth:** `resolveGlyphCommands` / `classifyEmptyGlyphOutline` /
 `helperGlyphOutline` / `ensureGlyphDef` / `getGlyphDefs` in
-`src/render/font-resolution.ts`; `renderSourceOwnedTextBoundary` and the
-ownership ledger in `src/render/text-to-path.ts`;
+`packages/text-engine/src/render/font-resolution.ts`; `renderSourceOwnedTextBoundary` and the
+ownership ledger in `packages/text-engine/src/render/text-to-path.ts`;
 `trackGlyphInEmbedFont` / `getBuiltEmbeddedFontFaceCss` in
-`src/render/embedded-font-builder.ts`. Docs [51](51-probe-then-fallback-dispatch.md),
+`packages/text-engine/src/render/embedded-font-builder.ts`. Docs [51](51-probe-then-fallback-dispatch.md),
 [52](52-embedded-mode-glyph-fallback.md),
 [152](152-source-owned-text-failure-boundary.md).
 
@@ -2397,7 +2409,7 @@ still fall back to svg2ttf when the source cannot be subset safely.
 
 1. **Hinted hb-subset** (preferred): when every glyph in the entry came from ONE
    openable sfnt at ONE axis location with NO synthetic bake, the ORIGINAL file
-   is subset via harfbuzz's hb-subset (`src/render/hb-subset.ts`) with
+   is subset via harfbuzz's hb-subset (`packages/text-engine/src/render/hb-subset.ts`) with
    `RETAIN_GIDS` — keeping `cvt`/`fpgm`/`prep` + per-glyph instruction bytecode
    — and a format-12 PUA→gid cmap is injected. A variable source is **fully
    instanced** at the run's resolved axis location (`FontSourceInfo.variationAxes`
@@ -2574,7 +2586,7 @@ the `HB_TINY` build returned the unjoined isolated forms — 647/1415/1292/902/9
 font units against real HarfBuzz's 647/656/1359/700/971, well-formed output that
 is simply a different word.
 
-`vendor/harfbuzzjs/` is therefore harfbuzzjs v1.4.0 with `dist/harfbuzz.js` and
+`packages/text-engine/vendor/harfbuzzjs/` is therefore harfbuzzjs v1.4.0 with `dist/harfbuzz.js` and
 `dist/harfbuzz.wasm` rebuilt from source using the HarfBuzz configuration
 **Chromium ships**, transcribed from `third_party/harfbuzz/BUILD.gn:462-518`
 (Chromium rev `7d859f27`). Chromium's own `README.chromium` for HarfBuzz states
@@ -2589,11 +2601,11 @@ subtables, and — via `HB_NO_OT_SHAPE_FALLBACK`, which Chromium does **not**
 set — the OT shaper's Arabic/Hebrew/Thai fallback paths and vowel-constraint
 handling. Those are all restored by matching Chromium.
 
-`vendor/harfbuzzjs/README.md` carries the provenance table, the reproduction
+`packages/text-engine/vendor/harfbuzzjs/README.md` carries the provenance table, the reproduction
 recipe, and the two divergences that remain (Unicode properties come from
 HarfBuzz's built-in UCD rather than ICU; the Rust backend is absent, which is
 not a divergence for shipping Chrome since Blink pins the `"ot"` shaper unless
-an off-by-default runtime flag is set). `vendor/harfbuzzjs/build/config-override.h`
+an off-by-default runtime flag is set). `packages/text-engine/vendor/harfbuzzjs/build/config-override.h`
 is the configuration itself, annotated define by define.
 
 Consequence for the diagram: `getHbEntry` no longer inspects `morx`. Every face
@@ -2630,7 +2642,7 @@ The font object is cached per (file, face index) and shared across runs of every
 size, so the size is set on **every** shape call rather than at open time — a
 `ptem` left over from a previous run would track this one at the wrong size.
 
-`hb_font_set_ptem` is not exported by published harfbuzzjs; `vendor/harfbuzzjs/`
+`hb_font_set_ptem` is not exported by published harfbuzzjs; `packages/text-engine/vendor/harfbuzzjs/`
 adds it to the symbol list and exposes a `Font.setPtem()` binding. See that
 directory's README.
 
@@ -2797,7 +2809,7 @@ physical index comes from fontkit on the Node side, and is the only one valid fo
 
 ### The extractor reports how it resolved a face
 
-The macOS helper's `openFont` (`tools/macos-glyph-extractor/…/main.swift`) returns
+The macOS helper's `openFont` (`packages/text-engine/tools/macos-glyph-extractor/…/main.swift`) returns
 `nameMatched` plus a `resolution` on the `meta` query, one of
 `nameMatchedInFile` · `firstFaceNoNameRequested` · `byNameVerified` ·
 `byNameUnverified` · `systemUI`. Only `byNameUnverified` is not guaranteed to be
@@ -2842,7 +2854,7 @@ reaches it from `SkTypeface_Mac::onFilterRec`
 (`SkTypeface_win_dw.cpp:727-729`), and Fontations
 (`SkTypeface_fontations.cpp:299`). So an SVG frame in the fill color over the
 same outline IS the operation. `skiaFakeBoldStrokeExtraPx` computes the exact
-local width and `resolveFakeBoldTextPaint` (`src/render/embolden-outline.ts`)
+local width and `resolveFakeBoldTextPaint` (`packages/text-engine/src/render/embolden-outline.ts`)
 records the ordered Skia stages and lowers them to SVG passes. The dilation this replaced
 overshot by a size-dependent amount because its strength had no size term at all
 (measured against Chrome, ink delta over the un-emboldened control: 1.53× at
@@ -2850,7 +2862,7 @@ overshot by a size-dependent amount because its strength had no size term at all
 
 **Both render modes synthesize, and they read ONE predicate to decide.**
 `faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique`
-(`src/render/synthesis-decision.ts`) own the WHETHER; the modes differ only in
+(`packages/text-engine/src/render/synthesis-decision.ts`) own the WHETHER; the modes differ only in
 the HOW:
 
 |         | embedded-font mode                                                                | paths mode                                                                                                |

@@ -6,7 +6,11 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2090"]
-code: ["src/render/font-resolution.ts", "src/render/webfont-declaration-order.test.ts"]
+code:
+  [
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/webfont-declaration-order.test.ts",
+  ]
 aliases: ["docs/122-declared-family-segmented-face-parity.md", "doc-122"]
 ---
 

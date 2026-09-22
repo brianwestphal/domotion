@@ -8,10 +8,10 @@ platforms: ["macos", "linux", "windows"]
 tickets: []
 code:
   [
-    "src/render/character-fallback-document-cache.test.ts",
-    "src/render/font-resolution-cache-reset.test.ts",
-    "src/render/font-resolution.ts",
-    "src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
+    "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/glyph-helper.ts",
   ]
 aliases: ["docs/121-font-cache-parity.md", "doc-121"]
 ---

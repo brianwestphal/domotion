@@ -8,13 +8,13 @@ platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2387", "DM-2444", "DM-2507"]
 code:
   [
-    "src/render/cluster-fallback-bidi-boundary.test.ts",
-    "src/render/cluster-fallback.test.ts",
-    "src/render/cluster-fallback.ts",
-    "src/render/font-resolution.ts",
-    "src/render/glyph-path-run-split.test.ts",
-    "src/render/skia-last-resort-routing.test.ts",
-    "src/render/text-to-path.ts",
+    "packages/text-engine/src/render/cluster-fallback-bidi-boundary.test.ts",
+    "packages/text-engine/src/render/cluster-fallback.test.ts",
+    "packages/text-engine/src/render/cluster-fallback.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/glyph-path-run-split.test.ts",
+    "packages/text-engine/src/render/skia-last-resort-routing.test.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
     "tests/features.ts",
     "tools/cluster-conformance.ts",
   ]
@@ -24,9 +24,9 @@ aliases: ["docs/113-cluster-granularity-fallback.md", "doc-113"]
 # 113 — Font fallback at shaped-cluster granularity
 
 Status: **SHIPPED, default-on** for BOTH run splitters — the embedded-font
-pipeline and the glyph-path emitter. `src/render/cluster-fallback.ts` replaces
+pipeline and the glyph-path emitter. `packages/text-engine/src/render/cluster-fallback.ts` replaces
 `splitTextIntoFontRuns`' per-codepoint cmap walk (embedded), and
-`splitTextIntoGlyphPathRuns` (`src/render/text-to-path.ts`) invokes the same
+`splitTextIntoGlyphPathRuns` (`packages/text-engine/src/render/text-to-path.ts`) invokes the same
 splitter in its **"paths" mode** for `textToPathMarkup` — so the two render
 modes assign the same fonts to the same partially-covered clusters.
 `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk in both
@@ -39,8 +39,8 @@ miss; the legacy per-codepoint walk scores 6/10). DM-2507 additionally mirrors
 Blink's independent `SymbolsIterator`: source emoji-presentation ranges are
 intersected with complete bidi/script ranges before fallback allocation, and
 CSS `font-variant-emoji` is applied only afterward. Unit corpora:
-`src/render/cluster-fallback.test.ts` (embedded) and
-`src/render/glyph-path-run-split.test.ts` (paths — its cases fail against the
+`packages/text-engine/src/render/cluster-fallback.test.ts` (embedded) and
+`packages/text-engine/src/render/glyph-path-run-split.test.ts` (paths — its cases fail against the
 legacy walk, the discrimination requirement). The multi-codepoint face oracle
 is `tools/cluster-conformance.ts` (`npm run fonts:cluster-conformance`): it asks
 Chrome and the production glyph-path splitter which faces paint the same
@@ -54,7 +54,7 @@ CoreText cascade base, matching the current run Blink passes to
 `CTFontCreateForString`. `DOMOTION_WEBFONT_FALLBACK_BASE=0` restores the old
 Times stand-in for a live A/B; the partial-webfont cell must then move red.
 
-`src/render/cluster-fallback-bidi-boundary.test.ts` separately gates the
+`packages/text-engine/src/render/cluster-fallback-bidi-boundary.test.ts` separately gates the
 assembly boundary with one deterministic repo-owned webfont that covers Latin
 and Hebrew: ordinary `AאבB` must remain three directed same-face runs, the
 all-LTR control must still coalesce, and a deleted-boundary mutant must collapse
@@ -120,8 +120,8 @@ came back `.notdef`:
 
 The legacy Domotion route decides **per codepoint from cmap coverage, before
 any shaping**
-(`splitTextIntoFontRuns`, `src/render/text-to-path.ts`, with
-`resolveFontForCodepoint` in `src/render/font-resolution.ts` as the
+(`splitTextIntoFontRuns`, `packages/text-engine/src/render/text-to-path.ts`, with
+`resolveFontForCodepoint` in `packages/text-engine/src/render/font-resolution.ts` as the
 per-codepoint oracle). The unit is wrong, and no table can fix a wrong unit.
 
 ## 2. Verified divergence classes (Chrome ground truth, CDP `CSS.getPlatformFontsForNode`)
@@ -190,7 +190,7 @@ older gates would have scored the wrong unit at 100% forever.
 
 ## 4. Architecture
 
-The shipped implementation (`src/render/cluster-fallback.ts`) replaces
+The shipped implementation (`packages/text-engine/src/render/cluster-fallback.ts`) replaces
 `splitTextIntoFontRuns`'s per-codepoint walk:
 
 ```
@@ -292,7 +292,7 @@ itemOffset, itemLength)` maps directly onto `hb_buffer_add_utf16`'s item
   legacy enum. Candidates are deduped like every other stage, with
   `kFirstCandidateForNotdefGlyph` re-returning the first candidate so ITS
   `.notdef` paints. The exact family-exhaustion and reverse-cache-order checks
-  are in `src/render/skia-last-resort-routing.test.ts`; they compare logical
+  are in `packages/text-engine/src/render/skia-last-resort-routing.test.ts`; they compare logical
   routes and instance identity, and include a shaped U+E000 `.notdef`
   activation whose monospace terminal alone covers the queued cluster—never
   pixels.

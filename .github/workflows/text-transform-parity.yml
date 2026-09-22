@@ -106,14 +106,14 @@ jobs:
         run: npx playwright install chromium
       - name: Build macOS CoreText helper
         if: runner.os == 'macOS'
-        run: bash tools/macos-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh
       - name: Build Linux fontconfig helper
         if: runner.os == 'Linux'
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Build Windows DirectWrite helper
         if: runner.os == 'Windows'
         shell: pwsh
-        run: tools/win32-glyph-extractor/build.ps1
+        run: packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Validate hard-gate corpus and tolerances
         run: npx vitest run tests/text-transform-parity-gate.test.ts
       - name: Prove pinned-source line-origin semantics

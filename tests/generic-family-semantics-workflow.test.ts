@@ -16,12 +16,12 @@ describe("generic-family semantic ownership workflow", () => {
     expect(workflow).toContain("playwright install --with-deps chromium");
     expect(workflow).toContain("playwright install chromium");
     expect(workflow).toContain("tests/generic-family-semantics-audit.test.ts");
-    expect(workflow).toContain("src/render/cluster-fallback.ts");
-    expect(workflow).toContain("src/render/skia-last-resort-routing.test.ts");
-    expect(workflow).toContain("src/font-family-stack.ts");
-    expect(workflow).toContain("tools/macos-glyph-extractor/build.sh");
-    expect(workflow).toContain("tools/linux-glyph-extractor/build.sh");
-    expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
+    expect(workflow).toContain("packages/text-engine/src/render/cluster-fallback.ts");
+    expect(workflow).toContain("packages/text-engine/src/render/skia-last-resort-routing.test.ts");
+    expect(workflow).toContain("packages/text-engine/src/font-family-stack.ts");
+    expect(workflow).toContain("packages/text-engine/tools/macos-glyph-extractor/build.sh");
+    expect(workflow).toContain("packages/text-engine/tools/linux-glyph-extractor/build.sh");
+    expect(workflow).toContain("packages/text-engine/tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain(
       "Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders",
     );

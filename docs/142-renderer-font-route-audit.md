@@ -8,7 +8,7 @@ platforms: []
 tickets: ["DM-2330", "DM-2341", "DM-2348", "DM-2387", "DM-2392", "DM-2393", "DM-2398", "DM-2399"]
 code:
   [
-    "src/render/text-run-provenance.ts",
+    "packages/text-engine/src/render/text-run-provenance.ts",
     "tools/renderer-font-route-oracle.ts",
     "tools/parity-program.json",
     "tools/semantic-coverage.json",

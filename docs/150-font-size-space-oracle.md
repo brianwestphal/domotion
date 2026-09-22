@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos"]
 tickets: ["DM-2446", "DM-2448"]
-code: ["src/render/axis-location.test.ts", "tests/font-size-spaces.e2e.test.ts"]
+code: ["packages/text-engine/src/render/axis-location.test.ts", "tests/font-size-spaces.e2e.test.ts"]
 aliases: ["docs/150-font-size-space-oracle.md", "doc-150"]
 ---
 
@@ -29,7 +29,7 @@ explicit `"opsz"` axis. It records and asserts:
 The oracle deliberately compares relationships rather than macOS-only names or
 font-unit constants, so it can run on every supported platform. Explicit
 `opsz` and optical-sizing mode are asserted as capture inputs; axis-coordinate
-precedence remains covered by `src/render/axis-location.test.ts`.
+precedence remains covered by `packages/text-engine/src/render/axis-location.test.ts`.
 
 Per-segment metrics are part of the contract. Ordinary, first-line, pseudo, and
 input segments use their own face/style at computed size, followed by the

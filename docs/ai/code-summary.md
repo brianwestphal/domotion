@@ -18,20 +18,21 @@ loading the historical documentation corpus.
   importable/testable phases back into one self-contained `page.evaluate`
   function, so no module boundary leaks into the captured page (DM-2639).
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
-  decisions; it does not independently lay out the page. Native font work keeps
-  the process-scoped exact-pattern Linux `fc-match` memo alongside the logical
-  font caches in `font-resolution.ts`, while `glyph-helper.ts` remains the
-  public fallback/cache facade. Native transport,
-  protocol, outline conversion, font-adapter construction, and Linux target
-  strikes live in `glyph-helper-transport.ts`, `glyph-helper-protocol.ts`,
-  `glyph-helper-outline.ts`, `glyph-helper-font.ts`, and
-  `linux-target-strike.ts`, respectively.
+  decisions; it does not independently lay out the page. Browser-faithful text
+  is a private workspace at `packages/text-engine/`: it owns resolution,
+  fallback, shaping, glyph/outline and embedded-font emission, platform routing,
+  native and ICU helpers, HarfBuzz, font fixtures, and package-local tests.
+  Domotion consumes its session/document/run facade; root files that re-export
+  `@domotion/text-engine/internal/*` are compatibility adapters, not duplicate
+  implementations. Keep resolution and shaping together because shaped-cluster
+  fallback makes them mutually dependent. See docs 262 and the canonical font
+  resolution diagram.
   `render/real-text-layer.ts` owns the single-frame opt-in paintless authored
   text overlay for inline-SVG search, selection, copy, and accessibility; the
   visible glyph geometry remains the only paint owner.
   `RenderTextMode` selects the text-emit strategy: the pixel-faithful defaults
   `embedded-font` (subset `@font-face`) and `paths` (glyph outlines), plus the
-  opt-in `system-font` (`renderTextAsSystemFont` in `render/text-to-path.ts`) —
+  opt-in `system-font` (`renderTextAsSystemFont` in the text-engine workspace) —
   authored `<text>` painted by the consumer's installed fonts, run-anchor-only,
   browser-owned bidi, not pixel-faithful. Chosen via `--text-mode`,
   `setRenderTextMode`/`withRenderTextMode`, or `elementTreeToSvg({ renderTextMode })`;

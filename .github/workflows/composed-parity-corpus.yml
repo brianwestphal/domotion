@@ -71,15 +71,15 @@ jobs:
       - name: Build CoreText helper
         if: runner.os == 'macOS'
         run: |
-          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
-          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths tools/macos-glyph-extractor/domotion-glyph-paths
+          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
+          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
       - name: Build fontconfig helper
         if: runner.os == 'Linux'
-        run: bash tools/linux-glyph-extractor/build.sh
+        run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Build DirectWrite helper
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./tools/win32-glyph-extractor/build.ps1
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Validate corpus identities, axes, and workflow structure
         run: npx vitest run tests/composed-parity-corpus.test.ts tests/composed-parity-workflow.test.ts tests/html-test-parity-corpus.test.ts
       - name: Validate live metamorphic activation and capture-time freezing

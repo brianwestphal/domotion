@@ -6,7 +6,7 @@ status: "current"
 owners: ["text-fonts"]
 platforms: []
 tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557"]
-code: ["src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"]
+code: ["packages/text-engine/src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"]
 aliases: ["docs/30-webfont-unicode-range.md", "doc-30"]
 ---
 
@@ -66,7 +66,7 @@ Two pickers consult it:
 
 ## Run-splitter integration
 
-`textToPathMarkup` in `src/render/text-to-path.ts` walks the input text codepoint-by-codepoint, building runs of contiguous codepoints that route to the same font. Pre-DM-557 the routing was:
+`textToPathMarkup` in `packages/text-engine/src/render/text-to-path.ts` walks the input text codepoint-by-codepoint, building runs of contiguous codepoints that route to the same font. Pre-DM-557 the routing was:
 
 1. If `primaryFont.glyphForCodePoint(cp).id !== 0` → primary.
 2. Otherwise → walk `fallbackFontChain(cp)` (system fonts: Apple Symbols, PingFang, Hiragino, etc.).

@@ -6,7 +6,12 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1666", "DM-259", "DM-260", "DM-891", "DM-892"]
-code: ["src/render/embedded-font-builder.ts", "src/render/text-to-path.test.ts", "src/render/text-to-path.ts"]
+code:
+  [
+    "packages/text-engine/src/render/embedded-font-builder.ts",
+    "packages/text-engine/src/render/text-to-path.test.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
+  ]
 aliases: ["docs/52-embedded-mode-glyph-fallback.md", "doc-52"]
 ---
 
@@ -27,7 +32,7 @@ pairs with DM-259 (Linux) / DM-260 (Windows) calibration. Sibling reference:
 
 ## The gap (before DM-892)
 
-Domotion has two text render modes (`src/render/text-to-path.ts`):
+Domotion has two text render modes (`packages/text-engine/src/render/text-to-path.ts`):
 
 - **`paths` mode** emits each shaped glyph as an SVG `<path>`. DM-891 added the
   per-glyph helper fallback here: at the five glyph sites, `commandsFor(glyph,
@@ -36,7 +41,7 @@ Domotion has two text render modes (`src/render/text-to-path.ts`):
   glyph id from the same file fontkit loaded.
 - **embedded-font mode** (`renderTextAsEmbedded`, the production default) instead
   bakes each shaped glyph into a synthesized TTF (`trackGlyphInEmbedFont`,
-  `src/render/embedded-font-builder.ts`) and emits `<text>` carrying PUA
+  `packages/text-engine/src/render/embedded-font-builder.ts`) and emits `<text>` carrying PUA
   codepoints that reference it. This loop read `glyph.path?.commands ?? []`
   directly — so a glyph fontkit couldn't decode produced an **empty `glyf`** in
   the synthesized font and rendered blank, even though `paths` mode would now
@@ -107,7 +112,7 @@ routed once DM-259 / DM-260 calibration adds them.
 
 ## Validation
 
-- Unit (`src/render/text-to-path.test.ts`): a helper-supplied `PathCommand[]`
+- Unit (`packages/text-engine/src/render/text-to-path.test.ts`): a helper-supplied `PathCommand[]`
   injected via `trackGlyphInEmbedFont` re-parses out of the `@font-face` data URI
   as a **non-empty `glyf`**; plus a macOS-gated end-to-end case that fakes the
   trigger (an inkable Helvetica `H` whose fontkit outline is forced empty), runs

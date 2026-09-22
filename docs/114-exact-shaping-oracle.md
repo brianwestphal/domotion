@@ -6,7 +6,12 @@ status: "current"
 owners: ["text-fonts", "platform-release", "product-tooling"]
 platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["src/render/harfbuzz-shaper.ts", "tools/exact-shaping-oracle.ts", "tools/shape-agreement-samples.ts"]
+code:
+  [
+    "packages/text-engine/src/render/harfbuzz-shaper.ts",
+    "tools/exact-shaping-oracle.ts",
+    "tools/shape-agreement-samples.ts",
+  ]
 aliases: ["docs/114-exact-shaping-oracle.md", "doc-114"]
 ---
 
