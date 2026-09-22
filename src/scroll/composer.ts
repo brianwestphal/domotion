@@ -32,14 +32,8 @@ import {
 import { roundedRectSvg } from "../render/borders.js";
 import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
-import {
-  resetGeneration,
-  getEmbeddedFontFaceCss,
-  getGlyphDefs,
-  withRenderTextMode,
-  type RenderTextMode,
-} from "../render/text-to-path.js";
-import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "../render/font-resolution.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, type RenderTextMode } from "../render/font-resolution.js";
+import { withTextEngineDocument } from "../render/text-engine.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
@@ -516,34 +510,22 @@ export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollC
   // the same `@font-face` registry; we collect everything into one
   // top-level <style> block at the bottom of this function.
   const renderTextMode: RenderTextMode = opts.renderText ?? "embedded-font";
-  resetGeneration(); // DM-1338/DM-1435: reset the embedded-font + paths-mode glyph registries per generation
-  // DM-1078/DM-1435: the whole body renders in the chosen mode (module-global);
-  // `withRenderTextMode` restores it on ANY exit — incl. a mid-segment
-  // elementTreeToSvgInner throw — so the mode can't leak to the next caller.
-  // One document scope for the macOS ideograph fallback cache across ALL
-  // segments: every segment came from one captured page session, whose Chrome
-  // renderer shared one per-character fallback cache (see
-  // `beginCharacterFallbackDocument` in font-resolution.ts). The per-segment
-  // `elementTreeToSvgInner` scopes nest inside this one as no-ops.
-  beginCharacterFallbackDocument();
-  try {
-    return withRenderTextMode(renderTextMode, () =>
-      composeScrollSvgBody(composedSegments, opts, {
-        axis,
-        W,
-        VH,
-        bg,
-        paintBg,
-        hiDPIFactor,
-        chunkSize,
-        staticUnderlay: elementScroll?.staticUnderlay,
-        staticForegroundLayers: elementScroll?.staticForegroundLayers,
-        elementOwnerClips: elementScroll?.ownerClips,
-      }),
-    );
-  } finally {
-    endCharacterFallbackDocument();
-  }
+  // One explicit text-engine document owns generation state, text mode, and
+  // the renderer fallback cache across every segment.
+  return withTextEngineDocument({ generation: "reset", renderTextMode }, () =>
+    composeScrollSvgBody(composedSegments, opts, {
+      axis,
+      W,
+      VH,
+      bg,
+      paintBg,
+      hiDPIFactor,
+      chunkSize,
+      staticUnderlay: elementScroll?.staticUnderlay,
+      staticForegroundLayers: elementScroll?.staticForegroundLayers,
+      elementOwnerClips: elementScroll?.ownerClips,
+    }),
+  ).value;
 }
 
 /**

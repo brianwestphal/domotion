@@ -331,6 +331,38 @@ export const FEATURES: FeatureEntry[] = [
     ],
   },
 
+  // ── Text engine and render mode ────────────────────────────────────────
+  {
+    id: "text.engine-session",
+    behavior:
+      "One explicit text-engine session isolates registered fonts and resumable generation state; a synchronous document owns mode, fallback lifetime, baseline policy, generated artifacts, and diagnostics while nested adapters join it.",
+    doc: "docs/262-text-engine-session-boundary.md",
+    exports: [
+      "createTextEngineSession",
+      "withTextEngineDocument",
+      "clearTextEngineFonts",
+      "registerTextEngineWebfont",
+      "registerTextEngineLocalFontAlias",
+    ],
+    tests: ["src/render/text-engine.test.ts", "src/render/text-engine-boundary.test.ts"],
+    transition:
+      "new isolated session → register fonts → reset document produces owned artifacts → continue document resumes them; exceptional/nested exits restore the outer mode, baseline policy, registrations, and generation.",
+    transitionEvidence: [
+      {
+        test: "src/render/text-engine.test.ts",
+        title: "isolates generated artifacts between sessions and continues one session explicitly",
+      },
+      {
+        test: "src/render/text-engine.test.ts",
+        title: "keeps registered font aliases session-owned",
+      },
+      {
+        test: "src/render/text-engine.test.ts",
+        title: "restores document-owned baseline policy after an exceptional exit",
+      },
+    ],
+  },
+
   // ── Text-render mode (STATEFUL: process-global save/restore) ────────────
   {
     id: "text.mode",

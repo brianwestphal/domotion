@@ -10,23 +10,14 @@ import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, renderVerticalSystemFontText, hasVerticalSegments } from "./vertical-text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
+import { renderRadicalGlyph, renderSourceOwnedTextBoundary } from "./text-to-path.js";
 import {
   getEmbeddedFontFaceCss,
   getGlyphDefs,
-  renderRadicalGlyph,
-  renderSourceOwnedTextBoundary,
-  pushBaselineSnapSuppression,
-  popBaselineSnapSuppression,
-} from "./text-to-path.js";
-import {
-  beginCharacterFallbackDocument,
-  endCharacterFallbackDocument,
-  getRenderTextMode,
-  withRenderTextMode,
-  withSessionGenericFamilyOverrides,
   type RenderTextMode,
   type SessionGenericFamilyOverrides,
 } from "./font-resolution.js";
+import { activeTextEngineDocument, withTextEngineDocument } from "./text-engine.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
@@ -2065,21 +2056,9 @@ export function elementTreeToSvgInner(
 ): string {
   const elements = capturedTreeRoots(input);
   const render = (): string => {
-    beginCharacterFallbackDocument();
-    try {
-      const visual = includeRealTextLayer
-        ? withRealTextLayerVisualSemantics(() =>
-            elementTreeToSvgInnerImpl(
-              elements,
-              width,
-              height,
-              idPrefix,
-              includeGlyphDefs,
-              hiDPIFactor,
-              includeEmbeddedFontCss,
-            ),
-          )
-        : elementTreeToSvgInnerImpl(
+    const visual = includeRealTextLayer
+      ? withRealTextLayerVisualSemantics(() =>
+          elementTreeToSvgInnerImpl(
             elements,
             width,
             height,
@@ -2087,16 +2066,26 @@ export function elementTreeToSvgInner(
             includeGlyphDefs,
             hiDPIFactor,
             includeEmbeddedFontCss,
-          );
-      const realText = includeRealTextLayer ? renderRealTextLayer(elements) : "";
-      return realText === "" ? visual : `${visual}\n${realText}`;
-    } finally {
-      endCharacterFallbackDocument();
-    }
+          ),
+        )
+      : elementTreeToSvgInnerImpl(
+          elements,
+          width,
+          height,
+          idPrefix,
+          includeGlyphDefs,
+          hiDPIFactor,
+          includeEmbeddedFontCss,
+        );
+    const realText = includeRealTextLayer ? renderRealTextLayer(elements) : "";
+    return realText === "" ? visual : `${visual}\n${realText}`;
   };
   return withActiveHiDPIFactor(hiDPIFactor, () => {
     const captured = capturedSessionGenericFamilies(input);
-    return captured == null ? render() : withSessionGenericFamilyOverrides(captured, render);
+    // This adapter historically joined the caller's generation: single-frame
+    // producers reset before entry, while multi-frame/speculative producers
+    // intentionally accumulate or roll back around it.
+    return withTextEngineDocument({ genericFamilies: captured, generation: "continue" }, render).value;
   });
 }
 
@@ -4385,7 +4374,9 @@ function renderElement(
     hasTransform ||
     el.styles.transformCreatesSc === true ||
     (el.styles.transformStyle != null && el.styles.transformStyle !== "" && el.styles.transformStyle !== "flat");
-  if (suppressBaselineSnap) pushBaselineSnapSuppression();
+  const releaseBaselineSnapSuppression = suppressBaselineSnap
+    ? activeTextEngineDocument()?.enterBaselineSnappingSuppressed()
+    : undefined;
   // Inner anim-class wrapper sits INSIDE any visibility/transform group so
   // the merger's class (added on the outer group) and our anim class can
   // each carry their own `animation` shorthand without clobbering.
@@ -4428,7 +4419,7 @@ function renderElement(
    * element keeps emitting exactly what it always did.
    */
   const closeWrappers = (): void => {
-    if (suppressBaselineSnap) popBaselineSnapSuppression();
+    releaseBaselineSnapSuppression?.();
     if (phase !== "all" && svgParts.length === wrapperContentStart) {
       svgParts.length = wrapperStart;
       return;
@@ -4540,8 +4531,8 @@ export function elementTreeToSvg(
      * `@font-face` + `<text>`, the default), `"paths"` (glyph outlines), or
      * `"system-font"` (authored `<text>` painted by the CONSUMER's installed
      * fonts; smaller output, not pixel-faithful). Applied for the duration of
-     * this call via `withRenderTextMode`; the process-global mode is restored
-     * afterward. Omit to use the current process-global mode. */
+     * this call through the text-engine document; the prior mode is restored
+     * afterward. Omit to use the current default mode. */
     renderTextMode?: RenderTextMode;
   },
 ): string {
@@ -4564,7 +4555,9 @@ export function elementTreeToSvg(
       realTextLayer: opts?.realTextLayer,
     });
   };
-  return opts?.renderTextMode != null ? withRenderTextMode(opts.renderTextMode, render) : render();
+  return opts?.renderTextMode != null
+    ? withTextEngineDocument({ generation: "continue", renderTextMode: opts.renderTextMode }, render).value
+    : render();
 }
 
 // Stacking-context analysis (establishesStackingContext / gatherStackingContextChildren / isOverflowOnlySC / isFlexOrGridContainerDisplay) moved to ./stacking.ts (DM-1305).

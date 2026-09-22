@@ -37,6 +37,7 @@ import {
   snapshotGeneration,
 } from "./text-to-path.js";
 import { elementTreeToSvg } from "./element-tree-to-svg.js";
+import { withTextEngineDocument, type TextEngineDocumentCallback } from "./text-engine.js";
 import type { CapturedElement } from "../capture/types.js";
 
 // Two distinct deterministic outlines so a swapped glyph changes the subset
@@ -499,6 +500,8 @@ function textTree(text: string, fontSize: string): CapturedElement[] {
 }
 
 const composeSvg = (text: string, fontSize = "16px"): string => elementTreeToSvg(textTree(text, fontSize), 420, 50);
+const withinTextDocument = <T>(compose: () => T): T =>
+  withTextEngineDocument({ generation: "reset" }, compose as TextEngineDocumentCallback<T>).value;
 
 describe("speculative compose through elementTreeToSvg is byte-identical after rollback", () => {
   beforeEach(() => resetGeneration());
@@ -511,46 +514,52 @@ describe("speculative compose through elementTreeToSvg is byte-identical after r
   const TRIAL = "xof nworb kciuq ehT — 9876543210"; // same-ish glyph set, different order + extras
 
   it("composes → speculates → rolls back → recomposes to the same bytes", () => {
-    resetGeneration();
-    const baseline = composeSvg(REAL);
-    const embedded = baseline.includes("data:font/ttf;base64,");
+    withinTextDocument(() => {
+      resetGeneration();
+      const baseline = composeSvg(REAL);
+      const embedded = baseline.includes("data:font/ttf;base64,");
 
-    resetGeneration();
-    const marker = snapshotGeneration();
-    const trial = composeSvg(TRIAL, "23px"); // a different variant, measured then discarded
-    expect(trial.length).toBeGreaterThan(0);
-    restoreGeneration(marker);
-    const afterRollback = composeSvg(REAL);
+      resetGeneration();
+      const marker = snapshotGeneration();
+      const trial = composeSvg(TRIAL, "23px"); // a different variant, measured then discarded
+      expect(trial.length).toBeGreaterThan(0);
+      restoreGeneration(marker);
+      const afterRollback = composeSvg(REAL);
 
-    expect(afterRollback).toBe(baseline);
-    // Non-vacuity: the render really did embed a font subset on this platform.
-    expect(embedded).toBe(true);
+      expect(afterRollback).toBe(baseline);
+      // Non-vacuity: the render really did embed a font subset on this platform.
+      expect(embedded).toBe(true);
+    });
   });
 
   it("goes red without the rollback", () => {
-    resetGeneration();
-    const baseline = composeSvg(REAL);
+    withinTextDocument(() => {
+      resetGeneration();
+      const baseline = composeSvg(REAL);
 
-    resetGeneration();
-    snapshotGeneration();
-    composeSvg(TRIAL, "23px");
-    /* no restoreGeneration(marker) */
-    const leaked = composeSvg(REAL);
+      resetGeneration();
+      snapshotGeneration();
+      composeSvg(TRIAL, "23px");
+      /* no restoreGeneration(marker) */
+      const leaked = composeSvg(REAL);
 
-    expect(leaked).not.toBe(baseline);
+      expect(leaked).not.toBe(baseline);
+    });
   });
 
   it("rolls back a mid-run marker (the nested `manageFonts: false` case)", () => {
-    resetGeneration();
-    composeSvg("Outer chrome heading");
-    const baseline = composeSvg(REAL);
+    withinTextDocument(() => {
+      resetGeneration();
+      composeSvg("Outer chrome heading");
+      const baseline = composeSvg(REAL);
 
-    resetGeneration();
-    composeSvg("Outer chrome heading");
-    const marker = snapshotGeneration();
-    composeSvg(TRIAL, "23px");
-    restoreGeneration(marker);
+      resetGeneration();
+      composeSvg("Outer chrome heading");
+      const marker = snapshotGeneration();
+      composeSvg(TRIAL, "23px");
+      restoreGeneration(marker);
 
-    expect(composeSvg(REAL)).toBe(baseline);
+      expect(composeSvg(REAL)).toBe(baseline);
+    });
   });
 });

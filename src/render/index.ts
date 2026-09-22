@@ -22,7 +22,27 @@ export {
   type RenderTextMode,
   RENDER_TEXT_MODES,
   isRenderTextMode,
-} from "./text-to-path.js";
+} from "./font-resolution.js";
+
+// Deliberate boundary for the independently testable browser-faithful text
+// engine. Keep lifecycle/state coordination behind this facade; the lower
+// font-resolution and text-to-path modules are implementation details.
+export {
+  createTextEngineSession,
+  withTextEngineDocument,
+  clearTextEngineFonts,
+  registerTextEngineWebfont,
+  registerTextEngineLocalFontAlias,
+  type TextEngineSession,
+  type TextEngineSessionOptions,
+  type TextEngineDocument,
+  type TextEngineDocumentRequest,
+  type TextEngineDocumentResult,
+  type TextEngineDocumentCallback,
+  type TextEngineArtifacts,
+  type TextEngineRunRequest,
+  type TextEngineRunResult,
+} from "./text-engine.js";
 
 // Speculative composition (`snapshotGeneration` / `restoreGeneration` /
 // `snapshotEmbeddedFonts` / `restoreEmbeddedFonts`) is deliberately NOT

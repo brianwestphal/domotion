@@ -5311,6 +5311,27 @@
       }
     },
     {
+      "file": "262-text-engine-session-boundary.md",
+      "metadata": {
+        "id": "requirements/text-engine-session-boundary",
+        "title": "262 — text-engine session and document boundary",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["text-fonts", "rendering"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-4CN6YM"],
+        "code": [
+          "src/render/text-engine.ts",
+          "src/render/text-engine.test.ts",
+          "src/render/text-engine-boundary.test.ts",
+          "src/render/font-resolution.ts",
+          "src/render/text-to-path.ts",
+          "src/render/element-tree-to-svg.ts"
+        ],
+        "aliases": ["docs/262-text-engine-session-boundary.md", "doc-262"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -5478,6 +5499,7 @@
           "src/render/linux-target-strike.ts",
           "src/render/real-text-layer.ts",
           "src/render/text-to-path.ts",
+          "src/render/text-engine.ts",
           "src/render/text.ts",
           "tests/feature-coverage.ts"
         ],
@@ -5731,6 +5753,7 @@
     "254": ["requirements/glassbox-studio-acceptance-benchmark"],
     "260": ["requirements/inline-svg-real-text-layer"],
     "261": ["requirements/system-font-render-text-mode"],
+    "262": ["requirements/text-engine-session-boundary"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

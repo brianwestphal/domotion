@@ -26,7 +26,7 @@ import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
-import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
+import { registerLocalFontAlias, registerWebfont } from "../render/font-resolution.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
@@ -74,11 +74,7 @@ import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CapturedFrameScrollState, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
-import {
-  createFontRendererSession,
-  withFontRendererSession,
-  type FontRendererSession,
-} from "../render/font-resolution.js";
+import { createTextEngineSession, withTextEngineDocument, type TextEngineSession } from "../render/text-engine.js";
 import {
   AuthenticatedAnimatedImageByteCollector,
   type AuthenticatedAnimatedImageBytes,
@@ -320,7 +316,7 @@ export class DemoRecorder {
   private authenticatedAnimatedImageBytes: AuthenticatedAnimatedImageBytes[] = [];
   private animatedImageStaticFrameRecords: AnimatedImageStaticFrameRecord[] = [];
   private frozenAnimatedImageResizeRecords: FrozenAnimatedImageResizeRecord[] = [];
-  private readonly fontRendererSession: FontRendererSession = createFontRendererSession();
+  private readonly textEngineSession: TextEngineSession = createTextEngineSession();
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
@@ -451,10 +447,9 @@ export class DemoRecorder {
     // builder + paths-mode glyph registry) so this capture's `@font-face` block /
     // <defs> contain only its own fonts/glyphs (the renderer repopulates them
     // during elementTreeToSvg, emitting into this frame's <defs>).
-    resetGeneration();
-    return withFontRendererSession(this.fontRendererSession, () =>
+    return withTextEngineDocument({ session: this.textEngineSession, generation: "reset" }, () =>
       elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2),
-    );
+    ).value;
   }
 
   /** Capture the current page state as SVG content. */

@@ -37,10 +37,9 @@ import {
   glyphDefCount,
   getGlyphDefsSince,
   truncateGlyphDefs,
-  beginCharacterFallbackDocument,
-  endCharacterFallbackDocument,
 } from "../render/font-resolution.js";
 import { renderTextAsPath } from "../render/text-to-path.js";
+import { withTextEngineDocument } from "../render/text-engine.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, planFrameTimeline, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
@@ -1585,12 +1584,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   // from one captured page session, whose Chrome renderer shared one
   // per-character fallback cache (see `beginCharacterFallbackDocument` in
   // font-resolution.ts). Any nested render's own scope no-ops inside this one.
-  beginCharacterFallbackDocument();
-  try {
-    return generateAnimatedSvgBody(config);
-  } finally {
-    endCharacterFallbackDocument();
-  }
+  return withTextEngineDocument({ generation: "continue" }, () => generateAnimatedSvgBody(config)).value;
 }
 
 interface AnimatedSvgBodyPlan {

@@ -2,7 +2,9 @@
  * Text-to-Path: shaping + SVG markup. The font-resolution subsystem it builds on
  * (font loading, the FONT_PATHS tables, the fallback chains, the webfont/embedded
  * registries, glyph-command extraction) lives in ./font-resolution.ts and is
- * re-exported here so the module's public surface is unchanged (DM-1307).
+ * consumed through the deliberate text-engine facade. Callers that need a
+ * resolver primitive import its owning module explicitly; this module no
+ * longer mirrors the entire resolver surface.
  */
 /**
  * Text-to-Path Converter
@@ -153,6 +155,38 @@ import {
   stackPrimaryIsSystemUi,
 } from "./font-resolution.js";
 
+// Deliberate compatibility surface. Historically this module used a blanket
+// resolver re-export, which made every internal resolver helper accidental API.
+// Keep only the existing call sites and public lifecycle controls explicit
+// while new consumers enter through text-engine.ts.
+export {
+  __linuxFontProfileForTest,
+  __pickLocalFontAliasVariantForTest,
+  __pickWebfontVariantMetaForCodepointForTest,
+  __pickWebfontVariantMetaForTest,
+  __resolveSystemFallbackKeyForCpForTest,
+  clearEmbeddedFonts,
+  clearGlyphDefs,
+  clearWebfonts,
+  ensureGlyphDef,
+  getGlyphDefs,
+  getRenderTextMode,
+  getSystemFallbackResolution,
+  isStretchyFenceChar,
+  linuxFallbackChain,
+  registerLocalFontAlias,
+  registerWebfont,
+  resetGeneration,
+  restoreGeneration,
+  setRenderTextMode,
+  setSystemFallbackResolution,
+  snapshotGeneration,
+  unicodeRangeCovers,
+  withRenderTextMode,
+  withSystemFallbackResolution,
+  __resetLinuxFontProfileForTest,
+} from "./font-resolution.js";
+
 /** Blink shapes each font run with the UBA-resolved text direction, including
  * dual-direction scripts whose HarfBuzz script default is INVALID/LTR. */
 export function shapingDirectionAt(text: string, utf16Index: number): "ltr" | "rtl" {
@@ -177,8 +211,6 @@ function recordRendererRuns(
     );
   }
 }
-export * from "./font-resolution.js";
-
 function slantForStyle(style: string | undefined): number {
   if (style == null) return 0;
   const s = style.toLowerCase();
@@ -3961,6 +3993,14 @@ function renderTextAsEmbedded(
  * regression). Unsnapped local coordinates are the closer approximation there.
  */
 let baselineSnapSuppressionDepth = 0;
+/** Internal text-engine transaction seam. */
+export function snapshotBaselineSnapSuppression(): number {
+  return baselineSnapSuppressionDepth;
+}
+/** Internal text-engine transaction seam. */
+export function restoreBaselineSnapSuppression(depth: number): void {
+  baselineSnapSuppressionDepth = Math.max(0, Math.trunc(depth));
+}
 export function pushBaselineSnapSuppression(): void {
   baselineSnapSuppressionDepth++;
 }

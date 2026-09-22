@@ -19,6 +19,7 @@ code:
     "src/render/linux-target-strike.ts",
     "src/render/real-text-layer.ts",
     "src/render/text-to-path.ts",
+    "src/render/text-engine.ts",
     "src/render/text.ts",
     "tests/feature-coverage.ts",
   ]
@@ -63,6 +64,12 @@ upstream source traces, corpora, and retained runs remain in the linked records.
    positioning, browser-owned bidi). Selected by `--text-mode` /
    `setRenderTextMode` / `elementTreeToSvg({ renderTextMode })`. See
    [doc 261](../261-system-font-render-text-mode.md).
+8. Font resolution and shaping form one text engine. Callers that need an
+   independently scoped renderer use `TextEngineSession` and
+   `withTextEngineDocument`; the document owns text mode, fallback lifetime,
+   generated artifacts, and diagnostics. Nested adapters join that document
+   rather than coordinating resolver globals directly. See
+   [doc 262](../262-text-engine-session-boundary.md).
 
 ## Verified implementation map
 
@@ -75,6 +82,7 @@ upstream source traces, corpora, and retained runs remain in the linked records.
 | Paint and decoration         | [Text decoration](../207-cross-platform-decoration-geometry.md), [background clip](../18-background-clip-text.md)                                                                      | `src/render/text.ts`, `src/render/text-to-path.ts`, `src/render/decoration-fragment-ownership.ts`, decoration oracle tests                             |
 | Inline text semantics        | [Opt-in real-text layer](../260-inline-svg-real-text-layer.md)                                                                                                                         | `src/render/real-text-layer.ts`, `src/render/real-text-layer.test.ts`, `tests/real-text-layer.e2e.test.ts`                                             |
 | Text-emit mode               | [system-font render text mode](../261-system-font-render-text-mode.md)                                                                                                                 | `src/render/text-to-path.ts` (`renderTextAsSystemFont`), `src/render/text.ts`, `src/cli/capture.ts`, `src/render/system-font-mode.test.ts`             |
+| Engine lifecycle             | [Text-engine session boundary](../262-text-engine-session-boundary.md)                                                                                                                 | `src/render/text-engine.ts`, `src/render/text-engine.test.ts`, `src/render/text-engine-boundary.test.ts`                                               |
 | Fallback and evidence        | [Same-machine contract](../120-same-machine-text-parity-contract.md), [renderer provenance](../143-production-text-run-provenance.md)                                                  | `src/render/text-run-provenance.ts`, `tools/renderer-font-route-oracle.ts`, native platform workflows                                                  |
 
 ## Boundaries

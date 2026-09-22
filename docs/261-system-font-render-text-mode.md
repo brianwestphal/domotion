@@ -52,8 +52,8 @@ not control.
   `--scroll` composer (which the `capture` CLI already routes through the same
   global). Same accepted values and CLI-boundary rejection as `capture`.
 - **API (scoped):** `elementTreeToSvg(tree, w, h, { renderTextMode: "system-font" })`
-  applies the mode for that one call via `withRenderTextMode` and restores the
-  prior process-global afterward.
+  applies the mode through one `withTextEngineDocument` transaction and
+  restores the prior process state afterward. See doc 262.
 - **API (process-global):** `setRenderTextMode("system-font")` /
   `withRenderTextMode("system-font", fn)`. The mode is a render-side
   process-global; prefer `withRenderTextMode` for a scoped change so a temporary

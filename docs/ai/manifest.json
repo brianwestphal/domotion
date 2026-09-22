@@ -3907,6 +3907,23 @@
       "file": "261-system-font-render-text-mode.md"
     },
     {
+      "id": "requirements/text-engine-session-boundary",
+      "title": "262 — text-engine session and document boundary",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["text-fonts", "rendering"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "src/render/text-engine.ts",
+        "src/render/text-engine.test.ts",
+        "src/render/text-engine-boundary.test.ts",
+        "src/render/font-resolution.ts",
+        "src/render/text-to-path.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "file": "262-text-engine-session-boundary.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",
@@ -4047,6 +4064,7 @@
         "src/render/linux-target-strike.ts",
         "src/render/real-text-layer.ts",
         "src/render/text-to-path.ts",
+        "src/render/text-engine.ts",
         "src/render/text.ts",
         "tests/feature-coverage.ts"
       ],

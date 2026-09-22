@@ -2190,6 +2190,10 @@
   ],
   "excludedFeatureTransitions": [
     {
+      "featureId": "text.engine-session",
+      "reason": "Renderer ownership and transaction lifecycle, not a CSS/SVG semantic decision."
+    },
+    {
       "featureId": "text.mode",
       "reason": "Process-global renderer lifecycle, not a CSS/SVG semantic decision."
     },

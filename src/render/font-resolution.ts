@@ -1592,6 +1592,40 @@ interface LocalFontAliasVariant {
   baseKey: string;
 }
 const localFontAliasRegistry = new Map<string, LocalFontAliasVariant[]>();
+
+/**
+ * Opaque value snapshot of the caller-supplied font registrations. The text
+ * engine facade uses this to give each engine session its own webfont and
+ * local-alias environment while the resolver is still implemented by this
+ * module. Variants are immutable after registration, so copying the map and
+ * array spines is sufficient; font buffers and parsed font objects are shared.
+ */
+export interface FontRegistrationSnapshot {
+  readonly webfonts: ReadonlyArray<readonly [string, readonly WebfontVariant[]]>;
+  readonly localAliases: ReadonlyArray<readonly [string, readonly LocalFontAliasVariant[]]>;
+}
+
+/** Capture the complete caller-supplied font environment. */
+export function snapshotFontRegistrations(): FontRegistrationSnapshot {
+  return {
+    webfonts: [...webfontRegistry].map(([family, variants]) => [family, [...variants]]),
+    localAliases: [...localFontAliasRegistry].map(([family, variants]) => [family, [...variants]]),
+  };
+}
+
+/** Replace the caller-supplied font environment with a prior snapshot. */
+export function restoreFontRegistrations(snapshot: FontRegistrationSnapshot): void {
+  webfontRegistry.clear();
+  for (const [family, variants] of snapshot.webfonts) webfontRegistry.set(family, [...variants]);
+  localFontAliasRegistry.clear();
+  for (const [family, variants] of snapshot.localAliases) localFontAliasRegistry.set(family, [...variants]);
+}
+
+/** A reusable empty registration environment for a new text-engine session. */
+export function emptyFontRegistrations(): FontRegistrationSnapshot {
+  return { webfonts: [], localAliases: [] };
+}
+
 export function registerLocalFontAlias(
   family: string,
   resolvedKey: string,
