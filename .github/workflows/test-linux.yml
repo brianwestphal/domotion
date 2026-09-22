@@ -228,7 +228,7 @@ jobs:
       - name: Build the fontconfig/FreeType helper
         run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
       - name: Run the armed declared-family seam test
-        run: npx vitest run packages/text-engine/src/render/linux-declared-family-cut.test.ts
+        run: npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/linux-declared-family-cut.test.ts
       - name: Family-match conformance vs Chrome (regression-relative)
         shell: bash
         run: |

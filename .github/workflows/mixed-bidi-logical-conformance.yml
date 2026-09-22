@@ -52,7 +52,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - name: Assert exact paragraph levels and item records
-        run: npx vitest run packages/text-engine/src/render/mixed-bidi-logical.test.ts packages/text-engine/src/render/bidi-override-direction.test.ts
+        run: npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/mixed-bidi-logical.test.ts packages/text-engine/src/render/bidi-override-direction.test.ts
       - name: Record captured origins and exact HarfBuzz glyph streams
         shell: bash
         run: |

@@ -10,15 +10,32 @@ describe("Domotion text-engine integration boundary", () => {
     };
     const enginePackage = JSON.parse(
       readFileSync(new URL("../../packages/text-engine/package.json", import.meta.url), "utf8"),
-    ) as { version: string; private: boolean };
+    ) as { version: string; private: boolean; scripts: Record<string, string> };
     const release = readFileSync(new URL("../../scripts/release.sh", import.meta.url), "utf8");
 
     expect(enginePackage.private).toBe(true);
     expect(enginePackage.version).toBe(rootPackage.version);
     expect(rootPackage.dependencies["@domotion/text-engine"]).toBe(enginePackage.version);
     expect(rootPackage.bundledDependencies).toContain("@domotion/text-engine");
+    expect(enginePackage.scripts.prepare).toBe("npm run build");
     expect(release).toContain("--workspaces --include-workspace-root");
     expect(release).toContain("packages/text-engine/package.json");
+  });
+
+  it("runs moved workspace tests through the workspace Vitest configuration", () => {
+    const workflows = [
+      "system-ui-preference-route.yml",
+      "generic-family-preference-parity.yml",
+      "mixed-bidi-logical-conformance.yml",
+      "generic-family-semantics-audit.yml",
+      "test-linux.yml",
+    ];
+    for (const workflow of workflows) {
+      const source = readFileSync(new URL(`../../.github/workflows/${workflow}`, import.meta.url), "utf8");
+      expect(source).toMatch(
+        /vitest run --config packages\/text-engine\/vitest\.config\.ts packages\/text-engine\/src/,
+      );
+    }
   });
 
   it("keeps document and baseline lifecycle calls behind the workspace facade", () => {

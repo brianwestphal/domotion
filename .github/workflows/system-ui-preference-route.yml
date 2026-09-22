@@ -76,7 +76,9 @@ jobs:
         shell: pwsh
         run: packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Validate exact logical contract and preference invalidation
-        run: npx vitest run packages/text-engine/src/render/font-resolution-cache-reset.test.ts tests/system-ui-preference-route-oracle.test.ts tests/system-ui-preference-route-workflow.test.ts
+        run: |
+          npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/font-resolution-cache-reset.test.ts
+          npx vitest run tests/system-ui-preference-route-oracle.test.ts tests/system-ui-preference-route-workflow.test.ts
       - name: Run explicit hosted pinned/full headed/headless route matrix under Xvfb
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run fonts:system-ui-preferences -- --allow-headed-browser --json system-ui-preference-route-${{ runner.os }}.json

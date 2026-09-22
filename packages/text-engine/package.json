@@ -35,6 +35,7 @@
   "scripts": {
     "clean": "tsc -b tsconfig.build.json --clean",
     "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "npm run build && npm run test:unit && npm run test:transport-performance",
     "test:unit": "vitest run --config vitest.config.ts",
