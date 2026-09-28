@@ -18,8 +18,9 @@ import { startBrowserCoverage, writeBrowserCoverage } from "../test-support/brow
  * instead of silently shipping.
  *
  * The fixture (`bg-conic-checkerboard-{expected.png,.svg}`) is produced
- * by `npm run demos:test`. The test skips cleanly when the fixture isn't
- * present so vitest stays green in a fresh checkout.
+ * by `npm run demos:test`. The test skips cleanly when the fixture or the
+ * built CLI isn't present so vitest stays green in a fresh local checkout;
+ * under CI (`CI=true`) a missing prerequisite fails instead.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -28,8 +29,21 @@ const CLI = resolve(REPO_ROOT, "dist/cli/review.js");
 const EXPECTED = resolve(REPO_ROOT, "tests/output/bg-conic-checkerboard-expected.png");
 const ACTUAL = resolve(REPO_ROOT, "tests/output/bg-conic-checkerboard.svg");
 
-const fixtureReady = existsSync(CLI) && existsSync(EXPECTED) && existsSync(ACTUAL);
+const missingPrerequisites = [CLI, EXPECTED, ACTUAL].filter((path) => !existsSync(path));
+const fixtureReady = missingPrerequisites.length === 0;
 const describeE2E = fixtureReady ? describe : describe.skip;
+
+// In CI a skip here reads as green-by-absence: this suite skipped on every run
+// because the e2e jobs never built dist/. CI now builds dist/ and runs
+// demos:test before the e2e lane, so a missing prerequisite there is a
+// pipeline defect and must fail rather than skip.
+if (process.env["CI"] === "true") {
+  describe("svg-review CLI end-to-end prerequisites (CI)", () => {
+    it("has the built CLI and the demos:test fixture", () => {
+      expect(missingPrerequisites.map((path) => path.slice(REPO_ROOT.length + 1))).toEqual([]);
+    });
+  });
+}
 
 function waitForUrl(child: ChildProcess, timeoutMs = 30_000): Promise<string> {
   const stdout = child.stdout as Readable;

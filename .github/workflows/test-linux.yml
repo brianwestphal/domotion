@@ -162,6 +162,11 @@ jobs:
           --baseline tests/baselines/features-linux.json
           --env tests/output/run-env.json
           --strict --label "linux / features"
+      - name: Build dist/ for dist-spawning e2e tests
+        # Several e2e files spawn the BUILT CLI (e.g. dist/cli/review.js); a
+        # fresh checkout has no dist/, so they skipped here every run.
+        if: always()
+        run: npm run build
       - name: Run browser-driven e2e tests (capture/layout assertions)
         # DM-1977: `if: always()` so a failure in an EARLIER step cannot hide
         # this one. It did, for as long as this suite has existed: the baseline

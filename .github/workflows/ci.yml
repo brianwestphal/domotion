@@ -190,6 +190,12 @@ jobs:
           --baseline tests/baselines/features-macos.json
           --env tests/output/run-env.json
           --strict --label "macos / features"
+      - name: Build dist/ for dist-spawning e2e tests
+        # Several e2e files spawn the BUILT CLI (e.g. dist/cli/review.js), and
+        # a fresh checkout has no dist/, so they skipped here every run. Same
+        # `if: always()` as the e2e step so an earlier failure cannot hide it.
+        if: always()
+        run: npm run build
       - name: Run browser-driven e2e tests (capture/layout assertions)
         # `if: always()` for the reason DM-1977 established on Linux: a failure
         # in an earlier step must not hide this one. There, the e2e suite had
