@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import * as pkg from "./index.js";
+import * as animation from "./animation/index.js";
 import * as postProcessing from "./post-processing/index.js";
+import * as render from "./render/index.js";
+import * as treeOps from "./tree-ops/index.js";
 
 /**
  * DM-1058: guard the published `domotion-svg` value-export surface against
@@ -290,22 +293,109 @@ describe("public barrel export surface (DM-1058)", () => {
     expect(typeof pkg.logCaptureWarnings).toBe("function");
   });
 
-  it("the post-processing subpath export is a strict subset of the root surface", () => {
-    // `domotion-svg/post-processing` is the first curated subpath in the
-    // package's `exports` map. Everything reachable through it must also be a
-    // documented root export, so the subpath narrows the surface and never
-    // widens it.
-    const subpath = Object.keys(postProcessing).sort();
-    expect(subpath).toEqual([
-      "assertNoFillBoxInClipOrMask",
-      "compressEmbeddedFontsToWoff2",
-      "findFillBoxInClipOrMask",
-      "gzipSvg",
-      "hoistDuplicateImagePayloads",
-      "optimizeSvg",
-    ]);
+  // Every curated subpath in the package's `exports` map, with the exact
+  // runtime export set of the barrel it resolves to. Everything reachable
+  // through a subpath must also be a documented root export — and the very
+  // same binding, since the root re-exports the same compiled module — so a
+  // subpath narrows the surface and never widens it. Adding a subpath means
+  // adding its row here, its row in the docs/api.md entry-point table, and its
+  // import in scripts/pack-install-smoke.mjs.
+  const SUBPATHS: ReadonlyArray<readonly [string, Record<string, unknown>, readonly string[]]> = [
+    [
+      "domotion-svg/render",
+      render,
+      [
+        "CHROME_THEMES",
+        "DEVICE_CHROMES",
+        "RENDER_TEXT_MODES",
+        "acquireGlyphHelper",
+        "acquireIcuCompanion",
+        "clearEmbeddedFonts",
+        "clearGlyphDefs",
+        "clearTextEngineFonts",
+        "clearWebfonts",
+        "createCapturedTreeEnvelope",
+        "createTextEngineSession",
+        "elementTreeToSvg",
+        "elementTreeToSvgInner",
+        "getEmbeddedFontFaceCss",
+        "getGlyphDefs",
+        "getRenderTextMode",
+        "isChromeTheme",
+        "isDeviceChrome",
+        "isRenderTextMode",
+        "promoteCapturedSubtree",
+        "registerTextEngineLocalFontAlias",
+        "registerTextEngineWebfont",
+        "registerWebfont",
+        "setRenderTextMode",
+        "withRenderTextMode",
+        "withTextEngineDocument",
+        "wrapInDeviceChrome",
+        "wrapSvg",
+      ],
+    ],
+    [
+      "domotion-svg/animation",
+      animation,
+      [
+        "CARET_BLINK_MS",
+        "CURSOR_CATEGORIES",
+        "CURSOR_GLYPHS",
+        "DEFAULT_SELECTION_COLOR",
+        "EASING_PRESETS",
+        "addressableLength",
+        "alignLineGlyphs",
+        "buildMagicMove",
+        "composeAnimatedLayers",
+        "composeCompressedRun",
+        "cursorAtPoint",
+        "cursorGlyphSvg",
+        "cursorOverlayMarkup",
+        "easingPresetNames",
+        "findAddressedElement",
+        "generateAnimatedSvg",
+        "motionPresetNames",
+        "namespaceEmbeddedAnimatedSvg",
+        "normalizeTransition",
+        "offsetEmbeddedAnimatedSvgTimeline",
+        "resolveCaretPoint",
+        "resolveCursorScript",
+        "resolveEasingPreset",
+        "resolveMotionPreset",
+        "resolveOverlays",
+        "resolveRangeRects",
+        "resolveTextTrack",
+        "textTrackMarkup",
+        "transitionSchema",
+        "transitionTypeSchema",
+      ],
+    ],
+    [
+      "domotion-svg/tree-ops",
+      treeOps,
+      ["annotateAnimatedProperties", "cullElementsOutsideViewBox", "diffTrees", "resizeEmbeddedImages"],
+    ],
+    [
+      "domotion-svg/post-processing",
+      postProcessing,
+      [
+        "assertNoFillBoxInClipOrMask",
+        "compressEmbeddedFontsToWoff2",
+        "findFillBoxInClipOrMask",
+        "gzipSvg",
+        "hoistDuplicateImagePayloads",
+        "optimizeSvg",
+      ],
+    ],
+  ];
+
+  it.each(SUBPATHS)("the %s subpath export is a strict subset of the root surface", (_name, mod, expected) => {
+    const subpath = Object.keys(mod).sort();
+    expect(subpath).toEqual([...expected]);
     for (const name of subpath) {
-      expect((pkg as Record<string, unknown>)[name]).toBe((postProcessing as Record<string, unknown>)[name]);
+      expect(name in pkg).toBe(true);
+      expect((pkg as Record<string, unknown>)[name]).toBe(mod[name]);
     }
   });
 });

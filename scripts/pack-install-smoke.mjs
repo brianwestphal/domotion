@@ -78,6 +78,9 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as root from "domotion-svg";
 import * as post from "domotion-svg/post-processing";
+import * as render from "domotion-svg/render";
+import * as animation from "domotion-svg/animation";
+import * as treeOps from "domotion-svg/tree-ops";
 const require = createRequire(import.meta.url);
 const engineMain = createRequire(require.resolve("domotion-svg")).resolve("@domotion/text-engine");
 let engineRoot = dirname(engineMain);
@@ -89,8 +92,19 @@ const engine = await import(pathToFileURL(engineMain).href);
 const missing = [
   ["domotion-svg", root, ["elementTreeToSvg", "captureElementTree"]],
   ["domotion-svg/post-processing", post, ["optimizeSvg", "compressEmbeddedFontsToWoff2"]],
+  ["domotion-svg/render", render, ["elementTreeToSvg", "setRenderTextMode"]],
+  ["domotion-svg/animation", animation, ["generateAnimatedSvg", "composeAnimatedLayers"]],
+  ["domotion-svg/tree-ops", treeOps, ["cullElementsOutsideViewBox", "diffTrees"]],
 ].flatMap(([name, mod, names]) => names.filter((n) => typeof mod[n] !== "function").map((n) => name + "." + n));
 if (missing.length > 0) throw new Error("missing exports: " + missing.join(", "));
+// A subpath must hand back the root's own binding, not a second module instance.
+const split = [
+  ["domotion-svg/render", render],
+  ["domotion-svg/animation", animation],
+  ["domotion-svg/tree-ops", treeOps],
+  ["domotion-svg/post-processing", post],
+].flatMap(([name, mod]) => Object.keys(mod).filter((n) => mod[n] !== root[n]).map((n) => name + "." + n));
+if (split.length > 0) throw new Error("subpath bindings differ from the root: " + split.join(", "));
 console.log(JSON.stringify({ rootExports: Object.keys(root).length, engineExports: Object.keys(engine).length, engineDeps }));
 `,
   );

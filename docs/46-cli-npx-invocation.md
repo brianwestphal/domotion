@@ -147,7 +147,8 @@ This asserts the bin shim is created, is executable, and reports the correct
 version. `npm run smoke:pack-install` (`scripts/pack-install-smoke.mjs`)
 automates and extends it: after `npm run build` it packs the tarball, installs
 the `.tgz` into an empty project with a clean npm cache, imports `domotion-svg`
-and `domotion-svg/post-processing`, resolves every dependency of the bundled
+and each curated subpath (`/render`, `/animation`, `/tree-ops`,
+`/post-processing`) and checks every subpath binding is the root's own, resolves every dependency of the bundled
 `@domotion/text-engine` workspace from inside the installed copy (e.g.
 `unicode-properties`, which is not a root dependency), checks the installed
 CLI's `--version`, and renders a small text fixture through the installed

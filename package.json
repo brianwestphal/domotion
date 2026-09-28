@@ -27,6 +27,18 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "default": "./dist/render/index.js"
+    },
+    "./animation": {
+      "types": "./dist/animation/index.d.ts",
+      "default": "./dist/animation/index.js"
+    },
+    "./tree-ops": {
+      "types": "./dist/tree-ops/index.d.ts",
+      "default": "./dist/tree-ops/index.js"
+    },
     "./post-processing": {
       "types": "./dist/post-processing/index.d.ts",
       "default": "./dist/post-processing/index.js"

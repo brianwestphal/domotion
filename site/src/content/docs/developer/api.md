@@ -8,6 +8,12 @@ composition, custom overlays — the same primitives are available as a library.
 Everything below is a named export of `domotion-svg` (ESM), the same surface the
 CLI is built on. This page is the canonical reference for that surface.
 
+The same named exports are also grouped by stage under narrower subpaths —
+`domotion-svg/render`, `domotion-svg/animation`, `domotion-svg/tree-ops` and
+`domotion-svg/post-processing`. Each is a strict subset of the root entry and
+resolves to the same module, so mixing root and subpath imports is safe. Other
+`domotion-svg/dist/...` paths are not exported and do not resolve.
+
 The pipeline is always the same three stages: **capture** a live page into a
 serializable element tree, **render** that tree to SVG markup, and (optionally)
 **compose** multiple rendered frames into one animated SVG. Here is the whole
