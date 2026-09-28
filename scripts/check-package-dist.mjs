@@ -60,7 +60,11 @@ export function packageExportsProblems(exportsField, fileExists) {
     if (!(required in exportsField)) problems.push(`exports map is missing the "${required}" entry`);
   }
   const targets = (value) =>
-    typeof value === "string" ? [value] : value != null && typeof value === "object" ? Object.values(value).flatMap(targets) : [];
+    typeof value === "string"
+      ? [value]
+      : value != null && typeof value === "object"
+        ? Object.values(value).flatMap(targets)
+        : [];
   for (const [subpath, value] of Object.entries(exportsField)) {
     for (const target of targets(value)) {
       if (!target.startsWith("./")) {
@@ -92,6 +96,8 @@ if (invokedPath != null && import.meta.url === pathToFileURL(resolve(invokedPath
     );
     process.exitCode = 1;
   } else {
-    process.stdout.write("[check-package-dist] dist/ exactly matches publishable src/ modules and every exports target exists\n");
+    process.stdout.write(
+      "[check-package-dist] dist/ exactly matches publishable src/ modules and every exports target exists\n",
+    );
   }
 }
