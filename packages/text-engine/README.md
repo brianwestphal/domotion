@@ -18,8 +18,10 @@ npm run typecheck --workspace @domotion/text-engine
 npm run conformance --workspace @domotion/text-engine
 ```
 
-The unit suite and isolated helper-transport performance lane are owned and run
-entirely by this workspace. The conformance command deliberately exercises the
+The unit suite and isolated helper-transport lane (`test:transport-performance`,
+which exercises the persistent helper channel and proves the
+`DOMOTION_HELPER_NO_SERVE` switch by counting helper process spawns rather than
+by timing) are owned and run entirely by this workspace. The conformance command deliberately exercises the
 repository's browser/font/decoration integration oracles against the workspace;
 root unit, end-to-end, platform, visual, and grouped Unicode gates remain the
 integration contract for the published Domotion package.
