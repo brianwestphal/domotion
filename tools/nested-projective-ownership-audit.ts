@@ -520,6 +520,29 @@ export function projectiveQuadWithinViewport(
   return true;
 }
 
+/**
+ * Scroll state of the vertical/RTL profile. The stage sits inside a
+ * `writing-mode:vertical-rl; direction:rtl` scroll container. In that writing
+ * mode the scroll origin is the container's bottom-right corner, so the
+ * reachable offsets are negative on both axes. The stage is shifted up and to
+ * the left by exactly this offset (plus `NESTED_PROJECTIVE_SCROLL_INSET`), and
+ * the container is scrolled back by it. The owners therefore land on canvas
+ * ONLY while the scroll offset is in effect: at offset 0 the stage starts at
+ * (-240, -180) and the off-canvas owner guard blocks the rows.
+ *
+ * The offsets are integers because Blink rounds a programmatic scroll offset
+ * whenever fractional scroll offsets are disabled
+ * (`ScrollableArea::ScrollOffsetChanged` rounds via
+ * `ShouldUseIntegerScrollOffset()`, `core/scroll/scrollable_area.cc:626` and
+ * `scrollable_area.h:291`, chromium 7d859f27). A fractional request such as
+ * -263.5 reads back as -263 in Playwright's Chromium at DPR 1 and 2. The
+ * profile's fractional axis comes from the zoom and the sub-pixel translate.
+ */
+export const NESTED_PROJECTIVE_SCROLL_OFFSET = { left: -263, top: -197 } as const;
+
+/** Stage inset (CSS px) from the scrollport's top-left once the scroll offset applies. */
+export const NESTED_PROJECTIVE_SCROLL_INSET = { left: 23, top: 17 } as const;
+
 export function nestedProjectiveAuditFixtureHtml(profile = "horizontal-ltr-static"): string {
   const cases = NESTED_PROJECTIVE_CASES.map((spec, index) => {
     const ids = idsFor(spec.id);
@@ -544,6 +567,17 @@ export function nestedProjectiveAuditFixtureHtml(profile = "horizontal-ltr-stati
       : profile === "same-origin-frame-svg-effects"
         ? "clip-path:inset(0);filter:opacity(.999)"
         : "";
+  const stage = `<main id="stage">${cases}</main>`;
+  // The scroll profile wraps the stage in a vertical-rl/RTL scroll container
+  // (see NESTED_PROJECTIVE_SCROLL_OFFSET). The inner wrapper resets the
+  // writing mode, so the stage keeps its own profile CSS unchanged. The inline
+  // script applies the offset synchronously before `load`, so every consumer
+  // of the fixture (audit, producer, tests) observes the scrolled state.
+  const { left: scrollLeft, top: scrollTop } = NESTED_PROJECTIVE_SCROLL_OFFSET;
+  const stageMarkup =
+    profile === "vertical-rtl-fractional-zoom-scroll"
+      ? `<div id="scroller" style="position:relative;width:${NESTED_PROJECTIVE_VIEWPORT.width}px;height:${NESTED_PROJECTIVE_VIEWPORT.height}px;overflow:hidden;writing-mode:vertical-rl;direction:rtl"><div id="scroll-shift" style="position:absolute;left:${scrollLeft}px;top:${scrollTop}px;padding:${NESTED_PROJECTIVE_SCROLL_INSET.top}px 0 0 ${NESTED_PROJECTIVE_SCROLL_INSET.left}px;writing-mode:horizontal-tb;direction:ltr">${stage}</div></div><script>(function(){var s=document.getElementById("scroller");s.scrollLeft=${scrollLeft};s.scrollTop=${scrollTop};})();</script>`
+      : stage;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     @keyframes np-opacity{from{opacity:1}to{opacity:.8}}
     *{box-sizing:border-box}html,body{margin:0;background:#f5f7fb}body{overflow:hidden}
@@ -555,7 +589,7 @@ export function nestedProjectiveAuditFixtureHtml(profile = "horizontal-ltr-stati
     .plane{position:absolute;left:31px;top:21px;width:88px;height:66px;border:4px solid #14243b;transform-origin:50% 50%}
     .plane-b{left:102px;top:54px;width:58px;height:42px;border-width:3px}
     .sentinel{position:absolute;right:7px;bottom:7px;width:31px;height:25px;border:2px solid #102030}
-  </style></head><body><main id="stage">${cases}</main></body></html>`;
+  </style></head><body>${stageMarkup}</body></html>`;
 }
 
 interface BrowserNodeFact extends Omit<ProjectiveContextFact, "nonAffine"> {
@@ -764,6 +798,47 @@ export interface NestedProjectiveMutationResult {
   killed: boolean;
 }
 
+export interface ScrollOffsetFact {
+  left: number;
+  top: number;
+}
+
+const readScrollOffset = (page: Page): Promise<ScrollOffsetFact | null> =>
+  page.evaluate(() => {
+    const scroller = document.getElementById("scroller");
+    return scroller == null ? null : { left: scroller.scrollLeft, top: scroller.scrollTop };
+  });
+
+/**
+ * Blockers for a profile whose scroll state is not the declared one. The
+ * scroll profile must measure exactly NESTED_PROJECTIVE_SCROLL_OFFSET before
+ * capture and still measure it afterwards; any other profile must have no
+ * scroll container at all.
+ */
+export function nestedProjectiveScrollBlockers(
+  profile: string,
+  before: ScrollOffsetFact | null,
+  after: ScrollOffsetFact | null,
+): string[] {
+  const expected = profile === "vertical-rtl-fractional-zoom-scroll" ? NESTED_PROJECTIVE_SCROLL_OFFSET : null;
+  if (expected == null) {
+    return before == null && after == null ? [] : [`profile ${profile} unexpectedly has a scroll container`];
+  }
+  if (before == null || after == null) return ["scroll profile has no scroll container"];
+  const blockers: string[] = [];
+  if (before.left !== expected.left || before.top !== expected.top) {
+    blockers.push(
+      `scroll offset not in effect: measured (${before.left}, ${before.top}), declared (${expected.left}, ${expected.top})`,
+    );
+  }
+  if (after.left !== before.left || after.top !== before.top) {
+    blockers.push(
+      `capture changed the scroll offset from (${before.left}, ${before.top}) to (${after.left}, ${after.top})`,
+    );
+  }
+  return blockers;
+}
+
 export interface NestedProjectiveAuditReport {
   schemaVersion: 1;
   sourcePins: typeof NESTED_PROJECTIVE_SOURCE_PINS;
@@ -772,6 +847,12 @@ export interface NestedProjectiveAuditReport {
   architecture: string;
   dprs: number[];
   sourceVsSvgChangedFraction: Record<string, number>;
+  /**
+   * Scrollport offset measured per DPR before and after capture, or null for
+   * a profile without a scroll container. Witnesses that the scroll profile's
+   * offset is in effect (not silently 0) and survives capture unchanged.
+   */
+  scrollOffsets: Record<string, { before: ScrollOffsetFact; after: ScrollOffsetFact } | null>;
   rows: NestedProjectiveAuditRow[];
   mutations: NestedProjectiveMutationResult[];
   blockers: string[];
@@ -822,13 +903,15 @@ export async function runNestedProjectiveOwnershipAudit(
   const warnings: string[] = [];
   let restorationExact = true;
   const sourceVsSvgChangedFraction: Record<string, number> = {};
+  const scrollOffsets: NestedProjectiveAuditReport["scrollOffsets"] = {};
+  const profile = options.profile ?? "horizontal-ltr-static";
   const chromiumVersion = browser.version();
   try {
     for (const dpr of dprs) {
       const page = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
       const rendered = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
       try {
-        await page.setContent(nestedProjectiveAuditFixtureHtml(options.profile), { waitUntil: "load" });
+        await page.setContent(nestedProjectiveAuditFixtureHtml(profile), { waitUntil: "load" });
         const sourceDom = await page.evaluate(() =>
           Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => [
             element.dataset.projectiveNode,
@@ -851,6 +934,7 @@ export async function runNestedProjectiveOwnershipAudit(
             ]),
           ]),
         );
+        const scrollBefore = await readScrollOffset(page);
         const sourcePng = await page.screenshot();
         const independent = await gatherBrowserFacts(page);
         blockers.push(...independent.blockers.map((blocker) => `dpr${dpr}:${blocker}`));
@@ -859,6 +943,14 @@ export async function runNestedProjectiveOwnershipAudit(
           y: 0,
           ...NESTED_PROJECTIVE_VIEWPORT,
         });
+        const scrollAfter = await readScrollOffset(page);
+        scrollOffsets[`dpr${dpr}`] =
+          scrollBefore == null || scrollAfter == null ? null : { before: scrollBefore, after: scrollAfter };
+        blockers.push(
+          ...nestedProjectiveScrollBlockers(profile, scrollBefore, scrollAfter).map(
+            (blocker) => `dpr${dpr}: ${blocker}`,
+          ),
+        );
         warnings.push(
           ...captured.warnings
             .filter((warning) => warning.status != null)
@@ -1038,6 +1130,7 @@ export async function runNestedProjectiveOwnershipAudit(
     architecture: process.arch,
     dprs,
     sourceVsSvgChangedFraction,
+    scrollOffsets,
     rows,
     mutations,
     blockers,

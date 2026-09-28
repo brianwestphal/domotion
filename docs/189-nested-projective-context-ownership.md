@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493", "DM-TF7QX8", "DM-9TGDYG"]
+tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493", "DM-TF7QX8", "DM-9TGDYG", "DM-6NS46P"]
 code:
   [
     "tests/nested-projective-ownership-audit.e2e.test.ts",
@@ -203,6 +203,47 @@ partly visible, so their rasters were clipped.
 - The producer fails that row and copies the blocker into its `warnings`.
   The adjudicator therefore names the cause instead of a bare raster-count
   miss.
+
+### The vertical/RTL profile is genuinely scrolled
+
+The profile name and the release-gate claim include scroll, but the fixture
+page originally never scrolled. `body` was `overflow:hidden` and nothing set a
+scroll offset, so the scroll part of the claim was never tested. The profile
+now captures a scrolled state:
+
+- The stage sits inside a `#scroller` scroll container with
+  `writing-mode:vertical-rl; direction:rtl`. Its scroll origin is the
+  bottom-right corner, so the reachable offsets are negative on both axes.
+  An inner wrapper at (-263, -197) holds the stage with a 23 × 17 px inset,
+  so the unscrolled stage starts at (-240, -180). The wrapper resets the
+  writing mode, so
+  the stage's own profile CSS (zoom 0.8, vertical-rl/RTL, sub-pixel
+  translate) is unchanged.
+- An inline script applies `NESTED_PROJECTIVE_SCROLL_OFFSET` = (-263, -197)
+  before `load`. The stage then paints at (23, 17), fully on canvas. The
+  offset is load-bearing: at offset 0 every owner quad is 263 px left and
+  197 px above its scrolled position, and the off-canvas owner guard blocks
+  the rows.
+- The offsets are integers. Blink rounds a programmatic scroll offset when
+  fractional scroll offsets are disabled (`ScrollableArea::ScrollOffsetChanged`
+  → `ShouldUseIntegerScrollOffset()`, `core/scroll/scrollable_area.cc:626`,
+  `scrollable_area.h:291`, chromium `7d859f27`). A requested -263.5 reads back
+  as -263 at DPR 1 and 2. The profile's fractional coverage comes from the
+  zoom and the translate.
+- The audit records `scrollOffsets` per DPR, before and after capture. It
+  blocks the scroll profile when the measured offset differs from the declared
+  one, or when capture changes the offset. It also blocks any other profile
+  that has a scroll container.
+- Measured on macOS: all 200 producer rows pass. With the scroll assignment
+  removed, the audit reports `scroll offset not in effect: measured (0, 0)`
+  and 17 off-canvas owner blockers per DPR. The source-vs-SVG changed fraction
+  is the same as the pre-change unscrolled fixture (0.0547 at DPR 1), so
+  capture under the scrolled ancestor keeps the same fidelity.
+- `tests/nested-projective-ownership-audit.test.ts` pins the fixture shape and
+  the scroll blockers. `tests/nested-projective-ownership-audit.e2e.test.ts`
+  asserts the audit's recorded offsets. It also resets the offset to 0 and
+  requires every content rect to move by exactly the offset, with owners
+  leaving the viewport.
 
 ### Aggregate artifact-integrity contract
 

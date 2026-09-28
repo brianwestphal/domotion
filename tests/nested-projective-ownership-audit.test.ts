@@ -4,10 +4,14 @@ import {
   NESTED_PROJECTIVE_CASES,
   NESTED_PROJECTIVE_FRACTIONAL_ZOOM,
   NESTED_PROJECTIVE_REQUIRED_FAMILIES,
+  NESTED_PROJECTIVE_SCROLL_INSET,
+  NESTED_PROJECTIVE_SCROLL_OFFSET,
   NESTED_PROJECTIVE_SOURCE_PINS,
+  NESTED_PROJECTIVE_VIEWPORT,
   adjudicateProjectiveOwnership,
   emptyGrouping,
   nestedProjectiveAuditFixtureHtml,
+  nestedProjectiveScrollBlockers,
   projectiveGroupingReasons,
   projectiveQuadWithinViewport,
   resolveProjectiveOwnership,
@@ -185,6 +189,53 @@ describe("DM-2356 Blink projective context model", () => {
     const fixture = nestedProjectiveAuditFixtureHtml("vertical-rtl-fractional-zoom-scroll");
     expect(fixture).toContain(`zoom:${NESTED_PROJECTIVE_FRACTIONAL_ZOOM};`);
     expect(fixture).toContain("writing-mode:vertical-rl");
+  });
+
+  it("scrolls only the vertical/RTL profile, by an offset that is load-bearing", () => {
+    // The profile claims to cover scroll, so its stage must sit inside a
+    // vertical-rl/RTL scroll container whose non-zero offset is applied before
+    // `load` (DM-6NS46P: the stage previously never scrolled).
+    const fixture = nestedProjectiveAuditFixtureHtml("vertical-rtl-fractional-zoom-scroll");
+    const { left, top } = NESTED_PROJECTIVE_SCROLL_OFFSET;
+    expect(left).toBeLessThan(0);
+    expect(top).toBeLessThan(0);
+    expect(fixture).toMatch(/id="scroller" style="[^"]*overflow:hidden;writing-mode:vertical-rl;direction:rtl"/);
+    expect(fixture).toContain(`s.scrollLeft=${left};s.scrollTop=${top};`);
+    expect(fixture).toContain(`left:${left}px;top:${top}px;`);
+    // Once scrolled, the zoomed stage fits the viewport with its inset; with
+    // the offset at 0 it would start off canvas, so the offset is load-bearing.
+    const zoomed = {
+      width: NESTED_PROJECTIVE_VIEWPORT.width * NESTED_PROJECTIVE_FRACTIONAL_ZOOM,
+      height: NESTED_PROJECTIVE_VIEWPORT.height * NESTED_PROJECTIVE_FRACTIONAL_ZOOM,
+    };
+    expect(NESTED_PROJECTIVE_SCROLL_INSET.left + zoomed.width + 1).toBeLessThanOrEqual(
+      NESTED_PROJECTIVE_VIEWPORT.width,
+    );
+    expect(NESTED_PROJECTIVE_SCROLL_INSET.top + zoomed.height + 1).toBeLessThanOrEqual(
+      NESTED_PROJECTIVE_VIEWPORT.height,
+    );
+    expect(left + NESTED_PROJECTIVE_SCROLL_INSET.left).toBeLessThan(0);
+    expect(top + NESTED_PROJECTIVE_SCROLL_INSET.top).toBeLessThan(0);
+    for (const profile of ["horizontal-ltr-static", "same-origin-frame-svg-effects", "paused-document-timeline"]) {
+      expect(nestedProjectiveAuditFixtureHtml(profile)).not.toContain("scroller");
+    }
+  });
+
+  it("blocks a scroll profile whose declared offset is not in effect or does not survive capture", () => {
+    const profile = "vertical-rtl-fractional-zoom-scroll";
+    const declared = { ...NESTED_PROJECTIVE_SCROLL_OFFSET };
+    expect(nestedProjectiveScrollBlockers(profile, declared, declared)).toEqual([]);
+    expect(nestedProjectiveScrollBlockers(profile, { left: 0, top: 0 }, { left: 0, top: 0 })).toEqual([
+      `scroll offset not in effect: measured (0, 0), declared (${declared.left}, ${declared.top})`,
+    ]);
+    expect(nestedProjectiveScrollBlockers(profile, declared, { left: 0, top: declared.top })).toEqual([
+      `capture changed the scroll offset from (${declared.left}, ${declared.top}) to (0, ${declared.top})`,
+    ]);
+    expect(nestedProjectiveScrollBlockers(profile, null, null)).toEqual(["scroll profile has no scroll container"]);
+    expect(nestedProjectiveScrollBlockers("horizontal-ltr-static", null, null)).toEqual([]);
+    expect(nestedProjectiveScrollBlockers("horizontal-ltr-static", declared, declared)).toEqual([
+      "profile horizontal-ltr-static unexpectedly has a scroll container",
+    ]);
   });
 
   it("rejects owner quads that leave the capture viewport", () => {
