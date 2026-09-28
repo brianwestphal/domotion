@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   NESTED_PROJECTIVE_CASES,
+  NESTED_PROJECTIVE_FRACTIONAL_ZOOM,
   NESTED_PROJECTIVE_REQUIRED_FAMILIES,
   NESTED_PROJECTIVE_SOURCE_PINS,
   adjudicateProjectiveOwnership,
   emptyGrouping,
   nestedProjectiveAuditFixtureHtml,
   projectiveGroupingReasons,
+  projectiveQuadWithinViewport,
   resolveProjectiveOwnership,
   type ProjectiveContextFact,
   type ProjectiveGroupingFacts,
@@ -172,5 +174,25 @@ describe("DM-2356 Blink projective context model", () => {
       { ...passing, staticTransformApplications: 2 },
     ])
       expect(adjudicateProjectiveOwnership(expected, mutation).pass).toBe(false);
+  });
+
+  it("keeps the vertical/RTL fractional-zoom stage inside the capture viewport", () => {
+    // The stage is exactly the capture viewport, so a zoom above 1 pushes the
+    // fourth column and the last row off canvas, where Chromium paints nothing
+    // and the selected owners rasterize as empty (DM-9TGDYG).
+    expect(NESTED_PROJECTIVE_FRACTIONAL_ZOOM).toBeLessThan(1);
+    expect(Number.isInteger(NESTED_PROJECTIVE_FRACTIONAL_ZOOM)).toBe(false);
+    const fixture = nestedProjectiveAuditFixtureHtml("vertical-rtl-fractional-zoom-scroll");
+    expect(fixture).toContain(`zoom:${NESTED_PROJECTIVE_FRACTIONAL_ZOOM};`);
+    expect(fixture).toContain("writing-mode:vertical-rl");
+  });
+
+  it("rejects owner quads that leave the capture viewport", () => {
+    const viewport = { width: 1000, height: 500 };
+    expect(projectiveQuadWithinViewport([0, 0, 1000, 0, 1000, 500, 0, 500], viewport)).toBe(true);
+    expect(projectiveQuadWithinViewport([990, 10, 1001, 10, 1001, 20, 990, 20], viewport)).toBe(false);
+    expect(projectiveQuadWithinViewport([1036, 30, 1100, 30, 1100, 90, 1036, 90], viewport)).toBe(false);
+    expect(projectiveQuadWithinViewport([10, -0.5, 20, 0, 20, 10, 10, 10], viewport)).toBe(false);
+    expect(projectiveQuadWithinViewport([10, 10, 20, 10, 20, 501, 10, 10], viewport)).toBe(false);
   });
 });

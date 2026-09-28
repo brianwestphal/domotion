@@ -57,8 +57,16 @@ for (const profile of PROJECTIVE_GATE_PROFILES) {
           sourceFrameDeviceRect: { x: 0, y: 0, width, height },
         });
       }
+      // Case-scoped audit blockers (e.g. an expected owner placed outside the
+      // capture viewport) fail the row and travel with it, so the release
+      // adjudicator reports the cause instead of a bare raster-count miss.
+      const caseId = observed?.id.slice(0, observed.id.lastIndexOf("@"));
+      const caseBlockers =
+        caseId == null ? [] : audit.blockers.filter((blocker) => blocker.startsWith(`dpr${dpr}:${caseId}:`));
+      const rowWarnings = [...audit.warnings, ...caseBlockers.map((blocker) => `audit blocker: ${blocker}`)];
       const pass =
         observed != null &&
+        caseBlockers.length === 0 &&
         observed.ownerMinimal &&
         observed.atomicOneApplication &&
         observed.vectorSentinelRetained &&
@@ -78,7 +86,7 @@ for (const profile of PROJECTIVE_GATE_PROFILES) {
         vectorSentinelExact: observed?.vectorSentinelRetained ?? false,
         sentinelBakedIntoRaster: observed?.sentinelBakedIntoRaster ?? false,
         restorationExact: audit.restorationExact,
-        warnings: audit.warnings,
+        warnings: rowWarnings,
         maxFinalPixelDelta: observed == null ? 999 : 4,
         artifacts,
         pass,

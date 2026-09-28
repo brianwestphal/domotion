@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493", "DM-TF7QX8"]
+tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493", "DM-TF7QX8", "DM-9TGDYG"]
 code:
   [
     "tests/nested-projective-ownership-audit.e2e.test.ts",
@@ -13,6 +13,7 @@ code:
     "tools/nested-projective-ownership-audit.ts",
     "tools/parity-program.json",
     "tools/check-projective-owner-release.ts",
+    "tools/projective-owner-release-producer.ts",
     "tools/projective-owner-artifact-integrity.ts",
     "tests/projective-owner-artifact-integrity.test.ts",
   ]
@@ -180,6 +181,28 @@ DM-2492 changes production capture and selection by:
   document-timeline evidence. Schema-v2 reports carry lossless PNG SHA-256,
   crop/frame geometry, restoration and warning integrity, complete Cartesian
   keys, and nine mandatory mutations; the aggregate rejects any missing arm.
+
+### Every audited owner must be on canvas
+
+A row can witness "one direct atomic image per owner" only if Chromium paints
+that owner inside the capture viewport. The fixture stage is exactly the
+capture viewport, so any profile zoom above 1 scales the fourth column and the
+last row past its edge. The vertical/RTL profile originally used `zoom:1.25`.
+That placed the `ordinary` and `independent` planes entirely outside the
+1000 px viewport, so Chromium painted nothing there. The capture correctly
+recorded each isolated owner as `empty`, and the release gate reported
+`rasterCount = 0` on all three platforms. Seven more owners were only
+partly visible, so their rasters were clipped.
+
+- The profile now uses `zoom:0.8` (`NESTED_PROJECTIVE_FRACTIONAL_ZOOM`). That
+  is still a non-integer zoom, so fractional layout snapping is still
+  exercised, and every case stays on canvas.
+- The audit fails closed on this class of fixture error. An expected owner
+  whose Chromium content quad leaves the viewport becomes a case-scoped
+  blocker (`fixture places the expected owner outside the capture viewport`).
+- The producer fails that row and copies the blocker into its `warnings`.
+  The adjudicator therefore names the cause instead of a bare raster-count
+  miss.
 
 ### Aggregate artifact-integrity contract
 

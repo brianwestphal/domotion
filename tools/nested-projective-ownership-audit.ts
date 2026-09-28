@@ -499,6 +499,27 @@ export const NESTED_PROJECTIVE_VIEWPORT = {
   height: Math.ceil(NESTED_PROJECTIVE_CASES.length / 4) * 178,
 } as const;
 
+/** Stage zoom of the vertical/RTL fractional-zoom profile; must keep every case on canvas. */
+export const NESTED_PROJECTIVE_FRACTIONAL_ZOOM = 0.8;
+
+/**
+ * A release-gate row can only witness an owner's atomic raster when Chromium
+ * paints that owner inside the capture viewport. An owner whose paint quad
+ * leaves the viewport is clipped (or, entirely outside, rasterizes as
+ * `empty`), which would read as a producer defect rather than a fixture one.
+ */
+export function projectiveQuadWithinViewport(
+  quad: ProjectivePaintQuad,
+  viewport: { width: number; height: number },
+): boolean {
+  for (let i = 0; i < 8; i += 2) {
+    const x = quad[i];
+    const y = quad[i + 1];
+    if (x < 0 || y < 0 || x > viewport.width || y > viewport.height) return false;
+  }
+  return true;
+}
+
 export function nestedProjectiveAuditFixtureHtml(profile = "horizontal-ltr-static"): string {
   const cases = NESTED_PROJECTIVE_CASES.map((spec, index) => {
     const ids = idsFor(spec.id);
@@ -508,9 +529,18 @@ export function nestedProjectiveAuditFixtureHtml(profile = "horizontal-ltr-stati
       ${spec.markup(ids, planeColorFor(index), sentinelColorFor(index))}
     </section>`;
   }).join("");
+  // The vertical/RTL profile's zoom must stay below 1. The stage is exactly
+  // the capture viewport, so any zoom above 1 scales the right-hand column
+  // and the bottom row past the viewport edge: at the former zoom:1.25 the
+  // fourth column started at 937.5px and the `ordinary` / `independent`
+  // planes lay entirely outside the 1000px viewport. Chromium then paints
+  // nothing there, the capture correctly records the isolated owner as
+  // `empty`, and the release gate saw zero atomic rasters for owners it
+  // could never have observed. 0.8 remains a non-integer (and non-dyadic)
+  // zoom, so fractional LayoutUnit snapping is still exercised.
   const profileCss =
     profile === "vertical-rtl-fractional-zoom-scroll"
-      ? "direction:rtl;writing-mode:vertical-rl;zoom:1.25;transform:translate(.25px,.5px);transform-origin:0 0"
+      ? `direction:rtl;writing-mode:vertical-rl;zoom:${NESTED_PROJECTIVE_FRACTIONAL_ZOOM};transform:translate(.25px,.5px);transform-origin:0 0`
       : profile === "same-origin-frame-svg-effects"
         ? "clip-path:inset(0);filter:opacity(.999)"
         : "";
@@ -899,6 +929,14 @@ export async function runNestedProjectiveOwnershipAudit(
           const facts = independent.facts.filter((fact) => fact.caseId === spec.id);
           const resolved = resolveProjectiveOwnership(facts);
           const expectedOwnerIds = ownerIdsFor(spec);
+          for (const ownerId of expectedOwnerIds) {
+            const quad = facts.find((fact) => fact.id === ownerId)?.quad;
+            if (quad != null && !projectiveQuadWithinViewport(quad, NESTED_PROJECTIVE_VIEWPORT)) {
+              blockers.push(
+                `dpr${dpr}:${spec.id}:${ownerId}: fixture places the expected owner outside the capture viewport, so its atomic raster cannot be observed`,
+              );
+            }
+          }
           const factIds = new Set(facts.map((fact) => fact.id));
           const caseElements = elements.filter((element) => element.animId != null && factIds.has(element.animId));
           const actualOwners = caseElements.filter((element) => element.transformSubtreeRaster != null);
