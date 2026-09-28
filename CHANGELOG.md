@@ -20,14 +20,6 @@ All notable changes to **Domotion** are documented in this file.
 - DM-663W8E keep release output Prettier-clean (`5dd361a`)
 - DM-5P2R1V tolerate fixed-point font axis boundaries (`89dd19e`)
 
-## [0.30.1] - 2026-09-21
-
-**Other Changes**
-
-- DM-VB8TFK parse formatted documentation metadata (`ecdb27f`)
-- DM-663W8E keep release output Prettier-clean (`5dd361a`)
-- DM-5P2R1V tolerate fixed-point font axis boundaries (`89dd19e`)
-
 ## [0.30.0] - 2026-09-21
 
 **Features**

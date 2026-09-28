@@ -57,6 +57,61 @@ describe("insertChangelogEntry", () => {
     expect(insertChangelogEntry(changelog, entry)).toBe(`${changelog.trimEnd()}\n\n${entry}\n`);
   });
 
+  it("replaces an existing section for the same version instead of appending a second copy", () => {
+    const changelog = [
+      "# Changelog",
+      "",
+      "## Unreleased",
+      "",
+      "## [0.30.1] - 2026-09-21",
+      "",
+      "- Old notes.",
+      "",
+      "## [0.30.0] - 2026-09-20",
+      "",
+      "- Previous change.",
+      "",
+    ].join("\n");
+    const entry = "## [0.30.1] - 2026-09-22\n\n- New notes.";
+
+    const once = insertChangelogEntry(changelog, entry);
+    expect(once).toBe(
+      [
+        "# Changelog",
+        "",
+        "## Unreleased",
+        "",
+        "## [0.30.1] - 2026-09-22",
+        "",
+        "- New notes.",
+        "",
+        "## [0.30.0] - 2026-09-20",
+        "",
+        "- Previous change.",
+        "",
+      ].join("\n"),
+    );
+    expect(insertChangelogEntry(once, entry)).toBe(once);
+  });
+
+  it("collapses already-duplicated sections for the entry's version", () => {
+    const section = "## [0.30.1] - 2026-09-21\n\n- Notes.";
+    const changelog = `# Changelog\n\n${section}\n\n${section}\n\n## [0.30.0] - 2026-09-20\n\n- Previous.\n`;
+
+    expect(insertChangelogEntry(changelog, section)).toBe(
+      `# Changelog\n\n${section}\n\n## [0.30.0] - 2026-09-20\n\n- Previous.\n`,
+    );
+  });
+
+  it("does not treat a version that merely shares a prefix as the same release", () => {
+    const changelog = "# Changelog\n\n## [0.30.10] - 2026-10-01\n\n- Later.\n";
+    const entry = "## [0.30.1] - 2026-09-21\n\n- Notes.";
+
+    expect(insertChangelogEntry(changelog, entry)).toBe(
+      `# Changelog\n\n${entry}\n\n## [0.30.10] - 2026-10-01\n\n- Later.\n`,
+    );
+  });
+
   it("rejects an empty release entry", () => {
     expect(() => insertChangelogEntry("# Changelog\n", " \n ")).toThrow("release entry must not be empty");
   });
