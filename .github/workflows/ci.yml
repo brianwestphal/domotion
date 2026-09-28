@@ -91,6 +91,9 @@ jobs:
             echo placeholder > "packages/text-engine/tools/$f"
           done
           npm run check:pack-contents
+      - name: Packed tarball installs, imports and renders in a clean project
+        env: { DOMOTION_SMOKE_PLAYWRIGHT_WITH_DEPS: "1" }
+        run: npm run smoke:pack-install
 
   # `package.json` has defined a `lint` script since the repo was extracted, and
   # until now NOTHING ran it — not this workflow, not release.yml, and not a git

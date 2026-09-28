@@ -6,7 +6,14 @@ status: "current"
 owners: ["product-tooling"]
 platforms: []
 tickets: ["DM-1362", "DM-262", "DM-877", "DM-878"]
-code: [".github/workflows/release.yml", "scripts/check-pack-contents.mjs", "src/capture/index.ts", "src/cli/index.ts"]
+code:
+  [
+    ".github/workflows/release.yml",
+    "scripts/check-pack-contents.mjs",
+    "scripts/pack-install-smoke.mjs",
+    "src/capture/index.ts",
+    "src/cli/index.ts",
+  ]
 aliases: ["docs/46-cli-npx-invocation.md", "doc-46"]
 ---
 
@@ -137,5 +144,17 @@ WORK=$(mktemp -d); (cd "$WORK" && npm init -y >/dev/null \
 ```
 
 This asserts the bin shim is created, is executable, and reports the correct
-version. A CI smoke test that does the same on each target platform is folded
-into the cross-platform CI work (DM-262).
+version. `npm run smoke:pack-install` (`scripts/pack-install-smoke.mjs`)
+automates and extends it: after `npm run build` it packs the tarball, installs
+the `.tgz` into an empty project with a clean npm cache, imports `domotion-svg`
+and `domotion-svg/post-processing`, resolves every dependency of the bundled
+`@domotion/text-engine` workspace from inside the installed copy (e.g.
+`unicode-properties`, which is not a root dependency), checks the installed
+CLI's `--version`, and renders a small text fixture through the installed
+`domotion capture` with the consumer's own Playwright Chromium. Because the
+workspace is private, dropping it from `bundledDependencies` makes the install
+fail with a registry 404, so the bundled-dependency publish path is proven
+before every release: the smoke runs in `release.yml`'s `npm-dry-run`
+preflight (a prerequisite of the publish jobs) and in `ci.yml`'s `build` job,
+on Linux. Per-platform install smoke on macOS/Windows runners is not yet
+wired.

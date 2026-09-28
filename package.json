@@ -55,6 +55,7 @@
     "clean:dist": "node scripts/clean-dist.mjs",
     "check:package-dist": "node scripts/check-package-dist.mjs",
     "check:pack-contents": "node scripts/check-pack-contents.mjs",
+    "smoke:pack-install": "node scripts/pack-install-smoke.mjs",
     "build:text-engine": "npm run build --workspace @domotion/text-engine",
     "build:capture-script": "npm run build:text-engine && node scripts/build-capture-script.mjs",
     "build:review-client": "node scripts/build-review-client.mjs",

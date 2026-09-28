@@ -702,6 +702,7 @@
       "code": [
         ".github/workflows/release.yml",
         "scripts/check-pack-contents.mjs",
+        "scripts/pack-install-smoke.mjs",
         "src/capture/index.ts",
         "src/cli/index.ts"
       ],
