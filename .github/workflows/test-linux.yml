@@ -122,6 +122,11 @@ jobs:
         # The terminal-mask gate now includes a target-size outline arm, so the
         # helper is required before that gate as well as by the routing probe.
         run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
+      - name: Text-engine workspace test lane
+        # The workspace's own lane (build + unit suite + helper transport lane),
+        # run with the Linux helper built so the transport lane is live. Root
+        # `npm test` never runs it; this is its Linux gate.
+        run: npm test --workspace @domotion/text-engine
       - name: Gate embedded-font terminal masks against native Linux text (DM-2623)
         # Native text is reference-only. Every scored candidate is a data-URL
         # font. The gate requires the measured WQY surfaces to improve while

@@ -53,6 +53,15 @@ jobs:
           cp "packages/text-engine/tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
              packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
       - run: npm test
+      # The @domotion/text-engine workspace declares its own lane (build, its
+      # unit suite, and the helper transport lane that counts spawns to prove
+      # DOMOTION_HELPER_NO_SERVE switches transport). Root `npm test` only
+      # builds and typechecks the workspace, so without this step the
+      # "runs independently" claim in packages/text-engine/README.md was never
+      # exercised. Runs after the glyph helper build so the transport lane is
+      # live rather than skipped.
+      - name: Text-engine workspace test lane
+        run: npm test --workspace @domotion/text-engine
       # DM-1459: behavior/feature coverage — flags a documented behavior with no
       # asserting test, or a new export/verb not yet in tests/feature-coverage.ts,
       # even at 100% line coverage. (Also enforced inside `npm test` via
