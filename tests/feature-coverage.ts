@@ -262,10 +262,10 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "render.optimize",
-    behavior: "Optional SVGO optimize pass + gzip (.svgz) output.",
-    doc: "docs/26-self-contained-svgs.md",
+    behavior: "Optional SVGO optimize pass + gzip (.svgz) output + WOFF2 recompression of embedded @font-face subsets.",
+    doc: "docs/api.md",
     exports: ["optimizeSvg", "gzipSvg", "compressEmbeddedFontsToWoff2"],
-    tests: ["src/post-processing/optimize.test.ts"],
+    tests: ["src/post-processing/optimize.test.ts", "src/post-processing/woff2-fonts.test.ts"],
   },
   {
     id: "postprocess.clip-transform-safety",
