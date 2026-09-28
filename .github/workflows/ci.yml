@@ -78,6 +78,19 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npm run build
+      - name: Tarball ships no host-local helper artifacts
+        # A fresh checkout has no acquired ICU companion or built glyph helper,
+        # so seed gitignored placeholders where a developer machine (or a job
+        # that acquires helpers before packing) would have them; the check must
+        # then prove none of them lands in the tarball.
+        run: |
+          for f in icu-helper/domotion-icu icu-helper/icudtl.dat \
+                   macos-glyph-extractor/domotion-glyph-paths \
+                   linux-glyph-extractor/domotion-glyph-paths \
+                   win32-glyph-extractor/domotion-glyph-paths.exe; do
+            echo placeholder > "packages/text-engine/tools/$f"
+          done
+          npm run check:pack-contents
 
   # `package.json` has defined a `lint` script since the repo was extracted, and
   # until now NOTHING ran it — not this workflow, not release.yml, and not a git

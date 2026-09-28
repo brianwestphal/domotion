@@ -6,7 +6,7 @@ status: "current"
 owners: ["product-tooling"]
 platforms: []
 tickets: ["DM-1362", "DM-262", "DM-877", "DM-878"]
-code: [".github/workflows/release.yml", "src/capture/index.ts", "src/cli/index.ts"]
+code: [".github/workflows/release.yml", "scripts/check-pack-contents.mjs", "src/capture/index.ts", "src/cli/index.ts"]
 aliases: ["docs/46-cli-npx-invocation.md", "doc-46"]
 ---
 
@@ -70,6 +70,17 @@ build` removes it before compiling, then checks that every emitted `.js` and
   includes `dist`, so the compiled entry point ships. **`package.json` is
   always included in an npm tarball regardless of `files`**, which the version
   read below relies on.
+- **No host-local helper artifacts in the tarball** — the bundled
+  `@domotion/text-engine` workspace ships `tools/` for the helper _sources_, but
+  built glyph helpers and the acquired ICU companion (`domotion-icu`,
+  `icudtl.dat`) are gitignored per helper directory, and npm-packlist honors a
+  directory's `.gitignore`, so they stay out of the tarball even on a machine
+  that has them. `npm run check:pack-contents`
+  (`scripts/check-pack-contents.mjs`) enforces it: any gitignored file in the
+  `npm pack --dry-run` listing outside `dist/` and
+  `packages/text-engine/dist/` fails. It runs as `prepublishOnly` and in the
+  `ci.yml` build and `release.yml` dry-run jobs, which first seed placeholder
+  helper files so a fresh checkout still exercises the exclusion.
 - **Version reporting** — `domotion --version` and the `--help` banner read the
   version from `package.json` at runtime via
   `createRequire(import.meta.url)("../../package.json")`, resolved relative to

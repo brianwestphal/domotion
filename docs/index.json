@@ -1158,7 +1158,12 @@
         "owners": ["product-tooling"],
         "platforms": [],
         "tickets": ["DM-1362", "DM-262", "DM-877", "DM-878"],
-        "code": [".github/workflows/release.yml", "src/capture/index.ts", "src/cli/index.ts"],
+        "code": [
+          ".github/workflows/release.yml",
+          "scripts/check-pack-contents.mjs",
+          "src/capture/index.ts",
+          "src/cli/index.ts"
+        ],
         "aliases": ["docs/46-cli-npx-invocation.md", "doc-46"]
       }
     },

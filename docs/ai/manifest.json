@@ -699,7 +699,12 @@
       "status": "current",
       "owners": ["product-tooling"],
       "platforms": [],
-      "code": [".github/workflows/release.yml", "src/capture/index.ts", "src/cli/index.ts"],
+      "code": [
+        ".github/workflows/release.yml",
+        "scripts/check-pack-contents.mjs",
+        "src/capture/index.ts",
+        "src/cli/index.ts"
+      ],
       "file": "46-cli-npx-invocation.md"
     },
     {

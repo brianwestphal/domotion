@@ -1,0 +1,9 @@
+# Host-local build / acquisition output. Kept out of git AND out of the npm
+# tarball: npm-packlist honors a directory's .gitignore when no .npmignore is
+# present, so these never ship inside the bundled @domotion/text-engine. The
+# runtime acquires a version-checked companion instead (icu-helper-acquire.ts).
+build/
+domotion-icu
+domotion-icu.exe
+icudtl.dat
+*.dll
