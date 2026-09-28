@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { packageDistProblems } from "../scripts/check-package-dist.mjs";
+import { packageDistProblems, packageExportsProblems } from "../scripts/check-package-dist.mjs";
 
 describe("published dist manifest", () => {
   const sources = [
@@ -39,5 +39,57 @@ describe("published dist manifest", () => {
       "missing dist artifact: capture/current.js",
       "missing dist artifact: index.d.ts",
     ]);
+  });
+});
+
+describe("package exports map", () => {
+  const exportsField = {
+    ".": { types: "./dist/index.d.ts", default: "./dist/index.js" },
+    "./dist/index.js": { types: "./dist/index.d.ts", default: "./dist/index.js" },
+    "./post-processing": { types: "./dist/post-processing/index.d.ts", default: "./dist/post-processing/index.js" },
+    "./schemas/*": "./schemas/*",
+    "./package.json": "./package.json",
+  };
+  const shipped = new Set([
+    "./dist/index.d.ts",
+    "./dist/index.js",
+    "./dist/post-processing/index.d.ts",
+    "./dist/post-processing/index.js",
+    "./schemas",
+    "./package.json",
+  ]);
+  const exists = (target: string): boolean => shipped.has(target);
+
+  it("accepts a map whose every target, including wildcard directories, is shipped", () => {
+    expect(packageExportsProblems(exportsField, exists)).toEqual([]);
+  });
+
+  it("requires the root, the documented dist/index.js alias, and package.json", () => {
+    expect(packageExportsProblems({ "./post-processing": "./dist/post-processing/index.js" }, exists)).toEqual([
+      'exports map is missing the "." entry',
+      'exports map is missing the "./dist/index.js" entry',
+      'exports map is missing the "./package.json" entry',
+    ]);
+  });
+
+  it("rejects targets that are not shipped or not relative", () => {
+    expect(
+      packageExportsProblems(
+        {
+          ...exportsField,
+          "./render": { types: "./dist/render/index.d.ts", default: "dist/render/index.js" },
+          "./assets/*": "./assets/*",
+        },
+        exists,
+      ),
+    ).toEqual([
+      'exports["./render"] target ./dist/render/index.d.ts does not exist',
+      'exports["./render"] target dist/render/index.js must be a relative "./" path',
+      'exports["./assets/*"] target ./assets/* does not exist',
+    ]);
+  });
+
+  it("rejects a manifest without an exports map", () => {
+    expect(packageExportsProblems(undefined, exists)).toEqual(["package.json has no exports map"]);
   });
 });

@@ -18,6 +18,22 @@
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./dist/index.js": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./post-processing": {
+      "types": "./dist/post-processing/index.d.ts",
+      "default": "./dist/post-processing/index.js"
+    },
+    "./schemas/*": "./schemas/*",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "domotion": "dist/cli/index.js",
     "svg-to-video": "dist/cli/svg-to-video.js",

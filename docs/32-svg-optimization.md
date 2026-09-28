@@ -77,6 +77,8 @@ The `animate` subcommand follows the same rules. The JSON config's `"optimize": 
 
 ```ts
 import { optimizeSvg, gzipSvg } from "domotion-svg";
+// or, when only post-processing an existing SVG:
+// import { optimizeSvg, gzipSvg } from "domotion-svg/post-processing";
 
 const svg = elementTreeToSvg(tree, w, h);
 const small = optimizeSvg(svg); // string → string

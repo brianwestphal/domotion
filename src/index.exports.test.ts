@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as pkg from "./index.js";
+import * as postProcessing from "./post-processing/index.js";
 
 /**
  * DM-1058: guard the published `domotion-svg` value-export surface against
@@ -287,5 +288,24 @@ describe("public barrel export surface (DM-1058)", () => {
     expect(typeof pkg.captureElementTree).toBe("function");
     expect(typeof pkg.getLastCaptureWarnings).toBe("function");
     expect(typeof pkg.logCaptureWarnings).toBe("function");
+  });
+
+  it("the post-processing subpath export is a strict subset of the root surface", () => {
+    // `domotion-svg/post-processing` is the first curated subpath in the
+    // package's `exports` map. Everything reachable through it must also be a
+    // documented root export, so the subpath narrows the surface and never
+    // widens it.
+    const subpath = Object.keys(postProcessing).sort();
+    expect(subpath).toEqual([
+      "assertNoFillBoxInClipOrMask",
+      "compressEmbeddedFontsToWoff2",
+      "findFillBoxInClipOrMask",
+      "gzipSvg",
+      "hoistDuplicateImagePayloads",
+      "optimizeSvg",
+    ]);
+    for (const name of subpath) {
+      expect((pkg as Record<string, unknown>)[name]).toBe((postProcessing as Record<string, unknown>)[name]);
+    }
   });
 });

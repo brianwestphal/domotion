@@ -4,6 +4,10 @@ All notable changes to **Domotion** are documented in this file.
 
 ## Unreleased
 
+**Changed**
+
+- `package.json` now declares an `exports` map. The supported entry points are `domotion-svg`, its documented alias `domotion-svg/dist/index.js`, the new `domotion-svg/post-processing` subpath (the optimize, gzip, WOFF2, image-hoist and clip-safety passes only), `domotion-svg/schemas/*`, and `domotion-svg/package.json`. Deep `domotion-svg/dist/<module>` imports were never part of the public API and now fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`; import the same symbols from the package root instead.
+
 **Removed**
 
 - Removed the authenticated paged-capture API and CLI mode, including its separately built Chromium helper and release workflow. Ordinary viewport and animated-scroll SVG capture are unchanged.

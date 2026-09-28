@@ -291,9 +291,13 @@ The enum constants and type guards behind the `--chrome` flags are in
 
 ### Optimize & export
 
-Optional post-processing passes that run after rendering.
+Optional post-processing passes that run after rendering. They are named
+exports of `domotion-svg` and also of the narrower `domotion-svg/post-processing`
+subpath, for scripts that only post-process an existing SVG.
 
 ```ts
+import { optimizeSvg, gzipSvg } from "domotion-svg/post-processing";
+
 function optimizeSvg(svg: string): string;
 function gzipSvg(svg: string): Buffer;
 ```

@@ -4,13 +4,32 @@ This document is the contract: every export listed below is part of the
 `domotion-svg` npm package's public surface. Anything not listed is internal
 and may change without a version bump.
 
-The package's main entry is `dist/index.js`. Consumers should import from
-`"domotion-svg"` (or `"domotion-svg/dist/index.js"`) — not from
-`"domotion-svg/dist/<some-subpath>"`.
+The package's main entry is `dist/index.js`. Consumers import from
+`"domotion-svg"` (or its documented alias `"domotion-svg/dist/index.js"`).
+`package.json` carries an `exports` map, so Node and TypeScript (`NodeNext` /
+`bundler` resolution) refuse any other `dist/` path with
+`ERR_PACKAGE_PATH_NOT_EXPORTED` — deep imports such as
+`"domotion-svg/dist/render/text.js"` were never supported and no longer resolve.
+
+## Entry points
+
+| Specifier                      | Resolves to                     | Surface                                                                                           |
+| ------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `domotion-svg`                 | `dist/index.js`                 | Everything documented in this file.                                                               |
+| `domotion-svg/dist/index.js`   | `dist/index.js`                 | Alias of the root, kept because earlier docs recommended it.                                      |
+| `domotion-svg/post-processing` | `dist/post-processing/index.js` | The [Post-processing](#post-processing) passes only — a strict subset of the root surface.        |
+| `domotion-svg/schemas/<file>`  | `schemas/<file>`                | The committed JSON Schemas for the `animate`, `composite`, `storyboard`, and Studio config files. |
+| `domotion-svg/package.json`    | `package.json`                  | Manifest, for tooling that reads the installed version.                                           |
+
+Subpaths are added one barrel at a time and only when the barrel's export set
+is already fully documented here, so a subpath never widens the public surface.
+`scripts/check-package-dist.mjs` (the last `npm run build` step) fails the build
+when an `exports` target does not exist in the shipped tree, and
+`src/index.exports.test.ts` pins each subpath's export set to the root's.
 
 Per-feature barrels under `src/{capture,render,animation,scroll,tree-ops,post-processing}/index.ts`
-each define their own curated surface; `packages/text-engine/src/index.ts` aggregates and is the
-file you actually consume.
+each define their own curated surface; `src/index.ts` aggregates them into the
+root entry you actually consume.
 
 DM-622 (May 2026) rewrote this surface as a breaking change (0.1.1 → 0.2.0).
 The cull was ~14 internal helpers; this list is what remains.
@@ -187,8 +206,11 @@ when you're driving the pipeline manually instead of through `DemoRecorder`.
 
 ## Post-processing
 
-Optional passes that run after `elementTreeToSvg`. Both are pure string-in /
-string-out.
+Optional passes that run after `elementTreeToSvg`. All are pure string-in /
+string-out (`compressEmbeddedFontsToWoff2` is async, `gzipSvg` returns a
+`Buffer`). They are also reachable through the narrower
+`"domotion-svg/post-processing"` subpath for callers that only post-process an
+existing SVG and do not want the capture and animation surface in scope.
 
 | Export                         | Kind     | Description                                                                                                                                                                                                                                                                                                                           |
 | ------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
