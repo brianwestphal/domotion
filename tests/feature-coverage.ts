@@ -265,7 +265,11 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Optional SVGO optimize pass + gzip (.svgz) output + WOFF2 recompression of embedded @font-face subsets.",
     doc: "docs/api.md",
     exports: ["optimizeSvg", "gzipSvg", "compressEmbeddedFontsToWoff2"],
-    tests: ["src/post-processing/optimize.test.ts", "src/post-processing/woff2-fonts.test.ts"],
+    tests: [
+      "src/post-processing/optimize.test.ts",
+      "src/post-processing/woff2-fonts.test.ts",
+      "tests/cli-optimize-woff2.e2e.test.ts",
+    ],
   },
   {
     id: "postprocess.clip-transform-safety",
