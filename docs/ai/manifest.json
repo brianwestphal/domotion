@@ -2939,7 +2939,10 @@
         "tests/nested-projective-ownership-audit.e2e.test.ts",
         "tests/nested-projective-ownership-audit.test.ts",
         "tools/nested-projective-ownership-audit.ts",
-        "tools/parity-program.json"
+        "tools/parity-program.json",
+        "tools/check-projective-owner-release.ts",
+        "tools/projective-owner-artifact-integrity.ts",
+        "tests/projective-owner-artifact-integrity.test.ts"
       ],
       "file": "189-nested-projective-context-ownership.md"
     },

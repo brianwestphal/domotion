@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { release } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { NESTED_PROJECTIVE_VIEWPORT, runNestedProjectiveOwnershipAudit } from "./nested-projective-ownership-audit.js";
 import {
@@ -47,7 +47,9 @@ for (const profile of PROJECTIVE_GATE_PROFILES) {
         const height = NESTED_PROJECTIVE_VIEWPORT.height * dpr;
         artifacts.push({
           role,
-          path: relative(dirname(out), path),
+          // Report-relative paths are a portable contract read by the Linux adjudicator, so
+          // Windows collectors must not leak backslash separators into the report.
+          path: relative(dirname(out), path).split(sep).join("/"),
           sha256: createHash("sha256").update(bytes).digest("hex"),
           pngWidth: width,
           pngHeight: height,

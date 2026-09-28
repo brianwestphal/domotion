@@ -5,13 +5,16 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493"]
+tickets: ["DM-2356", "DM-2359", "DM-2492", "DM-2493", "DM-TF7QX8"]
 code:
   [
     "tests/nested-projective-ownership-audit.e2e.test.ts",
     "tests/nested-projective-ownership-audit.test.ts",
     "tools/nested-projective-ownership-audit.ts",
     "tools/parity-program.json",
+    "tools/check-projective-owner-release.ts",
+    "tools/projective-owner-artifact-integrity.ts",
+    "tests/projective-owner-artifact-integrity.test.ts",
   ]
 aliases: ["docs/189-nested-projective-context-ownership.md", "doc-189"]
 ---
@@ -177,3 +180,24 @@ DM-2492 changes production capture and selection by:
   document-timeline evidence. Schema-v2 reports carry lossless PNG SHA-256,
   crop/frame geometry, restoration and warning integrity, complete Cartesian
   keys, and nine mandatory mutations; the aggregate rejects any missing arm.
+
+### Aggregate artifact-integrity contract
+
+The adjudicator (`npm run transform:projective-owner-release -- --reports <dir>`,
+`tools/check-projective-owner-release.ts`) runs once on Linux over the
+downloaded tree `projective-owner-{macOS,Linux,Windows}/`, each holding its own
+`report.json` and `artifacts/<fingerprint>/<profile>/*.png`. Every artifact path
+is resolved against its own report's directory by
+`tools/projective-owner-artifact-integrity.ts`, which then checks PNG decoding,
+SHA-256 and dimensions.
+
+- Artifact paths are **portable report-relative paths**. The producer writes
+  them with `/`, and the adjudicator accepts both `/` and `\` and resolves them
+  segment by segment. A Windows collector once wrote `artifacts\<fingerprint>\…`,
+  and POSIX `path.resolve` read the whole string as one filename. That made all
+  400 Windows artifacts "unreadable" in the three-platform tree, and the
+  resulting 400 integrity blockers buried the real producer blockers.
+- Absolute paths (POSIX root, drive letter, UNC) and any `..` segment are
+  reported as `artifact escapes report root`.
+- `tests/projective-owner-artifact-integrity.test.ts` pins this with a synthetic
+  three-collector tree whose Windows report uses backslash paths.
