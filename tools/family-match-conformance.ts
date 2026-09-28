@@ -39,8 +39,16 @@ import * as fontkit from "fontkit";
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 const FONT_DIRS = ["/System/Library/Fonts", "/Library/Fonts"];
 
-const SHIPPED = resolve("tools", "macos-glyph-extractor", "domotion-glyph-paths");
-const DEBUG = resolve("tools", "macos-glyph-extractor", ".build", "debug", "DomotionGlyphPaths");
+const SHIPPED = resolve("packages", "text-engine", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
+const DEBUG = resolve(
+  "packages",
+  "text-engine",
+  "tools",
+  "macos-glyph-extractor",
+  ".build",
+  "debug",
+  "DomotionGlyphPaths",
+);
 
 interface Miss {
   family: string;

@@ -20,8 +20,8 @@ import { resolve } from "node:path";
 // resolves, so this runs for anyone who has built the helper rather than only
 // for whoever last ran `swift build`. The debug build is the fallback so the
 // test is usable mid-iteration.
-const SHIPPED = resolve(__dirname, "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
-const DEBUG = resolve(__dirname, "..", "tools", "macos-glyph-extractor", ".build", "debug", "DomotionGlyphPaths");
+const SHIPPED = resolve(__dirname, "..", "packages", "text-engine", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
+const DEBUG = resolve(__dirname, "..", "packages", "text-engine", "tools", "macos-glyph-extractor", ".build", "debug", "DomotionGlyphPaths");
 const BIN = existsSync(SHIPPED) ? SHIPPED : DEBUG;
 const available = process.platform === "darwin" && existsSync(BIN);
 const describeMac = available ? describe : describe.skip;

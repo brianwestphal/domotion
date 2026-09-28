@@ -71,7 +71,8 @@ const BASELINE = resolve("tests", "baselines", "family-match-windows.json");
 /** Fingerprint fields across which comparison is invalid (env-keyed baselines). */
 const ENV_KEYS = FAMILY_MATCH_ENV_KEYS.win32;
 const HELPER =
-  process.env.DOMOTION_HELPER_PATH ?? resolve("tools", "win32-glyph-extractor", "domotion-glyph-paths.exe");
+  process.env.DOMOTION_HELPER_PATH ??
+  resolve("packages", "text-engine", "tools", "win32-glyph-extractor", "domotion-glyph-paths.exe");
 const FONT_DIR = join(process.env.WINDIR ?? "C:\\Windows", "Fonts");
 
 interface OurAnswer {

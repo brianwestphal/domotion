@@ -15,6 +15,8 @@ interface Digest {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const local = path.join(
   ROOT,
+  "packages",
+  "text-engine",
   "tools",
   "icu-helper",
   process.platform === "win32" ? "domotion-icu.exe" : "domotion-icu",

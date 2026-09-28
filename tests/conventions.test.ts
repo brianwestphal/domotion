@@ -237,6 +237,46 @@ describe("project conventions", () => {
     expect(offenders).toEqual([]);
   });
 
+  // DM-084XNQ: the native helpers moved to `packages/text-engine/tools/` with
+  // the workspace extraction, but four root files kept resolving the old
+  // `tools/<helper>/` location. Nothing failed loudly: two tests skipped
+  // forever on CI (and one ran against a stale pre-extraction binary on a dev
+  // Mac), and the Linux family-match job reported "helper not built".
+  it("resolves native helpers under packages/text-engine/tools, never the pre-extraction root tools/ (DM-084XNQ)", () => {
+    const HELPER = "(?:macos|linux|win32)-glyph-extractor|icu-helper";
+    // path.resolve(…, "tools", "<helper>", …) segments and "tools/<helper>…" literals.
+    const segment = new RegExp(`(["'])tools\\1\\s*,\\s*["'](?:${HELPER})["']`, "g");
+    const literal = new RegExp(`["'\`](?:\\./)?tools/(?:${HELPER})\\b`, "g");
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      if (!existsSync(dir)) return;
+      for (const name of readdirSync(dir)) {
+        const p = resolve(dir, name);
+        if (statSync(p).isDirectory()) {
+          if (name === "node_modules" || name === "scratch" || name === "output" || name === "cache") continue;
+          walk(p);
+          continue;
+        }
+        if (/\.(ts|tsx|mts|mjs|js|cjs)$/.test(name) && !/\.generated\.ts$/.test(name)) files.push(p);
+      }
+    };
+    for (const r of ["src", "tests", "tools", "scripts", "examples"]) walk(resolve(ROOT, r));
+    const offenders: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      for (const m of [...text.matchAll(segment), ...text.matchAll(literal)]) {
+        const before = text.slice(Math.max(0, m.index - 40), m.index);
+        if (m[0].startsWith('"') || m[0].startsWith("'")) {
+          if (/["']text-engine["']\s*,\s*$/.test(before)) continue;
+        }
+        const line = text.slice(0, m.index).split("\n").length;
+        offenders.push(`${file.slice(ROOT.length + 1)}:${line}: ${m[0]}`);
+      }
+    }
+    expect(files.length).toBeGreaterThan(500);
+    expect(offenders).toEqual([]);
+  });
+
   it("never imports the shell-string `exec` / `execSync` from child_process (DM-1332 — argv forms only)", () => {
     const offenders: string[] = [];
     const re = /import\s*\{([^}]*)\}\s*from\s*['"](?:node:)?child_process['"]/g;

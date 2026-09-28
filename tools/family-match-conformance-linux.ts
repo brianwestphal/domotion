@@ -69,7 +69,7 @@ const WEIGHTS = [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900] as 
 const BASELINE = resolve("tests", "baselines", "family-match-linux.json");
 /** Fingerprint fields across which comparison is invalid (env-keyed baselines). */
 const ENV_KEYS = FAMILY_MATCH_ENV_KEYS.linux;
-const HELPER = process.env.DOMOTION_HELPER_PATH ?? resolve("tools", "linux-glyph-extractor", "domotion-glyph-paths");
+const HELPER = process.env.DOMOTION_HELPER_PATH ?? resolve("packages", "text-engine", "tools", "linux-glyph-extractor", "domotion-glyph-paths");
 
 interface OurAnswer {
   found: boolean;
